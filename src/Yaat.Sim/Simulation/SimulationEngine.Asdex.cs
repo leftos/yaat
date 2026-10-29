@@ -725,7 +725,8 @@ public sealed partial class SimulationEngine
                     [.. dto.RunwayIds],
                     [.. dto.Callsigns],
                     [.. dto.MessageLines],
-                    dto.PlayAuralAlert
+                    dto.PlayAuralAlert,
+                    dto.GoAround
                 );
             }
 

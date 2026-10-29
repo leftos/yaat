@@ -200,11 +200,16 @@ public sealed class AsdexSafetyAlertDto
     // The ASDE-X facility the alert stands at. Empty in snapshots before V36, which SnapshotSchemaMigrator fills in.
     public string FacilityId { get; set; } = "";
     public required string Id { get; init; }
-    public required AsdexAlertKind Kind { get; init; }
+
+    // Serialized by number. Settable so SnapshotSchemaMigrator can rewrite a retired kind.
+    public required AsdexAlertKind Kind { get; set; }
     public required List<string> RunwayIds { get; init; }
     public required List<string> Callsigns { get; init; }
     public required List<string> MessageLines { get; init; }
     public required bool PlayAuralAlert { get; init; }
+
+    // True on a closed-runway alert raised for an arrival (aural ends with GO AROUND). Absent before V41, which reads false.
+    public bool GoAround { get; init; }
 }
 
 /// <summary>Snapshot of one coasting <c>AircraftDisconnectCoast</c>: the last position and velocity the removed track

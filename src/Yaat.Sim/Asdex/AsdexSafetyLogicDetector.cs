@@ -1,4 +1,6 @@
 using Yaat.Sim;
+using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Asdex;
 
@@ -6,21 +8,22 @@ namespace Yaat.Sim.Asdex;
 /// The kind of ASDE-X Safety Logic alert, per the CRC ASDE-X manual ("Safety Logic"). Only
 /// the conditions that are derivable from the data YAAT actually has are modelled:
 /// converging-runway alerts are intentionally absent (they require a runway-pair convergence
-/// relationship that is not present in any reachable vNAS data).
+/// relationship that is not present in any reachable vNAS data). Snapshots store the kind by number, so each member
+/// keeps its value; 2 is unused (<c>SnapshotSchemaMigrator</c> rewrites a stored 2 to <see cref="OccupiedRunway"/>).
 /// </summary>
 public enum AsdexAlertKind
 {
     /// <summary>An aircraft landing or departing on a closed runway.</summary>
-    ClosedRunway,
+    ClosedRunway = 0,
 
-    /// <summary>An aircraft landing/departing on a runway already occupied by another aircraft.</summary>
-    OccupiedRunway,
-
-    /// <summary>An aircraft taxiing onto a runway with an active arrival or departure.</summary>
-    TaxiOntoActiveRunway,
+    /// <summary>
+    /// An aircraft landing/departing on a runway another aircraft is on, whether that aircraft is also using the runway
+    /// or crossing it: vNAS raises no separate alert for an aircraft taxiing onto an active runway.
+    /// </summary>
+    OccupiedRunway = 1,
 
     /// <summary>An aircraft landing on a taxiway rather than a runway.</summary>
-    TaxiwayLanding,
+    TaxiwayLanding = 3,
 }
 
 /// <summary>One active runway in the ASDE-X safety-logic configuration: its identifier (e.g.
@@ -34,15 +37,82 @@ public sealed record AsdexRunwaySurface(string Id, IReadOnlyList<LatLon> Area, b
 /// taxiway-landing detection (the ground layout carries centerlines, not area polygons).</summary>
 public sealed record AsdexTaxiwaySegment(string Name, LatLon Start, LatLon End);
 
-/// <summary>A single emitted Safety Logic alert.</summary>
+/// <summary>
+/// A single emitted Safety Logic alert. <paramref name="GoAround"/> is true only on a closed-runway alert raised for an
+/// arrival: its text reads "RWY CLOSED, GO AROUND" and its aural sequence ends with the go-around token.
+/// </summary>
 public sealed record AsdexSafetyAlert(
     string Id,
     AsdexAlertKind Kind,
     IReadOnlyList<string> RunwayIds,
     IReadOnlyList<string> Callsigns,
     IReadOnlyList<string> MessageLines,
-    bool PlayAuralAlert
+    bool PlayAuralAlert,
+    bool GoAround
 );
+
+/// <summary>What an aircraft on a runway is doing there, from its current phase; the order is the alert ranking.</summary>
+public enum AsdexRunwayUserRole
+{
+    /// <summary>
+    /// Approaching, landing or rolling out (final approach, landing, runway exit, touch-and-go, stop-and-go, low
+    /// approach), or going around: a go-around stays a runway user until it is past the threshold.
+    /// </summary>
+    Arrival = 0,
+
+    /// <summary>Lining up, lined up and waiting, on the takeoff roll (or rejecting it) or in the initial climb.</summary>
+    Departure = 1,
+
+    /// <summary>
+    /// Any other aircraft: taxiing, crossing, back-taxiing, holding short on the runway after landing (an occupant), or
+    /// with no phase.
+    /// </summary>
+    Other = 2,
+}
+
+/// <summary>
+/// The one ranking of the aircraft in an ASDE-X alert. The detector uses it to order an alert's callsigns (and so its
+/// second line) at detect time; the server reads that stored order, never re-ranking, to find the runway end for the
+/// first line and aural name, so line 1's end and line 2's first aircraft belong to the same aircraft.
+/// </summary>
+public static class AsdexRunwayUsers
+{
+    /// <summary>The aircraft's role on the runway, from its current phase.</summary>
+    public static AsdexRunwayUserRole Role(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase switch
+        {
+            FinalApproachPhase
+            or LandingPhase
+            or RunwayExitPhase
+            or TouchAndGoPhase
+            or StopAndGoPhase
+            or LowApproachPhase
+            or GoAroundPhase
+            or HelicopterApproachPhase
+            or HelicopterLandingPhase => AsdexRunwayUserRole.Arrival,
+            LineUpPhase or LinedUpAndWaitingPhase or TakeoffPhase or RejectedTakeoffPhase or InitialClimbPhase or HelicopterTakeoffPhase =>
+                AsdexRunwayUserRole.Departure,
+            _ => AsdexRunwayUserRole.Other,
+        };
+
+    /// <summary>
+    /// Ranks aircraft for an alert: arrivals, then departures, then the rest; within a role the faster over the ground,
+    /// then the ordinal-first callsign, so the order never depends on the aircraft list's.
+    /// </summary>
+    public static readonly Comparer<AircraftState> First = Comparer<AircraftState>.Create(
+        (a, b) =>
+        {
+            int role = Role(a).CompareTo(Role(b));
+            if (role != 0)
+            {
+                return role;
+            }
+
+            int speed = b.GroundSpeed.CompareTo(a.GroundSpeed);
+            return (speed != 0) ? speed : StringComparer.Ordinal.Compare(a.Callsign, b.Callsign);
+        }
+    );
+}
 
 /// <summary>
 /// Stateless per-tick classifier for ASDE-X Safety Logic alerts. Mirrors CRC's simplified
@@ -74,6 +144,21 @@ public static class AsdexSafetyLogicDetector
     /// <summary>Half-width (nm) within which a landing aircraft counts as over a taxiway (~28 m).</summary>
     private const double TaxiwayLandingHalfWidthNm = 0.015;
 
+    /// <summary>The third line of an occupied-runway alert, as vNAS writes it.</summary>
+    public const string OccupiedRunwayText = "RWY OCCUPIED";
+
+    /// <summary>The third line of a closed-runway alert for any aircraft but an arrival, as vNAS writes it.</summary>
+    public const string ClosedRunwayText = "RWY CLOSED";
+
+    /// <summary>The third line of a closed-runway alert for an arrival (by role), as vNAS writes it; its aural ends with GO AROUND.</summary>
+    public const string ClosedRunwayGoAroundText = "RWY CLOSED, GO AROUND";
+
+    /// <summary>The prefix vNAS writes before the runway on an alert's first line ("RWY 28L").</summary>
+    public const string RunwayLinePrefix = "RWY ";
+
+    /// <summary>The separator between the aircraft on an alert's second line ("UAL4065, DAL345").</summary>
+    public const string CallsignSeparator = ", ";
+
     /// <summary>The alerts the runways and taxiways raise this tick from the aircraft not individually inhibited.</summary>
     /// <param name="runways">The facility's runway footprints.</param>
     /// <param name="taxiways">The taxiway centerline segments checked for taxiway landings.</param>
@@ -81,8 +166,8 @@ public static class AsdexSafetyLogicDetector
     /// <param name="fieldElevationFt">The facility's field elevation, the reference for arrival AGL.</param>
     /// <param name="closedRunwayAlertsOnly">
     /// True when the facility is on the LIMITED runway configuration ("limited", none, or an id that names none of its
-    /// configurations): only closed-runway alerts are raised, and occupied-runway, taxi-onto and taxiway-landing alerts
-    /// are suppressed. False under any named configuration: every alert kind is raised on every runway, the
+    /// configurations): only closed-runway alerts are raised, and occupied-runway and taxiway-landing alerts are
+    /// suppressed. False under any named configuration: every alert kind is raised on every runway, the
     /// configuration's arrival and departure runway lists playing no part.
     /// </param>
     public static IReadOnlyList<AsdexSafetyAlert> Detect(
@@ -99,10 +184,7 @@ public static class AsdexSafetyLogicDetector
 
         foreach (AsdexRunwaySurface runway in runways)
         {
-            if (RunwayAlert(runway, candidates, closedRunwayAlertsOnly) is { } alert)
-            {
-                alerts.Add(alert);
-            }
+            alerts.AddRange(RunwayAlerts(runway, candidates, closedRunwayAlertsOnly));
         }
 
         if (!closedRunwayAlertsOnly)
@@ -114,48 +196,70 @@ public static class AsdexSafetyLogicDetector
     }
 
     /// <summary>
-    /// The one alert a runway raises this tick, or null: a closed-runway alert for any aircraft using a closed runway,
-    /// else (unless only closed-runway alerts are raised) a taxi-onto or occupied-runway alert when an aircraft claims
-    /// the runway and a second aircraft is also on it.
+    /// The alerts a runway raises this tick: on a closed runway, one closed-runway alert per aircraft using it; on an
+    /// open one (unless only closed-runway alerts are raised), one occupied-runway alert per conflicting pair, a pair
+    /// being an aircraft that claims the runway and any other aircraft on it, aligned or crossing.
     /// </summary>
-    private static AsdexSafetyAlert? RunwayAlert(AsdexRunwaySurface runway, IReadOnlyList<AircraftState> candidates, bool closedRunwayAlertsOnly)
+    private static IEnumerable<AsdexSafetyAlert> RunwayAlerts(
+        AsdexRunwaySurface runway,
+        IReadOnlyList<AircraftState> candidates,
+        bool closedRunwayAlertsOnly
+    )
     {
         if (!runway.IsClosed && closedRunwayAlertsOnly)
         {
-            return null;
+            return [];
         }
 
         var occupants = candidates.Where(ac => PointInPolygon(ac.Position, runway.Area)).ToList();
-        if (occupants.Count == 0)
-        {
-            return null;
-        }
 
         // A "claimant" is an aircraft aligned with the runway that is actively using it: on
         // the surface at any speed (rolling, or lined up and waiting) or arriving at low AGL.
         // Ground speed does NOT gate this — a stationary lined-up departure still claims the
-        // runway, which is exactly the LUAW-incursion case Safety Logic must catch.
-        var claimants = occupants.Where(ac => ClaimsRunway(ac, runway)).ToList();
+        // runway, which is exactly the LUAW-incursion case Safety Logic must catch. Ranked
+        // by role (AsdexRunwayUsers.First), so a pair's first aircraft is the one using the runway.
+        var claimants = occupants.Where(ac => ClaimsRunway(ac, runway)).OrderBy(ac => ac, AsdexRunwayUsers.First).ToList();
 
-        // Condition 1 — closed runway. Any aircraft using a closed runway is an incursion.
         if (runway.IsClosed)
         {
-            return claimants.Count > 0 ? BuildAlert(AsdexAlertKind.ClosedRunway, runway, claimants, "CLOSED RWY") : null;
+            return claimants.Select(ac => ClosedRunwayAlert(runway, ac));
         }
 
-        // No alert without an active arrival/departure claiming the runway and a distinct
-        // second aircraft also on it.
-        if ((claimants.Count == 0) || (occupants.Count < 2))
+        return OccupiedRunwayAlerts(runway, claimants, occupants);
+    }
+
+    /// <summary>
+    /// One occupied-runway alert per pair of a claimant and another aircraft on the runway, each pair once: a pair of two
+    /// claimants is raised from the higher-ranked one, which comes first.
+    /// </summary>
+    private static List<AsdexSafetyAlert> OccupiedRunwayAlerts(
+        AsdexRunwaySurface runway,
+        IReadOnlyList<AircraftState> rankedClaimants,
+        IReadOnlyList<AircraftState> occupants
+    )
+    {
+        var alerts = new List<AsdexSafetyAlert>();
+        for (int i = 0; i < rankedClaimants.Count; i++)
         {
-            return null;
+            AircraftState user = rankedClaimants[i];
+            // The user itself and every higher-ranked claimant (whose pairs were raised already) are skipped.
+            IEnumerable<AircraftState> others = occupants
+                .Where(ac => !rankedClaimants.Take(i + 1).Contains(ac))
+                .OrderBy(ac => ac.Callsign, StringComparer.Ordinal);
+            foreach (AircraftState other in others)
+            {
+                alerts.Add(BuildAlert(AsdexAlertKind.OccupiedRunway, runway, [user, other], OccupiedRunwayText, goAround: false));
+            }
         }
 
-        // The other aircraft sharing the runway: a non-aligned aircraft on the surface is a
-        // taxi-onto incursion; otherwise the conflict is between arrivals/departures
-        // occupying the same runway.
-        return occupants.Any(ac => ac.IsOnGround && !IsAligned(ac, runway))
-            ? BuildAlert(AsdexAlertKind.TaxiOntoActiveRunway, runway, occupants, "RWY INCURSION")
-            : BuildAlert(AsdexAlertKind.OccupiedRunway, runway, occupants, "OCCUPIED RWY");
+        return alerts;
+    }
+
+    /// <summary>The closed-runway alert for one aircraft using a closed runway: an arrival (by role) is told to go around.</summary>
+    private static AsdexSafetyAlert ClosedRunwayAlert(AsdexRunwaySurface runway, AircraftState user)
+    {
+        bool goAround = AsdexRunwayUsers.Role(user) == AsdexRunwayUserRole.Arrival;
+        return BuildAlert(AsdexAlertKind.ClosedRunway, runway, [user], goAround ? ClosedRunwayGoAroundText : ClosedRunwayText, goAround);
     }
 
     private static void AppendTaxiwayLandings(
@@ -191,7 +295,8 @@ public static class AsdexSafetyLogicDetector
                         RunwayIds: [],
                         Callsigns: [ac.Callsign],
                         MessageLines: [taxiway.Name, ac.Callsign, "TAXIWAY LANDING"],
-                        PlayAuralAlert: true
+                        PlayAuralAlert: true,
+                        GoAround: false
                     )
                 );
             }
@@ -202,20 +307,23 @@ public static class AsdexSafetyLogicDetector
         AsdexAlertKind kind,
         AsdexRunwaySurface runway,
         IReadOnlyList<AircraftState> involved,
-        string description
+        string description,
+        bool goAround
     )
     {
-        // Stable id is order-independent so a pair (A,B) collapses to the same alert as (B,A)
-        // across ticks; the broadcaster diffs by id, so clearing needs no explicit logic.
-        var callsigns = involved.Select(ac => ac.Callsign).OrderBy(c => c, StringComparer.Ordinal).ToList();
-        string id = $"{kind}|{runway.Id}|{string.Join(",", callsigns)}";
+        // The id names the aircraft in ordinal order, so a pair keeps one id however its ranking moves from tick to tick
+        // (a speed crossover, a touchdown): the broadcaster diffs by id, and vNAS sends an alert once. The callsigns and
+        // the second line keep the ranked order the alert was raised in; a standing alert is never rewritten.
+        var callsigns = involved.Select(ac => ac.Callsign).ToList();
+        string id = $"{kind}|{runway.Id}|{string.Join(",", callsigns.Order(StringComparer.Ordinal))}";
         return new AsdexSafetyAlert(
             Id: id,
             Kind: kind,
             RunwayIds: [runway.Id],
             Callsigns: callsigns,
-            MessageLines: [runway.Id, string.Join(" ", callsigns), description],
-            PlayAuralAlert: true
+            MessageLines: [RunwayLinePrefix + runway.Id, string.Join(CallsignSeparator, callsigns), description],
+            PlayAuralAlert: true,
+            GoAround: goAround
         );
     }
 
