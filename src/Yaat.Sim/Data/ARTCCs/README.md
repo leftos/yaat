@@ -524,6 +524,20 @@ At layout build (before the gate-group connectors and the fillet pass) the stand
 
 An entry that fails a check is skipped with a warning at load: a blank stand or taxiway, a `point` that is not two numbers, or a second entry for the same stand in one file (the last entry wins; across files the last file wins). An entry whose stand names no parking stand on the layout or several, finds no vertex of its taxiway within 0.15 nm, or joins the taxiway at a node on the stand warns at layout build and keeps the nearest-edge connector. Editing this section stales the airport's layout and push-target cache entries, while any other sidecar edit stales the push-target entry alone. Worked example: [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
 
+### `asdexLandingTaxiways`
+
+The taxiways the ASDE-X safety logic raises its TAXIWAY LANDING alert on, for an airport where only some taxiways are configured for it. Absent, every taxiway of the airport's layout alerts. An empty list raises no taxiway-landing alert at all. YAAT ships no list.
+
+```json
+"asdexLandingTaxiways": ["A", "B"]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `asdexLandingTaxiways` | string[] | No | Taxiway names as the layout spells them, matched case-insensitively. Absent = any taxiway alerts; `[]` = none |
+
+A blank entry is skipped with the warning `<file>: asdexLandingTaxiways[i] missing name, skipping`. Two sidecars for one airport union their lists (a file without the key adds nothing, and an airport whose every file omits it keeps any-taxiway alerting). The list is read when the alerts are evaluated; it is not recorded or snapshotted, so a replay across an edit of it can differ.
+
 ---
 
 ## Procedures

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
@@ -13,6 +14,8 @@ namespace Yaat.Sim.Data;
 public sealed class AirportSidecarCatalog
 {
     public static AirportSidecarCatalog Empty { get; } = new([]);
+
+    private static readonly ILogger Log = SimLog.CreateLogger("AirportSidecarCatalog");
 
     private static readonly IReadOnlySet<string> EmptyTaxiwaySet = new HashSet<string>();
 
@@ -36,6 +39,9 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, Dictionary<string, StandDeparture>> _standDeparturesByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<StandDepartureArea>> _standDepartureAreasByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<StandLeadIn>> _standLeadInsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HashSet<string>> _asdexLandingTaxiwaysByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _emptyAsdexLandingTaxiwaysByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _listedAsdexLandingTaxiwaysByAirport = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly IReadOnlyDictionary<string, StandDeparture> NoStandDepartures = new Dictionary<string, StandDeparture>();
 
@@ -66,7 +72,76 @@ public sealed class AirportSidecarCatalog
             MergeStandDepartures(key, airport.StandDepartureOverrides);
             MergeStandDepartureAreas(key, airport.StandDepartureAreas);
             MergeStandLeadIns(key, airport.StandLeadIns);
+            MergeAsdexLandingTaxiways(key, airport);
         }
+    }
+
+    /// <summary>
+    /// The airport sidecars' <c>asdexLandingTaxiways</c>. A file with no list is not a declaration, so an airport whose every file
+    /// leaves it out keeps any-taxiway alerting. A file's list unions into the airport's set — de-duplicating across an airport's
+    /// files — but an empty list is a declaration that nothing alerts, which cannot stand beside another file's list: the list
+    /// wins, and the clash is logged with both file names.
+    /// </summary>
+    private void MergeAsdexLandingTaxiways(string key, AirportSidecar airport)
+    {
+        if (airport.AsdexLandingTaxiways is not { } declared)
+        {
+            return;
+        }
+
+        if (!_asdexLandingTaxiwaysByAirport.TryGetValue(key, out HashSet<string>? set))
+        {
+            set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _asdexLandingTaxiwaysByAirport[key] = set;
+        }
+
+        if (declared.Count == 0)
+        {
+            if (set.Count > 0)
+            {
+                LogEmptyDeclarationOverridden(airport.AirportId, airport.SourceFile, _listedAsdexLandingTaxiwaysByAirport.GetValueOrDefault(key));
+                return;
+            }
+
+            _emptyAsdexLandingTaxiwaysByAirport.TryAdd(key, airport.SourceFile);
+            return;
+        }
+
+        set.UnionWith(declared);
+        _listedAsdexLandingTaxiwaysByAirport.TryAdd(key, airport.SourceFile);
+        if (_emptyAsdexLandingTaxiwaysByAirport.Remove(key, out string? emptyFile) && !SameFile(emptyFile, airport.SourceFile))
+        {
+            LogEmptyDeclarationOverridden(airport.AirportId, emptyFile, airport.SourceFile);
+        }
+    }
+
+    private static bool SameFile(string? first, string? second) => string.Equals(first, second, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Logs one file's empty <c>asdexLandingTaxiways</c> losing to another file's list for the same airport.</summary>
+    private static void LogEmptyDeclarationOverridden(string airportId, string? emptyFile, string? listedFile) =>
+        Log.LogWarning(
+            "{AirportId}: {EmptyFile} declares an empty asdexLandingTaxiways list while {ListedFile} lists taxiways for the same "
+                + "airport; the list stands and the empty declaration is ignored",
+            airportId,
+            emptyFile ?? "(unknown file)",
+            listedFile ?? "(unknown file)"
+        );
+
+    /// <summary>
+    /// Taxiway names the airport's sidecar limits the ASDE-X taxiway-landing alert to, as the layout spells them, matched
+    /// case-insensitively. Null when no sidecar declares the list (any taxiway alerts); an empty set when a file declares an empty
+    /// list and no other file lists taxiways (no taxiway-landing alert). Another file's list overrides an empty declaration, with a
+    /// logged warning. Read by <see cref="Yaat.Sim.Simulation.SimulationEngine.TickAsdexAlerts"/> through
+    /// <see cref="Yaat.Sim.Asdex.AsdexConfiguredTaxiways"/>.
+    /// </summary>
+    public IReadOnlySet<string>? GetAsdexLandingTaxiways(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return null;
+        }
+
+        return _asdexLandingTaxiwaysByAirport.TryGetValue(NavigationDatabase.NormalizeAirport(airportId), out HashSet<string>? set) ? set : null;
     }
 
     private void MergeStandLeadIns(string key, IReadOnlyList<StandLeadIn> leadIns)

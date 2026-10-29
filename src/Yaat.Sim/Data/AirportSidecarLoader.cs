@@ -114,6 +114,7 @@ public static class AirportSidecarLoader
         result.Airports.Add(
             new AirportSidecar(airportId)
             {
+                SourceFile = filePath,
                 AvoidTaxiways = ParseAvoidTaxiways(file, filePath, result),
                 TaxiRoutes = ParseTaxiRoutes(file, filePath, airportId, result),
                 ImplicitConnectors = ParseImplicitConnectors(file, filePath, result),
@@ -131,8 +132,36 @@ public static class AirportSidecarLoader
                 StandDepartureOverrides = ParseStandDepartures(file, filePath, result),
                 StandDepartureAreas = ParseStandDepartureAreas(file, filePath, result),
                 StandLeadIns = ParseStandLeadIns(file, filePath, result),
+                AsdexLandingTaxiways = ParseAsdexLandingTaxiways(file.AsdexLandingTaxiways, filePath, result),
             }
         );
+    }
+
+    /// <summary>
+    /// The <c>asdexLandingTaxiways</c> list: trimmed, upper-cased, de-duplicated taxiway names. An absent list (null) stays null,
+    /// which means any taxiway alerts; an empty list stays an empty set, which means no taxiway-landing alert. A blank name is
+    /// warned and skipped.
+    /// </summary>
+    private static HashSet<string>? ParseAsdexLandingTaxiways(List<string>? names, string filePath, AirportSidecarLoadResult result)
+    {
+        if (names is null)
+        {
+            return null;
+        }
+
+        var taxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < names.Count; i++)
+        {
+            if (string.IsNullOrWhiteSpace(names[i]))
+            {
+                result.Warnings.Add($"{filePath}: asdexLandingTaxiways[{i}] missing name, skipping");
+                continue;
+            }
+
+            taxiways.Add(names[i].Trim().ToUpperInvariant());
+        }
+
+        return taxiways;
     }
 
     /// <summary>

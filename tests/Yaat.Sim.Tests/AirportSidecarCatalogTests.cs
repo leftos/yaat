@@ -123,6 +123,61 @@ public class AirportSidecarCatalogTests
         Assert.Empty(AirportSidecarCatalog.Empty.GetOneWayConstraints("KOAK"));
     }
 
+    /// <summary>
+    /// The ASDE-X landing-taxiway list: null when no sidecar declares it (any taxiway alerts), an empty set when one declares
+    /// none, and case-insensitive membership either way, by ICAO and FAA alike.
+    /// </summary>
+    [Fact]
+    public void GetAsdexLandingTaxiways_NullWhenAbsent_EmptyStaysEmpty_CaseInsensitiveMembership()
+    {
+        var catalog = new AirportSidecarCatalog([
+            new AirportSidecar("KOAK") { AsdexLandingTaxiways = new HashSet<string>(["A"], StringComparer.OrdinalIgnoreCase) },
+            new AirportSidecar("KSFO") { AsdexLandingTaxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase) },
+        ]);
+
+        IReadOnlySet<string>? oak = catalog.GetAsdexLandingTaxiways("OAK");
+        Assert.NotNull(oak);
+        Assert.Contains("a", oak);
+
+        IReadOnlySet<string>? sfo = catalog.GetAsdexLandingTaxiways("SFO");
+        Assert.NotNull(sfo);
+        Assert.Empty(sfo);
+
+        Assert.Null(catalog.GetAsdexLandingTaxiways("KLAX"));
+        Assert.Null(catalog.GetAsdexLandingTaxiways(""));
+        Assert.Null(AirportSidecarCatalog.Empty.GetAsdexLandingTaxiways("KOAK"));
+    }
+
+    /// <summary>Two sidecars for one airport union their ASDE-X landing taxiways, the rule every other name set here follows.</summary>
+    [Fact]
+    public void GetAsdexLandingTaxiways_TwoFilesForOneAirport_UnionThem()
+    {
+        var catalog = new AirportSidecarCatalog([
+            new AirportSidecar("KOAK") { AsdexLandingTaxiways = new HashSet<string>(["A"], StringComparer.OrdinalIgnoreCase) },
+            new AirportSidecar("OAK") { AsdexLandingTaxiways = new HashSet<string>(["B"], StringComparer.OrdinalIgnoreCase) },
+        ]);
+
+        IReadOnlySet<string>? taxiways = catalog.GetAsdexLandingTaxiways("KOAK");
+        Assert.NotNull(taxiways);
+        Assert.Equal(2, taxiways.Count);
+        Assert.Contains("A", taxiways);
+        Assert.Contains("B", taxiways);
+    }
+
+    /// <summary>
+    /// The catalog keeps its own case-insensitive set, so a file's list matches the layout's spelling whatever case it was authored
+    /// in, even when it is handed a case-sensitive set.
+    /// </summary>
+    [Fact]
+    public void GetAsdexLandingTaxiways_KeepsACaseInsensitiveSet()
+    {
+        var catalog = new AirportSidecarCatalog([new AirportSidecar("KOAK") { AsdexLandingTaxiways = new HashSet<string>(["A"]) }]);
+
+        IReadOnlySet<string>? taxiways = catalog.GetAsdexLandingTaxiways("OAK");
+        Assert.NotNull(taxiways);
+        Assert.Contains("a", taxiways);
+    }
+
     /// <summary>Stand-departure area rules from several files for one airport concatenate in load order, by ICAO and FAA alike.</summary>
     [Fact]
     public void GetStandDepartureAreas_ConcatenatesFilesInLoadOrder()

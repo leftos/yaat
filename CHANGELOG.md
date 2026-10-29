@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- An ARTCC's airport file can list the taxiways that raise CRC's ASDE-X taxiway-landing alert; an airport without a list alerts on any taxiway.
+
 ### Fixed
 
 - A speed given in the same transmission as an approach clearance, `CVIA` or `DVIA` is kept, wherever it sits in the transmission and across a rewind.
