@@ -81,8 +81,8 @@ public interface IStateChangeConsumer
     /// facility, called once per facility that moved. The diff rather than the whole set, because CRC's alert topic is
     /// additive with an explicit delete: the new alerts go out as <c>ReceiveAsdexAlerts</c> and the cleared ids as
     /// <c>DeleteAsdexAlerts</c>, on <paramref name="facilityId"/>'s alert topic only. Never called with both sides empty.
-    /// Same suppression rule as <see cref="OnStripsChanged"/> — a reconstruction stays silent. Nothing re-sends the
-    /// standing set when it lands: a display learns it from its next initial-data build and from later diffs.
+    /// Same suppression rule as <see cref="OnStripsChanged"/> — a reconstruction stays silent; the room's resync re-sends
+    /// the standing set, and deletes every id the rebuilt state lacks, when the reconstruction lands.
     /// </summary>
     void OnAsdexAlertsChanged(string facilityId, IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds);
 

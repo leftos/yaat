@@ -5,6 +5,7 @@
 ### Fixed
 
 - At an ASDE-X airport on LIMITED safety logic, RPO occupied-runway warnings and solo line-up scoring apply again, as on any non-ASDE-X airport.
+- CRC's ASDE-X display no longer keeps closed runways or safety-logic alerts after a rewind, a scenario restart or an unload.
 
 ## v0.17.1-beta [2026/10/29]
 
