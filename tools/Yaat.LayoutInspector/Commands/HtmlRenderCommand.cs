@@ -108,6 +108,12 @@ public sealed class HtmlRenderCommand : ICommand
         }
 
         string html = htmlRenderer.Render();
+        string? outputDir = Path.GetDirectoryName(Path.GetFullPath(htmlOutput));
+        if (outputDir is not null)
+        {
+            Directory.CreateDirectory(outputDir);
+        }
+
         File.WriteAllText(htmlOutput, html);
         Console.Error.WriteLine($"Wrote interactive HTML to {htmlOutput}");
         return 0;
