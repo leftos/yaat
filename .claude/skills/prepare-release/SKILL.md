@@ -499,11 +499,11 @@ Needs the release commit and tag from Phase 5.
 
 ### 6.1 Ask how to push
 
-Pushing causes no downtime — the room-occupancy check and the deploy decision come *after* the ~20-minute CI image build (step 7.4), when they're actually current. Use `AskUserQuestion` (single-select), ordered by the 2.7 verdict. Every release is created as a hidden draft that something in this flow must publish (Phase 7, "Drafts and the announcement").
+Pushing causes no downtime — the room check, the wait for empty rooms and the deploy come *after* the ~20-minute CI image build (step 7.4), when they're actually current. Use `AskUserQuestion` (single-select), ordered by the 2.7 verdict. Every release is created as a hidden draft that something in this flow must publish (Phase 7, "Drafts and the announcement").
 
 **If 2.7 was CLIENT_ONLY** — lead with skipping the deploy:
 - **Push only — skip server deploy (Recommended)** — no shared-library, server, or web-UI (vStrips/vTDLS) changes this cycle, so the running server already matches the release. Pushing ships the new client via `release.yml`; step 7.1 watches the release runs and step 7.3 publishes the draft when they are green.
-- **Push, then build image + decide deploy after** — force a redeploy anyway (e.g. to pull a new AIRAC cycle); continues through steps 7.2, 7.4 and 7.5.
+- **Push, then build image + deploy after** — force a redeploy anyway (e.g. to pull a new AIRAC cycle); continues through steps 7.2, 7.4 and 7.5.
 - **Abort** — stop here; the user resumes manually.
 
 **If 2.7 was SERVER_AFFECTING** — the release changes what the server runs:
@@ -636,22 +636,20 @@ gh release view v{version} --repo leftos/yaat --json assets --jq '.assets[].name
 A missing one means its run has not uploaded yet: back to 7.1. With all three listed, publish:
 `gh release edit v{version} --repo leftos/yaat --draft=false`
 
-Steps 7.4 to 7.6 are the image-build/deploy path: they run only when 6.1 forced a redeploy (7.2 is then already building). Otherwise go on to Phase 8.
+Steps 7.4 to 7.6 are the image-build/deploy path: they run only when 6.1 chose an image build (7.2 is then already building). Otherwise go on to Phase 8.
 
-### 7.4 Check rooms, then ask whether to deploy (waits on 7.2's success)
+### 7.4 Wait for the installers, then for empty rooms (waits on 7.2's success)
 
-Only now is the occupancy check meaningful — the deploy that follows takes just the container-recreate downtime (~2 minutes). Run `pwsh deploy-to-droplet.ps1 -StatusOnly` and report the result: the active room count, and for each room its id, members, scenario, and aircraft count — or "no active rooms".
+The deploy takes just the container-recreate downtime (~2 minutes) and publishes the draft release. It is never asked about: once 6.1 chose an image build, the flow is fixed. Wait for every 7.1 run to be complete, then for the rooms to clear, then deploy (7.5).
 
-The script reads `ADMIN_PASSWORD` from yaat `.env` itself — **do not read the secret yourself**. If the query fails (server unreachable, password unset — exit code 2), say so and continue to the prompt, treating occupancy as unknown/possibly-occupied.
+1. Run `pwsh deploy-to-droplet.ps1 -StatusOnly` and report the result: the active room count, and for each room its id, members, scenario and aircraft count, or "no active rooms". The script reads `ADMIN_PASSWORD` from yaat `.env` itself — **do not read the secret yourself**. If the query fails (server unreachable, password unset — exit code 2), say so and treat occupancy as unknown.
+2. Once 7.1 is complete, run `pwsh deploy-to-droplet.ps1 -WaitForEmptyRooms` **in the background**, chained with step 7.5's deploy command so the deploy starts the moment it exits cleanly. It polls `GET /admin/status` every 60 s and blocks until the server reports zero rooms, printing the active rooms each check. The deploy still calls `prepare-restart` as a safety net for any room that appears between "cleared" and "deployed".
 
-Surface the room status in the same message as the deploy question, then use `AskUserQuestion` (single-select), leading with "deploy now" when the server is empty and "wait for rooms to clear" when it isn't:
-- **Deploy now** — ~2 minutes of downtime; active sessions are checkpointed and restored.
-- **Wait for rooms to clear, then deploy** — run `pwsh deploy-to-droplet.ps1 -WaitForEmptyRooms` **in the background** (it polls `GET /admin/status` every 60s and blocks until the server reports zero rooms, printing the active rooms each check; backgrounding keeps the agent responsive — you're re-invoked when it exits). When it exits cleanly, continue to step 7.5. *(The deploy still calls `prepare-restart` as a safety net for any room that appears between "cleared" and "deployed".)*
-- **Skip the deploy** — leave the live server on the previous build. **Warn explicitly** (SERVER_AFFECTING): the GitHub Release stays a hidden draft until a deploy publishes it or it's published manually.
+Only a user who asks to skip the deploy changes this: then **warn explicitly** (SERVER_AFFECTING) that the GitHub Release stays a hidden draft until a deploy publishes it or it is published manually.
 
 ### 7.5 Deploy (waits on 7.4 and on 7.1 being complete)
 
-The deploy publishes the draft release, so a still-running or failed `Release (macOS)` at this point ships a release without a macOS installer; if a watch is still pending, wait for it (rooms cleared in step 7.4 stay cleared for the extra minutes, and the deploy's `prepare-restart` covers any that appear). Run it through the gate wrapper:
+The deploy publishes the draft release, so a still-running or failed `Release (macOS)` at this point ships a release without a macOS installer; 7.4 therefore starts the room wait only once every watch is complete, and the deploy's `prepare-restart` covers any room that appears after the wait. Run it through the gate wrapper:
 
 ```bash
 pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot none -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
