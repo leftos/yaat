@@ -10,7 +10,6 @@
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
 - [ ] YAAT-1476 ASDE-X alert parity with vNAS (feat/asdex-safety-logic) · release vNext
-  - [/] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM · release vNext
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext
   - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext
   - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext
@@ -33,11 +32,7 @@
 
 ## Bug reports and feature requests
 
-- [/] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts · release vNext
-- [/] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway · release vNext
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call · release vNext
-- [/] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared · release vNext
-- [/] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore · release vNext
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed · release vNext
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
@@ -498,7 +493,7 @@
 
 ## Replay, snapshots and recordings
 
-### 1 Defects (0/24 done)
+### 1 Defects (1/25 done)
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
 - [ ] YAAT-62 Snapshot the full GroundNavigator per-tick state; add a mid-route round trip
 - [ ] YAAT-78 Blend or re-anchor the navigator's first sub-tick after a mid-arc restore
@@ -517,12 +512,12 @@
 - [ ] YAAT-655 Replay a fallback line-up rollout exactly across a second restore
 - [ ] YAAT-730 Give bundle pseudonyms a shape real initials cannot take
 - [ ] YAAT-731 Scrub the bug-report bundle's remaining raw text channels
-- [/] YAAT-747 Keep the tape's starting weather across rewind, restart and recording load · release vNext
 - [ ] YAAT-795 Refuse recording manifest wind-grid hashes that are not 64 lowercase hex
 - [ ] YAAT-842 Close the replay and hub-contract gaps found in YAAT-828's review
 - [ ] YAAT-894 Validate a recording's strip rack keys when it is imported
 - [ ] YAAT-929 Migrate aircraft snapshots on the synthetic-spawn and recorded-action paths
 - [ ] YAAT-1404 Fill ApproachClearance.TransitionName when loading a pre-37 snapshot mid-approach
+- [ ] YAAT-1499 Stop an export's replay engine from silently dropping a starting weather that fails to load
 
 ### 2 Refinements and rulings (0/2 done)
 - [ ] YAAT-79 Triage replay warnings in sfo-gc-arrival-goarounds: fidelity gap or noise
@@ -666,7 +661,7 @@
 
 ## Traffic pattern and airborne FOLLOW
 
-### 1 Defects (0/22 done)
+### 1 Defects (0/25 done)
 - [ ] YAAT-138 FOLLOW brief B leftovers: downwind return entry, S-turn call, re-clearance
 - [ ] YAAT-139 FOLLOW brief E leftovers: COPT at install, spacing, split VfrFollowPhase
 - [ ] YAAT-142 Clear the follow in GoAroundHelper.Trigger
@@ -689,6 +684,9 @@
 - [ ] YAAT-1488 Refresh the pattern waypoints when CM/DM changes the pattern altitude (stale Waypoints.PatternAltitude)
 - [ ] YAAT-1493 Keep the standing pattern altitude when MLT/MRT names the runway already flown
 - [ ] YAAT-1494 Keep the standing pattern altitude when MLT/MRT names the runway already flown
+- [ ] YAAT-1495 Reconcile the queued teardrop when the pattern-size command refreshes the pattern waypoints
+- [ ] YAAT-1500 Fly a CM/DM given during a FOLLOW on every join and turn-out circuit, not only the base join
+- [ ] YAAT-1501 Carry an armed pattern runway and its deferred altitude into a FOLLOW's pursuit list
 
 ### 2 Refinements and rulings (0/9 done)
 - [ ] YAAT-140 Warn when a FOLLOW re-sequence from a pattern leg voids the landing clearance
@@ -774,7 +772,7 @@
 
 ## Solo training: simulated controllers and call-ups
 
-### 1 Defects (0/12 done)
+### 1 Defects (1/13 done)
 - [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm
@@ -782,14 +780,13 @@
 - [ ] YAAT-1190 Departure never calls ground after a delivery-only student's clearance (GND+DEL case done)
 - [ ] YAAT-512 Pilot calls raised at command dispatch never reach a solo student's radio
 - [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport
-- [/] YAAT-1095 Count solo Say answers on the frequency load meter · release vNext
 - [ ] YAAT-1096 Voice typed SAY answers in solo mode
 - [ ] YAAT-1225 Solo: CT 3O and bare CT do not reach the simulated tower
 - [ ] YAAT-1226 Solo Safety warns a ground student about two simulated-tower arrivals
 - [ ] YAAT-1492 Voice every solo SAY answer, typed or deferred (typed ones are flushed unspoken)
+- [ ] YAAT-1496 Count the controller's instruction in a contact read-back's load band; route CT, FCA and pattern-size read-backs whenever someone answers
 
-### 2 Refinements and rulings (0/11 done)
-- [/] YAAT-1147 Judge frequency load by dead-air ratio, not transmission count · release vNext
+### 2 Refinements and rulings (1/11 done)
 - [/] YAAT-1148 Keep pilots from cutting in before a readback; let a second check-in occasionally butt in · release vNext
 - [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording
 - [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range
@@ -806,7 +803,7 @@
 
 ## Server: CRC, ERAM, vEDST and rooms
 
-### 1 Defects (0/20 done)
+### 1 Defects (0/22 done)
 - [ ] YAAT-135 Record in-facility cab positions with SelectionCodeFor when ambiguous
 - [ ] YAAT-1489 Forward the disconnect-coast clears from RoomEngine.DrainStateChangesToRoom like the engine's own drain
 - [ ] YAAT-630 Treat a transponder set to Off as not replying, like Standby
@@ -827,6 +824,8 @@
 - [ ] YAAT-1126 Send a Tower Cab viewer's active-state push through its session-push chain
 - [ ] YAAT-1324 Tell joined vEDST clients the session went inactive on a repeated StartSession
 - [ ] YAAT-1475 A room can pin another load's ground layout between its prefetch and its pin
+- [ ] YAAT-1498 Keep a runway configuration that names one runway twice from throwing in the ASDE-X alert step
+- [ ] YAAT-1502 Rebuild ASDE-X hold bars when a pushed runway footprint changes, not only on a layout or id change
 
 ### 2 Refinements and rulings (0/7 done)
 - [ ] YAAT-92 Skip the vTDLS re-broadcast when no field the TDLS item shows changed
@@ -846,7 +845,8 @@
 
 ## Live traffic
 
-### 1 Defects (0/2 done)
+### 1 Defects (0/3 done)
+- [ ] YAAT-1497 Latch a live-traffic shadow's landed-on-runway flag at every ASDE-X facility, not only the primary airport
 - [ ] YAAT-136 Climb live-traffic shadows to a pilot-side filed altitude captured at spawn
 - [ ] YAAT-258 Live traffic never sets a handoff to the track's own position
 
