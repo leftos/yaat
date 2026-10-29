@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- An ARTCC's airport file can list the taxiways that raise CRC's ASDE-X taxiway-landing alert; an airport without a list alerts on any taxiway.
+
 ### Fixed
 
 - A scenario aircraft handed to the student with no flight plan now arrives with a filed VFR plan and a discrete code, so the handoff can be taken.

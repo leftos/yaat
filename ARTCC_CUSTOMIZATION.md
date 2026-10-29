@@ -183,6 +183,14 @@ Overrides YAAT's inferred verdict for a taxiway name, either way: movement area,
 "nonMovementTaxilanes": [ { "name": "TC", "notes": "Ramp-controlled." } ]
 ```
 
+### asdexLandingTaxiways
+
+Limits the ASDE-X safety logic's TAXIWAY LANDING alert to the taxiways your facility has configured for it. Without the list every taxiway alerts; an empty list `[]` turns the taxiway-landing alert off for the airport. Names are matched case-insensitively and a blank name is skipped with a warning. Details: [`asdexLandingTaxiways`](src/Yaat.Sim/Data/ARTCCs/README.md#asdexlandingtaxiways).
+
+```json
+"asdexLandingTaxiways": [ "A", "B" ]
+```
+
 ## The other ARTCC folders
 
 Each folder sits under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` and is read at startup. Schemas are in [`src/Yaat.Sim/Data/ARTCCs/README.md`](src/Yaat.Sim/Data/ARTCCs/README.md).

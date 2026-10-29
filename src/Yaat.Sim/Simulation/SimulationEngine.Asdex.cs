@@ -433,7 +433,10 @@ public sealed partial class SimulationEngine
             aircraft ??= World.GetSnapshot();
             double fieldElevationFt = FacilityFieldElevation(facilityId, navDb);
             AsdexFacilityRunways runways = CurrentAsdexRunways(facilityId, config, navDb);
-            List<AsdexTaxiwaySegment> taxiways = IsLayoutAirport(World.GroundLayout, facilityId) ? BuildAsdexTaxiwaySegments(World.GroundLayout) : [];
+            IReadOnlyList<AsdexTaxiwaySegment> taxiways = AsdexConfiguredTaxiways.Filter(
+                IsLayoutAirport(World.GroundLayout, facilityId) ? BuildAsdexTaxiwaySegments(World.GroundLayout) : [],
+                navDb.AirportSidecars.GetAsdexLandingTaxiways(facilityId)
+            );
 
             ApplyAsdexDetection(
                 scenario,

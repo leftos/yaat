@@ -362,6 +362,13 @@ internal sealed class AirportSidecarFile
     /// <summary>Stands whose connector the layout build draws to a named taxiway's vertex instead of the nearest edge.</summary>
     [JsonPropertyName("standLeadIns")]
     public List<StandLeadInEntry> StandLeadIns { get; set; } = [];
+
+    /// <summary>
+    /// Taxiways the ASDE-X safety logic alerts a landing on, as the ground layout spells them. Absent means any taxiway; an
+    /// empty list means no taxiway-landing alert at all.
+    /// </summary>
+    [JsonPropertyName("asdexLandingTaxiways")]
+    public List<string>? AsdexLandingTaxiways { get; set; }
 }
 
 /// <summary>
@@ -418,4 +425,16 @@ public sealed record AirportSidecar(string AirportId)
     /// (<see cref="GeoJsonParser"/>). The only section the layout build reads.
     /// </summary>
     public IReadOnlyList<StandLeadIn> StandLeadIns { get; init; } = [];
+
+    /// <summary>
+    /// Upper-cased taxiway names the ASDE-X safety logic alerts a landing on, as the ground layout spells them. Null when the
+    /// file carries no <c>asdexLandingTaxiways</c> list, so any taxiway alerts; an empty set when it carries an empty list, so
+    /// no taxiway landing does. Read by <see cref="Yaat.Sim.Asdex.AsdexConfiguredTaxiways"/>.
+    /// </summary>
+    public IReadOnlySet<string>? AsdexLandingTaxiways { get; init; }
+
+    /// <summary>
+    /// The sidecar file this airport was parsed from, named by a load or merge warning about it; null for a sidecar built in code.
+    /// </summary>
+    public string? SourceFile { get; init; }
 }

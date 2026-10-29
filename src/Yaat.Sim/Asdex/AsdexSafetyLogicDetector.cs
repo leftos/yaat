@@ -95,8 +95,8 @@ public sealed record AsdexSafetyAlert(
 /// arrivals or departures on closed runways", <c>docs/crc/asdex.md</c>), while every alert kind on every runway under a
 /// named configuration was measured on vNAS Test (YAAT-1194).
 ///
-/// Taxiway-landing uses centerline proximity (the ground layout has no taxiway polygons) and alerts on any taxiway, since
-/// "configured taxiway" data is not available.
+/// Taxiway-landing uses centerline proximity (the ground layout has no taxiway polygons) and alerts on any taxiway unless the
+/// airport's sidecar lists <c>asdexLandingTaxiways</c>, when it alerts only on the taxiways that list names.
 /// </summary>
 public static class AsdexSafetyLogicDetector
 {
