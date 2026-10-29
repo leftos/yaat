@@ -86,13 +86,8 @@ public class NoDestinationEndHoldRunwayTailTests(ITestOutputHelper output)
     /// warns that wingtip clearance from that taxiway is not assured.
     /// </summary>
     [Theory]
-    [InlineData(506, 808, "B", "A")]
-    public void NoDestinationEndHold_LengthSetbackReachingBackOverARunwayBar_HoldsWithTailClearOfTheBar(
-        int barNodeId,
-        int startNodeId,
-        string along,
-        string onto
-    )
+    [InlineData("28R", "B", "A")]
+    public void NoDestinationEndHold_LengthSetbackReachingBackOverARunwayBar_HoldsWithTailClearOfTheBar(string runway, string along, string onto)
     {
         const string AircraftType = "B738";
         TestVnasData.EnsureInitialized();
@@ -104,8 +99,13 @@ public class NoDestinationEndHoldRunwayTailTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode bar = layout.Nodes[barNodeId];
-        GroundNode start = layout.Nodes[startNodeId];
+        // The runway's bar on the taxiway nearest the next taxiway off it, and the first node past that bar toward the runway
+        // (the runway's other bar on the taxiway lies across it): the aircraft stands between the runway and the bar.
+        GroundNode bar = GroundNodeLookup.HoldShortBar(layout, runway, along, GroundNodeLookup.Junction(layout, along, onto));
+        GroundNode acrossBar = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, runway, along).Single(node => node.Id != bar.Id);
+        GroundNode start = GroundNodeLookup.OnTaxiway(layout, along, bar, 1.0, acrossBar);
+        int barNodeId = bar.Id;
+        output.WriteLine($"bar #{bar.Id}, start #{start.Id}, {GeoMath.DistanceNm(start.Position, bar.Position) * GeoMath.FeetPerNm:F1} ft apart");
         Assert.Equal(GroundNodeType.RunwayHoldShort, bar.Type);
         SimulationEngine engine = BareTaxiFirstStepHeadingTests.BuildOakEngine(groundData, AutoCrossRunwayMode.All);
         AircraftState aircraft = BareTaxiFirstStepHeadingTests.SpawnAt(
@@ -125,7 +125,23 @@ public class NoDestinationEndHoldRunwayTailTests(ITestOutputHelper output)
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         SfoGroundHarness.DumpRoute(output, route);
         Assert.Contains(route.Segments, s => s.ToNodeId == barNodeId);
-        Assert.Contains(route.HoldShortPoints, h => h.EndsNoDestinationRoute && (h.TargetName == onto));
+        HoldShortPoint endHold = Assert.Single(route.HoldShortPoints, h => h.EndsNoDestinationRoute && (h.TargetName == onto));
+
+        // The band the tail-clearance placement covers: a gap from the bar to the hold node of at least the fuselage length
+        // (shorter keeps the nose-at-node stop) and inside the length + 30 ft setback that finds the crossed bar.
+        double lengthFt = AircraftLength.ResolveFt(AircraftType);
+        int barSegment = route.Segments.FindIndex(s => s.ToNodeId == barNodeId);
+        int holdSegment = route.Segments.FindIndex(barSegment + 1, s => s.ToNodeId == endHold.NodeId);
+        Assert.True(holdSegment > barSegment, $"the end hold #{endHold.NodeId} is not past bar {barNodeId} on the route");
+        double gapFt = route
+            .Segments.Skip(barSegment + 1)
+            .Take(holdSegment - barSegment)
+            .Sum(s => GeoMath.DistanceNm(s.Edge.FromNode.Position, s.Edge.ToNode.Position) * GeoMath.FeetPerNm);
+        output.WriteLine($"gap bar {barNodeId} → hold #{endHold.NodeId}: {gapFt:F1} ft along the route; length {lengthFt:F0} ft");
+        Assert.True(
+            (gapFt >= lengthFt) && (gapFt < lengthFt + HoldShortAnnotator.TaxiwayHoldShortBufferFt),
+            $"the gap from bar {barNodeId} to the end hold is {gapFt:F1} ft, outside [{lengthFt:F0}, {lengthFt + HoldShortAnnotator.TaxiwayHoldShortBufferFt:F0}) ft"
+        );
 
         int held = SfoGroundHarness.TickUntil(
             engine,
@@ -146,6 +162,7 @@ public class NoDestinationEndHoldRunwayTailTests(ITestOutputHelper output)
             $"held {centrePastBarFt:F1} ft from bar {barNodeId} ({(pastTheBar ? "past" : "behind")} it); tail {tailPastBarFt:F1} ft past it"
         );
         output.WriteLine($"warnings: {string.Join(" | ", route.Warnings)}");
+        // Accepted side effect (AIM 4-3-21.b): for a gap from L to L+10 past the bar, the nose may sit past the hold-short node.
         Assert.True(
             tailPastBarFt >= RunwayTailClearance.MarginFt - TailToleranceFt,
             $"the {AircraftType}'s tail ends {tailPastBarFt:F1} ft past runway bar {barNodeId}, inside {RunwayTailClearance.MarginFt:F0} ft"
@@ -153,8 +170,11 @@ public class NoDestinationEndHoldRunwayTailTests(ITestOutputHelper output)
         Assert.Contains(route.Warnings, w => w.StartsWith($"holding short of TWY {onto} — wingtip clearance from ", StringComparison.Ordinal));
     }
 
-    /// <summary>How far (ft) short of the margin the tail may end, for the navigator's stop rounding.</summary>
-    private const double TailToleranceFt = 0.5;
+    /// <summary>
+    /// How far (ft) short of the margin the tail may end: the navigator's braking curve reaches zero up to
+    /// <see cref="GroundNavigator.SetBackStopMarginFt"/> short of a set-back stop.
+    /// </summary>
+    private const double TailToleranceFt = GroundNavigator.SetBackStopMarginFt;
 
     private static HoldingShortPhase TickToHold(SimulationEngine engine, ref AircraftState aircraft)
     {

@@ -613,6 +613,10 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
   `NavigationDatabase`, …) can race a class mid-init. Symptom: `Expected 98 / Actual 96.5` (default-fallback), passes alone, flakes in the
   suite. **Fix: `TestVnasData.EnsureInitialized()` in the class *constructor*.**
 - **A type staged with the wrong category's rates.** `AircraftCategorization.Categorize` returns `Jet` for an empty table, so a test that read a category before the aircraft tables loaded staged a piston as a jet whenever its case was the first table reader in the process (`FirmRateHoldShortTests`' C172 case). Sim's `ModuleInit` now loads the tables before any test. A test project without that, or a rig whose header rates differ from the rates it reads later, is the place to look.
+- **A value a phase keys on `floor(ElapsedSeconds)` depends on which quarter-second the phase starts in.** A test needing a non-zero second ticks until it gets one.
+- **One-second sampling counts the whole second in which a position-based window closes.** Exclude a second that ends past the boundary.
+- **A tolerance on where a taxi stop comes to rest is `GroundNavigator.SetBackStopMarginFt`,** not a hand-picked sub-foot value.
+- **An OAK test that replays a recording against today's layout and is pinned to a second drifts whenever bars or exit classification change.** Wait on the phase event instead.
 - **A yaat-server test room's aircraft CIDs are random unless the seed is pinned.** Rooms seed their RNG from `Random.Shared` (`ScenarioSeedSource.RngSeed()`; `RoomEngineTestHarness` never pins it), so each aircraft draws a random 3-digit CID.
 
   A test that types a 3-digit flight ID can collide with a drawn CID and flake. Pin the seed with `harness.SeedSource.Pin(...)`, as `EramConformance.BuildAsync` does, or type a CID no aircraft holds (and assert that precondition). `EramConformanceQaTests` and `EramFlidResolutionTests.FreeCid` flaked this way.

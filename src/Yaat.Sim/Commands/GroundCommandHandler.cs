@@ -3751,16 +3751,47 @@ public static partial class GroundCommandHandler
         {
             if (complete.Segments[i].Edge.Edge.MatchesTaxiway(missing))
             {
-                return i;
+                return PastBarLeavingRunway(complete, layout, i, missing);
             }
 
             if (layout.Nodes.TryGetValue(complete.Segments[i].ToNodeId, out GroundNode? node) && node.Edges.Any(e => e.MatchesTaxiway(missing)))
             {
-                return i + 1;
+                return PastBarLeavingRunway(complete, layout, i + 1, missing);
             }
         }
 
         return -1;
+    }
+
+    /// <summary>
+    /// <paramref name="keep"/>, or one segment more when the first <paramref name="keep"/> segments of
+    /// <paramref name="complete"/> end on a runway bar the route leaves that runway by: a bar seated where the taxiway's
+    /// fillet onto <paramref name="missing"/> begins (KCOS A2's 17R/35L bar at A) is never the hold that ends the route,
+    /// so the stop is placed past it with the tail clear of the hold line (AIM 4-3-21.b).
+    /// One more segment only when <see cref="HoldShortAnnotator.BindsPastLeavingBar"/> judges the bar for <paramref name="missing"/>.
+    /// </summary>
+    private static int PastBarLeavingRunway(TaxiRoute complete, AirportGroundLayout layout, int keep, string missing)
+    {
+        if ((keep <= 0) || (keep >= complete.Segments.Count) || !HoldShortAnnotator.IsBarLeavingRunway(layout, complete.Segments[keep - 1]))
+        {
+            return keep;
+        }
+
+        TaxiRouteSegment last = complete.Segments[keep - 1];
+        TaxiRouteSegment extra = complete.Segments[keep];
+        GroundNode extraEnd = extra.Edge.ToNode;
+        bool pastBar = HoldShortAnnotator.BindsPastLeavingBar(layout, complete, keep - 1, missing);
+        Log.LogDebug(
+            "[CutBeforeTaxiway] {Missing}: bar #{Bar} leaves its runway; next #{Next} ({NextType}) on {Taxiway} ({Kind}): {Verdict}",
+            missing,
+            last.ToNodeId,
+            extraEnd.Id,
+            extraEnd.Type,
+            extra.TaxiwayName,
+            extra.Edge.Edge.GetType().Name,
+            pastBar ? "kept, the hold binds past the bar" : "not kept"
+        );
+        return pastBar ? keep + 1 : keep;
     }
 
     /// <summary>
@@ -3789,7 +3820,7 @@ public static partial class GroundCommandHandler
             GroundNode? node = layout.Nodes.GetValueOrDefault(nodeId);
             if (runwayBars.Contains(nodeId))
             {
-                (barKeep, onPavementSinceBar) = (LeavesRunwayAtBar(layout, complete.Segments[i]) ? -1 : i + 1, false);
+                (barKeep, onPavementSinceBar) = (HoldShortAnnotator.IsBarLeavingRunway(layout, complete.Segments[i]) ? -1 : i + 1, false);
                 continue;
             }
 
@@ -3807,35 +3838,6 @@ public static partial class GroundCommandHandler
     }
 
     private static bool IsOnRunwayCentreline(GroundNode? node) => (node is not null) && AirportGroundLayout.HasRunwayCenterlineEdge(node);
-
-    /// <summary>
-    /// Whether <paramref name="arriving"/> reaches its runway bar from the runway's side: its start node lies nearer that
-    /// runway's centreline than the bar does. False when the bar's runway is not in the layout.
-    /// </summary>
-    private static bool LeavesRunwayAtBar(AirportGroundLayout layout, TaxiRouteSegment arriving)
-    {
-        GroundNode bar = arriving.Edge.ToNode;
-        if ((bar.RunwayId is not { } runwayId) || (layout.Runways.FirstOrDefault(r => r.Id.Equals(runwayId)) is not { } runway))
-        {
-            return false;
-        }
-
-        return RunwayCentrelineFt(runway, arriving.Edge.FromNode.Position) < RunwayCentrelineFt(runway, bar.Position);
-    }
-
-    /// <summary>The distance (ft) from <paramref name="point"/> to <paramref name="runway"/>'s centreline polyline.</summary>
-    private static double RunwayCentrelineFt(GroundRunway runway, LatLon point)
-    {
-        double best = double.PositiveInfinity;
-        for (int i = 0; i + 1 < runway.Coordinates.Count; i++)
-        {
-            (double lat1, double lon1) = runway.Coordinates[i];
-            (double lat2, double lon2) = runway.Coordinates[i + 1];
-            best = Math.Min(best, GeoMath.DistanceToSegmentFt(point, new LatLon(lat1, lon1), new LatLon(lat2, lon2)));
-        }
-
-        return best;
-    }
 
     private static bool IsRunwayHold(HoldShortPoint hold) => hold.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway;
 
