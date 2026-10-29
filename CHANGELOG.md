@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- A taxi across a runway through linked taxiway stubs, such as CMH `TAXI E4 F3`, is accepted as one crossing and reads back without "on 10L".
 - At an ASDE-X airport on LIMITED safety logic, RPO occupied-runway warnings and solo line-up scoring apply again, as on any non-ASDE-X airport.
 - CRC's ASDE-X display no longer keeps closed runways or safety-logic alerts after a rewind, a scenario restart or an unload.
 - An IFR departure flying a SID's coded legs with no altitude assigned levels at the SID's initial altitude, instead of climbing toward cruise.

@@ -182,7 +182,7 @@ public sealed class TaxiRoute
             }
         }
 
-        string name = seg.TaxiwayName;
+        string name = TaxiRouteFormatter.RunwayCenterlineName(seg.TaxiwayName);
         if (!name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
         {
             return name;

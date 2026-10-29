@@ -74,7 +74,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
 
         Assert.True(result.Success, result.Message);
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-        AssertEndsClearPast(route, start.Layout, "35L", toTaxiway, "C172");
+        AssertEndsClearPast(output, route, start.Layout, ("35L", toTaxiway), "C172");
         AssertNoRunwayLeg(result.Message);
         Assert.Equal(expectedRsp, result.Message);
     }
@@ -100,7 +100,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
 
         Assert.True(result.Success, result.Message);
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-        AssertEndsClearPast(route, start.Layout, "35L", "C2", "C172");
+        AssertEndsClearPast(output, route, start.Layout, ("35L", "C2"), "C172");
         Assert.Equal(CosCrossRsp, result.Message);
     }
 
@@ -185,7 +185,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
 
         Assert.True(result.Success, result.Message);
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-        AssertEndsClearPast(route, start.Layout, "35L", "C2", "C172");
+        AssertEndsClearPast(output, route, start.Layout, ("35L", "C2"), "C172");
         Assert.Equal(CosHoldShortRsp, result.Message);
     }
 
@@ -207,7 +207,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
 
         Assert.True(result.Success, result.Message);
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-        AssertEndsClearPast(route, start.Layout, "35L", "C2", "C172");
+        AssertEndsClearPast(output, route, start.Layout, ("35L", "C2"), "C172");
         AssertNoRunwayLeg(result.Message);
         Assert.Equal(CosCrossRsp, result.Message);
     }
@@ -353,7 +353,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
 
         Assert.True(result.Success, result.Message);
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-        AssertEndsClearPast(route, layout, "33", "F", "C172");
+        AssertEndsClearPast(output, route, layout, ("33", "F"), "C172");
         Assert.Equal(OakBareRsp, result.Message);
     }
 
@@ -395,7 +395,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
             (jAt >= 0) && (jAt < crossingAt),
             $"the J hold short #{j.NodeId} (segment {jAt}) does not bind before the 15/33 crossing bar #{crossing.NodeId} (segment {crossingAt})"
         );
-        AssertEndsClearPast(route, layout, "33", "F", "C172");
+        AssertEndsClearPast(output, route, layout, ("33", "F"), "C172");
         Assert.Contains("route ends on F clear of 15/33", result.Message);
     }
 
@@ -424,7 +424,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
             output.WriteLine($"{type}: {result.Success} — {result.Message}");
             Assert.True(result.Success, result.Message);
             TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-            alongFt[type] = AssertEndsClearPast(route, layout, "33", "F", type);
+            alongFt[type] = AssertEndsClearPast(output, route, layout, ("33", "F"), type);
         }
 
         double expectedGapFt = ClearFt("B738") - ClearFt("C172");
@@ -579,13 +579,20 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Asserts the route ends on <paramref name="farTaxiway"/> with the <paramref name="aircraftType"/>'s tail at least the
-    /// margin past <paramref name="runway"/>'s far hold line (<see cref="TailPastHoldLineFt"/>), and the end no more than that
-    /// plus the longest arc after the bar (an arc is taken whole), and within 1 ft of half the length plus the margin
+    /// Asserts the route ends on <paramref name="far"/>'s taxiway with the <paramref name="aircraftType"/>'s tail at least the
+    /// margin past <paramref name="far"/>'s runway's far hold line (<see cref="TailPastHoldLineFt"/>), and the end no more than
+    /// that plus the longest arc after the bar (an arc is taken whole), and within 1 ft of half the length plus the margin
     /// along the path on the near-straight taxiways pinned here. Returns how far along the path past the far bar the end lies.
     /// </summary>
-    private double AssertEndsClearPast(TaxiRoute route, AirportGroundLayout layout, string runway, string farTaxiway, string aircraftType)
+    internal static double AssertEndsClearPast(
+        ITestOutputHelper output,
+        TaxiRoute route,
+        AirportGroundLayout layout,
+        (string Runway, string Taxiway) far,
+        string aircraftType
+    )
     {
+        (string runway, string farTaxiway) = far;
         output.WriteLine(
             $"route: {route.FormatTaxiwaySequence()} nodes "
                 + string.Join(",", route.Segments.Select(s => s.FromNodeId).Append(route.Segments[^1].ToNodeId))

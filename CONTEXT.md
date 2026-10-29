@@ -358,6 +358,9 @@ A turn about's reversal aimed, with no jog, at a node on the leg out of the bend
 **Square stop line**:
 The straight after a turn about laid on the taxiway's centreline through a stop, from abeam the aircraft or from abeam the offset line's start when a hold short is issued on that line, and steered in its last look-ahead window at a point past the stop, so the aircraft stops on the centreline square to the bar (`GroundNavigator.LayStraightSquareToStop`, docs/ground/navigator.md).
 
+**Stitched join** (of an offset runway crossing):
+A taxiway's join of a runway centreline through a (taxiway end node, centreline node) pair linked by a `RWY…:link` edge (CMH E4 and F3 over 10L/28R), against a direct join where the taxiway edge meets the centreline itself; the 300 ft is measured between the two centreline nodes, side and obliqueness on the taxiway's own edge (`SegmentExpander.StitchedRunwayJoins`, docs/ground/pathfinder.md).
+
 **Taxiway design group (TDG)**:
 The FAA's grouping of aircraft by main-gear width and cockpit-to-main-gear distance (1A, 1B, 2A, 2B, 3–6), read from the FAA aircraft characteristics database; AC 150/5300-13B Table 4-2 sets each group's taxiway width, of which half (12.5 ft for 1A/1B, 17.5 for 2A/2B, 25 for 3/4, 37.5 for 5/6) is the pavement a turn about is checked against. The ground layout carries no TDG, so a taxiway is assumed to be of the aircraft's own group.
 

@@ -1233,7 +1233,7 @@ public static class SegmentExpander
         }
 
         OffsetRunwayCrossing? crossing = CachedOffsetRunwayCrossing(ctx, precedingTaxiway, waypoint.Name);
-        if ((crossing is null) || (head.HeadNodeId != crossing.ToJoinNodeId))
+        if ((crossing is null) || (head.HeadNodeId != crossing.To.Via.Id))
         {
             return null;
         }
@@ -2812,10 +2812,21 @@ public static class SegmentExpander
     internal const double MaxOffsetRunwayCrossingFt = 300.0;
 
     /// <summary>
-    /// A runway that two taxiways with no junction of their own both join, from opposite sides, at nodes
-    /// <see cref="OffsetFt"/> apart along its centreline.
+    /// A runway that two taxiways with no junction of their own both join, from opposite sides, at centreline nodes
+    /// <see cref="OffsetFt"/> apart along it.
     /// </summary>
-    private sealed record OffsetRunwayCrossing(string RunwayCenterline, int FromJoinNodeId, int ToJoinNodeId, double OffsetFt);
+    private sealed record OffsetRunwayCrossing(string RunwayCenterline, RunwayJoin From, RunwayJoin To, double OffsetFt);
+
+    /// <summary>
+    /// Where a taxiway joins a runway's centreline: <see cref="Join"/> is the centreline node and <see cref="Via"/> the
+    /// taxiway's own node there. For a direct join they are one node; for a stitched join the taxiway ends on the runway
+    /// pavement and <see cref="Link"/>, a <c>RWY…:link</c> edge, leads from <see cref="Via"/> to <see cref="Join"/> (CMH E4
+    /// and F3 over 10L/28R).
+    /// </summary>
+    private sealed record RunwayJoin(GroundNode Via, GroundNode Join, IGroundEdge? Link)
+    {
+        public static RunwayJoin Direct(GroundNode join) => new(join, join, null);
+    }
 
     /// <summary>
     /// <see cref="FindOffsetRunwayCrossing"/>'s answer per search and (fromTaxiway, toTaxiway) pair, null answers included:
@@ -2829,11 +2840,13 @@ public static class SegmentExpander
     /// <summary>
     /// Resolves <paramref name="fromTaxiway"/> → <paramref name="toTaxiway"/> across a runway when the two taxiways meet
     /// only across it (<see cref="FindOffsetRunwayCrossing"/>), pinned to the join pair that check found: a local search
-    /// along fromTaxiway to its join, then along the runway's centreline to toTaxiway's join. Neither leg can detour, and
-    /// neither depends on look-ahead, so a probe resolves the crossing exactly as the top level does. The runway never
-    /// enters the clearance's waypoint sequence, so the route materialiser does not read it as a runway cleared to taxi
-    /// along: the crossing keeps its hold short at fromTaxiway's bar. Null when there is no such runway, a leg fails, or the
-    /// centreline run exceeds <see cref="MaxOffsetRunwayCrossingFt"/>, leaving the caller's no-junction handling unchanged.
+    /// along fromTaxiway to its join, then along the runway's centreline to toTaxiway's join. A stitched join adds its
+    /// <c>RWY…:link</c> hop between the taxiway's own node and the centreline, so the route ends on toTaxiway's node, where
+    /// the next transition's search starts on toTaxiway. Neither leg can detour, and neither depends on look-ahead, so a
+    /// probe resolves the crossing exactly as the top level does. The runway never enters the clearance's waypoint sequence,
+    /// so the route materialiser does not read it as a runway cleared to taxi along: the crossing keeps its hold short at
+    /// fromTaxiway's bar. Null when there is no such runway, a leg fails, or the centreline run exceeds
+    /// <see cref="MaxOffsetRunwayCrossingFt"/>, leaving the caller's no-junction handling unchanged.
     /// </summary>
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure)? TryRouteAcrossOffsetRunway(
         PartialRoute head,
@@ -2854,23 +2867,25 @@ public static class SegmentExpander
         }
 
         string runway = crossing.RunwayCenterline;
+        RunwayJoin from = crossing.From;
+        RunwayJoin to = crossing.To;
         ctx.DiagnosticLog?.Invoke(
-            $"[runway-crossing] {fromTaxiway}→{toTaxiway} across {runway} "
-                + $"#{crossing.FromJoinNodeId}→#{crossing.ToJoinNodeId} offset={crossing.OffsetFt:F0}ft"
+            $"[runway-crossing] {fromTaxiway}→{toTaxiway} across {runway} #{from.Join.Id}→#{to.Join.Id} offset={crossing.OffsetFt:F0}ft"
         );
 
-        (List<DirectionalEdge>? ontoEdges, PartialRoute? ontoHead, _) = LocalSearchToJunction(head, fromTaxiway, crossing.FromJoinNodeId, ctx);
+        (List<DirectionalEdge>? ontoEdges, PartialRoute? ontoHead, _) = LocalSearchToJunction(head, fromTaxiway, from.Via.Id, ctx);
         if ((ontoEdges is null) || (ontoHead is null))
         {
-            ctx.DiagnosticLog?.Invoke($"[runway-crossing] {fromTaxiway}→{runway} failed: no route along {fromTaxiway} to #{crossing.FromJoinNodeId}");
+            ctx.DiagnosticLog?.Invoke($"[runway-crossing] {fromTaxiway}→{runway} failed: no route along {fromTaxiway} to #{from.Via.Id}");
             return null;
         }
 
-        PartialRoute onRunway = ontoHead with { VisitedNodeIds = VisitedNodeSet.Single(ontoHead.HeadNodeId) };
-        (List<DirectionalEdge>? offEdges, PartialRoute? offHead, _) = LocalSearchToJunction(onRunway, runway, crossing.ToJoinNodeId, ctx);
+        (List<DirectionalEdge> linkOnto, PartialRoute atJoin) = AcrossLink(ontoHead, from.Via, from.Join, from.Link, ctx);
+        PartialRoute onRunway = atJoin with { VisitedNodeIds = VisitedNodeSet.Single(atJoin.HeadNodeId) };
+        (List<DirectionalEdge>? offEdges, PartialRoute? offHead, _) = LocalSearchToJunction(onRunway, runway, to.Join.Id, ctx);
         if ((offEdges is null) || (offHead is null))
         {
-            ctx.DiagnosticLog?.Invoke($"[runway-crossing] {runway}→{toTaxiway} failed: no route along {runway} to #{crossing.ToJoinNodeId}");
+            ctx.DiagnosticLog?.Invoke($"[runway-crossing] {runway}→{toTaxiway} failed: no route along {runway} to #{to.Join.Id}");
             return null;
         }
 
@@ -2881,10 +2896,12 @@ public static class SegmentExpander
             return null;
         }
 
-        if (TurnOntoBeyondLimit(offHead, crossing.ToJoinNodeId, toTaxiway, ctx) is { } turnDeg)
+        (List<DirectionalEdge> linkOff, PartialRoute offTaxiwayHead) = AcrossLink(offHead, to.Join, to.Via, to.Link, ctx);
+
+        if (TurnOntoBeyondLimit(crossing, (ontoHead.ArrivalBearing, offHead.ArrivalBearing), (fromTaxiway, toTaxiway), ctx) is { } turnDeg)
         {
             ctx.DiagnosticLog?.Invoke(
-                $"[runway-crossing] {runway}→{toTaxiway} refused: the {turnDeg:F0}° turn onto {toTaxiway} at #{crossing.ToJoinNodeId} "
+                $"[runway-crossing] {runway}→{toTaxiway} refused: the {turnDeg:F0}° turn onto {toTaxiway} at #{to.Via.Id} "
                     + $"exceeds the {ctx.Category} limit"
             );
             return (
@@ -2904,35 +2921,70 @@ public static class SegmentExpander
             );
         }
 
-        return ([.. ontoEdges, .. offEdges], offHead, null);
+        return ([.. ontoEdges, .. linkOnto, .. offEdges, .. linkOff], offTaxiwayHead, null);
     }
 
     /// <summary>
-    /// The turn, in degrees, from the bearing <paramref name="onRunway"/> arrives at its join on onto the straightest edge of
-    /// <paramref name="toTaxiway"/> leaving the join (KCOS A2→C2 for a B738: 150° off 17R/35L's 180° onto C2's 030°), when it
-    /// exceeds the category's limit (<see cref="CategoryLimits.MaxHeadingChangeDeg"/>); null when the aircraft can make it or
-    /// no straight edge of the taxiway leaves the join.
+    /// The hop along a stitched join's <c>RWY…:link</c> edge <paramref name="link"/> from <paramref name="from"/> to
+    /// <paramref name="to"/>, and the head after it; no edge and <paramref name="head"/> itself for a direct join.
     /// </summary>
-    private static double? TurnOntoBeyondLimit(PartialRoute onRunway, int joinNodeId, string toTaxiway, SearchContext ctx)
+    private static (List<DirectionalEdge> Edges, PartialRoute Head) AcrossLink(
+        PartialRoute head,
+        GroundNode from,
+        GroundNode to,
+        IGroundEdge? link,
+        SearchContext ctx
+    ) => link is null ? ([], head) : ([link.Directed(from, to)], Advance(head, from, link, to, ctx));
+
+    /// <summary>
+    /// The crossing's turn onto the second taxiway when it exceeds the category's limit
+    /// (<see cref="CategoryLimits.MaxHeadingChangeDeg"/>), else null; the turn measured is logged either way. A direct pair
+    /// turns from the bearing the centreline run arrives on (<paramref name="arrivals"/>' <c>OnRunway</c>). A stitched pair
+    /// drives straight from the first taxiway onto the second, the centreline run only standing in for that, so it turns from
+    /// the first taxiway's heading at its own end (<c>OnFromTaxiway</c>) onto the second's at its own (CMH E4 onto F3, 3°).
+    /// </summary>
+    private static double? TurnOntoBeyondLimit(
+        OffsetRunwayCrossing crossing,
+        (double OnFromTaxiway, double OnRunway) arrivals,
+        (string From, string To) taxiways,
+        SearchContext ctx
+    )
     {
-        if (!ctx.Layout.Nodes.TryGetValue(joinNodeId, out GroundNode? join))
+        bool stitched = (crossing.From.Link is not null) || (crossing.To.Link is not null);
+        double arrivalBearing = stitched ? arrivals.OnFromTaxiway : arrivals.OnRunway;
+        if (TurnOnto(arrivalBearing, crossing.To.Via, taxiways.To) is not { } turnDeg)
         {
             return null;
         }
 
+        ctx.DiagnosticLog?.Invoke(
+            FormattableString.Invariant(
+                $"[runway-crossing] {taxiways.From}→{taxiways.To} turn {turnDeg:F1}° onto {taxiways.To} at #{crossing.To.Via.Id}"
+            )
+        );
+        return turnDeg > CategoryLimits.MaxHeadingChangeDeg(ctx.Category) ? turnDeg : null;
+    }
+
+    /// <summary>
+    /// The turn, in degrees, from <paramref name="arrivalBearing"/> onto the straightest edge of <paramref name="toTaxiway"/>
+    /// leaving <paramref name="at"/> (KCOS A2→C2: 150° off 17R/35L's 180° onto C2's 030°, past a B738's
+    /// <see cref="CategoryLimits.MaxHeadingChangeDeg"/>); null when no straight edge of the taxiway leaves the node.
+    /// </summary>
+    private static double? TurnOnto(double arrivalBearing, GroundNode at, string toTaxiway)
+    {
         double? gentlest = null;
-        foreach (IGroundEdge edge in join.Edges)
+        foreach (IGroundEdge edge in at.Edges)
         {
             if ((edge is not GroundEdge) || edge.IsRunwayCenterline || !edge.MatchesTaxiway(toTaxiway))
             {
                 continue;
             }
 
-            double turn = RouteCostFunction.HeadingDelta(onRunway.ArrivalBearing, GeoMath.BearingTo(join.Position, edge.OtherNode(join).Position));
+            double turn = RouteCostFunction.HeadingDelta(arrivalBearing, GeoMath.BearingTo(at.Position, edge.OtherNode(at).Position));
             gentlest = (gentlest is { } best) && (best <= turn) ? best : turn;
         }
 
-        return (gentlest is { } turnDeg) && (turnDeg > CategoryLimits.MaxHeadingChangeDeg(ctx.Category)) ? turnDeg : null;
+        return gentlest;
     }
 
     /// <summary>
@@ -2984,8 +3036,17 @@ public static class SegmentExpander
         foreach (string runway in RunwayCenterlinesJoinedBy(layout, fromTaxiway))
         {
             bool declared = declaredPairs.Any(p => p.Matches(fromTaxiway, toTaxiway, runway));
-            List<GroundNode> toJoins = FindJunctionCandidates(layout, runway, toTaxiway);
-            foreach (GroundNode fromJoin in FindJunctionCandidates(layout, fromTaxiway, runway))
+            List<RunwayJoin> toJoins =
+            [
+                .. FindJunctionCandidates(layout, runway, toTaxiway).Select(RunwayJoin.Direct),
+                .. StitchedRunwayJoins(layout, toTaxiway, runway),
+            ];
+            List<RunwayJoin> fromJoins =
+            [
+                .. FindJunctionCandidates(layout, fromTaxiway, runway).Select(RunwayJoin.Direct),
+                .. StitchedRunwayJoins(layout, fromTaxiway, runway),
+            ];
+            foreach (RunwayJoin fromJoin in fromJoins)
             {
                 OffsetRunwayCrossing? pair = ClosestOppositeSideJoin(fromJoin, fromTaxiway, toJoins, toTaxiway, (runway, declared));
                 if ((pair is not null) && ((best is null) || (pair.OffsetFt < best.OffsetFt)))
@@ -2998,7 +3059,11 @@ public static class SegmentExpander
         return best;
     }
 
-    /// <summary>The runway centreline names whose straight edges touch a node on <paramref name="taxiway"/>, in first-seen order.</summary>
+    /// <summary>
+    /// The runway centreline names a node on <paramref name="taxiway"/> joins, in first-seen order: directly, by a straight
+    /// centreline edge of its own, or stitched, by a <c>RWY…:link</c> edge whose far node is on that runway's centreline
+    /// (<see cref="StitchedRunwayJoins"/>).
+    /// </summary>
     private static List<string> RunwayCenterlinesJoinedBy(AirportGroundLayout layout, string taxiway)
     {
         var runways = new List<string>();
@@ -3006,9 +3071,16 @@ public static class SegmentExpander
         {
             foreach (IGroundEdge edge in node.Edges)
             {
-                if ((edge is GroundEdge { IsRunwayCenterline: true }) && !runways.Contains(edge.TaxiwayName, StringComparer.OrdinalIgnoreCase))
+                string? runway = edge switch
                 {
-                    runways.Add(edge.TaxiwayName);
+                    GroundEdge { IsRunwayCenterline: true } => edge.TaxiwayName,
+                    GroundEdge { IsRunwayCrossingLink: true } when LinkedCenterlineNode(node, edge) is not null =>
+                        TaxiRouteFormatter.RunwayCenterlineName(edge.TaxiwayName),
+                    _ => null,
+                };
+                if ((runway is not null) && !runways.Contains(runway, StringComparer.OrdinalIgnoreCase))
+                {
+                    runways.Add(runway);
                 }
             }
         }
@@ -3016,46 +3088,87 @@ public static class SegmentExpander
         return runways;
     }
 
+    /// <summary>
+    /// The stitched joins of <paramref name="taxiway"/> onto <paramref name="runway"/>: each node on the taxiway with a
+    /// <c>RWY…:link</c> edge of that runway whose far node lies on its centreline, paired with that centreline node.
+    /// </summary>
+    private static List<RunwayJoin> StitchedRunwayJoins(AirportGroundLayout layout, string taxiway, string runway)
+    {
+        var joins = new List<RunwayJoin>();
+        foreach (GroundNode node in layout.GetNodesOnTaxiway(taxiway))
+        {
+            foreach (IGroundEdge edge in node.Edges)
+            {
+                if (
+                    (edge is GroundEdge { IsRunwayCrossingLink: true })
+                    && string.Equals(TaxiRouteFormatter.RunwayCenterlineName(edge.TaxiwayName), runway, StringComparison.OrdinalIgnoreCase)
+                    && (LinkedCenterlineNode(node, edge) is { } centreline)
+                )
+                {
+                    joins.Add(new RunwayJoin(node, centreline, edge));
+                }
+            }
+        }
+
+        return joins;
+    }
+
+    /// <summary>
+    /// The far node of the <c>RWY…:link</c> edge <paramref name="link"/> from <paramref name="node"/> when it lies on the
+    /// link's runway centreline; null otherwise.
+    /// </summary>
+    private static GroundNode? LinkedCenterlineNode(GroundNode node, IGroundEdge link)
+    {
+        GroundNode far = link.OtherNode(node);
+        string runway = TaxiRouteFormatter.RunwayCenterlineName(link.TaxiwayName);
+        return far.Edges.Any(e => (e is GroundEdge { IsRunwayCenterline: true }) && e.MatchesTaxiway(runway)) ? far : null;
+    }
+
+    /// <summary>
+    /// The closest join of <paramref name="toJoins"/> that pairs with <paramref name="fromJoin"/> as a crossing of the runway.
+    /// Distance is measured between the two centreline nodes; side and obliqueness on each taxiway's own
+    /// edges at its own node, never on a stitched join's link.
+    /// </summary>
     private static OffsetRunwayCrossing? ClosestOppositeSideJoin(
-        GroundNode fromJoin,
+        RunwayJoin fromJoin,
         string fromTaxiway,
-        List<GroundNode> toJoins,
+        List<RunwayJoin> toJoins,
         string toTaxiway,
         (string Centerline, bool DeclaredPair) runway
     )
     {
-        if (RunwayBearingAt(fromJoin, runway.Centerline) is not { } runwayBearing)
+        if (RunwayBearingAt(fromJoin.Join, runway.Centerline) is not { } runwayBearing)
         {
             return null;
         }
 
-        int fromSide = SideOfRunway(fromJoin, fromTaxiway, runwayBearing);
+        int fromSide = SideOfRunway(fromJoin.Via, fromTaxiway, runwayBearing);
         if (
             (fromSide == 0)
             || HasStraightTaxiwayToward(fromJoin, -fromSide, runwayBearing)
-            || (!runway.DeclaredPair && MeetsRunwayObliquely(fromJoin, fromTaxiway, runwayBearing))
+            || (!runway.DeclaredPair && MeetsRunwayObliquely(fromJoin.Via, fromTaxiway, runwayBearing))
         )
         {
             return null;
         }
 
         OffsetRunwayCrossing? best = null;
-        foreach (GroundNode toJoin in toJoins)
+        foreach (RunwayJoin toJoin in toJoins)
         {
-            double offsetFt = GeoMath.DistanceNm(fromJoin.Position, toJoin.Position) * GeoMath.FeetPerNm;
-            if ((toJoin.Id == fromJoin.Id) || (offsetFt > MaxOffsetRunwayCrossingFt) || ((best is not null) && (offsetFt >= best.OffsetFt)))
+            double offsetFt = GeoMath.DistanceNm(fromJoin.Join.Position, toJoin.Join.Position) * GeoMath.FeetPerNm;
+            if ((toJoin.Join.Id == fromJoin.Join.Id) || (offsetFt > MaxOffsetRunwayCrossingFt) || ((best is not null) && (offsetFt >= best.OffsetFt)))
             {
                 continue;
             }
 
-            int toSide = SideOfRunway(toJoin, toTaxiway, runwayBearing);
+            int toSide = SideOfRunway(toJoin.Via, toTaxiway, runwayBearing);
             if (
                 (toSide == -fromSide)
                 && !HasStraightTaxiwayToward(toJoin, fromSide, runwayBearing)
-                && (runway.DeclaredPair || !MeetsRunwayObliquely(toJoin, toTaxiway, runwayBearing))
+                && (runway.DeclaredPair || !MeetsRunwayObliquely(toJoin.Via, toTaxiway, runwayBearing))
             )
             {
-                best = new OffsetRunwayCrossing(runway.Centerline, fromJoin.Id, toJoin.Id, offsetFt);
+                best = new OffsetRunwayCrossing(runway.Centerline, fromJoin, toJoin, offsetFt);
             }
         }
 
@@ -3110,15 +3223,21 @@ public static class SegmentExpander
     }
 
     /// <summary>
-    /// True when a straight taxiway edge, any taxiway but a runway centreline, leaves <paramref name="join"/> toward
-    /// <paramref name="side"/> of the runway line: a taxiway continues square across the runway from this join, so the
-    /// offset pair is not the way across (SFO C3/S2 over 28R, where S1 crosses straight from C3's join).
+    /// True when a straight taxiway edge, any taxiway but a runway centreline, leaves <paramref name="join"/>'s centreline node
+    /// toward <paramref name="side"/> of the runway line: a taxiway continues square across the runway from this join, so the
+    /// offset pair is not the way across (SFO C3/S2 over 28R, where S1 crosses straight from C3's join). A stitched join's own
+    /// link is the join itself, never another way across.
     /// </summary>
-    private static bool HasStraightTaxiwayToward(GroundNode join, int side, double runwayBearing)
+    private static bool HasStraightTaxiwayToward(RunwayJoin join, int side, double runwayBearing)
     {
-        foreach (IGroundEdge edge in join.Edges)
+        GroundNode node = join.Join;
+        foreach (IGroundEdge edge in node.Edges)
         {
-            if ((edge is GroundEdge { IsRunwayCenterline: false }) && (EdgeSide(join, edge, runwayBearing) == side))
+            if (
+                !ReferenceEquals(edge, join.Link)
+                && (edge is GroundEdge { IsRunwayCenterline: false })
+                && (EdgeSide(node, edge, runwayBearing) == side)
+            )
             {
                 return true;
             }
@@ -4683,7 +4802,9 @@ public static class SegmentExpander
     {
         foreach (IGroundEdge edge in node.Edges)
         {
-            if (edge.IsRunwayCenterline || IsRunwayCrossingLinkEdge(edge) || !edge.MatchesTaxiway(connector))
+            // A junction arc joining a connector to a link still matches the connector's name, so the link test reads the
+            // name of any edge, straight or arc: the stub walk never steps onto the runway surface.
+            if (edge.IsRunwayCenterline || GroundEdge.IsRunwayCrossingLinkName(edge.TaxiwayName) || !edge.MatchesTaxiway(connector))
             {
                 continue;
             }
@@ -4719,13 +4840,6 @@ public static class SegmentExpander
 
         return true;
     }
-
-    /// <summary>
-    /// True for any edge — straight or fillet arc — whose name carries a runway-crossing <c>:link</c>, the
-    /// runway-surface edges the stub walk must never step onto (a junction arc joining a connector to a link
-    /// still matches the connector's name, so <see cref="IGroundEdge.MatchesTaxiway"/> alone does not exclude it).
-    /// </summary>
-    private static bool IsRunwayCrossingLinkEdge(IGroundEdge edge) => edge.TaxiwayName.Contains(":link", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// True when <paramref name="edge"/> is a straight edge of a taxiway that is neither the connector nor the

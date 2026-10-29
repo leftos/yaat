@@ -504,7 +504,11 @@ The ramp-lane recoveries (`RampLaneReposition`) get no letter allowance: the rem
 
 **Two taxiways that meet only across a runway are one runway crossing, tried before the detour.** In `RouteNamedToNamed`'s zero-candidate branch `TryRouteAcrossOffsetRunway` runs first, so a clearance like OAK `TAXI C D F @OLD1 HS 33` (D and F both join 15/33, from opposite sides, 100 ft apart along it) routes D, across 15/33, onto F instead of taking a connector detour that silently dropped D.
 
-`FindOffsetRunwayCrossing` finds the runway: one whose centreline touches `fromTaxiway`, with a join node of `fromTaxiway` and a join node of `toTaxiway` at most `MaxOffsetRunwayCrossingFt = 300` apart along it (a sim convention of about twice a runway's width; no FAA figure) and on **opposite sides** of the runway line (`SideOfRunway`).
+`FindOffsetRunwayCrossing` finds the runway: one whose centreline `fromTaxiway` joins, with a join of `fromTaxiway` and a join of `toTaxiway` at most `MaxOffsetRunwayCrossingFt = 300` apart along it (a sim convention of about twice a runway's width; no FAA figure) and on **opposite sides** of the runway line (`SideOfRunway`).
+
+A join is a `RunwayJoin`, a (taxiway node `Via`, centreline node `Join`) pair. A **direct join** is one node (`Via == Join`, the taxiway edge meets the centreline). A **stitched join** (`StitchedRunwayJoins`) is a taxiway end node on the runway pavement joined to a centreline node by a `RWY…:link` edge (CMH E4 and F3 over 10L/28R), and the route hops that link on and off the centreline.
+
+The 300 ft is measured along the centreline between the two centreline nodes, never link to link; side (`SideOfRunway`) and obliqueness (`MeetsRunwayObliquely`) are read on each taxiway's own edge at its own `Via` node.
 
 The closest qualifying pair wins, and the answer (null included) is cached per `SearchContext` and taxiway pair (`OffsetRunwayCrossingCache`), since every look-ahead probe of a zero-junction transition asks again.
 
@@ -512,19 +516,19 @@ A pair never qualifies when:
 
 - **Same side.** Both joins on one side is taxiing along the runway, which the controller clears by naming it.
 - **No side.** A taxiway that runs through the runway or lies within 5° of its line is on neither side.
-- **Rule A2: a square crossing already exists.** A straight non-centreline edge leaves either join toward the opposite side (`HasStraightTaxiwayToward`), so a taxiway continues across the runway from that join and is the way over (SFO C3/S2 over 28R, where S1 crosses straight from C3's join).
+- **Rule A2: a square crossing already exists.** A straight non-centreline edge leaves either join's centreline node toward the opposite side (`HasStraightTaxiwayToward`; a stitched join's own link does not count), so a taxiway continues across the runway from that join and is the way over (SFO C3/S2 over 28R, where S1 crosses straight from C3's join).
 - **Rule B1: oblique join.** A straight edge of either taxiway meets the runway less than 60° off its line (`MeetsRunwayObliquely`): a high-speed exit, whose use is a reversal onto or off the runway, never a crossing (7110.65 §3-7-2.c NOTE; KCOS A2/C2 over 17R/35L, C2 30° off: a bare `TAXI A2 C2` is refused as not connecting, and `TAXI A2 17R C2 C` names the runway and reads back "Taxi via A2 on 17R C2 C"). The 60° is a sim convention.
 
   YAAT ships no declared pair; an ARTCC's airport sidecar may declare one (`crossingPairs`, e.g. `{ "taxiways": ["A2", "C2"], "runway": "17R/35L" }`; `CrossingPair.Matches`, resolved into `SearchContext.CrossingPairs`), and that pair across that runway alone is exempt from this rule; every other rule still holds.
 
-  The declared crossing runs along the runway centreline between the two joins and ends in a turn onto the second taxiway, which `TurnOntoBeyondLimit` checks against `CategoryLimits.MaxHeadingChangeDeg` for the aircraft's type: KCOS A2 onto C2 is a 150° reversal, so a B738 gets `FailureKind.CannotMakeTurn` (*"Unable, can't make the turn from A2 onto C2, request taxi instructions"*, `CannotMakeTurnReason`) while a C172 crosses.
+  The declared crossing runs along the runway centreline between the two joins and ends in a turn onto the second taxiway, which `TurnOntoBeyondLimit` checks against `CategoryLimits.MaxHeadingChangeDeg` for the aircraft's type: KCOS A2 onto C2 is a 150° reversal, so a B738 gets `FailureKind.CannotMakeTurn` (*"Unable, can't make the turn from A2 onto C2, request taxi instructions"*, `CannotMakeTurnReason`) while a C172 crosses. For a direct pair the turn is measured from the bearing the centreline run arrives on; for a stitched pair, which drives straight from the first taxiway onto the second with the centreline run only standing in for that, it is the first taxiway's heading at its own end onto the second's (CMH E4 onto F3, 3°).
 
   KCOS ships no `crossingPairs` entry, so a bare `TAXI A2 C2` is refused as not connecting for every type.
 - **Longer offset.** The joins are further apart than 300 ft.
 
 A runway token as either end of the pair is skipped.
 
-The route is the two legs of the explicit `X RWY Y` form, but each is a **pinned local search** (`LocalSearchToJunction`) to the join node the check found: along fromTaxiway to its join, then along the runway's centreline to toTaxiway's join.
+The route is the two legs of the explicit `X RWY Y` form, but each is a **pinned local search** (`LocalSearchToJunction`) to the join node the check found: along fromTaxiway to its `Via` node, across a stitched join's link onto the centreline, along the runway's centreline to toTaxiway's centreline node, and across that join's link (`AcrossLink`) onto toTaxiway's `Via` node, where the next transition's search starts. A direct join has no link hop.
 
 Neither leg can detour or depends on look-ahead, so a probe resolves the crossing exactly as the top level does. The centreline run actually walked must also stay within 300 ft (`CenterlineLengthFt`: centreline edges only, so fillet arcs and taxiway edges do not count).
 
@@ -532,9 +536,9 @@ The runway never enters the clearance's waypoint sequence. The materialiser ther
 
 The step runs at the top level and inside a look-ahead probe alike (it is tried before the `!enableLookahead` suppression, so a continuation that needs the crossing is not a negative signal). It returns null, leaving the detour or `DetourSuppressedFailure` as before, when no runway qualifies or either leg fails.
 
-`ExplicitPathOptions.DiagnosticLog` gets `[runway-crossing] X→Y across RWYnn/nn #a→#b offset=Nft` when a crossing is chosen. A rejected crossing logs `[runway-crossing] X→RWYnn/nn failed: no route along X to #a` (the onto leg), `RWYnn/nn→Y failed: no route along RWYnn/nn to #b` (the off leg), or `RWYnn/nn→Y failed: centreline run Nft` (over 300 ft).
+`ExplicitPathOptions.DiagnosticLog` gets `[runway-crossing] X→Y across RWYnn/nn #a→#b offset=Nft` (the centreline nodes) when a crossing is chosen, and `[runway-crossing] X→Y turn D.D° onto Y at #n` on every attempt that reaches the turn check. A rejected crossing logs `[runway-crossing] X→RWYnn/nn failed: no route along X to #a` (the onto leg), `RWYnn/nn→Y failed: no route along RWYnn/nn to #b` (the off leg), or `RWYnn/nn→Y failed: centreline run Nft` (over 300 ft).
 
-`TaxiRouteFormatter.TaxiwayLegs` drops a runway leg the route only crosses (`IsCrossingLeg`), so every readback and route summary reads OAK as `E C D F HS 15/33 at D @OLD1`, never "on 33".
+`TaxiRouteFormatter.TaxiwayLegs` drops a runway leg the route only crosses (`IsCrossingLeg`), so every readback and route summary reads OAK as `E C D F HS 15/33 at D @OLD1`, never "on 33". A stitched crossing's `RWY…:link` edges carry their runway's name (`RunwayCenterlineName` strips `:link`), so link, centreline and link read as one crossing leg, never "on 10L", "on 28R" or ":link"; the side test of the bars uses the centreline run between the links.
 
 A leg counts as a crossing only when all hold: its centreline run is at most `MaxOffsetRunwayCrossingFt` (measured with the expander's own `CenterlineLengthFt`, so a far-side fillet the walk keeps under the runway's name does not count); the last hold-short bar on the previous leg and the first bar on the next leg are both this runway's, each scan bounded to those neighbouring legs' own segments; the entry bar carries one of the route's hold-short points; and the two bars stand on opposite sides of the leg.
 

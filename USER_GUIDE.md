@@ -789,7 +789,7 @@ The aircraft is never warned about the taxiway it is already on, and a `TAXI` is
 
 The echo tells you where it will hold (`[holding short of D: route ends at D, no destination given]`); continue it with a follow-up `TAXI`, a destination (`RWY 28R`, `@GA1`), or a turn hint on the last taxiway (`TAXI C >D`). `RES` and `CROSS` don't release this hold. An aircraft rolling too fast to stop short of it answers `Unable to hold short of D — stopping` and brakes hard.
 
-**Where a taxi across a runway stops.** When such a clearance crosses a runway on the way (KOAK `TAXI D F`, or KCOS `TAXI A2 C2` where the airport declares it a crossing), the aircraft does not stop on the runway centreline: it ends on the far taxiway with the whole aircraft clear of the runway, its tail and nose both 10 ft past the far hold line.
+**Where a taxi across a runway stops.** When such a clearance crosses a runway on the way (KOAK `TAXI D F`, KCOS `TAXI A2 C2` where the airport declares it a crossing, or CMH `TAXI E4 F3`), the aircraft does not stop on the runway centreline: it ends on the far taxiway with the whole aircraft clear of the runway, its tail and nose both 10 ft past the far hold line.
 
 The echo says so (`[holding short of 17R/35L at A2 — route ends on C2 clear of 17R/35L, no destination given]`, `crossing 17R/35L at A2 — …` once you `CROSS` it).
 
@@ -809,7 +809,7 @@ A `TAXI` that names only the taxiway the aircraft is already on (`TAXI B` on B, 
 
 A bare `TAXI B` to an aircraft holding short of B at the end of an open-ended taxi is refused the same way (`holding short of B: give a direction (>B or <B) or a destination`). An aircraft holding short of a runway that gets a directed `TAXI` (`TAXI B C` from the 28L bar) is cleared across that runway by it, and the pilot reads the crossing back; the readback stops at the first hold short that stops the aircraft, and says nothing past it.
 
-**The readback is the clearance as issued.** The echo and the pilot name the taxiways you cleared (plus the one the aircraft is on, when the route drives it). Ramp taxilanes the route adds on the way to a stand, and the numbered runway-entry connector a runway clearance implies (W → W1 to runway 30 at OAK), are not named. Nor is a runway the route only crosses: `TAXI D F` at OAK, where D and F meet only across runway 15/33, holds short of 15/33 on D and reads back without "on 33".
+**The readback is the clearance as issued.** The echo and the pilot name the taxiways you cleared (plus the one the aircraft is on, when the route drives it). Ramp taxilanes the route adds on the way to a stand, and the numbered runway-entry connector a runway clearance implies (W → W1 to runway 30 at OAK), are not named. Nor is a runway the route only crosses: `TAXI D F` at OAK, where D and F meet only across runway 15/33, holds short of 15/33 on D and reads back without "on 33" (CMH `TAXI E4 F3`, which meets across 10L/28R through the runway's link edges, reads back `Taxi via E4 F3` with its hold short of 10L/28R at E4, never "on 10L" or "on 28R", and a `CROSS 10L` at E4's bar carries the aircraft onto F3).
 
 **Two taxiways that do not connect.** When two taxiways you name in a row meet nowhere the aircraft may join them, the pilot refuses with `Unable, C3 and S2 do not connect, request taxi instructions` (SFO `TAXI C3 S2`) and stays where it is; issue a `TAXI` that names the taxiway between them.
 

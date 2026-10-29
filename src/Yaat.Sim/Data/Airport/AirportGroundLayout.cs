@@ -243,7 +243,16 @@ public sealed class GroundEdge : IGroundEdge
     /// hold-short representative to the runway centerline. These are connectivity artifacts, not
     /// taxi corners — fillet must ignore them (never curve a taxiway onto a runway crossing link).
     /// </summary>
-    public bool IsRunwayCrossingLink => TaxiwayName.Contains(":link", StringComparison.OrdinalIgnoreCase);
+    public bool IsRunwayCrossingLink => IsRunwayCrossingLinkName(TaxiwayName);
+
+    /// <summary>The suffix that marks a runway-crossing connector's edge name (<c>"RWY10L/28R:link"</c>).</summary>
+    public const string RunwayCrossingLinkSuffix = ":link";
+
+    /// <summary>
+    /// True when <paramref name="name"/> carries a runway-crossing <c>:link</c>: the name of a <see cref="IsRunwayCrossingLink"/>
+    /// edge, or of a junction arc that joins one.
+    /// </summary>
+    public static bool IsRunwayCrossingLinkName(string name) => name.Contains(RunwayCrossingLinkSuffix, StringComparison.OrdinalIgnoreCase);
 
     public bool MatchesRunway(string designator) => IsRunwayCenterline && IGroundEdge.RunwayNameContainsDesignator(TaxiwayName, designator);
 

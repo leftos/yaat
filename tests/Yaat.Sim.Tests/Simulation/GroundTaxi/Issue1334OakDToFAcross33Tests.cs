@@ -368,6 +368,204 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// YAAT-921: CMH E4 and F3 cross 10L/28R square from opposite sides, about 123 ft apart along its centreline, but neither
+    /// touches the centreline: each ends on the runway pavement and reaches it through a stitched <c>RWY10L/28R:link</c> edge.
+    /// <c>TAXI E4 F3</c> is one crossing of an uncleared runway: it holds short at E4's bar, never stops before F3's bar, ends
+    /// on F3 clear of the runway, and reads back as a crossing, never "on 10L".
+    /// </summary>
+    [Theory]
+    [InlineData("C172")]
+    [InlineData("B738")]
+    [InlineData("A321")]
+    public void CmhE4F3_StitchedCrossing_Resolves(string aircraftType)
+    {
+        if (CmhE4Start() is not { } cmh)
+        {
+            return;
+        }
+
+        AircraftState aircraft = MakeAircraftAt(cmh.Layout, "CMH", cmh.Start, cmh.HeadingDeg);
+        aircraft.AircraftType = aircraftType;
+        var taxi = new TaxiCommand(Path: ["E4", "F3"], HoldShorts: [], Expedite: false, DestinationParking: null);
+
+        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, cmh.Layout);
+        output.WriteLine($"{aircraftType}: {result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        foreach (HoldShortPoint hs in route.HoldShortPoints)
+        {
+            output.WriteLine($"hold short: #{hs.NodeId} {hs.TargetName} ({hs.Reason})");
+        }
+
+        double centerlineFt = SegmentExpander.CenterlineLengthFt(route.Segments.Select(s => s.Edge.Edge));
+        output.WriteLine($"centreline run {centerlineFt:F0} ft");
+        Assert.InRange(centerlineFt, 110.0, 135.0);
+
+        HoldShortPoint crossing = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.RunwayCrossing);
+        Assert.Equal(cmh.E4Bar.Id, crossing.NodeId);
+        Issue905BareCrossingEndTests.AssertEndsClearPast(output, route, cmh.Layout, ("10L", "F3"), aircraftType);
+
+        Assert.DoesNotContain("on 10L", result.Message);
+        Assert.DoesNotContain("on 28R", result.Message);
+        Assert.DoesNotContain(":link", result.Message);
+
+        List<string> diag = ResolveCmhE4F3(cmh, aircraftType);
+        Assert.Contains(diag, line => line.StartsWith("[runway-crossing] E4→F3 across RWY10L/28R ", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The stitched crossing's turn is measured from E4's heading onto F3's, about 3°, not from the runway centreline's bearing
+    /// onto F3 (about 90°): the aircraft drives straight across, the centreline run is only the graph's stand-in for it.
+    /// </summary>
+    [Fact]
+    public void CmhE4F3_TurnMeasuredFromE4OntoF3()
+    {
+        if (CmhE4Start() is not { } cmh)
+        {
+            return;
+        }
+
+        List<string> diag = ResolveCmhE4F3(cmh, "B738");
+        List<string> turnLines = [.. diag.Where(line => line.StartsWith("[runway-crossing] E4→F3 turn ", StringComparison.Ordinal))];
+        Assert.NotEmpty(turnLines);
+        Assert.DoesNotContain(
+            diag,
+            line => line.Contains("refused", StringComparison.Ordinal) && line.StartsWith("[runway-crossing]", StringComparison.Ordinal)
+        );
+
+        // Every look-ahead probe of the transition measures the turn again; each must see the same straight-across turn.
+        foreach (string turnLine in turnLines)
+        {
+            output.WriteLine(turnLine);
+            Assert.InRange(TurnDeg(turnLine), 0.0, 10.0);
+        }
+    }
+
+    private static double TurnDeg(string turnLine)
+    {
+        const string Marker = "turn ";
+        int from = turnLine.IndexOf(Marker, StringComparison.Ordinal) + Marker.Length;
+        int to = turnLine.IndexOf('°', from);
+        return double.Parse(turnLine[from..to], System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Driven end to end: the aircraft holds at E4's 10L/28R bar, and <c>CROSS 10L</c> carries it across onto F3 without
+    /// stopping between E4's bar and F3's bar, and it comes to rest on F3 past F3's bar.
+    /// </summary>
+    [Theory]
+    [InlineData("C172")]
+    [InlineData("B738")]
+    public void CmhE4F3_Cross10L_CrossesOntoF3WithoutStoppingBetweenTheBars(string aircraftType)
+    {
+        TestVnasData.EnsureInitialized();
+        if ((TestVnasData.NavigationDb is null) || (CmhE4Start() is not { } cmh))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        AircraftState aircraft = MakeAircraftAt(cmh.Layout, "CMH", cmh.Start, cmh.HeadingDeg);
+        aircraft.AircraftType = aircraftType;
+        engine.World.AddAircraft(aircraft);
+        engine.Scenario = new SimScenarioState
+        {
+            ScenarioId = "test-yaat-921-cmh-e4-f3",
+            ScenarioName = "CMH E4 to F3 across 10L/28R",
+            RngSeed = 42,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = "CMH",
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+        };
+
+        CommandResult taxi = engine.SendCommand(Callsign, "TAXI E4 F3");
+        output.WriteLine($"taxi: {taxi.Success} — {taxi.Message}");
+        Assert.True(taxi.Success, taxi.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        int farBarSegment = route.Segments.FindIndex(s => s.ToNodeId == cmh.F3Bar.Id);
+        Assert.True(farBarSegment >= 0, "the route never reaches F3's 10L/28R bar");
+
+        AircraftState? holding = TickUntil(engine, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900);
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(holding?.Phases?.CurrentPhase);
+        output.WriteLine($"holding short of {hold.HoldShort.TargetName} at node #{hold.HoldShort.NodeId}");
+        Assert.Equal(cmh.E4Bar.Id, hold.HoldShort.NodeId);
+
+        CommandResult cross = engine.SendCommand(Callsign, "CROSS 10L");
+        output.WriteLine($"cross: {cross.Success} — {cross.Message}");
+        Assert.True(cross.Success, cross.Message);
+
+        bool heldBetweenBars = false;
+        bool moving = false;
+        bool stoppedBetweenBars = false;
+        bool pastFarBar = false;
+        AircraftState? atRest = TickUntil(
+            engine,
+            ac =>
+            {
+                pastFarBar |= (ac.Ground.AssignedTaxiRoute is null) || (ac.Ground.AssignedTaxiRoute.CurrentSegmentIndex > farBarSegment);
+                heldBetweenBars |= (!pastFarBar) && (ac.Phases?.CurrentPhase is HoldingShortPhase);
+                stoppedBetweenBars |= (!pastFarBar) && moving && (ac.GroundSpeed < 0.1);
+                moving |= ac.GroundSpeed >= 0.1;
+                return pastFarBar && (ac.GroundSpeed < 0.1);
+            },
+            300
+        );
+
+        Assert.False(heldBetweenBars, "the aircraft held short again between E4's bar and F3's bar");
+        Assert.False(stoppedBetweenBars, "the aircraft came to a stop between E4's bar and F3's bar");
+        Assert.NotNull(atRest);
+        double pastFt = GeoMath.DistanceNm(cmh.F3Bar.Position, atRest.Position) * GeoMath.FeetPerNm;
+        output.WriteLine($"at rest {pastFt:F0} ft past F3's bar #{cmh.F3Bar.Id}, twy={atRest.Ground.CurrentTaxiway}");
+        Assert.True(pastFt >= AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0, $"at rest only {pastFt:F0} ft past F3's bar");
+        Assert.Equal("F3", atRest.Ground.CurrentTaxiway);
+    }
+
+    private sealed record CmhE4F3Start(AirportGroundLayout Layout, GroundNode Start, GroundNode E4Bar, GroundNode F3Bar, double HeadingDeg);
+
+    /// <summary>CMH's E/E4 junction, nosed up E4 toward its 10L/28R bar; null when the CMH layout is absent.</summary>
+    private CmhE4F3Start? CmhE4Start()
+    {
+        TestVnasData.EnsureInitialized();
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("CMH");
+        if (layout is null)
+        {
+            return null;
+        }
+
+        GroundNode start = GroundNodeLookup.Junction(layout, "E", "E4");
+        GroundNode e4Bar = GroundNodeLookup.HoldShortBar(layout, "10L", "E4", start);
+        GroundNode f3Bar = GroundNodeLookup.HoldShortBar(layout, "10L", "F3", start);
+        output.WriteLine($"CMH: start #{start.Id} on E/E4, E4's bar #{e4Bar.Id}, F3's bar #{f3Bar.Id}");
+        return new CmhE4F3Start(layout, start, e4Bar, f3Bar, GeoMath.BearingTo(start.Position, e4Bar.Position));
+    }
+
+    /// <summary>The pathfinder's diagnostic lines for <c>E4 F3</c> from <paramref name="cmh"/>'s start, asserting it resolves.</summary>
+    private List<string> ResolveCmhE4F3(CmhE4F3Start cmh, string aircraftType)
+    {
+        var diag = new List<string>();
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
+            cmh.Layout,
+            cmh.Start.Id,
+            ["E4", "F3"],
+            out string? failReason,
+            new ExplicitPathOptions
+            {
+                StartPose = null,
+                OccupiedTaxiway = null,
+                ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt(aircraftType),
+                StartHeadingTrue = cmh.HeadingDeg,
+                DiagnosticLog = diag.Add,
+            },
+            AircraftCategorization.Categorize(aircraftType),
+            WakeTurbulenceData.WakeClassForType(aircraftType, AircraftCategorization.Categorize(aircraftType))
+        );
+        Assert.True(route is not null, failReason);
+        return diag;
+    }
+
+    /// <summary>
     /// The 300 ft crossing bound counts runway centreline only. No surveyed pair that qualifies lies between 250 and 300 ft,
     /// so the shared measure is pinned on COS's real 17R/35L centreline between A2's and C2's joins (about 255 ft) together
     /// with C2's fillet arc onto the runway: the arc is not centreline and never counts toward the bound.

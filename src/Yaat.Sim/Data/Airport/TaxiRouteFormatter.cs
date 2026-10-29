@@ -138,8 +138,16 @@ public static class TaxiRouteFormatter
             return false;
         }
 
-        GroundNode lineStart = route.Segments[first].Edge.FromNode;
-        GroundNode lineEnd = route.Segments[last].Edge.ToNode;
+        // A stitched crossing's link hops lead off the runway line to each taxiway's end; the line is the run between them.
+        List<TaxiRouteSegment> legSegments = [.. route.Segments.Skip(first).Take(last - first + 1)];
+        List<TaxiRouteSegment> lineSegments = [.. legSegments.Where(s => !GroundEdge.IsRunwayCrossingLinkName(s.Edge.Edge.TaxiwayName))];
+        if (lineSegments.Count == 0)
+        {
+            lineSegments = legSegments;
+        }
+
+        GroundNode lineStart = lineSegments[0].Edge.FromNode;
+        GroundNode lineEnd = lineSegments[^1].Edge.ToNode;
         double lineBearing = GeoMath.BearingTo(lineStart.Position, lineEnd.Position);
         return SideOfLine(lineStart, lineBearing, entryBar) * SideOfLine(lineStart, lineBearing, exitBar) < 0;
     }
@@ -207,10 +215,20 @@ public static class TaxiRouteFormatter
     internal static bool IsRunwayName(string name) => name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// The runway centreline name of a stitched runway-crossing link's edge name (<c>"RWY10L/28R:link"</c> →
+    /// <c>"RWY10L/28R"</c>); any other name unchanged.
+    /// </summary>
+    internal static string RunwayCenterlineName(string name) =>
+        IsRunwayName(name) && GroundEdge.IsRunwayCrossingLinkName(name)
+            ? name[..name.IndexOf(GroundEdge.RunwayCrossingLinkSuffix, StringComparison.OrdinalIgnoreCase)]
+            : name;
+
+    /// <summary>
     /// The taxiway names an edge belongs to, ramp dropped and real taxiways ordered ahead of runways.
     /// The ordering matters for a runway-crossing arc (<c>["H", "RWY01L/19R"]</c>) reached from neither
     /// of its members: that arc <em>continues</em> H across the runway, so H is the name to show — the
-    /// aircraft is not being cleared to taxi along 01L.
+    /// aircraft is not being cleared to taxi along 01L. A stitched <c>RWY…:link</c> edge carries its runway's name, so
+    /// link, centreline and link read as one runway leg.
     /// </summary>
     private static List<string> TaxiwayMembers(IGroundEdge edge)
     {
@@ -228,7 +246,7 @@ public static class TaxiRouteFormatter
         {
             if (IsRunwayName(name))
             {
-                result.Add(name);
+                result.Add(RunwayCenterlineName(name));
             }
         }
 
