@@ -172,7 +172,13 @@ public class RtisSoftFailLookingTests
         ownship.TrueHeading = new TrueHeading(180);
         ownship.TrueTrack = new TrueHeading(180);
 
-        PilotObservationUpdater.Update(ownship, cs => cs == "LEAD" ? lead : null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
+        PilotObservationUpdater.Update(
+            ownship,
+            cs => cs == "LEAD" ? lead : null,
+            weather: null,
+            simTimeSeconds: 0,
+            options: PhysicsTickOptions.Default
+        );
 
         Assert.True(ownship.Approach.HasReportedTrafficInSight);
         Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
@@ -191,7 +197,13 @@ public class RtisSoftFailLookingTests
         CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
         ownship.PendingPilotReadbacks.Clear();
 
-        PilotObservationUpdater.Update(ownship, cs => cs == "LEAD" ? lead : null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
+        PilotObservationUpdater.Update(
+            ownship,
+            cs => cs == "LEAD" ? lead : null,
+            weather: null,
+            simTimeSeconds: 0,
+            options: PhysicsTickOptions.Default
+        );
 
         Assert.False(ownship.Approach.HasReportedTrafficInSight);
         Assert.Single(ownship.PendingObservations);
@@ -238,7 +250,7 @@ public class RtisSoftFailLookingTests
         ownship.PendingPilotReadbacks.Clear();
 
         // Target gone from sim — updater's lookup returns null.
-        PilotObservationUpdater.Update(ownship, cs => null, weather: null, soloTrainingMode: false, rpoShowPilotSpeech: false);
+        PilotObservationUpdater.Update(ownship, cs => null, weather: null, simTimeSeconds: 0, options: PhysicsTickOptions.Default);
 
         Assert.Empty(ownship.PendingObservations);
         Assert.Empty(ownship.PendingPilotReadbacks);

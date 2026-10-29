@@ -1,0 +1,81 @@
+{
+  "id": "01JC02K8S2T5Z6Q4R7M9N3X1VB",
+  "name": "Montage C2 | Pursuit too close behind a pattern-bound lead S-turns for spacing",
+  "artccId": "ZOA",
+  "primaryAirportId": "OAK",
+  "studentPositionId": "01GEAMB98RKCPP9HCNPW5AVDA5",
+  "autoDeleteMode": "None",
+  "initializationTriggers": [],
+  "aircraftGenerators": [],
+  "aircraft": [
+    {
+      "id": "01JC02N52417K8S2T5Z6Q4R7MB",
+      "aircraftId": "N52417",
+      "aircraftType": "C172",
+      "transponderMode": "C",
+      "startingConditions": {
+        "type": "Coordinates",
+        "coordinates": { "lat": 37.735, "lon": -121.955 },
+        "altitude": 2000,
+        "speed": 90,
+        "heading": 263,
+        "navigationPath": "OAK"
+      },
+      "onAltitudeProfile": false,
+      "flightplan": {
+        "rules": "VFR",
+        "departure": "KLVK",
+        "destination": "KOAK",
+        "cruiseAltitude": 3500,
+        "cruiseSpeed": 0,
+        "route": "",
+        "remarks": "/V/",
+        "aircraftType": "C172"
+      },
+      "presetCommands": [],
+      "airportId": "OAK",
+      "difficulty": "Easy",
+      "autoTrackConditions": { "positionId": "01GEAMB98RKCPP9HCNPW5AVDA5", "handoffDelay": 0 }
+    },
+    {
+      "id": "01JC02N738SPK8S2T5Z6Q4R7MD",
+      "aircraftId": "N738SP",
+      "aircraftType": "C172",
+      "transponderMode": "C",
+      "startingConditions": {
+        "type": "Coordinates",
+        "coordinates": { "lat": 37.738, "lon": -121.921 },
+        "altitude": 2000,
+        "speed": 100,
+        "heading": 263,
+        "navigationPath": "OAK"
+      },
+      "onAltitudeProfile": false,
+      "flightplan": {
+        "rules": "VFR",
+        "departure": "KLVK",
+        "destination": "KOAK",
+        "cruiseAltitude": 3500,
+        "cruiseSpeed": 0,
+        "route": "",
+        "remarks": "/V/",
+        "aircraftType": "C172"
+      },
+      "presetCommands": [],
+      "airportId": "OAK",
+      "difficulty": "Easy",
+      "autoTrackConditions": { "positionId": "01GEAMB98RKCPP9HCNPW5AVDA5", "handoffDelay": 0 }
+    }
+  ],
+  "atc": [
+    {
+      "id": "01G9CQW3XEE3RW84EBYKEBCPQD",
+      "artccId": "ZOA",
+      "facilityId": "OAK",
+      "positionId": "01GEAMB98RKCPP9HCNPW5AVDA5",
+      "autoConnect": true,
+      "autoTrackAirportIds": []
+    }
+  ],
+  "flightStripConfigurations": []
+}

@@ -1545,7 +1545,7 @@ VisualAcquisition.cs           # Static helpers: TryAcquireTraffic(ownship, targ
                                # Bundle METAR/elevation/bank-angle lookup around VisualDetection so ALL traffic paths (RTIS first-check,
                                # PilotObservationUpdater re-check, CheckLeadLifecycle, TickVisualDetection) use identical ownship-nearest-station
                                # inputs. TryAcquireAirport returns null when the destination is missing or not in the nav db (caller drops the observation).
-PilotObservation.cs            # Abstract record PilotObservation + TrafficAcquisitionObservation(TargetCallsign) + FieldAcquisitionObservation
+PilotObservation.cs            # Abstract record PilotObservation + TrafficAcquisitionObservation(TargetCallsign, IssuedAtSeconds, ArmedAirborne) + FieldAcquisitionObservation
                                # Pilot-side "watch for a condition" state — populated when RTIS/RFIS soft-fail (pilot keeps looking)
                                # Extension points for future "report leaving altitude", "report passing fix", etc.
 PilotObservationUpdater.cs     # Static per-tick evaluator called from FlightPhysics.Update after UpdateCommandQueue

@@ -22,12 +22,24 @@ public static class PilotObservationUpdater
     /// </summary>
     private static readonly ConditionalWeakTable<TrafficAcquisitionObservation, HashSet<VisualAcquisitionFailure>> LoggedRejections = [];
 
+    /// <summary>
+    /// How long a traffic lookout stays open once issued: two minutes of sim time, after which the pilot stops looking
+    /// and keys up once with "still negative contact on that traffic". A traffic advisory is about traffic passing close
+    /// to the flight path now (AIM 4-1-15.a.1); traffic sighted minutes later is not the traffic the controller pointed
+    /// out. FAA text sets no pilot-side limit — closing out an unsighted advisory is the controller's job (7110.65
+    /// 2-1-21.a.7) — so the two-minute figure and the unsolicited report are an owner ruling for training value.
+    /// </summary>
+    public const double TrafficLookoutLifetimeSeconds = 120;
+
+    /// <summary>One tick's inputs for the resolvers: the scenario clock and the mode/speech flags the pilot's lines route by.</summary>
+    private readonly record struct TickContext(double SimTimeSeconds, PhysicsTickOptions Options);
+
     public static void Update(
         AircraftState aircraft,
         Func<string, AircraftState?>? aircraftLookup,
         WeatherProfile? weather,
-        bool soloTrainingMode,
-        bool rpoShowPilotSpeech
+        double simTimeSeconds,
+        PhysicsTickOptions options
     )
     {
         if (aircraft.PendingObservations.Count == 0)
@@ -35,21 +47,15 @@ public static class PilotObservationUpdater
             return;
         }
 
+        TickContext tick = new(simTimeSeconds, options);
         List<PilotObservation> observations = aircraft.PendingObservations;
         for (int i = observations.Count - 1; i >= 0; i--)
         {
             PilotObservation obs = observations[i];
             bool resolved = obs switch
             {
-                TrafficAcquisitionObservation traffic => TryResolveTraffic(
-                    aircraft,
-                    traffic,
-                    aircraftLookup,
-                    weather,
-                    soloTrainingMode,
-                    rpoShowPilotSpeech
-                ),
-                FieldAcquisitionObservation => TryResolveField(aircraft, weather, soloTrainingMode, rpoShowPilotSpeech),
+                TrafficAcquisitionObservation traffic => TryResolveTraffic(aircraft, traffic, aircraftLookup, weather, tick),
+                FieldAcquisitionObservation => TryResolveField(aircraft, weather, tick),
                 _ => false,
             };
 
@@ -61,17 +67,17 @@ public static class PilotObservationUpdater
     }
 
     /// <summary>
-    /// Re-runs visual acquisition for a pending traffic observation. Returns
-    /// true if the observation is done (acquired → pilot reports in sight, or
-    /// target aircraft gone → silently drop) and should be removed.
+    /// Re-runs visual acquisition for a pending traffic observation. Returns true if the observation is done, by any of
+    /// its four endings: acquired → the pilot reports in sight; target aircraft gone → silently dropped; the ownship
+    /// landing → "still negative contact"; the two-minute lifetime run out → the same report. Acquisition is tried
+    /// before expiry so traffic first seen on the tick the lookout would end still counts as in sight.
     /// </summary>
     private static bool TryResolveTraffic(
         AircraftState aircraft,
         TrafficAcquisitionObservation obs,
         Func<string, AircraftState?>? aircraftLookup,
         WeatherProfile? weather,
-        bool soloTrainingMode,
-        bool rpoShowPilotSpeech
+        TickContext tick
     )
     {
         if (aircraftLookup is null)
@@ -86,29 +92,63 @@ public static class PilotObservationUpdater
             return true;
         }
 
-        VisualAcquisitionResult result = VisualAcquisition.TryAcquireTraffic(aircraft, target, weather);
-        if (!result.Acquired)
+        if (obs.ArmedAirborne && aircraft.IsOnGround)
         {
-            LogRejectionOnce(aircraft, obs, result.Reason);
-            return false;
+            EndLookout(aircraft, obs, "touchdown", tick);
+            return true;
         }
 
-        aircraft.Approach.HasReportedTrafficInSight = true;
-        aircraft.Approach.LastReportedTrafficCallsign = obs.TargetCallsign.ToUpperInvariant();
+        VisualAcquisitionResult result = VisualAcquisition.TryAcquireTraffic(aircraft, target, weather);
+        if (result.Acquired)
+        {
+            aircraft.Approach.HasReportedTrafficInSight = true;
+            aircraft.Approach.LastReportedTrafficCallsign = obs.TargetCallsign.ToUpperInvariant();
+            Log.LogDebug(
+                "Traffic observation acquired: {Follower} has {Target} in sight at {Distance:F1} nm",
+                aircraft.Callsign,
+                obs.TargetCallsign,
+                result.DistanceNm
+            );
+            Pilot.PilotResponder.RouteRpoSayReadback(
+                aircraft,
+                tick.Options.SoloTrainingMode,
+                tick.Options.RpoShowPilotSpeech,
+                Pilot.PilotResponder.BuildTrafficInSight(aircraft, obs.TargetCallsign)
+            );
+            Log.LogDebug("Traffic in sight readback queued for {Follower}, reporting {Target}", aircraft.Callsign, obs.TargetCallsign);
+            return true;
+        }
+
+        if (tick.SimTimeSeconds - obs.IssuedAtSeconds >= TrafficLookoutLifetimeSeconds)
+        {
+            EndLookout(aircraft, obs, "expired", tick);
+            return true;
+        }
+
+        LogRejectionOnce(aircraft, obs, result.Reason);
+        return false;
+    }
+
+    /// <summary>
+    /// Ends a lookout that ran its course or landed with the traffic still unseen, the pilot keying up once with
+    /// "still negative contact on that traffic" so the controller hears the traffic was never acquired instead of being
+    /// left to assume it was. <paramref name="reason"/> reports why in the log: "expired" for the two-minute lifetime,
+    /// "touchdown" for the ownship reaching the ground first.
+    /// </summary>
+    private static void EndLookout(AircraftState aircraft, TrafficAcquisitionObservation obs, string reason, TickContext tick)
+    {
         Log.LogDebug(
-            "Traffic observation acquired: {Follower} has {Target} in sight at {Distance:F1} nm",
+            "Traffic observation ended: {Follower} never acquired {Target} — {Reason} at {SimTime:F1}s",
             aircraft.Callsign,
             obs.TargetCallsign,
-            result.DistanceNm
+            reason,
+            tick.SimTimeSeconds
         );
-        Pilot.PilotResponder.RouteRpoSayReadback(
+        Pilot.PilotResponder.ReportNegativeContact(
             aircraft,
-            soloTrainingMode,
-            rpoShowPilotSpeech,
-            Pilot.PilotResponder.BuildTrafficInSight(aircraft, obs.TargetCallsign)
+            tick.Options.SoloTrainingMode,
+            Pilot.PilotResponder.BuildNegativeContact(aircraft, obs.TargetCallsign)
         );
-        Log.LogDebug("Traffic in sight readback queued for {Follower}, reporting {Target}", aircraft.Callsign, obs.TargetCallsign);
-        return true;
     }
 
     /// <summary>
@@ -135,7 +175,7 @@ public static class PilotObservationUpdater
     /// sight, or the destination is no longer lookupable → silently drop)
     /// and should be removed.
     /// </summary>
-    private static bool TryResolveField(AircraftState aircraft, WeatherProfile? weather, bool soloTrainingMode, bool rpoShowPilotSpeech)
+    private static bool TryResolveField(AircraftState aircraft, WeatherProfile? weather, TickContext tick)
     {
         VisualAcquisitionResult? result = VisualAcquisition.TryAcquireAirport(aircraft, weather);
         if (result is null)
@@ -150,7 +190,12 @@ public static class PilotObservationUpdater
         }
 
         aircraft.Approach.HasReportedFieldInSight = true;
-        Pilot.PilotResponder.RouteRpoSayReadback(aircraft, soloTrainingMode, rpoShowPilotSpeech, Pilot.PilotResponder.BuildFieldInSight(aircraft));
+        Pilot.PilotResponder.RouteRpoSayReadback(
+            aircraft,
+            tick.Options.SoloTrainingMode,
+            tick.Options.RpoShowPilotSpeech,
+            Pilot.PilotResponder.BuildFieldInSight(aircraft)
+        );
         return true;
     }
 }

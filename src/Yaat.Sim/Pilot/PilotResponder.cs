@@ -2315,6 +2315,38 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// Pilot transmission when a traffic lookout ends without the pilot ever acquiring the traffic: an unsolicited
+    /// "still negative contact on that traffic" (P/CG NEGATIVE CONTACT). Neither the spoken form nor the solo terminal
+    /// names the traffic's callsign — a pilot identifies traffic by the position/type call, never by callsign
+    /// (7110.65 2-1-21.a.1-5, AIM 4-1-15.c.1) — while the RPO terminal keeps it as an instructor diagnostic, as
+    /// <see cref="BuildTrafficInSight"/> does.
+    /// </summary>
+    public static PilotSpeechText BuildNegativeContact(AircraftState aircraft, string targetCallsign)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText("still negative contact on that traffic.", $"{spoken}, still negative contact on that traffic.")
+        {
+            RpoTerminal = $"still negative contact on traffic ({targetCallsign}).",
+        };
+    }
+
+    /// <summary>
+    /// Queues the one-shot "negative contact" report that ends a traffic lookout: a <see cref="PilotTransmissionKind.Report"/>
+    /// in solo training (never an initial contact — the pilot is answering traffic already advised), and in RPO mode the
+    /// same terminal line the RTIS soft-fail answer goes to (<see cref="AircraftState.PendingPilotReadbacks"/>).
+    /// </summary>
+    public static void ReportNegativeContact(AircraftState aircraft, bool soloTrainingMode, PilotSpeechText text)
+    {
+        if (soloTrainingMode)
+        {
+            QueueSoloPilotTransmission(aircraft, text, PilotTransmissionKind.Report, initialContact: false);
+            return;
+        }
+
+        aircraft.PendingPilotReadbacks.Add(text.TerminalForRpo);
+    }
+
+    /// <summary>
     /// Pilot transmission when the aircraft has the destination field in sight. Used by sim-resolved
     /// RFIS and by direct RFIS dispatches in RPO mode with pilot-speech rendering enabled. Terminal
     /// is the compact form (callsign in the SAY column); TTS prepends the spoken own callsign.

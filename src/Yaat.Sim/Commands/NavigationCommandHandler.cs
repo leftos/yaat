@@ -2198,7 +2198,9 @@ internal static class NavigationCommandHandler
         // the prior observation — the latest request always wins.
         string targetCallsignUpper = targetCallsign.ToUpperInvariant();
         aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
-        aircraft.PendingObservations.Add(new TrafficAcquisitionObservation(targetCallsignUpper));
+        aircraft.PendingObservations.Add(
+            new TrafficAcquisitionObservation(targetCallsignUpper, ctx.ScenarioElapsedSeconds, ArmedAirborne: !aircraft.IsOnGround)
+        );
         if (ctx.SoloTrainingMode)
         {
             Pilot.PilotResponder.QueueSoloPilotReadback(

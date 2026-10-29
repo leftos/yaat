@@ -36,7 +36,11 @@ These four hook in at four different points:
 - **Visual acquisition (field & FOLLOW traffic)** — **PostPhysics**, server-side: the field-acquisition block in
   `TickProcessor` (`~:1232–1360`). Plus a per-aircraft re-check inside the physics step via
   `PilotObservationUpdater.Update` (step 10 of `FlightPhysics.Update`, runs after `UpdateCommandQueue`) for pending
-  `TrafficAcquisitionObservation` / `FieldAcquisitionObservation` queued by RTIS/RFIS. A bare forced verb
+  `TrafficAcquisitionObservation` / `FieldAcquisitionObservation` queued by RTIS/RFIS. A traffic lookout ends unsighted
+  after 2 minutes of sim time (`TrafficLookoutLifetimeSeconds`), or at touchdown when it was armed airborne, and the
+  pilot then keys up once with "still negative contact on that traffic." (callsign in the RPO terminal only); a target
+  that leaves the world ends it silently, and a new RTIS re-arms it. The 2 minutes and the unsolicited call are an owner
+  ruling for training value: no FAA text gives a pilot-side limit. The field lookout has no lifetime. A bare forced verb
   (`FOLLOWF`/`RTISF`) with no typed callsign consumes that still-pending `TrafficAcquisitionObservation` as its target
   and clears it — the force declares the traffic acquired, so the "still looking" state is superseded rather than
   waiting for a later acquisition.

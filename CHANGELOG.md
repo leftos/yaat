@@ -15,6 +15,7 @@
 - An IFR departure flying a SID's coded legs with no altitude assigned levels at the SID's initial altitude, instead of climbing toward cruise.
 - `CMN` during a SID's coded legs holds the forced altitude and keeps the aircraft on the SID, instead of cancelling it.
 - In solo sessions, other pilots no longer cut in before the pilot you just instructed has read back.
+- A pilot who can't see called traffic stops looking after two minutes or on landing, and says it still has no contact, instead of reporting it in sight minutes later.
 - CRC's ASDE-X arrival-alert inhibit for a tower position now lapses after 3 minutes and clears when the runway configuration changes, as on vNAS.
 - An `ARWY` change to an ASDE-X airport's runway configuration is no longer reverted when a CRC display that hasn't caught up closes a runway or inhibits alerts.
 - Playing back a recording now shows its recorded ASDE-X closed runways, inhibits and runway-configuration changes on CRC.

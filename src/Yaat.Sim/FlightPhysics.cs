@@ -96,7 +96,7 @@ public static class FlightPhysics
         UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
         UpdateGroundStationaryTimer(aircraft, deltaSeconds);
         UpdateGiveWayResume(aircraft, aircraftLookup, deltaSeconds);
-        PilotObservationUpdater.Update(aircraft, aircraftLookup, weather, soloTrainingMode, rpoShowPilotSpeech);
+        PilotObservationUpdater.Update(aircraft, aircraftLookup, weather, simTimeSeconds, options);
     }
 
     /// <summary>
