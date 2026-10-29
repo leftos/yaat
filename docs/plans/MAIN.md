@@ -5,15 +5,16 @@
 ## Do first
 
 - [!] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Test infrastructure and CI
+- [ ] YAAT-1488 Refresh the pattern waypoints when CM/DM changes the pattern altitude (stale Waypoints.PatternAltitude) · release vNext — High · Traffic pattern and airborne FOLLOW
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext — High · Test infrastructure and CI
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
 - [ ] YAAT-1476 ASDE-X alert parity with vNAS (feat/asdex-safety-logic) · release vNext
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext
-  - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext
-  - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext
-  - [ ] YAAT-1485 Show GO AROUND on a closed-runway arrival alert restored from a pre-V39 snapshot
+  - [/] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext
+  - [/] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext
+  - [/] YAAT-1485 Show GO AROUND on a closed-runway arrival alert restored from a pre-V39 snapshot
   - [ ] YAAT-1486 Merge feat/asdex-safety-logic to main (#1359)
 
 ## Pilot phraseology by load (feat/pilot-phraseology-load)
@@ -33,7 +34,6 @@
 ## Bug reports and feature requests
 
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call · release vNext
-- [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed · release vNext
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext
@@ -181,6 +181,11 @@
 - [ ] YAAT-1473 Test the crossing stop cap for a jet with an onward hold short past the far bar · release vNext
 - [ ] YAAT-1290 Pass a taxi class record instead of the category and wake-class pair in the lineup-bar and explicit-path APIs · release vNext
 - [ ] YAAT-1344 Pin the painted-bar dedupe of the hold-short standoff planning pass on a layout that exercises it · release vNext
+
+### No milestone
+- [ ] YAAT-1506 Rule on the 25-degree oblique stitched runway entry at SFO #358 (AAL436 B20S preset)
+- [ ] YAAT-1507 Rule on a stitched route in and out on the same runway side through two :link edges
+- [ ] YAAT-1508 Synthesise a stand-in far hold bar for an offset crossing whose layout lacks one (943 R8)
 
 ## Runway exits and landing rollout
 
@@ -365,7 +370,7 @@
 - [ ] YAAT-1354 Check whether a bare TAXI B eastbound on OAK C drives all of B across 28R and 28L without holding short
 - [ ] YAAT-1306 Get SFO's real hold-line positions; unskip the E75L-on-T exit test
 - [ ] YAAT-919 Refuse a taxi detour connector that brings in an unimplied runway crossing (R3)
-- [ ] YAAT-921 Treat a runway crossing stitched through :link edges as a crossing
+- [/] YAAT-921 Treat a runway crossing stitched through :link edges as a crossing · release vNext
 - [ ] YAAT-1243 OAK sidecar: mark S as a non-movement taxilane so a gate taxi implies it
 - [ ] YAAT-409 HS of a taxiway behind the aircraft folds the route back (C A C H at KOAK)
 - [ ] YAAT-489 Record a driving aircraft's trail edge from its route, not a sub-foot fillet tie
@@ -681,7 +686,6 @@
 - [ ] YAAT-969 Refuse FOLLOW of traffic other than the one reported in sight
 - [ ] YAAT-1055 Stop a re-created pattern leg re-voicing its turn report after a 360 or a rebuild
 - [ ] YAAT-1090 Clear armed pattern and midfield reports when an aircraft leaves the pattern
-- [ ] YAAT-1488 Refresh the pattern waypoints when CM/DM changes the pattern altitude (stale Waypoints.PatternAltitude)
 - [ ] YAAT-1493 Keep the standing pattern altitude when MLT/MRT names the runway already flown
 - [ ] YAAT-1494 Keep the standing pattern altitude when MLT/MRT names the runway already flown
 - [ ] YAAT-1495 Reconcile the queued teardrop when the pattern-size command refreshes the pattern waypoints
@@ -800,6 +804,9 @@
 
 ### 3 Hygiene and tests (0/1 done)
 - [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range
+
+### No milestone
+- [ ] YAAT-1503 Key the RTIS 'looking' answer before later readbacks; stop the pilot echoing 'report traffic in sight'
 
 ## Server: CRC, ERAM, vEDST and rooms
 
@@ -1152,3 +1159,8 @@
 
 ### No milestone
 - [ ] YAAT-1487 Run yaat-server's prek format hooks through the gate check-only so commits leave the heavy slot (GATE-449)
+
+## Backlog
+
+- [ ] YAAT-1504 Make the recovered C2 pursuit scenario land as scripted (Class C contact; CLAND 28R refused)
+- [ ] YAAT-1505 Snapshot pending pilot traffic and field lookouts so a rewind keeps them
