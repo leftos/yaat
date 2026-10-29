@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Asdex;
@@ -49,7 +50,29 @@ public class AsdexSafetyLogicDetectorTests
         );
 
     private IReadOnlyList<AsdexSafetyAlert> Detect(IReadOnlyList<AircraftState> aircraft, bool closed, bool closedRunwayAlertsOnly) =>
-        AsdexSafetyLogicDetector.Detect(Runways(closed), [], aircraft, _fieldElevationFt, closedRunwayAlertsOnly);
+        DetectAlerts(Runways(closed), [], aircraft, _fieldElevationFt, closedRunwayAlertsOnly);
+
+    /// <summary>One tick on the open runways with <paramref name="oppDirPairs"/> as the previous tick's pair memory.</summary>
+    private AsdexDetection DetectWith(IReadOnlyList<AircraftState> aircraft, bool closedRunwayAlertsOnly, ImmutableSortedSet<string> oppDirPairs) =>
+        AsdexSafetyLogicDetector.Detect(
+            Runways(closed: false),
+            [],
+            aircraft,
+            _fieldElevationFt,
+            new AsdexDetectionInputs(closedRunwayAlertsOnly, oppDirPairs)
+        );
+
+    /// <summary>One tick's alerts with no pair remembered from a previous tick.</summary>
+    private static IReadOnlyList<AsdexSafetyAlert> DetectAlerts(
+        AsdexSafetyLogicRunways runways,
+        IReadOnlyList<AsdexTaxiwaySegment> taxiways,
+        IReadOnlyList<AircraftState> aircraft,
+        double fieldElevationFt,
+        bool closedRunwayAlertsOnly
+    ) =>
+        AsdexSafetyLogicDetector
+            .Detect(runways, taxiways, aircraft, fieldElevationFt, new AsdexDetectionInputs(closedRunwayAlertsOnly, AsdexDetection.NoOppDirPairs))
+            .Alerts;
 
     /// <summary>The aircraft's role on 28R.</summary>
     private AsdexRunwayUserRole RoleOf(AircraftState aircraft)
@@ -157,7 +180,7 @@ public class AsdexSafetyLogicDetectorTests
         AircraftState arrival = WithPhase(Airborne("UAL1660", -3000, speedKts: 140, heightFt: 160), new FinalApproachPhase());
 
         AsdexSafetyAlert alert = Assert.Single(
-            AsdexSafetyLogicDetector.Detect(Runways(closed: true, runways), [], [arrival], _fieldElevationFt, closedRunwayAlertsOnly: false)
+            DetectAlerts(Runways(closed: true, runways), [], [arrival], _fieldElevationFt, closedRunwayAlertsOnly: false)
         );
         Assert.Equal(["RWY 28R", "UAL1660", "RWY CLOSED, GO AROUND"], alert.MessageLines);
     }
@@ -193,7 +216,7 @@ public class AsdexSafetyLogicDetectorTests
     {
         (AsdexTaxiwaySegment taxiway, AircraftState lander) = LanderOverATaxiwayOffTheRunways();
 
-        Assert.Empty(AsdexSafetyLogicDetector.Detect(Runways(closed: false), [taxiway], [lander], _fieldElevationFt, closedRunwayAlertsOnly: true));
+        Assert.Empty(DetectAlerts(Runways(closed: false), [taxiway], [lander], _fieldElevationFt, closedRunwayAlertsOnly: true));
     }
 
     [Fact]
@@ -325,7 +348,8 @@ public class AsdexSafetyLogicDetectorTests
 
     /// <summary>
     /// An aircraft back-taxiing on 28R at 15 kt is below the rolling speed, so it is not a runway user but an occupant of
-    /// the runway: with a rolling departure it is an occupied-runway conflict, the departure first.
+    /// the runway: ahead of a rolling departure and moving toward it at 5 kt or more, the pair is an opposite-direction
+    /// taxi, the departure first.
     /// </summary>
     [Fact]
     public void BackTaxiAt15Kt_IsAnOccupant_OfARollingDeparturesRunway()
@@ -334,7 +358,7 @@ public class AsdexSafetyLogicDetectorTests
         AircraftState backTaxi = OnGround("N123", 4000, speedKts: 15, offsetDeg: 180);
 
         AsdexSafetyAlert alert = Assert.Single(Detect([departure, backTaxi], closed: false, closedRunwayAlertsOnly: false));
-        Assert.Equal(AsdexAlertKind.OccupiedRunway, alert.Kind);
+        Assert.Equal(AsdexAlertKind.OppDirTaxi, alert.Kind);
         Assert.Equal(["AAL1", "N123"], alert.Callsigns);
     }
 
@@ -355,11 +379,9 @@ public class AsdexSafetyLogicDetectorTests
 
         Assert.Equal(
             AsdexAlertKind.ClosedRunway,
-            Assert
-                .Single(AsdexSafetyLogicDetector.Detect(Runways(closed: true), [], [low], _runwayElevationFt + 500, closedRunwayAlertsOnly: false))
-                .Kind
+            Assert.Single(DetectAlerts(Runways(closed: true), [], [low], _runwayElevationFt + 500, closedRunwayAlertsOnly: false)).Kind
         );
-        Assert.Empty(AsdexSafetyLogicDetector.Detect(Runways(closed: true), [], [high], _runwayElevationFt + 500, closedRunwayAlertsOnly: false));
+        Assert.Empty(DetectAlerts(Runways(closed: true), [], [high], _runwayElevationFt + 500, closedRunwayAlertsOnly: false));
     }
 
     [Fact]
@@ -368,7 +390,7 @@ public class AsdexSafetyLogicDetectorTests
         (AsdexTaxiwaySegment taxiway, AircraftState lander) = LanderOverATaxiwayOffTheRunways();
 
         AsdexSafetyAlert alert = Assert.Single(
-            AsdexSafetyLogicDetector.Detect(Runways(closed: false), [taxiway], [lander], _fieldElevationFt, closedRunwayAlertsOnly: false)
+            DetectAlerts(Runways(closed: false), [taxiway], [lander], _fieldElevationFt, closedRunwayAlertsOnly: false)
         );
         Assert.Equal(AsdexAlertKind.TaxiwayLanding, alert.Kind);
         Assert.Equal(["A", "AAL1", "TAXIWAY LANDING"], alert.MessageLines);
@@ -381,7 +403,7 @@ public class AsdexSafetyLogicDetectorTests
         var taxiway = new AsdexTaxiwaySegment("A", On28R(1000, 0), On28R(5000, 0));
         AircraftState lander = Airborne("AAL1", 3000, speedKts: 120, heightFt: 60);
 
-        Assert.Empty(AsdexSafetyLogicDetector.Detect(Runways(closed: false), [taxiway], [lander], _fieldElevationFt, closedRunwayAlertsOnly: false));
+        Assert.Empty(DetectAlerts(Runways(closed: false), [taxiway], [lander], _fieldElevationFt, closedRunwayAlertsOnly: false));
     }
 
     [Fact]
@@ -437,6 +459,253 @@ public class AsdexSafetyLogicDetectorTests
         Assert.Equal("OccupiedRunway|28R|DAL3,SKW4", airborne.Id);
         Assert.Equal(airborne.Id, touchedDown.Id);
         Assert.Equal(["SKW4", "DAL3"], touchedDown.Callsigns);
+    }
+
+    /// <summary>
+    /// A departure rolling toward 10L and an arrival crossing the 28R threshold head on raise one OPP DIR DEPARTURE alert in
+    /// place of RWY OCCUPIED, the departure first though the arrival ranks first (as vNAS sends it, README:333).
+    /// </summary>
+    [Fact]
+    public void OppDirDeparture_RollingDepartureAndLandingArrivalOnTheSameRunway_AtArrivalThreshold()
+    {
+        AircraftState departure = WithPhase(OnGround("DAL1414", 8000, speedKts: 85, offsetDeg: 180), new TakeoffPhase());
+        AircraftState arrival = WithPhase(Airborne("SKW2912", 150, speedKts: 137, heightFt: 60), new FinalApproachPhase());
+
+        AsdexSafetyAlert alert = Assert.Single(Detect([arrival, departure], closed: false, closedRunwayAlertsOnly: false));
+
+        Assert.Equal(AsdexAlertKind.OppDirDeparture, alert.Kind);
+        Assert.Equal(["DAL1414", "SKW2912"], alert.Callsigns);
+        Assert.Equal([Id28R], alert.RunwayIds);
+        Assert.Equal(["RWY 28R", "DAL1414, SKW2912", "OPP DIR DEPARTURE"], alert.MessageLines);
+    }
+
+    /// <summary>
+    /// A lander rolling out toward 10L at 110 kt and a second crossing the 28R threshold at 137 kt, both runway users, raise
+    /// OPP DIR LANDER with the rolled-out lander first though the second is faster; when the first slows below 50 kt still
+    /// rolling toward the other, it is an occupant moving toward the remaining user, and the alert turns into OPP DIR TAXI
+    /// under a new id, the remaining user first (README:345-350).
+    /// </summary>
+    [Fact]
+    public void OppDirLander_TwoLandersHeadOn_BothUsers()
+    {
+        AircraftState firstLander = WithPhase(OnGround("DAL2957", 8000, speedKts: 110, offsetDeg: 180), new LandingPhase());
+        AircraftState secondLander = WithPhase(Airborne("JBU9021", 150, speedKts: 137, heightFt: 60), new FinalApproachPhase());
+
+        AsdexSafetyAlert lander = Assert.Single(Detect([secondLander, firstLander], closed: false, closedRunwayAlertsOnly: false));
+        Assert.Equal(AsdexAlertKind.OppDirLander, lander.Kind);
+        Assert.Equal(["DAL2957", "JBU9021"], lander.Callsigns);
+        Assert.Equal(["RWY 28R", "DAL2957, JBU9021", "OPP DIR LANDER"], lander.MessageLines);
+
+        firstLander.IndicatedAirspeed = 45;
+        IReadOnlyList<AsdexSafetyAlert> slowed = Detect([secondLander, firstLander], closed: false, closedRunwayAlertsOnly: false);
+
+        Assert.DoesNotContain(slowed, a => a.Id == lander.Id);
+        AsdexSafetyAlert taxi = Assert.Single(slowed);
+        Assert.Equal(AsdexAlertKind.OppDirTaxi, taxi.Kind);
+        Assert.Equal(["JBU9021", "DAL2957"], taxi.Callsigns);
+        Assert.Equal(["RWY 28R", "JBU9021, DAL2957", "OPP DIR TAXI"], taxi.MessageLines);
+    }
+
+    /// <summary>
+    /// An arrival crossing the threshold with an aircraft taxiing toward it on the runway raises OPP DIR TAXI, the arrival
+    /// first (README:357-359); once the taxiing aircraft turns 90° to turn off, the pair raises nothing, since a pair that
+    /// has had an OPP DIR alert raises no RWY OCCUPIED while both are on the runway (vNAS raised nothing after OPP DIR TAXI
+    /// cleared at the turn-off, README:351).
+    /// </summary>
+    [Fact]
+    public void OppDirTaxi_ArrivalVsTaxiingAircraftHeadedAtIt()
+    {
+        AircraftState arrival = WithPhase(Airborne("DAL530", 150, speedKts: 137, heightFt: 60), new FinalApproachPhase());
+        AircraftState taxiing = OnGround("DAL2988", 8000, speedKts: 20, offsetDeg: 180);
+
+        AsdexDetection headOn = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, AsdexDetection.NoOppDirPairs);
+        AsdexSafetyAlert taxi = Assert.Single(headOn.Alerts);
+        Assert.Equal(AsdexAlertKind.OppDirTaxi, taxi.Kind);
+        Assert.Equal(["DAL530", "DAL2988"], taxi.Callsigns);
+        Assert.Equal(["RWY 28R", "DAL530, DAL2988", "OPP DIR TAXI"], taxi.MessageLines);
+        Assert.Equal(["28R|DAL2988,DAL530"], headOn.OppDirPairs);
+
+        TurnOff(taxiing);
+        AsdexDetection turned = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, headOn.OppDirPairs);
+
+        Assert.Empty(turned.Alerts);
+        Assert.Equal(headOn.OppDirPairs, turned.OppDirPairs);
+    }
+
+    /// <summary>
+    /// A judgement call: an aircraft stopped lined up at the far end, facing the arrival, is an occupied runway, not OPP DIR
+    /// TAXI. vNAS raised OPP DIR TAXI for a 20 kt taxi; its one stationary sample read RWY OCCUPIED but faced off the
+    /// runway axis (UAL9154, README:376-378).
+    /// </summary>
+    [Fact]
+    public void OppDirTaxi_StoppedLinedUpOccupant()
+    {
+        AircraftState arrival = WithPhase(Airborne("UAL1954", 150, speedKts: 137, heightFt: 60), new FinalApproachPhase());
+        AircraftState linedUp = WithPhase(OnGround("UAL9154", 10000, speedKts: 0, offsetDeg: 180), new LinedUpAndWaitingPhase());
+
+        AsdexSafetyAlert alert = Assert.Single(Detect([arrival, linedUp], closed: false, closedRunwayAlertsOnly: false));
+        Assert.Equal(AsdexAlertKind.OccupiedRunway, alert.Kind);
+        Assert.Equal(["RWY 28R", "UAL1954, UAL9154", "RWY OCCUPIED"], alert.MessageLines);
+    }
+
+    /// <summary>An aircraft taxiing toward the arrival at 4 kt is an occupied runway; at the 5 kt floor it is OPP DIR TAXI.</summary>
+    [Fact]
+    public void OppDirTaxi_SlowOccupantBelowFloor()
+    {
+        AircraftState arrival = WithPhase(Airborne("DAL530", 150, speedKts: 137, heightFt: 60), new FinalApproachPhase());
+        AircraftState taxiing = OnGround("DAL2988", 8000, speedKts: 4, offsetDeg: 180);
+
+        Assert.Equal(AsdexAlertKind.OccupiedRunway, Assert.Single(Detect([taxiing, arrival], closed: false, closedRunwayAlertsOnly: false)).Kind);
+
+        taxiing.IndicatedAirspeed = AsdexRunwayUsers.OppDirTaxiMinGroundSpeedKts;
+        Assert.Equal(AsdexAlertKind.OppDirTaxi, Assert.Single(Detect([taxiing, arrival], closed: false, closedRunwayAlertsOnly: false)).Kind);
+    }
+
+    /// <summary>
+    /// An aircraft back-taxiing behind a rolling departure faces the other way but moves away from it, so the pair raises
+    /// RWY OCCUPIED, not OPP DIR TAXI: opposite direction means toward each other.
+    /// </summary>
+    [Fact]
+    public void OppDir_PairMovingApart_RaisesNoOppDir()
+    {
+        AircraftState departure = WithPhase(Rolling("AAL1", 90), new TakeoffPhase());
+        AircraftState behind = OnGround("N123", 1000, speedKts: 15, offsetDeg: 180);
+
+        AsdexSafetyAlert alert = Assert.Single(Detect([departure, behind], closed: false, closedRunwayAlertsOnly: false));
+        Assert.Equal(AsdexAlertKind.OccupiedRunway, alert.Kind);
+        Assert.Equal(["AAL1", "N123"], alert.Callsigns);
+    }
+
+    /// <summary>The LIMITED configuration drops the opposite-direction alerts as it drops RWY OCCUPIED.</summary>
+    [Fact]
+    public void LimitedConfiguration_OppDir_RaisesNothing()
+    {
+        AircraftState departure = WithPhase(OnGround("DAL1414", 8000, speedKts: 85, offsetDeg: 180), new TakeoffPhase());
+        AircraftState arrival = WithPhase(Airborne("SKW2912", 150, speedKts: 137, heightFt: 60), new FinalApproachPhase());
+        AircraftState taxiing = OnGround("DAL2988", 6000, speedKts: 5, offsetDeg: 180);
+
+        Assert.Empty(Detect([arrival, departure, taxiing], closed: false, closedRunwayAlertsOnly: true));
+    }
+
+    /// <summary>
+    /// A remembered pair is forgotten once the taxiing aircraft leaves the runway footprint: back on the runway later, turned
+    /// across it, the same pair raises RWY OCCUPIED again.
+    /// </summary>
+    [Fact]
+    public void OppDirPairMemory_DropsWhenTheOccupantLeavesTheFootprint()
+    {
+        (AircraftState arrival, AircraftState taxiing, AsdexDetection turnedOff) = ArrivalAndTurnedOffTaxi();
+
+        taxiing.Position = On28R(8000, 1500);
+        AsdexDetection left = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, turnedOff.OppDirPairs);
+        Assert.Empty(left.Alerts);
+        Assert.Empty(left.OppDirPairs);
+
+        taxiing.Position = On28R(8000, 0);
+        AsdexDetection back = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, left.OppDirPairs);
+        Assert.Equal(AsdexAlertKind.OccupiedRunway, Assert.Single(back.Alerts).Kind);
+        Assert.Empty(back.OppDirPairs);
+    }
+
+    /// <summary>
+    /// A remembered pair is kept while both aircraft occupy the runway, even with neither a runway user: the arrival slowed
+    /// below 50 kt and the turned-off taxier keep the key; the arrival re-accelerating, not heading at the taxier, raises no
+    /// RWY OCCUPIED; once the taxier leaves the footprint the key is dropped.
+    /// </summary>
+    [Fact]
+    public void OppDirPairMemory_BothSlowOnTheRunway_KeepsTheKey()
+    {
+        (AircraftState arrival, AircraftState taxiing, AsdexDetection turnedOff) = ArrivalAndTurnedOffTaxi();
+        arrival.IsOnGround = true;
+        arrival.Altitude = _runwayElevationFt;
+        arrival.IndicatedAirspeed = 40;
+
+        AsdexDetection bothSlow = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, turnedOff.OppDirPairs);
+        Assert.Empty(bothSlow.Alerts);
+        Assert.Equal(turnedOff.OppDirPairs, bothSlow.OppDirPairs);
+
+        arrival.IndicatedAirspeed = 60;
+        AsdexDetection reaccelerated = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, bothSlow.OppDirPairs);
+        Assert.Empty(reaccelerated.Alerts);
+        Assert.Equal(turnedOff.OppDirPairs, reaccelerated.OppDirPairs);
+
+        taxiing.Position = On28R(8000, 1500);
+        AsdexDetection left = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, reaccelerated.OppDirPairs);
+        Assert.Empty(left.Alerts);
+        Assert.Empty(left.OppDirPairs);
+    }
+
+    /// <summary>An OPP DIR LANDER pair that turns into OPP DIR TAXI is one remembered pair: the key carries no kind.</summary>
+    [Fact]
+    public void OppDirPairMemory_LanderToTaxiFlip_KeepsOneKey()
+    {
+        AircraftState firstLander = WithPhase(OnGround("DAL2957", 8000, speedKts: 110, offsetDeg: 180), new LandingPhase());
+        AircraftState secondLander = WithPhase(Airborne("JBU9021", 150, speedKts: 137, heightFt: 60), new FinalApproachPhase());
+
+        AsdexDetection lander = DetectWith([secondLander, firstLander], closedRunwayAlertsOnly: false, AsdexDetection.NoOppDirPairs);
+        firstLander.IndicatedAirspeed = 45;
+        AsdexDetection taxi = DetectWith([secondLander, firstLander], closedRunwayAlertsOnly: false, lander.OppDirPairs);
+
+        Assert.Equal(AsdexAlertKind.OppDirLander, Assert.Single(lander.Alerts).Kind);
+        Assert.Equal(AsdexAlertKind.OppDirTaxi, Assert.Single(taxi.Alerts).Kind);
+        Assert.Equal(["28R|DAL2957,JBU9021"], lander.OppDirPairs);
+        Assert.Equal(lander.OppDirPairs, taxi.OppDirPairs);
+    }
+
+    /// <summary>
+    /// A switch to the LIMITED configuration, which evaluates no open runway, forgets the pair: back on a named
+    /// configuration the turned-off pair raises RWY OCCUPIED.
+    /// </summary>
+    [Fact]
+    public void OppDirPairMemory_LimitedSwitch_DropsTheKey()
+    {
+        (AircraftState arrival, AircraftState taxiing, AsdexDetection turnedOff) = ArrivalAndTurnedOffTaxi();
+
+        AsdexDetection limited = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: true, turnedOff.OppDirPairs);
+        Assert.Empty(limited.OppDirPairs);
+
+        AsdexDetection named = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, limited.OppDirPairs);
+        Assert.Equal(AsdexAlertKind.OccupiedRunway, Assert.Single(named.Alerts).Kind);
+    }
+
+    /// <summary>Inhibiting one of the pair takes it out of every alert, which forgets the pair; un-inhibited, it reads RWY OCCUPIED.</summary>
+    [Fact]
+    public void OppDirPairMemory_Inhibit_DropsTheKey()
+    {
+        (AircraftState arrival, AircraftState taxiing, AsdexDetection turnedOff) = ArrivalAndTurnedOffTaxi();
+
+        taxiing.Stars.AsdexAlertsInhibited = true;
+        AsdexDetection inhibited = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, turnedOff.OppDirPairs);
+        Assert.Empty(inhibited.OppDirPairs);
+
+        taxiing.Stars.AsdexAlertsInhibited = false;
+        AsdexDetection released = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, inhibited.OppDirPairs);
+        Assert.Equal(AsdexAlertKind.OccupiedRunway, Assert.Single(released.Alerts).Kind);
+    }
+
+    /// <summary>
+    /// An arrival over the threshold and an aircraft taxiing toward it that raised OPP DIR TAXI and has since turned 90° to
+    /// turn off: the detection after the turn, which raises nothing and remembers the pair.
+    /// </summary>
+    private (AircraftState Arrival, AircraftState Taxiing, AsdexDetection TurnedOff) ArrivalAndTurnedOffTaxi()
+    {
+        AircraftState arrival = WithPhase(Airborne("DAL530", 150, speedKts: 137, heightFt: 60), new FinalApproachPhase());
+        AircraftState taxiing = OnGround("DAL2988", 8000, speedKts: 20, offsetDeg: 180);
+        AsdexDetection headOn = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, AsdexDetection.NoOppDirPairs);
+        Assert.Equal(AsdexAlertKind.OppDirTaxi, Assert.Single(headOn.Alerts).Kind);
+
+        TurnOff(taxiing);
+        AsdexDetection turnedOff = DetectWith([taxiing, arrival], closedRunwayAlertsOnly: false, headOn.OppDirPairs);
+        Assert.Empty(turnedOff.Alerts);
+        Assert.Single(turnedOff.OppDirPairs);
+        return (arrival, taxiing, turnedOff);
+    }
+
+    /// <summary>Turns an aircraft on 28R 90° off the runway direction, heading and track, as it starts a turn-off.</summary>
+    private void TurnOff(AircraftState aircraft)
+    {
+        aircraft.TrueHeading = new TrueHeading(_r28R.TrueHeading.Degrees + 270);
+        aircraft.TrueTrack = new TrueHeading(_r28R.TrueHeading.Degrees + 270);
     }
 
     /// <summary>A stop-and-go braking toward its stop is an arrival using the runway (7110.65 §3-8-2).</summary>

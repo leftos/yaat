@@ -182,6 +182,8 @@ Some state is intentionally runtime-only:
 
   The ASDE-X safety-logic configuration and the standing alert set are not on this list: both are scenario state, `SimScenarioState.AsdexSafetyLogicConfigs` / `.ActiveAsdexAlerts`, carried by `ScenarioSnapshotDto` (`AsdexSafetyLogicConfigs`, keyed by facility id; `ActiveAsdexAlerts`).
 
+  So is the opposite-direction pair memory, `SimScenarioState.AsdexOppDirPairs` / `ScenarioSnapshotDto.AsdexOppDirPairs` (`[{FacilityId, PairKey}]`, omitted when empty, absent ⇒ empty, no migrator step). The `AsdexAlertKind` values OppDirTaxi=4, OppDirDeparture=5 and OppDirLander=6 are stored by number, additive.
+
   **The safety-logic configuration is per facility in the snapshot.** `ScenarioSnapshotDto.AsdexSafetyLogicConfigs` (a facility-keyed map, null when empty) and `AsdexSafetyAlertDto.FacilityId` replaced the single scenario-wide `AsdexSafetyLogicConfig`; `SnapshotSchemaMigrator` (V36) files a legacy single config and its alerts under the snapshot's `PrimaryAirportId` with a leading `K` stripped from a four-letter id, or drops them with a warning when there is no primary airport.
 
   The next tick re-raises what a standing configuration still warrants.

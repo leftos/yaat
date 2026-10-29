@@ -388,11 +388,11 @@ public sealed partial class SimulationEngine
     /// The post-physics ASDE-X Safety Logic pass. It clears facilities with no configuration and runway-less
     /// configurations first, then runs the detector per runway facility in ordinal order: the facility's configured
     /// runways as navdata resolves them, with their cached axes and current footprints (plus the ground layout's taxiways
-    /// at the layout's own airport), go to the stateless detector, whether or not a layout is loaded,
-    /// with <c>closedRunwayAlertsOnly</c> decided each tick by whether the facility's runway configuration id is one of
-    /// its configurations (<see cref="AsdexSafetyLogicSeed.NamesRunwayConfiguration"/>), and what it finds is diffed
-    /// against the alerts that facility is already holding.
-    /// With no navigation data the runway facilities keep their standing alerts.
+    /// at the layout's own airport), go to the detector with the facility's opposite-direction pair memory, whether or not
+    /// a layout is loaded, with <c>closedRunwayAlertsOnly</c> decided each tick by whether the facility's runway
+    /// configuration id is one of its configurations (<see cref="AsdexSafetyLogicSeed.NamesRunwayConfiguration"/>), and what
+    /// it finds is diffed against the alerts that facility is already holding; the memory it returns replaces the old one.
+    /// With no navigation data the runway facilities keep their standing alerts and their memory.
     /// Only the difference leaves the engine — the alerts that appeared
     /// and the ids that went away, named by facility — because CRC's alert topic is additive with an explicit delete.
     /// Runs on every run kind: the standing set is snapshotted scenario state, so a replay, a rewind and a session
@@ -407,14 +407,21 @@ public sealed partial class SimulationEngine
 
         LapseAsdexInhibits(scenario);
         ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> configs = scenario.AsdexSafetyLogicConfigs;
-        foreach (string facilityId in scenario.ActiveAsdexAlerts.Keys.Where(id => !configs.ContainsKey(id)).ToList())
+        List<string> unconfigured =
+        [
+            .. scenario
+                .ActiveAsdexAlerts.Keys.Union(scenario.AsdexOppDirPairs.Keys, StringComparer.Ordinal)
+                .Where(id => !configs.ContainsKey(id))
+                .Order(StringComparer.Ordinal),
+        ];
+        foreach (string facilityId in unconfigured)
         {
-            ApplyAsdexDetection(scenario, facilityId, [], host);
+            ApplyAsdexDetection(scenario, facilityId, AsdexDetection.None, host);
         }
 
         foreach (string facilityId in configs.Where(entry => entry.Value.Runways.Count == 0).Select(entry => entry.Key))
         {
-            ApplyAsdexDetection(scenario, facilityId, [], host);
+            ApplyAsdexDetection(scenario, facilityId, AsdexDetection.None, host);
         }
 
         if (NavigationDatabase.InstanceOrNull is not { } navDb)
@@ -446,10 +453,13 @@ public sealed partial class SimulationEngine
                     taxiways,
                     aircraft,
                     fieldElevationFt,
-                    closedRunwayAlertsOnly: !AsdexSafetyLogicSeed.NamesRunwayConfiguration(
-                        scenario.ArtccConfig,
-                        facilityId,
-                        config.RunwayConfigurationId
+                    new AsdexDetectionInputs(
+                        ClosedRunwayAlertsOnly: !AsdexSafetyLogicSeed.NamesRunwayConfiguration(
+                            scenario.ArtccConfig,
+                            facilityId,
+                            config.RunwayConfigurationId
+                        ),
+                        OppDirPairs: scenario.AsdexOppDirPairs.GetValueOrDefault(facilityId) ?? AsdexDetection.NoOppDirPairs
                     )
                 ),
                 host
@@ -689,14 +699,39 @@ public sealed partial class SimulationEngine
         return restored.ToImmutable();
     }
 
+    /// <summary>The snapshot's opposite-direction pair memory, grouped by facility; an empty or missing list restores none.</summary>
+    private static ImmutableSortedDictionary<string, ImmutableSortedSet<string>> RestoreAsdexOppDirPairs(List<AsdexOppDirPairDto>? pairDtos)
+    {
+        ImmutableSortedDictionary<string, ImmutableSortedSet<string>>.Builder restored = ImmutableSortedDictionary.CreateBuilder<
+            string,
+            ImmutableSortedSet<string>
+        >(StringComparer.Ordinal);
+        foreach (IGrouping<string, AsdexOppDirPairDto> facility in (pairDtos ?? []).GroupBy(dto => dto.FacilityId, StringComparer.Ordinal))
+        {
+            restored[facility.Key] = facility.Select(dto => dto.PairKey).ToImmutableSortedSet(StringComparer.Ordinal);
+        }
+
+        return restored.ToImmutable();
+    }
+
     /// <summary>
     /// Folds one facility's detector findings for this tick into its standing set and tells the host what moved. An
     /// alert already standing is left as it is (its id is the identity the display keyed on); one the detector no longer
     /// reports is cleared by id. A tick that moves nothing leaves the standing set's reference alone, so a reader
-    /// holding it keeps reading the same instance; a facility left with no alert loses its entry.
+    /// holding it keeps reading the same instance; a facility left with no alert loses its entry. The detection's pair
+    /// memory is written first, whether or not any alert moved (a pair forgotten while no alert stands is a change too).
     /// </summary>
-    private void ApplyAsdexDetection(SimScenarioState scenario, string facilityId, IReadOnlyList<AsdexSafetyAlert> detected, IHostConsumers host)
+    private void ApplyAsdexDetection(SimScenarioState scenario, string facilityId, AsdexDetection detection, IHostConsumers host)
     {
+        ImmutableSortedDictionary<string, ImmutableSortedSet<string>> allPairs = scenario.AsdexOppDirPairs;
+        ImmutableSortedSet<string> pairs = allPairs.GetValueOrDefault(facilityId) ?? AsdexDetection.NoOppDirPairs;
+        if (!pairs.SetEquals(detection.OppDirPairs))
+        {
+            scenario.AsdexOppDirPairs =
+                (detection.OppDirPairs.Count > 0) ? allPairs.SetItem(facilityId, detection.OppDirPairs) : allPairs.Remove(facilityId);
+        }
+
+        IReadOnlyList<AsdexSafetyAlert> detected = detection.Alerts;
         ImmutableSortedDictionary<string, ImmutableSortedDictionary<string, AsdexSafetyAlert>> all = scenario.ActiveAsdexAlerts;
         ImmutableSortedDictionary<string, AsdexSafetyAlert> active = all.GetValueOrDefault(facilityId) ?? SimScenarioState.NoAsdexAlerts;
         var detectedById = detected.ToDictionary(alert => alert.Id);

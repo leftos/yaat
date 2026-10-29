@@ -372,6 +372,7 @@ public sealed partial class SimulationEngine
             // Same rule for the standing alerts: a snapshot from before they were raised carries none, and the
             // detector re-raises whatever the restored world still warrants on the next tick.
             Scenario.ActiveAsdexAlerts = RestoreAsdexAlerts(scenarioDto.ActiveAsdexAlerts);
+            Scenario.AsdexOppDirPairs = RestoreAsdexOppDirPairs(scenarioDto.AsdexOppDirPairs);
 
             // Replace, never merge, for the coasts too: a snapshot that predates the feature carries none, and the
             // coasts registered in the undone future must go with it. The pending cleared-callsign list is emptied

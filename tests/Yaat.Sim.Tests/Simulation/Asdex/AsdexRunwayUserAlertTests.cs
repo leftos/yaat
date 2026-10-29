@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
@@ -207,6 +209,100 @@ public class AsdexRunwayUserAlertTests
         AsdexSafetyAlert alert = Assert.Single(AlertsAfterATick(engine));
         Assert.Equal(AsdexAlertKind.OccupiedRunway, alert.Kind);
         Assert.Equal(["UAL1", "UAL2"], alert.Callsigns);
+    }
+
+    /// <summary>
+    /// An arrival over the 28R threshold and UAL2 taxiing toward it on the runway at 20 kt raise OPP DIR TAXI; then UAL2
+    /// turns 90° to turn off, which clears it and leaves the pair remembered with no alert standing.
+    /// </summary>
+    private static AircraftState RaiseOppDirTaxiThenTurnOff(SimulationEngine engine)
+    {
+        RunwayInfo end = End("28R");
+        WithPhase(Place(engine, "UAL1", end, 300, airborne: true, heightFt: 40, speedKts: 135), new FinalApproachPhase());
+        AircraftState taxiing = Place(engine, "UAL2", end, 6000, airborne: false, heightFt: 0, speedKts: 20);
+        taxiing.TrueHeading = new TrueHeading(end.TrueHeading.Degrees + 180);
+        taxiing.TrueTrack = new TrueHeading(end.TrueHeading.Degrees + 180);
+        Assert.Equal(AsdexAlertKind.OppDirTaxi, Assert.Single(AlertsAfterATick(engine)).Kind);
+
+        taxiing.TrueHeading = new TrueHeading(end.TrueHeading.Degrees + 270);
+        taxiing.TrueTrack = new TrueHeading(end.TrueHeading.Degrees + 270);
+        Assert.Empty(AlertsAfterATick(engine));
+        Assert.EndsWith("|UAL1,UAL2", Assert.Single(engine.Scenario!.AsdexOppDirPairs[Sfo]), StringComparison.Ordinal);
+        return taxiing;
+    }
+
+    /// <summary>
+    /// The pair memory round-trips through a snapshot (through the serializer a recording writes it with), and a restore
+    /// landing mid-turn-off raises no RWY OCCUPIED, as the live run did not.
+    /// </summary>
+    [Fact]
+    public void OppDirPairMemory_RoundTripsThroughASnapshot_AndARestoreMidTurnOffRaisesNothing()
+    {
+        SimulationEngine engine = Engine(closedEnd: null);
+        RaiseOppDirTaxiThenTurnOff(engine);
+        ImmutableSortedSet<string> remembered = engine.Scenario!.AsdexOppDirPairs[Sfo];
+
+        StateSnapshotDto reread = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(engine.CaptureSnapshot()))!;
+        // Stale keys the snapshot does not hold, at this facility and another: a restore replaces the memory, never merges.
+        engine.Scenario.AsdexOppDirPairs = engine
+            .Scenario.AsdexOppDirPairs.SetItem(Sfo, remembered.Add("28L-10R|STALE1,STALE2"))
+            .SetItem("OAK", ["28R-10L|STALE3,STALE4"]);
+        engine.RestoreFromSnapshot(reread);
+
+        Assert.Equal(remembered, engine.Scenario!.AsdexOppDirPairs[Sfo]);
+        Assert.Equal([Sfo], engine.Scenario.AsdexOppDirPairs.Keys);
+        Assert.Empty(AlertsAfterATick(engine));
+    }
+
+    /// <summary>
+    /// A facility holding a pair memory and no alert, whose configuration is then removed, has its memory cleared too: the
+    /// clear covers every facility with alerts or memory and no configuration.
+    /// </summary>
+    [Fact]
+    public void OppDirPairMemory_AFacilityWithMemoryOnly_IsClearedWhenItsConfigurationGoes()
+    {
+        SimulationEngine engine = Engine(closedEnd: null);
+        RaiseOppDirTaxiThenTurnOff(engine);
+        Assert.False(engine.Scenario!.ActiveAsdexAlerts.ContainsKey(Sfo));
+
+        engine.Scenario.AsdexSafetyLogicConfigs = engine.Scenario.AsdexSafetyLogicConfigs.Remove(Sfo);
+        engine.TickAsdexAlerts(new SpineCapturingHost(engine));
+
+        Assert.False(engine.Scenario.AsdexOppDirPairs.ContainsKey(Sfo));
+    }
+
+    /// <summary>
+    /// The snapshot JSON carries no AsdexOppDirPairs member while the memory is empty, so a snapshot without one stays
+    /// byte-identical, and carries it once a pair is remembered.
+    /// </summary>
+    [Fact]
+    public void OppDirPairMemory_EmptyMemory_LeavesNoSnapshotJsonMember()
+    {
+        SimulationEngine engine = Engine(closedEnd: null);
+        Assert.DoesNotContain("\"AsdexOppDirPairs\"", JsonSerializer.Serialize(engine.CaptureSnapshot()), StringComparison.Ordinal);
+
+        RaiseOppDirTaxiThenTurnOff(engine);
+        Assert.Contains("\"AsdexOppDirPairs\"", JsonSerializer.Serialize(engine.CaptureSnapshot()), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// With no alert standing, the taxiing aircraft leaving the footprint moves no alert but forgets the pair: the tick
+    /// writes that memory-only change, and tells the consumer nothing.
+    /// </summary>
+    [Fact]
+    public void OppDirPairMemory_AMemoryOnlyChange_IsWritten()
+    {
+        SimulationEngine engine = Engine(closedEnd: null);
+        AircraftState taxiing = RaiseOppDirTaxiThenTurnOff(engine);
+        RunwayInfo end = End("28R");
+        LatLon onTheRunway = taxiing.Position;
+        taxiing.Position = GeoMath.ProjectPoint(onTheRunway, new TrueHeading(end.TrueHeading.Degrees + 270), 1500 / GeoMath.FeetPerNm);
+
+        var spine = new SpineCapturingHost(engine);
+        engine.TickAsdexAlerts(spine);
+
+        Assert.Empty(spine.AsdexAlertChanges);
+        Assert.False(engine.Scenario!.AsdexOppDirPairs.ContainsKey(Sfo));
     }
 
     /// <summary>

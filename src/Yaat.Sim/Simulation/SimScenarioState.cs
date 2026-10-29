@@ -615,6 +615,24 @@ public sealed class SimScenarioState
         set => _activeAsdexAlerts = value;
     }
 
+    private volatile ImmutableSortedDictionary<string, ImmutableSortedSet<string>> _asdexOppDirPairs = ImmutableSortedDictionary.Create<
+        string,
+        ImmutableSortedSet<string>
+    >(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The ASDE-X opposite-direction pair memory, keyed by facility id: the pairs that have had an opposite-direction alert
+    /// and are still on the runway together, which raise no RWY OCCUPIED (<see cref="AsdexDetection.OppDirPairs"/>). A
+    /// facility that remembers no pair has no entry. Never broadcast: only the detector reads it. Maintained and guarded as
+    /// <see cref="ActiveAsdexAlerts"/> is (tick-thread writes, whole-collection replace), and snapshotted, so a rewind or a
+    /// replay landing mid-turn-off withholds the RWY OCCUPIED the live run withheld.
+    /// </summary>
+    public ImmutableSortedDictionary<string, ImmutableSortedSet<string>> AsdexOppDirPairs
+    {
+        get => _asdexOppDirPairs;
+        set => _asdexOppDirPairs = value;
+    }
+
     /// <summary>Sim seconds an ERAM track coasts after its aircraft leaves the world (~2 missed ARSR-4 sweeps at ~12 s).</summary>
     public const double EramDisconnectCoastSeconds = 24;
 
@@ -796,6 +814,7 @@ public sealed class SimScenarioState
             NextTimerId = NextTimerId,
             AsdexSafetyLogicConfigs = SnapshotAsdexSafetyLogicConfigs(),
             ActiveAsdexAlerts = SnapshotAsdexAlerts(),
+            AsdexOppDirPairs = SnapshotAsdexOppDirPairs(),
             SuppressedLiveTraffic = SuppressedLiveTraffic.Count > 0 ? [.. SuppressedLiveTraffic.Order(StringComparer.Ordinal)] : null,
             ActiveRunways = SnapshotRunways(),
             DisconnectCoasts = SnapshotDisconnectCoasts(),
@@ -827,6 +846,17 @@ public sealed class SimScenarioState
                     GoAround = a.GoAround,
                 })
             ),
+        ];
+        return dtos.Count > 0 ? dtos : null;
+    }
+
+    /// <summary>The opposite-direction pair memory, facility by facility then by key, or null when no pair is remembered.</summary>
+    private List<AsdexOppDirPairDto>? SnapshotAsdexOppDirPairs()
+    {
+        ImmutableSortedDictionary<string, ImmutableSortedSet<string>> remembered = AsdexOppDirPairs;
+        List<AsdexOppDirPairDto> dtos =
+        [
+            .. remembered.SelectMany(facility => facility.Value.Select(key => new AsdexOppDirPairDto { FacilityId = facility.Key, PairKey = key })),
         ];
         return dtos.Count > 0 ? dtos : null;
     }
