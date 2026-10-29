@@ -10,7 +10,7 @@
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
 - [ ] YAAT-1476 ASDE-X alert parity with vNAS (feat/asdex-safety-logic) · release vNext
-  - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM · release vNext
+  - [/] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM · release vNext
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext
   - [ ] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext
   - [ ] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext
@@ -33,18 +33,16 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts · release vNext
-- [ ] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway · release vNext
+- [/] YAAT-613 Rebuild a queued wrong-side crossing when the pattern altitude changes before it starts · release vNext
+- [/] YAAT-616 Carry a deferred pattern altitude into a FOLLOW join on the armed runway · release vNext
 - [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call · release vNext
-- [ ] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared · release vNext
-- [ ] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore · release vNext
+- [/] YAAT-754 Restore the recorded weather on a rewind after the room's weather was cleared · release vNext
+- [/] YAAT-757 Share the wind-grid archive helpers and tidy the checkpoint restore · release vNext
 - [ ] YAAT-822 Keep the other half of a paired session setting when a push lands while one half is typed · release vNext
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext
-  - [/] YAAT-1060 Honor the ASDE-X arrival-alert inhibit by tower position, with its timer · release vNext
   - [ ] YAAT-1069 Research the public ASDE-X safety-logic documentation · release vNext
-  - [/] YAAT-1195 Keep a stale CRC push from pinning an outdated ASDE-X runway configuration after an ARWY re-pick · release vNext
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form · release vNext
 - [ ] YAAT-1425 Treat LUAW from a hold short of a taxiway as an implicit taxi onto it to line up at the intersection (OAK HS E, 28R@E) · release vNext
 - [ ] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP · release vNext
@@ -519,7 +517,7 @@
 - [ ] YAAT-655 Replay a fallback line-up rollout exactly across a second restore
 - [ ] YAAT-730 Give bundle pseudonyms a shape real initials cannot take
 - [ ] YAAT-731 Scrub the bug-report bundle's remaining raw text channels
-- [ ] YAAT-747 Keep the tape's starting weather across rewind, restart and recording load
+- [/] YAAT-747 Keep the tape's starting weather across rewind, restart and recording load · release vNext
 - [ ] YAAT-795 Refuse recording manifest wind-grid hashes that are not 64 lowercase hex
 - [ ] YAAT-842 Close the replay and hub-contract gaps found in YAAT-828's review
 - [ ] YAAT-894 Validate a recording's strip rack keys when it is imported
@@ -668,7 +666,7 @@
 
 ## Traffic pattern and airborne FOLLOW
 
-### 1 Defects (0/19 done)
+### 1 Defects (0/22 done)
 - [ ] YAAT-138 FOLLOW brief B leftovers: downwind return entry, S-turn call, re-clearance
 - [ ] YAAT-139 FOLLOW brief E leftovers: COPT at install, spacing, split VfrFollowPhase
 - [ ] YAAT-142 Clear the follow in GoAroundHelper.Trigger
@@ -688,6 +686,9 @@
 - [ ] YAAT-969 Refuse FOLLOW of traffic other than the one reported in sight
 - [ ] YAAT-1055 Stop a re-created pattern leg re-voicing its turn report after a 360 or a rebuild
 - [ ] YAAT-1090 Clear armed pattern and midfield reports when an aircraft leaves the pattern
+- [ ] YAAT-1488 Refresh the pattern waypoints when CM/DM changes the pattern altitude (stale Waypoints.PatternAltitude)
+- [ ] YAAT-1493 Keep the standing pattern altitude when MLT/MRT names the runway already flown
+- [ ] YAAT-1494 Keep the standing pattern altitude when MLT/MRT names the runway already flown
 
 ### 2 Refinements and rulings (0/9 done)
 - [ ] YAAT-140 Warn when a FOLLOW re-sequence from a pattern leg voids the landing clearance
@@ -773,7 +774,7 @@
 
 ## Solo training: simulated controllers and call-ups
 
-### 1 Defects (0/11 done)
+### 1 Defects (0/12 done)
 - [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm
@@ -781,13 +782,14 @@
 - [ ] YAAT-1190 Departure never calls ground after a delivery-only student's clearance (GND+DEL case done)
 - [ ] YAAT-512 Pilot calls raised at command dispatch never reach a solo student's radio
 - [ ] YAAT-1004 Gate the pattern-form traffic advisory match on the recipient's airport
-- [ ] YAAT-1095 Count solo Say answers on the frequency load meter
+- [/] YAAT-1095 Count solo Say answers on the frequency load meter · release vNext
 - [ ] YAAT-1096 Voice typed SAY answers in solo mode
 - [ ] YAAT-1225 Solo: CT 3O and bare CT do not reach the simulated tower
 - [ ] YAAT-1226 Solo Safety warns a ground student about two simulated-tower arrivals
+- [ ] YAAT-1492 Voice every solo SAY answer, typed or deferred (typed ones are flushed unspoken)
 
 ### 2 Refinements and rulings (0/11 done)
-- [ ] YAAT-1147 Judge frequency load by dead-air ratio, not transmission count · release vNext
+- [/] YAAT-1147 Judge frequency load by dead-air ratio, not transmission count · release vNext
 - [/] YAAT-1148 Keep pilots from cutting in before a readback; let a second check-in occasionally butt in · release vNext
 - [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording
 - [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range
@@ -804,9 +806,11 @@
 
 ## Server: CRC, ERAM, vEDST and rooms
 
-### 1 Defects (0/18 done)
+### 1 Defects (0/20 done)
 - [ ] YAAT-135 Record in-facility cab positions with SelectionCodeFor when ambiguous
+- [ ] YAAT-1489 Forward the disconnect-coast clears from RoomEngine.DrainStateChangesToRoom like the engine's own drain
 - [ ] YAAT-630 Treat a transponder set to Off as not replying, like Standby
+- [ ] YAAT-1490 Keep the stored ASDE-X runway configuration when a CRC push names an id the facility lacks
 - [ ] YAAT-298 Server admin settings are stored but nothing reads them: wire them up or remove them
 - [ ] YAAT-565 Send the full ICAO aircraft string in the room datafeed's flight_plan.aircraft
 - [ ] YAAT-602 Refuse an expired YAAT token at /vnas/auth/refresh instead of forwarding it to VATSIM
@@ -1086,7 +1090,7 @@
 
 ### 2 Refinements and rulings (0/0 done)
 
-### 3 Hygiene and tests (0/57 done)
+### 3 Hygiene and tests (0/58 done)
 - [ ] YAAT-57 Re-cite docs/ground/pathfinder.md by symbol, not line
 - [ ] YAAT-63 Fix the LAHSO section of docs/landing-and-runway-exit.md: CANCLAND → CLC
 - [ ] YAAT-75 Rewrite the Legacy Fillet Arc Generator section; rehome the collinear rule
@@ -1144,3 +1148,7 @@
 - [ ] YAAT-881 yaat-nextup: build at-risk tests from staged figures on a threshold change
 - [ ] YAAT-1209 Pin one pnpm version for the Discord bot so local pnpm 12 installs as CI does
 - [ ] YAAT-1419 Give the menu golden regeneration command its routed gate --env form in tests/CLAUDE.md, CONTEXT.md and the context-menu plans
+- [ ] YAAT-1491 Fix the dead links and heading anchors docs-lint reports in docs/crc, euroscope and three subsystem docs
+
+### No milestone
+- [ ] YAAT-1487 Run yaat-server's prek format hooks through the gate check-only so commits leave the heavy slot (GATE-449)
