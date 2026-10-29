@@ -30,13 +30,17 @@ namespace Yaat.Sim.Tests.Simulation;
 /// 7110.65 §4-3-2.c.1 / AIM §5-2-9.h.3: a vector off a SID cancels the SID's published altitude
 /// restrictions and the pilot flies the altitude ATC assigned; a plain "maintain" interrupting the SID's
 /// vertical navigation takes priority over the published restrictions. With no controller altitude, the
-/// SID's published initial altitude stands as a floor the lateral vector cannot descend below.
+/// SID's published initial altitude stands as a floor the lateral vector cannot descend below — and the
+/// coded legs themselves hold it (7110.65 §4-3-2.e.5 / AIM 5-2-9.h.5) instead of climbing to the filed cruise altitude, both
+/// inside a crossing window and after <c>Finish</c>. A forced altitude (FA / <c>CMN</c>) supersedes the
+/// vertical path without clearing the procedure, as a "maintain" does.
 /// </summary>
 public class DepartureProcedureVectorClimbStallTests
 {
     private const double WindowCeilingFt = 2000.0;
     private const double LevelToleranceFt = 50.0;
     private const int ControllerAltitudeFt = 5000;
+    private const int ForcedAltitudeFt = 3000;
 
     private readonly ITestOutputHelper _output;
 
@@ -285,10 +289,11 @@ public class DepartureProcedureVectorClimbStallTests
         AircraftState ac = departure.Aircraft;
         int sidInitial = Assert.NotNull(ac.Procedure.SidInitialAltitudeFt);
 
-        // Fly on past the window: with no assignment only the published initial altitude stands behind the
-        // lateral path, and the coded legs climb past it.
-        FlyUntilAbove(departure, sidInitial + 500, 180);
-        double altitudeAtVector = ac.Altitude;
+        // Stage the aircraft above the published initial altitude — it stands in for an aircraft that lost a
+        // climb via to a vector and climbed past the hold before this phase began. With no assignment, nothing
+        // behind the lateral path may descend it.
+        double altitudeAtVector = sidInitial + 1000;
+        ac.Altitude = altitudeAtVector;
 
         Dispatch(ac, "FH 270");
 
@@ -300,6 +305,144 @@ public class DepartureProcedureVectorClimbStallTests
             $"a lateral vector sent the aircraft down from {altitudeAtVector:F0} ft to {flight.MinAltitude:F0} ft"
         );
         Assert.InRange(ac.Altitude, altitudeAtVector - 100, altitudeAtVector + 100);
+    }
+
+    /// <summary>
+    /// A coded-leg SID with no controller altitude holds the SID's published initial altitude (OAK publishes
+    /// 2,000 ft) through every coded leg: the VM leg that follows the climb window must not carry the aircraft
+    /// up toward its filed cruise altitude (7110.65 §4-3-2.e.5 / AIM 5-2-9.h.5).
+    /// </summary>
+    [Fact]
+    public void CodedLegSid_NoAssignment_HoldsSidInitialAltitudeThroughAllCodedLegs()
+    {
+        ArtccConfigRoot? artccConfig = TestArtccConfig.LoadZoa();
+        if (artccConfig is null)
+        {
+            _output.WriteLine("ZOA ARTCC config snapshot not available — skipping.");
+            return;
+        }
+
+        Departure departure = StartCoast9Departure(artccConfig);
+        AircraftState ac = departure.Aircraft;
+        int sidInitial = Assert.NotNull(ac.Procedure.SidInitialAltitudeFt);
+        _output.WriteLine($"SidInitialAltitudeFt={sidInitial}");
+
+        FlightResult flight = FlyFor(departure, 360);
+        _output.WriteLine($"maxAlt={flight.MaxAltitude:F0} finalAlt={ac.Altitude:F0} sawProcedure={flight.SawDepartureProcedure}");
+
+        Assert.True(flight.SawDepartureProcedure, "the departure-procedure phase should have flown the coded legs");
+        Assert.True(
+            flight.MaxAltitude < sidInitial + 100,
+            $"with no controller altitude the coded legs must hold the SID's published {sidInitial} ft, "
+                + $"but the aircraft reached {flight.MaxAltitude:F0}"
+        );
+        Assert.InRange(ac.Altitude, sidInitial - 100, sidInitial + 100);
+
+        // The hold must survive the whole leg sequence, not just the climb window: the VD leg's distance
+        // termination has to sequence. COAST9 RWY30's coded run is VD → VM → CF, and the VM leg holds until a
+        // controller vector, so the VM leg is as far as an unaided flight gets.
+        DepartureProcedurePhase phase = Assert.IsType<DepartureProcedurePhase>(ac.Phases!.CurrentPhase);
+        _output.WriteLine($"leg={phase.ActiveLegIndex} of {phase.Legs.Count} types={string.Join(",", phase.Legs.Select(l => l.Type))}");
+        Assert.True(phase.Legs.Count > 1, $"setup: COAST9 RWY30 must carry the VM leg after its climb window, had {phase.Legs.Count} coded leg(s)");
+        Assert.True(phase.ActiveLegIndex > 0, $"the VD distance leg never sequenced — the phase is still on leg {phase.ActiveLegIndex}");
+        Assert.Equal(ProcedureLegType.HeadingToManual, phase.Legs[phase.ActiveLegIndex].Type);
+    }
+
+    /// <summary>
+    /// The hold outlives the coded legs: completing the procedure through <c>Finish</c> with no controller
+    /// altitude leaves the SID's published initial altitude as the target, not the resolved cruise ceiling.
+    /// </summary>
+    [Fact]
+    public void CodedLegSid_NoAssignment_HoldsSidInitialAltitudeAfterFinish()
+    {
+        ArtccConfigRoot? artccConfig = TestArtccConfig.LoadZoa();
+        if (artccConfig is null)
+        {
+            _output.WriteLine("ZOA ARTCC config snapshot not available — skipping.");
+            return;
+        }
+
+        Departure departure = FlyIntoClimbWindow(artccConfig);
+        AircraftState ac = departure.Aircraft;
+        int sidInitial = Assert.NotNull(ac.Procedure.SidInitialAltitudeFt);
+        DepartureProcedurePhase phase = Assert.IsType<DepartureProcedurePhase>(ac.Phases!.CurrentPhase);
+        DepartureProcedurePhaseDto snapshot = Assert.IsType<DepartureProcedurePhaseDto>(phase.ToSnapshot());
+        Assert.False(snapshot.Overridden, "setup: the aircraft must still be flying the coded procedure");
+        var allLegsFlown = DepartureProcedurePhase.FromSnapshot(EveryLegFlown(snapshot));
+        int index = ac.Phases.Phases.IndexOf(phase);
+        Assert.True(index >= 0, "the departure-procedure phase must be in the phase list");
+        ac.Phases.Phases[index] = allLegsFlown;
+
+        PhaseRunner.Tick(ac, departure.Context);
+        _output.WriteLine($"targetAfterFinish={ac.Targets.TargetAltitude?.ToString() ?? "-"} alt={ac.Altitude:F0}");
+
+        Assert.False(ReferenceEquals(allLegsFlown, ac.Phases.CurrentPhase), "the phase must complete through Finish");
+        Assert.InRange(Assert.NotNull(ac.Targets.TargetAltitude), sidInitial - 100, sidInitial + 100);
+
+        FlightResult after = FlyFor(departure, 180);
+        _output.WriteLine($"afterFinishMaxAlt={after.MaxAltitude:F0} finalAlt={ac.Altitude:F0}");
+
+        Assert.True(after.MaxAltitude < sidInitial + 100, $"the hold did not survive Finish — the aircraft climbed to {after.MaxAltitude:F0} ft");
+        Assert.InRange(ac.Altitude, sidInitial - 100, sidInitial + 100);
+    }
+
+    /// <summary>
+    /// Pins the fallback rather than a design goal: with no ARTCC config there is no published initial altitude
+    /// to hold, so a coded-leg SID with no assignment climbs toward its filed cruise altitude exactly as it did
+    /// before the hold existed. A missing snapshot can therefore never turn a SID into an unflown one.
+    /// </summary>
+    [Fact]
+    public void CodedLegSid_NoConfig_NoAssignment_StillClimbsPastInitial()
+    {
+        Departure departure = StartCoast9Departure(null);
+        AircraftState ac = departure.Aircraft;
+        Assert.Null(ac.Procedure.SidInitialAltitudeFt);
+
+        FlightResult flight = FlyFor(departure, 360);
+        _output.WriteLine($"maxAlt={flight.MaxAltitude:F0} finalAlt={ac.Altitude:F0} sawProcedure={flight.SawDepartureProcedure}");
+
+        Assert.True(flight.SawDepartureProcedure, "the departure-procedure phase should have flown the coded legs");
+        Assert.True(
+            flight.MaxAltitude > WindowCeilingFt + 100,
+            $"without a published SID initial altitude the coded legs must still climb toward cruise, "
+                + $"but the aircraft only reached {flight.MaxAltitude:F0}"
+        );
+    }
+
+    /// <summary>
+    /// A forced altitude (FA / <c>CMN</c>, AIM 5-2-9.h.3 / h.10) supersedes the SID's vertical path the way a
+    /// "maintain" does: the departure-procedure phase keeps flying the coded legs laterally and holds the forced
+    /// altitude through the crossing window instead of clearing.
+    /// </summary>
+    [Fact]
+    public void ForceAltitudeDuringSid_KeepsProcedureAndHoldsForcedAltitudeThroughWindow()
+    {
+        ArtccConfigRoot? artccConfig = TestArtccConfig.LoadZoa();
+        if (artccConfig is null)
+        {
+            _output.WriteLine("ZOA ARTCC config snapshot not available — skipping.");
+            return;
+        }
+
+        Departure departure = FlyIntoClimbWindow(artccConfig);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase phase = Assert.IsType<DepartureProcedurePhase>(ac.Phases!.CurrentPhase);
+
+        Dispatch(ac, "CMN 30");
+
+        Assert.True(ReferenceEquals(phase, ac.Phases?.CurrentPhase), "the forced altitude must not clear the SID coded legs");
+        Assert.True(Assert.IsType<DepartureProcedurePhaseDto>(phase.ToSnapshot()).ControllerAltitude);
+
+        FlightResult flight = FlyFor(departure, 120);
+        _output.WriteLine($"maxAlt={flight.MaxAltitude:F0} minAlt={flight.MinAltitude:F0} finalAlt={ac.Altitude:F0}");
+
+        Assert.True(flight.SawDepartureProcedure, "the forced altitude must not clear the SID coded legs");
+        Assert.True(
+            flight.MinAltitude >= ForcedAltitudeFt - 100,
+            $"the forced altitude must hold from the moment it is issued, but the aircraft dropped to {flight.MinAltitude:F0} ft"
+        );
+        Assert.InRange(flight.MaxAltitude, ForcedAltitudeFt - 100, ForcedAltitudeFt + 100);
+        Assert.InRange(ac.Altitude, ForcedAltitudeFt - 100, ForcedAltitudeFt + 100);
     }
 
     private static RunwayInfo? Koak30()
@@ -433,19 +576,6 @@ public class DepartureProcedureVectorClimbStallTests
         }
 
         Assert.Fail("aircraft never established in the COAST9 climb window under the DepartureProcedurePhase");
-    }
-
-    /// <summary>Flies until the aircraft is above an altitude, failing the test if it never gets there.</summary>
-    private void FlyUntilAbove(Departure departure, double altitudeFt, int maxSeconds)
-    {
-        AircraftState ac = departure.Aircraft;
-        for (int t = 0; t < maxSeconds && ac.Altitude <= altitudeFt; t++)
-        {
-            PhaseRunner.Tick(ac, departure.Context);
-            FlightPhysics.Update(ac, 1.0);
-        }
-
-        Assert.True(ac.Altitude > altitudeFt, $"the aircraft never climbed above {altitudeFt:F0} ft: {ac.Altitude:F0}");
     }
 
     private static FlightResult FlyFor(Departure departure, int seconds)

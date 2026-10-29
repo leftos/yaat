@@ -25,9 +25,10 @@ public sealed class DepartureProcedurePhase : Phase
     private int _legIndex;
     private bool _overridden;
 
-    /// <summary>A controller "maintain" (<c>CM</c>/<c>DM</c>) issued while the coded legs are active: the plain
-    /// altitude assignment interrupts the SID's vertical navigation and outranks its published crossing
-    /// restrictions (7110.65 §4-3-2.c.1 / AIM §5-2-9.h.3), so the phase must stop writing <c>TargetAltitude</c>.</summary>
+    /// <summary>A controller altitude assignment — a "maintain" (<c>CM</c>/<c>DM</c>) or a forced altitude
+    /// (<c>FA</c>/<c>CMN</c>) — issued while the coded legs are active: it interrupts the SID's vertical
+    /// navigation and outranks its published crossing restrictions (7110.65 §4-3-2.e.4 NOTE 2 /
+    /// AIM 5-2-9.h.10), so the phase must stop writing <c>TargetAltitude</c>.</summary>
     private bool _controllerAltitude;
 
     private LatLon? _legEntryPosition;
@@ -35,8 +36,9 @@ public sealed class DepartureProcedurePhase : Phase
     private double _legElapsedSeconds;
 
     /// <summary>Overall climb ceiling (cruise / assigned). A leg's at-or-below window only ever
-    /// caps <i>below</i> this — never raises it — so releasing a leg cap restores this ceiling,
-    /// leaving any higher assigned/top-altitude limit intact.</summary>
+    /// caps <i>below</i> this — never raises it — so releasing a leg cap restores the SID's hold altitude when
+    /// there is one (an unassigned IFR departure never climbs past it) and this ceiling otherwise, leaving any
+    /// higher assigned/top-altitude limit intact.</summary>
     private double _climbCeiling;
 
     /// <summary>The coded leading legs to fly (heading/course legs and any interior fixes).</summary>
@@ -76,7 +78,10 @@ public sealed class DepartureProcedurePhase : Phase
         }
         else
         {
-            ctx.Targets.TargetAltitude = _climbCeiling;
+            // No controller altitude: an IFR departure holds its SID's published initial altitude (7110.65
+            // §4-3-2.e.5 / AIM 5-2-9.h.5) instead of climbing to the filed cruise altitude the ceiling was
+            // resolved from.
+            ctx.Targets.TargetAltitude = ResolveSidHoldAltitude(ctx) ?? _climbCeiling;
         }
 
         _legEntryPosition = ctx.Aircraft.Position;
@@ -294,10 +299,12 @@ public sealed class DepartureProcedurePhase : Phase
     /// <summary>
     /// Caps the climb at an active leg's "at", "at or below", or "between" crossing altitude
     /// (AIM §5-2-9.e): a pure ceiling, never a target. The aircraft levels off only if it reaches the
-    /// cap before the leg sequences; the cap is released (restored to <see cref="_climbCeiling"/>) on
-    /// the next leg. "At or above" is deliberately excluded — its floor is satisfied by the climb.
-    /// A controller altitude assignment owns the target instead (7110.65 §4-3-2.c.1 / AIM §5-2-9.h.3),
-    /// until a climb via puts the SID's restrictions back in force under its top altitude.
+    /// cap before the leg sequences; the cap is released (restored to the SID hold altitude, else
+    /// <see cref="_climbCeiling"/>) on the next leg. "At or above" is deliberately excluded — its floor is
+    /// satisfied by the climb. A controller altitude assignment owns the target instead (7110.65 §4-3-2.e.4
+    /// NOTE 2 / AIM 5-2-9.h.10), until a climb via puts the SID's restrictions back in force under its top
+    /// altitude; with no assignment the SID's published initial altitude is the base (7110.65 §4-3-2.e.5 /
+    /// AIM 5-2-9.h.5).
     /// </summary>
     private void ApplyLegAltitudeCap(PhaseContext ctx, ProcedureLeg leg)
     {
@@ -307,7 +314,7 @@ public sealed class DepartureProcedurePhase : Phase
             return;
         }
 
-        double ceiling = climbVia ?? _climbCeiling;
+        double ceiling = climbVia ?? ResolveSidHoldAltitude(ctx) ?? _climbCeiling;
         if (
             leg.AltitudeRestriction is { } restriction
             && restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between
@@ -365,8 +372,10 @@ public sealed class DepartureProcedurePhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         // Release any leg altitude cap — the remaining route's own crossing restrictions are
         // enforced by FlightPhysics.UpdateNavigation from here. A climb via target or a controller
-        // altitude assignment outlives the coded legs.
-        ctx.Targets.TargetAltitude = FlightPhysics.ClimbViaAltitude(ctx.Aircraft) ?? ctx.Targets.AssignedAltitude ?? _climbCeiling;
+        // altitude assignment outlives the coded legs, and so does the SID's published initial
+        // altitude an unassigned IFR departure holds (7110.65 §4-3-2.e.5 / AIM 5-2-9.h.5).
+        ctx.Targets.TargetAltitude =
+            FlightPhysics.ClimbViaAltitude(ctx.Aircraft) ?? ctx.Targets.AssignedAltitude ?? ResolveSidHoldAltitude(ctx) ?? _climbCeiling;
         ctx.Targets.NavigationRoute.Clear();
 
         var flown = new HashSet<string>(Legs.Where(l => l.FixName is not null).Select(l => l.FixName!), StringComparer.OrdinalIgnoreCase);
@@ -406,12 +415,31 @@ public sealed class DepartureProcedurePhase : Phase
             return assigned;
         }
 
-        if (!ctx.Aircraft.FlightPlan.IsVfr && ctx.Aircraft.Procedure.SidInitialAltitudeFt is { } sidInitial)
+        return ResolveSidHoldAltitude(ctx) ?? _climbCeiling;
+    }
+
+    /// <summary>
+    /// The altitude a coded-leg SID holds for an IFR departure with no controller altitude assignment: the SID's
+    /// published initial altitude (the TDLS "maintain" altitude, 7110.65 §4-3-2.e.5 / AIM 5-2-9.h.5), never below
+    /// the aircraft's current altitude, so that <see cref="Finish"/> and the lateral-vector release never command a
+    /// descent. A leg's own at / at-or-below / between crossing window may still bring the aircraft down to the
+    /// window top (<see cref="ApplyLegAltitudeCap"/> takes the minimum). Null when the altitude is the
+    /// controller's (a CTO climb-to altitude arrives as <see cref="AssignedAltitude"/>; a climb via or a later
+    /// assignment is tested ahead of every caller) or the flight is VFR, whose climb is unchanged.
+    /// </summary>
+    private double? ResolveSidHoldAltitude(PhaseContext ctx)
+    {
+        if (AssignedAltitude is not null)
         {
-            return Math.Max(ctx.Aircraft.Altitude, sidInitial);
+            return null;
         }
 
-        return _climbCeiling;
+        if ((ctx.Aircraft.FlightPlan.IsVfr) || (ctx.Aircraft.Procedure.SidInitialAltitudeFt is not { } sidInitial))
+        {
+            return null;
+        }
+
+        return Math.Max(ctx.Aircraft.Altitude, sidInitial);
     }
 
     private double ResolveClimbCeiling()
@@ -461,8 +489,10 @@ public sealed class DepartureProcedurePhase : Phase
             or CanonicalCommandType.RelativeRight
             or CanonicalCommandType.FlyPresentHeading
             or CanonicalCommandType.ForceHeading
-            // The pilot keeps flying the SID laterally; the climb via retargets the vertical path.
-            or CanonicalCommandType.ClimbVia => CommandAcceptance.Allowed,
+            // The pilot keeps flying the SID laterally; a climb via or a forced altitude retargets the
+            // vertical path (AIM 5-2-9.h.3, h.10).
+            or CanonicalCommandType.ClimbVia
+            or CanonicalCommandType.ForceAltitude => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
     }
@@ -492,7 +522,7 @@ public sealed class DepartureProcedurePhase : Phase
         {
             _overridden = true;
         }
-        if (IsAltitudeFamilyCommand(cmd))
+        if ((IsAltitudeFamilyCommand(cmd)) || (cmd == CanonicalCommandType.ForceAltitude))
         {
             _controllerAltitude = true;
         }
