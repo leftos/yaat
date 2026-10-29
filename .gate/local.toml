@@ -1,0 +1,1 @@
+patterns = ["dotnet run *--project tools?Yaat.LayoutInspector* --ticks *"]
