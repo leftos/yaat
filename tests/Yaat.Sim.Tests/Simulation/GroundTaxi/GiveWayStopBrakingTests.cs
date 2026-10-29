@@ -574,7 +574,9 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
     /// from the first second that starts with N738SP in the crossing, its tail short of the far holding-position marking and the
     /// room before its stop ring behind N52417 inside its taxi-rate stop plus N52417's closure over that stop plus one detector
     /// pass of both aircraft's travel, where the detector's crossing stop curve binds (<see cref="CrossingCurveBindsFrom"/>),
-    /// to its stop or its tail clearing the far marking, its ground speed never rises.
+    /// to its stop or its tail clearing the far marking, its ground speed never rises. A second that ends with the tail past the
+    /// far marking is where the window closes and is not counted: N52417's tail clears the C/J junction during the crossing, so
+    /// the GIVEWAY is released, and once its tail is clear N738SP may roll on within that second.
     /// </summary>
     [Fact]
     public void GiveWay_PastAClearedBarsHoldLine_NeverSpeedsUpOnceTheCrossingCurveBinds()
@@ -641,17 +643,17 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
                     return false;
                 }
 
-                if (countedFromKts is { } fromKts)
+                bool inCrossing =
+                    (giver.Phases?.CurrentPhase is CrossingRunwayPhase)
+                    || (giver.Ground.AssignedTaxiRoute?.CurrentSegmentIndex > nearBarSegmentIndex);
+                double tailPastFarFt = NosePastHoldLineFt(Tail(giver), farBar!, farApproachDeg);
+                if ((countedFromKts is { } fromKts) && (tailPastFarFt < 0.0))
                 {
                     double riseKts = giver.GroundSpeed - fromKts;
                     worstRise = riseKts > worstRise.RiseKts ? (riseKts, second) : worstRise;
                     countedSeconds++;
                 }
 
-                bool inCrossing =
-                    (giver.Phases?.CurrentPhase is CrossingRunwayPhase)
-                    || (giver.Ground.AssignedTaxiRoute?.CurrentSegmentIndex > nearBarSegmentIndex);
-                double tailPastFarFt = NosePastHoldLineFt(Tail(giver), farBar!, farApproachDeg);
                 windowOpen = windowOpen || (inCrossing && (tailPastFarFt < 0.0) && CrossingCurveBindsFrom(giver, lead));
                 output.WriteLine(
                     $"t={second} gs={giver.GroundSpeed:F2} {giver.Phases?.CurrentPhase?.Name} tail {tailPastFarFt:F1} ft past the far marking "

@@ -29,15 +29,6 @@ public sealed class Issue1356FarBarTailWalkStaysOnTaxiwayTests(ITestOutputHelper
 
     private const string SfoCallsign = "UAL1356";
 
-    /// <summary>The committed SFO layout's K/B junction, south of 28L.</summary>
-    private const int SfoKBJunctionId = 135;
-
-    /// <summary>The committed SFO layout's 28L bar on K, north of the runway.</summary>
-    private const int SfoK28LNorthBarId = 865;
-
-    /// <summary>The committed SFO layout's 28R bar on K, 191 ft north of <see cref="SfoK28LNorthBarId"/>.</summary>
-    private const int SfoK28RBarId = 831;
-
     [Fact]
     public void CrossingEndingOnFarBar_WalksStraightOnAlongD_NotOntoTheBFillet()
     {
@@ -96,10 +87,11 @@ public sealed class Issue1356FarBarTailWalkStaysOnTaxiwayTests(ITestOutputHelper
     }
 
     /// <summary>
-    /// The far-bar tail walk toward another runway's bar it never reaches: at SFO a B738 on K south of 28L is cleared to 28L,
-    /// told to cross it, and its route ends on 28L's north bar #865 on K. 191 ft on along K is 28R's bar #831. The walk needs
-    /// only half the length plus the margin past #865, so the nose stops well short of #831; refusing the K edge because it
-    /// ends at #831 leaves the tail inside 28L's holding position marking (AIM 2-3-5.a.1, AIM 4-3-21.b).
+    /// The far-bar tail walk toward another runway's bar it never reaches: at SFO a B738 on K at its B junction south of 28L
+    /// is cleared to 28L, told to cross it, and its route ends on 28L's north bar on K. 191 ft on along K is 28R's south bar.
+    /// The walk needs only half the length plus the margin past the 28L bar, so the nose stops well short of the 28R bar;
+    /// refusing the K edge because it ends at the 28R bar leaves the tail inside 28L's holding position marking
+    /// (AIM 2-3-5.a.1, AIM 4-3-21.b).
     /// </summary>
     [Fact]
     public void CrossingEndingOnFarBar_WalksOnTowardAnotherRunwaysBarItNeverReaches()
@@ -109,9 +101,10 @@ public sealed class Issue1356FarBarTailWalkStaysOnTaxiwayTests(ITestOutputHelper
             return;
         }
 
-        GroundNode start = ground.Layout.Nodes[SfoKBJunctionId];
-        GroundNode farBar = ground.Layout.Nodes[SfoK28LNorthBarId];
-        GroundNode otherBar = ground.Layout.Nodes[SfoK28RBarId];
+        GroundNode start = GroundNodeLookup.Junction(ground.Layout, "K", "B");
+        GroundNode otherBar = GroundNodeLookup.HoldShortBar(ground.Layout, "28R", "K", start);
+        GroundNode farBar = GroundNodeLookup.HoldShortBar(ground.Layout, "28L", "K", otherBar);
+        output.WriteLine($"K/B junction #{start.Id}, 28L north bar on K #{farBar.Id}, 28R south bar on K #{otherBar.Id}");
         var north = new TrueHeading(GeoMath.BearingTo(start.Position, farBar.Position));
         AircraftState aircraft = SfoGroundHarness.SpawnAt(ground, SfoCallsign, "B738", (start, north), new HoldingInPositionPhase());
 
@@ -128,10 +121,7 @@ public sealed class Issue1356FarBarTailWalkStaysOnTaxiwayTests(ITestOutputHelper
         Assert.True(cross.Success, cross.Message);
         TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
-        Assert.True(
-            route.Segments[^1].ToNodeId == SfoK28LNorthBarId,
-            $"test setup: the route ends at #{route.Segments[^1].ToNodeId}, not #{SfoK28LNorthBarId}"
-        );
+        Assert.True(route.Segments[^1].ToNodeId == farBar.Id, $"test setup: the route ends at #{route.Segments[^1].ToNodeId}, not #{farBar.Id}");
 
         bool crossed = false;
         int done = SfoGroundHarness.TickUntil(
@@ -152,15 +142,15 @@ public sealed class Issue1356FarBarTailWalkStaysOnTaxiwayTests(ITestOutputHelper
         double tailPastFt = (GeoMath.AlongTrackDistanceNm(aircraft.Position, farBar.Position, across) * GeoMath.FeetPerNm) - halfLengthFt;
         double nosePastOtherFt = (GeoMath.AlongTrackDistanceNm(aircraft.Position, otherBar.Position, across) * GeoMath.FeetPerNm) + halfLengthFt;
         output.WriteLine(
-            $"{SfoCallsign} ended on {aircraft.Ground.CurrentTaxiway}: tail {tailPastFt:F1} ft past #{SfoK28LNorthBarId}, "
-                + $"nose {nosePastOtherFt:F1} ft past #{SfoK28RBarId}"
+            $"{SfoCallsign} ended on {aircraft.Ground.CurrentTaxiway}: tail {tailPastFt:F1} ft past #{farBar.Id}, "
+                + $"nose {nosePastOtherFt:F1} ft past #{otherBar.Id}"
         );
 
         Assert.True(
             tailPastFt >= RunwayTailClearance.MarginFt - 1.0,
-            $"{SfoCallsign}'s tail is {tailPastFt:F1} ft past 28L's hold line at #{SfoK28LNorthBarId}, "
+            $"{SfoCallsign}'s tail is {tailPastFt:F1} ft past 28L's hold line at #{farBar.Id}, "
                 + $"short of the {RunwayTailClearance.MarginFt:F0} ft margin"
         );
-        Assert.True(nosePastOtherFt <= 0.0, $"{SfoCallsign}'s nose is {nosePastOtherFt:F1} ft past 28R's hold line at #{SfoK28RBarId}");
+        Assert.True(nosePastOtherFt <= 0.0, $"{SfoCallsign}'s nose is {nosePastOtherFt:F1} ft past 28R's hold line at #{otherBar.Id}");
     }
 }

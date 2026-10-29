@@ -165,6 +165,18 @@ public class FollowGroundAtRunwayBarWaitTests(ITestOutputHelper output) : Follow
         }
 
         FollowingPhase follow = Assert.IsType<FollowingPhase>(staged.Follower.Phases?.CurrentPhase);
+        // A verdict judged in the follow's first second carries second 0, which a snapshot that dropped the second restores
+        // too: tick on to one judged in a later second, so the round trip below tells the two apart.
+        int laterAt = SfoGroundHarness.TickUntil(
+            staged.Ground.Engine,
+            () =>
+                ReferenceEquals(staged.Follower.Phases?.CurrentPhase, follow)
+                && (follow.ToSnapshot() is FollowingPhaseDto { LeadWaitSecond: > 0, LeadWaitVerdicts: { } verdicts })
+                && verdicts.ContainsValue(true),
+            HeldSeconds,
+            null
+        );
+        Assert.True(laterAt > 0, $"the follow cached no wait verdict after its first second: {staged.Follower.Phases?.CurrentPhase?.Name}");
         FollowingPhaseDto first = Assert.IsType<FollowingPhaseDto>(follow.ToSnapshot());
         FollowingPhaseDto second = Assert.IsType<FollowingPhaseDto>(FollowingPhase.FromSnapshot(first, staged.Ground.Layout).ToSnapshot());
         Output.WriteLine($"verdicts {string.Join(", ", first.LeadWaitVerdicts ?? [])} at second {first.LeadWaitSecond}");

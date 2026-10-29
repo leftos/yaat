@@ -84,7 +84,7 @@ public class TaxiFromShortOfARunwayBarTests
     /// marking, its centre half a fuselage short of the bar.
     /// </summary>
     [Theory]
-    [InlineData("K", "TAXI K")]
+    [InlineData("K", "TAXI K D")]
     [InlineData("C", "TAXI C B RWY 28R")]
     public void TaxiFromWellShortOfAnUnclearedRunwayBar_StopsTheNoseAtTheMarking(string taxiway, string taxi)
     {

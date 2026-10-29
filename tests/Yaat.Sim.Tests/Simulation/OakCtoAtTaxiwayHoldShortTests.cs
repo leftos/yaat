@@ -42,6 +42,9 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
     /// <summary>Below this indicated airspeed (kt) the aircraft counts as stopped.</summary>
     private const double StoppedIasKts = 0.5;
 
+    /// <summary>The oldest roll clock (s) a takeoff roll first sampled can show and still have started from a standstill.</summary>
+    private const double StandingStartRollClockSeconds = 1.0;
+
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
     private SimulationEngine? BuildEngine()
@@ -152,8 +155,11 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
             AircraftState? aircraft = engine.FindAircraft(Callsign);
             Assert.NotNull(aircraft);
             Phase? phase = aircraft.Phases?.CurrentPhase;
-            if (phase is TakeoffPhase)
+            if (phase is TakeoffPhase takeoff)
             {
+                // Samples are a second apart, so the stop and the start of the roll can fall inside one: a roll first seen at most a
+                // second into its clock began from a standstill, while a rolling takeoff starts its clock at its line-up speed.
+                stoppedLinedUp |= linedUp && (takeoff.RollElapsedSeconds <= StandingStartRollClockSeconds);
                 output.WriteLine($"{Callsign} in TakeoffPhase after {t}s (lined up: {linedUp}, stopped lined up: {stoppedLinedUp})");
                 Assert.True(stoppedLinedUp, $"{Callsign} (B744) began its takeoff roll without stopping after lining up");
                 return;

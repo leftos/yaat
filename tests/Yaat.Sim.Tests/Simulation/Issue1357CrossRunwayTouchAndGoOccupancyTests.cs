@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
@@ -39,6 +40,12 @@ public class Issue1357CrossRunwayTouchAndGoOccupancyTests(ITestOutputHelper outp
     // 30 s past the go-around (20:00:30); the recording itself ends at t=1100.
     private const int GoAroundWindowEnd = 1119;
 
+    // Before N342T's last touch-and-go on 28L in this window (main: touchdown t=1071; painted-map layout: t=1063).
+    private const int LastTouchAndGoSearchStart = 1040;
+
+    // N172SP on final, before its rollout picks an exit (it lands 28R at t≈561 and exited at E in the recording).
+    private const int N172SpOnFinalTime = 550;
+
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
     private SimulationEngine? BuildEngine()
@@ -69,15 +76,26 @@ public class Issue1357CrossRunwayTouchAndGoOccupancyTests(ITestOutputHelper outp
             return;
         }
 
-        engine.Replay(recording, GoAroundTime);
+        engine.Replay(recording, LastTouchAndGoSearchStart);
         AircraftState? n342t = engine.FindAircraft("N342T");
+        int t = LastTouchAndGoSearchStart;
+        for (; (t < GoAroundWindowEnd) && (n342t?.Phases?.CurrentPhase is not TouchAndGoPhase { HasLiftedOff: true }); t++)
+        {
+            engine.ReplayOneSecond();
+            n342t = engine.FindAircraft("N342T");
+        }
+
         Assert.NotNull(n342t);
+        Assert.True(
+            n342t.Phases?.CurrentPhase is TouchAndGoPhase { HasLiftedOff: true },
+            "hung: N342T never airborne in a touch-and-go before the window end"
+        );
         output.WriteLine(
-            $"t={GoAroundTime}: phase={n342t.Phases?.CurrentPhase?.GetType().Name} onGround={n342t.IsOnGround} "
+            $"t={t}: phase={n342t.Phases?.CurrentPhase?.GetType().Name} onGround={n342t.IsOnGround} "
                 + $"assigned={n342t.Phases?.AssignedRunway?.Designator} departure={n342t.Phases?.DepartureRunway?.Designator}"
         );
 
-        // The recording shows N342T in TouchAndGoPhase at t=1089, already lifted off: a touch-and-go is a departure once
+        // N342T is airborne in its last touch-and-go on 28L: a touch-and-go is a departure once
         // airborne (7110.65 3-8-2), so the phase classifier calls it Departing — on 28L, not 28R.
         Assert.False(n342t.IsOnGround);
         Assert.Equal(RunwayUseKind.Departing, RunwayOccupancy.ClassifyByPhase(n342t, Oak("28L")));
@@ -136,9 +154,15 @@ public class Issue1357CrossRunwayTouchAndGoOccupancyTests(ITestOutputHelper outp
             }
         };
 
-        engine.Replay(recording, N172SpTakeoffClearanceTime - 1);
-        engine.ReplayOneSecond();
-        engine.ReplayOneSecond();
+        // The recording's exit at E: the rollout now judges E a standard exit out of default braking reach and rolls to G,
+        // from which the recorded TAXI C B 28R does not resolve.
+        engine.Replay(recording, N172SpOnFinalTime);
+        CommandResult exitE = engine.SendCommand("N172SP", "EXIT E");
+        Assert.True(exitE.Success, $"EXIT E refused: {exitE.Message}");
+        for (int t = N172SpOnFinalTime; t <= N172SpTakeoffClearanceTime; t++)
+        {
+            engine.ReplayOneSecond();
+        }
 
         AircraftState? n342t = engine.FindAircraft("N342T");
         Assert.NotNull(n342t);
