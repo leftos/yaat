@@ -3625,7 +3625,15 @@ public partial class MainViewModel : ObservableObject
     internal void FlushSessionSetting(SessionSettingKey key) => _sessionSettingCommitter.Flush(key);
 
     /// <summary>A spinner step, arrow key or wheel tick on one box: its value sends after the short step delay.</summary>
-    internal void StepSessionSetting(SessionSettingKey key) => _sessionSettingCommitter.ScheduleStep(key);
+    internal void StepSessionSetting(SessionSettingKey key)
+    {
+        if (key == SessionSettingKey.RunDelay)
+        {
+            BeginRunDelayEdit();
+        }
+
+        _sessionSettingCommitter.ScheduleStep(key);
+    }
 
     private void CommitDepartureAutoDeleteDistance() =>
         _ = SendDepartureAutoDeleteDistance(SessionDepartureAutoDeleteDistanceNm is { } distanceNm ? (double)distanceNm : null);
@@ -3674,9 +3682,14 @@ public partial class MainViewModel : ObservableObject
 
     private bool _isApplyingSessionSettings;
 
+    // Which half of the run-delay pair the user typed while the key waits to be sent: a push that lands while it waits
+    // writes only the halves that are not flagged here, so the commit that follows sends the pushed half, not a stale one.
+    private bool _runDelayMinEdited;
+    private bool _runDelayMaxEdited;
+
     /// <summary>
-    /// A push for a key the user has typed into but not sent yet must not overwrite the box: the typed value stays and
-    /// the push's value for that key is dropped.
+    /// True when the key holds a value the user typed but has not sent yet: a push must not overwrite that value. The
+    /// caller decides what the half the user did not type does, so a paired key still takes the pushed other half.
     /// </summary>
     private bool SkipPushWhilePending(SessionSettingKey key)
     {
@@ -3685,8 +3698,29 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
-        _log.LogDebug("Session settings push for {Key} dropped: the typed value is still waiting to be sent", key);
+        _log.LogDebug("Session settings push for {Key}: the typed value is kept while it waits to be sent", key);
         return true;
+    }
+
+    /// <summary>
+    /// A run-delay push that lands while the pair waits: the half the user typed keeps its value and the other half takes
+    /// the pushed one, so the commit that follows sends the pushed value for the half nobody typed.
+    /// </summary>
+    private void ApplyPushedRunDelayHalves(SessionSettingsDto dto)
+    {
+        bool applyMin = !_runDelayMinEdited;
+        bool applyMax = !_runDelayMaxEdited;
+        if (applyMin)
+        {
+            SessionCommandRunDelayMinSeconds = dto.CommandRunDelayMinSeconds;
+        }
+
+        if (applyMax)
+        {
+            SessionCommandRunDelayMaxSeconds = dto.CommandRunDelayMaxSeconds;
+        }
+
+        _log.LogDebug("Run-delay push while the pair waits: applied min={ApplyMin} max={ApplyMax}", applyMin, applyMax);
     }
 
     private void OnSessionSettingsChanged(SessionSettingsDto dto) => Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplySessionSettings(dto));
@@ -3703,7 +3737,12 @@ public partial class MainViewModel : ObservableObject
             SessionDepartureAutoDeleteDistanceNm = dto.DepartureAutoDeleteDistanceNm is { } departureDistanceNm ? (decimal)departureDistanceNm : null;
         }
 
-        if (!SkipPushWhilePending(SessionSettingKey.AutoAccept))
+        if (SkipPushWhilePending(SessionSettingKey.AutoAccept))
+        {
+            // Only the delay can be waiting (the checkbox commits at once): it stays, and the checkbox follows the push.
+            SessionAutoAcceptEnabled = SessionAutoAcceptWire.FromWire(dto.AutoAcceptDelaySeconds, SessionAutoAcceptDelaySeconds).Enabled;
+        }
+        else
         {
             (SessionAutoAcceptEnabled, SessionAutoAcceptDelaySeconds) = SessionAutoAcceptWire.FromWire(
                 dto.AutoAcceptDelaySeconds,
@@ -3711,7 +3750,11 @@ public partial class MainViewModel : ObservableObject
             );
         }
 
-        if (!SkipPushWhilePending(SessionSettingKey.RunDelay))
+        if (SkipPushWhilePending(SessionSettingKey.RunDelay))
+        {
+            ApplyPushedRunDelayHalves(dto);
+        }
+        else
         {
             SessionCommandRunDelayMinSeconds = dto.CommandRunDelayMinSeconds;
             SessionCommandRunDelayMaxSeconds = dto.CommandRunDelayMaxSeconds;
@@ -3905,20 +3948,43 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Starts a run-delay edit: a commit, a flush or a discard since the last edit ended the pair's wait, so flags left
+    /// from an earlier edit no longer describe the one about to happen.
+    /// </summary>
+    private void BeginRunDelayEdit()
+    {
+        if (_sessionSettingCommitter.IsPending(SessionSettingKey.RunDelay))
+        {
+            return;
+        }
+
+        _runDelayMinEdited = false;
+        _runDelayMaxEdited = false;
+    }
+
     partial void OnSessionCommandRunDelayMinSecondsChanged(int value)
     {
-        if (!_isApplyingSessionSettings)
+        if (_isApplyingSessionSettings)
         {
-            _sessionSettingCommitter.Schedule(SessionSettingKey.RunDelay);
+            return;
         }
+
+        BeginRunDelayEdit();
+        _runDelayMinEdited = true;
+        _sessionSettingCommitter.Schedule(SessionSettingKey.RunDelay);
     }
 
     partial void OnSessionCommandRunDelayMaxSecondsChanged(int value)
     {
-        if (!_isApplyingSessionSettings)
+        if (_isApplyingSessionSettings)
         {
-            _sessionSettingCommitter.Schedule(SessionSettingKey.RunDelay);
+            return;
         }
+
+        BeginRunDelayEdit();
+        _runDelayMaxEdited = true;
+        _sessionSettingCommitter.Schedule(SessionSettingKey.RunDelay);
     }
 
     partial void OnSessionAutoClearedToLandChanged(bool value)

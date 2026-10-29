@@ -119,7 +119,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `AmendFlightPlanAsync(callsign, dto)` | `AmendFlightPlan` | `AmendFlightPlan(...)` `:1900` |
 | `RequestNewBeaconCodeAsync(callsign)` | `RequestNewBeaconCode` | `RequestNewBeaconCode(callsign)` `:1922` |
 | `RequestFlightStripForAircraftAsync(callsign)` | `RequestFlightStripForAircraft` | `RequestFlightStripForAircraft(callsign)` `:1942` |
-| `SetAutoAcceptDelayAsync(seconds)` | `SetAutoAcceptDelay` | `SetAutoAcceptDelay(seconds)` `:1221` |
+| `SetAutoAcceptDelayAsync(seconds)` | `SetAutoAcceptDelay` | `SetAutoAcceptDelay(seconds)` `:1225` |
 | `SetAutoDeleteModeAsync(mode)` | `SetAutoDeleteMode` | `SetAutoDeleteMode(mode)` `:1268` |
 | `SetDepartureAutoDeleteDistanceAsync(distanceNm)` | `SetDepartureAutoDeleteDistance` | `SetDepartureAutoDeleteDistance(distanceNm)` — returns `CommandResultDto`; null turns it off, a value outside 1–500 nm is refused with the reason and no broadcast |
 | `SetValidateDctFixesAsync(validate)` | `SetValidateDctFixes` | `SetValidateDctFixes(...)` `:1814` |

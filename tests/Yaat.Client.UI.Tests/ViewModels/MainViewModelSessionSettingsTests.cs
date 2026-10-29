@@ -477,21 +477,158 @@ public class MainViewModelSessionSettingsTests
     }
 
     [AvaloniaFact]
-    public void ServerPush_WhilePending_KeepsTypedValueAndSendsIt()
+    public void ServerPush_AfterAFlush_StaleMinFlagDoesNotBlockMin()
     {
-        (MainViewModel vm, ManualTimeProvider clock, List<SessionSettingKey> commits) = NewDebouncedVm();
+        (MainViewModel vm, ManualTimeProvider clock, _) = NewDebouncedVm();
+        var committedPairs = new List<(int Min, int Max)>();
+        vm.SessionCommitter.Committed += _ => committedPairs.Add((vm.SessionCommandRunDelayMinSeconds, vm.SessionCommandRunDelayMaxSeconds));
+
+        vm.SessionCommandRunDelayMaxSeconds = 20;
+        vm.FlushPendingSessionSettings();
+        Assert.Single(committedPairs);
+
+        // Enter sent the max long ago: only min waits now, so max is free to take the pushed value.
         vm.SessionCommandRunDelayMinSeconds = 15;
 
         vm.ApplySessionSettings(SessionSettingsWithDepartureDistance(null) with { CommandRunDelayMinSeconds = 5, CommandRunDelayMaxSeconds = 9 });
 
         Assert.Equal(15, vm.SessionCommandRunDelayMinSeconds);
-        // The pair is one key: a push for either bound is dropped while the other is waiting.
-        Assert.Equal(0, vm.SessionCommandRunDelayMaxSeconds);
+        Assert.Equal(9, vm.SessionCommandRunDelayMaxSeconds);
 
         AdvanceClock(clock, TimeSpan.FromSeconds(2));
 
-        Assert.Equal<SessionSettingKey>([SessionSettingKey.RunDelay], commits);
+        Assert.Equal(2, committedPairs.Count);
+        Assert.Equal((15, 9), committedPairs[1]);
+    }
+
+    [AvaloniaFact]
+    public void ServerPush_WhilePendingMin_UpdatesMaxAndCommitsTypedMinWithPushedMax()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, _) = NewDebouncedVm();
+        var committedPairs = new List<(int Min, int Max)>();
+        vm.SessionCommitter.Committed += _ => committedPairs.Add((vm.SessionCommandRunDelayMinSeconds, vm.SessionCommandRunDelayMaxSeconds));
+
+        vm.SessionCommandRunDelayMinSeconds = 15;
+
+        vm.ApplySessionSettings(SessionSettingsWithDepartureDistance(null) with { CommandRunDelayMinSeconds = 5, CommandRunDelayMaxSeconds = 9 });
+
         Assert.Equal(15, vm.SessionCommandRunDelayMinSeconds);
+        Assert.Equal(9, vm.SessionCommandRunDelayMaxSeconds);
+
+        AdvanceClock(clock, TimeSpan.FromSeconds(2));
+
+        Assert.Single(committedPairs);
+        Assert.Equal((15, 9), committedPairs[0]);
+    }
+
+    [AvaloniaFact]
+    public void ServerPush_WhilePendingMax_UpdatesMinAndCommitsPushedMinWithTypedMax()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, _) = NewDebouncedVm();
+        var committedPairs = new List<(int Min, int Max)>();
+        vm.SessionCommitter.Committed += _ => committedPairs.Add((vm.SessionCommandRunDelayMinSeconds, vm.SessionCommandRunDelayMaxSeconds));
+
+        vm.SessionCommandRunDelayMaxSeconds = 15;
+
+        vm.ApplySessionSettings(SessionSettingsWithDepartureDistance(null) with { CommandRunDelayMinSeconds = 5, CommandRunDelayMaxSeconds = 9 });
+
+        Assert.Equal(5, vm.SessionCommandRunDelayMinSeconds);
+        Assert.Equal(15, vm.SessionCommandRunDelayMaxSeconds);
+
+        AdvanceClock(clock, TimeSpan.FromSeconds(2));
+
+        Assert.Single(committedPairs);
+        Assert.Equal((5, 15), committedPairs[0]);
+    }
+
+    [AvaloniaFact]
+    public void ServerPush_WhileBothHalvesTyped_DropsThePushWhole()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, _) = NewDebouncedVm();
+        var committedPairs = new List<(int Min, int Max)>();
+        vm.SessionCommitter.Committed += _ => committedPairs.Add((vm.SessionCommandRunDelayMinSeconds, vm.SessionCommandRunDelayMaxSeconds));
+
+        vm.SessionCommandRunDelayMinSeconds = 15;
+        vm.SessionCommandRunDelayMaxSeconds = 20;
+
+        vm.ApplySessionSettings(SessionSettingsWithDepartureDistance(null) with { CommandRunDelayMinSeconds = 5, CommandRunDelayMaxSeconds = 9 });
+
+        Assert.Equal(15, vm.SessionCommandRunDelayMinSeconds);
+        Assert.Equal(20, vm.SessionCommandRunDelayMaxSeconds);
+
+        AdvanceClock(clock, TimeSpan.FromSeconds(2));
+
+        Assert.Single(committedPairs);
+        Assert.Equal((15, 20), committedPairs[0]);
+    }
+
+    [AvaloniaFact]
+    public void ServerPush_AfterACommit_StaleFlagDoesNotBlockTheOtherHalf()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, _) = NewDebouncedVm();
+        var committedPairs = new List<(int Min, int Max)>();
+        vm.SessionCommitter.Committed += _ => committedPairs.Add((vm.SessionCommandRunDelayMinSeconds, vm.SessionCommandRunDelayMaxSeconds));
+
+        vm.SessionCommandRunDelayMinSeconds = 15;
+        AdvanceClock(clock, TimeSpan.FromSeconds(2));
+        Assert.Single(committedPairs);
+
+        // The min edit was sent long ago: only max is waiting now, so min is free to take the pushed value.
+        vm.SessionCommandRunDelayMaxSeconds = 20;
+
+        vm.ApplySessionSettings(SessionSettingsWithDepartureDistance(null) with { CommandRunDelayMinSeconds = 4, CommandRunDelayMaxSeconds = 9 });
+
+        Assert.Equal(4, vm.SessionCommandRunDelayMinSeconds);
+        Assert.Equal(20, vm.SessionCommandRunDelayMaxSeconds);
+
+        AdvanceClock(clock, TimeSpan.FromSeconds(2));
+
+        Assert.Equal(2, committedPairs.Count);
+        Assert.Equal((4, 20), committedPairs[1]);
+    }
+
+    [AvaloniaFact]
+    public void ServerPush_WhileAutoAcceptDelayTyped_TurnsCheckboxOnAndKeepsTypedDelay()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, _) = NewDebouncedVm();
+        var committedWire = new List<int>();
+        vm.SessionCommitter.Committed += _ =>
+            committedWire.Add(SessionAutoAcceptWire.ToWire(vm.SessionAutoAcceptEnabled, vm.SessionAutoAcceptDelaySeconds));
+
+        // The checkbox starts off, and only the delay is typed, so that is the half waiting to be sent.
+        vm.SessionAutoAcceptDelaySeconds = 12;
+
+        vm.ApplySessionSettings(SessionSettingsWithAutoAcceptDelay(30));
+
+        Assert.True(vm.SessionAutoAcceptEnabled);
+        Assert.Equal(12, vm.SessionAutoAcceptDelaySeconds);
+
+        AdvanceClock(clock, TimeSpan.FromSeconds(2));
+
+        Assert.Equal([12], committedWire);
+    }
+
+    [AvaloniaFact]
+    public void ServerPush_WhileAutoAcceptDelayTyped_TurnsCheckboxOffAndKeepsTypedDelay()
+    {
+        (MainViewModel vm, ManualTimeProvider clock, _) = NewDebouncedVm();
+        vm.SessionAutoAcceptEnabled = true;
+
+        // The checkbox committed at once; the delay typed next is the half waiting to be sent.
+        var committedWire = new List<int>();
+        vm.SessionCommitter.Committed += _ =>
+            committedWire.Add(SessionAutoAcceptWire.ToWire(vm.SessionAutoAcceptEnabled, vm.SessionAutoAcceptDelaySeconds));
+
+        vm.SessionAutoAcceptDelaySeconds = 12;
+
+        vm.ApplySessionSettings(SessionSettingsWithAutoAcceptDelay(-1));
+
+        Assert.False(vm.SessionAutoAcceptEnabled);
+        Assert.Equal(12, vm.SessionAutoAcceptDelaySeconds);
+
+        AdvanceClock(clock, TimeSpan.FromSeconds(2));
+
+        Assert.Equal([-1], committedWire);
     }
 
     [AvaloniaFact]

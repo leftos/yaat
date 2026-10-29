@@ -21,6 +21,7 @@
 - After a rewind, restart or recording load, a saved recording starts on the weather the session began with, not the room's weather at that moment.
 - A rewind replays the session's weather as it was at that second, including a weather clear, so replays and exports match the live run.
 - A room whose checkpoint fails to restore after a planned server restart is removed instead of being left half-built.
+- Typing one run-delay bound or the auto-accept delay no longer undoes another instructor's change to the other half; it shows at once.
 
 ## v0.17.1-beta [2026/10/29]
 
