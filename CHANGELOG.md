@@ -59,6 +59,7 @@
 
 ### Fixed
 
+- Aircraft crossing a runway now brake onto a hold short or route end just past the far side instead of overrunning it or stopping dead.
 - Speeds are capped and refused by each type's certified Vmo/Mmo (business jets, Q400, CRJs, widebodies) or helicopter Vne, and older jets fly slower, realistic approaches.
 - A server built from older source than the client now logs each request it refused and says to update, instead of failing silently (Save Bug Report Bundle).
 - A touch-and-go counts as a departure once it lifts off, and a stop-and-go once stopped, in auto go-arounds, takeoff warnings and solo scoring.

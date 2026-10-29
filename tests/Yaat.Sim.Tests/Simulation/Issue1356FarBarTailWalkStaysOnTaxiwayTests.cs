@@ -73,8 +73,9 @@ public sealed class Issue1356FarBarTailWalkStaysOnTaxiwayTests(ITestOutputHelper
                     + $"turned {turnDeg:F1}), tail {tailPastFt:F1} ft past the #{FarBarId} hold line"
             );
 
+            // YAAT-1464: the crossing ends in a taxi-rate set-back stop, which rests within the set-back margin like every other one.
             Assert.True(
-                tailPastFt >= RunwayTailClearance.MarginFt - 1.0,
+                tailPastFt >= RunwayTailClearance.MarginFt - GroundNavigator.SetBackStopMarginFt,
                 $"{Callsign}'s tail is {tailPastFt:F1} ft past the 28L hold line at #{FarBarId}, "
                     + $"short of the {RunwayTailClearance.MarginFt:F0} ft margin"
             );
@@ -146,8 +147,9 @@ public sealed class Issue1356FarBarTailWalkStaysOnTaxiwayTests(ITestOutputHelper
                 + $"nose {nosePastOtherFt:F1} ft past #{otherBar.Id}"
         );
 
+        // YAAT-1464: the crossing ends in a taxi-rate set-back stop, which rests within the set-back margin like every other one.
         Assert.True(
-            tailPastFt >= RunwayTailClearance.MarginFt - 1.0,
+            tailPastFt >= RunwayTailClearance.MarginFt - GroundNavigator.SetBackStopMarginFt,
             $"{SfoCallsign}'s tail is {tailPastFt:F1} ft past 28L's hold line at #{farBar.Id}, "
                 + $"short of the {RunwayTailClearance.MarginFt:F0} ft margin"
         );

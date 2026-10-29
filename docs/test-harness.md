@@ -404,6 +404,8 @@ To sample each physics sub-tick of a second rather than only its end, drive the 
 
 `TickOneSecond` runs that sequence through `SimulationEngine.RunSecond`. `TurnAboutAtRunwayBarFootprintTests.TickOneSecondBySubTick(engine, afterSubTick)` is that hand-driven sequence as a helper that mirrors `RunSecond`, calling back after each sub-tick; a test that samples sub-ticks uses it rather than repeating the sequence, and must be changed with `RunSecond` when the spine's steps change.
 
+A ground stop test that needs the speed on every sub-tick uses `Helpers/SubTickDriver.cs` (`TickSubTicksUntil(engine, callsign, until, maxSeconds, eachSubTick)`: the same hand-driven sequence, calling back after each sub-tick, returning the aircraft once `until` holds or null) with `Helpers/SpeedLossWatch.cs`, which samples the largest speed lost in one sub-tick. It leaves out only the final take of a stop, from ≤ 3 kt (`TaxiingPhase.StartNodeHoldArmSpeedKts`) to 0, so a dead stop from speed shows.
+
 **Raw `GeoJsonParser.Parse` needs the nav DB only for runway crossings.** `GeoJsonParser.Parse(airportId, geoJson, runwayAirportCode)`
 runs `RunwayCrossingDetector.DetectRunwayCrossings`, which reads `NavigationDatabase.Instance` — so a non-null `runwayAirportCode` (e.g.
 `"OAK"`) throws `NavigationDatabase not initialized` in a test that hasn't loaded nav data. A test that only needs the graph or fillet

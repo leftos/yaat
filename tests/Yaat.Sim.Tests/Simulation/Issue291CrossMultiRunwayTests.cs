@@ -94,5 +94,46 @@ public class Issue291CrossMultiRunwayTests(ITestOutputHelper output)
         // transitions straight into a CrossingRunwayPhase at that node instead of
         // installing a fresh HoldingShortPhase.
         Assert.True(upcoming28L.IsCleared, "CROSS 28R 28L should have pre-cleared the upcoming 28L crossing");
+
+        // Both crossings are cleared, so the first never brakes for the second's bar: from 28R's far marking to 28L's near bar
+        // the aircraft keeps its crossing speed, less half a knot.
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(ac.Ground.Layout);
+        GroundNode farBar28R = layout.Nodes[
+            route
+                .Segments.First(s =>
+                    (s.ToNodeId != holdPhase.HoldShort.NodeId)
+                    && (layout.Nodes[s.ToNodeId].Type == GroundNodeType.RunwayHoldShort)
+                    && (layout.Nodes[s.ToNodeId].RunwayId?.Contains("28R") == true)
+                )
+                .ToNodeId
+        ];
+        GroundNode nearBar28L = layout.Nodes[upcoming28L.NodeId];
+        GroundNode nearBar28R = layout.Nodes[holdPhase.HoldShort.NodeId];
+        var across28R = new TrueHeading(GeoMath.BearingTo(nearBar28R.Position, farBar28R.Position));
+        var toward28L = new TrueHeading(GeoMath.BearingTo(farBar28R.Position, nearBar28L.Position));
+        double minKts = CategoryPerformance.RunwayCrossingSpeed(AircraftCategorization.Categorize(ac.AircraftType)) - 0.5;
+        double lowestKts = double.PositiveInfinity;
+        string lowestAt = "none";
+        AircraftState? at28L = SubTickDriver.TickSubTicksUntil(
+            engine,
+            "N7LJ",
+            a => GeoMath.AlongTrackDistanceNm(a.Position, nearBar28L.Position, toward28L) > 0.0,
+            120,
+            a =>
+            {
+                bool pastFar28R = GeoMath.AlongTrackDistanceNm(a.Position, farBar28R.Position, across28R) > 0.0;
+                bool short28L = GeoMath.AlongTrackDistanceNm(a.Position, nearBar28L.Position, toward28L) <= 0.0;
+                if (pastFar28R && short28L && (a.GroundSpeed < lowestKts))
+                {
+                    lowestKts = a.GroundSpeed;
+                    double from28LFt = GeoMath.DistanceNm(a.Position, nearBar28L.Position) * GeoMath.FeetPerNm;
+                    lowestAt = $"{a.Phases?.CurrentPhase?.Name}, {from28LFt:F0} ft from 28L's bar";
+                }
+            }
+        );
+        Assert.NotNull(at28L);
+        output.WriteLine($"lowest speed between 28R's far marking and 28L's near bar: {lowestKts:F2} kt ({lowestAt})");
+        Assert.True(double.IsFinite(lowestKts), "never sampled between 28R's far marking and 28L's near bar");
+        Assert.True(lowestKts >= minKts, $"N7LJ slowed to {lowestKts:F2} kt ({lowestAt}) between the runways, below {minKts:F1} kt");
     }
 }

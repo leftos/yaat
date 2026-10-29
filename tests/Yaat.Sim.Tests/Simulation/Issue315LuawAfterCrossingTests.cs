@@ -2,7 +2,9 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -190,8 +192,25 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output) : Issue315
         CommandResult cross = engine.SendCommand(SyntheticCallsign, "CROSS");
         Assert.True(cross.Success, cross.Message);
 
-        HoldingShortPhase? atDeparture = TickUntilHoldingShort(engine, "28R", 180);
+        // YAAT-1464: the crossing brakes onto the 28R stop at its exit rather than stopping dead there, so the nose is never past
+        // 28R's holding position marking on any physics sub-tick (AIM 4-3-18.a.6).
+        var towardDeparture = new TrueHeading(GeoMath.BearingTo(crossingBar.Position, departureBar.Position));
+        double nosePastFt = double.NegativeInfinity;
+        AircraftState? heldAt28R = SubTickDriver.TickSubTicksUntil(
+            engine,
+            SyntheticCallsign,
+            ac => (ac.Phases?.CurrentPhase is HoldingShortPhase hold) && (hold.HoldShort.TargetName is { } target) && target.Contains("28R"),
+            180,
+            ac =>
+            {
+                LatLon nose = SegmentExpander.ProjectAlong(ac.Position, ac.TrueHeading.Degrees, AircraftLength.ResolveFt(ac.AircraftType) / 2.0);
+                nosePastFt = Math.Max(nosePastFt, GeoMath.AlongTrackDistanceNm(nose, departureBar.Position, towardDeparture) * GeoMath.FeetPerNm);
+            }
+        );
+        Output.WriteLine($"nose past 28R's marking #{departureBar.Id} at most {nosePastFt:F1} ft");
+        var atDeparture = heldAt28R?.Phases?.CurrentPhase as HoldingShortPhase;
         Assert.NotNull(atDeparture);
+        Assert.True(nosePastFt <= 0.0, $"the nose passed 28R's holding position marking #{departureBar.Id} by {nosePastFt:F1} ft");
         Assert.Equal(HoldShortReason.DestinationRunway, atDeparture.HoldShort.Reason);
         Assert.Equal(departureBar.Id, atDeparture.HoldShort.NodeId);
 

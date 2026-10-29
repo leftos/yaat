@@ -52,8 +52,10 @@ public sealed class TaxiingPhase : Phase
 
     // Along-route distance (ft) to a set-back bar's stop inside which the hold is taken. The braking curve reaches zero
     // GroundNavigator.SetBackStopMarginFt short of the stop, so the aircraft is at a crawl here and comes to rest with its
-    // nose at or behind the marking; only its speed is snapped, never its position.
-    private const double SetBackStopTakeFt = GroundNavigator.SetBackStopMarginFt + 1.0;
+    // nose at or behind the marking; only its speed is snapped, never its position. A runway crossing braking onto a stop
+    // just past its slice end hands the route back inside the same distance once at a crawl, so it never comes to rest
+    // inside the crossing (CrossingRunwayPhase).
+    internal const double SetBackStopTakeFt = GroundNavigator.SetBackStopMarginFt + 1.0;
 
     // How far (deg) the aircraft's heading may be off the route's first segment for its nose to count as past the start
     // node's bar: a start node the route turns away from projects the nose ahead of the line well short of it. It also gates
@@ -502,18 +504,35 @@ public sealed class TaxiingPhase : Phase
             return double.PositiveInfinity;
         }
 
-        // Measured as TaxiRoute.RemainingDistanceFt measures it: on a fillet the in-progress chord reads a little
-        // short, which is conservative here, since it can only call a bar unmakeable sooner.
-        for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
+        // Measured as TaxiRoute.RemainingDistanceFt measures it, the in-progress leg straight to its end node, except that a
+        // fillet arc in progress carrying the bar's stop is measured along the arc, the geometry its setback is measured on.
+        int inProgress = Math.Max(0, route.CurrentSegmentIndex);
+        for (int i = inProgress; i < route.Segments.Count; i++)
         {
             if (route.Segments[i].ToNodeId == holdShort.NodeId)
             {
-                return route.RemainingDistanceFt(position, i + 1) - (route.HoldShortSetbackNm(i, holdShort) * GeoMath.FeetPerNm);
+                double setbackFt = route.HoldShortSetbackNm(i, holdShort) * GeoMath.FeetPerNm;
+                return (i == inProgress) && (InProgressArcToEndFt(route, i, position, holdShort) is { } alongArcFt)
+                    ? alongArcFt - setbackFt
+                    : route.RemainingDistanceFt(position, i + 1) - setbackFt;
             }
         }
 
         return double.PositiveInfinity;
     }
+
+    /// <summary>
+    /// How far (ft) <paramref name="position"/> has to go along the in-progress segment <paramref name="segmentIndex"/> to its end
+    /// node when that segment is a fillet arc carrying <paramref name="holdShort"/>'s stop, measured along the arc
+    /// (<see cref="GroundArc.Locate"/>), the same geometry its setback is measured on; null otherwise, where the straight measure
+    /// stands. Measuring the in-progress leg as its chord against a setback measured along the arc reads the stop short, so the
+    /// taxi stopped short of a stop on a fillet and never reached it; measured along the arc, the aircraft comes to rest at the
+    /// stop.
+    /// </summary>
+    private static double? InProgressArcToEndFt(TaxiRoute route, int segmentIndex, LatLon position, HoldShortPoint holdShort) =>
+        (route.Segments[segmentIndex].Edge is { Edge: GroundArc arc } edge) && route.StopLiesOnSegment(segmentIndex, holdShort)
+            ? arc.Locate(edge.ToNode, position).AlongFt
+            : null;
 
     /// <summary>
     /// Ground speed (kts) at or below which this phase counts an aircraft as stopped. A stopped aircraft cannot overrun a
@@ -902,9 +921,14 @@ public sealed class TaxiingPhase : Phase
         }
 
         (int barSegmentIndex, HoldShortPoint bar) = ahead;
-        if ((bar.Latitude is null) || route.StopLiesOnSegment(barSegmentIndex, bar))
+        if (bar.Latitude is null)
         {
             return false;
+        }
+
+        if (route.StopLiesOnSegment(barSegmentIndex, bar))
+        {
+            return TryHoldAtStopAlongArc(ctx, route, layout, bar, barSegmentIndex);
         }
 
         double alongFt = AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar);
@@ -917,6 +941,36 @@ public sealed class TaxiingPhase : Phase
         if ((ctx.Aircraft.IndicatedAirspeed > StartNodeHoldArmSpeedKts) || IsHeldByAnother(ctx, bar))
         {
             _nav.MaxSpeedKts = 0;
+            return false;
+        }
+
+        WarnIfStationaryPastRunwayLine(ctx, bar, alongFt);
+        _nav.SayPendingTurnAboutUnable(ctx);
+        TakeSetBackHold(ctx, route, bar, barSegmentIndex);
+        return true;
+    }
+
+    /// <summary>
+    /// Take the hold of a bar whose stop lies on the fillet arc in progress once the aircraft is down to a crawl within
+    /// <see cref="SetBackStopTakeFt"/> of the stop measured along the arc (<see cref="AlongRouteDistanceToHoldShortFt"/>). A stop
+    /// placed off a fillet arc is reached along the route even when its point is not, so <see cref="ArriveAtNode"/>, which waits
+    /// for the navigator to reach that point, would leave the aircraft at rest short of it for good. A straight segment is left
+    /// to <see cref="ArriveAtNode"/>.
+    /// </summary>
+    private bool TryHoldAtStopAlongArc(PhaseContext ctx, TaxiRoute route, AirportGroundLayout layout, HoldShortPoint bar, int barSegmentIndex)
+    {
+        if (
+            (barSegmentIndex != route.CurrentSegmentIndex)
+            || (route.Segments[barSegmentIndex].Edge.Edge is not GroundArc)
+            || (ctx.Aircraft.IndicatedAirspeed > StartNodeHoldArmSpeedKts)
+        )
+        {
+            return false;
+        }
+
+        double alongFt = AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar);
+        if ((alongFt > SetBackStopTakeFt) || IsHeldByAnother(ctx, bar))
+        {
             return false;
         }
 
@@ -1022,9 +1076,10 @@ public sealed class TaxiingPhase : Phase
     /// terminates at its destination-runway bar AND a takeoff or line-up clearance is already stored: the
     /// aircraft is going through that bar, so braking to it and re-accelerating is time the departure loses for
     /// nothing. The flow-through speed is <see cref="CategoryPerformance.TaxiCornerSpeed"/>, which is what
-    /// <see cref="LineUpGraphRoute.TryPlan"/> caps the line-up at, so the hand-off carries no speed step.
+    /// <see cref="LineUpGraphRoute.TryPlan"/> caps the line-up at, so the hand-off carries no speed step. A runway crossing
+    /// whose next stop is that bar brakes toward the same speed rather than to a stop (<see cref="CrossingRunwayPhase"/>).
     /// </summary>
-    private static double RouteEndSpeedKts(PhaseContext ctx, TaxiRoute route)
+    internal static double RouteEndSpeedKts(PhaseContext ctx, TaxiRoute route)
     {
         if (ctx.Aircraft.Phases?.DepartureClearance is not { Type: ClearanceType.ClearedForTakeoff or ClearanceType.LineUpAndWait })
         {
@@ -1198,9 +1253,11 @@ public sealed class TaxiingPhase : Phase
     /// Where the routine taxi-rate curve onto <paramref name="bar"/>'s painted stop, <paramref name="toStopFt"/> ahead, reaches
     /// zero: <see cref="GroundNavigator.SetBackStopMarginFt"/> beyond it when the navigator also aims at that stop (it reads its
     /// curve a tick behind), else at the stop itself — always so for a far-side hold, since the navigator aims at a cleared
-    /// bar's node, not its painted stop, so the hold rides this curve alone.
+    /// bar's node, not its painted stop, so the hold rides this curve alone. A runway crossing braking onto a stop past its
+    /// slice end aims where this does, so the onward taxi takes over on the same curve with no step in the target
+    /// (<see cref="CrossingRunwayPhase"/>).
     /// </summary>
-    private static double RoutineAimFt(TaxiRoute route, int barSegmentIndex, HoldShortPoint bar, double toStopFt, bool farSideBlocked) =>
+    internal static double RoutineAimFt(TaxiRoute route, int barSegmentIndex, HoldShortPoint bar, double toStopFt, bool farSideBlocked) =>
         !farSideBlocked && route.StopLiesOnSegment(barSegmentIndex, bar) ? toStopFt + GroundNavigator.SetBackStopMarginFt : toStopFt;
 
     /// <summary>

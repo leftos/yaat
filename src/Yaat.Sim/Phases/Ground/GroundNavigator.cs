@@ -240,8 +240,9 @@ public sealed class GroundNavigator
     /// internal braking curve, corner-speed caps, and re-acquire gate (but never the conflict/airport
     /// <see cref="AircraftState.GroundSpeedLimit"/> ceiling, which always wins for safety). Default 0 (no
     /// floor). <see cref="CrossingRunwayPhase"/> sets it to the runway-crossing speed so a cleared crossing
-    /// is taken "without delay" (7110.65 §3-7-2) and never brakes toward a stop on the runway or at the
-    /// far-side slice end before handing off to the onward taxi.
+    /// is taken "without delay" (7110.65 §3-7-2) and never brakes toward a stop on the runway; it lowers the floor
+    /// onto the taxi-rate curve to a binding stop within braking distance of the far-side slice end, and the crossing's
+    /// own end where the crossing ends the route.
     /// </summary>
     public double MinSpeedKts { get; set; }
 

@@ -251,6 +251,7 @@ More fields are the same kind (nullable, written only when set, null on older sn
 
 `HoldShortPointDto.IsExpedited` (bool?, written only when true, absent on older snapshots; no schema bump) is a `CROSS … EXP` crossing's expedite, kept on the bar; `CrossingRunwayPhaseDto.IsExpedited` (bool?, same rule) is the expedite a crossing phase flies under.
 `CrossingRunwayPhaseDto.SaidNotClear` (bool?) with `NotClearRestSeconds` (double?, the rest time counted toward the not-clear call).
+`CrossingRunwayPhaseDto.TailClearanceSuppressed` (bool?), `TailFullSegmentCount` (int?) and `TailCutFt` (double?) are the crossing's tail-clearance decision; all nullable and additive, no schema bump. A restore applies the stored decision instead of deciding again, a snapshot without them decides afresh, and a stored decision that no longer fits the route is decided again with a warning.
 
 `ApproachClearanceDto.AltitudeHeldUntilEstablished` (bool?, in `PhaseSnapshotDto.cs`) is `ApproachClearance.AltitudeHeldUntilEstablished`, a controller's altitude held outside the final approach fix ([approach-and-pattern-geometry.md](approach-and-pattern-geometry.md) § A controller's altitude held until established). It is written only when true and absent on older snapshots, which restore unheld; no schema bump.
 

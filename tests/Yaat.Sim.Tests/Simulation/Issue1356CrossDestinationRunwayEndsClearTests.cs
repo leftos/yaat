@@ -39,9 +39,16 @@ public sealed class Issue1356CrossDestinationRunwayEndsClearTests(ITestOutputHel
         Assert.True(aircraft.Ground.AssignedTaxiRoute?.IsComplete, "Precondition: the route completed at the 28R bar");
         GroundNode nearBar = restored.Layout.Nodes[hold.HoldShort.NodeId];
 
-        restored.Engine.ReplayRange(920, 969, restored.Recording.Actions);
+        restored.Engine.ArmReplay(restored.Recording.Actions);
+        var losses = new SpeedLossWatch(aircraft);
+        for (int subTick = 0; subTick < (969 - 920) * SimulationEngine.PhysicsSubTickRate; subTick++)
+        {
+            restored.Engine.ReplayOneSubTick();
+            losses.Sample();
+        }
 
         AssertClearOfFarBar(restored.Engine, restored.Layout, nearBar);
+        AssertBrakedAtTheTaxiRate(aircraft, losses);
     }
 
     /// <summary>The same crossing ordered while still taxiing toward the destination-runway bar (TryExtendRouteAcrossDestinationRunway).</summary>
@@ -62,12 +69,34 @@ public sealed class Issue1356CrossDestinationRunwayEndsClearTests(ITestOutputHel
         GroundNode nearBar = restored.Layout.Nodes[destinationBar.NodeId];
 
         Assert.True(restored.Engine.SendCommand(Callsign, $"CROSS {Runway}").Success);
-        for (int t = 0; (t < 90) && (aircraft.Phases?.CurrentPhase is not HoldingInPositionPhase); t++)
-        {
-            restored.Engine.TickOneSecond();
-        }
+        var losses = new SpeedLossWatch(aircraft);
+        SubTickDriver.TickSubTicksUntil(
+            restored.Engine,
+            Callsign,
+            static ac => ac.Phases?.CurrentPhase is HoldingInPositionPhase,
+            90,
+            _ => losses.Sample()
+        );
 
         AssertClearOfFarBar(restored.Engine, restored.Layout, nearBar);
+        AssertBrakedAtTheTaxiRate(aircraft, losses);
+    }
+
+    /// <summary>
+    /// YAAT-1464: the crossing's end is a stop, which the aircraft brakes onto at its taxi rate rather than stopping dead from
+    /// its crossing speed: no physics sub-tick loses more than that rate, the take of the stop from a crawl aside
+    /// (<see cref="SpeedLossWatch"/>).
+    /// </summary>
+    private void AssertBrakedAtTheTaxiRate(AircraftState aircraft, SpeedLossWatch losses)
+    {
+        double maxLossKts =
+            (CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(aircraft.AircraftType)) / SimulationEngine.PhysicsSubTickRate)
+            + 0.01;
+        output.WriteLine($"largest speed loss in one sub-tick: {losses.WorstKts:F2} kt");
+        Assert.True(
+            losses.WorstKts <= maxLossKts,
+            $"{Callsign} lost {losses.WorstKts:F2} kt in one sub-tick, more than the taxi rate's {maxLossKts:F2} kt"
+        );
     }
 
     private void AssertClearOfFarBar(SimulationEngine engine, AirportGroundLayout layout, GroundNode nearBar)
@@ -93,8 +122,9 @@ public sealed class Issue1356CrossDestinationRunwayEndsClearTests(ITestOutputHel
         double tailFt = Math.Abs(CrossTrackFt(GeoMath.ProjectPoint(aircraft.Position, backwards, halfLengthNm)));
         output.WriteLine($"far bar #{farBar.Id} hold line {holdLineFt:F1} ft from the {Runway} centreline; tail {tailFt:F1} ft");
 
+        // YAAT-1464: the crossing ends in a taxi-rate set-back stop, which rests within the set-back margin like every other one.
         Assert.True(
-            tailFt >= holdLineFt + RunwayTailClearance.MarginFt - 1.0,
+            tailFt >= holdLineFt + RunwayTailClearance.MarginFt - GroundNavigator.SetBackStopMarginFt,
             $"{Callsign} ended its crossing of {Runway} with its tail {tailFt:F1} ft from the centreline, "
                 + $"short of the far hold line at {holdLineFt:F1} ft plus the margin"
         );

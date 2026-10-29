@@ -452,6 +452,27 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
     /// <summary>True when the crossing flies "without delay" (<c>CROSS … EXP</c>). Null otherwise and in older snapshots.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? IsExpedited { get; init; }
+
+    /// <summary>
+    /// Whether the crossing's slice build suppressed its tail clearance, so the slice ends at the exit node. The tail decision
+    /// reads which holds the route had cleared when the slice was built, so a restore applies the stored decision rather than
+    /// deciding again from holds cleared since. Written once the slice is built; null before that and in snapshots written
+    /// before the field existed, where the restore decides afresh. See <see cref="TailFullSegmentCount"/> and
+    /// <see cref="TailCutFt"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? TailClearanceSuppressed { get; init; }
+
+    /// <summary>How many onward route segments the slice's tail clearance takes whole. Written with <see cref="TailClearanceSuppressed"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TailFullSegmentCount { get; init; }
+
+    /// <summary>
+    /// The length (ft) of the straight cut the tail clearance ends on inside the next onward segment, 0 when it ends on no cut.
+    /// Written with <see cref="TailClearanceSuppressed"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? TailCutFt { get; init; }
 }
 
 /// <summary>

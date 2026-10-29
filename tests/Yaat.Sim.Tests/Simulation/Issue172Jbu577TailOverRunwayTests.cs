@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -18,6 +19,12 @@ namespace Yaat.Sim.Tests.Simulation;
 public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip";
+
+    /// <summary>Ground speed (kt) above which JBU577 is moving in its crossing.</summary>
+    private const double MovingKts = 1.0;
+
+    /// <summary>Ground speed (kt) below which JBU577 is at rest.</summary>
+    private const double RestKts = 0.5;
 
     private SimulationEngine? BuildEngine()
     {
@@ -104,6 +111,8 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
 
         int? tailOverNode = null;
         bool occupiedWhileHolding = false;
+        bool crossingMoved = false;
+        int? restedInCrossingAt = null;
         for (int t = 1; t <= PhysicsOnlyEnd; t++)
         {
             if (t <= WindowEnd)
@@ -119,6 +128,12 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
             if (ac is null || t < 444)
             {
                 continue;
+            }
+
+            if (ac.Phases?.CurrentPhase is CrossingRunwayPhase)
+            {
+                crossingMoved |= ac.GroundSpeed > MovingKts;
+                restedInCrossingAt ??= (crossingMoved && (ac.GroundSpeed < RestKts)) ? t : null;
             }
 
             bool holdingShort = ac.Phases?.CurrentPhase?.GetType().Name == "HoldingShortPhase";
@@ -142,5 +157,11 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
         Assert.NotNull(tailOverNode);
         Assert.True(occupiedWhileHolding, "the runway hold-short node JBU577's tail overhangs should be marked occupied while it holds short of B");
         Assert.Contains(notes, n => n.Contains("not clear of RWY", StringComparison.OrdinalIgnoreCase));
+
+        // YAAT-1464: the crossing brakes onto the B stop and hands the route back before it comes to rest, so it never rests
+        // inside the crossing and the crossing's "not clear of runway" call is never made; only the tail-over note above is.
+        Assert.True(crossingMoved, "JBU577 never moved in its crossing");
+        Assert.Null(restedInCrossingAt);
+        Assert.DoesNotContain(notes, n => n.StartsWith("Holding position, not clear of runway", StringComparison.Ordinal));
     }
 }

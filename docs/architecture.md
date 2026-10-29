@@ -363,6 +363,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     `Helpers/RecordingGroundData.cs` (the ground data a recording test builds its engine on: `Evergreen(why)` serves today's `TestData` layouts, `VersionPinned(archivePath, why)` the archive's bundled ones, `why` required), `Simulation/RecordingArchiveLayoutGuardTests.cs` (fails a test file that opens a layout-carrying archive without one of the two factories, reads `ReadLayout`/`ReadAllLayouts` directly, or builds `new TestAirportGroundData()` for it).
 
+    `Helpers/SubTickDriver.cs` (`TickSubTicksUntil`: steps the spine a sub-tick at a time, calling back after each) and `Helpers/SpeedLossWatch.cs` (the largest per-sub-tick speed loss, leaving out only a stop's final take from ≤ 3 kt to 0; ground stop tests).
     `Helpers/SfoGroundHarness.cs` (engine + SFO layout builder, name-resolved spawns at parking/spot/hold-short/junction, `TickUntil`, order-preserving hold-short assertion with route dump, `DeadlockGuard` for multi-aircraft choreography).
 
     `Simulation/SfoBravoToOneLeftConnectorTests.cs` (`TAXI A F1 B 1L` / `C Z B 1L` thread the M1 stub to the 1L bar with the `via M1` note, the engine drives it to the hold; 1R / 28L off B still refuse with the same message; the connector finder's accept/reject cases).

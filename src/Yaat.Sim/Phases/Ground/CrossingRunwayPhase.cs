@@ -57,6 +57,21 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     private int _tailClearFullSegments;
     private bool _tailClearPartial;
 
+    // The tail decision the slice was built from. Unlike the fields above it reads which holds the route had cleared at
+    // build, so it is snapshotted, and a restore builds the slice from the stored decision (_restoredTailDecision) rather
+    // than deciding again from holds cleared since. Null before the slice is built.
+    private TailDecision? _tailDecision;
+    private TailDecision? _restoredTailDecision;
+
+    // The slice's own geometry the stop cap measures from: how far along the source route the slice ends, and whether it ends
+    // the route. A pure function of the slice, recomputed by TryBuildCrossingRoute like the fields above, so not snapshotted.
+    // The stop past the slice is searched afresh every tick (ApplyStopCap), never kept from the build.
+    private double _sliceEndRouteFt;
+    private bool _sliceEndsRoute;
+
+    // Whether this crossing has logged its stop cap (StopCap) taking over from the speed floor.
+    private bool _loggedStopCap;
+
     // The pose the navigator set up the current slice segment at. The navigator builds the segment's primitive from the
     // pose it is set up at (an entry-alignment turn starts at the aircraft), so a restore sets the segment up again from
     // this pose rather than from where the aircraft stands at restore time. Snapshotted with the slice segment index.
@@ -175,11 +190,23 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         }
 
         ApplySpeedCap(ctx, _navigator);
+        StopCapState? stopCap = held ? null : ApplyStopCap(ctx, _navigator);
         bool isLastSegment = _crossingRoute.CurrentSegmentIndex + 1 >= _crossingRoute.Segments.Count;
         NavigatorResult result = _navigator.Tick(ctx, isLastSegment, _ => true);
         if (held)
         {
             return TickHeld(ctx, _navigator, _crossingRoute, result);
+        }
+
+        if (stopCap is { } cap)
+        {
+            ClampToStopCap(ctx, cap);
+            if ((result != NavigatorResult.ArrivedAtNode) && RestsAtTheSliceEnd(ctx, cap))
+            {
+                Log.LogDebug("[Crossing] {Callsign}: at a crawl at the slice end, handing the route back", ctx.Aircraft.Callsign);
+                HandRouteBack(ctx);
+                return true;
+            }
         }
 
         if (result == NavigatorResult.ArrivedAtNode)
@@ -481,6 +508,202 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     }
 
     /// <summary>
+    /// The first binding stop past the crossing's near bar on the route it crosses: an uncleared hold short's placed stop
+    /// (<paramref name="Bar"/>, whose node route segment <paramref name="BarSegmentIndex"/> ends at), or with no such bar the
+    /// route's end. <paramref name="StopRouteFt"/> is how far along the route that stop lies from the route's start.
+    /// </summary>
+    private sealed record OnwardStop(double StopRouteFt, HoldShortPoint? Bar, int BarSegmentIndex);
+
+    /// <summary>
+    /// The distances (ft) one tick of the stop cap works from: <paramref name="GapFt"/>, how far past the slice end the onward
+    /// stop lies (negative for a stop the slice reaches past); <paramref name="ToStopFt"/>, how far the aircraft has to go to that
+    /// stop; and <paramref name="ToAimFt"/>, how far to the point the braking curve onto it reaches zero.
+    /// </summary>
+    private readonly record struct StopDistances(double GapFt, double ToStopFt, double ToAimFt);
+
+    /// <summary>
+    /// The stop cap one tick works to (<see cref="ApplyStopCap"/>): the speed (kt) the crossing is held to, the speed the onward
+    /// stop is aimed at (zero for a stop), whether the cap is below the floor (and so lowers it), whether the stop is the slice
+    /// end itself (a crossing that ends the route), and the distances it was weighed at.
+    /// </summary>
+    private readonly record struct StopCapState(double CapKts, double AimKts, bool BelowFloor, bool AimsAtSliceEnd, StopDistances Distances);
+
+    /// <summary>
+    /// The first binding stop on <paramref name="route"/> from the crossing's exit segment <paramref name="exitIdx"/> on, as a
+    /// pure function of the route as it stands: the first uncleared bar, its stop the route distance to its node less its
+    /// setback, or with none the route's end. A cleared bar never binds, so a crossing straight into a second cleared crossing
+    /// keeps its speed. Traffic, a GIVEWAY or a FOLLOWG target is never this stop: the conflict ceiling already outranks the floor.
+    /// The stop is never placed before the point where the tail clears the crossed runway's far marking: the hold-short
+    /// annotator (<see cref="HoldShortAnnotator"/>) places a taxiway stop with the tail 10 ft past that marking, or clamps it
+    /// at the bar when the gap is too short, and the slice is held at the stop (<see cref="AppendTailClearance"/>).
+    /// </summary>
+    private static OnwardStop FindOnwardStop(TaxiRoute route, int exitIdx)
+    {
+        for (int i = exitIdx; i < route.Segments.Count; i++)
+        {
+            if (route.GetHoldShortAt(route.Segments[i].ToNodeId) is { IsCleared: false } bar)
+            {
+                double stopFt = route.PrefixDistanceFt(i + 1) - (route.HoldShortSetbackNm(i, bar) * GeoMath.FeetPerNm);
+                return new OnwardStop(stopFt, bar, i);
+            }
+        }
+
+        return new OnwardStop(route.PrefixDistanceFt(route.Segments.Count), null, route.Segments.Count - 1);
+    }
+
+    /// <summary>
+    /// Holds the crossing to the taxi-rate curve onto the first binding stop past it whatever set its target. The stop is
+    /// searched every tick on the live assigned route (<see cref="FindOnwardStop"/>), so a hold cleared mid-crossing (scenario
+    /// auto-cross, a takeoff clearance's pre-clear) stops binding on the next tick and a restored run sees the same stop as
+    /// the original; only the slice end is kept from the slice build. Every tick the floor is
+    /// <see cref="CategoryPerformance.RunwayCrossingSpeed"/>, lowered to the curve onto the stop's aim
+    /// (<see cref="GroundStopBraking.StopCurveKts"/> at <see cref="StopAimFt"/>) wherever that curve is below it; and wherever
+    /// the curve is below the published target, a target above the floor included (a taxi or commanded speed),
+    /// <see cref="ClampToStopCap"/> clamps the target to it. A destination-runway bar the aircraft will go through on a stored
+    /// takeoff or line-up clearance is aimed at <see cref="TaxiingPhase.RouteEndSpeedKts"/> rather than a stop: the curve to
+    /// that speed is the stop curve lifted by it. With no stop, or the stop at or beyond <see cref="StopCapActivationFt"/> past
+    /// the slice end for the fastest of the floor, the published target and the current speed, the cap is never weighed, so the
+    /// crossing's speeds are the plain floor's bit for bit. Returns the cap whenever it is weighed, else null.
+    /// </summary>
+    private StopCapState? ApplyStopCap(PhaseContext ctx, GroundNavigator navigator)
+    {
+        double floorKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
+        navigator.MinSpeedKts = floorKts;
+        if (
+            (_ownPath is not null)
+            || (_exitRouteIndex < 0)
+            || (ctx.Aircraft.Ground.AssignedTaxiRoute is not { } route)
+            || (StopCapRemainingFt(ctx.Aircraft.Position) is not { } remainingFt)
+        )
+        {
+            return null;
+        }
+
+        OnwardStop stop = FindOnwardStop(route, _exitRouteIndex);
+        bool aimsAtSliceEnd = (stop.Bar is null) && _sliceEndsRoute;
+        double gapFt = aimsAtSliceEnd ? 0.0 : (stop.StopRouteFt - _sliceEndRouteFt);
+        double fastestKts = Math.Max(floorKts, Math.Max(ctx.Targets.TargetSpeed ?? 0.0, ctx.Aircraft.IndicatedAirspeed));
+        if (gapFt >= StopCapActivationFt(fastestKts, ctx.Category))
+        {
+            return null;
+        }
+
+        double toStopFt = remainingFt + gapFt;
+        double toAimFt = StopAimFt(route, stop, toStopFt);
+        double curveKts = GroundStopBraking.StopCurveKts(ctx, toAimFt, CategoryPerformance.TaxiDecelRate(ctx.Category));
+        double aimKts = (stop.BarSegmentIndex == (route.Segments.Count - 1)) ? TaxiingPhase.RouteEndSpeedKts(ctx, route) : 0.0;
+        double capKts = (aimKts > 0.0) ? Math.Sqrt((aimKts * aimKts) + (curveKts * curveKts)) : curveKts;
+        bool belowFloor = capKts < floorKts;
+        if (belowFloor)
+        {
+            navigator.MinSpeedKts = capKts;
+        }
+
+        return new StopCapState(capKts, aimKts, belowFloor, aimsAtSliceEnd, new StopDistances(gapFt, toStopFt, toAimFt));
+    }
+
+    /// <summary>
+    /// Where the curve onto the onward stop, <paramref name="toStopFt"/> ahead, reaches zero: for a bar, exactly where the
+    /// onward taxi aims (<see cref="TaxiingPhase.RoutineAimFt"/>), so the target carries no step when the crossing hands the
+    /// route back; for the route's end, which the onward navigator aims at itself, <see cref="GroundNavigator.SetBackStopMarginFt"/>
+    /// beyond it, as for a stop on its bar's own segment.
+    /// </summary>
+    private static double StopAimFt(TaxiRoute route, OnwardStop stop, double toStopFt) =>
+        stop.Bar is { } bar
+            ? TaxiingPhase.RoutineAimFt(route, stop.BarSegmentIndex, bar, toStopFt, farSideBlocked: false)
+            : toStopFt + GroundNavigator.SetBackStopMarginFt;
+
+    /// <summary>
+    /// How near past the slice end (ft) the onward stop must lie for the stop cap to act: the taxi-rate stopping distance from
+    /// <paramref name="speedKts"/>, plus <see cref="GroundNavigator.SetBackStopMarginFt"/> and one phase tick's travel at that
+    /// speed. Beyond it the crossing's speeds are left exactly as the plain floor sets them. The caller passes the fastest of
+    /// the floor, the published target and the current speed, so a crossing taxiing above the floor starts braking onto the
+    /// stop as early as its own speed needs, not the floor's.
+    /// </summary>
+    private static double StopCapActivationFt(double speedKts, AircraftCategory category) =>
+        GroundStopBraking.StoppingDistanceFt(speedKts, CategoryPerformance.TaxiDecelRate(category))
+        + GroundNavigator.SetBackStopMarginFt
+        + (speedKts * GroundStopBraking.FeetPerSecondPerKt * PhaseTickSeconds);
+
+    /// <summary>
+    /// Holds the published target to the stop cap once the navigator has ticked, arrival sub-ticks included, so the target is
+    /// never above the taxi-rate curve onto the stop on any sub-tick: the navigator publishes no speed on the sub-tick it
+    /// arrives at a node, and physics flies the crossing's last target on the sub-tick it hands the route back. A target left
+    /// unset is capped from the current speed. A cap at or above both the floor and the target leaves the target untouched.
+    /// Logs the first time the cap takes over.
+    /// </summary>
+    private void ClampToStopCap(PhaseContext ctx, StopCapState cap)
+    {
+        double targetKts = ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed;
+        if (!cap.BelowFloor && (cap.CapKts >= targetKts))
+        {
+            return;
+        }
+
+        ctx.Targets.TargetSpeed = Math.Min(targetKts, cap.CapKts);
+        if (_loggedStopCap)
+        {
+            return;
+        }
+
+        _loggedStopCap = true;
+        Log.LogDebug(
+            "[Crossing] {Callsign}: braking onto the stop past the crossing: gap={Gap:F1}ft toStop={ToStop:F1}ft "
+                + "floor={Floor:F1}kt curve={Curve:F1}kt target={Target:F1}kt",
+            ctx.Aircraft.Callsign,
+            cap.Distances.GapFt,
+            cap.Distances.ToStopFt,
+            CategoryPerformance.RunwayCrossingSpeed(ctx.Category),
+            cap.CapKts,
+            ctx.Targets.TargetSpeed
+        );
+    }
+
+    /// <summary>
+    /// The completion rule: braking onto a stop (not a flow-through destination bar), the aircraft is down to a crawl
+    /// (<see cref="TaxiingPhase.StartNodeHoldArmSpeedKts"/>) within the take distance of the slice end or of the point its
+    /// braking curve aims at, so the crossing hands the route back rather than come to rest inside it, where the not-clear call
+    /// (<see cref="TickNotClearCall"/>) would fire. The take distance is <see cref="TaxiingPhase.SetBackStopTakeFt"/>, the
+    /// onward taxi's own; for a crossing that ends the route, whose next phase stops it where it stands, it is
+    /// <see cref="GroundNavigator.SetBackStopMarginFt"/>, so the tail rests no further short of its clearance than any set-back
+    /// stop does.
+    /// </summary>
+    private static bool RestsAtTheSliceEnd(PhaseContext ctx, StopCapState cap)
+    {
+        if ((cap.AimKts > 0.0) || (ctx.Aircraft.IndicatedAirspeed > TaxiingPhase.StartNodeHoldArmSpeedKts))
+        {
+            return false;
+        }
+
+        double windowFt = cap.AimsAtSliceEnd ? GroundNavigator.SetBackStopMarginFt : TaxiingPhase.SetBackStopTakeFt;
+        double toSliceEndFt = cap.Distances.ToStopFt - cap.Distances.GapFt;
+        return (toSliceEndFt <= windowFt) || (cap.Distances.ToAimFt <= windowFt);
+    }
+
+    /// <summary>
+    /// The slice remainder (ft) the stop cap measures from: <see cref="TailClearRemainingFt"/>, except that a position already
+    /// past the in-progress segment's end node reads that overshoot as behind it, not still ahead. Physics can carry the
+    /// aircraft past a node between the navigator's arrival checks (one sub-tick is 6 ft at 14 kt), and the straight reading of
+    /// the in-progress leg is unsigned, so read straight the distance to the stop grew with the overshoot, the curve rose above
+    /// the speed and the crossing lost a sub-tick of braking it could never win back at the taxi rate. Past the node the
+    /// remainder is the rest of the slice less the overshoot along the segment's arrival bearing, so overshooting a node never
+    /// lengthens the distance to the stop.
+    /// </summary>
+    private double? StopCapRemainingFt(LatLon position)
+    {
+        double? tailClearFt = TailClearRemainingFt(position);
+        if ((tailClearFt is not { } remainingFt) || (_crossingRoute is not { IsComplete: false } slice))
+        {
+            return tailClearFt;
+        }
+
+        DirectionalEdge edge = slice.Segments[Math.Max(0, slice.CurrentSegmentIndex)].Edge;
+        double pastEndNm = GeoMath.AlongTrackDistanceNm(position, edge.ToNode.Position, new TrueHeading(edge.ArrivalBearing));
+        double toEndFt = GeoMath.DistanceNm(position, edge.ToNode.Position) * GeoMath.FeetPerNm;
+        return (pastEndNm > 0.0) ? (remainingFt - toEndFt - (pastEndNm * GeoMath.FeetPerNm)) : remainingFt;
+    }
+
+    /// <summary>
     /// Ends this crossing's expedite: whatever ended the route expedite, or a <c>CROSS</c> without <c>EXP</c> naming it (YAAT-658).
     /// </summary>
     internal void EndExpedite() => _expedited = false;
@@ -516,7 +739,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             return;
         }
 
-        if (BuildSlice(ctx, route, _approachNodeId, _targetNodeId) is not { } plan)
+        if (BuildSlice(ctx, route, _approachNodeId, _targetNodeId, _restoredTailDecision) is not { } plan)
         {
             Log.LogWarning(
                 "[Crossing] {Callsign}: could not slice crossing segments from route (approach={Approach}, target={Target}, segments={Count})",
@@ -531,6 +754,12 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         _exitRouteIndex = plan.ExitIndex;
         _tailClearFullSegments = plan.FullTailSegments;
         _tailClearPartial = plan.PartialTail;
+        _tailDecision = plan.Tail;
+        _restoredTailDecision = null;
+        double tailFt = plan.Segments.Skip(plan.ExitIndex - plan.EntryIndex + 1).Sum(static s => s.Edge.DistanceNm) * GeoMath.FeetPerNm;
+        _sliceEndRouteFt = route.PrefixDistanceFt(plan.ExitIndex + 1) + tailFt;
+        _sliceEndsRoute = (plan.ExitIndex + 1 + plan.FullTailSegments) >= route.Segments.Count;
+        WarnIfSliceEndsPastItsStop(ctx, route, plan.ExitIndex);
         var crossingRoute = new TaxiRoute
         {
             Segments = plan.Segments,
@@ -562,7 +791,8 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         // the off-centerline re-acquire gate can't cap it mid-crossing. Both the arc/turn-speed cap for a curve
         // in the painted line and a conflict/airport speed-limit ceiling still outrank that floor (see
         // GroundNavigator.ClampBySpeedLimit). The aircraft hands off to the onward TaxiingPhase moving; that
-        // phase owns the real deceleration for the destination.
+        // phase owns the real deceleration for the destination, except that a binding stop within braking distance
+        // of the slice end lowers the floor onto the taxi-rate curve to it every tick (ApplyStopCap).
         // A restored crossing takes the navigator from the snapshot, so the set-up below resumes the primitive it was
         // playing at the progress it had reached (GroundNavigator.TryResumeRestoredPlayback).
         GroundNavigator navigator = _restoredNavigator is { } savedNavigator ? GroundNavigator.FromSnapshot(savedNavigator) : new GroundNavigator();
@@ -592,6 +822,33 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             _tailClearPartial ? " + a partial cut" : "",
             _navigator.MaxSpeedKts,
             _navigator.MinSpeedKts
+        );
+    }
+
+    /// <summary>
+    /// Warns when the built slice ends more than <see cref="TaxiingPhase.SetBackStopTakeFt"/> past the first binding stop beyond
+    /// the exit, a stop the slice is built never to pass (<see cref="AppendTailClearance"/>). A bar on the exit node itself is
+    /// exempt: its stop sits back from the exit node the slice ends at, and the crossing aims at it there.
+    /// </summary>
+    private void WarnIfSliceEndsPastItsStop(PhaseContext ctx, TaxiRoute route, int exitIdx)
+    {
+        if ((_ownPath is not null) || (FindOnwardStop(route, exitIdx) is not { Bar: { } bar } stop))
+        {
+            return;
+        }
+
+        double gapFt = stop.StopRouteFt - _sliceEndRouteFt;
+        if ((gapFt >= -TaxiingPhase.SetBackStopTakeFt) || (bar.NodeId == route.Segments[exitIdx].ToNodeId))
+        {
+            return;
+        }
+
+        Log.LogWarning(
+            "[Crossing] {Callsign}: the crossing slice ends {Over:F1} ft past the stop for {Target} (#{Node}); it should end at or before it",
+            ctx.Aircraft.Callsign,
+            -gapFt,
+            bar.TargetName ?? "?",
+            bar.NodeId
         );
     }
 
@@ -635,18 +892,33 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// <summary>
     /// The crossing slice and where it sits in the source route (own path, else AssignedTaxiRoute): the segments from the entry-side
     /// hold-short through the exit-side one plus the tail-clearance extension, the route index of the exit
-    /// segment, how many onward route segments the tail-clearance consumed whole, and whether it ends on a
-    /// partial (virtual) cut inside the next one.
+    /// segment, and the tail decision the extension was built from (<see cref="TailDecision"/>).
     /// </summary>
-    private sealed record CrossingSlice(List<TaxiRouteSegment> Segments, int ExitIndex, int FullTailSegments, bool PartialTail);
+    private sealed record CrossingSlice(List<TaxiRouteSegment> Segments, int EntryIndex, int ExitIndex, TailDecision Tail)
+    {
+        /// <summary>How many onward route segments the tail clearance consumed whole.</summary>
+        public int FullTailSegments => Tail.FullSegments;
+
+        /// <summary>Whether the tail clearance ends on a partial (virtual) cut inside the next onward segment.</summary>
+        public bool PartialTail => Tail.CutFt > 0.0;
+    }
+
+    /// <summary>
+    /// How the slice's tail clearance was decided at build: whether it is suppressed (the slice ends at the exit node), how many
+    /// onward route segments it takes whole, and the length (ft) of the straight cut it ends on inside the next one, 0 for none.
+    /// The decision reads which holds the route had cleared at build, so the crossing snapshots it and a restore applies it
+    /// rather than deciding again (<see cref="AppendTailClearance"/>).
+    /// </summary>
+    private sealed record TailDecision(bool Suppressed, int FullSegments, double CutFt);
 
     /// <summary>
     /// Build the crossing slice out of <paramref name="route"/>. Null when the route does not contain the
     /// crossing (no segment leaves <paramref name="approachNodeId"/>, or none reaches
-    /// <paramref name="targetNodeId"/> after it). A pure function of the route, the layout and the
-    /// aircraft's length — which is why nothing about the slice is snapshotted.
+    /// <paramref name="targetNodeId"/> after it). A pure function of the route, the layout, the aircraft's length and, for a
+    /// restored crossing, the tail decision <paramref name="storedTail"/> its snapshot carries; with none the tail is decided
+    /// from the route's holds as they stand.
     /// </summary>
-    private static CrossingSlice? BuildSlice(PhaseContext ctx, TaxiRoute route, int approachNodeId, int targetNodeId)
+    private static CrossingSlice? BuildSlice(PhaseContext ctx, TaxiRoute route, int approachNodeId, int targetNodeId, TailDecision? storedTail)
     {
         // Find the slice [entryIdx..exitIdx] in the existing route:
         //   entryIdx: first segment whose FromNodeId == approachNodeId
@@ -678,12 +950,13 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             slice.Add(route.Segments[i]);
         }
 
-        (int fullTailSegments, bool partialTail) = AppendTailClearance(ctx, route, approachNodeId, exitIdx, slice);
-        return new CrossingSlice(slice, exitIdx, fullTailSegments, partialTail);
+        (List<TaxiRouteSegment> tail, TailDecision decision) = AppendTailClearance(ctx, route, approachNodeId, exitIdx, storedTail);
+        slice.AddRange(tail);
+        return new CrossingSlice(slice, entryIdx, exitIdx, decision);
     }
 
     /// <summary>
-    /// Extend <paramref name="slice"/> ½ an aircraft length past the exit node so the tail clears the runway, along the
+    /// The tail-clearance extension ½ an aircraft length past the exit node so the tail clears the runway, along the
     /// route's own onward segments when it has any, else a straight-ahead walk on the layout
     /// (<see cref="AppendLayoutTailClearance"/>). The route's own segments come first because the graph's straightest
     /// continuation leaves the painted line wherever the route turns right after the crossing (SFO G → B across 01L/19R: a
@@ -694,31 +967,80 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// aircraft is not clear of the runway until every part of it has crossed that marking (AIM 2-3-5.a.1, AIM 4-3-21.b).
     /// When the route ends on the crossed runway's far bar (a CROSS of the destination runway) or runs out inside the ½
     /// length past it, the walk continues from the route's last segment for what is left plus
-    /// <see cref="RunwayTailClearance.MarginFt"/>. Returns how many route segments were consumed whole and whether the
-    /// extension ends on a cut inside one.
+    /// <see cref="RunwayTailClearance.MarginFt"/>. The extension never passes the first binding stop past the exit
+    /// (<see cref="FindOnwardStop"/>): a straight segment is cut at it, and an arc or shaped segment whose end lies past it is
+    /// not taken. A restored crossing applies the decision it was snapshotted with (<paramref name="storedTail"/>) rather
+    /// than deciding again, since the holds it reads may have been cleared since; one that no longer fits the route is
+    /// decided again, with a warning. Returns the extension's segments and the decision they were built from.
     /// </summary>
-    private static (int FullSegments, bool Partial) AppendTailClearance(
+    private static (List<TaxiRouteSegment> Tail, TailDecision Decision) AppendTailClearance(
         PhaseContext ctx,
         TaxiRoute route,
         int approachNodeId,
         int exitIdx,
-        List<TaxiRouteSegment> slice
+        TailDecision? storedTail
     )
+    {
+        if (storedTail is { } stored)
+        {
+            if (StoredTailFits(route, exitIdx, stored))
+            {
+                return (BuildTail(ctx, route, approachNodeId, exitIdx, stored), stored);
+            }
+
+            Log.LogWarning(
+                "[Crossing] {Callsign}: the restored tail clearance ({Full} whole segment(s), cut {Cut:F1} ft) no longer fits the route; "
+                    + "deciding it again",
+                ctx.Aircraft.Callsign,
+                stored.FullSegments,
+                stored.CutFt
+            );
+        }
+
+        TailDecision decision = DecideTail(ctx, route, exitIdx);
+        return (BuildTail(ctx, route, approachNodeId, exitIdx, decision), decision);
+    }
+
+    /// <summary>
+    /// Whether a stored tail decision still fits <paramref name="route"/> past the exit segment <paramref name="exitIdx"/>: the
+    /// whole segments it takes exist, and so does the straight segment its cut lies in.
+    /// </summary>
+    private static bool StoredTailFits(TaxiRoute route, int exitIdx, TailDecision tail)
+    {
+        int lastIndex = exitIdx + tail.FullSegments + ((tail.CutFt > 0.0) ? 1 : 0);
+        return tail.Suppressed
+            || (
+                (tail.FullSegments >= 0)
+                && (lastIndex < route.Segments.Count)
+                && ((tail.CutFt <= 0.0) || (route.Segments[lastIndex].Edge.Edge is GroundEdge { IntermediatePoints.Count: 0 }))
+            );
+    }
+
+    /// <summary>
+    /// Decides the tail clearance from the route as it stands (see <see cref="AppendTailClearance"/>): suppressed, or how many
+    /// onward segments it takes whole and the straight cut it ends on.
+    /// </summary>
+    private static TailDecision DecideTail(PhaseContext ctx, TaxiRoute route, int exitIdx)
     {
         double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
         if (TailClearanceSuppressed(ctx, route, exitIdx, lengthFt))
         {
-            return (0, false);
+            return new TailDecision(true, 0, 0.0);
         }
 
+        // The slice never drives over the first binding stop past the exit: a segment whose end lies past that stop is cut at
+        // it when straight, and ends the slice where it starts when it is an arc or a shaped segment, which is taken whole or
+        // not at all. The onward taxi then brakes onto that stop.
+        double stopRouteFt = FindOnwardStop(route, exitIdx).StopRouteFt;
         int fullSegments = 0;
         double remainingNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
         for (int i = exitIdx + 1; i < route.Segments.Count; i++)
         {
             TaxiRouteSegment seg = route.Segments[i];
-            if (seg.Edge.DistanceNm <= remainingNm)
+            double segStartFt = route.PrefixDistanceFt(i);
+            bool endsPastStop = route.PrefixDistanceFt(i + 1) > stopRouteFt;
+            if ((seg.Edge.DistanceNm <= remainingNm) && !endsPastStop)
             {
-                slice.Add(seg);
                 fullSegments++;
                 remainingNm -= seg.Edge.DistanceNm;
                 continue;
@@ -726,24 +1048,62 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
             if (seg.Edge.Edge is GroundEdge { IntermediatePoints.Count: 0 })
             {
-                slice.Add(CutStraight(seg.Edge, remainingNm, seg.TaxiwayName));
-                return (fullSegments, true);
+                double cutNm = endsPastStop ? Math.Min(remainingNm, (stopRouteFt - segStartFt) / GeoMath.FeetPerNm) : remainingNm;
+                return new TailDecision(false, fullSegments, Math.Max(0.0, cutNm) * GeoMath.FeetPerNm);
             }
 
-            slice.Add(seg);
-            return (fullSegments + 1, false);
+            return new TailDecision(false, endsPastStop ? fullSegments : fullSegments + 1, 0.0);
+        }
+
+        return new TailDecision(false, fullSegments, 0.0);
+    }
+
+    /// <summary>
+    /// The tail-clearance segments <paramref name="tail"/> describes: its whole onward segments, then its straight cut, or,
+    /// when every whole segment fit inside the ½ length and the route ran out past the crossed runway's far bar, the layout
+    /// walk for what is left (<see cref="AppendLayoutTailClearance"/>). The walk is a pure function of the route and the
+    /// layout, so it is built again rather than stored.
+    /// </summary>
+    private static List<TaxiRouteSegment> BuildTail(PhaseContext ctx, TaxiRoute route, int approachNodeId, int exitIdx, TailDecision tail)
+    {
+        List<TaxiRouteSegment> segments = [];
+        if (tail.Suppressed)
+        {
+            return segments;
+        }
+
+        double remainingNm = (AircraftLength.ResolveFt(ctx.Aircraft.AircraftType) / 2.0) / GeoMath.FeetPerNm;
+        bool allFit = true;
+        for (int k = 0; k < tail.FullSegments; k++)
+        {
+            TaxiRouteSegment seg = route.Segments[exitIdx + 1 + k];
+            allFit &= seg.Edge.DistanceNm <= remainingNm;
+            remainingNm -= seg.Edge.DistanceNm;
+            segments.Add(seg);
+        }
+
+        int nextIdx = exitIdx + 1 + tail.FullSegments;
+        if (tail.CutFt > 0.0)
+        {
+            TaxiRouteSegment cut = route.Segments[nextIdx];
+            segments.Add(CutStraight(cut.Edge, tail.CutFt / GeoMath.FeetPerNm, cut.TaxiwayName));
+            return segments;
         }
 
         // The route runs out within the tail-clearance distance past the crossed runway's far bar: walk the layout straight ahead.
-        if ((ctx.GroundLayout is { } layout) && (ExitIsCrossedRunwayBar(layout, approachNodeId, route.Segments[exitIdx].ToNodeId) is { } crossed))
+        // Otherwise the route ends inside the tail-clearance distance, and the slice stops at its end rather than driving past it.
+        if (
+            allFit
+            && (nextIdx >= route.Segments.Count)
+            && (ctx.GroundLayout is { } layout)
+            && (ExitIsCrossedRunwayBar(layout, approachNodeId, route.Segments[exitIdx].ToNodeId) is { } crossed)
+        )
         {
             double walkNm = remainingNm + (RunwayTailClearance.MarginFt / GeoMath.FeetPerNm);
-            AppendLayoutTailClearance(ctx, route.Segments[^1].Edge, walkNm, crossed, slice);
-            return (fullSegments, false);
+            AppendLayoutTailClearance(ctx, route.Segments[^1].Edge, walkNm, crossed, segments);
         }
 
-        // The route ends inside the tail-clearance distance: stop at its end rather than driving past it.
-        return (fullSegments, false);
+        return segments;
     }
 
     /// <summary>
@@ -992,7 +1352,8 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// </summary>
     internal static int RouteIndexAfterCrossing(PhaseContext ctx, TaxiRoute route, int approachNodeId, int targetNodeId)
     {
-        if (BuildSlice(ctx, route, approachNodeId, targetNodeId) is not { } plan)
+        // A planning read for the phases that follow the crossing, made before it is built: it decides the tail afresh.
+        if (BuildSlice(ctx, route, approachNodeId, targetNodeId, storedTail: null) is not { } plan)
         {
             return route.CurrentSegmentIndex;
         }
@@ -1132,6 +1493,9 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             NotClearRestSeconds = _notClearRestSeconds > 0.0 ? _notClearRestSeconds : null,
             SaidNotClear = _saidNotClear ? true : null,
             IsExpedited = _expedited ? true : null,
+            TailClearanceSuppressed = (_tailDecision ?? _restoredTailDecision)?.Suppressed,
+            TailFullSegmentCount = (_tailDecision ?? _restoredTailDecision)?.FullSegments,
+            TailCutFt = (_tailDecision ?? _restoredTailDecision)?.CutFt,
         };
 
     public static CrossingRunwayPhase FromSnapshot(CrossingRunwayPhaseDto dto, AirportGroundLayout? groundLayout)
@@ -1149,16 +1513,20 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             _notClearRestSeconds = dto.NotClearRestSeconds ?? 0.0,
             _saidNotClear = dto.SaidNotClear ?? false,
             _expedited = dto.IsExpedited ?? false,
+            _restoredTailDecision =
+                (dto.TailClearanceSuppressed is { } suppressed) && (dto.TailFullSegmentCount is { } full) && (dto.TailCutFt is { } cutFt)
+                    ? new TailDecision(suppressed, full, cutFt)
+                    : null,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };
         phase.RestoreRequirements(dto.Requirements);
         // Leave _initialized=false so the first OnTick rebuilds the route slice from the restored source route (own path,
-        // else AssignedTaxiRoute): BuildSlice derives the slice, its route index and the tail-clearance counters from that
-        // route, the layout and the aircraft's length. The slice segment the crossing was on is then set up again on the
-        // restored navigator from the pose the original set it up at: the navigator resumes the primitive its snapshot
-        // carries, and a snapshot without one (written before the navigator carried it) rebuilds the same primitive from
-        // that pose.
+        // else AssignedTaxiRoute): BuildSlice derives the slice and its route index from that route, the layout and the
+        // aircraft's length, and its tail clearance from the stored tail decision (decided afresh when the snapshot has
+        // none). The slice segment the crossing was on is then set up again on the restored navigator from the pose the
+        // original set it up at: the navigator resumes the primitive its snapshot carries, and a snapshot without one
+        // (written before the navigator carried it) rebuilds the same primitive from that pose.
         _ = dto.Initialized;
         return phase;
     }

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
@@ -93,6 +94,33 @@ public class OakCrossThenContinueTests(ITestOutputHelper output)
 
         CommandResult cross = engine.SendCommand(Callsign, "CROSS");
         Assert.True(cross.Success, cross.Message);
+
+        // The 28L hold short lies far past the crossing's end, so the crossing never brakes for it: from 28R's far marking to the
+        // end of its slice the aircraft keeps its crossing speed, less half a knot.
+        GroundNode farBar28R = bar28R.First(node => node.Id != nearBar28R.Id);
+        var across = new TrueHeading(GeoMath.BearingTo(nearBar28R.Position, farBar28R.Position));
+        double minKts = CategoryPerformance.RunwayCrossingSpeed(AircraftCategorization.Categorize(AircraftType)) - 0.5;
+        bool crossing = false;
+        double lowestKts = double.PositiveInfinity;
+        AircraftState? handedBack = SubTickDriver.TickSubTicksUntil(
+            engine,
+            Callsign,
+            ac => crossing && (ac.Phases?.CurrentPhase is not CrossingRunwayPhase),
+            300,
+            ac =>
+            {
+                bool inCrossing = ac.Phases?.CurrentPhase is CrossingRunwayPhase;
+                crossing |= inCrossing;
+                if (inCrossing && (GeoMath.AlongTrackDistanceNm(ac.Position, farBar28R.Position, across) > 0.0))
+                {
+                    lowestKts = Math.Min(lowestKts, ac.GroundSpeed);
+                }
+            }
+        );
+        Assert.NotNull(handedBack);
+        output.WriteLine($"lowest speed from 28R's far marking to the crossing's end: {lowestKts:F2} kt");
+        Assert.True(double.IsFinite(lowestKts), $"the crossing ended before the aircraft passed 28R's far marking #{farBar28R.Id}");
+        Assert.True(lowestKts >= minKts, $"the crossing slowed to {lowestKts:F2} kt past 28R's far marking, below {minKts:F1} kt");
 
         HoldingShortPhase? holdAt28L = TickUntilHoldingShort(engine, "28L", 300);
         Assert.NotNull(holdAt28L);

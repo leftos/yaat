@@ -256,16 +256,18 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
 
         bool stoppedBetweenBars = false;
         bool pastFarBar = false;
-        AircraftState? atRest = Issue1334OakDToFAcross33Tests.TickUntil(
-            output,
+        var losses = new SpeedLossWatch(aircraft);
+        AircraftState? atRest = SubTickDriver.TickSubTicksUntil(
             engine,
+            Issue1334OakDToFAcross33Tests.Callsign,
+            ac => pastFarBar && (ac.GroundSpeed < 0.1),
+            300,
             ac =>
             {
+                losses.Sample();
                 pastFarBar |= (ac.Ground.AssignedTaxiRoute is null) || (ac.Ground.AssignedTaxiRoute.CurrentSegmentIndex > farBarSegment);
                 stoppedBetweenBars |= (!pastFarBar) && (ac.Phases?.CurrentPhase is HoldingShortPhase);
-                return pastFarBar && (ac.GroundSpeed < 0.1);
-            },
-            300
+            }
         );
 
         Assert.False(stoppedBetweenBars, "the aircraft held short again between A2's bar and C2's bar");
@@ -275,6 +277,23 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
         Assert.False(AirportGroundLayout.HasRunwayCenterlineEdge(route.Segments[^1].Edge.ToNode));
         Assert.True(pastFt >= AircraftLength.ResolveFt("C172") / 2.0, $"at rest only {pastFt:F0} ft past C2's bar");
         Assert.Equal("C2", atRest.Ground.CurrentTaxiway);
+
+        // The bare crossing ends the route, and the hold that follows stops the aircraft where it stands, so the crossing hands
+        // back within the set-back margin of its end: the tail rests clear of C2's bar by the tail clearance less that margin.
+        double tailPastFt = pastFt - (AircraftLength.ResolveFt(atRest.AircraftType) / 2.0);
+        double minTailFt = RunwayTailClearance.MarginFt - GroundNavigator.SetBackStopMarginFt;
+        output.WriteLine($"tail at rest {tailPastFt:F1} ft past C2's bar");
+        Assert.True(tailPastFt >= minTailFt, $"the tail rests {tailPastFt:F1} ft past C2's bar, inside {minTailFt:F0} ft");
+
+        // The bare crossing's end is a stop, which it brakes onto at the taxi rate rather than stopping dead from its crossing
+        // speed: no physics sub-tick loses more than that rate, the take of the stop from a crawl aside.
+        double maxLossKts =
+            (CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(atRest.AircraftType)) / SimulationEngine.PhysicsSubTickRate) + 0.01;
+        output.WriteLine($"largest speed loss in one sub-tick: {losses.WorstKts:F2} kt at {losses.WorstAt}");
+        Assert.True(
+            losses.WorstKts <= maxLossKts,
+            $"the aircraft lost {losses.WorstKts:F2} kt in one sub-tick at {losses.WorstAt}, more than the taxi rate's {maxLossKts:F2} kt"
+        );
     }
 
     /// <summary>
