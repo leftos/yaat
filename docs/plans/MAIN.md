@@ -19,7 +19,7 @@
   - [ ] YAAT-1383 Find the one-second braking spike at OAK's snapped crossing in GiveWayStopBrakingTests · release vNext
   - [ ] YAAT-1406 Give a TAXI on a fillet arc ending at a runway bar the approach leg, so the nose stops at the line
   - [ ] YAAT-1407 Key the snapped-bar escape ceiling on the same taxiway's farthest painted bar, not the runway's
-  - [ ] YAAT-1438 Arrive at a cleared runway hold-short bar exactly, not up to 91 ft early (GIVEWAY crosses OAK 33 and stops 534 ft past the line) · release vNext
+  - [/] YAAT-1438 Arrive at a cleared runway hold-short bar exactly, not up to 91 ft early (GIVEWAY crosses OAK 33 and stops 534 ft past the line) · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
@@ -93,7 +93,6 @@
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
-- [/] YAAT-1363 Add a best-forward-speed command (fly the fastest speed the type can at its altitude) · release vNext
 - [ ] YAAT-1425 Treat LUAW from a hold short of a taxiway as an implicit taxi onto it to line up at the intersection (OAK HS E, 28R@E)
 - [ ] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP
 - [ ] YAAT-1379 Lift a controller crossing speed's ceiling past its fix under a via clearance
@@ -942,7 +941,19 @@
 - [ ] YAAT-1441 Use the profile landing speed (APD Vat) as approach speed and minimum for types with no FAA approach speed (C-5M flies final at 168)
 - [ ] YAAT-1442 Keep DH8C under its TCDS Vmo and pin DH8D's Mmo at M0.60
 - [ ] YAAT-1443 Give the types SMAX is most often given their own sourced Vmo/Vne (C208 flies the TP2M class's 250 kt)
-- [ ] YAAT-1444 Decide whether SMAX flies a margin below Vmo/Mmo (Vmo-10, Mmo-0.02) instead of the redline
+- [ ] YAAT-1445 Clear a MACH hold when CFIX, DCTF or Warp replaces the speed
+- [ ] YAAT-1446 Drop a crossing fix's pending speed revert when a later SPD, MACH, RNS or DSR is given
+- [ ] YAAT-1447 End an assigned speed at touchdown
+- [ ] YAAT-1448 Keep a speed assigned during a maneuver when ManeuverSpeedController restores a null prior target
+- [ ] YAAT-1449 Report SMAX in the coaching tools as maximum forward speed, not a plain assigned speed
+- [ ] YAAT-1450 Complete a ; block whose only speed effect is a Mach hold
+- [ ] YAAT-1451 Skip a crossing fix's speed revert in a hold or inside the final gate (7110.65 5-7-1.b)
+- [ ] YAAT-1452 Keep the first speed revert when a crossing speed on the same fix is restated
+- [ ] YAAT-1453 Write a constrained DCTF's speed revert on its last speed-constrained fix too
+- [ ] YAAT-1454 Restore a dropped crossing restriction's speed revert (or SMAX) when DCTF replaces the route
+- [ ] YAAT-1455 Turn onto the next centreline after an exact hold-short arrival at a sharp unfilleted corner
+- [ ] YAAT-1456 Enter the crossing phase for a pre-cleared runway when the taxi starts off a node (OAK TAXI G C CROSS 28R crosses with no CrossingRunwayPhase)
+- [ ] YAAT-1457 Move the remaining OAK test selectors off node ids, ordinals and arc display names; add bug_bundle.py remap
 
 ## No project
 
