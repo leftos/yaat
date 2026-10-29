@@ -1,15 +1,11 @@
 using Yaat.Sim;
-using Yaat.Sim.Phases.Ground;
-using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Asdex;
 
 /// <summary>
-/// The kind of ASDE-X Safety Logic alert, per the CRC ASDE-X manual ("Safety Logic"). Only
-/// the conditions that are derivable from the data YAAT actually has are modelled:
-/// converging-runway alerts are intentionally absent (they require a runway-pair convergence
-/// relationship that is not present in any reachable vNAS data). Snapshots store the kind by number, so each member
-/// keeps its value; 2 is unused (<c>SnapshotSchemaMigrator</c> rewrites a stored 2 to <see cref="OccupiedRunway"/>).
+/// The kind of ASDE-X Safety Logic alert, per the CRC ASDE-X manual ("Safety Logic"). The kinds modelled are closed
+/// runway, occupied runway and taxiway landing. Snapshots store the kind by number, so each member keeps its value; 2 is
+/// unused (<c>SnapshotSchemaMigrator</c> rewrites a stored 2 to <see cref="OccupiedRunway"/>).
 /// </summary>
 public enum AsdexAlertKind
 {
@@ -26,12 +22,48 @@ public enum AsdexAlertKind
     TaxiwayLanding = 3,
 }
 
-/// <summary>One active runway in the ASDE-X safety-logic configuration: its identifier (e.g.
-/// "28R"), footprint polygon (lat/lon ring, as supplied by CRC), closed state, the local
-/// magnetic variation (east-positive declination) so the magnetic runway-id heading can be
-/// compared against the aircraft's true heading, and the pavement elevation (ft MSL) that an
-/// arrival's height over the runway is measured from.</summary>
-public sealed record AsdexRunwaySurface(string Id, IReadOnlyList<LatLon> Area, bool IsClosed, double MagneticVariationDeg, double ElevationFt);
+/// <summary>
+/// One active runway in the ASDE-X safety-logic configuration: the configured runway (its id, the navdata runway the id
+/// names and the footprint ring CRC supplies), that runway's axis (built from <see cref="AsdexHoldBarRunway.Runway"/>, once
+/// per facility), and whether the configuration marks it closed.
+/// </summary>
+public sealed record AsdexRunwaySurface
+{
+    /// <exception cref="ArgumentException"><paramref name="axis"/> is not laid along <paramref name="runway"/>'s navdata runway.</exception>
+    public AsdexRunwaySurface(AsdexHoldBarRunway runway, AsdexRunwayAxis axis, bool isClosed)
+    {
+        if (!ReferenceEquals(axis.Runway, runway.Runway))
+        {
+            throw new ArgumentException(
+                $"The axis for safety-logic runway {runway.Id} is laid along another navdata runway; build it from that runway's own RunwayInfo",
+                nameof(axis)
+            );
+        }
+
+        Runway = runway;
+        Axis = axis;
+        IsClosed = isClosed;
+    }
+
+    /// <summary>The configured runway: its id, navdata runway and footprint.</summary>
+    public AsdexHoldBarRunway Runway { get; }
+
+    /// <summary>The axis of <see cref="AsdexHoldBarRunway.Runway"/>.</summary>
+    public AsdexRunwayAxis Axis { get; }
+
+    /// <summary>Whether the configuration marks the runway closed.</summary>
+    public bool IsClosed { get; }
+
+    /// <summary>The configuration's runway id, e.g. "28R-10L".</summary>
+    public string Id => Runway.Id;
+}
+
+/// <summary>
+/// A facility's safety-logic runways as the detector reads them: the configured runways navdata resolves, in configuration
+/// order, and the footprint of every configured runway, resolved or not (empty for one whose configuration carries none). A
+/// runway navdata lacks has no axis and so no runway user, but its footprint is still runway, never taxiway.
+/// </summary>
+public sealed record AsdexSafetyLogicRunways(IReadOnlyList<AsdexRunwaySurface> Surfaces, IReadOnlyList<IReadOnlyList<LatLon>> Footprints);
 
 /// <summary>A taxiway centerline segment from the airport ground graph, used to approximate
 /// taxiway-landing detection (the ground layout carries centerlines, not area polygons).</summary>
@@ -51,95 +83,25 @@ public sealed record AsdexSafetyAlert(
     bool GoAround
 );
 
-/// <summary>What an aircraft on a runway is doing there, from its current phase; the order is the alert ranking.</summary>
-public enum AsdexRunwayUserRole
-{
-    /// <summary>
-    /// Approaching, landing or rolling out (final approach, landing, runway exit, touch-and-go, stop-and-go, low
-    /// approach), or going around: a go-around stays a runway user until it is past the threshold.
-    /// </summary>
-    Arrival = 0,
-
-    /// <summary>Lining up, lined up and waiting, on the takeoff roll (or rejecting it) or in the initial climb.</summary>
-    Departure = 1,
-
-    /// <summary>
-    /// Any other aircraft: taxiing, crossing, back-taxiing, holding short on the runway after landing (an occupant), or
-    /// with no phase.
-    /// </summary>
-    Other = 2,
-}
-
 /// <summary>
-/// The one ranking of the aircraft in an ASDE-X alert. The detector uses it to order an alert's callsigns (and so its
-/// second line) at detect time; the server reads that stored order, never re-ranking, to find the runway end for the
-/// first line and aural name, so line 1's end and line 2's first aircraft belong to the same aircraft.
-/// </summary>
-public static class AsdexRunwayUsers
-{
-    /// <summary>The aircraft's role on the runway, from its current phase.</summary>
-    public static AsdexRunwayUserRole Role(AircraftState aircraft) =>
-        aircraft.Phases?.CurrentPhase switch
-        {
-            FinalApproachPhase
-            or LandingPhase
-            or RunwayExitPhase
-            or TouchAndGoPhase
-            or StopAndGoPhase
-            or LowApproachPhase
-            or GoAroundPhase
-            or HelicopterApproachPhase
-            or HelicopterLandingPhase => AsdexRunwayUserRole.Arrival,
-            LineUpPhase or LinedUpAndWaitingPhase or TakeoffPhase or RejectedTakeoffPhase or InitialClimbPhase or HelicopterTakeoffPhase =>
-                AsdexRunwayUserRole.Departure,
-            _ => AsdexRunwayUserRole.Other,
-        };
-
-    /// <summary>
-    /// Ranks aircraft for an alert: arrivals, then departures, then the rest; within a role the faster over the ground,
-    /// then the ordinal-first callsign, so the order never depends on the aircraft list's.
-    /// </summary>
-    public static readonly Comparer<AircraftState> First = Comparer<AircraftState>.Create(
-        (a, b) =>
-        {
-            int role = Role(a).CompareTo(Role(b));
-            if (role != 0)
-            {
-                return role;
-            }
-
-            int speed = b.GroundSpeed.CompareTo(a.GroundSpeed);
-            return (speed != 0) ? speed : StringComparer.Ordinal.Compare(a.Callsign, b.Callsign);
-        }
-    );
-}
-
-/// <summary>
-/// Stateless per-tick classifier for ASDE-X Safety Logic alerts. Mirrors CRC's simplified
-/// binary alerting (not the real ASDE-X time-to-collision look-ahead) per the controller doc. Closed-runway-only
-/// alerting under the LIMITED runway configuration follows the CRC manual ("only generates alerts for arrivals or
-/// departures on closed runways", <c>docs/crc/asdex.md</c>), while every alert kind on every runway under a named
-/// configuration was measured on vNAS Test (YAAT-1194).
+/// Stateless per-tick classifier for ASDE-X Safety Logic alerts, raised on the triggers measured on vNAS Test (yaat-server
+/// <c>docs/plans/asdex-probe-sfo</c>). Every alert kind reads one definition of a runway user, the one the hold bars read
+/// (<see cref="AsdexRunwayUsers"/>): an arrival inside about one nautical mile of the threshold, or an aircraft over the
+/// footprint at 50 kt or more below 200 ft. So a stopped or lined-up aircraft raises nothing, and an alert clears the tick
+/// its user slows below 50 kt or climbs out. A closed runway alerts for each of its users, an arrival from one mile out; an
+/// occupied runway alerts once its user is over the footprint, which for an airborne arrival is the threshold crossing,
+/// against every other aircraft occupying the footprint (on the ground, or airborne below 200 ft above the runway).
+/// Closed-runway-only alerting under the LIMITED runway configuration follows the CRC manual ("only generates alerts for
+/// arrivals or departures on closed runways", <c>docs/crc/asdex.md</c>), while every alert kind on every runway under a
+/// named configuration was measured on vNAS Test (YAAT-1194).
 ///
-/// Load-bearing approximations (flagged for aviation review):
-/// - An arrival is treated as "still airborne over/short-of the runway" up to
-///   <see cref="ArrivalAglCeilingFt"/> AGL; there is no approach-corridor projection, so an
-///   occupied/closed-runway alert fires once the arrival is over the runway footprint rather
-///   than on short final.
-/// - "Using" vs "crossing" a runway is distinguished by alignment of the aircraft's true heading
-///   with the runway's axis — the magnetic heading parsed from the identifier plus the local
-///   magnetic variation, in either direction (±<see cref="AlignmentToleranceDeg"/>), so a
-///   back-taxiing aircraft is a runway user rather than a crosser.
-/// - Taxiway-landing uses centerline proximity (the ground layout has no taxiway polygons) and
-///   alerts on any taxiway, since "configured taxiway" data is not available.
+/// Taxiway-landing uses centerline proximity (the ground layout has no taxiway polygons) and alerts on any taxiway, since
+/// "configured taxiway" data is not available.
 /// </summary>
 public static class AsdexSafetyLogicDetector
 {
-    /// <summary>Arrival is treated as airborne over the runway up to this AGL (7110.65 §3-6-4).</summary>
+    /// <summary>A taxiway landing is an airborne aircraft up to this height above the field (7110.65 §3-6-4).</summary>
     public const double ArrivalAglCeilingFt = 300;
-
-    /// <summary>Heading tolerance (deg, either direction along the axis) for treating an aircraft as aligned with a runway.</summary>
-    private const double AlignmentToleranceDeg = 35;
 
     /// <summary>Half-width (nm) within which a landing aircraft counts as over a taxiway (~28 m).</summary>
     private const double TaxiwayLandingHalfWidthNm = 0.015;
@@ -160,10 +122,14 @@ public static class AsdexSafetyLogicDetector
     public const string CallsignSeparator = ", ";
 
     /// <summary>The alerts the runways and taxiways raise this tick from the aircraft not individually inhibited.</summary>
-    /// <param name="runways">The facility's runway footprints.</param>
+    /// <param name="runways">
+    /// The facility's safety-logic runways. Where the configuration names one navdata runway in two entries, the entries are
+    /// matched to each other by <see cref="RunwayInfo"/> reference, so their surfaces come from one resolve (one
+    /// <see cref="RunwayInfo"/> instance per navdata runway), as the engine's runway cache builds them.
+    /// </param>
     /// <param name="taxiways">The taxiway centerline segments checked for taxiway landings.</param>
     /// <param name="aircraft">Every aircraft this tick.</param>
-    /// <param name="fieldElevationFt">The facility's field elevation, the reference for arrival AGL.</param>
+    /// <param name="fieldElevationFt">The facility's field elevation, the reference for an arrival's height.</param>
     /// <param name="closedRunwayAlertsOnly">
     /// True when the facility is on the LIMITED runway configuration ("limited", none, or an id that names none of its
     /// configurations): only closed-runway alerts are raised, and occupied-runway and taxiway-landing alerts are
@@ -171,7 +137,7 @@ public static class AsdexSafetyLogicDetector
     /// configuration's arrival and departure runway lists playing no part.
     /// </param>
     public static IReadOnlyList<AsdexSafetyAlert> Detect(
-        IReadOnlyList<AsdexRunwaySurface> runways,
+        AsdexSafetyLogicRunways runways,
         IReadOnlyList<AsdexTaxiwaySegment> taxiways,
         IReadOnlyList<AircraftState> aircraft,
         double fieldElevationFt,
@@ -180,52 +146,69 @@ public static class AsdexSafetyLogicDetector
     {
         // Individually-inhibited targets (square drawn around them in CRC) take part in no alert.
         var candidates = aircraft.Where(ac => !ac.Stars.AsdexAlertsInhibited).ToList();
+        IReadOnlyList<AsdexRunwaySurface> surfaces = runways.Surfaces;
+        List<AsdexHoldBarRunway> configured = [.. surfaces.Select(runway => runway.Runway)];
+        List<AsdexRunwayAxis> axes = [.. surfaces.Select(runway => runway.Axis)];
+        var uses = candidates.Select(ac => AsdexRunwayUsers.UsesOf(ac, configured, axes, fieldElevationFt)).ToList();
         var alerts = new List<AsdexSafetyAlert>();
-
-        foreach (AsdexRunwaySurface runway in runways)
+        for (int i = 0; i < surfaces.Count; i++)
         {
-            alerts.AddRange(RunwayAlerts(runway, candidates, closedRunwayAlertsOnly));
+            if (!surfaces[i].IsClosed && closedRunwayAlertsOnly)
+            {
+                continue;
+            }
+
+            // Each aircraft's role on this runway: an arrival box on another runway does not make it an arrival here.
+            List<AircraftState> users = [];
+            var roles = new Dictionary<AircraftState, AsdexRunwayUserRole>(ReferenceEqualityComparer.Instance);
+            for (int k = 0; k < candidates.Count; k++)
+            {
+                roles[candidates[k]] = AsdexRunwayUsers.Role(candidates[k], AsdexRunwayUsers.ArrivesOn(uses[k], configured, i));
+                if (AsdexRunwayUsers.IsUserOf(candidates[k], uses[k], configured, i))
+                {
+                    users.Add(candidates[k]);
+                }
+            }
+
+            alerts.AddRange(RunwayAlerts(surfaces[i], users, candidates, roles));
         }
 
         if (!closedRunwayAlertsOnly)
         {
-            AppendTaxiwayLandings(runways, taxiways, candidates, fieldElevationFt, alerts);
+            AppendTaxiwayLandings(runways.Footprints, taxiways, candidates, fieldElevationFt, alerts);
         }
 
         return alerts;
     }
 
     /// <summary>
-    /// The alerts a runway raises this tick: on a closed runway, one closed-runway alert per aircraft using it; on an
-    /// open one (unless only closed-runway alerts are raised), one occupied-runway alert per conflicting pair, a pair
-    /// being an aircraft that claims the runway and any other aircraft on it, aligned or crossing.
+    /// The alerts a runway raises this tick from its <paramref name="users"/>: on a closed runway, one closed-runway alert
+    /// per user; on an open one, one occupied-runway alert per conflicting pair, a pair being a user over the footprint and
+    /// any other aircraft on it, using it or occupying it.
     /// </summary>
     private static IEnumerable<AsdexSafetyAlert> RunwayAlerts(
         AsdexRunwaySurface runway,
+        List<AircraftState> users,
         IReadOnlyList<AircraftState> candidates,
-        bool closedRunwayAlertsOnly
+        IReadOnlyDictionary<AircraftState, AsdexRunwayUserRole> roles
     )
     {
-        if (!runway.IsClosed && closedRunwayAlertsOnly)
+        Comparer<AircraftState> first = AsdexRunwayUsers.First(roles);
+        if (runway.IsClosed)
+        {
+            return users.OrderBy(ac => ac, first).Select(ac => ClosedRunwayAlert(runway, ac, roles[ac]));
+        }
+
+        // An occupied runway needs its user over the footprint: an airborne arrival raises it at the threshold crossing.
+        // Ranked by role (AsdexRunwayUsers.First), so a pair's first aircraft is the one using the runway.
+        var claimants = users.Where(ac => AsdexRunwayUsers.IsOverFootprint(ac, runway.Runway)).OrderBy(ac => ac, first).ToList();
+        if (claimants.Count == 0)
         {
             return [];
         }
 
-        var occupants = candidates.Where(ac => PointInPolygon(ac.Position, runway.Area)).ToList();
-
-        // A "claimant" is an aircraft aligned with the runway that is actively using it: on
-        // the surface at any speed (rolling, or lined up and waiting) or arriving at low AGL.
-        // Ground speed does NOT gate this — a stationary lined-up departure still claims the
-        // runway, which is exactly the LUAW-incursion case Safety Logic must catch. Ranked
-        // by role (AsdexRunwayUsers.First), so a pair's first aircraft is the one using the runway.
-        var claimants = occupants.Where(ac => ClaimsRunway(ac, runway)).OrderBy(ac => ac, AsdexRunwayUsers.First).ToList();
-
-        if (runway.IsClosed)
-        {
-            return claimants.Select(ac => ClosedRunwayAlert(runway, ac));
-        }
-
-        return OccupiedRunwayAlerts(runway, claimants, occupants);
+        var onRunway = candidates.Where(ac => claimants.Contains(ac) || AsdexRunwayUsers.Occupies(ac, runway.Runway)).ToList();
+        return OccupiedRunwayAlerts(runway, claimants, onRunway);
     }
 
     /// <summary>
@@ -235,7 +218,7 @@ public static class AsdexSafetyLogicDetector
     private static List<AsdexSafetyAlert> OccupiedRunwayAlerts(
         AsdexRunwaySurface runway,
         IReadOnlyList<AircraftState> rankedClaimants,
-        IReadOnlyList<AircraftState> occupants
+        IReadOnlyList<AircraftState> onRunway
     )
     {
         var alerts = new List<AsdexSafetyAlert>();
@@ -243,7 +226,7 @@ public static class AsdexSafetyLogicDetector
         {
             AircraftState user = rankedClaimants[i];
             // The user itself and every higher-ranked claimant (whose pairs were raised already) are skipped.
-            IEnumerable<AircraftState> others = occupants
+            IEnumerable<AircraftState> others = onRunway
                 .Where(ac => !rankedClaimants.Take(i + 1).Contains(ac))
                 .OrderBy(ac => ac.Callsign, StringComparer.Ordinal);
             foreach (AircraftState other in others)
@@ -256,14 +239,14 @@ public static class AsdexSafetyLogicDetector
     }
 
     /// <summary>The closed-runway alert for one aircraft using a closed runway: an arrival (by role) is told to go around.</summary>
-    private static AsdexSafetyAlert ClosedRunwayAlert(AsdexRunwaySurface runway, AircraftState user)
+    private static AsdexSafetyAlert ClosedRunwayAlert(AsdexRunwaySurface runway, AircraftState user, AsdexRunwayUserRole role)
     {
-        bool goAround = AsdexRunwayUsers.Role(user) == AsdexRunwayUserRole.Arrival;
+        bool goAround = role == AsdexRunwayUserRole.Arrival;
         return BuildAlert(AsdexAlertKind.ClosedRunway, runway, [user], goAround ? ClosedRunwayGoAroundText : ClosedRunwayText, goAround);
     }
 
     private static void AppendTaxiwayLandings(
-        IReadOnlyList<AsdexRunwaySurface> runways,
+        IReadOnlyList<IReadOnlyList<LatLon>> runwayFootprints,
         IReadOnlyList<AsdexTaxiwaySegment> taxiways,
         IReadOnlyList<AircraftState> candidates,
         double fieldElevationFt,
@@ -273,14 +256,14 @@ public static class AsdexSafetyLogicDetector
         foreach (AircraftState ac in candidates)
         {
             // A taxiway landing is an arrival at low AGL whose position is over a taxiway and
-            // not over any runway footprint.
+            // not over any configured runway's footprint, whether navdata resolves that runway or not.
             double agl = ac.Altitude - fieldElevationFt;
             if (ac.IsOnGround || agl > ArrivalAglCeilingFt || agl < -50)
             {
                 continue;
             }
 
-            if (runways.Any(runway => PointInPolygon(ac.Position, runway.Area)))
+            if (runwayFootprints.Any(footprint => (footprint.Count >= 3) && GeoMath.PointInRing(ac.Position, footprint)))
             {
                 continue;
             }
@@ -327,63 +310,6 @@ public static class AsdexSafetyLogicDetector
         );
     }
 
-    /// <summary>True if the aircraft heading is within tolerance of the runway's axis in either
-    /// direction — a back-taxi (P/CG BACK-TAXI) uses the runway just as a departure does. The
-    /// runway-id heading is magnetic, so the local magnetic variation is applied before comparing
-    /// against the aircraft's true heading. When the id has no parseable heading, every occupant
-    /// is treated as aligned so a conflict is not silently dropped.</summary>
-    private static bool IsAligned(AircraftState ac, AsdexRunwaySurface runway)
-    {
-        if (!TryRunwayHeading(runway.Id, out double magneticHeading))
-        {
-            return true;
-        }
-
-        double trueHeading = magneticHeading + runway.MagneticVariationDeg;
-        return AxisDifference(ac.TrueHeading.Degrees, trueHeading) <= AlignmentToleranceDeg;
-    }
-
-    /// <summary>True if the aircraft is aligned with the runway and actively using it: on the
-    /// surface at any speed (rolling or holding in position) or arriving airborne at/below the
-    /// AGL ceiling over the runway's own elevation. A high overflight is excluded by the AGL ceiling.</summary>
-    private static bool ClaimsRunway(AircraftState ac, AsdexRunwaySurface runway)
-    {
-        if (!IsAligned(ac, runway))
-        {
-            return false;
-        }
-
-        return ac.IsOnGround || (ac.Altitude - runway.ElevationFt) <= ArrivalAglCeilingFt;
-    }
-
-    private static bool TryRunwayHeading(string runwayId, out double headingDegrees)
-    {
-        headingDegrees = 0;
-        int digits = 0;
-        ReadOnlySpan<char> span = runwayId.AsSpan();
-        int i = 0;
-        while (i < span.Length && char.IsDigit(span[i]) && i < 2)
-        {
-            digits = (digits * 10) + (span[i] - '0');
-            i++;
-        }
-
-        if (i == 0)
-        {
-            return false;
-        }
-
-        headingDegrees = digits * 10.0;
-        return headingDegrees is > 0 and <= 360;
-    }
-
-    /// <summary>Smallest angle (0–90°) between heading <paramref name="a"/> and the line through heading <paramref name="b"/>.</summary>
-    private static double AxisDifference(double a, double b)
-    {
-        double diff = Math.Abs(a - b) % 180.0;
-        return diff > 90.0 ? 180.0 - diff : diff;
-    }
-
     private static AsdexTaxiwaySegment? NearestTaxiwayWithin(LatLon point, IReadOnlyList<AsdexTaxiwaySegment> taxiways, double maxDistanceNm)
     {
         AsdexTaxiwaySegment? best = null;
@@ -402,32 +328,6 @@ public static class AsdexSafetyLogicDetector
     }
 
     // ── Geometry (equirectangular planar approximation, accurate at airport scale) ──
-
-    private static bool PointInPolygon(LatLon point, IReadOnlyList<LatLon> polygon)
-    {
-        if (polygon.Count < 3)
-        {
-            return false;
-        }
-
-        bool inside = false;
-        double x = point.Lon;
-        double y = point.Lat;
-        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
-        {
-            double xi = polygon[i].Lon;
-            double yi = polygon[i].Lat;
-            double xj = polygon[j].Lon;
-            double yj = polygon[j].Lat;
-            bool intersects = ((yi > y) != (yj > y)) && (x < ((xj - xi) * (y - yi) / (yj - yi)) + xi);
-            if (intersects)
-            {
-                inside = !inside;
-            }
-        }
-
-        return inside;
-    }
 
     private static double PointToSegmentNm(LatLon point, LatLon start, LatLon end)
     {

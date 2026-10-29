@@ -64,17 +64,34 @@ public static class AsdexHoldBarBuilder
         var resolved = new List<AsdexHoldBarRunway>(runways.Count);
         foreach (AsdexRunwayConfig config in runways)
         {
-            RunwayInfo? nav = navRunways.FirstOrDefault(runway => NamesRunway(config.Id, runway));
-            if (nav is null)
+            if (ResolveRunway(facilityId, config, navRunways) is { } runway)
             {
-                Log.LogDebug("No hold bars for {FacilityId} runway {RunwayId}: navdata does not have it", facilityId, config.Id);
-                continue;
+                resolved.Add(runway);
             }
-
-            resolved.Add(new AsdexHoldBarRunway(config.Id, nav, config.AreaPoints));
         }
 
         return resolved;
+    }
+
+    /// <summary>
+    /// The safety-logic runway <paramref name="config"/> names among <paramref name="facilityId"/>'s navdata runways
+    /// (<see cref="AsdexSafetyLogicSeed.FacilityRunways"/>), or null with a debug log when navdata lacks it. Every entry naming
+    /// one navdata runway gets the same <see cref="RunwayInfo"/> instance from one <paramref name="navRunways"/> list.
+    /// </summary>
+    internal static AsdexHoldBarRunway? ResolveRunway(string facilityId, AsdexRunwayConfig config, IReadOnlyList<RunwayInfo> navRunways)
+    {
+        RunwayInfo? nav = navRunways.FirstOrDefault(runway => NamesRunway(config.Id, runway));
+        if (nav is null)
+        {
+            Log.LogDebug(
+                "ASDE-X runway {RunwayId} at {FacilityId} gets no hold bars and no runway users: navdata does not have it",
+                config.Id,
+                facilityId
+            );
+            return null;
+        }
+
+        return new AsdexHoldBarRunway(config.Id, nav, config.AreaPoints);
     }
 
     /// <summary>The hold bars of <paramref name="runways"/> over <paramref name="layout"/>, grouped by protected runway in input order.</summary>

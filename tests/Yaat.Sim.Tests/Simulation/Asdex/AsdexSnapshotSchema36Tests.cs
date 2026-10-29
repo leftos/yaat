@@ -2,7 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Asdex;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
@@ -32,9 +34,9 @@ public class AsdexSnapshotSchema36Tests
         TestVnasData.EnsureInitialized();
     }
 
-    private static AsdexSafetyLogicConfig Closed(string runwayId, string configurationId) =>
+    private static AsdexSafetyLogicConfig Closed(string runwayId, string configurationId, IReadOnlyList<LatLon> area) =>
         new(
-            [new AsdexRunwayConfig(runwayId, SharedArea, IsClosed: true)],
+            [new AsdexRunwayConfig(runwayId, area, IsClosed: true)],
             configurationId,
             [$"{configurationId}_TWR"],
             RunwayConfigurationChosen: false,
@@ -42,7 +44,10 @@ public class AsdexSnapshotSchema36Tests
             AsdexSafetyLogicConfig.NoSeconds
         );
 
-    /// <summary>An engine with OAK and SFO each configuring a closed 28R over the one aircraft, and both alerts standing.</summary>
+    /// <summary>
+    /// An engine with OAK and SFO each configuring a closed 28R and both alerts standing: OAK's raised by the one aircraft
+    /// rolling at 80 kt down OAK's real 28R, SFO's the same alert filed under SFO.
+    /// </summary>
     private SimulationEngine? TwoFacilityEngine()
     {
         if (_zoa is null)
@@ -51,14 +56,34 @@ public class AsdexSnapshotSchema36Tests
         }
 
         SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", Closed("28R", "OAKCFG")));
-        engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "SFO", Closed("28R", "SFOCFG")));
         AircraftState ac = engine.World.GetSnapshot()[0];
-        ac.Position = new LatLon(37.7213, -122.2208);
-        ac.TrueHeading = new TrueHeading(293);
+        RunwayInfo runway =
+            NavigationDatabase.Instance.GetRunway("OAK", "28R")
+            ?? NavigationDatabase.Instance.GetRunway("KOAK", "28R")
+            ?? throw new InvalidOperationException("OAK 28R is not in navdata");
+        ac.Position = GeoMath.ProjectPoint(
+            new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
+            runway.TrueHeading,
+            1500 / GeoMath.FeetPerNm
+        );
+        ac.TrueHeading = runway.TrueHeading;
+        ac.TrueTrack = runway.TrueHeading;
         ac.IsOnGround = true;
-        ac.Altitude = 9;
+        ac.Altitude = runway.ElevationFt;
+        ac.IndicatedAirspeed = 80;
+        const double Half = 0.002;
+        LatLon[] oakArea =
+        [
+            new(ac.Position.Lat - Half, ac.Position.Lon - Half),
+            new(ac.Position.Lat + Half, ac.Position.Lon - Half),
+            new(ac.Position.Lat + Half, ac.Position.Lon + Half),
+            new(ac.Position.Lat - Half, ac.Position.Lon + Half),
+        ];
+        engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", Closed("28R", "OAKCFG", oakArea)));
+        engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "SFO", Closed("28R", "SFOCFG", SharedArea)));
         engine.TickAsdexAlerts(new Helpers.SpineCapturingHost(engine));
+        // Set directly: no aircraft can use OAK's and SFO's 28R at once, and these tests cover the snapshot, not detection.
+        engine.Scenario!.ActiveAsdexAlerts = engine.Scenario.ActiveAsdexAlerts.SetItem("SFO", engine.Scenario.ActiveAsdexAlerts["OAK"]);
         Assert.Equal(["OAK", "SFO"], engine.Scenario!.ActiveAsdexAlerts.Keys);
         return engine;
     }

@@ -2,7 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Asdex;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
@@ -17,14 +19,6 @@ namespace Yaat.Sim.Tests.Simulation.Asdex;
 /// </summary>
 public class AsdexSnapshotSchema41Tests
 {
-    private static readonly IReadOnlyList<LatLon> Area =
-    [
-        new(37.7208, -122.2215),
-        new(37.7218, -122.2215),
-        new(37.7218, -122.2201),
-        new(37.7208, -122.2201),
-    ];
-
     private readonly ArtccConfigRoot? _zoa = TestArtccConfig.LoadZoa();
 
     public AsdexSnapshotSchema41Tests()
@@ -32,7 +26,7 @@ public class AsdexSnapshotSchema41Tests
         TestVnasData.EnsureInitialized();
     }
 
-    /// <summary>An OAK engine with a closed 28R and one aircraft on it, its closed-runway alert standing.</summary>
+    /// <summary>An OAK engine with a closed 28R and one aircraft rolling at 80 kt down it, its closed-runway alert standing.</summary>
     private SimulationEngine EngineWithAStandingAlert()
     {
         if (_zoa is null)
@@ -41,18 +35,36 @@ public class AsdexSnapshotSchema41Tests
         }
 
         SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        AircraftState ac = engine.World.GetSnapshot()[0];
+        RunwayInfo runway =
+            NavigationDatabase.Instance.GetRunway("OAK", "28R")
+            ?? NavigationDatabase.Instance.GetRunway("KOAK", "28R")
+            ?? throw new InvalidOperationException("OAK 28R is not in navdata");
+        ac.Position = GeoMath.ProjectPoint(
+            new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
+            runway.TrueHeading,
+            1500 / GeoMath.FeetPerNm
+        );
+        ac.TrueHeading = runway.TrueHeading;
+        ac.TrueTrack = runway.TrueHeading;
+        ac.IsOnGround = true;
+        ac.Altitude = runway.ElevationFt;
+        ac.IndicatedAirspeed = 80;
+        const double Half = 0.002;
+        LatLon[] area =
+        [
+            new(ac.Position.Lat - Half, ac.Position.Lon - Half),
+            new(ac.Position.Lat + Half, ac.Position.Lon - Half),
+            new(ac.Position.Lat + Half, ac.Position.Lon + Half),
+            new(ac.Position.Lat - Half, ac.Position.Lon + Half),
+        ];
         engine.ApplyRecordedAsdexSafetyLogic(
             new RecordedAsdexSafetyLogicChange(
                 0,
                 "OAK",
-                new AsdexSafetyLogicConfig([new AsdexRunwayConfig("28R", Area, IsClosed: true)], "OAKCFG", [], RunwayConfigurationChosen: false)
+                new AsdexSafetyLogicConfig([new AsdexRunwayConfig("28R", area, IsClosed: true)], "OAKCFG", [], RunwayConfigurationChosen: false)
             )
         );
-        AircraftState ac = engine.World.GetSnapshot()[0];
-        ac.Position = new LatLon(37.7213, -122.2208);
-        ac.TrueHeading = new TrueHeading(293);
-        ac.IsOnGround = true;
-        ac.Altitude = 9;
         engine.TickAsdexAlerts(new Helpers.SpineCapturingHost(engine));
         Assert.Single(engine.Scenario!.ActiveAsdexAlerts["OAK"].Keys);
         return engine;

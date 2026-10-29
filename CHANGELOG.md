@@ -9,6 +9,7 @@
 - `CTO` at a taxiway hold short is refused with "unable, traffic on E" while another aircraft stands on that taxiway; re-issue it once clear.
 - The taxi that `CTO` or `LUAW` starts from a taxiway hold short accounts for traffic and active runways, and pre-clears no crossing.
 - CRC's ASDE-X alerts read as vNAS sends them (`RWY OCCUPIED`, `RWY CLOSED`, `RWY CLOSED, GO AROUND`), one per conflicting pair, with no `RWY INCURSION` alert.
+- CRC's ASDE-X alerts fire on vNAS's triggers: a departure from 50 kt, an arrival from about 1 NM out; a lined-up or stopped aircraft raises none.
 
 ## v0.17.2-beta [2026/10/30]
 

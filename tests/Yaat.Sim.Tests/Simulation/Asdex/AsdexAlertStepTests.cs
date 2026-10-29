@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Asdex;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
@@ -29,24 +31,39 @@ public class AsdexAlertStepTests
 
     private SimulationEngine? Engine() => _zoa is null ? null : AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
 
-    /// <summary>A point inside <see cref="RunwayArea"/> — where the scenario's one aircraft is put.</summary>
-    private static readonly LatLon OnTheRunway = new(37.7213, -122.2208);
+    /// <summary>OAK 28R, the runway the tests close.</summary>
+    private static RunwayInfo Oak28R() =>
+        NavigationDatabase.Instance.GetRunway("OAK", "28R")
+        ?? NavigationDatabase.Instance.GetRunway("KOAK", "28R")
+        ?? throw new InvalidOperationException("OAK 28R is not in navdata");
+
+    /// <summary>A point on the 28R centreline 1,500 ft past its threshold, where the scenario's one aircraft is put.</summary>
+    private static LatLon OnTheRunway()
+    {
+        RunwayInfo runway = Oak28R();
+        return GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading, 1500 / GeoMath.FeetPerNm);
+    }
 
     /// <summary>Well clear of <see cref="RunwayArea"/>, on the field but off every configured footprint.</summary>
     private static readonly LatLon OffTheRunway = new(37.7350, -122.2100);
 
     /// <summary>The footprint ring a CRC surface display pushes for the runway: a box around <see cref="OnTheRunway"/>.</summary>
-    private static readonly IReadOnlyList<LatLon> RunwayArea =
-    [
-        new(37.7208, -122.2215),
-        new(37.7218, -122.2215),
-        new(37.7218, -122.2201),
-        new(37.7208, -122.2201),
-    ];
+    private static IReadOnlyList<LatLon> RunwayArea()
+    {
+        const double Half = 0.002;
+        LatLon centre = OnTheRunway();
+        return
+        [
+            new(centre.Lat - Half, centre.Lon - Half),
+            new(centre.Lat + Half, centre.Lon - Half),
+            new(centre.Lat + Half, centre.Lon + Half),
+            new(centre.Lat - Half, centre.Lon + Half),
+        ];
+    }
 
     private static AsdexSafetyLogicConfig ClosedRunways(params string[] runwayIds) =>
         new(
-            [.. runwayIds.Select(id => new AsdexRunwayConfig(id, RunwayArea, IsClosed: true))],
+            [.. runwayIds.Select(id => new AsdexRunwayConfig(id, RunwayArea(), IsClosed: true))],
             "WEST-PLAN",
             [],
             RunwayConfigurationChosen: false,
@@ -55,16 +72,22 @@ public class AsdexAlertStepTests
         );
 
     /// <summary>
-    /// Puts the scenario's one aircraft onto the configured footprint, aligned with the runway axis (28R is 280
-    /// magnetic; OAK's variation is about 13°E, and the detector's tolerance is ±35° about the axis either way).
+    /// Puts the scenario's one aircraft onto the configured footprint, rolling down the 28R centreline at 80 kt: a runway
+    /// user, which a stopped aircraft is not.
     /// </summary>
     private static AircraftState PutOnTheRunway(SimulationEngine engine)
     {
+        RunwayInfo runway = Oak28R();
         AircraftState ac = engine.World.GetSnapshot()[0];
-        ac.Position = OnTheRunway;
-        ac.TrueHeading = new TrueHeading(293);
+        ac.Position = OnTheRunway();
+        ac.TrueHeading = runway.TrueHeading;
+        ac.TrueTrack = runway.TrueHeading;
         ac.IsOnGround = true;
-        ac.Altitude = 9;
+        ac.Altitude = runway.ElevationFt;
+        ac.IndicatedAirspeed = 80;
+        // Off its parking phase and holding 80 kt, so a whole second of physics keeps it rolling down the runway.
+        ac.Phases = new PhaseList();
+        ac.Targets.TargetSpeed = 80;
         return ac;
     }
 
