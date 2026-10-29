@@ -302,7 +302,7 @@ bookmarks.json               # plain JSON (optional; user-authored timeline book
 
 **`wind-grids/{hash}.grib2.br`** entries are written by `RecordingArchiveWriter.WriteWindGrid` (a hash already written is skipped; bytes that do not hash to the name throw) from `WindGridRegistry`, for every hash `WindGridHashes.Referenced` finds in the initial weather, the recorded weather changes and the snapshots' `WeatherJson`; a grid the registry no longer holds is left out with a warning.
 
-`RecordingArchive.RegisterWindGrids` reads them back, verifying each against its name, and both loaders (`ToBaseSessionRecording`, `ToSessionRecording`) call it before the weather text is parsed. The pins it takes ride on `SessionRecording.WindGridPins`, owned by whoever holds the recording; a load that fails after registering grids disposes them.
+`RecordingArchive.RegisterWindGrids` reads them back (through `ReadWindGridEntry` / `RegisterWindGridEntries` and `RecordingArchiveWriter.WriteWindGridEntry`, which the room checkpoint shares), verifying each against its name, and both loaders (`ToBaseSessionRecording`, `ToSessionRecording`) call it before the weather text is parsed. The pins it takes ride on `SessionRecording.WindGridPins`, owned by whoever holds the recording; a load that fails after registering grids disposes them.
 
 A manifest listing more than 16 distinct grids, or an entry past 512 KB decompressed, refuses the whole recording with a `WindGridLimitException` (`RecordingArchive.WindGridLimitRefusal` is the non-registering pre-check).
 

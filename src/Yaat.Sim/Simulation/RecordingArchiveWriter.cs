@@ -164,7 +164,16 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
     /// lists the hash in the manifest. A hash already written is skipped, so a grid loaded several times is stored once.
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="grib2"/> does not hash to <paramref name="hash"/>.</exception>
-    public void WriteWindGrid(string hash, ReadOnlySpan<byte> grib2)
+    public void WriteWindGrid(string hash, ReadOnlySpan<byte> grib2) => WriteWindGridEntry(_zip, _windGridHashes, hash, grib2);
+
+    /// <summary>
+    /// Writes a GFS wind grid's raw GRIB2 bytes into <paramref name="zip"/> under its hash
+    /// (<see cref="RecordingArchive.WindGridEntryName"/>, Brotli) and adds the hash to <paramref name="writtenHashes"/>, the
+    /// list the caller's manifest names, unless that list already holds it; <see cref="RecordingArchive.ReadWindGridEntry"/>
+    /// reads it back. A recording and a room checkpoint store their grids this way.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="grib2"/> does not hash to <paramref name="hash"/>.</exception>
+    public static void WriteWindGridEntry(ZipArchive zip, List<string> writtenHashes, string hash, ReadOnlySpan<byte> grib2)
     {
         string actual = WindGridRegistry.HashOf(grib2);
         if (!string.Equals(actual, hash, StringComparison.Ordinal))
@@ -172,13 +181,13 @@ public sealed class RecordingArchiveWriter(Stream output) : ILayoutBundleWriter,
             throw new ArgumentException($"The wind grid's bytes hash to {actual}, not to {hash}, the name it was to be written under", nameof(hash));
         }
 
-        if (_windGridHashes.Contains(hash))
+        if (writtenHashes.Contains(hash))
         {
             return;
         }
 
-        _windGridHashes.Add(hash);
-        WriteBrotliEntry(_zip, RecordingArchive.WindGridEntryName(hash), grib2);
+        writtenHashes.Add(hash);
+        WriteBrotliEntry(zip, RecordingArchive.WindGridEntryName(hash), grib2);
     }
 
     /// <summary>Records the airports (by FAA code) the room had pinned with no map, so that a load pins them with none.</summary>

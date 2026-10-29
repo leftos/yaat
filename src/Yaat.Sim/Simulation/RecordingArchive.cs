@@ -278,6 +278,27 @@ public sealed class RecordingArchive : IDisposable
             throw new WindGridLimitException(CountRefusal(hashes.Count));
         }
 
+        return RegisterWindGridEntries(
+            hashes,
+            ReadWindGrid,
+            (hash, ex) =>
+                Log.LogWarning(ex, "Recorded GFS wind grid {Hash} cannot be read or decoded; skipped, its weather flies the FD wind layers", hash)
+        );
+    }
+
+    /// <summary>
+    /// Registers and pins each of <paramref name="hashes"/> whose bytes <paramref name="readGrid"/> returns, the loop a
+    /// recording load and a checkpoint restore share. A null from <paramref name="readGrid"/> skips the hash; a grid that
+    /// cannot be read or decoded is skipped and handed to <paramref name="onUnreadable"/>; any other exception, a limit
+    /// refusal among them, releases every pin taken so far and propagates.
+    /// </summary>
+    /// <returns>The pins on the grids registered; the caller owns them.</returns>
+    public static WindGridPins RegisterWindGridEntries(
+        IReadOnlyList<string> hashes,
+        Func<string, byte[]?> readGrid,
+        Action<string, Exception> onUnreadable
+    )
+    {
         var registered = new List<string>(hashes.Count);
         var pins = new List<IDisposable>(hashes.Count);
         try
@@ -286,7 +307,7 @@ public sealed class RecordingArchive : IDisposable
             {
                 try
                 {
-                    if (ReadWindGrid(hash) is { } grib2)
+                    if (readGrid(hash) is { } grib2)
                     {
                         pins.Add(WindGridRegistry.RegisterAndPin(grib2, out _));
                         registered.Add(hash);
@@ -298,11 +319,7 @@ public sealed class RecordingArchive : IDisposable
                                 and not ObjectDisposedException
                     )
                 {
-                    Log.LogWarning(
-                        ex,
-                        "Recorded GFS wind grid {Hash} cannot be read or decoded; skipped, its weather flies the FD wind layers",
-                        hash
-                    );
+                    onUnreadable(hash, ex);
                 }
             }
         }
@@ -319,35 +336,57 @@ public sealed class RecordingArchive : IDisposable
         return new WindGridPins(registered, pins);
     }
 
+    /// <summary>
+    /// Reads the wind-grid entry <paramref name="hash"/> from <paramref name="zip"/>, as <see cref="RecordingArchiveWriter.WriteWindGridEntry"/>
+    /// stored it: its bytes when the entry is there, within <see cref="WindGridRegistry.MaxGridBytes"/> once decompressed and
+    /// hashing to its name, else why not. An entry that is not Brotli throws, for the register loop to skip.
+    /// </summary>
+    public static WindGridEntryRead ReadWindGridEntry(ZipArchive zip, string hash)
+    {
+        string entryName = WindGridEntryName(hash);
+        if (zip.GetEntry(entryName) is not { } entry)
+        {
+            return new WindGridEntryRead(null, WindGridEntryProblem.Missing, entryName, null);
+        }
+
+        if (ReadEntryWithinLimit(entry) is not { } grib2)
+        {
+            return new WindGridEntryRead(null, WindGridEntryProblem.TooLarge, entryName, null);
+        }
+
+        string actual = WindGridRegistry.HashOf(grib2);
+        return string.Equals(actual, hash, StringComparison.Ordinal)
+            ? new WindGridEntryRead(grib2, WindGridEntryProblem.None, entryName, null)
+            : new WindGridEntryRead(null, WindGridEntryProblem.WrongHash, entryName, actual);
+    }
+
     /// <summary>The bytes of the grid entry <paramref name="hash"/>, or null (with a warning) when it is missing or holds other bytes.</summary>
     /// <exception cref="WindGridLimitException">The entry decompresses past <see cref="WindGridRegistry.MaxGridBytes"/>.</exception>
     private byte[]? ReadWindGrid(string hash)
     {
-        string entryName = WindGridEntryName(hash);
-        if (_zip.GetEntry(entryName) is not { } entry)
+        WindGridEntryRead read = ReadWindGridEntry(_zip, hash);
+        switch (read.Problem)
         {
-            Log.LogWarning(
-                "Recording lists GFS wind grid {Hash} but has no {Entry} entry; skipped, its weather flies the FD wind layers",
-                hash,
-                entryName
-            );
-            return null;
+            case WindGridEntryProblem.Missing:
+                Log.LogWarning(
+                    "Recording lists GFS wind grid {Hash} but has no {Entry} entry; skipped, its weather flies the FD wind layers",
+                    hash,
+                    read.EntryName
+                );
+                return null;
+            case WindGridEntryProblem.TooLarge:
+                throw new WindGridLimitException(SizeRefusal(hash));
+            case WindGridEntryProblem.WrongHash:
+                Log.LogWarning(
+                    "Recorded GFS wind grid entry {Entry} holds bytes hashing to {Actual}, not {Hash}; skipped, its weather flies the FD wind layers",
+                    read.EntryName,
+                    read.ActualHash,
+                    hash
+                );
+                return null;
+            default:
+                return read.Grib2;
         }
-
-        byte[] grib2 = ReadWindGridEntry(entry) ?? throw new WindGridLimitException(SizeRefusal(hash));
-        string actual = WindGridRegistry.HashOf(grib2);
-        if (!string.Equals(actual, hash, StringComparison.Ordinal))
-        {
-            Log.LogWarning(
-                "Recorded GFS wind grid entry {Entry} holds bytes hashing to {Actual}, not {Hash}; skipped, its weather flies the FD wind layers",
-                entryName,
-                actual,
-                hash
-            );
-            return null;
-        }
-
-        return grib2;
     }
 
     /// <summary>
@@ -399,7 +438,7 @@ public sealed class RecordingArchive : IDisposable
     }
 
     /// <summary>The entry's GRIB2 bytes, or null when they pass <see cref="WindGridRegistry.MaxGridBytes"/>.</summary>
-    private static byte[]? ReadWindGridEntry(ZipArchiveEntry entry)
+    private static byte[]? ReadEntryWithinLimit(ZipArchiveEntry entry)
     {
         using Stream entryStream = entry.Open();
         return WindGridRegistry.ReadBrotliWithinLimit(entryStream);
@@ -410,7 +449,7 @@ public sealed class RecordingArchive : IDisposable
     {
         try
         {
-            return ReadWindGridEntry(entry) is null;
+            return ReadEntryWithinLimit(entry) is null;
         }
         catch (Exception ex) when (ex is (InvalidOperationException or InvalidDataException or IOException) and not ObjectDisposedException)
         {
