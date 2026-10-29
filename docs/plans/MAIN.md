@@ -19,6 +19,7 @@
   - [ ] YAAT-1383 Find the one-second braking spike at OAK's snapped crossing in GiveWayStopBrakingTests · release vNext
   - [ ] YAAT-1406 Give a TAXI on a fillet arc ending at a runway bar the approach leg, so the nose stops at the line
   - [ ] YAAT-1407 Key the snapped-bar escape ceiling on the same taxiway's farthest painted bar, not the runway's
+  - [ ] YAAT-1438 Arrive at a cleared runway hold-short bar exactly, not up to 91 ft early (GIVEWAY crosses OAK 33 and stops 534 ft past the line) · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
@@ -92,13 +93,13 @@
   - [ ] YAAT-1199 Raise ASDE-X CLOSED RWY on the measured triggers: departure at runway-user speed, arrival at 1 NM
   - [ ] YAAT-1200 Resume RPO occupied-runway warnings at an ASDE-X airport while its facility is on LIMITED
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form
-- [ ] YAAT-1363 Add a best-forward-speed command (fly the fastest speed the type can at its altitude) · release vNext
-- [/] YAAT-1374 Treat CTO from a hold short of a taxiway as an implicit taxi onto it for an intersection departure (OAK HS E, 28R@E) · release vNext
+- [/] YAAT-1363 Add a best-forward-speed command (fly the fastest speed the type can at its altitude) · release vNext
 - [ ] YAAT-1425 Treat LUAW from a hold short of a taxiway as an implicit taxi onto it to line up at the intersection (OAK HS E, 28R@E)
 - [ ] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP
 - [ ] YAAT-1379 Lift a controller crossing speed's ceiling past its fix under a via clearance
 - [ ] YAAT-1428 Handle a CTO naming a different runway while holding short of a taxiway (intersection, crossing or query)
 - [ ] YAAT-1432 Make a CTO at a taxiway hold short wait for traffic standing on that taxiway (OAK N314WN on E)
+- [ ] YAAT-1433 Pass the dispatcher's traffic and active runways into the implicit taxi a CTO at a taxiway hold short issues
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
 
@@ -141,6 +142,7 @@
 - [ ] YAAT-1025 Strip a mangled GA suffix token on the leading callsign path too
 - [ ] YAAT-1117 Add a SpeechSandbox WER test over UWB-ATCC, downloaded at run time
 - [ ] YAAT-1118 Evaluate STT on the ATCO2 1 h test set, local only
+- [ ] YAAT-1440 Recognise spoken "maintain maximum forward speed" as SMAX
 
 ## Wave 1 — Ground realism and braking
 
@@ -504,6 +506,8 @@
 - [ ] YAAT-1317 Run the prek format hooks through the gate check-only so they route (GATE-847)
 - [ ] YAAT-1357 Give ci.yml a timeout and concurrency group in yaat and yaat-server; drop the stale LFS notes
 - [ ] YAAT-1389 Fix the tick-loop order in tick-loop.md and navigator.md; document DebugSink and the fresh-tree test ceiling
+- [ ] YAAT-1434 Fix the dead heading anchors in docs/vnas-data-admin/facilities.md and docs/vtdls/vtdls.md
+- [ ] YAAT-1439 Stop AIRAC cycle changes from silently re-staging tests: pin the test CIFP cycle or guard the procedures tests rely on
 
 ## Singles
 
@@ -932,8 +936,13 @@
 - [ ] YAAT-1420 Read a hold-short stop's setback from the annotator instead of re-deriving it from its position (bend and turn-about windows)
 - [ ] YAAT-1421 Speak a pilot's unable line when a chained command is refused at fire time (ApplyBlock drops PilotUnable)
 - [ ] YAAT-1422 Hand a descending Mach hold over to an IAS at the crossover instead of riding Vmo (MACH .78 then DM 110)
-- [ ] YAAT-1423 Correct the Vmo/Mmo and minimum-speed data that refuse speeds real types fly (bizjets, Q400, CRJ/B76x/A34x/MD11, helicopters, KC-135) · release vNext
 - [ ] YAAT-1424 Offer only flyable speeds in the client's speed picker (MenuCatalog, SpeedFlyout read the Vmo/Mmo/minimum lookup)
+- [ ] YAAT-1435 Fly Vmo by altitude band for types whose TCDS bands it (DH8D, MD11, CL60, LJ35, GLEX, B463, E170, JS20, CRJ)
+- [ ] YAAT-1436 Source the speed limits YAAT-1423 left unsourced (LJ60, GLF5, F50, KC-135, C-5M, C-141, H60 Vne)
+- [ ] YAAT-1441 Use the profile landing speed (APD Vat) as approach speed and minimum for types with no FAA approach speed (C-5M flies final at 168)
+- [ ] YAAT-1442 Keep DH8C under its TCDS Vmo and pin DH8D's Mmo at M0.60
+- [ ] YAAT-1443 Give the types SMAX is most often given their own sourced Vmo/Vne (C208 flies the TP2M class's 250 kt)
+- [ ] YAAT-1444 Decide whether SMAX flies a margin below Vmo/Mmo (Vmo-10, Mmo-0.02) instead of the redline
 
 ## No project
 
