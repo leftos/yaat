@@ -878,6 +878,13 @@ public sealed class GroundNavigator
     /// </summary>
     private int _segmentFromNodeId;
 
+    /// <summary>
+    /// Whether the current target node carries a hold-short in the route, cleared or not: the aircraft arrives at it exactly
+    /// (<see cref="StraightArrivalThresholdNm"/>), so a cleared crossing hands off at the bar, not up to the loose threshold
+    /// short of it. Set by every <see cref="BuildSpeedConstraints"/>; unlike a stop target it leaves the required speed alone.
+    /// </summary>
+    private bool _targetHasHoldShort;
+
     public void SetupSegment(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         TaxiRouteSegment? seg = route.CurrentSegment;
@@ -3979,6 +3986,8 @@ public sealed class GroundNavigator
     /// arc can begin at the leg start and still exit on the outgoing centerline. Floored at the
     /// final-node threshold; on a leg with no room it falls back to the standard threshold and reports
     /// <paramref name="roundingActive"/> false (never an inverted [min, max] clamp, which would throw).
+    /// A target carrying a hold-short (<paramref name="targetHasHoldShort"/>, cleared or not) is arrived at
+    /// exactly, as a stop target is: no rounding, final-node threshold.
     /// Pure — extracted for unit testing.
     /// </summary>
     internal static double StraightArrivalThresholdNm(
@@ -3988,6 +3997,7 @@ public sealed class GroundNavigator
         double roundingRadiusFt,
         bool isLastSegment,
         bool isStopTarget,
+        bool targetHasHoldShort,
         bool shortEdge,
         bool nextSegmentIsArc,
         bool nextSegmentIsShort,
@@ -3998,7 +4008,12 @@ public sealed class GroundNavigator
         double comfortableTangentNm = CategoryPerformance.MainGearTurnRadiusFt(category) * halfTan / GeoMath.FeetPerNm;
         bool tightLeg = edgeLengthNm < comfortableTangentNm;
         double maxRoundingNm = tightLeg ? edgeLengthNm : 0.45 * edgeLengthNm;
-        roundingActive = !isLastSegment && !isStopTarget && cornerTurnDeg > EntryAlignmentThresholdDeg && maxRoundingNm > FinalNodeArrivalThresholdNm;
+        roundingActive =
+            !isLastSegment
+            && !isStopTarget
+            && !targetHasHoldShort
+            && (cornerTurnDeg > EntryAlignmentThresholdDeg)
+            && (maxRoundingNm > FinalNodeArrivalThresholdNm);
 
         if (roundingActive)
         {
@@ -4006,7 +4021,7 @@ public sealed class GroundNavigator
             return Math.Clamp(tFt / GeoMath.FeetPerNm, FinalNodeArrivalThresholdNm, maxRoundingNm);
         }
 
-        return (isLastSegment || shortEdge || isStopTarget || nextSegmentIsArc || nextSegmentIsShort)
+        return (isLastSegment || shortEdge || isStopTarget || targetHasHoldShort || nextSegmentIsArc || nextSegmentIsShort)
             ? FinalNodeArrivalThresholdNm
             : NodeArrivalThresholdNm;
     }
@@ -4089,6 +4104,8 @@ public sealed class GroundNavigator
         // Tight arrival threshold when any of:
         //   - last segment of the route (always stop precisely),
         //   - the current target is a stop (_currentNodeRequiredSpeed <= 0),
+        //   - the current target carries a hold-short, cleared or not (a cleared
+        //     crossing hands off to CrossingRunwayPhase at the bar, not short of it),
         //   - the next segment is an arc — TickBezier writes position directly
         //     from curve state at engagement (invariant I2), so the
         //     loose 91 ft threshold would teleport the aircraft up to 91 ft
@@ -4116,7 +4133,8 @@ public sealed class GroundNavigator
         // corner-cutting (aviation-reviewed: T is the tangent length of a simple
         // circular curve, AC 150/5300-13). Skipped when the next segment is
         // itself an arc (the arc rounds the corner) or the target is a stop /
-        // route end. T is clamped into the current leg so the arc start can't
+        // route end / a node carrying a hold-short (cleared or not), which the
+        // aircraft arrives at exactly. T is clamped into the current leg so the arc start can't
         // precede the segment.
         double cornerTurnDeg = (!_nextSegmentIsArc && _nextSegmentBearing is { } nb) ? GeoMath.AbsBearingDifference(prim.BearingDeg, nb) : 0.0;
         double arrivalThresholdNm = StraightArrivalThresholdNm(
@@ -4126,6 +4144,7 @@ public sealed class GroundNavigator
             _cornerRoundingRadiusFt,
             isLastSegment,
             isStopTarget,
+            _targetHasHoldShort,
             shortEdge,
             _nextSegmentIsArc,
             _nextSegmentIsShort,
@@ -5031,6 +5050,7 @@ public sealed class GroundNavigator
     private void BuildSpeedConstraints(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         _speedConstraints.Clear();
+        _targetHasHoldShort = route.GetHoldShortAt(TargetNodeId) is not null;
 
         TaxiRouteSegment? seg = route.CurrentSegment;
         if (seg is null)

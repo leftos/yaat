@@ -75,6 +75,7 @@
 - A solo student on Ground no longer gets tower calls; a simulated tower clears your transferred departures for takeoff and clears arrivals to land.
 - In solo sessions, a refused RPO-only command such as `CLANDF` shows only its terminal error; the pilot no longer reads the refusal back as "unable".
 - An aircraft finishing a runway crossing behind stopped or slowing traffic brakes to a normal stop behind it, instead of stopping dead.
+- An aircraft cleared across a runway starts its crossing at the hold line, not up to 90 ft short, so `GIVEWAY` stops it before the runway.
 - `TAXI` and `TAXIAUTO` to a runway, and `ATXI`, end at the full-length holding position on the aircraft's own side, never across the runway.
 - A landing aircraft that reads back a standard exit now takes it, instead of answering "unable" at the turn and rolling to a later exit.
 - An aircraft leaving a runway by an exit, a crossing or `CLRWY` brakes smoothly to rest with its tail 10 ft past the hold-short line.

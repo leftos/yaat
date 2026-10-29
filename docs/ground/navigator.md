@@ -544,7 +544,7 @@ When the approach or departure leg is shorter than the comfortable tangent lengt
 
 The floor is the path radius of the main-gear axle midpoint, not of the inner main gear: a jet's 15 ft is ~74° of nose-wheel steering on a B737-800, with the inner main gear ~5.6 ft from the turn centre.
 
-The incoming arrival threshold (`StraightArrivalThresholdNm`) relaxes its `0.45·leg` cap to the whole leg only on such a tight leg, so the rounding can begin at the leg start. Without this, a fixed 25 ft arc off a 22 ft leg finishes ~26 ft wide, and pure-pursuit limit-cycles the corner on the short outgoing segment for ~45 s. This is judgmental oversteer (Boeing FCTM / AC 150/5300-13B): the nose may bulge wide of centerline mid-arc but rolls out aligned. Aviation-reviewed.
+The incoming arrival threshold (`StraightArrivalThresholdNm`) relaxes its `0.45·leg` cap to the whole leg only on such a tight leg, so the rounding can begin at the leg start. A target node carrying a hold-short (cleared or not) is never rounded: it is arrived at exactly, so the corner's tangent does not begin short of a bar. Without this, a fixed 25 ft arc off a 22 ft leg finishes ~26 ft wide, and pure-pursuit limit-cycles the corner on the short outgoing segment for ~45 s. This is judgmental oversteer (Boeing FCTM / AC 150/5300-13B): the nose may bulge wide of centerline mid-arc but rolls out aligned. Aviation-reviewed.
 
 A node turn laid from a turn about's offset line replaces both: its arrival point and its radius are fitted to the offset ([After a turn about on a taxiway](#after-a-turn-about-on-a-taxiway)).
 
@@ -707,7 +707,7 @@ Pins: `OakTaxiMidRunwayCrossingTests` (KOAK 28R, re-routed on the runway between
 
 | Primitive | Handler | Behavior |
 |---|---|---|
-| `PathPrimitiveStraight` | `TickStraight` (`586`) | arrival check → pure-pursuit steering → speed |
+| `PathPrimitiveStraight` | `TickStraight` (`4083`) | arrival check → pure-pursuit steering → speed |
 | `PathPrimitiveBezier` | `TickBezier` (`823`) | closed-form Bézier advance by arc-length; writes pos+hdg directly (I2) |
 | `PathPrimitiveSlowTurn` | `TickSlowTurn` (`899`) | closed-form circle advance, capped at the primitive's `MaxSpeedKts`; writes pos+hdg directly (I2) |
 | (null) | — | returns `ArrivedAtNode` |
@@ -716,11 +716,11 @@ After the switch, if an alignment slow-turn just completed (`result == ArrivedAt
 
 ### `TickStraight` step order
 
-1. **Arrival check** (`GroundNavigator.cs:634`): arrives when `distNm ≤ arrivalThreshold`, or overshoot, or by the **advance-on-pass rule**. Threshold is tight (`FinalNodeArrivalThresholdNm ≈ 1.8 ft`) on the last segment, stop targets, short edges, or when the next segment is a Bézier arc; otherwise loose (`NodeArrivalThresholdNm ≈ 91 ft`).
+1. **Arrival check** (`GroundNavigator.cs:4140`): arrives when `distNm ≤ arrivalThreshold`, or overshoot, or by the **advance-on-pass rule**. Threshold is tight (`FinalNodeArrivalThresholdNm ≈ 1.8 ft`) on the last segment, stop targets, a node carrying a hold-short (cleared or not; `_targetHasHoldShort`, set by `BuildSpeedConstraints`, which leaves the node's required speed alone so a cleared bar is still crossed rolling), short edges, or when the next segment is a Bézier arc; otherwise loose (`NodeArrivalThresholdNm ≈ 91 ft`).
 
    The advance-on-pass rule: the aircraft also arrives when its *along-track projection* (foot-of-perpendicular distance from the segment start) reaches or passes the to-node (`alongNm ≥ edgeLengthNm`), independent of cross-track.
 
-   On the centerline this coincides with normal arrival; off it (a pure-pursuit overshoot of a short chord) it advances to the next segment instead of circling the node. Excluded for stop targets and the last segment (must arrive precisely, not pass). On arrival, nudge heading toward the next segment bearing (bounded by turn rate) and return `ArrivedAtNode`.
+   On the centerline this coincides with normal arrival; off it (a pure-pursuit overshoot of a short chord) it advances to the next segment instead of circling the node. Excluded for stop targets and the last segment (must arrive precisely, not pass); a cleared hold-short target is not excluded, since only the arrival threshold is tight there. On arrival, nudge heading toward the next segment bearing (bounded by turn rate) and return `ArrivedAtNode`.
 2. **Pure-pursuit steering** (`GroundNavigator.cs:680`) toward the look-ahead point, with the pre-turn blend.
 3. **Speed**: `ComputeTargetSpeed` (`GroundNavigator.cs:753` calls it; defined at `956`) → 80 %-distance backstop → `ClampBySpeedLimit` → published as `TargetSpeed` (+ `DesiredDecelRate`); physics integrates.
 
@@ -785,7 +785,7 @@ A second threshold sits above it: past `ReversalEntryThresholdDeg = 135.0` the e
 
 When pure-pursuit can't close the last few feet (bearing-to-target rotates faster than the aircraft can turn), the aircraft can enter a limit cycle around the node. Two mechanisms prevent indefinite circling:
 
-1. **Advance-on-pass** (`TickStraight`, line 660): geometric, not a timeout — the aircraft advances to the next segment as soon as its along-track projection passes the to-node. This breaks the limit cycle the moment the aircraft passes the node, even off the centerline.
+1. **Advance-on-pass** (`TickStraight`): geometric, not a timeout — the aircraft advances to the next segment as soon as its along-track projection passes the to-node. This breaks the limit cycle the moment the aircraft passes the node, even off the centerline.
 2. **Hard orbit invariant** (`Tick`, lines 469–486): net signed turn within a single segment (reset on every segment/primitive start) may never reach `OrbitTurnLimitDeg = 360°` (no legitimate single-segment maneuver does: arcs sweep <180°, slow-turns <180°, straights ≈0°). On breach it **throws in tests** (`ThrowOnOrbit`, set by the test module initializer) and **logs + force-advances in the shipping app** (never crashes a live session).
 
 

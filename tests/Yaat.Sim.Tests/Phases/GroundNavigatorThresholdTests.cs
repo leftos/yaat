@@ -29,6 +29,7 @@ public class GroundNavigatorThresholdTests
             roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
+            targetHasHoldShort: false,
             shortEdge: true,
             nextSegmentIsArc: false,
             nextSegmentIsShort: false,
@@ -51,6 +52,7 @@ public class GroundNavigatorThresholdTests
             roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
+            targetHasHoldShort: false,
             shortEdge: false,
             nextSegmentIsArc: false,
             nextSegmentIsShort: false,
@@ -94,6 +96,7 @@ public class GroundNavigatorThresholdTests
             roundingRadiusFt: rFt,
             isLastSegment: false,
             isStopTarget: false,
+            targetHasHoldShort: false,
             shortEdge: false,
             nextSegmentIsArc: false,
             nextSegmentIsShort: false,
@@ -116,6 +119,7 @@ public class GroundNavigatorThresholdTests
             roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
+            targetHasHoldShort: false,
             shortEdge: false,
             nextSegmentIsArc: false,
             nextSegmentIsShort: false,
@@ -124,5 +128,51 @@ public class GroundNavigatorThresholdTests
 
         Assert.False(roundingActive);
         Assert.Equal(NodeArrivalThresholdNm, threshold, precision: 9);
+    }
+
+    [Fact]
+    public void HoldShortTarget_LongStraightApproachAndLongRoadAhead_ArrivesAtTheBar()
+    {
+        // A cleared runway bar on a straight crossing (OAK G at 28R: 500 ft approach, 150 ft road after the bar) is no stop,
+        // no short edge and no arc, which alone would give the loose threshold; the hold-short makes it arrive at the bar.
+        double threshold = GroundNavigator.StraightArrivalThresholdNm(
+            cornerTurnDeg: 0.0,
+            edgeLengthNm: 0.0824,
+            category: AircraftCategory.Jet,
+            roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
+            isLastSegment: false,
+            isStopTarget: false,
+            targetHasHoldShort: true,
+            shortEdge: false,
+            nextSegmentIsArc: false,
+            nextSegmentIsShort: false,
+            out bool roundingActive
+        );
+
+        Assert.False(roundingActive);
+        Assert.Equal(FinalNodeArrivalThresholdNm, threshold, precision: 9);
+    }
+
+    [Fact]
+    public void HoldShortTarget_SharpCornerAhead_ArrivesAtTheBarWithoutRounding()
+    {
+        // The same sharp corner that rounds at its tangent length on a plain node is not rounded at a hold-short node: the
+        // aircraft arrives at the bar itself.
+        double threshold = GroundNavigator.StraightArrivalThresholdNm(
+            cornerTurnDeg: 90.0,
+            edgeLengthNm: 0.05,
+            category: AircraftCategory.Jet,
+            roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
+            isLastSegment: false,
+            isStopTarget: false,
+            targetHasHoldShort: true,
+            shortEdge: false,
+            nextSegmentIsArc: false,
+            nextSegmentIsShort: false,
+            out bool roundingActive
+        );
+
+        Assert.False(roundingActive);
+        Assert.Equal(FinalNodeArrivalThresholdNm, threshold, precision: 9);
     }
 }
