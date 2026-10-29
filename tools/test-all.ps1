@@ -30,6 +30,8 @@
 # `..\yaat` beside the server checkout, so a worktree's run would test the server against
 # another tree's Yaat.Sim.
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'This script reports progress on the console; Write-Host is the only stream that prints by default.')]
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Config = 'Release',
@@ -87,6 +89,25 @@ $yaatSimProject = Join-Path $yaatDir 'src\Yaat.Sim\Yaat.Sim.csproj'
 $serverSimArg = "`"-p:YaatSimProject=$yaatSimProject`""
 
 $failed = $false
+
+# The stall watchdog (tools/TestAllWatchdog.ps1). A test host that keeps its suite alive while it
+# stops making progress is hung, not slow. The heartbeat keeps printing every 60 s, so the gate's own
+# stall kill may never fire: without the watchdog the run goes on to its ceiling with nothing naming
+# the host. 90 s of no CPU is under the gate's 120 s stall kill, so the watchdog fires first; the dump
+# budget covers an attach that hangs before it is killed as well. The tree walk examines only the
+# process names that can sit between this process and a host, because reading .Parent for every
+# process on the machine costs about a second. `dotnet-dump` comes from the local tool manifest,
+# restored before the suites start.
+$watchdogRootPid = $PID
+$watchdogHostNamePattern = '\.Tests$|^testhost'
+$watchdogProcessNamePattern = '^pwsh$|^dotnet$|^testhost|\.Tests$'
+$watchdogIdleSeconds = 90
+$watchdogCpuToleranceSeconds = 0.5
+$watchdogNoHostSeconds = 30
+$watchdogPollSeconds = 5
+$watchdogCollectTimeoutSeconds = 60
+$watchdogAnalyzeTimeoutSeconds = 120
+. (Join-Path $PSScriptRoot 'TestAllWatchdog.ps1')
 
 function Run-Step {
     param([string]$Label, [string]$WorkDir, [string]$Command)
@@ -221,12 +242,20 @@ function Write-Heartbeat {
     Write-Host "$(Format-Elapsed $Elapsed) still running - $state" -ForegroundColor DarkGray
 }
 
-# Waits for every suite's job, following each log as it grows.
+# Waits for every suite's job, following each log as it grows, and watches the test hosts for a stall.
+# Returns Outcome 'finished' when every job has ended, or 'stalled' when the watchdog fired: it has
+# already printed the evidence and killed the hosts, and carries its response for the caller's final
+# message. The caller still prints what each job left behind before failing the run.
 function Wait-TestJobs {
     param([hashtable[]]$Suites)
     $jobs = @($Suites | ForEach-Object { $_.Job })
     $clock = [System.Diagnostics.Stopwatch]::StartNew()
     $nextHeartbeat = 60
+    $nextIdleCheck = $watchdogPollSeconds
+    $idleState = @{}
+    $noHostsSince = $null
+    $noHostsReported = $false
+    $watchdogDisabled = $false
     while ($true) {
         $null = Wait-Job -Job $jobs -Timeout 2
         # The state is read before the logs: a job closes its log before it ends, so the pass
@@ -238,11 +267,52 @@ function Wait-TestJobs {
             }
         }
         if ($finished) {
-            return
+            return [pscustomobject]@{ Outcome = 'finished'; Stall = $null }
         }
         if ($clock.Elapsed.TotalSeconds -ge $nextHeartbeat) {
             Write-Heartbeat $Suites $clock.Elapsed
             $nextHeartbeat += 60
+        }
+        if ($watchdogDisabled -or $clock.Elapsed.TotalSeconds -lt $nextIdleCheck) {
+            continue
+        }
+        $nextIdleCheck += $watchdogPollSeconds
+        $hosts = @()
+        try {
+            $hosts = @(Find-TestHost -RootPid $watchdogRootPid -HostNamePattern $watchdogHostNamePattern -ProcessNamePattern $watchdogProcessNamePattern)
+        } catch {
+            # A walk that cannot find its root is an error, not an empty tree: say so once instead of
+            # letting the run look watched.
+            Write-Host "test-all: watchdog could not walk the process tree under pid $watchdogRootPid ($($_.Exception.Message)); stall detection is off" -ForegroundColor Red
+            $watchdogDisabled = $true
+            continue
+        }
+        if ($hosts.Count -eq 0) {
+            if ($null -eq $noHostsSince) {
+                $noHostsSince = $clock.Elapsed
+            }
+            $anyAssemblyRunning = @($Suites | Where-Object { $_.Running.Count -gt 0 }).Count -gt 0
+            if (-not $noHostsReported -and $anyAssemblyRunning -and (($clock.Elapsed - $noHostsSince).TotalSeconds -ge $watchdogNoHostSeconds)) {
+                Write-Host "test-all: watchdog sees no test host under pid $watchdogRootPid; stall detection is off" -ForegroundColor Red
+                $noHostsReported = $true
+            }
+        } else {
+            $noHostsSince = $null
+        }
+        $stalled = Test-StalledHost -State $idleState -Hosts $hosts -IdleSeconds $watchdogIdleSeconds -CpuToleranceSeconds $watchdogCpuToleranceSeconds
+        if ($null -ne $stalled) {
+            $response = @{
+                StalledHost           = $stalled
+                RootPid               = $watchdogRootPid
+                HostNamePattern       = $watchdogHostNamePattern
+                ProcessNamePattern    = $watchdogProcessNamePattern
+                Suites                = $Suites
+                CheckoutRoot          = $yaatDir
+                IdleSeconds           = $watchdogIdleSeconds
+                CollectTimeoutSeconds = $watchdogCollectTimeoutSeconds
+                AnalyzeTimeoutSeconds = $watchdogAnalyzeTimeoutSeconds
+            }
+            return [pscustomobject]@{ Outcome = 'stalled'; Stall = (Invoke-StallResponse @response) }
         }
     }
 }
@@ -377,6 +447,20 @@ if ($IsMacOS) {
     Write-Host "Crash dumps (macOS): $crashDumpDir" -ForegroundColor Yellow
 }
 
+# The watchdog dumps a stalled host with `dotnet-dump` from the local tool manifest, so the manifest
+# must be restored before the suites start. A restore that fails (offline with a cold cache) is not a
+# reason to skip the tests: the watchdog still reports and kills, only without a dump.
+Write-Host "`nRestoring the local dotnet tools (the watchdog dumps a stalled host with dotnet-dump)..." -ForegroundColor Cyan
+Push-Location $yaatDir
+try {
+    dotnet tool restore | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'dotnet tool restore failed - a stalled host is reported and killed without a dump.' -ForegroundColor Yellow
+    }
+} finally {
+    Pop-Location
+}
+
 Write-Host "`nRunning both test suites in parallel..." -ForegroundColor Cyan
 $yaatLogPath = Join-Path $yaatDir '.tmp\test-all-yaat.log'
 $serverLogPath = Join-Path $yaatDir '.tmp\test-all-server.log'
@@ -384,8 +468,9 @@ $null = New-Item -ItemType Directory -Path (Join-Path $yaatDir '.tmp') -Force
 $yaatTests = Start-TestJob $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter" -LogPath $yaatLogPath
 $serverTests = Start-TestJob $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $serverSimArg $testFilter" -LogPath $serverLogPath
 
-Wait-TestJobs @((New-Suite 'yaat' $yaatTests $yaatLogPath), (New-Suite 'server' $serverTests $serverLogPath))
+$testOutcome = Wait-TestJobs @((New-Suite 'yaat' $yaatTests $yaatLogPath), (New-Suite 'server' $serverTests $serverLogPath))
 
+# A stalled run still prints what each killed job left behind, then fails.
 Complete-TestJob 'Test yaat' $yaatTests
 Complete-TestJob 'Test yaat-server' $serverTests
 
@@ -394,7 +479,13 @@ if ($IsMacOS) {
 }
 
 Write-Host ''
-if ($failed) {
+if ($testOutcome.Outcome -eq 'stalled') {
+    if (@($testOutcome.Stall.SuitesFinishedOnTheirOwn).Count -gt 0) {
+        Write-Host "The $($testOutcome.Stall.SuitesFinishedOnTheirOwn -join ' and ') suite job finished on its own before the kill." -ForegroundColor Red
+    }
+    Write-Host 'A test host stalled: the evidence above names the hang. The run failed.' -ForegroundColor Red
+    exit 1
+} elseif ($failed) {
     Write-Host 'One or more steps failed.' -ForegroundColor Red
     exit 1
 } else {

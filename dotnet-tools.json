@@ -8,6 +8,13 @@
         "csharpier"
       ],
       "rollForward": false
+    },
+    "dotnet-dump": {
+      "version": "10.0.750501",
+      "commands": [
+        "dotnet-dump"
+      ],
+      "rollForward": false
     }
   }
 }

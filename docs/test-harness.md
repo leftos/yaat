@@ -547,7 +547,7 @@ Always run suites under a ceiling: `pwsh tools/gate.ps1 -Log .tmp/test.log -Time
 
 The gate counts the 30 s on a load-adjusted clock (wall time on an idle machine, slower while other agents load it; `CLAUDE.md` "Build after edits"), so a YAAT sim suite that passes it is almost always **stuck**, not merely slow: a broken graph topology or an infinite pathfinder loop, not a heavy computation (the heavy grid sweeps are gated behind the `Nightly`/`PathfinderGrid` traits and excluded by default).
 
-Treat a `STALLED` or `TIMED OUT` kill as a hung-test failure to diagnose, not a budget to raise; a `BACKSTOP` kill with a low "machine free" figure was a busy machine, so re-run it once alone.
+Treat a `STALLED` or `TIMED OUT` kill as a hung-test failure to diagnose, not a budget to raise; a `BACKSTOP` kill with a low "machine free" figure was a busy machine, so re-run it once alone. `pwsh tools/test-all.ps1` names the hung host itself before the gate's 120 s stall kill (see the `test-all.ps1` bullet below).
 
 ## Timing budgets measure thread CPU time
 
@@ -645,6 +645,9 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 - **Use `pwsh tools/test-all.ps1`, not bare `dotnet test`, for full-suite confidence.** Bare `dotnet test` from yaat never builds the
   sibling yaat-server, so a `Yaat.Sim` signature change that breaks the server passes locally and fails in CI. The heavy
   `Nightly`/`PathfinderGrid` categories are excluded by default; pass `-Full` for the complete set.
+- **`test-all.ps1` names a hung test host and keeps its stacks.** It restores the local dotnet tools first (`dotnet tool restore`; `dotnet-dump` comes from `dotnet-tools.json`), then `Wait-TestJobs` polls the test hosts every 5 s (`Find-TestHosts` in `tools/TestAllWatchdog.ps1`: the `*.Tests` and `testhost` processes under the script's own process tree). A host that has used no CPU for 90 s, under the gate's 120 s stall kill so it fires first, prints `test-all: STALLED <name> pid <pid>: no CPU for 90 s`, the process tree and the last 40 lines of each suite log.
+
+  It then takes a Full dump with `dotnet-dump` into `<checkout>/.tmp/dumps/<name>-<pid>-<stamp>.dmp` (60 s timeout; an attach that hangs is killed and the run goes on without a dump), prints `clrstack -all` from it, kills the test hosts and fails the run with exit 1. A failed `dotnet tool restore` does not stop the run: a stall is still reported and killed, only without a dump. A run the gate kills first returns nothing from `.tmp/dumps/`, as for the Mac crash dumps below.
 - **A test host that crashes on the Mac builder leaves its evidence in the test-all log.** On macOS, `test-all.ps1` sets the runtime's dump-on-crash variables (Mini dump plus a JSON crash report, in `~/yaat-crashdumps` on the builder), then prints each new dump's path and each crash report's content after the suites, and copies both into the checkout's `.tmp/dumps/`.
 
   A failed routed run returns that folder to the PC through the gate's `failureOutputs` glob for yaat (`.tmp/dumps/**`, in the PC's gate `remote.json`), so the dump and the report land in the worktree's `.tmp/dumps/`; a run the gate kills (ceiling, stall) returns nothing, and a bare routed `dotnet test` gets none of this.

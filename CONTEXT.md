@@ -927,6 +927,9 @@ A recording test that pins behaviour which only makes sense on the airport as re
 **Stall**:
 A gate run whose log has not grown and whose processes (with any MSBuild or compiler server started during the run) have used no CPU for 120 s (`-StallSeconds`); the gate kills it as hung (`gate: STALLED`).
 
+**Stall watchdog**:
+`tools/TestAllWatchdog.ps1`, run by `tools/test-all.ps1`: a test host that has used no CPU for 90 s, ahead of the gate's 120 s stall kill, is named, dumped with `dotnet-dump` into `.tmp/dumps/` and killed, and the run fails (`test-all: STALLED <name> pid <pid>`).
+
 **Load-adjusted clock**:
 The clock a gate's ceiling (the `-TimeoutSeconds` of `tools/gate.ps1`) counts on: every few seconds it advances by the share of the machine other work left free, so it keeps wall time on an idle machine and slows while other agents load it.
 
