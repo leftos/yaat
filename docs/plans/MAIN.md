@@ -9,16 +9,13 @@
 
 ## Hold-short videomap snap (feat/yaat-1201-videomap-snap)
 
+- [ ] YAAT-1407 Key the snapped-bar escape ceiling on the same taxiway's farthest painted bar, not the runway's
+- [ ] YAAT-1406 Give a TAXI on a fillet arc ending at a runway bar the approach leg, so the nose stops at the line
+- [ ] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S
+- [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
 - [ ] YAAT-1201 Ground View MAP and GND draw KOAK hold-short bars in different places; YAAT's sit too close to the runway · release vNext
-  - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353)
-  - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S
-  - [ ] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S
-  - [/] YAAT-1322 Run the OAK ground suites on the painted-map layout before the videomap-snap merge · release vNext
-  - [/] YAAT-1380 Stop an OAK HOLD near a snapped bar from running the aircraft past the hold line · release vNext
-  - [ ] YAAT-1382 Give OAK's C route onto 15/33 a hold-short bar at the snapped 33 threshold · release vNext
-  - [ ] YAAT-1383 Find the one-second braking spike at OAK's snapped crossing in GiveWayStopBrakingTests · release vNext
-  - [ ] YAAT-1406 Give a TAXI on a fillet arc ending at a runway bar the approach leg, so the nose stops at the line
-  - [ ] YAAT-1407 Key the snapped-bar escape ceiling on the same taxiway's farthest painted bar, not the runway's
+  - [ ] YAAT-1219 Merge feat/yaat-1201-videomap-snap to main (#1353) · release vNext
+  - [ ] YAAT-1460 Fix the 9 Yaat.Sim reds feat/yaat-1201-videomap-snap shows after its catch-up rebase onto main · release vNext
 - [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling
 - [ ] YAAT-1287 TAXI C 33 from OAK's west C bar walks past the runway end instead of holding at it
 - [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head
@@ -151,10 +148,12 @@
 - [ ] YAAT-1303 Stop an expedited runway exit at the taxi rate once its tail is clear
 - [ ] YAAT-911 Stop a taxiing aircraft before it drives head-on into a stopped follower
 - [ ] YAAT-1304 Break an exact 180-degree reversal's turn direction deterministically across platforms
+- [ ] YAAT-1345 Let an auto exit take a short crossover when the stored taxi route already crosses the other runway there
 - [ ] YAAT-34 Ground-speed realism: follow stop distance by weight class, static takeoffs
 - [ ] YAAT-1305 Restage the jet-follower runway 33 bar test off OAK 33/C
 - [ ] YAAT-912 Make the rolling turn-about verdict independent of where the aircraft stands within a second
 - [ ] YAAT-35 Measure push overshoot against the taxiway polyline clamped at its ends
+- [ ] YAAT-1348 Pin YAAT-1328's landing-planner exit skip, FindExitBehind skip and no-exit-fits fallback with tests
 - [ ] YAAT-36 Align the multi-target push preview refusal with DescribeTugTarget
 - [ ] YAAT-1308 Keep corner limits above the setup ceiling when a ground phase raises its ceiling mid-segment
 - [ ] YAAT-37 Judge tug node goals by overshoot and drop the name exemption; PUSHM from draw
@@ -277,17 +276,22 @@
 
 - [ ] YAAT-50 Armed FOLLOWG leftovers: RES at bars, follow readbacks, repeat crossings
 - [ ] YAAT-1301 Pick the next hold short in route order in TryCrossNextHoldShort's rolling branch
+- [ ] YAAT-1341 Reject a CROSS whose runway the aircraft has already crossed instead of answering OK
 - [ ] YAAT-51 Offer standalone TAXI modifiers at slot 1; test cross-command alias collisions
+- [ ] YAAT-1342 HoldingInPositionPhase rejection text offers RES, which the phase rejects
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
+- [ ] YAAT-1343 Refuse CROSS when there is no room past the far bar to clear the runway
 - [ ] YAAT-53 Line-up leftovers: arc speed on non-arcs, LUAW pass-through, cancel branch
 - [ ] YAAT-54 Brake max-effort on a late CTOC and warn when the aircraft overruns the bar
 - [ ] YAAT-1222 Solo refuses TAXIAUTO: the student issues the taxi route
 - [ ] YAAT-55 Warn when a re-TAXI drops a stored takeoff or landing clearance
 - [ ] YAAT-56 Fail closed when CROSS runs with no cached ground layout
 - [ ] YAAT-57 Re-cite docs/ground/pathfinder.md by symbol, not line
+- [ ] YAAT-1408 Read back 'holding short of X' when a bare TAXI holds the aircraft where it stands
 - [ ] YAAT-58 Split SegmentExpander.ResolveExplicitFrom (over 100 lines)
 - [ ] YAAT-59 GroundCommandHandler leftovers: split TryTaxiCore, cut Resolve*Route params
 - [ ] YAAT-1310 Read a taxi readback's crossings before its 'to parking' destination
+- [ ] YAAT-1410 Recompute an HS under FOLLOWG against the route the aircraft is driving, not the stale assigned one
 - [ ] YAAT-212 A no-destination taxi stops with its nose in the junction it ends at
 - [ ] YAAT-313 Readback RPO form (callsign of the traffic) never reaches the instructor
 - [ ] YAAT-1331 Read an uncovered RES CROSS naming a taxiway as "cross taxiway", not "cross runway"
@@ -320,10 +324,12 @@
 - [ ] YAAT-64 Finish ATXI marker leftovers: spot/runway wording, autocomplete, test doc
 - [ ] YAAT-65 Bring LandingPhase.TickRollout to cyclomatic complexity ≤8
 - [ ] YAAT-1306 Get SFO's real hold-line positions; unskip the E75L-on-T exit test
+- [ ] YAAT-1347 Measure a shaped onward segment by its polyline in a crossing's route-own tail clearance
 - [ ] YAAT-66 Make AirportGroundLayout exit-finder parameters required
 - [ ] YAAT-1307 Build precompute cache entries with the tower-cab videomap the server uses
 - [ ] YAAT-67 Link unsnapped taxi spots to the nearest taxiway (vNAS MIA: 28 of 29)
 - [ ] YAAT-68 Stop near-collinear split nodes saw-toothing taxi speed (SFO C)
+- [ ] YAAT-1409 Judge a taxiway hold short unable against its painted marking, not the setback stop
 - [ ] YAAT-69 Stop the nose at a spot by along-route distance, not straight-line
 - [ ] YAAT-70 Plan TaxiBudgetDeriver routes with the pair's own aircraft category
 - [ ] YAAT-919 Refuse a taxi detour connector that brings in an unimplied runway crossing (R3)
@@ -356,6 +362,7 @@
 - [ ] YAAT-1273 Keep the off-taxiway runway fallback to the named taxiway's own letter (no unnamed different-letter connector)
 - [ ] YAAT-1339 Guard hold-short paint calibration against ILS lines, low medians and hidden data warnings
 - [ ] YAAT-1340 Check whether runway seating hands a crossing an edge an earlier crossing already split
+- [ ] YAAT-1458 Keep reporting the runway being left until the tail passes the exit bar, not the centre
 
 ## Wave 4 — Replay, rewind and stuck-taxi repros
 
@@ -615,6 +622,7 @@
 - [ ] YAAT-824 Make the tower-cab session-binding test wait for the push queue before resetting the socket
 - [ ] YAAT-196 Draw the server's remaining line-up instead of re-planning it (Ground View)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
+- [ ] YAAT-1346 Solo scoring counts a tail-inside after-exit hold as clear of the runway
 - [ ] YAAT-197 Confirm which vNAS position entities go over UDP before moving any
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
 - [ ] YAAT-913 Read charted enroute holds from CIFP
@@ -622,13 +630,21 @@
 - [ ] YAAT-198 Accept a Mode C Intruder ID in ERAM QN
 - [ ] YAAT-507 FOLLOWG clearing route stops one node before the next runway's hold bar
 - [ ] YAAT-230 live-check -WithInput: File click sometimes counts 2 menu windows before the click
+- [ ] YAAT-1411 Slow to 250 before crossing 10,000 ft in a descent, not a few hundred feet below it
 - [ ] YAAT-508 FOLLOWG clearing check ignores traffic crossing at a junction
+- [ ] YAAT-1412 In solo sessions, a pilot checking in states an assigned speed or vector (AIM 4-4-12.l) · release vNext+1
 - [ ] YAAT-199 Keep the PUSHF hint out of the spoken pilot refusal
+- [ ] YAAT-1413 Keep a slower assigned speed in a hold instead of accelerating to the maximum holding speed
 - [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
+- [ ] YAAT-1426 Score an intersection departure whose CTO did not state the intersection (7110.65 3-9-10.b)
 - [ ] YAAT-200 Build the standalone airport GeoJSON editor
+- [ ] YAAT-1427 Refuse an intersection departure when the type's takeoff distance exceeds the length remaining
 - [ ] YAAT-201 Work the phraseology coverage backlog
+- [ ] YAAT-1429 Make the relaxed lateral-intercept CAPP cancel assigned speeds like every other approach clearance
 - [ ] YAAT-554 FOLLOWG: decide whether a same-edge head-on pair keeps the follower moving too
+- [ ] YAAT-1430 Refine the speed-envelope unable: 5 kt rounding, Mach answers in Mach, same-block altitude
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
+- [ ] YAAT-1431 Check the profile schedule floor's Mach above the crossover against each type's Mmo
 - [ ] YAAT-556 Apply a per-category fillet-arc floor in the taxi pathfinder
 - [ ] YAAT-202 BEHIND grammar extensions
 - [ ] YAAT-203 Measure ApproachEvaluator separation at a common instant, not the current lead
@@ -953,24 +969,4 @@
 - [ ] YAAT-1455 Turn onto the next centreline after an exact hold-short arrival at a sharp unfilleted corner
 - [ ] YAAT-1456 Enter the crossing phase for a pre-cleared runway when the taxi starts off a node (OAK TAXI G C CROSS 28R crosses with no CrossingRunwayPhase)
 - [ ] YAAT-1457 Move the remaining OAK test selectors off node ids, ordinals and arc display names; add bug_bundle.py remap
-
-## No project
-
-- [ ] YAAT-1341 Reject a CROSS whose runway the aircraft has already crossed instead of answering OK
-- [ ] YAAT-1342 HoldingInPositionPhase rejection text offers RES, which the phase rejects
-- [ ] YAAT-1343 Refuse CROSS when there is no room past the far bar to clear the runway
-- [ ] YAAT-1345 Let an auto exit take a short crossover when the stored taxi route already crosses the other runway there
-- [ ] YAAT-1346 Solo scoring counts a tail-inside after-exit hold as clear of the runway
-- [ ] YAAT-1347 Measure a shaped onward segment by its polyline in a crossing's route-own tail clearance
-- [ ] YAAT-1348 Pin YAAT-1328's landing-planner exit skip, FindExitBehind skip and no-exit-fits fallback with tests
-- [ ] YAAT-1408 Read back 'holding short of X' when a bare TAXI holds the aircraft where it stands
-- [ ] YAAT-1409 Judge a taxiway hold short unable against its painted marking, not the setback stop
-- [ ] YAAT-1410 Recompute an HS under FOLLOWG against the route the aircraft is driving, not the stale assigned one
-- [ ] YAAT-1411 Slow to 250 before crossing 10,000 ft in a descent, not a few hundred feet below it
-- [ ] YAAT-1412 In solo sessions, a pilot checking in states an assigned speed or vector (AIM 4-4-12.l) · release vNext+1
-- [ ] YAAT-1413 Keep a slower assigned speed in a hold instead of accelerating to the maximum holding speed
-- [ ] YAAT-1426 Score an intersection departure whose CTO did not state the intersection (7110.65 3-9-10.b)
-- [ ] YAAT-1427 Refuse an intersection departure when the type's takeoff distance exceeds the length remaining
-- [ ] YAAT-1429 Make the relaxed lateral-intercept CAPP cancel assigned speeds like every other approach clearance
-- [ ] YAAT-1430 Refine the speed-envelope unable: 5 kt rounding, Mach answers in Mach, same-block altitude
-- [ ] YAAT-1431 Check the profile schedule floor's Mach above the crossover against each type's Mmo
+- [ ] YAAT-1459 Keep stand lead-ins off nodes the videomap bar seating turned into runway bars
