@@ -124,12 +124,26 @@ public class AsdexSnapshotSchema36Tests
         scenario["AsdexSafetyLogicConfig"] = scenario["AsdexSafetyLogicConfigs"]!["OAK"]!.DeepClone();
         scenario.Remove("AsdexSafetyLogicConfigs");
         var legacyAlerts = new JsonArray();
-        foreach (JsonNode? alert in scenario["ActiveAsdexAlerts"]!.AsArray())
+        foreach (JsonNode? node in scenario["ActiveAsdexAlerts"]!.AsArray())
         {
-            if ((string?)alert!["FacilityId"] == "OAK")
+            if ((string?)node!["FacilityId"] == "OAK")
             {
-                JsonObject legacy = alert.DeepClone().AsObject();
+                JsonObject legacy = node.DeepClone().AsObject();
                 legacy.Remove("FacilityId");
+                // The fixture's standing alert is a closed-runway one, which the V40→V41 step drops (it cannot tell an
+                // arrival from a departure). The alert this test files under the primary airport's facility is therefore
+                // an occupied-runway one, which the step keeps under its id with the current text.
+                if ((int?)legacy["Kind"] == (int)AsdexAlertKind.ClosedRunway)
+                {
+                    legacy["Kind"] = (int)AsdexAlertKind.OccupiedRunway;
+                    legacy["Id"] = legacy["Id"]!.GetValue<string>().Replace("ClosedRunway|", "OccupiedRunway|", StringComparison.Ordinal);
+                    legacy["MessageLines"] = new JsonArray(
+                        legacy["MessageLines"]![0]!.GetValue<string>(),
+                        legacy["MessageLines"]![1]!.GetValue<string>(),
+                        "OCCUPIED RWY"
+                    );
+                }
+
                 legacyAlerts.Add(legacy);
             }
         }
@@ -148,6 +162,7 @@ public class AsdexSnapshotSchema36Tests
         }
 
         string alertId = Assert.Single(engine.Scenario!.ActiveAsdexAlerts["OAK"].Keys);
+        string migratedId = alertId.Replace("ClosedRunway|", "OccupiedRunway|", StringComparison.Ordinal);
         StateSnapshotDto legacy = AsSchema35(engine.CaptureSnapshot(), "KSFO");
 
         engine.RestoreFromSnapshot(legacy);
@@ -157,7 +172,7 @@ public class AsdexSnapshotSchema36Tests
         Assert.Equal("OAKCFG", migrated.RunwayConfigurationId);
         Assert.Equal(["OAKCFG_TWR"], migrated.InhibitedArrivalAlertPositionIds);
         Assert.Equal(["SFO"], engine.Scenario.ActiveAsdexAlerts.Keys);
-        Assert.Equal([alertId], engine.Scenario.ActiveAsdexAlerts["SFO"].Keys);
+        Assert.Equal([migratedId], engine.Scenario.ActiveAsdexAlerts["SFO"].Keys);
         Assert.Null(legacy.Scenario.LegacyAsdexSafetyLogicConfig);
     }
 

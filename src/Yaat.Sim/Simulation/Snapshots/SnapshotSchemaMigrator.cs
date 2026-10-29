@@ -326,17 +326,23 @@ public static class SnapshotSchemaMigrator
         // V40→V41: AsdexAlertKind lost TaxiOntoActiveRunway (stored as 2): an aircraft taxiing onto an active runway now
         //   raises an occupied-runway alert, as vNAS does; the alert texts became vNAS's; AsdexSafetyAlertDto.GoAround was
         //   added, whose absence reads false. A standing alert of the retired kind restores as OccupiedRunway (1) under its
-        //   stored id, which the detector no longer raises, so the next tick clears it and raises the pair's alert. Each
-        //   alert's third line is rewritten to the plain current text ("CLOSED RWY" → "RWY CLOSED"), since the stored
-        //   alert does not say whether its aircraft was an arrival. A closed-runway alert for an arrival therefore
-        //   restores with GoAround false and "RWY CLOSED" under its stored id, which the detector still raises, and keeps
-        //   them until it clears: ApplyAsdexDetection only adds alerts with new ids and clears missing ones, never
-        //   rewriting a standing alert.
+        //   stored id, which the detector no longer raises, so the next tick clears it and raises the pair's alert. Every
+        //   other standing alert's third line is rewritten to the plain current text ("OCCUPIED RWY" → "RWY OCCUPIED").
+        //   A standing closed-runway alert (kind 0) is dropped instead: it does not say whether its aircraft was an
+        //   arrival, which decides between "RWY CLOSED" and "RWY CLOSED, GO AROUND" and GoAround, and only the detector's
+        //   arrival box over a live aircraft can tell. A restore that kept it would keep GoAround false until it cleared,
+        //   because ApplyAsdexDetection never rewrites a standing alert; dropped, the next tick raises it again under the
+        //   same id with the right role, at the cost of one extra aural.
         if (snapshot.SchemaVersion < 41)
         {
-            foreach (AsdexSafetyAlertDto alert in snapshot.Scenario.ActiveAsdexAlerts ?? [])
+            List<AsdexSafetyAlertDto>? alerts = snapshot.Scenario.ActiveAsdexAlerts;
+            if (alerts is not null)
             {
-                MigrateLegacyAsdexAlert(alert);
+                alerts.RemoveAll(alert => alert.Kind == AsdexAlertKind.ClosedRunway);
+                foreach (AsdexSafetyAlertDto alert in alerts)
+                {
+                    MigrateLegacyAsdexAlert(alert);
+                }
             }
         }
 
@@ -368,7 +374,10 @@ public static class SnapshotSchemaMigrator
         snapshot.LegacyFrequencyTransmissionTimes = null;
     }
 
-    /// <summary>Maps a pre-V41 alert's retired kind to OccupiedRunway and its pre-V41 third line to the current text.</summary>
+    /// <summary>
+    /// Maps a pre-V41 alert's retired kind to OccupiedRunway and its pre-V41 third line to the current text. Closed-runway
+    /// alerts are dropped before this runs, so none reaches it.
+    /// </summary>
     private static void MigrateLegacyAsdexAlert(AsdexSafetyAlertDto alert)
     {
         if ((int)alert.Kind == RetiredTaxiOntoActiveRunwayKind)
@@ -382,10 +391,9 @@ public static class SnapshotSchemaMigrator
         }
     }
 
-    /// <summary>The pre-V41 third lines of runway alerts and the texts that replaced them.</summary>
+    /// <summary>The pre-V41 third lines of the alert kinds that are kept and the texts that replaced them.</summary>
     private static readonly Dictionary<string, string> LegacyAsdexAlertTexts = new(StringComparer.Ordinal)
     {
-        ["CLOSED RWY"] = AsdexSafetyLogicDetector.ClosedRunwayText,
         ["OCCUPIED RWY"] = AsdexSafetyLogicDetector.OccupiedRunwayText,
         ["RWY INCURSION"] = AsdexSafetyLogicDetector.OccupiedRunwayText,
     };
