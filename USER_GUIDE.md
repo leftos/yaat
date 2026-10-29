@@ -2370,6 +2370,8 @@ A loaded solo recording comes up in solo mode, so its replay speaks every pilot 
 ![The empty File Bug Report form with Title, What happened, What did you expect and Callsigns fields](docs/user-guide/img/file-bug-report-dialog.png)
 
 1. saves a bug report bundle to `%LOCALAPPDATA%\yaat\bug-reports\`. In a room the bundle holds the session recording, your bookmarks, the client logs of this and the previous three sessions, and the server log; outside a room it holds the client logs only. Names, VATSIM IDs, initials, your Windows user folder and server addresses are hidden in the recording and logs;
+
+   The recording also names the YAAT server the session ran on by its deployment name, not its address, so a report can be traced to that server's logs.
 2. opens a new GitHub issue in your browser with your answers and your YAAT version, OS and scenario already filled in;
 3. opens the folder with the bundle selected. Drag the bundle into the issue before you submit it, since GitHub can't attach it for you.
 

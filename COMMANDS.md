@@ -2184,8 +2184,6 @@ Sets the room's active runways at an airport: the runway ends in use, each for d
 
 Under the session's auto-cross mode **Inactive runways only**, the list also decides which crossings are pre-cleared: a crossing of a runway outside it needs no `CROSS`, and an `ARWY` re-checks the routes already assigned (with no list set, every runway counts as inactive). That mode is a training convenience; in real operations every runway crossing needs an explicit crossing clearance (FAA 7110.65 3-7-2.c).
 
-Under the session's auto-cross mode **Inactive runways only**, the list also decides which crossings are pre-cleared: a crossing of a runway outside it needs no `CROSS`, and an `ARWY` re-checks the routes already assigned (with no list set, every runway counts as inactive). That mode is a training convenience; in real operations every runway crossing needs an explicit crossing clearance (FAA 7110.65 3-7-2.c).
-
 A runway token is a bare end (`30`, used for both departures and arrivals), or one prefixed `D` for departures only (`D28L`) or `A` for arrivals only (`A28R`). The airport is its FAA id; the ICAO form (`KOAK`) is accepted too. Tokens are case-insensitive.
 
 The reply names the airport and lists its ends upper-cased in the order given, designators zero-padded: `Active runways at SFO: D01R A28R 28L`, or `No active runways at OAK` for an empty list.

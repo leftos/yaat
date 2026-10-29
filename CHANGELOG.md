@@ -1,18 +1,25 @@
 # Changelog
 
-## Unreleased
+## v0.17.1-beta [2026/10/29]
+
+### Highlights
+
+- Hold-short bars now sit on the tower-cab map's painted hold lines, or back from the runway by the standoff its painted lines measure.
+- Aircraft refuse speeds they cannot fly and never exceed their type's limits; `SMAX` flies their maximum forward speed.
+- Right-click menus open flyouts, All Commands is grouped by task, and every row shows the command you would type.
+- Solo pilots sound more natural: readbacks get terser and quicker as the frequency gets busy.
 
 ### Added
 
 - Favorites have an **All** category, whose favorites show on every tab.
 - In solo sessions, the Session setup popup asks which positions you work below your own; Session settings › Positions you work changes it later.
 - A scenario sidecar can settle the solo student's lowest worked position with `studentLowestPosition`, so the student is not asked.
-- In solo sessions, an IFR departure asks your lowest worked position for its clearance before pushback; aircraft a preset already moved count as cleared.
+- In solo sessions, when you work Delivery or Ground, an uncleared IFR departure asks you for its clearance before pushback; aircraft a preset already moved count as cleared.
 - Turning off Show quick command icons (Settings › Input › Quick commands) lists the right-click menu's quick commands as text rows under category labels.
 - Quick commands offer Squawk normal to an aircraft on standby on the ground, and Squawk assigned code to one squawking the wrong code.
 - The quick-command strip shows every command with an icon, six to a row, grouped under small category labels.
 - `SPD RFAS` reduces to final approach speed as `RFAS` does, and `SPDN RFAS` sets that speed at once.
-- Auto cross-runway has a third choice, Inactive runways only, which pre-clears crossings of runways not in use and holds aircraft short of active ones.
+- Auto cross-runway has a third choice, Inactive runways only: crossings of runways not named active are pre-cleared, routes already under way included, and active ones held short.
 - `REPORT MIDFIELD` has a pattern aircraft report midfield downwind on every circuit until cancelled with `REPORT OFF MIDFIELD`.
 - Bug report bundles record which YAAT server the session ran on, so a report can be traced to that server's logs.
 - Renaming a GitHub issue renames its linked Discord thread to match, keeping the resolved mark and retrying when Discord limits renames.
@@ -25,7 +32,8 @@
 
 ### Changed
 
-- Aircraft refuse a speed or Mach they cannot fly, naming their fastest or slowest, and never exceed Vmo/Mmo; `SPDN` still forces any speed.
+- Aircraft refuse speeds they cannot fly, naming their limit, and never exceed their type's certified Vmo/Mmo or Vne; `SPDN` still forces any speed.
+- Older jets fly slower, more realistic approach speeds.
 - An assigned speed now outlasts `CM`, `DM` and VFR altitude clearances; only `RNS`, `RPS`, `DSR`, a via clearance, an approach clearance or a new speed ends it.
 - A bare `TAXI B` to a crossing taxiway holds short of B instead of stopping in the intersection; one rolling too fast to stop says unable.
 - `CTO` while holding short of a taxiway that reaches the runway now makes an intersection departure from it, read back as "at echo".
@@ -33,7 +41,7 @@
 - Generated hold-short bars sit on the tower-cab map's painted hold lines, or where no line is painted, back by the standoff the runway's painted lines measure.
 - Hold short of… offers a stop before each turn onto a taxiway the route names, such as T on a route S T U W.
 - The Session setup popup offers an airport whose scenario implies only arrival runways those runways for departures and arrivals both.
-- In solo sessions, an IFR departure lined up at an untowered field never departs on its own; it waits for release from approach or center.
+- In solo sessions, a scenario's IFR runway-spawn departure at an untowered field no longer departs on its own; it waits lined up for release.
 - Join STAR opens a flyout with a tab per STAR, and the menus' "(other)" list items are gone.
 - Cleared visual, offered to IFR aircraft only, lists only visual approaches: the aircraft's own runway first, then landing runways, the others under Non-arrival runways….
 - Pattern entries open a runway flyout on the assigned runway, and Cleared for takeoff ends in a Custom box.
@@ -51,7 +59,6 @@
 - In solo sessions, pilots on a busy frequency often read back a contact frequency grouped, such as "twenty five thirty five" for 125.35.
 - Solo pilots vary spoken readbacks, approach, PTAC, visual and follow clearances included, with frequency load: chattier when quiet, terser when busy ("cleared ILS two eight right"); speeds read digit by digit.
 - A readback of two or more instructions never uses chatty wording, and stays terse on a busy frequency.
-
 - A climb or descent given outside the final approach fix keeps an aircraft's approach, held until established; inside the fix it still cancels the approach.
 - A bare `GA` in a procedure turn, a hold or outside the final approach fix is refused, the pilot asking for vectors.
 - `GA RH`, `GA MLT` and `GA MRT` end an approach clearance, as a go-around with a heading does.
@@ -60,7 +67,6 @@
 ### Fixed
 
 - Aircraft crossing a runway now brake onto a hold short or route end just past the far side instead of overrunning it or stopping dead.
-- Speeds are capped and refused by each type's certified Vmo/Mmo (business jets, Q400, CRJs, widebodies) or helicopter Vne, and older jets fly slower, realistic approaches.
 - A server built from older source than the client now logs each request it refused and says to update, instead of failing silently (Save Bug Report Bundle).
 - A touch-and-go counts as a departure once it lifts off, and a stop-and-go once stopped, in auto go-arounds, takeoff warnings and solo scoring.
 - A takeoff clearance warns when a touch-and-go or low approach is still inbound over the runway from the opposite direction.

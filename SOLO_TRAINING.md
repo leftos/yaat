@@ -195,6 +195,10 @@ N123AB DM 050
 
 YAAT returns an immediate `RSP` confirming the descent if the command is accepted. The pilot readback arrives later as `SAY`, serialized with other aircraft so multiple pilots do not speak over each other.
 
+**Frequency load.** Pilots judge how busy the frequency is, counting your own transmissions as well as theirs (a rewind keeps that judgement). When it is quiet they read back more fully ("cleared ILS two eight right"). When it is busy they shorten the spoken readback, keeping every number and direction, speak about 10% faster than your Speech Speed setting, and often give a contact frequency grouped ("twenty five thirty five" for 125.35).
+
+A readback of two or more instructions always stays terse. The terminal always shows the full readback; only the spoken one shortens. Once you have acknowledged an N-number pilot's call, it may read back with a short callsign ("november three alpha bravo"). Speeds are read digit by digit.
+
 You can type canonical commands:
 
 ```
@@ -240,7 +244,7 @@ Solo pilots make calls when the scenario and phase call for them. Common example
 - With Ground as your lowest position, an IFR departure with no clearance yet calls "Ground" for its IFR clearance first, then requests pushback or taxi once you answer.
 - An aircraft scripted to push back calls ready to taxi once pushed back, naming the gate it left or the spot it reached. One scripted to taxi to a spot or taxiway hold short calls from there 10-20 seconds after stopping.
 - An aircraft already taxiing, at its stand after arriving, or scripted to taxi to the runway or to parking never calls ready to taxi.
-- With a radar (APP/CTR) student, IFR departures lined up at untowered fields ask for their release and wait in the Releases flyout until `REL` or `HFROFF`. Unscripted runway departures at towered fields, or VFR departures at untowered ones, depart unprompted.
+- With a radar (APP/CTR) student, IFR departures lined up at untowered fields ask for their release and wait in the Releases flyout until `REL` or `HFROFF`. Unscripted runway departures at towered fields, or VFR departures at untowered ones, depart unprompted. Under any other student position, an IFR departure at an untowered field never departs on its own: it waits lined up for a takeoff clearance.
 - Airborne arrivals or VFR inbound aircraft call with position and request.
 - VFR pattern aircraft request closed traffic and may remind tower if landing clearance is still missing.
 - Aircraft clear of the runway report clear and name the parking they picked ("clear of runway 28R at W, taxi to gate 29"), then ask again every two minutes until someone issues a taxi clearance.
@@ -262,6 +266,8 @@ Most commands work the same in Solo Training and RPO mode, but a few matter more
 | Clear VFR through Class B | `CLBRV` / `CBRV` / `BRAVO` | No forced shortcut |
 | Acknowledge without a maneuver | `STBY` / `ROGER` | No forced shortcut |
 | Use visual follow | structured `RTIS` first, then `FOLLOW` or `CVA ... FOLLOW` | forced traffic-in-sight shortcuts |
+
+A refused RPO-only command, such as `CLANDF`, shows only its terminal error line; the pilot does not answer "unable".
 
 The full syntax and behavior details live in [Command Reference: Solo Training Command Differences](COMMANDS.md#solo-training-command-differences), [Pattern Commands](COMMANDS.md#pattern-commands), and [Approach Control Commands](COMMANDS.md#approach-control-commands).
 
@@ -315,6 +321,7 @@ Existing ARTCC and local scenarios can work in Solo Training without changes. Th
 - handoff and frequency data for `CT`, `FCA`, and controller-target readbacks,
 - difficulty levels for progressive workload,
 - representative VFR traffic near Class B/C shelves when practicing airspace entry and communication.
+- a `studentLowestPosition` in the scenario's sidecar (`DEL`, `GND`, `TWR`, `APP` or `CTR`), which settles the lowest position the solo student works, so the student is not asked in the Session setup popup. A value outside those five is ignored and the popup asks.
 
 YAAT should document these expectations, but official scenario design belongs to each ARTCC's training staff. Avoid treating generic solo scenarios as facility curriculum unless the facility has reviewed and adopted them.
 
