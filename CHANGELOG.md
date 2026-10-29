@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- At an ASDE-X airport on LIMITED safety logic, RPO occupied-runway warnings and solo line-up scoring apply again, as on any non-ASDE-X airport.
+
 ## v0.17.1-beta [2026/10/29]
 
 ### Highlights

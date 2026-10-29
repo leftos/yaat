@@ -160,6 +160,24 @@ public static class AsdexSafetyLogicSeed
         && (FindAsdex(config, facilityId) is { } asdex)
         && asdex.RunwayConfigurations.Any(candidate => candidate.Id == configurationId);
 
+    /// <summary>
+    /// True when ASDE-X Safety Logic raises occupied-runway alerts at <paramref name="airportId"/> now: the room's live
+    /// <paramref name="configs"/> hold an entry with runways (the detector runs there) for its facility
+    /// (<see cref="ArtccConfigResolver.FindAirportFacility"/>), and that entry's configuration is one of the facility's runway
+    /// configurations (<see cref="NamesRunwayConfiguration"/>, not LIMITED), which a display-only ASDE-X configuration has
+    /// none of. False with no ARTCC config: no evidence of a running system.
+    /// </summary>
+    public static bool OccupiedRunwayAlertingIsLive(
+        ArtccConfigRoot? config,
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> configs,
+        string airportId
+    ) =>
+        (config is not null)
+        && (config.FindAirportFacility(airportId) is { } facility)
+        && configs.TryGetValue(facility.Id, out AsdexSafetyLogicConfig? live)
+        && (live.Runways.Count > 0)
+        && NamesRunwayConfiguration(config, facility.Id, live.RunwayConfigurationId);
+
     /// <summary>The ASDE-X configuration of the first facility in walk order with this id, the one the seed built from.</summary>
     private static AsdexConfig? FindAsdex(ArtccConfigRoot config, string facilityId) =>
         Walk(config.Facility)

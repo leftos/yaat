@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -69,15 +71,20 @@ public sealed record SoloTrainingReportData(
 /// Whether the tower at an airport is simulated silently (<see cref="PilotContactRoster.TowerIsSimulatedAt"/>): a takeoff or
 /// landing on a runway there is the simulated tower's operation, never the student's, and is not scored.
 /// </param>
+/// <param name="AsdexSafetyLogicConfigs">
+/// The room's live ASDE-X Safety Logic configuration per facility (<see cref="SimScenarioState.AsdexSafetyLogicConfigs"/>): the
+/// runway-user rule relaxes only where occupied-runway alerting is live (<see cref="AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive"/>).
+/// </param>
 public sealed record SoloTrainingServiceContext(
     InitialContactEligibilityContext InitialContactEligibility,
     WakeDirectiveCatalog WakeDirectives,
     ArtccConfigRoot? ArtccConfig,
+    ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> AsdexSafetyLogicConfigs,
     Func<string?, bool> TowerIsSimulatedAt
 )
 {
     public static SoloTrainingServiceContext Empty { get; } =
-        new(InitialContactEligibilityContext.Empty, WakeDirectiveCatalog.Empty, null, NoSimulatedTower);
+        new(InitialContactEligibilityContext.Empty, WakeDirectiveCatalog.Empty, null, AsdexSafetyLogicSeed.Empty, NoSimulatedTower);
 
     /// <summary>A <see cref="TowerIsSimulatedAt"/> for a context with no student roster: no tower is simulated anywhere.</summary>
     public static bool NoSimulatedTower(string? airportId) => false;
@@ -265,6 +272,7 @@ public sealed class SoloTrainingEvaluator
                 new InitialContactEligibilityContext(studentPosition, null, null, null, InitialContactTransferCatalog.Empty),
                 WakeDirectiveCatalog.Empty,
                 null,
+                AsdexSafetyLogicSeed.Empty,
                 SoloTrainingServiceContext.NoSimulatedTower
             )
         );
@@ -2388,7 +2396,11 @@ public sealed class SoloTrainingEvaluator
                 operationAircraft,
                 runway,
                 operationAircraft.Ground.Layout,
-                (serviceContext.ArtccConfig is { } config) && config.AirportHasFullSafetyLogic(runway.AirportId)
+                AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive(
+                    serviceContext.ArtccConfig,
+                    serviceContext.AsdexSafetyLogicConfigs,
+                    runway.AirportId
+                )
             );
             foreach (AircraftState other in aircraftByCallsign.Values.OrderBy(a => a.Callsign, StringComparer.OrdinalIgnoreCase))
             {
@@ -2609,7 +2621,7 @@ public sealed class SoloTrainingEvaluator
         /// first point it may touch down on. Behind the landing threshold, an aircraft lining up onto this runway (on it or past
         /// its hold line), or lined up and waiting or holding in position on the runway, still scores at an airport without full safety
         /// logic (3-9-4.c.1(a) forbids the landing clearance with it anywhere on the runway;
-        /// <see cref="ArtccConfigResolver.AirportHasFullSafetyLogic"/>, no ARTCC config being no evidence of one). Any other user
+        /// <see cref="AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive"/>, no ARTCC config being no evidence of one). Any other user
         /// behind the operation is not in its way.
         /// </summary>
         private static bool IsAheadOfOperation(AircraftState other, RunwayUseKind kind, RunwayUserJudgement judgement)
@@ -4294,7 +4306,7 @@ public sealed class SoloTrainingEvaluator
 
         /// <summary>One operation's trigger, as the runway-user rule judges every other aircraft against it.</summary>
         /// <param name="FullSafetyLogic">
-        /// The runway's airport has full safety logic (<see cref="ArtccConfigResolver.AirportHasFullSafetyLogic"/>).
+        /// The runway's airport has full safety logic live (<see cref="AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive"/>).
         /// </param>
         private sealed record RunwayUserJudgement(
             RunwayOperation Operation,

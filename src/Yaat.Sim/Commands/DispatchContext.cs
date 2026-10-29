@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
@@ -87,6 +89,13 @@ public sealed record DispatchContext
     public required Action<TerminalEntry>? TerminalEmitter { get; init; }
 
     public required ArtccConfigRoot? ArtccConfig { get; init; }
+
+    /// <summary>
+    /// The room's live ASDE-X Safety Logic configuration per facility (<see cref="SimScenarioState.AsdexSafetyLogicConfigs"/>),
+    /// <see cref="AsdexSafetyLogicSeed.Empty"/> outside a scenario. The runway-occupancy advisories stand down only where it
+    /// has occupied-runway alerting live (<see cref="AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive"/>).
+    /// </summary>
+    public required ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> AsdexSafetyLogicConfigs { get; init; }
 
     /// <summary>The room's towered airports (<see cref="SimScenarioState.ToweredAirports"/>); empty reads every airport as untowered.</summary>
     public required ToweredAirports ToweredAirports { get; init; }

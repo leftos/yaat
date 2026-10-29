@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
@@ -192,6 +193,7 @@ public sealed partial class SimulationEngine
                     RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
                     TerminalEmitter = AddTerminalEntry,
                     ArtccConfig = Scenario?.ArtccConfig,
+                    AsdexSafetyLogicConfigs = Scenario?.AsdexSafetyLogicConfigs ?? AsdexSafetyLogicSeed.Empty,
                     ToweredAirports = Scenario?.ToweredAirports ?? ToweredAirports.Empty,
                     ActiveRunways = Scenario?.ActiveRunways ?? ActiveRunways.Empty,
                     ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,

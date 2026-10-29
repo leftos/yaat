@@ -4,6 +4,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
@@ -81,6 +82,7 @@ public class GroundViewModelTaxiRouteDirectionTests
             RpoShowPilotSpeech = false,
             TerminalEmitter = null,
             ArtccConfig = null,
+            AsdexSafetyLogicConfigs = AsdexSafetyLogicSeed.Empty,
             ToweredAirports = ToweredAirports.Empty,
             ActiveRunways = ActiveRunways.Empty,
             ScenarioElapsedSeconds = 0,

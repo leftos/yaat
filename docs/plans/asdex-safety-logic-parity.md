@@ -3,7 +3,7 @@
 ## Headline
 1. In real CRC the safety logic is NOT in the client. The decompiled CRC only receives `AsdexAlertDto`, `AsdexHoldBarDto` and `AsdexSafetyLogicConfigurationDto` from the vNAS server and displays them. The alert detection logic lives in the vNAS server, which is not in the decompiled tree or the vnas-messaging DTOs. So "what CRC's logic does" can only be taken from the CRC manual (`docs/crc/asdex.md:916-1056`) and the client rendering. Trigger geometry, timing and thresholds are unverified.
 2. YAAT's detector (`AsdexSafetyLogicDetector`) is a simplified stand-in that only runs after a CRC display has pushed a safety-logic configuration. Nothing in yaat or yaat-server seeds that configuration from the ARTCC config or the airport. It is probably never active in a normal session. This is the most likely cause of the complaint, and it is a loading/seeding problem, not only missing logic.
-3. YAAT never reads SFO's `runwayConfigurations` or `positions` for the ASDE-X surface logic. Only `targetVisibility*` and the existence of runway configurations (`AirportHasFullSafetyLogic`, which gates 7110.65 3-9-4 advisories) are used.
+3. YAAT never reads SFO's `runwayConfigurations` or `positions` for the ASDE-X surface logic. Only `targetVisibility*` and, for the 7110.65 3-9-4 advisories, whether the facility is live on one of its named runway configurations (`AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive`) are used.
 
 ## 1. CRC ASDE-X safety logic
 Source for alert types: manual `docs/crc/asdex.md:922-931`. Wire/render: decompiled CRC.
@@ -89,7 +89,7 @@ Facts about the `Detect` input: it is `Yaat.Sim.Simulation.SimulationEngine.Tick
 
 ## 5. Configuration / loading suspicions (ranked)
 1. Seeding (resolved): the detector needs a config in the scenario, and the CRC UI cannot make one when `mRunways` is empty (`GetOpenCloseRunwayDto` throws; `GetSetRunwayConfigurationDto` would push an empty runway list, which the detector treats as "no config"). Every ASDE-X facility with navdata runways is now seeded at scenario load, so the CLOSED RWY menu is populated and the detector runs without a push.
-2. `AirportHasFullSafetyLogic` is true for SFO because `runwayConfigurations.Count` is 6, so YAAT's 7110.65 3-9-4 advisories are already relaxed (RunwayAdvisor.cs:529). That is the only SFO-config-dependent behavior YAAT has today.
+2. YAAT's 7110.65 3-9-4 advisories and solo scoring stand down at SFO only while its live Safety Logic configuration is one of its six named runway configurations (`AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive`); on LIMITED, or with no live configuration, they apply (YAAT-1200).
 3. If the user means the YAAT instructor client: it has no ASDE-X alert view (docs say server-side emulation only: crc-display-state.md:380). Unverified for alerts specifically.
 4. `defaultPositionId` is GC with no runways, so by manual rule alerts show only when the LC position is activated in the DCB. This is a CRC-side setting, not a YAAT defect.
 

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
@@ -25,13 +26,12 @@ namespace Yaat.Sim.Commands;
 /// clearing an arrival behind a departure that is about to roll is ordinary anticipated separation
 /// (3-9-5 / 3-10-6), the same reasoning that keeps CTO out of the reverse direction.
 ///
-/// "Full safety logic" is a property of the airport in the vNAS ARTCC config
-/// (<see cref="ArtccConfigResolver.AirportHasFullSafetyLogic"/>): an ASDE-X configuration with
-/// runway configurations. Airports with a display-only ASDE-X config (or none) still warn. The
-/// proxy models a system running in full core alert mode; the reg's "inoperative or in the
-/// limited configuration" states, and the low-IMC re-imposition (3-9-4.c.2 / 3-10-5.e.2, ceiling
-/// below 800 ft or visibility below 2 SM), are not expressible from a static config and are not
-/// modeled.
+/// "Full safety logic" is ASDE-X Safety Logic raising occupied-runway alerts at the airport now
+/// (<see cref="AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive"/>): an ASDE-X configuration with
+/// runway configurations in the vNAS ARTCC config, and the room's live Safety Logic configuration
+/// for that facility on one of them. Airports with a display-only ASDE-X config (or none), and a
+/// facility a CRC user has put on LIMITED, still warn. The low-IMC re-imposition (3-9-4.c.2 /
+/// 3-10-5.e.2, ceiling below 800 ft or visibility below 2 SM) is not modeled.
 /// </summary>
 public static class RunwaySafetyAdvisor
 {
@@ -595,7 +595,7 @@ public static class RunwaySafetyAdvisor
         RunwayOccupancy.AirportRunways(airport).FirstOrDefault(r => r.Id.Contains(designator))?.ForApproach(designator);
 
     private static bool ShouldSkip(DispatchContext ctx, string airportId) =>
-        (ctx.ListAircraft is null) || (ctx.ArtccConfig is { } config && config.AirportHasFullSafetyLogic(airportId));
+        (ctx.ListAircraft is null) || AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive(ctx.ArtccConfig, ctx.AsdexSafetyLogicConfigs, airportId);
 
     private static void EmitOccupiedWarning(AircraftState aircraft, string runwayDisplay, List<string> occupants)
     {

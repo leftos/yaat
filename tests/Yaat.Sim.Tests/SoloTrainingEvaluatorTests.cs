@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -927,6 +928,7 @@ public sealed class SoloTrainingEvaluatorTests
             new InitialContactEligibilityContext(student, "TWR", "ZOA", "KSFO", InitialContactTransferCatalog.Empty),
             WakeDirectiveCatalog.Empty,
             null,
+            AsdexSafetyLogicSeed.Empty,
             SoloTrainingServiceContext.NoSimulatedTower
         );
 
@@ -1108,6 +1110,7 @@ public sealed class SoloTrainingEvaluatorTests
             InitialContactEligibilityContext.Empty,
             WakeDirectiveCatalog.Empty,
             null,
+            AsdexSafetyLogicSeed.Empty,
             airportId => string.Equals(airportId, runway.AirportId, StringComparison.OrdinalIgnoreCase)
         );
 
@@ -2188,6 +2191,7 @@ public sealed class SoloTrainingEvaluatorTests
             new InitialContactEligibilityContext(null, null, "ZOA", "KOAK", InitialContactTransferCatalog.Empty),
             new WakeDirectiveCatalog([ApproachWakeRequireAdvisoryRule()]),
             null,
+            AsdexSafetyLogicSeed.Empty,
             SoloTrainingServiceContext.NoSimulatedTower
         );
 
@@ -2304,6 +2308,7 @@ public sealed class SoloTrainingEvaluatorTests
             new InitialContactEligibilityContext(null, null, "ZOA", "KOAK", InitialContactTransferCatalog.Empty),
             new WakeDirectiveCatalog(rules),
             null,
+            AsdexSafetyLogicSeed.Empty,
             SoloTrainingServiceContext.NoSimulatedTower
         );
 

@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using Yaat.Sim;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Airport;
@@ -33,7 +35,8 @@ internal static class TestDispatch
         bool preserveConditionals = false,
         bool isScenarioScripted = false,
         ToweredAirports? toweredAirports = null,
-        ActiveRunways? activeRunways = null
+        ActiveRunways? activeRunways = null,
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig>? asdexSafetyLogicConfigs = null
     ) =>
         new()
         {
@@ -49,6 +52,7 @@ internal static class TestDispatch
             RpoShowPilotSpeech = rpoShowPilotSpeech,
             TerminalEmitter = terminalEmitter,
             ArtccConfig = artccConfig,
+            AsdexSafetyLogicConfigs = asdexSafetyLogicConfigs ?? AsdexSafetyLogicSeed.Empty,
             ToweredAirports = toweredAirports ?? ToweredAirports.Empty,
             ActiveRunways = activeRunways ?? ActiveRunways.Empty,
             ScenarioElapsedSeconds = scenarioElapsedSeconds,

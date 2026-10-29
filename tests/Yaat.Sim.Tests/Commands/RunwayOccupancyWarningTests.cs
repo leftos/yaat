@@ -1,12 +1,17 @@
+using System.Collections.Immutable;
 using Xunit;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using Yaat.Sim.Tests.Simulation.Asdex;
 
 namespace Yaat.Sim.Tests.Commands;
 
@@ -113,14 +118,30 @@ public class RunwayOccupancyWarningTests
         return CommandDispatcher.DispatchCompound(compound, target, ctx);
     }
 
-    private static CommandResult DispatchWithConfig(string input, AircraftState target, ArtccConfigRoot artccConfig, params AircraftState[] world)
+    private static CommandResult DispatchWithConfig(string input, AircraftState target, ArtccConfigRoot artccConfig, params AircraftState[] world) =>
+        DispatchWithLiveConfigs(input, target, artccConfig, LoadSeed(artccConfig), world);
+
+    private static CommandResult DispatchWithLiveConfigs(
+        string input,
+        AircraftState target,
+        ArtccConfigRoot artccConfig,
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> liveConfigs,
+        params AircraftState[] world
+    )
     {
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        DispatchContext ctx = TestDispatch.Context(Random.Shared, artccConfig: artccConfig) with { ListAircraft = () => world };
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, artccConfig: artccConfig, asdexSafetyLogicConfigs: liveConfigs) with
+        {
+            ListAircraft = () => world,
+        };
         var compound = new CompoundCommand([new ParsedBlock(null, [parsed.Value!])]);
         return CommandDispatcher.DispatchCompound(compound, target, ctx);
     }
+
+    /// <summary>The ASDE-X Safety Logic configuration a scenario load starts every facility on, with no active runways.</summary>
+    private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> LoadSeed(ArtccConfigRoot artccConfig) =>
+        AsdexSafetyLogicSeed.Build(artccConfig, NavigationDatabase.Instance, ActiveRunways.Empty);
 
     // -------------------------------------------------------------------------
     // Forward: landing-family clearance onto an occupied runway
@@ -1003,6 +1024,52 @@ public class RunwayOccupancyWarningTests
     }
 
     [Fact]
+    public void OccupiedRunwayWarning_FiresAtAsdexAirportWhileFacilityOnLimited()
+    {
+        // A CRC user has put SFO's Safety Logic on LIMITED: it raises closed-runway alerts only, so RWY OCCUPIED is off and
+        // the 3-9-4 advisory applies again.
+        if (TestArtccConfig.LoadZoa() is not { } zoa)
+        {
+            return;
+        }
+
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> seed = LoadSeed(zoa);
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> limited = seed.SetItem(
+            "SFO",
+            seed["SFO"] with
+            {
+                RunwayConfigurationId = "limited",
+            }
+        );
+        AircraftState occupant = MakeOccupant("N100LU", Rwy(airportId: "SFO"), new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy(airportId: "SFO"));
+
+        CommandResult result = DispatchWithLiveConfigs("CLAND", arrival, zoa, limited, occupant, arrival);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void OccupiedRunwayWarning_SkippedAtAsdexAirportOnNamedConfiguration()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } zoa)
+        {
+            return;
+        }
+
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> seed = LoadSeed(zoa);
+        Assert.True(AsdexSafetyLogicSeed.NamesRunwayConfiguration(zoa, "SFO", seed["SFO"].RunwayConfigurationId));
+        AircraftState occupant = MakeOccupant("N100LU", Rwy(airportId: "SFO"), new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy(airportId: "SFO"));
+
+        CommandResult result = DispatchWithLiveConfigs("CLAND", arrival, zoa, seed, occupant, arrival);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain(arrival.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Cland_AtAirportWithoutSafetyLogicRunwayConfigs_StillWarns()
     {
         // OAK's facility carries no ASDE-X runway configurations (in the live ZOA config its
@@ -1062,7 +1129,7 @@ public class RunwayOccupancyWarningTests
         DispatchOnLayout("CLAND", ungated, sfo.Layout, holder, held, ungated);
 
         Assert.True(result.Success, result.Message);
-        Assert.True(zoa.AirportHasFullSafetyLogic("SFO"));
+        Assert.True(AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive(zoa, LoadSeed(zoa), "SFO"));
         string display = RunwayIdentifier.ToDisplayDesignator(sfo.Runway.Designator);
         Assert.Equal(
             PastTheHoldLineForLanding(display, "N100FL"),
@@ -1082,7 +1149,15 @@ public class RunwayOccupancyWarningTests
     {
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(input);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        DispatchContext ctx = TestDispatch.Context(Random.Shared, groundLayout: layout, artccConfig: artccConfig) with { ListAircraft = () => world };
+        DispatchContext ctx = TestDispatch.Context(
+            Random.Shared,
+            groundLayout: layout,
+            artccConfig: artccConfig,
+            asdexSafetyLogicConfigs: LoadSeed(artccConfig)
+        ) with
+        {
+            ListAircraft = () => world,
+        };
         var compound = new CompoundCommand([new ParsedBlock(null, [parsed.Value!])]);
         return CommandDispatcher.DispatchCompound(compound, target, ctx);
     }
@@ -1094,7 +1169,7 @@ public class RunwayOccupancyWarningTests
     [InlineData("KOAK", false)]
     [InlineData("XYZ", false)] // unknown facility — no positive evidence of safety logic
     [InlineData("", false)]
-    public void AirportHasFullSafetyLogic_ResolvesFromAsdexRunwayConfigurations(string airportId, bool expected)
+    public void OccupiedRunwayAlertingIsLive_OnTheLoadSeed_ResolvesFromAsdexRunwayConfigurations(string airportId, bool expected)
     {
         ArtccConfigRoot? zoa = TestArtccConfig.LoadZoa();
         if (zoa is null)
@@ -1102,6 +1177,84 @@ public class RunwayOccupancyWarningTests
             return;
         }
 
-        Assert.Equal(expected, zoa.AirportHasFullSafetyLogic(airportId));
+        Assert.Equal(expected, AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive(zoa, LoadSeed(zoa), airportId));
+    }
+
+    [Theory]
+    [InlineData("named", "SFO", true)]
+    [InlineData("named", "KSFO", true)] // ICAO form resolves via the leading-K strip
+    [InlineData("limited", "SFO", false)]
+    [InlineData("blank", "SFO", false)] // "" is LIMITED too
+    [InlineData("no live entry", "SFO", false)] // runway configurations in the ARTCC config, but the detector does not run
+    [InlineData("no runways", "SFO", false)] // a live entry the detector skips
+    [InlineData("no artcc config", "SFO", false)]
+    [InlineData("named", "OAK", false)] // ASDE-X without runway configurations: its live entry can only be LIMITED
+    public void OccupiedRunwayAlertingIsLive_TruthTable(string liveState, string airportId, bool expected)
+    {
+        if (TestArtccConfig.LoadZoa() is not { } zoa)
+        {
+            return;
+        }
+
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> seed = LoadSeed(zoa);
+        AsdexSafetyLogicConfig sfo = seed["SFO"];
+        (ArtccConfigRoot? Config, ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> Live) state = liveState switch
+        {
+            "named" => (zoa, seed),
+            "limited" => (zoa, seed.SetItem("SFO", sfo with { RunwayConfigurationId = "limited" })),
+            "blank" => (zoa, seed.SetItem("SFO", sfo with { RunwayConfigurationId = "" })),
+            "no live entry" => (zoa, AsdexSafetyLogicSeed.Empty),
+            "no runways" => (zoa, seed.SetItem("SFO", sfo with { Runways = [] })),
+            "no artcc config" => (null, seed),
+            _ => throw new ArgumentOutOfRangeException(nameof(liveState), liveState, "unknown live state"),
+        };
+
+        Assert.True(AsdexSafetyLogicSeed.NamesRunwayConfiguration(zoa, "SFO", sfo.RunwayConfigurationId));
+        Assert.Equal(expected, AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive(state.Config, state.Live, airportId));
+    }
+
+    /// <summary>A ZOA scenario at SFO with one aircraft airborne well clear of it: the engine fixture for the live-configuration tests.</summary>
+    internal const string OneAircraftAtSfo = """
+        {
+          "id": "rpo-asdex-limited", "name": "RPO advisories at SFO", "artccId": "ZOA", "primaryAirportId": "SFO",
+          "aircraft": [
+            {
+              "id": "a1", "aircraftId": "UAL1", "aircraftType": "B738", "transponderMode": "C",
+              "startingConditions": {
+                "type": "Coordinates", "coordinates": { "lat": 37.9, "lon": -122.6 }, "altitude": 5000, "heading": 280, "speed": 250
+              },
+              "flightplan": {
+                "rules": "IFR", "departure": "KSFO", "destination": "KLAX", "cruiseAltitude": 35000, "cruiseSpeed": 450,
+                "route": "", "remarks": "", "aircraftType": "B738"
+              }
+            }
+          ]
+        }
+        """;
+
+    [Theory]
+    [InlineData("limited", true)]
+    [InlineData(null, false)] // the configuration the scenario load seeded, a named one
+    public void Engine_Cland_AtSfo_WarnsOnlyWhileTheFacilityIsOnLimited(string? configurationId, bool warns)
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(OneAircraftAtSfo, 7, MagneticDeclination.EvaluationDateUtc, scenario => scenario.ArtccConfig = ZoaArtccConfig.Full);
+        SimScenarioState scenario = engine.Scenario!;
+        AsdexSafetyLogicConfig sfo = scenario.AsdexSafetyLogicConfigs["SFO"];
+        Assert.True(AsdexSafetyLogicSeed.NamesRunwayConfiguration(scenario.ArtccConfig, "SFO", sfo.RunwayConfigurationId));
+        if (configurationId is not null)
+        {
+            scenario.AsdexSafetyLogicConfigs = scenario.AsdexSafetyLogicConfigs.SetItem("SFO", sfo with { RunwayConfigurationId = configurationId });
+        }
+
+        AircraftState occupant = MakeOccupant("N100LU", Rwy(airportId: "SFO"), new LinedUpAndWaitingPhase());
+        AircraftState arrival = MakeArrival("N200AR", Rwy(airportId: "SFO"));
+        engine.World.AddAircraft(occupant);
+        engine.World.AddAircraft(arrival);
+
+        CommandResult result = engine.SendCommand("N200AR", "CLAND");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(warns, arrival.PendingWarnings.Any(w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase)));
     }
 }

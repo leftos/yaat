@@ -181,6 +181,7 @@ public class AiAnsweredCallupE2ETests
             RpoShowPilotSpeech = engine.Scenario.RpoShowPilotSpeech,
             TerminalEmitter = engine.EmitTerminalEntry,
             ArtccConfig = engine.Scenario.ArtccConfig,
+            AsdexSafetyLogicConfigs = engine.Scenario.AsdexSafetyLogicConfigs,
             ToweredAirports = engine.Scenario.ToweredAirports,
             ActiveRunways = engine.Scenario.ActiveRunways,
             ScenarioElapsedSeconds = engine.Scenario.ElapsedSeconds,

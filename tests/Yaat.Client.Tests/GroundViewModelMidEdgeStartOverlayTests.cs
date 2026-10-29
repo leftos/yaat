@@ -4,6 +4,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -522,6 +523,7 @@ public class GroundViewModelMidEdgeStartOverlayTests
             RpoShowPilotSpeech = false,
             TerminalEmitter = null,
             ArtccConfig = null,
+            AsdexSafetyLogicConfigs = AsdexSafetyLogicSeed.Empty,
             ToweredAirports = Yaat.Sim.ControllerAi.ToweredAirports.Empty,
             ActiveRunways = Yaat.Sim.Simulation.ActiveRunways.Empty,
             ScenarioElapsedSeconds = 0,

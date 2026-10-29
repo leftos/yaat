@@ -1457,7 +1457,8 @@ Asdex/AsdexSafetyLogicConfig.cs    # AsdexSafetyLogicConfig (Runways, RunwayConf
 Asdex/AsdexSafetyLogicSeed.cs      # Build(ArtccConfigRoot, NavigationDatabase, ActiveRunways): the per-facility configuration a scenario load starts on, derived (not recorded) from each facility's asdexConfiguration
                                     # and navdata runways — position pair ids ("28R-10L"), then "{end1}-{end2}" for runways no position names; pavement rectangles, all open; the runway configuration is the
                                     # named one SelectRunwayConfigurationId picks from the active runways ("" = LIMITED for a facility with none). Repick re-picks on an active-runway change unless a user chose;
-                                    # NamesRunwayConfiguration is the per-tick LIMITED gate (an id that names no configuration is LIMITED)
+                                    # NamesRunwayConfiguration is the per-tick LIMITED gate (an id that names no configuration is LIMITED); OccupiedRunwayAlertingIsLive(config, configs, airportId) is the
+                                    # airport-level question the RunwaySafetyAdvisor stand-down and the solo runway-user rule ask (facility via ArtccConfigResolver.FindAirportFacility)
 Asdex/AsdexHoldBarBuilder.cs       # Pure: the fixed hold-bar set of a facility's safety-logic runways over the ground layout (AsdexHoldBar: id, two points, protected runway; AsdexHoldBarRunway: a runway with its footprint). ResolveRunways pairs the configuration's runways with navdata; Build makes one bar per taxiway hold-short node at the runway edge, merges overlapping same-side bars and adds the runway-runway bars. Ids are deterministic from the layout
 Asdex/AsdexHoldBarStatusEvaluator.cs # Pure and stateless: ActiveBarIds names the bars a runway user has ahead (AsdexHoldBarState: a bar plus IsActive). A runway user is an arrival inside 6,000 ft of the threshold along the extended centreline, or an aircraft in the footprint at 50 kt or more
 Asdex/AsdexRunwayAxis.cs           # A runway's centreline frame (along / lateral offsets, true track) shared by the hold-bar builder and evaluator
@@ -1588,7 +1589,8 @@ Commands/ConditionalList.cs         # Unified conditional list: pending queue tr
                                     # Enumerate/ToLines/Delete — backs SHOWAT/SHOWCOND, Pending Cmds column, DELAT/DELCOND/DC; excludes reaction-delay deferrals
 Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft/ListAircraft, ValidateDctFixes, AutoCrossRunwayMode, PreserveConditionals, IsScenarioScripted, SpeechContextFor,
                                     # TransmissionId/SpeedAssignedInBlock (set by the dispatcher and the block's apply action only: a DVIA's crossing-restriction scoping),
-                                    # SessionStartUtc (the session clock for pilot speech that names a time of day — SAYEXIT's estimate; never DateTime.UtcNow)
+                                    # SessionStartUtc (the session clock for pilot speech that names a time of day — SAYEXIT's estimate; never DateTime.UtcNow),
+                                    # AsdexSafetyLogicConfigs (required: the room's live Safety Logic configuration per facility, for RunwaySafetyAdvisor's stand-down)
 Commands/DispatchOrigin.cs          # DispatchOrigin (Human | ControllerAi) + AiConnectionId ("AI:{positionId}" synthetic connection id; origin derived from it live and on replay)
                                     # Bundled at SimulationEngine/RoomEngine call sites; threaded through all internal helpers
 Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands
@@ -1680,8 +1682,9 @@ Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4/3-9-6 occupied-
                                     # issued with another aircraft holding in position or a live-traffic shadow on/landing on the runway.
                                     # WarnIfStoppedTrafficOnRunway = 3-10-3.a.1/3-9-6.a third occupant kind (#411): traffic frozen on the pavement by a
                                     # HOLDPOSITION/GIVEWAY hold directive (Ground.IsImmobile + IsOnPavement, e.g. a stopped runway crossing); moving crossings stay silent. A GIVEWAY still pending on an arrival's landing rollout or exit (AircraftState.HasGiveWayPendingOnLandingRunway) never stops it, so that arrival counts as landed traffic (WarnIfLandedTrafficBlocksTakeoff), not stopped traffic.
-                                    # Suppressed when ArtccConfigResolver.AirportHasFullSafetyLogic finds an ASDE-X config with runway configurations
-                                    # for the airport (CRC Safety Logic covers the incursion there)
+                                    # Suppressed only when AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive: the airport's facility (ArtccConfigResolver.FindAirportFacility)
+                                    # has an ASDE-X config with runway configurations and the room's live DispatchContext.AsdexSafetyLogicConfigs entry is on one of them
+                                    # (CRC Safety Logic covers the incursion there); LIMITED or no live entry still warns
 Commands/FlightPlanCommandHandler.cs # Flight-plan amendment validation: TryChangeDestination resolves FAA/ICAO airport input via NavigationDatabase.TryResolveAirport,
                                     # writes canonical ICAO to FlightPlan.Destination, rejects unknown airports; clears the arrival procedure state the old destination had,
                                     # cancelling (ClearPhaseChain + "cancelled by APT OAK" warning) a pattern/approach/go-around flown to another airport; APT to the

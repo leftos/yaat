@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using Xunit;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
@@ -11,7 +13,9 @@ using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Tests.Commands;
 using Yaat.Sim.Tests.Helpers;
+using Yaat.Sim.Tests.Simulation.Asdex;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Tests.Training;
@@ -753,7 +757,7 @@ public class SoloRunwayUserScoringTests
             return;
         }
 
-        Assert.Equal(!scores, zoa.AirportHasFullSafetyLogic(airport));
+        Assert.Equal(!scores, AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive(zoa, LoadSeed(zoa), airport));
         RunwayInfo runway = Runway(airport, "28R");
         AircraftState lineUp = OnCentreline("N85LU", runway, alongFt: 5000);
         lineUp.IndicatedAirspeed = 5;
@@ -776,7 +780,7 @@ public class SoloRunwayUserScoringTests
             return;
         }
 
-        Assert.Equal(!scores, zoa.AirportHasFullSafetyLogic(airport));
+        Assert.Equal(!scores, AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive(zoa, LoadSeed(zoa), airport));
         (RunwayInfo runway, AirportGroundLayout layout, double displacementFt) = DisplacedRunway(airport);
         AircraftState lineUp = OnCentreline("N86LU", runway, alongFt: displacementFt / 2.0);
         lineUp.IndicatedAirspeed = 5;
@@ -797,7 +801,7 @@ public class SoloRunwayUserScoringTests
             return;
         }
 
-        Assert.False(zoa.AirportHasFullSafetyLogic("SJC"));
+        Assert.False(AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive(zoa, LoadSeed(zoa), "SJC"));
         (RunwayInfo runway, AirportGroundLayout layout, double displacementFt) = DisplacedRunway("SJC");
         string parallel = runway.Designator.EndsWith('L') ? runway.Designator[..^1] + "R" : runway.Designator[..^1] + "L";
         AircraftState lineUp = CrossingInPlace("N87LU", runway, alongFt: displacementFt / 2.0);
@@ -978,7 +982,7 @@ public class SoloRunwayUserScoringTests
             return;
         }
 
-        Assert.False(zoa.AirportHasFullSafetyLogic("SJC"));
+        Assert.False(AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive(zoa, LoadSeed(zoa), "SJC"));
         (RunwayInfo runway, AirportGroundLayout layout, double displacementFt) = DisplacedRunway("SJC");
         AircraftState luaw = LinedUp("N76LU", runway, layout, alongFt: displacementFt / 2.0);
         AircraftState crosser = CrossingInPlace("N77CR", runway, alongFt: displacementFt / 2.0 + 100.0);
@@ -998,11 +1002,86 @@ public class SoloRunwayUserScoringTests
             return;
         }
 
-        Assert.True(zoa.AirportHasFullSafetyLogic("SFO"));
+        Assert.True(AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive(zoa, LoadSeed(zoa), "SFO"));
         (RunwayInfo runway, AirportGroundLayout layout, double displacementFt) = DisplacedRunway("SFO");
         AircraftState luaw = LinedUp("N79LU", runway, layout, alongFt: displacementFt / 2.0);
 
         List<SoloTrainingEvent> notices = LandOver(runway, layout, zoa, luaw);
+
+        Assert.DoesNotContain(notices, e => e.Title == LandingTitle);
+    }
+
+    [Fact]
+    public void RunwayUser_ScoresAtAsdexAirportWhileFacilityOnLimited()
+    {
+        // SFO's Safety Logic on LIMITED raises closed-runway alerts only: the 3-9-4.c.1(a) restriction applies again, and the
+        // aircraft lined up behind the landing threshold scores as it does at an airport without full safety logic.
+        if (TestArtccConfig.LoadZoa() is not { } zoa)
+        {
+            return;
+        }
+
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> seed = LoadSeed(zoa);
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> limited = seed.SetItem(
+            "SFO",
+            seed["SFO"] with
+            {
+                RunwayConfigurationId = "limited",
+            }
+        );
+        (RunwayInfo runway, AirportGroundLayout layout, double displacementFt) = DisplacedRunway("SFO");
+        AircraftState luaw = LinedUp("N80LU", runway, layout, alongFt: displacementFt / 2.0);
+
+        List<SoloTrainingEvent> notices = LandOverWithLiveConfigs(runway, layout, zoa, limited, luaw);
+
+        SoloTrainingEvent finding = Assert.Single(notices, e => e.Title == LandingTitle);
+        Assert.Equal([luaw.Callsign, "AAL78"], finding.Callsigns);
+    }
+
+    [Theory]
+    [InlineData("limited", true)]
+    [InlineData(null, false)] // the configuration the scenario load seeded, a named one
+    public void Engine_RunwayUser_AtSfo_ScoresOnlyWhileTheFacilityIsOnLimited(string? configurationId, bool scores)
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(
+            RunwayOccupancyWarningTests.OneAircraftAtSfo,
+            7,
+            MagneticDeclination.EvaluationDateUtc,
+            scenario => scenario.ArtccConfig = ZoaArtccConfig.Full
+        );
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.SoloTrainingMode = true;
+        AsdexSafetyLogicConfig sfo = scenario.AsdexSafetyLogicConfigs["SFO"];
+        Assert.True(AsdexSafetyLogicSeed.NamesRunwayConfiguration(scenario.ArtccConfig, "SFO", sfo.RunwayConfigurationId));
+        if (configurationId is not null)
+        {
+            scenario.AsdexSafetyLogicConfigs = scenario.AsdexSafetyLogicConfigs.SetItem("SFO", sfo with { RunwayConfigurationId = configurationId });
+        }
+
+        (RunwayInfo runway, AirportGroundLayout layout, double displacementFt) = DisplacedRunway("SFO");
+        engine.World.AddAircraft(LinedUp("N82LU", runway, layout, alongFt: displacementFt / 2.0));
+        engine.World.AddAircraft(Lander("AAL83", runway, layout, new LandingPhase()));
+
+        List<SoloTrainingEvent> notices = LandInEngine(engine, runway, "AAL83");
+
+        Assert.Equal(scores, notices.Any(e => e.Title == LandingTitle));
+    }
+
+    [Fact]
+    public void RunwayUser_NotScoredAtAsdexAirportOnNamedConfiguration()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } zoa)
+        {
+            return;
+        }
+
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> seed = LoadSeed(zoa);
+        Assert.True(AsdexSafetyLogicSeed.NamesRunwayConfiguration(zoa, "SFO", seed["SFO"].RunwayConfigurationId));
+        (RunwayInfo runway, AirportGroundLayout layout, double displacementFt) = DisplacedRunway("SFO");
+        AircraftState luaw = LinedUp("N81LU", runway, layout, alongFt: displacementFt / 2.0);
+
+        List<SoloTrainingEvent> notices = LandOverWithLiveConfigs(runway, layout, zoa, seed, luaw);
 
         Assert.DoesNotContain(notices, e => e.Title == LandingTitle);
     }
@@ -1329,6 +1408,7 @@ public class SoloRunwayUserScoringTests
             InitialContactEligibilityContext.Empty,
             WakeDirectiveCatalog.Empty,
             config,
+            (config is null) ? AsdexSafetyLogicSeed.Empty : LoadSeed(config),
             SoloTrainingServiceContext.NoSimulatedTower
         );
         var evaluator = new SoloTrainingEvaluator();
@@ -1387,6 +1467,14 @@ public class SoloRunwayUserScoringTests
         AirportGroundLayout layout,
         ArtccConfigRoot config,
         params AircraftState[] users
+    ) => LandOverWithLiveConfigs(runway, layout, config, LoadSeed(config), users);
+
+    private static List<SoloTrainingEvent> LandOverWithLiveConfigs(
+        RunwayInfo runway,
+        AirportGroundLayout layout,
+        ArtccConfigRoot config,
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> liveConfigs,
+        params AircraftState[] users
     )
     {
         AircraftState lander = Lander("AAL78", runway, layout, new LandingPhase());
@@ -1395,6 +1483,7 @@ public class SoloRunwayUserScoringTests
             InitialContactEligibilityContext.Empty,
             WakeDirectiveCatalog.Empty,
             config,
+            liveConfigs,
             SoloTrainingServiceContext.NoSimulatedTower
         );
         var evaluator = new SoloTrainingEvaluator();
@@ -1402,6 +1491,10 @@ public class SoloRunwayUserScoringTests
         CrossTheThreshold(lander, runway, new LandingPhase());
         return evaluator.Evaluate(all, 11, AirspaceDatabase.Default, context);
     }
+
+    /// <summary>The ASDE-X Safety Logic configuration a scenario load starts every facility on, with no active runways.</summary>
+    private static ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> LoadSeed(ArtccConfigRoot config) =>
+        AsdexSafetyLogicSeed.Build(config, NavigationDatabase.Instance, ActiveRunways.Empty);
 
     /// <summary>The first end at <paramref name="airport"/> with a landing threshold displaced more than 300 ft.</summary>
     private static (RunwayInfo Runway, AirportGroundLayout Layout, double DisplacementFt) DisplacedRunway(string airport)

@@ -374,6 +374,7 @@ and which domains read them:
 | `SoloTrainingMode` / `RpoShowPilotSpeech` | CT/FCA pilot-speech routing. |
 | `TerminalEmitter` | SAY-class verbs broadcast through it; **nulled in dry-run / parser tests** so SAYs don't fire twice. |
 | `ArtccConfig` | `ContactCommandHandler` target → frequency resolution; `RunwaySafetyAdvisor` safety-logic gate (nullable). |
+| `AsdexSafetyLogicConfigs` | `RunwaySafetyAdvisor` safety-logic gate: the room's live Safety Logic configuration per facility (`AsdexSafetyLogicSeed.Empty` outside a scenario), read with `ArtccConfig` by `AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive`. |
 | `ScenarioElapsedSeconds` | CT/FCA handoff-completion stamp. |
 | `SpeechContextFor` | `ContactCommandHandler`'s CT/FCA readbacks (callsign form, contact frequency form): the engine's `PilotSpeechContextFor` on its sites, `PilotSpeechContext.Canonical` on non-answering paths and in tests. |
 
@@ -392,8 +393,8 @@ string must not repeat the aircraft's callsign: the broadcast is per-aircraft an
 - `RunwaySafetyAdvisor` (`src/Yaat.Sim/Commands/RunwaySafetyAdvisor.cs`) — 7110.65 3-9-4 occupied-runway advisories: a landing-family clearance
   (CLAND/COPT/TG/SG/LA/LAHSO/CLANDF) onto a runway with traffic holding in position or taxiing to line up, and the reverse (LUAW while a still-airborne arrival
   holds a landing-family clearance for the runway — touchdown ends it, 3-9-4.a), plus `WarnIfTrafficOnFinal` on LUAW for live-traffic shadows within 6 nm of the
-  final (3-9-4.d) and shadow occupants by geometry. Gated on the airport's vNAS ARTCC config: suppressed when
-  `ArtccConfigResolver.AirportHasFullSafetyLogic` finds an ASDE-X config with runway configurations (CRC's Safety Logic covers the incursion there).
+  final (3-9-4.d) and shadow occupants by geometry. Gated on the airport's vNAS ARTCC config and the room's live Safety Logic: suppressed only when
+  `AsdexSafetyLogicSeed.OccupiedRunwayAlertingIsLive` (reading `DispatchContext.AsdexSafetyLogicConfigs`) finds the airport's facility with an ASDE-X config with runway configurations and a live entry on one of them (CRC's Safety Logic covers the incursion there). While that facility runs LIMITED, or the room holds no live entry for it, the advisories fire.
   `WarnIfAnotherHoldingInPosition` (also on LUAW) is the 3-9-4.h reminder — a second aircraft lined up on the same pavement while the first
   still awaits its takeoff clearance — and is not safety-logic gated (the sim has no daylight or LA/LM staffing state, so it always fires).
   `WarnIfRunwayOccupiedForTakeoff` (#409) fires on CTO when another aircraft is holding in position on the runway without its own takeoff

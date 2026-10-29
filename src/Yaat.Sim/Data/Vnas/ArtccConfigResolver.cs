@@ -784,18 +784,14 @@ public static partial class ArtccConfigResolver
         config.FindFacility(facilityId)?.AsdexConfiguration;
 
     /// <summary>
-    /// True when the airport's facility has a full safety logic system: an ASDE-X configuration
-    /// carrying runway configurations (which is what CRC's Safety Logic needs to run — a
-    /// display-only ASDE-X config with no runway configurations cannot). Matched on the facility's
-    /// FAA id, with a leading ICAO "K" stripped if needed (mirrors <see cref="AirportHasAtis"/>).
-    /// Returns <see langword="false"/> when the facility cannot be resolved — no positive evidence
-    /// of a safety logic system means the 7110.65 3-9-4 occupied-runway restrictions apply.
+    /// The facility of an airport, matched on its FAA id with a leading ICAO "K" stripped if needed; null for a blank id or
+    /// an airport the config has no facility for.
     /// </summary>
-    public static bool AirportHasFullSafetyLogic(this ArtccConfigRoot config, string airportId)
+    public static FacilityConfig? FindAirportFacility(this ArtccConfigRoot config, string airportId)
     {
         if (string.IsNullOrWhiteSpace(airportId))
         {
-            return false;
+            return null;
         }
 
         FacilityConfig? facility = config.FindFacility(airportId);
@@ -804,7 +800,7 @@ public static partial class ArtccConfigResolver
             facility = config.FindFacility(airportId[1..]);
         }
 
-        return facility?.AsdexConfiguration is { } asdex && asdex.RunwayConfigurations.Count > 0;
+        return facility;
     }
 
     /// <summary>
