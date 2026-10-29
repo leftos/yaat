@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Push Mid-Edit</title>
+<style>
+  :root { --bg:#1b1d21; --panel:#26292e; --box:#15171a; --edge:#3b4048; --text:#e6e8eb; --subtle:#9aa1ab; --focus:#4c8dff; --changed:#f2b84b; --sent:#5fd08a; --bad:#ff6b6b; }
+  body { margin:0; padding:24px 16px; background:var(--bg); color:var(--text); font:13px/1.4 "Segoe UI", system-ui, sans-serif; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  h2 { font-size:15px; margin:28px 0 4px; }
+  p.lead { color:var(--subtle); margin:0 0 12px; max-width:900px; }
+  .lane { display:grid; grid-template-columns:170px repeat(3, minmax(0,1fr)); gap:10px; align-items:stretch; margin:10px 0; max-width:1100px; }
+  .lane .name { font-weight:600; padding-top:6px; }
+  .lane .name small { display:block; font-weight:400; color:var(--subtle); }
+  .frame { background:var(--panel); border:1px solid var(--edge); border-radius:6px; padding:10px; }
+  .frame .step { color:var(--subtle); font-size:11px; margin-bottom:6px; }
+  .label { color:var(--subtle); font-size:11px; margin-bottom:2px; }
+  .row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .nud { width:64px; height:24px; background:var(--box); border:1px solid var(--edge); border-radius:3px; display:flex; align-items:center; padding:0 6px; box-sizing:border-box; position:relative; }
+  .nud.focus { border-color:var(--focus); box-shadow:0 0 0 1px var(--focus); }
+  .nud.focus::after { content:""; width:1px; height:14px; background:var(--text); margin-left:2px; }
+  .nud.changed { border-color:var(--changed); }
+  .nud.disabled { opacity:.45; }
+  .to { color:var(--subtle); font-size:11px; }
+  .cb { width:14px; height:14px; border:1px solid var(--edge); border-radius:2px; background:var(--box); display:inline-flex; align-items:center; justify-content:center; font-size:11px; }
+  .cb.on { background:var(--focus); border-color:var(--focus); }
+  .cb.changed { box-shadow:0 0 0 2px var(--changed); }
+  .note { margin-top:8px; font-size:11px; }
+  .note.sent { color:var(--sent); }
+  .note.bad { color:var(--bad); }
+  .note.info { color:var(--changed); }
+  .status { margin-top:6px; font-size:11px; color:var(--changed); font-style:italic; }
+  .rec { color:var(--sent); font-size:11px; font-weight:600; }
+  @media (max-width:760px) { .lane { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<h1>YAAT-822: a push lands while you type one half</h1>
+<p class="lead">Session flyout. Room starts at run delay 5 to 5. You type 15 in the min box; meanwhile another instructor sets max to 9. Orange border = changed by the push. Blue = your caret.</p>
+
+<h2>Q1. What the max box shows while you type min</h2>
+
+<div class="lane">
+  <div class="name">A. Live update <span class="rec">(recommended)</span><small>untouched half follows the push</small></div>
+  <div class="frame"><div class="step">1. You type 15 in min</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud focus">15</div><span class="to">to</span><div class="nud">5</div></div></div>
+  <div class="frame"><div class="step">2. Push: max = 9</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud focus">15</div><span class="to">to</span><div class="nud changed">9</div></div></div>
+  <div class="frame"><div class="step">3. Enter / idle 1 s</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud">9</div><span class="to">to</span><div class="nud">9</div></div><div class="note sent">Sent (15, 9); server clamps min to max, echo shows 9 to 9</div></div>
+</div>
+
+<div class="lane">
+  <div class="name">B. Hold invisibly<small>box keeps old max; merged at commit</small></div>
+  <div class="frame"><div class="step">1. You type 15 in min</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud focus">15</div><span class="to">to</span><div class="nud">5</div></div></div>
+  <div class="frame"><div class="step">2. Push: max = 9</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud focus">15</div><span class="to">to</span><div class="nud">5</div></div><div class="note bad">Box says 5; room is 9</div></div>
+  <div class="frame"><div class="step">3. Enter / idle 1 s</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud">9</div><span class="to">to</span><div class="nud changed">9</div></div><div class="note sent">Sent (15, 9): not what the box showed</div></div>
+</div>
+
+<div class="lane">
+  <div class="name">C. Live update + note<small>A, plus a status line</small></div>
+  <div class="frame"><div class="step">1. You type 15 in min</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud focus">15</div><span class="to">to</span><div class="nud">5</div></div></div>
+  <div class="frame"><div class="step">2. Push: max = 9</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud focus">15</div><span class="to">to</span><div class="nud changed">9</div></div><div class="status">Max changed to 9 by another instructor</div></div>
+  <div class="frame"><div class="step">3. Enter / idle 1 s</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud">9</div><span class="to">to</span><div class="nud">9</div></div><div class="note sent">Sent (15, 9); note clears</div></div>
+</div>
+
+<div class="lane">
+  <div class="name">Today (the bug)<small>for reference</small></div>
+  <div class="frame"><div class="step">1. You type 15 in min</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud focus">15</div><span class="to">to</span><div class="nud">5</div></div></div>
+  <div class="frame"><div class="step">2. Push: max = 9</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud focus">15</div><span class="to">to</span><div class="nud">5</div></div><div class="note bad">Push dropped whole</div></div>
+  <div class="frame"><div class="step">3. Enter / idle 1 s</div><div class="label">Command Run Delay:</div><div class="row"><div class="nud">5</div><span class="to">to</span><div class="nud">5</div></div><div class="note bad">Sent (15, 5): the other instructor's 9 is lost</div></div>
+</div>
+
+<h2>Q2. The auto-accept checkbox when a push turns it on while you type the delay</h2>
+
+<div class="lane">
+  <div class="name">A. Follow the push <span class="rec">(recommended)</span><small>checkbox flips; your delay stays</small></div>
+  <div class="frame"><div class="step">1. Auto-accept off; you type 12</div><div class="row"><span class="cb"></span> Auto-accept handoffs after <div class="nud focus">12</div> s</div></div>
+  <div class="frame"><div class="step">2. Push: auto-accept on, 30 s</div><div class="row"><span class="cb on changed">✓</span> Auto-accept handoffs after <div class="nud focus">12</div> s</div></div>
+  <div class="frame"><div class="step">3. Enter / idle 1 s</div><div class="row"><span class="cb on">✓</span> Auto-accept handoffs after <div class="nud">12</div> s</div><div class="note sent">Sent: on, 12 s</div></div>
+</div>
+
+<div class="lane">
+  <div class="name">B. Keep local (today)<small>push's on/off dropped</small></div>
+  <div class="frame"><div class="step">1. Auto-accept off; you type 12</div><div class="row"><span class="cb"></span> Auto-accept handoffs after <div class="nud focus">12</div> s</div></div>
+  <div class="frame"><div class="step">2. Push: auto-accept on, 30 s</div><div class="row"><span class="cb"></span> Auto-accept handoffs after <div class="nud focus">12</div> s</div><div class="note bad">Box says off; room is on</div></div>
+  <div class="frame"><div class="step">3. Enter / idle 1 s</div><div class="row"><span class="cb"></span> Auto-accept handoffs after <div class="nud disabled">12</div> s</div><div class="note bad">Sent: off. Other instructor's "on" is lost</div></div>
+</div>
+
+<div class="lane">
+  <div class="name">A, push turns it off<small>edge case of A</small></div>
+  <div class="frame"><div class="step">1. Auto-accept on; you type 12</div><div class="row"><span class="cb on">✓</span> Auto-accept handoffs after <div class="nud focus">12</div> s</div></div>
+  <div class="frame"><div class="step">2. Push: auto-accept off</div><div class="row"><span class="cb changed"></span> Auto-accept handoffs after <div class="nud focus disabled">12</div> s</div><div class="note info">Box greys out under your caret</div></div>
+  <div class="frame"><div class="step">3. Enter / idle 1 s</div><div class="row"><span class="cb"></span> Auto-accept handoffs after <div class="nud disabled">12</div> s</div><div class="note info">Sent: off. 12 kept in the box, not in effect</div></div>
+</div>
+</body>
+</html>
