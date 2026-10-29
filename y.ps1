@@ -17,7 +17,7 @@
                       -Server / -Client to build just one side (default: both).
       clean           dotnet clean both repos.
       format          Run prek (the configured pre-commit chain: csharpier +
-                      analyzers + warnings-as-errors build).
+                      dotnet format style; the build runs at pre-push).
       test            tools/test-all.ps1 -- build + test yaat AND yaat-server.
       deploy          Forwards to deploy-to-droplet.ps1 (default: prepare
                       sessions, rebuild, deploy). Pass -SkipSessionSave,
@@ -239,7 +239,7 @@ Lifecycle
   build [-Release] [-Server] [-Client]
                             dotnet build both repos (or just one side).
   clean                     dotnet clean both repos.
-  format                    Run prek (csharpier + analyzers + warn-as-errors).
+  format                    Run prek (csharpier + dotnet format style).
   test                      tools/test-all.ps1 (yaat + yaat-server).
   deploy [deploy.ps1 args]  Deploy to droplet. Forwards args.
   setup-crc                 Setup-CrcEnvironment.ps1 dispatcher.
@@ -378,7 +378,7 @@ function Invoke-Clean {
 }
 
 function Invoke-Format {
-    Write-Section 'prek run (csharpier + analyzers + warn-as-errors)'
+    Write-Section 'prek run (csharpier + dotnet format style)'
     prek run @script:Rest
     exit $LASTEXITCODE
 }

@@ -2,6 +2,10 @@
 # See https://prek.j178.dev for more information.
 #:schema https://www.schemastore.org/prek.json
 
+# Commits run only checks scoped to the staged files; the warnings-as-errors build runs at pre-push.
+default_install_hook_types = ["pre-commit", "pre-push"]
+default_stages = ["pre-commit"]
+
 [[repos]]
 repo = "builtin"
 hooks = [
@@ -11,7 +15,7 @@ hooks = [
     # 20 MB ceiling: the recording test bundles (tests/Yaat.Sim.Tests/TestData/*.zip) are
     # committed as regular Git objects (not Git LFS) and the largest snapshot-bearing
     # bundles run to ~14 MB. The ceiling still catches genuinely oversized accidental commits.
-    { id = "check-added-large-files", args = ["--maxkb=20480"] },
+    { id = "check-added-large-files", args = ["--maxkb=20480"], stages = ["pre-commit"] },
 ]
 
 [[repos]]
@@ -46,15 +50,6 @@ require_serial = true
 stages = ["pre-commit"]
 
 [[repos.hooks]]
-id = "dotnet-format-analyzers"
-name = "dotnet format analyzers"
-entry = "bash tools/hooks/dotnet-format-wrapper.sh analyzers warn"
-language = "system"
-types = ["c#"]
-require_serial = true
-stages = ["pre-commit"]
-
-[[repos.hooks]]
 id = "csharpier"
 name = "dotnet csharpier format (C# + XAML)"
 entry = "bash tools/hooks/csharpier-wrapper.sh"
@@ -76,10 +71,11 @@ files = '^(docs/command-cheatsheet\.(json|html)|tools/build-cheatsheet\.mjs)$'
 pass_filenames = false
 stages = ["pre-commit"]
 
-# `files` limits the build to commits that can change its output: compile inputs,
+# `files` limits the build to pushes that can change its output: compile inputs,
 # project/solution files, analyzer config, and every extension a csproj `Include`s
 # as content or a resource (embedded JSON/geojson/tsv/ttf/png, Avalonia .axaml,
-# LayoutInspector's html/css/js). Docs-, plan- or recording-only commits skip it.
+# LayoutInspector's html/css/js). Docs-, plan- or recording-only pushes skip it.
+# Warn-level analyzer diagnostics fail this build, so no separate analyzers hook runs.
 [[repos.hooks]]
 id = "dotnet-build"
 name = "dotnet build (warnings as errors)"
@@ -87,4 +83,4 @@ entry = "pwsh -NoProfile -File tools/gate.ps1 -Log .tmp/prek-dotnet-build.log -T
 language = "system"
 files = '\.(cs|csproj|slnx?|props|targets|axaml|xaml|resx|razor|cshtml|proto|json|geojson|cifp|tsv|br|ttf|otf|png|ico|svg|html|css|js|onnx|pem|txt|config|editorconfig|globalconfig|ruleset|baseline)$'
 pass_filenames = false
-stages = ["pre-commit"]
+stages = ["pre-push"]

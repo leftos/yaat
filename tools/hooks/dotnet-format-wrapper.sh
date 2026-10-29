@@ -37,7 +37,7 @@ fi
 dotnet format "$subcommand" --severity "$severity" --no-restore --exclude-diagnostics IDE0059 IDE0060 IDE0130 --include "$@"
 
 # Re-stage formatter modifications so prek doesn't fail the commit on "files were
-# modified by this hook". The dotnet-build hook runs last and gates the commit on
+# modified by this hook". The pre-push dotnet-build hook gates the push on
 # the formatted result still compiling.
 git add -- "$@"
 
