@@ -287,7 +287,7 @@ Authoritative interface definitions: `..\_ext\vatsim-vnas\messaging\` (sibling r
 ### Bucket F — Deferred (upstream-blocked)
 
 - [x] Real NEXRAD fetch — `WmsNexradProvider` + `NexradRefreshHostedService` wired by default (5 min cadence, NOAA opengeo WMS, preset-weather gate); `Nexrad:Enabled=false` is the offline kill-switch
-- [x] `ReceiveAsdexAlerts` / `DeleteAsdexAlerts` — `AsdexSafetyLogicDetector` in Yaat.Sim (closed-runway / occupied / taxi-onto-active / taxiway-landing, with only closed-runway raised while the facility's runway configuration is LIMITED; per-tick `SimulationEngine.TickAsdexAlerts`, the diff broadcast by `RoomHost.OnAsdexAlertsChanged`)
+- [x] `ReceiveAsdexAlerts` / `DeleteAsdexAlerts` — `AsdexSafetyLogicDetector` in Yaat.Sim (closed-runway / occupied / taxiway-landing, with only closed-runway raised while the facility's runway configuration is LIMITED; per-tick `SimulationEngine.TickAsdexAlerts`, the diff broadcast by `RoomHost.OnAsdexAlertsChanged`)
 - [x] ASDE-X + SAID target history trails — `DtoConverter.BuildSurfaceHistory` from `AircraftState.PositionHistory` (newest-first, cap 5)
 - [x] Coasted/dropped surface tracks on disconnect — `SurfaceCoastStore`; 45 s coast/drop per `asdex.md` (individual removals only; bulk wipes hard-delete)
 - [x] SAID surface display vertical limit — 2,500 ft AGL field-relative (`CrcVisibilityTracker`)

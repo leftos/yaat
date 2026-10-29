@@ -86,7 +86,7 @@ public class AsdexAlertStepTests
         AsdexSafetyAlert standing = Assert.Single(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts).Values);
         Assert.Equal(AsdexAlertKind.ClosedRunway, standing.Kind);
         Assert.Equal([ac.Callsign], standing.Callsigns);
-        Assert.Equal(["28R", ac.Callsign, "CLOSED RWY"], standing.MessageLines);
+        Assert.Equal(["RWY 28R", ac.Callsign, "RWY CLOSED"], standing.MessageLines);
 
         (IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) = Assert.Single(spine.AsdexAlertChanges);
         Assert.Equal(standing.Id, Assert.Single(newAlerts).Id);

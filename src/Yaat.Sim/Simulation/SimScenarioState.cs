@@ -824,6 +824,7 @@ public sealed class SimScenarioState
                     Callsigns = [.. a.Callsigns],
                     MessageLines = [.. a.MessageLines],
                     PlayAuralAlert = a.PlayAuralAlert,
+                    GoAround = a.GoAround,
                 })
             ),
         ];

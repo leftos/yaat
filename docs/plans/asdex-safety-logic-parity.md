@@ -57,7 +57,7 @@ Fetched live to `X:/dev/yaat/.tmp/zoa-artcc.json` (854,494 bytes, HTTP 200). Fac
 | CRC feature | State | Evidence |
 |---|---|---|
 | Closed-runway alert | Implemented; runs on the load-time seeded config, with or without a CRC push | AsdexSafetyLogicDetector.cs:101-109 |
-| Occupied-runway and taxi-onto-active alerts | Partial. They are binary: footprint overlap, one aligned claimant, plus a second aircraft. There is no time-to-collision look-ahead and no approach-corridor projection. Arrivals count at <= 300 ft AGL over the footprint | AsdexSafetyLogicDetector.cs:111-129, 66, 223 |
+| Occupied-runway alerts (taxi-onto-active folded in, YAAT-1193) | Partial. Texts and per-pair ids match vNAS (YAAT-1192). They are binary: footprint overlap, one aligned claimant, plus a second aircraft. There is no time-to-collision look-ahead and no approach-corridor projection. Arrivals count at <= 300 ft AGL over the footprint | AsdexSafetyLogicDetector.cs:111-129, 66, 223 |
 | Landing on converging runways, landing vs converging departure | Missing (deliberately; the enum notes it) | AsdexSafetyLogicDetector.cs:6-9 |
 | Taxiway landing | Partial. Centerline proximity of 0.015 nm to ANY taxiway (not "configured" taxiways), so false positives are likely | AsdexSafetyLogicDetector.cs:136-174, 72 |
 | Opposite-direction, go-around and other aural tokens | Missing. Aural sequence is only Warning/Runway/id + Closed or Occupied, or Warning/Taxiway/phonetic | DtoConverter.cs:2221-2239 |
