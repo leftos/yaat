@@ -491,36 +491,68 @@ public static class PatternBuilder
         bool found = false;
         foreach (Phase phase in phaseList.Phases)
         {
-            if (phase.Status is not PhaseStatus.Pending and not PhaseStatus.Active)
+            if (phase.Status is PhaseStatus.Pending or PhaseStatus.Active)
             {
-                continue;
-            }
-
-            switch (phase)
-            {
-                case UpwindPhase up:
-                    up.Waypoints = waypoints;
-                    found = true;
-                    break;
-                case CrosswindPhase cw:
-                    cw.Waypoints = waypoints;
-                    found = true;
-                    break;
-                case DownwindPhase dw:
-                    dw.Waypoints = waypoints;
-                    found = true;
-                    break;
-                case BasePhase bp:
-                    bp.Waypoints = waypoints;
-                    found = true;
-                    break;
-                case MidfieldCrossingPhase mc:
-                    mc.Waypoints = waypoints;
-                    found = true;
-                    break;
+                found |= TrySetWaypoints(phase, waypoints);
             }
         }
 
         return found;
+    }
+
+    /// <summary>
+    /// Moves every pending pattern phase in the list onto <paramref name="patternAltitudeFt"/>, each keeping its own
+    /// geometry: a runway-transition circuit holds two runways' waypoints in one list, so one recomputed set cannot stand in
+    /// for all of them. Phases that shared a waypoints instance still share one. A leg already flying caches its targets at
+    /// its start and is left on the waypoints it started with.
+    /// </summary>
+    /// <param name="phaseList">The phase list whose queued pattern phases take the new altitude.</param>
+    /// <param name="patternAltitudeFt">The pattern altitude now standing (feet MSL).</param>
+    public static void SetPendingPatternAltitude(PhaseList phaseList, double patternAltitudeFt)
+    {
+        var copies = new Dictionary<PatternWaypoints, PatternWaypoints>(ReferenceEqualityComparer.Instance);
+        foreach (Phase phase in phaseList.Phases)
+        {
+            if ((phase.Status is not PhaseStatus.Pending) || (AirborneFollowHelper.PatternWaypointsOf(phase) is not { } own))
+            {
+                continue;
+            }
+
+            if (!copies.TryGetValue(own, out PatternWaypoints? copy))
+            {
+                copy = own.WithPatternAltitude(patternAltitudeFt);
+                copies[own] = copy;
+            }
+
+            TrySetWaypoints(phase, copy);
+        }
+    }
+
+    /// <summary>Sets <paramref name="waypoints"/> on <paramref name="phase"/> and returns whether it carries pattern waypoints.</summary>
+    private static bool TrySetWaypoints(Phase phase, PatternWaypoints waypoints)
+    {
+        switch (phase)
+        {
+            case UpwindPhase up:
+                up.Waypoints = waypoints;
+                return true;
+            case CrosswindPhase cw:
+                cw.Waypoints = waypoints;
+                return true;
+            case DownwindPhase dw:
+                dw.Waypoints = waypoints;
+                return true;
+            case BasePhase bp:
+                bp.Waypoints = waypoints;
+                return true;
+            case MidfieldCrossingPhase mc:
+                mc.Waypoints = waypoints;
+                return true;
+            case TeardropReentryPhase td:
+                td.Waypoints = waypoints;
+                return true;
+            default:
+                return false;
+        }
     }
 }

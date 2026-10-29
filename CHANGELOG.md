@@ -19,6 +19,7 @@
 - An `ARWY` change to an ASDE-X airport's runway configuration is no longer reverted when a CRC display that hasn't caught up closes a runway or inhibits alerts.
 - Playing back a recording now shows its recorded ASDE-X closed runways, inhibits and runway-configuration changes on CRC.
 - A wrong-side jet or turboprop pattern entry adds or drops its teardrop when the pattern altitude changes before it crosses midfield.
+- A `CM`/`DM`, or an option clearance with an altitude, given in the pattern now holds the rest of the circuit at that altitude, not the published one.
 - A `FOLLOW` onto the runway an option clearance armed (`COPT MLT 28L 20`) flies that clearance's pattern altitude, and a `CM`/`DM` during the follow takes precedence.
 - After a rewind, restart or recording load, a saved recording starts on the weather the session began with, not the room's weather at that moment.
 - A rewind replays the session's weather as it was at that second, including a weather clear, so replays and exports match the live run.

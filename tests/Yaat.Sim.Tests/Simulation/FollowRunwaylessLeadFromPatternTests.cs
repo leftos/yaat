@@ -1685,7 +1685,7 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         AircraftState follower = AddPursuingFollower(engine, start, new TrueHeading(GeoMath.BearingTo(start, LeadBaseStart)));
         ArmPatternRunway(follower, flown: Oak("28L"), armed: rwy, deferredFt: 2000);
 
-        CommandResult result = FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(3000), follower);
+        CommandResult result = FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(3000), follower, groundLayout: null);
         Assert.True(result.Success, result.Message);
         Assert.Null(follower.Phases!.TransitionPatternAltitude);
 

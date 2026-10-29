@@ -110,7 +110,7 @@ internal static class FlightCommandHandler
         return CommandDispatcher.Ok($"Force heading {cmd.MagneticHeading.Degrees:000}");
     }
 
-    internal static CommandResult ApplyClimbMaintain(ClimbMaintainCommand cmd, AircraftState aircraft)
+    internal static CommandResult ApplyClimbMaintain(ClimbMaintainCommand cmd, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
         if (cmd.Modifier != AltitudeAssignmentModifier.None)
         {
@@ -124,7 +124,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
-        SetPatternAltitudeOverride(aircraft, cmd.Altitude);
+        SetPatternAltitudeOverride(aircraft, cmd.Altitude, groundLayout);
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
     }
@@ -150,7 +150,7 @@ internal static class FlightCommandHandler
     /// to the next runway's pattern (<see cref="PhaseList.TransitionPatternAltitude"/>) wherever the aircraft is — a follower
     /// in pursuit included. Assigned in the pattern, it also becomes the standing pattern altitude.
     /// </summary>
-    private static void SetPatternAltitudeOverride(AircraftState aircraft, int altitude)
+    private static void SetPatternAltitudeOverride(AircraftState aircraft, int altitude, AirportGroundLayout? groundLayout)
     {
         if (aircraft.Phases is not { } phases)
         {
@@ -161,6 +161,7 @@ internal static class FlightCommandHandler
         if (phases.TrafficDirection is not null)
         {
             aircraft.Pattern.SetAltitudeOverride(altitude, phases, AircraftCategorization.Categorize(aircraft.AircraftType));
+            PatternCommandHandler.RefreshPatternWaypointsForAltitude(aircraft, groundLayout);
         }
     }
 
@@ -187,7 +188,7 @@ internal static class FlightCommandHandler
         }
     }
 
-    internal static CommandResult ApplyDescendMaintain(DescendMaintainCommand cmd, AircraftState aircraft)
+    internal static CommandResult ApplyDescendMaintain(DescendMaintainCommand cmd, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
         string prev = PreviousAltitude(aircraft, cmd.Altitude);
         CancelViaClearances(aircraft);
@@ -196,7 +197,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
-        SetPatternAltitudeOverride(aircraft, cmd.Altitude);
+        SetPatternAltitudeOverride(aircraft, cmd.Altitude, groundLayout);
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
     }
@@ -660,7 +661,7 @@ internal static class FlightCommandHandler
         return CommandDispatcher.Ok("Speed restrictions deleted");
     }
 
-    internal static CommandResult ApplyExpedite(ExpediteCommand cmd, AircraftState aircraft)
+    internal static CommandResult ApplyExpedite(ExpediteCommand cmd, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
         // Runway-exit expedite: a just-landed aircraft (flaring/rolling-out/exiting,
         // no taxi route yet) clears the runway as fast as possible. Keyed on the
@@ -704,7 +705,7 @@ internal static class FlightCommandHandler
         // chain the generic level condition instead: `EXP; LV 050 NORM`.
         if (cmd.Altitude is { } assigned)
         {
-            return ApplyExpediteToAltitude(assigned, aircraft);
+            return ApplyExpediteToAltitude(assigned, aircraft, groundLayout);
         }
 
         // Bare EXP only makes sense while the aircraft is actually going somewhere
@@ -731,7 +732,7 @@ internal static class FlightCommandHandler
     /// keeps the via-mode, floor/ceiling and pattern-override bookkeeping in one place — and
     /// then turns expedite on. Order matters: CM/DM both clear <c>IsExpediting</c>.
     /// </summary>
-    private static CommandResult ApplyExpediteToAltitude(int assigned, AircraftState aircraft)
+    private static CommandResult ApplyExpediteToAltitude(int assigned, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
         if (Math.Abs(assigned - aircraft.Altitude) < FlightPhysics.AltitudeSnapFt)
         {
@@ -740,8 +741,8 @@ internal static class FlightCommandHandler
 
         bool climb = assigned > aircraft.Altitude;
         CommandResult assignment = climb
-            ? ApplyClimbMaintain(new ClimbMaintainCommand(assigned), aircraft)
-            : ApplyDescendMaintain(new DescendMaintainCommand(assigned), aircraft);
+            ? ApplyClimbMaintain(new ClimbMaintainCommand(assigned), aircraft, groundLayout)
+            : ApplyDescendMaintain(new DescendMaintainCommand(assigned), aircraft, groundLayout);
 
         if (!assignment.Success)
         {

@@ -1265,9 +1265,9 @@ public static class CommandDispatcher
 
             // --- Altitude ---
             case ClimbMaintainCommand cmd:
-                return FlightCommandHandler.ApplyClimbMaintain(cmd, aircraft);
+                return FlightCommandHandler.ApplyClimbMaintain(cmd, aircraft, ctx.GroundLayout);
             case DescendMaintainCommand cmd:
-                return FlightCommandHandler.ApplyDescendMaintain(cmd, aircraft);
+                return FlightCommandHandler.ApplyDescendMaintain(cmd, aircraft, ctx.GroundLayout);
             case ForceAltitudeCommand cmd:
                 return FlightCommandHandler.ApplyForceAltitude(cmd, aircraft);
 
@@ -1283,7 +1283,7 @@ public static class CommandDispatcher
             case DeleteSpeedRestrictionsCommand:
                 return FlightCommandHandler.ApplyDeleteSpeedRestrictions(aircraft);
             case ExpediteCommand cmd:
-                return FlightCommandHandler.ApplyExpedite(cmd, aircraft);
+                return FlightCommandHandler.ApplyExpedite(cmd, aircraft, ctx.GroundLayout);
             case NormalRateCommand:
                 return FlightCommandHandler.ApplyNormalRate(aircraft);
             case MachCommand cmd:

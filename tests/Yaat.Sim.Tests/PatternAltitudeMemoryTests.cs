@@ -60,7 +60,7 @@ public class PatternAltitudeMemoryTests
         );
         AircraftState ac = MakePatternAircraft(new DownwindPhase { Waypoints = waypoints });
 
-        FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(1500), ac);
+        FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(1500), ac, groundLayout: null);
 
         Assert.Equal(1500, ac.Pattern.AltitudeOverrideFt);
     }
@@ -81,7 +81,7 @@ public class PatternAltitudeMemoryTests
         );
         AircraftState ac = MakePatternAircraft(new UpwindPhase { Waypoints = waypoints });
 
-        FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(800), ac);
+        FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(800), ac, groundLayout: null);
 
         Assert.Equal(800, ac.Pattern.AltitudeOverrideFt);
     }
@@ -175,7 +175,7 @@ public class PatternAltitudeMemoryTests
             Phases = new PhaseList { AssignedRunway = DefaultRunway() },
         };
 
-        FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(5000), ac);
+        FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(5000), ac, groundLayout: null);
 
         Assert.Null(ac.Pattern.AltitudeOverrideFt);
     }

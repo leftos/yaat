@@ -67,6 +67,33 @@ public sealed class PatternWaypoints
     /// <summary>Pattern direction (left or right turns).</summary>
     public PatternDirection Direction { get; init; }
 
+    /// <summary>A copy of these waypoints with the same geometry, flown at <paramref name="patternAltitudeFt"/>.</summary>
+    /// <param name="patternAltitudeFt">The copy's pattern altitude (feet MSL).</param>
+    public PatternWaypoints WithPatternAltitude(double patternAltitudeFt) =>
+        new()
+        {
+            DepartureEndLat = DepartureEndLat,
+            DepartureEndLon = DepartureEndLon,
+            CrosswindTurnLat = CrosswindTurnLat,
+            CrosswindTurnLon = CrosswindTurnLon,
+            DownwindStartLat = DownwindStartLat,
+            DownwindStartLon = DownwindStartLon,
+            DownwindAbeamLat = DownwindAbeamLat,
+            DownwindAbeamLon = DownwindAbeamLon,
+            BaseTurnLat = BaseTurnLat,
+            BaseTurnLon = BaseTurnLon,
+            ThresholdLat = ThresholdLat,
+            ThresholdLon = ThresholdLon,
+            UpwindHeading = UpwindHeading,
+            CrosswindHeading = CrosswindHeading,
+            DownwindHeading = DownwindHeading,
+            BaseHeading = BaseHeading,
+            FinalHeading = FinalHeading,
+            PatternAltitude = patternAltitudeFt,
+            PatternSizeNm = PatternSizeNm,
+            Direction = Direction,
+        };
+
     public PatternWaypointsDto ToSnapshot() =>
         new()
         {

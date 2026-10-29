@@ -1577,13 +1577,357 @@ public class PatternEntryTests : IDisposable
         MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(phases[0]);
         DownwindPhase downwind = Assert.IsType<DownwindPhase>(phases[1]);
         Assert.True(downwind.RejoinTrack);
+        Assert.Equal(1500.0, crossing.Waypoints!.PatternAltitude);
         PhaseContext ctx = MakeContext(aircraft);
         crossing.OnStart(ctx);
-        Assert.Equal(crossing.Waypoints!.PatternAltitude, ctx.Targets.TargetAltitude);
-        if (instruction == "MRT")
+        Assert.Equal(1500.0, ctx.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// A pattern altitude assigned in the pattern (<c>CM</c>/<c>DM</c>, a runway-less <c>COPT</c> with an altitude) is the
+    /// altitude every leg still to come is flown at (AIM 4-4-10.a): the queued crosswind, downwind and base legs carry it,
+    /// and the downwind targets it when it starts, not the authored 1,109 ft.
+    /// </summary>
+    [Theory]
+    [InlineData("CM")]
+    [InlineData("DM")]
+    [InlineData("COPT")]
+    public void AltitudeChange_InThePattern_RefreshesPendingLegs(string instruction)
+    {
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+
+        AssignPatternAltitude(aircraft, instruction, 1500);
+
+        List<Phase> phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        List<Phase> legs = [.. phases.Where(p => p is DownwindPhase or BasePhase or CrosswindPhase)];
+        Assert.NotEmpty(legs);
+        foreach (Phase leg in legs)
         {
-            // MRT refreshes the queued legs' waypoints, so the crossing is flown at the assigned altitude itself.
-            Assert.Equal(1500.0, crossing.Waypoints.PatternAltitude);
+            Assert.Equal(PhaseStatus.Pending, leg.Status);
+            Assert.Equal(1500.0, AirborneFollowHelper.PatternWaypointsOf(leg)!.PatternAltitude);
+        }
+
+        DownwindPhase downwind = phases.OfType<DownwindPhase>().First();
+        PhaseContext ctx = MakeContext(aircraft);
+        downwind.OnStart(ctx);
+        Assert.Equal(1500.0, ctx.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// <c>CM 15</c> while the field crossing is already flying: the crossing flies the assigned 1,500 ft at once, and the
+    /// downwind queued after it is flown at 1,500 ft when it starts.
+    /// </summary>
+    [Fact]
+    public void Cm_WhileCrossingActive_LaterDownwindFlies1500()
+    {
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        aircraft.Phases!.Start(MakeContext(aircraft));
+        Assert.Equal(PhaseStatus.Active, aircraft.Phases.Phases[0].Status);
+
+        AssignPatternAltitude(aircraft, "CM", 1500);
+
+        Assert.Equal(1500.0, aircraft.Targets.TargetAltitude);
+        DownwindPhase downwind = aircraft.Phases.Phases.OfType<DownwindPhase>().First();
+        PhaseContext ctx = MakeContext(aircraft);
+        downwind.OnStart(ctx);
+        Assert.Equal(1500.0, ctx.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// <c>CM 15</c> on a downwind already flying past abeam: the leg holds the assigned 1,500 ft, and its waypoints are left
+    /// as they were (an active leg is not refreshed).
+    /// </summary>
+    [Fact]
+    public void Cm_WhileDownwindActive_HoldsAssignedAltitude()
+    {
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        PatternWaypoints flownWaypoints = aircraft.Phases!.Phases.OfType<DownwindPhase>().First().Waypoints!;
+        var downwind = new DownwindPhase { Waypoints = flownWaypoints };
+        var basePhase = new BasePhase { Waypoints = flownWaypoints };
+        var phases = new PhaseList { AssignedRunway = aircraft.Phases.AssignedRunway, TrafficDirection = PatternDirection.Right };
+        phases.Add(downwind);
+        phases.Add(basePhase);
+        aircraft.Phases = phases;
+        PhaseContext ctx = MakeContext(aircraft);
+
+        aircraft.Position = new LatLon(flownWaypoints.DownwindAbeamLat, flownWaypoints.DownwindAbeamLon);
+        aircraft.TrueHeading = flownWaypoints.DownwindHeading;
+        aircraft.Altitude = flownWaypoints.PatternAltitude;
+        phases.Start(ctx);
+        Assert.Equal(PhaseStatus.Active, downwind.Status);
+        downwind.OnTick(ctx);
+
+        AssignPatternAltitude(aircraft, "CM", 1500);
+        downwind.OnTick(ctx);
+        downwind.OnTick(ctx);
+
+        Assert.Equal(1500.0, aircraft.Targets.TargetAltitude);
+        Assert.Same(flownWaypoints, downwind.Waypoints);
+        Assert.Equal(1500.0, basePhase.Waypoints!.PatternAltitude);
+    }
+
+    /// <summary>
+    /// An option clearance whose modifier names another runway (<c>COPT MLT 28L 20</c>) defers its altitude to that
+    /// runway's circuit, so this circuit's queued legs keep their waypoints and the authored 1,109 ft.
+    /// </summary>
+    [Fact]
+    public void Copt_OtherRunwayWithAltitude_DoesNotRefreshThisCircuit()
+    {
+        using IDisposable navDb = ScopeWithOak28L();
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        DownwindPhase downwind = aircraft.Phases!.Phases.OfType<DownwindPhase>().First();
+        PatternWaypoints before = downwind.Waypoints!;
+
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 2000));
+
+        Assert.Same(before, downwind.Waypoints);
+        Assert.Equal(1109.0, downwind.Waypoints!.PatternAltitude);
+        Assert.Null(aircraft.Pattern.AltitudeOverrideFt);
+    }
+
+    /// <summary>
+    /// A teardrop still queued behind a crossing that is already flying keeps its place when <c>CM 15</c> arrives, and is
+    /// flown on the refreshed pattern altitude.
+    /// </summary>
+    [Fact]
+    public void Cm_QueuedTeardrop_GetsRefreshedWaypoints()
+    {
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        aircraft.Phases!.Start(MakeContext(aircraft));
+
+        AssignPatternAltitude(aircraft, "CM", 1500);
+
+        TeardropReentryPhase teardrop = Assert.IsType<TeardropReentryPhase>(aircraft.Phases.Phases[1]);
+        Assert.Equal(PhaseStatus.Pending, teardrop.Status);
+        Assert.Equal(1500.0, teardrop.Waypoints.PatternAltitude);
+        PhaseContext ctx = MakeContext(aircraft);
+        teardrop.OnStart(ctx);
+        Assert.Equal(
+            [("TDROP-OUT", 1500), ("TDROP-LI", 1500), ("TDROP-ABM", 1500)],
+            ctx.Targets.NavigationRoute.Select(t => (t.Name, t.AltitudeRestriction!.Altitude1Ft))
+        );
+    }
+
+    /// <summary>
+    /// <c>MRT 15</c> with a teardrop still queued behind a crossing that is already flying: the direction change swaps the
+    /// queued teardrop onto the circuit's new waypoints, so it is flown at the assigned 1,500 ft.
+    /// </summary>
+    [Fact]
+    public void Mrt_QueuedTeardrop_GetsTheNewWaypoints()
+    {
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        aircraft.Phases!.Start(MakeContext(aircraft));
+
+        AssignPatternAltitude(aircraft, "MRT", 1500);
+
+        TeardropReentryPhase teardrop = Assert.IsType<TeardropReentryPhase>(aircraft.Phases.Phases[1]);
+        Assert.Equal(PhaseStatus.Pending, teardrop.Status);
+        Assert.Equal(1500.0, teardrop.Waypoints.PatternAltitude);
+    }
+
+    /// <summary>
+    /// <c>COPT MRT 28R</c> on an aircraft with no assigned runway changes the pattern runway, which clears the standing
+    /// 1,500 ft at once (different runway, different TPA): the queued legs go back to the authored 1,109 ft.
+    /// </summary>
+    [Fact]
+    public void Copt_RunwaylessAircraftNamingAPatternRunway_ClearsTheAltitudeOnTheQueuedLegs()
+    {
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: 1500);
+        aircraft.FlightPlan.Destination = "KOAK";
+        aircraft.Phases!.AssignedRunway = null;
+        aircraft.Phases.PatternRunway = null;
+        Assert.Equal(1500.0, aircraft.Phases.Phases.OfType<DownwindPhase>().First().Waypoints!.PatternAltitude);
+
+        IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Right, "28R", null));
+
+        Assert.Null(aircraft.Pattern.AltitudeOverrideFt);
+        List<Phase> legs = [.. aircraft.Phases.Phases.Where(p => p is DownwindPhase or BasePhase)];
+        Assert.NotEmpty(legs);
+        Assert.All(legs, leg => Assert.Equal(1109.0, AirborneFollowHelper.PatternWaypointsOf(leg)!.PatternAltitude));
+    }
+
+    /// <summary>
+    /// <c>CM 15</c> during the climb-out of a crossing transition (<c>CTO 33 MRT 28R</c>): the queued legs each keep their own
+    /// runway — the upwind 33's, the crossing, downwind and base 28R's — and all take the assigned 1,500 ft.
+    /// </summary>
+    [Fact]
+    public void Cm_DuringCrossingTransitionClimbOut_KeepsEachLegsRunway()
+    {
+        using IDisposable navDb = ScopeWithRealOakRunways();
+        AircraftState aircraft = MakeRealOakTransition("33", "28R", PatternDirection.Right);
+        List<Phase> phases = aircraft.Phases!.Phases;
+        Assert.IsType<UpwindPhase>(phases[0]);
+        Assert.Contains(phases, p => p is MidfieldCrossingPhase);
+        List<PatternWaypoints?> before = [.. phases.Select(AirborneFollowHelper.PatternWaypointsOf)];
+
+        AssignPatternAltitude(aircraft, "CM", 1500);
+
+        AssertEachLegKeepsItsGeometryAt1500(phases, before);
+        PatternWaypoints upwind = AirborneFollowHelper.PatternWaypointsOf(phases[0])!;
+        PatternWaypoints downwind = phases.OfType<DownwindPhase>().First().Waypoints!;
+        Assert.NotEqual(upwind.ThresholdLat, downwind.ThresholdLat);
+    }
+
+    /// <summary>
+    /// <c>CM 15</c> during the climb-out of a close-parallel transition (28L to 28R): the upwind and crosswind keep their
+    /// transition anchor (28L's departure end, farther along) and the downwind and base keep 28R's circuit, all at 1,500 ft.
+    /// </summary>
+    [Fact]
+    public void Cm_DuringParallelTransitionClimbOut_KeepsEachLegsRunway()
+    {
+        using IDisposable navDb = ScopeWithRealOakRunways();
+        AircraftState aircraft = MakeRealOakTransition("28L", "28R", PatternDirection.Right);
+        List<Phase> phases = aircraft.Phases!.Phases;
+        Assert.IsType<CrosswindPhase>(phases[1]);
+        List<PatternWaypoints?> before = [.. phases.Select(AirborneFollowHelper.PatternWaypointsOf)];
+
+        AssignPatternAltitude(aircraft, "CM", 1500);
+
+        AssertEachLegKeepsItsGeometryAt1500(phases, before);
+        PatternWaypoints crosswind = AirborneFollowHelper.PatternWaypointsOf(phases[1])!;
+        PatternWaypoints downwind = phases.OfType<DownwindPhase>().First().Waypoints!;
+        Assert.NotEqual(
+            JsonSerializer.Serialize(crosswind.ToSnapshot(), RecordingJsonOptions.Default),
+            JsonSerializer.Serialize(downwind.ToSnapshot(), RecordingJsonOptions.Default)
+        );
+    }
+
+    /// <summary>
+    /// <c>CM 15</c> through the dispatcher on an aircraft with no cached layout: the dispatch's layout carries the authored
+    /// pattern, and the queued downwind and base keep its pattern size while taking the assigned 1,500 ft.
+    /// </summary>
+    [Fact]
+    public void Cm_WithNoCachedLayout_KeepsTheAuthoredPatternSize()
+    {
+        var layout = new AirportGroundLayout
+        {
+            AirportId = "KOAK",
+            Runways =
+            [
+                new GroundRunway
+                {
+                    Name = "28R - 10L",
+                    Coordinates = [],
+                    WidthFt = 150,
+                    PatternAltitudeAglFt = 600,
+                    PatternSizeNm = 0.8,
+                },
+            ],
+        };
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = MakeOak28R();
+        CommandResult entry = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            groundLayout: layout
+        );
+        Assert.True(entry.Success, entry.Message);
+        Assert.Null(aircraft.Ground.Layout);
+        PatternWaypoints circuit = aircraft.Phases.Phases.OfType<DownwindPhase>().First().Waypoints!;
+        double authoredSizeNm = circuit.PatternSizeNm;
+
+        // Flying the downwind, where a CM is additive; the base is still queued.
+        var basePhase = new BasePhase { Waypoints = circuit };
+        var phases = new PhaseList { AssignedRunway = aircraft.Phases.AssignedRunway, TrafficDirection = PatternDirection.Right };
+        phases.Add(new DownwindPhase { Waypoints = circuit });
+        phases.Add(basePhase);
+        aircraft.Phases = phases;
+        aircraft.Position = new LatLon(circuit.DownwindStartLat, circuit.DownwindStartLon);
+        aircraft.TrueHeading = circuit.DownwindHeading;
+        aircraft.Altitude = circuit.PatternAltitude;
+        phases.Start(MakeContext(aircraft));
+        List<Phase> legs = [basePhase];
+
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("CM 015", aircraft.FlightPlan.Route);
+        Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parsed.Value!,
+            aircraft,
+            TestDispatch.Context(Random.Shared, validateDctFixes: false, groundLayout: layout)
+        );
+        Assert.True(result.Success, result.Message);
+        Assert.All(legs, leg => Assert.Equal(PhaseStatus.Pending, leg.Status));
+
+        foreach (Phase leg in legs)
+        {
+            PatternWaypoints waypoints = AirborneFollowHelper.PatternWaypointsOf(leg)!;
+            Assert.Equal(authoredSizeNm, waypoints.PatternSizeNm);
+            Assert.Equal(1500.0, waypoints.PatternAltitude);
+        }
+    }
+
+    /// <summary>The fixture's navdb with KOAK's real runways, for the runway-transition circuits.</summary>
+    private static IDisposable ScopeWithRealOakRunways()
+    {
+        NavigationDatabase real = TestVnasData.NavigationDb ?? throw new InvalidOperationException("no test navdata");
+        return NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways([.. real.GetRunways("KOAK")]));
+    }
+
+    /// <summary>
+    /// A B738 climbing out of real KOAK <paramref name="flown"/> on the <paramref name="direction"/> traffic transition circuit to
+    /// <paramref name="pattern"/>, every leg still queued.
+    /// </summary>
+    private static AircraftState MakeRealOakTransition(string flown, string pattern, PatternDirection direction)
+    {
+        NavigationDatabase real = TestVnasData.NavigationDb ?? throw new InvalidOperationException("no test navdata");
+        RunwayInfo flownRunway = real.GetRunway("KOAK", flown) ?? throw new InvalidOperationException($"KOAK {flown} not found");
+        RunwayInfo patternRunway = real.GetRunway("KOAK", pattern) ?? throw new InvalidOperationException($"KOAK {pattern} not found");
+        List<Phase> circuit = PatternBuilder.BuildRunwayTransitionCircuit(
+            flownRunway,
+            patternRunway,
+            AircraftCategory.Jet,
+            "B738",
+            windSpeedKt: 0,
+            direction,
+            touchAndGo: true,
+            patternSizeNm: null,
+            altitudeOverrideFt: null,
+            real.GetRunways("KOAK"),
+            flownAuthoredRunway: null,
+            patternAuthoredRunway: null
+        );
+        AircraftState aircraft = MakeAircraft(flownRunway.EndLatitude, flownRunway.EndLongitude, 600, flownRunway.TrueHeading.Degrees);
+        aircraft.AircraftType = "B738";
+        var phases = new PhaseList
+        {
+            AssignedRunway = flownRunway,
+            PatternRunway = patternRunway,
+            TrafficDirection = direction,
+        };
+        foreach (Phase phase in circuit)
+        {
+            phases.Add(phase);
+        }
+
+        aircraft.Phases = phases;
+        return aircraft;
+    }
+
+    /// <summary>
+    /// Each phase that carried pattern waypoints in <paramref name="before"/> still flies the same geometry, now at 1,500 ft.
+    /// </summary>
+    private static void AssertEachLegKeepsItsGeometryAt1500(List<Phase> phases, List<PatternWaypoints?> before)
+    {
+        Assert.Equal(before.Count, phases.Count);
+        for (int i = 0; i < phases.Count; i++)
+        {
+            if (before[i] is not { } old)
+            {
+                continue;
+            }
+
+            PatternWaypoints now = AirborneFollowHelper.PatternWaypointsOf(phases[i])!;
+            Assert.Equal(1500.0, now.PatternAltitude);
+            Assert.Equal((old.ThresholdLat, old.ThresholdLon), (now.ThresholdLat, now.ThresholdLon));
+            Assert.Equal((old.CrosswindTurnLat, old.CrosswindTurnLon), (now.CrosswindTurnLat, now.CrosswindTurnLon));
+            Assert.Equal((old.DownwindAbeamLat, old.DownwindAbeamLon), (now.DownwindAbeamLat, now.DownwindAbeamLon));
+            Assert.Equal(old.PatternSizeNm, now.PatternSizeNm);
+            Assert.Equal(old.Direction, now.Direction);
         }
     }
 
@@ -1707,8 +2051,8 @@ public class PatternEntryTests : IDisposable
 
         CommandResult result = instruction switch
         {
-            "CM" => FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(altitudeFt), aircraft),
-            "DM" => FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(altitudeFt), aircraft),
+            "CM" => FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(altitudeFt), aircraft, aircraft.Ground.Layout),
+            "DM" => FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(altitudeFt), aircraft, aircraft.Ground.Layout),
             "MRT" => PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: null, altitudeOverride: altitudeFt),
             _ => throw new ArgumentOutOfRangeException(nameof(instruction), instruction, "no pattern-altitude instruction by that name"),
         };
@@ -1992,8 +2336,8 @@ public class PatternEntryTests : IDisposable
 
         CommandResult result =
             instruction == "CM"
-                ? FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(1500), aircraft)
-                : FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(1500), aircraft);
+                ? FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(1500), aircraft, aircraft.Ground.Layout)
+                : FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(1500), aircraft, aircraft.Ground.Layout);
         Assert.True(result.Success, result.Message);
 
         Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);

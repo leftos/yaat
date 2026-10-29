@@ -177,7 +177,7 @@ has already passed:
 Every sequence ends with `FinalApproachPhase` then a landing phase (`HelicopterLandingPhase` for helicopters,
 `TouchAndGoPhase` when `touchAndGo`, else `LandingPhase`). `BuildNextCircuit` (`PatternBuilder.cs:84`) builds the
 next full circuit from upwind for auto-cycling traffic; `UpdateWaypoints` (`PatternBuilder.cs:101`) re-points the
-waypoints of all pending/active pattern phases (used when the pattern is resized live).
+waypoints of all pending/active pattern phases (used when the pattern is resized live); `SetPendingPatternAltitude` changes only the pattern altitude of the pending phases' own waypoints (used when the pattern altitude changes).
 
 ### Runway transitions — `BuildRunwayTransitionCircuit`
 
@@ -402,6 +402,8 @@ At a field with no authored pattern the turbine TPA already is field + 1,500 ft,
 The aircraft enters from `MidfieldCrossingPhase` at its crossing altitude.
 
 The teardrop is decided on the pattern altitude standing when the crossing is built, and a queued crossing is decided again when that altitude changes. Every write of `Pattern.AltitudeOverrideFt` goes through `AircraftPattern.SetAltitudeOverride`, which calls `PatternBuilder.ReconcileFieldCrossingPrefix`: the first `MidfieldCrossingPhase` still pending gains or loses its `TeardropReentryPhase` (and the joined downwind's `RejoinTrack`) as the new altitude dictates (CM/DM in the pattern, a runway-less COPT/TG/SG/LA with an altitude, MLT/MRT with an altitude or a runway, a CTO closed-traffic altitude, a runway-transition deferred altitude). A crossing already flying has read the altitude and is left alone.
+
+A write that does not rebuild the circuit (CM/DM in the pattern, a runway-less COPT/TG/SG/LA with an altitude) also brings the queued legs onto the new altitude: `PatternCommandHandler.RefreshPatternWaypointsForAltitude` computes the new pattern altitude once (`ComputePatternWaypoints` for the runway and side of the last pending pattern leg, with the dispatch's ground layout), copies it onto each pending phase's own waypoints (`PatternBuilder.SetPendingPatternAltitude`, which keeps every leg's geometry, so a runway-transition circuit's upwind stays on the departure runway and its crossing, downwind and base on the pattern runway; an active leg already flies the CM through its targets), then runs `ReconcileFieldCrossingPrefix`. The queued crossing, teardrop, upwind, crosswind, downwind and base therefore fly the assigned altitude, not the authored one. A queued teardrop also takes new waypoints on an MLT/MRT.
 
 The route waypoints carry `At` altitude restrictions that step it down across the three points: **TPA + 250**, **TPA + 50**, then **TPA**, each capped at the crossing altitude so the teardrop never climbs above the height it entered at (a turbine pattern altitude between 1,251 and 1,489 ft AGL, from an authored pattern of about 751–989 ft AGL plus the turbine 500 ft, crosses less than 250 ft above TPA and steps down from there).
 

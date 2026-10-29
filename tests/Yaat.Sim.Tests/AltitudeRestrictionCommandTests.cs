@@ -69,7 +69,8 @@ public class AltitudeRestrictionCommandTests
         };
         CommandResult result = FlightCommandHandler.ApplyClimbMaintain(
             new ClimbMaintainCommand(2500, AltitudeAssignmentModifier.AtOrBelow),
-            aircraft
+            aircraft,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -90,7 +91,8 @@ public class AltitudeRestrictionCommandTests
         };
         CommandResult result = FlightCommandHandler.ApplyClimbMaintain(
             new ClimbMaintainCommand(2500, AltitudeAssignmentModifier.AtOrAbove),
-            aircraft
+            aircraft,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);

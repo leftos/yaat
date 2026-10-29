@@ -32,7 +32,7 @@ public sealed class TeardropReentryPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("TeardropReentryPhase");
 
-    public required PatternWaypoints Waypoints { get; init; }
+    public required PatternWaypoints Waypoints { get; set; }
 
     private double _outboundLat;
     private double _outboundLon;
