@@ -28,7 +28,10 @@ public static class SnapshotSchemaMigrator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("SnapshotSchemaMigrator");
 
-    public const int CurrentSchemaVersion = 38;
+    public const int CurrentSchemaVersion = 39;
+
+    /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
+    public const double LegacyTransmissionSeconds = 3.0;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -295,7 +298,30 @@ public static class SnapshotSchemaMigrator
         //   NavigationTargetDto.RevertSpeedMax, true on a crossing fix past which SMAX is armed again. No aircraft before V38
         //   could have been given SMAX, so both members' absence restores false and needs no step.
 
+        // V38→V39: StateSnapshotDto.FrequencyTransmissionTimes (the second each transmission started, the meter then
+        //   counting transmissions) replaced by FrequencyTransmissions (start and duration, the meter now judging dead air).
+        //   Each stored time becomes a LegacyTransmissionSeconds transmission from that second; a snapshot without times
+        //   restores an empty meter. The legacy field is nulled so a rewritten snapshot drops it.
+        if (snapshot.SchemaVersion < 39)
+        {
+            MigrateLegacyFrequencyTransmissionTimes(snapshot);
+        }
+
         snapshot.SchemaVersion = CurrentSchemaVersion;
+    }
+
+    /// <summary>Turns a pre-V39 snapshot's transmission start times into transmissions of <see cref="LegacyTransmissionSeconds"/>.</summary>
+    private static void MigrateLegacyFrequencyTransmissionTimes(StateSnapshotDto snapshot)
+    {
+        if (snapshot.LegacyFrequencyTransmissionTimes is { Count: > 0 } times)
+        {
+            snapshot.FrequencyTransmissions =
+            [
+                .. times.Select(start => new FrequencyTransmissionDto { Start = start, Duration = LegacyTransmissionSeconds }),
+            ];
+        }
+
+        snapshot.LegacyFrequencyTransmissionTimes = null;
     }
 
     /// <summary>Gives each fix a pre-V37 aircraft carries with a crossing stamp and a speed restriction that stamp as its speed stamp.</summary>

@@ -252,8 +252,37 @@ public sealed partial class SimulationEngine
 
     private void AddTerminalEntry(TerminalEntry entry)
     {
+        RecordSoloSayAnswer(entry);
+        AddEntryWithoutMetering(entry);
+    }
+
+    private void AddEntryWithoutMetering(TerminalEntry entry)
+    {
         _terminalEntries.Add(entry);
         TerminalEntryEmitted?.Invoke(entry);
+    }
+
+    /// <summary>
+    /// Puts a solo pilot's SAY-channel answer (a <c>Say*</c> entry from an aircraft in the world: SALT, SHDG, a SAY line)
+    /// on the active frequency's meter, from the second it is given for the airtime of its text. A scenario timer's
+    /// reminder, global or naming an aircraft, is not a radio call: it is emitted without metering and never reaches here.
+    /// A <c>Say*</c> entry whose callsign names no aircraft in the world is not metered either. The server voices the answers a tick produces, a deferred
+    /// SAY among them; a SAY sent directly is metered though not voiced. Answers come from dispatches and presets, which a
+    /// replay re-runs, so the meter rebuilds the same way on every run kind.
+    /// </summary>
+    private void RecordSoloSayAnswer(TerminalEntry entry)
+    {
+        if (
+            (Scenario is not { SoloTrainingMode: true } scenario)
+            || !entry.Kind.StartsWith("Say", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(entry.Callsign)
+            || (World.FindAircraft(entry.Callsign) is null)
+        )
+        {
+            return;
+        }
+
+        World.ActiveFrequency.ActivityMeter.Record(scenario.ElapsedSeconds, FrequencyState.EstimateAirtimeSeconds(entry.Message));
     }
 
     // --- Snapshots ---
@@ -264,6 +293,13 @@ public sealed partial class SimulationEngine
     // --- Public mutations ---
 
     internal void EmitTerminal(string kind, string callsign, string message) => AddTerminalEntry(new TerminalEntry(kind, callsign, message));
+
+    /// <summary>
+    /// A host's terminal echo of a pilot line that is already on the frequency meter (a dequeued transmission) or never
+    /// goes on it (an RPO-mode read-back): added like <see cref="EmitTerminal"/>, but never metered as a SAY answer.
+    /// </summary>
+    internal void EmitPilotLineEcho(string kind, string callsign, string message) =>
+        AddEntryWithoutMetering(new TerminalEntry(kind, callsign, message));
 
     /// <summary>
     /// Takes an aircraft out of the world on a controller's or a host's decision: stamps

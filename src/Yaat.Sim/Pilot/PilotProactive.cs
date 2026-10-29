@@ -79,7 +79,7 @@ public static class PilotProactive
             return;
         }
 
-        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive);
         aircraft.HasMadeInitialContact = true;
     }
 
@@ -165,7 +165,7 @@ public static class PilotProactive
         // tracks the planned landing runway for follow-up matching.
         string? runwayId = aircraft.Procedure.DestinationRunway ?? aircraft.Phases?.AssignedRunway?.Designator;
         PilotSpeechText line = PilotResponder.BuildArrivalApproachRequest(aircraft);
-        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive);
         PilotRequestTracker.RecordRequest(
             aircraft,
             PilotPendingRequestKind.Approach,
@@ -369,7 +369,7 @@ public static class PilotProactive
             aircraft,
             ImplicitBravoClearance.WordingFor(aircraft, volume.Ident, airspace, airportLookup)
         );
-        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive);
         PilotRequestTracker.RecordRequest(
             aircraft,
             PilotPendingRequestKind.AirspaceEntry,
@@ -395,7 +395,7 @@ public static class PilotProactive
 
         string airspaceName = volume.Class == AirspaceClass.Bravo ? "bravo" : "charlie";
         PilotSpeechText line = PilotResponder.BuildUnableAirspaceAltitude(aircraft, (int)assigned, ceiling, airspaceName);
-        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Readback);
     }
 
     /// <summary>

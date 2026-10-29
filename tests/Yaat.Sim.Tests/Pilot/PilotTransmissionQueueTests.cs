@@ -287,66 +287,44 @@ public sealed class PilotTransmissionQueueTests
     public void FrequencyActivityMeter_ClassifiesRollingWindow()
     {
         var meter = new FrequencyActivityMeter();
-        for (int i = 0; i < 21; i++)
-        {
-            meter.Record(i);
-        }
+        meter.Record(0, 45);
 
-        Assert.Equal(FrequencyActivityLevel.Saturated, meter.Level);
+        Assert.Equal(FrequencyLoadBand.Busy, meter.PeekLoadBand(45));
 
-        meter.Trim(elapsedSeconds: 80);
+        meter.Trim(elapsedSeconds: 110);
 
-        Assert.Equal(FrequencyActivityLevel.Quiet, meter.Level);
+        Assert.Empty(meter.Transmissions);
+        Assert.Equal(FrequencyLoadBand.Quiet, meter.PeekLoadBand(110));
     }
 
     [Fact]
-    public void FrequencyState_GetActivityLevel_TrimsBeforeReturning()
+    public void FrequencyState_GetLoadBand_TrimsBeforeReturning()
     {
         var frequency = new FrequencyState();
-        for (int i = 0; i < 21; i++)
-        {
-            frequency.ActivityMeter.Record(i);
-        }
+        frequency.ActivityMeter.Record(0, 45);
 
-        Assert.Equal(FrequencyActivityLevel.Saturated, frequency.GetActivityLevel(21));
-        Assert.Equal(FrequencyActivityLevel.Quiet, frequency.GetActivityLevel(80));
-    }
-
-    [Theory]
-    [InlineData(4, FrequencyActivityLevel.Quiet)]
-    [InlineData(5, FrequencyActivityLevel.Moderate)]
-    [InlineData(12, FrequencyActivityLevel.Moderate)]
-    [InlineData(13, FrequencyActivityLevel.Busy)]
-    [InlineData(20, FrequencyActivityLevel.Busy)]
-    [InlineData(21, FrequencyActivityLevel.Saturated)]
-    public void FrequencyActivityMeter_ClassifiesCountsAtThresholds(int count, FrequencyActivityLevel expected)
-    {
-        var meter = new FrequencyActivityMeter();
-        for (int i = 0; i < count; i++)
-        {
-            meter.Record(i);
-        }
-
-        Assert.Equal(expected, meter.Level);
+        Assert.Equal(FrequencyLoadBand.Busy, frequency.GetLoadBand(45));
+        Assert.Equal(FrequencyLoadBand.Quiet, frequency.GetLoadBand(110));
+        Assert.Empty(frequency.ActivityMeter.Transmissions);
     }
 
     [Fact]
-    public void FrequencyActivityLevel_ToLoadBand_MapsFourLevelsToThree()
+    public void TryDequeueReady_RecordsTheCanonicalAirtimeFromTheDequeueSecond()
     {
-        Assert.Equal(FrequencyLoadBand.Quiet, FrequencyActivityLevel.Quiet.ToLoadBand());
-        Assert.Equal(FrequencyLoadBand.Normal, FrequencyActivityLevel.Moderate.ToLoadBand());
-        Assert.Equal(FrequencyLoadBand.Busy, FrequencyActivityLevel.Busy.ToLoadBand());
-        Assert.Equal(FrequencyLoadBand.Busy, FrequencyActivityLevel.Saturated.ToLoadBand());
+        var frequency = new FrequencyState();
+        frequency.Enqueue(new PilotTransmission("AAL1", "with you", "with you", PilotResponder.SourceResponse, PilotTransmissionKind.Readback, 4.5));
+
+        Assert.NotNull(frequency.TryDequeueReady(30));
+
+        Assert.Equal([new FrequencyTransmission(30, 4.5)], frequency.ActivityMeter.Transmissions);
     }
 
     [Fact]
     public void TryDequeueReady_StampsTheLoadBandAtAirtime()
     {
         var busy = new FrequencyState();
-        for (int i = 0; i < 12; i++)
-        {
-            busy.ActivityMeter.Record(i);
-        }
+        // [-15, 30]: 45 of the 60 s ending at 30 occupied, 25% dead air.
+        busy.ActivityMeter.Record(-15, 45);
 
         busy.Enqueue(NewTransmission("AAL1"));
         PilotTransmission? busyTransmission = busy.TryDequeueReady(30);
@@ -366,48 +344,51 @@ public sealed class PilotTransmissionQueueTests
     public void PeekLoadBand_ClassifiesWithoutTrimming()
     {
         var frequency = new FrequencyState();
-        for (int i = 0; i < 13; i++)
-        {
-            frequency.ActivityMeter.Record(i);
-        }
+        frequency.ActivityMeter.Record(-15, 45);
 
         Assert.Equal(FrequencyLoadBand.Busy, frequency.PeekLoadBand(30));
-        Assert.Equal(13, frequency.ActivityMeter.Count);
+        Assert.Single(frequency.ActivityMeter.Transmissions);
         Assert.Equal(FrequencyLoadBand.Quiet, frequency.PeekLoadBand(100));
-        Assert.Equal(13, frequency.ActivityMeter.Count);
+        Assert.Single(frequency.ActivityMeter.Transmissions);
     }
 
     [Fact]
     public void QueuedTransmission_HasNoLoadBandUntilDequeued() => Assert.Null(NewTransmission("AAL1").LoadBand);
 
     private static PilotTransmission NewTransmission(string callsign) =>
-        new(callsign, "with you", "with you", PilotResponder.SourceResponse, PilotTransmissionKind.Readback);
+        new(
+            callsign,
+            "with you",
+            "with you",
+            PilotResponder.SourceResponse,
+            PilotTransmissionKind.Readback,
+            FrequencyState.EstimateAirtimeSeconds("with you")
+        );
 
     [Fact]
-    public void FrequencyActivityMeter_Restore_ReplacesTimesAndLevel()
+    public void FrequencyActivityMeter_Restore_ReplacesTheTransmissionsAndTheBand()
     {
         var meter = new FrequencyActivityMeter();
-        for (int i = 0; i < 30; i++)
-        {
-            meter.Record(i);
-        }
+        meter.Record(0, 45);
 
-        meter.Restore([1, 2]);
+        meter.Restore([new FrequencyTransmission(1, 2)]);
 
-        Assert.Equal(2, meter.Count);
-        Assert.Equal([1.0, 2.0], meter.TransmissionTimes);
-        Assert.Equal(FrequencyActivityLevel.Quiet, meter.Level);
+        Assert.Equal([new FrequencyTransmission(1, 2)], meter.Transmissions);
+        Assert.Equal(FrequencyLoadBand.Quiet, meter.PeekLoadBand(3));
 
-        var fifteen = new List<double>();
-        for (int i = 0; i < 15; i++)
-        {
-            fifteen.Add(i);
-        }
+        meter.Restore([new FrequencyTransmission(0, 45)]);
 
-        meter.Restore(fifteen);
+        Assert.Equal(FrequencyLoadBand.Busy, meter.PeekLoadBand(45));
+    }
 
-        Assert.Equal(15, meter.Count);
-        Assert.Equal(FrequencyActivityLevel.Busy, meter.Level);
+    /// <summary>
+    /// Fills the window ending at the scenario's second with one transmission of <paramref name="seconds"/> that ends
+    /// then, reaching back before the scenario start when the window does.
+    /// </summary>
+    private static void OccupyFrequency(SimulationEngine engine, double seconds)
+    {
+        double now = engine.Scenario!.ElapsedSeconds;
+        engine.World.ActiveFrequency.ActivityMeter.Record(now - seconds, seconds);
     }
 
     [Fact]
@@ -419,21 +400,56 @@ public sealed class PilotTransmissionQueueTests
         };
         AircraftState aircraft = NewAircraft("N123AB");
         engine.World.AddAircraft(aircraft);
-        // 12 pilot transmissions, plus the controller's own makes 13 — Busy, which is what selects the terse
-        // shortcut asserted below, but only if the controller's count lands before the read-back reads the level.
-        for (int i = 0; i < 12; i++)
-        {
-            engine.World.ActiveFrequency.ActivityMeter.Record(i);
-        }
+        // 45 s of the last minute on air, 25% dead air: Busy, which is what selects the terse shortcut asserted below.
+        OccupyFrequency(engine, 45);
 
         CommandResult result = engine.SendCommand("N123AB", "FH 270");
 
         Assert.True(result.Success, result.Message);
         PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
-        // Busy or Saturated activity level speaks the busy "heading" row (a descent below FL180 has no busy row). Spoken form
+        // A Busy load band speaks the busy "heading" row (a descent below FL180 has no busy row). Spoken form
         // spells the heading and appends the callsign; the terminal SAY message is the canonical text, compact and callsign-less.
         Assert.Equal("heading two seven zero, november one two three alpha bravo.", transmission.SpeechText);
         Assert.Equal("fly heading 270", transmission.Text);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_ControllerTransmissionAloneTipsTheReadbackBand()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        // N0004A has the normal trait at seed 1 (PilotTraitsTests.For_IsPinned): it speaks at the meter's own band.
+        AircraftState aircraft = NewAircraft("N0004A");
+        engine.World.AddAircraft(aircraft);
+        // A second whose Normal-band pick is a row other than the canonical (the candidates' first), and one no Quiet
+        // candidate speaks, so only the Normal band can have chosen it.
+        ParsedCommand command = CommandParser.Parse("FH 270").Value!;
+        IReadOnlyList<string> normal = PhraseologyVerbalizer.SpokenCandidates(
+            command,
+            aircraft,
+            FrequencyLoadBand.Normal,
+            aircraft.IndicatedAirspeed
+        );
+        IReadOnlyList<string> quiet = PhraseologyVerbalizer.SpokenCandidates(command, aircraft, FrequencyLoadBand.Quiet, aircraft.IndicatedAirspeed);
+        int Pick(int s) => VariantPick.Index("N0004A", "readback-variant:" + normal[0], s, 1, normal.Count);
+        int second = Enumerable.Range(30, 200).First(s => Pick(s) != 0);
+        string expected = normal[Pick(second)];
+        Assert.DoesNotContain(expected, quiet);
+        engine.Scenario!.ElapsedSeconds = second;
+        // 17.5 s at the start of the window: 70.8% dead air, Quiet before the controller speaks.
+        engine.World.ActiveFrequency.ActivityMeter.Record(second - 60, 17.5);
+        Assert.Equal(FrequencyLoadBand.Quiet, engine.World.ActiveFrequency.PeekLoadBand(second));
+
+        CommandResult result = engine.SendCommand("N0004A", "FH 270");
+
+        Assert.True(result.Success, result.Message);
+        // The controller's FH 270 ends at this second and takes dead air under 70%: the read-back speaks the Normal row,
+        // not a Quiet one.
+        PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
+        Assert.StartsWith(expected + ", ", transmission.SpeechText);
+        Assert.Equal(FrequencyLoadBand.Normal, engine.World.ActiveFrequency.PeekLoadBand(second));
     }
 
     [Fact]
@@ -446,11 +462,8 @@ public sealed class PilotTransmissionQueueTests
         // N0000A is terse at seed 1 (PilotTraitsTests.For_IsPinned): one band busier than the meter.
         AircraftState aircraft = NewAircraft("N0000A");
         engine.World.AddAircraft(aircraft);
-        // 8 pilot transmissions plus the controller's own make 9: Normal.
-        for (int i = 0; i < 8; i++)
-        {
-            engine.World.ActiveFrequency.ActivityMeter.Record(i);
-        }
+        // 25 s on air, the controller's own transmission inside it: 58% dead air, Normal.
+        OccupyFrequency(engine, 25);
 
         CommandResult result = engine.SendCommand("N0000A", "FH 270");
 
@@ -470,11 +483,8 @@ public sealed class PilotTransmissionQueueTests
         // N0003A is chatty at seed 1 (PilotTraitsTests.For_IsPinned): one band quieter than the meter.
         AircraftState aircraft = NewAircraft("N0003A");
         engine.World.AddAircraft(aircraft);
-        // 12 pilot transmissions plus the controller's own make 13: Busy.
-        for (int i = 0; i < 12; i++)
-        {
-            engine.World.ActiveFrequency.ActivityMeter.Record(i);
-        }
+        // 45 s on air, 25% dead air: Busy.
+        OccupyFrequency(engine, 45);
 
         CommandResult result = engine.SendCommand("N0003A", "DM 5000");
 
@@ -613,11 +623,8 @@ public sealed class PilotTransmissionQueueTests
         engine.World.AddAircraft(aircraft);
         int second = Enumerable.Range(30, 200).First(s => SpokenFormDraws.DrawGroupedContactFrequency("N0000A", FrequencyLoadBand.Busy, 1, s));
         engine.Scenario!.ElapsedSeconds = second;
-        // 13 pilot transmissions: Busy before the controller's CT is counted, which is the level the contact readback reads.
-        for (int i = 0; i < 13; i++)
-        {
-            engine.World.ActiveFrequency.ActivityMeter.Record(second - 12 + i);
-        }
+        // 45 s on air: Busy before the controller's CT is counted, which is the band the contact readback reads.
+        OccupyFrequency(engine, 45);
 
         CommandResult result = engine.SendCommand("N0000A", "CT OAK_G_APP");
 
@@ -625,6 +632,8 @@ public sealed class PilotTransmissionQueueTests
         PilotTransmission transmission = Assert.Single(aircraft.PendingPilotTransmissions);
         Assert.StartsWith("NorCal Approach on twenty five thirty five, ", transmission.SpeechText);
         Assert.Contains("125.35", transmission.Text);
+        // The meter takes the canonical read-back's airtime, longer than the grouped frequency the pilot speaks.
+        Assert.True(transmission.CanonicalAirtimeSeconds > FrequencyState.EstimateAirtimeSeconds(transmission.SpeechText));
     }
 
     private static IEnumerable<int> ShortCallsignSeconds(string callsign, int from) =>
@@ -659,8 +668,175 @@ public sealed class PilotTransmissionQueueTests
         CommandResult result = engine.SendCommand("N123AB", "DM 5000");
 
         Assert.True(result.Success, result.Message);
-        // The controller's own transmission counts on the same meter, at the command's sim time.
-        Assert.Equal(1, engine.World.ActiveFrequency.ActivityMeter.Count);
+        // The controller's own transmission counts on the same meter, ending at the command's sim time and as long as the
+        // canonical read-back of what it said.
+        double duration = Assert.Single(aircraft.PendingPilotTransmissions).CanonicalAirtimeSeconds;
+        Assert.True(duration > 1.0, $"duration {duration} is the minimum, not the instruction's length");
+        Assert.Equal([new FrequencyTransmission(30 - duration, duration)], engine.World.ActiveFrequency.ActivityMeter.Transmissions);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_VariedBusyReadbackRecordsItsCanonicalAirtime()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+        OccupyFrequency(engine, 45);
+
+        Assert.True(engine.SendCommand("N123AB", "FH 270").Success);
+        PilotTransmission queued = Assert.Single(aircraft.PendingPilotTransmissions);
+        // The busy pilot speaks the terse "heading two seven zero, ..." but its airtime is the canonical read-back's.
+        Assert.True(queued.CanonicalAirtimeSeconds > FrequencyState.EstimateAirtimeSeconds(queued.SpeechText));
+
+        PilotTransmission spoken = Assert.Single(engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 40));
+
+        Assert.Equal(new FrequencyTransmission(40, queued.CanonicalAirtimeSeconds), engine.World.ActiveFrequency.ActivityMeter.Transmissions[^1]);
+        Assert.Equal(PilotTransmissionKind.Readback, spoken.Kind);
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_SayAnswerRecordsItsAirtimeFromTheAnswerSecond()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        engine.World.AddAircraft(NewAircraft("N123AB"));
+        var answers = new List<TerminalEntry>();
+        engine.TerminalEntryEmitted += entry =>
+        {
+            if (entry.Kind == "SayHeading")
+            {
+                answers.Add(entry);
+            }
+        };
+
+        Assert.True(engine.SendCommand("N123AB", "SHDG").Success);
+
+        TerminalEntry answer = Assert.Single(answers);
+        // The controller's SHDG ending at the dispatch second, as long as its canonical read-back, and the answer from that
+        // second for the airtime of its text.
+        double controller = Assert.Single(engine.World.FindAircraft("N123AB")!.PendingPilotTransmissions).CanonicalAirtimeSeconds;
+        Assert.Equal(
+            [
+                new FrequencyTransmission(30 - controller, controller),
+                new FrequencyTransmission(30, FrequencyState.EstimateAirtimeSeconds(answer.Message)),
+            ],
+            engine.World.ActiveFrequency.ActivityMeter.Transmissions.OrderBy(t => t.Start)
+        );
+    }
+
+    [Fact]
+    public void SendCommand_SoloTraining_ControllerTransmissionWithNoReadbackTakesTheOneSecondMinimum()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+
+        // STBY is acknowledged with no read-back clause: it verbalizes to nothing and queues no read-back.
+        Assert.True(engine.SendCommand("N123AB", "STBY").Success);
+
+        Assert.Empty(aircraft.PendingPilotTransmissions);
+        Assert.Equal([new FrequencyTransmission(29, 1.0)], engine.World.ActiveFrequency.ActivityMeter.Transmissions);
+    }
+
+    [Fact]
+    public void SoloTraining_ScenarioTimerSayLineIsNotOnTheMeter()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        engine.Scenario!.ActiveTimers.Add(
+            new ActiveTimer
+            {
+                Id = 1,
+                Callsign = null,
+                Message = "check the departure list",
+                FireAtSeconds = 30,
+                TotalSeconds = 30,
+            }
+        );
+
+        engine.TickPrePhysics();
+
+        TerminalEntry entry = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Say");
+        Assert.Equal("TIMER", entry.Callsign);
+        Assert.Empty(engine.World.ActiveFrequency.ActivityMeter.Transmissions);
+    }
+
+    [Fact]
+    public void SoloTraining_AircraftScenarioTimerSayLineIsNotOnTheMeter()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        engine.World.AddAircraft(NewAircraft("N123AB"));
+        // N123AB TIMER 60 check spacing: the reminder names an aircraft in the world, but nobody says it on the radio.
+        engine.Scenario!.ActiveTimers.Add(
+            new ActiveTimer
+            {
+                Id = 1,
+                Callsign = "N123AB",
+                Message = "check spacing",
+                FireAtSeconds = 30,
+                TotalSeconds = 60,
+            }
+        );
+
+        engine.TickPrePhysics();
+
+        TerminalEntry entry = Assert.Single(engine.DrainTerminalEntries(), e => e.Kind == "Say");
+        Assert.Equal("N123AB", entry.Callsign);
+        Assert.Empty(engine.World.ActiveFrequency.ActivityMeter.Transmissions);
+    }
+
+    [Fact]
+    public void TickOneSecond_SoloTraining_DequeuedReadbackEchoIsMeteredOnce()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30),
+        };
+        AircraftState aircraft = NewAircraft("N123AB");
+        engine.World.AddAircraft(aircraft);
+        PilotTransmission readback = NewTransmission("N123AB");
+        aircraft.PendingPilotTransmissions.Add(readback);
+        var echoes = new List<TerminalEntry>();
+        engine.TerminalEntryEmitted += entry =>
+        {
+            if (entry.Callsign == "N123AB")
+            {
+                echoes.Add(entry);
+            }
+        };
+
+        engine.TickOneSecond();
+
+        // The bare host echoes the dequeued read-back as a SAY line; the meter holds it once, from the dequeue.
+        Assert.StartsWith("Say", Assert.Single(echoes).Kind, StringComparison.Ordinal);
+        Assert.Equal([new FrequencyTransmission(31, readback.CanonicalAirtimeSeconds)], engine.World.ActiveFrequency.ActivityMeter.Transmissions);
+    }
+
+    [Fact]
+    public void SendCommand_NonSolo_SayAnswerIsNotOnTheMeter()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = NewScenario(soloTrainingMode: false, elapsedSeconds: 30),
+        };
+        engine.World.AddAircraft(NewAircraft("N123AB"));
+
+        Assert.True(engine.SendCommand("N123AB", "SHDG").Success);
+
+        Assert.Empty(engine.World.ActiveFrequency.ActivityMeter.Transmissions);
     }
 
     [Fact]
@@ -677,7 +853,8 @@ public sealed class PilotTransmissionQueueTests
 
         Assert.True(result.Success, result.Message);
         // One transmission however many commands it chains.
-        Assert.Equal(1, engine.World.ActiveFrequency.ActivityMeter.Count);
+        FrequencyTransmission controller = Assert.Single(engine.World.ActiveFrequency.ActivityMeter.Transmissions);
+        Assert.Equal(30, controller.End);
     }
 
     [Fact]
@@ -693,7 +870,7 @@ public sealed class PilotTransmissionQueueTests
         CommandResult result = engine.SendCommand("N123AB", "DM 5000");
 
         Assert.True(result.Success, result.Message);
-        Assert.Equal(0, engine.World.ActiveFrequency.ActivityMeter.Count);
+        Assert.Empty(engine.World.ActiveFrequency.ActivityMeter.Transmissions);
     }
 
     [Fact]
@@ -710,7 +887,7 @@ public sealed class PilotTransmissionQueueTests
         CommandResult result = engine.SendCommand("N123AB", "CVA 28R");
 
         Assert.False(result.Success);
-        Assert.Equal(0, engine.World.ActiveFrequency.ActivityMeter.Count);
+        Assert.Empty(engine.World.ActiveFrequency.ActivityMeter.Transmissions);
     }
 
     [Fact]
@@ -757,12 +934,7 @@ public sealed class PilotTransmissionQueueTests
     // to when these tests were written. Text content is not asserted by these tests — only
     // callsign, kind, and drain ordering.
     private static void QueueSetupTransmission(AircraftState aircraft, string text, PilotTransmissionKind kind) =>
-        PilotResponder.QueueSoloPilotTransmission(
-            aircraft,
-            new PilotSpeechText(text, PilotResponder.PrepareForTts(aircraft, text)),
-            kind,
-            PilotResponder.SourceResponse
-        );
+        PilotResponder.QueueSoloPilotTransmission(aircraft, new PilotSpeechText(text, PilotResponder.PrepareForTts(aircraft, text)), kind);
 
     private static AircraftState NewAircraft(string callsign) => new() { Callsign = callsign, AircraftType = "C172" };
 

@@ -537,7 +537,7 @@ public sealed class SpeedMaxCommandTests
 
         SnapshotSchemaMigrator.Migrate(snapshot);
 
-        Assert.Equal(38, snapshot.SchemaVersion);
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
         ControlTargetsDto targets = Assert.Single(snapshot.Aircraft).Targets;
         Assert.False(targets.SpeedMaxHeld);
         Assert.Equal(250, targets.AssignedSpeed);

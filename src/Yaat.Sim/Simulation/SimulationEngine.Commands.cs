@@ -226,12 +226,7 @@ public sealed partial class SimulationEngine
 
             if (human)
             {
-                Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, compound);
-            }
-
-            if (human && soloTrainingMode)
-            {
-                SoloTrainingEvaluator.RecordControllerCommand(aircraft, compound, elapsedSeconds, World.GetSnapshot());
+                RecordStudentCommand(aircraft, compound, elapsedSeconds, soloTrainingMode);
             }
 
             if (answering)
@@ -243,34 +238,15 @@ public sealed partial class SimulationEngine
                 // arm the readback gate just below; both gates are independent.
                 World.AcknowledgeControllerResponse(aircraft.Callsign);
                 // One controller transmission per successful dispatch, however many commands it chained, recorded
-                // before the read-back below reads the activity level, so the read-back's level counts the
-                // controller's transmission.
-                World.RecordControllerTransmission(elapsedSeconds);
+                // before the read-back below reads the load band, so the read-back's band counts the controller's
+                // transmission.
+                World.RecordControllerTransmission(elapsedSeconds, ControllerAirtimeSeconds(compound, aircraft));
+                QueueAppliedReadback(aircraft, compound, result, acknowledgedBefore, bravoGrant);
             }
         }
         else if (answering)
         {
             QueueSoloUnableIfNeeded(aircraft, result);
-        }
-
-        if (result.Success && answering)
-        {
-            PilotSpeechContext speechContext = PilotSpeechContextFor(aircraft, acknowledgedBefore);
-            PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, speechContext);
-            if (readback is not null)
-            {
-                if (bravoGrant is { } wording)
-                {
-                    readback = PilotResponder.WithBravoClearance(aircraft, readback, wording, speechContext);
-                }
-
-                Yaat.Sim.Pilot.PilotResponder.QueueSoloPilotTransmission(
-                    aircraft,
-                    readback,
-                    Yaat.Sim.Pilot.PilotTransmissionKind.Readback,
-                    Yaat.Sim.Pilot.PilotResponder.SourceResponse
-                );
-            }
         }
 
         // Every read-back this dispatch queued arms the frequency's read-back gate, whichever site queued it: the
@@ -287,6 +263,56 @@ public sealed partial class SimulationEngine
         {
             World.ExpectPilotReadback(queuedReadbacks, elapsedSeconds);
         }
+    }
+
+    /// <summary>
+    /// The student-only bookkeeping of a successful human dispatch: two-way-comms registration and, in solo training, the
+    /// evaluator's record of the command.
+    /// </summary>
+    private void RecordStudentCommand(AircraftState aircraft, CompoundCommand compound, double elapsedSeconds, bool soloTrainingMode)
+    {
+        Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, compound);
+        if (soloTrainingMode)
+        {
+            SoloTrainingEvaluator.RecordControllerCommand(aircraft, compound, elapsedSeconds, World.GetSnapshot());
+        }
+    }
+
+    /// <summary>
+    /// Queues the pilot's read-back of a successful dispatch, worded for the frequency's load now, with the airtime of the
+    /// same read-back said canonically for the meter. A granted Class B clearance joins both forms. A compound with no
+    /// read-back queues nothing.
+    /// </summary>
+    /// <param name="acknowledgedBefore">Whether the controller had acknowledged the pilot's contact before this command.</param>
+    /// <param name="bravoGrant">The implicit Class B clearance this dispatch granted, if any.</param>
+    private void QueueAppliedReadback(
+        AircraftState aircraft,
+        CompoundCommand compound,
+        CommandResult result,
+        bool acknowledgedBefore,
+        BravoClearanceWording? bravoGrant
+    )
+    {
+        PilotSpeechContext speechContext = PilotSpeechContextFor(aircraft, acknowledgedBefore);
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, speechContext);
+        if (readback is null)
+        {
+            return;
+        }
+
+        // The same read-back without load variation, whose length the frequency meter records.
+        PilotSpeechText canonical =
+            PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, PilotSpeechContext.Canonical)
+            ?? throw new InvalidOperationException(
+                $"{aircraft.Callsign}: the read-back of '{compound.SourceText}' verbalized with a varied context but not canonically"
+            );
+        if (bravoGrant is { } wording)
+        {
+            readback = PilotResponder.WithBravoClearance(aircraft, readback, wording, speechContext);
+            canonical = PilotResponder.WithBravoClearance(aircraft, canonical, wording, PilotSpeechContext.Canonical);
+        }
+
+        PilotResponder.QueueSoloPilotTransmission(aircraft, readback, canonical, PilotTransmissionKind.Readback);
     }
 
     /// <summary>
@@ -310,7 +336,7 @@ public sealed partial class SimulationEngine
         double elapsedSeconds = scenario.ElapsedSeconds;
         int second = (int)Math.Floor(elapsedSeconds);
         FrequencyLoadBand band = PilotTraits.EffectiveBand(
-            World.ActiveFrequency.GetActivityLevel(elapsedSeconds).ToLoadBand(),
+            World.ActiveFrequency.GetLoadBand(elapsedSeconds),
             PilotTraits.For(aircraft.Callsign, scenario.RngSeed)
         );
         bool shortenCallsign =
@@ -343,6 +369,13 @@ public sealed partial class SimulationEngine
             )
             .Select(other => other.Callsign);
 
+    /// <summary>
+    /// How long the controller spoke to issue <paramref name="compound"/>: the airtime of its canonical spoken read-back,
+    /// the instruction as issued in the pilot's words, or the one-second minimum when it verbalizes to nothing.
+    /// </summary>
+    private static double ControllerAirtimeSeconds(CompoundCommand compound, AircraftState aircraft) =>
+        FrequencyState.EstimateAirtimeSeconds(PilotResponder.BuildReadback(compound, aircraft)?.Tts ?? string.Empty);
+
     private static void QueueSoloUnableIfNeeded(AircraftState aircraft, CommandResult result)
     {
         if (result.IsOperatorGuidance)
@@ -362,7 +395,7 @@ public sealed partial class SimulationEngine
         }
 
         PilotSpeechText transmission = result.PilotUnable ?? PilotResponder.BuildUnable(aircraft, result.Message);
-        PilotResponder.QueueSoloPilotTransmission(aircraft, transmission, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, transmission, PilotTransmissionKind.Readback);
     }
 
     /// <summary>

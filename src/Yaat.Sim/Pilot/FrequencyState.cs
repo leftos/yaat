@@ -32,10 +32,11 @@ public sealed class FrequencyState
     public string? AwaitingReadbackFrom => (_awaitingReadbacks.Count > 0) ? _awaitingReadbacks.Peek().Transmission.Callsign : null;
     public string? AwaitingControllerResponseTo => _awaitingControllerResponseTo;
 
-    public FrequencyActivityLevel GetActivityLevel(double elapsedSeconds)
+    /// <summary>The frequency's load band at <paramref name="elapsedSeconds"/>, trimming the meter's window first.</summary>
+    public FrequencyLoadBand GetLoadBand(double elapsedSeconds)
     {
         ActivityMeter.Trim(elapsedSeconds);
-        return ActivityMeter.Level;
+        return ActivityMeter.PeekLoadBand(elapsedSeconds);
     }
 
     /// <summary>The frequency's load band at <paramref name="elapsedSeconds"/>, read without trimming the meter.</summary>
@@ -152,8 +153,11 @@ public sealed class FrequencyState
             );
         }
 
-        ActivityMeter.Record(elapsedSeconds);
-        return transmission with { LoadBand = ActivityMeter.Level.ToLoadBand() };
+        // The meter takes the canonical text's airtime, not the spoken one: a busy pilot's terser read-back must not make
+        // the frequency read quieter. Keyed at this second, it adds nothing yet to the band read here: the band is the
+        // minute's airtime up to the second the transmission goes on air.
+        ActivityMeter.Record(elapsedSeconds, transmission.CanonicalAirtimeSeconds);
+        return transmission with { LoadBand = ActivityMeter.PeekLoadBand(elapsedSeconds) };
     }
 
     public void Clear()
@@ -163,7 +167,7 @@ public sealed class FrequencyState
         _awaitingControllerResponseTo = null;
         _awaitingControllerResponseSinceSeconds = 0;
         _nextAvailableAtSeconds = 0;
-        ActivityMeter.Trim(double.PositiveInfinity);
+        ActivityMeter.Restore([]);
     }
 
     private int SelectReadyIndex(double elapsedSeconds)
@@ -304,7 +308,12 @@ public sealed class FrequencyState
         return result ?? throw new InvalidOperationException("Frequency queue index was invalid");
     }
 
-    private static double EstimateAirtimeSeconds(string text)
+    /// <summary>
+    /// The estimated airtime of a spoken (TTS-form) text: a quarter second per word, at least one second. The one
+    /// estimate behind the airtime gate and the duration of every transmission recorded on the <see cref="ActivityMeter"/>; a
+    /// transmission migrated from a V38 snapshot carries <see cref="Simulation.Snapshots.SnapshotSchemaMigrator.LegacyTransmissionSeconds"/> instead.
+    /// </summary>
+    public static double EstimateAirtimeSeconds(string text)
     {
         int words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
         return Math.Max(MinimumAirtimeSeconds, words * SecondsPerWord);

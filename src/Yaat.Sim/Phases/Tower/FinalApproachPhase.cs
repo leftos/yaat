@@ -592,7 +592,7 @@ public sealed class FinalApproachPhase : Phase
                 facilityCallName,
                 ctx.AtisLetter
             );
-            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+            PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive);
             PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,
                 PilotPendingRequestKind.Landing,
@@ -1098,8 +1098,7 @@ public sealed class FinalApproachPhase : Phase
                     PilotResponder.QueueSoloPilotTransmission(
                         ctx.Aircraft,
                         PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId),
-                        PilotTransmissionKind.Proactive,
-                        PilotResponder.SourceResponse
+                        PilotTransmissionKind.Proactive
                     );
                 }
                 else

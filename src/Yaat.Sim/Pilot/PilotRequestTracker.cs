@@ -145,8 +145,7 @@ public static class PilotRequestTracker
         PilotResponder.QueueSoloPilotTransmission(
             aircraft,
             new PilotSpeechText(pending.LastPilotLine, pending.LastPilotLineTts),
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Proactive
         );
         pending.ReaskedAfterStandby = pending.ResponseState == PilotPendingRequestResponseState.Standby;
         pending.ResponseState = PilotPendingRequestResponseState.None;

@@ -100,7 +100,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     {
         foreach ((string? callsign, string? readback) in readbacks)
         {
-            _engine.EmitTerminal("SayReadback", callsign, readback);
+            _engine.EmitPilotLineEcho("SayReadback", callsign, readback);
         }
     }
 
@@ -108,7 +108,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     {
         foreach (PilotTransmission transmission in transmissions)
         {
-            _engine.EmitTerminal(SimulationEngine.ToSayKind(transmission), transmission.Callsign, transmission.Text);
+            _engine.EmitPilotLineEcho(SimulationEngine.ToSayKind(transmission), transmission.Callsign, transmission.Text);
         }
     }
 

@@ -34,7 +34,10 @@ public sealed partial class SimulationEngine
         List<AircraftState> aircraft = World.GetSnapshot();
         // An empty meter writes no field, so a snapshot of a quiet frequency is byte-identical to one written before
         // the meter was captured, and the server's pinned snapshot-zero hash stays put.
-        List<double> frequencyTransmissionTimes = [.. World.ActiveFrequency.ActivityMeter.TransmissionTimes];
+        List<FrequencyTransmissionDto> frequencyTransmissions =
+        [
+            .. World.ActiveFrequency.ActivityMeter.Transmissions.Select(t => new FrequencyTransmissionDto { Start = t.Start, Duration = t.Duration }),
+        ];
         if (World.Weather is { WindGrid: not null, WindGridHash: null } unnamedGridWeather)
         {
             Logger.LogWarning(
@@ -48,7 +51,7 @@ public sealed partial class SimulationEngine
             ElapsedSeconds = scenario.ElapsedSeconds,
             Rng = World.Rng.GetState(),
             WeatherJson = World.Weather is not null ? JsonSerializer.Serialize(World.Weather) : null,
-            FrequencyTransmissionTimes = frequencyTransmissionTimes.Count > 0 ? frequencyTransmissionTimes : null,
+            FrequencyTransmissions = frequencyTransmissions.Count > 0 ? frequencyTransmissions : null,
             Aircraft = [.. aircraft.Select(ac => ac.ToSnapshot())],
             Scenario = scenario.ToSnapshot(),
             Server = CaptureServerSnapshot(aircraft),
@@ -78,9 +81,11 @@ public sealed partial class SimulationEngine
         SnapshotSchemaMigrator.Migrate(snapshot);
 
         World.Clear();
-        // Restoring the meter's times replaces whatever the run carried past the rewind point, so stale times from
-        // before a rewind never survive; an older snapshot's absent field empties the meter.
-        World.ActiveFrequency.ActivityMeter.Restore(snapshot.FrequencyTransmissionTimes ?? []);
+        // Restoring the meter's transmissions replaces whatever the run carried past the rewind point, so stale airtime
+        // from before a rewind never survives; an absent field empties the meter.
+        World.ActiveFrequency.ActivityMeter.Restore([
+            .. (snapshot.FrequencyTransmissions ?? []).Select(t => new FrequencyTransmission(t.Start, t.Duration)),
+        ]);
         _loggedExitCapacityRefusals.Clear();
         World.Rng = new SerializableRandom(snapshot.Rng.S0, snapshot.Rng.S1, snapshot.Rng.S2, snapshot.Rng.S3);
         World.Weather = snapshot.WeatherJson is not null ? JsonSerializer.Deserialize<WeatherProfile>(snapshot.WeatherJson) : null;

@@ -70,13 +70,12 @@ public static class ContactCommandHandler
             aircraft.Ground.ReleasedToGround = true;
         }
 
-        PilotSpeechContext speechContext = ctx.SpeechContextFor(aircraft);
-        PilotSpeechText pilotSpeech = frequencyMhz is double freq
-            ? PilotResponder.BuildContactReadback(aircraft, facilityName, freq, speechContext)
-            : BuildContactReadbackNoFreq(aircraft, facilityName, speechContext);
+        PilotSpeechText pilotSpeech = BuildContactReadback(aircraft, facilityName, frequencyMhz, ctx.SpeechContextFor(aircraft));
+        PilotSpeechText canonicalSpeech = BuildContactReadback(aircraft, facilityName, frequencyMhz, PilotSpeechContext.Canonical);
         string warning = $"[Contact] {facilityName}" + (frequencyMhz is double f ? $" {f:0.000}" : "");
         bool toTowerPosition = string.Equals(targetType, "TWR", StringComparison.OrdinalIgnoreCase);
-        Route(aircraft, ctx, pilotSpeech, warning, toTowerPosition);
+        MarkFrequencyChange(aircraft, ctx, toTowerPosition);
+        RouteReadback(aircraft, ctx, pilotSpeech, canonicalSpeech, warning);
         StampHandoffCompletion(aircraft, ctx, handoffDetail);
         return new CommandResult(true, "");
     }
@@ -91,8 +90,10 @@ public static class ContactCommandHandler
     {
         aircraft.Ground.ReleasedToGround = true;
         PilotSpeechText pilotSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft, ctx.SpeechContextFor(aircraft));
+        PilotSpeechText canonicalSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft, PilotSpeechContext.Canonical);
         // An FCA names no position: on the ground it counts as a transfer to the tower.
-        Route(aircraft, ctx, pilotSpeech, "[FCA] frequency change approved", towardTheTower: true);
+        MarkFrequencyChange(aircraft, ctx, towardTheTower: true);
+        RouteReadback(aircraft, ctx, pilotSpeech, canonicalSpeech, "[FCA] frequency change approved");
         StampHandoffCompletion(aircraft, ctx, detail: null);
         return new CommandResult(true, "");
     }
@@ -113,7 +114,17 @@ public static class ContactCommandHandler
         aircraft.CompletionDetail = detail;
     }
 
-    private static void Route(AircraftState aircraft, DispatchContext ctx, Pilot.PilotSpeechText pilotSpeech, string warningText, bool towardTheTower)
+    private static PilotSpeechText BuildContactReadback(
+        AircraftState aircraft,
+        string facilityName,
+        double? frequencyMhz,
+        PilotSpeechContext speechContext
+    ) =>
+        frequencyMhz is double freq
+            ? PilotResponder.BuildContactReadback(aircraft, facilityName, freq, speechContext)
+            : BuildContactReadbackNoFreq(aircraft, facilityName, speechContext);
+
+    private static void MarkFrequencyChange(AircraftState aircraft, DispatchContext ctx, bool towardTheTower)
     {
         // Mark frequency change in both solo and RPO modes. Track ownership and comms
         // are independent (an auto-track to departure does not mean the pilot is on
@@ -133,10 +144,23 @@ public static class ContactCommandHandler
         {
             aircraft.Ground.LeftStudentFrequencyAtSeconds = ctx.ScenarioElapsedSeconds;
         }
+    }
 
+    /// <summary>
+    /// Queues the pilot's read-back of the transfer, spoken as <paramref name="pilotSpeech"/> and metered as long as
+    /// <paramref name="canonicalSpeech"/>, or shows it to the RPO outside solo training.
+    /// </summary>
+    private static void RouteReadback(
+        AircraftState aircraft,
+        DispatchContext ctx,
+        PilotSpeechText pilotSpeech,
+        PilotSpeechText canonicalSpeech,
+        string warningText
+    )
+    {
         if (ctx.SoloTrainingMode)
         {
-            PilotResponder.QueueSoloPilotTransmission(aircraft, pilotSpeech, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
+            PilotResponder.QueueSoloPilotTransmission(aircraft, pilotSpeech, canonicalSpeech, PilotTransmissionKind.Readback);
             return;
         }
         PilotResponder.RouteRpoTransmission(aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, pilotSpeech, warningText);

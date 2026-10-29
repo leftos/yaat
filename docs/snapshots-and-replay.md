@@ -9,7 +9,7 @@
 ```
 StateSnapshotDto
 ├─ SchemaVersion (int)
-├─ ElapsedSeconds, Rng (RngState), WeatherJson, FrequencyTransmissionTimes?, Server?
+├─ ElapsedSeconds, Rng (RngState), WeatherJson, FrequencyTransmissions?, Server?
 └─ Aircraft[] : AircraftSnapshotDto
     ├─ identity + kinematics (callsign, lat/lon, true heading, alt, IAS, …)
     ├─ FlightPlan       — AircraftFlightPlanDto
@@ -43,6 +43,7 @@ StateSnapshotDto
 | 33 → 34 | `BlockTriggerDto.Radial` renamed `TrueRadial` (the true bearing from the fix) and `IssuedRadial` (the magnetic radial as issued) added: the legacy key is read as `LegacyRadial`, copied into `TrueRadial` (the old engine compared it as a true bearing, so old replays fire where they did), copied into `IssuedRadial` for a `ReachFrdPoint` trigger only (an `InterceptRadial`'s may be JAWY's true course), then nulled |
 | 36 → 37 | `NavigationTargetDto.SpeedTransmissionId` added beside `CrossingTransmissionId`, which now answers for the crossing altitude only. Through 36 one stamp marked both, so every fix carrying a `CrossingTransmissionId` and a `SpeedRestriction` gets that id as its `SpeedTransmissionId`, in the live route, `DepartureClearance.DepartureRoute` and the routes `AirspaceBoundaryHold`, `InitialClimb` and `DepartureProcedure` keep (`MigrateLegacySpeedStamps`); an old CFIX speed is read as a controller's, never as a published speed |
 | 37 → 38 | `ControlTargetsDto.SpeedMaxHeld` (SMAX in force) and `NavigationTargetDto.RevertSpeedMax` (a crossing fix past which SMAX is armed again) added, each written only when true; no aircraft before 38 could hold SMAX, so absence restores false and the step transforms nothing |
+| 38 → 39 | `StateSnapshotDto.FrequencyTransmissionTimes` (start seconds) replaced by `FrequencyTransmissions` (`{Start, Duration}`); each old time becomes a 3 s transmission (`SnapshotSchemaMigrator.LegacyTransmissionSeconds`) |
 
 **Actual vs filed aircraft type (v4).** `AircraftState.AircraftType` is the physical type (fixed at spawn; drives Tower Cab, physics, and the operator Aircraft List). `AircraftFlightPlan.AircraftType` is the filed type (mutable via amendment; drives STARS, ASDE-X, the Flight Plan Editor, strips, and ERAM). Top-level wins for actual; the FP field is opt-in (no cross-fill). The migrator seeds the filed field from the top-level type for legacy v3 bundles.
 
@@ -64,11 +65,11 @@ No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. 
 
 `ControlTargetsDto.SpeedLimitsLifted` (`bool`, `WhenWritingDefault`) carries `ControlTargets.SpeedLimitsLifted`, the SPDN lift of 91.117 and Vmo/Mmo ([flight-physics.md](flight-physics.md)). It is written only when true, so every older snapshot and its hash are unchanged and restore false; no schema bump.
 
-`StateSnapshotDto.FrequencyTransmissionTimes` (`List<double>?`, `WhenWritingNull`) carries the active frequency's `FrequencyActivityMeter` times, oldest first, so a rewind or restore resumes in the load band the run was in ([solo-training-pilot-speech.md](solo-training-pilot-speech.md) § the activity meter).
+`StateSnapshotDto.FrequencyTransmissions` (`List<FrequencyTransmissionDto>?` of `{Start, Duration}`, `WhenWritingNull`) carries the active frequency's `FrequencyActivityMeter` intervals in recorded order, so a rewind or restore resumes in the load band the run was in ([solo-training-pilot-speech.md](solo-training-pilot-speech.md) § the activity meter).
 
-`CaptureSnapshot` writes it only when the meter holds a time, so a snapshot of a quiet frequency is byte-identical to one written before the field existed, and the pinned snapshot-zero hash stays put; no schema bump.
+`CaptureSnapshot` writes it only when the meter holds a transmission, so a snapshot of a silent frequency omits the field and the pinned snapshot-zero hash stays put.
 
-`RestoreFromSnapshot` replaces the meter's times with the field (absent restores an empty meter), without trimming them: the next `Record` or `Trim` trims, as the original run would have. Only the active frequency's meter is captured.
+`RestoreFromSnapshot` replaces the meter's intervals with the field (absent restores an empty meter), without trimming them: the next `Trim` trims, as the original run would have. Only the active frequency's meter is captured.
 
 `PhaseListDto.TaxiRoute` (a `TaxiRouteDto`) is the route a TAXI on the landing rollout stores behind the exit ([landing-and-runway-exit.md](landing-and-runway-exit.md) § TAXI on the rollout), null otherwise; `PhaseListDto.StoredTaxiDestinationRunway` is the destination runway that TAXI named, `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]` and restored only with a route.
 

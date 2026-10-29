@@ -578,6 +578,9 @@ A readback of two or more commands (a CAPP with a route or crossing before it in
 **Comma-led capture**:
 A spoken capture value that begins with ", " (the visual clearance's `{side}` ", left traffic" and `{follow}` ", follow the traffic"): the renderer attaches it to the text before it with no space, and an empty one leaves the next comma in place (`PhraseologyVerbalizer.Append`, `RenderVariantTemplate`).
 
+**Dead-air share**:
+The share of the last 60 s in which nobody was transmitting on the solo frequency, from the pilot and controller transmission intervals with overlaps counted once: 70% or more is quiet, 35% to under 70% normal, under 35% busy (`FrequencyActivityMeter.DeadAirShare`, docs/solo-training-pilot-speech.md).
+
 **Effective band**:
 The load band a pilot speaks at: the frequency's load band shifted by the pilot's trait, terse one step busier and chatty one quieter, clamped to quiet..busy (`PilotTraits.EffectiveBand`); the speech-rate nudge still uses the raw band (docs/solo-training-pilot-speech.md).
 
@@ -591,8 +594,7 @@ A readback clause a command handler builds itself and returns on `CommandResult.
 A clause spoken as its canonical text in every load band because it has no shorter form that keeps its meaning (a military route clearance, the Class B clearance, LAHSO, a cross-fix restriction with a speed, a circling approach clearance, CVA, airborne FOLLOW, PTAC); only the callsign position or an acknowledgement word may change.
 
 **Load band**:
-How busy the solo frequency is, in three steps (quiet, normal, busy), collapsed from the frequency activity meter's four levels, which count pilot and controller transmissions over the last 60 s (`FrequencyLoadBand`, docs/solo-training-pilot-speech.md).
-_Avoid_: activity level (the meter's four-step reading)
+How busy the solo frequency is, in three steps (quiet, normal, busy), judged by the dead-air share of the last 60 s (`FrequencyLoadBand`, docs/solo-training-pilot-speech.md).
 
 **Lowest position worked**:
 The lowest position type a solo student works (`SimScenarioState.StudentLowestWorkedLevel`, CTR > APP > TWR > GND > DEL): the student works its own position and every type below it down to this one, answers the pilot calls those types take, and the sim plays the rest. The sidecar, the session-setup prompt or the session flyout's "Positions you work" row sets it, and `ScenarioAnswers` carries it per scenario.

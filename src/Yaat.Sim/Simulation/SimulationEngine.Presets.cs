@@ -55,7 +55,7 @@ public sealed partial class SimulationEngine
     /// (paused with the sim, scaled by sim rate). On expiry each emits a green SAY-style terminal
     /// entry — the free-text message, or "timer expired" when none was given. Per-aircraft timers
     /// whose aircraft has been deleted are dropped silently so they never attribute a SAY to a gone
-    /// aircraft.
+    /// aircraft. A timer reminder is not a radio call, so it never goes on the frequency meter.
     /// </summary>
     private void ProcessTimers()
     {
@@ -78,7 +78,7 @@ public sealed partial class SimulationEngine
         foreach (ActiveTimer? t in due)
         {
             string message = string.IsNullOrWhiteSpace(t.Message) ? "timer expired" : t.Message;
-            EmitTerminal("Say", t.Callsign ?? "TIMER", message);
+            AddEntryWithoutMetering(new TerminalEntry("Say", t.Callsign ?? "TIMER", message));
         }
     }
 

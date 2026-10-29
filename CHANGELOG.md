@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- In solo sessions, how busy the frequency sounds now follows how little dead air is left, counting your transmissions and pilots' say answers, not how many calls were made.
+
 ### Fixed
 
 - At an ASDE-X airport on LIMITED safety logic, RPO occupied-runway warnings and solo line-up scoring apply again, as on any non-ASDE-X airport.

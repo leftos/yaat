@@ -60,10 +60,33 @@ public static partial class PilotResponder
     /// Queues a solo-training pilot line whose terminal (compact, callsign in the SAY column) and
     /// spoken (phonetic) forms were built independently from the canonical command. Immediate
     /// controller responses stay on the Response channel; this queue represents what the pilot says
-    /// when the frequency is available.
+    /// when the frequency is available. <paramref name="text"/> is built canonically (never with a
+    /// <see cref="PilotPersonality.Varied"/> context), so its own spoken form gives the meter's airtime.
     /// </summary>
-    public static void QueueSoloPilotTransmission(AircraftState aircraft, PilotSpeechText text, PilotTransmissionKind kind, string sourceKind) =>
-        aircraft.PendingPilotTransmissions.Add(new PilotTransmission(aircraft.Callsign, text.Terminal, text.Tts, sourceKind, kind));
+    public static void QueueSoloPilotTransmission(AircraftState aircraft, PilotSpeechText text, PilotTransmissionKind kind) =>
+        QueueSoloPilotTransmission(aircraft, text, text, kind);
+
+    /// <summary>
+    /// Queues a solo-training pilot line spoken as <paramref name="spoken"/>, whose frequency-meter airtime is that of
+    /// <paramref name="canonical"/>, the same line built with <see cref="PilotSpeechContext.Canonical"/>: a load-varied
+    /// line must not make the frequency read quieter than the canonical one would.
+    /// </summary>
+    public static void QueueSoloPilotTransmission(
+        AircraftState aircraft,
+        PilotSpeechText spoken,
+        PilotSpeechText canonical,
+        PilotTransmissionKind kind
+    ) =>
+        aircraft.PendingPilotTransmissions.Add(
+            new PilotTransmission(
+                aircraft.Callsign,
+                spoken.Terminal,
+                spoken.Tts,
+                SourceResponse,
+                kind,
+                FrequencyState.EstimateAirtimeSeconds(canonical.Tts)
+            )
+        );
 
     /// <summary>
     /// Queues a solo-training SAY-channel readback for delayed radio transcript and typed
@@ -72,8 +95,16 @@ public static partial class PilotResponder
     public static void QueueSoloPilotReadback(AircraftState aircraft, string text, string sourceKind)
     {
         string terminal = StripBracketedPrefix(aircraft, text);
+        string speech = NormalizeForTts(terminal);
         aircraft.PendingPilotTransmissions.Add(
-            new PilotTransmission(aircraft.Callsign, terminal, NormalizeForTts(terminal), sourceKind, PilotTransmissionKind.SayReadback)
+            new PilotTransmission(
+                aircraft.Callsign,
+                terminal,
+                speech,
+                sourceKind,
+                PilotTransmissionKind.SayReadback,
+                FrequencyState.EstimateAirtimeSeconds(speech)
+            )
         );
     }
 
@@ -83,7 +114,14 @@ public static partial class PilotResponder
     public static void QueueSoloPilotReadback(AircraftState aircraft, PilotSpeechText text, string sourceKind)
     {
         aircraft.PendingPilotTransmissions.Add(
-            new PilotTransmission(aircraft.Callsign, text.Terminal, text.Tts, sourceKind, PilotTransmissionKind.SayReadback)
+            new PilotTransmission(
+                aircraft.Callsign,
+                text.Terminal,
+                text.Tts,
+                sourceKind,
+                PilotTransmissionKind.SayReadback,
+                FrequencyState.EstimateAirtimeSeconds(text.Tts)
+            )
         );
     }
 
@@ -2060,8 +2098,7 @@ public static partial class PilotResponder
         bool rpoShowPilotSpeech,
         string? studentPositionType,
         PilotSpeechText text,
-        IReadOnlyCollection<string> soloRelevantPositions,
-        string sourceKind = SourceResponse
+        IReadOnlyCollection<string> soloRelevantPositions
     )
     {
         if (soloTrainingMode)
@@ -2071,7 +2108,14 @@ public static partial class PilotResponder
             if (studentIsRelevant)
             {
                 aircraft.PendingPilotTransmissions.Add(
-                    new PilotTransmission(aircraft.Callsign, text.Terminal, text.Tts, sourceKind, PilotTransmissionKind.Proactive)
+                    new PilotTransmission(
+                        aircraft.Callsign,
+                        text.Terminal,
+                        text.Tts,
+                        SourceResponse,
+                        PilotTransmissionKind.Proactive,
+                        FrequencyState.EstimateAirtimeSeconds(text.Tts)
+                    )
                 );
             }
             else

@@ -10,8 +10,8 @@ Pilots know whether the frequency is busy. On a busy frequency they read back la
 
 Part of the machinery already exists:
 
-- `FrequencyActivityMeter` keeps a rolling 60 s count of transmissions on the active frequency and classifies it Quiet / Moderate / Busy / Saturated ([solo-training-pilot-speech.md](../solo-training-pilot-speech.md)). It counts the controller's transmissions as well as the pilots', and `ToLoadBand()` collapses the four levels to a Quiet / Normal / Busy `FrequencyLoadBand`.
-- `PhraseologyVerbalizer.ShouldUseShortcut` makes a `PilotPersonality.Varied` pilot use a rule's `PilotShortcuts` (the shortest) at Busy and Saturated.
+- `FrequencyActivityMeter` keeps the transmissions on the active frequency over a rolling 60 s and judges a Quiet / Normal / Busy `FrequencyLoadBand` by the dead-air share of the window ([solo-training-pilot-speech.md](../solo-training-pilot-speech.md)). It counts the controller's airtime as well as the pilots'.
+- `PhraseologyVerbalizer.ShouldUseShortcut` makes a `PilotPersonality.Varied` pilot use a rule's `PilotShortcuts` (the shortest) at Busy.
 - `PilotResponder.ApplyQuietFlavor` adds an "alright, " prefix or a ", thanks" suffix to the spoken body, drawn from a hash of the callsign and body (deterministic, but not yet seeded per pilot).
 
 What is not built: a per-pilot terse-to-chatty trait, a per-transmission seeded pick among variants, variants beyond the busy shortcuts, the callsign abbreviation and the grouped frequency form. The decomposition below plans them.
@@ -20,7 +20,7 @@ What is not built: a per-pilot terse-to-chatty trait, a per-transmission seeded 
 
 Owner rulings:
 
-- Busy is transmissions per minute on the frequency, controller and pilot, over a trailing window, banded quiet / normal / busy.
+- Busy is how little of the trailing minute is dead air on the frequency, controller and pilot airtime together, banded quiet / normal / busy.
 - Variation is both per pilot and per transmission: each pilot has a seeded personality (terse to chatty) that shifts the band, and each readback picks a seeded variant within it, so replay stays deterministic.
 - Only the spoken form varies; the Terminal keeps the canonical readback text.
 - Every readback gets variants, each variant ruled by `aviation-sim-expert`.
@@ -31,9 +31,9 @@ Owner rulings:
 
 Orchestrator decisions (open to the owner):
 
-- The four-level meter maps to three bands: Quiet to quiet, Moderate to normal, Busy and Saturated to busy. The thresholds stay at quiet under 5 transmissions per 60 s, Moderate 5 to 12, Busy 13 to 20, Saturated above 20, now counted on both sides (each pilot transmission dequeued plus one per successful controller dispatch).
-- The controller side is counted once per successful dispatch, at the command's sim time. The meter counts transmissions, never airtime, so shorter busy readbacks cannot feed back into the count.
-- The meter's timestamps are snapshotted, so a rewind or restore resumes in the same band.
+- The meter judges three bands by the dead-air share of the last 60 s: Quiet at 70% or more, Normal from 35% to under 70%, Busy under 35%. Each transmission lasts 0.25 s per word (1 s minimum) of its canonical text, pilot and controller alike; overlaps count once.
+- The controller side is counted once per successful dispatch, as the interval ending at the command's sim time. Durations come from the canonical text, so shorter busy readbacks cannot feed back into the load.
+- The meter's intervals are snapshotted, so a rewind or restore resumes in the same band.
 - Personality is derived, never stored: `Fnv1a(callsign) ^ RngSeed` gives each pilot a terse-to-chatty trait, and `PilotPersonality` stays as the variation on/off switch. The trait is terse (25%), normal (50%) or chatty (25%); terse speaks one load band busier, chatty one band quieter, clamped to quiet..busy (owner ruling).
 - The per-transmission pick hashes the callsign, the canonical body and the sim second, so replay is deterministic and two identical readbacks a minute apart can differ.
 - The Terminal never varies: busy shortcuts reach only the spoken form, and `VerbalizeTerminal` and the RPO terminal get the canonical values.
@@ -69,8 +69,8 @@ What may vary: verbs and particles inside a clause, "taxi" / "via" / "contact" /
 
 Entry points for the work, by decomposition part (each part is its own issue under YAAT-849, landed on `feat/pilot-phraseology-load`):
 
-- **A, YAAT-1076, load meter.** `Pilot/FrequencyActivityMeter.cs` (bands, `FrequencyLoadBand`, `TransmissionTimes`, `Restore`), `Pilot/FrequencyState.cs` (the pilot-side `Record` at dequeue), `SimulationWorld.RecordControllerTransmission`, `Simulation/SimulationEngine.Commands.cs` (`ApplyPostDispatch`, the controller-side hook), `Simulation/SimulationEngine.Snapshots.cs` and `StateSnapshotDto.FrequencyTransmissionTimes`.
-- **B, YAAT-1077, seed and personality.** A per-pilot trait derived from `DeterministicHash.Fnv1a` and `SimScenarioState.RngSeed`, and a seeded variant pick: `Pilot/PilotTrait.cs` (`PilotTraits.For`, `EffectiveBand`), `Pilot/VariantPick.cs`, `DeterministicHash.Mix`, and `Pilot/PilotSpeechContext.cs`, which replaces the `(PilotPersonality, FrequencyActivityLevel)` pair through `PilotResponder.BuildReadback*` and takes a `FrequencyLoadBand` in `PhraseologyVerbalizer`; `SimulationEngine.ApplyPostDispatch` builds it. `PilotPersonality` stays as the on/off switch, and nothing reads the trait or the pick until part C.
+- **A, YAAT-1076, load meter.** `Pilot/FrequencyActivityMeter.cs` (`DeadAirShare`, `FrequencyLoadBand`, `Transmissions`, `Restore`), `Pilot/FrequencyState.cs` (the pilot-side `Record` at dequeue), `SimulationWorld.RecordControllerTransmission`, `Simulation/SimulationEngine.Commands.cs` (`ApplyPostDispatch`, the controller-side hook), `Simulation/SimulationEngine.Snapshots.cs` and `StateSnapshotDto.FrequencyTransmissions`.
+- **B, YAAT-1077, seed and personality.** A per-pilot trait derived from `DeterministicHash.Fnv1a` and `SimScenarioState.RngSeed`, and a seeded variant pick: `Pilot/PilotTrait.cs` (`PilotTraits.For`, `EffectiveBand`), `Pilot/VariantPick.cs`, `DeterministicHash.Mix`, and `Pilot/PilotSpeechContext.cs`, which replaces the `(PilotPersonality, activity level)` pair through `PilotResponder.BuildReadback*` and takes a `FrequencyLoadBand` in `PhraseologyVerbalizer`; `SimulationEngine.ApplyPostDispatch` builds it. `PilotPersonality` stays as the on/off switch, and nothing reads the trait or the pick until part C.
 - **C, YAAT-1078, spoken-only seam.** `Pilot/PilotResponder.cs` (`BuildReadback`, `FrameReadback`, `ApplyQuietFlavor`, `VerbalizeDual`) and `Pilot/PhraseologyVerbalizer.cs` (`Verbalize` vs `VerbalizeTerminal`): the band and personality reach only the spoken form, the Terminal and RPO body stay canonical.
 - **D, YAAT-1079, speech-rate nudge (cross-repo).** `PilotTransmission` and the queue methods in `PilotResponder`; yaat-server `Simulation/TickProcessor.cs`, `TrainingBroadcastService` and `PilotTransmissionBroadcastDto`; client `MainViewModel.Aircraft.cs` (`OnPilotTransmissionReceived`), `Services/PilotVoiceService.cs` and `SherpaOnnxPilotVoiceSynthesizer.SpeakAsync`.
 - **E, YAAT-1080, callsign abbreviation.** `Pilot/SpokenFormDraws.cs` (`CanShortenCallsign`, `DrawShortCallsign`), `PilotResponder.SpokenReadbackCallsign` and its readback callers, `CallsignParser.ShortenedNNumberSpoken`, `SimulationEngine.PilotSpeechContextFor`, `AircraftState.HasControllerAcknowledgedInitialContact`.

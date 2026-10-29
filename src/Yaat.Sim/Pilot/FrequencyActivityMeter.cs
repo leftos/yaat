@@ -1,14 +1,9 @@
 namespace Yaat.Sim.Pilot;
 
-public enum FrequencyActivityLevel
-{
-    Quiet,
-    Moderate,
-    Busy,
-    Saturated,
-}
-
-/// <summary>The three-way frequency-load band an <see cref="FrequencyActivityLevel"/> collapses to.</summary>
+/// <summary>
+/// The frequency's load band, judged by the share of the last minute nobody was transmitting: Quiet at 70% dead air or
+/// more, Normal from 35% up to 70%, Busy under 35%.
+/// </summary>
 public enum FrequencyLoadBand
 {
     Quiet,
@@ -16,79 +11,99 @@ public enum FrequencyLoadBand
     Busy,
 }
 
-public static class FrequencyActivityLevelExtensions
+/// <summary>One transmission on the frequency: keyed at <see cref="Start"/> (sim seconds) for <see cref="Duration"/> seconds.</summary>
+public readonly record struct FrequencyTransmission(double Start, double Duration)
 {
-    /// <summary>Maps the four activity levels onto three bands: Moderate is Normal, Busy and Saturated are Busy.</summary>
-    public static FrequencyLoadBand ToLoadBand(this FrequencyActivityLevel level) =>
-        level switch
-        {
-            FrequencyActivityLevel.Quiet => FrequencyLoadBand.Quiet,
-            FrequencyActivityLevel.Moderate => FrequencyLoadBand.Normal,
-            FrequencyActivityLevel.Busy or FrequencyActivityLevel.Saturated => FrequencyLoadBand.Busy,
-            _ => throw new ArgumentOutOfRangeException(nameof(level), level, "Unknown frequency activity level."),
-        };
+    public double End => Start + Duration;
 }
 
+/// <summary>
+/// The airtime on the active frequency over the trailing minute: every pilot and controller transmission as an interval,
+/// read as the dead-air share of the window and the load band it falls in.
+/// </summary>
 public sealed class FrequencyActivityMeter
 {
-    private const double WindowSeconds = 60.0;
-    private readonly Queue<double> _transmissionTimes = [];
+    public const double WindowSeconds = 60.0;
 
-    public FrequencyActivityLevel Level { get; private set; } = FrequencyActivityLevel.Quiet;
+    /// <summary>The dead-air share at or above which the frequency is Quiet.</summary>
+    public const double QuietDeadAirShare = 0.70;
 
-    public int Count => _transmissionTimes.Count;
+    /// <summary>The dead-air share at or above which the frequency is Normal rather than Busy.</summary>
+    public const double NormalDeadAirShare = 0.35;
 
-    /// <summary>The recorded transmission times since the last trim, oldest first.</summary>
-    public IReadOnlyList<double> TransmissionTimes => [.. _transmissionTimes];
+    private readonly List<FrequencyTransmission> _transmissions = [];
 
-    public void Record(double elapsedSeconds)
+    /// <summary>The recorded transmissions since the last trim, in the order they were recorded.</summary>
+    public IReadOnlyList<FrequencyTransmission> Transmissions => [.. _transmissions];
+
+    /// <summary>Records a transmission keyed at <paramref name="startSeconds"/> for <paramref name="durationSeconds"/>.</summary>
+    public void Record(double startSeconds, double durationSeconds)
     {
-        _transmissionTimes.Enqueue(elapsedSeconds);
-        Trim(elapsedSeconds);
-        Level = Classify(_transmissionTimes.Count);
-    }
-
-    /// <summary>
-    /// Replaces the recorded transmission times from a snapshot. The window is not trimmed here: the next
-    /// <see cref="Record"/> or <see cref="Trim"/> call trims it, exactly as the run being restored would have.
-    /// </summary>
-    public void Restore(IReadOnlyList<double> transmissionTimes)
-    {
-        _transmissionTimes.Clear();
-        foreach (double transmissionTime in transmissionTimes)
+        if (!double.IsFinite(startSeconds))
         {
-            _transmissionTimes.Enqueue(transmissionTime);
+            throw new ArgumentOutOfRangeException(nameof(startSeconds), startSeconds, "A transmission starts at a finite sim second.");
         }
 
-        Level = Classify(_transmissionTimes.Count);
+        if (!double.IsFinite(durationSeconds) || (durationSeconds < 0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(durationSeconds), durationSeconds, "A transmission lasts a finite, non-negative time.");
+        }
+
+        _transmissions.Add(new FrequencyTransmission(startSeconds, durationSeconds));
     }
 
     /// <summary>
-    /// The load band of the transmissions inside the window ending at <paramref name="elapsedSeconds"/>, read without
-    /// trimming: the recorded times and <see cref="Level"/> are left as they are.
+    /// Replaces the recorded transmissions from a snapshot. The window is not trimmed here: the next <see cref="Trim"/>
+    /// call trims it, exactly as the run being restored would have.
     /// </summary>
-    public FrequencyLoadBand PeekLoadBand(double elapsedSeconds)
+    public void Restore(IReadOnlyList<FrequencyTransmission> transmissions)
     {
-        int count = _transmissionTimes.Count(time => (elapsedSeconds - time) < WindowSeconds);
-        return Classify(count).ToLoadBand();
+        _transmissions.Clear();
+        _transmissions.AddRange(transmissions);
     }
 
+    /// <summary>
+    /// The share of the <see cref="WindowSeconds"/> ending at <paramref name="elapsedSeconds"/> that no transmission
+    /// occupied: one minus the length of the union of the transmissions clipped to the window, a transmission still on air
+    /// counted up to <paramref name="elapsedSeconds"/>. Overlapping transmissions count once. The union is taken in a fixed
+    /// order (by start, then duration), so the same transmissions always give the same share.
+    /// </summary>
+    public double DeadAirShare(double elapsedSeconds)
+    {
+        double windowStart = elapsedSeconds - WindowSeconds;
+        double occupiedSeconds = 0;
+        double coveredUntil = windowStart;
+        foreach (FrequencyTransmission transmission in _transmissions.OrderBy(t => t.Start).ThenBy(t => t.Duration))
+        {
+            double start = Math.Max(transmission.Start, coveredUntil);
+            double end = Math.Min(transmission.End, elapsedSeconds);
+            if (end > start)
+            {
+                occupiedSeconds += end - start;
+                coveredUntil = end;
+            }
+        }
+
+        return 1.0 - (occupiedSeconds / WindowSeconds);
+    }
+
+    /// <summary>The load band of the window ending at <paramref name="elapsedSeconds"/>, read without trimming.</summary>
+    public FrequencyLoadBand PeekLoadBand(double elapsedSeconds) => Classify(DeadAirShare(elapsedSeconds));
+
+    /// <summary>Drops the transmissions that ended before the window ending at <paramref name="elapsedSeconds"/>.</summary>
     public void Trim(double elapsedSeconds)
     {
-        while (_transmissionTimes.Count > 0 && (elapsedSeconds - _transmissionTimes.Peek()) >= WindowSeconds)
-        {
-            _transmissionTimes.Dequeue();
-        }
-
-        Level = Classify(_transmissionTimes.Count);
+        double windowStart = elapsedSeconds - WindowSeconds;
+        _transmissions.RemoveAll(t => t.End < windowStart);
     }
 
-    private static FrequencyActivityLevel Classify(int count) =>
-        count switch
+    private static FrequencyLoadBand Classify(double deadAirShare)
+    {
+        if (deadAirShare >= QuietDeadAirShare)
         {
-            < 5 => FrequencyActivityLevel.Quiet,
-            <= 12 => FrequencyActivityLevel.Moderate,
-            <= 20 => FrequencyActivityLevel.Busy,
-            _ => FrequencyActivityLevel.Saturated,
-        };
+            return FrequencyLoadBand.Quiet;
+        }
+
+        return (deadAirShare >= NormalDeadAirShare) ? FrequencyLoadBand.Normal : FrequencyLoadBand.Busy;
+    }
 }

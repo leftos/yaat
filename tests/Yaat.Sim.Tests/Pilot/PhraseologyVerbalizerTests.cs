@@ -61,15 +61,14 @@ public class PhraseologyVerbalizerTests
     }
 
     [Theory]
-    [InlineData(FrequencyActivityLevel.Busy)]
-    [InlineData(FrequencyActivityLevel.Saturated)]
-    public void Verbalize_VariedBusy_ToRowsAreFlightLevelOnly(FrequencyActivityLevel activityLevel)
+    [InlineData(FrequencyLoadBand.Busy)]
+    public void Verbalize_VariedBusy_ToRowsAreFlightLevelOnly(FrequencyLoadBand band)
     {
         string? belowFl180 = PhraseologyVerbalizer
-            .VerbalizeClause(new ClimbMaintainCommand(5000), Callsign, Varied(activityLevel.ToLoadBand(), 1, 0), wholeReadback: true)
+            .VerbalizeClause(new ClimbMaintainCommand(5000), Callsign, Varied(band, 1, 0), wholeReadback: true)
             .Text;
         string? flightLevel = PhraseologyVerbalizer
-            .VerbalizeClause(new ClimbMaintainCommand(19000), Callsign, Varied(activityLevel.ToLoadBand(), 1, 0), wholeReadback: true)
+            .VerbalizeClause(new ClimbMaintainCommand(19000), Callsign, Varied(band, 1, 0), wholeReadback: true)
             .Text;
 
         Assert.Contains(belowFl180, (string[])["five thousand", "climbing five thousand"]);

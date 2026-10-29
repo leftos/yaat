@@ -1554,23 +1554,96 @@ public class SnapshotRoundTripTests
         }
 
         double now = scenario.ElapsedSeconds;
-        // 15 transmissions inside the last minute: Busy.
-        for (int second = 15; second >= 1; second--)
+        // 45 s ended before the snapshot and one transmission still on air at it: 47 s of the last minute, Busy.
+        FrequencyTransmission[] beforeSnapshot = [new(now - 50, 45), new(now - 2, 5)];
+        foreach (FrequencyTransmission transmission in beforeSnapshot)
         {
-            engine.World.ActiveFrequency.ActivityMeter.Record(now - second);
+            engine.World.ActiveFrequency.ActivityMeter.Record(transmission.Start, transmission.Duration);
         }
 
-        StateSnapshotDto snapshot = engine.CaptureSnapshot();
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
 
-        for (int second = 1; second <= 20; second++)
+        engine.World.ActiveFrequency.ActivityMeter.Record(now + 1, 20);
+
+        engine.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!);
+
+        Assert.Equal(beforeSnapshot, engine.World.ActiveFrequency.ActivityMeter.Transmissions);
+        Assert.Equal(FrequencyLoadBand.Busy, engine.World.ActiveFrequency.GetLoadBand(now));
+    }
+
+    /// <summary>
+    /// A V38 snapshot stored only the second each transmission started; each becomes a 3 s transmission from that second,
+    /// and an old snapshot without times restores an empty meter.
+    /// </summary>
+    [Fact]
+    public void Migrate_V38FrequencyTransmissionTimes_BecomeThreeSecondTransmissions()
+    {
+        const string withTimes = """
+            {
+              "SchemaVersion": 38,
+              "ElapsedSeconds": 10,
+              "Rng": { "S0": 1, "S1": 2, "S2": 3, "S3": 4 },
+              "FrequencyTransmissionTimes": [ 5, 8.5 ],
+              "Aircraft": [],
+              "Scenario": { "ScenarioId": "t", "ScenarioName": "T", "RngSeed": 1, "ElapsedSeconds": 10, "SimRate": 1 }
+            }
+            """;
+        StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(withTimes, RecordingJsonOptions.Default)!;
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
+        Assert.Equal(
+            [new FrequencyTransmissionDto { Start = 5, Duration = 3 }, new FrequencyTransmissionDto { Start = 8.5, Duration = 3 }],
+            snapshot.FrequencyTransmissions
+        );
+        string rewritten = JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default);
+        Assert.DoesNotContain("FrequencyTransmissionTimes", rewritten, StringComparison.Ordinal);
+
+        StateSnapshotDto withoutTimes = JsonSerializer.Deserialize<StateSnapshotDto>(
+            withTimes.Replace("\"FrequencyTransmissionTimes\": [ 5, 8.5 ],", "", StringComparison.Ordinal),
+            RecordingJsonOptions.Default
+        )!;
+
+        SnapshotSchemaMigrator.Migrate(withoutTimes);
+
+        Assert.Null(withoutTimes.FrequencyTransmissions);
+    }
+
+    /// <summary>
+    /// A V38 snapshot restored end to end: its 15 stored times, 3 s apart across the last 45 s, become back-to-back 3 s
+    /// transmissions, 25% dead air, and the run resumes Busy.
+    /// </summary>
+    [Fact]
+    public void RestoreFromSnapshot_V38FrequencyTransmissionTimes_ResumeInTheirBand()
+    {
+        if (!File.Exists(ScenarioPath))
         {
-            engine.World.ActiveFrequency.ActivityMeter.Record(now + second);
+            return;
         }
 
-        engine.RestoreFromSnapshot(snapshot);
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is not { } scenario)
+        {
+            return;
+        }
 
-        Assert.Equal(15, engine.World.ActiveFrequency.ActivityMeter.Count);
-        Assert.Equal(FrequencyActivityLevel.Busy, engine.World.ActiveFrequency.GetActivityLevel(now));
+        double now = scenario.ElapsedSeconds;
+        double[] times = [.. Enumerable.Range(0, 15).Select(i => now - 45 + (3 * i))];
+        JsonObject node = JsonNode.Parse(JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default))!.AsObject();
+        node[nameof(StateSnapshotDto.SchemaVersion)] = 38;
+        node.Remove(nameof(StateSnapshotDto.FrequencyTransmissions));
+        node["FrequencyTransmissionTimes"] = new JsonArray([.. times.Select(t => (JsonNode)t)]);
+        StateSnapshotDto v38 = JsonSerializer.Deserialize<StateSnapshotDto>(node.ToJsonString(), RecordingJsonOptions.Default)!;
+
+        engine.RestoreFromSnapshot(v38);
+
+        Assert.Equal(
+            [.. times.Select(t => new FrequencyTransmission(t, SnapshotSchemaMigrator.LegacyTransmissionSeconds))],
+            engine.World.ActiveFrequency.ActivityMeter.Transmissions
+        );
+        Assert.Equal(FrequencyLoadBand.Busy, engine.World.ActiveFrequency.GetLoadBand(now));
     }
 
     /// <summary>
@@ -1592,21 +1665,18 @@ public class SnapshotRoundTripTests
             return;
         }
 
-        for (int second = 25; second >= 1; second--)
-        {
-            engine.World.ActiveFrequency.ActivityMeter.Record(scenario.ElapsedSeconds - second);
-        }
+        engine.World.ActiveFrequency.ActivityMeter.Record(scenario.ElapsedSeconds - 25, 25);
 
         string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
         JsonObject node = JsonNode.Parse(json)!.AsObject();
-        Assert.True(node.ContainsKey(nameof(StateSnapshotDto.FrequencyTransmissionTimes)));
-        node.Remove(nameof(StateSnapshotDto.FrequencyTransmissionTimes));
+        Assert.True(node.ContainsKey(nameof(StateSnapshotDto.FrequencyTransmissions)));
+        node.Remove(nameof(StateSnapshotDto.FrequencyTransmissions));
 
         StateSnapshotDto withoutTimes = JsonSerializer.Deserialize<StateSnapshotDto>(node.ToJsonString(), RecordingJsonOptions.Default)!;
 
         engine.RestoreFromSnapshot(withoutTimes);
 
-        Assert.Equal(0, engine.World.ActiveFrequency.ActivityMeter.Count);
+        Assert.Empty(engine.World.ActiveFrequency.ActivityMeter.Transmissions);
     }
 
     [Fact]
@@ -1655,14 +1725,11 @@ public class SnapshotRoundTripTests
             return;
         }
 
-        for (int second = 15; second >= 1; second--)
-        {
-            engine.World.ActiveFrequency.ActivityMeter.Record(scenario.ElapsedSeconds - second);
-        }
+        engine.World.ActiveFrequency.ActivityMeter.Record(scenario.ElapsedSeconds - 15, 15);
 
         engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
 
-        Assert.Equal(0, engine.World.ActiveFrequency.ActivityMeter.Count);
+        Assert.Empty(engine.World.ActiveFrequency.ActivityMeter.Transmissions);
     }
 
     /// <summary>
@@ -1687,7 +1754,7 @@ public class SnapshotRoundTripTests
         // Plain default options, as yaat-server's pinned snapshot-zero hash test serializes the snapshot.
         string json = JsonSerializer.Serialize(engine.CaptureSnapshot());
 
-        Assert.DoesNotContain(nameof(StateSnapshotDto.FrequencyTransmissionTimes), json, StringComparison.Ordinal);
+        Assert.DoesNotContain("FrequencyTransmission", json, StringComparison.Ordinal);
     }
 
     /// <summary>An airborne aircraft carrying <paramref name="layout"/>, or none at all.</summary>

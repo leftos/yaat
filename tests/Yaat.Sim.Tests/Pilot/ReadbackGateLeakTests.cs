@@ -386,16 +386,18 @@ public sealed class ReadbackGateLeakTests
     }
 
     private static PilotTransmission Transmission(string callsign, string text, PilotTransmissionKind kind) =>
-        new(callsign, text, text, PilotResponder.SourceResponse, kind);
+        new(callsign, text, text, PilotResponder.SourceResponse, kind, FrequencyState.EstimateAirtimeSeconds(text));
 
     private static PilotTransmission QueueSetupTransmission(AircraftState aircraft, string text, PilotTransmissionKind kind)
     {
+        string speech = PilotResponder.PrepareForTts(aircraft, text);
         PilotTransmission transmission = new(
             aircraft.Callsign,
             text,
-            PilotResponder.PrepareForTts(aircraft, text),
+            speech,
             PilotResponder.SourceResponse,
-            kind
+            kind,
+            FrequencyState.EstimateAirtimeSeconds(speech)
         );
         aircraft.PendingPilotTransmissions.Add(transmission);
         return transmission;
