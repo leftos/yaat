@@ -240,8 +240,8 @@ public class PatternAltitudeMemoryTests
             IndicatedAirspeed = 90,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
-            Pattern = new AircraftPattern { AltitudeOverrideFt = 1500 },
         };
+        ac.Pattern.SetAltitudeOverride(1500, null, AircraftCategory.Piston);
 
         AircraftSnapshotDto dto = ac.ToSnapshot();
         Assert.Equal(1500, dto.Pattern.AltitudeOverrideFt);
@@ -280,8 +280,8 @@ public class PatternAltitudeMemoryTests
             IndicatedAirspeed = 90,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
-            Pattern = new AircraftPattern { AltitudeOverrideFt = 1500 },
         };
+        ac.Pattern.SetAltitudeOverride(1500, null, AircraftCategory.Piston);
         PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,
@@ -328,8 +328,8 @@ public class PatternAltitudeMemoryTests
             IndicatedAirspeed = 90,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
-            Pattern = new AircraftPattern { AltitudeOverrideFt = 1500 },
         };
+        ac.Pattern.SetAltitudeOverride(1500, null, AircraftCategory.Piston);
         PatternWaypoints waypoints = PatternGeometry.Compute(
             runway,
             AircraftCategory.Piston,

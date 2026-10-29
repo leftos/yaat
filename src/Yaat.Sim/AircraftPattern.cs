@@ -46,8 +46,28 @@ public class AircraftPattern
     /// <summary>Override for pattern downwind offset distance (NM). Null uses category default.</summary>
     public double? SizeOverrideNm { get; set; }
 
-    /// <summary>Override for pattern altitude (feet MSL). Null uses category-based default.</summary>
-    public double? AltitudeOverrideFt { get; set; }
+    /// <summary>
+    /// Override for pattern altitude (feet MSL). Null uses category-based default. Written only through
+    /// <see cref="SetAltitudeOverride"/>.
+    /// </summary>
+    public double? AltitudeOverrideFt { get; private set; }
+
+    /// <summary>
+    /// Sets <see cref="AltitudeOverrideFt"/> and brings a queued, not yet started field crossing in
+    /// <paramref name="phases"/> into line with it (<see cref="PatternBuilder.ReconcileFieldCrossingPrefix"/>): whether that
+    /// crossing needs a teardrop re-entry depends on the pattern altitude, so every write goes through here.
+    /// </summary>
+    /// <param name="altitudeFt">The new pattern altitude (feet MSL), or null to fall back to the runway's own rules.</param>
+    /// <param name="phases">The aircraft's phase list, or null when it has none.</param>
+    /// <param name="category">The aircraft's category, used to resolve the crossing altitude.</param>
+    public void SetAltitudeOverride(double? altitudeFt, PhaseList? phases, AircraftCategory category)
+    {
+        AltitudeOverrideFt = altitudeFt;
+        if (phases is not null)
+        {
+            PatternBuilder.ReconcileFieldCrossingPrefix(phases, category, altitudeFt);
+        }
+    }
 
     /// <summary>
     /// Persistent pattern direction set by MLT/MRT/CTO MLT/CTO MRT/CTOMLT/CTOMRT/GA MLT/GA MRT.

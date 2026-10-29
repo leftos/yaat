@@ -12,6 +12,8 @@
 - CRC's ASDE-X arrival-alert inhibit for a tower position now lapses after 3 minutes and clears when the runway configuration changes, as on vNAS.
 - An `ARWY` change to an ASDE-X airport's runway configuration is no longer reverted when a CRC display that hasn't caught up closes a runway or inhibits alerts.
 - Playing back a recording now shows its recorded ASDE-X closed runways, inhibits and runway-configuration changes on CRC.
+- A wrong-side jet or turboprop pattern entry adds or drops its teardrop when the pattern altitude changes before it crosses midfield.
+- A `FOLLOW` onto the runway an option clearance armed (`COPT MLT 28L 20`) flies that clearance's pattern altitude, and a `CM`/`DM` during the follow takes precedence.
 
 ## v0.17.1-beta [2026/10/29]
 

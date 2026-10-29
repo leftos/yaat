@@ -539,6 +539,12 @@ A follower level with or ahead of its lead turning to the downwind heading with 
 
 ## Approach clearances
 
+**Armed pattern runway**:
+The runway an option clearance's pattern modifier names (`COPT MLT 28L` flown on 28R), held on `PhaseList.PatternRunway` until the circuit for it is built; a pattern entry or a FOLLOW join onto it satisfies the arming.
+
+**Deferred pattern altitude**:
+The altitude of that modifier (`COPT MLT 28L 20`), or the runway change's clear when it has none, held on `PhaseList.TransitionPatternAltitude` for the armed runway's circuit rather than the one being flown. A later altitude assignment replaces it.
+
 **Held until established**:
 A controller's altitude (CM, DM, forced altitude, `EXP <alt>`) given outside the published final approach fix to an aircraft cleared for an approach: the approach stays and the altitude is flown in place of the published altitudes until glideslope capture, until approach navigation sequences its next fix, or, when held above the glideslope, until the aircraft crosses the published FAF
 (`ApproachClearance.AltitudeHeldUntilEstablished`, docs/phases.md, *Commands on an aircraft cleared for an approach*).

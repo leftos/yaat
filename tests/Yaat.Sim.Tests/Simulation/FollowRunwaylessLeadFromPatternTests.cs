@@ -1633,6 +1633,69 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
     }
 
+    /// <summary>
+    /// Arms <paramref name="armed"/> on <paramref name="follower"/>'s pursuit list as an option clearance's pattern modifier
+    /// flown on <paramref name="flown"/> arms it (<c>COPT MLT 28R 20</c> on 28L), with <paramref name="deferredFt"/> deferred
+    /// to it.
+    /// </summary>
+    private static void ArmPatternRunway(AircraftState follower, RunwayInfo flown, RunwayInfo armed, double deferredFt)
+    {
+        PhaseList phases = follower.Phases!;
+        phases.AssignedRunway = flown;
+        phases.PatternRunway = armed;
+        phases.TransitionPatternAltitude = new DeferredPatternAltitude(deferredFt);
+    }
+
+    /// <summary>
+    /// A follower with 28R armed and 2,000 ft deferred to it joins its lead's 28R base: the join satisfies the arming, so the
+    /// base entry and the circuit are flown at 2,000, which becomes the standing pattern altitude, and nothing stays deferred.
+    /// </summary>
+    [Fact]
+    public void TryJoinLeadBase_OnTheArmedRunway_FliesTheDeferredAltitude()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28R");
+        AddBaseLead(engine);
+        LatLon start = OffFinal(rwy, 5.0, 4.5);
+        AircraftState follower = AddPursuingFollower(engine, start, new TrueHeading(GeoMath.BearingTo(start, LeadBaseStart)));
+        ArmPatternRunway(follower, flown: Oak("28L"), armed: rwy, deferredFt: 2000);
+
+        TickSeconds(engine, 1);
+
+        AssertJoinedBaseAt(follower, LeadBaseStart);
+        var entry = (PatternEntryPhase)follower.Phases!.CurrentPhase!;
+        Assert.Equal(2000.0, entry.PatternAltitude);
+        Assert.Equal(2000.0, follower.Pattern.AltitudeOverrideFt);
+        Assert.Null(follower.Phases.TransitionPatternAltitude);
+        Assert.Equal(2000.0, follower.Phases.Phases.OfType<BasePhase>().First().Waypoints!.PatternAltitude);
+    }
+
+    /// <summary>
+    /// A climb clearance issued during the pursuit is the most recent altitude assignment (AIM 4-4-10.a): it replaces the
+    /// altitude the option modifier deferred to the armed runway, so the join onto that runway's base is flown at it, not at
+    /// the deferred 2,000.
+    /// </summary>
+    [Fact]
+    public void ClimbMaintainDuringPursuit_ReplacesTheDeferral_TheArmedBaseJoinFliesTheAssignedAltitude()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28R");
+        AddBaseLead(engine);
+        LatLon start = OffFinal(rwy, 5.0, 4.5);
+        AircraftState follower = AddPursuingFollower(engine, start, new TrueHeading(GeoMath.BearingTo(start, LeadBaseStart)));
+        ArmPatternRunway(follower, flown: Oak("28L"), armed: rwy, deferredFt: 2000);
+
+        CommandResult result = FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(3000), follower);
+        Assert.True(result.Success, result.Message);
+        Assert.Null(follower.Phases!.TransitionPatternAltitude);
+
+        TickSeconds(engine, 1);
+
+        AssertJoinedBaseAt(follower, LeadBaseStart);
+        Assert.Equal(3000.0, ((PatternEntryPhase)follower.Phases!.CurrentPhase!).PatternAltitude);
+        Assert.Equal(3000.0, follower.Phases.Phases.OfType<BasePhase>().First().Waypoints!.PatternAltitude);
+    }
+
     [Fact]
     public void TryJoinLeadBase_FliesToStartPointThenAlongTheLeadsBaseLine()
     {

@@ -146,19 +146,22 @@ internal static class FlightCommandHandler
     }
 
     /// <summary>
-    /// An altitude assigned in the pattern becomes the standing pattern altitude. It is the most recent assignment
-    /// (AIM 4-4-10.a), so it also replaces any altitude an option clearance deferred to the next runway's pattern
-    /// (<see cref="PhaseList.TransitionPatternAltitude"/>).
+    /// An altitude assignment is the most recent one (AIM 4-4-10.a), so it replaces any altitude an option clearance deferred
+    /// to the next runway's pattern (<see cref="PhaseList.TransitionPatternAltitude"/>) wherever the aircraft is — a follower
+    /// in pursuit included. Assigned in the pattern, it also becomes the standing pattern altitude.
     /// </summary>
     private static void SetPatternAltitudeOverride(AircraftState aircraft, int altitude)
     {
-        if (aircraft.Phases is not { TrafficDirection: not null } phases)
+        if (aircraft.Phases is not { } phases)
         {
             return;
         }
 
-        aircraft.Pattern.AltitudeOverrideFt = altitude;
         phases.TransitionPatternAltitude = null;
+        if (phases.TrafficDirection is not null)
+        {
+            aircraft.Pattern.SetAltitudeOverride(altitude, phases, AircraftCategorization.Categorize(aircraft.AircraftType));
+        }
     }
 
     private static CommandResult ApplyVfrAltitudeRestriction(ClimbMaintainCommand cmd, AircraftState aircraft)

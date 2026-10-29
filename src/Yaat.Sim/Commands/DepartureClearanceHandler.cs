@@ -844,10 +844,11 @@ internal static class DepartureClearanceHandler
     {
         phases.TrafficDirection = ct.Direction;
         aircraft.Pattern.TrafficDirection = ct.Direction;
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         if (ct.PatternAltitude is not null)
         {
-            aircraft.Pattern.AltitudeOverrideFt = ct.PatternAltitude;
+            aircraft.Pattern.SetAltitudeOverride(ct.PatternAltitude, phases, cat);
         }
 
         if (removeInitialClimb)
@@ -856,7 +857,6 @@ internal static class DepartureClearanceHandler
         }
 
         RunwayInfo patternRunway = ResolvePatternRunway(ct, aircraft) ?? fallbackRunway;
-        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         IReadOnlyList<RunwayInfo> airportRunways = Data.NavigationDatabase.Instance.GetRunways(patternRunway.AirportId);
         GroundRunway? authoredPatternRunway = aircraft.Ground.Layout?.FindRunway(patternRunway.Designator);
         (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(

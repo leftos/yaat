@@ -928,6 +928,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// </summary>
     private void InstallExtendedDownwind(PhaseContext ctx, RunwayInfo runway, PatternDirection direction, double altitudeFt)
     {
+        double patternAltitudeFt = ClaimSatisfiedDeferral(ctx, runway) ?? altitudeFt;
         List<Phase> circuit = PatternBuilder.BuildCircuit(
             runway,
             ctx.Category,
@@ -938,7 +939,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             touchAndGo: false,
             finalDistanceNm: null,
             patternSizeNm: null,
-            altitudeOverrideFt: altitudeFt,
+            altitudeOverrideFt: patternAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
             authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
         );
@@ -977,17 +978,22 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// <summary>
     /// The pattern altitude (feet MSL) of <paramref name="aircraft"/>'s circuit to <paramref name="runway"/>, resolved as the
     /// circuit builder would: an authored or commanded override (<see cref="PatternGeometry.ResolveAuthoredOverrides"/>, with
-    /// the aircraft's own <c>Pattern.AltitudeOverrideFt</c>), else its category's pattern altitude above the field.
+    /// the aircraft's own <c>Pattern.AltitudeOverrideFt</c>), else its category's pattern altitude above the field. When
+    /// <paramref name="runway"/> is the armed pattern runway, the altitude an option clearance deferred to it (or its clear)
+    /// stands in for the standing override, as a join onto it would claim it; it is read here, not claimed.
     /// </summary>
     internal static double ResolvePatternAltitudeFt(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? groundLayout)
     {
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        DeferredPatternAltitude? armedDeferral = aircraft.Phases is { } phases
+            ? Commands.PatternCommandHandler.SatisfiedTransitionPatternAltitude(phases, runway)
+            : null;
         (double? _, double? altitudeOverrideFt) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
             category,
             commandSizeNm: null,
-            aircraft.Pattern.AltitudeOverrideFt
+            armedDeferral is { } deferred ? deferred.AltitudeFt : aircraft.Pattern.AltitudeOverrideFt
         );
         return altitudeOverrideFt ?? (runway.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(category));
     }
@@ -1139,6 +1145,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
         // Build the pattern circuit using the follower's own category (spacing
         // depends on what *we* can fly, not the lead).
+        double patternAltitudeFt = ClaimSatisfiedDeferral(ctx, leadRunway) ?? leadWaypoints.PatternAltitude;
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(leadRunway.AirportId);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
             leadRunway,
@@ -1150,13 +1157,13 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             touchAndGo: false,
             finalDistanceNm: null,
             patternSizeNm: null,
-            altitudeOverrideFt: leadWaypoints.PatternAltitude,
+            altitudeOverrideFt: patternAltitudeFt,
             airportRunways: airportRunways,
             authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(leadRunway.Designator)
         );
 
         // Replace the follower's phase list entirely (InstallJoinedCircuit carries any armed clearance over).
-        List<Phase> legs = DownwindJoinEntry(ctx.Aircraft, leadRunway, leadWaypoints) is { } entry ? [entry, .. circuit] : circuit;
+        List<Phase> legs = DownwindJoinEntry(ctx.Aircraft, leadRunway, leadWaypoints, patternAltitudeFt) is { } entry ? [entry, .. circuit] : circuit;
         InstallJoinedCircuit(ctx, leadRunway, leadWaypoints.Direction, legs, keepFollowing: true);
         return true;
     }
@@ -1167,8 +1174,14 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// downwind leg (track aligned with the downwind heading and past the abeam point), where the circuit's
     /// DownwindPhase engages directly. Routing such a follower through PatternEntryPhase would command a turn
     /// toward the lead-in waypoint (which sits behind the aircraft on the reciprocal heading), making it fly backward.
+    /// The entry is flown at <paramref name="patternAltitudeFt"/>, the altitude the joined circuit is built at.
     /// </summary>
-    private static PatternEntryPhase? DownwindJoinEntry(AircraftState follower, RunwayInfo leadRunway, PatternWaypoints leadWaypoints)
+    private static PatternEntryPhase? DownwindJoinEntry(
+        AircraftState follower,
+        RunwayInfo leadRunway,
+        PatternWaypoints leadWaypoints,
+        double patternAltitudeFt
+    )
     {
         double trackToDownwindDelta = follower.TrueTrack.AbsAngleTo(leadWaypoints.DownwindHeading);
         double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
@@ -1192,7 +1205,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         {
             EntryLat = leadWaypoints.DownwindAbeamLat,
             EntryLon = leadWaypoints.DownwindAbeamLon,
-            PatternAltitude = leadWaypoints.PatternAltitude,
+            PatternAltitude = patternAltitudeFt,
             Kind = PatternEntryPhase.ClassifyDownwindEntry(
                 follower.Position,
                 follower.TrueTrack,
@@ -1234,7 +1247,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
         RunwayInfo runway = join.Runway;
         PatternWaypoints waypoints = join.Waypoints;
-        double joinAltitudeFt = BaseJoinAltitudeFt(ctx, join);
+        double joinAltitudeFt = ClaimSatisfiedDeferral(ctx, runway) ?? BaseJoinAltitudeFt(ctx, join);
 
         List<Phase> circuit = PatternBuilder.BuildCircuit(
             runway,
@@ -1313,6 +1326,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             return false;
         }
 
+        double joinAltitudeFt = ClaimSatisfiedDeferral(ctx, runway) ?? BaseJoinAltitudeFt(ctx, join);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
             runway,
             ctx.Category,
@@ -1323,7 +1337,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             touchAndGo: false,
             finalDistanceNm: null,
             patternSizeNm: null,
-            altitudeOverrideFt: BaseJoinAltitudeFt(ctx, join),
+            altitudeOverrideFt: joinAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
             authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
         );
@@ -1596,6 +1610,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         LatLon entry = GeoMath.ProjectPoint(threshold, finalCourse.ToReciprocal(), entryDistNm);
         double entryAltitude = GlideSlopeGeometry.AltitudeAtDistance(entryDistNm, runway.ElevationFt, ctx.Category);
 
+        double? deferredAltitudeFt = ClaimSatisfiedDeferral(ctx, runway);
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
             runway,
@@ -1607,7 +1622,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             touchAndGo: false,
             finalDistanceNm: null,
             patternSizeNm: null,
-            altitudeOverrideFt: null,
+            altitudeOverrideFt: deferredAltitudeFt,
             airportRunways: airportRunways,
             authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
         );
@@ -1638,8 +1653,8 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// pursuit phase list (a CLAND, TG, SG, LA or COPT issued while the follower was still pursuing its lead) is captured
     /// first and carried onto the new list (<see cref="ApplyArmedLandingClearance"/>), as is an armed pattern runway
     /// (<see cref="CarryArmedPatternRunway"/>) with the pattern altitude its modifier deferred to it. A join onto the
-    /// armed runway itself satisfies the arming, so that circuit drops the deferral and keeps the altitude the runway's
-    /// own rules give it.
+    /// armed runway itself satisfies the arming: the join builder has already claimed the deferral
+    /// (<see cref="ClaimSatisfiedDeferral"/>) and built <paramref name="legs"/> at it, so nothing is left deferred.
     /// </summary>
     private void InstallJoinedCircuit(PhaseContext ctx, RunwayInfo runway, PatternDirection direction, List<Phase> legs, bool keepFollowing)
     {
@@ -1652,10 +1667,11 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         if (joinSatisfiesTheArming && (armedBefore.TransitionPatternAltitude is { } droppedDeferral))
         {
             Log.LogDebug(
-                "[VfrFollow] {Callsign}: join onto armed runway {Rwy} satisfies the arming; deferred altitude {Altitude} dropped",
+                "[VfrFollow] {Callsign}: join onto {Rwy} drops the deferred altitude {Altitude} armed for {Armed}, which no join claimed",
                 ctx.Aircraft.Callsign,
                 runway.Designator,
-                droppedDeferral.AltitudeFt
+                droppedDeferral.AltitudeFt,
+                armedBefore.PatternRunway?.Designator
             );
         }
 
@@ -1676,6 +1692,35 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         ctx.Aircraft.Procedure.DestinationRunway = runway.Designator;
         ApplyArmedLandingClearance(ctx.Aircraft, armedClearance, armedClearedRunwayId, runway);
         ctx.Aircraft.Phases.Start(ctx);
+    }
+
+    /// <summary>
+    /// The pattern altitude (feet MSL) a join onto <paramref name="joinRunway"/> is flown at when the join satisfies an armed
+    /// pattern runway (<c>COPT MLT 28L 20</c> flown on 28R, then a join of 28L traffic): the altitude the modifier deferred
+    /// to that runway. Null when the deferral is the runway change's clear or the join satisfies no deferral; the join
+    /// builder then keeps its own altitude. A satisfied deferral is claimed here, before the legs are built, as a pattern
+    /// entry onto the armed runway claims it: it becomes the standing <see cref="AircraftPattern.AltitudeOverrideFt"/> —
+    /// null for a clear, so the flown runway's altitude is not carried onto another runway — and is disarmed.
+    /// </summary>
+    private static double? ClaimSatisfiedDeferral(PhaseContext ctx, RunwayInfo joinRunway)
+    {
+        if (
+            (ctx.Aircraft.Phases is not { } phases)
+            || (Commands.PatternCommandHandler.SatisfiedTransitionPatternAltitude(phases, joinRunway) is not { } deferred)
+        )
+        {
+            return null;
+        }
+
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: join onto armed runway {Rwy} satisfies the arming; flying its deferred altitude {Altitude}",
+            ctx.Aircraft.Callsign,
+            joinRunway.Designator,
+            deferred.AltitudeFt
+        );
+        ctx.Aircraft.Pattern.SetAltitudeOverride(deferred.AltitudeFt, phases, ctx.Category);
+        phases.TransitionPatternAltitude = null;
+        return deferred.AltitudeFt;
     }
 
     /// <summary>
@@ -2124,12 +2169,14 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
     /// <summary>
     /// Ends the turn-out with a base turn in the pattern direction from where the follower is: the base, final and landing on
-    /// the circuit's runway, the base's final-turn distance the follower's present distance out, at the level it held, still
-    /// following, with its clearance carried.
+    /// the circuit's runway, the base's final-turn distance the follower's present distance out, still following, with its
+    /// clearance carried. The circuit is flown at a satisfied deferred pattern altitude (<see cref="ClaimSatisfiedDeferral"/>),
+    /// else an altitude the controller assigned, else the pattern altitude the turn-out captured.
     /// </summary>
     private void TurnBaseBehindLead(PhaseContext ctx, FollowTurnOut turnOut, FinalFramePosition frame)
     {
         FollowPatternReturn circuit = turnOut.Circuit;
+        double patternAltitudeFt = ClaimSatisfiedDeferral(ctx, circuit.Runway) ?? ctx.Targets.AssignedAltitude ?? circuit.PatternAltitudeFt;
         List<Phase> legs = PatternBuilder.BuildCircuit(
             circuit.Runway,
             ctx.Category,
@@ -2140,7 +2187,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             touchAndGo: false,
             finalDistanceNm: frame.AlongNm,
             patternSizeNm: null,
-            altitudeOverrideFt: circuit.PatternAltitudeFt,
+            altitudeOverrideFt: patternAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(circuit.Runway.AirportId),
             authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(circuit.Runway.Designator)
         );
@@ -2170,7 +2217,12 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         ctx.Aircraft.PendingWarnings.Add(
             $"{ctx.Aircraft.Callsign} turned out behind {TargetCallsign} with no room to turn base behind it, holding the downwind heading, awaiting a base turn"
         );
-        InstallExtendedDownwind(ctx, turnOut.Circuit.Runway, turnOut.Circuit.Direction, turnOut.Circuit.PatternAltitudeFt);
+        InstallExtendedDownwind(
+            ctx,
+            turnOut.Circuit.Runway,
+            turnOut.Circuit.Direction,
+            ctx.Targets.AssignedAltitude ?? turnOut.Circuit.PatternAltitudeFt
+        );
     }
 
     /// <summary>

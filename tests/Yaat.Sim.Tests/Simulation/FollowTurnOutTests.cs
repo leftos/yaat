@@ -84,9 +84,14 @@ public class FollowTurnOutTests(ITestOutputHelper output)
         };
 
     /// <summary>The lead on the 28R right-traffic final <paramref name="alongNm"/> out, on the glidepath at its approach speed.</summary>
-    private static AircraftState AddFinalLead(SimulationEngine engine, double alongNm)
+    private static AircraftState AddFinalLead(SimulationEngine engine, double alongNm) =>
+        AddFinalLeadTo(engine, Oak("28R"), PatternDirection.Right, alongNm);
+
+    /// <summary>
+    /// The lead on <paramref name="rwy"/>'s <paramref name="direction"/>-traffic final <paramref name="alongNm"/> out, on the glidepath.
+    /// </summary>
+    private static AircraftState AddFinalLeadTo(SimulationEngine engine, RunwayInfo rwy, PatternDirection direction, double alongNm)
     {
-        RunwayInfo rwy = Oak("28R");
         AircraftState lead = MakeVfr(Leader, OffFinal(rwy, alongNm, 0.0), rwy.TrueHeading, rwy.ElevationFt + (318.0 * alongNm));
         engine.World.AddAircraft(lead);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
@@ -94,7 +99,7 @@ public class FollowTurnOutTests(ITestOutputHelper output)
             AircraftCategory.Piston,
             "C172",
             windSpeedKt: 0,
-            PatternDirection.Right,
+            direction,
             PatternEntryLeg.Final,
             touchAndGo: false,
             finalDistanceNm: null,
@@ -106,7 +111,7 @@ public class FollowTurnOutTests(ITestOutputHelper output)
         lead.Phases = new PhaseList
         {
             AssignedRunway = rwy,
-            TrafficDirection = PatternDirection.Right,
+            TrafficDirection = direction,
             LandingClearance = ClearanceType.ClearedToLand,
             ClearedRunwayId = rwy.Designator,
         };
@@ -138,6 +143,24 @@ public class FollowTurnOutTests(ITestOutputHelper output)
             new FollowPatternReturn(rwy, PatternDirection.Right, PatternAltitudeFt(rwy), false),
             climbOutGate: null
         );
+        return follower;
+    }
+
+    /// <summary>
+    /// A follower pursuing the lead with no pattern return, at <paramref name="alongNm"/> out and <paramref name="crossNm"/>
+    /// right of the 28L centerline on the 28L final heading at 1,000 ft, flying 28R with 28L armed and 2,000 ft deferred to it
+    /// (<c>COPT MLT 28L 20</c> on 28R).
+    /// </summary>
+    private static AircraftState AddArmedPursuer(SimulationEngine engine, double alongNm, double crossNm)
+    {
+        RunwayInfo armed = Oak("28L");
+        AircraftState follower = MakeVfr(Follower, OffFinal(armed, alongNm, crossNm), armed.TrueHeading, 1000);
+        engine.World.AddAircraft(follower);
+        follower.Approach.HasReportedTrafficInSight = true;
+        CommandDispatcher.InstallVfrFollowPhase(follower, Leader, patternReturn: null, climbOutGate: null);
+        follower.Phases!.AssignedRunway = Oak("28R");
+        follower.Phases.PatternRunway = armed;
+        follower.Phases.TransitionPatternAltitude = new DeferredPatternAltitude(2000);
         return follower;
     }
 
@@ -280,6 +303,119 @@ public class FollowTurnOutTests(ITestOutputHelper output)
 
         TickSeconds(engine, 20);
         Assert.True(follower.TrueHeading.AbsAngleTo(rwy.TrueHeading.ToReciprocal()) <= 5.0, $"heading {follower.TrueHeading.Degrees:F0}");
+    }
+
+    // ─── Armed pattern runway ───
+
+    /// <summary>
+    /// A turn-out toward the downwind of the armed runway (28L, with 2,000 ft deferred to it) levels at the deferred altitude
+    /// — the circuit it rejoins is flown at it — rather than at the runway's own pattern altitude.
+    /// </summary>
+    [Fact]
+    public void TurnOutTowardTheArmedRunway_LevelsAtTheDeferredAltitude()
+    {
+        SimulationEngine engine = BuildEngine();
+        AddFinalLeadTo(engine, Oak("28L"), PatternDirection.Left, 3.0);
+        AircraftState follower = AddArmedPursuer(engine, 2.5, -1.2);
+
+        TickSeconds(engine, 1);
+
+        Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(1, TurnOutCalls(follower));
+        Assert.Equal(2000.0, follower.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// The no-room end of that turn-out: the extended downwind it ends into is flown at the deferred 2,000 the turn-out already
+    /// levelled at, so nothing climbs once the follower is on the downwind; 2,000 becomes the standing pattern altitude.
+    /// </summary>
+    [Fact]
+    public void TurnOutTowardTheArmedRunway_NoRoom_HoldsTheDownwindAtTheDeferredAltitude()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo armed = Oak("28L");
+        AircraftState lead = AddFinalLeadTo(engine, armed, PatternDirection.Left, 9.0);
+        AircraftState follower = AddArmedPursuer(engine, 4.0, -1.2);
+
+        double? turnOutTargetFt = null;
+        for (int i = 0; (i < 300 * 4) && (follower.Phases?.CurrentPhase is VfrFollowPhase); i++)
+        {
+            lead.IndicatedAirspeed = 40;
+            engine.TickPhysics(0.25);
+            if ((turnOutTargetFt is null) && (TurnOutCalls(follower) > 0))
+            {
+                turnOutTargetFt = follower.Targets.TargetAltitude;
+            }
+        }
+
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(follower.Phases!.CurrentPhase);
+        Assert.True(downwind.IsExtended);
+        Assert.Equal(2000.0, turnOutTargetFt);
+        Assert.Equal(2000.0, downwind.Waypoints!.PatternAltitude);
+        Assert.Equal(2000.0, follower.Pattern.AltitudeOverrideFt);
+        Assert.Null(follower.Phases.TransitionPatternAltitude);
+        Assert.Equal("28L", follower.Phases.AssignedRunway?.Designator);
+    }
+
+    /// <summary>
+    /// A CM given after the turn-out toward the armed runway started (2,000 ft deferred) clears the deferral; the no-room
+    /// extended downwind the turn-out ends into is flown at the assigned 3,000, not the turn-out's copy of the deferral.
+    /// </summary>
+    [Fact]
+    public void TurnOutTowardTheArmedRunway_CmAfterTheTurnOut_NoRoom_HoldsTheDownwindAtTheAssignedAltitude()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo armed = Oak("28L");
+        AircraftState lead = AddFinalLeadTo(engine, armed, PatternDirection.Left, 9.0);
+        AircraftState follower = AddArmedPursuer(engine, 4.0, -1.2);
+
+        bool assigned = false;
+        for (int i = 0; (i < 300 * 4) && (follower.Phases?.CurrentPhase is VfrFollowPhase); i++)
+        {
+            lead.IndicatedAirspeed = 40;
+            engine.TickPhysics(0.25);
+            if (!assigned && (TurnOutCalls(follower) > 0))
+            {
+                CommandResult result = engine.SendCommand(Follower, "CM 30");
+                Assert.True(result.Success, result.Message);
+                assigned = true;
+            }
+        }
+
+        Assert.True(assigned, "the follower never turned out");
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(follower.Phases!.CurrentPhase);
+        Assert.True(downwind.IsExtended);
+        Assert.Equal(3000.0, downwind.Waypoints!.PatternAltitude);
+        Assert.Null(follower.Phases.TransitionPatternAltitude);
+    }
+
+    /// <summary>
+    /// The base-turn end of that turn-out: with CM 30 given after it started toward the armed runway (2,000 ft deferred), the
+    /// base it turns behind the lead joins at the assigned 3,000.
+    /// </summary>
+    [Fact]
+    public void TurnOutTowardTheArmedRunway_CmAfterTheTurnOut_TurnsBaseAtTheAssignedAltitude()
+    {
+        SimulationEngine engine = BuildEngine();
+        AddFinalLeadTo(engine, Oak("28L"), PatternDirection.Left, 3.0);
+        AircraftState follower = AddArmedPursuer(engine, 2.5, -1.2);
+
+        bool assigned = false;
+        for (int i = 0; (i < 300 * 4) && (follower.Phases?.CurrentPhase is VfrFollowPhase); i++)
+        {
+            engine.TickPhysics(0.25);
+            if (!assigned && (TurnOutCalls(follower) > 0))
+            {
+                CommandResult result = engine.SendCommand(Follower, "CM 30");
+                Assert.True(result.Success, result.Message);
+                assigned = true;
+            }
+        }
+
+        Assert.True(assigned, "the follower never turned out");
+        BasePhase basePhase = Assert.IsType<BasePhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(3000.0, basePhase.Waypoints!.PatternAltitude);
+        Assert.Null(follower.Phases.TransitionPatternAltitude);
     }
 
     // ─── Lead leaves the final ───

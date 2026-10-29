@@ -200,6 +200,59 @@ public class FollowArmedPatternRunwayTests
     }
 
     /// <summary>
+    /// The lead lands on the armed runway (28L, with 2,000 ft deferred to it) and the follower, tracking the final course,
+    /// is sequenced onto that final: the sequence satisfies the arming, so 2,000 becomes the standing pattern altitude for
+    /// the circuit after the landing and nothing stays deferred.
+    /// </summary>
+    [Fact]
+    public void FinalSequence_ArmedRunwayIsTheLeadRunwayWithDeferredAltitude_ClaimsIt()
+    {
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "28L");
+        if (navDb is null || flown is null || armed is null)
+        {
+            return;
+        }
+
+        AircraftState lead = MakeVfr(Lead, OffFinal(armed, 0.8, 0), armed.TrueHeading, altitude: 300);
+        lead.Phases = new PhaseList { AssignedRunway = armed, PatternRunway = armed };
+        lead.Phases.Add(new FinalApproachPhase());
+
+        AircraftState follower = MakeVfr(Follower, OffFinal(armed, 3.5, -0.6), new TrueHeading(112), altitude: 1200);
+        follower.Approach.FollowingCallsign = Lead;
+        var phase = new VfrFollowPhase(Lead, patternReturn: null);
+        follower.Phases = new PhaseList
+        {
+            AssignedRunway = flown,
+            PatternRunway = armed,
+            TransitionPatternAltitude = new DeferredPatternAltitude(2000),
+            TrafficDirection = PatternDirection.Left,
+        };
+        follower.Phases.Add(phase);
+
+        PhaseContext ctx = Ctx(follower, armed, cs => cs == Lead ? lead : null);
+        follower.Phases.Start(ctx);
+
+        // First tick captures the lead's landing runway while it is still airborne on final.
+        phase.OnTick(ctx);
+        Assert.IsType<VfrFollowPhase>(follower.Phases.CurrentPhase);
+
+        // Turned onto the final course by the time the lead lands, so the landed-lead sequence takes the follower.
+        follower.TrueHeading = armed.TrueHeading;
+        follower.TrueTrack = armed.TrueHeading;
+        lead.IsOnGround = true;
+        phase.OnTick(ctx);
+
+        PatternEntryPhase entry = Assert.IsType<PatternEntryPhase>(follower.Phases.CurrentPhase);
+        Assert.Equal(PatternEntryKind.Final, entry.Kind);
+        Assert.Equal("28L", follower.Phases.AssignedRunway?.Designator);
+        Assert.Equal("28L", follower.Phases.PatternRunway?.Designator);
+        Assert.Equal(2000.0, follower.Pattern.AltitudeOverrideFt);
+        Assert.Null(follower.Phases.TransitionPatternAltitude);
+    }
+
+    /// <summary>
     /// A follow that ends on its own (here the lead is lost) re-enters the circuit it left through
     /// <c>TryEnterPattern</c>, which builds a fresh list; the armed pattern runway survives the re-entry.
     /// </summary>
@@ -328,6 +381,68 @@ public class FollowArmedPatternRunwayTests
         Assert.Null(follower.Phases.TransitionPatternAltitude);
     }
 
+    /// <summary>
+    /// <c>COPT MLT 28L 20</c> on the 28R circuit, then FOLLOW into a 28L lead's pattern: the join onto the armed runway
+    /// satisfies the arming, so the circuit it builds is flown at the 2,000 ft the modifier deferred — the downwind join's
+    /// lead-in and the circuit's legs alike — and 2,000 becomes the standing override, as a pattern entry onto the armed
+    /// runway does. Nothing stays deferred.
+    /// </summary>
+    [Fact]
+    public void PatternJoin_ArmedRunwayIsTheLeadRunwayWithDeferredAltitude_FliesThatCircuitAtIt()
+    {
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "28L");
+        if (navDb is null || flown is null || armed is null)
+        {
+            return;
+        }
+
+        LeadPatternJoin arranged = ArrangeLeadPattern(armed, flown, armed, PatternDirection.Left, new DeferredPatternAltitude(2000));
+        // Converging on the downwind at 45° rather than established on it, so the join leads in through a downwind entry.
+        TrueHeading convergingHeading = arranged.LeadWaypoints.DownwindHeading + 45.0;
+        arranged.Follower.TrueHeading = convergingHeading;
+        arranged.Follower.TrueTrack = convergingHeading;
+
+        AircraftState joined = Join(arranged);
+
+        Assert.Equal("28L", joined.Phases?.AssignedRunway?.Designator);
+        Assert.Equal("28L", joined.Phases?.PatternRunway?.Designator);
+        Assert.Equal(2000.0, joined.Pattern.AltitudeOverrideFt);
+        Assert.Null(joined.Phases!.TransitionPatternAltitude);
+        PatternEntryPhase leadIn = Assert.IsType<PatternEntryPhase>(joined.Phases.Phases[0]);
+        Assert.Equal(2000.0, leadIn.PatternAltitude);
+        List<DownwindPhase> downwinds = [.. joined.Phases.Phases.OfType<DownwindPhase>()];
+        Assert.NotEmpty(downwinds);
+        Assert.All(downwinds, downwind => Assert.Equal(2000.0, downwind.Waypoints!.PatternAltitude));
+    }
+
+    /// <summary>
+    /// A deferral that is the runway change's clear (<c>COPT MLT 28L</c> with no altitude): the join onto 28L clears the
+    /// standing 28R override rather than flying 28R's altitude on 28L, and the circuit keeps the lead's pattern altitude.
+    /// </summary>
+    [Fact]
+    public void PatternJoin_ArmedRunwayIsTheLeadRunwayWithDeferredClear_ClearsTheStandingOverride()
+    {
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "28L");
+        if (navDb is null || flown is null || armed is null)
+        {
+            return;
+        }
+
+        LeadPatternJoin arranged = ArrangeLeadPattern(armed, flown, armed, PatternDirection.Left, new DeferredPatternAltitude(null));
+        arranged.Follower.Pattern.SetAltitudeOverride(1500, null, AircraftCategory.Piston);
+
+        AircraftState joined = Join(arranged);
+
+        Assert.Equal("28L", joined.Phases?.AssignedRunway?.Designator);
+        Assert.Null(joined.Pattern.AltitudeOverrideFt);
+        Assert.Null(joined.Phases!.TransitionPatternAltitude);
+        Assert.Equal(arranged.LeadWaypoints.PatternAltitude, joined.Phases.Phases.OfType<DownwindPhase>().First().Waypoints!.PatternAltitude);
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Fixture
     // ---------------------------------------------------------------------------------------------
@@ -400,6 +515,30 @@ public class FollowArmedPatternRunwayTests
         RunwayInfo armedRunway,
         PatternDirection direction,
         DeferredPatternAltitude? transitionAltitude
+    ) => Join(ArrangeLeadPattern(leadRunway, flownRunway, armedRunway, direction, transitionAltitude));
+
+    /// <summary>A follower set up behind a lead's downwind by <see cref="ArrangeLeadPattern"/>, not yet ticked.</summary>
+    private sealed record LeadPatternJoin(AircraftState Follower, VfrFollowPhase Phase, PhaseContext Context, PatternWaypoints LeadWaypoints);
+
+    /// <summary>Starts <paramref name="join"/>'s follow and ticks it once; the follower must have joined the lead's pattern.</summary>
+    private static AircraftState Join(LeadPatternJoin join)
+    {
+        join.Follower.Phases!.Start(join.Context);
+        join.Phase.OnTick(join.Context);
+        Assert.False(
+            join.Follower.Phases.CurrentPhase is VfrFollowPhase,
+            "the follower never joined the lead's pattern — the join gates were not satisfied"
+        );
+        return join.Follower;
+    }
+
+    /// <summary>The set-up of <see cref="JoinLeadPattern"/>, returned before the join tick so a test can adjust the follower.</summary>
+    private static LeadPatternJoin ArrangeLeadPattern(
+        RunwayInfo leadRunway,
+        RunwayInfo flownRunway,
+        RunwayInfo armedRunway,
+        PatternDirection direction,
+        DeferredPatternAltitude? transitionAltitude
     )
     {
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(leadRunway.AirportId);
@@ -444,14 +583,7 @@ public class FollowArmedPatternRunwayTests
         follower.Phases.Add(phase);
 
         PhaseContext ctx = Ctx(follower, leadRunway, cs => cs == Lead ? lead : null);
-        follower.Phases.Start(ctx);
-
-        phase.OnTick(ctx);
-        Assert.False(
-            follower.Phases.CurrentPhase is VfrFollowPhase,
-            "the follower never joined the lead's pattern — the join gates were not satisfied"
-        );
-        return follower;
+        return new LeadPatternJoin(follower, phase, ctx, waypoints);
     }
 
     private static AircraftState MakeVfr(string callsign, LatLon pos, TrueHeading heading, double altitude) =>

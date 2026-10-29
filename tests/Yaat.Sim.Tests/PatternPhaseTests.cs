@@ -584,7 +584,7 @@ public class PatternPhaseTests
             authoredRunway: null
         );
         AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
-        ac.Pattern.AltitudeOverrideFt = AssignedPatternAltitude;
+        ac.Pattern.SetAltitudeOverride(AssignedPatternAltitude, null, AircraftCategorization.Categorize(ac.AircraftType));
         var phase = new MidfieldCrossingPhase { Waypoints = wp };
         PhaseContext ctx = Ctx(ac);
 

@@ -313,7 +313,7 @@ public static class PhaseRunner
             return;
         }
 
-        aircraft.Pattern.AltitudeOverrideFt = deferred.AltitudeFt;
+        aircraft.Pattern.SetAltitudeOverride(deferred.AltitudeFt, phases, AircraftCategorization.Categorize(aircraft.AircraftType));
         phases.TransitionPatternAltitude = null;
     }
 

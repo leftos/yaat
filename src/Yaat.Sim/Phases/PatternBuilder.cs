@@ -391,15 +391,7 @@ public static class PatternBuilder
     )
     {
         var prefix = new List<Phase> { crossing };
-        double crossingAlt = MidfieldCrossingPhase.ResolveCrossingAltitude(
-            crossing.CrossAtPatternAltitude,
-            category,
-            altitudeOverrideFt,
-            waypoints.PatternAltitude,
-            airportElevationFt
-        );
-
-        if (crossingAlt > waypoints.PatternAltitude + FlightPhysics.AltitudeSnapFt)
+        if (CrossingNeedsTeardrop(crossing, waypoints, category, altitudeOverrideFt, airportElevationFt))
         {
             prefix.Add(new TeardropReentryPhase { Waypoints = waypoints });
         }
@@ -409,6 +401,85 @@ public static class PatternBuilder
         }
 
         return prefix;
+    }
+
+    /// <summary>
+    /// Brings a queued field crossing in <paramref name="phases"/> into line with a pattern altitude that changed after
+    /// <see cref="BuildFieldCrossingPrefix"/> built it. The crossing and its re-entry read the altitude live when they start, so
+    /// a teardrop decided on the old altitude would otherwise be flown on the new one: an assigned altitude leaves a teardrop
+    /// with nothing to shed (a level 3 nm outbound leg), and a cleared one leaves an entry-height crossing with no teardrop to
+    /// shed it. The first crossing that has not started is decided again exactly as the prefix decides it: the re-entry after
+    /// it is inserted or removed (a queued re-entry is always rebuilt on the crossing's current waypoints), and the downwind it
+    /// joins re-intercepts its track only when no re-entry leads into it. A crossing already flying has read the altitude and
+    /// is left alone.
+    /// </summary>
+    /// <param name="phases">The phase list that may hold a queued crossing.</param>
+    /// <param name="category">The aircraft's category, used to resolve the crossing altitude.</param>
+    /// <param name="altitudeOverrideFt">The pattern altitude now standing (<see cref="AircraftPattern.AltitudeOverrideFt"/>).</param>
+    public static void ReconcileFieldCrossingPrefix(PhaseList phases, AircraftCategory category, double? altitudeOverrideFt)
+    {
+        List<Phase> list = phases.Phases;
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i] is MidfieldCrossingPhase { Status: PhaseStatus.Pending, Waypoints: { } waypoints } crossing)
+            {
+                bool needsTeardrop = CrossingNeedsTeardrop(
+                    crossing,
+                    waypoints,
+                    category,
+                    altitudeOverrideFt,
+                    phases.AssignedRunway?.AirportElevationFt
+                );
+                RebuildReentry(list, i + 1, waypoints, needsTeardrop);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Replaces a queued re-entry at <paramref name="reentryIndex"/> with a fresh one on <paramref name="waypoints"/> when
+    /// <paramref name="needsTeardrop"/>, or removes it when not, and sets the joined downwind's track re-intercept to match.
+    /// </summary>
+    private static void RebuildReentry(List<Phase> list, int reentryIndex, PatternWaypoints waypoints, bool needsTeardrop)
+    {
+        if ((reentryIndex < list.Count) && (list[reentryIndex] is TeardropReentryPhase { Status: PhaseStatus.Pending }))
+        {
+            list.RemoveAt(reentryIndex);
+        }
+
+        if (needsTeardrop)
+        {
+            list.Insert(reentryIndex, new TeardropReentryPhase { Waypoints = waypoints });
+        }
+
+        if (list.Skip(reentryIndex).OfType<DownwindPhase>().FirstOrDefault() is { } joinDownwind)
+        {
+            joinDownwind.RejoinTrack = !needsTeardrop;
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="crossing"/> is flown above pattern altitude, so a <see cref="TeardropReentryPhase"/> must shed
+    /// the height before the downwind: the altitude it will actually be flown at
+    /// (<see cref="MidfieldCrossingPhase.ResolveCrossingAltitude(bool, AircraftCategory, double?, double, double?)"/>) against
+    /// <paramref name="waypoints"/>' pattern altitude.
+    /// </summary>
+    private static bool CrossingNeedsTeardrop(
+        MidfieldCrossingPhase crossing,
+        PatternWaypoints waypoints,
+        AircraftCategory category,
+        double? altitudeOverrideFt,
+        double? airportElevationFt
+    )
+    {
+        double crossingAlt = MidfieldCrossingPhase.ResolveCrossingAltitude(
+            crossing.CrossAtPatternAltitude,
+            category,
+            altitudeOverrideFt,
+            waypoints.PatternAltitude,
+            airportElevationFt
+        );
+        return crossingAlt > waypoints.PatternAltitude + FlightPhysics.AltitudeSnapFt;
     }
 
     /// <summary>

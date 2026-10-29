@@ -228,7 +228,7 @@ handlers share one carrier for the modifier (`OptionPatternModifier`: direction,
 modifier naming a runway that is not a close parallel warns "… will cross midfield" when the entry builds its circuit.
 A `FOLLOW` rebuilds the phase list but carries an armed `PatternRunway` across (`VfrFollowPhase`, same airport only) and
 warns that the follower will leave the sequence after its next terminator; when the follow's runway is the armed one
-the arming is satisfied. The modifier's runway/altitude tokens resolve through
+the arming is satisfied and the join flies the armed deferred altitude. The modifier's runway/altitude tokens resolve through
 `Commands/Arguments/` (`RunwayArgument`, `AltitudeArgument`, `CommandArgumentResolver` walking the overload shapes
 `[]`, `[Runway]`, `[Altitude]`, `[Runway, Altitude]`): where `Runway` and `Altitude` are both candidates a 1–2 digit token
 binds as the runway and an altitude needs 3+ digits; once the runway slot is bound only `Altitude` remains and the
@@ -262,7 +262,7 @@ altitude" — the turbine TPA already is the established altitude + 500, so addi
 - then an option clearance's altitude deferred to this runway (`PhaseList.TransitionPatternAltitude`, satisfied by entering that runway's pattern);
 - then the standing override.
 
-An option modifier naming another runway (`COPT MLT 28L 20` on the 28R final) leaves this circuit's altitude alone and defers its altitude, or the runway change's clear, to the runway-transition circuit. Any later altitude assignment replaces that deferral: a runway-less modifier, `MLT`/`MRT` with an altitude, or a climb/descend command in the pattern. A go-around or a closed-traffic takeoff voids it. A FOLLOW join onto the very runway an option clearance armed drops the deferral and flies the standing override (YAAT-616).
+An option modifier naming another runway (`COPT MLT 28L 20` on the 28R final) leaves this circuit's altitude alone and defers its altitude, or the runway change's clear, to the runway-transition circuit. Any later altitude assignment replaces that deferral: a runway-less modifier, `MLT`/`MRT` with an altitude, or a climb/descend command in the pattern. A go-around or a closed-traffic takeoff voids it. A FOLLOW join onto the very runway an option clearance armed claims the deferral and flies it (YAAT-616): the lead-in, downwind, base, final-sequence and turn-base joins, the spacing turn-out with its no-room extended downwind, and a follow climb-out into that runway all build their circuit at the deferred altitude (`VfrFollowPhase.ClaimSatisfiedDeferral`), which becomes the standing override and is disarmed; a deferred clear (a runway change with no altitude) clears the standing override on that join. CM/DM clears a pending deferral even while the aircraft is in pursuit. A deferral no join claims is dropped with a debug log in `InstallJoinedCircuit`.
 
 Midfield triggers lead by `DownwindPhase.MidfieldLeadNm` (0.05 nm), not the 0.3 nm leg tolerance — on
 OAK's 0.9 nm runways the larger lead started the crossover at the departure end. Midfield is
@@ -400,6 +400,8 @@ At a field with no authored pattern the turbine TPA already is field + 1,500 ft,
 3. **Abeam** = the downwind abeam point itself.
 
 The aircraft enters from `MidfieldCrossingPhase` at its crossing altitude.
+
+The teardrop is decided on the pattern altitude standing when the crossing is built, and a queued crossing is decided again when that altitude changes. Every write of `Pattern.AltitudeOverrideFt` goes through `AircraftPattern.SetAltitudeOverride`, which calls `PatternBuilder.ReconcileFieldCrossingPrefix`: the first `MidfieldCrossingPhase` still pending gains or loses its `TeardropReentryPhase` (and the joined downwind's `RejoinTrack`) as the new altitude dictates (CM/DM in the pattern, a runway-less COPT/TG/SG/LA with an altitude, MLT/MRT with an altitude or a runway, a CTO closed-traffic altitude, a runway-transition deferred altitude). A crossing already flying has read the altitude and is left alone.
 
 The route waypoints carry `At` altitude restrictions that step it down across the three points: **TPA + 250**, **TPA + 50**, then **TPA**, each capped at the crossing altitude so the teardrop never climbs above the height it entered at (a turbine pattern altitude between 1,251 and 1,489 ft AGL, from an authored pattern of about 751–989 ft AGL plus the turbine 500 ft, crosses less than 250 ft above TPA and steps down from there).
 

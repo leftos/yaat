@@ -1,10 +1,12 @@
-﻿using Xunit;
+﻿using System.Text.Json;
+using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -1538,7 +1540,7 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
-        aircraft.Pattern.AltitudeOverrideFt = 1500;
+        aircraft.Pattern.SetAltitudeOverride(1500, null, AircraftCategorization.Categorize(aircraft.AircraftType));
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
@@ -1547,6 +1549,170 @@ public class PatternEntryTests : IDisposable
         Assert.IsType<MidfieldCrossingPhase>(phases[0]);
         Assert.IsType<DownwindPhase>(phases[1]);
         Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
+    }
+
+    /// <summary>
+    /// A pattern altitude assigned after the wrong-side entry is built but before its crossing starts (<c>CM</c>/<c>DM</c>
+    /// in the pattern, a runway-less <c>COPT</c> or <c>MRT</c> with an altitude) is the most recent assignment
+    /// (AIM 4-4-10.a): the jet crosses at pattern altitude, so the teardrop the entry queued for the 1,500 ft AGL entry
+    /// height has nothing to shed and is taken out, and the downwind re-intercepts its track as the prefix would have built it.
+    /// </summary>
+    [Theory]
+    [InlineData("CM")]
+    [InlineData("DM")]
+    [InlineData("COPT")]
+    [InlineData("MRT")]
+    public void WrongSide_Jet_AltitudeAssignedBeforeCrossingStarts_DropsTheTeardrop(string instruction)
+    {
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
+        Assert.IsType<TeardropReentryPhase>(aircraft.Phases.Phases[1]);
+
+        AssignPatternAltitude(aircraft, instruction, 1500);
+
+        List<Phase> phases = aircraft.Phases.Phases;
+        DumpPhases(aircraft);
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
+        MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(phases[1]);
+        Assert.True(downwind.RejoinTrack);
+        PhaseContext ctx = MakeContext(aircraft);
+        crossing.OnStart(ctx);
+        Assert.Equal(crossing.Waypoints!.PatternAltitude, ctx.Targets.TargetAltitude);
+        if (instruction == "MRT")
+        {
+            // MRT refreshes the queued legs' waypoints, so the crossing is flown at the assigned altitude itself.
+            Assert.Equal(1500.0, crossing.Waypoints.PatternAltitude);
+        }
+    }
+
+    /// <summary>
+    /// The same through the dispatcher in one transmission (<c>ERD 28R, CM 015</c>): the altitude assigned with the entry
+    /// reaches the crossing the entry just queued, which drops its teardrop.
+    /// </summary>
+    [Fact]
+    public void WrongSide_Jet_EntryAndAltitudeInOneTransmission_DropsTheTeardrop()
+    {
+        AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
+        aircraft.AircraftType = "B738";
+        aircraft.Phases!.AssignedRunway = MakeOak28R();
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
+
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("ERD 28R, CM 015", aircraft.FlightPlan.Route);
+        Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.Reason}");
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            parsed.Value!,
+            aircraft,
+            TestDispatch.Context(Random.Shared, validateDctFixes: false, groundLayout: aircraft.Ground.Layout)
+        );
+        Assert.True(result.Success, result.Message);
+
+        List<Phase> phases = aircraft.Phases!.Phases;
+        DumpPhases(aircraft);
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
+        Assert.True(Assert.IsType<DownwindPhase>(phases[1]).RejoinTrack);
+    }
+
+    /// <summary>
+    /// A wrong-side entry restored from a snapshot before its crossing starts reconciles an altitude assigned after the
+    /// restore exactly as the live list does: the serialised phase lists match.
+    /// </summary>
+    [Fact]
+    public void WrongSide_Jet_AltitudeAssignedAfterSnapshotRoundTrip_MatchesTheLiveList()
+    {
+        AircraftState live = EnterRightDownwind28R(standingOverrideFt: null);
+        var restored = AircraftState.FromSnapshot(live.ToSnapshot(), live.Ground.Layout);
+
+        AssignPatternAltitude(live, "CM", 1500);
+        AssignPatternAltitude(restored, "CM", 1500);
+
+        Assert.DoesNotContain(live.Phases!.Phases, p => p is TeardropReentryPhase);
+        Assert.Equal(
+            JsonSerializer.Serialize(live.ToSnapshot().Phases, RecordingJsonOptions.Default),
+            JsonSerializer.Serialize(restored.ToSnapshot().Phases, RecordingJsonOptions.Default)
+        );
+    }
+
+    /// <summary>
+    /// The other way: the entry was built on an assigned 1,500 ft (no teardrop), and a runway-naming <c>MRT 28R</c> clears
+    /// that altitude before the crossing starts. The jet now crosses at the AIM 4-3-3.a.2 entry height above the authored-low
+    /// pattern, so a teardrop is queued after the crossing to shed it, on the crossing's refreshed waypoints, and the downwind
+    /// no longer re-intercepts on its own.
+    /// </summary>
+    [Fact]
+    public void WrongSide_Jet_RunwayInstructionClearsTheAltitudeBeforeCrossingStarts_AddsTheTeardrop()
+    {
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: 1500);
+        Assert.DoesNotContain(aircraft.Phases!.Phases, p => p is TeardropReentryPhase);
+
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            aircraft,
+            PatternDirection.Right,
+            runwayId: "28R",
+            altitudeOverride: null
+        );
+        Assert.True(result.Success, result.Message);
+
+        List<Phase> phases = aircraft.Phases.Phases;
+        DumpPhases(aircraft);
+        Assert.Null(aircraft.Pattern.AltitudeOverrideFt);
+        MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        TeardropReentryPhase teardrop = Assert.IsType<TeardropReentryPhase>(phases[1]);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        Assert.Equal(
+            TeardropReentryPhase.ReentryFixes(crossing.Waypoints!, category),
+            TeardropReentryPhase.ReentryFixes(teardrop.Waypoints, category)
+        );
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(phases[2]);
+        Assert.False(downwind.RejoinTrack);
+        PhaseContext ctx = MakeContext(aircraft);
+        crossing.OnStart(ctx);
+        Assert.True(
+            ctx.Targets.TargetAltitude > crossing.Waypoints!.PatternAltitude + 10,
+            $"crossing at {ctx.Targets.TargetAltitude} ft, pattern {crossing.Waypoints.PatternAltitude} ft"
+        );
+    }
+
+    /// <summary>
+    /// A crossing already flying has read the pattern altitude when it started; an altitude assigned after that leaves the
+    /// queued teardrop where it is.
+    /// </summary>
+    [Fact]
+    public void WrongSide_Jet_AltitudeAssignedAfterCrossingStarts_LeavesTheTeardrop()
+    {
+        AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
+        aircraft.Phases!.Start(MakeContext(aircraft));
+        Assert.Equal(PhaseStatus.Active, aircraft.Phases.Phases[0].Status);
+
+        AssignPatternAltitude(aircraft, "CM", 1500);
+
+        List<Phase> phases = aircraft.Phases.Phases;
+        Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
+        Assert.IsType<MidfieldCrossingPhase>(phases[0]);
+        Assert.IsType<TeardropReentryPhase>(phases[1]);
+        Assert.False(Assert.IsType<DownwindPhase>(phases[2]).RejoinTrack);
+    }
+
+    /// <summary>Assigns <paramref name="altitudeFt"/> as the pattern altitude by <paramref name="instruction"/>, live.</summary>
+    private static void AssignPatternAltitude(AircraftState aircraft, string instruction, int altitudeFt)
+    {
+        if (instruction == "COPT")
+        {
+            IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Right, null, altitudeFt));
+            return;
+        }
+
+        CommandResult result = instruction switch
+        {
+            "CM" => FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(altitudeFt), aircraft),
+            "DM" => FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(altitudeFt), aircraft),
+            "MRT" => PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: null, altitudeOverride: altitudeFt),
+            _ => throw new ArgumentOutOfRangeException(nameof(instruction), instruction, "no pattern-altitude instruction by that name"),
+        };
+        Assert.True(result.Success, result.Message);
     }
 
     /// <summary>
@@ -1619,7 +1785,7 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
-        aircraft.Pattern.AltitudeOverrideFt = 1500;
+        aircraft.Pattern.SetAltitudeOverride(1500, null, AircraftCategorization.Categorize(aircraft.AircraftType));
         aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "28L", null);
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
@@ -2034,7 +2200,7 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = MakeOak28R();
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
-        aircraft.Pattern.AltitudeOverrideFt = standingOverrideFt;
+        aircraft.Pattern.SetAltitudeOverride(standingOverrideFt, null, AircraftCategorization.Categorize(aircraft.AircraftType));
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
@@ -2061,7 +2227,7 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = MakeOak28R();
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
-        aircraft.Pattern.AltitudeOverrideFt = standingOverrideFt;
+        aircraft.Pattern.SetAltitudeOverride(standingOverrideFt, null, AircraftCategorization.Categorize(aircraft.AircraftType));
         aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "28L", pendingAltitudeFt);
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(

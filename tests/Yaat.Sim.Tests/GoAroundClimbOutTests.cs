@@ -185,7 +185,7 @@ public class GoAroundClimbOutTests
         }
 
         AircraftState aircraft = MakeVfrAircraft(runway);
-        aircraft.Pattern.AltitudeOverrideFt = 1500;
+        aircraft.Pattern.SetAltitudeOverride(1500, null, AircraftCategorization.Categorize(aircraft.AircraftType));
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
 
         Assert.Equal(1200, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));

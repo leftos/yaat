@@ -872,7 +872,7 @@ internal static class PatternCommandHandler
         // clearance's own pattern altitude, the more recent assignment, still wins.
         if (satisfiedTransitionAltitude is { } satisfied)
         {
-            aircraft.Pattern.AltitudeOverrideFt = satisfied.AltitudeFt;
+            aircraft.Pattern.SetAltitudeOverride(satisfied.AltitudeFt, phases, category);
         }
 
         // Consume the single-shot clearance pre-issued before this entry built its circuit. It has
@@ -946,6 +946,7 @@ internal static class PatternCommandHandler
         // leg runs.
         RunwayInfo? previousAssignedRunway = aircraft.Phases?.AssignedRunway;
         PatternDirection? previousDirection = aircraft.Phases?.TrafficDirection ?? CurrentLegWaypoints(aircraft.Phases?.CurrentPhase)?.Direction;
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         // Resolve runway from argument if provided
         if (runwayId is not null)
@@ -974,7 +975,7 @@ internal static class PatternCommandHandler
             aircraft.Phases.TransitionPatternAltitude = null;
             NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, resolved.Designator);
             // Changing runway clears altitude override — different runway, different TPA
-            aircraft.Pattern.AltitudeOverrideFt = null;
+            aircraft.Pattern.SetAltitudeOverride(null, aircraft.Phases, category);
 
             // A landing clearance names a runway (7110.65 §3-10-5), so sending the aircraft around a
             // pattern for a different one voids it — the controller has to clear it again. Without this
@@ -992,7 +993,7 @@ internal static class PatternCommandHandler
         // left alone, and a named runway disarmed it above.
         if (altitudeOverride is not null)
         {
-            aircraft.Pattern.AltitudeOverrideFt = altitudeOverride;
+            aircraft.Pattern.SetAltitudeOverride(altitudeOverride, aircraft.Phases, category);
             aircraft.Phases?.TransitionPatternAltitude = null;
         }
 
@@ -1002,7 +1003,6 @@ internal static class PatternCommandHandler
         }
 
         RunwayInfo runway = aircraft.Phases.AssignedRunway;
-        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
         (double? sizeOv, double? altOv) = ResolvePatternOverrides(aircraft, runway, groundLayout);
         PatternWaypoints waypoints = ComputePatternWaypoints(aircraft, runway, newDirection, groundLayout);
@@ -1098,8 +1098,10 @@ internal static class PatternCommandHandler
             );
         }
 
-        // Update waypoints on existing pattern phases
+        // Update waypoints on existing pattern phases. A queued field crossing then holds the refreshed pattern altitude,
+        // so its teardrop decision is taken again on it (the override was set before these waypoints existed).
         bool hasPatternPhases = PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
+        PatternBuilder.ReconcileFieldCrossingPrefix(aircraft.Phases, category, aircraft.Pattern.AltitudeOverrideFt);
 
         // An on-ground aircraft with no pattern phases (taxiing, holding short, crossing a runway,
         // lined up and waiting) only pre-arms the direction — stamped on Pattern/Phases.TrafficDirection
@@ -2534,7 +2536,7 @@ internal static class PatternCommandHandler
     /// (<see cref="PhaseList.TransitionPatternAltitude"/> with <see cref="PhaseList.PatternRunway"/> naming it), which an
     /// entry to that runway's pattern satisfies; null when none is armed or it is armed for another runway.
     /// </summary>
-    private static DeferredPatternAltitude? SatisfiedTransitionPatternAltitude(PhaseList phases, RunwayInfo runway) =>
+    internal static DeferredPatternAltitude? SatisfiedTransitionPatternAltitude(PhaseList phases, RunwayInfo runway) =>
         (
             phases is { PatternRunway: { } armedRunway, TransitionPatternAltitude: { } deferred }
             && AirborneFollowHelper.IsSameRunway(armedRunway, runway)
@@ -2604,7 +2606,7 @@ internal static class PatternCommandHandler
             // The most recent assignment (AIM 4-4-10.a): it also replaces an altitude deferred to a transition.
             // The clear guards a list this consume did not rebuild — the consume runs on the fresh list
             // TryEnterPattern built, so an armed deferral stands on the list that entry replaced, never here.
-            aircraft.Pattern.AltitudeOverrideFt = pendingPatternAltitude;
+            aircraft.Pattern.SetAltitudeOverride(pendingPatternAltitude, aircraft.Phases, AircraftCategorization.Categorize(aircraft.AircraftType));
             aircraft.Phases?.TransitionPatternAltitude = null;
         }
 
@@ -3069,7 +3071,7 @@ internal static class PatternCommandHandler
 
         if ((modifier.AltitudeFt is { } altitude) && !deferredToTransition)
         {
-            aircraft.Pattern.AltitudeOverrideFt = altitude;
+            aircraft.Pattern.SetAltitudeOverride(altitude, phases, AircraftCategorization.Categorize(aircraft.AircraftType));
             phases?.TransitionPatternAltitude = null;
         }
 
@@ -3105,7 +3107,7 @@ internal static class PatternCommandHandler
 
         if (runwayChanged && (phases.AssignedRunway is null))
         {
-            aircraft.Pattern.AltitudeOverrideFt = null;
+            aircraft.Pattern.SetAltitudeOverride(null, phases, AircraftCategorization.Categorize(aircraft.AircraftType));
         }
 
         return deferredToTransition;
@@ -4080,7 +4082,7 @@ internal static class PatternCommandHandler
             // Set pattern altitude override if provided (e.g., GA MLT 15)
             if (ga.TargetAltitude is not null)
             {
-                aircraft.Pattern.AltitudeOverrideFt = ga.TargetAltitude;
+                aircraft.Pattern.SetAltitudeOverride(ga.TargetAltitude, aircraft.Phases, AircraftCategorization.Categorize(aircraft.AircraftType));
             }
         }
 
