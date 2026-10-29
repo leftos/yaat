@@ -861,8 +861,8 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             FollowCornerGeometry.AirportId,
             "N1LED",
             "C172",
-            FollowCornerGeometry.Between(chain[1].Position, chain[1].Position, 0.5),
-            FollowCornerGeometry.Facing(chain[1], chain[1])
+            FollowCornerGeometry.Between(chain[0].Position, chain[1].Position, 0.5),
+            FollowCornerGeometry.Facing(chain[0], chain[1])
         );
         AircraftState follower = FollowCornerGeometry.Spawn(
             FollowCornerGeometry.AirportId,
@@ -2423,7 +2423,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
 
     /// <summary>
     /// A follower at B <c>Chain[5]</c> facing the runway, and its lead's plan on B: the lead part way along
-    /// <c>Chain[1]</c>→<c>Chain[1]</c>.
+    /// <c>Chain[1]</c>→<c>Chain[0]</c>.
     /// </summary>
     private sealed record BFollow(
         List<GroundNode> Chain,

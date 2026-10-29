@@ -4611,9 +4611,9 @@ public class GroundConflictDetectorTests
     }
 
     /// <summary>
-    /// Traffic closing on a crosser while braking itself (a published decel rate) closes no further than its own stop, so once
-    /// that caps its travel the crosser is allowed more than the closed form for traffic closing the whole stop: the curve is
-    /// the plain stop curve over the room less the traffic's stop.
+    /// Traffic closing on a crosser while braking to a stop (a published decel rate toward a stop) closes no further than its
+    /// stop projected onto the line, so once that caps its travel the crosser is allowed more than the closed form for traffic
+    /// closing the whole stop: the curve is the plain stop curve over the room less that projected stop.
     /// </summary>
     [Fact]
     public void CrossingCurve_BrakingObstacle_ClosesNoFurtherThanItsOwnStop()
@@ -4626,17 +4626,18 @@ public class GroundConflictDetectorTests
         );
         double trafficRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
         traffic.Targets.DesiredDecelRate = trafficRate;
+        traffic.Targets.TargetSpeed = 0;
 
         GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout);
 
         double closingKts = CurveClosingKts(BrakingTrafficKts);
         double distFt = CentreDistanceFt(crosser, traffic);
-        double trafficStopFt = closingKts * closingKts / (2.0 * trafficRate) * CurveFeetPerSecondPerKt;
+        double trafficStopFt = ProjectedStopFt(traffic, closingKts, trafficRate);
         double uncappedKts = CurveClosedFormKts(distFt, closingKts, obstacleStopFt: null);
         double cappedKts = CurveClosedFormKts(distFt, closingKts, trafficStopFt);
         double limitKts = Assert.IsType<double>(crosser.Ground.SpeedLimit);
         _output.WriteLine(
-            $"limited to {limitKts:F3} kt; closing the whole stop {uncappedKts:F3}, capped at its own {trafficStopFt:F2} ft stop {cappedKts:F3}"
+            $"limited to {limitKts:F3} kt; closing the whole stop {uncappedKts:F3}, capped at its {trafficStopFt:F2} ft projected stop {cappedKts:F3}"
         );
         Assert.True(limitKts > uncappedKts, $"the braking traffic's closure was counted for the whole stop: {limitKts:F3} kt");
         Assert.Equal(cappedKts, limitKts, 6);
@@ -5099,7 +5100,7 @@ public class GroundConflictDetectorTests
     /// A crosser closing on traffic that an aircraft at rest ahead of it brakes (<see cref="CrosserTrafficAndBlocker"/>), all
     /// three flown one pass at the limits that pass set, as physics flies them (<see cref="FlyOnePass"/>): in the next pass the
     /// traffic's speed limit is no longer below its ground speed, yet the detector braked it in the pass before, so the crosser's
-    /// curve counts the traffic's closure no further than the traffic's own stop.
+    /// curve counts the traffic's closure no further than its stop projected onto the line.
     /// </summary>
     [Fact]
     public void CrossingCurve_TrafficBrakedLastPass_CapsTheClosure()
@@ -5115,8 +5116,8 @@ public class GroundConflictDetectorTests
 
         double distFt = CentreDistanceFt(crosser, traffic);
         double closingKts = ClosingKtsOf(traffic, crosser);
-        double trafficRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
-        double trafficStopFt = closingKts * closingKts / (2.0 * trafficRate) * CurveFeetPerSecondPerKt;
+        double trafficRate = traffic.Targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
+        double trafficStopFt = ProjectedStopFt(traffic, closingKts, trafficRate);
         double cappedKts = CurveClosedFormKts(crosser.GroundSpeed, distFt, closingKts, trafficStopFt);
         double uncappedKts = CurveClosedFormKts(crosser.GroundSpeed, distFt, closingKts, obstacleStopFt: null);
         double limitKts = Assert.IsType<double>(crosser.Ground.SpeedLimit);
@@ -5278,7 +5279,7 @@ public class GroundConflictDetectorTests
     /// <summary>
     /// A crosser the crossing stop curve binds behind traffic closing on it (<see cref="BrakedStoppingTrafficKts"/>,
     /// <see cref="BrakedStoppingTrafficRoomFt"/>) that the detector braked in its last pass, so the curve counts the traffic's
-    /// travel no further than its own stop, flown one pass at its limit (<see cref="FlyOnePass"/>), with the traffic then at rest
+    /// travel no further than its stop projected onto the line, flown one pass at its limit (<see cref="FlyOnePass"/>), with the traffic then at rest
     /// dead ahead <see cref="CappedTravelReleaseMarginFt"/> beyond its taxi-rate stop plus that capped travel plus one pass's
     /// travel: it is released and the carry lapses, though the taxi-rate curve with the closure uncapped still binds.
     /// </summary>
@@ -5294,7 +5295,7 @@ public class GroundConflictDetectorTests
         traffic.Ground.BrakedByDetectorLastPass = true;
         double closingKts = ClosingKtsOf(traffic, crosser);
         double taxiRate = CategoryPerformance.TaxiDecelRate(AircraftCategory.Piston);
-        double trafficStopFt = closingKts * closingKts / (2.0 * taxiRate) * CurveFeetPerSecondPerKt;
+        double trafficStopFt = ProjectedStopFt(traffic, closingKts, traffic.Targets.DesiredDecelRate ?? taxiRate);
         double cappedKts = CurveClosedFormKts(CentreDistanceFt(crosser, traffic), closingKts, trafficStopFt);
         GroundConflictDetector.ApplySpeedLimits([crosser, traffic], layout, diagnosticLog: _output.WriteLine);
         double? firstKts = crosser.Ground.SpeedLimit;
@@ -5563,6 +5564,18 @@ public class GroundConflictDetectorTests
     }
 
     private static double CentreDistanceFt(AircraftState a, AircraftState b) => GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// How far (ft) <paramref name="traffic"/>, braking to a stop at <paramref name="rate"/> and closing at
+    /// <paramref name="closingKts"/>, travels toward the aircraft it closes on: its stop along its own heading from its ground
+    /// speed, projected onto the line by the cosine of that heading's angle off it (closing speed over ground speed).
+    /// </summary>
+    private static double ProjectedStopFt(AircraftState traffic, double closingKts, double rate)
+    {
+        double groundSpeedKts = traffic.GroundSpeed;
+        double stopAlongHeadingFt = groundSpeedKts * groundSpeedKts / (2.0 * rate) * CurveFeetPerSecondPerKt;
+        return stopAlongHeadingFt * (closingKts / groundSpeedKts);
+    }
 
     /// <summary>How fast (kt) traffic at <paramref name="trafficKts"/> heading <see cref="CurveTrafficHeadingDeg"/> closes on the crosser.</summary>
     private static double CurveClosingKts(double trafficKts) => trafficKts * Math.Cos((CurveTrafficHeadingDeg - 180.0) * Math.PI / 180.0);
@@ -6104,6 +6117,64 @@ public class GroundConflictDetectorTests
     {
         LatLon ahead = GeoMath.ProjectPoint(origin, new TrueHeading(trackDeg), alongFt / FtPerNm);
         return GeoMath.ProjectPoint(ahead, new TrueHeading((trackDeg + 90.0) % 360.0), lateralFt / FtPerNm);
+    }
+
+    /// <summary>
+    /// A C172 slowing to a positive speed target at a published decel rate keeps moving, so its closure on a stopping
+    /// aircraft is not capped at a stop.
+    /// </summary>
+    [Fact]
+    public void ClosureOf_ObstacleSlowingToAPositiveTarget_IsNotCappedAtAStop()
+    {
+        (AircraftState obstacle, AircraftState stopper) = ClosingC172OnAStopper(targetSpeedKts: 8, decelRate: 2.0);
+
+        GroundConflictDetector.StopClosure closure = GroundConflictDetector.ClosureOf(obstacle, stopper);
+
+        Assert.True(closure.ClosingKts > 14.9, $"closing {closure.ClosingKts:F2} kt, expected the obstacle's 15 kt");
+        Assert.Null(closure.StopFt);
+    }
+
+    /// <summary>
+    /// A C172 braking to a stop at a published decel rate closes no further than its stop at that rate.
+    /// </summary>
+    [Fact]
+    public void ClosureOf_ObstacleBrakingToAStopAtItsPublishedRate_CapsAtThatRate()
+    {
+        (AircraftState obstacle, AircraftState stopper) = ClosingC172OnAStopper(targetSpeedKts: 0, decelRate: 4.0);
+
+        GroundConflictDetector.StopClosure closure = GroundConflictDetector.ClosureOf(obstacle, stopper);
+
+        Assert.True(closure.ClosingKts > 14.9, $"closing {closure.ClosingKts:F2} kt, expected the obstacle's 15 kt");
+        Assert.Equal(GroundStopBraking.StoppingDistanceFt(closure.ClosingKts, 4.0), closure.StopFt);
+    }
+
+    /// <summary>
+    /// A C172 braking to a stop along a heading 60° off the bearing to the stopper travels its whole stop along that heading,
+    /// so its travel toward the stopper is that stop projected onto the line, not the stop of its closing component alone.
+    /// </summary>
+    [Fact]
+    public void ClosureOf_BrakingObstacleAtAnAngle_TravelsItsStopProjectedOntoTheLine()
+    {
+        (AircraftState obstacle, AircraftState stopper) = ClosingC172OnAStopper(targetSpeedKts: 0, decelRate: 4.0);
+        obstacle.TrueHeading = new TrueHeading(240);
+
+        GroundConflictDetector.StopClosure closure = GroundConflictDetector.ClosureOf(obstacle, stopper);
+
+        double stopFt = Assert.NotNull(closure.StopFt);
+        Assert.Equal(GroundStopBraking.StoppingDistanceFt(15, 4.0) * Math.Cos(60.0 * Math.PI / 180.0), stopFt, 1e-6);
+    }
+
+    /// <summary>
+    /// A stationary C172 stopper and a C172 obstacle 300 ft north of it at 15 kt, heading straight at it, publishing
+    /// <paramref name="decelRate"/> toward <paramref name="targetSpeedKts"/>.
+    /// </summary>
+    private static (AircraftState Obstacle, AircraftState Stopper) ClosingC172OnAStopper(double targetSpeedKts, double decelRate)
+    {
+        AircraftState stopper = MakeTypedAircraft("N1STP", "C172", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0);
+        AircraftState obstacle = MakeTypedAircraft("N2OBS", "C172", new LatLon(BaseLat + (3 * OffsetLatPer100Ft), BaseLon), heading: 180, gs: 15);
+        obstacle.Targets.TargetSpeed = targetSpeedKts;
+        obstacle.Targets.DesiredDecelRate = decelRate;
+        return (obstacle, stopper);
     }
 
     /// <summary>

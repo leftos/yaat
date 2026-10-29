@@ -3299,34 +3299,55 @@ public static class GroundConflictDetector
     /// How <paramref name="obstacle"/> closes on <paramref name="stopper"/> while it stops (<see cref="StopClosure"/>): its
     /// ground-speed component along the bearing from it to the stopper, in the direction physics moves it (its pushback heading
     /// under a push, else its heading), zero when it moves across or away; whether it is opening, that component pointing away
-    /// from the stopper; and, when it is braking itself at the start of the pass (the detector braked it in its last pass,
-    /// <see cref="_brakedLastPass"/>, or a published decel rate), that closing speed's stopping distance at its category's taxi
-    /// brake rate, which caps its travel. Read from the state at the start of the pass, it is the same whichever pair the pass
-    /// resolves first.
+    /// from the stopper; and, when it is braking to a stop at the start of the pass, its projected stop, which caps its
+    /// travel: it brakes along its move heading, so its travel toward the stopper before it stops is its own stopping
+    /// distance from its ground speed times the cosine of that heading's angle off the bearing, never below zero. It brakes
+    /// at the rate <see cref="StoppingRateOf"/> gives. An aircraft slowing to a positive target keeps moving, so its travel
+    /// is not capped. Read from the state at the start of the pass, it is the same whichever pair the pass resolves first.
     /// </summary>
-    private static StopClosure ClosureOf(AircraftState obstacle, AircraftState stopper)
+    public static StopClosure ClosureOf(AircraftState obstacle, AircraftState stopper)
     {
         double moveDeg = (obstacle.Ground.PushbackTrueHeading ?? obstacle.TrueHeading).Degrees;
         double offDeg = HeadingDifference(moveDeg, GeoMath.BearingTo(obstacle.Position, stopper.Position));
-        double towardKts = obstacle.GroundSpeed * Math.Cos(offDeg * Math.PI / 180.0);
+        double cosOff = Math.Cos(offDeg * Math.PI / 180.0);
+        double towardKts = obstacle.GroundSpeed * cosOff;
         double closingKts = Math.Max(towardKts, 0.0);
         bool opening = towardKts < 0.0;
-        bool braking = (_brakedLastPass?.Contains(obstacle) == true) || (obstacle.Targets.DesiredDecelRate is not null);
-        if (!braking)
+        if (StoppingRateOf(obstacle) is not { } obstacleRate)
         {
             return new StopClosure(closingKts, StopFt: null, Opening: opening);
         }
 
-        double obstacleRate = CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(obstacle.AircraftType));
-        return new StopClosure(closingKts, GroundStopBraking.StoppingDistanceFt(closingKts, obstacleRate), Opening: opening);
+        double projectedStopFt = Math.Max(0.0, GroundStopBraking.StoppingDistanceFt(obstacle.GroundSpeed, obstacleRate) * cosOff);
+        return new StopClosure(closingKts, projectedStopFt, Opening: opening);
     }
 
     /// <summary>
-    /// Traffic closing on an aircraft that is stopping: its closing speed (kt), never below zero; for traffic braking itself, its
-    /// own stopping distance (ft), which caps how far it closes, null for traffic not braking; and whether it is opening, its
+    /// The rate (kt/s) <paramref name="obstacle"/> brakes to a stop at, as <see cref="ClosureOf"/> reads it: its published
+    /// decel rate when it publishes one toward a speed target of zero or below; else, when the detector braked it in its last
+    /// pass (<see cref="_brakedLastPass"/>), the rate physics stops it at, its published decel rate or else its category's
+    /// taxi brake rate; null when it is not braking to a stop.
+    /// </summary>
+    private static double? StoppingRateOf(AircraftState obstacle)
+    {
+        ControlTargets targets = obstacle.Targets;
+        if ((targets.DesiredDecelRate is { } publishedRate) && (targets.TargetSpeed is { } targetKts) && (targetKts <= 0))
+        {
+            return publishedRate;
+        }
+
+        return (_brakedLastPass?.Contains(obstacle) == true)
+            ? (targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(obstacle.AircraftType)))
+            : null;
+    }
+
+    /// <summary>
+    /// Traffic closing on an aircraft that is stopping: its closing speed (kt), never below zero; for traffic braking to a
+    /// stop, its projected stop (ft), its stopping distance along its move heading projected onto the line to the stopping
+    /// aircraft, which caps how far it closes, null for traffic not braking to a stop; and whether it is opening, its
     /// ground-speed component along the bearing from it to the stopping aircraft pointing away (<see cref="ClosureOf"/>).
     /// </summary>
-    private readonly record struct StopClosure(double ClosingKts, double? StopFt, bool Opening)
+    public readonly record struct StopClosure(double ClosingKts, double? StopFt, bool Opening)
     {
         /// <summary>No traffic closing.</summary>
         public static StopClosure None => new(0.0, StopFt: null, Opening: false);

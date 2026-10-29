@@ -62,7 +62,7 @@ def is_feature_collection(body: bytes, label: str) -> bool:
 def fetch_map(airport: str) -> bytes | None:
     """Fetch one airport's ground map, or None when the API has none or the request fails."""
     body = fetch_bytes(MAP_URL.format(airport=airport.upper()), airport)
-    return body if is_feature_collection(body, airport) else None
+    return body if (body is not None) and is_feature_collection(body, airport) else None
 
 
 def normalize(body: bytes) -> bytes:
