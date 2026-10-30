@@ -1,3 +1,4 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport.Pathfinding;
@@ -643,8 +644,29 @@ public static class RouteMaterialiser
         // One past the last required stop; a crossed-hold stop is exact (no trailing buffer).
         int normalTruncate = lastRequiredIdx < 0 ? -1 : lastRequiredIdx + 1;
         int result = Math.Max(normalTruncate, crossHoldTruncateAt);
+        if (result < 0)
+        {
+            return segments.Count - 1;
+        }
 
-        return result < 0 ? segments.Count - 1 : Math.Min(result, segments.Count - 1);
+        // A trailing #node pin is where an explicit path ends: a hold short before it is en route, so a cut that falls short
+        // of the pin runs on to it.
+        return Math.Min(Math.Max(result, TrailingNodePinIndex(segments, ctx)), segments.Count - 1);
+    }
+
+    /// <summary>
+    /// Index of the last segment ending at the trailing <c>#node</c> pin of the waypoint sequence, or -1 when the sequence
+    /// does not end in a pin or the route never reaches it.
+    /// </summary>
+    private static int TrailingNodePinIndex(List<TaxiRouteSegment> segments, SearchContext ctx)
+    {
+        if ((ctx.WaypointSequence.Count == 0) || !NodeRefToken.IsNodeReference(ctx.WaypointSequence[^1]))
+        {
+            return -1;
+        }
+
+        int pinNodeId = NodeRefToken.ParseNodeId(ctx.WaypointSequence[^1]);
+        return segments.FindLastIndex(segment => segment.ToNodeId == pinNodeId);
     }
 
     /// <summary>

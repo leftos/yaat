@@ -313,6 +313,8 @@ An `HS E` target driven on the way to a destination is cut too (`GroundCommandHa
   `RouteReachesTaxiway`, which recognise the crossed taxiway via node-incidence, not just a labelled
   segment). Emergent multi-aircraft timing also shifts with any node-position change — recording-replay
   tests that depend on tight timing can desync.
+
+  A trailing `#node` pin is where an explicit path ends: an explicit runway hold short before it (`TAXI F C B #808 HS 15`, the ground view's Taxi here with a crossing) is en route, so the route is never cut short of the pin at the crossing's far bar (`RouteMaterialiser.TrailingNodePinIndex`); the aircraft holds at the near bar and continues on a CROSS.
 - **Short taxiways land short.** A taxiway that terminates or merges before reaching the standoff hits `DeadEndFallback` and seats the bar at the farthest reachable point (logged as a warning). For an aircraft holding short inbound that bar is the farthest it can hold; for a runway exit it is not where the aircraft is clear.
 
   After every bar is placed, `GeoJsonParser` runs `DropRedundantFallbackBars`: a fallback bar is removed when every route out of its junction (other than back down the branch) reaches a bar of the same runway within the holding distance — the joining taxiway's marking then serves both (OAK P → J's #374, MIA T8 → S's bar; LAX A4 and SEA D likewise).

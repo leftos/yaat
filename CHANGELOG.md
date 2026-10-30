@@ -27,6 +27,7 @@
 - A room whose checkpoint fails to restore after a planned server restart is removed instead of being left half-built.
 - Typing one run-delay bound or the auto-accept delay no longer undoes another instructor's change to the other half; it shows at once.
 - Speech recognizes "maintain maximum forward speed" as `SMAX`.
+- The ground view's Taxi here to a point past a runway crossing is accepted, holding short of the crossed runway, instead of refused.
 
 ## v0.17.1-beta [2026/10/29]
 
