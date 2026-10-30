@@ -1315,6 +1315,35 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.All(routes, AssertRoutesToRunway(clickedEnd));
     }
 
+    // A 28L threshold click for an aircraft parked off taxiway R1, south of the runway: the choices taxi it to 28L for
+    // departure and never hold it short of, or cross, the runway it was sent to.
+    [AvaloniaFact]
+    public void TaxiChoices_ThresholdClickOn28L_FromTheSouthRamp_OffersDepartureAndNoCrossingOrMidRouteHoldShortOf28L()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        List<GroundNodeDto> onR1 = [.. Oak.Nodes.Where(n => LinkNamesOf(n.Id).Contains("R1"))];
+        GroundNodeDto stand = Oak
+            .Nodes.Where(n => n.Type is "Parking" or "Spot")
+            .MinBy(n => onR1.Min(r => GeoMath.DistanceNm(PositionOf(n), PositionOf(r))))!;
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(stand));
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        int holdShortId = main.Ground.FindNearestHoldShortNodeForRunwayEnd(target, "28L")!.Value;
+        GroundNodeDto holdShort = Oak.Nodes.Single(n => n.Id == holdShortId);
+
+        IReadOnlyList<MenuCommandChoice> choices = host.GetTaxiChoices(Callsign, holdShort, "28L");
+
+        IReadOnlyList<MenuCommandChoice> routes = RouteChoices(choices);
+        Assert.NotEmpty(routes);
+        Assert.All(routes, AssertRoutesToRunway("28L"));
+        List<string> commands = LeafCommands(choices);
+        Assert.NotEmpty(commands);
+        // 28L's only hold short is the route's own end, the "Hold short RWY 28L" choice; never a crossing clause.
+        string holdShortCommand = Assert.Single(commands, c => c.Contains("HS 28L", StringComparison.Ordinal));
+        Assert.EndsWith(" HS 28L", holdShortCommand);
+        Assert.All(commands, c => Assert.DoesNotContain("CROSS 28L", c, StringComparison.Ordinal));
+    }
+
     [AvaloniaFact]
     public void TaxiChoices_TwoOrMoreRoutes_NestUnderTaxiHere()
     {

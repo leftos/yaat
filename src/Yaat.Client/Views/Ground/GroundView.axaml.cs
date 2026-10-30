@@ -54,7 +54,7 @@ public partial class GroundView : UserControl
         _canvas.AircraftCtrlClicked += OnAircraftCtrlClicked;
         _canvas.EmptySpaceClicked += OnEmptySpaceClicked;
         _canvas.RunwayThresholdClicked += OnRunwayThresholdClicked;
-        _canvas.RunwayThresholdRightClicked += OnRunwayThresholdClicked;
+        _canvas.RunwayThresholdRightClicked += OnRunwayThresholdRightClicked;
         _canvas.RunwaySurfaceRightClicked += OnRunwaySurfaceRightClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.DrawNodeClicked += OnDrawNodeClicked;
@@ -98,7 +98,7 @@ public partial class GroundView : UserControl
             _canvas.AircraftCtrlClicked -= OnAircraftCtrlClicked;
             _canvas.EmptySpaceClicked -= OnEmptySpaceClicked;
             _canvas.RunwayThresholdClicked -= OnRunwayThresholdClicked;
-            _canvas.RunwayThresholdRightClicked -= OnRunwayThresholdClicked;
+            _canvas.RunwayThresholdRightClicked -= OnRunwayThresholdRightClicked;
             _canvas.RunwaySurfaceRightClicked -= OnRunwaySurfaceRightClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.DrawNodeClicked -= OnDrawNodeClicked;
@@ -658,6 +658,25 @@ public partial class GroundView : UserControl
         {
             ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Ground);
             ShowContextMenu(menu);
+        }
+    }
+
+    /// <summary>
+    /// A right-click on the <paramref name="runwayEnd"/> threshold: the threshold menu, or — when there is none — the menu
+    /// of the node nearest the click, as the nearest-node fallback opens, so a right-click never opens nothing.
+    /// </summary>
+    private void OnRunwayThresholdRightClicked(string runwayEnd, Point screenPos)
+    {
+        if ((DataContext is GroundViewModel vm) && (BuildRunwayThresholdMenu(vm, runwayEnd) is { } menu))
+        {
+            ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Ground);
+            ShowContextMenu(menu);
+            return;
+        }
+
+        if (_canvas?.FindNearestNode(screenPos) is { } nearest)
+        {
+            OnNodeRightClicked(nearest.Id, screenPos);
         }
     }
 

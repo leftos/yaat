@@ -22,4 +22,13 @@ public sealed record RightClickTarget(string Label, string? Callsign, int? NodeI
     /// </summary>
     public static RightClickTarget ForNode(GroundNodeDto node) =>
         new(string.IsNullOrWhiteSpace(node.Name) ? $"{node.Type} #{node.Id}" : $"{node.Type} {node.Name}", null, node.Id, false);
+
+    /// <summary>
+    /// Whether <paramref name="other"/> names the same thing: the same aircraft by callsign, or the same node by id,
+    /// whatever the label or how the aircraft was hit.
+    /// </summary>
+    public bool IsSameTargetAs(RightClickTarget other) =>
+        ((Callsign is not null) || (other.Callsign is not null))
+            ? string.Equals(Callsign, other.Callsign, StringComparison.Ordinal)
+            : ((NodeId is not null) && (NodeId == other.NodeId));
 }

@@ -644,7 +644,7 @@ An aircraft squawking a code other than its assigned one gets a [squawk-mismatch
 Below that, a hold / squawk-standby / auto-yield status line and any instructor note appear. When a departure is queued for a runway, the callsign line also gains a **runway + place-in-line** suffix such as `28R #2`, or `28R@E #2` for an intersection departure (see *Departure-queue numbers* below).
 
 **Right-click context menus:**
-- **When the click lands on more than one thing** — two aircraft whose symbols or datablocks overlap, or (with an aircraft selected) a parking, spot or helipad marker with another aircraft parked over it — a short list opens first, naming each one (`UAL238 (B738)`, `Parking A5`); pick the one you meant and its usual menu opens.
+- **When the click lands on more than one thing** — two aircraft whose symbols or datablocks overlap, or (with an aircraft selected) a parking, spot or helipad marker with another aircraft parked over it — a short list opens first, naming each one (`UAL238 (B738)`, `Parking A5`); pick the one you meant and its usual menu opens. In the Ground View the thing under the cursor comes first: a datablock's aircraft, else (with an aircraft selected) the stand the hover label names, listed even when it is a little farther from the click than the usual reach.
 
   The Radar View does the same for overlapping aircraft. A click on exactly one thing opens its menu directly, as before, and so does a right-click on the selected aircraft at its own stand.
 - **Anywhere on the ground** — the click snaps to the nearest node, so the menu appears even on an open stretch of taxiway with no node directly under the cursor.
@@ -898,7 +898,7 @@ Once the front aircraft is told to line up and wait it leaves the line and the n
 
 **Runway-end click target:** When an aircraft is selected, a small amber dot appears at every runway threshold.
 
-Left-click (or right-click) a dot to open the point menu, with the same icon strip, of the hold short nearest that runway end that the selected aircraft can reach, so you don't have to hunt for the right hold-short node; its title names it, such as `UAL238 · B738 → HS 30 at W3`.
+Left-click (or right-click) a dot, or the threshold marker that shows the `RWY 28L` hover label, to open the point menu, with the same icon strip, of the hold short nearest that runway end that the selected aircraft can reach, so you don't have to hunt for the right hold-short node; its title names it, such as `UAL238 · B738 → HS 30 at W3`.
 
 In that menu, "Taxi here" routes to that runway end and offers the RWY (taxi onto the runway end), HS (hold short), and progressive crossing variants; "Custom taxi…" is pre-filled with `RWY {end} TAXI`; then "Warp here" and "Draw taxi route…" from that hold short.
 

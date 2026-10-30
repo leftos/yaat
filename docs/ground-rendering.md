@@ -289,13 +289,15 @@ The right button does two jobs — a **click** opens a context menu, a **drag** 
 
 Because of this, **`HandleRightClick` is the single place every ground right-click menu is decided**, and it is only ever called from the release path — never on press.
 
-It resolves, in order: cancel a half-placed measurement → finish a drawn route at a node → the **target list** → datablock → aircraft symbol → runway surface (needs a selected aircraft that can taxi; the click lies inside a drawn runway's rectangle, from the same `RunwayRectangle` corners the renderer paints, and no `RunwayHoldShort` node or threshold marker is under it) → node → runway threshold (needs a selection) → snap to nearest node.
+It resolves, in order: cancel a half-placed measurement → finish a drawn route at a node → the **picker** (two or more targets) → datablock → aircraft symbol → runway threshold (`TryRaiseThresholdRightClick`; needs a selection, and wins over any hold-short or taxi node within the node hit radius, so the click opens what the "RWY 28L" hover label says) → hold short / runway surface / centreline node (`TryRaiseRunwaySurfaceClick`; needs a selected aircraft that can taxi; the surface click lies inside a drawn runway's rectangle, from the same `RunwayRectangle` corners the renderer paints) → node → snap to nearest node.
 
 The target list (`FindRightClickTargets`) gathers every aircraft whose datablock contains the point (topmost first) and every aircraft within 28 px (by distance; one hit both ways is listed once, as a datablock hit).
 
 Only while an aircraft is selected, it also gathers every Parking/Spot/Helipad node within 10 px (by distance), except a stand within 28 px of the selected aircraft's own symbol (the stand it occupies is never a destination, so right-clicking the selected aircraft at its gate opens its menu directly).
 
 Two or more targets open the shared `Views/Map/RightClickPicker` at the click point, one entry per target (`Views/Map/RightClickTarget`: `"{callsign} ({type})"`, or the bare callsign; `"Parking {name}"`, `"Spot {name}"`, `"Helipad {name}"`, or `"<Type> #<id>"` unnamed); choosing one posts that target's own `AircraftRightClicked`/`NodeRightClicked` with the original point after the picker closes, so its normal menu opens.
+
+`Views/Map/RightClickTargetOrder.HoveredFirst` then reorders the list: the target the hover label names is option 1 (the aircraft whose datablock is under the cursor, else, with an aircraft selected, the stand `FindNodeAtPoint` returns within 20 px, unless it is the selected aircraft's own stand). A hovered stand 10-20 px away is added to the list when something else was hit; every other entry keeps its order. The radar picker is not reordered.
 
 Zero or one target falls through to the chain unchanged; a runway surface is never a target-list entry, so an aircraft on a runway still opens its own menu.
 

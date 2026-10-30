@@ -120,8 +120,8 @@ public class GroundCanvasRunwaySurfaceHitTests
     }
 
     // The threshold marker outranks the runway surface: a click on the marker, with a taxiable selection, opens the
-    // threshold menu rather than the surface menu. The layout carries the runway DTO alone (no nodes), so a real OAK
-    // centerline node cannot win the node rung ahead of the threshold order under test.
+    // threshold menu rather than the surface menu. The layout carries the runway DTO alone (no nodes), so the test pins
+    // the threshold-over-surface order with no node in play; threshold-over-node is pinned by the tests below.
     [AvaloniaFact]
     public void RightClick_ThresholdMarkerWithTaxiableSelection_StaysThresholdClick()
     {
@@ -155,8 +155,130 @@ public class GroundCanvasRunwaySurfaceHitTests
         }
     }
 
+    // The "RWY 28L" hover label names the threshold marker, so a right-click there opens the 28L threshold menu even with
+    // an ordinary taxi node inside the node hit radius: the click does what the label says.
     [AvaloniaFact]
-    public void RightClick_HoldShortNodeOnRunway_StaysANodeClick()
+    public void RightClick_AtOak28LThreshold_WithTaxiNodeWithinNodeRadius_RaisesThresholdClick()
+    {
+        GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
+        (GroundCanvas canvas, Window window) = ShowCanvas(layout);
+        try
+        {
+            canvas.SelectedAircraft = GroundAircraft(layout);
+            GroundRunwayDto runway = Runway(layout, "28L/10R");
+            var ids = RunwayIdentifier.Parse(runway.Name);
+            double[] end = (ids.End1 == "28L") ? runway.Coordinates[0] : runway.Coordinates[^1];
+            var threshold = new LatLon(end[0], end[1]);
+            HashSet<int> centerlineNodes = [.. layout.Edges.Where(e => e.IsRunwayCenterline).SelectMany(e => new[] { e.FromNodeId, e.ToNodeId })];
+            GroundNodeDto taxiNode = layout
+                .Nodes.Where(n => (n.Type != "RunwayHoldShort") && !centerlineNodes.Contains(n.Id))
+                .MinBy(n => GeoMath.DistanceNm(threshold, Position(n)))!;
+            // Zoomed so the nearest node off the runway altogether sits 15 px from the threshold, inside the 20 px node radius.
+            FocusOn(canvas, threshold, Position(taxiNode), 15);
+            Point click = Screen(canvas, threshold);
+            // The node under the click is the taxiway node nearest the threshold: the nearest node with an edge off the
+            // runway centerline (on KOAK, B's node where it joins 28L).
+            GroundNodeDto onTaxiway = layout
+                .Nodes.Where(n => layout.Edges.Any(e => !e.IsRunwayCenterline && ((e.FromNodeId == n.Id) || (e.ToNodeId == n.Id))))
+                .MinBy(n => GeoMath.DistanceNm(threshold, Position(n)))!;
+            GroundNodeDto? underClick = canvas.FindNodeAtPoint(click);
+            Assert.NotNull(underClick);
+            Assert.Equal(onTaxiway.Id, underClick!.Id);
+            Assert.Equal("28L", canvas.FindRunwayThresholdAtPoint(click)!.Value.RunwayEnd);
+            var thresholds = new List<string>();
+            canvas.RunwayThresholdRightClicked += (rwyEnd, _) => thresholds.Add(rwyEnd);
+            (List<IReadOnlyList<string>> surface, List<int> nodes) = Record(canvas);
+
+            RightClick(canvas, window, click);
+
+            Assert.Equal(["28L"], thresholds);
+            Assert.Empty(nodes);
+            Assert.Empty(surface);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    // A hold short of the threshold's own runway, inside both the node radius and the marker's 18 px: the click is on that
+    // runway's end, so the threshold menu (departure on the clicked end) wins over the bar's node menu.
+    [AvaloniaFact]
+    public void RightClick_OwnRunwayHoldShortAtTheThreshold_RaisesThresholdClick()
+    {
+        GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
+        (GroundCanvas canvas, Window window) = ShowCanvas(layout);
+        try
+        {
+            canvas.SelectedAircraft = GroundAircraft(layout);
+            // The runway end whose nearest hold short of any runway belongs to that same runway.
+            (string end, LatLon threshold, GroundNodeDto holdShort) = Thresholds(layout)
+                .Select(t => (t.End, t.Position, HoldShort: NearestHoldShort(layout, t.Position)))
+                .First(t => RunwayIdentifier.Parse(t.HoldShort.RunwayId!).Contains(t.End));
+            // The hold short 12 px from the threshold clicked: inside the 20 px node radius and the 18 px marker radius.
+            FocusOn(canvas, threshold, Position(holdShort), 12);
+            Point click = Screen(canvas, threshold);
+            Assert.Equal(end, canvas.FindRunwayThresholdAtPoint(click)!.Value.RunwayEnd);
+            // The nearest hold short to the click, inside the node radius (a centerline node at the threshold may be nearer).
+            Assert.InRange(PixelDistance(Screen(canvas, Position(holdShort)), click), 0, 20);
+            var thresholds = new List<string>();
+            canvas.RunwayThresholdRightClicked += (rwyEnd, _) => thresholds.Add(rwyEnd);
+            (List<IReadOnlyList<string>> surface, List<int> nodes) = Record(canvas);
+
+            RightClick(canvas, window, click);
+
+            Assert.Equal([end], thresholds);
+            Assert.Empty(nodes);
+            Assert.Empty(surface);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    // A hold short of another runway beside a threshold, off that threshold's runway: the click is not on the runway the
+    // marker belongs to, so the bar keeps its node menu (and its HS/CROSS choices) ahead of the marker.
+    [AvaloniaFact]
+    public void RightClick_OtherRunwayHoldShortNearAThresholdOffItsRunway_StaysANodeClick()
+    {
+        GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
+        (GroundCanvas canvas, Window window) = ShowCanvas(layout);
+        try
+        {
+            canvas.SelectedAircraft = GroundAircraft(layout);
+            (string end, LatLon threshold, GroundNodeDto holdShort) = Thresholds(layout)
+                .SelectMany(t =>
+                    layout
+                        .Nodes.Where(n => (n.Type == "RunwayHoldShort") && (n.RunwayId is { } rwy) && !RunwayIdentifier.Parse(rwy).Contains(t.End))
+                        .Select(n => (t.End, t.Position, HoldShort: n))
+                )
+                .Where(t => OffThresholdRunwayAtHoldShort(canvas, layout, t.End, t.Position, t.HoldShort))
+                .MinBy(t => GeoMath.DistanceNm(t.Position, Position(t.HoldShort)));
+            // The click on the bar, the threshold 12 px away: inside the marker's 18 px radius.
+            FocusOn(canvas, Position(holdShort), threshold, 12);
+            Point click = Screen(canvas, Position(holdShort));
+            Assert.Equal(end, canvas.FindRunwayThresholdAtPoint(click)!.Value.RunwayEnd);
+            Assert.DoesNotContain(ThresholdRunway(layout, end).Name, canvas.FindRunwaysAtPoint(click));
+            Assert.Equal(holdShort.Id, canvas.FindNodeAtPoint(click)?.Id);
+            var thresholds = new List<string>();
+            canvas.RunwayThresholdRightClicked += (rwyEnd, _) => thresholds.Add(rwyEnd);
+            (List<IReadOnlyList<string>> surface, List<int> nodes) = Record(canvas);
+
+            RightClick(canvas, window, click);
+
+            Assert.Empty(thresholds);
+            Assert.Empty(surface);
+            Assert.Equal([holdShort.Id], nodes);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public void RightClick_HoldShortNodeOnRunwayAwayFromThreshold_StaysANodeClick()
     {
         GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
         (GroundCanvas canvas, Window window) = ShowCanvas(layout);
@@ -165,14 +287,16 @@ public class GroundCanvasRunwaySurfaceHitTests
             canvas.SelectedAircraft = GroundAircraft(layout);
             GroundRunwayDto runway = Runway(layout, "28R/10L");
             var id = RunwayIdentifier.Parse(runway.Name);
+            // The hold short sits 12 px from the centerline point clicked: inside the 20 px node radius, on the surface. The
+            // first such hold short whose click is clear of every threshold marker, which outranks a hold short.
             GroundNodeDto holdShort = layout.Nodes.First(n =>
-                (n.Type == "RunwayHoldShort") && (n.RunwayId is { } rwy) && (RunwayIdentifier.Parse(rwy) == id)
+                (n.Type == "RunwayHoldShort")
+                && (n.RunwayId is { } rwy)
+                && (RunwayIdentifier.Parse(rwy) == id)
+                && (canvas.FindRunwayThresholdAtPoint(FocusOnHoldShortFoot(canvas, runway, n)) is null)
             );
-            var holdShortPos = new LatLon(holdShort.Latitude, holdShort.Longitude);
-            LatLon foot = CenterlineFoot(runway, holdShortPos);
-            // The hold short sits 12 px from the centerline point clicked: inside the 20 px node radius, on the surface.
-            FocusOn(canvas, foot, holdShortPos, 12);
-            Point click = Screen(canvas, foot);
+            Point click = FocusOnHoldShortFoot(canvas, runway, holdShort);
+            Assert.Null(canvas.FindRunwayThresholdAtPoint(click));
             Assert.Contains(runway.Name, canvas.FindRunwaysAtPoint(click));
             (List<IReadOnlyList<string>> surface, List<int> nodes) = Record(canvas);
 
@@ -449,6 +573,54 @@ public class GroundCanvasRunwaySurfaceHitTests
         }
 
         return layout.Nodes.Where(n => n.Type == "RunwayHoldShort").All(n => PixelDistance(Screen(canvas, Position(n)), click) >= ClearOfHoldShortPx);
+    }
+
+    /// <summary>Every runway end of <paramref name="layout"/> with its threshold point, as the canvas places the markers.</summary>
+    private static IEnumerable<(string End, LatLon Position)> Thresholds(GroundLayoutDto layout) =>
+        layout.Runways!.SelectMany(r =>
+        {
+            var ids = RunwayIdentifier.Parse(r.Name);
+            return new[]
+            {
+                (ids.End1, new LatLon(r.Coordinates[0][0], r.Coordinates[0][1])),
+                (ids.End2, new LatLon(r.Coordinates[^1][0], r.Coordinates[^1][1])),
+            };
+        });
+
+    private static GroundRunwayDto ThresholdRunway(GroundLayoutDto layout, string end) =>
+        layout.Runways!.First(r => RunwayIdentifier.Parse(r.Name).Contains(end));
+
+    private static GroundNodeDto NearestHoldShort(GroundLayoutDto layout, LatLon from) =>
+        layout.Nodes.Where(n => (n.Type == "RunwayHoldShort") && (n.RunwayId is not null)).MinBy(n => GeoMath.DistanceNm(from, Position(n)))!;
+
+    /// <summary>
+    /// Whether a click on <paramref name="holdShort"/>, zoomed so the <paramref name="end"/> threshold is 12 px away, lands
+    /// off that threshold's runway with that threshold the marker hit. Leaves the view focused there.
+    /// </summary>
+    private static bool OffThresholdRunwayAtHoldShort(
+        GroundCanvas canvas,
+        GroundLayoutDto layout,
+        string end,
+        LatLon threshold,
+        GroundNodeDto holdShort
+    )
+    {
+        FocusOn(canvas, Position(holdShort), threshold, 12);
+        Point click = Screen(canvas, Position(holdShort));
+        return (canvas.FindRunwayThresholdAtPoint(click)?.RunwayEnd == end)
+            && !canvas.FindRunwaysAtPoint(click).Contains(ThresholdRunway(layout, end).Name)
+            && (canvas.FindNodeAtPoint(click)?.Id == holdShort.Id);
+    }
+
+    /// <summary>
+    /// Focuses the view on the point of <paramref name="runway"/>'s centerline nearest <paramref name="holdShort"/>, zoomed
+    /// so the hold short is 12 px from it, and returns that point on screen.
+    /// </summary>
+    private static Point FocusOnHoldShortFoot(GroundCanvas canvas, GroundRunwayDto runway, GroundNodeDto holdShort)
+    {
+        LatLon foot = CenterlineFoot(runway, Position(holdShort));
+        FocusOn(canvas, foot, Position(holdShort), 12);
+        return Screen(canvas, foot);
     }
 
     private static double PixelDistance(Point a, Point b) => Math.Sqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Y - b.Y) * (a.Y - b.Y)));

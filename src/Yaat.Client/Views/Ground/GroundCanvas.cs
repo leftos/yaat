@@ -1778,7 +1778,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return true;
         }
 
-        return TryRaiseHitRightClick(screenPos) || TryRaiseThresholdOrNearestNodeRightClick(screenPos);
+        return TryRaiseHitRightClick(screenPos) || TryRaiseNearestNodeRightClick(screenPos);
     }
 
     /// <summary>A right-click while a route is being drawn: it reports push-route markers, or finishes the route at a node.</summary>
@@ -1804,7 +1804,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         return false;
     }
 
-    /// <summary>Raises the menu of the single datablock, aircraft or node under the pointer; false when nothing is hit.</summary>
+    /// <summary>
+    /// Raises the menu of the single datablock, aircraft, runway threshold, runway surface or node under the pointer;
+    /// false when nothing is hit.
+    /// </summary>
     private bool TryRaiseHitRightClick(Point screenPos)
     {
         AircraftModel? dataBlockAc = FindDataBlockAtPoint(screenPos);
@@ -1819,6 +1822,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         if (ac is not null)
         {
             AircraftRightClicked?.Invoke(ac.Callsign, screenPos);
+            return true;
+        }
+
+        if (TryRaiseThresholdRightClick(screenPos))
+        {
             return true;
         }
 
@@ -1837,22 +1845,52 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         return false;
     }
 
-    /// <summary>Raises the menu of a runway threshold under the pointer, else of the nearest ground node; false with no layout.</summary>
-    private bool TryRaiseThresholdOrNearestNodeRightClick(Point screenPos)
+    /// <summary>
+    /// Raises the menu of the runway threshold marker under the pointer — the one its "RWY 28L" hover label names — ahead
+    /// of any taxi node or hold short of that runway within the node hit radius, so the click opens what the label says.
+    /// It yields to a hold short of another runway (<see cref="YieldsToOtherRunwayHoldShort"/>) when the click is off the
+    /// marker's runway, so that bar keeps its own menu. Mirrors the left-click menu, so the user gets the same Taxi/Takeoff
+    /// options with either button. Needs a selection: the items it offers are taxi/takeoff clearances for the selected
+    /// aircraft. Returns whether it raised the event.
+    /// </summary>
+    private bool TryRaiseThresholdRightClick(Point screenPos)
     {
-        // Runway thresholds: mirror the left-click menu so the user gets the
-        // same Taxi/Takeoff options regardless of which mouse button they used. Needs a selection —
-        // the items it offers are taxi/takeoff clearances for the selected aircraft.
-        if (SelectedAircraft is not null)
+        if (
+            (SelectedAircraft is null)
+            || (FindRunwayThresholdAtPoint(screenPos) is not { } hit)
+            || YieldsToOtherRunwayHoldShort(screenPos, hit.RunwayEnd)
+        )
         {
-            (string RunwayEnd, LatLon Position)? threshold = FindRunwayThresholdAtPoint(screenPos);
-            if (threshold is { } hit)
-            {
-                RunwayThresholdRightClicked?.Invoke(hit.RunwayEnd, screenPos);
-                return true;
-            }
+            return false;
         }
 
+        RunwayThresholdRightClicked?.Invoke(hit.RunwayEnd, screenPos);
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the <paramref name="runwayEnd"/> threshold click gives way to the <c>RunwayHoldShort</c> node within the node
+    /// hit radius: that bar belongs to another runway (or names none) and the click is not on the threshold's own runway.
+    /// </summary>
+    private bool YieldsToOtherRunwayHoldShort(Point screenPos, string runwayEnd)
+    {
+        if (FindHoldShortNodeAtPoint(screenPos) is not { } holdShort)
+        {
+            return false;
+        }
+
+        if ((holdShort.RunwayId is { } holdShortRunway) && RunwayIdentifier.Parse(holdShortRunway).Contains(runwayEnd))
+        {
+            return false;
+        }
+
+        GroundRunwayDto? thresholdRunway = (Layout?.Runways ?? []).Find(r => RunwayIdentifier.Parse(r.Name).Contains(runwayEnd));
+        return (thresholdRunway is null) || !FindRunwaysAtPoint(screenPos).Contains(thresholdRunway.Name);
+    }
+
+    /// <summary>Raises the menu of the nearest ground node; false with no layout.</summary>
+    private bool TryRaiseNearestNodeRightClick(Point screenPos)
+    {
         // Fallback: snap a right-click anywhere to the nearest ground node so the node menu is always
         // reachable, not only within the node hit radius. With an aircraft selected that menu carries the
         // taxi-route and "Warp here" items, letting the controller drop a stuck aircraft onto an open
@@ -2094,8 +2132,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// Hit-tests the runway-threshold markers (one per runway end). Returns the
     /// closest threshold within hit radius, with its end designator
     /// (e.g. <c>"28L"</c>) and the lat/lon of the threshold point.
-    /// Slightly tighter radius than <see cref="FindNodeAtPoint"/> so the marker
-    /// doesn't steal clicks from nearby hold-short nodes.
+    /// The radius is slightly tighter than <see cref="FindNodeAtPoint"/>'s; a right-click
+    /// that hits a marker still outranks nodes within the node radius, except another
+    /// runway's hold short off the marker's runway (<see cref="TryRaiseThresholdRightClick"/>).
     /// </summary>
     public (string RunwayEnd, LatLon Position)? FindRunwayThresholdAtPoint(Point screenPos)
     {
@@ -2142,8 +2181,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     /// <summary>
     /// Resolves a right-click on a runway surface while the selected aircraft can be given a taxi route: a
-    /// <c>RunwayHoldShort</c> node within the node hit radius opens that node's menu, even over a nearer node; a hit
-    /// threshold marker is left to the threshold rung below; anywhere else on the surface raises
+    /// <c>RunwayHoldShort</c> node within the node hit radius opens that node's menu, even over a nearer node; anywhere
+    /// else on the surface raises
     /// <see cref="RunwaySurfaceRightClicked"/>. A runway-centerline node counts as a surface click even off the painted
     /// rectangle — zoomed out the runway is narrower than the node hit radius, so <see cref="RunwaysAtCenterlineNode"/>
     /// stands in for <see cref="FindRunwaysAtPoint"/> there, while the runways are drawn at all. Returns whether it
@@ -2171,11 +2210,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         {
             NodeRightClicked?.Invoke(holdShort.Id, screenPos);
             return true;
-        }
-
-        if (FindRunwayThresholdAtPoint(screenPos) is not null)
-        {
-            return false;
         }
 
         RunwaySurfaceRightClicked?.Invoke(runways, screenPos);
@@ -2535,8 +2569,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return [];
         }
 
-        (float selX, float selY) = Viewport.LatLonToScreen(selected.Position.Lat, selected.Position.Lon);
-        var selectedPos = new Point(selX, selY);
         var hits = new List<(GroundNodeDto Node, float Distance)>();
         foreach (GroundNodeDto node in Layout.Nodes)
         {
@@ -2546,13 +2578,20 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             }
 
             float dist = ScreenDistance(screenPos, node.Latitude, node.Longitude);
-            if ((dist <= StandHitRadiusPx) && (ScreenDistance(selectedPos, node.Latitude, node.Longitude) >= AircraftHitRadiusPx))
+            if ((dist <= StandHitRadiusPx) && !IsSelectedOwnStand(selected, node))
             {
                 hits.Add((node, dist));
             }
         }
 
         return [.. hits.OrderBy(h => h.Distance).Select(h => h.Node)];
+    }
+
+    /// <summary>Whether <paramref name="node"/> is the stand <paramref name="selected"/> occupies: within <see cref="AircraftHitRadiusPx"/> of its symbol.</summary>
+    private bool IsSelectedOwnStand(AircraftModel selected, GroundNodeDto node)
+    {
+        (float selX, float selY) = Viewport.LatLonToScreen(selected.Position.Lat, selected.Position.Lon);
+        return ScreenDistance(new Point(selX, selY), node.Latitude, node.Longitude) < AircraftHitRadiusPx;
     }
 
     private float ScreenDistance(Point screenPos, double lat, double lon)
@@ -2568,7 +2607,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// whose datablock contains the point (topmost first), then aircraft whose symbol is within <see cref="AircraftHitRadiusPx"/>
     /// (nearest first), then — only with an aircraft selected, the only time a stand's menu offers more than measuring —
     /// parking, spot and helipad nodes within <see cref="StandHitRadiusPx"/> (nearest first). An aircraft hit both ways is
-    /// listed once, as its datablock hit.
+    /// listed once, as its datablock hit. The target the hover label names (<see cref="HoveredRightClickTarget"/>) is then
+    /// made option 1, inserted when it is a stand beyond <see cref="StandHitRadiusPx"/> and something else was hit; the
+    /// others keep their order.
     /// </summary>
     public IReadOnlyList<RightClickTarget> FindRightClickTargets(Point screenPos)
     {
@@ -2595,7 +2636,29 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             targets.AddRange(StandsNearPoint(screenPos, selected).Select(RightClickTarget.ForNode));
         }
 
-        return targets;
+        // Alone, a hovered stand beyond the stand radius is no picker entry: with no picker the click goes to the
+        // single-target chain, which opens the menu of whatever it resolves there.
+        return (targets.Count == 0) ? targets : RightClickTargetOrder.HoveredFirst(targets, HoveredRightClickTarget(screenPos));
+    }
+
+    /// <summary>
+    /// The target the hover label names at <paramref name="screenPos"/>, computed at that point: the aircraft whose
+    /// datablock is under it; else, with an aircraft selected, the stand (parking, spot or helipad) that
+    /// <see cref="FindNodeAtPoint"/> returns, unless it is the stand the selected aircraft occupies. Null otherwise.
+    /// </summary>
+    private RightClickTarget? HoveredRightClickTarget(Point screenPos)
+    {
+        if (FindDataBlockAtPoint(screenPos) is { } dataBlockAc)
+        {
+            return RightClickTarget.ForAircraft(dataBlockAc.Callsign, dataBlockAc.AircraftType, viaDataBlock: true);
+        }
+
+        if ((SelectedAircraft is not { } selected) || (FindNodeAtPoint(screenPos) is not { Type: "Parking" or "Spot" or "Helipad" } stand))
+        {
+            return null;
+        }
+
+        return IsSelectedOwnStand(selected, stand) ? null : RightClickTarget.ForNode(stand);
     }
 
     /// <summary>The right-click target picker while it is open, or null.</summary>

@@ -18,7 +18,9 @@ namespace Yaat.Client.UI.Tests.Views;
 
 // A ground right-click gathers every target it lands on — each aircraft whose datablock or symbol it hits, and, with an
 // aircraft selected, each parking/spot/helipad marker within 10 px — and offers a picker when there are two or more, so a
-// stand under a parked aircraft stays reachable. One target keeps today's direct menu.
+// stand under a parked aircraft stays reachable. The target the hover label names is option 1: a datablock under the
+// cursor, else the stand within the 20 px hover radius, inserted when it is beyond 10 px. One target keeps today's
+// direct menu.
 public class GroundCanvasRightClickTargetTests
 {
     private const double FieldLat = 37.62;
@@ -26,7 +28,7 @@ public class GroundCanvasRightClickTargetTests
     private const int StandNodeId = 7;
 
     [AvaloniaFact]
-    public void GroundRightClick_SelectedAircraft_ClickOnParkingMarkerUnderParkedAircraft_OffersBothTargets()
+    public void GroundRightClick_SelectedAircraft_ClickOnParkingMarkerUnderParkedAircraft_ListsHoveredStandFirstThenAircraft()
     {
         GroundCanvas canvas = MakeCanvas();
         Point stand = StandScreenPoint(canvas);
@@ -37,9 +39,52 @@ public class GroundCanvasRightClickTargetTests
 
         IReadOnlyList<RightClickTarget> targets = canvas.FindRightClickTargets(stand);
 
-        Assert.Equal(["UAL238 (B738)", "Parking A5"], targets.Select(t => t.Label));
-        Assert.Equal("UAL238", targets[0].Callsign);
-        Assert.Equal(StandNodeId, targets[1].NodeId);
+        Assert.Equal(["Parking A5", "UAL238 (B738)"], targets.Select(t => t.Label));
+        Assert.Equal(StandNodeId, targets[0].NodeId);
+        Assert.Equal("UAL238", targets[1].Callsign);
+    }
+
+    // On the real KOAK layout: the cursor sits exactly on a stand the hover label names, a parked aircraft's symbol close
+    // enough to be hit too. The stand under the cursor is option 1, the aircraft follows.
+    [AvaloniaFact]
+    public void FindRightClickTargets_CursorOnStandWithAircraftNearby_ListsStandFirst()
+    {
+        (GroundCanvas canvas, GroundNodeDto stand, Point standPoint) = OakStandCanvas();
+        AircraftModel parked = MakeAircraft(canvas, "UAL238", "B738", standPoint.X, standPoint.Y + 15);
+        AircraftModel selected = MakeAircraft(canvas, "SWA12", "B737", standPoint.X - 200, standPoint.Y);
+        canvas.Aircraft = [parked, selected];
+        canvas.SelectedAircraft = selected;
+        Assert.Null(canvas.FindDataBlockAtPoint(standPoint));
+        Assert.Same(parked, canvas.FindAircraftAtPoint(standPoint));
+        Assert.Equal(stand.Id, canvas.FindNodeAtPoint(standPoint)!.Id);
+
+        IReadOnlyList<RightClickTarget> targets = canvas.FindRightClickTargets(standPoint);
+
+        Assert.Equal(2, targets.Count);
+        Assert.Equal(stand.Id, targets[0].NodeId);
+        Assert.Equal("UAL238", targets[1].Callsign);
+    }
+
+    // The hover label names a stand up to 20 px away, the stand hit only 10 px: a stand 15 px from the cursor is not a
+    // candidate of its own, but as the hovered target it is inserted as option 1, ahead of the aircraft the click hits.
+    [AvaloniaFact]
+    public void FindRightClickTargets_StandTenToTwentyPxAway_IsInsertedFirst()
+    {
+        (GroundCanvas canvas, GroundNodeDto stand, Point standPoint) = OakStandCanvas();
+        var click = new Point(standPoint.X + 15, standPoint.Y);
+        AircraftModel parked = MakeAircraft(canvas, "UAL238", "B738", click.X, click.Y + 15);
+        AircraftModel selected = MakeAircraft(canvas, "SWA12", "B737", standPoint.X - 200, standPoint.Y);
+        canvas.Aircraft = [parked, selected];
+        canvas.SelectedAircraft = selected;
+        Assert.Null(canvas.FindDataBlockAtPoint(click));
+        Assert.Same(parked, canvas.FindAircraftAtPoint(click));
+        Assert.Equal(stand.Id, canvas.FindNodeAtPoint(click)!.Id);
+
+        IReadOnlyList<RightClickTarget> targets = canvas.FindRightClickTargets(click);
+
+        Assert.Equal(2, targets.Count);
+        Assert.Equal(stand.Id, targets[0].NodeId);
+        Assert.Equal("UAL238", targets[1].Callsign);
     }
 
     [AvaloniaFact]
@@ -291,6 +336,35 @@ public class GroundCanvasRightClickTargetTests
         AvaloniaHeadlessPlatform.ForceRenderTimerTick();
         Dispatcher.UIThread.RunJobs();
         return (canvas, window);
+    }
+
+    /// <summary>
+    /// A canvas over the real KOAK layout, centred on its first parking stand and zoomed so the nearest other node is 60 px
+    /// away: the stand is the only node within the 20 px hover radius of any point up to 40 px from it.
+    /// </summary>
+    private static (GroundCanvas Canvas, GroundNodeDto Stand, Point StandPoint) OakStandCanvas()
+    {
+        GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
+        GroundNodeDto stand = layout.Nodes.First(n => n.Type == "Parking");
+        var standPos = new LatLon(stand.Latitude, stand.Longitude);
+        GroundNodeDto neighbour = layout
+            .Nodes.Where(n => n.Id != stand.Id)
+            .MinBy(n => GeoMath.DistanceNm(standPos, new LatLon(n.Latitude, n.Longitude)))!;
+        var canvas = new GroundCanvas();
+        canvas.Viewport.CenterLat = stand.Latitude;
+        canvas.Viewport.CenterLon = stand.Longitude;
+        canvas.Viewport.Zoom = 1.0;
+        canvas.Viewport.PixelWidth = 800f;
+        canvas.Viewport.PixelHeight = 600f;
+        canvas.AirportCenterLat = stand.Latitude;
+        canvas.AirportCenterLon = stand.Longitude;
+        canvas.AirportElevation = 0;
+        canvas.Layout = layout;
+        (float sx, float sy) = canvas.Viewport.LatLonToScreen(stand.Latitude, stand.Longitude);
+        (float nx, float ny) = canvas.Viewport.LatLonToScreen(neighbour.Latitude, neighbour.Longitude);
+        canvas.Viewport.Zoom = 60.0 / Math.Sqrt(((nx - sx) * (nx - sx)) + ((ny - sy) * (ny - sy)));
+        (float x, float y) = canvas.Viewport.LatLonToScreen(stand.Latitude, stand.Longitude);
+        return (canvas, stand, new Point(x, y));
     }
 
     private static Point StandScreenPoint(GroundCanvas canvas)

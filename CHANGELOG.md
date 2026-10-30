@@ -28,6 +28,8 @@
 - Typing one run-delay bound or the auto-accept delay no longer undoes another instructor's change to the other half; it shows at once.
 - Speech recognizes "maintain maximum forward speed" as `SMAX`.
 - The ground view's Taxi here to a point past a runway crossing is accepted, holding short of the crossed runway, instead of refused.
+- Right-clicking a runway end's marker on the ground view offers taxi for departure on that runway, instead of a nearby taxiway point's crossing choices.
+- The ground view's right-click picker lists what the cursor is on first: the hovered datablock, else the hovered parking spot or stand.
 
 ## v0.17.1-beta [2026/10/29]
 
