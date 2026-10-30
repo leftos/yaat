@@ -3175,8 +3175,8 @@ public static class CommandDispatcher
             // crossing in front of the follow. The departure bar keeps HoldingShortPhase's own refusal (LUAW/CTO).
             case ResumeCommand armedResume
                 when GroundCommandHandler.RunwayHoldWithArmedFollow(aircraft)
-                    is { HoldShort: { Reason: not HoldShortReason.DestinationRunway, EndsNoDestinationRoute: false } } armedHold:
-                return GroundCommandHandler.TryResumeAcrossArmedHold(aircraft, groundLayout, armedResume, armedHold, ctx.FindAircraft);
+                    is { HoldShort: { Reason: not HoldShortReason.DestinationRunway, EndsNoDestinationRoute: false } }:
+                return GroundCommandHandler.TryResumeAcrossArmedHold(aircraft, groundLayout, armedResume, ctx.FindAircraft, ctx.ActiveRunways);
 
             // A helicopter air-taxiing or relocating is held with HPP (hover present position),
             // which routes through the hold-command cases above into a VfrHold hover; to continue
@@ -3194,7 +3194,8 @@ public static class CommandDispatcher
                     aircraft,
                     groundLayout,
                     hsResume.CrossRunways,
-                    hsResume.HoldShorts
+                    hsResume.HoldShorts,
+                    ctx.ActiveRunways
                 );
                 if (!applied.Success)
                 {
@@ -3258,7 +3259,8 @@ public static class CommandDispatcher
                     aircraft,
                     groundLayout,
                     groundResume.CrossRunways,
-                    groundResume.HoldShorts
+                    groundResume.HoldShorts,
+                    ctx.ActiveRunways
                 );
                 if (!applied.Success)
                 {
@@ -3274,7 +3276,7 @@ public static class CommandDispatcher
             case CrossRunwayCommand cross:
                 return GroundCommandHandler.TryCrossRunway(aircraft, cross, groundLayout, ctx.FindAircraft, ctx.ActiveRunways);
             case HoldShortCommand hs:
-                return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout);
+                return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout, ctx.ActiveRunways);
             case AssignRunwayCommand assignRwy:
                 return GroundCommandHandler.TryAssignRunway(aircraft, assignRwy.RunwayId);
             case FollowGroundCommand followG:

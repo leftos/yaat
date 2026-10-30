@@ -387,6 +387,13 @@ public sealed class HoldingShortPhaseDto : PhaseDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SaidWaitForLead { get; init; }
+
+    /// <summary>
+    /// The end the phase's name gives its runway (<c>1R</c>), chosen from the room's active runways as the hold started. Null
+    /// when no end of the runway was active (the name carries the combined id), and in snapshots written before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisplayEnd { get; init; }
 }
 
 public sealed class CrossingRunwayPhaseDto : PhaseDto

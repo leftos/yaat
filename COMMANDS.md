@@ -2182,7 +2182,9 @@ Sets the room's active runways at an airport: the runway ends in use, each for d
 | `ARWY <airport>` | Show the airport's active runways without changing them. |
 | `ARWY <airport> NONE` | Clear the airport's list; the room has no active runways there until set again. `ARWY NONE` clears the primary airport's. |
 
-The list also decides which end of a runway pilots name: a runway with an active end is named by that end (the nearer when both ends are listed), so with `ARWY OAK 10L 10R` a pilot reports runway one zero right, not two eight left. A runway the aircraft landed on or departs from keeps its assigned end, and an end you type (`CROSS 19R`) is read back as typed.
+The list also decides which end of a runway pilots name: a runway with an active end is named by that end (the nearer when both ends are listed), so with `ARWY OAK 10L 10R` a pilot reports runway one zero right, not two eight left.
+
+The terminal text follows the same rule: with `ARWY OAK 10R`, a hold at that runway reads "Holding Short 10R" and the refusals, warnings and the CROSS menu item name 10R (`Cross 10R`); with no `ARWY` they name both ends or the nearest. A runway the aircraft landed on or departs from keeps its assigned end, and an end you type (`CROSS 19R`) is read back as typed.
 
 Under the session's auto-cross mode **Inactive runways only**, the list also decides which crossings are pre-cleared: a crossing of a runway outside it needs no `CROSS`, and an `ARWY` re-checks the routes already assigned (with no list set, every runway counts as inactive). That mode is a training convenience; in real operations every runway crossing needs an explicit crossing clearance (FAA 7110.65 3-7-2.c).
 

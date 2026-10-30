@@ -255,6 +255,8 @@ More fields are the same kind (nullable, written only when set, null on older sn
 
 `HoldingShortPhaseDto.SaidTrafficAhead` (bool?, the same call from the hold at the bar), `HoldingShortPhaseDto.WaitingForLead` (bool?, the hold, cleared across, is waiting at its bar for the lead of the follow armed behind it) with `SaidWaitForLead` (bool?, the "waiting for the traffic to pass" call made for the current wait; a restore does not repeat it), both omitted when null.
 
+`HoldingShortPhaseDto.DisplayEnd` (string, `1R`) is the end the phase's `Name` gives its runway, chosen once when the hold starts from the room's active runways and kept to the hold's end; omitted when no end was active (the name carries the combined id) and on older snapshots (no schema bump).
+
 `HoldShortPointDto.IsExpedited` (bool?, written only when true, absent on older snapshots; no schema bump) is a `CROSS … EXP` crossing's expedite, kept on the bar; `CrossingRunwayPhaseDto.IsExpedited` (bool?, same rule) is the expedite a crossing phase flies under.
 `CrossingRunwayPhaseDto.SaidNotClear` (bool?) with `NotClearRestSeconds` (double?, the rest time counted toward the not-clear call).
 `CrossingRunwayPhaseDto.TailClearanceSuppressed` (bool?), `TailFullSegmentCount` (int?), `TailCutFt` (double?) and `HeldShortBarNodeId` (int?, the node id of the other runway's hold-short bar that set where a crossing ending at rest stops) are the crossing's tail-clearance decision; all nullable and additive, no schema bump.

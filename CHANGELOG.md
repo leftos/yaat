@@ -8,7 +8,7 @@
 - In solo sessions, a second arriving pilot now and then checks in a few seconds after the first, before you have answered it.
 - `HOLD` to a `FOLLOWG` follower ends the follow: it stops, and `RES` gets "unable, request taxi instructions" until a new `TAXI` or `FOLLOWG`.
 - A `HOLD` mid-crossing stops short of the next runway's hold line; an aircraft left with its tail on the crossed runway reports not clear of it.
-- Pilots name a runway by its active end when `ARWY` lists one, such as "runway one left", not "one niner right"; a typed end is read back as typed.
+- Pilots, terminal messages, status lines and the Cross menu name a runway by its active end when `ARWY` lists one ("1L", not "19R"); a typed end is echoed.
 
 ### Fixed
 

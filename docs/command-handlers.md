@@ -523,6 +523,8 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   `phases.ReplaceUpcoming([...]); phases.AdvanceToNext(ctx); FlightPhysics.NotifyPhaseAdvanced(aircraft)`. `AdvanceToNext` runs `OnEnd`/`OnStart`
   at the call site, not on the next tick, so the context has to satisfy the incoming phase's `OnStart` (`FinalApproachPhase` needs `ctx.Runway`,
   which `BuildMinimalContext` fills from `AssignedRunway`).
+- **A ground result that names a runway takes the room's `ActiveRunways` and names it by its active end.** The hold-short and CROSS texts ("Cannot cross destination runway 1R; use LUAW or CTO", "Next hold short is runway 1R; use CROSS", "Hold position (already short of 1R)", "No crossing route found for 1R", the bare-CROSS echo) go through `GroundCommandHandler.RunwayNamed` (`HoldingShortPhase.ActiveEndOf`), which returns null with no active end so the caller keeps the combined id.
+  A handler that builds such a text without `activeRunways` in reach gets it as a parameter. A typed end is echoed as typed, and the aircraft's own runway keeps its assigned end.
 - **`NotifyPhaseCommandAccepted` releases internal phase state only after a successful apply.** Its Unsupported/transparent/sim-control guards are
   load-bearing for the queued-block path even though they look redundant for immediate dispatch — the in-code comment warns against removing them.
 - **APT/DEST is one dispatch route, and phase-transparent.** A bare `DEST KOAK`, a preset and a conditional form (`AT 5000 DEST KOAK`) all reach

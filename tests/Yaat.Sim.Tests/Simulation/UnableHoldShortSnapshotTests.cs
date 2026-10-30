@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
@@ -151,7 +152,7 @@ public class UnableHoldShortSnapshotTests(ITestOutputHelper output)
         route.HoldShortPoints.Add(bar);
 
         // Control: this is a bar the annotator does position, so the second pass below would move it back.
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, AircraftLengthFt, null);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, AircraftLengthFt, null, HoldShortAnnotator.CombinedName);
         Assert.NotNull(bar.Latitude);
         Assert.NotNull(bar.Longitude);
 
@@ -161,7 +162,7 @@ public class UnableHoldShortSnapshotTests(ITestOutputHelper output)
         bar.Latitude = movedLat;
         bar.Longitude = movedLon;
 
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, AircraftLengthFt, null);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, AircraftLengthFt, null, HoldShortAnnotator.CombinedName);
 
         Assert.Equal(movedLat, bar.Latitude!.Value, 9);
         Assert.Equal(movedLon, bar.Longitude!.Value, 9);

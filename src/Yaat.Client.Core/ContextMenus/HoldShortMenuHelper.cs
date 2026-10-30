@@ -9,12 +9,16 @@ namespace Yaat.Client.ContextMenus;
 /// </summary>
 public static class HoldShortMenuHelper
 {
-    /// <summary>The start of a holding-short phase's name ("Holding Short 28R/10L"), the held target following it.</summary>
+    /// <summary>
+    /// The start of a holding-short phase's name, the held target following it: a runway by its active end when the room
+    /// lists one ("Holding Short 28R"), the departure bar by the aircraft's assigned end, else by both ends
+    /// ("Holding Short 28R/10L").
+    /// </summary>
     public const string HoldingShortPrefix = "Holding Short ";
 
     /// <summary>
     /// Whether <paramref name="phase"/> is a holding-short phase: <c>"Holding Short"</c>, bare or naming its target
-    /// (<c>"Holding Short 28R/10L"</c>, <c>"Holding Short B"</c>).
+    /// (<c>"Holding Short 28R"</c>, <c>"Holding Short 28R/10L"</c>, <c>"Holding Short B"</c>).
     /// </summary>
     public static bool IsHoldingShort(string phase) => phase.StartsWith(HoldingShortPrefix.TrimEnd(), StringComparison.Ordinal);
 
@@ -36,8 +40,8 @@ public static class HoldShortMenuHelper
 
     /// <summary>
     /// Resolves the runway an aircraft is holding short of from its phase name.
-    /// The phase is <c>"Holding Short {runway}"</c> (e.g. <c>"Holding Short 28L/10R"</c>);
-    /// the first end of a compound id is returned (<c>"28L/10R"</c> → <c>"28L"</c>).
+    /// The phase is <c>"Holding Short {runway}"</c>, naming the runway by its active end (<c>"Holding Short 28L"</c>) or,
+    /// with no end active, by both (<c>"Holding Short 28L/10R"</c>); the end named, or the first of the two, is returned.
     /// Falls back to the aircraft's assigned runway when the phase names no runway — a bare hold-short, or a taxiway
     /// or spot bar (<c>"Holding Short B"</c>, <c>"Holding Short spot 17"</c>) — or null when neither is available.
     /// </summary>

@@ -341,6 +341,8 @@ An aircraft already past the start node along the first segment (a turn about's 
 
 A holding-short aircraft (`HoldShortMenuHelper.IsHoldingShort`) is parked back from its bar, so the route can start nodes short of it: `PastHeldBar` moves the walk's first position past the first node the held target binds (distances keep the offset), unless another runway's bar lies ahead of it (`OtherRunwayBarBefore`), and `HeldTarget.IsNamedBy` drops any row naming the held runway (either end) or taxiway, so the ladder never offers the bar the aircraft is held at.
 
+The phase name may carry one end only ("Holding Short 1R", the active end) or both, so `HeldTarget.Of(phase, layout)` resolves the named end to the runway pair the ground layout holds (else the end and its reciprocal): `HS 19L` is dropped for "Holding Short 1R" too.
+
 The ladder also carries `HoldShortMeLine` (`now, taxiing on D`, `now, holding short of 28R on B`, `now, holding short of C on D`; the ` on {taxiway}` tail drops without `CurrentTaxiway`) and the `HoldShortDestination` (`HoldShortDestinationOf`): the stand `TaxiDestination` names (`$5` a spot, `@H1` a helipad when the layout has one by that name, else a gate), else the runway whose bar ends the route (the assigned runway's name, else the bar's runway named like its row), with the whole route's distance; it is built only with at least one stop before it.
 
 Runway rows are named without a `Runway ` prefix (`28R`, `12/30`); the destination row carries it (`Runway 30`). Each stop's `HoldShortChoice.BarPoint` is its bar node's position, which the scope preview boxes.

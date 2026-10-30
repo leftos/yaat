@@ -687,7 +687,16 @@ public static class HoldShortAnnotator
     /// Where the aircraft stands on <paramref name="route"/>; null for a route it is not on yet (one stored behind a runway
     /// exit), which is measured from the start of its current segment.
     /// </param>
-    public static void ComputeHoldShortPositions(AirportGroundLayout layout, TaxiRoute route, double aircraftLengthFt, LatLon? aircraftPosition)
+    /// <param name="nameTailRunway">
+    /// Names the runway a tail-over warning is about; <see cref="CombinedName"/> names it by both ends.
+    /// </param>
+    public static void ComputeHoldShortPositions(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        double aircraftLengthFt,
+        LatLon? aircraftPosition,
+        Func<RunwayIdentifier, string> nameTailRunway
+    )
     {
         var path = RoutePolyline.Build(route);
         var placing = new PlacingRoute(layout, route, path, aircraftLengthFt, path.AircraftAlongFt(route.CurrentSegmentIndex, aircraftPosition));
@@ -705,7 +714,7 @@ public static class HoldShortAnnotator
 
             GroundNode stop = StopsWithTheNoseAtTheNode(hs, hsNode)
                 ? VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm, HoldShortStopKind.Runway)
-                : PlaceTaxiwayStop(placing, hs);
+                : PlaceTaxiwayStop(placing, hs, nameTailRunway);
             hs.Latitude = stop.Position.Lat;
             hs.Longitude = stop.Position.Lon;
         }
@@ -732,7 +741,7 @@ public static class HoldShortAnnotator
     /// few feet past the hold-short node (AIM 4-3-21.b). Either way the stop is never behind the aircraft
     /// (<see cref="NoFurtherBackThanTheAircraft"/>).
     /// </summary>
-    private static GroundNode PlaceTaxiwayStop(PlacingRoute placing, HoldShortPoint hs)
+    private static GroundNode PlaceTaxiwayStop(PlacingRoute placing, HoldShortPoint hs, Func<RunwayIdentifier, string> nameTailRunway)
     {
         double taxiwayOffsetNm = (placing.LengthFt + TaxiwayHoldShortBufferFt) / GeoMath.FeetPerNm;
         (int RunwayNodeId, double GapNm)? crossedRunway = FindCrossedRunwayHoldShort(placing.Layout, placing.Route, hs.NodeId, taxiwayOffsetNm);
@@ -752,7 +761,7 @@ public static class HoldShortAnnotator
         GroundNode twyVn = NoFurtherBackThanTheAircraft(placing, hs, placed);
         if (crossedRunway is { } cr)
         {
-            AddTailOverRunwayWarning(placing, hs, cr);
+            AddTailOverRunwayWarning(placing, hs, cr, nameTailRunway);
         }
 
         double? pastCrossedBarFt = crossedRunway is { } bar ? (bar.GapNm * GeoMath.FeetPerNm) - placed.BackFt : null;
@@ -774,9 +783,15 @@ public static class HoldShortAnnotator
 
     /// <summary>
     /// When the gap from the runway hold-short the route just crossed to <paramref name="hs"/>'s node is shorter than the
-    /// fuselage, tags that runway node as overhung and warns that holding short leaves the tail over the runway.
+    /// fuselage, tags that runway node as overhung and warns that holding short leaves the tail over the runway, named by
+    /// <paramref name="nameTailRunway"/>.
     /// </summary>
-    private static void AddTailOverRunwayWarning(PlacingRoute placing, HoldShortPoint hs, (int RunwayNodeId, double GapNm) crossed)
+    private static void AddTailOverRunwayWarning(
+        PlacingRoute placing,
+        HoldShortPoint hs,
+        (int RunwayNodeId, double GapNm) crossed,
+        Func<RunwayIdentifier, string> nameTailRunway
+    )
     {
         if ((crossed.GapNm * GeoMath.FeetPerNm) >= placing.LengthFt)
         {
@@ -786,7 +801,7 @@ public static class HoldShortAnnotator
         hs.TailOverRunwayNodeId = crossed.RunwayNodeId;
         string rwy =
             placing.Layout.Nodes.TryGetValue(crossed.RunwayNodeId, out GroundNode? rwyNode) && rwyNode.RunwayId is { } rid
-                ? rid.ToDisplayString()
+                ? nameTailRunway(rid)
                 : "the runway";
         string warning =
             $"holding short of {HoldShortTarget.Describe(hs.TargetName ?? "")} leaves the tail over RWY {rwy} — unable to clear the runway";
@@ -843,6 +858,9 @@ public static class HoldShortAnnotator
     /// (ft), and how far along the route (ft) the aircraft stands.
     /// </summary>
     private sealed record PlacingRoute(AirportGroundLayout Layout, TaxiRoute Route, RoutePolyline Path, double LengthFt, double AircraftAlongFt);
+
+    /// <summary>A runway named by both ends, as a tail-over warning names one with no active end (<c>1R/19L</c>).</summary>
+    public static string CombinedName(RunwayIdentifier runway) => runway.ToDisplayString();
 
     /// <summary>The margin (ft) a taxiway hold-short keeps beyond the aircraft's length. A judgement call: no FAA document gives a figure.</summary>
     public const double TaxiwayHoldShortBufferFt = 30.0;

@@ -274,7 +274,7 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
         Assert.True(parsed.IsSuccess, $"'HS $17' failed to parse: {parsed.Reason}");
         HoldShortCommand hsCmd = Assert.IsType<HoldShortCommand>(parsed.Value);
 
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, hsCmd, layout);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, hsCmd, layout, ActiveRunways.Empty);
         TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         LogRoute("post-hoc $17", route);
         Assert.True(result.Success, $"HS $17 failed: {result.Message}");
@@ -328,7 +328,7 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
         Assert.True(distToSpotFt is > 5 and < 60, $"holding {distToSpotFt:F0} ft from spot 17 — expected nose at the mark (½ length back)");
 
         // Bare RES from an explicit hold-short: the dispatcher applies any modifiers, then satisfies the hold.
-        CommandResult resume = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(ac, layout, [], []);
+        CommandResult resume = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(ac, layout, [], [], ActiveRunways.Empty);
         Assert.True(resume.Success, $"RES failed: {resume.Message}");
         holding.SatisfyClearance(ClearanceType.RunwayCrossing);
 

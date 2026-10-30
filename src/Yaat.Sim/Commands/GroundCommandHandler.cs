@@ -323,7 +323,13 @@ public static partial class GroundCommandHandler
         string? occupiedTaxiway = resolved.OccupiedTaxiway;
 
         // Compute dynamic hold-short positions based on aircraft fuselage length
-        HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt, aircraft.Position);
+        HoldShortAnnotator.ComputeHoldShortPositions(
+            groundLayout,
+            route,
+            aircraftLengthFt,
+            aircraft.Position,
+            RunwayCrossingEnd.TailOverNamer(aircraft.Position, groundLayout, options.ActiveRunways, aircraft.Phases?.AssignedRunway)
+        );
         HoldInsideNoDestinationTerminusSetback(aircraft, groundLayout, route, aircraftLengthFt);
 
         string hsDetails = string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"));
@@ -524,7 +530,13 @@ public static partial class GroundCommandHandler
                         );
                         aircraft.Ground.AssignedTaxiRoute = route;
                         aircraft.Ground.AwaitingTaxiInCall = false;
-                        HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt, aircraft.Position);
+                        HoldShortAnnotator.ComputeHoldShortPositions(
+                            groundLayout,
+                            route,
+                            aircraftLengthFt,
+                            aircraft.Position,
+                            RunwayCrossingEnd.TailOverNamer(aircraft.Position, groundLayout, options.ActiveRunways, aircraft.Phases?.AssignedRunway)
+                        );
                         rerouted = true;
 
                         Log.LogInformation(
@@ -6046,10 +6058,10 @@ public static partial class GroundCommandHandler
         {
             lineup.HoldPosition = true;
             EndRouteExpedite(aircraft);
-            return CommandDispatcher.Ok(BuildHoldMessage(aircraft));
+            return CommandDispatcher.Ok(BuildHoldMessage(aircraft, activeRunways));
         }
 
-        string message = BuildHoldMessage(aircraft);
+        string message = BuildHoldMessage(aircraft, activeRunways);
         BreakOffGroundFollow(aircraft, activeRunways);
         aircraft.Ground.Hold = HoldDirective.HoldPosition;
         EndRouteExpedite(aircraft);
@@ -6110,7 +6122,7 @@ public static partial class GroundCommandHandler
         phases.ReplaceUpcoming([.. kept, HoldingInPositionPhase.AfterFollowBreakOff()]);
     }
 
-    private static string BuildHoldMessage(AircraftState aircraft)
+    private static string BuildHoldMessage(AircraftState aircraft, ActiveRunways activeRunways)
     {
         Phase? phase = aircraft.Phases?.CurrentPhase;
         string? where = phase switch
@@ -6124,7 +6136,7 @@ public static partial class GroundCommandHandler
             RunwayExitPhase => "during runway exit",
             FollowingPhase => "while following",
             HoldingShortPhase hs => hs.HoldShort.TargetName is { } target
-                ? $"already short of {HoldShortTarget.Describe(target)}"
+                ? $"already short of {RunwayNamed(aircraft, target, activeRunways) ?? HoldShortTarget.Describe(target)}"
                 : "already holding short",
             HoldingInPositionPhase or HoldingAfterPushbackPhase or HoldingAfterExitPhase => "already in position",
             _ => null,
@@ -6240,7 +6252,9 @@ public static partial class GroundCommandHandler
             return new CommandResult(false, HoldingShortPhase.RouteIncompleteMessage(next.TargetName));
         }
 
-        string runway = string.IsNullOrWhiteSpace(next.TargetName) ? "" : $" {HoldShortTarget.Describe(next.TargetName)}";
+        string runway = string.IsNullOrWhiteSpace(next.TargetName)
+            ? ""
+            : $" {RunwayNamed(aircraft, next.TargetName, activeRunways) ?? HoldShortTarget.Describe(next.TargetName)}";
         if (next.Reason == HoldShortReason.DestinationRunway)
         {
             return new CommandResult(false, $"Next hold short is departure runway{runway}; issue CTO or LUAW");
@@ -6298,7 +6312,7 @@ public static partial class GroundCommandHandler
     /// DestinationRunway hold-short (use CTO/LUAW for those instead). Empty
     /// list is a no-op success.
     /// </summary>
-    internal static CommandResult TryPreClearRouteCrossings(AircraftState aircraft, IReadOnlyList<string> runways)
+    internal static CommandResult TryPreClearRouteCrossings(AircraftState aircraft, IReadOnlyList<string> runways, ActiveRunways activeRunways)
     {
         if (runways.Count == 0)
         {
@@ -6330,10 +6344,7 @@ public static partial class GroundCommandHandler
                 // CROSS (TryExtendRouteAcrossDestinationRunway), so reject it here.
                 if (hs.Reason == HoldShortReason.DestinationRunway)
                 {
-                    return new CommandResult(
-                        false,
-                        $"Cannot cross destination runway {RunwayIdentifier.ToDisplayDesignator(hs.TargetName ?? "")}; use LUAW or CTO"
-                    );
+                    return CannotCrossDestinationRunway(aircraft, hs.TargetName, activeRunways);
                 }
 
                 matchedAny = true;
@@ -6379,7 +6390,8 @@ public static partial class GroundCommandHandler
     internal static CommandResult TryAddExplicitHoldShorts(
         AircraftState aircraft,
         AirportGroundLayout? layout,
-        IReadOnlyList<HoldShortTarget> targets
+        IReadOnlyList<HoldShortTarget> targets,
+        ActiveRunways activeRunways
     )
     {
         if (targets.Count == 0)
@@ -6410,7 +6422,7 @@ public static partial class GroundCommandHandler
             HoldShortAnnotator.ApplyExplicitHoldShort(route, plans[i], targets[i]);
         }
 
-        RecomputeHoldShortPositions(aircraft, layout, route);
+        RecomputeHoldShortPositions(aircraft, layout, route, activeRunways);
         NotifyTaxiHoldShortsChanged(aircraft);
         return CommandDispatcher.Ok("");
     }
@@ -6486,7 +6498,7 @@ public static partial class GroundCommandHandler
     /// Recomputes every hold-short's stop position after the set of hold-shorts changed. A newly added
     /// taxiway hold-short has no offset until this runs, and a re-armed one needs its offset re-applied.
     /// </summary>
-    private static void RecomputeHoldShortPositions(AircraftState aircraft, AirportGroundLayout? layout, TaxiRoute route)
+    private static void RecomputeHoldShortPositions(AircraftState aircraft, AirportGroundLayout? layout, TaxiRoute route, ActiveRunways activeRunways)
     {
         if (layout is null)
         {
@@ -6494,8 +6506,16 @@ public static partial class GroundCommandHandler
         }
 
         double aircraftLengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
-        LatLon? onRoute = ReferenceEquals(route, aircraft.Ground.AssignedTaxiRoute) ? aircraft.Position : null;
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, aircraftLengthFt, onRoute);
+        bool isAssigned = ReferenceEquals(route, aircraft.Ground.AssignedTaxiRoute);
+        LatLon? onRoute = isAssigned ? aircraft.Position : null;
+        RunwayInfo? ownRunway = isAssigned ? aircraft.Phases?.AssignedRunway : null;
+        HoldShortAnnotator.ComputeHoldShortPositions(
+            layout,
+            route,
+            aircraftLengthFt,
+            onRoute,
+            RunwayCrossingEnd.TailOverNamer(onRoute, layout, activeRunways, ownRunway)
+        );
     }
 
     /// <summary>
@@ -6509,16 +6529,17 @@ public static partial class GroundCommandHandler
         AircraftState aircraft,
         AirportGroundLayout? layout,
         IReadOnlyList<string> crossRunways,
-        IReadOnlyList<HoldShortTarget> holdShorts
+        IReadOnlyList<HoldShortTarget> holdShorts,
+        ActiveRunways activeRunways
     )
     {
-        CommandResult preClear = TryPreClearRouteCrossings(aircraft, crossRunways);
+        CommandResult preClear = TryPreClearRouteCrossings(aircraft, crossRunways, activeRunways);
         if (!preClear.Success)
         {
             return preClear;
         }
 
-        return TryAddExplicitHoldShorts(aircraft, layout, holdShorts);
+        return TryAddExplicitHoldShorts(aircraft, layout, holdShorts, activeRunways);
     }
 
     /// <summary>
@@ -6728,10 +6749,7 @@ public static partial class GroundCommandHandler
         // Can't cross a destination runway you're holding short of mid-route (use LUAW/CTO).
         if (currentHoldMatch is not null && holdPhase!.HoldShort.Reason == HoldShortReason.DestinationRunway && !HasArrivedAtHoldShort(aircraft))
         {
-            return new CommandResult(
-                false,
-                $"Cannot cross destination runway {RunwayIdentifier.ToDisplayDesignator(holdPhase.HoldShort.TargetName ?? "")}; use LUAW or CTO"
-            );
+            return CannotCrossDestinationRunway(aircraft, holdPhase.HoldShort.TargetName, activeRunways);
         }
 
         // The current-hold runway is satisfied via the phase, so only the remaining listed
@@ -6740,7 +6758,7 @@ public static partial class GroundCommandHandler
             ? cross.RunwayIds
             : [.. cross.RunwayIds.Where(r => !string.Equals(r, currentHoldMatch, StringComparison.OrdinalIgnoreCase))];
 
-        CommandResult applied = TryApplyRouteCrossingsAndHoldShorts(aircraft, layout, upcoming, cross.HoldShorts);
+        CommandResult applied = TryApplyRouteCrossingsAndHoldShorts(aircraft, layout, upcoming, cross.HoldShorts, activeRunways);
         if (!applied.Success)
         {
             return applied;
@@ -6751,7 +6769,7 @@ public static partial class GroundCommandHandler
         HoldShortPoint? released = null;
         if (currentHoldMatch is not null)
         {
-            CommandResult continuation = PrepareOnwardAfterCrossingRelease(aircraft, holdPhase!, cross.RunwayIds);
+            CommandResult continuation = PrepareOnwardAfterCrossingRelease(aircraft, holdPhase!, cross.RunwayIds, activeRunways);
             if (!continuation.Success)
             {
                 return continuation;
@@ -6806,14 +6824,11 @@ public static partial class GroundCommandHandler
             // the runway and taxis the aircraft across to the far-side hold-short instead.
             if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway && !HasArrivedAtHoldShort(aircraft))
             {
-                return new CommandResult(
-                    false,
-                    $"Cannot cross destination runway {RunwayIdentifier.ToDisplayDesignator(holdPhase.HoldShort.TargetName ?? "")}; use LUAW or CTO"
-                );
+                return CannotCrossDestinationRunway(aircraft, holdPhase.HoldShort.TargetName, activeRunways);
             }
 
             TaxiRoute? queued = aircraft.Ground.AssignedTaxiRoute;
-            CommandResult continuation = PrepareOnwardAfterCrossingRelease(aircraft, holdPhase, [target]);
+            CommandResult continuation = PrepareOnwardAfterCrossingRelease(aircraft, holdPhase, [target], activeRunways);
             if (!continuation.Success)
             {
                 return continuation;
@@ -6845,7 +6860,7 @@ public static partial class GroundCommandHandler
 
             if (hs.Reason == HoldShortReason.DestinationRunway)
             {
-                return TryExtendRouteAcrossDestinationRunway(aircraft, hs);
+                return TryExtendRouteAcrossDestinationRunway(aircraft, hs, target, activeRunways);
             }
 
             matchedAny = true;
@@ -6896,12 +6911,13 @@ public static partial class GroundCommandHandler
     private static CommandResult PrepareOnwardAfterCrossingRelease(
         AircraftState aircraft,
         HoldingShortPhase holdPhase,
-        IReadOnlyList<string> clearedRunways
+        IReadOnlyList<string> clearedRunways,
+        ActiveRunways activeRunways
     )
     {
         if ((aircraft.Phases is { } followPhases) && (ArmedFollowBehindHold(followPhases) is { } armedFollow))
         {
-            return TryPrepareCrossingIntoArmedFollow(aircraft, holdPhase, followPhases, armedFollow, clearedRunways);
+            return TryPrepareCrossingIntoArmedFollow(aircraft, holdPhase, armedFollow, clearedRunways, activeRunways);
         }
 
         if (aircraft.Ground.AssignedTaxiRoute is { IsComplete: false })
@@ -6921,7 +6937,7 @@ public static partial class GroundCommandHandler
 
         if (FindCrossingFromBar(aircraft, holdPhase, runwayId) is not { } crossing)
         {
-            return NoCrossingRoute(holdPhase);
+            return NoCrossingRoute(aircraft, holdPhase.HoldShort.TargetName, activeRunways);
         }
 
         // Mark the synthetic crossing route complete up front: CrossingRunwayPhase.HandRouteBack re-asserts
@@ -6946,8 +6962,22 @@ public static partial class GroundCommandHandler
     private static CompletedRouteCrossing? FindCrossingFromBar(AircraftState aircraft, HoldingShortPhase holdPhase, RunwayIdentifier runwayId) =>
         aircraft.Ground.Layout is { } layout ? FindCompletedRouteCrossing(aircraft, layout, holdPhase.HoldShort.NodeId, runwayId) : null;
 
-    private static CommandResult NoCrossingRoute(HoldingShortPhase holdPhase) =>
-        new(false, $"No crossing route found for {holdPhase.HoldShort.TargetName ?? "runway"}");
+    private static CommandResult NoCrossingRoute(AircraftState aircraft, string? targetName, ActiveRunways activeRunways) =>
+        new(false, $"No crossing route found for {RunwayNamed(aircraft, targetName, activeRunways) ?? targetName ?? "runway"}");
+
+    /// <summary>
+    /// The end terminal text names the runway <paramref name="targetName"/> by when the room lists an end of it as active
+    /// (<see cref="RunwayCrossingEnd.ActiveEndOf"/>); null when it does not, so the caller keeps its own text.
+    /// </summary>
+    private static string? RunwayNamed(AircraftState aircraft, string? targetName, ActiveRunways activeRunways) =>
+        RunwayCrossingEnd.ActiveEndOf(aircraft, targetName, aircraft.Ground.Layout, activeRunways);
+
+    /// <summary>The refusal of a CROSS of the destination runway mid-route, naming the runway by its active end when it has one.</summary>
+    private static CommandResult CannotCrossDestinationRunway(AircraftState aircraft, string? targetName, ActiveRunways activeRunways)
+    {
+        string runway = RunwayNamed(aircraft, targetName, activeRunways) ?? RunwayIdentifier.ToDisplayDesignator(targetName ?? "");
+        return new CommandResult(false, $"Cannot cross destination runway {runway}; use LUAW or CTO");
+    }
 
     /// <summary>
     /// The follow queued immediately behind the current hold, if any: the one a FOLLOWG armed at the bar
@@ -6981,12 +7011,12 @@ public static partial class GroundCommandHandler
     private static CommandResult TryPrepareCrossingIntoArmedFollow(
         AircraftState aircraft,
         HoldingShortPhase holdPhase,
-        PhaseList phases,
         FollowingPhase armedFollow,
-        IReadOnlyList<string> clearedRunways
+        IReadOnlyList<string> clearedRunways,
+        ActiveRunways activeRunways
     )
     {
-        if (!IsRunwayHoldShort(aircraft, holdPhase.HoldShort, out RunwayIdentifier runwayId))
+        if ((aircraft.Phases is not { } phases) || !IsRunwayHoldShort(aircraft, holdPhase.HoldShort, out RunwayIdentifier runwayId))
         {
             return CommandDispatcher.Ok("");
         }
@@ -6999,7 +7029,7 @@ public static partial class GroundCommandHandler
         {
             if (FindCrossingFromBar(aircraft, holdPhase, runwayId) is not { } found)
             {
-                return NoCrossingRoute(holdPhase);
+                return NoCrossingRoute(aircraft, holdPhase.HoldShort.TargetName, activeRunways);
             }
 
             crossing = CrossingRunwayPhase.OverOwnPath(
@@ -7258,10 +7288,7 @@ public static partial class GroundCommandHandler
 
         if ((held.Hold.HoldShort.Reason == HoldShortReason.DestinationRunway) && !HasArrivedAtHoldShort(aircraft))
         {
-            return new CommandResult(
-                false,
-                $"Cannot cross destination runway {RunwayIdentifier.ToDisplayDesignator(held.Hold.HoldShort.TargetName ?? "")}; use LUAW or CTO"
-            );
+            return CannotCrossDestinationRunway(aircraft, held.Hold.HoldShort.TargetName, activeRunways);
         }
 
         TaxiRoute? queued = aircraft.Ground.AssignedTaxiRoute;
@@ -7423,8 +7450,15 @@ public static partial class GroundCommandHandler
     /// Extends the still-in-progress route across the runway to the far-side hold-short and
     /// converts the destination hold-short into a pre-cleared <see cref="HoldShortReason.RunwayCrossing"/>,
     /// so <see cref="TaxiingPhase"/> taxis across on arrival instead of stopping for departure.
+    /// The echo names the runway as it was cleared: the end the controller typed (<paramref name="typedRunway"/>), the active end
+    /// for a bare CROSS, or the bar's combined id when no end of the runway is active.
     /// </summary>
-    private static CommandResult TryExtendRouteAcrossDestinationRunway(AircraftState aircraft, HoldShortPoint terminalHoldShort)
+    private static CommandResult TryExtendRouteAcrossDestinationRunway(
+        AircraftState aircraft,
+        HoldShortPoint terminalHoldShort,
+        string? typedRunway,
+        ActiveRunways activeRunways
+    )
     {
         TaxiRoute? route = aircraft.ActiveOrStoredTaxiRoute;
         if (route is null)
@@ -7434,10 +7468,7 @@ public static partial class GroundCommandHandler
 
         if (!IsRunwayHoldShort(aircraft, terminalHoldShort, out RunwayIdentifier runwayId))
         {
-            return new CommandResult(
-                false,
-                $"Cannot cross destination runway {RunwayIdentifier.ToDisplayDesignator(terminalHoldShort.TargetName ?? "")}; use LUAW or CTO"
-            );
+            return CannotCrossDestinationRunway(aircraft, terminalHoldShort.TargetName, activeRunways);
         }
 
         AirportGroundLayout? layout = aircraft.Ground.Layout;
@@ -7449,7 +7480,7 @@ public static partial class GroundCommandHandler
         CompletedRouteCrossing? crossing = FindCompletedRouteCrossing(aircraft, layout, terminalHoldShort.NodeId, runwayId);
         if (crossing is null)
         {
-            return new CommandResult(false, $"No crossing route found for {terminalHoldShort.TargetName ?? "runway"}");
+            return NoCrossingRoute(aircraft, terminalHoldShort.TargetName, activeRunways);
         }
 
         // Append the crossing (terminal hold-short → far-side hold-short) onto the live route
@@ -7467,7 +7498,9 @@ public static partial class GroundCommandHandler
         terminalHoldShort.Reason = HoldShortReason.RunwayCrossing;
         terminalHoldShort.IsCleared = true;
 
-        return CommandDispatcher.Ok($"Cross {terminalHoldShort.TargetName}");
+        string? activeEnd = RunwayNamed(aircraft, terminalHoldShort.TargetName, activeRunways);
+        string? echoed = (activeEnd is null) ? terminalHoldShort.TargetName : (typedRunway ?? activeEnd);
+        return CommandDispatcher.Ok($"Cross {echoed}");
     }
 
     /// <summary>
@@ -7488,21 +7521,23 @@ public static partial class GroundCommandHandler
         {
             if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway && !HasArrivedAtHoldShort(aircraft))
             {
-                return new CommandResult(
-                    false,
-                    $"Cannot cross destination runway {RunwayIdentifier.ToDisplayDesignator(holdPhase.HoldShort.TargetName ?? "")}; use LUAW or CTO"
-                );
+                return CannotCrossDestinationRunway(aircraft, holdPhase.HoldShort.TargetName, activeRunways);
             }
 
             TaxiRoute? queued = aircraft.Ground.AssignedTaxiRoute;
-            CommandResult continuation = PrepareOnwardAfterCrossingRelease(aircraft, holdPhase, [holdPhase.HoldShort.TargetName ?? ""]);
+            CommandResult continuation = PrepareOnwardAfterCrossingRelease(
+                aircraft,
+                holdPhase,
+                [holdPhase.HoldShort.TargetName ?? ""],
+                activeRunways
+            );
             if (!continuation.Success)
             {
                 return continuation;
             }
 
             holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
-            return CommandDispatcher.Ok(DescribeHoldShortRelease(holdPhase.HoldShort.TargetName)) with
+            return CommandDispatcher.Ok(DescribeHoldShortRelease(aircraft, holdPhase.HoldShort.TargetName, activeRunways)) with
             {
                 PilotReadback = CrossContinuationReadback(aircraft, queued, holdPhase.HoldShort, CrossClearance(cross, activeRunways), layout),
             };
@@ -7531,11 +7566,11 @@ public static partial class GroundCommandHandler
 
         if (next.Reason == HoldShortReason.DestinationRunway)
         {
-            return TryExtendRouteAcrossDestinationRunway(aircraft, next);
+            return TryExtendRouteAcrossDestinationRunway(aircraft, next, null, activeRunways);
         }
 
         next.IsCleared = true;
-        return CommandDispatcher.Ok(DescribeHoldShortRelease(next.TargetName)) with
+        return CommandDispatcher.Ok(DescribeHoldShortRelease(aircraft, next.TargetName, activeRunways)) with
         {
             PilotReadback = CrossContinuationReadback(
                 aircraft,
@@ -7550,20 +7585,26 @@ public static partial class GroundCommandHandler
     /// <summary>
     /// Echo for a bare <c>CROSS</c> release. "Cross" is runway vocabulary (7110.65 §3-7-2.a.3); releasing a
     /// spot hold-short is 7110.65 P/CG CONTINUE ("continue taxi"); release per 3-7-2.a, so the echo names the spot that way instead.
+    /// A runway with an active end is named by it (no end was typed); otherwise the bar's target as it stands.
     /// </summary>
-    private static string DescribeHoldShortRelease(string? targetName) =>
+    private static string DescribeHoldShortRelease(AircraftState aircraft, string? targetName, ActiveRunways activeRunways) =>
         targetName switch
         {
             null => "Cross next hold-short",
             var spot when HoldShortTarget.IsSpotTargetName(spot) => DescribeTaxiwayHoldShortRelease(spot),
-            var target => $"Cross {target}",
+            var target => $"Cross {RunwayNamed(aircraft, target, activeRunways) ?? target}",
         };
 
     /// <summary>Echo for releasing a taxiway or spot hold short ahead: "Continue taxi past B", "Continue taxi past spot 17".</summary>
     private static string DescribeTaxiwayHoldShortRelease(string? targetName) =>
         targetName is null ? "Continue taxi" : $"Continue taxi past {HoldShortTarget.Describe(targetName)}";
 
-    internal static CommandResult TryHoldShort(AircraftState aircraft, HoldShortCommand hs, AirportGroundLayout? groundLayout)
+    internal static CommandResult TryHoldShort(
+        AircraftState aircraft,
+        HoldShortCommand hs,
+        AirportGroundLayout? groundLayout,
+        ActiveRunways activeRunways
+    )
     {
         if (!aircraft.IsOnGround)
         {
@@ -7588,7 +7629,7 @@ public static partial class GroundCommandHandler
         }
 
         HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, hs.Target);
-        RecomputeHoldShortPositions(aircraft, groundLayout, route);
+        RecomputeHoldShortPositions(aircraft, groundLayout, route, activeRunways);
 
         EndRouteExpedite(aircraft);
 
@@ -7705,11 +7746,8 @@ public static partial class GroundCommandHandler
     {
         if ((hold.HoldShort.Reason == HoldShortReason.DestinationRunway) && !HasArrivedAtHoldShort(aircraft))
         {
-            // Terminal text for the controller, not pilot speech: names the end nearest the aircraft.
-            return new CommandResult(
-                false,
-                $"holding short of departure runway {hold.RunwayEndFacing(aircraft, ActiveRunways.Empty)}; issue LUAW or CTO"
-            );
+            // Terminal text for the controller: the assigned end, else the active end, else the end nearest the aircraft.
+            return new CommandResult(false, $"holding short of departure runway {hold.RunwayEndFacing(aircraft, activeRunways)}; issue LUAW or CTO");
         }
 
         if (RejectUnjoinableFollow(aircraft, follow, groundLayout, probe) is { } unable)
@@ -7769,21 +7807,25 @@ public static partial class GroundCommandHandler
     /// (<c>RES CROSS 1R</c>) is a crossing clearance, and releases the hold the way CROSS does — the crossing goes
     /// in front of the follow; any other runways it names are pre-cleared on the route and its hold-shorts armed.
     /// A bare RES, or one that does not name the held runway, is refused: starting the follow at the bar would
-    /// stop it at that same bar again.
+    /// stop it at that same bar again. The hold is the one <see cref="RunwayHoldWithArmedFollow"/> finds.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The aircraft holds at no runway bar with a follow armed behind it.</exception>
     public static CommandResult TryResumeAcrossArmedHold(
         AircraftState aircraft,
         AirportGroundLayout? layout,
         ResumeCommand resume,
-        HoldingShortPhase hold,
-        Func<string, AircraftState?>? findAircraft
+        Func<string, AircraftState?>? findAircraft,
+        ActiveRunways activeRunways
     )
     {
+        HoldingShortPhase hold =
+            RunwayHoldWithArmedFollow(aircraft)
+            ?? throw new InvalidOperationException($"RES across an armed hold: {aircraft.Callsign} holds at no runway bar with a follow armed");
         string? heldRunway = resume.CrossRunways.FirstOrDefault(r => HoldShortAnnotator.TargetMatches(hold.HoldShort.TargetName, r));
         if (heldRunway is null)
         {
-            // Terminal text for the controller, not pilot speech: names the end nearest the aircraft.
-            string runway = hold.RunwayEndFacing(aircraft, ActiveRunways.Empty);
+            // Terminal text for the controller: the assigned end, else the active end, else the end nearest the aircraft.
+            string runway = hold.RunwayEndFacing(aircraft, activeRunways);
             return new CommandResult(false, $"unable, holding short of {runway} — issue CROSS {runway}");
         }
 
@@ -7805,13 +7847,13 @@ public static partial class GroundCommandHandler
         }
 
         List<string> upcoming = [.. resume.CrossRunways.Where(r => !string.Equals(r, heldRunway, StringComparison.OrdinalIgnoreCase))];
-        CommandResult applied = TryApplyRouteCrossingsAndHoldShorts(aircraft, layout, upcoming, resume.HoldShorts);
+        CommandResult applied = TryApplyRouteCrossingsAndHoldShorts(aircraft, layout, upcoming, resume.HoldShorts, activeRunways);
         if (!applied.Success)
         {
             return applied;
         }
 
-        CommandResult onward = PrepareOnwardAfterCrossingRelease(aircraft, hold, resume.CrossRunways);
+        CommandResult onward = PrepareOnwardAfterCrossingRelease(aircraft, hold, resume.CrossRunways, activeRunways);
         if (!onward.Success)
         {
             return onward;

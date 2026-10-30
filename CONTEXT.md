@@ -88,7 +88,7 @@ What a scenario JSON will make the server fetch — its ARTCC, the roster's neig
 An airport in the resource manifest whose full ground map the load needs: the primary airport, and each airport an aircraft parks at or spawns on the ground at. A missing map there is a load warning; elsewhere it is not.
 
 **Active end** (of a runway):
-The end of a runway the room's active runways list; a pilot names a runway by its active end (the nearer when both are listed, the nearest end when neither is), except a runway the aircraft landed on or departs from, which keeps its assigned end (`RunwayCrossingEnd.Spoken`).
+The end of a runway the room's active runways list; a pilot names a runway by its active end (the nearer when both are listed, the nearest end when neither is), except a runway the aircraft landed on or departs from, which keeps its assigned end (`RunwayCrossingEnd.Spoken`). The terminal messages, the "Holding Short 1R" phase name and status line, the warnings, the CROSS menu item and the AI Ground controller's CROSS name a runway the same way, and a typed end is echoed as typed.
 
 **Active runways**:
 The runway ends a room is using, per airport, each for departures, arrivals or both (`ActiveRunways`): room state, not the controller AI's single runway-in-use guess.

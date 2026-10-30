@@ -46,10 +46,12 @@ public static class TaxiRouteProgress
         return WalkAhead(aircraft, layout, point => point.Reason == HoldShortReason.DestinationRunway)?.DistanceFt;
     }
 
-    /// <summary>The end of a crossed runway the aircraft is nearest to — the one to name in <c>CROSS</c>.</summary>
-    public static string NearestCrossingEnd(AircraftState aircraft, string combinedTarget, AirportGroundLayout? layout) =>
-        // Controller command text, not pilot speech: names the end nearest the aircraft.
-        RunwayCrossingEnd.Spoken(aircraft, combinedTarget, layout, ActiveRunways.Empty);
+    /// <summary>
+    /// The end of a crossed runway to name in <c>CROSS</c>: its active end when the room lists one, else the end nearest the
+    /// aircraft (<see cref="RunwayCrossingEnd.Spoken"/>).
+    /// </summary>
+    public static string CrossingEnd(AircraftState aircraft, string combinedTarget, AirportGroundLayout? layout, ActiveRunways activeRunways) =>
+        RunwayCrossingEnd.Spoken(aircraft, combinedTarget, layout, activeRunways);
 
     /// <summary>
     /// Walks the remaining segments: the first leg is the straight distance from the aircraft to the current segment's

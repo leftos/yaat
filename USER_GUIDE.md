@@ -1734,7 +1734,7 @@ Both API and local scenarios appear in the **Scenario > Load Recent Scenario** m
 
 When you load a scenario as a mentor in a training room and the scenario does not say which runways are in use, YAAT asks you once the load finishes. The **Session setup** popup then shows an **Active runways** section with one row per airport, filled in with YAAT's guess from the scenario's traffic and the weather. An airport where the traffic only gives arrival runways is offered both ways (`28R 30`), since nothing says where it departs.
 
-The section opens by saying what the list is for: YAAT's aircraft menus use the active runways to name and suggest runways, and pilots name a runway by its active end on the radio, and aircraft the scenario already gives a runway keep it.
+The section opens by saying what the list is for: YAAT's aircraft menus use the active runways to name and suggest runways, and pilots, the terminal's hold-short and crossing messages and the Cross menu item name a runway by its active end, and aircraft the scenario already gives a runway keep it.
 
 Under the rows, one line per airport says how this scenario stands, for example `OAK: 2 departures and 6 arrivals in this scenario already have a runway and keep it; the rest are offered these.`, or that no aircraft the scenario places has a runway yet. When the scenario's arrival generators feed the airport, the line ends by naming the runways those arrivals land on.
 

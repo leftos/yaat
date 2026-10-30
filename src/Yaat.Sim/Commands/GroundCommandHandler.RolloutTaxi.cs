@@ -379,7 +379,13 @@ public static partial class GroundCommandHandler
     private static StoredTaxi StoredFrom(TaxiResolveInputs inputs, TaxiResolution fromExit)
     {
         TaxiRoute route = fromExit.Route!;
-        HoldShortAnnotator.ComputeHoldShortPositions(inputs.Layout, route, inputs.AircraftLengthFt, null);
+        HoldShortAnnotator.ComputeHoldShortPositions(
+            inputs.Layout,
+            route,
+            inputs.AircraftLengthFt,
+            null,
+            RunwayCrossingEnd.TailOverNamer(null, inputs.Layout, inputs.Options.ActiveRunways, null)
+        );
         return new StoredTaxi(route, fromExit.Command, fromExit.OccupiedTaxiway, fromExit.EndsShort, fromExit.EffectiveCommand);
     }
 
@@ -650,7 +656,13 @@ public static partial class GroundCommandHandler
             return false;
         }
 
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, AircraftLength.ResolveFt(aircraft.AircraftType), aircraft.Position);
+        HoldShortAnnotator.ComputeHoldShortPositions(
+            layout,
+            route,
+            AircraftLength.ResolveFt(aircraft.AircraftType),
+            aircraft.Position,
+            RunwayCrossingEnd.TailOverNamer(aircraft.Position, layout, ctx.ActiveRunways, aircraft.Phases?.AssignedRunway)
+        );
         DepartureRunwayAssignment prior = CaptureDepartureRunwayAssignment(aircraft);
         RunwayInfo? detectedRunway = destinationRunway is not null
             ? CommandDispatcher.ResolveRunway(aircraft, destinationRunway)

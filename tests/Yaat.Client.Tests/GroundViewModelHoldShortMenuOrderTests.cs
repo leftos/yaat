@@ -218,6 +218,28 @@ public class GroundViewModelHoldShortMenuOrderTests
         Assert.Equal(northBar.Id, runway.Preview.Segments[^1].ToNodeId);
     }
 
+    /// <summary>
+    /// Held short of 10L/28R by a phase naming one end (<c>Holding Short 10L</c>, as the sim names a runway the room lists an
+    /// end of) on G, two nodes back of the north 28R bar, the route running on past 28R's south bar to 28L, with 28R active:
+    /// the south bar, which the active end would name <c>HS 28R</c>, is no stop, since the held runway is the layout's pair.
+    /// A pin, green before and after the ladder resolved the pair from the layout: here the pair is the one-end name's
+    /// computed reciprocal, which the ladder matched before. <c>HeldTarget.Of</c>'s layout branch is defensive: a normal runway
+    /// pair is always the computed reciprocal, so no test reaches a pair only the layout knows.
+    /// </summary>
+    [Fact]
+    public void HeldUnderOneEndsName_TheOtherEndIsNoStop()
+    {
+        AirportGroundLayout layout = LoadOak();
+        GroundNode northBar = NorthBar28ROnG(layout);
+        GroundNode start = WalkBackAwayFrom28R(layout, northBar, "G", 2);
+        (GroundViewModel vm, AircraftModel ac) = ClearedFrom(layout, start, northBar, "G", "28L", Active("28R"));
+        ac.CurrentPhase = "Holding Short 10L";
+
+        IReadOnlyList<HoldShortChoice> rows = vm.GetHoldShortMenu(ac).Rows;
+
+        Assert.DoesNotContain(rows, r => r.Label.Badge == HoldShortChoice.RunwayBadge);
+    }
+
     [Fact]
     public void LowerCaseLayoutId_TheRoomsActiveEndNamesTheRow()
     {

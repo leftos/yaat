@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -276,7 +277,7 @@ public class Issue358HoldShortAtLocationTests(ITestOutputHelper output)
         Assert.True(parsed.IsSuccess, $"'HS C@J' failed to parse: {parsed.Reason}");
         HoldShortCommand hsCmd = Assert.IsType<HoldShortCommand>(parsed.Value);
 
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, hsCmd, layout);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, hsCmd, layout, ActiveRunways.Empty);
         TaxiRoute? route = ac.Ground.AssignedTaxiRoute;
         LogRoute("post-hoc C@J", route);
         Assert.True(result.Success, $"HS C@J failed: {result.Message}");

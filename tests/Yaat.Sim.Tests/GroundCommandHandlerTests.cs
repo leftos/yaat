@@ -1160,7 +1160,7 @@ public class GroundCommandHandlerTests
         ac.IsOnGround = false;
         var cmd = new HoldShortCommand(HoldShortTarget.Parse("28R"));
 
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, cmd, null);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, cmd, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("on the ground", result.Message!);
@@ -1172,7 +1172,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         var cmd = new HoldShortCommand(HoldShortTarget.Parse("28R"));
 
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, cmd, null);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, cmd, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("No taxi route", result.Message!);
@@ -1185,7 +1185,7 @@ public class GroundCommandHandlerTests
         ac.Ground.AssignedTaxiRoute = MakeRouteWithHoldShort("28R/10L");
         var cmd = new HoldShortCommand(HoldShortTarget.Parse("B"));
 
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, cmd, null);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, cmd, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("No ground layout", result.Message!);
@@ -2301,7 +2301,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = route;
 
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout, ActiveRunways.Empty);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         HoldShortPoint hs28R = Assert.Single(route.HoldShortPoints, h => h.TargetName == "28R/10L");
@@ -2319,7 +2319,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = route;
 
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("28R", result.Message!);
@@ -2336,7 +2336,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = route;
 
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout, ActiveRunways.Empty);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         HoldShortPoint hs28R = Assert.Single(route.HoldShortPoints, h => h.TargetName == "28R/10L");
@@ -2360,7 +2360,7 @@ public class GroundCommandHandlerTests
         );
         Assert.True(route.HoldShortPoints[1].IsCleared);
 
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout, ActiveRunways.Empty);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.False(route.HoldShortPoints[1].IsCleared);
@@ -2375,7 +2375,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = route;
 
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout, ActiveRunways.Empty);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Equal(HoldShortReason.DestinationRunway, route.HoldShortPoints[1].Reason);

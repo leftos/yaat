@@ -1,8 +1,10 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -536,7 +538,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
             TargetName = "T",
         };
         route.HoldShortPoints.Add(bar);
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, LengthFt("B738"), null);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, LengthFt("B738"), null, HoldShortAnnotator.CombinedName);
         return (route, position, bar);
     }
 
@@ -819,12 +821,12 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         // setback, the nose short of the floor, and the route warns.
         TaxiRoute route = held.Aircraft.Ground.AssignedTaxiRoute!;
         route.CurrentSegmentIndex = route.Segments.FindIndex(s => s.ToNodeId == held.Bar.NodeId) + 1;
-        HoldShortAnnotator.ComputeHoldShortPositions(held.Ground.Layout, route, LengthFt("B738"), null);
+        HoldShortAnnotator.ComputeHoldShortPositions(held.Ground.Layout, route, LengthFt("B738"), null, HoldShortAnnotator.CombinedName);
         string first = Assert.Single(route.Warnings, w => w.StartsWith(WingtipWarningPrefixT, StringComparison.Ordinal));
 
         // A recompute that lands the nose at a different distance (here a longer fuselage against the same bound)
         // replaces the warning instead of adding a second one for the same bar.
-        HoldShortAnnotator.ComputeHoldShortPositions(held.Ground.Layout, route, LengthFt("B738") + 20.0, null);
+        HoldShortAnnotator.ComputeHoldShortPositions(held.Ground.Layout, route, LengthFt("B738") + 20.0, null, HoldShortAnnotator.CombinedName);
 
         string second = Assert.Single(route.Warnings, w => w.StartsWith(WingtipWarningPrefixT, StringComparison.Ordinal));
         Assert.NotEqual(first, second);
@@ -1070,7 +1072,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         output.WriteLine($"exit: bar {bar.Id} -> junction {nodes[^1].Id} on {crossed}, {barToJunctionFt:F0} ft");
         TaxiRoute route = RouteThrough(nodes, crossed);
 
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, lengthFt, null);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, lengthFt, null, HoldShortAnnotator.CombinedName);
 
         HoldShortPoint hold = Assert.Single(route.HoldShortPoints);
         LatLon centre = new(hold.Latitude!.Value, hold.Longitude!.Value);
@@ -1081,6 +1083,89 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         );
         Assert.Null(hold.TailOverRunwayNodeId);
     }
+
+    /// <summary>
+    /// A B748 holding short just past a runway it cannot clear: the tail-over warning names that runway by the end the room lists
+    /// as active, not both ends.
+    /// </summary>
+    [Fact]
+    public void TaxiwayHoldShort_TailOverAnActiveRunway_WarningNamesTheActiveEnd()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        if (layout is null)
+        {
+            return;
+        }
+
+        (List<GroundNode> Nodes, string Crossed, double BarToJunctionFt)? exit = FindRunwayExitToJunction(layout, 65.0, 140.0);
+        Assert.True(exit is not null, "SFO has no runway exit whose bar is 65-140 ft before a taxiway junction");
+        (List<GroundNode> nodes, string crossed, _) = exit.Value;
+        RunwayIdentifier runway = nodes[1].RunwayId!.Value;
+        ActiveRunways active = ActiveRunways.Empty.With("SFO", [new ActiveRunway(runway.End2, ActiveRunwayUse.Both)]);
+        TaxiRoute route = RouteThrough(nodes, crossed);
+
+        HoldShortAnnotator.ComputeHoldShortPositions(
+            layout,
+            route,
+            LengthFt("B748"),
+            null,
+            RunwayCrossingEnd.TailOverNamer(null, layout, active, null)
+        );
+
+        string warning = Assert.Single(route.Warnings, w => w.Contains("leaves the tail over RWY", StringComparison.Ordinal));
+        Assert.Contains($"over RWY {RunwayIdentifier.ToDisplayDesignator(runway.End2)} —", warning, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A B748 landed on OAK 28R, with <c>OAK 28R 10L</c> active, exits past mid-field onto a taxiway whose junction is too close
+    /// to clear the runway: the tail-over warning names its own runway by the assigned end 28R, not 10L, the active end nearer
+    /// the aircraft. Red proof: with the namer ignoring the assigned runway the warning read "holding short of C leaves the
+    /// tail over RWY 10L".
+    /// </summary>
+    [Fact]
+    public void TaxiwayHoldShort_TailOverItsOwnRunway_WarningNamesTheAssignedEnd()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        RunwayInfo assigned = NavigationDatabase.Instance.GetRunway("OAK", "28R") ?? throw new InvalidOperationException("OAK 28R missing");
+        RunwayInfo farEnd = NavigationDatabase.Instance.GetRunway("OAK", "10L") ?? throw new InvalidOperationException("OAK 10L missing");
+        double lengthFt = LengthFt("B748");
+        (List<GroundNode> Nodes, string Crossed, double BarToJunctionFt)? exit = layout
+            .Nodes.Values.Where(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && id.Overlaps(assigned.Id))
+            .Where(bar => PastMidField(bar.Position, assigned, farEnd))
+            .OrderBy(n => n.Id)
+            .Select(bar => ExitThroughBar(layout, bar))
+            .FirstOrDefault(walk => (walk is { } w) && (w.BarToJunctionFt > 0.0) && (w.BarToJunctionFt < lengthFt));
+        Assert.True(exit is not null, "OAK has no 28R exit past mid-field whose bar is closer than a B748 to a taxiway junction");
+        (List<GroundNode> nodes, string crossed, _) = exit.Value;
+        ActiveRunways active = ActiveRunways.Empty.With(
+            "OAK",
+            [new ActiveRunway("28R", ActiveRunwayUse.Both), new ActiveRunway("10L", ActiveRunwayUse.Both)]
+        );
+        TaxiRoute route = RouteThrough(nodes, crossed);
+
+        HoldShortAnnotator.ComputeHoldShortPositions(
+            layout,
+            route,
+            lengthFt,
+            null,
+            RunwayCrossingEnd.TailOverNamer(nodes[0].Position, layout, active, assigned)
+        );
+
+        string warning = Assert.Single(route.Warnings, w => w.Contains("leaves the tail over RWY", StringComparison.Ordinal));
+        Assert.Contains("over RWY 28R —", warning, StringComparison.Ordinal);
+    }
+
+    /// <summary>Whether <paramref name="point"/> is nearer <paramref name="farEnd"/>'s threshold than the landing end's.</summary>
+    private static bool PastMidField(LatLon point, RunwayInfo landing, RunwayInfo farEnd) =>
+        GeoMath.DistanceNm(point, new LatLon(farEnd.ThresholdLatitude, farEnd.ThresholdLongitude))
+        < GeoMath.DistanceNm(point, new LatLon(landing.ThresholdLatitude, landing.ThresholdLongitude));
 
     [Fact]
     public void TaxiwayHoldShort_JustPastRunway_KeepsTheNoseAtTheLineWithoutTheFloor()
@@ -1100,7 +1185,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         (List<GroundNode> nodes, string crossed, _) = exit.Value;
         TaxiRoute route = RouteThrough(nodes, crossed);
 
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, lengthFt, null);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, lengthFt, null, HoldShortAnnotator.CombinedName);
 
         HoldShortPoint hold = Assert.Single(route.HoldShortPoints);
         GroundNode expected = VirtualNode.OffsetBefore(
@@ -1153,7 +1238,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         var towardRunway = new TrueHeading(GeoMath.BearingTo(nodes[1].Position, nodes[0].Position));
         LatLon aircraft = GeoMath.ProjectPoint(nodes[1].Position, towardRunway, ShortOfTheFarHoldLineFt / GeoMath.FeetPerNm);
 
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, lengthFt, aircraft);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, lengthFt, aircraft, HoldShortAnnotator.CombinedName);
 
         LatLon stop = PlacedStopOf(route);
         output.WriteLine(
@@ -1190,7 +1275,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         LatLon reference = staged.Reference;
         var legBack = new TrueHeading(GeoMath.BearingTo(staged.TurnNode.Position, staged.NearNode.Position));
         LatLon onLegBack = GeoMath.ProjectPoint(staged.TurnNode.Position, legBack, DoubledBackPastTheTurnFt / GeoMath.FeetPerNm);
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, doubled, AircraftLength.ResolveFt("B738"), onLegBack);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, doubled, AircraftLength.ResolveFt("B738"), onLegBack, HoldShortAnnotator.CombinedName);
         LatLon stop = PlacedStopOf(doubled);
         double aheadFt =
             FeetBetween(onLegBack, stop)
@@ -1225,7 +1310,7 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
         var outward = new TrueHeading(GeoMath.BearingTo(staged.NearNode.Position, staged.TurnNode.Position));
         LatLon outFrom = doubled.Segments[0].Edge.FromNode.Position;
         LatLon onLegOut = GeoMath.ProjectPoint(outFrom, outward, FeetBetween(outFrom, staged.Reference) / 2.0 / GeoMath.FeetPerNm);
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, doubled, AircraftLength.ResolveFt("B738"), onLegOut);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, doubled, AircraftLength.ResolveFt("B738"), onLegOut, HoldShortAnnotator.CombinedName);
         LatLon stop = PlacedStopOf(doubled);
         output.WriteLine(
             $"doubled-back stop {FeetBetween(stop, staged.Reference):F1} ft from the reference, "
@@ -1276,7 +1361,13 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
 
         int far = Math.Min(back.Count - 1, 8);
         TaxiRoute straight = HoldingShortOfTAlong([.. Enumerable.Range(0, far + 1).Select(i => back[far - i])], bar);
-        HoldShortAnnotator.ComputeHoldShortPositions(layout, straight, AircraftLength.ResolveFt("B738"), back[far].Position);
+        HoldShortAnnotator.ComputeHoldShortPositions(
+            layout,
+            straight,
+            AircraftLength.ResolveFt("B738"),
+            back[far].Position,
+            HoldShortAnnotator.CombinedName
+        );
         LatLon reference = PlacedStopOf(straight);
         int k = Enumerable.Range(0, far).First(i => OffLegFt(back[i], back[i + 1], reference) < 1.0);
         double fromTurnFt = FeetBetween(back[k + 1].Position, reference);

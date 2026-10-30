@@ -264,6 +264,31 @@ public class SituationStepTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The same taxi with the room listing only the other end of the runway to cross as active: the stored runway to cross
+    /// (the CROSS menu's text) names that active end, not the end the step named before it was listed.
+    /// </summary>
+    [Fact]
+    public void TickSituation_NextCrossingRunway_NamesTheActiveEnd()
+    {
+        if (Engine(AiTestFixture.ParkedAtOak) is not { } engine)
+        {
+            return;
+        }
+
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 28L").Success);
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        engine.TickSituation();
+        string before = ac.Situation.NextCrossingRunway ?? throw new Xunit.Sdk.XunitException("no runway to cross next");
+        string otherEnd = RunwayIdentifier.ToDisplayDesignator(new RunwayIdentifier(before).End2);
+        string airport = (ac.Ground.Layout ?? engine.ResolveGroundLayout(ac))!.AirportId;
+        engine.Scenario!.ActiveRunways = ActiveRunways.Empty.With(airport, [new ActiveRunway(otherEnd, ActiveRunwayUse.Both)]);
+
+        engine.TickSituation();
+
+        Assert.Equal(otherEnd, ac.Situation.NextCrossingRunway);
+    }
+
+    /// <summary>
     /// Holding in position with a taxi route whose next bar is an explicit hold-short of 28R: the step resolves the ground
     /// layout for a holding-on-ground aircraft, which the explicit bar needs to be read as a runway's. The route comes from a
     /// taxi; the aircraft is then put in the holding phase directly, since a sim command that holds it keeps it taxiing.

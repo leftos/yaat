@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -27,7 +28,7 @@ public class HoldShortRunwayBothEndsTests
         ExplicitHoldShortPlan plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, target);
         int boundNodeId = plan.Existing?.NodeId ?? plan.NodeId;
         HoldShortCommand hs = Assert.IsType<HoldShortCommand>(CommandParser.Parse($"HS {end}").Value);
-        CommandResult result = GroundCommandHandler.TryHoldShort(ac, hs, layout);
+        CommandResult result = GroundCommandHandler.TryHoldShort(ac, hs, layout, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.Contains(plan.Outcome, new[] { ExplicitHoldShortOutcome.ReArm, ExplicitHoldShortOutcome.Add });

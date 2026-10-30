@@ -319,7 +319,7 @@ public sealed partial class SimulationEngine
                     ? ResolveAirportLayout(runway.AirportId)
                     : null;
             situation.Flags = SituationFlagCalculator.Compute(ac, situation.Current, situation.Flags, groundLayout, runwayLayout);
-            situation.NextCrossingRunway = SituationFlagCalculator.NextCrossingRunway(ac, situation.Current, groundLayout);
+            situation.NextCrossingRunway = SituationFlagCalculator.NextCrossingRunway(ac, situation.Current, groundLayout, scenario.ActiveRunways);
             situation.ExitsAhead = ExitsAheadOf(ac, phase, runwayLayout, World.Weather, scenario.ElapsedSeconds);
             situation.MeetPoints = null;
         }

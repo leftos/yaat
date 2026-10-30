@@ -31,6 +31,10 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     // Set once the pilot has made the call for the current wait for the lead; cleared as a wait starts or ends. Snapshotted.
     private bool _saidWaitForLead;
 
+    // The end the phase's name and terminal text give its runway, chosen as the hold starts from the room's active runways
+    // (RunwayCrossingEnd.ActiveEndOf); null — the combined id — when no end of it is active. Kept until the hold ends. Snapshotted.
+    private string? _displayEnd;
+
     public HoldShortPoint HoldShort => _holdShort;
 
     /// <summary>
@@ -50,7 +54,8 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     /// </summary>
     internal void RebindHoldShort(HoldShortPoint holdShort) => _holdShort = holdShort;
 
-    public override string Name => _holdShort.TargetName is { } target ? $"Holding Short {HoldShortTarget.Describe(target)}" : "Holding Short";
+    public override string Name =>
+        _holdShort.TargetName is { } target ? $"Holding Short {_displayEnd ?? HoldShortTarget.Describe(target)}" : "Holding Short";
 
     public override bool IsIdleAwaitingCommands => true;
 
@@ -72,8 +77,10 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             _holdShort.Reason
         );
 
+        _displayEnd = RunwayCrossingEnd.ActiveEndOf(ctx.Aircraft, _holdShort.TargetName, ctx.GroundLayout, ctx.ActiveRunways);
+
         // Generate notification
-        string target = HoldShortTarget.Describe(_holdShort.TargetName ?? "unknown");
+        string target = _displayEnd ?? HoldShortTarget.Describe(_holdShort.TargetName ?? "unknown");
         string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
         // A route-incomplete hold is short of the taxiway the route still needs, so it reads like a controller's HS.
         bool heldAtNamedTarget = _holdShort.Reason is HoldShortReason.ExplicitHoldShort or HoldShortReason.RouteIncomplete;
@@ -104,7 +111,9 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             && tailRwyNode.RunwayId is { } tailRwy
         )
         {
-            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} not clear of RWY {tailRwy.ToDisplayString()} — tail over the hold-short bars");
+            string tailName =
+                RunwayCrossingEnd.ActiveEndOf(ctx.Aircraft, tailRwy.ToString(), groundLayout, ctx.ActiveRunways) ?? tailRwy.ToDisplayString();
+            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} not clear of RWY {tailName} — tail over the hold-short bars");
         }
 
         // "Ready for departure" is only correct at the aircraft's assigned departure runway
@@ -150,16 +159,15 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             return HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway");
         }
 
-        return (aircraft.Phases?.AssignedRunway is { } assigned) && assigned.Id.Overlaps(RunwayIdentifier.Parse(combined))
-            ? RunwayIdentifier.ToDisplayDesignator(assigned.Designator)
-            : RunwayCrossingEnd.Spoken(aircraft, combined, aircraft.Ground.Layout, activeRunways);
+        return RunwayCrossingEnd.EndFacing(aircraft.Position, combined, aircraft.Ground.Layout, activeRunways, aircraft.Phases?.AssignedRunway);
     }
 
     /// <summary>
     /// For a runway-crossing hold-short the spoken report names only one end of the runway (e.g. "runway one five" rather than
     /// the combined "one five / three three"): the end a pilot names it by (<see cref="RunwayCrossingEnd.Spoken"/>: the active
-    /// end, else the nearest; the first end when the thresholds cannot be resolved). Falls back to <paramref name="displayDesignator"/> (the combined form used on the
-    /// controller-facing warning) when the hold-short is not a runway crossing.
+    /// end, else the nearest; the first end when the thresholds cannot be resolved). Falls back to
+    /// <paramref name="displayDesignator"/> (the end stored as the hold started, else the target as given) when the hold-short
+    /// is not a runway crossing, such as the departure bar.
     /// </summary>
     private string ResolveSpokenCrossingRunway(PhaseContext ctx, string displayDesignator)
     {
@@ -488,7 +496,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             return RouteIncompleteMessage(_holdShort.TargetName);
         }
 
-        string target = HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway");
+        string target = _displayEnd ?? HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway");
         return ProtectsARunway
             ? $"aircraft is holding short of {target}; only CROSS/LUAW/CTO/HSC, FOLLOWG, a new TAXI, or DEL apply"
             : $"aircraft is holding short of {target}; only RES/FOLLOWG/CROSS/HSC, a new TAXI, or DEL apply";
@@ -523,6 +531,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             SaidTrafficAhead = _saidTrafficAhead ? true : null,
             WaitingForLead = _waitingForLead ? true : null,
             SaidWaitForLead = _saidWaitForLead ? true : null,
+            DisplayEnd = _displayEnd,
         };
 
     public static HoldingShortPhase FromSnapshot(HoldingShortPhaseDto dto)
@@ -540,6 +549,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             _saidTrafficAhead = dto.SaidTrafficAhead ?? false,
             _waitingForLead = dto.WaitingForLead ?? false,
             _saidWaitForLead = dto.SaidWaitForLead ?? false,
+            _displayEnd = dto.DisplayEnd,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };

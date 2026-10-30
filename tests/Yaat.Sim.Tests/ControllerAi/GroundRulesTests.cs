@@ -746,7 +746,10 @@ public class GroundRulesTests
                     pending.DistanceFt <= RunwayCrossingRule.PreClearDistanceFt,
                     $"issued {request.Canonical} {pending.DistanceFt:F0} ft early"
                 );
-                Assert.Equal($"CROSS {TaxiRouteProgress.NearestCrossingEnd(aircraft, pending.Point.TargetName!, layout)}", request.Canonical);
+                Assert.Equal(
+                    $"CROSS {TaxiRouteProgress.CrossingEnd(aircraft, pending.Point.TargetName!, layout, engine.Scenario.ActiveRunways)}",
+                    request.Canonical
+                );
                 issuedAt.Add((request.Canonical, pending.Point.NodeId, crossings[0].IsCleared));
                 Assert.True(engine.SendCommand(AiTestFixture.Callsign, request.Canonical).Success, request.Canonical);
                 probe.Memos[AiTestFixture.Callsign].Complete(success: true, engine.Scenario.ElapsedSeconds);
@@ -761,6 +764,40 @@ public class GroundRulesTests
         Assert.True(issuedAt[1].FirstBarCleared);
         Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
         Assert.Equal(GroundIntent.None, probe.Memos[AiTestFixture.Callsign].Intent);
+    }
+
+    /// <summary>
+    /// The room lists only the far end of the first runway crossed (the end away from its bar) as active: the Ground brain's
+    /// CROSS names that active end, not the end nearest the aircraft.
+    /// </summary>
+    [Fact]
+    public void RunwayCrossing_ActiveEndListed_CrossNamesTheActiveEnd()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, [ground]);
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "TAXIAUTO 30").Success);
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        AirportGroundLayout layout = engine.ResolveGroundLayout(aircraft)!;
+        HoldShortPoint first = aircraft.Ground.AssignedTaxiRoute!.HoldShortPoints.First(h => h.Reason == HoldShortReason.RunwayCrossing);
+        string nearBar = RunwayCrossingEnd.SpokenFrom(layout.Nodes[first.NodeId].Position, first.TargetName!, layout, ActiveRunways.Empty);
+        string farEnd = RunwayIdentifier.ToDisplayDesignator(new RunwayIdentifier(nearBar).End2);
+        engine.Scenario!.ActiveRunways = ActiveRunways.Empty.With(layout.AirportId, [new ActiveRunway(farEnd, ActiveRunwayUse.Both)]);
+        var probe = new RuleProbe(engine, ground);
+        var rule = new RunwayCrossingRule();
+
+        for (int t = 0; (t < 900) && (probe.Sink.Issued.Count == 0); t++)
+        {
+            engine.TickOneSecond();
+            rule.Evaluate(probe.Scope([aircraft], engine.Scenario.ElapsedSeconds));
+        }
+
+        AiCommandRequest request = Assert.Single(probe.Sink.Issued);
+        Assert.Equal($"CROSS {farEnd}", request.Canonical);
     }
 
     [Fact]

@@ -109,39 +109,39 @@ public partial class GroundViewModel : ObservableObject
     private string? SettingsKey => _activeScenarioId is null ? null : _activeScenarioId + SettingsKeySuffix;
 
     [ObservableProperty]
-    private GroundLayoutDto? _layout;
+    private readonly GroundLayoutDto? _layout;
 
     [ObservableProperty]
-    private AircraftModel? _selectedAircraft;
+    private readonly AircraftModel? _selectedAircraft;
 
     [ObservableProperty]
-    private WeatherDisplayInfo? _weatherInfo;
+    private readonly WeatherDisplayInfo? _weatherInfo;
 
     /// <summary>Shown in place of the weather readout when the loaded weather has no METAR for this view's airport.</summary>
     [ObservableProperty]
-    private string? _weatherNote;
+    private readonly string? _weatherNote;
 
     [ObservableProperty]
-    private TaxiRoute? _hoverTaxiRoute;
+    private readonly TaxiRoute? _hoverTaxiRoute;
 
     [ObservableProperty]
-    private TaxiRoute? _previewRoute;
+    private readonly TaxiRoute? _previewRoute;
 
     /// <summary>The scope preview a pointed or focused menu row shows (<see cref="IMenuHost.SetScopePreview"/>); null for none.</summary>
     [ObservableProperty]
-    private ScopePreview? _scopePreview;
+    private readonly ScopePreview? _scopePreview;
 
     [ObservableProperty]
-    private bool _isDrawingRoute;
+    private readonly bool _isDrawingRoute;
 
     [ObservableProperty]
-    private TaxiRoute? _drawnRoutePreview;
+    private readonly TaxiRoute? _drawnRoutePreview;
 
     [ObservableProperty]
-    private IReadOnlyList<int>? _drawWaypoints;
+    private readonly IReadOnlyList<int>? _drawWaypoints;
 
     [ObservableProperty]
-    private TaxiRoute? _drawHoverPreview;
+    private readonly TaxiRoute? _drawHoverPreview;
 
     /// <summary>
     /// The plan <see cref="TugMovePlanner"/> builds for the tug move being drawn, or null when no push route
@@ -150,59 +150,59 @@ public partial class GroundViewModel : ObservableObject
     /// screen is exactly what was planned even once the aircraft has moved on.
     /// </summary>
     [ObservableProperty]
-    private TugPlan? _pushRoutePreview;
+    private readonly TugPlan? _pushRoutePreview;
 
     /// <summary>
     /// Why the tug move being drawn cannot be planned, or null when it can. The waypoint stays on the list
     /// so the controller sees which leg is illegal and why instead of a silently missing line.
     /// </summary>
     [ObservableProperty]
-    private string? _pushRouteRefusal;
+    private readonly string? _pushRouteRefusal;
 
     /// <summary>
     /// One marker per point of the push route being drawn, aligned with <see cref="DrawWaypoints"/>: where it sits
     /// (marked points are not graph nodes), its facing, and its forced tug motion. Null outside push-draw mode.
     /// </summary>
     [ObservableProperty]
-    private IReadOnlyList<PushWaypointMark>? _pushWaypointMarks;
+    private readonly IReadOnlyList<PushWaypointMark>? _pushWaypointMarks;
 
     [ObservableProperty]
-    private double _airportCenterLat;
+    private readonly double _airportCenterLat;
 
     [ObservableProperty]
-    private double _airportCenterLon;
+    private readonly double _airportCenterLon;
 
     [ObservableProperty]
-    private double _airportElevation;
+    private readonly double _airportElevation;
 
     [ObservableProperty]
-    private bool _showRunwayLabels = true;
+    private readonly bool _showRunwayLabels = true;
 
     [ObservableProperty]
-    private bool _showTaxiwayLabels = true;
+    private readonly bool _showTaxiwayLabels = true;
 
     [ObservableProperty]
-    private GroundFilterMode _showHoldShort = GroundFilterMode.LabelsAndIcons;
+    private readonly GroundFilterMode _showHoldShort = GroundFilterMode.LabelsAndIcons;
 
     [ObservableProperty]
-    private GroundFilterMode _showParking = GroundFilterMode.LabelsAndIcons;
+    private readonly GroundFilterMode _showParking = GroundFilterMode.LabelsAndIcons;
 
     [ObservableProperty]
-    private GroundFilterMode _showSpot = GroundFilterMode.LabelsAndIcons;
+    private readonly GroundFilterMode _showSpot = GroundFilterMode.LabelsAndIcons;
 
     /// <summary>
     /// When on, the airport's published Arrival/Departure Window marks are drawn. Airports without an
     /// authored <c>adw</c> sidecar section draw nothing, so leaving this on costs nothing elsewhere.
     /// </summary>
     [ObservableProperty]
-    private bool _showAdwMarkings = true;
+    private readonly bool _showAdwMarkings = true;
 
     /// <summary>
     /// When on, hovering an aircraft on the ground view temporarily draws its taxi route.
     /// Persisted globally (<see cref="Services.UserPreferences.GroundShowTaxiRouteOnHover"/>); default on.
     /// </summary>
     [ObservableProperty]
-    private bool _showTaxiRouteOnHover = true;
+    private readonly bool _showTaxiRouteOnHover = true;
 
     /// <summary>
     /// When on, every taxiing aircraft's taxi route is drawn by default unless the aircraft has been
@@ -210,7 +210,7 @@ public partial class GroundViewModel : ObservableObject
     /// default off.
     /// </summary>
     [ObservableProperty]
-    private bool _showAllTaxiRoutes;
+    private readonly bool _showAllTaxiRoutes;
 
     /// <summary>
     /// Opt-in datablock deconfliction mode for this ground view. Persisted globally
@@ -219,7 +219,7 @@ public partial class GroundViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DeconflictModeLabel))]
     [NotifyPropertyChangedFor(nameof(IsDeconflictActive))]
-    private DatablockDeconflictMode _deconflictMode;
+    private readonly DatablockDeconflictMode _deconflictMode;
 
     /// <summary>True when deconfliction is on (either mode) — drives the DCNF button's active styling.</summary>
     public bool IsDeconflictActive => DeconflictMode != DatablockDeconflictMode.Off;
@@ -234,49 +234,49 @@ public partial class GroundViewModel : ObservableObject
         };
 
     [ObservableProperty]
-    private bool _isPanZoomLocked;
+    private readonly bool _isPanZoomLocked;
 
     [ObservableProperty]
-    private GroundColorScheme _colorScheme = GroundColorScheme.Default;
+    private readonly GroundColorScheme _colorScheme = GroundColorScheme.Default;
 
     [ObservableProperty]
-    private TowerCabImage? _backgroundImage;
+    private readonly TowerCabImage? _backgroundImage;
 
     [ObservableProperty]
-    private TowerCabMapData? _towerCabMap;
+    private readonly TowerCabMapData? _towerCabMap;
 
     [ObservableProperty]
-    private bool _showSatelliteImage;
+    private readonly bool _showSatelliteImage;
 
     [ObservableProperty]
-    private int _satelliteImageBrightness = 50;
+    private readonly int _satelliteImageBrightness = 50;
 
     [ObservableProperty]
-    private bool _showVideoMapOverlay;
+    private readonly bool _showVideoMapOverlay;
 
     [ObservableProperty]
-    private int _videoMapOverlayBrightness = 70;
+    private readonly int _videoMapOverlayBrightness = 70;
 
     [ObservableProperty]
-    private bool _showYaatLayout = true;
+    private readonly bool _showYaatLayout = true;
 
     [ObservableProperty]
-    private int _yaatLayoutBrightness = 100;
+    private readonly int _yaatLayoutBrightness = 100;
 
     [ObservableProperty]
-    private double _viewCenterLat;
+    private readonly double _viewCenterLat;
 
     [ObservableProperty]
-    private double _viewCenterLon;
+    private readonly double _viewCenterLon;
 
     [ObservableProperty]
-    private double _viewZoom = 1.0;
+    private readonly double _viewZoom = 1.0;
 
     [ObservableProperty]
-    private double _viewRotation;
+    private readonly double _viewRotation;
 
     [ObservableProperty]
-    private bool _hasSavedView;
+    private readonly bool _hasSavedView;
 
     private static readonly SKColor[] TaxiRouteColors =
     [
@@ -303,7 +303,7 @@ public partial class GroundViewModel : ObservableObject
     private string? _hoveredCallsign;
 
     [ObservableProperty]
-    private IReadOnlyList<ShownTaxiRouteEntry>? _shownTaxiRoutes;
+    private readonly IReadOnlyList<ShownTaxiRouteEntry>? _shownTaxiRoutes;
 
     private Func<string, AircraftModel?>? _findAircraft;
     private Func<IReadOnlyList<AircraftModel>>? _aircraftProvider;
@@ -2404,7 +2404,7 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
-    /// What a holding-short phase is doing: <c>holding short of 28R</c> (the first end of a runway pair), <c>holding
+    /// What a holding-short phase is doing: <c>holding short of 28R</c> (the end the phase names, the first of a pair), <c>holding
     /// short of B</c>, <c>holding short of spot 17</c>, or <c>holding short</c> for a phase naming no target.
     /// </summary>
     private static string HoldingShortWords(string phase)
@@ -2444,7 +2444,7 @@ public partial class GroundViewModel : ObservableObject
         }
 
         var routeTaxiways = new HashSet<string>(ParseRouteTaxiways(ac.TaxiRoute), StringComparer.OrdinalIgnoreCase);
-        HeldTarget? held = HeldTarget.Of(ac.CurrentPhase);
+        HeldTarget? held = HeldTarget.Of(ac.CurrentPhase, layout);
         (double OffsetFt, int FirstPosition) start = PastHeldBar(layout, route, held, RouteStart(route, ac.Position));
         HashSet<string> activeEnds = ActiveRunwayEnds(layout.AirportId);
         List<(int Position, HoldShortChoice Row)> rows = [];
@@ -2632,8 +2632,12 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     private readonly record struct HeldTarget(string BindTarget, RunwayIdentifier? Runway)
     {
-        /// <summary>The target <paramref name="phase"/> holds short of; null in any other phase, for a bare hold and for a spot.</summary>
-        public static HeldTarget? Of(string phase)
+        /// <summary>
+        /// The target <paramref name="phase"/> holds short of; null in any other phase, for a bare hold and for a spot. A
+        /// phase naming a runway by one end (<c>Holding Short 1R</c>, its active end) or by both is resolved to the runway
+        /// <paramref name="layout"/> pairs that end with, else to the end and its computed reciprocal.
+        /// </summary>
+        public static HeldTarget? Of(string phase, AirportGroundLayout layout)
         {
             if (!HoldShortMenuHelper.IsHoldingShort(phase) || (phase.Length <= HoldShortMenuHelper.HoldingShortPrefix.Length))
             {
@@ -2646,14 +2650,15 @@ public partial class GroundViewModel : ObservableObject
                 return target.StartsWith("spot ", StringComparison.OrdinalIgnoreCase) ? null : new HeldTarget(target, null);
             }
 
-            var runway = RunwayIdentifier.Parse(target);
+            var named = RunwayIdentifier.Parse(target);
+            RunwayIdentifier runway = layout.FindRunway(named.End1)?.Id ?? named;
             return new HeldTarget(runway.End1, runway);
         }
 
         /// <summary>
         /// Whether the <c>HS</c> target <paramref name="rowTarget"/> (<c>X</c> or <c>X@Y</c>) names this one: either end of
-        /// the held runway, else the held taxiway. Such a row would re-arm or repeat the hold the aircraft is in, so it is
-        /// no stop.
+        /// the held runway, whichever end the phase names, else the held taxiway. Such a row would re-arm or repeat the hold
+        /// the aircraft is in, so it is no stop.
         /// </summary>
         public bool IsNamedBy(string rowTarget)
         {

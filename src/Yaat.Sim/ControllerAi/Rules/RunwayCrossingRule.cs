@@ -51,7 +51,7 @@ public sealed class RunwayCrossingRule : IDecisionRule
                 continue;
             }
 
-            string end = TaxiRouteProgress.NearestCrossingEnd(aircraft, target, layout);
+            string end = TaxiRouteProgress.CrossingEnd(aircraft, target, layout, scope.Tick.Scenario.ActiveRunways);
             if (CabStaffing.LocalIsStaffed(scope, airport))
             {
                 AskLocal(scope, aircraft, memo, bar, end, timedOut);

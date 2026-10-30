@@ -1004,7 +1004,7 @@ public class SituationFlagCalculatorTests
         Assert.True(taxi.Engine.SendCommand(AiTestFixture.Callsign, "HS 28R").Success);
         AircraftState ac = TickUntilTaxiing(taxi);
 
-        Assert.Null(SituationFlagCalculator.NextCrossingRunway(ac, AircraftSituation.Taxiing, null));
+        Assert.Null(SituationFlagCalculator.NextCrossingRunway(ac, AircraftSituation.Taxiing, null, ActiveRunways.Empty));
     }
 
     // --- HasTakeoffClearance ---
@@ -1227,7 +1227,7 @@ public class SituationFlagCalculatorTests
         route.Segments.Skip(route.CurrentSegmentIndex).Any(s => s.ToNodeId == bar.NodeId);
 
     private static string? NextCrossing(SimulationEngine engine, AircraftState ac, AircraftSituation situation) =>
-        SituationFlagCalculator.NextCrossingRunway(ac, situation, ac.Ground.Layout ?? engine.ResolveGroundLayout(ac));
+        SituationFlagCalculator.NextCrossingRunway(ac, situation, ac.Ground.Layout ?? engine.ResolveGroundLayout(ac), engine.Scenario!.ActiveRunways);
 
     private static SituationFlags ComputeAs(AircraftState ac, AircraftSituation situation) =>
         SituationFlagCalculator.Compute(ac, situation, SituationFlags.None, null, null);

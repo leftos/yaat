@@ -570,6 +570,7 @@ extend the resolver to depend on a new input, fingerprint that input too.
 
   The client carries them as `AircraftModel.SituationFlags` and exposes them to the context menus as `IMenuAircraft.SituationFlags`; only the quick lists read them, All Commands keeps every entry whatever they say.
 - `NextCrossingRunway` (a string, an `AircraftStateDto` / `AircraftDto` field) is the stored `AircraftSituationState.NextCrossingRunway`, computed in the same `Situation` step by `SituationFlagCalculator.NextCrossingRunway`: while the situation is Taxiing, Holding on ground or Rollout/exit, the runway whose bar is the first uncleared one on the taxi route, as the display designator of the end to name in `CROSS` ("28R").
+  The end is the room's active end of the runway, else the end nearest the aircraft (`SituationFlagCalculator.NextCrossingRunway` takes the room's `ActiveRunways`).
 
   It is null in every other situation, with no taxi route, when the next uncleared bar is the departure runway's or a taxiway's, at an intersection-departure hold-short of the assigned runway, and while the previous runway is not yet crossed (7110.65 §3-7-2.c): while a runway already cleared to cross lies ahead of that bar, or while the aircraft is still on the pavement of a runway whose bar is behind it on its taxi route.
 

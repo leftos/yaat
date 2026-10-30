@@ -189,12 +189,18 @@ public static class SituationFlagCalculator
     /// <param name="ac">The aircraft.</param>
     /// <param name="situation">The situation the classifier just computed for this second.</param>
     /// <param name="groundLayout">The aircraft's airport ground layout (<see cref="NeedsGroundLayout"/>); null when none is loaded.</param>
+    /// <param name="activeRunways">The room's active runways, which choose the end to name.</param>
     /// <returns>
     /// The display designator of the end to name in <c>CROSS</c> (<see cref="RunwayCrossingEnd.Spoken"/>); null when the
     /// next uncleared bar is the departure runway's or a taxiway's, when every bar is cleared, with no taxi route, or in
     /// any other situation.
     /// </returns>
-    public static string? NextCrossingRunway(AircraftState ac, AircraftSituation situation, AirportGroundLayout? groundLayout)
+    public static string? NextCrossingRunway(
+        AircraftState ac,
+        AircraftSituation situation,
+        AirportGroundLayout? groundLayout,
+        ActiveRunways activeRunways
+    )
     {
         if (
             (!IsGroundMovementSituation(situation))
@@ -208,8 +214,7 @@ public static class SituationFlagCalculator
             return null;
         }
 
-        // Controller command text, not pilot speech: names the end nearest the aircraft.
-        return RunwayCrossingEnd.Spoken(ac, target, groundLayout, ActiveRunways.Empty);
+        return RunwayCrossingEnd.Spoken(ac, target, groundLayout, activeRunways);
     }
 
     /// <summary>
