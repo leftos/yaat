@@ -2775,7 +2775,7 @@ CorpusSegment.cs               # CorpusSegment (16 kHz samples + reference), Cor
 UwbAtccCorpus.cs               # UWB-ATCC test split: pinned-revision download into %LOCALAPPDATA%/yaat/cache/atc-corpora/ (size + SHA-256 check), Parquet.Net row classes, load
 LocalCorpus.cs                 # Local <id>.wav + <id>.txt corpus folder (any sample rate) and its content fingerprint
 WerScorer.cs                   # WerCounts (S/D/I, rate), WerScorer (word Levenshtein alignment), WerTally (pooled rate)
-WerTextNormalizer.cs           # Puts reference and hypothesis in one form for WER: lowercase, no punctuation, digits spelled, NATO spelling variants
+WerTextNormalizer.cs           # Puts reference and hypothesis in one form for WER: lowercase, no punctuation, accents folded, digits spelled, NATO spelling variants, split compounds and letter runs joined, fillers dropped
 FixedWhisperRuntimeConfig.cs   # IWhisperRuntimeConfig over an explicit model source (--whisper or the recommended default), shared by --eval and --corpus-wer
 PiperSynthesizer.cs            # sherpa-onnx Piper synthesis shared by the TTS tab and ouroboros
 EvalRunner.cs                  # --eval: real-audio eval harness; scores the production pipeline against labeled captured WAVs (tests/Yaat.Client.Tests/TestData/speech-corpus/); canonical exact-match + WER + STT latency, LMKIT_TEST_MODEL override, --whisper/--parakeet STT A/B flags, scores each case under the context its expected.json carries (runways, taxiways, destinations), auto-stubs expected.json from sample-store session.json (camelCase, deserialized as SpeechSession); in-process core used by --atc-ouroboros
