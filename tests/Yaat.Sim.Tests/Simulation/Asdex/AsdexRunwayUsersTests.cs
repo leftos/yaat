@@ -70,6 +70,189 @@ public class AsdexRunwayUsersTests
     private static AircraftState OverRunway(RunwayInfo end, double alongFt, double heightFt, double speedKts) =>
         At(end, alongFt, RunwayElevationFt(end) + heightFt, onGround: false, speedKts: speedKts, offsetDeg: 0);
 
+    /// <summary>1R and 28L cross on the airfield: the crossing lies on both centrelines, between each runway's two ends.</summary>
+    [Fact]
+    public void Crossing_1RAnd28L_LiesOnBothRunways()
+    {
+        AsdexRunwayAxis axis1R = _axes[IndexOf("01R")];
+        AsdexRunwayAxis axis28L = _axes[IndexOf("28L")];
+
+        Assert.True(axis1R.TryCrossing(axis28L, out LatLon crossing));
+
+        Assert.InRange(axis1R.Along(crossing), 0, axis1R.LengthFt);
+        Assert.InRange(axis28L.Along(crossing), 0, axis28L.LengthFt);
+        Assert.InRange(axis1R.Lateral(crossing), -1, 1);
+        Assert.InRange(axis28L.Lateral(crossing), -1, 1);
+    }
+
+    /// <summary>A zero-length runway (both ends at one point) has no direction, so it crosses nothing.</summary>
+    [Fact]
+    public void Crossing_ZeroLengthRunway_None()
+    {
+        RunwayInfo real = End("28L");
+        var point = new RunwayInfo
+        {
+            AirportId = real.AirportId,
+            Id = real.Id,
+            Designator = real.Designator,
+            Lat1 = real.Lat1,
+            Lon1 = real.Lon1,
+            Elevation1Ft = real.Elevation1Ft,
+            TrueHeading1 = real.TrueHeading1,
+            Lat2 = real.Lat1,
+            Lon2 = real.Lon1,
+            Elevation2Ft = real.Elevation1Ft,
+            TrueHeading2 = real.TrueHeading2,
+            WidthFt = real.WidthFt,
+        };
+
+        Assert.False(new AsdexRunwayAxis(point).TryCrossing(_axes[IndexOf("01R")], out _));
+        Assert.False(_axes[IndexOf("01R")].TryCrossing(new AsdexRunwayAxis(point), out _));
+    }
+
+    [Fact]
+    public void Crossing_ParallelRunways28LAnd28R_None()
+    {
+        Assert.False(_axes[IndexOf("28L")].TryCrossing(_axes[IndexOf("28R")], out _));
+        Assert.False(_axes[IndexOf("01L")].TryCrossing(_axes[IndexOf("01R")], out _));
+    }
+
+    /// <summary>
+    /// How far past <paramref name="end"/>'s threshold, along its centreline, the runway crosses the one holding
+    /// <paramref name="otherEnd"/>.
+    /// </summary>
+    private double CrossingFt(string end, string otherEnd)
+    {
+        Assert.True(_axes[IndexOf(end)].TryCrossing(_axes[IndexOf(otherEnd)], out LatLon crossing));
+        RunwayInfo runway = End(end);
+        return GeoMath.DistanceNm(runway.ThresholdLatitude, runway.ThresholdLongitude, crossing.Lat, crossing.Lon) * GeoMath.FeetPerNm;
+    }
+
+    private bool ConvergesAhead(AircraftState a, string endA, AircraftState b, string endB)
+    {
+        AsdexRunwayUse useA = AsdexRunwayUsers.UseOn(AsdexRunwayUsers.UsesOf(a, _runways, _axes, _fieldElevationFt), _runways, IndexOf(endA))!.Value;
+        AsdexRunwayUse useB = AsdexRunwayUsers.UseOn(AsdexRunwayUsers.UsesOf(b, _runways, _axes, _fieldElevationFt), _runways, IndexOf(endB))!.Value;
+        return AsdexRunwayUsers.ConvergesAhead(useA, useB, _axes);
+    }
+
+    /// <summary>A departure rolling on 1R before the 28L crossing and an arrival in 28L's box both have the crossing ahead.</summary>
+    [Fact]
+    public void ConvergesAhead_DepartureOn1RBeforeTheCrossing_AndArrivalTo28L()
+    {
+        AircraftState departure = Rolling(End("01R"), CrossingFt("01R", "28L") - 2000, 80);
+        AircraftState arrival = Arrival(End("28L"), 3000, 300);
+
+        Assert.True(ConvergesAhead(departure, "01R", arrival, "28L"));
+        Assert.True(ConvergesAhead(arrival, "28L", departure, "01R"));
+    }
+
+    /// <summary>A departure already past the 28L crossing on 1R moves away from it: the pair no longer converges.</summary>
+    [Fact]
+    public void ConvergesAhead_DeparturePastTheCrossing_DoesNot()
+    {
+        AircraftState departure = Rolling(End("01R"), CrossingFt("01R", "28L") + 500, 80);
+        AircraftState arrival = Arrival(End("28L"), 3000, 300);
+
+        Assert.False(ConvergesAhead(departure, "01R", arrival, "28L"));
+    }
+
+    private static RunwayInfo IahRunway(string end) =>
+        NavigationDatabase.Instance.GetRunway("IAH", end)
+        ?? NavigationDatabase.Instance.GetRunway("KIAH", end)
+        ?? throw new InvalidOperationException($"IAH {end} is not in navdata");
+
+    /// <summary>
+    /// The axes of the two IAH runways holding <paramref name="endA"/> and <paramref name="endB"/>, and where their
+    /// centrelines meet.
+    /// </summary>
+    private static (AsdexRunwayAxis[] Axes, LatLon Crossing) IahPair(string endA, string endB)
+    {
+        AsdexRunwayAxis[] axes = [new AsdexRunwayAxis(IahRunway(endA)), new AsdexRunwayAxis(IahRunway(endB))];
+        Assert.True(axes[0].TryCrossing(axes[1], out LatLon crossing));
+        return (axes, crossing);
+    }
+
+    /// <summary>A use of runway <paramref name="index"/> from its midpoint, moving toward <paramref name="crossing"/>.</summary>
+    private static AsdexRunwayUse MidRunwayTowardTheCrossing(AsdexRunwayAxis[] axes, int index, LatLon crossing)
+    {
+        double mid = axes[index].LengthFt / 2;
+        return new AsdexRunwayUse(index, mid, axes[index].Along(crossing) > mid ? 1 : -1);
+    }
+
+    /// <summary>How far (ft) past the nearer runway end the crossing lies along the axis; 0 when it lies on the runway.</summary>
+    private static double BeyondTheEndFt(AsdexRunwayAxis axis, LatLon crossing)
+    {
+        double along = axis.Along(crossing);
+        return Math.Max(0, Math.Max(-along, along - axis.LengthFt));
+    }
+
+    /// <summary>
+    /// IAH 15L/33R and 8R/26L do not intersect; their centrelines meet about 0.38 NM and 0.33 NM beyond their ends, inside
+    /// the 1 NM that makes flight paths intersect (7110.65 §3-9-9.b, §3-10-4.a): two aircraft rolling toward it converge.
+    /// </summary>
+    [Fact]
+    public void ConvergesAhead_NonintersectingRunwaysMeetingWithin1NmBeyondTheEnds_Converge()
+    {
+        (AsdexRunwayAxis[] axes, LatLon crossing) = IahPair("15L", "8R");
+        Assert.InRange(BeyondTheEndFt(axes[0], crossing), 1, GeoMath.FeetPerNm);
+        Assert.InRange(BeyondTheEndFt(axes[1], crossing), 1, GeoMath.FeetPerNm);
+
+        Assert.True(
+            AsdexRunwayUsers.ConvergesAhead(MidRunwayTowardTheCrossing(axes, 0, crossing), MidRunwayTowardTheCrossing(axes, 1, crossing), axes)
+        );
+    }
+
+    /// <summary>
+    /// IAH 15L/33R and 8L/26R meet about 1.31 NM beyond the 15/33 end but 0.57 NM beyond the 8/26 end: within 1 NM of
+    /// either departure end (7110.65 §3-9-9.b), so the pair converges.
+    /// </summary>
+    [Fact]
+    public void ConvergesAhead_CentrelinesMeetingWithin1NmOfOneDepartureEndOnly_Converge()
+    {
+        (AsdexRunwayAxis[] axes, LatLon crossing) = IahPair("15L", "8L");
+        Assert.True(BeyondTheEndFt(axes[0], crossing) > GeoMath.FeetPerNm);
+        Assert.InRange(BeyondTheEndFt(axes[1], crossing), 1, GeoMath.FeetPerNm);
+
+        Assert.True(
+            AsdexRunwayUsers.ConvergesAhead(MidRunwayTowardTheCrossing(axes, 0, crossing), MidRunwayTowardTheCrossing(axes, 1, crossing), axes)
+        );
+    }
+
+    /// <summary>OAK 30 meets 28L/10R (2.51 / 2.91 NM) and 28R/10L (3.05 / 3.54 NM) beyond 1 NM of both ends: no convergence.</summary>
+    [Theory]
+    [InlineData("28L")]
+    [InlineData("28R")]
+    public void ConvergesAhead_CentrelinesMeetingMoreThan1NmBeyondBothEnds_DoNot(string otherEnd)
+    {
+        RunwayInfo r30 = NavigationDatabase.Instance.GetRunway("OAK", "30") ?? throw new InvalidOperationException("OAK 30 is not in navdata");
+        RunwayInfo other =
+            NavigationDatabase.Instance.GetRunway("OAK", otherEnd) ?? throw new InvalidOperationException($"OAK {otherEnd} is not in navdata");
+        AsdexRunwayAxis[] axes = [new AsdexRunwayAxis(r30), new AsdexRunwayAxis(other)];
+        Assert.True(axes[0].TryCrossing(axes[1], out LatLon crossing));
+        Assert.True(BeyondTheEndFt(axes[0], crossing) > GeoMath.FeetPerNm);
+        Assert.True(BeyondTheEndFt(axes[1], crossing) > GeoMath.FeetPerNm);
+
+        Assert.False(
+            AsdexRunwayUsers.ConvergesAhead(MidRunwayTowardTheCrossing(axes, 0, crossing), MidRunwayTowardTheCrossing(axes, 1, crossing), axes)
+        );
+    }
+
+    /// <summary>
+    /// An arrival to 15L/33R whose landing threshold lies past the crossing (the centrelines meeting in its approach, before
+    /// the threshold it lands over) does not converge, though the crossing is ahead of it.
+    /// </summary>
+    [Fact]
+    public void ConvergesAhead_CrossingInFrontOfTheLandingThreshold_DoesNot()
+    {
+        (AsdexRunwayAxis[] axes, LatLon crossing) = IahPair("15L", "8R");
+        double along = axes[0].Along(crossing);
+        // Landing away from the crossing's end: 3,000 ft further out on the approach than the crossing, moving toward it.
+        int direction = along > axes[0].LengthFt ? -1 : 1;
+        var arrival = new AsdexRunwayUse(0, along - (direction * 3000), direction);
+
+        Assert.False(AsdexRunwayUsers.ConvergesAhead(arrival, MidRunwayTowardTheCrossing(axes, 1, crossing), axes));
+    }
+
     [Fact]
     public void LinedUpAt0Kt_IsNotAUser_ButOccupiesTheRunway()
     {

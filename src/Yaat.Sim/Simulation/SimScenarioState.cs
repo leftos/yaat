@@ -844,6 +844,7 @@ public sealed class SimScenarioState
                     MessageLines = [.. a.MessageLines],
                     PlayAuralAlert = a.PlayAuralAlert,
                     GoAround = a.GoAround,
+                    RunwayEnds = a.RunwayEnds is { } ends ? [.. ends] : null,
                 })
             ),
         ];

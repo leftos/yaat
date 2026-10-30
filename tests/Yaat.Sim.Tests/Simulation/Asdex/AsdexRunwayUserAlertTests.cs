@@ -255,6 +255,36 @@ public class AsdexRunwayUserAlertTests
     }
 
     /// <summary>
+    /// Raises a standing CONVERGING alert: UAL1 rolling for takeoff on 1R 2,000 ft before the 28L crossing, UAL2 in 28L's
+    /// arrival box.
+    /// </summary>
+    private static void RaiseConverging(SimulationEngine engine)
+    {
+        RunwayInfo r1R = End("1R");
+        RunwayInfo r28L = End("28L");
+        Assert.True(new AsdexRunwayAxis(r1R).TryCrossing(new AsdexRunwayAxis(r28L), out LatLon crossing));
+        double crossingFt = GeoMath.DistanceNm(r1R.ThresholdLatitude, r1R.ThresholdLongitude, crossing.Lat, crossing.Lon) * GeoMath.FeetPerNm;
+        WithPhase(Place(engine, "UAL1", r1R, crossingFt - 2000, airborne: false, heightFt: 0, speedKts: 80), new TakeoffPhase());
+        WithPhase(Place(engine, "UAL2", r28L, -3000, airborne: true, heightFt: 200, speedKts: 140), new FinalApproachPhase());
+        Assert.Equal(AsdexAlertKind.Converging, Assert.Single(AlertsAfterATick(engine)).Kind);
+    }
+
+    /// <summary>A standing CONVERGING alert keeps its runway ends through a snapshot written and read as a recording does.</summary>
+    [Fact]
+    public void ConvergingAlert_RunwayEnds_RoundTripThroughASnapshot()
+    {
+        SimulationEngine engine = Engine(closedEnd: null);
+        RaiseConverging(engine);
+
+        StateSnapshotDto reread = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(engine.CaptureSnapshot()))!;
+        engine.RestoreFromSnapshot(reread);
+
+        AsdexSafetyAlert restored = Assert.Single(engine.Scenario!.ActiveAsdexAlerts[Sfo].Values);
+        Assert.Equal(AsdexAlertKind.Converging, restored.Kind);
+        Assert.Equal(["1R", "28L"], restored.RunwayEnds);
+    }
+
+    /// <summary>
     /// A facility holding a pair memory and no alert, whose configuration is then removed, has its memory cleared too: the
     /// clear covers every facility with alerts or memory and no configuration.
     /// </summary>

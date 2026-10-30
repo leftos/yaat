@@ -60,5 +60,30 @@ public sealed class AsdexRunwayAxis
         return new LatLon(_lat0 + (n / FeetPerDegLat), _lon0 + (e / _feetPerDegLon));
     }
 
+    /// <summary>
+    /// Where this runway's centreline and <paramref name="other"/>'s cross, both taken as unbounded lines: the crossing may lie
+    /// beyond either runway's ends. False for runways within <see cref="ParallelToleranceDeg"/> of parallel (SFO's 28L and 28R).
+    /// </summary>
+    public bool TryCrossing(AsdexRunwayAxis other, out LatLon crossing)
+    {
+        // Unit vectors of the two centrelines; their cross product is the sine of the angle between the runways.
+        double cross = (_ue * other._un) - (_un * other._ue);
+        // Written so a NaN (a zero-length runway's axis has no direction) reads as no crossing.
+        if (!(Math.Abs(cross) >= Math.Sin(ParallelToleranceDeg * Math.PI / 180.0)))
+        {
+            crossing = default;
+            return false;
+        }
+
+        // Solve along·u - t·v = q for along, q being the other runway's end 1 in this frame: along = (q × v) / (u × v).
+        (double qe, double qn) = Enu(new LatLon(other.Runway.Lat1, other.Runway.Lon1));
+        double along = ((qe * other._un) - (qn * other._ue)) / cross;
+        crossing = ToLatLon(along, 0);
+        return true;
+    }
+
+    /// <summary>Runways whose centrelines are closer to parallel than this (deg) have no crossing.</summary>
+    public const double ParallelToleranceDeg = 5;
+
     private (double E, double N) Enu(LatLon point) => ((point.Lon - _lon0) * _feetPerDegLon, (point.Lat - _lat0) * FeetPerDegLat);
 }

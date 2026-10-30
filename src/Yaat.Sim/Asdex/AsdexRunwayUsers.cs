@@ -83,6 +83,12 @@ public static class AsdexRunwayUsers
     /// </summary>
     public const double OppDirTaxiMinGroundSpeedKts = 5;
 
+    /// <summary>
+    /// How far beyond the departure end of at least one of two runways their centrelines may meet and the runways still converge: 1 NM, the
+    /// distance within which 7110.65 §3-9-9.b treats nonintersecting runways whose extended centrelines cross as intersecting.
+    /// </summary>
+    public const double ConvergingBeyondEndFt = GeoMath.FeetPerNm;
+
     /// <summary>Below this ground speed (kt) the aircraft's heading stands for its track, which a stopped aircraft does not have.</summary>
     private const double TrackMinGroundSpeedKts = 1;
 
@@ -211,6 +217,59 @@ public static class AsdexRunwayUsers
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// The use <paramref name="uses"/> makes of <c>runways[runwayIndex]</c>'s navdata runway: its arrival box when that is
+    /// on the runway, else its use from over it when that is the same navdata runway; null when it makes neither.
+    /// </summary>
+    internal static AsdexRunwayUse? UseOn(AsdexRunwayUses uses, IReadOnlyList<AsdexHoldBarRunway> runways, int runwayIndex)
+    {
+        if (ArrivesOn(uses, runways, runwayIndex))
+        {
+            return uses.Arrival;
+        }
+
+        return ((uses.OverRunway is { } over) && ReferenceEquals(runways[over.RunwayIndex].Runway, runways[runwayIndex].Runway)) ? over : null;
+    }
+
+    /// <summary>
+    /// True when two uses of different runways, whose axes <paramref name="axes"/> holds by runway index, converge: the
+    /// centrelines cross ahead of each aircraft in its direction of travel, at or past the threshold it enters its runway
+    /// over, and no more than <see cref="ConvergingBeyondEndFt"/> beyond the departure end of either runway (beyond the
+    /// other's end it may lie any distance). So intersecting runways converge, and so do nonintersecting ones whose flight
+    /// paths cross within 1 NM of either departure end (7110.65 §3-10-4.a, §3-9-9.b); a crossing in an arrival's approach,
+    /// before its threshold, does not count. The 1 NM reach holds only while each aircraft is still a runway user: a
+    /// departure airborne past its runway's end stops counting. How far either aircraft is from the crossing plays no part.
+    /// </summary>
+    internal static bool ConvergesAhead(AsdexRunwayUse a, AsdexRunwayUse b, IReadOnlyList<AsdexRunwayAxis> axes)
+    {
+        AsdexRunwayAxis axisA = axes[a.RunwayIndex];
+        AsdexRunwayAxis axisB = axes[b.RunwayIndex];
+        if (!axisA.TryCrossing(axisB, out LatLon crossing))
+        {
+            return false;
+        }
+
+        if ((BeyondDepartureEndFt(a, axisA, crossing) is not { } beyondA) || (BeyondDepartureEndFt(b, axisB, crossing) is not { } beyondB))
+        {
+            return false;
+        }
+
+        return Math.Min(beyondA, beyondB) <= ConvergingBeyondEndFt;
+    }
+
+    /// <summary>
+    /// How far (ft) <paramref name="crossing"/> lies beyond the runway's departure end in the use's direction of travel, 0
+    /// when it lies on the runway; null when it is not ahead of the use or lies before the threshold it enters over (end 1
+    /// when it moves toward end 2).
+    /// </summary>
+    private static double? BeyondDepartureEndFt(AsdexRunwayUse use, AsdexRunwayAxis axis, LatLon crossing)
+    {
+        double along = axis.Along(crossing);
+        double pastEntryThresholdFt = use.Direction > 0 ? along : axis.LengthFt - along;
+        bool ahead = ((along - use.AlongFt) * use.Direction) > 0;
+        return (ahead && (pastEntryThresholdFt >= 0)) ? Math.Max(0, pastEntryThresholdFt - axis.LengthFt) : null;
     }
 
     /// <summary>
