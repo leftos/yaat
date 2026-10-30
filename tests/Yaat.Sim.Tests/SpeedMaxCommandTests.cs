@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Simulation;
@@ -108,6 +109,25 @@ public sealed class SpeedMaxCommandTests
 
         Assert.True(parsed.IsSuccess, $"'{alias}' should parse: {parsed.Reason}");
         Assert.IsType<SpeedMaxCommand>(parsed.Value);
+    }
+
+    /// <summary>
+    /// The SMAX readback stays <c>PilotResponder.BuildMaximumForwardSpeed</c>'s "maximum forward speed" (7110.65 §5-7-2's
+    /// instruction carries no number to read back; docs/pilot-phraseology.md documents the wording), never the phraseology
+    /// rule's "maintain maximum forward speed".
+    /// </summary>
+    [Fact]
+    public void Smax_Readback_IsMaximumForwardSpeed()
+    {
+        AircraftState ac = Airborne("B738", altitude: 8_000, ias: 250);
+        Assert.True(Send(ac, "SMAX").Success);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("SMAX");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+
+        PilotSpeechText? readback = PilotResponder.BuildReadback(parsed.Value!, ac);
+
+        Assert.NotNull(readback);
+        Assert.Equal("maximum forward speed", readback!.Terminal);
     }
 
     [Theory]

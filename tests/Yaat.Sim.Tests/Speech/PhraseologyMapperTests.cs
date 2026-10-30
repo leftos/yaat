@@ -103,6 +103,7 @@ public class PhraseologyMapperTests
     [InlineData("maintain speed two five zero", "SPD 250")]
     [InlineData("resume normal speed", "RNS")]
     [InlineData("reduce to final approach speed", "RFAS")]
+    [InlineData("maintain maximum forward speed", "SMAX")]
     public void Speed_Rules(string transcript, string expected)
     {
         MapResult? result = PhraseologyMapper.Map(transcript, NoContext);

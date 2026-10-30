@@ -266,6 +266,8 @@ public static class PhraseologyRules
                 PilotVariants: PilotVariantSet.BusyOnly(new PilotVariant("mach {mach}", PilotVariantTags.None))
             ),
             new(["mach", "{mach}"], "MACH {mach}", Mach),
+            // FAA 7110.65 §5-7-2: "MAINTAIN MAXIMUM FORWARD SPEED". The readback is PilotResponder.BuildMaximumForwardSpeed's.
+            new(["maintain", "maximum", "forward", "speed"], "SMAX", SpeedMax),
             // FAA 7110.65 §5-7, AIM §4-4: "Maintain (speed) until (fix), then …". The canonical
             // form "SPD {spd} UNTIL {fix}" is rewritten by CommandSchemeParser.ExpandSpeedUntil
             // into "SPD {spd}; AT {fix} RNS" — a sequenced speed assignment that resumes normal
