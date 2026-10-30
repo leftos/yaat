@@ -2023,5 +2023,21 @@
     "ReactionDelayed": 0,
     "AsPrefixed": 0,
     "Solo": false
+  },
+  {
+    "File": "yaat1527-oak-followg-cross-recording.yaat-bug-report-bundle.zip",
+    "Commands": 116,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "Compound": 32,
+      "FlightPlan": 2,
+      "GhostTrack": 1,
+      "SetActivePosition": 1,
+      "Strip": 79
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 3,
+    "Solo": false
   }
 ]

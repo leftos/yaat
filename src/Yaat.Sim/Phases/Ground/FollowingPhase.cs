@@ -3138,19 +3138,23 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     /// <summary>
     /// <paramref name="node"/> as a bar ahead of the follower (<see cref="ToBarAhead"/>), or null when the follower does not reach
-    /// it: a bar counts when it is on the rest of the follow route (<see cref="IsOnRestOfRoute"/>), or when the edge it is
-    /// approached by from the follower — of the bar's edges, the one whose far end lies nearest in bearing to the follower — is a
-    /// straight edge of the bar's own taxiway (<see cref="RunwayHoldBars.BarTaxiwayEdges"/>). A bar on a fillet tangent that the follower reaches
-    /// only through the arc from a taxiway it is passing is not ahead of it. The hold line is square to the bar's taxiway, never
-    /// to an arc (<see cref="ApproachBearingDeg"/>).
+    /// it. With a follow route still to run, a bar counts only when it is on the rest of that route (<see cref="IsOnRestOfRoute"/>):
+    /// a bar of another taxiway beside the trail, however it is approached, is not one the follower reaches. With no follow route,
+    /// or a finished one kept while the follower brakes to rest past its end, a bar counts when the edge it is approached by from
+    /// the follower — of the bar's edges, the one whose far end lies nearest in bearing to the follower — is a straight edge of the
+    /// bar's own taxiway (<see cref="RunwayHoldBars.BarTaxiwayEdges"/>); a bar on a fillet tangent that the follower reaches only
+    /// through the arc from a taxiway it is passing is not ahead of it. The hold line is square to the bar's taxiway, never to an
+    /// arc (<see cref="ApproachBearingDeg"/>).
     /// </summary>
     private BarAhead? ReachedBarAhead(PhaseContext ctx, GroundNode node, double halfLengthFt)
     {
         List<GroundEdge> taxiwayEdges = RunwayHoldBars.BarTaxiwayEdges(node);
         LatLon position = ctx.Aircraft.Position;
-        bool onRoute = (_followRoute is { } route) && IsOnRestOfRoute(route, node.Id);
-        bool overTaxiway = (NearestInBearing(node, node.Edges, position) is GroundEdge approach) && taxiwayEdges.Contains(approach);
-        if (!onRoute && !overTaxiway)
+        bool reached =
+            (_followRoute is { IsComplete: false } route)
+                ? IsOnRestOfRoute(route, node.Id)
+                : ((NearestInBearing(node, node.Edges, position) is GroundEdge approach) && taxiwayEdges.Contains(approach));
+        if (!reached)
         {
             return null;
         }
