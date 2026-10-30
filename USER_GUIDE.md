@@ -406,6 +406,16 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
 - **Squawk normal** shows only on the ground with the transponder in standby. **Squawk assigned code** shows only while the aircraft is squawking Mode C a code other than its assigned one, which is not an emergency code (`7400`, `7500`, `7600`, `7700`, `7777`), has an assigned code (a VFR aircraft on 1200 with none is never offered it, in the Squawk submenu either), and has not been told `SQVFR`.
 - **Cross {runway}** names the runway to cross ("Cross 28R"): the one the aircraft holds short of, or the next runway on its taxi route. It shows only when a runway is the next hold-short on the route, and never while the aircraft is still crossing another runway or a runway it is already cleared to cross still lies ahead: one crossing at a time.
 
+  For a following aircraft (`FOLLOWG`) the runway must lie on the route it drives, its own follow route or the leader's path ahead. From a hold it crosses along that route; while it moves the runway is pre-cleared, so it does not stop at that runway's bars. A runway off its route is refused whole ("unable, runway 28L is not on our route, request taxi instructions") and the aircraft stays held and following.
+
+  Hold position on a following aircraft ends the follow: it brakes to rest and holds in position, and Resume taxi does not restart it (the pilot answers "unable, request taxi instructions", and the menus offer no Resume taxi; issue Follow… or a new taxi).
+
+  Held inside the holding-position markings of a runway it was cleared across, it holds on the crossing, and Resume taxi finishes the crossing: the aircraft stops with its tail 10 ft past the far hold line, then holds in position.
+
+  Its nose never passes the next runway's hold line, so a type too long for the space between two close runways stops with its nose short of that line and its tail still on the first runway, and the pilot says it is holding short of the next runway and not clear of the first ("Holding position, not clear of runway 1L" when its nose is past the line). The report goes to a Ground or Tower solo student, and the aircraft counts as on the first runway until its tail is clear.
+
+  A block chained behind a following aircraft's Cross (`CROSS 1L 1R; HOLD`) fires once it is done with every runway named, in any order.
+
   On the landing rollout it waits until the aircraft is clearly slowing, as Exit left / right do; after a rejected takeoff it waits until the aircraft has slowed to taxi speed.
 - **Exit left / Exit right** open a list of the named exits the aircraft can still make on that side, each with a glyph showing how sharply it turns off, its distance and the command it sends (`ER W3`), the exit the aircraft means to take marked "planned", and the pilot's-choice row (bare `EL` / `ER`); hover a row for the full command and its turn-off angle.
 

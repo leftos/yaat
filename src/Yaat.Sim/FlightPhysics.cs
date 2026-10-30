@@ -2516,6 +2516,33 @@ public static class FlightPhysics
         Math.Max(AltitudeSnapFt, Math.Abs(aircraft.VerticalSpeed) / 60.0 * deltaSeconds);
 
     /// <summary>
+    /// Whether <paramref name="follow"/> is done crossing <paramref name="runway"/>: its crossing clearance spent (off the pavement)
+    /// and the follower's tail and wingtips past its bars (no longer among <see cref="Yaat.Sim.Phases.Ground.FollowingPhase.ExitingRunways"/>).
+    /// </summary>
+    private static bool IsDoneCrossing(Yaat.Sim.Phases.Ground.FollowingPhase follow, RunwayIdentifier runway) =>
+        !follow.CrossingClearedRunways.Any(r => r.Overlaps(runway)) && !follow.ExitingRunways.Any(r => r.Overlaps(runway));
+
+    /// <summary>
+    /// Latches <see cref="CommandBlock.TriggerMet"/> on every other unapplied block of <paramref name="aircraft"/>'s queue waiting on
+    /// the same follow crossing as <paramref name="met"/>, so the blocks chained behind it are not stranded once it changes the phase.
+    /// </summary>
+    private static void LatchSiblingFollowCrossingTriggers(AircraftState aircraft, CommandBlock met, IReadOnlyList<RunwayIdentifier> runways)
+    {
+        foreach (CommandBlock block in aircraft.Queue.Blocks)
+        {
+            if (
+                !ReferenceEquals(block, met)
+                && !block.IsApplied
+                && (block.Trigger is { Type: BlockTriggerType.AfterRunwayCrossing, FollowCrossingRunways: { } other })
+                && other.SequenceEqual(runways)
+            )
+            {
+                block.TriggerMet = true;
+            }
+        }
+    }
+
+    /// <summary>
     /// Latches when the aircraft enters <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/>,
     /// fires once it has exited that phase — regardless of what phase comes
     /// next. The latch is the load-bearing piece: it distinguishes the
@@ -2529,6 +2556,21 @@ public static class FlightPhysics
     private static bool IsAfterRunwayCrossingMet(AircraftState aircraft, CommandBlock block)
     {
         Phase? phase = aircraft.Phases?.CurrentPhase;
+
+        // A FOLLOWG follower crosses inside its follow, never in a CrossingRunwayPhase: the trigger fires once the follow is done with
+        // every runway the CROSS named. The blocks chained with this one share its trigger and fire behind it by the `;` rules, even
+        // once the block that fired has changed the phase.
+        if (block.Trigger!.FollowCrossingRunways is { } followRunways)
+        {
+            if ((phase is not Yaat.Sim.Phases.Ground.FollowingPhase follow) || !followRunways.All(r => IsDoneCrossing(follow, r)))
+            {
+                return false;
+            }
+
+            LatchSiblingFollowCrossingTriggers(aircraft, block, followRunways);
+            return true;
+        }
+
         if (phase is Yaat.Sim.Phases.Ground.CrossingRunwayPhase)
         {
             block.TriggerCrossingObserved = true;

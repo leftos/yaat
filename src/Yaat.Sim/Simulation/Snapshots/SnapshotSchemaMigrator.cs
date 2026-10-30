@@ -28,7 +28,7 @@ public static class SnapshotSchemaMigrator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("SnapshotSchemaMigrator");
 
-    public const int CurrentSchemaVersion = 39;
+    public const int CurrentSchemaVersion = 40;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -307,7 +307,30 @@ public static class SnapshotSchemaMigrator
             MigrateLegacyFrequencyTransmissionTimes(snapshot);
         }
 
+        // V39→V40: FollowingPhaseDto.HasBeenOnClearedRunway (the follower had been on some cleared runway, the whole clearance
+        //   spent once clear of all) replaced by BeenOnClearedRunways (each runway spent on its own once clear of it). A true
+        //   flag marks every cleared runway been-on, so each is spent once the follower is clear of it, as all were together;
+        //   false or absent marks none. The legacy field is nulled so a rewritten snapshot drops it.
+        if (snapshot.SchemaVersion < 40)
+        {
+            foreach (FollowingPhaseDto follow in snapshot.Aircraft.SelectMany(static ac => ac.Phases?.Phases ?? []).OfType<FollowingPhaseDto>())
+            {
+                MigrateLegacyBeenOnClearedRunway(follow);
+            }
+        }
+
         snapshot.SchemaVersion = CurrentSchemaVersion;
+    }
+
+    /// <summary>Turns a pre-V40 follow's been-on flag into the runways it marks been on: every cleared runway, or none.</summary>
+    private static void MigrateLegacyBeenOnClearedRunway(FollowingPhaseDto follow)
+    {
+        if (follow.LegacyHasBeenOnClearedRunway == true)
+        {
+            follow.BeenOnClearedRunways = [.. follow.CrossingClearedRunways];
+        }
+
+        follow.LegacyHasBeenOnClearedRunway = null;
     }
 
     /// <summary>Turns a pre-V39 snapshot's transmission start times into transmissions of <see cref="LegacyTransmissionSeconds"/>.</summary>

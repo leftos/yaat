@@ -75,6 +75,10 @@ delay is expected; §4-6-2.a requires the clearance beyond the fix) — which is
 untriggered tail behind a hold deserves a warning: it is not an EFC, and no controller pre-issues
 the onward clearance to fire at an unspecified future moment.
 
+**A block chained behind a moving follower's `CROSS`.** `CROSS 1L 1R; HOLD` to a `FOLLOWG` follower that is moving has no `CrossingRunwayPhase` to wait for: its `AfterRunwayCrossing` trigger carries every runway the `CROSS` named (`BlockTrigger.FollowCrossingRunways`), and fires once the current `FollowingPhase` is done with all of them, in any order: each runway's crossing clearance spent, the follower's tail and wingtips past that runway's bars.
+
+Blocks chained after it then fire by the normal rules. A taxi `CROSS`'s trigger still waits for the `CrossingRunwayPhase`.
+
 ## Abort on fire-time failure
 
 `DryRunValidate` runs only the first, unconditioned block before a compound is accepted. Every

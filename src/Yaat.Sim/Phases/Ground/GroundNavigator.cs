@@ -874,6 +874,25 @@ public sealed class GroundNavigator
     private GroundNavigatorPlaybackDto? _restoredPlayback;
 
     /// <summary>
+    /// Whether <see cref="_restoredPlayback"/> came from the owning phase re-planning its own route (<see cref="ForReplan"/>) rather
+    /// than from a snapshot restore. A re-plan may no longer have the segment the playback was saved on, so its drop is logged at
+    /// Debug, where a restore's is a Warning.
+    /// </summary>
+    private bool _restoredForReplan;
+
+    /// <summary>
+    /// A navigator restored from <paramref name="dto"/> (<see cref="FromSnapshot"/>), the owning phase's own navigator captured for a
+    /// re-plan of the route it plays (a crossing that is made to end at rest, <see cref="CrossingRunwayPhase.EndAtRest"/>): it resumes
+    /// the saved primitive where the re-planned route still has its segment, and drops it quietly where it does not.
+    /// </summary>
+    public static GroundNavigator ForReplan(GroundNavigatorDto dto)
+    {
+        GroundNavigator navigator = FromSnapshot(dto);
+        navigator._restoredForReplan = true;
+        return navigator;
+    }
+
+    /// <summary>
     /// The from-node of the segment the current primitive plays (the segment last set up, or the fillet an aimed line is laid
     /// over), snapshotted with the playback so a resume can check both ends.
     /// </summary>
@@ -1063,12 +1082,16 @@ public sealed class GroundNavigator
             return false;
         }
 
+        bool forReplan = _restoredForReplan;
         _restoredPlayback = null;
+        _restoredForReplan = false;
         if (!WasPlaybackSavedOnSegment(seg, saved))
         {
-            Log.LogWarning(
-                "[Nav] {Callsign}: restored playback dropped — saved on segment {SavedFrom}→{SavedTo}, set-up is for {From}→{To}",
+            Log.Log(
+                forReplan ? LogLevel.Debug : LogLevel.Warning,
+                "[Nav] {Callsign}: restored playback dropped after a {Cause} — saved on segment {SavedFrom}→{SavedTo}, set-up is for {From}→{To}",
                 ctx.Aircraft.Callsign,
+                forReplan ? "re-plan" : "restore",
                 saved.FromNodeId,
                 TargetNodeId,
                 seg.FromNodeId,
@@ -3554,6 +3577,7 @@ public sealed class GroundNavigator
     public NavigatorResult Tick(PhaseContext ctx, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
         _restoredPlayback = null;
+        _restoredForReplan = false;
         double headingBeforeDeg = ctx.Aircraft.TrueHeading.Degrees;
         _stopCurveBinds = false;
 

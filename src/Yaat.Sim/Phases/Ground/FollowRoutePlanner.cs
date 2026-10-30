@@ -1187,6 +1187,33 @@ public static class FollowRoutePlanner
         LocateLead(layout, lead) is not { } located ? null : BuildLeadPath(layout, lead, follower, located.Current, located.RouteAhead)?.Edges;
 
     /// <summary>
+    /// Whether <paramref name="runway"/> is on <paramref name="path"/>: a bar of it — a runway hold-short node whose runway overlaps
+    /// it — is a node of the path. What a <c>CROSS</c> to a follower is judged by: a runway its route does not reach is refused.
+    /// </summary>
+    public static bool PathCrossesRunway(IReadOnlyList<DirectionalEdge> path, RunwayIdentifier runway) =>
+        path.Any(edge => IsBarOf(edge.FromNode, runway) || IsBarOf(edge.ToNode, runway));
+
+    /// <summary>
+    /// The stretch of <paramref name="path"/> a follower held at the bar <paramref name="barNodeId"/> crosses
+    /// <paramref name="runway"/> along: from the first edge leaving that bar through the first edge reaching another bar of the
+    /// runway. Null when no edge of the path leaves the bar, or no other bar of the runway follows it.
+    /// </summary>
+    public static IReadOnlyList<DirectionalEdge>? StretchAcrossFromBar(IReadOnlyList<DirectionalEdge> path, int barNodeId, RunwayIdentifier runway)
+    {
+        int from = FirstIndex(path, 0, edge => edge.FromNodeId == barNodeId);
+        if (from < 0)
+        {
+            return null;
+        }
+
+        int to = FirstIndex(path, from, edge => (edge.ToNodeId != barNodeId) && IsBarOf(edge.ToNode, runway));
+        return to < 0 ? null : [.. path.Skip(from).Take(to - from + 1)];
+    }
+
+    private static bool IsBarOf(GroundNode node, RunwayIdentifier runway) =>
+        (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } id) && id.Overlaps(runway);
+
+    /// <summary>
     /// The lead's path: its trail behind <paramref name="current"/>, the edge it is on, then its route ahead. The follower drives
     /// all of it, so every stretch the planner searches or takes over is held to the follower's taxi class, not the lead's. A
     /// fillet arc the lead is on that the follower may not drive goes through <see cref="TryAppendUsable"/> as an arc on its

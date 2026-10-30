@@ -638,7 +638,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(ctx);
 
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
 
         Assert.True(result.Success);
         Assert.Contains("Cross 28R", result.Message!);
@@ -680,7 +680,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(ctx);
 
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
 
         Assert.False(result.Success);
         Assert.Contains("LUAW", result.Message!);
@@ -719,7 +719,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(ctx);
 
         var cmd = new CrossRunwayCommand(["01L"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
 
         Assert.False(result.Success);
         Assert.Contains("01L", result.Message!);
@@ -750,7 +750,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(ctx);
 
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
 
         Assert.True(result.Success);
         Assert.Contains("Cross 28R", result.Message!);
@@ -764,7 +764,7 @@ public class GroundCommandHandlerTests
 
         // Not currently at a hold-short phase — pre-clear mode
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
 
         Assert.True(result.Success);
         Assert.True(ac.Ground.AssignedTaxiRoute.HoldShortPoints[0].IsCleared);
@@ -777,7 +777,7 @@ public class GroundCommandHandlerTests
         ac.Ground.AssignedTaxiRoute = MakeRouteWithHoldShort("15/33");
 
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
 
         Assert.False(result.Success);
         Assert.Contains("No hold-short", result.Message!);
@@ -790,7 +790,7 @@ public class GroundCommandHandlerTests
         // No route assigned
 
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
 
         Assert.False(result.Success);
     }
@@ -801,7 +801,12 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = MakeRouteWithTwoHoldShorts("28R/10L", "28L/10R");
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["28R", "28L"], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand(["28R", "28L"], [], Expedite: false),
+            ac.Ground.Layout,
+            null
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.All(ac.Ground.AssignedTaxiRoute.HoldShortPoints, hs => Assert.True(hs.IsCleared));
@@ -814,7 +819,12 @@ public class GroundCommandHandlerTests
         ac.Ground.AssignedTaxiRoute = MakeRouteWithTwoHoldShorts("28R/10L", "28L/10R");
 
         // 01L is not an upcoming crossing — the whole command is rejected and nothing is cleared.
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["28R", "01L"], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand(["28R", "01L"], [], Expedite: false),
+            ac.Ground.Layout,
+            null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("01L", result.Message!);
@@ -847,7 +857,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["B"], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["B"], [], Expedite: false), ac.Ground.Layout, null);
 
         Assert.True(result.Success);
         Assert.Contains("B", result.Message!);
@@ -871,7 +881,7 @@ public class GroundCommandHandlerTests
             ],
         };
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["B"], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["B"], [], Expedite: false), ac.Ground.Layout, null);
 
         Assert.True(result.Success);
         Assert.True(ac.Ground.AssignedTaxiRoute.HoldShortPoints[0].IsCleared);
@@ -903,7 +913,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
 
         Assert.True(result.Success);
         Assert.Contains("28R/10L", result.Message!);
@@ -933,7 +943,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
 
         Assert.True(result.Success);
         Assert.Contains("B", result.Message!);
@@ -972,7 +982,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
 
         Assert.False(result.Success);
         Assert.Contains("LUAW", result.Message!);
@@ -1004,7 +1014,7 @@ public class GroundCommandHandlerTests
             ],
         };
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
 
         Assert.True(result.Success);
         Assert.Contains("28L/10R", result.Message!);
@@ -1030,7 +1040,7 @@ public class GroundCommandHandlerTests
             ],
         };
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
 
         Assert.False(result.Success);
         Assert.Contains("LUAW", result.Message!);
@@ -1056,7 +1066,7 @@ public class GroundCommandHandlerTests
             ],
         };
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
 
         Assert.False(result.Success);
         Assert.Contains("No upcoming hold-short", result.Message!);
@@ -1068,7 +1078,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         // No route assigned, not holding short
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
 
         Assert.False(result.Success);
     }
@@ -2258,7 +2268,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = route;
 
-        Assert.True(GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["28R"], [], Expedite: false), ac.Ground.Layout).Success);
+        Assert.True(GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["28R"], [], Expedite: false), ac.Ground.Layout, null).Success);
         Assert.True(route.HoldShortPoints[1].IsCleared);
 
         CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);

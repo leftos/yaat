@@ -83,7 +83,19 @@ The refusals, in the order the handler tests them, each leaving the bar armed:
 
 Runway-node hardening: a bar that is taxiway-class by reason and target name is still refused as a runway bar (the same `use CROSS` text) when `GuardsARunway` finds its node is a layout `GroundNodeType.RunwayHoldShort` node, or another uncleared runway-class bar on the route shares its node. The layout node type is the ground truth the target-name test can only approximate.
 
-The route is the one the aircraft drives, not `AssignedTaxiRoute`: a `FOLLOWG` follower drives its follow or clearing route, and the assigned route `FOLLOWG` leaves in place is stale.
+The route is the one the aircraft drives, not `AssignedTaxiRoute`: a `FOLLOWG` follower drives its follow or clearing route, and the assigned route `FOLLOWG` leaves in place is stale. `CROSS` and `RES CROSS` to a follower read that driven route too (`GroundCommandHandler.FollowerRouteOf`: its follow route, then the lead's path), pre-clearing runways on it and refusing any off it ([ground/navigator.md](ground/navigator.md#followg-driving-the-follow-route)).
+
+`HOLD` to a `FOLLOWG` follower breaks the follow off: a moving follower brakes to rest at its taxi brake rate (a piston or helicopter on a runway keeps the 4.5 kt/s hold brake rate), then holds in position, and `RES` does not resume the follow. Inside the holding-position markings of a runway its follow is cleared across, `HOLD` makes a held crossing, and a later `RES` finishes it: the aircraft brakes at the taxi rate to rest, then holds in position.
+
+The crossing makes its best effort to clear the crossed runway (tail half its length plus 10 ft past the far bar) but its nose never passes another runway's hold bar, cleared or not, so a type too long for the space between two runways rests with its nose short of the next bar and its tail on the first runway.
+
+It counts as held short only while its nose rests short of that bar line (`ClearRunwayPhase.IsNosePastBar`, as `CLRWY` judges it), and a tail still inside the crossed runway makes the pilot report not clear of it ("holding short of runway {other} at {taxiway}, not clear of runway {crossed}", or "Holding position, not clear of runway {crossed}") to a Ground or Tower solo student, the aircraft staying an occupant of the crossed runway ([ground/navigator.md](ground/navigator.md)).
+
+With the follow armed behind a bar hold, or queued behind a crossing, `HOLD` drops the armed follow and keeps the hold or crossing; the kept chain ends with `HoldingInPosition`, and a crossing in it ends at rest, tail clear.
+
+`RES` is refused "unable, request taxi instructions" (`GroundCommandHandler.RefusesResumeTaxi`, checked in `CommandDispatcher` before the hold-short release and again in `TryResumeTaxi`) only when the hold in position is the break-off's (`HoldingInPositionPhase.EndsBrokenOffFollow`) with nothing after it, or at a non-departure hold short whose only successor is that hold.
+
+At a departure-runway bar the hold short's own refusal stands ("issue CTO or LUAW"), and a lead-gone stop is not a break-off: `RES` there gives "Resume taxi" when held and "Aircraft is not held" otherwise. The hub carries the refusal as `ResumeTaxiRefused` so the menus hide "Resume taxi".
 
 A follower's driven route carries no hold short, so a bare `RES` to one answers `No upcoming hold short to clear`, or `Aircraft is not held` while it waits for its lead with neither route; `TaxiRoute.HasTaxiwayHoldShortAhead` (the hub's `HasTaxiwayHoldShortAhead` flag) is false for followers. With no route at all `RES` still answers `Aircraft is not held`.
 

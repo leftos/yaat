@@ -202,6 +202,9 @@ _Avoid_: determinism (determinism is the same-seed, same-world property of the s
 
 ## Ground movement
 
+**Break-off** (of a follow):
+A `HOLD` given to a `FOLLOWG` follower ends the follow: the aircraft brakes to rest and holds in position, and `RES` does not resume the follow. A follower inside a runway's holding position marking holds on the crossing it was cleared across and finishes it at rest; one that comes to rest with its tail still inside a runway reports not clear of it (`FollowingPhase.BreakOff`, `HoldingInPositionPhase.AfterFollowBreakOff`, docs/ground/navigator.md).
+
 **Full-length band**:
 The runway's hold-short bars within 200 ft along-track of the one nearest the requested threshold; the bars `RouteMaterialiser.OrderFullLengthLineupBars` treats as full-length lineup points, ranked by the aircraft's side of the runway (docs/ground/pathfinder.md, "Full-length lineup bar order").
 

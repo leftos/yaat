@@ -387,11 +387,12 @@ public static class AircraftCommandApplicability
     /// RES clears the next hold short on its route when that is a taxiway or spot bar
     /// (<see cref="IMenuAircraft.HasTaxiwayHoldShortAhead"/>), and refuses a runway one. The hold-short holds are a
     /// different RES path (<see cref="CanResumeFromHoldShort"/>). The <see cref="IsControllable"/> guard keeps surface
-    /// live-traffic shadows, which are never assumable, out, as in <see cref="CanPushBack"/>.
+    /// live-traffic shadows, which are never assumable, out, as in <see cref="CanPushBack"/>. Never where the sim refuses RES
+    /// (<see cref="IMenuAircraft.ResumeTaxiRefused"/>: a HOLD broke off a follow and nothing comes after its hold).
     /// </summary>
     public static bool CanResumeTaxi(IMenuAircraft? ac)
     {
-        if (!IsControllable(ac))
+        if ((!IsControllable(ac)) || ac.ResumeTaxiRefused)
         {
             return false;
         }
@@ -412,10 +413,11 @@ public static class AircraftCommandApplicability
     /// aircraft has an active taxi route to continue on. The sim takes RES at a runway-crossing or explicit hold-short
     /// bar and refuses it at a departure-runway bar or the bar ending an incomplete route; both of those end the route,
     /// so an aircraft held there has no active route. The stationary holds are <see cref="CanResumeTaxi"/>'s. The
-    /// <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
+    /// <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>. Never where the
+    /// sim refuses RES (<see cref="IMenuAircraft.ResumeTaxiRefused"/>: held short with only a broken-off follow's hold after it).
     /// </summary>
     public static bool CanResumeFromHoldShort(IMenuAircraft? ac) =>
-        IsControllable(ac) && HoldShortMenuHelper.IsHoldingShort(ac.CurrentPhase) && ac.HasActiveTaxiRoute;
+        IsControllable(ac) && !ac.ResumeTaxiRefused && HoldShortMenuHelper.IsHoldingShort(ac.CurrentPhase) && ac.HasActiveTaxiRoute;
 
     /// <summary>
     /// Cross the runway (<c>CROSS</c>) an aircraft is holding short of: the runway comes from the hold-short phase,

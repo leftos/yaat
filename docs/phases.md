@@ -360,7 +360,13 @@ Skip any of these and old recordings will throw `InvalidOperationException` on r
   Getting this wrong is silent and nasty (issue #315): the aircraft parks on the right line, skips its "holding short runway 28R" report, and LUAW routes to `DepartureClearanceHandler.LineUpFromPosition` instead of `LineUpFromHoldShort`.
 
   The same helper is where a departure clearance stored during taxi gets consumed on the crossing paths — `CompleteRoute` is not reached when the crossing slice consumes the remaining segments — so it mirrors `CompleteRoute`'s order exactly: clearance first, terminal phase second, or a route that also names a parking destination silently drops the clearance.
-- **The crossing's tail-clearance overshoot must yield to a hold-short at its exit.** `CrossingRunwayPhase` appends a virtual node ½ a fuselage *past* the exit so the tail clears the runway behind it (along the route's own onward segments; when the route ends on the crossed runway's far bar or runs out first, `AppendLayoutTailClearance` walks the layout straight ahead for what is left plus `RunwayTailClearance.MarginFt`, judging each edge by its whole turn including the end bearing, and stops at another runway's bar the nose would reach, at a runway centreline node, or where no edge is within 45°, logging a Warning). Two conditions suppress that: a binding taxiway hold-short within a fuselage downstream (`BindingTaxiwayHoldShortWithin`, issue #172) and an uncleared hold-short on the exit node itself (`ExitIsBindingHoldShort`, issue #315).
+- **The crossing's tail-clearance overshoot must yield to a hold-short at its exit.** `CrossingRunwayPhase` appends a virtual node ½ a fuselage *past* the exit so the tail clears the runway behind it, along the route's own onward segments.
+
+  When the route ends on the crossed runway's far bar or runs out first, `AppendLayoutTailClearance` walks the layout straight ahead for what is left plus `RunwayTailClearance.MarginFt`, judging each edge by its whole turn including the end bearing, and never ends with the nose past another runway's bar (cut short of it, an arc that would carry the nose past it dropped; every crossing).
+
+  The walk stops at a runway centreline node, or where no edge is within 45°, logging a Warning.
+
+  Two conditions suppress that: a binding taxiway hold-short within a fuselage downstream (`BindingTaxiwayHoldShortWithin`, issue #172) and an uncleared hold-short on the exit node itself (`ExitIsBindingHoldShort`, issue #315).
 
   The second is the parallel-runway case above — without it the aircraft ends up ~54 ft *inside* the next runway's holding position markings while announcing that it is holding short of them (AIM 4-3-18.a.6).
 

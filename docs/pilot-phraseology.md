@@ -284,6 +284,12 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   The same call is made, once, when a running follow's re-plan after the lead's re-route finds the follower ahead of its lead, and when the follower holds standing on the lead's route ahead of it (waiting for it to pass); a first plan that finds the follower ahead holds silently.
 
+  `BuildUnableRunwayNotOnRoute` is the refusal of a `CROSS` or `RES CROSS` that names a runway off a `FOLLOWG` follower's route (its follow route or its lead's path ahead): Terminal "Unable, runway 28L is not on our route, request taxi instructions", Tts "{callsign}, unable, runway two eight left isn't on our route, request taxi.", RpoTerminal "unable, runway {rwy} is not on the route following {lead}". The follower stays held and keeps its follow.
+
+  `RES` is refused through `BuildUnable(aircraft, "request taxi instructions")` (`GroundCommandHandler.RefusesResumeTaxi`, from `CommandDispatcher` and `TryResumeTaxi`) only when the hold in position is the one a `HOLD`-broken-off follow ends in (`HoldingInPositionPhase.EndsBrokenOffFollow`) with nothing after it, or at a non-departure hold short whose only successor is that hold: the pilot says "unable, request taxi instructions."
+
+  A departure-runway bar keeps the hold short's own refusal ("issue CTO or LUAW"), and a lead-gone stop or the end of a finished `TAXI` is no break-off.
+
   `BuildLostTrafficHolding` is a taxi follower's one call when its lead is lost with no legal way back onto its assigned route and nothing left to drive, as it holds in position: Terminal "Lost sight of traffic, holding position, request taxi instructions", Tts "{callsign}, lost the traffic, holding, request taxi.", RpoTerminal "Lost sight of {lead}, holding position, request taxi instructions". Said once, to a solo student on ground or tower (`SoloPositionsGround`).
 
   A follower unjoinable for a reason other than the unable call — a route lost to a backward start, or a first plan ahead of its lead — has said nothing, so it still says this once its lead is gone. A follower with no assigned route left to lose, and one that has said `BuildUnableNoRouteToFollow` — it cannot follow at all — says this one nothing; one holding after saying `BuildHoldingShortNotClear` does not either.
@@ -291,6 +297,14 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
   `BuildHoldingShortNotClear` is a taxi follower's one call when its clearing route ran out before its tail was past the hold line, so it holds short of the runway its way on enters while not clear of the runway it was clearing: Terminal "Holding short of runway {next}, not clear of runway {cleared}", Tts "{callsign}, holding short of runway {next}, not clear of {cleared}.".
 
   With no runway ahead of it — no edge out of the route's end enters another runway — `BuildHoldingPositionNotClear` says instead "Holding position, not clear of runway {cleared}" (Tts "{callsign}, holding position, not clear of {cleared}.").
+
+  `BuildHoldingShortNotClearOfRunwayText` is the same report with the taxiway the aircraft stands on: Terminal "holding short of runway {other} at {taxiway}, not clear of runway {crossed}.", Tts "{callsign}, holding short of runway {other} at {taxiway}, not clear of runway {crossed}.".
+
+  It is said by an exit that stops at another runway's bar with its tail inside the vacated runway (`HoldingAfterExitPhase`, to Tower), by a `CLRWY` cut back at the other runway's bar (`HoldingInPositionPhase`, to Tower), and by the hold a `HOLD` leaves a crossing or a broken-off `FOLLOWG` follow in (`HoldingInPositionPhase.AfterFollowBreakOff`, to a Ground or Tower solo student, `SoloPositionsGround`), when its nose rests short of the other runway's bar.
+
+  `BuildHoldingPositionNotClear` is likewise said by a `CLRWY` or a break-off hold whose nose is past the other runway's bar, or with no other runway (to the same positions). The break-off hold makes its own not-clear call, which a `HOLD` does not silence as it does the traffic-ahead call below. A crossing's tail still inside the crossed runway reports it, and one clear of it is silent.
+
+  A nose counts as past the bar by `ClearRunwayPhase.IsNosePastBar` with `NosePastBarSlackFt` (3.82 ft), the check `CLRWY` uses. Runway ends are named by the nearest end.
 
   Each runway is named by the end nearest the aircraft (`RunwayCrossingEnd.Nearest`), as the hold-short texts name one — the crew reports the runway it cannot clear (AIM 4-3-21.b). Either goes to a solo student on ground or tower (`SoloPositionsGround`), once per hold, and stands in for `BuildLostTrafficHolding` in that hold: one line, the runway one.
 
@@ -304,7 +318,9 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   It is made only for a real wait (the merge ahead of the lead, or the lead moving below 1 kt), judged again each second while the wait lasts and said at most once per wait; the short wait for a lead moving away to clear its tail past the merge is silent. Routed as a solo or RPO transmission, with the warning "{callsign} cleared across RWY {X}, holding for the follow traffic".
 
-  `BuildHoldingPositionNotClearTrafficAhead` is the not-clear call of an aircraft brought to rest on the runway by traffic with part of it inside the far marking: Terminal "Holding position, not clear of runway {X}, traffic ahead", Tts "{callsign}, holding position, not clear of {X}, traffic ahead.". Said once per crossing, about three seconds after it stops; a GIVEWAY does not silence it, a HOLD does.
+  `BuildHoldingPositionNotClearTrafficAhead` is the not-clear call of an aircraft brought to rest on the runway by traffic with part of it inside the far marking: Terminal "Holding position, not clear of runway {X}, traffic ahead", Tts "{callsign}, holding position, not clear of {X}, traffic ahead.".
+
+  Said once per crossing, about three seconds after it stops; a GIVEWAY does not silence it, a HOLD does (a HOLD that ends the crossing at rest makes the break-off hold's own not-clear call instead, above).
 
   A HOLD readback mid-crossing says "holding position on runway {X}" (`BuildHoldingPositionOnRunwayClause`) instead of the bare hold, when any part of the aircraft is past the near marking or the HOLD cannot stop it short of it, also in the taxi stretch just before the crossing phase starts.
 

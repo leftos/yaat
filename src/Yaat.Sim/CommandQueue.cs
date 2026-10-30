@@ -1,4 +1,5 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
@@ -75,6 +76,15 @@ public class BlockTrigger
     public string? GroundTaxiwayName { get; init; }
     public string? GroundEntityToken { get; init; }
 
+    /// <summary>
+    /// For an <see cref="BlockTriggerType.AfterRunwayCrossing"/> trigger behind a <c>CROSS</c> that pre-cleared runways on a
+    /// moving <c>FOLLOWG</c> follower's route: every runway that <c>CROSS</c> named. The trigger fires once the current
+    /// <see cref="Yaat.Sim.Phases.Ground.FollowingPhase"/> is done with all of them: each one's crossing clearance spent and the
+    /// follower's tail and wingtips past its bars. Null for a taxi <c>CROSS</c>, whose trigger waits for a
+    /// <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/>.
+    /// </summary>
+    public IReadOnlyList<RunwayIdentifier>? FollowCrossingRunways { get; init; }
+
     public BlockTriggerDto ToSnapshot() =>
         new()
         {
@@ -94,6 +104,7 @@ public class BlockTrigger
             GroundNodeId = GroundNodeId,
             GroundTaxiwayName = GroundTaxiwayName,
             GroundEntityToken = GroundEntityToken,
+            FollowCrossingRunways = FollowCrossingRunways is null ? null : [.. FollowCrossingRunways.Select(static r => r.ToString())],
         };
 
     public static BlockTrigger FromSnapshot(BlockTriggerDto dto) =>
@@ -115,6 +126,7 @@ public class BlockTrigger
             GroundNodeId = dto.GroundNodeId,
             GroundTaxiwayName = dto.GroundTaxiwayName,
             GroundEntityToken = dto.GroundEntityToken,
+            FollowCrossingRunways = dto.FollowCrossingRunways is null ? null : [.. dto.FollowCrossingRunways.Select(RunwayIdentifier.Parse)],
         };
 }
 

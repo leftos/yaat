@@ -473,6 +473,23 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? TailCutFt { get; init; }
+
+    /// <summary>
+    /// For a crossing that ends at rest, the node id of the other runway's hold-short bar that set where its slice ends, planned with
+    /// the tail decision and written with it (<see cref="TailClearanceSuppressed"/>); null when no such bar set it, before the slice is
+    /// built, and in older snapshots. A restore that applies the stored tail decision applies this bar with it rather than deriving it
+    /// again from the route, whose holds may have been cleared since.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? HeldShortBarNodeId { get; init; }
+
+    /// <summary>
+    /// True when a HOLD that broke off the follow behind the crossing made it the last move before holding in position
+    /// (<c>CrossingRunwayPhase.EndAtRest</c>): it brakes to rest past its slice end before it hands over. Null otherwise and in
+    /// older snapshots.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? EndsAtRest { get; init; }
 }
 
 /// <summary>
@@ -518,6 +535,18 @@ public sealed class HoldingInPositionPhaseDto : PhaseDto
     /// The runway a <c>CLRWY</c> was clearing whose holding position marking the tail is still inside; null (the default) otherwise.
     /// </summary>
     public string? TailInsideRunway { get; init; }
+
+    /// <summary>
+    /// True for the hold a <c>HOLD</c> that broke off a <c>FOLLOWG</c> follow ends in, where a <c>RES</c> is refused; null (false,
+    /// the default) for any other hold in position.
+    /// </summary>
+    public bool? EndsBrokenOffFollow { get; init; }
+
+    /// <summary>
+    /// The student positions the hold's not-clear report is routed to in solo training, written whenever
+    /// <see cref="TailInsideRunway"/> is set; null (no positions, the default) otherwise.
+    /// </summary>
+    public List<string>? NotClearReportPositions { get; init; }
 }
 
 public sealed class HoldingAfterPushbackPhaseDto : PhaseDto;
@@ -809,10 +838,21 @@ public sealed class FollowingPhaseDto : PhaseDto
     public List<string> CrossingClearedRunways { get; init; } = [];
 
     /// <summary>
-    /// Whether the follower has been on the pavement of one of <see cref="CrossingClearedRunways"/> — the clearance is
-    /// spent once it is clear of them again. False in snapshots written before the field existed.
+    /// The runways of <see cref="CrossingClearedRunways"/> whose pavement the follower has been on and not yet left clear of
+    /// (<c>FollowingPhase.BeenOnClearedRunways</c>): each is spent once it is clear of it. Settable for
+    /// <see cref="SnapshotSchemaMigrator"/>, which fills it from a pre-V40 <see cref="LegacyHasBeenOnClearedRunway"/>; null
+    /// restores none.
     /// </summary>
-    public bool HasBeenOnClearedRunway { get; init; }
+    public List<string>? BeenOnClearedRunways { get; set; }
+
+    /// <summary>
+    /// Pre-V40 <c>HasBeenOnClearedRunway</c>: whether the follower had been on the pavement of any cleared runway, the whole
+    /// clearance spent once it was clear of all of them. Read only by <see cref="SnapshotSchemaMigrator"/>, which nulls it, so
+    /// a rewritten snapshot drops it.
+    /// </summary>
+    [JsonPropertyName("HasBeenOnClearedRunway")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyHasBeenOnClearedRunway { get; set; }
 
     /// <summary>
     /// The runway hold-short node the follow is stopping at (<c>FollowingPhase</c>'s latched bar). Null with no bar ahead,
@@ -893,6 +933,12 @@ public sealed class FollowingPhaseDto : PhaseDto
     /// the way out (<c>FollowingPhase</c>'s exiting runways). Empty in snapshots written before the field existed.
     /// </summary>
     public List<string> ExitingRunways { get; init; } = [];
+
+    /// <summary>
+    /// Whether a <c>HOLD</c> broke off the follow (<c>FollowingPhase.IsBrokenOff</c>): it only brakes to rest. False in snapshots
+    /// before V40.
+    /// </summary>
+    public bool BrokenOff { get; init; }
 
     /// <summary>
     /// Whether the follower is giving way short of the merge (<c>FollowingPhase.IsGivingWay</c>), stopping short of the lead's

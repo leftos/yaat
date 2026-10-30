@@ -84,7 +84,11 @@ The navigator is one stage in a chain owned by `TaxiingPhase`. It is **not** res
 
   The ½-fuselage tail-clearance past the far-side node follows the **route's own next segments** (a straight is cut at the exact distance with a virtual node; an arc is taken whole). When the crossing ends on the crossed runway's far bar, or the route's onward segments run out inside the ½ length, `AppendLayoutTailClearance` keeps walking the layout straight ahead until the tail is ½ length plus `RunwayTailClearance.MarginFt` (10 ft) past the far bar. The crossing rests within `SetBackStopMarginFt` (2 ft) of that point, so the tail can rest 8-10 ft past the far hold line.
 
-  Each step takes the edge with the least whole-turn score (the larger of the turns to its departure and its arrival bearing, at most 45°; ties go to the lower node id), because a fillet starts tangent to its taxiway and its initial bearing alone would tie it with the straight it leaves. A plain straight is cut at the distance, a straight with shape points along them, an arc taken whole. The walk stops at another runway's bar the nose would reach, at a runway centreline node, or where no edge qualifies (it logs a Warning with the reason). The extra segments live only in the crossing's slice, never in the route. On completion the crossing phase writes `route.CurrentSegmentIndex` to the segment the aircraft is actually on.
+  Each step takes the edge with the least whole-turn score (the larger of the turns to its departure and its arrival bearing, at most 45°; ties go to the lower node id), because a fillet starts tangent to its taxiway and its initial bearing alone would tie it with the straight it leaves. A plain straight is cut at the distance, a straight with shape points along them, an arc taken whole.
+
+  The walk looks ahead along its own path (`WalkAhead`) and never ends with the nose, ½ the length on, past another runway's hold-short bar: it is cut that far short of the bar (to nothing when that falls before its start; it logs `tail-clearance walk past the far bar stopped {Short} ft short at node #{BarId}`), and an arc that would carry the nose past the bar is dropped. It also stops at a runway centreline node, or where no edge qualifies (it logs a Warning with the reason).
+
+  This holds for every crossing. The extra segments live only in the crossing's slice, never in the route. On completion the crossing phase writes `route.CurrentSegmentIndex` to the segment the aircraft is actually on.
 
   Until then the route's current segment stays on the crossing's entry segment for the whole crossing, even once the aircraft is past that segment's end node. Anything that reads `AssignedTaxiRoute.CurrentSegment` during a crossing must allow for that; `GroundConflictDetector` orders an in-trail pair by along-edge progress for this reason.
 
@@ -272,6 +276,38 @@ Two bars are passed. A bar of a runway the follower is exiting (one whose paveme
 
 A runway is forgotten as exiting once the follower's tail and both wingtips are farther from its centreline than the farthest of its bars on their side (`TrackExitingRunways`), so a later crossing of it stops at the bar again. The other bar passed is the one a clearing route leaves the runway by.
 
+**`CROSS` and `RES CROSS` to a follower.** The route a follower is cleared along is the one it drives: its follow route, then the lead's path past the route's end (`GroundCommandHandler.FollowerRouteOf`, `FollowerPath`), never the assigned route `FOLLOWG` leaves stale. Held at a runway bar with the follow armed behind the hold, the route is the taker's follow route from the bar on, then the lead's path.
+
+A `CROSS {rwy}` or `RES CROSS {rwy}` naming the held runway releases the hold and crosses along that route past the bar (`ReleaseAlongFollowerRoute`, `FollowBehindCrossing`), not by the shortest crossing.
+
+The follow is handed on to a fresh `FollowingPhase` that keeps the unused pre-clearances (`FollowingPhase.PreClearedRunways`) and adds the runways the command named, and the crossed runway starts as been-on, so its clearance is spent once the follower is clear of its pavement. With no route to read (no layout, the lead gone, pushing back, parked or off every taxiway) it takes today's shortest crossing.
+
+`CROSS {rwy}` to a follower that is moving, or held at a bar of another runway, pre-clears a runway on its route (`FollowingPhase.ClearToCross`), so the follow does not stop at that runway's bars. The clearance is spent per runway: `BeenOnClearedRunways` notes each cleared runway the follower has been on, and the first tick it is clear of that runway only that runway drops from `CrossingClearedRunways`; the others stay cleared.
+
+A runway pre-cleared beyond a bar the clearance does not cover survives the hold taken at that bar (the follow queued behind the hold carries `PreClearedRunways`); a runway already crossed is not carried on.
+
+A `CROSS` or `RES CROSS` naming any runway off the follower's route, other than the one it holds short of, is refused as a whole: nothing is applied, and the follower stays held and keeps its follow. The pilot says it once (`PilotResponder.BuildUnableRunwayNotOnRoute`, [phraseology](../pilot-phraseology.md)).
+
+**`HOLD` breaks off the follow.** `HOLD` to a following aircraft ends the follow (`FollowingPhase.BreakOff`, snapshotted as `BrokenOff`): a moving follower brakes to rest at its taxi brake rate and then holds in position, as a lost lead does; a piston or helicopter on a runway keeps the 4.5 kt/s hold brake rate (`CrossingRunwayPhase.PinHeldSpeed`, an owner ruling).
+
+Inside the holding-position markings of a runway its follow is cleared across (`FollowingPhase.CrossingToFinish`), the hold becomes a held crossing: a later `RES` finishes it, the aircraft braking at the taxi rate to rest, then holding in position.
+
+The crossing makes its best effort to clear the crossed runway, but its nose never passes another runway's hold bar, cleared or not: it stops at the nearest of the route's binding stop, the nose at the next other runway's bar (`CrossingRunwayPhase.EndingAtRestStopFt`) and half its length plus `RunwayTailClearance.MarginFt` (10 ft) past the far bar.
+
+A crossing already built when the `HOLD` flags it (`CrossingRunwayPhase.EndAtRest(PhaseContext)`) re-plans at once as a restore would (a crossing restored but not yet ticked is built first; a failed re-plan keeps the old slice and logs a Warning; an aircraft already past the new slice end only brakes), and it stops the nose `GroundNavigator.SetBackStopMarginFt` (2 ft) short of another runway's bar.
+
+The hold it hands over to records where the aircraft rests (`HoldingInPositionPhase.AfterFollowBreakOff(heldShortOfRunway, tailInsideRunway, notClearReportPositions)`): `TailInsideRunway` is the crossed runway's nearest end, set when the tail is not clear; `HeldShortOfRunway` is the other runway, set only when the nose rests short of its bar line, judged by `ClearRunwayPhase.IsNosePastBar` with `NosePastBarSlackFt` (3.82 ft), as `CLRWY` does, so a nose past the line is held short of nothing.
+
+A tail still inside makes the pilot say "holding short of runway {other} at {taxiway}, not clear of runway {crossed}" or, with no held-short runway, "Holding position, not clear of runway {crossed}" (runway ends named by the nearest end), to a Ground or Tower solo student (`SoloPositionsGround`; a `CLRWY` hold still goes to Tower), and the aircraft is an occupant of the crossed runway ([runway-fouling](../runway-fouling.md)).
+
+A follower broken off that rests with its tail inside a runway holds the same way, with no held-short runway. `CrossingRunwayPhaseDto.HeldShortBarNodeId` is snapshotted so a restore plans with the stored bar, and logs a Warning and plans with none when the bar is not in the layout. At SFO on F (1L then 1R) a B763 ends clear of both runways; a B744 stops with its nose 1.18 ft short of 1R's bar and its tail about 46 ft onto 1L.
+
+An uncleared or explicit hold short of the next runway always binds. `RES` is refused "unable, request taxi instructions" (`GroundCommandHandler.RefusesResumeTaxi`) only where the hold in position is a break-off's (`HoldingInPositionPhase.EndsBrokenOffFollow`, snapshotted without a schema bump) and nothing follows it, or at a non-departure hold short whose only successor is that hold; the hub carries it as `ResumeTaxiRefused`.
+
+At a departure-runway bar the hold short's own refusal stands ("issue CTO or LUAW"). A lead-gone stop is not a break-off: `RES` there gives "Resume taxi" when held and "Aircraft is not held" otherwise, as it does at the end of a finished `TAXI`. The refusal never resumes the follow; only a new `FOLLOWG` or `TAXI` moves the aircraft on.
+
+At a bar with the follow armed behind the hold, or mid-crossing with a follow queued behind it, `HOLD` drops the armed follow and everything after it and keeps the hold or crossing it is in; the kept chain ends with `HoldingInPosition`, and a crossing in it ends at rest, tail clear. The reply stays "Hold position (while following)".
+
 **Give way at the merge.** A plan with a route to the merge whose merge lies ahead of the lead, or whose lead's tail is not yet past it, installs the follow giving way (`IsGivingWay`).
 
 While it gives way, the follower brakes onto the stop `GroundConflictDetector.GiveWayStop` places short of the lead's track through the merge (the lead's edge into the merge and its first edge out), as a `GIVEWAY` places its stop. The braking is routine when the taxi rate makes the stop, firm when only the max-effort rate does, else a firm stop where it is.
@@ -292,7 +328,11 @@ The gap's speed is zero at the stop gap (with 1 ft of settle), else the brake cu
 
 Inside the close-follow band behind a lead moving away from the follower, it is no slower than the lead, with a 5 kt walking-pace floor to close up; a lead backing or coming toward the follower opens no gap, so its speed is not matched.
 
-**Speed.** The published speed is the lowest of the navigator's (taxi speed, corner and route-end limits), the gap's, the give-way stop's, the route end's (behind a lead at rest) and the runway bar's braking curve, with the highest brake rate any cap below the ground speed needs (`ApplyCap`). The speed `ApplyCap` lowers is first held to the ground conflict detector's `Ground.SpeedLimit`, so a cap never publishes a speed above the detector's limit. A target left empty reads as the speed the follower holds, never as a stop: physics clears a target once the aircraft reaches it, and the navigator publishes none on the physics sub-tick it arrives at a node, so a follower keeps its speed across every node arrival. A `HOLD` or `GIVEWAY` on the follower keeps the navigator ticking and pins the speed to zero after it, as the [hold contract](#in-the-phase--tick-system) says.
+**Speed.** The published speed is the lowest of the navigator's (taxi speed, corner and route-end limits), the gap's, the give-way stop's, the route end's (behind a lead at rest) and the runway bar's braking curve, with the highest brake rate any cap below the ground speed needs (`ApplyCap`). The speed `ApplyCap` lowers is first held to the ground conflict detector's `Ground.SpeedLimit`, so a cap never publishes a speed above the detector's limit.
+
+A target left empty reads as the speed the follower holds, never as a stop: physics clears a target once the aircraft reaches it, and the navigator publishes none on the physics sub-tick it arrives at a node, so a follower keeps its speed across every node arrival.
+
+A `GIVEWAY` on the follower keeps the navigator ticking and pins the speed to zero after it, as the [hold contract](#in-the-phase--tick-system) says; `HOLD` breaks the follow off instead ([hold-shorts](#followg-driving-the-follow-route)).
 
 **No plan.** With no plan the follower holds in position (it brakes to a stop where it is), never steering straight at the lead. With no layout, a `WaitForLead` plan, or an empty `Joinable` plan (no route to the merge and no lead path from it), it plans again each tick. A `NoPath` or `FollowerAhead` plan at runtime makes the follow unjoinable (`IsUnjoinable`), logged as the route lost: it holds for good, planning no more, until a new command replaces it.
 

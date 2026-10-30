@@ -27,6 +27,12 @@ public interface IMenuAircraft
     /// </summary>
     bool HasTaxiwayHoldShortAhead { get; }
 
+    /// <summary>
+    /// True where the sim refuses a <c>RES</c>: a <c>HOLD</c> broke off a <c>FOLLOWG</c> follow and nothing comes after the hold it
+    /// ends in, held short ahead of it included.
+    /// </summary>
+    bool ResumeTaxiRefused { get; }
+
     /// <summary>True when the aircraft has a call-for-release window, which a release-window check reports on.</summary>
     bool HasCfrWindow { get; }
 

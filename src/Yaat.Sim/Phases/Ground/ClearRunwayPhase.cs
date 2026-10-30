@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -190,7 +191,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
     /// <summary>
     /// When the stop was cut back at another runway's line and the tail is still inside the runway being cleared, the aircraft
     /// has not cleared it: it holds in position short of the other runway with its tail inside this one
-    /// (<see cref="HoldingInPositionPhase(string, string)"/>), its assigned runway the one it is still on, and the pilot reports
+    /// (<see cref="HoldingInPositionPhase(string, string, IReadOnlyCollection{string})"/>), its assigned runway the one it is still on, and the pilot reports
     /// holding short of the other runway, not clear of this one; only not clear of this one when the nose is already past the
     /// other runway's marking.
     /// </summary>
@@ -243,7 +244,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
             ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway",
             clearedEnd
         );
-        phases.ReplaceUpcoming([new HoldingInPositionPhase(otherEnd, clearedEnd)]);
+        phases.ReplaceUpcoming([new HoldingInPositionPhase(otherEnd, clearedEnd, PilotResponder.SoloPositionsTower)]);
     }
 
     /// <summary>
@@ -256,10 +257,12 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
 
     /// <summary>
     /// The aircraft's nose, half its length ahead of its centre, lies more than <see cref="NosePastBarSlackFt"/> past
-    /// <paramref name="otherBar"/> along the line from <paramref name="runwayNode"/> to that bar: it pulled up beyond the other
-    /// runway's holding position marking before the <c>CLRWY</c>.
+    /// <paramref name="otherBar"/> along the line from <paramref name="runwayNode"/>, the bar of the runway it is leaving, to that bar:
+    /// it is past the other runway's holding position marking, not holding short of it. A <c>CLRWY</c> judges a nose that pulled up
+    /// before it so, and a crossing that ends at rest judges where its nose came to rest
+    /// (<see cref="CrossingRunwayPhase.EndAtRest"/>).
     /// </summary>
-    private static bool IsNosePastBar(AircraftState aircraft, GroundNode runwayNode, GroundNode otherBar)
+    public static bool IsNosePastBar(AircraftState aircraft, GroundNode runwayNode, GroundNode otherBar)
     {
         var bearing = new TrueHeading(GeoMath.BearingTo(runwayNode.Position, otherBar.Position));
         double barAheadFt = GeoMath.AlongTrackDistanceNm(otherBar.Position, aircraft.Position, bearing) * GeoMath.FeetPerNm;

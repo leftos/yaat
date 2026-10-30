@@ -105,6 +105,12 @@ public sealed class BlockTriggerDto
     public int? GroundNodeId { get; init; }
     public string? GroundTaxiwayName { get; init; }
     public string? GroundEntityToken { get; init; }
+
+    /// <summary>
+    /// The runways an <c>AfterRunwayCrossing</c> trigger behind a <c>FOLLOWG</c> follower's pre-clearance waits for the follow to be
+    /// done with (<see cref="BlockTrigger.FollowCrossingRunways"/>). Null for a taxi <c>CROSS</c>'s trigger and in snapshots before V40.
+    /// </summary>
+    public List<string>? FollowCrossingRunways { get; init; }
 }
 
 public sealed class DeferredDispatchDto

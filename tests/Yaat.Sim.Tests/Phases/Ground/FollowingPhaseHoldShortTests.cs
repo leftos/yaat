@@ -212,7 +212,7 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
                 TargetCallsign = Leader,
                 TimeSinceLastLog = 0,
                 CrossingClearedRunways = ["1R"],
-                HasBeenOnClearedRunway = hasBeenOnIt,
+                BeenOnClearedRunways = hasBeenOnIt ? ["1R"] : [],
             },
             null
         );

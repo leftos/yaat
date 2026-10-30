@@ -868,6 +868,13 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     private bool _hasTaxiwayHoldShortAhead;
 
     /// <summary>
+    /// True where the sim refuses a RES: a HOLD broke off a FOLLOWG follow and nothing comes after the hold it ends in, held short
+    /// ahead of it included; the menus then offer no RES.
+    /// </summary>
+    [ObservableProperty]
+    private bool _resumeTaxiRefused;
+
+    /// <summary>
     /// The parking / spot the taxi clearance ends at, in command form (<c>@22</c>, <c>$E</c>); empty when none.
     /// The ground overlay needs it to redraw a ramp cut the taxiway sequence alone cannot describe.
     /// </summary>
@@ -1369,6 +1376,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
             HasStoredTaxiRoute = dto.HasStoredTaxiRoute,
             HasTaxiwayHoldShortAhead = dto.HasTaxiwayHoldShortAhead,
+            ResumeTaxiRefused = dto.ResumeTaxiRefused,
             PendingPilotRequest = dto.PendingPilotRequest,
             HasMadeInitialContact = dto.HasMadeInitialContact,
             TaxiDestination = dto.TaxiDestination,
@@ -1513,6 +1521,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
         HasStoredTaxiRoute = dto.HasStoredTaxiRoute;
         HasTaxiwayHoldShortAhead = dto.HasTaxiwayHoldShortAhead;
+        ResumeTaxiRefused = dto.ResumeTaxiRefused;
         PendingPilotRequest = dto.PendingPilotRequest;
         HasMadeInitialContact = dto.HasMadeInitialContact;
         TaxiDestination = dto.TaxiDestination;

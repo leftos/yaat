@@ -76,6 +76,18 @@ public class GroundMovementMenuTests
     }
 
     /// <summary>
+    /// A held ground aircraft in <paramref name="phase"/> on an active taxi route whose RES the sim refuses: a HOLD broke off its
+    /// follow and nothing comes after the hold it ends in.
+    /// </summary>
+    private static AircraftModel WithResumeTaxiRefused(string phase)
+    {
+        AircraftModel ac = GroundAircraft("UAL100", phase, held: true);
+        ac.HasActiveTaxiRoute = true;
+        ac.ResumeTaxiRefused = true;
+        return ac;
+    }
+
+    /// <summary>
     /// Builds the ground-map right-click menu for a single aircraft in <paramref name="phase"/> through the ground view's
     /// right-click path (<see cref="MenuHostHarness.BuildGroundMenu"/>), over a MainViewModel holding a second ground
     /// aircraft that supplies the follow candidate.
@@ -323,6 +335,20 @@ public class GroundMovementMenuTests
     [InlineData("Holding In Position")]
     public void GroundMenu_HidesResumeTaxi_WhenNotHeld_EvenWithTaxiwayHoldShortAhead(string phase) =>
         Assert.DoesNotContain("Resume taxi", Headers(BuildGroundMenu(WithTaxiwayHoldShortAhead(phase, held: false))));
+
+    // Where a HOLD broke off a follow and nothing comes after its hold the sim refuses RES, so neither menu offers it: not in that
+    // hold, held as it is, nor held short with that hold the only phase after the hold short.
+    [AvaloniaTheory]
+    [InlineData("Holding In Position")]
+    [InlineData("Holding Short 1R")]
+    public void GroundMenu_HidesResumeTaxi_WhenResumeTaxiRefused(string phase) =>
+        Assert.DoesNotContain("Resume taxi", Headers(BuildGroundMenu(WithResumeTaxiRefused(phase))));
+
+    [AvaloniaTheory]
+    [InlineData("Holding In Position")]
+    [InlineData("Holding Short 1R")]
+    public void AircraftListMenu_HidesResumeTaxi_WhenResumeTaxiRefused(string phase) =>
+        Assert.DoesNotContain("Resume taxi", Headers(BuildAircraftListMenu(WithResumeTaxiRefused(phase))));
 
     // --- Parity harness -------------------------------------------------------------------
     // The ground-movement gates ("Push back", "Hold position", "Resume taxi") live in

@@ -21,6 +21,8 @@ internal sealed record FakeMenuAircraft : IMenuAircraft
 
     public bool HasTaxiwayHoldShortAhead { get; init; }
 
+    public bool ResumeTaxiRefused { get; init; }
+
     public bool HasCfrWindow { get; init; }
 
     public bool IsHeldForRelease { get; init; }

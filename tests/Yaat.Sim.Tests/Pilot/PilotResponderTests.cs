@@ -2848,6 +2848,17 @@ public class PilotResponderTests
     }
 
     [Fact]
+    public void BuildUnableRunwayNotOnRoute_TerminalNamesTheRunway_TtsSpellsIt()
+    {
+        AircraftState ac = MakeAircraft("N294MG");
+        PilotSpeechText result = PilotResponder.BuildUnableRunwayNotOnRoute(ac, "28L");
+
+        Assert.Equal("Unable, runway 28L is not on our route, request taxi instructions", result.Terminal);
+        Assert.Equal(result.Terminal, result.TerminalForRpo);
+        Assert.Equal("november two nine four mike golf, unable, runway two eight left isn't on our route, request taxi.", result.Tts);
+    }
+
+    [Fact]
     public void BuildHoldingShortNotClear_TerminalCompactsAndTtsSpells()
     {
         AircraftState ac = MakeAircraft("N294MG");

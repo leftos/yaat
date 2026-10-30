@@ -3023,6 +3023,20 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// Pilot transmission refusing a <c>CROSS</c> to a taxi follower (<c>FOLLOWG</c>) for <paramref name="runway"/>, a runway on
+    /// neither its follow route nor its traffic's path: the follower keeps its hold and its follow and asks for taxi instructions.
+    /// The runway is terminal compacted and spoken spelled.
+    /// </summary>
+    public static PilotSpeechText BuildUnableRunwayNotOnRoute(AircraftState aircraft, string runway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            $"Unable, runway {PhraseologyVerbalizer.CompactRunway(runway)} is not on our route, request taxi instructions",
+            $"{spoken}, unable, runway {PhraseologyVerbalizer.SpellRunway(runway)} isn't on our route, request taxi."
+        );
+    }
+
+    /// <summary>
     /// Pilot transmission when its clearing route ran out before its tail was past the hold line: the aircraft is holding short
     /// of <paramref name="nextRunway"/> while still not clear of <paramref name="clearedRunway"/>. Both are a single runway end
     /// as the hold-short texts name them — the end nearest the aircraft

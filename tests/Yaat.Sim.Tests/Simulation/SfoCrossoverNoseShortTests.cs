@@ -208,7 +208,7 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
     [Fact]
     public void HoldingInPositionShortOfAnotherRunway_SnapshotRoundTrip_KeepsBothRunways()
     {
-        var hold = new HoldingInPositionPhase("28L", "28R");
+        var hold = new HoldingInPositionPhase("28L", "28R", PilotResponder.SoloPositionsTower);
 
         HoldingInPositionPhaseDto dto = Assert.IsType<HoldingInPositionPhaseDto>(hold.ToSnapshot());
         var restored = HoldingInPositionPhase.FromSnapshot(dto);

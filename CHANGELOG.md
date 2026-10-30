@@ -6,6 +6,8 @@
 
 - In solo sessions, how busy the frequency sounds now follows how little dead air is left, counting your transmissions and pilots' say answers, not how many calls were made.
 - In solo sessions, a second arriving pilot now and then checks in a few seconds after the first, before you have answered it.
+- `HOLD` to a `FOLLOWG` follower ends the follow: it stops, and `RES` gets "unable, request taxi instructions" until a new `TAXI` or `FOLLOWG`.
+- A `HOLD` mid-crossing stops short of the next runway's hold line; an aircraft left with its tail on the crossed runway reports not clear of it.
 
 ### Fixed
 
@@ -33,6 +35,9 @@
 - With the ground view's YAAT layout hidden, a click near a runway end no longer opens that end's menu, since no marker is drawn there.
 - A `FOLLOWG` follower holds short only at hold lines on its own path, not at another runway's hold line beside it, so its Cross crosses where the lead did.
 - Push to now offers pushes of up to 700 ft (was 600), so a stand like KOAK 5 offers its push onto S with both facings.
+- A `FOLLOWG` follower's `CROSS` crosses along its follow route and refuses a runway not on it; a `CROSS` for a runway ahead pre-clears it.
+- `CROSS 1L 1R; HOLD` to a `FOLLOWG` follower runs the `HOLD` once it is clear of the last runway named.
+- A runway crossing that ends where its route runs out no longer stops with the nose past another runway's hold line.
 
 ## v0.17.1-beta [2026/10/29]
 

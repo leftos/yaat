@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using static Yaat.Sim.Data.Airport.RunwayHoldBars;
@@ -250,7 +251,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     }
 
     private IReadOnlyList<RunwayIdentifier> _crossingClearedRunways = [];
-    private bool _hasBeenOnClearedRunway;
+    private List<RunwayIdentifier> _beenOnClearedRunways = [];
 
     /// <summary>
     /// Runways whose pavement the follower has occupied during this follow and not yet exited clear of: their bars are passed
@@ -265,14 +266,27 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// Runways the crossing clearance that started this follow cleared — <c>FOLLOWG X; CROSS 1L 1R</c> releasing a
     /// follow armed at the 1L bar clears both, one clearance for the pair (7110.65 §3-7-2c). The follow does not stop
     /// at a bar protecting any of them (<see cref="CheckRunwayHoldShort"/>), except the follower's own departure bar.
-    /// The clearance is used once: the first tick the aircraft is clear of every cleared runway's pavement after
-    /// having been on one, it expires (<see cref="ExpireUsedCrossingClearance"/>). Empty for a follow no crossing
-    /// started.
+    /// A <c>CROSS</c> while following adds runways ahead (<see cref="ClearToCross"/>). Each runway's clearance is used once:
+    /// the first tick the aircraft is clear of that runway's pavement after having been on it, that runway expires
+    /// (<see cref="ExpireUsedCrossingClearance"/>). Empty for a follow no crossing started.
     /// </summary>
     public IReadOnlyList<RunwayIdentifier> CrossingClearedRunways
     {
         get => _crossingClearedRunways;
         init => _crossingClearedRunways = value;
+    }
+
+    /// <summary>
+    /// Pre-clears <paramref name="runway"/>, a runway on the follower's route ahead: a <c>CROSS</c> issued while it follows, or
+    /// while it holds at a bar of another runway, joins the crossing clearance (<see cref="CrossingClearedRunways"/>) so the
+    /// follow does not stop at its bars. A runway the clearance already covers is not added twice.
+    /// </summary>
+    public void ClearToCross(RunwayIdentifier runway)
+    {
+        if (!_crossingClearedRunways.Any(cleared => cleared.Overlaps(runway)))
+        {
+            _crossingClearedRunways = [.. _crossingClearedRunways, runway];
+        }
     }
 
     public override string Name => $"Following {_targetCallsign}";
@@ -327,6 +341,11 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        if (_brokenOff)
+        {
+            return TickBrokenOff(ctx);
+        }
+
         if (ctx.Aircraft.Ground.IsImmobile)
         {
             TickHeld(ctx);
@@ -711,6 +730,154 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// where it is (<see cref="HoldInPosition"/>), and at rest (<see cref="IsAtRest"/>) a <see cref="HoldingInPositionPhase"/>
     /// takes over, so the aircraft stays in a state that accepts commands. True when the follow completes.
     /// </summary>
+    private bool _brokenOff;
+
+    /// <summary>
+    /// Whether a <c>HOLD</c> has broken off this follow (<see cref="BreakOff"/>): it no longer follows, only brakes to rest
+    /// (snapshotted).
+    /// </summary>
+    public bool IsBrokenOff => _brokenOff;
+
+    /// <summary>
+    /// Breaks off the follow for a <c>HOLD</c>: from the next tick the follower only brakes to rest at its taxi brake rate, the
+    /// way a follow whose lead is gone stops (<see cref="TickBrokenOff"/>), and at rest a <see cref="HoldingInPositionPhase"/>
+    /// takes over.
+    /// </summary>
+    public void BreakOff() => _brokenOff = true;
+
+    /// <summary>
+    /// A broken-off follow: the navigator ticks as it does under a hold (<see cref="TickHeld"/>) while it brakes to a stop where
+    /// it is (<see cref="HoldInPosition"/>); at rest (<see cref="IsAtRest"/>) a <see cref="HoldingInPositionPhase"/> takes over.
+    /// True when the follow completes.
+    /// </summary>
+    private bool TickBrokenOff(PhaseContext ctx)
+    {
+        TickHeld(ctx);
+        HoldInPosition(ctx, null);
+        if (!IsAtRest(ctx))
+        {
+            return false;
+        }
+
+        string? tailInside = TailInsideRunwayEnd(ctx);
+        Log.LogDebug(
+            "[Follow] {Callsign}: follow of {Target} broken off; stopped, tail inside {Runway}",
+            ctx.Aircraft.Callsign,
+            _targetCallsign,
+            tailInside ?? "no runway"
+        );
+        ctx.Aircraft.IndicatedAirspeed = 0;
+        ctx.Targets.TargetSpeed = 0;
+        ctx.Aircraft.Phases?.InsertAfterCurrent(
+            HoldingInPositionPhase.AfterFollowBreakOff(heldShortOfRunway: null, tailInside, PilotResponder.SoloPositionsGround)
+        );
+        return true;
+    }
+
+    /// <summary>
+    /// The end nearest the follower (<see cref="RunwayCrossingEnd.Nearest"/>) of a runway it has been on (<see cref="ExitingRunways"/>)
+    /// whose far holding position marking its tail and wingtips have not cleared (<see cref="IsClearPastBar"/>, against that runway's
+    /// bar nearest it on its side): the runway a broken-off follow comes to rest not clear of (AIM 2-3-5.a.1.(a), 4-3-21.b). Null
+    /// when it is clear of every one, or with no layout.
+    /// </summary>
+    internal string? TailInsideRunwayEnd(PhaseContext ctx)
+    {
+        if (ctx.GroundLayout is not { } layout)
+        {
+            return null;
+        }
+
+        foreach (RunwayInfo runway in RunwayOccupancy.AirportRunways(layout.AirportId))
+        {
+            if (
+                AnyOverlaps(_exitingRunways, runway.Id)
+                && (NearestSameSideBar(layout, runway, ctx.Aircraft.Position) is { } bar)
+                && !IsClearPastBar(ctx.Aircraft, runway, bar)
+            )
+            {
+                return RunwayCrossingEnd.Nearest(ctx.Aircraft, runway.Id.ToString(), layout);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The runways whose pavement the follower has been on and is not yet clear of the bars of (snapshotted).</summary>
+    public IReadOnlyList<RunwayIdentifier> ExitingRunways => _exitingRunways;
+
+    /// <summary>
+    /// The crossing a <c>HOLD</c> hands the follower to when any part of it is inside the holding position markings of a runway
+    /// the follow is cleared across, or still crossing (<see cref="ExitingRunways"/>): a <see cref="CrossingRunwayPhase"/> over
+    /// the rest of the follow route to the first bar of that runway ahead on the far side, so the hold stops it there and a
+    /// release finishes the crossing tail-clear. Null when it is inside no such runway's markings, has no follow route, or the
+    /// route shows no bar of the runway behind it and one ahead on the far side.
+    /// </summary>
+    public CrossingRunwayPhase? CrossingToFinish(AircraftState aircraft, AirportGroundLayout layout)
+    {
+        if (_followRoute is not { IsComplete: false } route)
+        {
+            return null;
+        }
+
+        foreach (RunwayInfo runway in RunwayOccupancy.AirportRunways(layout.AirportId))
+        {
+            bool cleared = _crossingClearedRunways.Any(r => r.Overlaps(runway.Id)) || AnyOverlaps(_exitingRunways, runway.Id);
+            GroundNode[] bars = RunwayBars(layout, runway);
+            if (cleared && IsInsideRunwayMarkings(aircraft, bars, runway) && (CrossingAlongRoute(route, bars, runway) is { } crossing))
+            {
+                return crossing;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The crossing of <paramref name="runway"/> along <paramref name="route"/> from its current segment: the entry side is the side
+    /// of the last of the runway's <paramref name="bars"/> the route passed, the far bar the first one ahead on the other side.
+    /// </summary>
+    private static CrossingRunwayPhase? CrossingAlongRoute(TaxiRoute route, GroundNode[] bars, RunwayInfo runway)
+    {
+        int at = route.CurrentSegmentIndex;
+        GroundNode? entry = null;
+        for (int i = at; (i >= 0) && (entry is null); i--)
+        {
+            entry = Array.Find(bars, b => b.Id == route.Segments[i].FromNodeId);
+        }
+
+        if (entry is null)
+        {
+            return null;
+        }
+
+        bool entryRight = IsRightOfCentreline(runway, entry.Position);
+        int farIndex = route.Segments.FindIndex(
+            at,
+            s => Array.Find(bars, b => b.Id == s.ToNodeId) is { } bar && (IsRightOfCentreline(runway, bar.Position) != entryRight)
+        );
+        if (farIndex < 0)
+        {
+            return null;
+        }
+
+        int farBarId = route.Segments[farIndex].ToNodeId;
+        var path = new TaxiRoute
+        {
+            Segments = [.. route.Segments.Skip(at).Select(static s => new TaxiRouteSegment { Edge = s.Edge, TaxiwayName = s.TaxiwayName })],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = farBarId,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = runway.Id.ToString(),
+                    IsCleared = true,
+                },
+            ],
+        };
+        return CrossingRunwayPhase.OverOwnPath(path.Segments[0].FromNodeId, farBarId, runway.Id.ToString(), path, false);
+    }
+
     private bool TickLeadGone(PhaseContext ctx, AircraftState? lead, SpeedCap? barCap)
     {
         NoteLeadSeenDeparting(lead);
@@ -1072,7 +1239,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// Whether the follower is within one sub-tick of taxi braking of rest, so clearing the residual is no more than physics' own
     /// ground snap would.
     /// </summary>
-    private static bool IsAtRest(PhaseContext ctx) =>
+    internal static bool IsAtRest(PhaseContext ctx) =>
         ctx.Aircraft.IndicatedAirspeed <= (CategoryPerformance.TaxiDecelRate(ctx.Category) / SimulationEngine.PhysicsSubTickRate);
 
     /// <summary>
@@ -1159,8 +1326,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// The pilot says once, on the transition into the hold a clearing route ran out short of (<see cref="DriveClearingRoute"/>),
     /// that it is holding short of the runway its way on enters and not clear of the one behind, or, with no such runway, that it
     /// is holding in position and not clear of the one behind: a transmission to a solo student on ground or tower, else the
-    /// RPO's terminal (<see cref="Pilot.PilotResponder.BuildHoldingShortNotClear"/>,
-    /// <see cref="Pilot.PilotResponder.BuildHoldingPositionNotClear"/>). Each runway is named by the end nearest the follower, as
+    /// RPO's terminal (<see cref="PilotResponder.BuildHoldingShortNotClear"/>,
+    /// <see cref="PilotResponder.BuildHoldingPositionNotClear"/>). Each runway is named by the end nearest the follower, as
     /// the hold-short texts name one. Nothing when the cleared runway cannot be read, or once said — and a follow that has said
     /// this says no lost-traffic call for that hold (<see cref="SayLostTrafficHolding"/>): one line per hold, the runway one,
     /// which is the one safety turns on.
@@ -1174,19 +1341,15 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
         _saidHeldShortNotClear = true;
         string clearedEnd = RunwayCrossingEnd.Nearest(ctx.Aircraft, cleared.ToString(), layout);
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
             ctx.StudentPositionType,
             RunwayAheadAtTheHold(layout, cleared, clearing.Segments[^1]) is { } next
-                ? Pilot.PilotResponder.BuildHoldingShortNotClear(
-                    ctx.Aircraft,
-                    RunwayCrossingEnd.Nearest(ctx.Aircraft, next.ToString(), layout),
-                    clearedEnd
-                )
-                : Pilot.PilotResponder.BuildHoldingPositionNotClear(ctx.Aircraft, clearedEnd),
-            Pilot.PilotResponder.SoloPositionsGround
+                ? PilotResponder.BuildHoldingShortNotClear(ctx.Aircraft, RunwayCrossingEnd.Nearest(ctx.Aircraft, next.ToString(), layout), clearedEnd)
+                : PilotResponder.BuildHoldingPositionNotClear(ctx.Aircraft, clearedEnd),
+            PilotResponder.SoloPositionsGround
         );
     }
 
@@ -1760,6 +1923,45 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         return true;
     }
 
+    /// <summary>
+    /// How far (ft) the part of <paramref name="aircraft"/> last to clear the hold line of the runway bar <paramref name="barNodeId"/>
+    /// of <paramref name="layout"/> is short of that line, with the parts and distances <see cref="IsClearPastBar"/> judges by: the
+    /// bar's distance from the runway's centreline less the part's, a part across the centreline from the bar counting its
+    /// distance as negative. Negative when the tail and both wingtips are all past the line (<see cref="IsClearPastBar"/> holds);
+    /// null when the bar or its runway cannot be resolved.
+    /// </summary>
+    public static double? ShortOfBarFt(AirportGroundLayout? layout, int barNodeId, AircraftState aircraft)
+    {
+        if (
+            (layout is null)
+            || !layout.Nodes.TryGetValue(barNodeId, out GroundNode? bar)
+            || (bar.RunwayId is not { } barRunway)
+            || (RunwayNamed(layout, barRunway) is not { } runway)
+        )
+        {
+            return null;
+        }
+
+        bool barRight = IsRightOfCentreline(runway, bar.Position);
+        double barFt = CentrelineFt(runway, bar.Position);
+        Span<LatLon> parts = stackalloc LatLon[MaxTrailingParts];
+        int count = FillTrailingParts(aircraft, parts);
+        double shortFt = double.NegativeInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            shortFt = Math.Max(shortFt, barFt - BarSideFt(runway, barRight, parts[i]));
+        }
+
+        return shortFt;
+    }
+
+    /// <summary>
+    /// How far (ft) <paramref name="point"/> lies from <paramref name="runway"/>'s centreline on the side
+    /// <paramref name="barRight"/> names, negative on the other side.
+    /// </summary>
+    private static double BarSideFt(RunwayInfo runway, bool barRight, LatLon point) =>
+        (IsRightOfCentreline(runway, point) == barRight) ? CentrelineFt(runway, point) : -CentrelineFt(runway, point);
+
     /// <summary>The most parts <see cref="FillTrailingParts"/> fills: the tail and both wingtips.</summary>
     private const int MaxTrailingParts = 3;
 
@@ -2220,7 +2422,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// <summary>
     /// The lead is lost with no legal way back onto an assigned route and nothing left to clear: the pilot says once that it has
     /// lost the traffic, is holding in position and wants taxi instructions — a transmission to a solo student on ground or
-    /// tower, else the RPO's terminal (<see cref="Pilot.PilotResponder.BuildLostTrafficHolding"/>). A follower with no assigned
+    /// tower, else the RPO's terminal (<see cref="PilotResponder.BuildLostTrafficHolding"/>). A follower with no assigned
     /// route left says nothing (it holds silently), one that has already said it cannot follow (<see cref="_saidUnableNoRoute"/>)
     /// or has said the runway call for this hold (<see cref="_saidHeldShortNotClear"/>) says nothing either, and neither does one
     /// that has already said this.
@@ -2233,13 +2435,13 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         _saidLostTraffic = true;
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
             ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildLostTrafficHolding(ctx.Aircraft, _targetCallsign),
-            Pilot.PilotResponder.SoloPositionsGround
+            PilotResponder.BuildLostTrafficHolding(ctx.Aircraft, _targetCallsign),
+            PilotResponder.SoloPositionsGround
         );
     }
 
@@ -2248,13 +2450,13 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// student on ground or tower, else in the RPO's terminal naming the lead.
     /// </summary>
     private void SayUnableNoRouteToFollow(PhaseContext ctx) =>
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
             ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildUnableNoRouteToFollow(ctx.Aircraft, _targetCallsign),
-            Pilot.PilotResponder.SoloPositionsGround
+            PilotResponder.BuildUnableNoRouteToFollow(ctx.Aircraft, _targetCallsign),
+            PilotResponder.SoloPositionsGround
         );
 
     /// <summary>
@@ -2852,8 +3054,9 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             TargetCallsign = _targetCallsign,
             TimeSinceLastLog = _timeSinceLastLog,
             CrossingClearedRunways = [.. _crossingClearedRunways.Select(static r => r.ToString())],
-            HasBeenOnClearedRunway = _hasBeenOnClearedRunway,
+            BeenOnClearedRunways = [.. _beenOnClearedRunways.Select(static r => r.ToString())],
             ExitingRunways = [.. _exitingRunways.Select(static r => r.ToString())],
+            BrokenOff = _brokenOff,
             LatchedBarNodeId = _latchedBarNodeId,
             LatchedBarApproachDeg = _latchedBarApproachDeg,
             LeadDepartureBarNodeId = _leadDepartureBar?.NodeId,
@@ -2889,8 +3092,9 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         {
             _timeSinceLastLog = dto.TimeSinceLastLog,
             CrossingClearedRunways = [.. dto.CrossingClearedRunways.Select(RunwayIdentifier.Parse)],
-            _hasBeenOnClearedRunway = dto.HasBeenOnClearedRunway,
+            _beenOnClearedRunways = [.. (dto.BeenOnClearedRunways ?? []).Select(RunwayIdentifier.Parse)],
             _exitingRunways = [.. dto.ExitingRunways.Select(RunwayIdentifier.Parse)],
+            _brokenOff = dto.BrokenOff,
             _latchedBarNodeId = dto.LatchedBarNodeId,
             _latchedBarApproachDeg = dto.LatchedBarApproachDeg,
             _leadDepartureBar =
@@ -3304,9 +3508,15 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         var holdPhase = new HoldingShortPhase(holdShort);
         if (!IsClearedToCross(node) || (bar.Reason != HoldShortReason.RunwayCrossing))
         {
+            // Held at a bar its clearance does not cover, the follow keeps the runways pre-cleared beyond it, never one it has used.
             ctx.Aircraft.Phases?.InsertAfterCurrent([
                 holdPhase,
-                new FollowingPhase(_targetCallsign) { LeadDeparture = _leadDepartureBar, LeadSeenDeparting = _leadSeenDeparting },
+                new FollowingPhase(_targetCallsign)
+                {
+                    CrossingClearedRunways = PreClearedRunways,
+                    LeadDeparture = _leadDepartureBar,
+                    LeadSeenDeparting = _leadSeenDeparting,
+                },
             ]);
             return true;
         }
@@ -3317,6 +3527,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         var resumeFollow = new FollowingPhase(_targetCallsign)
         {
             CrossingClearedRunways = _crossingClearedRunways,
+            BeenOnClearedRunways = _beenOnClearedRunways,
             LeadDeparture = _leadDepartureBar,
             LeadSeenDeparting = _leadSeenDeparting,
         };
@@ -3533,9 +3744,18 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     private bool IsClearOfBars(PhaseContext ctx, AirportGroundLayout layout, RunwayInfo runway)
     {
         NoteTailOnlyOnce(ctx.Aircraft);
+        return IsClearOfRunwayBars(ctx.Aircraft, layout, runway);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="aircraft"/>'s tail and both wingtips each lie farther from <paramref name="runway"/>'s centreline
+    /// than the farthest of the runway's bars on that part's side (<see cref="IsClearOfBars"/>), judged without the follow's state.
+    /// </summary>
+    public static bool IsClearOfRunwayBars(AircraftState aircraft, AirportGroundLayout layout, RunwayInfo runway)
+    {
         GroundNode[] bars = RunwayBars(layout, runway);
         Span<LatLon> parts = stackalloc LatLon[MaxTrailingParts];
-        int count = FillTrailingParts(ctx.Aircraft, parts);
+        int count = FillTrailingParts(aircraft, parts);
         for (int i = 0; i < count; i++)
         {
             if (CentrelineFt(runway, parts[i]) <= FarthestBarFt(runway, bars, IsRightOfCentreline(runway, parts[i])))
@@ -3545,6 +3765,26 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Whether any part of <paramref name="aircraft"/> — its position, tail or wingtips — lies inside <paramref name="runway"/>'s
+    /// holding position markings: no farther from the centreline than the farthest bar on its side.
+    /// </summary>
+    private static bool IsInsideRunwayMarkings(AircraftState aircraft, GroundNode[] bars, RunwayInfo runway)
+    {
+        Span<LatLon> parts = stackalloc LatLon[MaxTrailingParts + 1];
+        int count = FillTrailingParts(aircraft, parts);
+        parts[count++] = aircraft.Position;
+        for (int i = 0; i < count; i++)
+        {
+            if (CentrelineFt(runway, parts[i]) <= FarthestBarFt(runway, bars, IsRightOfCentreline(runway, parts[i])))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -3569,9 +3809,9 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         (node.RunwayId is { } barRunway) && _crossingClearedRunways.Any(cleared => barRunway.Overlaps(cleared));
 
     /// <summary>
-    /// Spend the crossing clearance once it has been used: note when the aircraft is on the pavement of a cleared
-    /// runway, and drop the clearance the first tick after that it is clear of all of them, so a bar of the same
-    /// runway met later in the follow stops the aircraft again.
+    /// Spend each runway's crossing clearance once it has been used, on its own: note each cleared runway whose pavement the
+    /// aircraft is on, and drop a runway from the clearance the first tick after that it is clear of that runway's pavement, so a
+    /// bar of the same runway met later in the follow stops the aircraft again. The other cleared runways stay cleared.
     /// </summary>
     private void ExpireUsedCrossingClearance(PhaseContext ctx)
     {
@@ -3580,25 +3820,44 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return;
         }
 
-        bool onClearedRunway = RunwayOccupancy
-            .AirportRunways(ctx.GroundLayout.AirportId)
-            .Any(runway => _crossingClearedRunways.Any(cleared => runway.Id.Overlaps(cleared)) && RunwayOccupancy.IsOnPavement(ctx.Aircraft, runway));
-        if (onClearedRunway)
+        IReadOnlyList<RunwayInfo> runways = RunwayOccupancy.AirportRunways(ctx.GroundLayout.AirportId);
+        List<RunwayIdentifier> spent = [];
+        foreach (RunwayIdentifier cleared in _crossingClearedRunways)
         {
-            _hasBeenOnClearedRunway = true;
-            return;
+            bool onIt = runways.Any(runway => runway.Id.Overlaps(cleared) && RunwayOccupancy.IsOnPavement(ctx.Aircraft, runway));
+            bool beenOn = _beenOnClearedRunways.Any(been => been.Overlaps(cleared));
+            if (onIt && !beenOn)
+            {
+                _beenOnClearedRunways.Add(cleared);
+            }
+            else if (!onIt && beenOn)
+            {
+                spent.Add(cleared);
+            }
         }
 
-        if (_hasBeenOnClearedRunway)
+        foreach (RunwayIdentifier runway in spent)
         {
-            Log.LogDebug("[Follow] {Callsign}: clear of the runways its crossing clearance covered; clearance spent", ctx.Aircraft.Callsign);
-            _crossingClearedRunways = [];
-            _hasBeenOnClearedRunway = false;
+            Log.LogDebug("[Follow] {Callsign}: clear of runway {Runway} its crossing clearance covered; spent", ctx.Aircraft.Callsign, runway);
+            _crossingClearedRunways = [.. _crossingClearedRunways.Where(cleared => !cleared.Overlaps(runway))];
+            _beenOnClearedRunways.RemoveAll(been => been.Overlaps(runway));
         }
     }
 
-    /// <summary>Whether the crossing clearance has been used on a cleared runway and not yet spent (snapshotted).</summary>
-    public bool HasBeenOnClearedRunway => _hasBeenOnClearedRunway;
+    /// <summary>
+    /// The cleared runways whose pavement the follower has been on and not yet left clear of (snapshotted): each is spent the
+    /// first tick it is clear of it (<see cref="ExpireUsedCrossingClearance"/>). A follow a crossing hands over to starts with the
+    /// runway that crossing crossed.
+    /// </summary>
+    public IReadOnlyList<RunwayIdentifier> BeenOnClearedRunways
+    {
+        get => _beenOnClearedRunways;
+        init => _beenOnClearedRunways = [.. value];
+    }
+
+    /// <summary>The cleared runways not yet used (<see cref="BeenOnClearedRunways"/>): the pre-clearances a later follow takes on.</summary>
+    public IReadOnlyList<RunwayIdentifier> PreClearedRunways =>
+        [.. _crossingClearedRunways.Where(cleared => !_beenOnClearedRunways.Any(been => been.Overlaps(cleared)))];
 
     /// <summary>
     /// The runway end the follower departs on from this bar, when the bar is a departure bar for it rather than a crossing; else

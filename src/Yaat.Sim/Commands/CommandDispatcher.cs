@@ -2026,17 +2026,16 @@ public static class CommandDispatcher
             return;
         }
 
-        if (compound.Blocks[0].Commands.Count == 0 || compound.Blocks[0].Commands[0] is not CrossRunwayCommand)
+        if (compound.Blocks[0].Commands.Count == 0 || compound.Blocks[0].Commands[0] is not CrossRunwayCommand cross)
         {
             return;
         }
 
-        if (!WillProduceRunwayCrossing(aircraft, phaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx))
+        if (AfterCrossingTrigger(cross, aircraft, phaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx) is not { } trigger)
         {
             return;
         }
 
-        var trigger = new BlockTrigger { Type = BlockTriggerType.AfterRunwayCrossing };
         for (int i = firstNewBlockIdx + 1; i < aircraft.Queue.Blocks.Count; i++)
         {
             CommandBlock block = aircraft.Queue.Blocks[i];
@@ -2073,17 +2072,16 @@ public static class CommandDispatcher
             return;
         }
 
-        if (originalCompound.Blocks[0].Commands[0] is not CrossRunwayCommand)
+        if (originalCompound.Blocks[0].Commands[0] is not CrossRunwayCommand cross)
         {
             return;
         }
 
-        if (!WillProduceRunwayCrossing(aircraft, phaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx))
+        if (AfterCrossingTrigger(cross, aircraft, phaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx) is not { } trigger)
         {
             return;
         }
 
-        var trigger = new BlockTrigger { Type = BlockTriggerType.AfterRunwayCrossing };
         for (int i = firstRemainingIdx; i < aircraft.Queue.Blocks.Count; i++)
         {
             CommandBlock block = aircraft.Queue.Blocks[i];
@@ -2114,7 +2112,11 @@ public static class CommandDispatcher
     /// <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/> when it reaches an already-cleared
     /// crossing. <paramref name="hadPendingCrossingBeforeDispatch"/> is what makes this arm specific to
     /// the CROSS just issued: without it, an unrelated crossing already cleared by AutoCross would
-    /// defer the chained blocks of (say) a <c>CROSS B; …</c> across a taxiway.</item>
+    /// defer the chained blocks of (say) a <c>CROSS B; …</c> across a taxiway;</item>
+    /// <item>the aircraft was following (<c>FOLLOWG</c>) and the CROSS pre-cleared runways on its follow's route
+    /// (<see cref="FollowerPreClearedRunways"/>). It crosses inside the follow, with no
+    /// <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/>, so its trigger waits on the follow instead
+    /// (<see cref="BlockTrigger.FollowCrossingRunways"/>).</item>
     /// </list>
     ///
     /// Never guess here. A trigger attached to a crossing that never happens strands the block: an
@@ -2122,8 +2124,19 @@ public static class CommandDispatcher
     /// untriggered one (ground aircraft end in terminal phases, and
     /// <see cref="FlightPhysics.UpdateCommandQueue"/> skips untriggered blocks while a phase is active).
     /// </summary>
-    private static bool WillProduceRunwayCrossing(AircraftState aircraft, Phase? phase, bool hadPendingCrossingBeforeDispatch, DispatchContext ctx)
+    private static bool WillProduceRunwayCrossing(
+        CrossRunwayCommand cross,
+        AircraftState aircraft,
+        Phase? phase,
+        bool hadPendingCrossingBeforeDispatch,
+        DispatchContext ctx
+    )
     {
+        if (phase is FollowingPhase follow)
+        {
+            return FollowerPreClearedRunways(cross, aircraft, follow) is not null;
+        }
+
         if (phase is HoldingShortPhase hp)
         {
             if (hp.HoldShort.TargetName is not { Length: > 0 } target || !char.IsAsciiDigit(target[0]))
@@ -2135,6 +2148,53 @@ public static class CommandDispatcher
         }
 
         return !hadPendingCrossingBeforeDispatch && HasPendingRunwayCrossing(aircraft, ctx);
+    }
+
+    /// <summary>
+    /// The <see cref="BlockTriggerType.AfterRunwayCrossing"/> trigger for the blocks chained behind <paramref name="cross"/>, or
+    /// null when it puts no crossing in the aircraft's future (<see cref="WillProduceRunwayCrossing"/>). Behind a pre-clearance on
+    /// a moving <c>FOLLOWG</c> follower's route it waits for the follow to be done with every runway named
+    /// (<see cref="BlockTrigger.FollowCrossingRunways"/>), so <c>CROSS 1L 1R; HOLD</c> holds once past 1R's bars, whatever the order.
+    /// </summary>
+    private static BlockTrigger? AfterCrossingTrigger(
+        CrossRunwayCommand cross,
+        AircraftState aircraft,
+        Phase? phaseBeforeDispatch,
+        bool hadPendingCrossingBeforeDispatch,
+        DispatchContext ctx
+    )
+    {
+        if (phaseBeforeDispatch is FollowingPhase follow)
+        {
+            return FollowerPreClearedRunways(cross, aircraft, follow) is { } runways
+                ? new BlockTrigger { Type = BlockTriggerType.AfterRunwayCrossing, FollowCrossingRunways = runways }
+                : null;
+        }
+
+        return WillProduceRunwayCrossing(cross, aircraft, phaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx)
+            ? new BlockTrigger { Type = BlockTriggerType.AfterRunwayCrossing }
+            : null;
+    }
+
+    /// <summary>
+    /// The runways <paramref name="cross"/> named when it pre-cleared them on the route of <paramref name="follow"/>, a
+    /// <c>FOLLOWG</c> follower still following on it: the follow is the current phase and carries every one's crossing clearance.
+    /// Null otherwise: a CROSS naming a hold short or a taxiway, or one the follow did not take.
+    /// </summary>
+    private static List<RunwayIdentifier>? FollowerPreClearedRunways(CrossRunwayCommand cross, AircraftState aircraft, FollowingPhase follow)
+    {
+        if (
+            !ReferenceEquals(aircraft.Phases?.CurrentPhase, follow)
+            || (cross.HoldShorts.Count > 0)
+            || (cross.RunwayIds.Count == 0)
+            || !cross.RunwayIds.All(static r => (r.Length > 0) && char.IsAsciiDigit(r[0]))
+        )
+        {
+            return null;
+        }
+
+        List<RunwayIdentifier> named = [.. cross.RunwayIds.Select(RunwayIdentifier.Parse)];
+        return named.TrueForAll(runway => follow.CrossingClearedRunways.Any(r => r.Overlaps(runway))) ? named : null;
     }
 
     /// <summary>
@@ -3104,13 +3164,18 @@ public static class CommandDispatcher
             case HoldAtFixHoverCommand hfixH:
                 return PatternCommandHandler.TryHoldAtFix(aircraft, hfixH.FixName, hfixH.Lat, hfixH.Lon, null);
 
+            // RES where a HOLD broke off a follow and nothing comes after the hold it ends in, held short ahead of it included: no
+            // route or follow is left to resume, so it is refused before the hold-short release below could run.
+            case ResumeCommand when GroundCommandHandler.RefusesResumeTaxi(aircraft):
+                return GroundCommandHandler.RefuseResumeAfterBreakOff(aircraft);
+
             // RES with a follow armed behind a runway hold would start the follow at the bar, which stops at that
             // same bar again: only a RES that is a crossing clearance for the held runway releases it, putting the
             // crossing in front of the follow. The departure bar keeps HoldingShortPhase's own refusal (LUAW/CTO).
             case ResumeCommand armedResume
                 when GroundCommandHandler.RunwayHoldWithArmedFollow(aircraft)
                     is { HoldShort: { Reason: not HoldShortReason.DestinationRunway, EndsNoDestinationRoute: false } } armedHold:
-                return GroundCommandHandler.TryResumeAcrossArmedHold(aircraft, groundLayout, armedResume, armedHold);
+                return GroundCommandHandler.TryResumeAcrossArmedHold(aircraft, groundLayout, armedResume, armedHold, ctx.FindAircraft);
 
             // A helicopter air-taxiing or relocating is held with HPP (hover present position),
             // which routes through the hold-command cases above into a VfrHold hover; to continue
@@ -3205,7 +3270,7 @@ public static class CommandDispatcher
                 return Ok(CommandDescriber.DescribeNatural(groundResume));
             }
             case CrossRunwayCommand cross:
-                return GroundCommandHandler.TryCrossRunway(aircraft, cross, groundLayout);
+                return GroundCommandHandler.TryCrossRunway(aircraft, cross, groundLayout, ctx.FindAircraft);
             case HoldShortCommand hs:
                 return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout);
             case AssignRunwayCommand assignRwy:
