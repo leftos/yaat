@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Speech recognition no longer fails on a transmission that carries ten or more spoken digits in a row.
+
 ## v0.17.2-beta [2026/10/30]
 
 ### Highlights
