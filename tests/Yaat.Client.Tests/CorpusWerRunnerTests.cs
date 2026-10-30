@@ -58,6 +58,12 @@ public sealed class CorpusWerRunnerTests
         Assert.Equal("sherpa-streaming:nemotron-560ms-int8", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.SherpaStreaming, dir)));
     }
 
+    [Theory]
+    [InlineData(SttKind.Gemini, "gemini-4-argon", "gemini:gemini-4-argon")]
+    [InlineData(SttKind.OpenAi, "gpt-transcribe", "openai:gpt-transcribe")]
+    public void A_Cloud_Model_Is_Recorded_With_Its_Kind_Prefix(SttKind kind, string model, string expected) =>
+        Assert.Equal(expected, CorpusSttEngines.RecordedModel(new SttChoice(kind, model)));
+
     private static string ModelDir(string name, bool trailingSeparator)
     {
         string dir = Path.Combine(Path.GetTempPath(), "models", name);

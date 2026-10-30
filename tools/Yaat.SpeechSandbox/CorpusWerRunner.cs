@@ -124,13 +124,18 @@ public static class CorpusWerRunner
             if (arm is null)
             {
                 int probed = Math.Min(LoadProbeSegments, loaded.Segments.Count);
+                string kind = CorpusSttEngines.KindText(options.Stt.Kind);
                 Console.Error.WriteLine(
-                    $"FATAL: {options.Stt.Kind} model {options.Stt.Source} returned no transcript for the first {probed} segments; {LoadFailureHint}"
+                    $"FATAL: {kind} model {options.Stt.Source} returned no transcript for the first {probed} segments; {LoadFailureHint}"
                 );
                 return AtcOuroborosAnalysis.ExitSetupError;
             }
             arms.Add(arm);
             Console.WriteLine($"{prompt}: WER {CorpusWerBaselineComparer.Percent(arm.Roles[0].Wer)} over {arm.Roles[0].Segments} segments");
+            if (arm.NoTranscript > 0)
+            {
+                Console.WriteLine(arm.NoTranscriptLine());
+            }
         }
 
         string subsetFingerprint = CorpusSubset.Fingerprint(loaded.Segments.Select(s => s.Id));
@@ -220,11 +225,16 @@ public static class CorpusWerRunner
         var overall = new WerTally();
         var byRole = new Dictionary<CorpusRole, WerTally>();
         double audioSeconds = 0;
+        int noTranscript = 0;
         var watch = Stopwatch.StartNew();
         for (int i = 0; i < segments.Count; i++)
         {
             CorpusSegment segment = segments[i];
             string? hypothesis = await engine.TranscribeAsync(segment.Samples16k, promptText, CancellationToken.None).ConfigureAwait(false);
+            if (hypothesis is null)
+            {
+                noTranscript++;
+            }
             if (i < probeCount)
             {
                 firstHypotheses.Add(hypothesis);
@@ -242,7 +252,7 @@ public static class CorpusWerRunner
                 Console.WriteLine($"  {prompt}: {i + 1}/{segments.Count}");
             }
         }
-        return new CorpusWerArm(prompt, RoleRows(overall, byRole), audioSeconds, watch.Elapsed.TotalSeconds);
+        return new CorpusWerArm(prompt, RoleRows(overall, byRole), audioSeconds, watch.Elapsed.TotalSeconds, noTranscript);
     }
 
     /// <summary>Normalises both sides, scores them and records the segment's <c>results.jsonl</c> line.</summary>
@@ -386,6 +396,11 @@ public static class CorpusWerRunner
         string rtf = (arm.AudioSeconds > 0) ? (arm.WallSeconds / arm.AudioSeconds).ToString("0.00", CultureInfo.InvariantCulture) : "n/a";
         report.AppendLine($"Audio {audio} s, wall {wall} s, real-time factor {rtf}");
         report.AppendLine();
+        if (arm.NoTranscript > 0)
+        {
+            report.AppendLine(arm.NoTranscriptLine());
+            report.AppendLine();
+        }
     }
 
     /// <summary>Parses a <c>--corpus-wer</c> command line (the arguments after the flag) into a run, or the first error.</summary>
@@ -464,29 +479,13 @@ public static class CorpusWerRunner
         return null;
     }
 
-    /// <summary>
-    /// Splits <c>&lt;kind&gt;:&lt;source&gt;</c> at the first colon, so a Whisper URL or a sherpa model
-    /// path keeps every colon after the kind.
-    /// </summary>
     private static string? ApplyStt(ParsedArgs parsed, string value)
     {
-        int colon = value.IndexOf(':', StringComparison.Ordinal);
-        if ((colon < 0) || (colon == value.Length - 1))
+        if (!CorpusSttEngines.TryParse(value, out SttChoice? choice, out string? error))
         {
-            return $"--stt needs <kind>:<source>, got '{value}'";
+            return error;
         }
-        SttKind? kind = value[..colon] switch
-        {
-            "whisper" => SttKind.Whisper,
-            "sherpa" => SttKind.Sherpa,
-            "sherpa-streaming" => SttKind.SherpaStreaming,
-            _ => null,
-        };
-        if (kind is null)
-        {
-            return $"--stt kind must be whisper, sherpa or sherpa-streaming, got '{value[..colon]}'";
-        }
-        parsed.Stt = new SttChoice(kind.Value, value[(colon + 1)..]);
+        parsed.Stt = choice;
         return null;
     }
 
@@ -541,13 +540,15 @@ public static class CorpusWerRunner
 
     private static ParseResult ResolveDefaults(ParsedArgs parsed, CorpusChoice choice)
     {
-        if (!TryResolvePrompts(parsed.Prompt, parsed.Stt.TakesPrompt, out string[]? prompts, out string? error))
+        if (!TryResolvePrompts(parsed.Prompt, parsed.Stt, out string[]? prompts, out string? error))
         {
             return Failed(error);
         }
         if (parsed.UpdateBaseline && !parsed.Stt.TakesPrompt)
         {
-            return Failed("--update-baseline writes the shipped Whisper baseline; it cannot take a sherpa engine");
+            return Failed(
+                $"--update-baseline writes the shipped Whisper baseline; the {CorpusSttEngines.KindText(parsed.Stt.Kind)} engine cannot update it"
+            );
         }
         int? subset = parsed.All ? null : (parsed.Subset ?? ((choice.Dir is null) ? DefaultUwbSubset : null));
         string outDir = Path.GetFullPath(parsed.OutDir ?? DefaultOutDir());
@@ -559,26 +560,26 @@ public static class CorpusWerRunner
 
     /// <summary>
     /// The prompt arms a run takes. Whisper runs the production prompt and the bare model unless one arm
-    /// is asked for; a sherpa transducer takes no prompt, so its single arm is <c>none</c> and asking for
-    /// either prompt arm is an error rather than a flag silently ignored.
+    /// is asked for; a sherpa transducer or a cloud engine takes no prompt, so its single arm is <c>none</c>
+    /// and asking for either prompt arm is an error rather than a flag silently ignored.
     /// </summary>
     private static bool TryResolvePrompts(
         string? prompt,
-        bool takesPrompt,
+        SttChoice stt,
         [NotNullWhen(true)] out string[]? prompts,
         [NotNullWhen(false)] out string? error
     )
     {
         prompts = null;
         error = null;
-        if (takesPrompt)
+        if (stt.TakesPrompt)
         {
             prompts = (prompt is null or "both") ? ["default", "none"] : [prompt];
             return true;
         }
         if (prompt is "default" or "both")
         {
-            error = $"--prompt {prompt} needs a Whisper engine; sherpa engines take no prompt";
+            error = $"--prompt {prompt} needs a Whisper engine; {CorpusSttEngines.KindText(stt.Kind)} engines take no prompt";
             return false;
         }
         prompts = ["none"];

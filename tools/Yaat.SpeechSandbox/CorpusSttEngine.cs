@@ -1,23 +1,27 @@
+using System.Diagnostics.CodeAnalysis;
 using Yaat.Client.Services;
 
 namespace Yaat.SpeechSandbox;
 
-/// <summary>The STT engine families a <c>--corpus-wer</c> run can score.</summary>
+/// <summary>The STT engine families a <c>--corpus-wer</c> or <c>--eval</c> run can score.</summary>
 public enum SttKind
 {
     Whisper,
     Sherpa,
     SherpaStreaming,
+    Gemini,
+    OpenAi,
 }
 
 /// <summary>
 /// One resolved engine choice: the family and its source — a Whisper model id, URL or <c>.bin</c> file,
-/// or a sherpa-onnx model directory.
+/// a sherpa-onnx model directory, or a cloud provider's model id.
 /// </summary>
 public sealed record SttChoice(SttKind Kind, string Source)
 {
     /// <summary>
-    /// Only Whisper takes the production biasing prompt; the sherpa transducer exports decode without one.
+    /// Only Whisper takes the production biasing prompt; the sherpa transducer exports decode without one,
+    /// and the cloud engines send their own fixed instruction.
     /// </summary>
     public bool TakesPrompt => Kind == SttKind.Whisper;
 }
@@ -99,13 +103,67 @@ public static class CorpusSttEngines
             SttKind.Whisper => new WhisperCorpusSttEngine(choice.Source),
             SttKind.Sherpa => new SherpaCorpusSttEngine(choice.Source),
             SttKind.SherpaStreaming => new SherpaStreamingCorpusSttEngine(choice.Source),
+            SttKind.Gemini or SttKind.OpenAi => new CloudSttEngine(choice.Kind, choice.Source),
             _ => throw new ArgumentOutOfRangeException(nameof(choice), choice.Kind, "no corpus STT engine for this kind"),
         };
 
     /// <summary>
+    /// Parses an <c>--stt</c> value, <c>&lt;kind&gt;:&lt;source&gt;</c>, split at the first colon so a
+    /// Whisper URL or a sherpa model path keeps every colon after the kind.
+    /// </summary>
+    /// <param name="value">The flag's value as given.</param>
+    /// <param name="choice">The engine choice, when the value parses.</param>
+    /// <param name="error">Why the value does not parse, otherwise.</param>
+    /// <returns>True when the value names a known kind and a non-empty source.</returns>
+    public static bool TryParse(string value, [NotNullWhen(true)] out SttChoice? choice, [NotNullWhen(false)] out string? error)
+    {
+        choice = null;
+        error = null;
+        int colon = value.IndexOf(':', StringComparison.Ordinal);
+        if ((colon < 0) || (colon == value.Length - 1))
+        {
+            error = $"--stt needs <kind>:<source>, got '{value}'";
+            return false;
+        }
+        SttKind? kind = KindFromText(value[..colon]);
+        if (kind is null)
+        {
+            error = $"--stt kind must be whisper, sherpa, sherpa-streaming, gemini or openai, got '{value[..colon]}'";
+            return false;
+        }
+        choice = new SttChoice(kind.Value, value[(colon + 1)..]);
+        return true;
+    }
+
+    /// <summary>The kind as an <c>--stt</c> value spells it: <c>whisper</c>, <c>sherpa-streaming</c>, <c>openai</c>.</summary>
+    public static string KindText(SttKind kind) =>
+        kind switch
+        {
+            SttKind.Whisper => "whisper",
+            SttKind.Sherpa => "sherpa",
+            SttKind.SherpaStreaming => "sherpa-streaming",
+            SttKind.Gemini => "gemini",
+            SttKind.OpenAi => "openai",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no --stt spelling for this kind"),
+        };
+
+    private static SttKind? KindFromText(string text)
+    {
+        foreach (SttKind kind in Enum.GetValues<SttKind>())
+        {
+            if (KindText(kind) == text)
+            {
+                return kind;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
     /// How a choice is recorded in results: Whisper's source as a rooted file's name so no machine path
-    /// reaches a committed baseline (a URL or a catalog id as given), and a sherpa model directory as
-    /// <c>sherpa:&lt;dir name&gt;</c> or <c>sherpa-streaming:&lt;dir name&gt;</c>.
+    /// reaches a committed baseline (a URL or a catalog id as given), a sherpa model directory as
+    /// <c>sherpa:&lt;dir name&gt;</c> or <c>sherpa-streaming:&lt;dir name&gt;</c>, and a cloud model as
+    /// <c>gemini:&lt;model&gt;</c> or <c>openai:&lt;model&gt;</c>.
     /// </summary>
     public static string RecordedModel(SttChoice choice) =>
         choice.Kind switch
@@ -113,6 +171,8 @@ public static class CorpusSttEngines
             SttKind.Whisper => WhisperRecordedModel(choice.Source),
             SttKind.Sherpa => "sherpa:" + DirectoryName(choice.Source),
             SttKind.SherpaStreaming => "sherpa-streaming:" + DirectoryName(choice.Source),
+            SttKind.Gemini => "gemini:" + choice.Source,
+            SttKind.OpenAi => "openai:" + choice.Source,
             _ => throw new ArgumentOutOfRangeException(nameof(choice), choice.Kind, "no recorded name for this kind"),
         };
 

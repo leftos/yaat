@@ -93,7 +93,8 @@ public sealed class CorpusWerBaselineTests
                     "default",
                     [new CorpusWerRoleTotals("all", 4, 40, 1, 2, 3, 0.15), new CorpusWerRoleTotals("pilot", 2, 20, 1, 0, 0, 0.05)],
                     12.5,
-                    3.25
+                    3.25,
+                    1
                 ),
             ]
         );
@@ -114,9 +115,23 @@ public sealed class CorpusWerBaselineTests
         Assert.Equal(original.Arms[0].AudioSeconds, arm.AudioSeconds);
         Assert.Equal(original.Arms[0].WallSeconds, arm.WallSeconds);
         Assert.Equal(original.Arms[0].Roles, arm.Roles);
+        Assert.Equal(original.Arms[0].NoTranscript, arm.NoTranscript);
     }
 
-    private static CorpusWerArm Arm(string prompt, double wer) => new(prompt, [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, wer)], 30, 6);
+    [Fact]
+    public void An_Arm_Without_A_No_Transcript_Count_Reads_As_Zero()
+    {
+        const string json = """
+            {"corpus":"uwb-atcc","revision":"rev","sha256":"sha","seed":1117,"subset":400,"subsetFingerprint":"fp","sttModel":"model",
+             "arms":[{"prompt":"default","roles":[],"audioSeconds":30,"wallSeconds":6}]}
+            """;
+
+        CorpusWerBaseline? back = JsonSerializer.Deserialize(json, CorpusWerJsonContext.Default.CorpusWerBaseline);
+
+        Assert.Equal(0, Assert.Single(Assert.IsType<CorpusWerBaseline>(back).Arms).NoTranscript);
+    }
+
+    private static CorpusWerArm Arm(string prompt, double wer) => new(prompt, [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, wer)], 30, 6, 0);
 
     private static CorpusWerBaseline Run(int seed, params CorpusWerArm[] arms) =>
         new("uwb-atcc", "rev", "sha", seed, 400, "subset-fp", "model", arms);

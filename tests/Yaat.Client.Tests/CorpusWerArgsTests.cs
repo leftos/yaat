@@ -23,12 +23,15 @@ public sealed class CorpusWerArgsTests : IDisposable
     [InlineData("--subset needs a positive integer", "uwb-atcc", "--subset", "x")]
     [InlineData("--prompt must be default, none or both", "uwb-atcc", "--prompt", "loud")]
     [InlineData("--seed needs a value", "uwb-atcc", "--seed")]
-    [InlineData("--stt kind must be whisper, sherpa or sherpa-streaming", "uwb-atcc", "--stt", "vosk:x")]
+    [InlineData("--stt kind must be whisper, sherpa, sherpa-streaming, gemini or openai, got 'vosk'", "uwb-atcc", "--stt", "vosk:x")]
     [InlineData("--stt needs <kind>:<source>", "uwb-atcc", "--stt", "sherpa")]
     [InlineData("--stt needs <kind>:<source>", "uwb-atcc", "--stt", "sherpa:")]
-    [InlineData("needs a Whisper engine", "uwb-atcc", "--stt", "sherpa:m", "--prompt", "default")]
-    [InlineData("needs a Whisper engine", "uwb-atcc", "--stt", "sherpa:m", "--prompt", "both")]
-    [InlineData("cannot take a sherpa engine", "uwb-atcc", "--stt", "sherpa:m", "--update-baseline")]
+    [InlineData("needs a Whisper engine; sherpa engines take no prompt", "uwb-atcc", "--stt", "sherpa:m", "--prompt", "default")]
+    [InlineData("needs a Whisper engine; sherpa engines take no prompt", "uwb-atcc", "--stt", "sherpa:m", "--prompt", "both")]
+    [InlineData("needs a Whisper engine; sherpa-streaming engines take no prompt", "uwb-atcc", "--stt", "sherpa-streaming:m", "--prompt", "both")]
+    [InlineData("needs a Whisper engine; gemini engines take no prompt", "uwb-atcc", "--stt", "gemini:m", "--prompt", "default")]
+    [InlineData("the sherpa engine cannot update it", "uwb-atcc", "--stt", "sherpa:m", "--update-baseline")]
+    [InlineData("the openai engine cannot update it", "uwb-atcc", "--stt", "openai:m", "--update-baseline")]
     [InlineData("unrecognised argument '--whisper'", "uwb-atcc", "--whisper", "x")]
     [InlineData("unrecognised argument '--frobnicate'", "uwb-atcc", "--frobnicate")]
     [InlineData("the first argument must be the corpus")]
@@ -96,6 +99,19 @@ public sealed class CorpusWerArgsTests : IDisposable
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
         Assert.Equal(["none"], options.Prompts);
         Assert.Equal(new SttChoice(SttKind.SherpaStreaming, modelDir), options.Stt);
+    }
+
+    [Theory]
+    [InlineData("gemini:gemini-4-argon", SttKind.Gemini, "gemini-4-argon")]
+    [InlineData("openai:gpt-transcribe", SttKind.OpenAi, "gpt-transcribe")]
+    public void A_Cloud_Engine_Takes_No_Prompt_And_Keeps_Its_Model_Id(string stt, SttKind kind, string model)
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs(["uwb-atcc", "--stt", stt]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(["none"], options.Prompts);
+        Assert.Equal(new SttChoice(kind, model), options.Stt);
     }
 
     [Fact]

@@ -93,8 +93,8 @@ public sealed record EvalTrial(string Transcript, string? MapperCanonical, strin
 public sealed record EvalRunResult(IReadOnlyList<EvalCaseResult> Cases, int Skipped, string Summary, string ReportPath);
 
 /// <summary>
-/// The production STT + mapping stack an eval pass scores through: Whisper (prefs default or an
-/// override) or a sherpa-onnx Parakeet export, the rule mapper, and the LLM fallback.
+/// The production STT + mapping stack an eval pass scores through: the STT engine <c>--stt</c> picks
+/// (the prefs Whisper model by default), the rule mapper, and the LLM fallback.
 /// <see cref="SetupError"/> is non-null when a model is missing, in which case nothing can be scored.
 /// </summary>
 internal sealed class EvalPipeline : IDisposable
@@ -106,8 +106,9 @@ internal sealed class EvalPipeline : IDisposable
         public int GpuLayers => -1;
     }
 
-    private readonly WhisperSttEngine? _whisperStt;
-    private readonly SherpaSttEngine? _sherpaStt;
+    private const string LlmSetupError = "LLM model not configured/found — check LMKIT_TEST_MODEL and Settings → Speech.";
+
+    private readonly ICorpusSttEngine _stt;
     private readonly LocalLlmService _llm;
 
     public string SttLabel { get; }
@@ -119,7 +120,7 @@ internal sealed class EvalPipeline : IDisposable
     public LocalLlmCommandMapper LlmMapper { get; }
     public LocalLlmCallsignResolver CallsignResolver { get; }
 
-    private EvalPipeline(string? whisperOverride, string? parakeetDir, bool noBiasingPrompt)
+    private EvalPipeline(SttChoice? stt, bool noBiasingPrompt)
     {
         var prefs = new UserPreferences();
 
@@ -133,49 +134,49 @@ internal sealed class EvalPipeline : IDisposable
         LlmModelPath = llmConfig.ModelPath;
         LlmOverridden = !string.IsNullOrWhiteSpace(llmOverride);
 
-        // STT stage: Whisper (prefs default, or --whisper override) or a sherpa-onnx Parakeet
-        // export (--parakeet). Both are exposed to the trial loop through one method so the
-        // scoring path is identical regardless of engine.
-        string whisperSource = whisperOverride ?? prefs.WhisperModelSize;
-        _whisperStt = parakeetDir is null ? new WhisperSttEngine(new FixedWhisperRuntimeConfig(whisperSource)) : null;
-        _sherpaStt = parakeetDir is null ? null : new SherpaSttEngine(parakeetDir);
-        string sttLabel = parakeetDir is null ? whisperSource : $"parakeet (sherpa-onnx, {parakeetDir})";
+        // STT stage: the --stt engine, or the prefs Whisper model. Every engine reaches the trial
+        // loop through the same seam --corpus-wer scores through, so the scoring path is identical
+        // regardless of engine.
+        SttChoice choice = stt ?? new SttChoice(SttKind.Whisper, prefs.WhisperModelSize);
+        _stt = CorpusSttEngines.Create(choice);
         // --prompt none blanks the Whisper biasing prompt for the whole run — the A/B knob for
         // asking whether the static vocabulary hint still earns its keep on a given model.
         BiasingPrompt = noBiasingPrompt ? string.Empty : WhisperBiasingPrompt.Default;
-        SttLabel = sttLabel + (noBiasingPrompt ? " (no biasing prompt)" : "");
+        SttLabel = CorpusSttEngines.RecordedModel(choice) + (noBiasingPrompt ? " (no biasing prompt)" : "");
 
         _llm = new LocalLlmService(llmConfig);
         LlmMapper = new LocalLlmCommandMapper(_llm);
         CallsignResolver = new LocalLlmCallsignResolver(_llm);
-        bool sttConfigured = _whisperStt?.IsConfigured ?? _sherpaStt!.IsConfigured;
-        SetupError =
-            (!sttConfigured || !_llm.IsConfigured)
-                ? "STT or LLM model not configured/found — check model source arguments and Settings → Speech."
-                : null;
+        SetupError = CombineSetupErrors(_stt.SetupError(), _llm.IsConfigured ? null : LlmSetupError);
     }
 
     /// <summary>
     /// Loads real navdata (the mapping stage validates canonicals through CommandParser, and
     /// PhoneticFixMatcher's full-database fallback needs it) and constructs the model stack.
     /// </summary>
-    public static EvalPipeline Create(string? whisperOverride, string? parakeetDir, bool noBiasingPrompt)
+    /// <param name="stt">The STT engine; null takes the Whisper model saved in preferences.</param>
+    /// <param name="noBiasingPrompt">True blanks the Whisper biasing prompt for the whole run.</param>
+    public static EvalPipeline Create(SttChoice? stt, bool noBiasingPrompt)
     {
         Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
-        return new EvalPipeline(whisperOverride, parakeetDir, noBiasingPrompt);
+        return new EvalPipeline(stt, noBiasingPrompt);
     }
 
-    public Task<string?> TranscribeAsync(float[] samples, string prompt, CancellationToken ct) =>
-        _whisperStt is not null
-            ? _whisperStt.TranscribeAsync(samples, prompt, ct)
-            : Task.Run(() => _sherpaStt!.Transcribe(samples, AudioCaptureService.SampleRate), ct);
+    public Task<string?> TranscribeAsync(float[] samples, string prompt, CancellationToken ct) => _stt.TranscribeAsync(samples, prompt, ct);
 
     public void Dispose()
     {
         _llm.Dispose();
-        _sherpaStt?.Dispose();
-        _whisperStt?.Dispose();
+        _stt.Dispose();
     }
+
+    private static string? CombineSetupErrors(string? sttError, string? llmError) =>
+        (sttError, llmError) switch
+        {
+            (null, _) => llmError,
+            (_, null) => sttError,
+            _ => $"{sttError}; {llmError}",
+        };
 }
 
 /// <summary>
@@ -224,22 +225,21 @@ public static class EvalRunner
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine(
-                "Usage: Yaat.SpeechSandbox --eval <corpus-dir> [--out-dir <dir>] [--trials N] [--whisper <model-source>] [--parakeet <model-dir>]"
-            );
+            Console.Error.WriteLine("Usage: Yaat.SpeechSandbox --eval <corpus-dir> [--out-dir <dir>] [--trials N] [--stt <kind>:<source>]");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Scores the production STT pipeline against labeled real-audio cases.");
             Console.Error.WriteLine("Each corpus subdirectory needs audio.wav + expected.json (see EvalRunner docs).");
-            Console.Error.WriteLine("--whisper A/Bs an alternative Whisper model (curated ID, ggml .bin path, or URI).");
-            Console.Error.WriteLine("--parakeet swaps the STT stage for a sherpa-onnx NeMo transducer export (Parakeet-TDT).");
+            Console.Error.WriteLine(
+                "--stt picks the STT stage: whisper:<model-source>, sherpa:<model-dir>, sherpa-streaming:<model-dir>, "
+                    + "gemini:<model> or openai:<model> (default: the Settings Whisper model)."
+            );
             return 1;
         }
 
         string corpusDir = args[0];
         string? outDirOverride = null;
-        string? whisperOverride = null;
-        string? parakeetDir = null;
-        string promptMode = "default";
+        SttChoice? stt = null;
+        string? promptMode = null;
         int trials = 1;
         for (int i = 1; i < args.Length; i++)
         {
@@ -247,13 +247,13 @@ public static class EvalRunner
             {
                 outDirOverride = args[++i];
             }
-            else if (args[i] == "--whisper" && i + 1 < args.Length)
+            else if ((args[i] == "--stt") && (i + 1 < args.Length))
             {
-                whisperOverride = args[++i];
-            }
-            else if (args[i] == "--parakeet" && i + 1 < args.Length)
-            {
-                parakeetDir = args[++i];
+                if (!CorpusSttEngines.TryParse(args[++i], out stt, out string? sttError))
+                {
+                    Console.Error.WriteLine($"FATAL: {sttError}");
+                    return 2;
+                }
             }
             else if (args[i] == "--prompt" && i + 1 < args.Length)
             {
@@ -274,9 +274,10 @@ public static class EvalRunner
             }
         }
 
-        if (whisperOverride is not null && parakeetDir is not null)
+        string? engineError = CheckEngineOptions(stt, promptMode, trials);
+        if (engineError is not null)
         {
-            Console.Error.WriteLine("FATAL: --whisper and --parakeet are mutually exclusive — pick one STT stage per run.");
+            Console.Error.WriteLine($"FATAL: {engineError}");
             return 2;
         }
 
@@ -286,7 +287,7 @@ public static class EvalRunner
             return 2;
         }
 
-        using var pipeline = EvalPipeline.Create(whisperOverride, parakeetDir, noBiasingPrompt: promptMode == "none");
+        using var pipeline = EvalPipeline.Create(stt, noBiasingPrompt: promptMode == "none");
         PrintModels(pipeline);
         if (pipeline.SetupError is not null)
         {
@@ -297,6 +298,29 @@ public static class EvalRunner
         string outDir = outDirOverride ?? Path.Combine(".tmp", $"speech-eval-{DateTime.Now:yyyyMMdd-HHmmss}");
         EvalRunResult result = await ScoreAsync(pipeline, corpusDir, outDir, trials).ConfigureAwait(false);
         return result.Cases.Any(c => c.Verdict == EvalVerdict.Fail) ? 1 : 0;
+    }
+
+    /// <summary>
+    /// Why the chosen engine cannot take the run's prompt or trial settings, or null. A cloud engine caches
+    /// every transcript, so a second trial would only repeat the first; an engine without a prompt cannot
+    /// honour an explicit <c>--prompt default</c>.
+    /// </summary>
+    private static string? CheckEngineOptions(SttChoice? stt, string? promptMode, int trials)
+    {
+        if (stt is null)
+        {
+            return null;
+        }
+        string kind = CorpusSttEngines.KindText(stt.Kind);
+        if ((trials > 1) && (stt.Kind is SttKind.Gemini or SttKind.OpenAi))
+        {
+            return $"--trials > 1 needs a local engine; {kind} results are cached, so later trials repeat the first";
+        }
+        if ((promptMode == "default") && !stt.TakesPrompt)
+        {
+            return $"--prompt default needs a Whisper engine; {kind} engines take no prompt";
+        }
+        return null;
     }
 
     internal static void PrintModels(EvalPipeline pipeline)
