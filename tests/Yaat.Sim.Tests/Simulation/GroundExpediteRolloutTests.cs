@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -163,7 +164,10 @@ public sealed class GroundExpediteRolloutTests
         SendUntilAccepted(spawned, "TAXIAUTO 30 EXP");
         Assert.True(aircraft.Ground.IsExpeditingTaxi);
 
-        bool started = GroundCommandHandler.TryStartStoredTaxiRoute(CommandDispatcher.BuildMinimalContext(aircraft, aircraft.Ground.Layout!), null);
+        bool started = GroundCommandHandler.TryStartStoredTaxiRoute(
+            CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, aircraft.Ground.Layout!),
+            null
+        );
 
         Assert.False(started);
         Assert.False(aircraft.Ground.IsExpeditingTaxi);

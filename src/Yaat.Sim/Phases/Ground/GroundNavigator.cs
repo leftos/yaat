@@ -2514,11 +2514,11 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
-    /// The runway an unable names for <paramref name="runway"/>: the end the aircraft is nearest, as a runway-crossing hold
-    /// short's report names it (<see cref="RunwayCrossingEnd.Nearest"/>).
+    /// The runway an unable names for <paramref name="runway"/>, as a runway-crossing hold short's report names it: the end a pilot
+    /// names it by (<see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest).
     /// </summary>
     private static string RunwayNamed(PhaseContext ctx, RunwayInfo runway) =>
-        RunwayCrossingEnd.Nearest(ctx.Aircraft, runway.Id.ToString(), ctx.GroundLayout);
+        RunwayCrossingEnd.Spoken(ctx.Aircraft, runway.Id.ToString(), ctx.GroundLayout, ctx.ActiveRunways);
 
     /// <summary>
     /// The unable an aircraft with no room to turn about says (<see cref="_turnAboutHold"/>), routed as a pilot's unsolicited call

@@ -33,7 +33,7 @@ The published entry, from the reviewer's own knowledge and not checked against a
 
 **Tail-inside occupants.** An exit or `CLRWY` cut back so the nose stops at another runway's bar leaves the tail inside the vacated runway's marking (`RunwayOccupancy.IsTailInsideRunwayState`). It reads as column (c) whether moving or stopped: `RunwayOccupancy.Classify` returns `OnSurface` for a `RunwayExitPhase` with `StopsTailInsideRunwayLine`, a `HoldingAfterExitPhase` with `StoppedInsideHoldingDistance` or `HeldShortOfRunway`, and a `HoldingInPositionPhase` with `TailInsideRunway` (on that runway only). `OccupiedRunwayGoAround` and `SameRunwayArrivalProtection` never project it clear; `RunwaySafetyAdvisor` warns a landing clearance (not a takeoff one) with one on the runway; `GroundConflictDetector` ranks the `CLRWY` hold as vacating.
 
-A crossing that a `HOLD` ends at rest with its tail still inside the crossed runway, and a broken-off `FOLLOWG` follow that rests that way, hold with `HoldingInPositionPhase.AfterFollowBreakOff` and are the same occupant (`TailInsideRunway` names the crossed runway's nearest end).
+A crossing that a `HOLD` ends at rest with its tail still inside the crossed runway, and a broken-off `FOLLOWG` follow that rests that way, hold with `HoldingInPositionPhase.AfterFollowBreakOff` and are the same occupant (`TailInsideRunway` names the crossed runway's spoken end: its active end, else the nearest).
 
 A crossing does not set the assigned runway, so `Classify` gives `Fouling` from the aircraft's position, not `OnSurface`; `IsTailInsideRunwayState`, `RunwaySafetyAdvisor` and `GroundConflictDetector`'s vacating rank count it. `RES` stays refused.
 

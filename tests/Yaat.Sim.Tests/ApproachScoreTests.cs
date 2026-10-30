@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -59,6 +60,7 @@ public class ApproachScoreTests
         runway ??= MakeRunway();
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = category,

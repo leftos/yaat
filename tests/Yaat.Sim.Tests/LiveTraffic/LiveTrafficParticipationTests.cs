@@ -315,7 +315,7 @@ public class LiveTrafficParticipationTests
                 }
             )
         );
-        departure.Phases.Start(CommandDispatcher.BuildMinimalContext(departure));
+        departure.Phases.Start(CommandDispatcher.BuildMinimalContext(departure, ActiveRunways.Empty));
 
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("LUAW");
         Assert.True(parsed.IsSuccess, parsed.Reason);

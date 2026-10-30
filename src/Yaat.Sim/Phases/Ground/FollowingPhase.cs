@@ -775,7 +775,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     }
 
     /// <summary>
-    /// The end nearest the follower (<see cref="RunwayCrossingEnd.Nearest"/>) of a runway it has been on (<see cref="ExitingRunways"/>)
+    /// The end the follower names (<see cref="OwnOrSpokenEnd"/>) of a runway it has been on (<see cref="ExitingRunways"/>)
     /// whose far holding position marking its tail and wingtips have not cleared (<see cref="IsClearPastBar"/>, against that runway's
     /// bar nearest it on its side): the runway a broken-off follow comes to rest not clear of (AIM 2-3-5.a.1.(a), 4-3-21.b). Null
     /// when it is clear of every one, or with no layout.
@@ -795,12 +795,22 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
                 && !IsClearPastBar(ctx.Aircraft, runway, bar)
             )
             {
-                return RunwayCrossingEnd.Nearest(ctx.Aircraft, runway.Id.ToString(), layout);
+                return OwnOrSpokenEnd(ctx, runway.Id, layout);
             }
         }
 
         return null;
     }
+
+    /// <summary>
+    /// The end the follower names <paramref name="runway"/> by: its own runway (<see cref="PhaseList.AssignedRunway"/>, the one it
+    /// landed on) by its assigned end, as <see cref="ClearRunwayPhase"/> names it; any other by the end a pilot names it by
+    /// (<see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest).
+    /// </summary>
+    private static string OwnOrSpokenEnd(PhaseContext ctx, RunwayIdentifier runway, AirportGroundLayout layout) =>
+        (ctx.Aircraft.Phases?.AssignedRunway is { } assigned) && assigned.Id.Overlaps(runway)
+            ? RunwayIdentifier.ToDisplayDesignator(assigned.Designator)
+            : RunwayCrossingEnd.Spoken(ctx.Aircraft, runway.ToString(), layout, ctx.ActiveRunways);
 
     /// <summary>The runways whose pavement the follower has been on and is not yet clear of the bars of (snapshotted).</summary>
     public IReadOnlyList<RunwayIdentifier> ExitingRunways => _exitingRunways;
@@ -1327,8 +1337,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// that it is holding short of the runway its way on enters and not clear of the one behind, or, with no such runway, that it
     /// is holding in position and not clear of the one behind: a transmission to a solo student on ground or tower, else the
     /// RPO's terminal (<see cref="PilotResponder.BuildHoldingShortNotClear"/>,
-    /// <see cref="PilotResponder.BuildHoldingPositionNotClear"/>). Each runway is named by the end nearest the follower, as
-    /// the hold-short texts name one. Nothing when the cleared runway cannot be read, or once said — and a follow that has said
+    /// <see cref="PilotResponder.BuildHoldingPositionNotClear"/>). Each runway is named as <see cref="OwnOrSpokenEnd"/> names it. Nothing when the cleared runway cannot be read, or once said — and a follow that has said
     /// this says no lost-traffic call for that hold (<see cref="SayLostTrafficHolding"/>): one line per hold, the runway one,
     /// which is the one safety turns on.
     /// </summary>
@@ -1340,14 +1349,14 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         _saidHeldShortNotClear = true;
-        string clearedEnd = RunwayCrossingEnd.Nearest(ctx.Aircraft, cleared.ToString(), layout);
+        string clearedEnd = OwnOrSpokenEnd(ctx, cleared, layout);
         PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
             ctx.StudentPositionType,
             RunwayAheadAtTheHold(layout, cleared, clearing.Segments[^1]) is { } next
-                ? PilotResponder.BuildHoldingShortNotClear(ctx.Aircraft, RunwayCrossingEnd.Nearest(ctx.Aircraft, next.ToString(), layout), clearedEnd)
+                ? PilotResponder.BuildHoldingShortNotClear(ctx.Aircraft, OwnOrSpokenEnd(ctx, next, layout), clearedEnd)
                 : PilotResponder.BuildHoldingPositionNotClear(ctx.Aircraft, clearedEnd),
             PilotResponder.SoloPositionsGround
         );

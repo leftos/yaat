@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -106,6 +107,7 @@ public class HoldShortQueueTests
     {
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Piston,

@@ -101,7 +101,7 @@ public class Issue396RampLaneRepositionTests
         // A scenario spawn at a gate installs AtParkingPhase; without it a TAXI never reaches the tower path.
         PhaseInitResult init = AircraftInitializer.InitializeAtParking(gate, 13);
         aircraft.Phases = init.Phases;
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(aircraft);
         return aircraft;
     }

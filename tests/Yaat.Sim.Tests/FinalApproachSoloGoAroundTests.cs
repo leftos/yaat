@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -47,6 +48,7 @@ public class FinalApproachSoloGoAroundTests : IDisposable
     private static PhaseContext BuildCtx(AircraftState ac, RunwayInfo rwy, bool soloMode, int probability, SerializableRandom? rng) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,

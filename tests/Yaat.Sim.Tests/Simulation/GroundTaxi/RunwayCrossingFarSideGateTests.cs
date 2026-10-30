@@ -367,6 +367,7 @@ public class RunwayCrossingFarSideGateTests(ITestOutputHelper output)
     private static PhaseContext GateContext(AirportGroundLayout layout, AircraftState self, List<AircraftState> all) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = self,
             Targets = self.Targets,
             Category = AircraftCategorization.Categorize(self.AircraftType),
@@ -450,6 +451,7 @@ public class RunwayCrossingFarSideGateTests(ITestOutputHelper output)
             List<AircraftState> all = [_self, .. _others];
             return new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = _self,
                 Targets = _self.Targets,
                 Category = AircraftCategorization.Categorize(AircraftType),

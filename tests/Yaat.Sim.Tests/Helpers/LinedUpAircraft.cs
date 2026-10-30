@@ -2,6 +2,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Helpers;
 
@@ -55,7 +56,7 @@ internal static class LinedUpAircraft
         phases.Add(new InitialClimbPhase { Departure = new DefaultDeparture(), CruiseAltitude = 5000 });
 
         ac.Phases = phases;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         return ac;
     }

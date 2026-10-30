@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -52,6 +53,7 @@ public class TakeoffPhaseIntersectionDepartureTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -95,6 +97,7 @@ public class TakeoffPhaseIntersectionDepartureTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,

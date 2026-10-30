@@ -417,7 +417,7 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
         Assert.Contains("change to runway 33", result.Message!, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("cleared to land", result.Message!, StringComparison.OrdinalIgnoreCase);
 
-        PilotSpeechText? readback = PilotResponder.BuildReadback(new CompoundCommand([new ParsedBlock(null, [cland])]), ac);
+        PilotSpeechText? readback = PilotResponder.BuildReadback(new CompoundCommand([new ParsedBlock(null, [cland])]), ac, ActiveRunways.Empty);
         Assert.NotNull(readback);
         Assert.Contains("change to runway", readback.Terminal, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("cleared to land", readback.Terminal, StringComparison.OrdinalIgnoreCase);

@@ -64,6 +64,7 @@ public class ExtendedDownwindAltitudeTests
     private static PhaseContext Ctx(AircraftState ac, RunwayInfo rwy, Func<string, AircraftState?> lookup) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),

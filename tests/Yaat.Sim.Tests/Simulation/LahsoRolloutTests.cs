@@ -138,7 +138,7 @@ public class LahsoRolloutTests(ITestOutputHelper output)
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Ground.Layout = layout;
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout);
         aircraft.Phases.Start(ctx);
 
         engine.World.AddAircraft(aircraft);
@@ -254,7 +254,7 @@ public class LahsoRolloutTests(ITestOutputHelper output)
         };
         blocker.Ground.Layout = layout;
         blocker.Phases.Add(new HoldingAfterExitPhase(runway.Designator, "N", holdShort.Id, heldShortOfRunway: null));
-        blocker.Phases.Start(CommandDispatcher.BuildMinimalContext(blocker, layout));
+        blocker.Phases.Start(CommandDispatcher.BuildMinimalContext(blocker, ActiveRunways.Empty, layout));
         return blocker;
     }
 

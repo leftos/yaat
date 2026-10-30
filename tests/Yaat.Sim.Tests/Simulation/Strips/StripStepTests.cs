@@ -270,7 +270,7 @@ public class StripStepTests
 
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new TakeoffPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty));
 
         var spine = new SpineCapturingHost(engine);
         engine.RunSecond(spine);

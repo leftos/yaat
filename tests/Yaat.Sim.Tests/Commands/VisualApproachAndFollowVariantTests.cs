@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -99,7 +100,7 @@ public class VisualApproachAndFollowVariantTests
         CompoundCommand compound = ParseCompound(text);
         CommandResult result = CommandDispatcher.Dispatch(compound.Blocks[0].Commands[0], ac, context);
         Assert.True(result.Success, result.Message);
-        return Sweep(ctx => PilotResponder.BuildReadbackAsApplied(compound, result, ac, ctx), band);
+        return Sweep(ctx => PilotResponder.BuildReadbackAsApplied(compound, result, ac, ctx, ActiveRunways.Empty), band);
     }
 
     private static List<PilotSpeechText> KoakReadbacks(string text, FrequencyLoadBand band) =>
@@ -109,7 +110,7 @@ public class VisualApproachAndFollowVariantTests
     {
         CompoundCommand compound = ParseCompound("FOLLOW N456");
         AircraftState ac = MakeAirborne();
-        return Sweep(ctx => PilotResponder.BuildReadback(compound, ac, ctx), band);
+        return Sweep(ctx => PilotResponder.BuildReadback(compound, ac, ctx, ActiveRunways.Empty), band);
     }
 
     private static List<PilotSpeechText> Sweep(Func<PilotSpeechContext, PilotSpeechText?> build, FrequencyLoadBand band) =>

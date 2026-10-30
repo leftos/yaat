@@ -519,7 +519,7 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   machinery the too-high-on-final CLANDF already uses. A CLANDF during a go-around must reverse the climb-out immediately, not be refused with
   "no approach or pattern to land from". Tests: `ForcedLandingCommandTests.Handler_DuringGoAround_*`, `ClandfGoAroundReversalE2ETests`.
 - **Transitioning into a new phase from inside a handler needs a real context *now*.** With no `PhaseContext` in scope, mirror `TryGoAround`:
-  `var ctx = CommandDispatcher.BuildMinimalContext(aircraft)` (pass a ground layout only when the new phase starts on the ground), then
+  `var ctx = CommandDispatcher.BuildMinimalContext(aircraft, activeRunways)` (the room's active runways, `ActiveRunways.Empty` for an airborne or pattern handler; pass a ground layout only when the new phase starts on the ground), then
   `phases.ReplaceUpcoming([...]); phases.AdvanceToNext(ctx); FlightPhysics.NotifyPhaseAdvanced(aircraft)`. `AdvanceToNext` runs `OnEnd`/`OnStart`
   at the call site, not on the next tick, so the context has to satisfy the incoming phase's `OnStart` (`FinalApproachPhase` needs `ctx.Runway`,
   which `BuildMinimalContext` fills from `AssignedRunway`).

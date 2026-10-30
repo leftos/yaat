@@ -1536,7 +1536,7 @@ public sealed class RunwayExitPhase : Phase
         // short of that runway, not clear of this one.
         string? heldShortOfRunway =
             (_stopTailInsideLine && (_stopHeldShortOfBar is { } otherBar) && (ctx.GroundLayout is { } stopLayout))
-                ? RunwayTailClearance.HeldShortRunwayEnd(stopLayout, otherBar, ctx.Aircraft.Phases?.AssignedRunway, ctx.Aircraft)
+                ? RunwayTailClearance.HeldShortRunwayEnd(stopLayout, otherBar, ctx.Aircraft.Phases?.AssignedRunway, ctx.Aircraft, ctx.ActiveRunways)
                 : null;
         ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingAfterExitPhase(_runwayId, _exitTaxiway, _holdShortNode?.Id, heldShortOfRunway));
 

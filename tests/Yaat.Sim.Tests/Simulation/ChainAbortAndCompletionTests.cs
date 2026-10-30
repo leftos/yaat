@@ -420,7 +420,7 @@ public class ChainAbortAndCompletionTests
             Phases = new PhaseList(),
         };
         ac.Phases.Add(new AtParkingPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         engine.World.AddAircraft(ac);
         return ac;
     }

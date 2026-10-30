@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
@@ -235,10 +236,10 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
     private static AircraftState MakeParked(AirportGroundLayout layout, GroundNode stand)
     {
         AircraftState aircraft = MakeAt(layout, stand, stand.TrueHeading ?? new TrueHeading(0));
-        aircraft.Phases!.Clear(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases!.Clear(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AtParkingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Ground.ParkingSpot = stand.Name;
         return aircraft;
     }
@@ -257,7 +258,7 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Ground.Layout = layout;
         return aircraft;
     }

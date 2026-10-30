@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -37,7 +38,7 @@ public sealed class MilitaryRouteReadbackTests
     {
         ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        PilotSpeechText? result = PilotResponder.BuildReadback(CommandParser.ParseCompound(text).Value!, aircraft);
+        PilotSpeechText? result = PilotResponder.BuildReadback(CommandParser.ParseCompound(text).Value!, aircraft, ActiveRunways.Empty);
         Assert.NotNull(result);
         return result!;
     }
@@ -88,7 +89,7 @@ public sealed class MilitaryRouteReadbackTests
     {
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("MTRA");
 
-        Assert.Null(PilotResponder.BuildReadback(parsed.Value!, Aircraft(null)));
+        Assert.Null(PilotResponder.BuildReadback(parsed.Value!, Aircraft(null), ActiveRunways.Empty));
     }
 
     [Fact]
@@ -149,7 +150,7 @@ public sealed class MilitaryRouteReadbackTests
         // A request for an estimate is answered by PilotSayBuilder, not echoed back.
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("SAYEXIT");
 
-        Assert.Null(PilotResponder.BuildReadback(parsed.Value!, Aircraft("IR149")));
+        Assert.Null(PilotResponder.BuildReadback(parsed.Value!, Aircraft("IR149"), ActiveRunways.Empty));
     }
 
     [Theory]

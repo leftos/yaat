@@ -1402,7 +1402,8 @@ internal static class FlightCommandHandler
         aircraft.Targets.NavigationRoute.Clear();
         if (aircraft.Phases is not null)
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Clear(ctx);
             aircraft.Phases = null;
         }
@@ -1493,7 +1494,8 @@ internal static class FlightCommandHandler
         // Clear stale state from prior operations
         if (aircraft.Phases is not null)
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Clear(ctx);
             aircraft.Phases = null;
         }
@@ -1531,7 +1533,8 @@ internal static class FlightCommandHandler
         // Install ground-idle phase so subsequent commands (TAXI, LUAW, PUSH, etc.) have phase context
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(atStand ? new AtParkingPhase() : new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty));
 
         return CommandDispatcher.Ok($"Warped to {description}");
     }

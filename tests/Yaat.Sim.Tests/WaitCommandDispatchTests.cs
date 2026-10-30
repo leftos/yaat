@@ -5,6 +5,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -47,6 +48,7 @@ public class WaitCommandDispatchTests
         ac.Phases.Add(phase);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             DeltaSeconds = 1.0,

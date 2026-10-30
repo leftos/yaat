@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -248,6 +249,7 @@ public class SpeedCommandTests
         phase.OnStart(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,

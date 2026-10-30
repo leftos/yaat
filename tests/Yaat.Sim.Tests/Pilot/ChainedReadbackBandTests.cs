@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Speech;
 using Yaat.Sim.Tests.Helpers;
 
@@ -56,7 +57,9 @@ public class ChainedReadbackBandTests
             .. Enumerable
                 .Range(0, 5)
                 .SelectMany(seed =>
-                    Enumerable.Range(0, 200).Select(second => PilotResponder.BuildReadback(compound, ac, Varied(band, seed, second))!.Tts)
+                    Enumerable
+                        .Range(0, 200)
+                        .Select(second => PilotResponder.BuildReadback(compound, ac, Varied(band, seed, second), ActiveRunways.Empty)!.Tts)
                 ),
         ];
     }

@@ -294,7 +294,8 @@ public sealed partial class SimulationEngine
     )
     {
         PilotSpeechContext speechContext = PilotSpeechContextFor(aircraft, acknowledgedBefore);
-        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, speechContext);
+        ActiveRunways activeRunways = Scenario?.ActiveRunways ?? ActiveRunways.Empty;
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, speechContext, activeRunways);
         if (readback is null)
         {
             return;
@@ -302,7 +303,7 @@ public sealed partial class SimulationEngine
 
         // The same read-back without load variation, whose length the frequency meter records.
         PilotSpeechText canonical =
-            PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, PilotSpeechContext.Canonical)
+            PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, PilotSpeechContext.Canonical, activeRunways)
             ?? throw new InvalidOperationException(
                 $"{aircraft.Callsign}: the read-back of '{compound.SourceText}' verbalized with a varied context but not canonically"
             );
@@ -373,8 +374,10 @@ public sealed partial class SimulationEngine
     /// How long the controller spoke to issue <paramref name="compound"/>: the airtime of its canonical spoken read-back,
     /// the instruction as issued in the pilot's words, or the one-second minimum when it verbalizes to nothing.
     /// </summary>
-    private static double ControllerAirtimeSeconds(CompoundCommand compound, AircraftState aircraft) =>
-        FrequencyState.EstimateAirtimeSeconds(PilotResponder.BuildReadback(compound, aircraft)?.Tts ?? string.Empty);
+    private double ControllerAirtimeSeconds(CompoundCommand compound, AircraftState aircraft) =>
+        FrequencyState.EstimateAirtimeSeconds(
+            PilotResponder.BuildReadback(compound, aircraft, Scenario?.ActiveRunways ?? ActiveRunways.Empty)?.Tts ?? string.Empty
+        );
 
     private static void QueueSoloUnableIfNeeded(AircraftState aircraft, CommandResult result)
     {

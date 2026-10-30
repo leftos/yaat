@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -32,6 +33,7 @@ public class HoldingShortCrossingNearestEndVoiceTests
     private static PhaseContext RpoCtx(AircraftState ac) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,

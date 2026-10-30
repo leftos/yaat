@@ -88,7 +88,7 @@ public class Issue400RampLaneDestinationCutTests
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new AtParkingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Ground.Layout = layout;
         engine.World.AddAircraft(aircraft);
         return aircraft;

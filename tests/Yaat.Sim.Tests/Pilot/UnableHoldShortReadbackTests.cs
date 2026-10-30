@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -53,7 +54,7 @@ public sealed class UnableHoldShortReadbackTests
     {
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        PilotSpeechText? result = PilotResponder.BuildReadback(parsed.Value!, aircraft);
+        PilotSpeechText? result = PilotResponder.BuildReadback(parsed.Value!, aircraft, ActiveRunways.Empty);
         Assert.NotNull(result);
         return result!;
     }

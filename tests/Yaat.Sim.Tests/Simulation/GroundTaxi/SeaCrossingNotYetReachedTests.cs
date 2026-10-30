@@ -55,7 +55,7 @@ public sealed class SeaCrossingNotYetReachedTests
         }
 
         PilotSpeechText readback = Assert.IsType<PilotSpeechText>(
-            PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), rig.Aircraft)
+            PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), rig.Aircraft, ActiveRunways.Empty)
         );
         double beforeKts = rig.Aircraft.GroundSpeed;
         Assert.True(rig.Engine.SendCommand(Callsign, "HOLD").Success);
@@ -158,7 +158,7 @@ public sealed class SeaCrossingNotYetReachedTests
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Ground.Layout = layout;
         engine.World.AddAircraft(aircraft);
         return aircraft;

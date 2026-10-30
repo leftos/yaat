@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests.Pilot;
@@ -70,6 +71,7 @@ public class M103PatternTrafficCheckInTests
         RunwayInfo runway = rwy ?? DefaultRunway();
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Piston,
@@ -159,6 +161,7 @@ public class M103PatternTrafficCheckInTests
         PatternEntryPhase phase = MakePatternEntry();
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Piston,

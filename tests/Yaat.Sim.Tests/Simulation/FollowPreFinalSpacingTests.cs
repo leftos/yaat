@@ -110,7 +110,7 @@ public class FollowPreFinalSpacingTests(ITestOutputHelper output)
         }
 
         follower.Phases.Add(new LandingPhase());
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
         follower.Approach.HasReportedTrafficInSight = true;
         follower.Approach.FollowingCallsign = Leader;
         return follower;
@@ -199,7 +199,7 @@ public class FollowPreFinalSpacingTests(ITestOutputHelper output)
         AircraftState ac = ClearedI28R(type, ias);
         engine.World.AddAircraft(ac);
         PhaseList phases = ac.Phases!;
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         if (phases.CurrentPhase is { Status: PhaseStatus.Pending })
         {
             phases.Start(ctx);
@@ -537,7 +537,7 @@ public class FollowPreFinalSpacingTests(ITestOutputHelper output)
         follower.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
         follower.Phases.Add(new FinalApproachPhase());
         follower.Phases.Add(new LandingPhase());
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
         follower.Approach.HasReportedTrafficInSight = true;
         follower.Approach.FollowingCallsign = Leader;
         // 0.75 nm of the 1 nm a C172 lead wants: outside the S-turn deadband.
@@ -560,7 +560,7 @@ public class FollowPreFinalSpacingTests(ITestOutputHelper output)
 
         follower.Targets.TargetSpeed = 150;
         FinalApproachPhase resume = final.CloneForResume();
-        resume.OnStart(CommandDispatcher.BuildMinimalContext(follower));
+        resume.OnStart(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
 
         Assert.Equal(200, SpacingCeiling(resume));
     }

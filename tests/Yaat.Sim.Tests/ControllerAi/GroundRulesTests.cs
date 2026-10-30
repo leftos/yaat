@@ -585,7 +585,7 @@ public class GroundRulesTests
                 ContinuesStandPushOff = false,
             }
         );
-        pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher, layout));
+        pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher, ActiveRunways.Empty, layout));
         pusher.Ground.PushedBackFrom = pushedBackFrom;
         pusher.Ground.PushbackTrueHeading = new TrueHeading(180);
         return pusher;

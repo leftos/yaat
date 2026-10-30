@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -142,6 +143,7 @@ public class PatternTurbineTpaTests
         var phase = new DownwindPhase { Waypoints = wp };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,

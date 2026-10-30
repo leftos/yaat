@@ -810,6 +810,7 @@ public class ClimbViaTopAltitudeTests
     private static PhaseContext NewContext(AircraftState ac, RunwayInfo rwy) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -851,7 +852,7 @@ public class ClimbViaTopAltitudeTests
 
         var holding = new HoldingInPositionPhase();
         ac.Phases.Add(holding);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         if (climbViaOnTheGround)
         {

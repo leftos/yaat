@@ -425,7 +425,7 @@ public class LineUpRestoreRoundTripTests(ITestOutputHelper output)
         aircraft.Ground.Layout = layout;
         aircraft.Phases.Add(new LineUpPhase());
         aircraft.Phases.Add(new LinedUpAndWaitingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(aircraft);
         return aircraft;
     }

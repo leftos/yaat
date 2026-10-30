@@ -44,6 +44,7 @@ public class M101GroundSpawnCheckInTests
     ) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,

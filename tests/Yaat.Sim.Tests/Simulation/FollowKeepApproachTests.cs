@@ -111,7 +111,7 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
             ac.Phases.Add(phase);
         }
 
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 
@@ -169,7 +169,7 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         engine.World.AddAircraft(ac);
 
         PhaseList phases = ac.Phases!;
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         if (phases.CurrentPhase is { Status: PhaseStatus.Pending })
         {
             phases.Start(ctx);
@@ -387,7 +387,7 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         Assert.False(hold.IsHoldInLieu);
         follower.Phases = new PhaseList();
         follower.Phases.Add(hold);
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
         AddFinalLead(engine, rwy, 2.0);
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
@@ -419,7 +419,7 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         );
         follower.Phases.Add(new FinalApproachPhase());
         follower.Phases.Add(new LandingPhase());
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
         KeptState before = Capture(follower);
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
@@ -560,6 +560,7 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         double unspacedKts = vref + 20.0;
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = follower,
             Targets = follower.Targets,
             Category = AircraftCategory.Piston,
@@ -804,7 +805,7 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         ac.TrueHeading = rwy.TrueHeading;
         ac.TrueTrack = rwy.TrueHeading;
         ac.Altitude = 800;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         Assert.IsType<ApproachNavigationPhase>(ac.Phases.CurrentPhase);
         return ac;
     }

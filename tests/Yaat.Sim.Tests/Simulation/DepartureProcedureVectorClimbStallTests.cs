@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
@@ -511,7 +512,7 @@ public class DepartureProcedureVectorClimbStallTests
 
         var holding = new HoldingInPositionPhase();
         ac.Phases.Add(holding);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult cto = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -534,6 +535,7 @@ public class DepartureProcedureVectorClimbStallTests
         AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = cat,

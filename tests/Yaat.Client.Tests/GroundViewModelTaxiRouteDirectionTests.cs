@@ -59,6 +59,7 @@ public class GroundViewModelTaxiRouteDirectionTests
         aircraft.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = aircraft,
                 Targets = aircraft.Targets,
                 Category = AircraftCategorization.Categorize(aircraft.AircraftType),

@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
@@ -53,6 +54,7 @@ public class TowerPhaseTests
         rwy ??= DefaultRunway(ac.Altitude);
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,

@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -146,7 +147,7 @@ public class GoAroundClimbOutTests
         }
 
         AircraftState aircraft = MakeVfrAircraft(runway);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null);
 
         int expected = (int)(runway.AirportElevationFt + PistonPatternAltitudeAgl - HandoffMarginFt);
         Assert.Equal(expected, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));
@@ -167,7 +168,7 @@ public class GoAroundClimbOutTests
         }
 
         AircraftState aircraft = MakeVfrAircraft(runway);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout);
 
         int expected = (int)(runway.AirportElevationFt + Oak28LAuthoredPatternAltitudeAgl - HandoffMarginFt);
         Assert.Equal(expected, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));
@@ -186,7 +187,7 @@ public class GoAroundClimbOutTests
 
         AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Pattern.SetAltitudeOverride(1500, null, AircraftCategorization.Categorize(aircraft.AircraftType));
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout);
 
         Assert.Equal(1200, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));
     }
@@ -206,7 +207,7 @@ public class GoAroundClimbOutTests
 
         AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.AssignedRunway = null;
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null);
 
         int expected = (int)(ctx.FieldElevation + PistonPatternAltitudeAgl - HandoffMarginFt);
         Assert.Equal(expected, GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: true, missedApproachPhases: []));
@@ -222,7 +223,7 @@ public class GoAroundClimbOutTests
             return;
         }
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(MakeVfrAircraft(runway), groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(MakeVfrAircraft(runway), ActiveRunways.Empty, groundLayout: null);
 
         Assert.Null(GoAroundHelper.ResolveClimbOutAltitude(ctx, isPattern: false, missedApproachPhases: []));
     }
@@ -245,7 +246,7 @@ public class GoAroundClimbOutTests
         AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
 
         CommandResult result = PatternCommandHandler.TryGoAround(
             new GoAroundCommand(null, null, null, RunwayHeading: false),
@@ -274,7 +275,7 @@ public class GoAroundClimbOutTests
 
         AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(new FinalApproachPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
 
         CommandResult result = PatternCommandHandler.TryGoAround(
             new GoAroundCommand(new MagneticHeading(270), null, null, RunwayHeading: false),
@@ -308,7 +309,7 @@ public class GoAroundClimbOutTests
         AircraftState aircraft = MakeVfrAircraft(runway);
         aircraft.Phases!.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
 
         CommandResult result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, OptionPatternModifier.None, TestDispatch.Context(Random.Shared));
 
@@ -330,7 +331,7 @@ public class GoAroundClimbOutTests
         aircraft.Phases!.Add(new DownwindPhase { Waypoints = WaypointsFor(runway, PatternDirection.Left) });
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
 
         CommandResult result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, OptionPatternModifier.None, TestDispatch.Context(Random.Shared));
 
@@ -359,7 +360,7 @@ public class GoAroundClimbOutTests
         aircraft.Phases!.Add(new DownwindPhase { Waypoints = WaypointsFor(runway, PatternDirection.Right) });
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
         aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
         aircraft.Phases.ClearedRunwayId = "28R";
 
@@ -390,7 +391,7 @@ public class GoAroundClimbOutTests
         aircraft.Phases!.Add(new DownwindPhase { Waypoints = WaypointsFor(runway, PatternDirection.Left) });
         aircraft.Phases.Add(new FinalApproachPhase());
         aircraft.Phases.Add(new LandingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
         aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
         aircraft.Phases.ClearedRunwayId = "28R";
 
@@ -432,7 +433,7 @@ public class GoAroundClimbOutTests
             }
         );
         aircraft.Phases.Add(new FinalApproachPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
 
         GoAroundPhase goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
         Assert.Equal(runway.ElevationFt + 2000, aircraft.Targets.TargetAltitude);
@@ -475,7 +476,7 @@ public class GoAroundClimbOutTests
                 NextLandingFullStop = true,
             }
         );
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
 
         GoAroundPhase goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
 

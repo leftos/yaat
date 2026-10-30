@@ -1069,10 +1069,11 @@ public static class CommandDispatcher
         return result;
     }
 
+    // Only the field elevation is read; the room's active runways are not used.
     /// <summary>Whether <paramref name="aircraft"/> is low over the field its current ground layout covers.</summary>
     private static bool IsLowOverItsField(AircraftState aircraft) =>
         (aircraft.Ground.Layout is { } current)
-        && GroundCommandHandler.IsOnFieldForAirTaxi(aircraft, current, BuildMinimalContext(aircraft, current).FieldElevation);
+        && GroundCommandHandler.IsOnFieldForAirTaxi(aircraft, current, BuildMinimalContext(aircraft, ActiveRunways.Empty, current).FieldElevation);
 
     /// <summary>
     /// The context the rest of a compound runs in after <paramref name="head"/> applied: when the head changed an airborne
@@ -2768,7 +2769,7 @@ public static class CommandDispatcher
             return;
         }
 
-        currentPhase.OnCommandAccepted(cmdType, BuildMinimalContext(aircraft, ctx.GroundLayout));
+        currentPhase.OnCommandAccepted(cmdType, BuildMinimalContext(aircraft, ctx.ActiveRunways, ctx.GroundLayout));
     }
 
     /// <summary>
@@ -3211,7 +3212,8 @@ public static class CommandDispatcher
                         new GroundCommandHandler.ContinuationClearance(
                             CanonicalCommandType.Resume,
                             GroundCommandHandler.RunwaysNamed(hsResume.CrossRunways, hsResume.HoldShorts),
-                            false
+                            false,
+                            ctx.ActiveRunways
                         ),
                         groundLayout
                     ),
@@ -3229,15 +3231,15 @@ public static class CommandDispatcher
 
             // Ground commands
             case PushbackCommand push:
-                return GroundCommandHandler.TryPushback(aircraft, push, groundLayout, ctx.ListAircraft);
+                return GroundCommandHandler.TryPushback(aircraft, push, groundLayout, ctx.ListAircraft, ctx.ActiveRunways);
             case PushbackMultiCommand pushMulti:
-                return GroundCommandHandler.TryPushbackMulti(aircraft, pushMulti, groundLayout, ctx.ListAircraft);
+                return GroundCommandHandler.TryPushbackMulti(aircraft, pushMulti, groundLayout, ctx.ListAircraft, ctx.ActiveRunways);
             case TaxiCommand taxi:
                 return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, taxiDispatch);
             case TaxiAutoCommand autoTaxi:
                 return GroundCommandHandler.TryTaxiAuto(aircraft, autoTaxi, groundLayout, taxiDispatch);
             case HoldPositionCommand:
-                return GroundCommandHandler.TryHoldPosition(aircraft);
+                return GroundCommandHandler.TryHoldPosition(aircraft, ctx.ActiveRunways);
             // Bare RES to an aircraft rolling free on a taxi route — not held, not stalled by the ground conflict detector —
             // pre-clears the next hold short ahead when it is a taxiway or spot bar. A held or stalled aircraft keeps the
             // release below, and so does one with no active route ("Aircraft is not held"). The route is the one the aircraft
@@ -3249,7 +3251,7 @@ public static class CommandDispatcher
                     && !GroundCommandHandler.IsDetectorStalled(aircraft)
                     && (FollowingPhase.DrivenRouteOf(aircraft) is { IsComplete: false } preClearRoute):
                 // A pre-clearance while rolling releases nothing from a stop, so a route expedite keeps running (YAAT-658 ruling).
-                return GroundCommandHandler.TryPreClearNextTaxiwayHoldShort(aircraft, preClearRoute, groundLayout);
+                return GroundCommandHandler.TryPreClearNextTaxiwayHoldShort(aircraft, preClearRoute, groundLayout, ctx.ActiveRunways);
             case ResumeCommand groundResume when currentPhase is not HoldingShortPhase:
             {
                 CommandResult applied = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(
@@ -3270,13 +3272,13 @@ public static class CommandDispatcher
                 return Ok(CommandDescriber.DescribeNatural(groundResume));
             }
             case CrossRunwayCommand cross:
-                return GroundCommandHandler.TryCrossRunway(aircraft, cross, groundLayout, ctx.FindAircraft);
+                return GroundCommandHandler.TryCrossRunway(aircraft, cross, groundLayout, ctx.FindAircraft, ctx.ActiveRunways);
             case HoldShortCommand hs:
                 return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout);
             case AssignRunwayCommand assignRwy:
                 return GroundCommandHandler.TryAssignRunway(aircraft, assignRwy.RunwayId);
             case FollowGroundCommand followG:
-                return GroundCommandHandler.TryFollow(aircraft, followG, groundLayout, ctx.FindAircraft, ctx.ListAircraft);
+                return GroundCommandHandler.TryFollow(aircraft, followG, groundLayout, ctx.FindAircraft, ctx.ListAircraft, ctx.ActiveRunways);
             case GiveWayCommand gw:
                 return GroundCommandHandler.TryGiveWay(aircraft, gw.TargetCallsign);
             case ExitLeftCommand el:
@@ -3299,7 +3301,7 @@ public static class CommandDispatcher
             case BreakConflictCommand:
                 return GroundCommandHandler.TryBreakConflict(aircraft);
             case ClearRunwayCommand:
-                return GroundCommandHandler.TryClearRunway(aircraft, groundLayout);
+                return GroundCommandHandler.TryClearRunway(aircraft, groundLayout, ctx.ActiveRunways);
             case GoCommand:
                 return GroundCommandHandler.TryGo(aircraft);
 
@@ -3362,13 +3364,14 @@ public static class CommandDispatcher
         return false;
     }
 
-    internal static PhaseContext BuildMinimalContext(AircraftState aircraft, AirportGroundLayout? groundLayout = null)
+    internal static PhaseContext BuildMinimalContext(AircraftState aircraft, ActiveRunways activeRunways, AirportGroundLayout? groundLayout = null)
     {
         AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         return new PhaseContext
         {
             Aircraft = aircraft,
+            ActiveRunways = activeRunways,
             Targets = aircraft.Targets,
             Category = cat,
             DeltaSeconds = 0,
@@ -3449,7 +3452,8 @@ public static class CommandDispatcher
     /// </summary>
     internal static void ClearPhaseChain(AircraftState aircraft, string cancelledBy)
     {
-        PhaseContext phaseCtx = BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext phaseCtx = BuildMinimalContext(aircraft, ActiveRunways.Empty);
         bool clearedGoAround = aircraft.Phases?.CurrentPhase is GoAroundPhase;
         string? clearedSummary = aircraft.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
         aircraft.Phases?.Clear(phaseCtx);
@@ -3501,7 +3505,8 @@ public static class CommandDispatcher
     {
         bool clearedGoAround = aircraft.Phases?.CurrentPhase is GoAroundPhase;
         string? clearedSummary = aircraft.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
-        aircraft.Phases?.Clear(BuildMinimalContext(aircraft));
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        aircraft.Phases?.Clear(BuildMinimalContext(aircraft, ActiveRunways.Empty));
         aircraft.Phases = replacement;
         ReleaseChainControlState(aircraft, clearedGoAround);
         return clearedSummary ?? "approach";
@@ -6021,13 +6026,15 @@ public static class CommandDispatcher
         string? standingClearedRunwayId = aircraft.Phases?.ClearedRunwayId;
         if (aircraft.Phases is { } existing)
         {
-            existing.Clear(BuildMinimalContext(aircraft, groundLayout: null));
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            existing.Clear(BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
         }
 
         var pursuit = new VfrFollowPhase(target, patternReturn) { ClimbOutGate = climbOutGate };
         aircraft.Phases = new PhaseList { LandingClearance = standingClearance, ClearedRunwayId = standingClearedRunwayId };
         aircraft.Phases.Phases.Add(pursuit);
-        aircraft.Phases.Start(BuildMinimalContext(aircraft, groundLayout: null));
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        aircraft.Phases.Start(BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
         aircraft.Approach.FollowingCallsign = target;
         return pursuit;
     }

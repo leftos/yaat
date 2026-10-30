@@ -58,7 +58,7 @@ public class ApproachKeepingCommandTests(ITestOutputHelper output)
     private static AircraftState AddOnFinal(SimulationEngine engine, double distanceNm)
     {
         AircraftState ac = FollowSequenceRefusalTests.AddApproachFollower(engine, distanceNm);
-        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         FinalApproachPhase final = Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
         final.DistanceToThresholdNm = distanceNm;
         return ac;
@@ -146,7 +146,7 @@ public class ApproachKeepingCommandTests(ITestOutputHelper output)
         engine.World.AddAircraft(ac);
 
         PhaseList phases = ac.Phases!;
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         if (phases.CurrentPhase is { Status: PhaseStatus.Pending })
         {
             phases.Start(ctx);

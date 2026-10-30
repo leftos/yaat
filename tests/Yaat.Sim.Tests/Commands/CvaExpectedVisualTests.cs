@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -107,7 +108,8 @@ public class CvaExpectedVisualTests
             compound,
             new CommandResult(true, "queued"),
             aircraft,
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
 
         Assert.NotNull(readback);
@@ -135,7 +137,8 @@ public class CvaExpectedVisualTests
             new CompoundCommand([new ParsedBlock(null, [capp])]),
             result,
             aircraft,
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
         Assert.NotNull(readback);
         Assert.StartsWith("cleared visual approach runway two eight right", readback.Tts);

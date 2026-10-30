@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -103,6 +104,7 @@ public class HoldingPatternGridWindTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,

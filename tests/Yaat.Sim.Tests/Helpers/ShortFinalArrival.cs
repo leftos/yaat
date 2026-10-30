@@ -73,7 +73,7 @@ public static class ShortFinalArrival
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
 
         var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
         engine.World.AddAircraft(aircraft);

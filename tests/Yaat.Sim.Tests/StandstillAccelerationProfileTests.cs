@@ -102,6 +102,7 @@ public sealed class StandstillAccelerationProfileTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = category,
@@ -219,6 +220,7 @@ public sealed class StandstillAccelerationProfileTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
@@ -377,6 +379,7 @@ public sealed class StandstillAccelerationProfileTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,

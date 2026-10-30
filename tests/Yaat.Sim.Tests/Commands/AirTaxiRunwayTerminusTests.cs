@@ -465,7 +465,7 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
         heli.Ground.Layout = layout;
         heli.Phases = new PhaseList();
         heli.Phases.Add(new AtParkingPhase());
-        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, layout));
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(heli);
 
         return (engine, layout, heli);

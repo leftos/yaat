@@ -123,7 +123,7 @@ public class BaseFollowSpacingTests(ITestOutputHelper output)
             ac.Phases.Add(phase);
         }
 
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
     }
 
     /// <summary>The lead established on the 28R final <paramref name="alongNm"/> out, on the glidepath at its approach speed.</summary>
@@ -190,7 +190,7 @@ public class BaseFollowSpacingTests(ITestOutputHelper output)
         LatLon fix = OffFinal(rwy, 2.0, 0.0);
         lead.Phases = new PhaseList { AssignedRunway = rwy };
         lead.Phases.Add(new ApproachNavigationPhase { Fixes = [new ApproachFix("FAF", fix.Lat, fix.Lon)] });
-        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead));
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty));
         Assert.IsType<ApproachNavigationPhase>(lead.Phases.CurrentPhase);
         return lead;
     }

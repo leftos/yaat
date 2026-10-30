@@ -706,6 +706,7 @@ public class GroundConflictDetectorTests
         mover.Phases.Add(taxiing);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = mover,
             Targets = mover.Targets,
             Category = AircraftCategorization.Categorize(mover.AircraftType),
@@ -1729,7 +1730,7 @@ public class GroundConflictDetectorTests
                 ContinuesStandPushOff = continuesStandPushOff,
             }
         );
-        pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher));
+        pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher, ActiveRunways.Empty));
         pusher.Position = position;
         return pusher;
     }
@@ -1756,7 +1757,7 @@ public class GroundConflictDetectorTests
                 ContinuesStandPushOff = false,
             }
         );
-        pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher));
+        pusher.Phases.Start(CommandDispatcher.BuildMinimalContext(pusher, ActiveRunways.Empty));
         pusher.Position = position;
         pusher.Ground.PushbackTrueHeading = new TrueHeading(pushHeading);
         return pusher;
@@ -3448,7 +3449,7 @@ public class GroundConflictDetectorTests
         };
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new TaxiingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(aircraft);
         return aircraft;
     }
@@ -4841,6 +4842,7 @@ public class GroundConflictDetectorTests
         crossing.OnStart(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = crosser,
                 Targets = crosser.Targets,
                 Category = AircraftCategory.Piston,

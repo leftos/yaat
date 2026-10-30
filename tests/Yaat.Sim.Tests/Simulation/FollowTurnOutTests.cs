@@ -120,7 +120,7 @@ public class FollowTurnOutTests(ITestOutputHelper output)
             lead.Phases.Add(phase);
         }
 
-        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead));
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty));
         Assert.IsType<FinalApproachPhase>(lead.Phases.CurrentPhase);
         return lead;
     }
@@ -240,7 +240,7 @@ public class FollowTurnOutTests(ITestOutputHelper output)
         };
         follower.Phases = new PhaseList();
         follower.Phases.Add(VfrFollowPhase.FromSnapshot(widening));
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
 
         int turnedOutAt = -1;
         double followerPathNm = 0.0;
@@ -432,7 +432,7 @@ public class FollowTurnOutTests(ITestOutputHelper output)
         Assert.Equal(1, TurnOutCalls(follower));
         int warningsBefore = follower.PendingWarnings.Count;
 
-        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(lead), new GoAroundPhase(), []);
+        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty), new GoAroundPhase(), []);
         TickSeconds(engine, 1);
 
         Assert.Null(follower.Approach.FollowingCallsign);

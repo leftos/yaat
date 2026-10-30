@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -33,6 +34,7 @@ public class BehindGroundTaxiTests
         ac.Phases.Add(phase);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             DeltaSeconds = 1.0,

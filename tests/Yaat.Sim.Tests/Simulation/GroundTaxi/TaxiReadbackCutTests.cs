@@ -53,6 +53,93 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <see cref="TaxiBC_From28LBar_28RAutoCrossed_ReadsBothCrossings"/> with KOAK landing and departing 10L and 10R
+    /// (<c>ARWY OAK 10L 10R</c>): the clearance names neither runway, so the pilot names each by its active end, in the
+    /// order the route crosses them.
+    /// </summary>
+    [Fact]
+    public void TaxiBC_From28LBar_28RAutoCrossed_WithTenLeftAndTenRightActive_ReadsTheActiveEnds()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = StageAt28LBar(AutoCrossRunwayMode.All);
+        engine.Scenario!.ActiveRunways = OakActive("10L", "10R");
+        string? readback = IssueAndReadBack(engine, aircraft, "TAXI B C");
+        AssertReadback("taxi via bravo, cross runway one zero right and runway one zero left, hold short of taxiway charlie", readback);
+    }
+
+    /// <summary>
+    /// A controller's typed end is echoed: held at the 28R bar with 28L and 28R active, <c>CROSS 10L</c> reads back "one zero
+    /// left", not the active end.
+    /// </summary>
+    [Fact]
+    public void Cross10LAt28RBar_With28LAnd28RActive_EchoesTheTypedEnd()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = HoldingShortOf28RAfter("TAXI B C");
+        engine.Scenario!.ActiveRunways = OakActive("28L", "28R");
+        string? readback = IssueAndReadBack(engine, aircraft, "CROSS 10L");
+        AssertReadback("cross runway one zero left, continue taxi via bravo, hold short of taxiway charlie", readback);
+    }
+
+    /// <summary>
+    /// Held at the 28L bar on <c>TAXI B C HS 28L</c> with auto-cross All and KOAK landing and departing 10L and 10R
+    /// (<c>ARWY OAK 10L 10R</c>): <c>CROSS 28L</c> echoes the typed 28L, and the continuation names the auto-crossed 28R/10L by
+    /// its active end, "one zero left". Red first with the active-end branch of <see cref="RunwayCrossingEnd.Spoken"/> disabled.
+    /// </summary>
+    [Fact]
+    public void Cross28L_With10LAnd10RActive_ReadsTheAutoCrossedRunwayByItsActiveEnd()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = StageShortOf28LBar();
+        engine.Scenario!.AutoCrossRunwayMode = AutoCrossRunwayMode.All;
+        IssueAndReadBack(engine, aircraft, "TAXI B C HS 28L");
+        TickUntilHoldingShortOf(engine, aircraft, "28L");
+        engine.Scenario.ActiveRunways = OakActive("10L", "10R");
+        string? readback = IssueAndReadBack(engine, aircraft, "CROSS 28L");
+        AssertReadback("cross runway two eight left, continue taxi via bravo, cross runway one zero left, hold short of taxiway charlie", readback);
+    }
+
+    /// <summary>
+    /// An aircraft assigned departure runway 10R, held on <c>TAXI B C</c> at the B bar of its own runway 10R/28L, with KOAK
+    /// landing and departing 28L and 28R (<c>ARWY OAK 28L 28R</c>): <c>FOLLOWG</c> arms the follow, and both the controller's
+    /// terminal and the pilot's readback name the hold short by the runway's assigned end, 10R, as its "ready for departure"
+    /// call does, not the active 28L. Red first with the own-runway branch of <see cref="HoldingShortPhase.RunwayEndFacing"/>
+    /// disabled.
+    /// </summary>
+    [Fact]
+    public void FollowGAtItsOwnRunwaysBar_With28LAnd28RActive_HoldsShortOfItsAssignedEnd()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = StageShortOf28LBar();
+        IssueAndReadBack(engine, aircraft, "TAXI B C");
+        TickUntilHoldingShortOf(engine, aircraft, "28L");
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.Contains('/', hold.HoldShort.TargetName ?? string.Empty);
+        aircraft.Phases!.AssignedRunway = Yaat.Sim.Data.NavigationDatabase.Instance.GetRunway("OAK", "10R");
+
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(aircraft.Ground.Layout);
+        GroundNode spot = layout.FindSpotNodeByName("E")!;
+        GroundNode junction = layout.FindIntersectionNode("TE", "T")!;
+        GroundNode toward = spot.Edges.Select(e => e.OtherNode(spot)).MinBy(n => GeoMath.DistanceNm(n.Position, junction.Position))!;
+        AircraftState lead = SfoGroundHarness.SpawnAt(
+            new SfoGround(engine, layout),
+            "N4321",
+            "B738",
+            (spot, new TrueHeading(GeoMath.BearingTo(spot.Position, toward.Position))),
+            new HoldingInPositionPhase()
+        );
+        engine.Scenario!.ActiveRunways = OakActive("28L", "28R");
+
+        aircraft.PendingPilotTransmissions.Clear();
+        CommandResult follow = engine.SendCommand(aircraft.Callsign, $"FOLLOWG {lead.Callsign}");
+        string? readback = aircraft.PendingPilotTransmissions.FirstOrDefault(t => t.Kind == PilotTransmissionKind.Readback)?.SpeechText;
+        output.WriteLine($"FOLLOWG: success={follow.Success} '{follow.Message}', readback '{readback}'");
+
+        Assert.True(follow.Success, follow.Message);
+        Assert.Equal($"Follow {lead.Callsign}, hold short of 10R", follow.Message);
+        Assert.StartsWith("follow the traffic, hold short of runway one zero right, ", readback, StringComparison.Ordinal);
+    }
+
+    private static ActiveRunways OakActive(params string[] ends) =>
+        ActiveRunways.Empty.With("OAK", [.. ends.Select(end => new ActiveRunway(end, ActiveRunwayUse.Both))]);
+
+    /// <summary>
     /// KOAK spot E on TE, facing the TE/T junction: <c>TAXI TE T U HS T</c> holds short of T at the junction, where the route
     /// ends at the T bar. The readback stops at that hold short.
     /// </summary>
@@ -448,8 +535,14 @@ public class TaxiReadbackCutTests(ITestOutputHelper output)
                         GroupContactFrequency = false,
                         CurrentIndicatedAirspeed = null,
                     };
-                    PilotSpeechText? fromLone = PilotResponder.BuildReadbackAsApplied(loneCompound, lone, aircraft, context);
-                    PilotSpeechText? fromCovered = PilotResponder.BuildReadbackAsApplied(coveredCompound, covered, aircraft, context);
+                    PilotSpeechText? fromLone = PilotResponder.BuildReadbackAsApplied(loneCompound, lone, aircraft, context, ActiveRunways.Empty);
+                    PilotSpeechText? fromCovered = PilotResponder.BuildReadbackAsApplied(
+                        coveredCompound,
+                        covered,
+                        aircraft,
+                        context,
+                        ActiveRunways.Empty
+                    );
                     Assert.NotNull(fromLone);
                     Assert.Equal(fromLone, fromCovered);
                 }

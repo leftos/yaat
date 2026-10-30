@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Phases;
 
@@ -26,6 +27,7 @@ public class HoldingAfterExitPhaseTests
     private static PhaseContext MakeContext(AircraftState ac, string positionType, bool solo = true) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -72,6 +74,7 @@ public class HoldingAfterExitPhaseTests
         var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null, heldShortOfRunway: null);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),

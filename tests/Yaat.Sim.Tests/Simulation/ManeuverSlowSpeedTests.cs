@@ -99,7 +99,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     public void MakeTurn_Jet_SlowsToHoldingSpeed_OnStart()
     {
         AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         double maxHold = AircraftPerformance.HoldingSpeed("B738", 5000);
 
         var phase = new MakeTurnPhase { Direction = TurnDirection.Right, TargetDegrees = 360 };
@@ -114,7 +114,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     public void MakeTurn_NoPriorSpeed_ResumesScheduleOnEnd()
     {
         AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
 
         var phase = new MakeTurnPhase { Direction = TurnDirection.Right, TargetDegrees = 360 };
         phase.OnStart(ctx);
@@ -137,7 +137,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
         ac.Targets.TargetSpeed = 230;
         ac.Targets.AssignedSpeed = 230;
         ac.Targets.HasExplicitSpeedCommand = true;
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
 
         var phase = new MakeTurnPhase { Direction = TurnDirection.Left, TargetDegrees = 360 };
         phase.OnStart(ctx);
@@ -156,7 +156,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     {
         // C172 holding speed is 82; flying 78 (below holding) must be left untouched.
         AircraftState ac = MakeAircraft("C172", altitude: 2000, ias: 78);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
 
         var phase = new MakeTurnPhase { Direction = TurnDirection.Left, TargetDegrees = 360 };
         phase.OnStart(ctx);
@@ -171,7 +171,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     public void MakeTurn_MidManeuverSpeedCommand_NotClobberedOnEnd()
     {
         AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
 
         var phase = new MakeTurnPhase { Direction = TurnDirection.Right, TargetDegrees = 360 };
         phase.OnStart(ctx);
@@ -192,7 +192,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
     public void VfrHold_HoldPresentPosition_SlowsToHoldingSpeed()
     {
         AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         double maxHold = AircraftPerformance.HoldingSpeed("B738", 5000);
 
         var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Left };
@@ -221,7 +221,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
         AircraftState ac = MakeAircraft("B738", altitude: 2000, ias: 250);
         ac.Targets.TargetSpeed = 250;
         ac.Phases = new PhaseList { AssignedRunway = runway }; // aircraft is at the threshold (0 nm)
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
 
         var phase = new STurnPhase { InitialDirection = TurnDirection.Left };
         phase.OnStart(ctx);
@@ -246,7 +246,7 @@ public class ManeuverSlowSpeedTests(ITestOutputHelper output)
         );
         AircraftState ac = MakeAircraft("B738", altitude: 5000, ias: 250);
         ac.Phases = new PhaseList { AssignedRunway = runway };
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         double maxHold = AircraftPerformance.HoldingSpeed("B738", 5000);
 
         var phase = new STurnPhase { InitialDirection = TurnDirection.Left };

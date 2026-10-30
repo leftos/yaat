@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Pilot;
@@ -915,9 +916,10 @@ public static class PhraseologyVerbalizer
     /// What a route readback reads off a resolved route: the route from <see cref="StartSegment"/>, the taxiway names it
     /// may say (<see cref="TaxiwayNamed"/>: a leg the clearance left out is driven silently), each named taxiway's turn
     /// hint, the runway designators the clearance named, which pick the end a two-ended runway is read as, the runways
-    /// crossed "without delay" (<see cref="ExpeditedRunways"/>), and the cleared bars read as uncleared
+    /// crossed "without delay" (<see cref="ExpeditedRunways"/>), the cleared bars read as uncleared
     /// (<see cref="UnclearedBars"/>, matched by reference): a bar another command's own clause crosses, which ends the walk
-    /// silently, read neither as a crossing nor as a hold short, with nothing past it.
+    /// silently, read neither as a crossing nor as a hold short, with nothing past it, and what picks the end of a runway the
+    /// clearance did not name (<see cref="UnnamedEnd"/>).
     /// </summary>
     public sealed record TaxiRouteReadbackInputs(
         TaxiRoute Route,
@@ -926,8 +928,15 @@ public static class PhraseologyVerbalizer
         IReadOnlyDictionary<string, TurnDirection>? TurnHints,
         IReadOnlyCollection<string> NamedRunways,
         IReadOnlyCollection<string> ExpeditedRunways,
-        IReadOnlyCollection<HoldShortPoint> UnclearedBars
+        IReadOnlyCollection<HoldShortPoint> UnclearedBars,
+        RunwayEndChooser UnnamedEnd
     );
+
+    /// <summary>
+    /// What picks the end of a runway a readback names that the clearance did not: the aircraft reading back, the airport's
+    /// ground layout and the room's active runways (<see cref="RunwayEndNamed"/>).
+    /// </summary>
+    public sealed record RunwayEndChooser(AircraftState Aircraft, AirportGroundLayout? Layout, ActiveRunways ActiveRunways);
 
     /// <summary>
     /// A runway crossing a route readback reads: <see cref="Runway"/> the runway ("runway two eight left"), and whether it is
@@ -984,7 +993,7 @@ public static class PhraseologyVerbalizer
             RenderRouteLegs(inputs, lastSegment, fmt),
             [.. crossings.Take(startCrossings).Select(c => c with { Runway = $"runway {fmt.Runway(c.Runway)}" })],
             [.. crossings.Skip(startCrossings).Select(c => c with { Runway = $"runway {fmt.Runway(c.Runway)}" })],
-            stop is null ? null : RenderStopTarget(stop, inputs.NamedRunways, fmt),
+            stop is null ? null : RenderStopTarget(stop, inputs, fmt),
             endsAtUnclearedBar
         );
     }
@@ -1193,9 +1202,7 @@ public static class PhraseologyVerbalizer
         var parts = new List<string>(said.Count);
         foreach (TaxiRouteFormatter.TaxiwayLeg leg in said)
         {
-            string part = leg.IsRunway
-                ? fmt.RunwaySegment(RunwayEndNamed(leg.Name, inputs.NamedRunways))
-                : fmt.TaxiTurn(leg.Name, TurnHintOf(inputs, leg.Name));
+            string part = leg.IsRunway ? fmt.RunwaySegment(RunwayEndNamed(leg.Name, inputs)) : fmt.TaxiTurn(leg.Name, TurnHintOf(inputs, leg.Name));
             parts.Add((parts.Count == 0) && !leg.IsRunway ? $"via {part}" : part);
         }
 
@@ -1220,13 +1227,13 @@ public static class PhraseologyVerbalizer
         (inputs.TurnHints is not null) && inputs.TurnHints.TryGetValue(taxiway, out TurnDirection hint) ? hint : null;
 
     /// <summary>A hold short's target as read: "runway two eight right", "spot one seven", "taxiway charlie".</summary>
-    private static string RenderStopTarget(HoldShortPoint stop, IReadOnlyCollection<string> namedRunways, CaptureFormatter fmt)
+    private static string RenderStopTarget(HoldShortPoint stop, TaxiRouteReadbackInputs inputs, CaptureFormatter fmt)
     {
         string target = stop.TargetName!;
         string said;
         if (IsRunwayTarget(target))
         {
-            said = $"runway {fmt.Runway(RunwayEndNamed(target, namedRunways))}";
+            said = $"runway {fmt.Runway(RunwayEndNamed(target, inputs))}";
         }
         else
         {
@@ -1283,7 +1290,7 @@ public static class PhraseologyVerbalizer
             return;
         }
 
-        string end = RunwayEndNamed(hs.TargetName!, inputs.NamedRunways);
+        string end = RunwayEndNamed(hs.TargetName!, inputs);
         if (!crossings.Any(c => string.Equals(c.Runway, end, StringComparison.OrdinalIgnoreCase)))
         {
             bool expedite = inputs.ExpeditedRunways.Any(runway => HoldShortAnnotator.TargetMatches(hs.TargetName, runway));
@@ -1293,11 +1300,24 @@ public static class PhraseologyVerbalizer
 
     private static bool IsRunwayTarget(string target) => CommandParser.IsRunwayArg(target.Split('/')[0].Trim());
 
-    /// <summary>The end of a runway (one end, or a pair like "28L/10R") the clearance named, else its first end.</summary>
-    private static string RunwayEndNamed(string runway, IReadOnlyCollection<string> namedRunways)
+    /// <summary>
+    /// The end of a runway (one end, or a pair like "28L/10R") the readback names: the end the clearance named, echoed as the
+    /// controller said it; else, when the room lists an end of the runway as active, the end a pilot names it by
+    /// (<see cref="RunwayCrossingEnd.Spoken"/>: the active end, the nearer one when both are listed); else its first end, as
+    /// listed in the pair (not the nearest).
+    /// </summary>
+    private static string RunwayEndNamed(string runway, TaxiRouteReadbackInputs inputs)
     {
         var id = RunwayIdentifier.Parse(runway);
-        return namedRunways.FirstOrDefault(id.Contains) ?? id.End1;
+        if (inputs.NamedRunways.FirstOrDefault(id.Contains) is { } named)
+        {
+            return named;
+        }
+
+        RunwayEndChooser chooser = inputs.UnnamedEnd;
+        return (chooser.Layout is { } layout) && RunwayCrossingEnd.HasActiveEnd(id, layout.AirportId, chooser.ActiveRunways)
+            ? RunwayCrossingEnd.Spoken(chooser.Aircraft, runway, layout, chooser.ActiveRunways)
+            : id.End1;
     }
 
     /// <summary>

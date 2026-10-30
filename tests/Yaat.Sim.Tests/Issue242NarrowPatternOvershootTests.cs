@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -37,6 +38,7 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
         RunwayInfo rwy = ac.Phases!.AssignedRunway!;
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Piston,

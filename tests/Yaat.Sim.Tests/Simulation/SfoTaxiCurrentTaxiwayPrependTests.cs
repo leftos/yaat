@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -531,7 +532,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(startPhase);
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, ground.Layout));
         aircraft.Ground.Layout = ground.Layout;
         ground.Engine.World.AddAircraft(aircraft);
         return aircraft;

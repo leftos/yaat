@@ -103,6 +103,7 @@ public class OccupiedRunwayGoAroundTests
     private static PhaseContext Ctx(AircraftState arrival, IReadOnlyList<AircraftState> all, bool setting) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = arrival,
             Targets = arrival.Targets,
             Category = AircraftCategorization.Categorize(arrival.AircraftType),
@@ -168,6 +169,7 @@ public class OccupiedRunwayGoAroundTests
         AircraftState self = arrival;
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = arrival,
             Targets = arrival.Targets,
             Category = AircraftCategorization.Categorize(arrival.AircraftType),
@@ -788,6 +790,7 @@ public class OccupiedRunwayGoAroundTests
         aircraft.IsOnGround = false;
         PhaseContext ctx = new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = category,
@@ -915,6 +918,7 @@ public class OccupiedRunwayGoAroundTests
     {
         PhaseContext ctx = new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = arrival,
             Targets = arrival.Targets,
             Category = AircraftCategorization.Categorize(arrival.AircraftType),

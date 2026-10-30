@@ -8,6 +8,7 @@ using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -1159,14 +1160,16 @@ internal static class NavigationCommandHandler
         RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         if (aircraft.Phases is not null)
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Clear(ctx);
         }
 
         aircraft.Phases = runway is not null ? new PhaseList { AssignedRunway = runway } : new PhaseList();
         aircraft.Phases.Add(phase);
 
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
 
         string dirStr = cmd.Direction == TurnDirection.Left ? "left" : "right";
@@ -1240,7 +1243,8 @@ internal static class NavigationCommandHandler
         // Clear existing phases
         if (aircraft.Phases is not null)
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Clear(ctx);
         }
 
@@ -1293,7 +1297,8 @@ internal static class NavigationCommandHandler
         aircraft.Phases.Add(finalPhase);
         aircraft.Phases.Add(landingPhase);
 
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
 
         return CommandDispatcher.Ok(

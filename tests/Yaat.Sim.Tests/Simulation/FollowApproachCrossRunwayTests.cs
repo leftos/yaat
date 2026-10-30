@@ -180,7 +180,7 @@ public class FollowApproachCrossRunwayTests(ITestOutputHelper output)
         );
         follower.Phases.Add(new FinalApproachPhase());
         follower.Phases.Add(new LandingPhase());
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
         Assert.IsType<InterceptCoursePhase>(follower.Phases.CurrentPhase);
         return follower;
     }

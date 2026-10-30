@@ -1066,10 +1066,10 @@ public class GiveWayStopBrakingTests(ITestOutputHelper output)
         Assert.True(holdAt > 0, "N738SP's nose never passed the runway 33 hold line in its crossing");
         Assert.True(engine.SendCommand(KoakFollowClip.Follower, "HOLD").Success);
         PilotSpeechText readback = Assert.IsType<PilotSpeechText>(
-            PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), held)
+            PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), held, ActiveRunways.Empty)
         );
         CrossingRunwayPhase crossing = Assert.IsType<CrossingRunwayPhase>(held.Phases?.CurrentPhase);
-        string runway = RunwayCrossingEnd.Nearest(held, Assert.IsType<string>(crossing.RunwayId), held.Ground.Layout);
+        string runway = RunwayCrossingEnd.Spoken(held, Assert.IsType<string>(crossing.RunwayId), held.Ground.Layout, ActiveRunways.Empty);
         output.WriteLine($"t={holdAt}: readback '{readback.Terminal}' / '{readback.Tts}' (nearest end {runway})");
         Assert.Equal($"holding position on runway {PhraseologyVerbalizer.CompactRunway(runway)}", readback.Terminal);
         Assert.StartsWith($"holding position on runway {PhraseologyVerbalizer.SpellRunway(runway)}, ", readback.Tts, StringComparison.Ordinal);

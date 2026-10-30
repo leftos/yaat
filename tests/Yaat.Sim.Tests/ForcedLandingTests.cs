@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Tests;
@@ -70,6 +71,7 @@ public class ForcedLandingTests : IDisposable
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategorization.Categorize(aircraft.AircraftType),

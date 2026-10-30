@@ -46,6 +46,7 @@ public class FollowPatternSequencingAuditTests
     private static PhaseContext Ctx(AircraftState ac, RunwayInfo rwy, Func<string, AircraftState?> lookup) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -934,7 +935,7 @@ public class FollowPatternSequencingAuditTests
     private static void StartOnCircuit(AircraftState ac, RunwayInfo rwy, PatternDirection dir, PatternEntryLeg entry)
     {
         AttachCircuit(ac, rwy, AircraftCategory.Piston, dir, entry, NavigationDatabase.Instance.GetRunways("KOAK"));
-        ac.Phases!.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases!.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
     }
 
     /// <summary>Runs the production physics + phase step at the engine's four sub-ticks a second (no scenario loaded).</summary>
@@ -963,7 +964,7 @@ public class FollowPatternSequencingAuditTests
         lead.Phases.Add(new ApproachNavigationPhase { Fixes = [new ApproachFix("FIX", fix.Lat, fix.Lon)] });
         lead.Phases.Add(new FinalApproachPhase());
         lead.Phases.Add(new LandingPhase());
-        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead));
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty));
         Assert.IsType<ApproachNavigationPhase>(lead.Phases.CurrentPhase);
         return lead;
     }
@@ -1076,7 +1077,7 @@ public class FollowPatternSequencingAuditTests
         );
         engine.World.AddAircraft(lead);
         StartOnCircuit(lead, rwy, PatternDirection.Right, PatternEntryLeg.Upwind);
-        GoAroundHelper.Trigger(CommandDispatcher.BuildMinimalContext(lead), "test");
+        GoAroundHelper.Trigger(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty), "test");
         Assert.True(Assert.IsType<GoAroundPhase>(lead.Phases!.CurrentPhase).ReenterPattern);
 
         LatLon followerStart = GeoMath.ProjectPoint(der, wp.UpwindHeading.ToReciprocal(), 0.3);

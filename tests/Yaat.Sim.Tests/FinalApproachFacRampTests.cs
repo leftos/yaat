@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -109,6 +110,7 @@ public class FinalApproachFacRampTests(ITestOutputHelper output)
 
             var ctx = new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = aircraft,
                 Targets = aircraft.Targets,
                 Category = AircraftCategorization.Categorize(aircraft.AircraftType),

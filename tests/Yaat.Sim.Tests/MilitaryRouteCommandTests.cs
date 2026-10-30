@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -52,7 +53,7 @@ public sealed class MilitaryRouteCommandTests
     /// </summary>
     private static void TickPhase(AircraftState aircraft)
     {
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         foreach (Phase phase in aircraft.Phases!.Phases)
         {
             phase.Status = PhaseStatus.Active;
@@ -497,7 +498,7 @@ public sealed class MilitaryRouteCommandTests
         MilitaryRoutePhase phase = aircraft.Phases!.Phases.OfType<MilitaryRoutePhase>().Single();
         Assert.Equal(CommandAcceptanceStatus.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain).Status);
 
-        phase.OnCommandAccepted(CanonicalCommandType.ClimbMaintain, CommandDispatcher.BuildMinimalContext(aircraft));
+        phase.OnCommandAccepted(CanonicalCommandType.ClimbMaintain, CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty));
 
         Assert.False(aircraft.MilitaryRoute.Marsa);
         Assert.Contains(aircraft.PendingWarnings, w => w.Contains("MARSA voided", StringComparison.OrdinalIgnoreCase));

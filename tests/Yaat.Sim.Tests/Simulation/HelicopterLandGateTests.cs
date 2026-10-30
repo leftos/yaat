@@ -63,7 +63,7 @@ public class HelicopterLandGateTests
         heli.Ground.Layout = layout;
         heli.Phases = new PhaseList();
         heli.Phases.Add(onGround ? new AtParkingPhase() : new VfrHoldPhase());
-        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, layout));
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(heli);
         return (engine, layout, heli);
     }
@@ -349,7 +349,7 @@ public class HelicopterLandGateTests
         heli.Ground.Layout = sfo;
         heli.Phases = new PhaseList();
         heli.Phases.Add(onGround ? new AtParkingPhase() : new VfrHoldPhase());
-        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, sfo));
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, ActiveRunways.Empty, sfo));
         engine.World.AddAircraft(heli);
         return (engine, oak, sfo, heli);
     }

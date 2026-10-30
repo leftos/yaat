@@ -63,7 +63,7 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Ground.Layout = layout;
         return aircraft;
     }
@@ -169,7 +169,7 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
         var ac = new AircraftState { Callsign = "N70CS", AircraftType = "C25C" };
-        string? tts = PilotResponder.BuildReadback(parsed.Value!, ac)?.Tts;
+        string? tts = PilotResponder.BuildReadback(parsed.Value!, ac, ActiveRunways.Empty)?.Tts;
         output.WriteLine($"TTS: {tts}");
 
         Assert.NotNull(tts);

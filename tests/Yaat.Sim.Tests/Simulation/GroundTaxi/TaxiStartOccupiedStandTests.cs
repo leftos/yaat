@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
@@ -357,7 +358,7 @@ public class TaxiStartOccupiedStandTests
     {
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty));
     }
 
     /// <summary>Dispatches <c>TAXI $E</c> to <paramref name="aircraft"/> in a world holding <paramref name="world"/>; its route.</summary>

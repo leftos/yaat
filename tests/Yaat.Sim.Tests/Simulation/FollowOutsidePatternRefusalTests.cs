@@ -191,7 +191,7 @@ public class FollowOutsidePatternRefusalTests(ITestOutputHelper output)
             ac.Phases.Add(phase);
         }
 
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
     }
 
     private static void TickSeconds(SimulationEngine engine, int seconds)

@@ -247,6 +247,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
         ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = targets,
             Category = AircraftCategory.Piston,
@@ -331,6 +332,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
         ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = targets,
             Category = AircraftCategory.Piston,

@@ -50,6 +50,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(new AtParkingPhase());
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -231,6 +232,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,
@@ -337,7 +339,7 @@ public class GroundCommandHandlerTests
         // Phases empty (no AtParkingPhase)
         var cmd = new PushbackCommand(null, null, null, null, false);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("at parking", result.Message!);
@@ -349,7 +351,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeAircraftAtParking();
         var cmd = new PushbackCommand(null, null, null, null, false);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.StartsWith("Push straight back (nose ", result.Message!);
@@ -366,7 +368,7 @@ public class GroundCommandHandlerTests
 
         var cmd = new PushbackCommand(null, "Y", null, null, false);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("Push straight back to taxiway Y", result.Message!);
@@ -388,7 +390,7 @@ public class GroundCommandHandlerTests
         ParseResult<ParsedCommand> parsed = CommandParser.Parse($"PUSH #{target.Id}");
         PushbackCommand cmd = Assert.IsType<PushbackCommand>(parsed.Value);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
@@ -409,7 +411,7 @@ public class GroundCommandHandlerTests
 
         var cmd = new PushbackCommand(null, null, null, PushDestination.AtNode(99999999, null), false);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null, ActiveRunways.Empty);
 
         Assert.False(result.Success, result.Message);
         Assert.Equal("Cannot find node '#99999999'", result.Message);
@@ -430,7 +432,7 @@ public class GroundCommandHandlerTests
         GroundNode d1 = layout.FindParkingByName("D1") ?? throw new InvalidOperationException("SFO gate D1 missing");
         PushbackCommand cmd = Assert.IsType<PushbackCommand>(CommandParser.Parse($"PUSH #{d1.Id} {facing}").Value);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null, ActiveRunways.Empty);
 
         Assert.False(result.Success, result.Message);
         Assert.Equal($"PUSH #{d1.Id} does not take a facing — the aircraft parks on the stand's own heading", result.Message);
@@ -449,7 +451,7 @@ public class GroundCommandHandlerTests
         GroundNode d1 = layout.FindParkingByName("D1") ?? throw new InvalidOperationException("SFO gate D1 missing");
         PushbackCommand cmd = Assert.IsType<PushbackCommand>(CommandParser.Parse($"PUSH #{d1.Id}").Value);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<AtParkingPhase>(ac.Phases!.Phases[^1]);
@@ -469,7 +471,7 @@ public class GroundCommandHandlerTests
         ac.Ground.ParkingSpot = "D2";
         PushbackCommand cmd = Assert.IsType<PushbackCommand>(CommandParser.Parse($"PUSH #{spot.Id}").Value);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases!.Phases[^1]);
@@ -500,7 +502,7 @@ public class GroundCommandHandlerTests
             false
         );
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null, ActiveRunways.Empty);
 
         Assert.False(result.Success, $"a stand push with a facing was accepted: {result.Message}");
         Assert.Equal("PUSH @B13 does not take a facing — the aircraft parks on the stand's own heading", result.Message);
@@ -514,7 +516,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeAircraftAtParking();
         var cmd = new PushbackCommand(new MagneticHeading(180), null, null, null, false);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.Equal("Push back, face south", result.Message);
@@ -556,7 +558,7 @@ public class GroundCommandHandlerTests
 
         var cmd = new PushbackCommand(new MagneticHeading(360), "Y", null, null, false);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("Push onto Y, face north", result.Message);
@@ -574,7 +576,7 @@ public class GroundCommandHandlerTests
 
         var cmd = new PushbackCommand(new MagneticHeading(180), "Y", null, null, false);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("Push onto Y, face south", result.Message);
@@ -588,7 +590,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeAircraftAtParking();
         var cmd = new PushbackCommand(new MagneticHeading(45), null, null, null, false);
 
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.Equal("Push back, face northeast", result.Message);
@@ -629,6 +631,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -638,7 +641,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(ctx);
 
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.Contains("Cross 28R", result.Message!);
@@ -671,6 +674,7 @@ public class GroundCommandHandlerTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -680,7 +684,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(ctx);
 
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("LUAW", result.Message!);
@@ -710,6 +714,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -719,7 +724,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(ctx);
 
         var cmd = new CrossRunwayCommand(["01L"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("01L", result.Message!);
@@ -741,6 +746,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -750,7 +756,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(ctx);
 
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.Contains("Cross 28R", result.Message!);
@@ -764,7 +770,7 @@ public class GroundCommandHandlerTests
 
         // Not currently at a hold-short phase — pre-clear mode
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.True(ac.Ground.AssignedTaxiRoute.HoldShortPoints[0].IsCleared);
@@ -777,7 +783,7 @@ public class GroundCommandHandlerTests
         ac.Ground.AssignedTaxiRoute = MakeRouteWithHoldShort("15/33");
 
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("No hold-short", result.Message!);
@@ -790,7 +796,7 @@ public class GroundCommandHandlerTests
         // No route assigned
 
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
     }
@@ -805,7 +811,8 @@ public class GroundCommandHandlerTests
             ac,
             new CrossRunwayCommand(["28R", "28L"], [], Expedite: false),
             ac.Ground.Layout,
-            null
+            null,
+            ActiveRunways.Empty
         );
 
         Assert.True(result.Success, result.Message);
@@ -823,7 +830,8 @@ public class GroundCommandHandlerTests
             ac,
             new CrossRunwayCommand(["28R", "01L"], [], Expedite: false),
             ac.Ground.Layout,
-            null
+            null,
+            ActiveRunways.Empty
         );
 
         Assert.False(result.Success);
@@ -849,6 +857,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -857,7 +866,13 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["B"], [], Expedite: false), ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand(["B"], [], Expedite: false),
+            ac.Ground.Layout,
+            null,
+            ActiveRunways.Empty
+        );
 
         Assert.True(result.Success);
         Assert.Contains("B", result.Message!);
@@ -881,7 +896,13 @@ public class GroundCommandHandlerTests
             ],
         };
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["B"], [], Expedite: false), ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand(["B"], [], Expedite: false),
+            ac.Ground.Layout,
+            null,
+            ActiveRunways.Empty
+        );
 
         Assert.True(result.Success);
         Assert.True(ac.Ground.AssignedTaxiRoute.HoldShortPoints[0].IsCleared);
@@ -905,6 +926,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -913,7 +935,13 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand([], [], Expedite: false),
+            ac.Ground.Layout,
+            null,
+            ActiveRunways.Empty
+        );
 
         Assert.True(result.Success);
         Assert.Contains("28R/10L", result.Message!);
@@ -935,6 +963,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -943,7 +972,13 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand([], [], Expedite: false),
+            ac.Ground.Layout,
+            null,
+            ActiveRunways.Empty
+        );
 
         Assert.True(result.Success);
         Assert.Contains("B", result.Message!);
@@ -974,6 +1009,7 @@ public class GroundCommandHandlerTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -982,7 +1018,13 @@ public class GroundCommandHandlerTests
         };
         ac.Phases.Start(ctx);
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand([], [], Expedite: false),
+            ac.Ground.Layout,
+            null,
+            ActiveRunways.Empty
+        );
 
         Assert.False(result.Success);
         Assert.Contains("LUAW", result.Message!);
@@ -1014,7 +1056,13 @@ public class GroundCommandHandlerTests
             ],
         };
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand([], [], Expedite: false),
+            ac.Ground.Layout,
+            null,
+            ActiveRunways.Empty
+        );
 
         Assert.True(result.Success);
         Assert.Contains("28L/10R", result.Message!);
@@ -1040,7 +1088,13 @@ public class GroundCommandHandlerTests
             ],
         };
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand([], [], Expedite: false),
+            ac.Ground.Layout,
+            null,
+            ActiveRunways.Empty
+        );
 
         Assert.False(result.Success);
         Assert.Contains("LUAW", result.Message!);
@@ -1066,7 +1120,13 @@ public class GroundCommandHandlerTests
             ],
         };
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand([], [], Expedite: false),
+            ac.Ground.Layout,
+            null,
+            ActiveRunways.Empty
+        );
 
         Assert.False(result.Success);
         Assert.Contains("No upcoming hold-short", result.Message!);
@@ -1078,7 +1138,13 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         // No route assigned, not holding short
 
-        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand([], [], Expedite: false), ac.Ground.Layout, null);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand([], [], Expedite: false),
+            ac.Ground.Layout,
+            null,
+            ActiveRunways.Empty
+        );
 
         Assert.False(result.Success);
     }
@@ -1136,7 +1202,7 @@ public class GroundCommandHandlerTests
         ac.Phases = null;
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, null, null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, null, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("no active phase", result.Message!);
@@ -1153,6 +1219,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,
@@ -1162,7 +1229,7 @@ public class GroundCommandHandlerTests
         );
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, null, null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, null, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("on the ground", result.Message!);
@@ -1181,7 +1248,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeAircraftAtParking();
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"), null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"), null, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<FollowingPhase>(ac.Phases!.CurrentPhase);
@@ -1196,6 +1263,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,
@@ -1205,7 +1273,7 @@ public class GroundCommandHandlerTests
         );
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"), null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"), null, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<FollowingPhase>(ac.Phases!.CurrentPhase);
@@ -1222,6 +1290,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,
@@ -1231,7 +1300,7 @@ public class GroundCommandHandlerTests
         );
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"), null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader("UAL123"), null, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<FollowingPhase>(ac.Phases!.CurrentPhase);
@@ -1243,7 +1312,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeAircraftAtParking();
         var cmd = new FollowGroundCommand("UAL123");
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, _ => null, null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, _ => null, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("No aircraft UAL123", result.Message!);
@@ -1258,7 +1327,7 @@ public class GroundCommandHandlerTests
         Func<string, AircraftState?> lookup = LookupWithGroundLeader("UAL123");
         lookup("UAL123")!.IsOnGround = false;
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, lookup, null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, lookup, null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("not on the ground", result.Message!);
@@ -1271,7 +1340,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeAircraftAtParking();
         var cmd = new FollowGroundCommand(ac.Callsign);
 
-        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader(ac.Callsign), null);
+        CommandResult result = GroundCommandHandler.TryFollow(ac, cmd, null, LookupWithGroundLeader(ac.Callsign), null, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.Contains("cannot follow itself", result.Message!);
@@ -1298,7 +1367,8 @@ public class GroundCommandHandlerTests
             new FollowGroundCommand(run.Lead.Callsign),
             run.Layout,
             run.Engine.FindAircraft,
-            () => run.Engine.World.GetSnapshot()
+            () => run.Engine.World.GetSnapshot(),
+            ActiveRunways.Empty
         );
 
         Assert.False(result.Success, result.Message);
@@ -1334,7 +1404,8 @@ public class GroundCommandHandlerTests
             new FollowGroundCommand(lead.Callsign),
             layout,
             engine.FindAircraft,
-            () => engine.World.GetSnapshot()
+            () => engine.World.GetSnapshot(),
+            ActiveRunways.Empty
         );
 
         Assert.False(result.Success, result.Message);
@@ -1369,7 +1440,8 @@ public class GroundCommandHandlerTests
             new FollowGroundCommand(lead.Callsign),
             layout,
             engine.FindAircraft,
-            () => engine.World.GetSnapshot()
+            () => engine.World.GetSnapshot(),
+            ActiveRunways.Empty
         );
 
         Assert.True(result.Success, result.Message);
@@ -1385,7 +1457,7 @@ public class GroundCommandHandlerTests
     {
         AircraftState ac = MakeGroundAircraft();
 
-        CommandResult result = GroundCommandHandler.TryHoldPosition(ac);
+        CommandResult result = GroundCommandHandler.TryHoldPosition(ac, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.True(ac.Ground.IsImmobile);
@@ -1403,6 +1475,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,
@@ -1411,7 +1484,7 @@ public class GroundCommandHandlerTests
             }
         );
 
-        CommandResult result = GroundCommandHandler.TryHoldPosition(ac);
+        CommandResult result = GroundCommandHandler.TryHoldPosition(ac, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.Contains("taxiway A", result.Message!);
@@ -1426,6 +1499,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,
@@ -1434,7 +1508,7 @@ public class GroundCommandHandlerTests
             }
         );
 
-        CommandResult result = GroundCommandHandler.TryHoldPosition(ac);
+        CommandResult result = GroundCommandHandler.TryHoldPosition(ac, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.Contains("runway 28R", result.Message!);
@@ -1446,7 +1520,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         ac.Ground.IsExpeditingTaxi = true;
 
-        GroundCommandHandler.TryHoldPosition(ac);
+        GroundCommandHandler.TryHoldPosition(ac, ActiveRunways.Empty);
 
         Assert.False(ac.Ground.IsExpeditingTaxi);
     }
@@ -1469,7 +1543,7 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         ac.IsOnGround = false;
 
-        CommandResult result = GroundCommandHandler.TryHoldPosition(ac);
+        CommandResult result = GroundCommandHandler.TryHoldPosition(ac, ActiveRunways.Empty);
 
         Assert.False(result.Success);
     }
@@ -1596,6 +1670,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,
@@ -1800,6 +1875,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,
@@ -1831,6 +1907,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(new HoldingShortPhase(holdShort));
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -1863,6 +1940,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(new HoldingShortPhase(holdShort));
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -1893,6 +1971,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(new HoldingShortPhase(holdShort));
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -1952,6 +2031,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -1983,6 +2063,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -2034,6 +2115,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -2084,6 +2166,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -2116,6 +2199,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -2167,6 +2251,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -2268,7 +2353,11 @@ public class GroundCommandHandlerTests
         AircraftState ac = MakeGroundAircraft();
         ac.Ground.AssignedTaxiRoute = route;
 
-        Assert.True(GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand(["28R"], [], Expedite: false), ac.Ground.Layout, null).Success);
+        Assert.True(
+            GroundCommandHandler
+                .TryCrossRunway(ac, new CrossRunwayCommand(["28R"], [], Expedite: false), ac.Ground.Layout, null, ActiveRunways.Empty)
+                .Success
+        );
         Assert.True(route.HoldShortPoints[1].IsCleared);
 
         CommandResult result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand(HoldShortTarget.Parse("28R")), layout);
@@ -2578,6 +2667,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Add(stopAndGo);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -2601,6 +2691,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,

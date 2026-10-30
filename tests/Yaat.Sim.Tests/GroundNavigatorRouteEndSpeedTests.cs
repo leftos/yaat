@@ -209,6 +209,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Piston,

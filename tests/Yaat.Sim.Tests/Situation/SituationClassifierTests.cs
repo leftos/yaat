@@ -175,7 +175,7 @@ public sealed class SituationClassifierTests
         ac.TrueHeading = runway.TrueHeading;
         ac.TrueTrack = runway.TrueHeading;
         ac.Altitude = 800;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         ApproachNavigationPhase onMissed = Assert.IsType<ApproachNavigationPhase>(ac.Phases.CurrentPhase);
         Assert.True(onMissed.IsMissedApproach);

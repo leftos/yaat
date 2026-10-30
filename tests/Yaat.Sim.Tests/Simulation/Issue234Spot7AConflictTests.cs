@@ -275,7 +275,7 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         ac.Phases.Add(startPhase);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, layout));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty, layout));
         ac.Ground.Layout = layout;
         return ac;
     }

@@ -6,6 +6,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -226,6 +227,7 @@ public class FlightPlanCommandHandlerTests
         aircraft.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = aircraft,
                 Targets = aircraft.Targets,
                 Category = AircraftCategory.Jet,
@@ -388,7 +390,7 @@ public class FlightPlanCommandHandlerTests
             Phases = new PhaseList { AssignedRunway = runway },
         };
         aircraft.Phases.Add(new InitialClimbPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty));
         Assert.IsType<InitialClimbPhase>(aircraft.Phases.CurrentPhase);
 
         CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "KOAK");

@@ -177,7 +177,7 @@ public class HelicopterAtxiE2ETests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         heli.Phases.Add(new AtParkingPhase());
-        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, layout));
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(heli);
 
         double directNm = GeoMath.DistanceNm(heliSpot.Position, fdx1Spot.Position);

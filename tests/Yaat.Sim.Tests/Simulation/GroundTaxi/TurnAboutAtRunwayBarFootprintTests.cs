@@ -997,7 +997,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, ground.Layout));
         aircraft.Ground.Layout = ground.Layout;
         aircraft.Ground.CurrentTaxiway = taxiway;
         ground.Engine.World.AddAircraft(aircraft);
@@ -1029,7 +1029,7 @@ public class TurnAboutAtRunwayBarFootprintTests(ITestOutputHelper output)
 
     /// <summary>The runway end a hold short of <paramref name="runway"/> names for the aircraft where it stands.</summary>
     private static string ExpectedRunway(SfoGround ground, AircraftState aircraft, RunwayInfo runway) =>
-        RunwayCrossingEnd.Nearest(aircraft, runway.Id.ToString(), ground.Layout);
+        RunwayCrossingEnd.Spoken(aircraft, runway.Id.ToString(), ground.Layout, ActiveRunways.Empty);
 
     /// <summary>
     /// The first two nodes more than <c>start.MinBehindFt</c> behind <c>start.Position</c> walking back from the bar, away

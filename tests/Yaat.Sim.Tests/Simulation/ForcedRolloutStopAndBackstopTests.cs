@@ -497,7 +497,7 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, rwy.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, rwy.Layout));
         AddPending(engine, aircraft, rwy.Layout);
 
         CommandResult result = engine.SendCommand("TSTAC", "CLANDF");

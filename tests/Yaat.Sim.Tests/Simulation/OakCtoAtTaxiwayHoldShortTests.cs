@@ -201,7 +201,7 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
             Phases = new PhaseList { AssignedRunway = runway },
         };
         occupant.Phases.Add(new LinedUpAndWaitingPhase());
-        occupant.Phases.Start(CommandDispatcher.BuildMinimalContext(occupant));
+        occupant.Phases.Start(CommandDispatcher.BuildMinimalContext(occupant, ActiveRunways.Empty));
         engine.World.AddAircraft(occupant);
 
         SendCto(engine, "CTO");
@@ -327,7 +327,7 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         };
         var holding = new HoldingShortPhase(holdE);
         ac.Phases.Add(holding);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return (ac, holding);
     }
 
@@ -350,6 +350,7 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         {
             var ctx = new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategorization.Categorize(ac.AircraftType),

@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pilot;
@@ -75,7 +76,7 @@ public class ResumeReadbackTests
         var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], [])])]);
 
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
-        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, result, ac, PilotSpeechContext.Canonical);
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, result, ac, PilotSpeechContext.Canonical, ActiveRunways.Empty);
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(readback);
@@ -104,6 +105,7 @@ public class ResumeReadbackTests
         ac.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,

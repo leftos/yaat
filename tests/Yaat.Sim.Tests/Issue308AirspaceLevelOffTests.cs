@@ -546,6 +546,7 @@ public sealed class Issue308AirspaceLevelOffTests
     private static PhaseContext Context(AircraftState ac) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),

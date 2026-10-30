@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Speech;
 using Yaat.Sim.Tests.Helpers;
 
@@ -58,7 +59,7 @@ public class PtacVariantTests
         CompoundCommand compound = ParseCompound(text);
         CommandResult result = CommandDispatcher.Dispatch(compound.Blocks[0].Commands[0], ac, TestDispatch.Context(new Random(1)));
         Assert.True(result.Success, result.Message);
-        return Sweep(ctx => PilotResponder.BuildReadbackAsApplied(compound, result, ac, ctx), band);
+        return Sweep(ctx => PilotResponder.BuildReadbackAsApplied(compound, result, ac, ctx, ActiveRunways.Empty), band);
     }
 
     /// <summary>The readbacks a varied pilot speaks for a compound with no handler readback (a later block).</summary>
@@ -66,7 +67,7 @@ public class PtacVariantTests
     {
         AircraftState ac = MakeArrival(altitude);
         CompoundCommand compound = ParseCompound(text);
-        return Sweep(ctx => PilotResponder.BuildReadbackAsApplied(compound, new CommandResult(true, "queued"), ac, ctx), band);
+        return Sweep(ctx => PilotResponder.BuildReadbackAsApplied(compound, new CommandResult(true, "queued"), ac, ctx, ActiveRunways.Empty), band);
     }
 
     private static List<PilotSpeechText> Sweep(Func<PilotSpeechContext, PilotSpeechText?> build, FrequencyLoadBand band) =>

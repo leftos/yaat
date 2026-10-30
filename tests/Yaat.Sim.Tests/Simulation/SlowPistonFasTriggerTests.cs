@@ -100,7 +100,7 @@ public class SlowPistonFasTriggerTests(ITestOutputHelper output)
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Ground.Layout = layout;
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout);
         aircraft.Phases.Start(ctx);
         engine.World.AddAircraft(aircraft);
 

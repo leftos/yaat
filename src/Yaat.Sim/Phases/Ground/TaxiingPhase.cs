@@ -1354,17 +1354,17 @@ public sealed class TaxiingPhase : Phase
     }
 
     /// <summary>
-    /// The runway end a HOLD given now is read back as holding on — the end nearest the aircraft
-    /// (<see cref="RunwayCrossingEnd.Nearest"/>) — in the stretch before a crossing starts (<see cref="HoldAtCrossingAhead"/>),
+    /// The runway end a HOLD given now is read back as holding on — the end a pilot names it by
+    /// (<see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest) — in the stretch before a crossing starts (<see cref="HoldAtCrossingAhead"/>),
     /// when the HOLD stops some part of the aircraft past the near holding-position marking
     /// (<see cref="CrossingRunwayPhase.HoldStopsOnRunway"/>). Null otherwise, or when the bar names no runway.
     /// </summary>
-    public string? HeldOnRunwayEnd(AircraftState aircraft) =>
+    public string? HeldOnRunwayEnd(AircraftState aircraft, ActiveRunways activeRunways) =>
         (aircraft.Ground.AssignedTaxiRoute is { } route)
         && (aircraft.Ground.Layout is { } layout)
         && (HoldAtCrossingAhead(aircraft, route, layout) is { Bar.TargetName: { } runwayId } hold)
         && CrossingRunwayPhase.HoldStopsOnRunway(aircraft, hold.NosePastFt)
-            ? RunwayCrossingEnd.Nearest(aircraft, runwayId, layout)
+            ? RunwayCrossingEnd.Spoken(aircraft, runwayId, layout, activeRunways)
             : null;
 
     /// <summary>

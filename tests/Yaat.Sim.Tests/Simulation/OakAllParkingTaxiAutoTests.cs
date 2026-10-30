@@ -128,7 +128,7 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new AtParkingPhase());
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout);
         aircraft.Phases.Start(startCtx);
         aircraft.Ground.Layout = layout;
 

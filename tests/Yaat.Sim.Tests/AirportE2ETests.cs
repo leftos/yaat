@@ -9,6 +9,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -51,7 +52,7 @@ public class AirportE2ETests
         return ac;
     }
 
-    private static PhaseContext MinCtx(AircraftState ac) => CommandDispatcher.BuildMinimalContext(ac);
+    private static PhaseContext MinCtx(AircraftState ac) => CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
 
     private static GroundNode? FindParking(AirportGroundLayout layout, string name) =>
         layout.Nodes.Values.FirstOrDefault(n =>
@@ -301,7 +302,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         var push = new PushbackCommand(null, null, "D", null, false);
-        CommandResult result = GroundCommandHandler.TryPushback(ac, push, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, push, layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success, $"Pushback should succeed: {result.Message}");
         Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
@@ -444,7 +445,7 @@ public class AirportE2ETests
 
         // Step 1: Pushback facing D
         var push = new PushbackCommand(null, null, "D", null, false);
-        CommandResult pushResult = GroundCommandHandler.TryPushback(ac, push, layout, null);
+        CommandResult pushResult = GroundCommandHandler.TryPushback(ac, push, layout, null, ActiveRunways.Empty);
         Assert.True(pushResult.Success, $"Pushback failed: {pushResult.Message}");
         Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
 
@@ -1000,6 +1001,7 @@ public class AirportE2ETests
         // in tick order (phases first, then physics) exactly as the sim's tick spine does.
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -1275,7 +1277,7 @@ public class AirportE2ETests
         ac.TrueHeading = new TrueHeading(a4.TrueHeading?.Degrees ?? 104);
 
         var cmd = new PushbackCommand(null, null, null, PushDestination.AtParking("A9", null), false);
-        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null, ActiveRunways.Empty);
 
         Assert.True(result.Success, $"PUSH @A9 should succeed: {result.Message}");
         Assert.Contains("A9", result.Message!);

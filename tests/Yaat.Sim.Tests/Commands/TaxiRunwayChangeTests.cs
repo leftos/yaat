@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -68,7 +69,7 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
         ac.Ground.Layout = layout;
         ac.Phases = new PhaseList();
         ac.Phases.Add(new AtParkingPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, layout));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty, layout));
         return ac;
     }
 

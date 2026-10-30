@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Phases;
 
@@ -36,6 +37,7 @@ public sealed class SpeedCeilingReleaseTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,

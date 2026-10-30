@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -39,7 +40,7 @@ public sealed class ExpediteReadbackTests
     {
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess);
-        PilotSpeechText? result = PilotResponder.BuildReadback(parsed.Value!, aircraft);
+        PilotSpeechText? result = PilotResponder.BuildReadback(parsed.Value!, aircraft, ActiveRunways.Empty);
         Assert.NotNull(result);
         return result!;
     }
@@ -125,7 +126,8 @@ public sealed class ExpediteReadbackTests
                             ShortenCallsign = false,
                             GroupContactFrequency = false,
                             CurrentIndicatedAirspeed = null,
-                        }
+                        },
+                        ActiveRunways.Empty
                     )!
                 ),
         ];

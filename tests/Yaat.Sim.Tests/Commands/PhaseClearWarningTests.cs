@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -96,7 +97,7 @@ public class PhaseClearWarningTests : IDisposable
         // Easiest: skip directly by manipulating the index.
         while (ac.Phases?.CurrentPhase is not DownwindPhase && ac.Phases?.CurrentPhase is not null)
         {
-            ac.Phases.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac));
+            ac.Phases.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         }
         Assert.IsType<DownwindPhase>(ac.Phases!.CurrentPhase);
         ac.PendingWarnings.Clear();

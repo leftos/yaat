@@ -100,6 +100,7 @@ public class LandingExitListTests
         aircraft.Ground.Layout = layout;
         PhaseContext ctx = new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategorization.Categorize(aircraftType),

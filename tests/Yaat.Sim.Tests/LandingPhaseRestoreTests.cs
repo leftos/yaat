@@ -6,6 +6,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
@@ -60,6 +61,7 @@ public sealed class LandingPhaseRestoreTests
     private static PhaseContext MakeContext(AircraftState ac, RunwayInfo runway, WeatherProfile? weather) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Piston,
@@ -93,7 +95,7 @@ public sealed class LandingPhaseRestoreTests
         var phase = new LandingPhase();
         ac.Phases = new PhaseList { AssignedRunway = runway };
         ac.Phases.Add(phase);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         phase.OnStart(MakeContext(ac, runway, weather: null));
         phase.Status = PhaseStatus.Active;
@@ -121,7 +123,7 @@ public sealed class LandingPhaseRestoreTests
         ac.Phases = new PhaseList { AssignedRunway = runway };
         ac.Phases.Add(phase);
         ac.Phases.LahsoHoldShort = MakeLahsoTarget();
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, groundLayout));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty, groundLayout));
 
         phase.OnStart(MakeRolloutContext(ac, runway, groundLayout));
         phase.Status = PhaseStatus.Active;
@@ -143,6 +145,7 @@ public sealed class LandingPhaseRestoreTests
     private static PhaseContext MakeRolloutContext(AircraftState ac, RunwayInfo runway, AirportGroundLayout? groundLayout) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Piston,

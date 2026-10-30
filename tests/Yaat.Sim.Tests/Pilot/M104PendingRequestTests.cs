@@ -196,6 +196,7 @@ public sealed class M104PendingRequestTests
         var phase = new AtParkingPhase();
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -259,6 +260,7 @@ public sealed class M104PendingRequestTests
     private static PhaseContext MinimalPhaseContext(AircraftState ac) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,

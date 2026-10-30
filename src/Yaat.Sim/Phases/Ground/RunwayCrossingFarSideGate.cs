@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -129,8 +130,8 @@ internal static class RunwayCrossingFarSideGate
 
     /// <summary>
     /// The pilot's "holding short of runway 1L, traffic ahead" (<see cref="PilotResponder.BuildHoldingShortTrafficAhead"/>) for the
-    /// crossing bar <paramref name="runwayTarget"/> names, the runway end nearest the aircraft for a combined id
-    /// (<see cref="RunwayCrossingEnd.Nearest"/>), routed to a student on ground or as an RPO's pilot speech or warning. A bar that
+    /// crossing bar <paramref name="runwayTarget"/> names, for a combined id the end a pilot names it by
+    /// (<see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest), routed to a student on ground or as an RPO's pilot speech or warning. A bar that
     /// names no runway makes no call.
     /// </summary>
     internal static void SayHoldingShortForTraffic(PhaseContext ctx, string? runwayTarget)
@@ -142,7 +143,7 @@ internal static class RunwayCrossingFarSideGate
         }
 
         string runway = runwayTarget.Contains('/')
-            ? RunwayCrossingEnd.Nearest(ctx.Aircraft, runwayTarget, ctx.GroundLayout)
+            ? RunwayCrossingEnd.Spoken(ctx.Aircraft, runwayTarget, ctx.GroundLayout, ctx.ActiveRunways)
             : HoldShortTarget.Describe(runwayTarget);
         PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
@@ -491,6 +492,7 @@ internal static class RunwayCrossingFarSideGate
     private static PhaseContext LeaderContext(PhaseContext ctx, AircraftState leader, AirportGroundLayout layout) =>
         new()
         {
+            ActiveRunways = ctx.ActiveRunways,
             Aircraft = leader,
             Targets = leader.Targets,
             Category = AircraftCategorization.Categorize(leader.AircraftType),

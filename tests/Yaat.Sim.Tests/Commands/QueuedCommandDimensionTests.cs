@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
@@ -578,7 +579,7 @@ public class QueuedCommandDimensionTests
             Phases = new PhaseList(),
         };
         ac.Phases.Add(new AtParkingPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 
@@ -728,7 +729,7 @@ public class QueuedCommandDimensionTests
                 }
             )
         );
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 
@@ -820,6 +821,7 @@ public class QueuedCommandDimensionTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),

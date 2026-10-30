@@ -162,6 +162,7 @@ public sealed class AirspaceRespectTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -197,6 +198,7 @@ public sealed class AirspaceRespectTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -292,6 +294,7 @@ public sealed class AirspaceRespectTests
     private static PhaseContext BoundaryHoldContext(AircraftState ac) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),

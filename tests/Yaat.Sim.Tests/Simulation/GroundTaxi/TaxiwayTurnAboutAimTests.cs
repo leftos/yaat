@@ -1131,7 +1131,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
     /// </summary>
     private static void RestartTaxiOnRoute(AircraftState aircraft, AirportGroundLayout layout)
     {
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout);
         PhaseList phases = Assert.IsType<PhaseList>(aircraft.Phases);
         phases.Clear(ctx);
         phases.Phases.Clear();
@@ -1683,7 +1683,7 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Ground.Layout = layout;
         aircraft.Ground.CurrentTaxiway = taxiway;
         return aircraft;

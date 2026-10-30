@@ -56,7 +56,7 @@ internal static class RejectedTakeoffTestRig
         AircraftState occ = MakeOnRunwayAircraft("OCC1", runway, downfieldFt, runway.TrueHeading, iasKts: 0);
         occ.Phases = new PhaseList { AssignedRunway = runway };
         occ.Phases.Add(new LinedUpAndWaitingPhase());
-        occ.Phases.Start(CommandDispatcher.BuildMinimalContext(occ));
+        occ.Phases.Start(CommandDispatcher.BuildMinimalContext(occ, ActiveRunways.Empty));
         return occ;
     }
 
@@ -70,7 +70,7 @@ internal static class RejectedTakeoffTestRig
         AircraftState lead = MakeOnRunwayAircraft("LEAD1", runway, downfieldFt, runway.TrueHeading, groundSpeedKts);
         lead.Phases = new PhaseList { AssignedRunway = runway };
         lead.Phases.Add(rejecting ? new RejectedTakeoffPhase(rollElapsedSeconds: 0) : new TakeoffPhase());
-        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead));
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty));
         return lead;
     }
 
@@ -101,7 +101,7 @@ internal static class RejectedTakeoffTestRig
         AircraftState lead = MakeOnRunwayAircraft("LEAD1", runway, downfieldFt, opposing.TrueHeading, groundSpeedKts);
         lead.Phases = new PhaseList { AssignedRunway = opposing };
         lead.Phases.Add(new TakeoffPhase());
-        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead));
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty));
         return lead;
     }
 
@@ -109,6 +109,7 @@ internal static class RejectedTakeoffTestRig
     {
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = departure,
             Targets = departure.Targets,
             Category = AircraftCategorization.Categorize(departure.AircraftType),

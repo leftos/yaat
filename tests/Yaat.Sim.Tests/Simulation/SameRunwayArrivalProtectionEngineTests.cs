@@ -1484,7 +1484,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         Report(pair, "engaged");
         Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
 
-        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(pair.Follower), new GoAroundPhase(), []);
+        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(pair.Follower, ActiveRunways.Empty), new GoAroundPhase(), []);
         Assert.IsType<GoAroundPhase>(pair.Follower.Phases!.CurrentPhase);
         TurnFollowerOntoTheFinalCourse(pair);
 

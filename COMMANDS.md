@@ -2182,6 +2182,8 @@ Sets the room's active runways at an airport: the runway ends in use, each for d
 | `ARWY <airport>` | Show the airport's active runways without changing them. |
 | `ARWY <airport> NONE` | Clear the airport's list; the room has no active runways there until set again. `ARWY NONE` clears the primary airport's. |
 
+The list also decides which end of a runway pilots name: a runway with an active end is named by that end (the nearer when both ends are listed), so with `ARWY OAK 10L 10R` a pilot reports runway one zero right, not two eight left. A runway the aircraft landed on or departs from keeps its assigned end, and an end you type (`CROSS 19R`) is read back as typed.
+
 Under the session's auto-cross mode **Inactive runways only**, the list also decides which crossings are pre-cleared: a crossing of a runway outside it needs no `CROSS`, and an `ARWY` re-checks the routes already assigned (with no list set, every runway counts as inactive). That mode is a training convenience; in real operations every runway crossing needs an explicit crossing clearance (FAA 7110.65 3-7-2.c).
 
 A runway token is a bare end (`30`, used for both departures and arrivals), or one prefixed `D` for departures only (`D28L`) or `A` for arrivals only (`A28R`). The airport is its FAA id; the ICAO form (`KOAK`) is accepted too. Tokens are case-insensitive.

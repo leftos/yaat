@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -292,7 +293,7 @@ public class MissedApproachTests
 
         // Add a current phase so ReplaceUpcoming works
         aircraft.Phases.Add(new FinalApproachPhase());
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null, RunwayHeading: false);
@@ -327,7 +328,7 @@ public class MissedApproachTests
         };
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
 
         // ATC override: explicit heading
@@ -362,7 +363,7 @@ public class MissedApproachTests
         };
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, 5000, null, RunwayHeading: false);
@@ -395,7 +396,7 @@ public class MissedApproachTests
         };
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null, RunwayHeading: false);
@@ -428,7 +429,7 @@ public class MissedApproachTests
         };
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null, RunwayHeading: false);
@@ -555,7 +556,7 @@ public class MissedApproachTests
         };
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null, RunwayHeading: false);

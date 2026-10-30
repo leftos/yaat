@@ -1198,7 +1198,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(startPhase);
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, ground.Layout));
         aircraft.Ground.Layout = ground.Layout;
         ground.Engine.World.AddAircraft(aircraft);
         return aircraft;

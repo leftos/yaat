@@ -287,7 +287,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// An aircraft that has come to rest mid-crossing with part of it still inside the far holding-position marking, not for a
     /// controller's HOLD, says once per crossing, <see cref="NotClearCallDelaySeconds"/> after coming to rest, that it is holding
     /// position not clear of the runway with traffic ahead (<see cref="PilotResponder.BuildHoldingPositionNotClearTrafficAhead"/>,
-    /// the runway end nearest it, <see cref="RunwayCrossingEnd.Nearest"/>; AIM 2-3-5.a, 4-3-18.b), routed to a student on ground
+    /// the end a pilot names it by, <see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest; AIM 2-3-5.a, 4-3-18.b), routed to a student on ground
     /// or as an RPO's pilot speech or warning. Moving again, or a HOLD, restarts the wait; a GIVEWAY does not, since it does not
     /// stop the aircraft on the runway.
     /// </summary>
@@ -311,7 +311,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         }
 
         _saidNotClear = true;
-        string runway = RunwayCrossingEnd.Nearest(ctx.Aircraft, _runwayId, ctx.GroundLayout);
+        string runway = RunwayCrossingEnd.Spoken(ctx.Aircraft, _runwayId, ctx.GroundLayout, ctx.ActiveRunways);
         Log.LogDebug("[Crossing] {Callsign}: at rest not clear of runway {Rwy}, traffic ahead", ctx.Aircraft.Callsign, runway);
         PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
@@ -474,12 +474,12 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
         string? tailEnd =
             (_runwayId is { } runwayId) && IsNotClearOfFarMarking(ctx.Aircraft, layout)
-                ? RunwayCrossingEnd.Nearest(ctx.Aircraft, runwayId, layout)
+                ? RunwayCrossingEnd.Spoken(ctx.Aircraft, runwayId, layout, ctx.ActiveRunways)
                 : null;
         RunwayInfo? reference = tailEnd is null ? null : NavigationDatabase.InstanceOrNull?.GetRunway(layout.AirportId, tailEnd);
         string? heldShort =
             (_heldShortBar is { RunwayId: not null } bar) && IsNoseShortOfHeldShortBar(ctx.Aircraft, layout, bar)
-                ? RunwayTailClearance.HeldShortRunwayEnd(layout, bar, reference, ctx.Aircraft)
+                ? RunwayTailClearance.HeldShortRunwayEnd(layout, bar, reference, ctx.Aircraft, ctx.ActiveRunways)
                 : null;
         Log.LogDebug(
             "[Crossing] {Callsign}: at rest holding short of {HeldShort}, tail inside {TailInside}",
@@ -585,15 +585,15 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             : null;
 
     /// <summary>
-    /// The runway end a HOLD on this crossing is read back as holding on — the end nearest the aircraft
-    /// (<see cref="RunwayCrossingEnd.Nearest"/>) — when the HOLD stops some part of the aircraft past the near holding-position
+    /// The runway end a HOLD on this crossing is read back as holding on — the end a pilot names it by
+    /// (<see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest) — when the HOLD stops some part of the aircraft past the near holding-position
     /// marking (<see cref="HoldStopsOnRunway"/>). Null otherwise, or when the crossing names no runway.
     /// </summary>
-    public string? HeldOnRunwayEnd(AircraftState aircraft)
+    public string? HeldOnRunwayEnd(AircraftState aircraft, ActiveRunways activeRunways)
     {
         AirportGroundLayout? layout = aircraft.Ground.Layout;
         return (_runwayId is not null) && (NosePastNearMarkingFt(aircraft, layout) is { } nosePastFt) && HoldStopsOnRunway(aircraft, nosePastFt)
-            ? RunwayCrossingEnd.Nearest(aircraft, _runwayId, layout)
+            ? RunwayCrossingEnd.Spoken(aircraft, _runwayId, layout, activeRunways)
             : null;
     }
 

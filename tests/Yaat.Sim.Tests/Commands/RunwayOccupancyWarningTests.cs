@@ -77,7 +77,7 @@ public class RunwayOccupancyWarningTests
         {
             ac.Phases.Add(phase);
         }
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 
@@ -105,7 +105,7 @@ public class RunwayOccupancyWarningTests
                 }
             )
         );
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 
@@ -379,7 +379,7 @@ public class RunwayOccupancyWarningTests
         arrival.IsOnGround = true;
         arrival.Phases.Phases.Clear();
         arrival.Phases.Add(new HoldingAfterExitPhase());
-        arrival.Phases.Start(CommandDispatcher.BuildMinimalContext(arrival));
+        arrival.Phases.Start(CommandDispatcher.BuildMinimalContext(arrival, ActiveRunways.Empty));
         AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
         CommandResult result = Dispatch("LUAW", departure, arrival, departure);
@@ -400,7 +400,7 @@ public class RunwayOccupancyWarningTests
         arrival.Phases.ClearedRunwayId = "30";
         arrival.Phases.Phases.Clear();
         arrival.Phases.Add(onRunwayPhase);
-        arrival.Phases.Start(CommandDispatcher.BuildMinimalContext(arrival));
+        arrival.Phases.Start(CommandDispatcher.BuildMinimalContext(arrival, ActiveRunways.Empty));
         arrival.IsOnGround = true;
         arrival.Altitude = 6;
         arrival.IndicatedAirspeed = 110;
@@ -486,7 +486,7 @@ public class RunwayOccupancyWarningTests
         AircraftState arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
         arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
         arrival.Phases.ClearedRunwayId = "30";
-        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(arrival), new GoAroundPhase(), []);
+        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(arrival, ActiveRunways.Empty), new GoAroundPhase(), []);
         AircraftState departure = MakeDepartureHoldingShort("N300DP");
 
         CommandResult result = Dispatch("LUAW", departure, arrival, departure);
@@ -508,7 +508,7 @@ public class RunwayOccupancyWarningTests
         arrival.Phases.ClearedRunwayId = "30";
         arrival.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedToLand, "30", null, null);
 
-        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(arrival), new GoAroundPhase(), []);
+        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(arrival, ActiveRunways.Empty), new GoAroundPhase(), []);
 
         Assert.Null(arrival.Phases.LandingClearance);
         Assert.Null(arrival.Phases.ClearedRunwayId);
@@ -843,7 +843,7 @@ public class RunwayOccupancyWarningTests
         holder.FlightPlan = new AircraftFlightPlan { Departure = "OAK" };
         holder.Phases = new PhaseList { AssignedRunway = runway };
         holder.Phases.Add(new HoldingInPositionPhase());
-        holder.Phases.Start(CommandDispatcher.BuildMinimalContext(holder));
+        holder.Phases.Start(CommandDispatcher.BuildMinimalContext(holder, ActiveRunways.Empty));
         return holder;
     }
 

@@ -11,6 +11,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Client.Tests;
@@ -494,6 +495,7 @@ public class GroundViewModelMidEdgeStartOverlayTests
         aircraft.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = aircraft,
                 Targets = aircraft.Targets,
                 Category = AircraftCategorization.Categorize(aircraft.AircraftType),

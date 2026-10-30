@@ -719,7 +719,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
         phases.Add(new RunwayExitPhase());
         phases.Add(new HoldingAfterExitPhase());
         aircraft.Phases = phases;
-        phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
 
         List<string> warnings = [];
         spawned.Engine.WarningEmitted += (callsign, text) =>
@@ -2275,7 +2275,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
             new RunwayExitPhase(),
             new HoldingAfterExitPhase(),
         ]);
-        phases.AdvanceToNext(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        phases.AdvanceToNext(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
     }
 
     /// <summary>The exits the rollout can make now, as the test output's record of what a rollout TAXI was judged against.</summary>

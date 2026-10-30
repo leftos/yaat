@@ -88,7 +88,7 @@ public class ApproachPublishedFafTests(ITestOutputHelper output)
         engine.World.AddAircraft(ac);
 
         PhaseList phases = ac.Phases!;
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         if (phases.CurrentPhase is { Status: PhaseStatus.Pending })
         {
             phases.Start(ctx);

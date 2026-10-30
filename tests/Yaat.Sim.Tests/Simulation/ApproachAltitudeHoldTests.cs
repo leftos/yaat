@@ -246,7 +246,7 @@ public class ApproachAltitudeHoldTests(ITestOutputHelper output)
             Direction = TurnDirection.Right,
         };
         ac.Phases.Add(hold);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         Assert.Null(ac.Phases.ActiveApproach);
 
         CommandResult result = Dispatch(ac, new ClimbMaintainCommand(8000));
@@ -266,7 +266,7 @@ public class ApproachAltitudeHoldTests(ITestOutputHelper output)
     {
         SimulationEngine engine = BuildEngine();
         AircraftState ac = FollowSequenceRefusalTests.AddApproachFollower(engine, 8.0);
-        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         FinalApproachPhase final = Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
         final.DistanceToThresholdNm = 8.0;
         Assert.Null(ac.Phases.ActiveApproach);
@@ -695,7 +695,7 @@ public class ApproachAltitudeHoldTests(ITestOutputHelper output)
     private static AircraftState OnOak28RFinal(SimulationEngine engine, double distanceNm, double altitude)
     {
         AircraftState ac = WithIlsClearance(FollowSequenceRefusalTests.AddApproachFollower(engine, distanceNm));
-        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         FinalApproachPhase final = Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
         OnCenterline(ac, distanceNm);
         final.DistanceToThresholdNm = distanceNm;

@@ -143,8 +143,8 @@ public static partial class PilotResponder
     /// don't repeat the lead-in. The readback fires once at dispatch acceptance for the entire
     /// compound, not again when a queued block's trigger fires.
     /// </summary>
-    public static PilotSpeechText? BuildReadback(CompoundCommand compound, AircraftState aircraft) =>
-        BuildReadback(compound, aircraft, PilotSpeechContext.Canonical);
+    public static PilotSpeechText? BuildReadback(CompoundCommand compound, AircraftState aircraft, ActiveRunways activeRunways) =>
+        BuildReadback(compound, aircraft, PilotSpeechContext.Canonical, activeRunways);
 
     /// <summary>
     /// Readback of a clearance as the aircraft will actually fly it. When the dispatcher applied a rewritten
@@ -165,18 +165,20 @@ public static partial class PilotResponder
     /// <param name="result">The dispatch's result: its effective command and its handler-built push readback.</param>
     /// <param name="aircraft">The aircraft reading back.</param>
     /// <param name="speechContext">What the spoken wording depends on: personality, load band, scenario seed and whole second.</param>
+    /// <param name="activeRunways">The room's active runways, which decide the end a runway the pilot names itself is read as.</param>
     public static PilotSpeechText? BuildReadbackAsApplied(
         CompoundCommand compound,
         CommandResult result,
         AircraftState aircraft,
-        PilotSpeechContext speechContext
+        PilotSpeechContext speechContext,
+        ActiveRunways activeRunways
     )
     {
         HandlerReadback? pilotReadback = result.PilotReadback;
         TaxiCommand? issuedTaxi = compound.Blocks.SelectMany(b => b.Commands).OfType<TaxiCommand>().FirstOrDefault();
         if (result.EffectiveCommand is not TaxiCommand effectiveTaxi || issuedTaxi is null)
         {
-            return BuildReadback(compound, aircraft, speechContext, pilotReadback);
+            return BuildReadback(compound, aircraft, speechContext, pilotReadback, activeRunways);
         }
 
         var asApplied = new CompoundCommand([
@@ -188,7 +190,7 @@ public static partial class PilotResponder
         {
             SourceText = compound.SourceText,
         };
-        PilotSpeechText? readback = BuildReadback(asApplied, aircraft, speechContext, pilotReadback);
+        PilotSpeechText? readback = BuildReadback(asApplied, aircraft, speechContext, pilotReadback, activeRunways);
         if (readback is null)
         {
             return null;
@@ -210,15 +212,19 @@ public static partial class PilotResponder
         };
     }
 
-    public static PilotSpeechText? BuildReadback(CompoundCommand compound, AircraftState aircraft, PilotSpeechContext speechContext) =>
-        BuildReadback(compound, aircraft, speechContext, null);
+    public static PilotSpeechText? BuildReadback(
+        CompoundCommand compound,
+        AircraftState aircraft,
+        PilotSpeechContext speechContext,
+        ActiveRunways activeRunways
+    ) => BuildReadback(compound, aircraft, speechContext, null, activeRunways);
 
     /// <summary>Whether <paramref name="cmd"/> is a command of canonical type <paramref name="type"/>; an unsupported command is none.</summary>
     private static bool IsCommandOfType(ParsedCommand cmd, CanonicalCommandType type) =>
         (cmd is not UnsupportedCommand) && (CommandDescriber.ToCanonicalType(cmd) == type);
 
     /// <summary>
-    /// <see cref="BuildReadback(CompoundCommand, AircraftState, PilotSpeechContext)"/>, with the
+    /// <see cref="BuildReadback(CompoundCommand, AircraftState, PilotSpeechContext, ActiveRunways)"/>, with the
     /// clause of the compound's first command of the type that produced <paramref name="handlerReadback"/> taken from it when
     /// the handler built one.
     /// </summary>
@@ -226,7 +232,8 @@ public static partial class PilotResponder
         CompoundCommand compound,
         AircraftState aircraft,
         PilotSpeechContext speechContext,
-        HandlerReadback? handlerReadback
+        HandlerReadback? handlerReadback,
+        ActiveRunways activeRunways
     )
     {
         // Per-block clause lists are joined internally with ", " (parallel commands within
@@ -236,7 +243,7 @@ public static partial class PilotResponder
         // RPO (terminal + diagnostic) bodies are assembled in lock-step from each clause's
         // independently-built forms.
         IReadOnlyList<ParsedCommand> covered = handlerReadback?.Covers ?? [];
-        var assembly = new ReadbackAssembly(aircraft, handlerReadback, IsSingleUnconditionedCommand(compound, covered))
+        var assembly = new ReadbackAssembly(aircraft, handlerReadback, IsSingleUnconditionedCommand(compound, covered), activeRunways)
         {
             Chained = IsChained(compound, covered),
         };
@@ -306,11 +313,14 @@ public static partial class PilotResponder
     /// chains clauses (<see cref="IsChained"/>, or a clause that varies only its last part after a route), and the approach
     /// the last expect-approach before the clause being built names.
     /// </summary>
-    private sealed class ReadbackAssembly(AircraftState aircraft, HandlerReadback? handlerReadback, bool wholeReadback)
+    private sealed class ReadbackAssembly(AircraftState aircraft, HandlerReadback? handlerReadback, bool wholeReadback, ActiveRunways activeRunways)
     {
         public string? ExpectedApproachId { get; set; }
 
         public AircraftState Aircraft { get; } = aircraft;
+
+        /// <summary>The room's active runways, for a runway end the pilot names itself (<see cref="RunwayCrossingEnd.Spoken"/>).</summary>
+        public ActiveRunways ActiveRunways { get; } = activeRunways;
 
         public HandlerReadback? HandlerReadback { get; set; } = handlerReadback;
 
@@ -402,7 +412,7 @@ public static partial class PilotResponder
         }
         else
         {
-            clause = VerbalizeForReadback(cmd, assembly.Aircraft, blockContext, trace);
+            clause = VerbalizeForReadback(cmd, assembly.Aircraft, blockContext, trace, assembly.ActiveRunways);
         }
 
         assembly.OfferedQuietRows |= trace.OfferedQuietRows;
@@ -621,7 +631,8 @@ public static partial class PilotResponder
         ParsedCommand cmd,
         AircraftState aircraft,
         PilotSpeechContext speechContext,
-        ClauseTrace trace
+        ClauseTrace trace,
+        ActiveRunways activeRunways
     ) =>
         cmd switch
         {
@@ -678,11 +689,11 @@ public static partial class PilotResponder
             PushbackMultiCommand move => PushReadbackPhrases.FromCommand(move).ToSpeech(),
             FollowGroundCommand follow when GroundCommandHandler.RunwayHoldWithArmedFollow(aircraft) is { } armedHold => BuildArmedFollowClause(
                 follow,
-                armedHold.RunwayEndFacing(aircraft)
+                armedHold.RunwayEndFacing(aircraft, activeRunways)
             ),
             FollowGroundCommand follow => BuildFollowGroundClause(follow),
             GiveWayCommand giveWay => BuildGiveWayClause(giveWay),
-            HoldPositionCommand when HeldOnRunwayEnd(aircraft) is { } runway => BuildHoldingPositionOnRunwayClause(runway),
+            HoldPositionCommand when HeldOnRunwayEnd(aircraft, activeRunways) is { } runway => BuildHoldingPositionOnRunwayClause(runway),
             ClearedApproachCommand
             or JoinApproachCommand
             or ClearedApproachStraightInCommand
@@ -720,11 +731,11 @@ public static partial class PilotResponder
     /// The runway end a HOLD given now stops the aircraft on, from the crossing it is in or the taxi in the stretch before a
     /// crossing starts; null when the HOLD stops it clear of the runway.
     /// </summary>
-    private static string? HeldOnRunwayEnd(AircraftState aircraft) =>
+    private static string? HeldOnRunwayEnd(AircraftState aircraft, ActiveRunways activeRunways) =>
         aircraft.Phases?.CurrentPhase switch
         {
-            CrossingRunwayPhase crossing => crossing.HeldOnRunwayEnd(aircraft),
-            TaxiingPhase taxi => taxi.HeldOnRunwayEnd(aircraft),
+            CrossingRunwayPhase crossing => crossing.HeldOnRunwayEnd(aircraft, activeRunways),
+            TaxiingPhase taxi => taxi.HeldOnRunwayEnd(aircraft, activeRunways),
             _ => null,
         };
 
@@ -2672,8 +2683,8 @@ public static partial class PilotResponder
     /// <summary>
     /// Pilot transmission when the aircraft, cleared across a runway, holds short of it because traffic beyond the far
     /// holding-position marking leaves it no room to clear (AIM 4-3-18.b): "Holding short of runway 1L, traffic ahead".
-    /// <paramref name="runwayId"/> is a single runway end as the hold-short texts name it — the end nearest the aircraft
-    /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Nearest"/>). Every form says "traffic", never the traffic's callsign.
+    /// <paramref name="runwayId"/> is a single runway end as the hold-short texts name it — the end a pilot names it by
+    /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Spoken"/>: the active end, else the nearest). Every form says "traffic", never the traffic's callsign.
     /// </summary>
     public static PilotSpeechText BuildHoldingShortTrafficAhead(AircraftState aircraft, string runwayId)
     {
@@ -3039,8 +3050,9 @@ public static partial class PilotResponder
     /// <summary>
     /// Pilot transmission when its clearing route ran out before its tail was past the hold line: the aircraft is holding short
     /// of <paramref name="nextRunway"/> while still not clear of <paramref name="clearedRunway"/>. Both are a single runway end
-    /// as the hold-short texts name them — the end nearest the aircraft
-    /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Nearest"/>) — spoken spelled and terminal compacted as those texts do.
+    /// as the hold-short texts name them — the end a pilot names it by
+    /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Spoken"/>: the active end, else the nearest) — spoken spelled and
+    /// terminal compacted as those texts do.
     /// </summary>
     public static PilotSpeechText BuildHoldingShortNotClear(AircraftState aircraft, string nextRunway, string clearedRunway)
     {
@@ -3058,8 +3070,9 @@ public static partial class PilotResponder
     /// <summary>
     /// Pilot transmission when its clearing route ran out before its tail was past the hold line and no runway lies ahead of
     /// it: the aircraft is holding in position while still not clear of <paramref name="clearedRunway"/>, a single runway end as
-    /// the hold-short texts name them — the end nearest the aircraft
-    /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Nearest"/>) — spoken spelled and terminal compacted as those texts do.
+    /// the hold-short texts name them — the end a pilot names it by
+    /// (<see cref="Yaat.Sim.Data.Airport.RunwayCrossingEnd.Spoken"/>: the active end, else the nearest) — spoken spelled and
+    /// terminal compacted as those texts do.
     /// </summary>
     public static PilotSpeechText BuildHoldingPositionNotClear(AircraftState aircraft, string clearedRunway) =>
         BuildHoldingPositionNotClear(aircraft, clearedRunway, reason: null);

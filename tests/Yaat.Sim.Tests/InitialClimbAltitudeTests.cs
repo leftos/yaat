@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -49,6 +50,7 @@ public class InitialClimbAltitudeTests
         ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = targets,
             Category = category,
@@ -185,6 +187,7 @@ public class InitialClimbAltitudeTests
         ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = targets,
             Category = AircraftCategory.Jet,
@@ -231,6 +234,7 @@ public class InitialClimbAltitudeTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
@@ -410,6 +414,7 @@ public class InitialClimbAltitudeTests
         ControlTargets targets = aircraft.Targets;
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = targets,
             Category = AircraftCategory.Piston,

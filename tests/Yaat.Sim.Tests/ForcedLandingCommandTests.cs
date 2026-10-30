@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -55,7 +56,7 @@ public sealed class ForcedLandingCommandTests
             Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left },
         };
         ac.Phases.Add(new GoAroundPhase { ReenterPattern = true, NextLandingFullStop = false });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 

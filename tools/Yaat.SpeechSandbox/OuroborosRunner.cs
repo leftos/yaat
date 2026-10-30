@@ -7,6 +7,7 @@ using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Speech;
 
 namespace Yaat.SpeechSandbox;
@@ -188,7 +189,7 @@ internal static class OuroborosRunner
 
         // --- Stage 1: build readback from the compound + minimal aircraft state ---
         AircraftState aircraft = BuildAircraft(c);
-        PilotSpeechText? readback = PilotResponder.BuildReadback(compound, aircraft);
+        PilotSpeechText? readback = PilotResponder.BuildReadback(compound, aircraft, ActiveRunways.Empty);
         if (readback is null)
         {
             result.SetupFailure = "PilotResponder.BuildReadback returned null (no verbalization for this command)";

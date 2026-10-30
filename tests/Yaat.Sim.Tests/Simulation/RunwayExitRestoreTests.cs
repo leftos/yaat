@@ -113,6 +113,7 @@ public sealed class RunwayExitRestoreTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
@@ -185,6 +186,7 @@ public sealed class RunwayExitRestoreTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
@@ -279,6 +281,7 @@ public sealed class RunwayExitRestoreTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
@@ -355,6 +358,7 @@ public sealed class RunwayExitRestoreTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
@@ -427,6 +431,7 @@ public sealed class RunwayExitRestoreTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
@@ -549,6 +554,7 @@ public sealed class RunwayExitRestoreTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Turboprop,
@@ -620,6 +626,7 @@ public sealed class RunwayExitRestoreTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
@@ -706,7 +713,7 @@ public sealed class RunwayExitRestoreTests
 
         AircraftState aircraft = NewLandingAircraft(runway);
         aircraft.Ground.Layout = layout;
-        aircraft.Phases!.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases!.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(aircraft);
         engine.Scenario = NewScenario();
 

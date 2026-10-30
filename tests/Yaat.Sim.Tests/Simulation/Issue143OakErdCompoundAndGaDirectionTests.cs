@@ -177,7 +177,7 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
         ac.Phases.TrafficDirection = PatternDirection.Right;
 
         // Trigger a go-around via the helper directly.
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         GoAroundHelper.Trigger(ctx, "test-trigger");
 
         ac = engine.FindAircraft("TST001");
@@ -212,7 +212,7 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
         ac.Phases = new PhaseList { AssignedRunway = rwy };
         Assert.Null(ac.Phases.TrafficDirection);
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         GoAroundHelper.Trigger(ctx, "test-parallel-runway-side");
 
         ac = engine.FindAircraft("TST002");
@@ -248,7 +248,7 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
         ac.Phases = new PhaseList { AssignedRunway = rwy };
         Assert.Null(ac.Phases.TrafficDirection);
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         GoAroundHelper.Trigger(ctx, "test-non-parallel");
 
         ac = engine.FindAircraft("TST003");

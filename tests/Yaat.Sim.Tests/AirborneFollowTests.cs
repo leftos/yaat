@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -56,6 +57,7 @@ public class AirborneFollowTests : IDisposable
         RunwayInfo rwy = DefaultRunway();
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -299,7 +301,7 @@ public class AirborneFollowTests : IDisposable
         ac.Phases = new PhaseList();
         ac.Phases.Add(new DownwindPhase());
         // Start the phase so CurrentPhase is set.
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         ac.Phases.Start(startCtx);
 
         CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
@@ -330,7 +332,7 @@ public class AirborneFollowTests : IDisposable
         ac.Approach.HasReportedTrafficInSight = true;
         ac.Phases = new PhaseList();
         ac.Phases.Add(new DownwindPhase());
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         ac.Phases.Start(startCtx);
 
         CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
@@ -556,6 +558,7 @@ public class AirborneFollowTests : IDisposable
         // here only flips Status to Active and pins CurrentIndex=0.
         var startCtx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(type),
@@ -647,6 +650,7 @@ public class AirborneFollowTests : IDisposable
         var phase = new UpwindPhase { Waypoints = wp };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -688,6 +692,7 @@ public class AirborneFollowTests : IDisposable
         var phase = new UpwindPhase { Waypoints = wp };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -728,6 +733,7 @@ public class AirborneFollowTests : IDisposable
         var phase = new CrosswindPhase { Waypoints = wp };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -768,6 +774,7 @@ public class AirborneFollowTests : IDisposable
         var phase = new CrosswindPhase { Waypoints = wp };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -806,7 +813,7 @@ public class AirborneFollowTests : IDisposable
     {
         AircraftState ac = MakeAirborneVfrAircraft();
         ac.Phases!.Add(new UpwindPhase { IsExtended = true });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
@@ -820,7 +827,7 @@ public class AirborneFollowTests : IDisposable
     {
         AircraftState ac = MakeAirborneVfrAircraft();
         ac.Phases!.Add(new CrosswindPhase { IsExtended = true });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
@@ -834,7 +841,7 @@ public class AirborneFollowTests : IDisposable
     {
         AircraftState ac = MakeAirborneVfrAircraft();
         ac.Phases!.Add(new DownwindPhase { IsExtended = true });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
@@ -914,7 +921,7 @@ public class AirborneFollowTests : IDisposable
         follower.Approach.HasReportedTrafficInSight = true;
         follower.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: "28L", heading: 280, elevationFt: 0) };
         follower.Phases.Add((Phase)Activator.CreateInstance(legType)!);
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
 
         AircraftState lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
             callsign: LeadCallsign,
@@ -1148,7 +1155,7 @@ public class AirborneFollowTests : IDisposable
         follower.Phases = new PhaseList { ActiveApproach = MakeVisualClearance() };
         var downwind = new DownwindPhase();
         follower.Phases.Add(downwind);
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
         follower.Approach.HasReportedFieldInSight = true;
         follower.Approach.HasReportedTrafficInSight = true;
 
@@ -1204,7 +1211,7 @@ public class AirborneFollowTests : IDisposable
 
         follower.Phases = new PhaseList { ActiveApproach = MakeVisualClearance() };
         follower.Phases.Add(new DownwindPhase());
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
         follower.Approach.HasReportedTrafficInSight = true;
 
         var weather = new WeatherProfile

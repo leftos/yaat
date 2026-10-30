@@ -65,6 +65,7 @@ public class Sfo28rArrivalExitSideTests(ITestOutputHelper output)
     private static PhaseContext GroundContext(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout layout) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategorization.Categorize(aircraft.AircraftType),

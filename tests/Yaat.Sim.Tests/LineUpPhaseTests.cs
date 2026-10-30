@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
@@ -73,6 +74,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = cat,
@@ -162,6 +164,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
         var ctxNoRwy = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = ctx.Category,
@@ -185,6 +188,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
         var ctxNoLayout = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = ctx.Category,
@@ -234,6 +238,7 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         (AircraftState? aircraft, PhaseContext? ctx) = MakeFixture(90.0, 36.9965, -121.995, 0.0);
         var ctxNoRwy = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = ctx.Category,

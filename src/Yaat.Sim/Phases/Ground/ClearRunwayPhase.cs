@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -208,14 +209,16 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
             return;
         }
 
-        // The runway kept from before the CLRWY (GroundCommandHandler.TryClearRunway) names the end; else the end nearest the aircraft.
+        // The runway kept from before the CLRWY (GroundCommandHandler.TryClearRunway) is assigned and named by its own end. Any other
+        // runway is assigned by the end nearest the aircraft (ActiveRunways.Empty): the assignment is sim state, not speech, so it
+        // does not follow the room's active runways; only the spoken end below does.
+        RunwayInfo? kept = ((phases.AssignedRunway is { } assigned) && assigned.Id.Overlaps(clearedRunway)) ? assigned : null;
         RunwayInfo? clearedInfo =
-            ((phases.AssignedRunway is { } kept) && kept.Id.Overlaps(clearedRunway))
-                ? kept
-                : NavigationDatabase.InstanceOrNull?.GetRunway(
-                    layout.AirportId,
-                    RunwayCrossingEnd.Nearest(ctx.Aircraft, clearedRunway.ToString(), layout)
-                );
+            kept
+            ?? NavigationDatabase.InstanceOrNull?.GetRunway(
+                layout.AirportId,
+                RunwayCrossingEnd.Spoken(ctx.Aircraft, clearedRunway.ToString(), layout, ActiveRunways.Empty)
+            );
         if (clearedInfo is null)
         {
             Log.LogWarning(
@@ -228,7 +231,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
 
         phases.AssignedRunway = clearedInfo;
         string clearedEnd = RunwayIdentifier.ToDisplayDesignator(
-            clearedInfo?.Designator ?? RunwayCrossingEnd.Nearest(ctx.Aircraft, clearedRunway.ToString(), layout)
+            kept?.Designator ?? RunwayCrossingEnd.Spoken(ctx.Aircraft, clearedRunway.ToString(), layout, ctx.ActiveRunways)
         );
 
         // A nose already past the other runway's line before the CLRWY is not holding short of it: the hold says only that it is
@@ -236,7 +239,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
         string? otherEnd =
             (_alreadyAtStop && IsNosePastBar(ctx.Aircraft, runwayNode, otherBar))
                 ? null
-                : RunwayTailClearance.HeldShortRunwayEnd(layout, otherBar, clearedInfo, ctx.Aircraft);
+                : RunwayTailClearance.HeldShortRunwayEnd(layout, otherBar, clearedInfo, ctx.Aircraft, ctx.ActiveRunways);
         Log.LogInformation(
             "[ClearRunway] {Callsign}: nose {Where} on {Twy}, tail still inside {Runway}'s line — holding, not clear",
             ctx.Aircraft.Callsign,

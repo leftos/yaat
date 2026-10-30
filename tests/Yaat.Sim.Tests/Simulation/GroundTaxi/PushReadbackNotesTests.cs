@@ -285,7 +285,8 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
             CommandParser.ParseCompound(command).Value!,
             result,
             aircraft,
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
         output.WriteLine($"{command} off gate 25: readback \"{readback}\"; spoken \"{spoken?.Terminal}\" / \"{spoken?.Tts}\"");
         return (readback, spoken);
@@ -318,7 +319,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new AtParkingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, ground.Layout));
         aircraft.Ground.Layout = ground.Layout;
         ground.Engine.World.AddAircraft(aircraft);
     }
@@ -349,7 +350,8 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
             CommandParser.ParseCompound(sent).Value!,
             result,
             aircraft,
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
         output.WriteLine($"{stand} {sent}: readback \"{readback}\"; spoken \"{spoken?.Terminal}\" / \"{spoken?.Tts}\"");
         return (readback, spoken);
@@ -452,7 +454,8 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
             CommandParser.ParseCompound(last).Value!,
             result!,
             aircraft,
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
         output.WriteLine(
             $"{gate} {last}: readback \"{readback}\"; spoken \"{spoken?.Terminal}\" / \"{spoken?.Tts}\" / rpo \"{spoken?.TerminalForRpo}\""

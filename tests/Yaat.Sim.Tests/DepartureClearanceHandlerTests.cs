@@ -9,6 +9,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -58,7 +59,7 @@ public class DepartureClearanceHandlerTests
         );
     }
 
-    private static PhaseContext MinCtx(AircraftState ac) => CommandDispatcher.BuildMinimalContext(ac);
+    private static PhaseContext MinCtx(AircraftState ac) => CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
 
     // -------------------------------------------------------------------------
     // TryDepartureClearance from HoldingShort
@@ -599,7 +600,7 @@ public class DepartureClearanceHandlerTests
 
         var holdPhase = new HoldingInPositionPhase();
         ac.Phases.Add(holdPhase);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, layout));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty, layout));
 
         CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,

@@ -99,7 +99,7 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
             ac.Phases.Add(phase);
         }
 
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
     }
 
     /// <summary>
@@ -509,7 +509,7 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
         );
         follower.Phases.Add(new FinalApproachPhase());
         follower.Phases.Add(new LandingPhase());
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
         Assert.IsType<InterceptCoursePhase>(follower.Phases.CurrentPhase);
         return follower;
     }

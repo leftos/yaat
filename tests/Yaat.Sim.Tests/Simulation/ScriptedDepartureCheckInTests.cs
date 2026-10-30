@@ -72,7 +72,7 @@ public class ScriptedDepartureCheckInTests
         phases.Add(new TakeoffPhase());
         phases.Add(new InitialClimbPhase { Departure = new DefaultDeparture(), CruiseAltitude = 5000 });
         ac.Phases = phases;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 
@@ -108,7 +108,7 @@ public class ScriptedDepartureCheckInTests
             )
         );
         ac.Phases = phases;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         // Released by the student; the automated tower has not yet issued the takeoff clearance.
         ac.Ground.HeldForRelease = false;

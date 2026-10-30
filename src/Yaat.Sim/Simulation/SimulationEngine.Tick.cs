@@ -1799,6 +1799,8 @@ public sealed partial class SimulationEngine
             Runway = runway,
             FieldElevation = runway?.ElevationFt ?? CommandDispatcher.ResolveFieldElevation(aircraft, groundLayout),
             GroundLayout = groundLayout,
+            // No scenario loaded: the room has named no active runways.
+            ActiveRunways = Scenario?.ActiveRunways ?? ActiveRunways.Empty,
             Weather = World.Weather,
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.IsAutoClearedToLandFor(aircraft) ?? false,

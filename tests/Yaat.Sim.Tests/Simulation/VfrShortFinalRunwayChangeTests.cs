@@ -226,6 +226,7 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = category,

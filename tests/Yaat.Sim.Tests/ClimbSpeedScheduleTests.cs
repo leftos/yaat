@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -52,6 +53,7 @@ public sealed class ClimbSpeedScheduleTests
         var phase = new InitialClimbPhase { AssignedAltitude = 35000 };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -87,6 +89,7 @@ public sealed class ClimbSpeedScheduleTests
         var phase = new InitialClimbPhase { AssignedAltitude = 35000 };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -221,6 +224,7 @@ public sealed class ClimbSpeedScheduleTests
         phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Piston,

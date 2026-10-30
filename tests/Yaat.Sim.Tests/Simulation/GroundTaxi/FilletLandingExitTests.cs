@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
@@ -45,6 +46,7 @@ public class FilletLandingExitTests
     private static PhaseContext Ctx(AircraftState ac, RunwayInfo rwy, AirportGroundLayout? layout, double dt = 1.0) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,

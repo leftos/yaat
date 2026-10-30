@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
@@ -49,7 +50,7 @@ public sealed class AerialRefuelingCommandTests
 
     private static void TickPhase(AircraftState aircraft)
     {
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         foreach (Phase phase in aircraft.Phases!.Phases)
         {
             phase.Status = PhaseStatus.Active;
@@ -196,7 +197,7 @@ public sealed class AerialRefuelingCommandTests
         AircraftState aircraft = AircraftOnAr601();
         Apply(aircraft, "CAR AR601");
         AerialRefuelingAnchorPhase phase = aircraft.Phases!.Phases.OfType<AerialRefuelingAnchorPhase>().Single();
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         phase.Status = PhaseStatus.Active;
         phase.OnTick(ctx);
 
@@ -222,7 +223,7 @@ public sealed class AerialRefuelingCommandTests
     {
         AircraftState aircraft = AircraftOnAr601();
         Apply(aircraft, "CAR AR601");
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         AerialRefuelingAnchorPhase phase = aircraft.Phases!.Phases.OfType<AerialRefuelingAnchorPhase>().Single();
         phase.Status = PhaseStatus.Active;
         phase.OnTick(ctx);
@@ -244,7 +245,7 @@ public sealed class AerialRefuelingCommandTests
         Apply(aircraft, "CAR AR601");
         AerialRefuelingAnchorPhase original = aircraft.Phases!.Phases.OfType<AerialRefuelingAnchorPhase>().Single();
         original.Status = PhaseStatus.Active;
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         original.OnTick(ctx);
         aircraft.Targets.NavigationRoute.Clear();
         original.OnTick(ctx);

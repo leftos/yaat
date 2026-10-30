@@ -6,6 +6,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -410,13 +411,15 @@ internal static class DepartureClearanceHandler
         AirportGroundLayout? layout = groundLayout ?? aircraft.Ground.Layout;
 
         // Clear the holding phase and rebuild with tower departure phases
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout);
         aircraft.Phases.Clear(ctx);
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.Procedure.DepartureRunway = runway.Designator;
         DepartureRouteResult? routeResult = InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, logger);
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude) with
@@ -734,7 +737,8 @@ internal static class DepartureClearanceHandler
                 // Re-clearing for takeoff lifts a prior CTOC hold-position so the
                 // aircraft resumes the line-up and departs.
                 active.HoldPosition = false;
-                PhaseContext upgradeCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+                // No route to the room's active runways: this handler is not given the dispatch context.
+                PhaseContext upgradeCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
                 active.TryUpgradeToRolling(upgradeCtx);
                 break;
             }
@@ -1782,7 +1786,7 @@ internal static class DepartureClearanceHandler
             }
 
             RejectedTakeoffPhase? reject = RejectedTakeoff.Install(
-                CommandDispatcher.BuildMinimalContext(aircraft, ctx.GroundLayout),
+                CommandDispatcher.BuildMinimalContext(aircraft, ctx.ActiveRunways, ctx.GroundLayout),
                 rollingTakeoff.RollElapsedSeconds
             );
             if ((reject is not null) && (blocked is not null))
@@ -1822,7 +1826,8 @@ internal static class DepartureClearanceHandler
 
         heloTakeoff.SetAssignedDeparture(null);
         aircraft.Targets.AssignedAltitude = null;
-        PhaseContext heloCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext heloCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
 
         double fieldElevation =
             aircraft.Phases.AssignedRunway?.ElevationFt ?? CommandDispatcher.ResolveFieldElevation(aircraft, aircraft.Ground.Layout);
@@ -1934,7 +1939,8 @@ internal static class DepartureClearanceHandler
         }
 
         // Clear existing phases and set up vertical takeoff
-        PhaseContext ctoppCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext ctoppCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout);
         aircraft.Phases?.Clear(ctoppCtx);
 
         aircraft.Ground.Hold = null;
@@ -1966,6 +1972,7 @@ internal static class DepartureClearanceHandler
         // Field elevation = current altitude (on ground)
         ctoppCtx = new PhaseContext
         {
+            ActiveRunways = ctoppCtx.ActiveRunways,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = ctoppCat,

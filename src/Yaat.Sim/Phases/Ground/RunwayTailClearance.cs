@@ -1,6 +1,7 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -111,30 +112,37 @@ public static class RunwayTailClearance
     }
 
     /// <summary>
-    /// The end of the runway <paramref name="bar"/> holds short of, as the pilot names it: the end whose heading is nearest
-    /// <paramref name="reference"/> (the runway being cleared) when the two are within 45° (a parallel), else the end nearest the
-    /// aircraft (<see cref="RunwayCrossingEnd.Nearest"/>).
+    /// The end of the runway <paramref name="bar"/> holds short of, as the pilot names it: an active runway by its active end
+    /// (<see cref="RunwayCrossingEnd.Spoken"/>); otherwise the end whose heading is nearest <paramref name="reference"/> (the
+    /// runway being cleared) when the two are within 45° (a parallel), else the end nearest the aircraft.
     /// </summary>
     /// <param name="layout">The airport's ground layout.</param>
     /// <param name="bar">The other runway's hold-short node.</param>
     /// <param name="reference">The runway end being cleared, when known.</param>
     /// <param name="aircraft">The aircraft holding short.</param>
+    /// <param name="activeRunways">The room's active runways.</param>
     /// <returns>The display designator.</returns>
-    public static string HeldShortRunwayEnd(AirportGroundLayout layout, GroundNode bar, RunwayInfo? reference, AircraftState aircraft)
+    public static string HeldShortRunwayEnd(
+        AirportGroundLayout layout,
+        GroundNode bar,
+        RunwayInfo? reference,
+        AircraftState aircraft,
+        ActiveRunways activeRunways
+    )
     {
         RunwayIdentifier other = bar.RunwayId ?? throw new ArgumentException($"node {bar.Id} is not a runway hold-short", nameof(bar));
         NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
         RunwayInfo? end1 = db?.GetRunway(layout.AirportId, other.End1);
         RunwayInfo? end2 = db?.GetRunway(layout.AirportId, other.End2);
-        if ((reference is null) || (end1 is null) || (end2 is null))
+        if ((reference is null) || (end1 is null) || (end2 is null) || RunwayCrossingEnd.HasActiveEnd(other, layout.AirportId, activeRunways))
         {
-            return RunwayCrossingEnd.Nearest(aircraft, other.ToString(), layout);
+            return RunwayCrossingEnd.Spoken(aircraft, other.ToString(), layout, activeRunways);
         }
 
         TrueHeading heading = reference.TrueHeading;
         RunwayInfo aligned = (heading.AbsAngleTo(end1.TrueHeading) <= heading.AbsAngleTo(end2.TrueHeading)) ? end1 : end2;
         return (heading.AbsAngleTo(aligned.TrueHeading) <= 45.0)
             ? RunwayIdentifier.ToDisplayDesignator(aligned.Designator)
-            : RunwayCrossingEnd.Nearest(aircraft, other.ToString(), layout);
+            : RunwayCrossingEnd.Spoken(aircraft, other.ToString(), layout, activeRunways);
     }
 }

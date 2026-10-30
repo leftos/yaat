@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -73,7 +74,7 @@ public sealed class GiveWayRedesignTests
         Assert.Equal(HoldKind.GiveWay, ac.Ground.Hold!.Kind);
         Assert.Equal("SWA123", ac.Ground.Hold.YieldTarget);
 
-        GroundCommandHandler.TryHoldPosition(ac);
+        GroundCommandHandler.TryHoldPosition(ac, ActiveRunways.Empty);
 
         Assert.Equal(HoldDirective.HoldPosition, ac.Ground.Hold);
         Assert.Null(ac.Ground.Hold.YieldTarget);
@@ -86,7 +87,7 @@ public sealed class GiveWayRedesignTests
         // Reverse direction of the above.
         AircraftState ac = MakeGroundAircraftWithRoute();
 
-        GroundCommandHandler.TryHoldPosition(ac);
+        GroundCommandHandler.TryHoldPosition(ac, ActiveRunways.Empty);
         Assert.Equal(HoldKind.HoldPosition, ac.Ground.Hold!.Kind);
 
         GroundCommandHandler.TryGiveWay(ac, "UAL456");

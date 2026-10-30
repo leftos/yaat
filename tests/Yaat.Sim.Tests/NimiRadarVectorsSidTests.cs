@@ -9,6 +9,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -144,7 +145,7 @@ public class NimiRadarVectorsSidTests
 
         var holding = new HoldingInPositionPhase();
         ac.Phases!.Add(holding);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -184,7 +185,7 @@ public class NimiRadarVectorsSidTests
 
         var holding = new HoldingInPositionPhase();
         ac.Phases!.Add(holding);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -242,7 +243,7 @@ public class NimiRadarVectorsSidTests
         Assert.Contains("28R", runway.Designator);
 
         // Start the lined-up phases and clear for takeoff (bare CTO — relies on the SID's published heading).
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         LinedUpAndWaitingPhase luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
         CommandResult ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(
             new ClearedForTakeoffCommand(new DefaultDeparture()),
@@ -264,6 +265,7 @@ public class NimiRadarVectorsSidTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Piston,
@@ -341,6 +343,7 @@ public class NimiRadarVectorsSidTests
         };
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,

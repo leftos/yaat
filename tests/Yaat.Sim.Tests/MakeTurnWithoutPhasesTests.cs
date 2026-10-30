@@ -181,7 +181,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         AircraftState ac = MakeAirborneAircraft();
         ac.Phases = new PhaseList { AssignedRunway = runway };
         ac.Phases.Add(new VfrHoldPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         ParseResult<CompoundCommand> parseResult = CommandParser.ParseCompound("R360", ac.FlightPlan.Route);
         Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");

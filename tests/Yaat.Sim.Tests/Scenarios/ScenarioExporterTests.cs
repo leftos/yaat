@@ -9,6 +9,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Scenarios;
@@ -184,7 +185,7 @@ public class ScenarioExporterTests
     {
         AirportGroundLayout layout = SfoLayout();
         AircraftState taxiing = LoadSingle(GroundCoordinatesJson("SWA7", MidTaxiway(layout)));
-        taxiing.Phases!.Start(CommandDispatcher.BuildMinimalContext(taxiing));
+        taxiing.Phases!.Start(CommandDispatcher.BuildMinimalContext(taxiing, ActiveRunways.Empty));
         CommandResult taxi = GroundCommandHandler.TryTaxiAuto(
             taxiing,
             new TaxiAutoCommand("28L", null, null, Expedite: false),
@@ -436,7 +437,7 @@ public class ScenarioExporterTests
     public void Simulated_OverThreshold_FlaggedNotOnFinal()
     {
         AircraftState landing = LoadSingle(OnFinalJson("AAL9", "OAK", "28R", 0.1, "KOAK"));
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(landing);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(landing, ActiveRunways.Empty);
         landing.Phases!.Start(ctx);
         landing.Phases.SkipTo<LandingPhase>(ctx);
         Assert.IsType<LandingPhase>(landing.Phases.CurrentPhase);

@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -337,7 +338,7 @@ public class ReportDispatchTests
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("REPORT MIDFIELD");
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
-        PilotSpeechText? readback = PilotResponder.BuildReadback(parsed.Value!, ac);
+        PilotSpeechText? readback = PilotResponder.BuildReadback(parsed.Value!, ac, ActiveRunways.Empty);
 
         Assert.NotNull(readback);
         Assert.Contains("will report midfield downwind", readback.Terminal, StringComparison.OrdinalIgnoreCase);

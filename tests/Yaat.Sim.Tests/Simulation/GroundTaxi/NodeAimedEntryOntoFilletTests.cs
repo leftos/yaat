@@ -460,7 +460,7 @@ public sealed class NodeAimedEntryOntoFilletTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, ground.Layout));
         aircraft.Ground.Layout = ground.Layout;
         ground.Engine.World.AddAircraft(aircraft);
         return aircraft;

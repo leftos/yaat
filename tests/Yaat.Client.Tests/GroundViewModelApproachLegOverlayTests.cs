@@ -112,6 +112,7 @@ public class GroundViewModelApproachLegOverlayTests
         aircraft.Phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = aircraft,
                 Targets = aircraft.Targets,
                 Category = AircraftCategorization.Categorize(aircraft.AircraftType),

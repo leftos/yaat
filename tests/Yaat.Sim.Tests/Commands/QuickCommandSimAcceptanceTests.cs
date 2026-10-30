@@ -552,7 +552,7 @@ public sealed class QuickCommandSimAcceptanceTests
 
         heli.Phases = new PhaseList();
         heli.Phases.Add(phase);
-        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, layout));
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, ActiveRunways.Empty, layout));
         Assert.Equal(situation, SituationClassifier.Classify(heli, 0, AircraftSituation.Unknown));
 
         AssertAccepted(engine.SendCommand(heli.Callsign, "ATXI @HELI2"), $"ATXI @HELI2 from {situation}");
@@ -571,7 +571,7 @@ public sealed class QuickCommandSimAcceptanceTests
         heli.Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
         heli.Phases = new PhaseList { AssignedRunway = runway };
         heli.Phases.Add(new LandingPhase());
-        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, heli.Ground.Layout));
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, ActiveRunways.Empty, heli.Ground.Layout));
         Assert.Equal(AircraftSituation.RolloutExit, SituationClassifier.Classify(heli, 0, AircraftSituation.Unknown));
 
         AssertAccepted(engine.SendCommand(heli.Callsign, "ATXI @HELI2"), "ATXI @HELI2 on the landing rollout");
@@ -631,7 +631,7 @@ public sealed class QuickCommandSimAcceptanceTests
         heli.Ground.Layout = layout;
         heli.Phases = new PhaseList();
         heli.Phases.Add(onGround ? new AtParkingPhase() : new VfrHoldPhase());
-        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, layout));
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(heli);
         return (engine, heli);
     }
@@ -660,7 +660,7 @@ public sealed class QuickCommandSimAcceptanceTests
             Phases = new PhaseList { AssignedRunway = runway },
         };
         aircraft.Phases.Add(phase);
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty));
         return aircraft;
     }
 

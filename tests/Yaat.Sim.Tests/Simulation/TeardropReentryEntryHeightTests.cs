@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -70,6 +71,7 @@ public class TeardropReentryEntryHeightTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = category,
@@ -265,6 +267,7 @@ public class TeardropReentryEntryHeightTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = category,

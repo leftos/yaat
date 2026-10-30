@@ -124,7 +124,7 @@ public sealed class SpeedMaxCommandTests
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("SMAX");
         Assert.True(parsed.IsSuccess, parsed.Reason);
 
-        PilotSpeechText? readback = PilotResponder.BuildReadback(parsed.Value!, ac);
+        PilotSpeechText? readback = PilotResponder.BuildReadback(parsed.Value!, ac, ActiveRunways.Empty);
 
         Assert.NotNull(readback);
         Assert.Equal("maximum forward speed", readback!.Terminal);

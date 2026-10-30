@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -53,7 +54,7 @@ public class AltitudeRestrictionCommandTests
         };
         var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
 
-        string? readback = PilotResponder.BuildReadback(compound, aircraft)?.Tts;
+        string? readback = PilotResponder.BuildReadback(compound, aircraft, ActiveRunways.Empty)?.Tts;
         Assert.Equal(expectedReadback, readback);
     }
 

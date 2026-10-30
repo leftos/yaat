@@ -352,7 +352,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         AircraftState aircraft = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, "N3PSH", "C172", stand.Position, new TrueHeading(0));
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AtParkingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, setup.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, setup.Layout));
         aircraft.Ground.Layout = setup.Layout;
         setup.Engine.World.AddAircraft(aircraft);
         CommandResult result = setup.Engine.SendCommand(aircraft.Callsign, "PUSH");

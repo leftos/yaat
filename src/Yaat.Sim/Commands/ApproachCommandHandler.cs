@@ -2858,7 +2858,8 @@ public static class ApproachCommandHandler
         bool isHeli = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         aircraft.Phases.Add(isHeli ? new HelicopterLandingPhase() : new LandingPhase());
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(ctx);
     }
 
@@ -3101,7 +3102,8 @@ public static class ApproachCommandHandler
     {
         if (aircraft.Phases is not null)
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Clear(ctx);
         }
 
@@ -3124,7 +3126,8 @@ public static class ApproachCommandHandler
     {
         if (aircraft.Phases is not null)
         {
-            PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Start(startCtx);
         }
     }

@@ -1,5 +1,6 @@
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.ControllerAi.Rules;
 
@@ -47,7 +48,8 @@ public static class TaxiRouteProgress
 
     /// <summary>The end of a crossed runway the aircraft is nearest to — the one to name in <c>CROSS</c>.</summary>
     public static string NearestCrossingEnd(AircraftState aircraft, string combinedTarget, AirportGroundLayout? layout) =>
-        RunwayCrossingEnd.Nearest(aircraft, combinedTarget, layout);
+        // Controller command text, not pilot speech: names the end nearest the aircraft.
+        RunwayCrossingEnd.Spoken(aircraft, combinedTarget, layout, ActiveRunways.Empty);
 
     /// <summary>
     /// Walks the remaining segments: the first leg is the straight distance from the aircraft to the current segment's

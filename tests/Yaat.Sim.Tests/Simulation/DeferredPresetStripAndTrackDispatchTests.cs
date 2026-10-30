@@ -106,7 +106,7 @@ public class DeferredPresetStripAndTrackDispatchTests
         AircraftState ac = AddParked(engine, "DAL2272");
         ac.Phases = new PhaseList();
         ac.Phases.Add(new AtParkingPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         Assert.IsType(expectedType, CommandParser.Parse(command).Value);
 
@@ -225,7 +225,7 @@ public class DeferredPresetStripAndTrackDispatchTests
         // A scenario spawn at a gate installs AtParkingPhase; without it a TAXI never reaches the tower path.
         PhaseInitResult init = AircraftInitializer.InitializeAtParking(gate, 13);
         ac.Phases = init.Phases;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, layout));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(ac);
         return ac;
     }

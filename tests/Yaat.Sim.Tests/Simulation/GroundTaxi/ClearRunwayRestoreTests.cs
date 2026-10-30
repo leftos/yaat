@@ -131,7 +131,7 @@ public class ClearRunwayRestoreTests(ITestOutputHelper output)
         aircraft.Ground.CurrentTaxiway = "B";
         aircraft.Phases.Add(new ClearRunwayPhase(farBar28R.Id, runwaySide.Id));
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(aircraft);
         return aircraft;
     }

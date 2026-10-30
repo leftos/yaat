@@ -84,7 +84,7 @@ public class ApproachGoAroundAndWaitTests(ITestOutputHelper output)
     private static AircraftState AddOnFinal(SimulationEngine engine, double distanceNm)
     {
         AircraftState ac = WithIlsClearance(FollowSequenceRefusalTests.AddApproachFollower(engine, distanceNm));
-        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         FinalApproachPhase final = Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
         final.DistanceToThresholdNm = distanceNm;
         return ac;
@@ -174,7 +174,7 @@ public class ApproachGoAroundAndWaitTests(ITestOutputHelper output)
         engine.World.AddAircraft(ac);
 
         PhaseList phases = ac.Phases!;
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         if (phases.CurrentPhase is { Status: PhaseStatus.Pending })
         {
             phases.Start(ctx);
@@ -403,7 +403,7 @@ public class ApproachGoAroundAndWaitTests(ITestOutputHelper output)
     public void GoAroundWithHeading_OnAVisualApproach_KeepsTheClimbOutAltitude()
     {
         AircraftState ac = OnVisualApproach(AddOnFinal(BuildEngine(), 6.0));
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         int? climbOut = GoAroundHelper.ResolveClimbOutAltitude(ctx, ac.Phases!.TrafficDirection is not null, []);
         int expected = (int)Math.Ceiling(climbOut ?? (ctx.FieldElevation + 2000));
         output.WriteLine($"alt={ac.Altitude:F0} climb-out {climbOut} field {ctx.FieldElevation:F0}: expected {expected}");

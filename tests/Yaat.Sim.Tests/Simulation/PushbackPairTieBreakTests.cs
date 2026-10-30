@@ -238,7 +238,7 @@ public class PushbackPairTieBreakTests
                 ContinuesStandPushOff = start.ContinuesStandPushOff,
             }
         );
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Position = at;
         aircraft.Ground.PushbackTrueHeading = push;
         aircraft.Ground.Layout = layout;

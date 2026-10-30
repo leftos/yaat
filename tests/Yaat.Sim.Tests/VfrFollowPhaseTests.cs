@@ -79,6 +79,7 @@ public class VfrFollowPhaseTests : IDisposable
         RunwayInfo rwy = DefaultRunway();
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategorization.Categorize(ac.AircraftType),
@@ -206,7 +207,7 @@ public class VfrFollowPhaseTests : IDisposable
         AircraftState follower = MakeVfrAircraft("FOLL");
         var oldPhase = new VfrHoldPhase();
         follower.Phases!.Add(oldPhase);
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(follower);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty);
         follower.Phases.Start(startCtx);
 
         CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
@@ -229,7 +230,7 @@ public class VfrFollowPhaseTests : IDisposable
         // Don't fully Start() the phase — we just need the dispatcher to see it as current.
         // A simpler path: peek via reflection-free Add + manual Start would need a context,
         // but the dispatcher only reads CurrentPhase.
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(follower);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty);
         follower.Phases.Start(ctx);
 
         CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
@@ -249,7 +250,7 @@ public class VfrFollowPhaseTests : IDisposable
         AircraftState follower = MakeVfrAircraft("FOLL");
         var upwind = new UpwindPhase();
         follower.Phases!.Add(upwind);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(follower);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty);
         follower.Phases.Start(ctx);
 
         CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
@@ -265,7 +266,7 @@ public class VfrFollowPhaseTests : IDisposable
         AircraftState follower = MakeVfrAircraft("FOLL");
         var crosswind = new CrosswindPhase();
         follower.Phases!.Add(crosswind);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(follower);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty);
         follower.Phases.Start(ctx);
 
         CommandResult result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
@@ -307,7 +308,7 @@ public class VfrFollowPhaseTests : IDisposable
         AircraftState follower = MakeVfrAircraft("FOLL");
         var downwind = new DownwindPhase();
         follower.Phases!.Add(downwind);
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(follower);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty);
         follower.Phases.Start(startCtx);
         follower.Approach.FollowingCallsign = "LEAD";
 
@@ -683,7 +684,7 @@ public class VfrFollowPhaseTests : IDisposable
         lead.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         lead.Phases.Add(new DownwindPhase { Waypoints = waypoints });
         // Start the lead's downwind so CurrentPhase is set
-        PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead);
+        PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty);
         lead.Phases.Start(leadCtx);
 
         var phase = new VfrFollowPhase("LEAD", patternReturn: null);
@@ -723,7 +724,7 @@ public class VfrFollowPhaseTests : IDisposable
         AircraftState lead = MakeVfrAircraft("LEAD", lat: waypoints.DownwindAbeamLat, lon: waypoints.DownwindAbeamLon);
         lead.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         lead.Phases.Add(new DownwindPhase { Waypoints = waypoints });
-        PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead);
+        PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty);
         lead.Phases.Start(leadCtx);
 
         var phase = new VfrFollowPhase("LEAD", patternReturn: null);
@@ -772,7 +773,7 @@ public class VfrFollowPhaseTests : IDisposable
         AircraftState lead = MakeVfrAircraft("LEAD", lat: waypoints.DownwindAbeamLat, lon: waypoints.DownwindAbeamLon);
         lead.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         lead.Phases.Add(new DownwindPhase { Waypoints = waypoints });
-        PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead);
+        PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty);
         lead.Phases.Start(leadCtx);
 
         var phase = new VfrFollowPhase("LEAD", patternReturn: null);
@@ -899,7 +900,7 @@ public class VfrFollowPhaseTests : IDisposable
         lead.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         lead.Phases.Add(new BasePhase { Waypoints = waypoints });
         lead.Phases.Add(new FinalApproachPhase());
-        PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead);
+        PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty);
         lead.Phases.Start(leadCtx);
         // Advance past Base so FinalApproach is current.
         lead.Phases.AdvanceToNext(leadCtx);
@@ -1007,7 +1008,7 @@ public class VfrFollowPhaseTests : IDisposable
         Assert.Null(basePhase.StartPoint);
         ac.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(basePhase);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         LatLon startedAt = ac.Position;
 
         // The point stays where the leg began while the aircraft flies on down the base.

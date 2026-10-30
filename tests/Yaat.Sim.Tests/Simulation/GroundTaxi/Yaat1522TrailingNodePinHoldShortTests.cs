@@ -134,7 +134,7 @@ public class Yaat1522TrailingNodePinHoldShortTests
         aircraft.Ground.Layout = layout;
         aircraft.Ground.ParkingSpot = Stand;
         aircraft.Phases.Add(new AtParkingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         return aircraft;
     }
 

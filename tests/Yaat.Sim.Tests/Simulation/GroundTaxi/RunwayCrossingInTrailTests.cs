@@ -314,6 +314,53 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A HOLD given to a piston mid-crossing with the room listing the crossed runway's other end as active: the readback names
+    /// the runway by that active end ("holding position on runway …"), not the end nearest the aircraft. Red first with the
+    /// active-end branch of <see cref="RunwayCrossingEnd.Spoken"/> disabled.
+    /// </summary>
+    [Fact]
+    public void Hold_MidCrossing_WithTheOtherEndActive_ReadsBackHoldingOnTheActiveEnd()
+    {
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
+        {
+            return;
+        }
+
+        SfoCrossing crossing = SfoGroundHarness.ResolveSfoCrossing(ground.Layout);
+        var heading = new TrueHeading(GeoMath.BearingTo(crossing.ApproachNode.Position, crossing.ApproachBar.Position));
+        AircraftState follower = SfoGroundHarness.SpawnAt(
+            ground,
+            FollowingCallsign,
+            PistonType,
+            (crossing.ApproachNode, heading),
+            new HoldingInPositionPhase()
+        );
+        Assert.True(ground.Engine.SendCommand(follower.Callsign, TaxiCommand).Success, $"'{TaxiCommand}' was refused");
+        int onRunway = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (follower.Phases?.CurrentPhase is CrossingRunwayPhase phase) && (phase.HeldOnRunwayEnd(follower, ActiveRunways.Empty) is not null),
+            BudgetSeconds,
+            null
+        );
+        Assert.True(onRunway > 0, $"{follower.Callsign} never reached a point mid-crossing where a HOLD stops it on the runway");
+
+        CrossingRunwayPhase onCrossing = Assert.IsType<CrossingRunwayPhase>(follower.Phases?.CurrentPhase);
+        string nearest = Assert.IsType<string>(onCrossing.HeldOnRunwayEnd(follower, ActiveRunways.Empty));
+        RunwayIdentifier runway = SfoGroundHarness.Runway(nearest).Id;
+        string other = string.Equals(runway.End1, RunwayIdentifier.NormalizeDesignator(nearest), StringComparison.OrdinalIgnoreCase)
+            ? runway.End2
+            : runway.End1;
+        ActiveRunways otherEndActive = ActiveRunways.Empty.With("SFO", [new ActiveRunway(other, ActiveRunwayUse.Both)]);
+        PilotSpeechText readback = Assert.IsType<PilotSpeechText>(
+            PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), follower, otherEndActive)
+        );
+        output.WriteLine($"nearest {nearest}, active {other}: readback '{readback.Terminal}'");
+
+        string activeEnd = RunwayIdentifier.ToDisplayDesignator(other);
+        Assert.Equal($"holding position on runway {PhraseologyVerbalizer.CompactRunway(activeEnd)}", readback.Terminal);
+    }
+
+    /// <summary>
     /// A HOLD given to a piston in the taxi before its crossing, while the crossing has not started yet (the taxi hands the
     /// crossing over only once the centre reaches the near bar's node), with the nose already past the near holding-position
     /// marking or still short of it by less than the HOLD's stopping distance: the HOLD stops it on the runway, so it reads
@@ -358,9 +405,9 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
 
         Assert.True(InTheWindow(), $"{PistonType} {follower.Callsign} was never sampled in the taxi window before its crossing");
         PilotSpeechText readback = Assert.IsType<PilotSpeechText>(
-            PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), follower)
+            PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), follower, ActiveRunways.Empty)
         );
-        string runway = RunwayCrossingEnd.Nearest(follower, SfoGroundHarness.CrossingRunway, ground.Layout);
+        string runway = RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
         double holdKts = follower.GroundSpeed;
         output.WriteLine(
             $"sub-tick {subTick}: HOLD at {holdKts:F2} kt, nose {NosePastNearMarkingFt(follower, crossing):F1} ft past the near marking, "
@@ -456,12 +503,12 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         follower.IndicatedAirspeed = speedKts;
         var phase = new CrossingRunwayPhase(crossing.ApproachBar.Id, crossing.FarBar.Id, SfoGroundHarness.CrossingRunway);
 
-        string? end = phase.HeldOnRunwayEnd(follower);
+        string? end = phase.HeldOnRunwayEnd(follower, ActiveRunways.Empty);
 
         output.WriteLine(
             $"{speedKts:F1} kt, nose {NosePastNearMarkingFt(follower, crossing):F1} ft past the near marking: {end ?? "(not on the runway)"}"
         );
-        Assert.Equal(onRunway ? RunwayCrossingEnd.Nearest(follower, SfoGroundHarness.CrossingRunway, ground.Layout) : null, end);
+        Assert.Equal(onRunway ? RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty) : null, end);
     }
 
     /// <summary>
@@ -487,7 +534,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         TickUntilAtRest(ground, follower, ref enteredCrossing);
         if (!preCleared)
         {
-            string end = RunwayCrossingEnd.Nearest(follower, SfoGroundHarness.CrossingRunway, ground.Layout);
+            string end = RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
             Assert.True(ground.Engine.SendCommand(follower.Callsign, $"CROSS {end}").Success, $"'CROSS {end}' was refused");
             TickUntilAtRest(ground, follower, ref enteredCrossing);
         }
@@ -564,7 +611,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         SfoGround restored = RestoreFrom(SnapshotJson(ground), autoCrossMode: AutoCrossRunwayMode.Off);
         List<string> restoredWarnings = CaptureWarnings(restored.Engine, FollowingCallsign);
         AircraftState restoredFollower = Assert.IsType<AircraftState>(restored.Engine.FindAircraft(FollowingCallsign));
-        string end = RunwayCrossingEnd.Nearest(restoredFollower, SfoGroundHarness.CrossingRunway, restored.Layout);
+        string end = RunwayCrossingEnd.Spoken(restoredFollower, SfoGroundHarness.CrossingRunway, restored.Layout, ActiveRunways.Empty);
         Assert.True(restored.Engine.SendCommand(FollowingCallsign, $"CROSS {end}").Success, $"'CROSS {end}' was refused");
         for (int second = 0; second < NearLineRestSeconds; second++)
         {
@@ -631,7 +678,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         {
             // Not cleared across, the follower holds short of the bar; the CROSS given there is held for the traffic.
             Assert.IsType<HoldingShortPhase>(follower.Phases?.CurrentPhase);
-            string end = RunwayCrossingEnd.Nearest(follower, SfoGroundHarness.CrossingRunway, ground.Layout);
+            string end = RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
             Assert.True(ground.Engine.SendCommand(follower.Callsign, $"CROSS {end}").Success, $"'CROSS {end}' was refused");
             restSeconds = TickUntilAtRest(ground, follower, ref enteredCrossing);
         }
@@ -644,7 +691,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         );
         Assert.True(restSeconds >= NearLineRestSeconds, $"{follower.Callsign} never came to rest short of the crossing");
         Assert.True(nosePastFt <= 0.0, $"{follower.Callsign} stopped with its nose {nosePastFt:F1} ft past the near holding-position marking");
-        string runway = RunwayCrossingEnd.Nearest(follower, SfoGroundHarness.CrossingRunway, ground.Layout);
+        string runway = RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
         Assert.Equal([$"Holding short of runway {runway}, traffic ahead"], TrafficAheadCalls(warnings));
 
         Assert.True(ground.Engine.SendCommand(TrafficCallsign, TaxiCommand).Success, $"'{TaxiCommand}' was refused for {TrafficCallsign}");
@@ -652,7 +699,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
         {
             // Holding short of the next runway just ahead, the traffic would still leave the follower no room: clear it across too.
             AircraftState traffic = Assert.IsType<AircraftState>(ground.Engine.FindAircraft(TrafficCallsign));
-            string next = RunwayCrossingEnd.Nearest(traffic, NextRunway, ground.Layout);
+            string next = RunwayCrossingEnd.Spoken(traffic, NextRunway, ground.Layout, ActiveRunways.Empty);
             Assert.True(ground.Engine.SendCommand(TrafficCallsign, $"CROSS {next}").Success, $"'CROSS {next}' was refused for {TrafficCallsign}");
         }
 
@@ -758,7 +805,7 @@ public class RunwayCrossingInTrailTests(ITestOutputHelper output)
             ground.Engine.TickOneSecond();
         }
 
-        string runway = RunwayCrossingEnd.Nearest(follower, SfoGroundHarness.CrossingRunway, ground.Layout);
+        string runway = RunwayCrossingEnd.Spoken(follower, SfoGroundHarness.CrossingRunway, ground.Layout, ActiveRunways.Empty);
         output.WriteLine($"{follower.Callsign} at rest in the crossing from t+{restedAt}: {string.Join(" | ", warnings)}");
         Assert.Equal(giveWay ? HoldKind.GiveWay : null, follower.Ground.Hold?.Kind);
         Assert.IsType<CrossingRunwayPhase>(follower.Phases?.CurrentPhase);

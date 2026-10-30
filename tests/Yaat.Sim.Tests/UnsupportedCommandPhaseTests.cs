@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -49,7 +50,7 @@ public class UnsupportedCommandPhaseTests
         phases.Add(new CrosswindPhase { Waypoints = waypoints });
         phases.Add(new DownwindPhase { Waypoints = waypoints });
         ac.Phases = phases;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         return ac;
     }

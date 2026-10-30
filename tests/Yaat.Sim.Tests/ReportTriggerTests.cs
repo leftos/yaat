@@ -126,6 +126,7 @@ public class ReportTriggerTests
     private static PhaseContext MakePhaseContext(AircraftState ac) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = new ControlTargets(),
             Category = AircraftCategory.Piston,

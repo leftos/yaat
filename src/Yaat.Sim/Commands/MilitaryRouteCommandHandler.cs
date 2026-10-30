@@ -1,6 +1,7 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -313,7 +314,8 @@ public static class MilitaryRouteCommandHandler
         // Clear() rather than nulling Phases: AircraftState.Phases is a plain property, so dropping
         // it skips MilitaryRoutePhase.OnEnd entirely — the VR beacon code would never be restored
         // and the armed block would stay on the strip after the aircraft had left the route.
-        aircraft.Phases?.Clear(CommandDispatcher.BuildMinimalContext(aircraft));
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        aircraft.Phases?.Clear(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty));
         aircraft.Phases = null;
 
         aircraft.Targets.AltitudeFloor = null;

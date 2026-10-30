@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
@@ -589,7 +590,13 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
         string command = commands[^1];
 
         PilotSpeechText spoken = Assert.IsType<PilotSpeechText>(
-            PilotResponder.BuildReadbackAsApplied(CommandParser.ParseCompound(command).Value!, result, aircraft, PilotSpeechContext.Canonical)
+            PilotResponder.BuildReadbackAsApplied(
+                CommandParser.ParseCompound(command).Value!,
+                result,
+                aircraft,
+                PilotSpeechContext.Canonical,
+                ActiveRunways.Empty
+            )
         );
         output.WriteLine($"  spoken \"{spoken.Terminal}\" / \"{spoken.Tts}\"");
         return (Assert.IsType<string>(result.Message), spoken);

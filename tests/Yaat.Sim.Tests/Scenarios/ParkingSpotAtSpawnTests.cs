@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Scenarios;
@@ -105,7 +106,7 @@ public class ParkingSpotAtSpawnTests
         ac.Ground.ParkingSpot = stand.Name;
         ac.Phases = new PhaseList();
         ac.Phases.Add(new AtParkingPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 }

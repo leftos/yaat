@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -362,7 +363,8 @@ public class ApproachClearanceReadbackTests
             CommandParser.ParseCompound(compound).Value!,
             new CommandResult(true, "queued"),
             MakeArrival(altitude: 5000),
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
         Assert.NotNull(readback);
         return readback;
@@ -436,7 +438,8 @@ public class ApproachClearanceReadbackTests
             CommandParser.ParseCompound("DM 30; CAPP ILS28R").Value!,
             new CommandResult(true, "queued"),
             MakeArrival(altitude: 5000),
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
 
         Assert.NotNull(readback);
@@ -451,7 +454,8 @@ public class ApproachClearanceReadbackTests
             CommandParser.ParseCompound("DM 30; CAPP").Value!,
             new CommandResult(true, "queued"),
             MakeArrival(altitude: 5000),
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
 
         Assert.NotNull(readback);

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Phases;
 
@@ -19,6 +20,12 @@ public sealed class PhaseContext
     public RunwayInfo? Runway { get; init; }
     public double FieldElevation { get; init; }
     public AirportGroundLayout? GroundLayout { get; init; }
+
+    /// <summary>
+    /// The room's active runways (<c>SimScenarioState.ActiveRunways</c>), which decide the end a pilot names a runway by
+    /// (<see cref="RunwayCrossingEnd.Spoken"/>); <see cref="ActiveRunways.Empty"/> when the room names none.
+    /// </summary>
+    public required ActiveRunways ActiveRunways { get; init; }
 
     /// <summary>
     /// Lookup function to find other aircraft by callsign.

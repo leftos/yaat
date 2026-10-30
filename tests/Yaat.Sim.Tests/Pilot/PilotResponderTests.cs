@@ -54,7 +54,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("AAL123");
         CompoundCommand compound = Compound(new DescendMaintainCommand(5000));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("descend and maintain five thousand, american one twenty three.", result);
     }
@@ -65,7 +65,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N123AB");
         CompoundCommand compound = Compound(new ClimbMaintainCommand(3500));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.StartsWith("climb and maintain three thousand five hundred, november one two three alpha bravo", result);
     }
@@ -76,7 +76,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("AAL123");
         CompoundCommand compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Contains("descend and maintain five thousand", result!);
         Assert.Contains("turn right heading two seven zero", result);
@@ -98,7 +98,8 @@ public class PilotResponderTests
                     ShortenCallsign = false,
                     GroupContactFrequency = false,
                     CurrentIndicatedAirspeed = null,
-                }
+                },
+                ActiveRunways.Empty
             )
             ?.Tts;
 
@@ -121,7 +122,8 @@ public class PilotResponderTests
                     ShortenCallsign = false,
                     GroupContactFrequency = false,
                     CurrentIndicatedAirspeed = null,
-                }
+                },
+                ActiveRunways.Empty
             )
             ?.Tts;
 
@@ -133,7 +135,7 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("AAL123");
         CompoundCommand compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
-        PilotSpeechText? canonical = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? canonical = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
 
         PilotSpeechText? varied = PilotResponder.BuildReadback(
             compound,
@@ -143,7 +145,8 @@ public class PilotResponderTests
                 ShortenCallsign = false,
                 GroupContactFrequency = false,
                 CurrentIndicatedAirspeed = null,
-            }
+            },
+            ActiveRunways.Empty
         );
 
         Assert.NotNull(canonical);
@@ -159,7 +162,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
         CompoundCommand compound = Compound(new LineUpAndWaitCommand { WithoutDelay = true });
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Contains("line up and wait runway two eight right", result!);
         Assert.Contains("without delay", result);
@@ -171,7 +174,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraftWithAssignedRunway("AAL123", "28R");
         CompoundCommand compound = Compound(new ClearedForTakeoffCommand(new DefaultDeparture()) { Immediate = true });
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Contains("cleared for immediate takeoff runway two eight right", result!);
     }
@@ -184,7 +187,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraftWithAssignedRunway("AAL123", "28R");
         CompoundCommand compound = Compound(new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = true });
 
-        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
 
         Assert.NotNull(result);
         Assert.DoesNotContain("caution wake turbulence", result!.Tts);
@@ -198,7 +201,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraftWithAssignedRunway("AAL123", "28R");
         CompoundCommand compound = Compound(new ClearedToLandCommand { CautionWakeTurbulence = true });
 
-        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
 
         Assert.NotNull(result);
         Assert.DoesNotContain("caution wake turbulence", result!.Tts);
@@ -224,7 +227,8 @@ public class PilotResponderTests
                         ShortenCallsign = false,
                         GroupContactFrequency = false,
                         CurrentIndicatedAirspeed = null,
-                    }
+                    },
+                    ActiveRunways.Empty
                 )
                 ?.Tts;
             string? second = PilotResponder
@@ -236,7 +240,8 @@ public class PilotResponderTests
                         ShortenCallsign = false,
                         GroupContactFrequency = false,
                         CurrentIndicatedAirspeed = null,
-                    }
+                    },
+                    ActiveRunways.Empty
                 )
                 ?.Tts;
 
@@ -256,7 +261,7 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("N004AB");
         CompoundCommand compound = Compound(new SquawkCommand(4521));
-        PilotSpeechText? canonical = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? canonical = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
         Assert.NotNull(canonical);
 
         var picks = new List<int>();
@@ -271,7 +276,8 @@ public class PilotResponderTests
                         ShortenCallsign = false,
                         GroupContactFrequency = false,
                         CurrentIndicatedAirspeed = null,
-                    }
+                    },
+                    ActiveRunways.Empty
                 )
                 ?.Tts;
             int pick = VariantPick.Index(ac.Callsign, canonical.Terminal, second, 1, 100);
@@ -373,7 +379,7 @@ public class PilotResponderTests
     /// </summary>
     private static void AssertQuietFlavors(AircraftState ac, CompoundCommand compound, bool alrightAllowed, bool thanksAllowed)
     {
-        PilotSpeechText? canonical = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? canonical = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
         Assert.NotNull(canonical);
 
         bool alrightPicked = false;
@@ -389,7 +395,8 @@ public class PilotResponderTests
                         ShortenCallsign = false,
                         GroupContactFrequency = false,
                         CurrentIndicatedAirspeed = null,
-                    }
+                    },
+                    ActiveRunways.Empty
                 )
                 ?.Tts;
             int pick = VariantPick.Index(ac.Callsign, canonical.Terminal, second, 1, 100);
@@ -420,7 +427,8 @@ public class PilotResponderTests
                     ShortenCallsign = false,
                     GroupContactFrequency = false,
                     CurrentIndicatedAirspeed = null,
-                }
+                },
+                ActiveRunways.Empty
             )
             ?.Tts;
 
@@ -451,7 +459,11 @@ public class PilotResponderTests
                 .SelectMany(seed =>
                     Enumerable
                         .Range(0, 200)
-                        .Select(second => PilotResponder.BuildReadback(compound, ac, VariedWithSpeed(band, seed, second, indicatedAirspeed))!.Tts)
+                        .Select(second =>
+                            PilotResponder
+                                .BuildReadback(compound, ac, VariedWithSpeed(band, seed, second, indicatedAirspeed), ActiveRunways.Empty)!
+                                .Tts
+                        )
                 ),
         ];
     }
@@ -634,7 +646,7 @@ public class PilotResponderTests
 
         foreach (PilotSpeechContext context in contexts)
         {
-            PilotSpeechText readback = PilotResponder.BuildReadback(parsed.Value!, ac, context)!;
+            PilotSpeechText readback = PilotResponder.BuildReadback(parsed.Value!, ac, context, ActiveRunways.Empty)!;
 
             Assert.Contains($"cross SUNOL {qualifier} 4900 at 250 knots", readback.Terminal, StringComparison.Ordinal);
             Assert.Contains($"cross sunol {qualifier} four thousand nine hundred at two five zero knots", readback.Tts, StringComparison.Ordinal);
@@ -648,7 +660,9 @@ public class PilotResponderTests
         [
             .. Enumerable
                 .Range(0, 200)
-                .Select(second => PilotResponder.BuildReadback(Compound(command), ac, VariedWithSpeed(band, seed, second, null))!.Tts),
+                .Select(second =>
+                    PilotResponder.BuildReadback(Compound(command), ac, VariedWithSpeed(band, seed, second, null), ActiveRunways.Empty)!.Tts
+                ),
         ];
 
     [Theory]
@@ -659,7 +673,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N123AB", isVfr: isVfr);
 
         var command = new ClimbMaintainCommand(4000, AltitudeAssignmentModifier.AtOrAbove);
-        string[] allowed = [PilotResponder.BuildReadback(Compound(command), ac)!.Tts, $"{row}, {SpokenN123AB}, thanks."];
+        string[] allowed = [PilotResponder.BuildReadback(Compound(command), ac, ActiveRunways.Empty)!.Tts, $"{row}, {SpokenN123AB}, thanks."];
 
         List<string> spoken = SpokenOverSeconds(ac, command, FrequencyLoadBand.Quiet, 1);
 
@@ -727,7 +741,7 @@ public class PilotResponderTests
         BuilderVariantSet set = PhraseologyRules.BuilderVariantSets.Single(candidate => candidate.Name == setName);
         (ParsedCommand command, AircraftState ac) = BuilderShape(setName);
 
-        string canonical = PilotResponder.BuildReadback(Compound(command), ac)!.Tts;
+        string canonical = PilotResponder.BuildReadback(Compound(command), ac, ActiveRunways.Empty)!.Tts;
         string body = canonical[..canonical.LastIndexOf($", {SpokenN123AB}.", StringComparison.Ordinal)];
         string pattern = string.Join(' ', set.Pattern);
         string rendered = BuilderCaptures(command, ac) is { } captures
@@ -937,7 +951,7 @@ public class PilotResponderTests
             );
         }
 
-        string tts = PilotResponder.BuildReadback(Compound(command), ac)!.Tts;
+        string tts = PilotResponder.BuildReadback(Compound(command), ac, ActiveRunways.Empty)!.Tts;
         Assert.False(tts.StartsWith("cleared visual", StringComparison.Ordinal), tts);
     }
 
@@ -971,7 +985,7 @@ public class PilotResponderTests
     {
         ParsedCommand command = ParseOne(text);
         AircraftState ac = MakeAircraft("N123AB");
-        string canonical = PilotResponder.BuildReadback(Compound(command), ac)!.Tts;
+        string canonical = PilotResponder.BuildReadback(Compound(command), ac, ActiveRunways.Empty)!.Tts;
         string body = canonical[..canonical.LastIndexOf($", {SpokenN123AB}.", StringComparison.Ordinal)];
 
         IReadOnlyList<string> candidates = PhraseologyVerbalizer.SpokenCandidates(command, ac, band, null);
@@ -1021,7 +1035,7 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("N123AB");
         var command = new ClearedIntoMilitaryRouteCommand("IR111", 11000, AtOrBelow: true);
-        PilotSpeechText canonical = PilotResponder.BuildReadback(Compound(command), ac)!;
+        PilotSpeechText canonical = PilotResponder.BuildReadback(Compound(command), ac, ActiveRunways.Empty)!;
         string canonicalBody = canonical.Tts[..canonical.Tts.LastIndexOf($", {SpokenN123AB}.", StringComparison.Ordinal)];
         Assert.Contains("maintain at or below one one thousand", canonicalBody, StringComparison.Ordinal);
 
@@ -1211,7 +1225,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("AAL123");
         CompoundCommand compound = CompoundWithCondition(AtFixCondition.FromName("SUNOL"), new TurnLeftCommand(new MagneticHeading(180)));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Contains("at sunol, turn left heading one eight zero", result!);
     }
@@ -1226,7 +1240,7 @@ public class PilotResponderTests
             new DescendMaintainCommand(5000)
         );
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         // The first command gets the "at sunol," lead; the second does not (same block).
         Assert.Contains("at sunol, turn left heading one eight zero", result!);
@@ -1240,7 +1254,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("AAL123");
         CompoundCommand compound = Compound(new UnsupportedCommand("ZZZ 999"));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Null(result);
     }
@@ -1258,7 +1272,7 @@ public class PilotResponderTests
         ac.Procedure.DepartureRunway = "28R";
         CompoundCommand compound = Compound(new ClearedForTakeoffCommand(new DirectFixDeparture("MOD", 37.625, -120.957, TurnDirection.Right), 2500));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal(
             "cleared for takeoff runway two eight right, turn right direct Modesto VOR, climb and maintain two thousand five hundred, november four three six mike sierra.",
@@ -1273,7 +1287,7 @@ public class PilotResponderTests
         ac.Procedure.DepartureRunway = "28R";
         CompoundCommand compound = Compound(new ClearedForTakeoffCommand(new RelativeTurnDeparture(270, TurnDirection.Right), 1400));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal(
             "cleared for takeoff runway two eight right, make a right two seventy degree departure, climb and maintain one thousand four hundred, november one seven two sierra papa.",
@@ -1287,7 +1301,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N172SP");
         CompoundCommand compound = Compound(new AcknowledgePilotContactCommand());
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Null(result);
     }
@@ -1307,7 +1321,7 @@ public class PilotResponderTests
             new ClearedTakeoffPresentCommand(new DirectFixDeparture("MOD", 37.625, -120.957, TurnDirection.Right), 2500)
         );
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal(
             "cleared for takeoff, present position, turn right direct Modesto VOR, climb and maintain two thousand five hundred, november four three six mike sierra.",
@@ -1327,7 +1341,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N436MS");
         CompoundCommand compound = Compound(new DirectToCommand([new ResolvedFix("MOD", 37.625, -120.957)], []));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("proceed direct to Modesto VOR, november four three six mike sierra.", result);
     }
@@ -1347,7 +1361,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N172SP");
         CompoundCommand compound = Compound(new DirectToCommand([new ResolvedFix("OAK30NUM", 0, 0), new ResolvedFix("VPMID", 0, 0)], []));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         // Variable-length DCT must read every fix; "then direct" joins later fixes.
         Assert.Equal(
@@ -1369,7 +1383,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N172SP");
         CompoundCommand compound = Compound(new DirectToCommand([new ResolvedFix("VPCOL", 0, 0)], []));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("proceed direct to Oakland Colliseum, november one seven two sierra papa.", result);
     }
@@ -1390,7 +1404,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N172SP");
         CompoundCommand compound = Compound(new DirectToCommand([new ResolvedFix("OAK30NUM", 0, 0)], []));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("proceed direct to Oakland Runway 30 Numbers, november one seven two sierra papa.", result);
     }
@@ -1405,7 +1419,7 @@ public class PilotResponderTests
             new ParsedBlock(null, [new TurnRightCommand(new MagneticHeading(270))]),
         ]);
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("descend and maintain five thousand, then turn right heading two seven zero, american one twenty three.", result);
     }
@@ -1418,7 +1432,7 @@ public class PilotResponderTests
         // Parallel commands stay comma-joined; "then" is sequential-only.
         CompoundCommand compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.DoesNotContain("then", result!);
         Assert.Equal("descend and maintain five thousand, turn right heading two seven zero, american one twenty three.", result);
@@ -1463,7 +1477,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
         CompoundCommand compound = Compound(command);
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal($"{expectedClause}, november four three six mike sierra.", result);
     }
@@ -1479,7 +1493,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
         CompoundCommand compound = Compound(new ClearedForOptionCommand(PatternDirection.Left, "28L", null));
 
-        PilotSpeechText? speech = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? speech = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
 
         Assert.NotNull(speech);
         Assert.Contains("cleared for the option runway 28R, make left traffic runway 28L", speech.Terminal, StringComparison.Ordinal);
@@ -1494,7 +1508,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
         CompoundCommand compound = Compound(new ClearedForOptionCommand(PatternDirection.Left, null, null));
 
-        PilotSpeechText? speech = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? speech = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
 
         Assert.NotNull(speech);
         Assert.Contains("make left traffic", speech.Terminal, StringComparison.Ordinal);
@@ -1511,7 +1525,7 @@ public class PilotResponderTests
         ac.AircraftType = "B77W"; // CWT B -> Heavy
         CompoundCommand compound = Compound(new DescendMaintainCommand(5000));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("descend and maintain five thousand, american one twenty three heavy.", result);
     }
@@ -1523,7 +1537,7 @@ public class PilotResponderTests
         ac.AircraftType = "A388"; // CWT A -> Super
         CompoundCommand compound = Compound(new DescendMaintainCommand(5000));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("descend and maintain five thousand, american one twenty three super.", result);
     }
@@ -1534,7 +1548,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("AAL123"); // B738 default -> Large (CWT F)
         CompoundCommand compound = Compound(new DescendMaintainCommand(5000));
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("descend and maintain five thousand, american one twenty three.", result);
     }
@@ -1679,7 +1693,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraftWithAssignedRunway("N436MS", "08R");
         CompoundCommand compound = Compound(new ClearedToLandCommand());
 
-        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
 
         Assert.NotNull(result);
         // Terminal SAY message: compact runway (no leading zero), no callsign — the SAY column carries it.
@@ -1694,7 +1708,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N225R");
         CompoundCommand compound = Compound(new TaxiCommand(["B", "C", "D"], [], Expedite: false, DestinationRunway: "08R"));
 
-        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
 
         Assert.NotNull(result);
         Assert.Contains("8R", result!.Terminal);
@@ -1719,7 +1733,7 @@ public class PilotResponderTests
             new TaxiCommand(["B", "C"], [HoldShortTarget.Parse("28R")], Expedite: false, DestinationRunway: "28L", CrossRunways: ["10R"])
         );
 
-        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
 
         Assert.NotNull(result);
         Assert.Contains("B C", result!.Terminal);
@@ -1746,7 +1760,8 @@ public class PilotResponderTests
             Compound(issued),
             new CommandResult(true, EffectiveCommand: effective),
             ac,
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
 
         Assert.NotNull(result);
@@ -1763,8 +1778,14 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("AAL436");
         CompoundCommand compound = Compound(new TaxiCommand(["M1", "A"], [], Expedite: false, DestinationRunway: "1R"));
 
-        PilotSpeechText? plain = PilotResponder.BuildReadback(compound, ac, PilotSpeechContext.Canonical);
-        PilotSpeechText? asApplied = PilotResponder.BuildReadbackAsApplied(compound, new CommandResult(true), ac, PilotSpeechContext.Canonical);
+        PilotSpeechText? plain = PilotResponder.BuildReadback(compound, ac, PilotSpeechContext.Canonical, ActiveRunways.Empty);
+        PilotSpeechText? asApplied = PilotResponder.BuildReadbackAsApplied(
+            compound,
+            new CommandResult(true),
+            ac,
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
+        );
 
         Assert.Equal(plain, asApplied);
     }
@@ -1785,7 +1806,8 @@ public class PilotResponderTests
             parsed.Value!,
             new CommandResult(true) { PilotReadback = PushFaceEastReadback },
             ac,
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
 
         Assert.NotNull(result);
@@ -1807,7 +1829,8 @@ public class PilotResponderTests
             parsed.Value!,
             new CommandResult(true) { PilotReadback = PushFaceEastReadback },
             ac,
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
 
         Assert.NotNull(result);
@@ -1835,7 +1858,8 @@ public class PilotResponderTests
                 ),
             },
             ac,
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
 
         Assert.NotNull(result);
@@ -1855,7 +1879,7 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N225R");
         CompoundCommand compound = Compound(new TaxiCommand(["A"], [], Expedite: false, DestinationRunway: "1C"));
 
-        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac);
+        PilotSpeechText? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty);
 
         Assert.NotNull(result);
         Assert.Contains("1C", result!.Terminal);
@@ -1875,7 +1899,7 @@ public class PilotResponderTests
         ac.Phases!.Add(new DownwindPhase());
         CompoundCommand compound = Compound(new ExtendPatternCommand());
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("extend downwind runway two eight right, november three four two tango.", result);
     }
@@ -1888,7 +1912,7 @@ public class PilotResponderTests
         ac.Phases!.Add(new UpwindPhase());
         CompoundCommand compound = Compound(new ExtendPatternCommand());
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("extend upwind runway two eight right, november three four two tango.", result);
     }
@@ -1901,7 +1925,7 @@ public class PilotResponderTests
         ac.Phases!.Add(new CrosswindPhase());
         CompoundCommand compound = Compound(new ExtendPatternCommand());
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("extend crosswind runway two eight right, november three four two tango.", result);
     }
@@ -1914,7 +1938,7 @@ public class PilotResponderTests
         ac.Phases.Add(new DownwindPhase());
         CompoundCommand compound = Compound(new ExtendPatternCommand());
 
-        string? result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
 
         Assert.Equal("extend downwind, november three four two tango.", result);
     }
@@ -2419,8 +2443,16 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("N123AB");
         CompoundCommand compound = Compound(new DescendMaintainCommand(5000));
 
-        PilotSpeechText full = PilotResponder.BuildReadback(compound, ac, PilotSpeechContext.Canonical)!;
-        PilotSpeechText shortened = PilotResponder.BuildReadback(compound, ac, PilotSpeechContext.Canonical with { ShortenCallsign = true })!;
+        PilotSpeechText full = PilotResponder.BuildReadback(compound, ac, PilotSpeechContext.Canonical, ActiveRunways.Empty)!;
+        PilotSpeechText shortened = PilotResponder.BuildReadback(
+            compound,
+            ac,
+            PilotSpeechContext.Canonical with
+            {
+                ShortenCallsign = true,
+            },
+            ActiveRunways.Empty
+        )!;
 
         Assert.EndsWith(", november one two three alpha bravo.", full.Tts);
         Assert.EndsWith(", november three alpha bravo.", shortened.Tts);
@@ -2432,7 +2464,7 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("N123AB");
         PilotSpeechContext shortened = PilotSpeechContext.Canonical with { ShortenCallsign = true };
-        PilotSpeechText readback = PilotResponder.BuildReadback(Compound(new DescendMaintainCommand(5000)), ac, shortened)!;
+        PilotSpeechText readback = PilotResponder.BuildReadback(Compound(new DescendMaintainCommand(5000)), ac, shortened, ActiveRunways.Empty)!;
 
         PilotSpeechText result = PilotResponder.WithBravoClearance(ac, readback, BravoClearanceWording.Into, shortened);
 

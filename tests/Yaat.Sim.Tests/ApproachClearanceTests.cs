@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -406,6 +407,7 @@ public class ApproachClearanceTests
         AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = cat,

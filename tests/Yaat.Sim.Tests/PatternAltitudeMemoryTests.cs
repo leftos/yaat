@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 
@@ -35,7 +36,7 @@ public class PatternAltitudeMemoryTests
         _ = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
         var phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         phases.Add(currentPhase);
-        phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         ac.Phases = phases;
         return ac;
     }
@@ -295,7 +296,7 @@ public class PatternAltitudeMemoryTests
         );
         var phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         phases.Add(new DownwindPhase { Waypoints = waypoints });
-        phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         ac.Phases = phases;
 
         // Changing to 28R (different runway) should clear the altitude override
@@ -343,7 +344,7 @@ public class PatternAltitudeMemoryTests
         );
         var phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         phases.Add(new DownwindPhase { Waypoints = waypoints });
-        phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         ac.Phases = phases;
 
         // Changing direction only (no new runway) should keep the altitude override

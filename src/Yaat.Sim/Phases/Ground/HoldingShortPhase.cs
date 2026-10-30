@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -136,22 +137,28 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     }
 
     /// <summary>
-    /// The runway this bar holds short of as a controller or pilot names it: the end nearest the aircraft when the
-    /// target is a combined centerline id (<c>01R/19L</c> → <c>1R</c>, <see cref="RunwayCrossingEnd.Nearest"/>) —
-    /// which a crossing bar, a departure bar and a runway <c>HS</c> all can carry — and the display designator of
-    /// the target otherwise (<c>1R</c>).
+    /// The runway this bar holds short of as a controller or pilot names it, when the target is a combined centerline id
+    /// (<c>01R/19L</c>) — which a crossing bar, a departure bar and a runway <c>HS</c> all can carry: the aircraft's own
+    /// runway (<see cref="PhaseList.AssignedRunway"/>, when it is this one) by its assigned end, as the departure "ready" call
+    /// names it; any other runway by the end a pilot names it by (<see cref="RunwayCrossingEnd.Spoken"/>: the active end, else
+    /// the nearest). The display designator of the target otherwise (<c>1R</c>).
     /// </summary>
-    public string RunwayEndFacing(AircraftState aircraft) =>
-        (_holdShort.TargetName is { } combined) && combined.Contains('/')
-            ? RunwayCrossingEnd.Nearest(aircraft, combined, aircraft.Ground.Layout)
-            : HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway");
+    public string RunwayEndFacing(AircraftState aircraft, ActiveRunways activeRunways)
+    {
+        if ((_holdShort.TargetName is not { } combined) || !combined.Contains('/'))
+        {
+            return HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway");
+        }
+
+        return (aircraft.Phases?.AssignedRunway is { } assigned) && assigned.Id.Overlaps(RunwayIdentifier.Parse(combined))
+            ? RunwayIdentifier.ToDisplayDesignator(assigned.Designator)
+            : RunwayCrossingEnd.Spoken(aircraft, combined, aircraft.Ground.Layout, activeRunways);
+    }
 
     /// <summary>
-    /// For a runway-crossing hold-short the spoken report names only the single runway end whose
-    /// threshold the aircraft is nearest to (e.g. "runway one five" rather than the combined
-    /// "one five / three three") — the pilot refers to the side it is about to cross
-    /// (<see cref="RunwayCrossingEnd.Nearest"/>, which names the first end when the thresholds cannot be
-    /// resolved). Falls back to <paramref name="displayDesignator"/> (the combined form used on the
+    /// For a runway-crossing hold-short the spoken report names only one end of the runway (e.g. "runway one five" rather than
+    /// the combined "one five / three three"): the end a pilot names it by (<see cref="RunwayCrossingEnd.Spoken"/>: the active
+    /// end, else the nearest; the first end when the thresholds cannot be resolved). Falls back to <paramref name="displayDesignator"/> (the combined form used on the
     /// controller-facing warning) when the hold-short is not a runway crossing.
     /// </summary>
     private string ResolveSpokenCrossingRunway(PhaseContext ctx, string displayDesignator)
@@ -161,7 +168,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             return displayDesignator;
         }
 
-        return RunwayCrossingEnd.Nearest(ctx.Aircraft, combined, ctx.GroundLayout);
+        return RunwayCrossingEnd.Spoken(ctx.Aircraft, combined, ctx.GroundLayout, ctx.ActiveRunways);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -284,7 +291,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     /// </summary>
     private void AnnounceWaitForFollowLead(PhaseContext ctx, string leadCallsign)
     {
-        string runway = RunwayEndFacing(ctx.Aircraft);
+        string runway = RunwayEndFacing(ctx.Aircraft, ctx.ActiveRunways);
         PilotResponder.RouteSoloOrRpoTransmission(
             ctx.Aircraft,
             ctx.SoloTrainingMode,

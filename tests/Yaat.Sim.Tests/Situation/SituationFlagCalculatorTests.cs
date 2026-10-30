@@ -425,7 +425,7 @@ public class SituationFlagCalculatorTests
         ac.Position = OffFinal(runway, 2.0, 0.0);
         ac.TrueHeading = runway.TrueHeading;
         ac.Altitude = 800;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         Assert.True(Assert.IsType<ApproachNavigationPhase>(ac.Phases.CurrentPhase).IsMissedApproach);
         Assert.True(FinalApproachFix.IsInside(ac, runway, OakLayout()));
 
@@ -1137,7 +1137,7 @@ public class SituationFlagCalculatorTests
     {
         AircraftState ac = OnApproachPhase(new GoAroundPhase(), Runway("28R"), OffFinal(Runway("28R"), 0.5, 0));
         ac.Phases!.ActiveApproach = ClearanceFor28R(lateralInterceptOnly: false);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         ac.Phases.Start(ctx);
         ac.Phases.Clear(ctx);
         Assert.Null(ac.Phases.CurrentPhase);

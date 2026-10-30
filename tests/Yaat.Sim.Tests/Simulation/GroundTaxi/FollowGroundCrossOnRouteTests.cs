@@ -838,7 +838,7 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
         List<string> lines = CapturePilotLines(ground, follower);
         ResThenRestHoldingInPosition(ground, follower, leader);
         AssertHoldsShortOfOneRightNotClearOfOneLeft(ground, follower, lines);
-        // The runway ends named are the ends nearest the aircraft; this text changes when an active runway is named by its active end.
+        // With no active runways listed, the ends named are the nearest.
         Assert.Contains("holding short of runway 19L at F, not clear of runway 19R.", lines);
         AssertNoseShortOfOneRight(ground, follower, AircraftLength.ResolveFt(LongFollowerType));
         HoldingInPositionPhase hold = Assert.IsType<HoldingInPositionPhase>(follower.Phases?.CurrentPhase);
@@ -846,6 +846,31 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
         (_, AircraftState restored) = Restored(ground);
         HoldingInPositionPhase restoredHold = Assert.IsType<HoldingInPositionPhase>(restored.Phases?.CurrentPhase);
         Assert.Equal(hold.NotClearReportPositions, restoredHold.NotClearReportPositions);
+    }
+
+    /// <summary>
+    /// <see cref="HoldOnTheFirstOfTwoRunways_ATypeLongerThanTheSpaceBetweenThem_RestsWithItsNoseShortOfTheSecondRunwaysBar"/>
+    /// with SFO landing and departing 1L, 1R, 28L and 28R (<c>ARWY 01L 01R 28L 28R</c>): a pilot names an active runway by its
+    /// active end, so the B744 holding short of 1R/19L with its tail on 1L/19R says "1R" and "1L", not the nearer 19L and 19R.
+    /// </summary>
+    [Fact]
+    public void HoldOnTheFirstOfTwoRunways_ATypeLongerThanTheSpaceBetweenThem_WithOneLeftAndOneRightActive_NamesTheActiveEnds()
+    {
+        if (StageOnOneLeftAlongTheFollowRoute(LongFollowerType) is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, AircraftState leader, TaxiRoute? route) = staged;
+        ground.Engine.Scenario!.ActiveRunways = ActiveRunways.Empty.With(
+            "SFO",
+            [.. new[] { "01L", "01R", "28L", "28R" }.Select(end => new ActiveRunway(end, ActiveRunwayUse.Both))]
+        );
+        _ = HoldOnOneLeft(ground, follower, route);
+        List<string> lines = CapturePilotLines(ground, follower);
+        ResThenRestHoldingInPosition(ground, follower, leader);
+        AssertHoldsShortOfOneRightNotClearOfOneLeft(ground, follower, lines);
+        Assert.Contains("holding short of runway 1R at F, not clear of runway 1L.", lines);
     }
 
     /// <summary>
@@ -1169,11 +1194,35 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
         Assert.Null(clear);
     }
 
+    /// <summary>
+    /// The staging of <see cref="TailInsideRunwayEnd_ATailStillInsideTheRunwayJustCrossed_NamesIt"/> with the follower's own runway
+    /// 19R (the runway it landed on, <see cref="PhaseList.AssignedRunway"/>) and SFO landing 1L (<c>ARWY 01L</c>): the runway it
+    /// is not clear of is named by its own end, 19R, not the active 1L, as the exit's own not-clear call names it.
+    /// </summary>
+    [Fact]
+    public void TailInsideRunwayEnd_OfTheRunwayItLandedOn_WithTheOtherEndActive_NamesItsOwnEnd()
+    {
+        if (StageLateOnOneLeft() is not { } staged)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState follower, _, _) = staged;
+        follower.Phases!.AssignedRunway = Yaat.Sim.Data.NavigationDatabase.Instance.GetRunway("SFO", "19R");
+        ActiveRunways oneLeft = ActiveRunways.Empty.With("SFO", [new ActiveRunway("01L", ActiveRunwayUse.Both)]);
+        string? inside = Assert
+            .IsType<FollowingPhase>(follower.Phases.CurrentPhase)
+            .TailInsideRunwayEnd(CommandDispatcher.BuildMinimalContext(follower, oneLeft, ground.Layout));
+        Output.WriteLine($"tail inside {inside ?? "none"} with 19R assigned and 1L active");
+
+        Assert.Equal("19R", inside);
+    }
+
     /// <summary>The runway <paramref name="follower"/>'s follow would hold not clear of were it broken off where it stands.</summary>
     private static string? TailInsideRunwayEnd(SfoGround ground, AircraftState follower) =>
         Assert
             .IsType<FollowingPhase>(follower.Phases?.CurrentPhase)
-            .TailInsideRunwayEnd(CommandDispatcher.BuildMinimalContext(follower, ground.Layout));
+            .TailInsideRunwayEnd(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty, ground.Layout));
 
     /// <summary>
     /// Stages a <see cref="LongFollowerType"/> following across 1L and 1R, cleared across both, and ticks until its centre is

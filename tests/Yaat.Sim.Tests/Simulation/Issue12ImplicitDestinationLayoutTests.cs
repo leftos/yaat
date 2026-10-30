@@ -226,7 +226,7 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
         phases.Add(new FinalApproachPhase());
         phases.Add(new LandingPhase());
         ac.Phases = phases;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         // Deliberately leave Ground.Layout null — the per-tick resolver must supply it.
         Assert.Null(ac.Ground.Layout);

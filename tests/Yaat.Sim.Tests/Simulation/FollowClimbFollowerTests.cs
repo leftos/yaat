@@ -119,7 +119,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
             ac.Phases.Add(phase);
         }
 
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         PatternWaypoints wp = AirborneFollowHelper.PatternWaypointsOf(ac.Phases.CurrentPhase) ?? throw new InvalidOperationException("no waypoints");
         (LatLon position, TrueHeading heading) = place(wp);
         ac.Position = position;
@@ -155,7 +155,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
                 NextLandingFullStop = true,
             }
         );
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 
@@ -631,7 +631,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
             lead.Phases.Add(phase);
         }
 
-        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead));
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty));
         Phase goAround = follower.Phases!.CurrentPhase!;
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
@@ -1688,7 +1688,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
     /// <summary>Hand the crossing climb over to its transition upwind on 28R, as the climb's completion does.</summary>
     private static UpwindPhase AdvanceToTransitionUpwind(AircraftState ac)
     {
-        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return Assert.IsType<UpwindPhase>(ac.Phases.CurrentPhase);
     }
 
@@ -1712,7 +1712,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
             ac.Phases.Add(phase);
         }
 
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         Assert.IsType<FinalApproachPhase>(ac.Phases.CurrentPhase);
         return ac;
     }
@@ -1897,7 +1897,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
     {
         SimulationEngine engine = BuildEngine();
         AircraftState ac = AddRunwayTransitionClimb(engine, Follower, Oak("33"), 1.0, flownPatternAltitudeFt: null);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
 
         Assert.Equal(AirborneFollowHelper.EntryLegIndex, AirborneFollowHelper.PatternLegIndex(ac));
         AdvanceToTransitionUpwind(ac);
@@ -1930,7 +1930,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         AdvanceToTransitionUpwind(ac);
         double upwindNm = AirborneFollowHelper.SequenceRemainingPathNm(ac, rwy33);
         double flownFrameNm = AirborneFollowHelper.RemainingPatternPathNm(ac, FlownUpwindWaypoints(ac));
-        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases!.AdvanceToNext(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         Assert.IsType<MidfieldCrossingPhase>(ac.Phases.CurrentPhase);
         double crossingNm = AirborneFollowHelper.SequenceRemainingPathNm(ac, rwy33);
         output.WriteLine($"climb {climbNm:F3} nm, upwind {upwindNm:F3} nm, crossing {crossingNm:F3} nm, 28R frame {flownFrameNm:F3} nm");

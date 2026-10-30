@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Speech;
 using Yaat.Sim.Tests.Helpers;
 
@@ -52,14 +53,14 @@ public class ApproachClearanceVariantTests
         CompoundCommand compound = ParseCompound(text);
         CommandResult result = CommandDispatcher.Dispatch(compound.Blocks[0].Commands[0], ac, TestDispatch.Context(new Random(1)));
         Assert.True(result.Success, result.Message);
-        return Sweep(ctx => PilotResponder.BuildReadbackAsApplied(compound, result, ac, ctx), band);
+        return Sweep(ctx => PilotResponder.BuildReadbackAsApplied(compound, result, ac, ctx, ActiveRunways.Empty), band);
     }
 
     /// <summary>The readbacks a varied pilot speaks for a compound with no handler readback (a later block, or no dispatch).</summary>
     private static List<PilotSpeechText> UndispatchedReadbacks(string text, FrequencyLoadBand band, AircraftState ac)
     {
         CompoundCommand compound = ParseCompound(text);
-        return Sweep(ctx => PilotResponder.BuildReadbackAsApplied(compound, new CommandResult(true, "queued"), ac, ctx), band);
+        return Sweep(ctx => PilotResponder.BuildReadbackAsApplied(compound, new CommandResult(true, "queued"), ac, ctx, ActiveRunways.Empty), band);
     }
 
     private static List<PilotSpeechText> Sweep(Func<PilotSpeechContext, PilotSpeechText?> build, FrequencyLoadBand band) =>
@@ -244,7 +245,8 @@ public class ApproachClearanceVariantTests
             ParseCompound("DM 20; CAPP"),
             new CommandResult(true, "queued"),
             ac,
-            PilotSpeechContext.Canonical
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
         );
 
         Assert.NotNull(readback);
@@ -351,7 +353,13 @@ public class ApproachClearanceVariantTests
         ac.Approach.Expected = "I28R";
 
         var queued = new CommandResult(true, "queued");
-        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(ParseCompound(text), queued, ac, PilotSpeechContext.Canonical);
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(
+            ParseCompound(text),
+            queued,
+            ac,
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
+        );
 
         Assert.NotNull(readback);
         Assert.EndsWith("cleared RNAV Z runway 28R approach", readback.Terminal);

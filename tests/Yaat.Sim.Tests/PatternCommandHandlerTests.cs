@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -198,7 +199,7 @@ public class PatternCommandHandlerTests
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(downwind);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
 
@@ -224,7 +225,7 @@ public class PatternCommandHandlerTests
         var upwind = new UpwindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(upwind);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
 
@@ -250,7 +251,7 @@ public class PatternCommandHandlerTests
         var crosswind = new CrosswindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(crosswind);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
 
@@ -275,7 +276,7 @@ public class PatternCommandHandlerTests
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new BasePhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
 
@@ -289,7 +290,7 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft();
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new InitialClimbPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
 
@@ -334,7 +335,7 @@ public class PatternCommandHandlerTests
         }
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(phase);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 
@@ -365,7 +366,7 @@ public class PatternCommandHandlerTests
         {
             ac.Phases.Add(p);
         }
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         phases = ac.Phases;
         return ac;
     }
@@ -479,7 +480,7 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out PhaseList? phases);
         PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         phases.AdvanceToNext(ctx); // upwind -> crosswind
         phases.AdvanceToNext(ctx); // crosswind -> downwind
 
@@ -553,7 +554,7 @@ public class PatternCommandHandlerTests
         {
             ac.Phases.Add(p);
         }
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         phases = ac.Phases;
         return ac;
     }
@@ -616,7 +617,7 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Downwind, out PhaseList? phases);
         PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         phases.AdvanceToNext(ctx); // pattern entry -> downwind
 
         DownwindPhase downwind = Assert.IsType<DownwindPhase>(phases.CurrentPhase);
@@ -666,7 +667,7 @@ public class PatternCommandHandlerTests
         );
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new CrosswindPhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
 
@@ -684,7 +685,7 @@ public class PatternCommandHandlerTests
         PatternWaypoints wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, 2.5, null, null, authoredRunway: null);
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new CrosswindPhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
 
@@ -731,7 +732,7 @@ public class PatternCommandHandlerTests
         var crosswind = new CrosswindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
         ac.Phases.Add(crosswind);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
 
@@ -764,7 +765,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(downwind);
         ac.Phases.Add(basep);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryPatternTurnBase(ac);
 
@@ -778,7 +779,7 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft();
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new UpwindPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryPatternTurnBase(ac);
 
@@ -843,7 +844,7 @@ public class PatternCommandHandlerTests
         ac.Pattern.TrafficDirection = PatternDirection.Right;
         ac.Phases.Add(upwind);
         ac.Phases.Add(new CrosswindPhase { Waypoints = wpRight });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: null, altitudeOverride: null);
 
@@ -886,7 +887,7 @@ public class PatternCommandHandlerTests
         ac.Pattern.TrafficDirection = PatternDirection.Right;
         ac.Phases.Add(new CrosswindPhase { Waypoints = wpRight });
         ac.Phases.Add(new DownwindPhase { Waypoints = wpRight });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: null, altitudeOverride: null);
 
@@ -929,7 +930,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = rwy28R, TrafficDirection = PatternDirection.Right };
         ac.Pattern.TrafficDirection = PatternDirection.Right;
         ac.Phases.Add(new DownwindPhase { Waypoints = wpRight });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: "28L", altitudeOverride: null);
 
@@ -971,7 +972,7 @@ public class PatternCommandHandlerTests
         ac.Pattern.TrafficDirection = PatternDirection.Right;
         ac.Phases.Add(crosswind);
         ac.Phases.Add(new DownwindPhase { Waypoints = wpRight });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         // Sanity: Crosswind.OnStart latched the old (Right) crosswind heading.
         Assert.NotNull(ac.Targets.TargetTrueHeading);
@@ -1038,7 +1039,7 @@ public class PatternCommandHandlerTests
         {
             ac.Phases.Add(p);
         }
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac)); // Takeoff -> Active; Upwind/PatternExit stay Pending
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty)); // Takeoff -> Active; Upwind/PatternExit stay Pending
         return ac;
     }
 
@@ -1063,7 +1064,7 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraftOnDepartureClimb(out UpwindPhase? pendingUpwind, out PatternExitPhase? pendingExit);
         PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(ac, "crosswind");
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         ac.Phases!.AdvanceToNext(ctx); // Takeoff -> Upwind (reaches the leg at ~400 ft AGL in flight)
         Assert.Same(pendingUpwind, ac.Phases.CurrentPhase);
 
@@ -1082,7 +1083,7 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft(altitude: 350, onGround: false);
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new TakeoffPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(ac, "crosswind");
 
@@ -1128,7 +1129,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(downwind);
         ac.Phases.Add(basep);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryMakeTurn(ac, TurnDirection.Left, 360);
 
@@ -1161,7 +1162,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(downwind);
         ac.Phases.Add(basep);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryMakeTurn(ac, TurnDirection.Left, 270);
 
@@ -1196,7 +1197,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(downwind);
         ac.Phases.Add(basep);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryPlan270(ac);
 
@@ -1233,7 +1234,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Right };
         ac.Phases.Add(downwind);
         ac.Phases.Add(basep);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryPlan270(ac);
 
@@ -1255,7 +1256,7 @@ public class PatternCommandHandlerTests
         ac.TrueHeading = wp.BaseHeading;
         ac.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = traffic };
         ac.Phases.Add(new BasePhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryPlan270(ac);
         Assert.True(result.Success, result.Message);
@@ -1266,7 +1267,7 @@ public class PatternCommandHandlerTests
         // The label alone was never enough — the old tests asserted the direction and still shipped
         // the bug. Start the planned turn from the base heading and confirm it rolls out on FINAL,
         // not the reciprocal: a 270 in the pattern's own direction ends 180° off.
-        turn.OnStart(CommandDispatcher.BuildMinimalContext(ac));
+        turn.OnStart(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         double exit = turn.ComputeExitHeading().Degrees;
         double delta = ((exit - wp.FinalHeading.Degrees + 540) % 360) - 180;
         Assert.True(Math.Abs(delta) < 1.0, $"270 must roll out on final {wp.FinalHeading.Degrees:F0}°, got exit {exit:F0}°");
@@ -1278,7 +1279,7 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft();
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new FinalApproachPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryPlan270(ac);
 
@@ -1303,7 +1304,7 @@ public class PatternCommandHandlerTests
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryPlan270(ac);
 
@@ -1329,7 +1330,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Add(new BasePhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         PatternCommandHandler.TryPlan270(ac);
         CommandResult result = PatternCommandHandler.TryPlan270(ac);
@@ -1360,7 +1361,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Add(new BasePhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         // Start a 270 (advances into MakeTurnPhase)
         PatternCommandHandler.TryMakeTurn(ac, TurnDirection.Left, 270);
@@ -1389,7 +1390,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Add(new BasePhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         PatternCommandHandler.TryPlan270(ac);
         Assert.IsType<DownwindPhase>(ac.Phases.CurrentPhase);
@@ -1420,7 +1421,7 @@ public class PatternCommandHandlerTests
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryCancel270(ac);
 
@@ -1448,7 +1449,7 @@ public class PatternCommandHandlerTests
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TrySetPatternSize(
             ac,
@@ -1539,7 +1540,7 @@ public class PatternCommandHandlerTests
         var basep = new BasePhase { Waypoints = wp, FinalDistanceNm = 0.5 };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(basep);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryMakeNormalApproach(ac);
 
@@ -1564,7 +1565,7 @@ public class PatternCommandHandlerTests
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryMakeNormalApproach(ac);
 
@@ -1577,7 +1578,7 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft();
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new FinalApproachPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryMakeNormalApproach(ac);
 
@@ -1634,7 +1635,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Add(new BasePhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = PatternCommandHandler.TryMakeSTurns(ac, TurnDirection.Left, 3);
 
@@ -1665,7 +1666,7 @@ public class PatternCommandHandlerTests
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
         ac.Phases.Add(new BasePhase { Waypoints = wp });
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult sturnResult = PatternCommandHandler.TryMakeSTurns(ac, TurnDirection.Left, 3);
         Assert.True(sturnResult.Success);
@@ -1734,6 +1735,7 @@ public class PatternCommandHandlerTests
         phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,
@@ -1774,6 +1776,7 @@ public class PatternCommandHandlerTests
         phases.Start(
             new PhaseContext
             {
+                ActiveRunways = ActiveRunways.Empty,
                 Aircraft = ac,
                 Targets = ac.Targets,
                 Category = AircraftCategory.Jet,

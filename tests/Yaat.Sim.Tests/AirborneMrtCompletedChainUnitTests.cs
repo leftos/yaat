@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -61,7 +62,7 @@ public class AirborneMrtCompletedChainUnitTests
 
         // Spend the chain: Clear pushes CurrentIndex past the end; stamp Completed to mirror a
         // chain that genuinely ran to completion rather than one that was skipped.
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null);
         aircraft.Phases.Clear(ctx);
         foreach (Phase phase in aircraft.Phases.Phases)
         {
@@ -105,7 +106,7 @@ public class AirborneMrtCompletedChainUnitTests
         // Regardless of whether the handler pre-activated the spliced phase, PhaseRunner must
         // never rewind into the spent prefix on a Pending current phase.
         aircraft.Phases.CurrentPhase!.Status = PhaseStatus.Pending;
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null);
         PhaseRunner.Tick(aircraft, ctx);
 
         Phase? current = aircraft.Phases.CurrentPhase;

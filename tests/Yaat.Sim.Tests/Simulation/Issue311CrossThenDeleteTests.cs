@@ -88,7 +88,7 @@ public class Issue311CrossThenDeleteTests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
 
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
 
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState

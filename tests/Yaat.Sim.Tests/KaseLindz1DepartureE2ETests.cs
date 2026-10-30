@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -84,7 +85,7 @@ public class KaseLindz1DepartureE2ETests
 
         var holding = new HoldingInPositionPhase();
         ac.Phases.Add(holding);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -117,6 +118,7 @@ public class KaseLindz1DepartureE2ETests
         AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = cat,
@@ -225,7 +227,7 @@ public class KaseLindz1DepartureE2ETests
 
         var holding = new HoldingInPositionPhase();
         ac.Phases.Add(holding);
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult cto = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -241,6 +243,7 @@ public class KaseLindz1DepartureE2ETests
         AircraftCategory cat = AircraftCategorization.Categorize(ac.AircraftType);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = cat,

@@ -623,7 +623,7 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
         arrival.Phases.Add(new RunwayExitPhase());
         arrival.Phases.Add(new HoldingAfterExitPhase());
         arrival.Ground.Layout = layout;
-        arrival.Phases.Start(CommandDispatcher.BuildMinimalContext(arrival, layout));
+        arrival.Phases.Start(CommandDispatcher.BuildMinimalContext(arrival, ActiveRunways.Empty, layout));
         landing.CurrentState = LandingPhase.State.Rollout;
         engine.World.AddAircraft(arrival);
         return arrival;
@@ -781,7 +781,7 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
         arrival.Phases.Add(new RunwayExitPhase());
         arrival.Phases.Add(new HoldingAfterExitPhase());
         arrival.Ground.Layout = layout;
-        arrival.Phases.Start(CommandDispatcher.BuildMinimalContext(arrival, layout));
+        arrival.Phases.Start(CommandDispatcher.BuildMinimalContext(arrival, ActiveRunways.Empty, layout));
         landing.CurrentState = LandingPhase.State.Handoff;
         engine.World.AddAircraft(arrival);
     }

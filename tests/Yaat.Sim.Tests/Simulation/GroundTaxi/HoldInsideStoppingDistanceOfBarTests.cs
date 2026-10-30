@@ -1555,8 +1555,8 @@ public class HoldInsideStoppingDistanceOfBarTests
         {
             case Order.Hold:
                 var hold = new HoldGiven(
-                    PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), aircraft),
-                    RunwayCrossingEnd.Nearest(aircraft, CrossedRunway, layout)
+                    PilotResponder.BuildReadback(new([new ParsedBlock(null, [new HoldPositionCommand()])]), aircraft, ActiveRunways.Empty),
+                    RunwayCrossingEnd.Spoken(aircraft, CrossedRunway, layout, ActiveRunways.Empty)
                 );
                 Assert.True(engine.SendCommand(Callsign, "HOLD").Success);
                 return hold;
@@ -1645,7 +1645,7 @@ public class HoldInsideStoppingDistanceOfBarTests
             Phases = new PhaseList(),
         };
         traffic.Phases.Add(new HoldingInPositionPhase());
-        traffic.Phases.Start(CommandDispatcher.BuildMinimalContext(traffic, layout));
+        traffic.Phases.Start(CommandDispatcher.BuildMinimalContext(traffic, ActiveRunways.Empty, layout));
         traffic.Ground.Layout = layout;
         engine.World.AddAircraft(traffic);
 

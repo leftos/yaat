@@ -300,7 +300,7 @@ internal static class TaxiCoverageRunner
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(BuildInitialPhase(pair, origin));
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout);
         aircraft.Phases.Start(startCtx);
         aircraft.Ground.Layout = layout;
         return aircraft;

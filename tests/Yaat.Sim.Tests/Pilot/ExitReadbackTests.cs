@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -35,7 +36,7 @@ public sealed class ExitReadbackTests
     {
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess);
-        PilotSpeechText? result = PilotResponder.BuildReadback(parsed.Value!, Aircraft());
+        PilotSpeechText? result = PilotResponder.BuildReadback(parsed.Value!, Aircraft(), ActiveRunways.Empty);
         Assert.NotNull(result);
         return result!;
     }

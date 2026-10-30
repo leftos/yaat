@@ -486,7 +486,7 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
         lead.TrueHeading = new TrueHeading(staged.LeadHeadingDeg);
         lead.Phases = new PhaseList();
         lead.Phases.Add(new HoldingInPositionPhase());
-        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, layout));
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty, layout));
         follower.Position = OffsetFt(bar.Position, approachDeg, followerBackFt);
         follower.TrueHeading = new TrueHeading((approachDeg + followerHeadingOffDeg) % 360.0);
         var follow = FollowingPhase.FromSnapshot(
@@ -503,7 +503,7 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
         );
         follower.Phases = new PhaseList();
         follower.Phases.Add(follow);
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, layout));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty, layout));
         return new ExitedRun(engine, follower, bar, approachDeg);
     }
 
@@ -550,7 +550,7 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
         lead.TrueHeading = new TrueHeading(towardRunwayDeg);
         lead.Phases = new PhaseList();
         lead.Phases.Add(new HoldingInPositionPhase());
-        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, layout));
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty, layout));
 
         (int Second, string Callsign, string Command)[] script =
         [
@@ -687,7 +687,7 @@ public class FollowGroundBarStopTests(ITestOutputHelper output)
         lead.TrueHeading = new TrueHeading(towardRunwayDeg);
         lead.Phases = new PhaseList();
         lead.Phases.Add(new HoldingInPositionPhase());
-        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, layout));
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty, layout));
         Assert.True(engine.SendCommand(KoakFollowClip.Follower, "CAINH").Success);
         CommandResult follow = engine.SendCommand(KoakFollowClip.Follower, $"FOLLOWG {KoakFollowClip.Lead}");
         Assert.True(follow.Success, follow.Message);

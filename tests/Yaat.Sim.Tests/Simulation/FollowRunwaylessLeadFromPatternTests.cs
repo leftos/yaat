@@ -113,7 +113,7 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
             ac.Phases.Add(phase);
         }
 
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
     }
 
     /// <summary>Follower on the right base to 28R, 2.5 nm out and 1.5 nm right of the centerline, heading for the final.</summary>
@@ -945,7 +945,7 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         );
         follower.Phases.Add(new FinalApproachPhase());
         follower.Phases.Add(new LandingPhase());
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
         Phase? intercept = follower.Phases.CurrentPhase;
         AddLead(engine, OffFinal(rwy, 4.5, 0.5), "DCT VPCBT");
 
@@ -987,7 +987,7 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         );
         follower.Phases.Add(new FinalApproachPhase());
         follower.Phases.Add(new LandingPhase());
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
         follower.Targets.TurnRateOverride = 1.0;
         follower.Targets.HasExplicitTurnRate = true;
 

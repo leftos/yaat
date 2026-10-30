@@ -145,6 +145,7 @@ public class Issue410RejectedTakeoffTests
         AircraftState dep = MakeRollingDeparture(runway, iasKts: 60);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = dep,
             Targets = dep.Targets,
             Category = AircraftCategorization.Categorize(dep.AircraftType),
@@ -559,7 +560,7 @@ public class Issue410RejectedTakeoffTests
         heli.Phases = new PhaseList();
         var takeoff = new HelicopterTakeoffPhase();
         heli.Phases.Add(takeoff);
-        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli));
+        heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, ActiveRunways.Empty));
 
         CommandResult result = DepartureClearanceHandler.TryCancelTakeoff(heli, takeoff, TestDispatch.Context(Random.Shared));
 

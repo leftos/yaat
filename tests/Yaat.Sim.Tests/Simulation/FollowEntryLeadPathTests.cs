@@ -97,7 +97,7 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
     {
         AircraftState ac = MakeAircraft(callsign, at.Type, at.Position);
         ac.Phases = PhasesOf(at.Runway, first.Concat(Circuit(at.Runway, at.Type, leg)));
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 
@@ -469,6 +469,7 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
         double unspacedKts = vref + 20.0;
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = follower,
             Targets = follower.Targets,
             Category = AircraftCategory.Piston,

@@ -77,7 +77,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         Assert.NotNull(layout);
         aircraft.Ground.Layout = layout;
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout);
         aircraft.Phases.Start(ctx);
 
         engine.World.AddAircraft(aircraft);

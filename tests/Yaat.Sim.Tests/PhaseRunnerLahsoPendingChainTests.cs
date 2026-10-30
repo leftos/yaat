@@ -167,7 +167,7 @@ public class PhaseRunnerLahsoPendingChainTests(ITestOutputHelper output)
         aircraft.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Ground.Layout = layout;
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
 
         var engine = new SimulationEngine(GroundData, PushPlanStore.CreateShipped());
         engine.World.AddAircraft(aircraft);

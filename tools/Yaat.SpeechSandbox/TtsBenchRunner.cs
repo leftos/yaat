@@ -6,6 +6,7 @@ using SherpaOnnx;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.SpeechSandbox;
 
@@ -273,7 +274,7 @@ public static class TtsBenchRunner
         {
             return PilotResponder.BuildFrequencyChangeApproved(aircraft, PilotSpeechContext.Canonical).Tts;
         }
-        return PilotResponder.BuildReadback(compound, aircraft)?.Tts;
+        return PilotResponder.BuildReadback(compound, aircraft, ActiveRunways.Empty)?.Tts;
     }
 
     /// <summary>Reads the committed <c>recorded-screens.json</c>; prints and returns null when it is missing or malformed.</summary>

@@ -222,7 +222,7 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
         aircraft.Ground.CurrentTaxiway = "M1";
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         return aircraft;
     }
 

@@ -33,6 +33,7 @@ public class TailOverThePavementBlocksDepartureTests
         AircraftState dep = MakeRollingDeparture(pose.Runway, iasKts: 60);
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = dep,
             Targets = dep.Targets,
             Category = AircraftCategorization.Categorize(dep.AircraftType),

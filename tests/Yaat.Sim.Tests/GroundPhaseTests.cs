@@ -101,6 +101,7 @@ public class GroundPhaseTests
     {
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
@@ -270,7 +271,7 @@ public class GroundPhaseTests
         AircraftState aircraft = MakeGroundAircraft();
         aircraft.IsOnGround = true;
 
-        CommandResult result = GroundCommandHandler.TryHoldPosition(aircraft);
+        CommandResult result = GroundCommandHandler.TryHoldPosition(aircraft, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.True(aircraft.Ground.IsImmobile);
@@ -282,7 +283,7 @@ public class GroundPhaseTests
         AircraftState aircraft = MakeGroundAircraft();
         aircraft.IsOnGround = false;
 
-        CommandResult result = GroundCommandHandler.TryHoldPosition(aircraft);
+        CommandResult result = GroundCommandHandler.TryHoldPosition(aircraft, ActiveRunways.Empty);
 
         Assert.False(result.Success);
         Assert.False(aircraft.Ground.IsImmobile);
@@ -297,7 +298,7 @@ public class GroundPhaseTests
         aircraft.Phases.Add(new FollowingPhase("LEAD01"));
         aircraft.Phases.Start(MakeContext(aircraft));
 
-        CommandResult result = GroundCommandHandler.TryHoldPosition(aircraft);
+        CommandResult result = GroundCommandHandler.TryHoldPosition(aircraft, ActiveRunways.Empty);
 
         Assert.True(result.Success);
         Assert.True(aircraft.Ground.IsImmobile);
@@ -1427,6 +1428,7 @@ public class GroundPhaseTests
 
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
@@ -1492,6 +1494,7 @@ public class GroundPhaseTests
         var phase = new RunwayExitPhase();
         var ctx = new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,

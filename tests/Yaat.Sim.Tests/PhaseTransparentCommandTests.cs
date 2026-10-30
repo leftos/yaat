@@ -55,7 +55,7 @@ public class PhaseTransparentCommandTests
         phases.Add(new CrosswindPhase { Waypoints = waypoints });
         phases.Add(new DownwindPhase { Waypoints = waypoints });
         ac.Phases = phases;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         return ac;
     }
@@ -329,7 +329,7 @@ public class PhaseTransparentCommandTests
             Phases = new PhaseList(),
         };
         ac.Phases.Add(new AtParkingPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return ac;
     }
 

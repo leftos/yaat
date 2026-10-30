@@ -664,7 +664,7 @@ public class FirmRateHoldShortTests(ITestOutputHelper output)
         aircraft.IndicatedAirspeed = 0;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new TaxiingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, placed.Ground.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, placed.Ground.Layout));
         bool rolled = false;
         for (int second = 0; (second < StopWatchSeconds) && !(rolled && (aircraft.GroundSpeed <= StillKts)); second++)
         {
@@ -705,7 +705,7 @@ public class FirmRateHoldShortTests(ITestOutputHelper output)
         aircraft.IndicatedAirspeed = 0;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new TaxiingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, armed.Ground.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, armed.Ground.Layout));
         armed.Ground.Engine.TickOneSecond();
 
         double movedAgainFt = FeetBetween(StopPosition(armed.Route, armed.Bar), movedStop);
@@ -986,7 +986,8 @@ public class FirmRateHoldShortTests(ITestOutputHelper output)
     /// The runway end a HOLD given now is read back as holding on, or null when it is not one
     /// (<see cref="TaxiingPhase.HeldOnRunwayEnd"/>).
     /// </summary>
-    private static string? HeldOnRunwayEnd(AircraftState aircraft) => (aircraft.Phases?.CurrentPhase as TaxiingPhase)?.HeldOnRunwayEnd(aircraft);
+    private static string? HeldOnRunwayEnd(AircraftState aircraft) =>
+        (aircraft.Phases?.CurrentPhase as TaxiingPhase)?.HeldOnRunwayEnd(aircraft, ActiveRunways.Empty);
 
     /// <summary>
     /// How far (ft) from the bar's node the makeable case is issued: the painted stop at the middle of the window
@@ -1853,7 +1854,7 @@ public class FirmRateHoldShortTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, ground.Layout));
         aircraft.IndicatedAirspeed = speedKts;
         aircraft.Ground.Layout = ground.Layout;
         aircraft.Ground.CurrentTaxiway = taxiway;

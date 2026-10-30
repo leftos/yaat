@@ -627,7 +627,7 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
         );
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(run.Lead.Callsign));
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, run.Layout));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty, run.Layout));
         run.Engine.World.AddAircraft(follower);
         List<string> unable = [];
         void Note(string from, string text)
@@ -705,6 +705,7 @@ public class Issue1144FollowHeadOnMergeTests(ITestOutputHelper output)
     private static PhaseContext ContextOf(AircraftState follower, AirportGroundLayout layout) =>
         new()
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = follower,
             Targets = follower.Targets,
             Category = AircraftCategory.Jet,

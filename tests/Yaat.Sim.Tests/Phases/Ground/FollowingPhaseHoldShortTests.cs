@@ -267,7 +267,7 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
         };
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, ground.Layout));
         return aircraft;
     }
 
@@ -280,7 +280,7 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
     {
         FollowingPhase phase = Assert.IsType<FollowingPhase>(aircraft.Phases!.CurrentPhase);
         Assert.True(aircraft.GroundSpeed > 0, "precondition: the bar check only runs on a moving aircraft");
-        phase.OnTick(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        phase.OnTick(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
     }
 
     /// <summary>

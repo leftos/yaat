@@ -1438,7 +1438,7 @@ public class PatternEntryTests : IDisposable
     // nothing to shed and drops straight onto the downwind like a piston.
     // ───────────────────────────────────────────────────────────────────────
 
-    private static PhaseContext MakeContext(AircraftState aircraft) => CommandDispatcher.BuildMinimalContext(aircraft);
+    private static PhaseContext MakeContext(AircraftState aircraft) => CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
 
     [Fact]
     public void WrongSide_Piston_CrossesAtTpa()

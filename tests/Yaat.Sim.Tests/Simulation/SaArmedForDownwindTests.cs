@@ -422,6 +422,7 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
         RunwayInfo rwy = ac.Phases!.AssignedRunway!;
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Piston,

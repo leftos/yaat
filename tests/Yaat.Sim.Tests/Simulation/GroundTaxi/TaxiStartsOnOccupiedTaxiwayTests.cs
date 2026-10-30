@@ -1018,7 +1018,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         RollingRun run = TrackRoll(ground, aircraft, ($"TAXI #{behind.Id} #{beyond.Id}", false), bar, untilLegDone: true);
         output.WriteLine($"said: {string.Join(" | ", unables)}");
         RunwayInfo runway = RunwayOccupancy.AirportRunways(ground.Layout.AirportId).First(r => r.Id.Overlaps(bar.RunwayId!.Value));
-        return (run, unables, RunwayCrossingEnd.Nearest(aircraft, runway.Id.ToString(), ground.Layout));
+        return (run, unables, RunwayCrossingEnd.Spoken(aircraft, runway.Id.ToString(), ground.Layout, ActiveRunways.Empty));
     }
 
     /// <summary>
@@ -1729,7 +1729,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         RollingRun run = TrackRoll(ground, aircraft, (command, false), holdShort, untilLegDone: true);
         output.WriteLine($"said: {string.Join(" | ", unables)}");
         RunwayInfo runway = RunwayOccupancy.AirportRunways(ground.Layout.AirportId).First(r => r.Id.Overlaps(holdShort.RunwayId!.Value));
-        return (run, unables, taxiway, RunwayCrossingEnd.Nearest(aircraft, runway.Id.ToString(), ground.Layout));
+        return (run, unables, taxiway, RunwayCrossingEnd.Spoken(aircraft, runway.Id.ToString(), ground.Layout, ActiveRunways.Empty));
     }
 
     /// <summary>
@@ -3267,7 +3267,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         aircraft.AircraftType = "B738";
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new HoldingAfterPushbackPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, ground.Layout));
         ground.Engine.World.AddAircraft(aircraft);
         return (ground, aircraft);
     }
@@ -3915,7 +3915,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Ground.Layout = layout;
         aircraft.Ground.CurrentTaxiway = taxiway;
         return aircraft;

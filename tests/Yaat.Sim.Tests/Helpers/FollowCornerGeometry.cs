@@ -665,7 +665,7 @@ internal static class FollowCornerGeometry
         AircraftState aircraft = Spawn(AirportId, callsign, "C172", stand.Position, new TrueHeading(0));
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AtParkingPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Ground.Layout = layout;
         return aircraft;
     }
@@ -691,7 +691,7 @@ internal static class FollowCornerGeometry
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new HoldingInPositionPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, null));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, null));
         return aircraft;
     }
 }

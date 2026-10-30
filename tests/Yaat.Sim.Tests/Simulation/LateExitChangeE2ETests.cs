@@ -75,7 +75,7 @@ public class LateExitChangeE2ETests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         aircraft.Ground.Layout = layout;
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout);
         aircraft.Phases.Start(ctx);
         engine.World.AddAircraft(aircraft);
         engine.Scenario = new SimScenarioState

@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -407,7 +408,7 @@ public class WarpCommandTests
         AircraftState ac = MakeGroundAircraft(layout);
         ac.Phases = new PhaseList();
         ac.Phases.Add(new HoldingInPositionPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         Assert.IsType<HoldingInPositionPhase>(ac.Phases.CurrentPhase);
 
         CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", NodeId: 1), layout);
@@ -431,7 +432,7 @@ public class WarpCommandTests
         AircraftState ac = MakeGroundAircraft(layout);
         ac.Phases = new PhaseList();
         ac.Phases.Add(new AtParkingPhase());
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         Assert.IsType<AtParkingPhase>(ac.Phases.CurrentPhase);
 
         CommandResult result = DispatchWarp(ac, new WarpGroundCommand("", "", NodeId: 1), layout);

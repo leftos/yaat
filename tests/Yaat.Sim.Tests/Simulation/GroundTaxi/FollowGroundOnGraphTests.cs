@@ -1209,7 +1209,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new TaxiingPhase());
         setup.Engine.World.AddAircraft(aircraft);
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, setup.Layout));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, setup.Layout));
         return aircraft;
     }
 
@@ -1898,8 +1898,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
             Assert.Equal(1, ranOut);
             string call = Assert.Single(calls);
             output.WriteLine($"SFO B744 run-out call: {call}");
-            string next = RunwayCrossingEnd.Nearest(run.Follower, "01L/19R", setup.Layout);
-            string cleared = RunwayCrossingEnd.Nearest(run.Follower, "01R/19L", setup.Layout);
+            string next = RunwayCrossingEnd.Spoken(run.Follower, "01L/19R", setup.Layout, ActiveRunways.Empty);
+            string cleared = RunwayCrossingEnd.Spoken(run.Follower, "01R/19L", setup.Layout, ActiveRunways.Empty);
             Assert.Equal($"Holding short of runway {next}, not clear of runway {cleared}", call);
             Assert.Empty(lostTraffic);
             return;
@@ -1935,8 +1935,8 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
         ClearingRun run = RunClearingAcross(setup, crossing, ClearingBudgetSeconds, deleteLead: true, leadAheadAfter: null);
 
-        string next = RunwayCrossingEnd.Nearest(run.Follower, "01L/19R", setup.Layout);
-        string cleared = RunwayCrossingEnd.Nearest(run.Follower, "01R/19L", setup.Layout);
+        string next = RunwayCrossingEnd.Spoken(run.Follower, "01L/19R", setup.Layout, ActiveRunways.Empty);
+        string cleared = RunwayCrossingEnd.Spoken(run.Follower, "01R/19L", setup.Layout, ActiveRunways.Empty);
         output.WriteLine($"{studentPosition} solo: {string.Join(" | ", calls)}");
         Assert.Equal([$"Holding short of runway {next}, not clear of runway {cleared}"], calls);
         Assert.Empty(warnings);
@@ -2659,7 +2659,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
 
         leadIn.Follower.Ground.AssignedTaxiRoute = RouteSouthOf28ROnB(leadIn.Layout);
         var follow = new FollowingPhase(LeadCallsign);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(leadIn.Follower, leadIn.Layout);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(leadIn.Follower, ActiveRunways.Empty, leadIn.Layout);
         Assert.True(follow.RefuseLeadInAcrossRunway(ctx, leadIn.Layout, leadIn.Onto), "the way back across 28R was not refused");
         Assert.True(follow.RefuseLeadInAcrossRunway(ctx, leadIn.Layout, leadIn.Onto), "the way back across 28R was not refused again");
         Assert.True(follow.IsUnjoinable, "the refused follow did not latch unjoinable");
@@ -3901,7 +3901,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         follower.Ground.Layout = run.Layout;
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(run.Lead.Callsign));
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, run.Layout));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty, run.Layout));
         run.Engine.World.AddAircraft(follower);
         Assert.IsType<FollowRoutePlan.FollowerAhead>(FollowRoutePlanner.Plan(run.Layout, follower, run.Lead, () => []));
         return new MergeRun(run.Engine, run.Layout, run.Lead, follower);
@@ -3973,7 +3973,7 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
         follower.Ground.Layout = layout;
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase(LeadCallsign));
-        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, layout));
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty, layout));
         engine.World.AddAircraft(follower);
         Assert.IsType<FollowRoutePlan.NoPath>(FollowRoutePlanner.Plan(layout, follower, lead, () => []));
         return new MergeRun(engine, layout, lead, follower);

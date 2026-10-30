@@ -5,6 +5,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -28,6 +29,7 @@ public class CompoundTowerCommandTests
         RunwayInfo? runway = ac.Phases?.AssignedRunway;
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = ac,
             Targets = ac.Targets,
             Category = AircraftCategory.Jet,
@@ -87,7 +89,7 @@ public class CompoundTowerCommandTests
         var phases = new PhaseList { AssignedRunway = rwy };
         phases.Add(new Yaat.Sim.Phases.Pattern.DownwindPhase { Waypoints = waypoints });
         ac.Phases = phases;
-        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         var compound = new CompoundCommand([new ParsedBlock(null, [new EnterFinalCommand("28R"), new ClearedToLandCommand()])]);
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));

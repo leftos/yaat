@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
@@ -269,7 +270,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Phases.Add(new HoldingAfterPushbackPhase());
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, oak));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, oak));
         aircraft.Ground.Layout = oak;
         CompoundCommand compound = ParseCompound("TAXI U W RWY 30");
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, Assert.IsType<TaxiCommand>(compound.Blocks[0].Commands[0]), oak);
@@ -315,7 +316,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
     private void AssertReadbackNames(CompoundCommand compound, CommandResult result, AircraftState aircraft, string[] named, string[] unnamed)
     {
         PilotSpeechText readback = Assert.IsType<PilotSpeechText>(
-            PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, PilotSpeechContext.Canonical)
+            PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, PilotSpeechContext.Canonical, ActiveRunways.Empty)
         );
         output.WriteLine($"{aircraft.Callsign} terminal: {readback.TerminalForRpo}");
         output.WriteLine($"{aircraft.Callsign} tts: {readback.Tts}");

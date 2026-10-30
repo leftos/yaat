@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -221,7 +222,7 @@ public class ControlTargetsSpeedProvenanceTests
     public void ManeuverSpeedBorrow_LeavesControllerProvenanceAlone()
     {
         AircraftState aircraft = WithControllerIssuedSpeed();
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         var maneuver = new MakeTurnPhase { Direction = TurnDirection.Right, TargetDegrees = 360 };
 
         maneuver.OnStart(ctx);
@@ -245,7 +246,7 @@ public class ControlTargetsSpeedProvenanceTests
     public void ManeuverSpeedBorrow_DoesNotManufactureControllerProvenance()
     {
         AircraftState aircraft = AfterDispatch(new SpeedCommand(180), isScenarioScripted: true);
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         var maneuver = new MakeTurnPhase { Direction = TurnDirection.Left, TargetDegrees = 360 };
 
         maneuver.OnStart(ctx);

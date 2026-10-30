@@ -190,7 +190,7 @@ public static class SituationFlagCalculator
     /// <param name="situation">The situation the classifier just computed for this second.</param>
     /// <param name="groundLayout">The aircraft's airport ground layout (<see cref="NeedsGroundLayout"/>); null when none is loaded.</param>
     /// <returns>
-    /// The display designator of the end to name in <c>CROSS</c> (<see cref="RunwayCrossingEnd.Nearest"/>); null when the
+    /// The display designator of the end to name in <c>CROSS</c> (<see cref="RunwayCrossingEnd.Spoken"/>); null when the
     /// next uncleared bar is the departure runway's or a taxiway's, when every bar is cleared, with no taxi route, or in
     /// any other situation.
     /// </returns>
@@ -208,7 +208,8 @@ public static class SituationFlagCalculator
             return null;
         }
 
-        return RunwayCrossingEnd.Nearest(ac, target, groundLayout);
+        // Controller command text, not pilot speech: names the end nearest the aircraft.
+        return RunwayCrossingEnd.Spoken(ac, target, groundLayout, ActiveRunways.Empty);
     }
 
     /// <summary>

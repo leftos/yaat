@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
@@ -373,7 +374,7 @@ public class LateExitChangeTests(ITestOutputHelper output)
 
         aircraft.Phases.RequestedExit = new ExitPreference { Taxiway = AheadTaxiway };
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, aircraft.Ground.Layout!);
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, aircraft.Ground.Layout!);
         phase.OnTick(ctx);
 
         string? afterTick = ((RunwayExitPhaseDto)phase.ToSnapshot()).ExitTaxiway;

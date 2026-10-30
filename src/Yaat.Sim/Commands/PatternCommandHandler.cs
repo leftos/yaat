@@ -6,6 +6,7 @@ using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -754,7 +755,8 @@ internal static class PatternCommandHandler
         // aircraft flying straight ahead with no phase at all — the command must be a no-op when
         // it fails. The same reasoning is why the close-in and retarget gates above fall through
         // rather than rejecting from inside their own blocks.
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Clear(ctx);
 
         (double? circuitSizeOv, double? circuitAltOv) = PatternGeometry.ResolveAuthoredOverrides(
@@ -1023,7 +1025,8 @@ internal static class PatternCommandHandler
         // clears the stale landing clearance, none of which a circuit spliced in here would do.
         if (!aircraft.IsOnGround && aircraft.Phases.CurrentPhase is GoAroundPhase activeGoAround)
         {
-            PhaseContext goAroundCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext goAroundCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout ?? aircraft.Ground.Layout);
             activeGoAround.RetargetForPatternClimbOut(goAroundCtx, (int)(waypoints.PatternAltitude - UpwindPhase.PatternHandoffMarginFt));
             aircraft.Phases.ReplaceUpcoming([]);
 
@@ -1142,7 +1145,12 @@ internal static class PatternCommandHandler
             // rewinds to index 0 and re-runs the completed prefix.
             if (aircraft.Phases.CurrentPhase is { Status: PhaseStatus.Pending } spliced)
             {
-                PhaseContext splicedCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
+                // No route to the room's active runways: this handler is not given the dispatch context.
+                PhaseContext splicedCtx = CommandDispatcher.BuildMinimalContext(
+                    aircraft,
+                    ActiveRunways.Empty,
+                    groundLayout ?? aircraft.Ground.Layout
+                );
                 spliced.Status = PhaseStatus.Active;
                 spliced.OnStart(splicedCtx);
             }
@@ -1632,7 +1640,8 @@ internal static class PatternCommandHandler
     // mid-flight rebuild path.
     private static void ApplyRebuiltPatternChain(AircraftState aircraft, RunwayInfo runway, PatternDirection direction, List<Phase> chain)
     {
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases!.Clear(ctx);
 
         var phases = new PhaseList
@@ -1664,7 +1673,8 @@ internal static class PatternCommandHandler
     {
         if (aircraft.Phases?.CurrentPhase is T)
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.AdvanceToNext(ctx);
             return CommandDispatcher.Ok($"Turn {legName}");
         }
@@ -1693,7 +1703,8 @@ internal static class PatternCommandHandler
     {
         if (aircraft.Phases?.CurrentPhase is DownwindPhase)
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.AdvanceToNext(ctx);
             return CommandDispatcher.Ok("Turn base");
         }
@@ -2099,7 +2110,8 @@ internal static class PatternCommandHandler
             // from its current position. Physics handles the bank — no teleport.
             // Also arm the upcoming Base with the category-floored short final so
             // the descent profile through Base targets the GS intercept altitude.
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             liveDownwind.ApplyShortApproach(ctx);
             if (TryFindNextPendingPhase<BasePhase>(aircraft) is { } pendingBaseLive)
             {
@@ -2154,7 +2166,8 @@ internal static class PatternCommandHandler
     {
         if (aircraft.Phases?.CurrentPhase is DownwindPhase liveDownwind)
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             liveDownwind.RemoveShortApproach(ctx);
             if (TryFindNextPendingPhase<BasePhase>(aircraft) is { } pendingBaseLive)
             {
@@ -2878,7 +2891,8 @@ internal static class PatternCommandHandler
             aircraft.Phases.InsertAfterCurrent(sturnPhase);
         }
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.AdvanceToNext(ctx);
 
         string dirStr = initialDirection == TurnDirection.Left ? "left" : "right";
@@ -2954,7 +2968,8 @@ internal static class PatternCommandHandler
             var standalone = new MakeTurnPhase { Direction = direction, TargetDegrees = degrees };
             aircraft.Phases = new PhaseList();
             aircraft.Phases.Add(standalone);
-            PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Start(startCtx);
             return CommandDispatcher.Ok($"Make {dirStr} {degrees:F0}");
         }
@@ -2976,7 +2991,8 @@ internal static class PatternCommandHandler
             aircraft.Phases.InsertAfterCurrent(turnPhase);
         }
 
-        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.AdvanceToNext(ctx);
 
         return CommandDispatcher.Ok($"Make {dirStr} {degrees:F0}");
@@ -3260,7 +3276,8 @@ internal static class PatternCommandHandler
 
         if (aircraft.Phases is not null)
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Clear(ctx);
             aircraft.Phases = new PhaseList { AssignedRunway = aircraft.Phases.AssignedRunway };
         }
@@ -3270,7 +3287,8 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Phases.Add(phase);
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
 
         string dirStr = orbitDirection switch
@@ -3300,7 +3318,8 @@ internal static class PatternCommandHandler
         RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         if (aircraft.Phases is not null)
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            // No route to the room's active runways: this handler is not given the dispatch context.
+            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Clear(ctx);
         }
 
@@ -3311,7 +3330,8 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Phases.Add(phase);
-        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
 
         string dirStr = orbitDirection switch
@@ -4165,7 +4185,8 @@ internal static class PatternCommandHandler
         }
 
         bool isGaPattern = aircraft.Phases.TrafficDirection is not null;
-        PhaseContext gaCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
+        // No route to the room's active runways: this handler is not given the dispatch context.
+        PhaseContext gaCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout ?? aircraft.Ground.Layout);
 
         // Build MAP phases for instrument approaches without an ATC override — an assigned
         // heading or altitude replaces the published missed approach.
@@ -4508,7 +4529,7 @@ internal static class PatternCommandHandler
         // this must run while AssignedRunway is still A. If already current this is a no-op.
         if (phases.CurrentPhase is not LowApproachPhase)
         {
-            phases.SkipTo<LowApproachPhase>(CommandDispatcher.BuildMinimalContext(aircraft));
+            phases.SkipTo<LowApproachPhase>(CommandDispatcher.BuildMinimalContext(aircraft, ctx.ActiveRunways));
         }
         if (phases.CurrentPhase is not LowApproachPhase lowApproach)
         {
@@ -4633,7 +4654,7 @@ internal static class PatternCommandHandler
             // for ReplaceApproachEnding to swap; install a fresh final + full-stop landing and
             // advance to it. ForceLanding (set below) suppresses the auto-go-around
             // FinalApproachPhase would otherwise re-trigger, driving a touchdown from any energy state.
-            PhaseContext reversalCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+            PhaseContext reversalCtx = CommandDispatcher.BuildMinimalContext(aircraft, ctx.ActiveRunways);
             aircraft.Phases.ReplaceUpcoming([new FinalApproachPhase { SkipInterceptCheck = true }, landing]);
             aircraft.Phases.AdvanceToNext(reversalCtx);
             FlightPhysics.NotifyPhaseAdvanced(aircraft);

@@ -101,6 +101,7 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     {
         return new PhaseContext
         {
+            ActiveRunways = ActiveRunways.Empty,
             Aircraft = aircraft,
             Targets = aircraft.Targets,
             Category = AircraftCategory.Jet,
