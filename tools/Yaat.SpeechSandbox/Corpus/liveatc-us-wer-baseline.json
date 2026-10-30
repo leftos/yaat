@@ -1,0 +1,60 @@
+{
+  "corpus": "liveatc-us",
+  "revision": "",
+  "sha256": "083352824e5c9b794a8544693467cc73ba8a2636df369e8481bc83524f1c8da4",
+  "seed": 1117,
+  "subsetFingerprint": "ca42bbdeeb29797ea3f0408b314b5a357dfc30302b667aab5bfc8a91a7790334",
+  "sttModel": "https://huggingface.co/borisdiakur/whisper-finetuned-for-ATC-ggml/resolve/main/whisper-medium-v3-finetuned-for-ATC-ggml.bin",
+  "arms": [
+    {
+      "prompt": "default",
+      "roles": [
+        {
+          "role": "all",
+          "segments": 106,
+          "referenceWords": 1763,
+          "substitutions": 459,
+          "deletions": 143,
+          "insertions": 88,
+          "wer": 0.39137833238797504
+        },
+        {
+          "role": "unknown",
+          "segments": 106,
+          "referenceWords": 1763,
+          "substitutions": 459,
+          "deletions": 143,
+          "insertions": 88,
+          "wer": 0.39137833238797504
+        }
+      ],
+      "audioSeconds": 558.5040000000004,
+      "wallSeconds": 41.5302639
+    },
+    {
+      "prompt": "none",
+      "roles": [
+        {
+          "role": "all",
+          "segments": 106,
+          "referenceWords": 1763,
+          "substitutions": 466,
+          "deletions": 75,
+          "insertions": 156,
+          "wer": 0.3953488372093023
+        },
+        {
+          "role": "unknown",
+          "segments": 106,
+          "referenceWords": 1763,
+          "substitutions": 466,
+          "deletions": 75,
+          "insertions": 156,
+          "wer": 0.3953488372093023
+        }
+      ],
+      "audioSeconds": 558.5040000000004,
+      "wallSeconds": 31.7375773
+    }
+  ]
+}
