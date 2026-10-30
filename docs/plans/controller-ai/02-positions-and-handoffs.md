@@ -94,6 +94,7 @@ today. Design:
   as a reminder, not a bug).
 - **Deliberately deferred:** promoting crossing requests to a first-class canonical command with a
   proper UI affordance. Do not block v1 on it.
+- **Audible and visible (YAAT-1539):** AI controllers speak with their own TTS voices, and coordination (crossing requests, approvals, completion reports, other coordination) is spoken on an interphone channel as well as shown, so a student, developer or mentor monitoring the room hears two AI controllers coordinate. Design it with CA2 and the per-frequency radio model ([11](11-radio-model.md)).
 
 The RD channels get exercised from CA5 on, when AI radar positions participate in configured
 departure-coordination flows; AI positions honor `RDACK`/`RDAUTO` semantics via decision rules
