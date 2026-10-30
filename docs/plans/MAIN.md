@@ -5,17 +5,17 @@
 ## Do first
 
 - [!] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext — Urgent · Test infrastructure and CI
-- [ ] YAAT-1488 Refresh the pattern waypoints when CM/DM changes the pattern altitude (stale Waypoints.PatternAltitude) · release vNext — High · Traffic pattern and airborne FOLLOW
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext — High · Test infrastructure and CI
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
 - [ ] YAAT-1476 ASDE-X alert parity with vNAS (feat/asdex-safety-logic) · release vNext
   - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext
-  - [/] YAAT-1062 Add the ASDE-X opposite-direction and go-around alerts and their aural tokens · release vNext
-  - [/] YAAT-1065 Restrict the ASDE-X taxiway-landing alert to configured taxiways · release vNext
-  - [/] YAAT-1485 Show GO AROUND on a closed-runway arrival alert restored from a pre-V39 snapshot
   - [ ] YAAT-1486 Merge feat/asdex-safety-logic to main (#1359)
+- [ ] YAAT-1509 Match vNAS's ~58-61 kt rolling edge for ASDE-X runway users (OPP DIR LANDER flip)
+- [ ] YAAT-1510 Probe vNAS: arrival vs an opposite-direction departure still under 50 kt (OPP DIR TAXI then DEPARTURE)
+- [ ] YAAT-1511 Check asdexLandingTaxiways names against the layout; cache the ASDE-X taxiway segments
+- [ ] YAAT-1515 Send only the claimed runway end in an ASDE-X alert's RunwayIds, as vNAS does
 
 ## Pilot phraseology by load (feat/pilot-phraseology-load)
 
@@ -33,7 +33,6 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-624 Find why a solo pilot reports traffic in sight minutes after the traffic call · release vNext
 - [ ] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext
@@ -45,6 +44,7 @@
 - [ ] YAAT-1428 Handle a CTO naming a different runway while holding short of a taxiway (intersection, crossing or query) · release vNext
 - [ ] YAAT-1432 Make a CTO at a taxiway hold short wait for traffic standing on that taxiway (OAK N314WN on E) · release vNext
 - [ ] YAAT-1433 Pass the dispatcher's traffic and active runways into the implicit taxi a CTO at a taxiway hold short issues · release vNext
+- [ ] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer
 
 ## Context-menu quick commands (#471)
 
@@ -186,6 +186,7 @@
 - [ ] YAAT-1506 Rule on the 25-degree oblique stitched runway entry at SFO #358 (AAL436 B20S preset)
 - [ ] YAAT-1507 Rule on a stitched route in and out on the same runway side through two :link edges
 - [ ] YAAT-1508 Synthesise a stand-in far hold bar for an offset crossing whose layout lacks one (943 R8)
+- [ ] YAAT-1514 Census stitched vs direct offset-crossing pairs after YAAT-921; strip :link from the shown current taxiway
 
 ## Runway exits and landing rollout
 
@@ -359,7 +360,7 @@
 
 ## Taxi routing and airport layouts
 
-### 1 Defects (0/32 done)
+### 1 Defects (1/32 done)
 - [ ] YAAT-43 A cleared first taxiway must be driven, or the TAXI refused (SFO M4 M1)
 - [ ] YAAT-44 Confine TryTaxiCore's zero-segment re-route to the ramp
 - [ ] YAAT-60 Fix 33 taxiway routes that reach a runway without a hold-short bar
@@ -370,7 +371,6 @@
 - [ ] YAAT-1354 Check whether a bare TAXI B eastbound on OAK C drives all of B across 28R and 28L without holding short
 - [ ] YAAT-1306 Get SFO's real hold-line positions; unskip the E75L-on-T exit test
 - [ ] YAAT-919 Refuse a taxi detour connector that brings in an unimplied runway crossing (R3)
-- [/] YAAT-921 Treat a runway crossing stitched through :link edges as a crossing · release vNext
 - [ ] YAAT-1243 OAK sidecar: mark S as a non-movement taxilane so a gate taxi implies it
 - [ ] YAAT-409 HS of a taxiway behind the aircraft folds the route back (C A C H at KOAK)
 - [ ] YAAT-489 Record a driving aircraft's trail edge from its route, not a sub-foot fillet tie
@@ -417,6 +417,9 @@
 - [ ] YAAT-949 Close the bare-crossing end's review windows (fillet-arc forks, shared probe ends, twice-crossed runway)
 - [ ] YAAT-1320 Harden the videomap paint pairing: bar length cap, 450 ft cap, solid vs dashed line, marking direction
 - [ ] YAAT-1396 Move the TAXI cut helpers out of GroundCommandHandler into Data/Airport and split ResolveTaxiRouteFrom
+
+### No milestone
+- [ ] YAAT-1516 Point the remaining :link literal checks at GroundEdge.IsRunwayCrossingLinkName
 
 ## Ground commands: grammar and readbacks
 
@@ -666,7 +669,7 @@
 
 ## Traffic pattern and airborne FOLLOW
 
-### 1 Defects (0/25 done)
+### 1 Defects (1/25 done)
 - [ ] YAAT-138 FOLLOW brief B leftovers: downwind return entry, S-turn call, re-clearance
 - [ ] YAAT-139 FOLLOW brief E leftovers: COPT at install, spacing, split VfrFollowPhase
 - [ ] YAAT-142 Clear the follow in GoAroundHelper.Trigger
@@ -710,6 +713,9 @@
 - [ ] YAAT-160 Share AirborneFollowHelper's path loop; name the pattern route constants
 - [ ] YAAT-164 Correct TeardropReentryPhase summary to the threshold abeam point
 - [ ] YAAT-260 Two follow comments cite the wrong AIM paragraph for no cutting in on final
+
+### No milestone
+- [ ] YAAT-1517 Drop a queued teardrop behind an active field crossing once an altitude is assigned
 
 ## Navigation data and route geometry
 
@@ -790,8 +796,7 @@
 - [ ] YAAT-1492 Voice every solo SAY answer, typed or deferred (typed ones are flushed unspoken)
 - [ ] YAAT-1496 Count the controller's instruction in a contact read-back's load band; route CT, FCA and pattern-size read-backs whenever someone answers
 
-### 2 Refinements and rulings (1/11 done)
-- [/] YAAT-1148 Keep pilots from cutting in before a readback; let a second check-in occasionally butt in · release vNext
+### 2 Refinements and rulings (2/11 done)
 - [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording
 - [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range
 - [ ] YAAT-1189 Decide what the simulated tower clears pattern traffic for
@@ -807,6 +812,8 @@
 
 ### No milestone
 - [ ] YAAT-1503 Key the RTIS 'looking' answer before later readbacks; stop the pilot echoing 'report traffic in sight'
+- [ ] YAAT-1512 Tell the sim when the student holds push-to-talk so no pilot keys over them
+- [ ] YAAT-1513 Re-call after an unanswered airborne check-in ('how do you hear')
 
 ## Server: CRC, ERAM, vEDST and rooms
 
