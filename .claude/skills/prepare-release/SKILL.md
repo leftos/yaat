@@ -615,6 +615,16 @@ pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 3600 -Slot 
 
 It dispatches yaat-server's `docker-image.yml`, watches the ~20-minute CI build, and exits without touching the droplet — the live server keeps serving throughout, so no room check is needed yet. (`docker-image.yml` checks `extern/yaat` out at its `client_ref` input, default `main`, at build time, so dispatching immediately after the push is safe.)
 
+**When the CI build fails to start, stalls or GitHub Actions has an open incident**, cancel the run (`gh run cancel <id> --repo leftos/yaat-server`) and build the image on this machine instead. It's the same image, pushed with the same tags:
+
+```bash
+pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 3600 -Slot none -- pwsh deploy-to-droplet.ps1 -BuildImageOnly -BuildImageLocally -ServerRef v{version} -ClientRef v{version}
+```
+
+The outer gate takes no slot; the build inside it takes its own `heavy` slot. It needs the gh token's `write:packages` scope; if that's missing, the script names the `gh auth refresh` command, which goes to the user in a pane.
+
+`gh run watch` can fail on GitHub API 502s while the run itself is fine: check `gh run view <id> --json status,conclusion` before treating a watch failure as a failed build.
+
 **Do not land further commits on yaat main until the deploy finishes** — the image bakes in whatever main holds, and the deploy only auto-publishes the draft release when the deployed client commit *is* the tagged commit. If the build fails, surface it and stop — do not deploy a stale image.
 
 **On a hotfix** the image is built from both repos' `hotfix/v{version}` branches with `extern/yaat` pinned to the yaat tag, which is why 6.3 pushes the server branch first:

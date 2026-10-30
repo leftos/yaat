@@ -119,6 +119,12 @@ A failed or skipped deploy leaves the release as a draft on purpose — publish 
 
 Use the `/prepare-release` skill: it bumps the version, promotes the changelog, drafts highlights, tags, and pushes after approval.
 
+### Building the server image without GitHub Actions
+
+The deploy normally pulls the image yaat-server's `docker-image.yml` builds. When GitHub Actions is down or a run stalls, `deploy-to-droplet.ps1 -BuildImageLocally` builds the same image on this machine with the .NET SDK's container publish, with no Docker engine, and pushes it to ghcr with the same tags. Use it with `-BuildImageOnly`, then deploy with `-SkipCiBuild`, or with a full deploy.
+
+It builds clean worktrees of both repos at `-ServerRef` / `-ClientRef`, so the image carries the tag commits and the publish check passes as it does after a CI build. The gh CLI's token must carry `write:packages` (`gh auth refresh -h github.com -s write:packages`). The tool and its footguns are in [`tools/server-image/README.md`](../tools/server-image/README.md).
+
 ### Moving an unpublished draft to a new commit
 
 A change that must ride into an already-tagged but still-draft release can be retagged cleanly: fold its changelog bullets into the released section, commit, then

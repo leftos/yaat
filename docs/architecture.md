@@ -661,7 +661,7 @@ AGENTS.md                         # Codex project wrapper; points Codex back to 
 tests/CLAUDE.md                   # Test-project Claude guidance: docs/test-harness.md pointer + the singleton-race, YAAT_APPDATA_DIR and xunit.runner.json gotchas (moved out of the root CLAUDE.md).
 Setup-CrcEnvironment.ps1          # Adds YAAT1 to CRC's DevEnvironments.json (-Servers overrides for self-hosted)
 deploy-targets.ps1                # Per-deployment map (DropletIp, ServerPath, ServerUrl, RemoteEnvFile) + Resolve-DeployTarget; dot-sourced by the deploy scripts
-deploy-to-droplet.ps1             # Deploys yaat-server to a droplet (CI-built ghcr image by default; -BuildOnDroplet / -BuildImageOnly variants; -ServerRef/-ClientRef pin a hotfix build to `hotfix/v<version>` and `v<version>` instead of both mains, -ReleaseTag names the tag the publish check compares; the procedure is `prepare-release`'s hotfix path)
+deploy-to-droplet.ps1             # Deploys yaat-server to a droplet (CI-built ghcr image by default; -BuildOnDroplet / -BuildImageOnly variants; -BuildImageLocally builds it here with tools/server-image/; -ServerRef/-ClientRef pin a hotfix build to `hotfix/v<version>` and `v<version>` instead of both mains, -ReleaseTag names the tag the publish check compares; the procedure is `prepare-release`'s hotfix path)
 deploy-release-tag.ps1            # Names the client release tag deploy-to-droplet.ps1's publish check compares against (Resolve-ReleaseTag from -ReleaseTag, -ClientRef or Directory.Build.props); dot-sourced by deploy-to-droplet.ps1, defines functions only
 deploy-secrets.ps1                # Merges yaat-server/.env + .env.<target> over the droplet's env file (key names only printed, timestamped backup, -DryRun)
 deploy-ladd.ps1                   # Ships yaat-server/ladd/ladd.json (FAA LADD block list, restricted) to <ServerPath>/ladd/; -Restart recreates the container
@@ -669,6 +669,7 @@ update-ladd.ps1                   # Monthly LADD routine in one command: fetch-l
                                   # deploy-to-droplet.ps1 -WaitForEmptyRooms -> deploy-ladd.ps1 -Restart; -Zip uses an already-downloaded zip
 swim-slice.ps1                    # Live-traffic repro: copies the SWIM raw-log hours covering -From/-To off the droplet's yaat-swim-raw volume (or -Local) and
                                   # runs yaat-server tools/Yaat.SwimSlice cut [-Artcc [-Facility]]; output under yaat-server/.tmp/swim-slices (FAA data, never shared)
+tools/server-image/               # Builds the yaat-server image with the .NET SDK container publish (no Docker) from clean worktrees and pushes it to ghcr; build.ps1, container.targets (mirrors the Dockerfile's runtime stage), web-apps.proj; README.md
 tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
 tools/build-artcc-boundaries.py   # Downloads the NASR 28-day ARB CSV (or --zip) and writes src/Yaat.Sim/Data/Artcc/ArtccBoundaries.geojson (--strata LOW,HIGH; re-run per cycle)

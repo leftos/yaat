@@ -1,0 +1,22 @@
+<Project>
+  <!--
+    The yaat-server runtime image, as the .NET SDK's PublishContainer builds it. Mirrors the
+    runtime stage of yaat-server's src/Yaat.Server/Dockerfile; build.ps1 imports it into the
+    server's publish through CustomAfterMicrosoftCommonTargets.
+  -->
+  <PropertyGroup>
+    <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0</ContainerBaseImage>
+    <ContainerRegistry>ghcr.io</ContainerRegistry>
+    <ContainerRepository>leftos/yaat-server</ContainerRepository>
+    <!-- The trailing slash matters: the SDK joins it to the entrypoint's assembly name as is. -->
+    <ContainerWorkingDirectory>/app/</ContainerWorkingDirectory>
+    <!-- The Dockerfile image runs as root, and the droplet's /data volumes are owned by root. -->
+    <ContainerUser>root</ContainerUser>
+  </PropertyGroup>
+  <ItemGroup>
+    <ContainerPort Include="5000" Type="tcp" />
+    <ContainerEnvironmentVariable Include="ASPNETCORE_URLS" Value="http://+:5000" />
+    <ContainerEnvironmentVariable Include="YAAT_SERVER_COMMIT" Value="$(YaatServerCommit)" />
+    <ContainerEnvironmentVariable Include="YAAT_CLIENT_COMMIT" Value="$(YaatClientCommit)" />
+  </ItemGroup>
+</Project>

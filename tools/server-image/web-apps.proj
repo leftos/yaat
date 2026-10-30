@@ -1,0 +1,21 @@
+<Project>
+  <!--
+    Publishes the vStrips and vTDLS browser apps side by side in one MSBuild run, so the projects
+    they share build once and the two WebAssembly links overlap. Each app's CopyToServerWwwroot
+    target then copies its bundle into $(YaatServer)/src/Yaat.Server/wwwroot.
+  -->
+  <!-- $(YaatRoot) is the yaat checkout to publish from; build.ps1 passes a clean worktree. -->
+  <ItemGroup>
+    <WebApp Include="$(YaatRoot)\tools\Yaat.VStrips.Web\Yaat.VStrips.Web.csproj" />
+    <WebApp Include="$(YaatRoot)\tools\Yaat.VTdls.Web\Yaat.VTdls.Web.csproj" />
+  </ItemGroup>
+
+  <Target Name="Restore">
+    <MSBuild Projects="@(WebApp)" Targets="Restore" Properties="Configuration=Release;YaatServer=$(YaatServer)" BuildInParallel="true" />
+  </Target>
+
+  <Target Name="Publish">
+    <Error Condition="('$(YaatRoot)' == '') Or ('$(YaatServer)' == '')" Text="Pass -p:YaatRoot=&lt;the yaat checkout&gt; and -p:YaatServer=&lt;the yaat-server checkout&gt;." />
+    <MSBuild Projects="@(WebApp)" Targets="Publish" Properties="Configuration=Release;YaatServer=$(YaatServer);_IsPublishing=true" BuildInParallel="true" />
+  </Target>
+</Project>

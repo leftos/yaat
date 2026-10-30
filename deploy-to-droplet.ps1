@@ -1,6 +1,7 @@
 # Deploy yaat-server to a DigitalOcean droplet
 # Usage: .\deploy-to-droplet.ps1 [-Target <name>] [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
 #        .\deploy-to-droplet.ps1 [-Target <name>] -BuildImageOnly   (build+push the ghcr image in CI, no deploy)
+#        .\deploy-to-droplet.ps1 [-Target <name>] -BuildImageOnly -BuildImageLocally   (build+push it on this machine instead)
 #        .\deploy-to-droplet.ps1 [-Target <name>] -SkipCiBuild [-NoLogs] ...   (deploy the already-built image)
 #        .\deploy-to-droplet.ps1 [-Target <name>] -BuildImageOnly -ServerRef hotfix/v<version> -ClientRef v<version>   (release hotfix, step 1: build)
 #        .\deploy-to-droplet.ps1 [-Target <name>] -SkipCiBuild -NoLogs -ReleaseTag v<version>   (step 2: deploy)
@@ -48,6 +49,14 @@
 #                  front-load the ~20-minute CI build so the deploy decision (and its room-
 #                  occupancy check) can happen right before the actual downtime, not 20 minutes
 #                  earlier. Follow up with a normal deploy passing -SkipCiBuild.
+#
+# -BuildImageLocally  Build the image on this machine instead of in CI: the .NET SDK publishes
+#                  it as a container (tools/server-image/build.ps1, no Docker engine) through the
+#                  gate, from clean worktrees of both repos at -ServerRef / -ClientRef, and pushes
+#                  it to ghcr.io with the same tags as CI. The fallback when GitHub Actions is
+#                  down or slow. Combines with -BuildImageOnly and with a full deploy; needs the gh
+#                  CLI's token to carry write:packages. Refused with -SkipCiBuild, -BuildOnDroplet
+#                  and -RebootOnly.
 #
 # -SkipCiBuild  Skip the CI image-build step and deploy whatever ghcr.io currently holds as
 #               :latest. Only meaningful right after a -BuildImageOnly run (or another deploy)
@@ -130,6 +139,7 @@ param(
   [string]$KillRoom,
   [switch]$BuildImageOnly,
   [switch]$SkipCiBuild,
+  [switch]$BuildImageLocally,
   [string]$ServerRef = "main",
   [string]$ClientRef = "main",
   [string]$ReleaseTag,
@@ -144,6 +154,9 @@ $ErrorActionPreference = "Stop"
 $refsPinned = ($ServerRef -ne "main") -or ($ClientRef -ne "main")
 if ($refsPinned -and ($SkipCiBuild -or $BuildOnDroplet -or $RebootOnly)) {
   throw "-ServerRef/-ClientRef pin the CI image build, which -SkipCiBuild, -BuildOnDroplet and -RebootOnly do not run. Drop the pins or the flag."
+}
+if ($BuildImageLocally -and ($SkipCiBuild -or $BuildOnDroplet -or $RebootOnly)) {
+  throw "-BuildImageLocally replaces the CI image build, which -SkipCiBuild, -BuildOnDroplet and -RebootOnly do not run. Drop one of them."
 }
 
 # The release the post-deploy publish check names, resolved up front so a -ReleaseTag that
@@ -233,7 +246,7 @@ function Test-ServerReachable {
   }
 }
 
-function Invoke-PrepareRestartSessions {
+function Invoke-PrepareRestartSession {
   param([int]$DrainSec)
 
   if (-not $adminPassword) {
@@ -359,7 +372,7 @@ function Invoke-KillRoom {
 # $PollSec seconds, printing the active rooms each check. Returns once the server is empty.
 # A transient query failure (server briefly unreachable) is reported and retried, never
 # treated as "empty" — we only stop when the server affirmatively says roomCount == 0.
-function Invoke-WaitForEmptyRooms {
+function Invoke-WaitForEmptyRoom {
   param([int]$PollSec)
 
   if (-not $adminPassword) {
@@ -422,6 +435,54 @@ function Invoke-CiImageBuild {
     throw "docker-image.yml run $runId failed — inspect with: gh run view $runId --repo $serverRepo --log-failed"
   }
   Write-Host "✓ Image built and pushed to ghcr.io/$serverRepo" -ForegroundColor Green
+}
+
+# A ref the way docker-image.yml reads it: a branch is the remote's tip, anything else (a tag,
+# a commit) as named. Fetches first, so a local build ships what CI would.
+function Resolve-ImageRef([string]$Repo, [string]$Ref) {
+  git -C $Repo fetch --quiet --tags origin
+  if ($LASTEXITCODE -ne 0) { throw "git fetch in $Repo failed (exit $LASTEXITCODE)" }
+  $sha = git -C $Repo rev-parse --verify --quiet "refs/remotes/origin/$Ref^{commit}"
+  if (-not $sha) { $sha = git -C $Repo rev-parse --verify --quiet "$Ref^{commit}" }
+  if (-not $sha) { throw "$Ref names no branch, tag or commit in $Repo" }
+  return $sha.Trim()
+}
+
+# Build the image on this machine with the .NET SDK (tools/server-image/build.ps1, no Docker
+# engine) through the gate, from clean worktrees at -ServerRef / -ClientRef, and push it to
+# ghcr.io as :latest and :<server>-<client> like docker-image.yml. The registry token is the gh
+# CLI's (it needs the write:packages scope), handed to the gate by name so it is never on a
+# command line. Runs before any downtime. Throws on a build or push failure.
+function Invoke-LocalImageBuild {
+  $serverCheckout = Join-Path $PSScriptRoot "..\yaat-server"
+  $serverSha = Resolve-ImageRef $serverCheckout $ServerRef
+  $clientSha = Resolve-ImageRef $PSScriptRoot $ClientRef
+  # docker-image.yml tags with a shallow clone's 7-character short hashes.
+  $tags = "latest,$($serverSha.Substring(0, 7))-$($clientSha.Substring(0, 7))"
+
+  $scopes = (gh auth status 2>&1 | Select-String -Pattern 'Token scopes:' | Select-Object -First 1)
+  if (-not $scopes -or ($scopes.Line -notmatch 'write:packages')) {
+    throw "the gh token lacks the write:packages scope a push needs: run 'gh auth refresh -h github.com -s write:packages'"
+  }
+  $env:SDK_CONTAINER_REGISTRY_UNAME = (gh api user --jq .login).Trim()
+  $env:SDK_CONTAINER_REGISTRY_PWORD = (gh auth token).Trim()
+  Push-Location $PSScriptRoot
+  try {
+    Write-Host "  Building locally (server $ServerRef = $serverSha, client $ClientRef = $clientSha; tags $tags)..." -ForegroundColor Gray
+    pwsh -NoProfile -File (Join-Path $PSScriptRoot "tools\gate.ps1") run --log .tmp/server-image-build.log --timeout 2400 --slot heavy `
+      --env SDK_CONTAINER_REGISTRY_UNAME --env SDK_CONTAINER_REGISTRY_PWORD `
+      -- pwsh -NoProfile -File tools/server-image/build.ps1 -ServerSha $serverSha -ClientSha $clientSha -Tags $tags
+    if ($LASTEXITCODE -ne 0) { throw "the local image build failed (exit $LASTEXITCODE): read .tmp/server-image-build.log" }
+  }
+  finally {
+    Pop-Location
+    Remove-Item Env:SDK_CONTAINER_REGISTRY_PWORD, Env:SDK_CONTAINER_REGISTRY_UNAME -ErrorAction SilentlyContinue
+  }
+  Write-Host "✓ Image built locally and pushed to ghcr.io/$serverRepo" -ForegroundColor Green
+}
+
+function Invoke-ImageBuild {
+  if ($BuildImageLocally) { Invoke-LocalImageBuild } else { Invoke-CiImageBuild }
 }
 
 # Resolve a commit to "shorthash subject" for the Discord status messages, via the GitHub
@@ -498,7 +559,7 @@ function Invoke-DeployRestartPrep {
   }
 
   Send-DiscordStatus -Title "Server restarting for deployment" -Description "``$serverUrl`` is saving active sessions, then updating. Expect $estimatedDowntime of downtime." -Color 16776960
-  $saved = Invoke-PrepareRestartSessions -DrainSec $DrainSeconds
+  $saved = Invoke-PrepareRestartSession -DrainSec $DrainSeconds
   if (-not $saved) {
     Send-DiscordStatus -Title "Server going down for deployment" -Description "``$serverUrl`` is being updated (session save skipped or failed). Expect $estimatedDowntime of downtime." -Color 16776960
   }
@@ -509,6 +570,7 @@ $headerTitle =
   if ($KillRoom) { "YAAT Server: force-close room $KillRoom (no deploy)" }
   elseif ($StatusOnly) { "YAAT Server: active-room status (no deploy)" }
   elseif ($WaitForEmptyRooms) { "YAAT Server: wait for empty rooms (no deploy)" }
+  elseif ($BuildImageOnly -and $BuildImageLocally) { "YAAT Server: local image build only (no deploy)" }
   elseif ($BuildImageOnly) { "YAAT Server: CI image build only (no deploy)" }
   elseif ($RebootOnly) { "YAAT Server Reboot (refresh nav data, no redeploy)" }
   else { "YAAT Server Deployment" }
@@ -543,7 +605,7 @@ function Test-DropletReachable {
 }
 
 # Helper: tail the live server logs until the user detaches with Ctrl-C.
-function Show-ServerLogs {
+function Show-ServerLog {
   Write-Host "Following server logs (Ctrl-C to detach)..." -ForegroundColor Cyan
   Write-Host ""
   # The server's stdout carries Critical lines only; the log is the file on the yaat-logs volume.
@@ -586,7 +648,7 @@ function Invoke-ServerReboot {
   }
   else {
     Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is saving active sessions, then rebooting to refresh nav data. Expect $estimatedDowntime of downtime." -Color 16776960
-    $sessionsSaved = Invoke-PrepareRestartSessions -DrainSec $DrainSeconds
+    $sessionsSaved = Invoke-PrepareRestartSession -DrainSec $DrainSeconds
     if (-not $sessionsSaved) {
       Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is rebooting to refresh nav data (session save skipped or failed). Expect $estimatedDowntime of downtime." -Color 16776960
     }
@@ -654,7 +716,7 @@ if ($StatusOnly) {
 # untouched, so it must not send the "Deployment failed" Discord alert.
 if ($BuildImageOnly) {
   try {
-    Invoke-CiImageBuild
+    Invoke-ImageBuild
     Write-Host ""
     # A release tag named on this run must reach the deploy run too, which takes no pins.
     $releaseTagArg = if ($resolvedRelease.Source -ne "Directory.Build.props") { " -ReleaseTag $($resolvedRelease.Tag)" } else { "" }
@@ -662,20 +724,20 @@ if ($BuildImageOnly) {
     exit 0
   }
   catch {
-    Write-Host "❌ CI image build failed: $_" -ForegroundColor Red
+    Write-Host "❌ Image build failed: $_" -ForegroundColor Red
     exit 1
   }
 }
 
 try {
   if ($WaitForEmptyRooms) {
-    Invoke-WaitForEmptyRooms -PollSec $PollSeconds
+    Invoke-WaitForEmptyRoom -PollSec $PollSeconds
     return
   }
 
   if ($RebootOnly) {
     Invoke-ServerReboot
-    if ($followLogs) { Show-ServerLogs }
+    if ($followLogs) { Show-ServerLog }
     return
   }
 
@@ -731,8 +793,9 @@ try {
       Write-Host "[3/9] Skipping CI image build (-SkipCiBuild) — deploying the current ghcr :latest image..." -ForegroundColor Yellow
     }
     else {
-      Write-Host "[3/9] Building image in CI (server stays up)..." -ForegroundColor Yellow
-      Invoke-CiImageBuild
+      $where = if ($BuildImageLocally) { "locally" } else { "in CI" }
+      Write-Host "[3/9] Building image $where (server stays up)..." -ForegroundColor Yellow
+      Invoke-ImageBuild
     }
 
     Write-Host ""
@@ -813,7 +876,7 @@ try {
   Write-Host "✓ Deployment complete!" -ForegroundColor Green
   Write-Host ""
 
-  if ($followLogs) { Show-ServerLogs }
+  if ($followLogs) { Show-ServerLog }
 }
 catch {
   $failTitle = if ($RebootOnly) { "Reboot failed" } else { "Deployment failed" }
