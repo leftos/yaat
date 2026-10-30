@@ -29,11 +29,38 @@ public sealed class CorpusWerRunnerTests
     {
         string path = Path.Combine(Path.GetTempPath(), "models", "ggml-atc.bin");
 
-        Assert.Equal("ggml-atc.bin", CorpusWerRunner.RecordedModel(path));
+        Assert.Equal("ggml-atc.bin", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Whisper, path)));
     }
 
     [Theory]
     [InlineData("https://huggingface.co/jacktol/whisper/resolve/main/ggml-model.bin")]
     [InlineData("whisper-medium")]
-    public void A_Url_Or_Catalog_Id_Is_Recorded_As_Given(string source) => Assert.Equal(source, CorpusWerRunner.RecordedModel(source));
+    public void A_Url_Or_Catalog_Id_Is_Recorded_As_Given(string source) =>
+        Assert.Equal(source, CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Whisper, source)));
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_Sherpa_Model_Dir_Is_Recorded_As_Sherpa_And_Its_Dir_Name(bool trailingSeparator)
+    {
+        string dir = ModelDir("parakeet-v3-int8", trailingSeparator);
+
+        Assert.Equal("sherpa:parakeet-v3-int8", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Sherpa, dir)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_Streaming_Sherpa_Model_Dir_Is_Recorded_With_Its_Own_Prefix(bool trailingSeparator)
+    {
+        string dir = ModelDir("nemotron-560ms-int8", trailingSeparator);
+
+        Assert.Equal("sherpa-streaming:nemotron-560ms-int8", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.SherpaStreaming, dir)));
+    }
+
+    private static string ModelDir(string name, bool trailingSeparator)
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "models", name);
+        return trailingSeparator ? dir + Path.DirectorySeparatorChar : dir;
+    }
 }

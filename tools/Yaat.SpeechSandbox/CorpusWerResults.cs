@@ -26,7 +26,7 @@ public sealed record CorpusWerArm(string Prompt, IReadOnlyList<CorpusWerRoleTota
 /// <param name="Sha256">The dataset file's hash, or a folder corpus's <see cref="LocalCorpus.Fingerprint"/>.</param>
 /// <param name="Subset">How many segments the run drew; null for every segment.</param>
 /// <param name="SubsetFingerprint">The drawn ids' <see cref="CorpusSubset.Fingerprint"/>.</param>
-/// <param name="SttModel">The <c>--whisper</c> source; a file path is recorded as its file name only.</param>
+/// <param name="SttModel">The <c>--stt</c> engine as <see cref="CorpusSttEngines.RecordedModel"/> records it; never a machine path.</param>
 public sealed record CorpusWerBaseline(
     string Corpus,
     string Revision,

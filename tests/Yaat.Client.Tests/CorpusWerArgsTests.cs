@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Client.Services;
 using Yaat.SpeechSandbox;
 
 namespace Yaat.Client.Tests;
@@ -22,6 +23,13 @@ public sealed class CorpusWerArgsTests : IDisposable
     [InlineData("--subset needs a positive integer", "uwb-atcc", "--subset", "x")]
     [InlineData("--prompt must be default, none or both", "uwb-atcc", "--prompt", "loud")]
     [InlineData("--seed needs a value", "uwb-atcc", "--seed")]
+    [InlineData("--stt kind must be whisper, sherpa or sherpa-streaming", "uwb-atcc", "--stt", "vosk:x")]
+    [InlineData("--stt needs <kind>:<source>", "uwb-atcc", "--stt", "sherpa")]
+    [InlineData("--stt needs <kind>:<source>", "uwb-atcc", "--stt", "sherpa:")]
+    [InlineData("needs a Whisper engine", "uwb-atcc", "--stt", "sherpa:m", "--prompt", "default")]
+    [InlineData("needs a Whisper engine", "uwb-atcc", "--stt", "sherpa:m", "--prompt", "both")]
+    [InlineData("cannot take a sherpa engine", "uwb-atcc", "--stt", "sherpa:m", "--update-baseline")]
+    [InlineData("unrecognised argument '--whisper'", "uwb-atcc", "--whisper", "x")]
     [InlineData("unrecognised argument '--frobnicate'", "uwb-atcc", "--frobnicate")]
     [InlineData("the first argument must be the corpus")]
     [InlineData("the first argument must be the corpus", "--all")]
@@ -62,6 +70,54 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.Null(options.Subset);
         Assert.Equal("mycorpus", options.Corpus);
         Assert.Equal(folder, options.CorpusDir);
+    }
+
+    [Fact]
+    public void A_Sherpa_Engine_Takes_No_Prompt_And_Keeps_Its_Model_Dir()
+    {
+        string modelDir = Path.Combine(Path.GetTempPath(), "models", "parakeet-v3-int8");
+
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs(["uwb-atcc", "--stt", $"sherpa:{modelDir}"]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(["none"], options.Prompts);
+        Assert.Equal(new SttChoice(SttKind.Sherpa, modelDir), options.Stt);
+    }
+
+    [Fact]
+    public void A_Streaming_Sherpa_Engine_With_An_Explicit_None_Prompt_Takes_One_Arm()
+    {
+        string modelDir = Path.Combine(Path.GetTempPath(), "models", "nemotron-560ms-int8");
+
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs(["uwb-atcc", "--stt", $"sherpa-streaming:{modelDir}", "--prompt", "none"]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(["none"], options.Prompts);
+        Assert.Equal(new SttChoice(SttKind.SherpaStreaming, modelDir), options.Stt);
+    }
+
+    [Fact]
+    public void A_Whisper_Url_Source_Survives_Its_First_Colon_And_Keeps_Both_Prompt_Arms()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs(["uwb-atcc", "--stt", "whisper:https://h/m.bin"]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(new SttChoice(SttKind.Whisper, "https://h/m.bin"), options.Stt);
+        Assert.Equal(["default", "none"], options.Prompts);
+    }
+
+    [Fact]
+    public void Uwb_Atcc_Alone_Defaults_To_The_Recommended_Whisper_Model()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs(["uwb-atcc"]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(SttKind.Whisper, options.Stt.Kind);
+        Assert.Equal(LmKitModelCatalog.RecommendedWhisperId, options.Stt.Source);
     }
 
     private string Substitute(string arg) =>
