@@ -4,8 +4,6 @@
 
 ## Do first
 
-- [ ] YAAT-1525 Right-click on a runway (centreline, surface or end) offers taxi-for-departure on it, not only HS/CROSS via a pin · release vNext — Urgent · Context-menu quick commands (#471)
-- [ ] YAAT-1526 Put the hovered target (the one the tooltip names) first in the right-click disambiguation menu · release vNext — Urgent · Context-menu quick commands (#471)
 - [!] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder · release vNext+1 — Urgent · Test infrastructure and CI
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout · release vNext+1 — High · Test infrastructure and CI
 
@@ -73,6 +71,7 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
+- [ ] YAAT-1529 Gate the ground view's runway-threshold click on the markers being drawn (YAAT layout shown)
 
 ## Say again
 
@@ -187,6 +186,8 @@
 - [ ] YAAT-1507 Rule on a stitched route in and out on the same runway side through two :link edges
 - [ ] YAAT-1508 Synthesise a stand-in far hold bar for an offset crossing whose layout lacks one (943 R8)
 - [ ] YAAT-1514 Census stitched vs direct offset-crossing pairs after YAAT-921; strip :link from the shown current taxiway
+- [/] YAAT-1527 FOLLOWG follower held short of 15/33 at C/J reports 28R/10L, and the menu's CROSS 28R takes it off the leader's trail across 28R · release vNext
+- [ ] YAAT-1528 Keep a FOLLOWG follower's CROSS on the lead's trail instead of the shortest crossing from its bar · release vNext
 
 ## Runway exits and landing rollout
 
