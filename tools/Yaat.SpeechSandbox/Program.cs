@@ -50,11 +50,11 @@ namespace Yaat.SpeechSandbox;
 ///     benchmark (<see cref="TtsBenchRunner"/>): renders committed pilot readbacks, times each model in
 ///     <see cref="TtsBenchModels"/> (load, first audio, RTF) and writes the report, results and listening page. Each sherpa-onnx model runs in a
 ///     child process (<c>--tts-bench-one &lt;job.json&gt;</c>, internal), so a native abort costs only that model.</description></item>
-///   <item><description><c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--whisper &lt;src&gt;]
-///     [--prompt default|none|both] [--update-baseline] [--out &lt;dir&gt;]</c> — Whisper word error rate on real
-///     ATC audio (<see cref="CorpusWerRunner"/>): the pinned UWB-ATCC test split, downloaded into the YAAT cache,
-///     or a folder of WAV + transcript pairs; scored per speaker role with and without the biasing prompt, and
-///     compared with the corpus's committed baseline.</description></item>
+///   <item><description><c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--stt &lt;kind&gt;:&lt;source&gt;]
+///     [--prompt default|none|both] [--update-baseline] [--out &lt;dir&gt;]</c> — an STT engine's (<c>--stt</c>) word
+///     error rate on real ATC audio (<see cref="CorpusWerRunner"/>): the pinned UWB-ATCC test split, downloaded
+///     into the YAAT cache, or a folder of WAV + transcript pairs; scored per speaker role (Whisper with and
+///     without the biasing prompt; sherpa engines unprompted), and compared with the corpus's committed baseline.</description></item>
 ///   <item><description>(no args) — launches the GUI sandbox window (App.axaml / MainWindow.axaml).
 ///     Interactive mode for recording, replaying, and iterating on Whisper / LLM prompts.</description></item>
 /// </list>

@@ -10,11 +10,13 @@ using Yaat.Sim.Speech;
 namespace Yaat.SpeechSandbox;
 
 /// <summary>
-/// Word error rate of Whisper on real ATC audio: the pinned UWB-ATCC test split (downloaded into the
-/// YAAT cache) or a local folder of WAV + transcript pairs, transcribed with the production biasing
-/// prompt and without it, pooled per speaker role, and compared with a committed baseline.
+/// Word error rate of one STT engine on real ATC audio: the pinned UWB-ATCC test split (downloaded into
+/// the YAAT cache) or a local folder of WAV + transcript pairs, transcribed through the engine
+/// <c>--stt</c> picks — Whisper with the production biasing prompt and without it, or a sherpa-onnx
+/// transducer export, which takes no prompt — pooled per speaker role, and compared with a committed
+/// baseline.
 ///
-/// Run with <c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--whisper &lt;src&gt;]
+/// Run with <c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--stt &lt;kind&gt;:&lt;source&gt;]
 /// [--prompt default|none|both] [--update-baseline] [--out &lt;dir&gt;]</c>. Writes <c>results.json</c>,
 /// <c>results.jsonl</c> and <c>report.md</c> into the out dir. Exit codes: 0 no regression (or no
 /// baseline), 1 usage error, 2 setup error, 3 regression.
@@ -30,7 +32,7 @@ public static class CorpusWerRunner
     public const int LoadProbeSegments = 10;
 
     private const string Usage =
-        "Usage: Yaat.SpeechSandbox --corpus-wer uwb-atcc|<dir> [--subset N | --all] [--seed S] [--whisper <src>] "
+        "Usage: Yaat.SpeechSandbox --corpus-wer uwb-atcc|<dir> [--subset N | --all] [--seed S] [--stt <kind>:<source>] "
         + "[--prompt default|none|both] [--update-baseline] [--out <dir>]";
 
     private const string LoadFailureHint = "the model probably failed to load (see %LOCALAPPDATA%/yaat/yaat-speech-sandbox.log)";
@@ -52,7 +54,7 @@ public static class CorpusWerRunner
         string? CorpusDir,
         int? Subset,
         int Seed,
-        string Whisper,
+        SttChoice Stt,
         IReadOnlyList<string> Prompts,
         bool UpdateBaseline,
         string OutDir,
@@ -69,8 +71,8 @@ public static class CorpusWerRunner
         public int? Subset { get; set; }
         public bool All { get; set; }
         public int Seed { get; set; } = DefaultSeed;
-        public string Whisper { get; set; } = LmKitModelCatalog.RecommendedWhisperId;
-        public string Prompt { get; set; } = "both";
+        public SttChoice Stt { get; set; } = new(SttKind.Whisper, LmKitModelCatalog.RecommendedWhisperId);
+        public string? Prompt { get; set; }
         public bool UpdateBaseline { get; set; }
         public string? OutDir { get; set; }
     }
@@ -106,8 +108,8 @@ public static class CorpusWerRunner
         }
         Console.WriteLine(LoadedLine(loaded.Segments));
 
-        using var engine = new WhisperSttEngine(new FixedWhisperRuntimeConfig(options.Whisper));
-        string? setupError = WhisperSetupError(engine, options.Whisper);
+        using ICorpusSttEngine engine = CorpusSttEngines.Create(options.Stt);
+        string? setupError = engine.SetupError();
         if (setupError is not null)
         {
             Console.Error.WriteLine($"FATAL: {setupError}");
@@ -123,7 +125,7 @@ public static class CorpusWerRunner
             {
                 int probed = Math.Min(LoadProbeSegments, loaded.Segments.Count);
                 Console.Error.WriteLine(
-                    $"FATAL: Whisper returned no transcript for the first {probed} segments; {LoadFailureHint}: {options.Whisper}"
+                    $"FATAL: {options.Stt.Kind} model {options.Stt.Source} returned no transcript for the first {probed} segments; {LoadFailureHint}"
                 );
                 return AtcOuroborosAnalysis.ExitSetupError;
             }
@@ -139,7 +141,7 @@ public static class CorpusWerRunner
             options.Seed,
             options.Subset,
             subsetFingerprint,
-            RecordedModel(options.Whisper),
+            CorpusSttEngines.RecordedModel(options.Stt),
             arms
         );
         Directory.CreateDirectory(options.OutDir);
@@ -155,16 +157,6 @@ public static class CorpusWerRunner
     /// </summary>
     public static bool LooksLikeLoadFailure(IReadOnlyList<string?> firstHypotheses) =>
         (firstHypotheses.Count > 0) && firstHypotheses.All(h => h is null);
-
-    /// <summary>
-    /// How a <c>--whisper</c> source is recorded in results: a rooted file path as its file name, so
-    /// no machine path reaches a committed baseline; a URL or a catalog id as given.
-    /// </summary>
-    public static string RecordedModel(string source)
-    {
-        bool isUrl = Uri.TryCreate(source, UriKind.Absolute, out Uri? uri) && (uri.Scheme is "http" or "https");
-        return (!isUrl && Path.IsPathRooted(source)) ? Path.GetFileName(source) : source;
-    }
 
     /// <summary>Loads the corpus; null (after printing why) on a download, hash or folder setup failure.</summary>
     private static async Task<LoadedCorpus?> LoadAsync(Options options)
@@ -202,21 +194,6 @@ public static class CorpusWerRunner
         return new LoadedCorpus(segments, UwbAtccCorpus.Revision, UwbAtccCorpus.TestSplit.Sha256);
     }
 
-    /// <summary>
-    /// Why the engine cannot transcribe, or null. A rooted model path that does not exist is caught
-    /// here, since the engine would otherwise fail every segment and score 100% WER.
-    /// </summary>
-    private static string? WhisperSetupError(WhisperSttEngine engine, string modelSource)
-    {
-        if (!engine.IsConfigured)
-        {
-            return "no Whisper model configured — pass --whisper <src>.";
-        }
-        return (Path.IsPathRooted(modelSource) && !File.Exists(modelSource))
-            ? $"Whisper model not configured: the file {modelSource} does not exist."
-            : null;
-    }
-
     private static string LoadedLine(IReadOnlyList<CorpusSegment> segments)
     {
         int Count(CorpusRole role) => segments.Count(s => s.Role == role);
@@ -231,7 +208,7 @@ public static class CorpusWerRunner
     /// arm's first <see cref="LoadProbeSegments"/> segments (or all of them, if fewer) all came back empty.
     /// </summary>
     private static async Task<CorpusWerArm?> RunArmAsync(
-        WhisperSttEngine engine,
+        ICorpusSttEngine engine,
         string prompt,
         IReadOnlyList<CorpusSegment> segments,
         List<CorpusWerSegmentLine> segmentLines
@@ -442,7 +419,7 @@ public static class CorpusWerRunner
             case "--update-baseline":
                 parsed.UpdateBaseline = true;
                 return null;
-            case "--subset" or "--seed" or "--whisper" or "--prompt" or "--out":
+            case "--subset" or "--seed" or "--stt" or "--prompt" or "--out":
                 return (i + 1 < args.Length) ? ApplyValue(parsed, flag, args[++i]) : $"{flag} needs a value";
             default:
                 return $"unrecognised argument '{flag}'";
@@ -457,9 +434,8 @@ public static class CorpusWerRunner
                 return ApplySubset(parsed, value);
             case "--seed":
                 return ApplySeed(parsed, value);
-            case "--whisper":
-                parsed.Whisper = value;
-                return null;
+            case "--stt":
+                return ApplyStt(parsed, value);
             case "--prompt":
                 return ApplyPrompt(parsed, value);
             default:
@@ -488,6 +464,32 @@ public static class CorpusWerRunner
         return null;
     }
 
+    /// <summary>
+    /// Splits <c>&lt;kind&gt;:&lt;source&gt;</c> at the first colon, so a Whisper URL or a sherpa model
+    /// path keeps every colon after the kind.
+    /// </summary>
+    private static string? ApplyStt(ParsedArgs parsed, string value)
+    {
+        int colon = value.IndexOf(':', StringComparison.Ordinal);
+        if ((colon < 0) || (colon == value.Length - 1))
+        {
+            return $"--stt needs <kind>:<source>, got '{value}'";
+        }
+        SttKind? kind = value[..colon] switch
+        {
+            "whisper" => SttKind.Whisper,
+            "sherpa" => SttKind.Sherpa,
+            "sherpa-streaming" => SttKind.SherpaStreaming,
+            _ => null,
+        };
+        if (kind is null)
+        {
+            return $"--stt kind must be whisper, sherpa or sherpa-streaming, got '{value[..colon]}'";
+        }
+        parsed.Stt = new SttChoice(kind.Value, value[(colon + 1)..]);
+        return null;
+    }
+
     private static string? ApplyPrompt(ParsedArgs parsed, string value)
     {
         if (value is not ("default" or "none" or "both"))
@@ -505,9 +507,7 @@ public static class CorpusWerRunner
         {
             return Failed("--subset and --all exclude each other");
         }
-        return TryResolveCorpus(parsed.Corpus, out CorpusChoice? choice, out string? error)
-            ? new ParseResult(ResolveDefaults(parsed, choice), null)
-            : Failed(error);
+        return TryResolveCorpus(parsed.Corpus, out CorpusChoice? choice, out string? error) ? ResolveDefaults(parsed, choice) : Failed(error);
     }
 
     /// <summary>
@@ -539,14 +539,50 @@ public static class CorpusWerRunner
         return true;
     }
 
-    private static Options ResolveDefaults(ParsedArgs parsed, CorpusChoice choice)
+    private static ParseResult ResolveDefaults(ParsedArgs parsed, CorpusChoice choice)
     {
+        if (!TryResolvePrompts(parsed.Prompt, parsed.Stt.TakesPrompt, out string[]? prompts, out string? error))
+        {
+            return Failed(error);
+        }
+        if (parsed.UpdateBaseline && !parsed.Stt.TakesPrompt)
+        {
+            return Failed("--update-baseline writes the shipped Whisper baseline; it cannot take a sherpa engine");
+        }
         int? subset = parsed.All ? null : (parsed.Subset ?? ((choice.Dir is null) ? DefaultUwbSubset : null));
-        string[] prompts = (parsed.Prompt == "both") ? ["default", "none"] : [parsed.Prompt];
         string outDir = Path.GetFullPath(parsed.OutDir ?? DefaultOutDir());
         string? baselinePath =
             (RepoRoot is null) ? null : Path.Combine(RepoRoot, "tools", "Yaat.SpeechSandbox", "Corpus", $"{choice.Name}-wer-baseline.json");
-        return new Options(choice.Name, choice.Dir, subset, parsed.Seed, parsed.Whisper, prompts, parsed.UpdateBaseline, outDir, baselinePath);
+        var options = new Options(choice.Name, choice.Dir, subset, parsed.Seed, parsed.Stt, prompts, parsed.UpdateBaseline, outDir, baselinePath);
+        return new ParseResult(options, null);
+    }
+
+    /// <summary>
+    /// The prompt arms a run takes. Whisper runs the production prompt and the bare model unless one arm
+    /// is asked for; a sherpa transducer takes no prompt, so its single arm is <c>none</c> and asking for
+    /// either prompt arm is an error rather than a flag silently ignored.
+    /// </summary>
+    private static bool TryResolvePrompts(
+        string? prompt,
+        bool takesPrompt,
+        [NotNullWhen(true)] out string[]? prompts,
+        [NotNullWhen(false)] out string? error
+    )
+    {
+        prompts = null;
+        error = null;
+        if (takesPrompt)
+        {
+            prompts = (prompt is null or "both") ? ["default", "none"] : [prompt];
+            return true;
+        }
+        if (prompt is "default" or "both")
+        {
+            error = $"--prompt {prompt} needs a Whisper engine; sherpa engines take no prompt";
+            return false;
+        }
+        prompts = ["none"];
+        return true;
     }
 
     /// <summary>A timestamped folder under the checkout's <c>.tmp/corpus-wer</c>, or the current directory's outside a checkout.</summary>
