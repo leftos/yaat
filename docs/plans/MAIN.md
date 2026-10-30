@@ -195,9 +195,10 @@
 - [ ] YAAT-1540 FOLLOWG HOLD break-off edge cases: no sliceable crossing, tail-suppressed exit, restored set-up pose
 - [ ] YAAT-1541 Measure whether a long aircraft's plain runway crossing stops with its tail on the crossed runway when the next hold short is close (SFO 1L to 1R on F)
 - [ ] YAAT-1542 Keep a wide type's wingtip, not only its nose, short of an angled hold bar when a crossing stops before another runway
-- [ ] YAAT-1543 Name an active runway by its active end in every spoken runway name (SFO 1L/1R active, never 19R/19L) · release vNext
 - [ ] YAAT-1544 Keep a TAXI without CROSS from a spot already past a runway's hold bar from rolling onto that runway (SFO 1R after a late HOLD)
 - [ ] YAAT-1546 Keep a crossing whose HOLD re-plan failed restoring to the same slice as the live run
+- [ ] YAAT-1547 Keep naming a runway by the end the controller typed in the pilot's later reports on that crossing
+- [ ] YAAT-1548 Pick the nearer active end from the crossing's bar, not the aircraft, in a TAXI readback
 
 ## Runway exits and landing rollout
 
@@ -1185,6 +1186,7 @@
 ### No milestone
 - [ ] YAAT-1487 Run yaat-server's prek format hooks through the gate check-only so commits leave the heavy slot (GATE-449)
 - [ ] YAAT-1531 Have bug_bundle.py install register a new fixture with the layout-coverage list and the routing census
+- [ ] YAAT-1549 Make BuildMinimalContext's ground layout argument required
 
 ## Backlog
 
