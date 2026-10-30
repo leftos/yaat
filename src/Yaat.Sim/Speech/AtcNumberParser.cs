@@ -23,6 +23,12 @@ namespace Yaat.Sim.Speech;
 /// </summary>
 public static class AtcNumberParser
 {
+    /// <summary>The longest digit run read as a number; nine digits always fit an <see cref="int"/>.</summary>
+    private const int MaxNumericDigits = 9;
+
+    /// <summary>A flight level has at most three digits (FL600 and below).</summary>
+    private const int MaxFlightLevelDigits = 3;
+
     // ATC uses "niner", "tree", "fife" to disambiguate from "nine", "three", "five" on poor
     // radios. Whisper may transcribe either form, so we accept both. We deliberately do NOT add
     // every Whisper mistranscription (e.g. "diner" for "niner") here — the LLM callsign resolver
@@ -462,7 +468,7 @@ public static class AtcNumberParser
         }
 
         int prefixLen = tokens[start] == "fl" ? 1 : 2;
-        if (!TryReadDigitSequence(tokens, start + prefixLen, out string? digits, out int digitsConsumed))
+        if (!TryReadDigitSequence(tokens, start + prefixLen, out string? digits, out _))
         {
             return false;
         }
@@ -471,8 +477,10 @@ public static class AtcNumberParser
             return false;
         }
 
-        value = int.Parse(digits) * 100;
-        consumed = prefixLen + digitsConsumed;
+        // A flight level is at most three digits; any further digit words start a number of their own.
+        int levelDigits = Math.Min(digits.Length, MaxFlightLevelDigits);
+        value = int.Parse(digits[..levelDigits]) * 100;
+        consumed = prefixLen + levelDigits;
         return true;
     }
 
@@ -487,8 +495,18 @@ public static class AtcNumberParser
             return false;
         }
 
+        if (leadValue.Value is not int leadNumber)
+        {
+            // Too long to be a number a controller says: keep the digits as spoken, with no
+            // multiplier or trailing pair.
+            result = leadValue.DigitString;
+            consumed = leadConsumed;
+            return true;
+        }
+
         int i = start + leadConsumed;
-        int total = leadValue.Value;
+        long total = leadNumber;
+        var pairedDigits = new StringBuilder(leadNumber.ToString());
         int used = leadConsumed;
         bool hasMultiplier = false;
         bool thousandApplied = false;
@@ -503,11 +521,11 @@ public static class AtcNumberParser
             thousandApplied = true;
 
             // Optional "<compound> hundred" suffix, e.g. "five thousand five hundred" → 5500.
-            if (TryReadCompoundValue(tokens, i, out CompoundValue afterThousand, out int atcConsumed))
+            if (TryReadCompoundValue(tokens, i, out CompoundValue afterThousand, out int atcConsumed) && afterThousand.Value is int hundreds)
             {
                 if (i + atcConsumed < tokens.Count && tokens[i + atcConsumed] == "hundred")
                 {
-                    total += afterThousand.Value * 100;
+                    total += hundreds * 100L;
                     i += atcConsumed + 1;
                     used += atcConsumed + 1;
                 }
@@ -552,10 +570,10 @@ public static class AtcNumberParser
                 }
                 else
                 {
-                    // Pair-spoken flight number: shift the existing total left by 2 decimal
-                    // digits and append the pair. Equivalent to digit concatenation: 12 + 34 →
-                    // "1234", 2 + 34 → "234", 1 + 23 + 45 (two iterations) → "12345".
-                    total = (total * 100) + pairValue;
+                    // Pair-spoken flight number: append the pair as two digits. 12 + 34 →
+                    // "1234", 2 + 34 → "234", 1 + 23 + 45 (two iterations) → "12345". Kept as
+                    // text so a long chain from a garbled transmission cannot overflow.
+                    pairedDigits.Append(pairValue.ToString("00"));
                 }
 
                 int advance = pairStart - i + pairConsumed;
@@ -584,7 +602,16 @@ public static class AtcNumberParser
             return true;
         }
 
-        result = total.ToString();
+        if (hasMultiplier)
+        {
+            result = total.ToString();
+        }
+        else
+        {
+            // A "zero" lead ("zero twenty" → 20) drops its leading zero, as the number would.
+            string digits = pairedDigits.ToString().TrimStart('0');
+            result = digits.Length == 0 ? "0" : digits;
+        }
         consumed = used;
         return true;
     }
@@ -703,7 +730,9 @@ public static class AtcNumberParser
 
         if (TryReadDigitSequence(tokens, start, out string? digits, out int digitsConsumed))
         {
-            int value = digits.Length == 0 ? 0 : int.Parse(digits);
+            // A run too long for an int (a garbled or stepped-on transmission) has no numeric value;
+            // it stays a literal digit string.
+            int? value = digits.Length <= MaxNumericDigits ? int.Parse(digits) : null;
             result = new CompoundValue(value, IsPureDigitSequence: true, DigitString: digits);
             consumed = digitsConsumed;
             return digitsConsumed > 0;
@@ -727,5 +756,6 @@ public static class AtcNumberParser
         return consumed > 0;
     }
 
-    private readonly record struct CompoundValue(int Value, bool IsPureDigitSequence, string DigitString);
+    /// <summary>A compound read from the token stream; <see cref="Value"/> is null for a digit run longer than <see cref="MaxNumericDigits"/>.</summary>
+    private readonly record struct CompoundValue(int? Value, bool IsPureDigitSequence, string DigitString);
 }
