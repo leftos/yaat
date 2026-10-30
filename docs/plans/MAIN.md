@@ -10,7 +10,7 @@
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
 - [ ] YAAT-1476 ASDE-X alert parity with vNAS (feat/asdex-safety-logic) · release vNext
-  - [ ] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext
+  - [/] YAAT-1061 Add the ASDE-X converging-runway alerts (two landings; landing against a departure) · release vNext
   - [ ] YAAT-1486 Merge feat/asdex-safety-logic to main (#1359)
 - [ ] YAAT-1509 Match vNAS's ~58-61 kt rolling edge for ASDE-X runway users (OPP DIR LANDER flip)
 - [ ] YAAT-1510 Probe vNAS: arrival vs an opposite-direction departure still under 50 kt (OPP DIR TAXI then DEPARTURE)
@@ -38,12 +38,12 @@
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext
   - [ ] YAAT-1069 Research the public ASDE-X safety-logic documentation · release vNext
 - [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form · release vNext
-- [ ] YAAT-1425 Treat LUAW from a hold short of a taxiway as an implicit taxi onto it to line up at the intersection (OAK HS E, 28R@E) · release vNext
+- [/] YAAT-1425 Treat LUAW from a hold short of a taxiway as an implicit taxi onto it to line up at the intersection (OAK HS E, 28R@E) · release vNext
 - [ ] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP · release vNext
 - [ ] YAAT-1379 Lift a controller crossing speed's ceiling past its fix under a via clearance · release vNext
 - [ ] YAAT-1428 Handle a CTO naming a different runway while holding short of a taxiway (intersection, crossing or query) · release vNext
-- [ ] YAAT-1432 Make a CTO at a taxiway hold short wait for traffic standing on that taxiway (OAK N314WN on E) · release vNext
-- [ ] YAAT-1433 Pass the dispatcher's traffic and active runways into the implicit taxi a CTO at a taxiway hold short issues · release vNext
+- [/] YAAT-1432 Make a CTO at a taxiway hold short wait for traffic standing on that taxiway (OAK N314WN on E) · release vNext
+- [/] YAAT-1433 Pass the dispatcher's traffic and active runways into the implicit taxi a CTO at a taxiway hold short issues · release vNext
 - [ ] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer
 
 ## Context-menu quick commands (#471)
@@ -109,7 +109,6 @@
 - [ ] YAAT-1025 Strip a mangled GA suffix token on the leading callsign path too
 - [ ] YAAT-1117 Add a SpeechSandbox WER test over UWB-ATCC, downloaded at run time
 - [ ] YAAT-1118 Evaluate STT on the ATCO2 1 h test set, local only
-- [ ] YAAT-1440 Recognise spoken "maintain maximum forward speed" as SMAX · release vNext
 
 ## Hold shorts and runway crossings
 
