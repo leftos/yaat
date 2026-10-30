@@ -7,7 +7,7 @@ namespace Yaat.SpeechSandbox;
 /// <summary>
 /// Offline STT probe engine backed by sherpa-onnx's <see cref="OfflineRecognizer"/> with a
 /// NeMo transducer export — built for evaluating NVIDIA Parakeet-TDT against the Whisper
-/// production path (<c>--eval --parakeet &lt;model-dir&gt;</c> / <c>--sherpa-stt</c>).
+/// production path (<c>--eval --stt sherpa:&lt;dir&gt;</c> / <c>--corpus-wer --stt sherpa:&lt;dir&gt;</c>).
 /// Sandbox-only for now: promotion into Yaat.Client happens only if eval results justify a
 /// second production STT engine.
 ///

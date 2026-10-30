@@ -13,7 +13,7 @@ namespace Yaat.Client.Services;
 /// <summary>
 /// Minimal settings surface needed by <see cref="WhisperSttEngine"/> — mirrors
 /// <see cref="ILlmRuntimeConfig"/> so production code passes a <see cref="UserPreferences"/>-backed
-/// adapter while tools (e.g. the speech sandbox's <c>--eval --whisper</c> A/B mode) pass an
+/// adapter while tools (e.g. the speech sandbox's <c>--stt whisper:</c> engine) pass an
 /// explicit model source without touching the user's saved preferences.
 /// </summary>
 public interface IWhisperRuntimeConfig
@@ -354,7 +354,7 @@ public readonly record struct Pcm16Audio(float[] Samples, int SampleRate);
 /// matches what whisper.cpp's own ffmpeg helper produces, so the conversion cost (one multiply +
 /// clamp per sample) is negligible relative to inference and avoids any disk IO on the hot path.
 /// </summary>
-internal static class WavHeader
+public static class WavHeader
 {
     public static MemoryStream WritePcm16(float[] samples, int sampleRate)
     {

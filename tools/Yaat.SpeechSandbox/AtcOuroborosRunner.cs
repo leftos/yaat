@@ -67,7 +67,7 @@ public static class AtcOuroborosRunner
             return AtcOuroborosAnalysis.ExitSetupError;
         }
 
-        using var pipeline = EvalPipeline.Create(whisperOverride: null, parakeetDir: null, noBiasingPrompt: false);
+        using var pipeline = EvalPipeline.Create(null, noBiasingPrompt: false);
         EvalRunner.PrintModels(pipeline);
         if (pipeline.SetupError is not null)
         {

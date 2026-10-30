@@ -16,7 +16,14 @@ public sealed record CorpusWerRoleTotals(string Role, int Segments, int Referenc
 
 /// <summary>One prompt arm of a run: per-role totals (<c>all</c> first), the audio it transcribed and the wall time it took.</summary>
 /// <param name="Prompt"><c>default</c> (the production biasing prompt) or <c>none</c>.</param>
-public sealed record CorpusWerArm(string Prompt, IReadOnlyList<CorpusWerRoleTotals> Roles, double AudioSeconds, double WallSeconds);
+/// <param name="NoTranscript">
+/// Segments the engine returned no transcript for, scored as empty; 0 when a results document predates the field.
+/// </param>
+public sealed record CorpusWerArm(string Prompt, IReadOnlyList<CorpusWerRoleTotals> Roles, double AudioSeconds, double WallSeconds, int NoTranscript)
+{
+    /// <summary>The console and report line naming the segments without a transcript.</summary>
+    public string NoTranscriptLine() => $"{Prompt}: {NoTranscript} of {Roles[0].Segments} segments returned no transcript";
+}
 
 /// <summary>
 /// The <c>results.json</c> of one <c>--corpus-wer</c> run, and the shape of a committed baseline.
