@@ -125,6 +125,15 @@ The deploy normally pulls the image yaat-server's `docker-image.yml` builds. Whe
 
 It builds clean worktrees of both repos at `-ServerRef` / `-ClientRef`, so the image carries the tag commits and the publish check passes as it does after a CI build. The gh CLI's token must carry `write:packages` (`gh auth refresh -h github.com -s write:packages`). The tool and its footguns are in [`tools/server-image/README.md`](../tools/server-image/README.md).
 
+### Releasing without GitHub Actions
+
+When `release.yml` and `release-macos.yml` can't run, `tools/release-local/release.ps1 -Tag v<version>` builds the same release from this PC through the gate:
+- **Windows and Linux** build on the Windows builder; vpk cross-packs the AppImage.
+- **macOS** builds on `builder@mac-mini`, signed with Developer ID and notarized.
+- **The draft** gets the same assets under the same names, and the same body: `release.yml` and the script share `tools/release-local/release-notes.sh`.
+
+Publishing stays as above. The script refuses a run when a release of that name already exists, so cancel the hosted runs and delete their draft first. The Intel smoke test is reduced to its static x86_64 slice check, since the mac-mini is Apple Silicon. The tool, its secrets and its footguns are in [`tools/release-local/README.md`](../tools/release-local/README.md).
+
 ### Moving an unpublished draft to a new commit
 
 A change that must ride into an already-tagged but still-draft release can be retagged cleanly: fold its changelog bullets into the released section, commit, then

@@ -669,6 +669,7 @@ update-ladd.ps1                   # Monthly LADD routine in one command: fetch-l
                                   # deploy-to-droplet.ps1 -WaitForEmptyRooms -> deploy-ladd.ps1 -Restart; -Zip uses an already-downloaded zip
 swim-slice.ps1                    # Live-traffic repro: copies the SWIM raw-log hours covering -From/-To off the droplet's yaat-swim-raw volume (or -Local) and
                                   # runs yaat-server tools/Yaat.SwimSlice cut [-Artcc [-Facility]]; output under yaat-server/.tmp/swim-slices (FAA data, never shared)
+tools/release-local/              # Builds a client release without GitHub Actions and creates its draft: release.ps1 (orchestrator, worktree at the tag), pack-win-linux.ps1 (Windows builder), pack-macos.ps1 (mac-mini, signed + notarized), release-notes.sh (body, shared with release.yml); README.md
 tools/server-image/               # Builds the yaat-server image with the .NET SDK container publish (no Docker) from clean worktrees and pushes it to ghcr; build.ps1, container.targets (mirrors the Dockerfile's runtime stage), web-apps.proj; README.md
 tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.

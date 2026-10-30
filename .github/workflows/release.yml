@@ -62,82 +62,8 @@ jobs:
           fetch-depth: 0
 
       - name: Extract changelog section
-        run: |
-          # Extract the section of CHANGELOG.md matching the just-pushed tag.
-          # Headings look like "## 0.1.1-alpha" or "## 0.1.1-alpha - 2026-04-24".
-          # The tag is "v0.1.1-alpha"; strip the leading "v" before matching.
-          CURRENT_TAG="${GITHUB_REF_NAME}"
-          VERSION="${CURRENT_TAG#v}"
-
-          if [[ ! -f CHANGELOG.md ]]; then
-            echo "::error::CHANGELOG.md not found at repo root"
-            exit 1
-          fi
-
-          # Print everything from the first "## " heading containing $VERSION
-          # up to (but not including) the next "## " heading. Handles optional
-          # date suffix and either "v"-prefixed or bare version headings.
-          full_section=$(awk -v ver="$VERSION" '
-            /^## / {
-              if (in_section) exit
-              line = substr($0, 4)
-              gsub(/^[ \t]+|[ \t]+$/, "", line)
-              # match the version as a whole token (avoid 0.1 matching 0.10)
-              if (match(line, "(^|[^0-9.])"ver"([^0-9.]|$)")) {
-                in_section = 1
-                next
-              }
-            }
-            in_section { print }
-          ' CHANGELOG.md)
-
-          if [[ -z "$full_section" ]]; then
-            echo "::error::No CHANGELOG.md section found for version '$VERSION'."
-            echo "::error::Run the prepare-release skill — it promotes the unreleased section heading to the tagged version."
-            exit 1
-          fi
-
-          # Split out the "### Highlights" subsection (written by the prepare-release
-          # skill) into its own block, and emit the remainder as the changelog body.
-          # The release-body builder renders highlights and changelog separately.
-          highlights=$(printf '%s\n' "$full_section" | awk '
-            /^### / {
-              if (in_block) { in_block = 0 }
-              if ($0 == "### Highlights") { in_block = 1; next }
-            }
-            in_block { print }
-          ')
-          changelog=$(printf '%s\n' "$full_section" | awk '
-            /^### / {
-              if (in_block) { in_block = 0 }
-              if ($0 == "### Highlights") { in_block = 1; next }
-            }
-            !in_block
-          ')
-
-          # Trim leading and trailing blank lines on both blocks.
-          trim() { awk 'NF{p=1} p' | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}'; }
-          highlights=$(printf '%s\n' "$highlights" | trim)
-          changelog=$(printf '%s\n' "$changelog" | trim)
-
-          if [[ -z "$changelog" ]]; then
-            echo "::error::The CHANGELOG.md section for '$VERSION' has no entries outside ### Highlights."
-            exit 1
-          fi
-
-          mkdir -p release-notes
-          printf '%s\n' "$changelog" > release-notes/changelog.md
-          printf '%s\n' "$highlights" > release-notes/highlights.md
-
-          # The release's feature showcase, when it has one, is linked below the
-          # highlights. discord-release.yml finds the link by its "**What's new" lead.
-          showcase="docs/releases/whats-new-${VERSION}.md"
-          if [[ -f "$showcase" ]]; then
-            printf "**What's new in %s, with screenshots:** https://github.com/%s/blob/%s/%s\n" \
-              "$VERSION" "$GITHUB_REPOSITORY" "$CURRENT_TAG" "$showcase" > release-notes/showcase.md
-          else
-            : > release-notes/showcase.md
-          fi
+        # Shared with the local release route (tools/release-local/release.ps1).
+        run: bash tools/release-local/release-notes.sh notes "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" release-notes
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
@@ -261,6 +187,11 @@ jobs:
     permissions:
       contents: write  # softprops/action-gh-release creates the GitHub Release
     steps:
+      # For tools/release-local/release-notes.sh, which builds the body.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3  # v8.0.0
         with:
           path: artifacts
@@ -301,48 +232,10 @@ jobs:
           find release -maxdepth 1 -type f -printf '%-50f %12s bytes\n' | sort
 
       - name: Build release body
+        # Shared with the local release route (tools/release-local/release.ps1).
         env:
           VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          notes=artifacts/release-notes
-          if [[ ! -s "$notes/changelog.md" ]] || ! grep -q '[^[:space:]]' "$notes/changelog.md"; then
-            echo "::error::$notes/changelog.md is missing or empty; refusing to publish a release with an empty Changelog block."
-            exit 1
-          fi
-
-          {
-            if grep -q '[^[:space:]]' "$notes/highlights.md"; then
-              echo "## Highlights"
-              echo ""
-              cat "$notes/highlights.md"
-              echo ""
-            fi
-
-            if [[ -s "$notes/showcase.md" ]]; then
-              cat "$notes/showcase.md"
-              echo ""
-            fi
-
-            echo "## Changelog"
-            echo ""
-            cat "$notes/changelog.md"
-            echo ""
-
-            echo "---"
-            echo ""
-            echo "### YAAT"
-            echo "| Platform | Installer (recommended) | Portable |"
-            echo "|----------|------------------------|----------|"
-            echo "| Windows | \`YaatClient-${VERSION}-win-Setup.exe\` | \`YaatClient-${VERSION}-win-Portable.zip\` |"
-            echo "| Linux   | \`YaatClient-${VERSION}-linux.AppImage\` | (the AppImage is itself portable) |"
-            echo "| macOS (Apple Silicon) | \`YaatClient-${VERSION}-osx-arm64-Setup.pkg\` | \`YaatClient-${VERSION}-osx-arm64-Portable.zip\` |"
-            echo "| macOS (Intel) | \`YaatClient-${VERSION}-osx-x64-Setup.pkg\` | \`YaatClient-${VERSION}-osx-x64-Portable.zip\` |"
-            echo ""
-            echo "Installers include auto-update support. Portable archives unzip to a folder you can run from anywhere — no install, no auto-update. The Linux AppImage is itself portable."
-            echo ""
-            echo "macOS builds require macOS 14 (Sonoma) or newer. Pick the package matching your Mac — the installer refuses the wrong architecture."
-          } > release-body.md
+        run: bash tools/release-local/release-notes.sh body "$VERSION" artifacts/release-notes > release-body.md
 
       - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:

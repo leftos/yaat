@@ -1,10 +1,8 @@
 # macOS code signing & notarization setup
 
-The release pipeline signs and notarizes the macOS `.pkg` and `.app` so they
-launch without a Gatekeeper warning and auto-update silently. This is a
-**one-time setup** of an Apple Developer account's certificates plus eight
-GitHub Actions secrets. Until the secrets exist, `release.yml` still builds a
-working macOS package — just unsigned, with the old right-click-to-open caveat.
+The release pipeline signs and notarizes the macOS `.pkg` and `.app` so they launch without a Gatekeeper warning and auto-update silently. This is a **one-time setup** of an Apple Developer account's certificates plus eight GitHub Actions secrets. Until the secrets exist, `release-macos.yml` still builds a working macOS package — just unsigned, with the old right-click-to-open caveat.
+
+The local release route (`tools/release-local/`, for when GitHub Actions can't run) signs with a second set of certificates and a separate notary key kept in Private Config, since GitHub secrets can't be read back; its README says where they live.
 
 Most of the certificate steps need a Mac (Keychain Access). Adding the secrets
 can be done from any machine with the `gh` CLI.

@@ -601,7 +601,14 @@ If the list is missing `Release` or `Release (macOS)`, the tag push was coalesce
 3. **A `CI` failure confined to `Formatting (CSharpier)` or `Style diagnostics`** (an info-level IDE rule in a test file, say) while `Release` and `Release (macOS)` are green is not a release defect: the installers are fine, so carry on to the publish (7.3) or the deploy (7.5).
 
    Commit and push the fix only after the draft is published or the deploy prints `Deployment complete!` — the image is built from yaat at `client_ref` (default `main`), and a commit past the tag fails the deploy's tag-equals-deployed-commit publish check. A hotfix image is built from the tag itself, so a later commit on `main` cannot reach it.
-4. **Anything else** (compile error, packaging error, a missing secret) is a release defect: report it with the error lines and stop. Do not publish the draft and do not deploy until the user decides how to fix forward; a hidden draft is recoverable, a published release with a broken or missing installer is not.
+4. **GitHub Actions is down, or the runs won't start or stay stuck** (an open incident on githubstatus.com, or no progress long after the usual 15-30 minutes). Build the release locally instead: cancel the `Release` and `Release (macOS)` runs, delete any draft they made (`gh release delete v{version} --repo leftos/yaat --yes`; a draft has no tag to lose), then run it in the background:
+
+   ```bash
+   pwsh -NoProfile -File tools/release-local/release.ps1 -Tag v{version}
+   ```
+
+   It builds every installer through the gate, with macOS on the mac-mini, signed and notarized, and creates the same draft with the same body. Carry on at 7.3 or 7.5 as usual. `tools/release-local/README.md` covers its secrets and footguns.
+5. **Anything else** (compile error, packaging error, a missing secret) is a release defect: report it with the error lines and stop. Do not publish the draft and do not deploy until the user decides how to fix forward; a hidden draft is recoverable, a published release with a broken or missing installer is not.
 
 Report each run's final conclusion to the user in the message that moves on to the next step.
 
