@@ -744,4 +744,194 @@ public class AsdexSafetyLogicDetectorTests
         aircraft.Phases.Add(phase);
         return aircraft;
     }
+
+    /// <summary>The configured runway holding the navdata end <paramref name="end"/> ("01R", "28L").</summary>
+    private AsdexHoldBarRunway RunwayWith(string end) => AsdexHoldBarBuilderTests.RunwayWithEnd(_runways, end);
+
+    /// <summary>How far past <paramref name="end"/>'s threshold its centreline crosses the runway holding <paramref name="otherEnd"/>.</summary>
+    private double CrossingFt(string end, string otherEnd)
+    {
+        var axis = new AsdexRunwayAxis(RunwayWith(end).Runway);
+        Assert.True(axis.TryCrossing(new AsdexRunwayAxis(RunwayWith(otherEnd).Runway), out LatLon crossing));
+        RunwayInfo runway = RunwayWith(end).Runway.ForApproach(end);
+        return GeoMath.DistanceNm(runway.ThresholdLatitude, runway.ThresholdLongitude, crossing.Lat, crossing.Lon) * GeoMath.FeetPerNm;
+    }
+
+    /// <summary>
+    /// An aircraft on <paramref name="end"/>'s centreline <paramref name="alongFt"/> past its threshold (negative before it),
+    /// heading and tracking down the runway, airborne <paramref name="heightFt"/> above it, or on the ground when that is null.
+    /// </summary>
+    private static AircraftState OnEnd(string callsign, RunwayInfo end, double alongFt, double speedKts, double? heightFt)
+    {
+        bool onGround = heightFt is null;
+        var threshold = new LatLon(end.ThresholdLatitude, end.ThresholdLongitude);
+        LatLon position =
+            alongFt >= 0
+                ? GeoMath.ProjectPoint(threshold, end.TrueHeading, alongFt / GeoMath.FeetPerNm)
+                : GeoMath.ProjectPoint(threshold, new TrueHeading(end.TrueHeading.Degrees + 180), -alongFt / GeoMath.FeetPerNm);
+        return new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            Position = position,
+            TrueHeading = end.TrueHeading,
+            TrueTrack = end.TrueHeading,
+            IsOnGround = onGround,
+            Altitude = ((end.Elevation1Ft + end.Elevation2Ft) / 2) + (heightFt ?? 0),
+            IndicatedAirspeed = speedKts,
+        };
+    }
+
+    /// <summary>A departure rolling down <paramref name="end"/> at 80 kt, <paramref name="alongFt"/> past its threshold.</summary>
+    private AircraftState DepartureOn(string callsign, string end, double alongFt) =>
+        WithPhase(OnEnd(callsign, RunwayWith(end).Runway.ForApproach(end), alongFt, speedKts: 80, heightFt: null), new TakeoffPhase());
+
+    /// <summary>An arrival in <paramref name="end"/>'s arrival box, 3,000 ft before its threshold at 200 ft.</summary>
+    private AircraftState ArrivalTo(string callsign, string end) =>
+        WithPhase(OnEnd(callsign, RunwayWith(end).Runway.ForApproach(end), -3000, speedKts: 140, heightFt: 200), new FinalApproachPhase());
+
+    /// <summary>Every SFO runway open, but the one holding <paramref name="closedEnd"/> closed.</summary>
+    private AsdexSafetyLogicRunways RunwaysClosing(string closedEnd) =>
+        new(
+            [.. _runways.Select(runway => new AsdexRunwaySurface(runway, new AsdexRunwayAxis(runway.Runway), runway == RunwayWith(closedEnd)))],
+            [.. _runways.Select(runway => runway.Area)]
+        );
+
+    /// <summary>
+    /// A departure rolling on 1R before the 28L crossing and an arrival in 28L's box raise one CONVERGING alert, the departure
+    /// first in every list, each aircraft's runway end named (1R, 28L), as vNAS sends it (probe README:308-310).
+    /// </summary>
+    [Fact]
+    public void Converging_DepartureOn1RAndArrivalTo28L_OneAlertNamingBothEnds()
+    {
+        AircraftState departure = DepartureOn("UAL859", "01R", CrossingFt("01R", "28L") - 2000);
+        AircraftState arrival = ArrivalTo("SKW6633", "28L");
+
+        AsdexSafetyAlert alert = Assert.Single(Detect([arrival, departure], closed: false, closedRunwayAlertsOnly: false));
+
+        Assert.Equal(AsdexAlertKind.Converging, alert.Kind);
+        Assert.Equal(["UAL859", "SKW6633"], alert.Callsigns);
+        Assert.Equal(["1R", "28L"], alert.RunwayEnds);
+        Assert.Equal([RunwayWith("01R").Id, RunwayWith("28L").Id], alert.RunwayIds);
+        Assert.Equal(["RWY 1R, RWY 28L", "UAL859, SKW6633", AsdexSafetyLogicDetector.ConvergingText], alert.MessageLines);
+        Assert.True(alert.PlayAuralAlert);
+    }
+
+    /// <summary>
+    /// Two arrivals to 1R and 28L raise CONVERGING too (7110.65 3-6-4.c.3), the runways in configuration order. Arrivals to
+    /// 1R and 28L at once is a synthetic mix, not an SFO configuration: it tests the two-lander rule.
+    /// </summary>
+    [Fact]
+    public void Converging_ArrivalsTo1RAnd28L_Alert()
+    {
+        AircraftState arrival1R = ArrivalTo("ASA9044", "01R");
+        AircraftState arrival28L = ArrivalTo("FFT7403", "28L");
+
+        AsdexSafetyAlert alert = Assert.Single(Detect([arrival28L, arrival1R], closed: false, closedRunwayAlertsOnly: false));
+
+        Assert.Equal(AsdexAlertKind.Converging, alert.Kind);
+        Assert.Equal(["ASA9044", "FFT7403"], alert.Callsigns);
+        Assert.Equal(["1R", "28L"], alert.RunwayEnds);
+    }
+
+    /// <summary>
+    /// A departure rolling on 1R into 28L's footprint, still before the crossing, with the arrival still in 28L's box keeps
+    /// CONVERGING: only a lander occupying the other runway hands the pair over to that runway's alerts.
+    /// </summary>
+    [Fact]
+    public void Converging_DepartureInside28LFootprint_ArrivalStillInTheBox_KeepsConverging()
+    {
+        AircraftState departure = DepartureOn("UAL859", "01R", CrossingFt("01R", "28L") - 60);
+        AircraftState arrival = ArrivalTo("SKW6633", "28L");
+        Assert.True(AsdexRunwayUsers.IsOverFootprint(departure, RunwayWith("28L")));
+
+        Assert.Equal(AsdexAlertKind.Converging, Assert.Single(Detect([arrival, departure], closed: false, closedRunwayAlertsOnly: false)).Kind);
+    }
+
+    /// <summary>
+    /// 28L configured twice (its own id and "28L" again): the pair converges on both combinations with 1R but raises one
+    /// alert, from the combination configured first.
+    /// </summary>
+    [Fact]
+    public void Converging_ARunwayConfiguredTwice_RaisesOneAlertPerPair()
+    {
+        AsdexHoldBarRunway duplicate = RunwayWith("28L") with { Id = "28L" };
+        IReadOnlyList<AsdexHoldBarRunway> runways = [.. _runways, duplicate];
+        AircraftState departure = DepartureOn("UAL859", "01R", CrossingFt("01R", "28L") - 2000);
+        AircraftState arrival = ArrivalTo("SKW6633", "28L");
+
+        IReadOnlyList<AsdexSafetyAlert> alerts = DetectAlerts(Runways(false, runways), [], [arrival, departure], _fieldElevationFt, false);
+
+        AsdexSafetyAlert alert = Assert.Single(alerts);
+        Assert.Equal(AsdexAlertKind.Converging, alert.Kind);
+        Assert.Equal([RunwayWith("01R").Id, RunwayWith("28L").Id], alert.RunwayIds);
+    }
+
+    /// <summary>28L and 28R are parallel: an arrival to one and a departure on the other never converge.</summary>
+    [Fact]
+    public void Converging_ArrivalTo28LAndDepartureOn28R_None()
+    {
+        AircraftState departure = DepartureOn("UAL1", "28R", 2000);
+        AircraftState arrival = ArrivalTo("SKW2", "28L");
+
+        Assert.Empty(Detect([arrival, departure], closed: false, closedRunwayAlertsOnly: false));
+    }
+
+    /// <summary>A departure already past the 28L crossing on 1R moves away from it: no CONVERGING.</summary>
+    [Fact]
+    public void Converging_DeparturePastTheCrossing_None()
+    {
+        AircraftState departure = DepartureOn("UAL859", "01R", CrossingFt("01R", "28L") + 300);
+        AircraftState arrival = ArrivalTo("SKW6633", "28L");
+
+        Assert.DoesNotContain(Detect([arrival, departure], closed: false, closedRunwayAlertsOnly: false), a => a.Kind == AsdexAlertKind.Converging);
+    }
+
+    /// <summary>The LIMITED configuration raises no CONVERGING.</summary>
+    [Fact]
+    public void Converging_LimitedConfiguration_None()
+    {
+        AircraftState departure = DepartureOn("UAL859", "01R", CrossingFt("01R", "28L") - 2000);
+        AircraftState arrival = ArrivalTo("SKW6633", "28L");
+
+        Assert.Empty(Detect([arrival, departure], closed: false, closedRunwayAlertsOnly: true));
+    }
+
+    /// <summary>With 1R closed its departure raises the closed-runway alert only, no CONVERGING.</summary>
+    [Fact]
+    public void Converging_1RClosed_None()
+    {
+        AircraftState departure = DepartureOn("UAL859", "01R", CrossingFt("01R", "28L") - 2000);
+        AircraftState arrival = ArrivalTo("SKW6633", "28L");
+
+        IReadOnlyList<AsdexSafetyAlert> alerts = DetectAlerts(
+            RunwaysClosing("01R"),
+            [],
+            [arrival, departure],
+            _fieldElevationFt,
+            closedRunwayAlertsOnly: false
+        );
+
+        Assert.Equal(AsdexAlertKind.ClosedRunway, Assert.Single(alerts).Kind);
+    }
+
+    /// <summary>
+    /// A lander rolling out on 28L that is inside 1R's surface, with the departure on 1R still before it, is the same-runway
+    /// case: RWY OCCUPIED on 1R in place of CONVERGING (probe README:311-313).
+    /// </summary>
+    [Fact]
+    public void Converging_LanderInside1RSurface_HandsOverToOccupiedRunway()
+    {
+        AircraftState departure = DepartureOn("UAL859", "01R", CrossingFt("01R", "28L") - 2000);
+        AircraftState lander = WithPhase(
+            OnEnd("SKW6633", RunwayWith("28L").Runway.ForApproach("28L"), CrossingFt("28L", "01R") - 40, speedKts: 60, heightFt: null),
+            new LandingPhase()
+        );
+
+        AsdexSafetyAlert alert = Assert.Single(Detect([lander, departure], closed: false, closedRunwayAlertsOnly: false));
+
+        Assert.Equal(AsdexAlertKind.OccupiedRunway, alert.Kind);
+        Assert.Equal([RunwayWith("01R").Id], alert.RunwayIds);
+        Assert.Null(alert.RunwayEnds);
+    }
 }

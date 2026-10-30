@@ -217,6 +217,10 @@ public sealed class AsdexSafetyAlertDto
 
     // True on a closed-runway alert raised for an arrival (aural ends with GO AROUND). Absent before V41, which reads false.
     public bool GoAround { get; init; }
+
+    // The runway end each aircraft in Callsigns uses, on a converging alert only; null on every other kind, and absent
+    // from their JSON. Not required, since only converging alerts write it.
+    public List<string>? RunwayEnds { get; init; }
 }
 
 /// <summary>Snapshot of one remembered ASDE-X opposite-direction pair: its facility and its pair key ("28L|DAL2988,DAL530").</summary>

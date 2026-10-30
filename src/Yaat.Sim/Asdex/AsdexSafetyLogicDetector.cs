@@ -1,12 +1,14 @@
 using System.Collections.Immutable;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Asdex;
 
 /// <summary>
 /// The kind of ASDE-X Safety Logic alert, per the CRC ASDE-X manual ("Safety Logic"). The kinds modelled are closed
-/// runway, occupied runway, taxiway landing and the three opposite-direction kinds (taxi, departure, lander), which replace
-/// an occupied-runway alert for a pair heading opposite ways along the runway. Snapshots store the kind by number, so each
+/// runway, occupied runway, taxiway landing, the three opposite-direction kinds (taxi, departure, lander), which replace
+/// an occupied-runway alert for a pair heading opposite ways along the runway, and converging runways (a pair on two
+/// runways whose centrelines cross ahead of both). Snapshots store the kind by number, so each
 /// member keeps its value; 2 is unused (<c>SnapshotSchemaMigrator</c> rewrites a stored 2 to <see cref="OccupiedRunway"/>).
 /// </summary>
 public enum AsdexAlertKind
@@ -36,6 +38,13 @@ public enum AsdexAlertKind
     /// Two arrivals using the runway head on, the one further into its landing first (<see cref="AsdexRunwayUsers.LandedFurther"/>).
     /// </summary>
     OppDirLander = 6,
+
+    /// <summary>
+    /// Two runway users on converging runways (intersecting, or whose centrelines meet within 1 NM beyond a departure end),
+    /// each with the crossing still ahead (<see cref="AsdexRunwayUsers.ConvergesAhead"/>): an arrival and a departure, or two
+    /// arrivals (7110.65 §3-6-4.c.3); the departure first.
+    /// </summary>
+    Converging = 7,
 }
 
 /// <summary>
@@ -88,6 +97,8 @@ public sealed record AsdexTaxiwaySegment(string Name, LatLon Start, LatLon End);
 /// <summary>
 /// A single emitted Safety Logic alert. <paramref name="GoAround"/> is true only on a closed-runway alert raised for an
 /// arrival: its text reads "RWY CLOSED, GO AROUND" and its aural sequence ends with the go-around token.
+/// <paramref name="RunwayEnds"/> is set on a converging alert only: the runway end each aircraft in
+/// <paramref name="Callsigns"/> is using, in the same order ("1R", "28L"); null on every other kind.
 /// </summary>
 public sealed record AsdexSafetyAlert(
     string Id,
@@ -96,7 +107,8 @@ public sealed record AsdexSafetyAlert(
     IReadOnlyList<string> Callsigns,
     IReadOnlyList<string> MessageLines,
     bool PlayAuralAlert,
-    bool GoAround
+    bool GoAround,
+    IReadOnlyList<string>? RunwayEnds
 );
 
 /// <summary>
@@ -139,6 +151,11 @@ public sealed record AsdexDetectionInputs(bool ClosedRunwayAlertsOnly, Immutable
 /// opposite again. A remembered pair is forgotten the first tick either aircraft no longer occupies that runway's
 /// footprint, or the runway is not evaluated (an inhibited aircraft, a closed or unconfigured runway, LIMITED).
 ///
+/// Two runway users on different open runways raise CONVERGING, as measured on vNAS Test (probe README:305-313): an
+/// arrival against a departure, or two arrivals (7110.65 §3-6-4.c.3), when the centrelines cross ahead of both
+/// (<see cref="AsdexRunwayUsers.ConvergesAhead"/>). It gives way to the same-runway alerts once a lander occupies the
+/// other aircraft's runway, is raised once per aircraft pair, and carries the runway end each aircraft uses.
+///
 /// Taxiway-landing uses centerline proximity (the ground layout has no taxiway polygons) and alerts on any taxiway unless the
 /// airport's sidecar lists <c>asdexLandingTaxiways</c>, when it alerts only on the taxiways that list names.
 /// </summary>
@@ -168,6 +185,9 @@ public static class AsdexSafetyLogicDetector
     /// <summary>The third line of an opposite-direction lander alert, as vNAS writes it.</summary>
     public const string OppDirLanderText = "OPP DIR LANDER";
 
+    /// <summary>The third line of a converging-runway alert, as vNAS writes it.</summary>
+    public const string ConvergingText = "CONVERGING";
+
     /// <summary>The prefix vNAS writes before the runway on an alert's first line ("RWY 28L").</summary>
     public const string RunwayLinePrefix = "RWY ";
 
@@ -187,8 +207,8 @@ public static class AsdexSafetyLogicDetector
     /// The facility's per-tick switches: its pair memory from the previous tick's detection, and
     /// <see cref="AsdexDetectionInputs.ClosedRunwayAlertsOnly"/>, true when the facility is on the LIMITED runway
     /// configuration ("limited", none, or an id that names none of its
-    /// configurations): only closed-runway alerts are raised, and occupied-runway and taxiway-landing alerts are
-    /// suppressed. False under any named configuration: every alert kind is raised on every runway, the
+    /// configurations): only closed-runway alerts are raised, and occupied-runway, opposite-direction, converging and
+    /// taxiway-landing alerts are suppressed. False under any named configuration: every alert kind is raised on every runway, the
     /// configuration's arrival and departure runway lists playing no part.
     /// </param>
     public static AsdexDetection Detect(
@@ -233,6 +253,7 @@ public static class AsdexSafetyLogicDetector
 
         if (!closedRunwayAlertsOnly)
         {
+            alerts.AddRange(ConvergingAlerts(surfaces, configured, axes, candidates, uses));
             AppendTaxiwayLandings(runways.Footprints, taxiways, candidates, fieldElevationFt, alerts);
         }
 
@@ -433,7 +454,8 @@ public static class AsdexSafetyLogicDetector
                         Callsigns: [ac.Callsign],
                         MessageLines: [taxiway.Name, ac.Callsign, "TAXIWAY LANDING"],
                         PlayAuralAlert: true,
-                        GoAround: false
+                        GoAround: false,
+                        RunwayEnds: null
                     )
                 );
             }
@@ -461,8 +483,167 @@ public static class AsdexSafetyLogicDetector
             Callsigns: callsigns,
             MessageLines: [RunwayLinePrefix + runway.Id, string.Join(CallsignSeparator, callsigns), description],
             PlayAuralAlert: true,
-            GoAround: goAround
+            GoAround: goAround,
+            RunwayEnds: null
         );
+    }
+
+    /// <summary>A runway user as the converging pass reads it: its use of one runway and its role there.</summary>
+    private readonly record struct ConvergingUser(AircraftState Aircraft, AsdexRunwayUse Use, AsdexRunwayUserRole Role);
+
+    /// <summary>
+    /// One converging alert per pair of aircraft using two different open runways that converge for them, one an arrival and
+    /// the other a departure or both arrivals (<see cref="AsdexRunwayUsers.ConvergesAhead"/>: the centrelines cross ahead of
+    /// each, past its entry threshold, within 1 NM beyond the departure end of either runway). A pair in which a lander
+    /// occupies the other aircraft's runway is left to that runway's own alerts. A pair that converges on more than one
+    /// runway combination (a runway configured twice) raises one alert, from the first combination in configuration order.
+    /// </summary>
+    private static List<AsdexSafetyAlert> ConvergingAlerts(
+        IReadOnlyList<AsdexRunwaySurface> surfaces,
+        IReadOnlyList<AsdexHoldBarRunway> configured,
+        IReadOnlyList<AsdexRunwayAxis> axes,
+        IReadOnlyList<AircraftState> candidates,
+        IReadOnlyList<AsdexRunwayUses> uses
+    )
+    {
+        var alerts = new List<AsdexSafetyAlert>();
+        var raisedPairs = new HashSet<string>(StringComparer.Ordinal);
+        // Each open runway's arrivals and departures, built once; null for a closed runway, which raises no converging alert.
+        List<ConvergingUser>?[] users =
+        [
+            .. surfaces.Select((surface, i) => surface.IsClosed ? null : ConvergingUsers(configured, candidates, uses, i)),
+        ];
+        for (int i = 0; i < surfaces.Count; i++)
+        {
+            for (int j = i + 1; j < surfaces.Count; j++)
+            {
+                if ((users[i] is not { } usersI) || (users[j] is not { } usersJ) || !RunwaysCross(configured, axes, i, j))
+                {
+                    continue;
+                }
+
+                foreach (AsdexSafetyAlert alert in RunwayPairConvergingAlerts(surfaces[i], usersI, surfaces[j], usersJ, axes))
+                {
+                    if (raisedPairs.Add(string.Join(",", alert.Callsigns.Order(StringComparer.Ordinal))))
+                    {
+                        alerts.Add(alert);
+                    }
+                }
+            }
+        }
+
+        return alerts;
+    }
+
+    /// <summary>True when two configured entries are different navdata runways whose centrelines cross.</summary>
+    private static bool RunwaysCross(IReadOnlyList<AsdexHoldBarRunway> configured, IReadOnlyList<AsdexRunwayAxis> axes, int i, int j) =>
+        !ReferenceEquals(configured[i].Runway, configured[j].Runway) && axes[i].TryCrossing(axes[j], out _);
+
+    /// <summary>True when <paramref name="user"/> is an arrival occupying <paramref name="runway"/> (on it, or below 200 ft over it).</summary>
+    private static bool LanderOccupies(ConvergingUser user, AsdexRunwaySurface runway) =>
+        (user.Role == AsdexRunwayUserRole.Arrival) && AsdexRunwayUsers.Occupies(user.Aircraft, runway.Runway);
+
+    /// <summary>The arrivals and departures using <c>configured[runwayIndex]</c>, each with its use of it and its role there.</summary>
+    private static List<ConvergingUser> ConvergingUsers(
+        IReadOnlyList<AsdexHoldBarRunway> configured,
+        IReadOnlyList<AircraftState> candidates,
+        IReadOnlyList<AsdexRunwayUses> uses,
+        int runwayIndex
+    )
+    {
+        var users = new List<ConvergingUser>();
+        for (int k = 0; k < candidates.Count; k++)
+        {
+            if (!AsdexRunwayUsers.IsUserOf(candidates[k], uses[k], configured, runwayIndex))
+            {
+                continue;
+            }
+
+            AsdexRunwayUserRole role = AsdexRunwayUsers.Role(candidates[k], AsdexRunwayUsers.ArrivesOn(uses[k], configured, runwayIndex));
+            if ((role != AsdexRunwayUserRole.Other) && (AsdexRunwayUsers.UseOn(uses[k], configured, runwayIndex) is { } use))
+            {
+                users.Add(new ConvergingUser(candidates[k], use, role));
+            }
+        }
+
+        return users;
+    }
+
+    /// <summary>The converging alerts between the users of runway <paramref name="runwayA"/> and those of <paramref name="runwayB"/>.</summary>
+    private static IEnumerable<AsdexSafetyAlert> RunwayPairConvergingAlerts(
+        AsdexRunwaySurface runwayA,
+        List<ConvergingUser> usersA,
+        AsdexRunwaySurface runwayB,
+        List<ConvergingUser> usersB,
+        IReadOnlyList<AsdexRunwayAxis> axes
+    )
+    {
+        foreach (ConvergingUser a in usersA)
+        {
+            foreach (ConvergingUser b in usersB)
+            {
+                // An arrival against a departure or another arrival; two departures raise nothing.
+                bool hasArrival = (a.Role == AsdexRunwayUserRole.Arrival) || (b.Role == AsdexRunwayUserRole.Arrival);
+                // A lander occupying the other aircraft's runway is that runway's own case (RWY OCCUPIED and the like).
+                bool handedOver = LanderOccupies(a, runwayB) || LanderOccupies(b, runwayA);
+                if (hasArrival && !handedOver && !ReferenceEquals(a.Aircraft, b.Aircraft) && AsdexRunwayUsers.ConvergesAhead(a.Use, b.Use, axes))
+                {
+                    yield return (b.Role == AsdexRunwayUserRole.Departure)
+                        ? ConvergingAlert(runwayB, b, runwayA, a)
+                        : ConvergingAlert(runwayA, a, runwayB, b);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The converging alert naming <paramref name="first"/> (the departure, or the arrival on the runway configured first)
+    /// then <paramref name="second"/>, as vNAS sends it: line 1 "RWY 1R, RWY 28L", one runway end per aircraft. The id names
+    /// both runway ids and both callsigns in ordinal order, so it holds however the pair is ranked.
+    /// </summary>
+    private static AsdexSafetyAlert ConvergingAlert(
+        AsdexRunwaySurface firstRunway,
+        ConvergingUser first,
+        AsdexRunwaySurface secondRunway,
+        ConvergingUser second
+    )
+    {
+        List<string> callsigns = [first.Aircraft.Callsign, second.Aircraft.Callsign];
+        List<string> ends = [EndInUse(firstRunway, first.Use.Direction), EndInUse(secondRunway, second.Use.Direction)];
+        List<string> runwayIds = [firstRunway.Id, secondRunway.Id];
+        string orderedRunwayIds = string.Join(",", runwayIds.Order(StringComparer.Ordinal));
+        string orderedCallsigns = string.Join(",", callsigns.Order(StringComparer.Ordinal));
+        string id = $"{AsdexAlertKind.Converging}|{orderedRunwayIds}|{orderedCallsigns}";
+        return new AsdexSafetyAlert(
+            Id: id,
+            Kind: AsdexAlertKind.Converging,
+            RunwayIds: runwayIds,
+            Callsigns: callsigns,
+            MessageLines:
+            [
+                string.Join(CallsignSeparator, ends.Select(end => RunwayLinePrefix + end)),
+                string.Join(CallsignSeparator, callsigns),
+                ConvergingText,
+            ],
+            PlayAuralAlert: true,
+            GoAround: false,
+            RunwayEnds: ends
+        );
+    }
+
+    /// <summary>
+    /// The end of the runway an aircraft moving in <paramref name="direction"/> along it is using: end 1 (the end the axis
+    /// starts at) when it moves toward end 2, else end 2, spelled as the configuration's runway id spells it ("1R" in
+    /// "1R-19L", where navdata writes "01R"), or as navdata does when the id does not name it.
+    /// </summary>
+    private static string EndInUse(AsdexRunwaySurface runway, int direction)
+    {
+        RunwayIdentifier navdataId = runway.Runway.Runway.Id;
+        string navdataEnd = direction > 0 ? navdataId.End1 : navdataId.End2;
+        return runway
+                .Id.Split('-', StringSplitOptions.RemoveEmptyEntries)
+                .FirstOrDefault(end => RunwayIdentifier.NormalizeDesignator(end).Equals(navdataEnd, StringComparison.OrdinalIgnoreCase))
+            ?? navdataEnd;
     }
 
     /// <summary>
