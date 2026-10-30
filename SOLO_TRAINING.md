@@ -195,6 +195,8 @@ N123AB DM 050
 
 YAAT returns an immediate `RSP` confirming the descent if the command is accepted. The pilot readback arrives later as `SAY`, serialized with other aircraft so multiple pilots do not speak over each other.
 
+The pilot you just instructed reads back before any other pilot keys up; two instructions in a row come back in order. Now and then a second airborne pilot checks in about three seconds after the first, before you have answered it, but never over a transmission or ahead of a pending readback.
+
 **Frequency load.** Pilots judge how busy the frequency is by how much of the last minute is dead air, counting your own transmissions and the solo pilots' say answers as well as their readbacks (a rewind keeps that judgement). When it is quiet they read back more fully ("cleared ILS two eight right"). When it is busy they shorten the spoken readback, keeping every number and direction, speak about 10% faster than your Speech Speed setting, and often give a contact frequency grouped ("twenty five thirty five" for 125.35).
 
 A readback of two or more instructions always stays terse. The terminal always shows the full readback; only the spoken one shortens. Once you have acknowledged an N-number pilot's call, it may read back with a short callsign ("november three alpha bravo"). Speeds are read digit by digit.

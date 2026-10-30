@@ -1,14 +1,21 @@
 # Changelog
 
-## Unreleased
+## v0.17.2-beta [2026/10/30]
+
+### Highlights
+
+- Pilots, terminal messages and menus name a runway by its active end ("1L", not "19R").
+- Solo: frequency busyness follows how much dead air is left, and other pilots wait for your readback before keying up.
+- `HOLD` to a `FOLLOWG` follower ends the follow, and a follower holds and crosses only along its lead's path.
+- Ground view: right-clicking a runway end's marker offers taxi for departure, and the right-click picker lists the hovered target first.
 
 ### Changed
 
 - In solo sessions, how busy the frequency sounds now follows how little dead air is left, counting your transmissions and pilots' say answers, not how many calls were made.
-- In solo sessions, a second arriving pilot now and then checks in a few seconds after the first, before you have answered it.
-- `HOLD` to a `FOLLOWG` follower ends the follow: it stops, and `RES` gets "unable, request taxi instructions" until a new `TAXI` or `FOLLOWG`.
+- In solo sessions, a second airborne pilot now and then checks in a few seconds after the first, before you have answered it.
+- `HOLD` to a `FOLLOWG` follower (after `CROSS 1L 1R; HOLD`, once clear) ends the follow; `RES` answers "unable, request taxi instructions" until `TAXI` or `FOLLOWG`.
 - A `HOLD` mid-crossing stops short of the next runway's hold line; an aircraft left with its tail on the crossed runway reports not clear of it.
-- Pilots, terminal messages, status lines and the Cross menu name a runway by its active end when `ARWY` lists one ("1L", not "19R"); a typed end is echoed.
+- Pilots, terminal messages, status lines and the Cross menu name a runway by its active end when the active runway list names one ("1L", not "19R"); a typed end is echoed.
 
 ### Fixed
 
@@ -37,7 +44,6 @@
 - A `FOLLOWG` follower holds short only at hold lines on its own path, not at another runway's hold line beside it, so its Cross crosses where the lead did.
 - Push to now offers pushes of up to 700 ft (was 600), so a stand like KOAK 5 offers its push onto S with both facings.
 - A `FOLLOWG` follower's `CROSS` crosses along its follow route and refuses a runway not on it; a `CROSS` for a runway ahead pre-clears it.
-- `CROSS 1L 1R; HOLD` to a `FOLLOWG` follower runs the `HOLD` once it is clear of the last runway named.
 - A runway crossing that ends where its route runs out no longer stops with the nose past another runway's hold line.
 
 ## v0.17.1-beta [2026/10/29]

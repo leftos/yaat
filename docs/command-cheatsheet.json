@@ -189,7 +189,7 @@
         { "verb": "PUSHF / PUSHMF", "aliases": [], "description": "Forced PUSH / PUSHM, every form: skips the taxiway, parked-aircraft and object-free-area checks and never stops for parked aircraft; still refused on a runway or holding position" },
         { "verb": "TAXI", "aliases": [], "description": "Taxi via route (see mods below)" },
         { "verb": "TAXIAUTO", "aliases": [], "description": "Auto-route taxi to runway / `@parking` / `$spot` (+EXP = without delay)" },
-        { "verb": "HOLD", "aliases": ["hp"], "description": "Hold position" },
+        { "verb": "HOLD", "aliases": ["hp"], "description": "Hold position; ends a FOLLOWG follow" },
         { "verb": "RES", "aliases": ["resume"], "description": "Resume taxi / release runway hold (not destination) / break a ground-conflict stop or crawl / pre-clear the next taxiway or spot hold-short while rolling; CROSS rwy... pre-clears crossings, HS target... adds a taxiway hold-short or re-arms a runway's" },
         { "verb": "CROSS", "aliases": [], "description": "Cross next hold-short (bare), one or more named runways/taxiways (`CROSS 28R 28L`), optionally `HS target...`; `EXP` last = without delay (`CROSS 28L 28R EXP`, bare `CROSS EXP`); chain `CROSS; HOLD` to halt past the far-side bars or `CROSS; DEL` to delete once clear" },
         { "verb": "CLRWY", "aliases": ["clearrwy"], "description": "Pull an aircraft whose tail is over a runway (holding short of a taxiway just past it) forward until clear, then hold" },
@@ -381,7 +381,7 @@
         { "verb": "HFR", "aliases": [], "description": "Hold airport's IFR departures for release", "global": true },
         { "verb": "HFROFF", "aliases": [], "description": "Disarm hold-for-release (auto-releases held)", "global": true },
         { "verb": "REL", "aliases": ["ctoa"], "description": "Release next at field / a callsign / whole queue (REL apt mins)", "global": true },
-        { "verb": "ARWY", "aliases": [], "description": "Set an airport's active runways (ARWY [apt] 28L 28R; D28L deps / A28R arrs only); ARWY apt shows, ARWY apt NONE clears", "global": true },
+        { "verb": "ARWY", "aliases": [], "description": "Set an airport's active runways (ARWY [apt] 28L 28R; D28L deps / A28R arrs only); ARWY apt shows, ARWY apt NONE clears; names runways by their active end", "global": true },
         { "verb": "CFR", "aliases": [], "description": "Release selected departure with a −2/+1 min CFR window (CFR HHMM), or bare CFR for immediate; alerts if it departs outside it. CFR OFF clears, CFR CHECK reports status" }
       ],
       "notes": []

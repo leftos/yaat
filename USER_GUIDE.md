@@ -684,7 +684,7 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
     Then a "Push back to…" submenu of the places a tug push can take the aircraft, in two sections sorted by distance: "Behind the aircraft" (badge TL or TW) and "Taxi spots" (badge S). A target with two or more facings shows "then face" under its name and one chip per direction (N, S, …) that picks which way the aircraft ends up facing; a target with one facing shows a dim "faces E" note. The strip button's flyout shows the same list and follows it as it fills.
 
-    Each row shows a distance hint such as ~250 ft; a target a parked neighbour blocks is faded, does nothing when clicked, names that aircraft ("blocked by SWA919") and carries a "push anyway" chip that sends the forced push (`PUSHF`); a target the tug cannot fly is left out.
+    Each row shows a distance hint such as ~250 ft; a target a parked neighbour blocks is faded, does nothing when clicked, names that aircraft ("blocked by SWA919") and carries a "push anyway" chip that sends the forced push (`PUSHF`); a target the tug cannot fly is left out, and so is a target whose push path is longer than three times the aircraft's length (at least 700 ft); that is a tow-out, not a push.
 
     The submenu fills in as it is computed ("Computing targets…" until a first list shows, then a "Refining targets…" row above the sections until the live plan lands). Below it come "Push route…" (a multi-point tug move — see below) and a "Follow…" submenu — the aircraft starts up and falls in behind the chosen leader without needing a taxi route first.
 
