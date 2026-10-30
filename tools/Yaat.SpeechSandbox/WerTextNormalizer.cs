@@ -31,7 +31,20 @@ public static partial class WerTextNormalizer
         [("stand", "by")] = "standby",
         [("push", "back")] = "pushback",
         [("take", "off")] = "takeoff",
+        [("taxi", "lane")] = "taxilane",
+        [("station", "air")] = "stationair",
     }.ToFrozenDictionary();
+
+    /// <summary>Hesitation sounds that say nothing, so neither side is scored on them.</summary>
+    private static readonly FrozenSet<string> Fillers = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "uh",
+        "um",
+        "ah",
+        "er",
+        "erm",
+        "hmm",
+    }.ToFrozenSet();
 
     private static readonly string[] DigitNames = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
 
@@ -56,8 +69,74 @@ public static partial class WerTextNormalizer
             }
             words.Add(MapToken(tokens[i]));
         }
-        return string.Join(' ', words);
+
+        List<string> expanded = ExpandAndDropFillers(words);
+        SpellSpokenZeros(expanded);
+        return string.Join(' ', JoinLetterRuns(expanded));
     }
+
+    /// <summary>Splits the spellings <see cref="SpellDigits"/> produced into single words and drops the hesitation sounds.</summary>
+    private static List<string> ExpandAndDropFillers(List<string> words)
+    {
+        var kept = new List<string>(words.Count);
+        foreach (string word in words)
+        {
+            foreach (string piece in word.Split(' '))
+            {
+                if (!Fillers.Contains(piece))
+                {
+                    kept.Add(piece);
+                }
+            }
+        }
+        return kept;
+    }
+
+    /// <summary>Reads "oh" or "o" as the digit zero when it falls between two spoken digits ("three o two").</summary>
+    private static void SpellSpokenZeros(List<string> words)
+    {
+        for (int i = 1; i + 1 < words.Count; i++)
+        {
+            if (IsSpokenZero(words[i]) && IsDigitWord(words[i - 1]) && IsDigitWord(words[i + 1]))
+            {
+                words[i] = "zero";
+            }
+        }
+    }
+
+    private static bool IsSpokenZero(string token) => (token == "oh") || (token == "o");
+
+    private static bool IsDigitWord(string token) => Array.IndexOf(DigitNames, token) >= 0;
+
+    /// <summary>Joins a run of two or more one-letter tokens the way the other side may write it ("i l s" becomes "ils").</summary>
+    private static List<string> JoinLetterRuns(List<string> words)
+    {
+        var joined = new List<string>(words.Count);
+        var run = new StringBuilder();
+        foreach (string word in words)
+        {
+            if (IsSingleLetter(word))
+            {
+                run.Append(word);
+                continue;
+            }
+            FlushLetterRun(run, joined);
+            joined.Add(word);
+        }
+        FlushLetterRun(run, joined);
+        return joined;
+    }
+
+    private static void FlushLetterRun(StringBuilder run, List<string> joined)
+    {
+        if (run.Length > 0)
+        {
+            joined.Add(run.ToString());
+        }
+        run.Clear();
+    }
+
+    private static bool IsSingleLetter(string token) => (token.Length == 1) && char.IsAsciiLetterLower(token[0]);
 
     /// <summary>Decomposes accented letters and drops the combining marks, so <c>ě</c> becomes <c>e</c>.</summary>
     private static string FoldAccents(string text)
