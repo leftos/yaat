@@ -39,6 +39,11 @@
     <PackageReference Include="NAudio.Core" Version="2.3.0" />
   </ItemGroup>
 
+  <!-- The corpus-wer mode reads the UWB-ATCC test split, which Hugging Face ships as parquet. -->
+  <ItemGroup>
+    <PackageReference Include="Parquet.Net" Version="6.1.0" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Yaat.Client\Yaat.Client.csproj" />
   </ItemGroup>

@@ -81,8 +81,12 @@ public sealed record EvalCaseResult(
 /// <summary>One trial of an eval case.</summary>
 /// <param name="Transcript">The raw STT transcript (empty when STT heard nothing).</param>
 /// <param name="MapperCanonical">The rule mapper's canonical, or null when no rule matched.</param>
-/// <param name="FinalCanonical">The canonical the full pipeline produced (rule mapper, then the LLM fallback), or null when nothing mapped.</param>
-/// <param name="RawTextFallback">True when both mappers failed and <paramref name="FinalCanonical"/> is the raw command text surfaced beside the callsign.</param>
+/// <param name="FinalCanonical">
+/// The canonical the full pipeline produced (rule mapper, then the LLM fallback), or null when nothing mapped.
+/// </param>
+/// <param name="RawTextFallback">
+/// True when both mappers failed and <paramref name="FinalCanonical"/> is the raw command text surfaced beside the callsign.
+/// </param>
 public sealed record EvalTrial(string Transcript, string? MapperCanonical, string? FinalCanonical, bool RawTextFallback);
 
 /// <summary>Everything one scoring pass produced.</summary>
@@ -100,12 +104,6 @@ internal sealed class EvalPipeline : IDisposable
     {
         public string ModelPath { get; } = modelPath;
         public int GpuLayers => -1;
-    }
-
-    /// <summary>Whisper config carrying an explicit model source (prefs default or --whisper override).</summary>
-    private sealed class OverrideWhisperRuntimeConfig(string modelSource) : IWhisperRuntimeConfig
-    {
-        public string ModelSource { get; } = modelSource;
     }
 
     private readonly WhisperSttEngine? _whisperStt;
@@ -139,7 +137,7 @@ internal sealed class EvalPipeline : IDisposable
         // export (--parakeet). Both are exposed to the trial loop through one method so the
         // scoring path is identical regardless of engine.
         string whisperSource = whisperOverride ?? prefs.WhisperModelSize;
-        _whisperStt = parakeetDir is null ? new WhisperSttEngine(new OverrideWhisperRuntimeConfig(whisperSource)) : null;
+        _whisperStt = parakeetDir is null ? new WhisperSttEngine(new FixedWhisperRuntimeConfig(whisperSource)) : null;
         _sherpaStt = parakeetDir is null ? null : new SherpaSttEngine(parakeetDir);
         string sttLabel = parakeetDir is null ? whisperSource : $"parakeet (sherpa-onnx, {parakeetDir})";
         // --prompt none blanks the Whisper biasing prompt for the whole run — the A/B knob for
@@ -424,16 +422,16 @@ public static class EvalRunner
             string lastCanonical = score.GotCanonicals.Count > 0 ? score.GotCanonicals[^1] : "<null>";
             string werText = score.Wer is null ? "—" : score.Wer.Value.ToString("P0", CultureInfo.InvariantCulture);
             long sttMsAvg = score.SttMsTotal / trials;
-            Console.WriteLine(
-                $"{verdictText, -10} {result.CaseName}: got \"{lastCanonical}\" (callsign {score.LastCallsign}, WER {werText}, STT avg {sttMsAvg} ms/trial)"
-            );
+            string scoreText = $"(callsign {score.LastCallsign}, WER {werText}, STT avg {sttMsAvg} ms/trial)";
+            Console.WriteLine($"{verdictText, -10} {result.CaseName}: got \"{lastCanonical}\" {scoreText}");
             Console.WriteLine($"           transcript \"{score.LastTranscript}\"");
             if (result.Verdict != EvalVerdict.Pass)
             {
                 Console.WriteLine($"           expected \"{expectation.Canonical}\"");
             }
+            string expected = expectation.Canonical;
             report.AppendLine(
-                $"| {result.CaseName} | {verdictText} | `{expectation.Canonical}` | `{lastCanonical}` | {werText} | {score.LastCallsign} | {sttMsAvg} |"
+                $"| {result.CaseName} | {verdictText} | `{expected}` | `{lastCanonical}` | {werText} | {score.LastCallsign} | {sttMsAvg} |"
             );
             details.AppendLine($"#### {result.CaseName}");
             details.AppendLine($"- Expected transcript: `{expectation.Transcript ?? "(none)"}`");
@@ -528,7 +526,9 @@ public static class EvalRunner
                 // Score STT in isolation. Both sides run through NormalizeDigits so "two seven
                 // zero" vs "270" scores as a match — the pipeline is insensitive to that split,
                 // and WER should measure real recognition damage, not orthography.
-                double trialWer = WordErrorRate(AtcNumberParser.NormalizeDigits(expectation.Transcript), AtcNumberParser.NormalizeDigits(transcript));
+                string referenceText = AtcNumberParser.NormalizeDigits(expectation.Transcript);
+                string hypothesisText = AtcNumberParser.NormalizeDigits(transcript);
+                double trialWer = WerScorer.Score(referenceText, hypothesisText).Rate;
                 wer = wer is null ? trialWer : Math.Min(wer.Value, trialWer);
             }
         }
@@ -679,38 +679,4 @@ public static class EvalRunner
     /// <summary>Expected-callsign check. A case with no expected callsign accepts any extraction result.</summary>
     private static bool CallsignMatches(string? expected, string? actual) =>
         expected is null || string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Word-level edit distance divided by reference length — the standard WER definition. Both
-    /// strings should be pre-normalized by the caller so orthography differences don't count as
-    /// errors. Returns 0 for two empty strings.
-    /// </summary>
-    internal static double WordErrorRate(string reference, string hypothesis)
-    {
-        string[] refWords = reference.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        string[] hypWords = hypothesis.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (refWords.Length == 0)
-        {
-            return hypWords.Length == 0 ? 0 : 1;
-        }
-
-        // Two-row Levenshtein over words.
-        int[] prev = new int[hypWords.Length + 1];
-        int[] curr = new int[hypWords.Length + 1];
-        for (int j = 0; j <= hypWords.Length; j++)
-        {
-            prev[j] = j;
-        }
-        for (int i = 1; i <= refWords.Length; i++)
-        {
-            curr[0] = i;
-            for (int j = 1; j <= hypWords.Length; j++)
-            {
-                int substitution = prev[j - 1] + (string.Equals(refWords[i - 1], hypWords[j - 1], StringComparison.OrdinalIgnoreCase) ? 0 : 1);
-                curr[j] = Math.Min(Math.Min(prev[j] + 1, curr[j - 1] + 1), substitution);
-            }
-            (prev, curr) = (curr, prev);
-        }
-        return (double)prev[hypWords.Length] / refWords.Length;
-    }
 }
