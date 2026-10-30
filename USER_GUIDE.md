@@ -896,7 +896,7 @@ The aircraft holding short at the front is #1; those bunched right behind it (wi
 
 Once the front aircraft is told to line up and wait it leaves the line and the next aircraft becomes #1. A lone departure first in line still shows **#1**. An aircraft told to `FOLLOWG` another bound for the same hold short joins its leader's line at any distance from the bar, ranked by its own distance to it, and moves up when the leader lines up.
 
-**Runway-end click target:** When an aircraft is selected, a small amber dot appears at every runway threshold.
+**Runway-end click target:** When an aircraft is selected and the YAAT layout (GND) is shown, a small amber dot appears at every runway threshold; with the layout hidden there is no dot, and a click there is not a runway-end click.
 
 Left-click (or right-click) a dot, or the threshold marker that shows the `RWY 28L` hover label, to open the point menu, with the same icon strip, of the hold short nearest that runway end that the selected aircraft can reach, so you don't have to hunt for the right hold-short node; its title names it, such as `UAL238 · B738 → HS 30 at W3`.
 

@@ -2135,10 +2135,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// The radius is slightly tighter than <see cref="FindNodeAtPoint"/>'s; a right-click
     /// that hits a marker still outranks nodes within the node radius, except another
     /// runway's hold short off the marker's runway (<see cref="TryRaiseThresholdRightClick"/>).
+    /// The markers draw only while the YAAT layout is shown (<see cref="ShowYaatLayout"/>), so with it hidden this always
+    /// returns null: no click or hover cursor ever targets a marker that is not on screen. Every caller still checks the
+    /// selected aircraft, which the markers also need.
     /// </summary>
     public (string RunwayEnd, LatLon Position)? FindRunwayThresholdAtPoint(Point screenPos)
     {
-        if (Layout?.Runways is not { } runways)
+        if ((!ShowYaatLayout) || (Layout?.Runways is not { } runways))
         {
             return null;
         }

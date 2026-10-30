@@ -155,6 +155,58 @@ public class GroundCanvasRunwaySurfaceHitTests
         }
     }
 
+    // The threshold marker draws only while the YAAT layout is shown, so with it hidden there is no marker on screen and
+    // the click at that spot is not a threshold click: a right-click there raises no threshold menu.
+    [AvaloniaFact]
+    public void RightClick_AtThresholdWithYaatLayoutHidden_IsNotAThresholdClick()
+    {
+        GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
+        (GroundCanvas canvas, Window window) = ShowCanvas(layout);
+        try
+        {
+            canvas.SelectedAircraft = GroundAircraft(layout);
+            Point click = ThresholdClick(canvas, layout);
+            Assert.Equal("28L", canvas.FindRunwayThresholdAtPoint(click)!.Value.RunwayEnd);
+            canvas.ShowYaatLayout = false;
+            Assert.Null(canvas.FindRunwayThresholdAtPoint(click));
+            var thresholds = new List<string>();
+            canvas.RunwayThresholdRightClicked += (rwyEnd, _) => thresholds.Add(rwyEnd);
+
+            RightClick(canvas, window, click);
+
+            Assert.Empty(thresholds);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    // The same hidden-layout click with the left button: no threshold menu, for the same reason the marker is not drawn.
+    [AvaloniaFact]
+    public void LeftClick_AtThresholdWithYaatLayoutHidden_IsNotAThresholdClick()
+    {
+        GroundLayoutDto layout = MenuGoldenFixtures.OakLayoutForClient;
+        (GroundCanvas canvas, Window window) = ShowCanvas(layout);
+        try
+        {
+            canvas.SelectedAircraft = GroundAircraft(layout);
+            Point click = ThresholdClick(canvas, layout);
+            Assert.Equal("28L", canvas.FindRunwayThresholdAtPoint(click)!.Value.RunwayEnd);
+            canvas.ShowYaatLayout = false;
+            var thresholds = new List<string>();
+            canvas.RunwayThresholdClicked += (rwyEnd, _) => thresholds.Add(rwyEnd);
+
+            LeftClick(canvas, window, click);
+
+            Assert.Empty(thresholds);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
     // The "RWY 28L" hover label names the threshold marker, so a right-click there opens the 28L threshold menu even with
     // an ordinary taxi node inside the node hit radius: the click does what the label says.
     [AvaloniaFact]
@@ -803,6 +855,28 @@ public class GroundCanvasRunwaySurfaceHitTests
         window.MouseDown(inWindow.Value, MouseButton.Right);
         window.MouseUp(inWindow.Value, MouseButton.Right);
         Dispatcher.UIThread.RunJobs();
+    }
+
+    private static void LeftClick(GroundCanvas canvas, Window window, Point canvasPoint)
+    {
+        Point? inWindow = canvas.TranslatePoint(canvasPoint, window);
+        Assert.NotNull(inWindow);
+        window.MouseDown(inWindow.Value, MouseButton.Left);
+        window.MouseUp(inWindow.Value, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// Focuses the view on the OAK 28L threshold (the "28L/10R" runway's first coordinate) and returns a click a few feet
+    /// inside it: on the marker, inside its 18 px radius.
+    /// </summary>
+    private static Point ThresholdClick(GroundCanvas canvas, GroundLayoutDto layout)
+    {
+        GroundRunwayDto runway = Runway(layout, "28L/10R");
+        var threshold = new LatLon(runway.Coordinates[0][0], runway.Coordinates[0][1]);
+        FocusOn(canvas, runway, threshold, HalfWidthPx);
+        LatLon clickPos = GeoMath.ProjectPoint(threshold, new TrueHeading(Heading(runway)), InsideThresholdFt / GeoMath.FeetPerNm);
+        return Screen(canvas, clickPos);
     }
 
     private static void Close(Window window)
