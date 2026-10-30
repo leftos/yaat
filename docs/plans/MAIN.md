@@ -30,6 +30,7 @@
 ## Controller-AI coaching
 
 - [ ] YAAT-1246 Explore codifying coaching session 1's ground lessons into GroundBrain decisions
+- [ ] YAAT-1536 AI Ground: a pushing tow stopped for a parked aircraft that is itself held on standby waits forever
 
 ## Bug reports and feature requests
 
@@ -71,7 +72,6 @@
 - [ ] YAAT-970 Stop offering Follow traffic after the pilot loses the traffic
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
-- [ ] YAAT-1529 Gate the ground view's runway-threshold click on the markers being drawn (YAAT layout shown)
 
 ## Say again
 
@@ -95,6 +95,7 @@
 - [ ] YAAT-996 Extract the client driver into a shared Avalonia driver repo (yamv adopts it)
 - [ ] YAAT-1182 Simulate ground and local control below a solo radar student
 - [ ] YAAT-1241 Solo: some pilots push off a non-movement ramp on their own and call for taxi
+- [ ] YAAT-1539 Give AI controllers their own TTS voice, and make AI coordination (crossing requests, approvals) audible and visible
 
 ## STT tuning
 
@@ -186,8 +187,13 @@
 - [ ] YAAT-1507 Rule on a stitched route in and out on the same runway side through two :link edges
 - [ ] YAAT-1508 Synthesise a stand-in far hold bar for an offset crossing whose layout lacks one (943 R8)
 - [ ] YAAT-1514 Census stitched vs direct offset-crossing pairs after YAAT-921; strip :link from the shown current taxiway
-- [/] YAAT-1527 FOLLOWG follower held short of 15/33 at C/J reports 28R/10L, and the menu's CROSS 28R takes it off the leader's trail across 28R · release vNext
-- [ ] YAAT-1528 Keep a FOLLOWG follower's CROSS on the lead's trail instead of the shortest crossing from its bar · release vNext
+- [/] YAAT-1528 Keep a FOLLOWG follower's CROSS on the lead's trail instead of the shortest crossing from its bar · release vNext
+- [ ] YAAT-1532 Audit that every route crossing a runway's edge band has that runway's bar as a segment end
+- [ ] YAAT-1534 FOLLOWG follower CROSS: a bar on the just-entered segment counts as ahead; readback while held at another runway
+- [ ] YAAT-1535 Put a CROSS sent mid-crossing onto the queued follow's clearances, not the stale assigned route
+- [ ] YAAT-1537 Rule which ground commands break off a FOLLOWG follow (HS/GIVEWAY act on the stale route; EXIT/CLEAR untraced)
+- [ ] YAAT-1538 After HOLD drops an armed follow at a bar, a CROSS may use the stale pre-FOLLOWG taxi route
+- [ ] YAAT-1540 FOLLOWG HOLD break-off edge cases: no sliceable crossing, tail-suppressed exit, restored set-up pose
 
 ## Runway exits and landing rollout
 
@@ -1174,8 +1180,10 @@
 
 ### No milestone
 - [ ] YAAT-1487 Run yaat-server's prek format hooks through the gate check-only so commits leave the heavy slot (GATE-449)
+- [ ] YAAT-1531 Have bug_bundle.py install register a new fixture with the layout-coverage list and the routing census
 
 ## Backlog
 
 - [ ] YAAT-1504 Make the recovered C2 pursuit scenario land as scripted (Class C contact; CLAND 28R refused)
 - [ ] YAAT-1505 Snapshot pending pilot traffic and field lookouts so a rewind keeps them
+- [ ] YAAT-1533 List taxiway S at KOAK as a ramp taxilane, not movement area
