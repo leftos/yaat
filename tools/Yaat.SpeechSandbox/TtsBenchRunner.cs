@@ -143,7 +143,7 @@ public static class TtsBenchRunner
             return ExitSetupError;
         }
 
-        IReadOnlyList<TtsBenchLine>? lines = await RenderLinesAsync(options.CorpusPath, repoRoot).ConfigureAwait(false);
+        IReadOnlyList<TtsBenchLine>? lines = await RenderLinesAsync(options.CorpusPath).ConfigureAwait(false);
         IReadOnlyList<TtsBenchRecordedScreen>? recorded = await LoadRecordedScreensAsync(repoRoot).ConfigureAwait(false);
         if (lines is null || recorded is null)
         {
@@ -227,7 +227,7 @@ public static class TtsBenchRunner
     /// Renders every corpus case's readback against the real navdata the sim tests use (committed under
     /// <c>tests/Yaat.Sim.Tests/TestData</c>); prints and returns null when one fails to parse or renders empty.
     /// </summary>
-    private static async Task<IReadOnlyList<TtsBenchLine>?> RenderLinesAsync(string corpusPath, string repoRoot)
+    private static async Task<IReadOnlyList<TtsBenchLine>?> RenderLinesAsync(string corpusPath)
     {
         TtsBenchCorpus? corpus = JsonSerializer.Deserialize(
             await File.ReadAllTextAsync(corpusPath).ConfigureAwait(false),
@@ -238,8 +238,11 @@ public static class TtsBenchRunner
             Console.Error.WriteLine($"FATAL: corpus {corpusPath} has no cases.");
             return null;
         }
-        Yaat.Sim.Testing.TestVnasData.SetTestDataDir(Path.Combine(repoRoot, "tests", "Yaat.Sim.Tests", "TestData"));
-        Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+        if (!SandboxNavData.TryInitialize(out string? navDataError))
+        {
+            Console.Error.WriteLine($"FATAL: {navDataError}");
+            return null;
+        }
         var lines = new List<TtsBenchLine>();
         foreach (TtsBenchCase c in corpus.Cases)
         {

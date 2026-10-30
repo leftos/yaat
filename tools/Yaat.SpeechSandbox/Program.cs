@@ -50,6 +50,11 @@ namespace Yaat.SpeechSandbox;
 ///     benchmark (<see cref="TtsBenchRunner"/>): renders committed pilot readbacks, times each model in
 ///     <see cref="TtsBenchModels"/> (load, first audio, RTF) and writes the report, results and listening page. Each sherpa-onnx model runs in a
 ///     child process (<c>--tts-bench-one &lt;job.json&gt;</c>, internal), so a native abort costs only that model.</description></item>
+///   <item><description><c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--whisper &lt;src&gt;]
+///     [--prompt default|none|both] [--update-baseline] [--out &lt;dir&gt;]</c> — Whisper word error rate on real
+///     ATC audio (<see cref="CorpusWerRunner"/>): the pinned UWB-ATCC test split, downloaded into the YAAT cache,
+///     or a folder of WAV + transcript pairs; scored per speaker role with and without the biasing prompt, and
+///     compared with the corpus's committed baseline.</description></item>
 ///   <item><description>(no args) — launches the GUI sandbox window (App.axaml / MainWindow.axaml).
 ///     Interactive mode for recording, replaying, and iterating on Whisper / LLM prompts.</description></item>
 /// </list>
@@ -98,6 +103,8 @@ public static class Program
                         return TtsBenchRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
                     case "--tts-bench-one":
                         return TtsBenchSynthesis.RunOneAsync(args[1..]).GetAwaiter().GetResult();
+                    case "--corpus-wer":
+                        return CorpusWerRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
                 }
             }
             finally
@@ -118,7 +125,10 @@ public static class Program
     /// pipeline and prints what came out at each step. Use this to diagnose where a real PTT
     /// recording got mangled — was it Whisper, was it the rule engine, did the LLM fallback help?
     /// </summary>
-    /// <param name="wavPaths">List of WAV file paths to process. Each must be 16 kHz mono int16 PCM (the format AudioCaptureService records and WhisperSttEngine expects).</param>
+    /// <param name="wavPaths">
+    /// List of WAV file paths to process. Each must be 16 kHz mono int16 PCM (the format
+    /// AudioCaptureService records and WhisperSttEngine expects).
+    /// </param>
     private static async Task<int> RunPipelineMode(string[] wavPaths)
     {
         if (wavPaths.Length == 0)
@@ -133,9 +143,8 @@ public static class Program
         var prefs = new UserPreferences();
         if (!prefs.SpeechEnabled)
         {
-            Console.WriteLine(
-                "Note: speech recognition is disabled in user preferences. The pipeline still runs in this tool because we instantiate the services directly."
-            );
+            Console.WriteLine("Note: speech recognition is disabled in user preferences.");
+            Console.WriteLine("The pipeline still runs in this tool because we instantiate the services directly.");
             Console.WriteLine();
         }
 
@@ -148,104 +157,118 @@ public static class Program
         var ruleMapper = new PhraseologyCommandMapper();
         var llmMapper = new LocalLlmCommandMapper(llm);
 
+        const string downloadHint = "Open Yaat.Client → Settings → Speech and download the model first.";
         if (!stt.IsConfigured)
         {
-            Console.Error.WriteLine(
-                $"FATAL: Whisper STT is not configured (model='{prefs.WhisperModelSize}'). Open Yaat.Client → Settings → Speech and download the model first."
-            );
+            Console.Error.WriteLine($"FATAL: Whisper STT is not configured (model='{prefs.WhisperModelSize}'). {downloadHint}");
             return 2;
         }
         if (!llm.IsConfigured)
         {
-            Console.Error.WriteLine(
-                $"FATAL: LLM is not configured (model='{prefs.LlmModelPath}'). Open Yaat.Client → Settings → Speech and download the model first."
-            );
+            Console.Error.WriteLine($"FATAL: LLM is not configured (model='{prefs.LlmModelPath}'). {downloadHint}");
+            return 2;
+        }
+
+        // The rule mapper validates matched commands through CommandParser, which resolves fixes
+        // and routes against NavigationDatabase.
+        if (!SandboxNavData.TryInitialize(out string? navDataError))
+        {
+            Console.Error.WriteLine($"FATAL: {navDataError}");
             return 2;
         }
 
         bool anyFailed = false;
         foreach (string path in wavPaths)
         {
-            if (!File.Exists(path))
-            {
-                Console.Error.WriteLine($"=== {path} ===");
-                Console.Error.WriteLine("  FILE NOT FOUND");
-                Console.Error.WriteLine();
-                anyFailed = true;
-                continue;
-            }
-
-            Console.WriteLine($"=== {path} ===");
-            float[] samples;
-            try
-            {
-                samples = WavHeader.ReadPcm16(path);
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"  FAILED to read WAV: {ex.GetType().Name}: {ex.Message}");
-                Console.WriteLine();
-                anyFailed = true;
-                continue;
-            }
-            double durationSec = samples.Length / (double)AudioCaptureService.SampleRate;
-            Console.WriteLine($"  Duration:  {durationSec:F2}s ({samples.Length:N0} samples @ {AudioCaptureService.SampleRate} Hz)");
-
-            // --- Stage 1: Whisper STT ---
-            var sttSw = Stopwatch.StartNew();
-            string? transcript;
-            try
-            {
-                transcript = await stt.TranscribeAsync(samples, WhisperBiasingPrompt.Default, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"  STT FAILED: {ex.GetType().Name}: {ex.Message}");
-                Console.WriteLine();
-                anyFailed = true;
-                continue;
-            }
-            sttSw.Stop();
-            Console.WriteLine($"  STT ({sttSw.ElapsedMilliseconds, 5} ms): {(transcript is null ? "<null>" : "\"" + transcript + "\"")}");
-            if (string.IsNullOrWhiteSpace(transcript))
-            {
-                Console.WriteLine("  (empty transcript — no further stages)");
-                Console.WriteLine();
-                continue;
-            }
-
-            // --- Stage 2: AtcNumberParser.NormalizeDigits (digit normalization + runway collapse + comma stripping + filler insulation) ---
-            string normalized = AtcNumberParser.NormalizeDigits(transcript);
-            Console.WriteLine($"  Normalize:        \"{normalized}\"");
-
-            // --- Stage 3: rule engine mapper ---
-            var ruleSw = Stopwatch.StartNew();
-            MapResult? ruleResult = await ruleMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
-            ruleSw.Stop();
-            string ruleCanonical = ruleResult?.CanonicalCommand ?? "<null>";
-            string ruleCallsign = ruleResult?.Callsign ?? "<none>";
-            Console.WriteLine($"  Rule ({ruleSw.ElapsedMilliseconds, 5} ms): callsign={ruleCallsign} canonical={ruleCanonical}");
-
-            // --- Stage 4: LLM mapper (always run, for side-by-side comparison) ---
-            var llmSw = Stopwatch.StartNew();
-            MapResult? llmResult = await llmMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
-            llmSw.Stop();
-            string llmCanonical = llmResult?.CanonicalCommand ?? "<null>";
-            Console.WriteLine($"  LLM  ({llmSw.ElapsedMilliseconds, 5} ms): canonical={llmCanonical}");
-
-            // --- Verdict line ---
-            // Mirrors the production decision: rule mapper wins if it produced anything, otherwise
-            // the LLM is the fallback. This is the canonical command that would land in the YAAT
-            // command input box for this PTT press.
-            string winner =
-                ruleCanonical != "<null>" ? $"RULE → {ruleCanonical}"
-                : llmCanonical != "<null>" ? $"LLM  → {llmCanonical}"
-                : "BOTH FAILED";
-            Console.WriteLine($"  Verdict:   {winner}");
-            Console.WriteLine();
+            anyFailed |= await RunPipelineWavAsync(path, stt, ruleMapper, llmMapper).ConfigureAwait(false);
         }
 
         return anyFailed ? 1 : 0;
+    }
+
+    /// <summary>Runs one WAV through every pipeline stage and prints each stage's output; true when a stage failed.</summary>
+    private static async Task<bool> RunPipelineWavAsync(
+        string path,
+        WhisperSttEngine stt,
+        PhraseologyCommandMapper ruleMapper,
+        LocalLlmCommandMapper llmMapper
+    )
+    {
+        if (!File.Exists(path))
+        {
+            Console.Error.WriteLine($"=== {path} ===");
+            Console.Error.WriteLine("  FILE NOT FOUND");
+            Console.Error.WriteLine();
+            return true;
+        }
+
+        Console.WriteLine($"=== {path} ===");
+        float[] samples;
+        try
+        {
+            samples = WavHeader.ReadPcm16(path);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"  FAILED to read WAV: {ex.GetType().Name}: {ex.Message}");
+            Console.WriteLine();
+            return true;
+        }
+        double durationSec = samples.Length / (double)AudioCaptureService.SampleRate;
+        Console.WriteLine($"  Duration:  {durationSec:F2}s ({samples.Length:N0} samples @ {AudioCaptureService.SampleRate} Hz)");
+
+        // --- Stage 1: Whisper STT ---
+        var sttSw = Stopwatch.StartNew();
+        string? transcript;
+        try
+        {
+            transcript = await stt.TranscribeAsync(samples, WhisperBiasingPrompt.Default, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"  STT FAILED: {ex.GetType().Name}: {ex.Message}");
+            Console.WriteLine();
+            return true;
+        }
+        sttSw.Stop();
+        Console.WriteLine($"  STT ({sttSw.ElapsedMilliseconds, 5} ms): {(transcript is null ? "<null>" : "\"" + transcript + "\"")}");
+        if (string.IsNullOrWhiteSpace(transcript))
+        {
+            Console.WriteLine("  (empty transcript — no further stages)");
+            Console.WriteLine();
+            return false;
+        }
+
+        // --- Stage 2: AtcNumberParser.NormalizeDigits (digit normalization + runway collapse + comma stripping + filler insulation) ---
+        string normalized = AtcNumberParser.NormalizeDigits(transcript);
+        Console.WriteLine($"  Normalize:        \"{normalized}\"");
+
+        // --- Stage 3: rule engine mapper ---
+        var ruleSw = Stopwatch.StartNew();
+        MapResult? ruleResult = await ruleMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
+        ruleSw.Stop();
+        string ruleCanonical = ruleResult?.CanonicalCommand ?? "<null>";
+        string ruleCallsign = ruleResult?.Callsign ?? "<none>";
+        Console.WriteLine($"  Rule ({ruleSw.ElapsedMilliseconds, 5} ms): callsign={ruleCallsign} canonical={ruleCanonical}");
+
+        // --- Stage 4: LLM mapper (always run, for side-by-side comparison) ---
+        var llmSw = Stopwatch.StartNew();
+        MapResult? llmResult = await llmMapper.MapAsync(normalized, MapContext.Empty, CancellationToken.None).ConfigureAwait(false);
+        llmSw.Stop();
+        string llmCanonical = llmResult?.CanonicalCommand ?? "<null>";
+        Console.WriteLine($"  LLM  ({llmSw.ElapsedMilliseconds, 5} ms): canonical={llmCanonical}");
+
+        // --- Verdict line ---
+        // Mirrors the production decision: rule mapper wins if it produced anything, otherwise
+        // the LLM is the fallback. This is the canonical command that would land in the YAAT
+        // command input box for this PTT press.
+        string winner =
+            ruleCanonical != "<null>" ? $"RULE → {ruleCanonical}"
+            : llmCanonical != "<null>" ? $"LLM  → {llmCanonical}"
+            : "BOTH FAILED";
+        Console.WriteLine($"  Verdict:   {winner}");
+        Console.WriteLine();
+        return false;
     }
 
     /// <summary>
@@ -345,8 +368,8 @@ public static class Program
     /// </summary>
     /// <remarks>
     /// Loads the model identified by <c>LMKIT_TEST_MODEL</c> (default
-    /// <see cref="LmKitModelCatalog.RecommendedLlmId"/>) via <see cref="ProbeLlmRuntimeConfig"/>, NOT the user's saved preference. This keeps the probe
-    /// reproducible across machines and matches the test fixture's model.
+    /// <see cref="LmKitModelCatalog.RecommendedLlmId"/>) via <see cref="ProbeLlmRuntimeConfig"/>, NOT the user's saved
+    /// preference. This keeps the probe reproducible across machines and matches the test fixture's model.
     /// </remarks>
     private static async Task<int> RunLlmProbeMode(string[] args)
     {

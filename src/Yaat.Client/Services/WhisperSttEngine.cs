@@ -338,6 +338,13 @@ public sealed class WhisperSttEngine(IWhisperRuntimeConfig config) : IDisposable
 }
 
 /// <summary>
+/// PCM samples decoded from a WAV file, together with the sample rate its header declares. The
+/// samples are exactly as stored; the caller decides whether they must be resampled for a 16 kHz
+/// consumer.
+/// </summary>
+public readonly record struct Pcm16Audio(float[] Samples, int SampleRate);
+
+/// <summary>
 /// Writes a minimal 44-byte RIFF/WAV header followed by 16-bit signed little-endian PCM samples
 /// into a <see cref="MemoryStream"/>. Used by <see cref="WhisperSttEngine"/> to hand captured
 /// PortAudio Float32 samples to LM-Kit via <see cref="LMKit.Media.Audio.WaveFile"/>.
@@ -401,19 +408,40 @@ internal static class WavHeader
     /// a third-party audio library. Throws <see cref="InvalidDataException"/> if the file isn't
     /// a recognizable PCM mono WAV.
     /// </summary>
-    public static float[] ReadPcm16(string path)
+    public static float[] ReadPcm16(string path) => ReadPcm16WithRate(path).Samples;
+
+    /// <summary>
+    /// Reads a RIFF/WAV file from <paramref name="path"/> and returns its samples together with the
+    /// sample rate its <c>fmt </c> chunk declares.
+    /// </summary>
+    public static Pcm16Audio ReadPcm16WithRate(string path)
     {
         using FileStream fs = File.OpenRead(path);
-        using var reader = new BinaryReader(fs, Encoding.ASCII, leaveOpen: false);
+        return ReadPcm16Core(fs, path);
+    }
+
+    /// <summary>
+    /// Reads a complete RIFF/WAV file already in memory. <paramref name="sourceName"/> names the input
+    /// in every exception message, since there is no path to report.
+    /// </summary>
+    public static Pcm16Audio ReadPcm16WithRate(byte[] wav, string sourceName)
+    {
+        using var stream = new MemoryStream(wav, writable: false);
+        return ReadPcm16Core(stream, sourceName);
+    }
+
+    private static Pcm16Audio ReadPcm16Core(Stream stream, string sourceName)
+    {
+        using var reader = new BinaryReader(stream, Encoding.ASCII, leaveOpen: true);
 
         if (Encoding.ASCII.GetString(reader.ReadBytes(4)) != "RIFF")
         {
-            throw new InvalidDataException($"Not a RIFF file: {path}");
+            throw new InvalidDataException($"Not a RIFF file: {sourceName}");
         }
         _ = reader.ReadInt32(); // total chunk size — we don't trust it, just read until EOF
         if (Encoding.ASCII.GetString(reader.ReadBytes(4)) != "WAVE")
         {
-            throw new InvalidDataException($"Not a WAVE file: {path}");
+            throw new InvalidDataException($"Not a WAVE file: {sourceName}");
         }
 
         // Walk subchunks until we find both fmt and data. Real-world WAVs sometimes have extra
@@ -421,9 +449,10 @@ internal static class WavHeader
         ushort channels = 0;
         ushort bitsPerSample = 0;
         ushort formatTag = 0;
+        int sampleRate = 0;
         byte[]? pcmBytes = null;
 
-        while (fs.Position < fs.Length - 8)
+        while (stream.Position < stream.Length - 8)
         {
             string chunkId = Encoding.ASCII.GetString(reader.ReadBytes(4));
             int chunkSize = reader.ReadInt32();
@@ -431,14 +460,14 @@ internal static class WavHeader
             {
                 formatTag = reader.ReadUInt16();
                 channels = reader.ReadUInt16();
-                _ = reader.ReadInt32(); // sample rate
+                sampleRate = reader.ReadInt32();
                 _ = reader.ReadInt32(); // byte rate
                 _ = reader.ReadUInt16(); // block align
                 bitsPerSample = reader.ReadUInt16();
                 // Skip any extra fmt bytes (extensible WAVs).
                 if (chunkSize > 16)
                 {
-                    fs.Seek(chunkSize - 16, SeekOrigin.Current);
+                    stream.Seek(chunkSize - 16, SeekOrigin.Current);
                 }
             }
             else if (chunkId == "data")
@@ -448,17 +477,19 @@ internal static class WavHeader
             else
             {
                 // Unknown chunk — skip it. Chunks are word-aligned, so round up odd sizes.
-                fs.Seek(chunkSize + (chunkSize & 1), SeekOrigin.Current);
+                stream.Seek(chunkSize + (chunkSize & 1), SeekOrigin.Current);
             }
         }
 
         if (pcmBytes is null || formatTag == 0)
         {
-            throw new InvalidDataException($"WAV is missing fmt or data chunk: {path}");
+            throw new InvalidDataException($"WAV is missing fmt or data chunk: {sourceName}");
         }
         if (formatTag != 1 || channels != 1 || bitsPerSample != 16)
         {
-            throw new InvalidDataException($"WAV must be PCM mono 16-bit, got format={formatTag} channels={channels} bits={bitsPerSample}: {path}");
+            throw new InvalidDataException(
+                $"WAV must be PCM mono 16-bit, got format={formatTag} channels={channels} bits={bitsPerSample}: {sourceName}"
+            );
         }
 
         int sampleCount = pcmBytes.Length / sizeof(short);
@@ -472,6 +503,6 @@ internal static class WavHeader
             short value = (short)((hi << 8) | lo);
             samples[i] = value / (float)short.MaxValue;
         }
-        return samples;
+        return new Pcm16Audio(samples, sampleRate);
     }
 }
