@@ -32,6 +32,7 @@
 - The ground view's right-click picker lists what the cursor is on first: the hovered datablock, else the hovered parking spot or stand.
 - With the ground view's YAAT layout hidden, a click near a runway end no longer opens that end's menu, since no marker is drawn there.
 - A `FOLLOWG` follower holds short only at hold lines on its own path, not at another runway's hold line beside it, so its Cross crosses where the lead did.
+- Push to now offers pushes of up to 700 ft (was 600), so a stand like KOAK 5 offers its push onto S with both facings.
 
 ## v0.17.1-beta [2026/10/29]
 

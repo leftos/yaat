@@ -24,7 +24,8 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     /// <summary>
     /// Every move the OAK sample stands store, rebuilt with <see cref="PushMoveEntry.ToMove"/> and flown again from the
     /// stand with the group's envelope, stores back as the same entry: every move field equal, the end within
-    /// <see cref="PushTargetLiveCheckFixtures.RefliedEndToleranceFt"/>.
+    /// <see cref="PushTargetLiveCheckFixtures.RefliedEndToleranceFt"/>, one <see cref="TugMovePlanner.StepFt"/> more for a
+    /// line move.
     /// </summary>
     [Fact]
     public void ToMove_RoundTripsEveryStoredMove()
@@ -32,6 +33,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
         double worstFt = 0.0;
+        double worstOverToleranceFt = double.NegativeInfinity;
         int moveCount = 0;
         foreach (PushTargetEntry entry in PushTargetPlannerFixtures.OakEntries.Value)
         {
@@ -56,7 +58,12 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
                             PlannedEndLongitude = stored.PlannedEndLongitude,
                         }
                     );
-                    worstFt = Math.Max(worstFt, EndGapFt(stored, reflown.Moves[i].End.Position));
+                    double gapFt = EndGapFt(stored, reflown.Moves[i].End.Position);
+                    double toleranceFt = stored.Shape is TugMoveShape.ViaLine or TugMoveShape.ToPoint
+                        ? TugMovePlanner.StepFt + RefliedEndToleranceFt
+                        : RefliedEndToleranceFt;
+                    worstFt = Math.Max(worstFt, gapFt);
+                    worstOverToleranceFt = Math.Max(worstOverToleranceFt, gapFt - toleranceFt);
                     moveCount++;
                 }
             }
@@ -64,7 +71,7 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
 
         output.WriteLine($"{moveCount} stored moves re-flown; the largest end gap is {worstFt:F4} ft");
         Assert.True(moveCount > 0, "the OAK sample stands store no moves");
-        Assert.True(worstFt <= RefliedEndToleranceFt, $"a re-flown move ended {worstFt:F4} ft from its stored end");
+        Assert.True(worstOverToleranceFt <= 0.0, $"a re-flown move ended {worstOverToleranceFt:F4} ft past its shape's tolerance");
     }
 
     /// <summary>Gate 26's group-IV <c>PUSH TE</c> and <c>PUSH TC</c>, re-flown whole with the envelope, end on the stored end.</summary>

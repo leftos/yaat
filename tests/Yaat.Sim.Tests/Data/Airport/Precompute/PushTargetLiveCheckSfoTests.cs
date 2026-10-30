@@ -27,15 +27,14 @@ public class PushTargetLiveCheckSfoTests(ITestOutputHelper output)
     );
 
     /// <summary>
-    /// The SFO GC 28/01 field case: an E75L on D2 with an E75L on D1. Group III stores no <c>PUSH $5A</c> from D2: its
-    /// envelope plan is 611.0 ft, over the group's 600.0 ft cap (<see cref="PushTargetPlanner.PathCapFt"/>), so a group-III
-    /// menu never offers it, although the E75L's own live plan with SKW3398 at D1 is 591.0 ft. D2's group-III
-    /// <c>PUSH T5A</c> is offered: the live planner plans it for the E75L with SKW3398 at D1 as a neighbour, so the E75L's
-    /// own plan keeps D1's floor, and the stored group-III moves flown and swept for the E75L keep it too, so both are
-    /// clear.
+    /// The SFO GC 28/01 field case: an E75L on D2 with an E75L on D1. Group III stores <c>PUSH $5A</c> from D2: its
+    /// envelope plan is 611.0 ft, inside the group's 700.0 ft cap (<see cref="PushTargetPlanner.PathCapFt"/>), as is the
+    /// E75L's own live plan with SKW3398 at D1, 591.0 ft. D2's group-III <c>PUSH T5A</c> is offered: the live planner plans
+    /// it for the E75L with SKW3398 at D1 as a neighbour, so the E75L's own plan keeps D1's floor, and the stored group-III
+    /// moves flown and swept for the E75L keep it too, so both are clear.
     /// </summary>
     [Fact]
-    public void Sfo_D2_E75LAtD1_Spot5ANotOffered()
+    public void Sfo_D2_E75LAtD1_Spot5AOffered()
     {
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Sfo();
@@ -48,7 +47,7 @@ public class PushTargetLiveCheckSfoTests(ITestOutputHelper output)
         AircraftFootprint envelope = EnvelopeFootprint(group);
         var classification = MovementAreaClassification.Build(layout, PushTargetPlannerTests.Sidecars.Value);
 
-        Assert.DoesNotContain(Target(SfoD2Entries.Value, "D2", group), t => t.Command == "PUSH $5A");
+        Assert.Contains(Target(SfoD2Entries.Value, "D2", group), t => t.Command == "PUSH $5A");
         GroundNode spot5A = Assert.IsType<GroundNode>(layout.FindSpotNodeByName("5A"));
         TugPlan envelopePlan = Assert.IsType<TugPlan>(
             TugMovePlanner.Plan(
@@ -59,7 +58,7 @@ public class PushTargetLiveCheckSfoTests(ITestOutputHelper output)
         );
         double envelopePathFt = envelopePlan.Moves.Sum(m => m.PathLengthFt);
         output.WriteLine($"PUSH $5A for group {group}: {envelopePathFt:F1} ft, cap {PushTargetPlanner.PathCapFt(envelope):F1} ft");
-        Assert.True(envelopePathFt > PushTargetPlanner.PathCapFt(envelope), $"group {group}'s PUSH $5A is {envelopePathFt:F1} ft, inside the cap");
+        Assert.True(envelopePathFt <= PushTargetPlanner.PathCapFt(envelope), $"group {group}'s PUSH $5A is {envelopePathFt:F1} ft, over the cap");
 
         PrecomputedPushTarget t5A = Target(SfoD2Entries.Value, "D2", group, "T5A");
         var actual = AircraftFootprint.FromType(Regional);

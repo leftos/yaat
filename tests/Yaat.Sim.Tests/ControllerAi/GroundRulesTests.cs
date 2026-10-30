@@ -347,8 +347,8 @@ public class GroundRulesTests
         var rule = new PushOffStandRule();
         double now = engine.Scenario!.ElapsedSeconds;
 
-        rule.Evaluate(probe.Scope([first], now));
-        rule.Evaluate(probe.Scope([first], now + AiPacing.ThinkMaxSeconds));
+        rule.Evaluate(probe.Scope([first, second], now));
+        rule.Evaluate(probe.Scope([first, second], now + AiPacing.ThinkMaxSeconds));
         AiCommandRequest push = Assert.Single(probe.Sink.Issued);
         Assert.StartsWith("PUSH ", push.Canonical, StringComparison.Ordinal);
 

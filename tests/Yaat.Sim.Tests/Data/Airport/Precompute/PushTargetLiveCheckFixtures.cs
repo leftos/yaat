@@ -16,11 +16,16 @@ namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 internal static class PushTargetLiveCheckFixtures
 {
     /// <summary>
-    /// How far a re-flown move may end from the end its stored entry records, feet. Measured, not chosen: the largest gap
-    /// over every move of every target the OAK sample stands (gate 26 and the two named stands nearest it) store for every
-    /// design group, as <see cref="PushTargetLiveCheckTests.ToMove_RoundTripsEveryStoredMove"/> prints it: 0.0253 ft over 46 moves, rounded up to
-    /// the next thousandth. The stored figures are rounded (coordinates to 1e-7°, feet and degrees to 0.01), so a re-flown
-    /// move steers by inputs a hair off the planner's.
+    /// How far a re-flown move may end from the end its stored entry records, feet. A straight move re-flies exactly, so
+    /// its only gap is the stored end's rounding step (coordinates to 1e-7°, about 0.023 ft at OAK's latitude); this is that
+    /// step plus a margin.
+    /// <para>
+    /// A line move (<see cref="TugMoveShape.ViaLine"/>, <see cref="TugMoveShape.ToPoint"/>) steers from rounded inputs (the
+    /// line point, its direction to 0.01°, the stop point), so it drifts up to about 0.12 ft and can latch its stop one
+    /// <see cref="TugMovePlanner.StepFt"/> early or late (seen up to 1.006 ft, S15 group I <c>PUSH S</c>);
+    /// <see cref="PushTargetLiveCheckTests.ToMove_RoundTripsEveryStoredMove"/> allows such a move one step more. The product's
+    /// own limit on a re-flown plan's drift is half the aircraft's length (<see cref="PushTargetLiveCheck.EndDriftLimitFt"/>).
+    /// </para>
     /// </summary>
     internal const double RefliedEndToleranceFt = 0.026;
 

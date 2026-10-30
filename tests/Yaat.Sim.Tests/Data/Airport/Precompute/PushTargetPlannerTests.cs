@@ -160,18 +160,48 @@ public class PushTargetPlannerTests
     }
 
     /// <summary>
-    /// Three times the group-I envelope's 63.8 ft length is under the 600 ft floor of the cap, so gate 26 keeps group I's
-    /// TE (about 227 ft) and TC (about 546 ft) and nothing longer than 600 ft.
+    /// Three times the group-I envelope's 63.8 ft length is under the 700 ft floor of the cap, so gate 26 keeps group I's
+    /// TE (about 227 ft) and TC (about 546 ft) and nothing longer than 700 ft.
     /// </summary>
     [Fact]
-    public void Gate26_GroupI_KeepsTeAndTcUnderThe600FtFloor()
+    public void Gate26_GroupI_KeepsTeAndTcUnderThe700FtFloor()
     {
         PushTargetEntry entry = Entry("26", "I");
 
-        Assert.Equal(600.0, PushTargetPlanner.PathCapFt(DesignGroupEnvelopes.LoadShipped().FootprintOf(AirplaneDesignGroup.I)));
+        Assert.Equal(700.0, PushTargetPlanner.PathCapFt(DesignGroupEnvelopes.LoadShipped().FootprintOf(AirplaneDesignGroup.I)));
         Assert.Contains(entry.Targets, t => t.Name == "TE");
         Assert.Contains(entry.Targets, t => t.Name == "TC");
-        Assert.All(entry.Targets, t => Assert.True(t.PathLengthFt <= 600.0, $"{t.Command} is {t.PathLengthFt} ft, over 600 ft"));
+        Assert.All(entry.Targets, t => Assert.True(t.PathLengthFt <= 700.0, $"{t.Command} is {t.PathLengthFt} ft, over 700 ft"));
+    }
+
+    /// <summary>
+    /// KOAK stand 5 (heading 144° true) offers a group-III aircraft PUSH S with both facings (YAAT-1530: SCX8607, a B738,
+    /// was offered no push target). Its bare push runs 665 ft, under the 700 ft floor of the cap.
+    /// </summary>
+    [Fact]
+    public void Oak_Stand5_GroupIII_OffersPushS()
+    {
+        PushTargetEntry entry = Assert.IsType<PushTargetEntry>(
+            PushTargetPlanner.ComputeStand(Oak(), DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, "5", AirplaneDesignGroup.III)
+        );
+
+        PrecomputedPushTarget pushS = Assert.Single(entry.Targets, t => t.Command == "PUSH S");
+        Assert.Equal(2, pushS.Facings.Count);
+    }
+
+    /// <summary>
+    /// KOAK stand 4's group-I <c>PUSH TE</c> plans at about 658 ft, between the old 600 ft floor and the 700 ft one, so the
+    /// floor of the cap keeps it.
+    /// </summary>
+    [Fact]
+    public void Oak_Stand4_GroupI_KeepsTeUnderThe700FtFloor()
+    {
+        PushTargetEntry entry = Assert.IsType<PushTargetEntry>(
+            PushTargetPlanner.ComputeStand(Oak(), DesignGroupEnvelopes.LoadShipped(), Sidecars.Value, "4", AirplaneDesignGroup.I)
+        );
+
+        PrecomputedPushTarget te = Assert.Single(entry.Targets, t => t.Command == "PUSH TE");
+        Assert.InRange(te.PathLengthFt, 600.0, 700.0);
     }
 
     /// <summary>A stand with no heading has no pose to push from, so it gets no entry at all.</summary>

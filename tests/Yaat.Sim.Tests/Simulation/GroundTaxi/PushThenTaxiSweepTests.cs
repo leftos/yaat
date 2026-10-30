@@ -53,7 +53,9 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
     [
         ("SFO", "A13V", "M2", "M1"),
         ("SFO", "B8", "BC", "AY1"),
+        ("SFO", "B9", "BC", "AY1"),
         ("SFO", "C10", "BC", "A"),
+        ("SFO", "G9", "B5", "B4"),
     ];
 
     private static readonly Lazy<IReadOnlyList<object[]>> AllCases = new(BuildAllCases);

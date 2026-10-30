@@ -27,8 +27,8 @@ public static class PushTargetPlanner
     /// </summary>
     public const double MaxPathLengthsPerAircraftLength = 3.0;
 
-    /// <summary>The cap's floor, feet: a small group's push out to a taxilane a few hundred feet away is still a push.</summary>
-    public const double MinPathCapFt = 600.0;
+    /// <summary>The cap's floor, feet: the cap is never below it, whatever the envelope's length.</summary>
+    public const double MinPathCapFt = 700.0;
 
     /// <summary>A held target ending within this distance of the held position leaves the aircraft where it is, feet.</summary>
     public const double StayPutDistanceFt = 10.0;
