@@ -187,13 +187,17 @@
 - [ ] YAAT-1507 Rule on a stitched route in and out on the same runway side through two :link edges
 - [ ] YAAT-1508 Synthesise a stand-in far hold bar for an offset crossing whose layout lacks one (943 R8)
 - [ ] YAAT-1514 Census stitched vs direct offset-crossing pairs after YAAT-921; strip :link from the shown current taxiway
-- [/] YAAT-1528 Keep a FOLLOWG follower's CROSS on the lead's trail instead of the shortest crossing from its bar · release vNext
 - [ ] YAAT-1532 Audit that every route crossing a runway's edge band has that runway's bar as a segment end
 - [ ] YAAT-1534 FOLLOWG follower CROSS: a bar on the just-entered segment counts as ahead; readback while held at another runway
 - [ ] YAAT-1535 Put a CROSS sent mid-crossing onto the queued follow's clearances, not the stale assigned route
 - [ ] YAAT-1537 Rule which ground commands break off a FOLLOWG follow (HS/GIVEWAY act on the stale route; EXIT/CLEAR untraced)
 - [ ] YAAT-1538 After HOLD drops an armed follow at a bar, a CROSS may use the stale pre-FOLLOWG taxi route
 - [ ] YAAT-1540 FOLLOWG HOLD break-off edge cases: no sliceable crossing, tail-suppressed exit, restored set-up pose
+- [ ] YAAT-1541 Measure whether a long aircraft's plain runway crossing stops with its tail on the crossed runway when the next hold short is close (SFO 1L to 1R on F)
+- [ ] YAAT-1542 Keep a wide type's wingtip, not only its nose, short of an angled hold bar when a crossing stops before another runway
+- [ ] YAAT-1543 Name an active runway by its active end in every spoken runway name (SFO 1L/1R active, never 19R/19L) · release vNext
+- [ ] YAAT-1544 Keep a TAXI without CROSS from a spot already past a runway's hold bar from rolling onto that runway (SFO 1R after a late HOLD)
+- [ ] YAAT-1546 Keep a crossing whose HOLD re-plan failed restoring to the same slice as the live run
 
 ## Runway exits and landing rollout
 
@@ -1187,3 +1191,7 @@
 - [ ] YAAT-1504 Make the recovered C2 pursuit scenario land as scripted (Class C contact; CLAND 28R refused)
 - [ ] YAAT-1505 Snapshot pending pilot traffic and field lookouts so a rewind keeps them
 - [ ] YAAT-1533 List taxiway S at KOAK as a ramp taxilane, not movement area
+
+## No project
+
+- [ ] YAAT-1545 Route each pilot report, check-in and readback to the position the pilot is tuned to, not a hardcoded Ground/Tower set · release vNext+1
