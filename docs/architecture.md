@@ -2787,6 +2787,9 @@ CorpusWerResults.cs            # results.json / baseline schema (CorpusWerBaseli
 CorpusSegment.cs               # CorpusSegment (16 kHz samples + reference), CorpusRole and its id-suffix rule (_PI / _AT / PIAT), CorpusSubset (seeded, ordinal), resample to 16 kHz
 UwbAtccCorpus.cs               # UWB-ATCC test split: pinned-revision download into %LOCALAPPDATA%/yaat/cache/atc-corpora/ (size + SHA-256 check), Parquet.Net row classes, load
 LocalCorpus.cs                 # Local <id>.wav + <id>.txt corpus folder (any sample rate) and its content fingerprint
+CorpusWerGroups.cs             # Folder-corpus WER rows beyond role: per provenance (owner, owner+agreed from decisions.json) and per feed (id prefix)
+CorpusSlots.cs                 # A corpus folder's slots.json: each clip's gold entity slots (kind, canonical value, spoken form)
+CorpusSlotScorer.cs            # Context-decoder output against the gold slots: per-kind recall and false insertions, wrong addressee, say-again and no-callsign counts, pooled overall, per provenance and per feed
 WerScorer.cs                   # WerCounts (S/D/I, rate), WerScorer (word Levenshtein alignment), WerTally (pooled rate)
 WerTextNormalizer.cs           # Puts reference and hypothesis in one form for WER: lowercase, no punctuation, accents folded, digits spelled, NATO spelling variants, split compounds and letter runs joined, fillers dropped
 FixedWhisperRuntimeConfig.cs   # IWhisperRuntimeConfig over an explicit model source (--stt whisper:, or the default)
