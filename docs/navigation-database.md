@@ -23,6 +23,8 @@ tightly coupled: `RouteExpander` reads SID/STAR/airway data straight out of a `N
 | `src/Yaat.Sim/Data/RouteExpander.cs` | Stateless route-token expander (SID → STAR → dot-airway → bare-airway → plain fix). |
 | `src/Yaat.Sim/Data/FrdResolver.cs` | Fix-Radial-Distance string ↔ lat/lon. |
 | `src/Yaat.Sim/Data/CustomFixLoader.cs` / `CustomFixDefinition.cs` | Loads `Data/ARTCCs/{ARTCC}/CustomFixes/*.json` into custom fixes. |
+| `src/Yaat.Sim/Data/GatePronunciationLoader.cs` / `GatePronunciationDefinition.cs` | Loads `Data/ARTCCs/{ARTCC}/GatePronunciations/*.json`: spoken gate and spot names and named ground places. |
+| `src/Yaat.Sim/Data/ProcedurePronunciationLoader.cs` / `ProcedurePronunciationDefinition.cs` | Loads `Data/ARTCCs/{ARTCC}/ProcedurePronunciations/*.json`: the spoken base name of a SID or STAR. |
 | `src/Yaat.Sim/Data/CustomProcedureLoader.cs` | Indexes ARTCC-supplied CIFP fragments (`Data/ARTCCs/{ARTCC}/Procedures/*.cifp`). |
 | `src/Yaat.Sim/Data/ProcedureSource.cs` | Which non-current source supplied a procedure (prior cycle vs ARTCC fragment). |
 | `tools/stash-procedure.py` | Finds a procedure in any reachable AIRAC cycle and writes the fragment. |
@@ -68,11 +70,11 @@ the nav DB must be initialized first.
 
 ### What the constructor builds
 
-`NavigationDatabase(navData, cifpFilePath, artccsBaseDir?, supplementaryCifpFilePath?)` (`NavigationDatabase.cs:114`) runs, in
+`NavigationDatabase(navData, cifpFilePath, artccsBaseDir?, supplementaryCifpFilePath?)` (`NavigationDatabase.cs:265`) runs, in
 order: `LoadCifpRunwayEnds` (see below — it must precede `BuildIndex`, which stamps the elevations onto runway ends),
 `BuildIndex` (airports/fixes/runways/airways, eager), `BuildProcedureIndex` (SID/STAR bodies + transitions, eager),
 `LoadCifpNavaids` (supplements `_navDb` with VOR/DME/NDB from CIFP), then the per-ARTCC user-data loads (`LoadCustomFixes`,
-`LoadFixPronunciations`, initial-contact transfers, wake directives, taxi routes, avoid-taxiways), then `AllFixNames`. CIFP
+`LoadFixPronunciations`, `LoadGatePronunciations`, `LoadProcedurePronunciations`, initial-contact transfers, wake directives, taxi routes, avoid-taxiways), then `AllFixNames`. CIFP
 **procedures** (SIDs/STARs/approaches) are *not* loaded here — they parse lazily per airport on first access (see below).
 
 ### Runway end elevations come from the CIFP
@@ -469,7 +471,7 @@ first. See [speech-recognition-pipeline.md](speech-recognition-pipeline.md) for 
 
 ### Fix pronunciations vs. display names
 
-`FixPronunciations/*.json` (loaded by `FixPronunciationLoader` → `LoadFixPronunciations`, `:1788`) carries two **distinct**
+`FixPronunciations/*.json` (loaded by `FixPronunciationLoader` → `LoadFixPronunciations`, `:2686`) carries two **distinct**
 concepts per `FixPronunciationDefinition` entry:
 
 - `pronunciations` — phonetic spelling hints for the speech engine. Used to seed Whisper's `initial_prompt` and to collapse spoken
@@ -483,12 +485,25 @@ Three accessors expose these, with different fallback chains:
 
 | Method | Returns | Fallback chain | Used by |
 |--------|---------|----------------|---------|
-| `GetFixPronunciations(fix)` (`:442`) | phonetic list | — (empty if none) | speech pipeline (Whisper hints) |
-| `GetFixFriendlyName(fix)` (`:460`) | spoken label | `pronunciations[0]` → custom-fix `name` → raw id | spoken traffic advisories |
-| `GetFixDisplayName(fix)` (`:479`) | **display** name or `null` | `displayName` → custom-fix `name` → `null` (never phonetic, never navaid/airport) | command responses, pilot readbacks, `AT <fix>` conditions, SPOS/SHDG |
+| `GetFixPronunciations(fix)` (`:878`) | phonetic list | — (empty if none) | speech pipeline (Whisper hints) |
+| `GetFixFriendlyName(fix)` (`:913`) | spoken label | `pronunciations[0]` → custom-fix `name` → raw id | spoken traffic advisories |
+| `GetFixDisplayName(fix)` (`:932`) | **display** name or `null` | `displayName` → custom-fix `name` → `null` (never phonetic, never navaid/airport) | command responses, pilot readbacks, `AT <fix>` conditions, SPOS/SHDG |
 
 The presentation helpers `PhraseologyVerbalizer.FixDisplayText` / `FixDisplayTextUpper` wrap `GetFixDisplayName` to render a fix as
 `"Name (ID)"` (e.g. `VPCBT` → "Lake Chabot (VPCBT)") or the bare uppercase identifier when it has no display name.
+
+### Gate, spot, place and procedure pronunciations
+
+`GatePronunciations/*.json` (`GatePronunciationLoader` → `LoadGatePronunciations`) and `ProcedurePronunciations/*.json` (`ProcedurePronunciationLoader` → `LoadProcedurePronunciations`) fill `_groundPronunciations` (per airport: gates, spots, named places) and `_procedurePronunciations` (base name → spoken forms). Schemas and skip rules are in `src/Yaat.Sim/Data/ARTCCs/README.md`.
+
+| Method | Returns | Used by |
+|--------|---------|---------|
+| `GetGatePronunciations(airport, gate)` / `GetSpotPronunciations(airport, spot)` | spoken forms, empty if none | `ContextEntityFactory.GroundEntities` (STT context only) |
+| `GetGroundPlaces(airport)` | named places (name, forms, stands) | `AirportContextBuilder.Build` (landmark entities) |
+| `GetProcedurePronunciations(baseName)` | spoken forms of a SID or STAR base name (`NIMI` → "nimitz") | `PhraseologyVerbalizer.ProcedureName` (pilot TTS, first form), `ContextEntityFactory` (every form) |
+| `GetArtccFragmentSids(airport)` / `GetArtccFragmentStars(airport)` | fragment procedures the current cycle lacks | `ContextEntityFactory` (STT context) |
+
+The airport argument is ICAO or FAA form.
 
 ## Approach shorthand & gate distances
 
@@ -571,6 +586,7 @@ Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).
   `tools/stash-procedure.py` **while a cycle that still has it is reachable**, not after the window closes.
 - **A test asserting an unresolvable procedure must pass `artccsBaseDir: ""`.** Otherwise it picks up the committed fragments and
   the procedure resolves after all. This already bit both KOAK NIMITZ test classes.
+- **Pronunciation tables load from `artccsBaseDir` too.** A test that passes `artccsBaseDir: ""` has no `NIMI` → "nimitz" entry, so `ProcedureName("NIMI5")` spells "nimi five" there. Fragment SIDs and STARs reach the STT context through `GetArtccFragmentSids`/`GetArtccFragmentStars` only when the current cycle lacks them; prior cached cycles are never listed.
 - **CIFP speed limits carry a *type*, and continuation records are skipped.** `CifpParser.ParseSpeedRestriction(speedStr, descChar)`
   maps the ARINC 424 §5.261 speed-limit description (col 117) to `CifpSpeedRestrictionType { AtOrBelow, AtOrAbove, Mandatory }`:
   `'-'` → AtOrBelow (max), `'+'` → AtOrAbove (min — only ~4 legs in all US CIFP, e.g. KIAH DOOBI3 HHART 230+), blank → Mandatory.

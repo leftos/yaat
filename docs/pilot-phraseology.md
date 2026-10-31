@@ -347,6 +347,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 | `AtcNumberParser.AltitudeToWords` / `CompactAltitude` | "five thousand" / `5000` | altitudes |
 | `PhraseologyVerbalizer.SpellMilitaryRoute` | letters then group form: `IR531` → "i-r five thirty one" | military **training** route designators (§2-5-1.f) |
 | `PhraseologyVerbalizer.SpellRefuelingTrack` | number only, no letters: `AR312` → "three twelve" | aerial **refueling** tracks (§9-2-13 says "REFUELING ALONG (number) TRACK") |
+| `PhraseologyVerbalizer.ProcedureName` | base name then the version as a cardinal: `NIMI5` → "nimitz five" (first registered `ProcedurePronunciations` form), else the base spelled like a fix: `RAZRR5` → "razrr five" | SID/STAR names in descend-via and climb-via check-ins (AIM 5-4-1.a.2.(b) / 5-2-9.h.9) |
 | `PhraseologyVerbalizer.SpellRouteString` | `V495 SEA` → "victor four ninety five, Seattle VORTAC" | a whole route of flight (§2-5-1.a); airways phonetic + group form, fixes keep their own pronunciation |
 
 Headings keep all three digits including leading zeros (`HeadingDigits`, §2-4-18.8) — a separate

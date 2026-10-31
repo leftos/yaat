@@ -10,6 +10,9 @@ ARTCCs/
     FixPronunciations/
       ambiguous.json
       visual.json
+    GatePronunciations/
+    ProcedurePronunciations/
+      zoa.json
     Airports/
       oak.json
     Scenarios/
@@ -111,6 +114,8 @@ When matched, the spoken phrase is replaced with the canonical alias as a single
 
 Phonetic pronunciation hints for fixes whose spelling invites mispronunciation. At PTT time, any hint whose fix name matches a programmed fix on the selected aircraft is injected into Whisper's `initial_prompt` alongside the canonical spelling, giving the decoder bias tokens for both forms. `PhoneticFixMatcher` already normalizes either spelling back to the canonical fix, so downstream code sees the same `MapResult` regardless of which form Whisper produced.
 
+The same forms are read by pilot speech, which says a fix by its first pronunciation (`PhraseologyVerbalizer.SpellFix`), and by the speech-to-text context layer, which hears a fix by every pronunciation.
+
 Each file is a JSON array of pronunciation entries. Use lowercase space-separated phonetic spellings — Whisper's decoder biases on sub-word tokens, so "see rah" is more effective than "SEE-RAH" or "seerah".
 
 ```json
@@ -139,6 +144,58 @@ Add a hint only when Whisper is likely to misrecognize the fix name:
 - The fix is made-up letters that Whisper tokenizes character-by-character.
 
 Don't add hints for fixes whose spelling already decodes naturally — unnecessary prompt tokens dilute Whisper's bias.
+
+---
+
+## GatePronunciations
+
+How controllers say an airport's gate and spot names, and the **named ground places** (FBOs, ramps, bays: "Signature", "Kaiser", "Super Bay") they name instead of a stand. One file per airport, scoped by `airportId` (ICAO or FAA: `KOAK` and `OAK` are the same airport).
+
+```json
+{
+  "airportId": "KOAK",
+  "gates": [ { "name": "SIG1", "pronunciations": ["signature one"] } ],
+  "spots": [ { "name": "6B", "pronunciations": ["six bravo"] } ],
+  "places": [ { "name": "SIGNATURE", "pronunciations": ["signature", "signature ramp"], "stands": ["SIG*"], "notes": "Signature FBO ramp." } ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `airportId` | string | Yes | The airport, ICAO or FAA form |
+| `gates[].name` | string | Yes | Layout gate (parking) name, any case |
+| `gates[].pronunciations` | string[] | Yes (≥1) | Spoken forms, lowercase words |
+| `spots[].name` | string | Yes | Layout spot name, any case |
+| `spots[].pronunciations` | string[] | Yes (≥1) | Spoken forms |
+| `places[].name` | string | Yes | The place's name; it becomes the landmark's value (`KOAK/SIGNATURE`) |
+| `places[].pronunciations` | string[] | Yes (≥1) | Spoken forms |
+| `places[].stands` | string[] | No | The layout stands the place covers, exact names or a prefix ending in `*`. Informational: nothing reads it |
+| `places[].notes` | string | No | Informational only |
+
+Names and stand patterns are trimmed and upper-cased, pronunciations trimmed. Skipped with a warning: a file that does not parse or is `null`; a whole file whose `airportId` is blank; an entry whose name is blank; an entry with no non-blank pronunciation (blank pronunciations are dropped first); a stand pattern that is blank or has a `*` anywhere but at its end (the pattern alone is dropped, the place keeps the rest).
+
+Files load in the ordinal order of their full path. Several files for one airport merge: a later file appends its forms to a gate or spot already named, and a place named again (case ignored) gains the later file's pronunciations and stands; a form already present is not added twice.
+
+Who reads them: gate and spot forms reach the speech-to-text context only (`ContextEntityFactory.GroundEntities` adds "gate p", "parking p" and the bare form for a gate, "spot p" and the bare form for a spot, the bare form only when the layout name has a letter and the form is not a taxiway's bare form); pilot speech never says them. Each place becomes a speech-to-text landmark (`AirportContextBuilder.Build`), whether or not the airport's layout is loaded; a caller-supplied landmark with the same value wins.
+
+---
+
+## ProcedurePronunciations
+
+The spoken base name of a SID or STAR whose CIFP code is a truncated name: `NIMI` is "nimitz", so `NIMI5` is said "nimitz five". Each file is a JSON array:
+
+```json
+[ { "procedure": "NIMI", "pronunciations": ["nimitz"] } ]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `procedure` | string | Yes | The base name: letters only, without the version digits (`NIMI`, not `NIMI5`), any case |
+| `pronunciations` | string[] | Yes (≥1) | Spoken forms of the base name, lowercase words |
+
+Skipped with a warning: a file that does not parse or is `null`; an entry whose `procedure` is blank or contains a digit; an entry with no non-blank pronunciation. Files load in the ordinal order of their full path, and a base name in several entries gathers every form, in load order.
+
+Who reads them: pilot speech says the first pronunciation followed by the version (`PhraseologyVerbalizer.ProcedureName`, used in descend-via and climb-via check-ins); a base name without one is spelled like a fix. The speech-to-text context hears every pronunciation with the version, alone and with "departure" or "arrival", before the code-spelled form ("nimi five"), which it keeps.
 
 ---
 
@@ -571,6 +628,8 @@ which matches on the base name. Sitting above the prior-cycle chain is what make
 regardless of what a given machine has cached.
 
 When a procedure resolves from a fragment, the instructor sees an advisory naming the supplying ARTCC.
+
+Fragment SIDs and STARs are listed in the STT context when the current cycle lacks them (`NavigationDatabase.GetArtccFragmentSids` and `GetArtccFragmentStars`; prior cached cycles are never listed).
 
 ### Caveats
 

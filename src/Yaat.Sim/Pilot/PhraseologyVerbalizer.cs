@@ -1916,8 +1916,11 @@ public static class PhraseologyVerbalizer
     /// <summary>
     /// Renders a STAR/SID identifier for pilot phraseology. Terminal keeps the raw uppercase id
     /// ("RAZRR5"); TTS spells the name then the trailing version number as a cardinal word
-    /// ("RAZRR5" → "razrr five", "LAURA2" → "laura two"). Used for descend-via / climb-via
-    /// initial check-ins (AIM 5-4-1.b.2 / 5-2-9.b.9).
+    /// ("RAZRR5" → "razrr five", "LAURA2" → "laura two"). The spoken name is the first registered
+    /// procedure pronunciation of the base name when there is one ("NIMI5" → "nimitz five", from
+    /// <c>ProcedurePronunciations/*.json</c>), else the base name spelled like a fix. An id with no
+    /// name/version split is spelled whole like a fix. Used for descend-via / climb-via initial
+    /// check-ins (AIM 5-4-1.a.2.(b) / 5-2-9.h.9).
     /// </summary>
     public static (string Terminal, string Tts) ProcedureName(string procedureId)
     {
@@ -1928,18 +1931,36 @@ public static class PhraseologyVerbalizer
         }
 
         string terminal = id.ToUpperInvariant();
+        if (SplitProcedureId(id) is not { } split)
+        {
+            // No alpha+digit split (all digits or all letters) — spell the whole id like a fix.
+            return (terminal, SpellFix(id));
+        }
 
+        IReadOnlyList<string> pronunciations = TryGetNavigationDatabase()?.GetProcedurePronunciations(split.BaseName) ?? [];
+        string spokenName = pronunciations.Count > 0 ? pronunciations[0] : SpellFix(split.BaseName);
+        return (terminal, $"{spokenName} {split.VersionWords}");
+    }
+
+    /// <summary>
+    /// Splits a SID/STAR id into its base name and its trailing version number said as a cardinal word
+    /// ("NIMI5" → ("NIMI", "five")).
+    /// </summary>
+    /// <returns>The split, or null when the id is blank, all digits or all letters.</returns>
+    internal static (string BaseName, string VersionWords)? SplitProcedureId(string procedureId)
+    {
+        string id = (procedureId ?? "").Trim();
         int split = id.Length;
         while (split > 0 && char.IsDigit(id[split - 1]))
         {
             split--;
         }
+
         string name = id[..split];
         string version = id[split..];
         if (name.Length == 0 || version.Length == 0)
         {
-            // No alpha+digit split (all digits or all letters) — spell the whole id like a fix.
-            return (terminal, SpellFix(id));
+            return null;
         }
 
         string versionWords = int.TryParse(
@@ -1950,7 +1971,7 @@ public static class PhraseologyVerbalizer
         )
             ? AtcNumberParser.CardinalWord(v)
             : version.ToLowerInvariant();
-        return (terminal, $"{SpellFix(name)} {versionWords}");
+        return (name, versionWords);
     }
 
     /// <summary>

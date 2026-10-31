@@ -5,7 +5,8 @@ namespace Yaat.Sim.Speech.Context;
 
 /// <summary>
 /// Collects every entity a controller working one airport can name: its runways, approaches, SIDs and STARs, its taxiways,
-/// gates and spots, the fixes within a radius of it, and the landmarks the caller supplies.
+/// gates and spots, the fixes within a radius of it, the landmarks the caller supplies, and the named ground places
+/// (<see cref="NavigationDatabase.GetGroundPlaces"/>) as landmarks.
 /// </summary>
 public static class AirportContextBuilder
 {
@@ -41,12 +42,17 @@ public static class AirportContextBuilder
         AddNew(entities, seen, ContextEntityFactory.DeparturesAndArrivals(airportIcao, nav));
         if (layout is not null)
         {
-            AddNew(entities, seen, ContextEntityFactory.GroundEntities(airportIcao, layout));
+            AddNew(entities, seen, ContextEntityFactory.GroundEntities(airportIcao, layout, nav));
         }
 
         IReadOnlyList<NearbyFix> fixes = nav.FixesWithin(new LatLon(point.Lat, point.Lon), radiusNm);
         AddNew(entities, seen, fixes.Select(fix => ContextEntityFactory.Fix(fix.Name, nav)));
         AddNew(entities, seen, landmarks);
+        AddNew(
+            entities,
+            seen,
+            nav.GetGroundPlaces(airportIcao).Select(place => ContextEntityFactory.Landmark(airportIcao, place.Name, place.Pronunciations))
+        );
         return entities;
     }
 

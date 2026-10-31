@@ -637,6 +637,9 @@ A runway, taxiway or gate spoken form that does not start with its noun ("three 
 **Leading candidate**:
 A callsign candidate whose span starts within the first tokens of a transmission and scores at least the say-again floor; when any candidate leads, no trailing one can be the addressee (`ContextDecoder`).
 
+**Named place**:
+A ground destination a controller names that is not a stand (an FBO, ramp or bay: "Signature", "Super Bay"), held in an airport's `GatePronunciations` file and spoken to the context decoder as a landmark entity.
+
 **Opener**:
 A word a prefixless callsign may directly follow ("tower", "roger", "correction"), listed in `ContextPhraseWords.Openers`.
 

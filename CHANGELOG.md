@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Pilots say a SID or STAR by its charted name: KOAK's NIMI5 is "Nimitz Five", not "nimi five".
+
 ### Fixed
 
 - Speech recognition no longer fails on a transmission that carries ten or more spoken digits in a row.

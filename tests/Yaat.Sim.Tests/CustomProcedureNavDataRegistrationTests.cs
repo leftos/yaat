@@ -88,6 +88,69 @@ public class CustomProcedureNavDataRegistrationTests
         }
     }
 
+    [Fact]
+    public void ArtccFragmentSids_ListKoakNimitzAbsentFromCurrentCycle()
+    {
+        string dir = Directory.CreateTempSubdirectory("yaat-fragment-sids-").FullName;
+        try
+        {
+            (string FullCifp, string NoNimiCifp, string ArtccsDir, NavDataSet NavData)? fx = BuildStrippedNimiFixture(dir);
+            if (fx is null)
+            {
+                return;
+            }
+
+            (string _, string? noNimiCifp, string? artccsDir, NavDataSet? navData) = fx.Value;
+            var db = new NavigationDatabase(navData, noNimiCifp, artccsDir, supplementaryCifpFilePaths: []);
+
+            Assert.DoesNotContain(db.GetSids("KOAK"), sid => sid.ProcedureId.StartsWith("NIMI", StringComparison.Ordinal));
+            Assert.Contains(db.GetArtccFragmentSids("KOAK"), sid => sid.ProcedureId.StartsWith("NIMI", StringComparison.Ordinal));
+            Assert.Contains(db.GetArtccFragmentSids("OAK"), sid => sid.ProcedureId.StartsWith("NIMI", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ArtccFragmentSids_EmptyWhenCurrentCycleCarriesTheBaseName()
+    {
+        string dir = Directory.CreateTempSubdirectory("yaat-fragment-sids-shadowed-").FullName;
+        try
+        {
+            (string FullCifp, string NoNimiCifp, string ArtccsDir, NavDataSet NavData)? fx = BuildStrippedNimiFixture(dir);
+            if (fx is null)
+            {
+                return;
+            }
+
+            (string? fullCifp, string _, string? artccsDir, NavDataSet? navData) = fx.Value;
+            var db = new NavigationDatabase(navData, fullCifp, artccsDir, supplementaryCifpFilePaths: []);
+
+            Assert.Contains(db.GetSids("KOAK"), sid => sid.ProcedureId.StartsWith("NIMI", StringComparison.Ordinal));
+            Assert.Empty(db.GetArtccFragmentSids("KOAK"));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ArtccFragmentProcedures_EmptyWithoutArtccData()
+    {
+        string navDataPath = Path.Combine(AppContext.BaseDirectory, "TestData", "NavData.dat");
+        string? cifpPath = TestVnasData.GetCifpPath();
+        Assert.NotNull(cifpPath);
+        NavDataSet navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
+
+        var db = new NavigationDatabase(navData, cifpPath, artccsBaseDir: "", supplementaryCifpFilePaths: []);
+
+        Assert.Empty(db.GetArtccFragmentSids("KOAK"));
+        Assert.Empty(db.GetArtccFragmentStars("KOAK"));
+    }
+
     private const string RenamedSid = "ZZTST1";
 
     private static bool IsNimiRecord(string line) => line.Contains("KOAKK2DNIMI", StringComparison.Ordinal);
@@ -128,6 +191,43 @@ public class CustomProcedureNavDataRegistrationTests
 
         NavDataSet navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
         return (cifpPath, artccsDir, navData);
+    }
+
+    /// <summary>
+    /// Builds, as <c>CustomProcedureResolutionTests.BuildFixture</c> does, the bundled CIFP in full, a copy with the KOAK
+    /// NIMITZ records stripped, and an ARTCCs tree whose ZOA <c>Procedures/koak-nimi.cifp</c> holds those records. Returns
+    /// null when test data is unavailable or the bundle lacks NIMITZ.
+    /// </summary>
+    private static (string FullCifp, string NoNimiCifp, string ArtccsDir, NavDataSet NavData)? BuildStrippedNimiFixture(string dir)
+    {
+        string navDataPath = Path.Combine(AppContext.BaseDirectory, "TestData", "NavData.dat");
+        string bundledGz = Path.Combine(AppContext.BaseDirectory, "TestData", "FAACIFP18.gz");
+        if (!File.Exists(navDataPath) || !File.Exists(bundledGz))
+        {
+            return null;
+        }
+
+        string fullCifp = Path.Combine(dir, "FAACIFP18-2604");
+        using (var gz = new GZipStream(File.OpenRead(bundledGz), CompressionMode.Decompress))
+        using (FileStream outF = File.Create(fullCifp))
+        {
+            gz.CopyTo(outF);
+        }
+
+        string[] lines = File.ReadAllLines(fullCifp);
+        if (!lines.Any(IsNimiRecord))
+        {
+            return null; // bundle no longer has NIMI — premise not met, skip.
+        }
+
+        string noNimiCifp = Path.Combine(dir, "FAACIFP18-2606");
+        File.WriteAllLines(noNimiCifp, lines.Where(l => !IsNimiRecord(l)));
+
+        string artccsDir = Path.Combine(dir, "ARTCCs");
+        WriteFragment(artccsDir, "ZOA", "koak-nimi.cifp", lines.Where(IsNimiRecord));
+
+        NavDataSet navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
+        return (fullCifp, noNimiCifp, artccsDir, navData);
     }
 
     private static void WriteFragment(string artccsDir, string artcc, string fileName, IEnumerable<string> records)
