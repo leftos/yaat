@@ -95,6 +95,104 @@ public class ContextEntityFactoryTests
         Assert.DoesNotContain(entity.Forms, form => Tokens(form) == "november 2 6 foxtrot");
     }
 
+    [Fact]
+    public void N360rs_BareTailForm_AtNumberOnlyPrior()
+    {
+        ContextEntity? entity = ContextEntityFactory.Callsign("N360RS", null, NoOverrides, ["N360RS"], Settings);
+
+        Assert.NotNull(entity);
+        Assert.Equal(Settings.NumberOnlyPrior, PriorOf(entity, "three six zero romeo sierra"));
+    }
+
+    [Fact]
+    public void N360rs_BareTailAbsentWhenAnotherCallsignSharesTail()
+    {
+        ContextEntity? entity = ContextEntityFactory.Callsign("N360RS", null, NoOverrides, ["N360RS", "N12360RS"], Settings);
+
+        Assert.NotNull(entity);
+        Assert.DoesNotContain(entity.Forms, form => Tokens(form) == TextTokens("three six zero romeo sierra"));
+    }
+
+    [Fact]
+    public void N2866_GroupedDigitForms_WithEachPrefix()
+    {
+        ContextEntity? entity = ContextEntityFactory.Callsign("N2866", "P28A", NoOverrides, ["N2866"], Settings);
+
+        Assert.NotNull(entity);
+        Assert.Equal(1.0, PriorOf(entity, "november twenty eight sixty six"));
+        Assert.Equal(1.0, PriorOf(entity, "archer twenty eight sixty six"));
+        Assert.Equal(Settings.NumberOnlyPrior, PriorOf(entity, "twenty eight sixty six"));
+    }
+
+    [Fact]
+    public void N2000_NoGroupedForm()
+    {
+        ContextEntity? entity = ContextEntityFactory.Callsign("N2000", "P28A", NoOverrides, ["N2000"], Settings);
+
+        Assert.NotNull(entity);
+        Assert.DoesNotContain(entity.Forms, form => form.Text.Contains("twenty", StringComparison.Ordinal));
+        Assert.Equal(Settings.NumberOnlyPrior, PriorOf(entity, "two zero zero zero"));
+    }
+
+    [Fact]
+    public void CareFlight_KeepsFullTelephony()
+    {
+        // CFH says "care flight"; only the codes with a hand-kept short form (FFT, NKS) lose their last word.
+        Assert.True(AirlineTelephony.TryGetTelephony("CFH", out string telephony));
+        Assert.EndsWith(" flight", telephony, StringComparison.OrdinalIgnoreCase);
+
+        ContextEntity entity = AirlineEntity("CFH1639", NoOverrides, ["CFH1639"]);
+
+        Assert.Equal(1.0, PriorOf(entity, "care flight one six three nine"));
+        Assert.DoesNotContain(entity.Forms, form => Tokens(form) == TextTokens("care one six three nine"));
+    }
+
+    [Fact]
+    public void N787y_Pa30_HasTwinComancheForms()
+    {
+        ContextEntity? entity = ContextEntityFactory.Callsign("N787Y", "PA30", NoOverrides, ["N787Y"], Settings);
+
+        Assert.NotNull(entity);
+        Assert.Equal(1.0, PriorOf(entity, "twin comanche seven eight seven yankee"));
+        Assert.Equal(1.0, PriorOf(entity, "comanche seven eight seven yankee"));
+    }
+
+    [Fact]
+    public void N8394q_C206_HasStationairForm()
+    {
+        ContextEntity? entity = ContextEntityFactory.Callsign("N8394Q", "C206", NoOverrides, ["N8394Q"], Settings);
+
+        Assert.NotNull(entity);
+        Assert.Equal(1.0, PriorOf(entity, "stationair eight three nine four quebec"));
+    }
+
+    [Fact]
+    public void Fft_DropsTrailingFlight()
+    {
+        ContextEntity entity = AirlineEntity("FFT1639", NoOverrides, ["FFT1639"]);
+
+        Assert.Equal(1.0, PriorOf(entity, "frontier flight one six three nine"));
+        Assert.Equal(Settings.TelephonyMinusAirPrior, PriorOf(entity, "frontier one six three nine"));
+    }
+
+    [Fact]
+    public void Nks_DropsTrailingWings()
+    {
+        ContextEntity entity = AirlineEntity("NKS1639", NoOverrides, ["NKS1639"]);
+
+        Assert.Equal(1.0, PriorOf(entity, "spirit wings one six three nine"));
+        Assert.Equal(Settings.TelephonyMinusAirPrior, PriorOf(entity, "spirit one six three nine"));
+    }
+
+    [Fact]
+    public void Jbu_HasSplitJetBlueForm()
+    {
+        ContextEntity entity = AirlineEntity("JBU1639", NoOverrides, ["JBU1639"]);
+
+        Assert.Equal(1.0, PriorOf(entity, "jetblue one six three nine"));
+        Assert.Equal(Settings.TelephonyMinusAirPrior, PriorOf(entity, "jet blue one six three nine"));
+    }
+
     // --- Runways and procedures ---
 
     [Fact]
@@ -130,6 +228,72 @@ public class ContextEntityFactoryTests
         Assert.Contains(rnav.Forms, form => form.Text.StartsWith("r nav ", StringComparison.Ordinal));
         Assert.Contains(rnav.Forms, form => Tokens(form) == "rnav zulu runway 3 0 approach");
         Assert.Contains(rnav.Forms, form => Tokens(form) == "romeo nav zulu runway 3 0 approach");
+    }
+
+    [Fact]
+    public void RnavZ_OnlyRnavForRunway_HasFormWithoutVariant()
+    {
+        (string airport, CifpApproachProcedure approach) = FindRnavApproach(uniqueForTypeAndRunway: true);
+
+        IReadOnlyList<ContextEntity> approaches = ContextEntityFactory.Approaches(airport, Nav, Settings);
+
+        ContextEntity entity = Assert.Single(approaches, candidate => candidate.Value == $"{airport}/{approach.ApproachId}");
+        string runway = RunwayOf(approach);
+        Assert.Equal(Settings.BareRunwayPrior, PriorOf(entity, $"rnav runway {runway} approach"));
+        Assert.Equal(Settings.BareRunwayPrior, PriorOf(entity, $"rnav {runway}"));
+        Assert.Equal(Settings.BareRunwayPrior, PriorOf(entity, $"r nav runway {runway} approach"));
+        Assert.DoesNotContain(entity.Forms, form => Tokens(form).Split(' ').Contains("gps"));
+    }
+
+    [Fact]
+    public void RnavVariants_TwoForSameRunway_NoFormWithoutVariant()
+    {
+        (string airport, CifpApproachProcedure approach) = FindRnavApproach(uniqueForTypeAndRunway: false);
+
+        IReadOnlyList<ContextEntity> approaches = ContextEntityFactory.Approaches(airport, Nav, Settings);
+
+        ContextEntity entity = Assert.Single(approaches, candidate => candidate.Value == $"{airport}/{approach.ApproachId}");
+        string approachWords = ApproachReadbackName.TypeAndRunway(approach.ApproachId)!.Value.Spoken.ToLowerInvariant();
+        string withoutVariant = approachWords[..approachWords.LastIndexOf(' ')];
+        string variantLess = TextTokens($"{withoutVariant} runway {RunwayOf(approach)} approach");
+        Assert.DoesNotContain(entity.Forms, form => Tokens(form) == variantLess);
+    }
+
+    [Fact]
+    public void KoakRunway30_RnpAndGpsShareLetters_NoLetterlessForm()
+    {
+        // RNAV (RNP) and RNAV (GPS) are both spoken "rnav" and share one letter sequence per runway, so neither letter is
+        // the only one its runway carries and neither can be said without it.
+        List<CifpApproachProcedure> rnavOnThirty = [.. Nav.GetApproaches("KOAK").Where(approach => IsRnavOnRunway(approach, "30"))];
+        Assert.True(rnavOnThirty.Count >= 2, $"Expected two RNAV approaches to KOAK runway 30, found {rnavOnThirty.Count}");
+
+        IReadOnlyList<ContextEntity> approaches = ContextEntityFactory.Approaches("KOAK", Nav, Settings);
+        string runway = PhraseologyVerbalizer.SpellRunway("30");
+        Assert.All(
+            rnavOnThirty,
+            rnav =>
+            {
+                ContextEntity entity = Assert.Single(approaches, candidate => candidate.Value == $"KOAK/{rnav.ApproachId}");
+                Assert.DoesNotContain(entity.Forms, form => Tokens(form) == TextTokens($"rnav runway {runway} approach"));
+                Assert.DoesNotContain(entity.Forms, form => Tokens(form) == TextTokens($"rnav runway {runway}"));
+                Assert.DoesNotContain(entity.Forms, form => Tokens(form) == TextTokens($"rnav {runway}"));
+                Assert.DoesNotContain(entity.Forms, form => Tokens(form) == TextTokens($"r nav runway {runway} approach"));
+            }
+        );
+    }
+
+    [Fact]
+    public void SingleDigitRunway_HasZeroForms()
+    {
+        (string airport, string designator) = FindSingleDigitRunway();
+
+        IReadOnlyList<ContextEntity> runways = ContextEntityFactory.Runways(airport, Nav, Settings);
+
+        ContextEntity entity = Assert.Single(runways, candidate => candidate.Value == $"{airport}/{designator}");
+        string spoken = PhraseologyVerbalizer.SpellRunway(designator);
+        Assert.Equal(1.0, PriorOf(entity, $"runway {spoken}"));
+        Assert.Equal(Settings.BareRunwayPrior, PriorOf(entity, $"runway zero {spoken}"));
+        Assert.Equal(Settings.BareRunwayPrior, PriorOf(entity, $"zero {spoken}"));
     }
 
     [Fact]
@@ -252,6 +416,110 @@ public class ContextEntityFactoryTests
         Assert.All(entities.GroupBy(entity => (entity.Kind, entity.Value)), group => Assert.Single(group));
     }
 
+    // The airports the navdata searches below look through: real airports whose CIFP changes with the AIRAC cycle, so the
+    // approach and runway a test uses are found by shape rather than named.
+    private static readonly string[] CandidateAirports =
+    [
+        "KOAK",
+        "KSFO",
+        "KSJC",
+        "KLAX",
+        "KSEA",
+        "KPDX",
+        "KSAN",
+        "KLAS",
+        "KPHX",
+        "KDEN",
+        "KDFW",
+        "KORD",
+        "KJFK",
+        "KBOS",
+        "KATL",
+    ];
+
+    private static (string Airport, CifpApproachProcedure Approach) FindRnavApproach(bool uniqueForTypeAndRunway)
+    {
+        foreach (string airport in CandidateAirports)
+        {
+            IReadOnlyList<CifpApproachProcedure> approaches = Nav.GetApproaches(airport);
+            foreach (CifpApproachProcedure approach in approaches)
+            {
+                if (NavigationDatabase.ParseShorthand(approach.ApproachId) is not { } parsed)
+                {
+                    continue;
+                }
+
+                if ((parsed.TypeCode is not ('H' or 'R')) || (parsed.Runway is not { } runway) || !IsSingleVariantLetter(parsed.Variant))
+                {
+                    continue;
+                }
+
+                // Siblings are counted by the spoken type words: RNAV (RNP) and RNAV (GPS) are both "rnav".
+                string spokenTypeWords = SpokenTypeWords(approach);
+                int sameSpokenType = approaches.Count(candidate =>
+                    string.Equals(SpokenTypeWords(candidate), spokenTypeWords, StringComparison.Ordinal)
+                    && string.Equals(RunwayOfId(candidate), runway, StringComparison.Ordinal)
+                );
+                if ((sameSpokenType == 1) == uniqueForTypeAndRunway)
+                {
+                    return (airport, approach);
+                }
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No RNAV approach {(uniqueForTypeAndRunway ? "alone on its runway" : "sharing its runway")} in the candidate airports."
+        );
+    }
+
+    private static string SpokenTypeWords(CifpApproachProcedure approach)
+    {
+        if (NavigationDatabase.ParseShorthand(approach.ApproachId) is not { } parsed)
+        {
+            return "";
+        }
+
+        return parsed.TypeCode is { } typeCode ? ApproachReadbackName.TypeWords(typeCode)?.Spoken ?? "" : "";
+    }
+
+    private static string? RunwayOfId(CifpApproachProcedure approach) => NavigationDatabase.ParseShorthand(approach.ApproachId)?.Runway;
+
+    private static bool IsRnavOnRunway(CifpApproachProcedure approach, string runway)
+    {
+        if (NavigationDatabase.ParseShorthand(approach.ApproachId) is not { } parsed)
+        {
+            return false;
+        }
+
+        return (parsed.TypeCode is 'H' or 'R') && string.Equals(parsed.Runway, runway, StringComparison.Ordinal);
+    }
+
+    private static (string Airport, string Designator) FindSingleDigitRunway()
+    {
+        foreach (string airport in CandidateAirports)
+        {
+            foreach (string end in Nav.GetRunways(airport).SelectMany(runway => new[] { runway.Id.End1, runway.Id.End2 }))
+            {
+                string designator = RunwayIdentifier.NormalizeDesignator(end);
+                if ((designator.Length >= 2) && (designator[0] == '0') && char.IsAsciiDigit(designator[1]))
+                {
+                    return (airport, designator);
+                }
+            }
+        }
+
+        throw new InvalidOperationException("No single-digit runway in the candidate airports.");
+    }
+
+    private static string RunwayOf(CifpApproachProcedure approach) =>
+        PhraseologyVerbalizer.SpellRunway(ApproachReadbackName.TypeAndRunway(approach.ApproachId)!.Value.Runway);
+
+    private static bool IsSingleVariantLetter(string? variant)
+    {
+        string trimmed = (variant ?? "").Trim().TrimStart('-');
+        return (trimmed.Length == 1) && char.IsLetter(trimmed[0]);
+    }
+
     private static ContextEntity AirlineEntity(string callsign, IReadOnlyDictionary<string, string> overrides, IReadOnlyCollection<string> room)
     {
         ContextEntity? entity = ContextEntityFactory.Callsign(callsign, null, overrides, room, Settings);
@@ -266,7 +534,8 @@ public class ContextEntityFactoryTests
         return layout;
     }
 
-    private static double PriorOf(ContextEntity entity, string tokens) => Assert.Single(entity.Forms, form => Tokens(form) == tokens).Prior;
+    private static double PriorOf(ContextEntity entity, string spokenOrTokens) =>
+        Assert.Single(entity.Forms, form => Tokens(form) == TextTokens(spokenOrTokens)).Prior;
 
     private static string Tokens(SpokenForm form) => TextTokens(form.Text);
 

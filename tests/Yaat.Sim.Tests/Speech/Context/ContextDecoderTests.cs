@@ -1022,12 +1022,30 @@ public class ContextDecoderTests
     }
 
     [Fact]
-    public void LetterPrefix_MustBeHeard()
+    public void RegistrationWithoutNovember_ResolvesAtStart() =>
+        AssertResolved(DecodeSpoken("eight two nine eight lima", Room(WithBase(), Airport)), "N8298L");
+
+    [Fact]
+    public void RegistrationWithoutNovember_AfterOpener_Resolves() =>
+        AssertResolved(DecodeSpoken("ground eight two nine eight lima", Room(WithBase(), Airport)), "N8298L");
+
+    [Fact]
+    public void PartialRegistrationWithoutNovember_NotResolved()
     {
-        DecodeResult result = DecodeSpoken("eight two nine eight lima", Room(WithBase(), Airport));
+        // The last-three form covers three characters only, so four are no form at all.
+        DecodeResult result = DecodeSpoken("two nine eight lima", Room(WithBase(), Airport));
 
         Assert.NotEqual(DecodeState.Resolved, result.State);
         Assert.Null(result.Callsign);
+    }
+
+    [Fact]
+    public void RegistrationWithoutNovember_MidTransmission_NotResolved()
+    {
+        // A prefixless form needs the transmission start or an opener, so it cannot address an aircraft mid-transmission.
+        DecodeResult result = DecodeSpoken("turn left heading two eight zero eight two nine eight lima", Room(WithBase(), Airport));
+
+        Assert.NotEqual("N8298L", result.Callsign?.Entity.Value);
     }
 
     [Fact]

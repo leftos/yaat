@@ -14,6 +14,19 @@ namespace Yaat.Sim.Speech.Context;
 /// </summary>
 public static class ContextEntityFactory
 {
+    /// <summary>One-word telephonies controllers say as two.</summary>
+    private static readonly IReadOnlyDictionary<string, string> SplitTelephonies = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["jetblue"] = "jet blue",
+    };
+
+    /// <summary>Airline ICAO codes whose aircraft controllers address by a shorter telephony than the airlines table gives.</summary>
+    private static readonly IReadOnlyDictionary<string, string> ShortTelephonies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["FFT"] = "frontier",
+        ["NKS"] = "spirit",
+    };
+
     private static readonly IReadOnlySet<string> NavaidTypeWords = new HashSet<string>(StringComparer.Ordinal)
     {
         "vor",
@@ -25,10 +38,11 @@ public static class ContextEntityFactory
     };
 
     /// <summary>
-    /// A room aircraft's callsign entity. A US N-number gets its "november", type-name and shortened forms and, when no other
-    /// room callsign ends in the same three characters, those three alone; an airline callsign gets its telephony with the
-    /// grouped and digit-by-digit flight number, the telephony without a trailing "air"/"airlines", and, when no other room
-    /// callsign carries the same digits, the flight number alone.
+    /// A room aircraft's callsign entity. A US N-number gets its "november", type-name and shortened forms, its grouped-digit
+    /// reading with each of those prefixes, and, when no other room callsign ends in the same characters, its last three alone
+    /// and its whole tail alone; an airline callsign gets its telephony with the grouped and digit-by-digit flight number, the
+    /// telephony without a trailing "air"/"airlines"/"flight"/"wings" or with a one-word telephony split in two, and, when no
+    /// other room callsign carries the same digits, the flight number alone.
     /// </summary>
     /// <param name="icaoCallsign">The ICAO callsign ("SWA2495", "N4926F").</param>
     /// <param name="aircraftType">The ICAO type designator, or null when unknown; drives the GA type-name forms.</param>
@@ -77,7 +91,8 @@ public static class ContextEntityFactory
 
     /// <summary>
     /// The airport's straight-in approaches, as "&lt;type&gt; runway &lt;rwy&gt; approach", "&lt;type&gt; runway &lt;rwy&gt;" and
-    /// "&lt;type&gt; &lt;rwy&gt;"; an RNAV approach also gets each form with "r nav". Circling approaches are skipped.
+    /// "&lt;type&gt; &lt;rwy&gt;"; an RNAV approach also gets each form with "r nav". A variant-lettered approach that is the
+    /// only one of its type on its runway also gets the type words without the variant letter. Circling approaches are skipped.
     /// </summary>
     /// <param name="airportIcao">The airport's ICAO id ("KOAK").</param>
     /// <param name="nav">The navigation database.</param>
@@ -86,8 +101,9 @@ public static class ContextEntityFactory
     public static IReadOnlyList<ContextEntity> Approaches(string airportIcao, NavigationDatabase nav, DecoderSettings settings)
     {
         string airport = AirportPrefix(airportIcao);
+        IReadOnlyList<CifpApproachProcedure> approaches = nav.GetApproaches(airportIcao);
         var entities = new List<ContextEntity>();
-        foreach (CifpApproachProcedure approach in nav.GetApproaches(airportIcao))
+        foreach (CifpApproachProcedure approach in approaches)
         {
             if (ApproachReadbackName.TypeAndRunway(approach.ApproachId) is not { } parts)
             {
@@ -97,16 +113,82 @@ public static class ContextEntityFactory
             string spoken = parts.Spoken.ToLowerInvariant();
             string runway = PhraseologyVerbalizer.SpellRunway(parts.Runway);
             var forms = new FormSet();
-            AddApproachForms(forms, spoken, runway, settings);
+            AddApproachForms(forms, spoken, runway, 1.0, settings);
             if (spoken.StartsWith("rnav", StringComparison.Ordinal))
             {
-                AddApproachForms(forms, "r nav" + spoken[4..], runway, settings);
+                AddApproachForms(forms, "r nav" + spoken[4..], runway, 1.0, settings);
+            }
+
+            if (VariantLessSpoken(approach, approaches) is { } withoutVariant)
+            {
+                AddApproachForms(forms, withoutVariant, runway, settings.BareRunwayPrior, settings);
+                if (withoutVariant.StartsWith("rnav", StringComparison.Ordinal))
+                {
+                    AddApproachForms(forms, "r nav" + withoutVariant[4..], runway, settings.BareRunwayPrior, settings);
+                }
             }
 
             entities.Add(new ContextEntity(EntityKind.Procedure, $"{airport}/{approach.ApproachId}", forms.ToList()));
         }
 
         return entities;
+    }
+
+    /// <summary>
+    /// The spoken type words of a variant-lettered approach, without the variant word ("rnav zulu" → "rnav"), when it is the
+    /// only approach whose spoken type words and runway match; null otherwise. Siblings are counted by the spoken words rather
+    /// than the CIFP type code, since RNAV (RNP) and RNAV (GPS) are both "rnav" and share one letter sequence per runway
+    /// (7110.65 4-8-1 NOTE 5), and VOR and VOR/DME are both "vor". A controller drops the letter only when its type alone
+    /// serves the runway.
+    /// </summary>
+    private static string? VariantLessSpoken(CifpApproachProcedure approach, IReadOnlyList<CifpApproachProcedure> airportApproaches)
+    {
+        if ((NavigationDatabase.ParseShorthand(approach.ApproachId) is not { } parsed) || !IsSingleVariantLetter(parsed.Variant))
+        {
+            return null;
+        }
+
+        if ((parsed.TypeCode is not { } typeCode) || (parsed.Runway is not { } runway))
+        {
+            return null;
+        }
+
+        if (ApproachReadbackName.TypeWords(typeCode) is not { } ownWords)
+        {
+            return null;
+        }
+
+        int sameSpokenType = airportApproaches.Count(candidate =>
+            string.Equals(SpokenTypeWords(candidate), ownWords.Spoken, StringComparison.Ordinal)
+            && string.Equals(ParsedRunway(candidate), runway, StringComparison.Ordinal)
+        );
+        if (sameSpokenType != 1)
+        {
+            return null;
+        }
+
+        return ownWords.Spoken.ToLowerInvariant();
+    }
+
+    /// <summary>The spoken words of an approach's type ("RNAV" for both the RNP and GPS codes), or null when no readback names it.</summary>
+    private static string? SpokenTypeWords(CifpApproachProcedure approach)
+    {
+        if (NavigationDatabase.ParseShorthand(approach.ApproachId) is not { } parsed)
+        {
+            return null;
+        }
+
+        return parsed.TypeCode is { } typeCode ? ApproachReadbackName.TypeWords(typeCode)?.Spoken : null;
+    }
+
+    /// <summary>The normalized runway an approach names, or null when it names none.</summary>
+    private static string? ParsedRunway(CifpApproachProcedure approach) => NavigationDatabase.ParseShorthand(approach.ApproachId)?.Runway;
+
+    /// <summary>The variant letter of an approach id, when it is a single letter ("Z", "-Z") rather than a suffix.</summary>
+    private static bool IsSingleVariantLetter(string? variant)
+    {
+        string trimmed = (variant ?? "").Trim().TrimStart('-');
+        return (trimmed.Length == 1) && char.IsLetter(trimmed[0]);
     }
 
     /// <summary>
@@ -260,11 +342,11 @@ public static class ContextEntityFactory
     )
     {
         string tail = callsign[1..];
-        string fullTailSuffix = " " + string.Join(" ", tail.Select(NatoPhoneticAlphabet.SpellChar));
+        string fullTailSpoken = string.Join(" ", tail.Select(NatoPhoneticAlphabet.SpellChar));
         var forms = new FormSet();
         foreach (string variant in CallsignParser.GetSpokenVariants(callsign, aircraftType, roomCallsigns))
         {
-            forms.Add(variant, variant.EndsWith(fullTailSuffix, StringComparison.Ordinal) ? 1.0 : settings.ShortGaPrior);
+            forms.Add(variant, variant.EndsWith(" " + fullTailSpoken, StringComparison.Ordinal) ? 1.0 : settings.ShortGaPrior);
         }
 
         string lastThree = callsign[^3..];
@@ -274,7 +356,58 @@ public static class ContextEntityFactory
             forms.Add(string.Join(" ", lastThree.Select(NatoPhoneticAlphabet.SpellChar)), settings.GaLastThreePrior);
         }
 
+        // The tail said alone is the registration without "november"; a shorter one is the last-three form already.
+        bool wholeTailUnique = !OtherCallsigns(roomCallsigns, callsign).Any(other => other.EndsWith(tail, StringComparison.OrdinalIgnoreCase));
+        string? grouped = GroupedTailReading(tail);
+        bool groupedDiffers = (grouped is not null) && !string.Equals(grouped, fullTailSpoken, StringComparison.Ordinal);
+        if (wholeTailUnique && (tail.Length >= 4))
+        {
+            forms.Add(fullTailSpoken, settings.NumberOnlyPrior);
+            if (groupedDiffers)
+            {
+                forms.Add(grouped!, settings.NumberOnlyPrior);
+            }
+        }
+
+        if (groupedDiffers)
+        {
+            foreach (string prefix in SpokenPrefixes(aircraftType))
+            {
+                forms.Add($"{prefix} {grouped}", 1.0);
+            }
+        }
+
         return new ContextEntity(EntityKind.Callsign, callsign, forms.ToList());
+    }
+
+    /// <summary>
+    /// The paired reading of a tail of exactly four digits with no zero in it ("2866" → "twenty eight sixty six"); a tail of
+    /// another length, or one holding a zero, has no pair reading a controller would say.
+    /// </summary>
+    private static string? GroupedTailReading(string tail)
+    {
+        if ((tail.Length != 4) || !tail.All(char.IsAsciiDigit) || tail.Contains('0'))
+        {
+            return null;
+        }
+
+        return int.TryParse(tail, NumberStyles.None, CultureInfo.InvariantCulture, out int number)
+            ? AtcNumberParser.FlightNumberToPairedWords(number)
+            : null;
+    }
+
+    /// <summary>"november" then every type name <see cref="CallsignParser.GetSpokenVariants"/> prefixes a GA callsign with.</summary>
+    private static List<string> SpokenPrefixes(string? aircraftType)
+    {
+        var prefixes = new List<string> { "november" };
+        foreach (string name in AircraftTypeNames.GetSpokenNames(aircraftType))
+        {
+            if (!prefixes.Contains(name))
+            {
+                prefixes.Add(name);
+            }
+        }
+        return prefixes;
     }
 
     private static ContextEntity? AirlineCallsign(
@@ -303,6 +436,16 @@ public static class ContextEntityFactory
         if (TelephonyWithoutAir(telephony) is { } shortTelephony)
         {
             AddWithFlight(forms, shortTelephony, flightWords, settings.TelephonyMinusAirPrior);
+        }
+
+        if (ShortTelephonies.TryGetValue(prefix, out string? knownShortTelephony))
+        {
+            AddWithFlight(forms, knownShortTelephony, flightWords, settings.TelephonyMinusAirPrior);
+        }
+
+        if (SplitTelephonies.TryGetValue(telephony, out string? splitTelephony))
+        {
+            AddWithFlight(forms, splitTelephony, flightWords, settings.TelephonyMinusAirPrior);
         }
 
         string digits = DigitsOf(flight);
@@ -385,13 +528,22 @@ public static class ContextEntityFactory
         var forms = new FormSet();
         forms.Add("runway " + spoken, 1.0);
         forms.Add(spoken, settings.BareRunwayPrior);
+
+        // FAA phraseology omits the padding zero (7110.65 2-4-17.j), but controllers are heard saying it.
+        if ((designator.Length >= 2) && (designator[0] == '0') && char.IsAsciiDigit(designator[1]))
+        {
+            string zeroSpoken = "zero " + spoken;
+            forms.Add("runway " + zeroSpoken, settings.BareRunwayPrior);
+            forms.Add(zeroSpoken, settings.BareRunwayPrior);
+        }
+
         return new ContextEntity(EntityKind.Runway, $"{airport}/{designator}", forms.ToList());
     }
 
-    private static void AddApproachForms(FormSet forms, string spoken, string runway, DecoderSettings settings)
+    private static void AddApproachForms(FormSet forms, string spoken, string runway, double prior, DecoderSettings settings)
     {
-        forms.Add($"{spoken} runway {runway} approach", 1.0);
-        forms.Add($"{spoken} runway {runway}", 1.0);
+        forms.Add($"{spoken} runway {runway} approach", prior);
+        forms.Add($"{spoken} runway {runway}", prior);
         forms.Add($"{spoken} {runway}", settings.BareRunwayPrior);
     }
 
