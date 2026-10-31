@@ -1940,6 +1940,11 @@ Speech/NatoNearMissResolver.cs # Levenshtein-1 rewrite of Whisper NATO mishears;
 Speech/PhoneticFixMatcher.cs   # Fuzzy-match transcribed tokens against known fix names (Whisper transcribes fixes phonetically — this restores the canonical id)
 Speech/CustomFixSpeechPattern.cs # Multi-token spoken pattern → custom-fix canonical alias (e.g. "runway 30 numbers" → OAK30NUM); built at NavigationDatabase load
 Speech/WhisperBiasingPrompt.cs # Static initial_prompt assembled from ATC numbers, all PhraseologyRules literals, and the SCRAMBLED NATO alphabet (avoids the alphabetical-extrapolation prior)
+Speech/Context/                # Context-layer decoder (design: docs/plans/yaat-343-context-layer.md): resolves a transcript's callsign and entities against one transmission's closed set
+Speech/Context/ContextTypes.cs # TransmissionContext (room aircraft + airport entities), ContextEntity with SpokenForms, DecoderInput/Hypothesis (text, token log-probs, acoustic score), DecodeResult; InputSource (Spoken/Typed), MatchMode (Fuzzy/ExactOnly)
+Speech/Context/DecoderSettings.cs # Every decoder threshold and prior in one record; Default holds the design's starting values
+Speech/Context/SpokenTokenizer.cs # One normaliser for transcripts and spoken forms: numbers to one digit token per digit, NATO words canonical, fillers dropped, each token keeping its source-word index
+Speech/Context/SpokenFormScore.cs # The single similarity primitive: WordScore (raw + voicing-folded phonetic Levenshtein, 0..1) and ScoreSpan (name × code × prior)
 Speech/Data/                   # Static reference data: airlines.tsv (OpenFlights), aircraft-types.tsv (ICAO Doc 8643 via vNAS), source .meta + LICENSE-OPENFLIGHTS.txt
 
 # Data/

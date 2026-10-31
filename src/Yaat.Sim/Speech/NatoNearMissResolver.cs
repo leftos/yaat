@@ -60,6 +60,9 @@ public static class NatoNearMissResolver
     /// </summary>
     private static readonly Lazy<HashSet<string>> RuleLiterals = new(BuildRuleLiterals);
 
+    /// <summary>Every literal pattern token used by <see cref="PhraseologyRules.All"/>, for callers that protect or exclude command words.</summary>
+    internal static IReadOnlySet<string> RuleLiteralWords => RuleLiterals.Value;
+
     /// <summary>Minimum token length eligible for near-miss rewriting. Below this, collision
     /// risk with unrelated English words is too high.</summary>
     private const int MinTokenLength = 4;
