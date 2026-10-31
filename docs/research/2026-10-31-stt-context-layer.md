@@ -40,6 +40,8 @@ Argon scores 15.9% owner-only and 11.3% on all clips by `--corpus-wer`. That is 
 
 Before any full run, the hotword score was swept on a 30-clip smoke subset (seed 1117) at 1.0, 1.5 and 2.5, along with casing (Title, lower, UPPER) and cap (50, 100, 300). Every variant landed within one or two clips of the others, except score 2.5, which lost three callsigns. The smoke folders are `.tmp/1571/sweep-*`.
 
+**Decoder weights** (YAAT-1570 step 4). This sweep varied the n-best combination's `AcousticWeight` (0.1, 0.3, 1.0) and the exact-match threshold `ConfidentWordProb` (0.97, 0.9), on GPU beam with resolution and all 106 clips. Every cell gave the same recall, callsign 32.3% and all slots 42.9%, and the same owner WER, 28.6% raw and 28.3-28.4% rewritten. Only the false insertions moved, with the acoustic weight: 19.8, 18.9 and 17.9 per 100 clips at 0.1, 0.3 and 1.0. `ConfidentWordProb` changed nothing at either weight. The defaults (0.3, 0.97) stand. The folders are `.tmp/1571/full-gpu-w*`.
+
 ## Findings
 
 - **Room hotwords buy nothing measurable.** Against beam with resolution, they move owner WER by 0.3 points and slot recall by nothing, and they cost up to 40 ms at p50 on GPU. They help as often as they hurt: on the smoke set they fixed a misheard airline in some clips and turned a correct airline into a near-homophone in others.
