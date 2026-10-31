@@ -123,7 +123,7 @@ public static class UwbAtccCorpus
     private static CorpusSegment ToSegment(ValidRow row)
     {
         float[] samples = CorpusRoles.To16k(WavHeader.ReadPcm16WithRate(row.Wav, row.Id), row.Id);
-        return new CorpusSegment(row.Id, CorpusRoles.FromId(row.Id), samples, row.Text);
+        return new CorpusSegment(row.Id, CorpusRoles.FromId(row.Id), samples, row.Text, null, null);
     }
 
     private static async Task<string> HashFileAsync(string path, CancellationToken ct)

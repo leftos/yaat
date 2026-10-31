@@ -105,6 +105,34 @@ public sealed class CorpusWerRunnerTests
     }
 
     [Fact]
+    public void The_Report_Renders_The_Provenance_And_Feed_Tables_Before_The_Audio_Line()
+    {
+        CorpusWerBaseline run = RunWith(
+            null,
+            [new CorpusWerRoleTotals("owner", 1, 10, 0, 0, 0, 0), new CorpusWerRoleTotals("owner+agreed", 2, 30, 1, 2, 0, 0.1)],
+            [new CorpusWerRoleTotals("koak-app", 2, 30, 1, 2, 0, 0.1)]
+        );
+
+        string report = CorpusWerRunner.BuildReport(run, []);
+
+        Assert.Contains("| Provenance | Segments | Reference words | S | D | I | WER |", report, StringComparison.Ordinal);
+        Assert.Contains("| owner+agreed | 2 | 30 | 1 | 2 | 0 | 10.0% |", report, StringComparison.Ordinal);
+        Assert.Contains("| Feed | Segments | Reference words | S | D | I | WER |", report, StringComparison.Ordinal);
+        Assert.Contains("| koak-app | 2 | 30 | 1 | 2 | 0 | 10.0% |", report, StringComparison.Ordinal);
+        Assert.True(report.IndexOf("| Provenance |", StringComparison.Ordinal) < report.IndexOf("| Feed |", StringComparison.Ordinal));
+        Assert.True(report.IndexOf("| Feed |", StringComparison.Ordinal) < report.IndexOf("Audio ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void The_Report_Omits_The_Group_Tables_For_An_Arm_Without_Them()
+    {
+        string report = CorpusWerRunner.BuildReport(Run(null), []);
+
+        Assert.DoesNotContain("| Provenance |", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("| Feed |", report, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void The_Report_Omits_The_Timing_Lines_For_An_Arm_Without_One()
     {
         string report = CorpusWerRunner.BuildReport(Run(null), []);
@@ -114,7 +142,13 @@ public sealed class CorpusWerRunnerTests
         Assert.DoesNotContain("Memory: working set", report, StringComparison.Ordinal);
     }
 
-    private static CorpusWerBaseline Run(CorpusWerTiming? timing) =>
+    private static CorpusWerBaseline Run(CorpusWerTiming? timing) => RunWith(timing, null, null);
+
+    private static CorpusWerBaseline RunWith(
+        CorpusWerTiming? timing,
+        IReadOnlyList<CorpusWerRoleTotals>? provenance,
+        IReadOnlyList<CorpusWerRoleTotals>? feeds
+    ) =>
         new(
             "uwb-atcc",
             "rev",
@@ -123,7 +157,7 @@ public sealed class CorpusWerRunnerTests
             400,
             "fp",
             "model",
-            [new CorpusWerArm("default", [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)], 30, 6, 0, timing)]
+            [new CorpusWerArm("default", [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)], 30, 6, 0, timing, provenance, feeds)]
         );
 
     private static string ModelDir(string name, bool trailingSeparator)

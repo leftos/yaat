@@ -4,8 +4,10 @@ using System.Text.Json.Serialization;
 
 namespace Yaat.SpeechSandbox;
 
-/// <summary>Pooled word error counts of one role (or <c>all</c>) within one prompt arm.</summary>
-/// <param name="Role"><c>all</c>, <c>pilot</c>, <c>controller</c>, <c>mixed</c> or <c>unknown</c>.</param>
+/// <summary>Pooled word error counts of one row within one prompt arm.</summary>
+/// <param name="Role">
+/// <c>all</c>, <c>pilot</c>, <c>controller</c>, <c>mixed</c> or <c>unknown</c>, or a provenance or feed row's label.
+/// </param>
 /// <param name="Wer">Total errors over total reference words.</param>
 public sealed record CorpusWerRoleTotals(string Role, int Segments, int ReferenceWords, int Substitutions, int Deletions, int Insertions, double Wer)
 {
@@ -20,13 +22,20 @@ public sealed record CorpusWerRoleTotals(string Role, int Segments, int Referenc
 /// Segments the engine returned no transcript for, scored as empty; 0 when a results document predates the field.
 /// </param>
 /// <param name="Timing">The arm's measured speed and memory; null in a committed baseline and in documents that predate it.</param>
+/// <param name="Provenance">
+/// Pooled totals of the segments whose reference is <c>owner</c>-checked and of those <c>owner</c>- or
+/// <c>agreed</c>-checked, in that order; null when no segment carries a provenance.
+/// </param>
+/// <param name="Feeds">Pooled totals per feed, ordinal by feed name with the unfed segments pooled last under <c>unknown</c>; null when no segment carries one.</param>
 public sealed record CorpusWerArm(
     string Prompt,
     IReadOnlyList<CorpusWerRoleTotals> Roles,
     double AudioSeconds,
     double WallSeconds,
     int NoTranscript,
-    CorpusWerTiming? Timing
+    CorpusWerTiming? Timing,
+    IReadOnlyList<CorpusWerRoleTotals>? Provenance,
+    IReadOnlyList<CorpusWerRoleTotals>? Feeds
 )
 {
     /// <summary>The console and report line naming the segments without a transcript.</summary>
