@@ -6,7 +6,6 @@
 
 - [ ] YAAT-1476 ASDE-X alert parity with vNAS (feat/asdex-safety-logic) · release vNext
   - [ ] YAAT-1486 Merge feat/asdex-safety-logic to main (#1359)
-  - [ ] YAAT-1521 Keep a just-airborne departure from reading as an arrival to a staggered parallel in ASDE-X safety logic · release vNext
 - [ ] YAAT-1509 Match vNAS's ~58-61 kt rolling edge for ASDE-X runway users (OPP DIR LANDER flip)
 - [ ] YAAT-1510 Probe vNAS: arrival vs an opposite-direction departure still under 50 kt (OPP DIR TAXI then DEPARTURE)
 - [ ] YAAT-1511 Check asdexLandingTaxiways names against the layout; cache the ASDE-X taxiway segments
@@ -27,7 +26,7 @@
 - [/] YAAT-943 Cross an offset runway pair straight over, measuring the turn on the path flown · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext
-- [ ] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form · release vNext
+- [/] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form · release vNext
 - [/] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP · release vNext
 - [/] YAAT-1379 Lift a controller crossing speed's ceiling past its fix under a via clearance · release vNext
 - [ ] YAAT-1428 Handle a CTO naming a different runway while holding short of a taxiway (intersection, crossing or query) · release vNext
@@ -89,6 +88,8 @@
     - [ ] YAAT-1568 Generate reviewed spoken forms for fixes, landmarks and gates (KOAK, KSFO)
     - [ ] YAAT-1569 Joint callsign and entity decoder over the transmission context
       - [ ] YAAT-1575 Add more controller spoken forms to the context entities
+      - [ ] YAAT-1578 Recover callsigns after long openers, closing tails and medevac prefixes
+      - [ ] YAAT-1585 Drop the retracted entity after a spoken correction
     - [ ] YAAT-1570 Sherpa hotwords and n-best on our own sherpa-onnx native
     - [ ] YAAT-1571 Run the context-layer experiments and write up the verdict
   - [ ] YAAT-28 Close the STT rule gaps from the controller-voice ouroboros
@@ -500,7 +501,7 @@
 - [ ] YAAT-1480 Keep RPO runway-not-clear and traffic-on-final advisories outside the ASDE-X safety-logic stand-down
 - [ ] YAAT-1481 Withdraw the full-core safety-logic relief below 800 ft ceiling or 2 miles visibility
 
-### 2 Refinements and rulings (0/9 done)
+### 2 Refinements and rulings (0/10 done)
 - [ ] YAAT-810 Judge a runway crosser for the go-around from the hold line, using its route's speed profile
 - [ ] YAAT-819 Widen the rejected-takeoff obstruction to the departing aircraft's span
 - [ ] YAAT-844 Judge the solo evaluator's preceding-landing clear test by the controller definition
@@ -510,12 +511,13 @@
 - [ ] YAAT-1427 Refuse an intersection departure when the type's takeoff distance exceeds the length remaining
 - [ ] YAAT-1370 Release the controller-AI runway crossing gate once airborne traffic has passed the crossing point
 - [ ] YAAT-1482 Score LUAW/landing conflicts against the safety-logic state at clearance time
+- [ ] YAAT-1582 Keep an aircraft past its departure phase from reading as an arrival in a parallel's ASDE-X box
 
 ### 3 Hygiene and tests (0/0 done)
 
 ## Replay, snapshots and recordings
 
-### 1 Defects (1/25 done)
+### 1 Defects (1/26 done)
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
 - [ ] YAAT-62 Snapshot the full GroundNavigator per-tick state; add a mid-route round trip
 - [ ] YAAT-78 Blend or re-anchor the navigator's first sub-tick after a mid-arc restore
@@ -540,6 +542,7 @@
 - [ ] YAAT-929 Migrate aircraft snapshots on the synthetic-spawn and recorded-action paths
 - [ ] YAAT-1404 Fill ApproachClearance.TransitionName when loading a pre-37 snapshot mid-approach
 - [ ] YAAT-1499 Stop an export's replay engine from silently dropping a starting weather that fails to load
+- [ ] YAAT-1583 Rehydrate a split block that keeps a non-tail command after a snapshot restore
 
 ### 2 Refinements and rulings (0/2 done)
 - [ ] YAAT-79 Triage replay warnings in sfo-gc-arrival-goarounds: fidelity gap or noise
@@ -607,7 +610,7 @@
 - [ ] YAAT-1454 Restore a dropped crossing restriction's speed revert (or SMAX) when DCTF replaces the route · release vNext
 - [ ] YAAT-1577 End a crossed published speed ceiling when the aircraft is vectored or sent direct off the procedure
 
-### 2 Refinements and rulings (0/7 done)
+### 2 Refinements and rulings (0/9 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
 - [ ] YAAT-1430 Refine the speed-envelope unable: 5 kt rounding, Mach answers in Mach, same-block altitude · release vNext
@@ -615,6 +618,8 @@
 - [ ] YAAT-1435 Fly Vmo by altitude band for types whose TCDS bands it (DH8D, MD11, CL60, LJ35, GLEX, B463, E170, JS20, CRJ) · release vNext
 - [ ] YAAT-1436 Source the speed limits YAAT-1423 left unsourced (LJ60, GLF5, F50, KC-135, C-5M, C-141, H60 Vne) · release vNext
 - [ ] YAAT-1443 Give the types SMAX is most often given their own sourced Vmo/Vne (C208 flies the TP2M class's 250 kt) · release vNext
+- [ ] YAAT-1580 Do not count a refused conditional speed as restated for a later via clearance in the transmission
+- [ ] YAAT-1584 Correct rotation speeds that stay on raw profile data when the approach speed comes from the ACD (PC12 Vr 110)
 
 ### 3 Hygiene and tests (0/1 done)
 - [ ] YAAT-117 Split FlightPhysics.UpdateSpeed into layer helpers (complexity ≤8)
@@ -738,7 +743,7 @@
 
 ### No milestone
 - [ ] YAAT-1517 Drop a queued teardrop behind an active field crossing once an altitude is assigned
-- [ ] YAAT-1566 Compress a traffic pattern automatically so it avoids crossing another runway (OAK 28L MLT turns downwind before runway 30) · release vNext
+- [/] YAAT-1566 Compress a traffic pattern automatically so it avoids crossing another runway (OAK 28L MLT turns downwind before runway 30) · release vNext
 
 ## Navigation data and route geometry
 
@@ -916,16 +921,16 @@
 
 ## Scenarios, spawning and fleets
 
-### 1 Defects (0/5 done)
+### 1 Defects (1/5 done)
 - [ ] YAAT-109 Fix scenario-export gaps: intersection line-up, CM modifiers, shadow on runway
 - [ ] YAAT-182 Add a per-airport non-gate denylist for arrival parking picks
 - [ ] YAAT-183 Keep layout placeholder names out of arrival parking pools
 - [ ] YAAT-184 Pick an operating airline for a typed ADD from airline-fleets data
-- [ ] YAAT-1576 Delayed spawn arrives pre-tracked with a 1200 squawk and no flight plan · release vNext
 
-### 2 Refinements and rulings (0/2 done)
+### 2 Refinements and rulings (0/3 done)
 - [ ] YAAT-615 Park SFO GA arrivals on the side of 28R they exit toward
 - [ ] YAAT-1228 Fill missing airline telephonies (JSX Big Stripe) from JO 7340.2 ch. 3
+- [ ] YAAT-1581 Run airport-keyed auto-track scratchpad rules after the handoff plan is filed
 
 ### 3 Hygiene and tests (0/2 done)
 - [ ] YAAT-194 Auto-delete follow-ups: split TickAutoDelete, override null check
@@ -1196,7 +1201,6 @@
 - [ ] YAAT-1487 Run yaat-server's prek format hooks through the gate check-only so commits leave the heavy slot (GATE-449)
 - [ ] YAAT-1531 Have bug_bundle.py install register a new fixture with the layout-coverage list and the routing census
 - [ ] YAAT-1549 Make BuildMinimalContext's ground layout argument required
-- [ ] YAAT-1557 Build and publish a client release without GitHub Actions (Windows/Linux here, macOS on the mac-mini) · release vNext
 
 ## Backlog
 
