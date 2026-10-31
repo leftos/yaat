@@ -139,7 +139,7 @@ public static class CorpusSttEngines
     internal static ICorpusSttEngine Create(SttChoice choice) =>
         choice.Kind switch
         {
-            SttKind.Whisper => new WhisperCorpusSttEngine(choice.Source, WhisperGpuLayers(choice.Device)),
+            SttKind.Whisper => CreateWhisper(choice),
             SttKind.Sherpa => new SherpaCorpusSttEngine(choice.Source, Provider(choice.Device)),
             SttKind.SherpaStreaming => new SherpaStreamingCorpusSttEngine(choice.Source, Provider(choice.Device)),
             SttKind.Gemini or SttKind.OpenAi => new CloudSttEngine(choice.Kind, choice.Source),
@@ -163,6 +163,35 @@ public static class CorpusSttEngines
             SttKind.Gemini or SttKind.OpenAi => "cloud",
             _ => throw new ArgumentOutOfRangeException(nameof(choice), choice.Kind, "no device text for this kind"),
         };
+
+    /// <summary>Whisper for the choice's device, with LM-Kit's GPU backends turned off ahead of a CPU run.</summary>
+    private static WhisperCorpusSttEngine CreateWhisper(SttChoice choice)
+    {
+        if (choice.Device == SttDevice.Cpu)
+        {
+            DisableLmKitGpuBackends();
+        }
+
+        return new WhisperCorpusSttEngine(choice.Source, WhisperGpuLayers(choice.Device));
+    }
+
+    /// <summary>
+    /// Turns off LM-Kit's GPU backends before its runtime starts, so a CPU Whisper run takes its AVX2
+    /// backend: while CUDA or Vulkan is loaded, LM-Kit runs Whisper on one CPU thread. The switches are
+    /// process-wide and settle at initialization, which is safe in a corpus run that scores one engine at a
+    /// time.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">LM-Kit's runtime had already started.</exception>
+    private static void DisableLmKitGpuBackends()
+    {
+        if (LMKit.Global.Runtime.IsInitialized)
+        {
+            throw new InvalidOperationException("LM-Kit's runtime started before --device cpu could turn off its GPU backends");
+        }
+
+        LMKit.Global.Runtime.EnableCuda = false;
+        LMKit.Global.Runtime.EnableVulkan = false;
+    }
 
     /// <summary>Whisper's GPU layers: every layer on the CPU for a CPU run, LM-Kit's own choice otherwise.</summary>
     private static int? WhisperGpuLayers(SttDevice device) => (device == SttDevice.Cpu) ? 0 : null;

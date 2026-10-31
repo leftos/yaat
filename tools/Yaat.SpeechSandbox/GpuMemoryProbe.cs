@@ -127,6 +127,27 @@ public static class GpuUseCheck
         return (rise >= MinRiseBytes) ? $"CPU mode, but the process's GPU memory rose {Megabytes(rise)} MB through model load" : null;
     }
 
+    /// <summary>
+    /// The verdict on the backend LM-Kit loaded for a run: an error when a CPU run finds a GPU backend
+    /// loaded anyway, since LM-Kit then runs Whisper on one CPU thread, and null when there is nothing to
+    /// report.
+    /// </summary>
+    /// <param name="device">The device text the run records: <c>gpu</c>, <c>cpu</c>, <c>auto</c> or <c>cloud</c>.</param>
+    /// <param name="backend">The backend LM-Kit reports, <c>Undefined</c> before its runtime starts.</param>
+    /// <param name="isError">True when the run must stop rather than measure the wrong backend.</param>
+    public static string? BackendVerdict(string device, LMKit.Global.Runtime.BackendType backend, out bool isError)
+    {
+        isError = (device == "cpu") && !IsCpuBackend(backend);
+        return isError ? $"CPU mode asked, but LM-Kit loaded its {backend} backend, which runs Whisper on one CPU thread" : null;
+    }
+
+    /// <summary>
+    /// True for the backends that run the model on this process's own cores: the plain CPU backend and its
+    /// AVX variants.
+    /// </summary>
+    private static bool IsCpuBackend(LMKit.Global.Runtime.BackendType backend) =>
+        backend is LMKit.Global.Runtime.BackendType.CPU or LMKit.Global.Runtime.BackendType.Avx or LMKit.Global.Runtime.BackendType.Avx2;
+
     private static string GpuFallbackMessage(long riseBytes) =>
         $"GPU mode asked, but the process's GPU memory rose only {Megabytes(riseBytes)} MB through model load: "
         + "the native library is CPU-only or the provider fell back to the CPU (see %LOCALAPPDATA%/yaat/yaat-speech-sandbox.log)";

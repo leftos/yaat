@@ -67,4 +67,31 @@ public sealed class GpuMemoryProbeTests
     [InlineData(-1, 4096)]
     public void An_Auto_Device_Is_Never_Reported(long preLoadMb, long afterLoadMb) =>
         Assert.Null(GpuUseCheck.Verdict("auto", preLoadMb * Megabyte, afterLoadMb * Megabyte, out bool _));
+
+    [Theory]
+    [InlineData(LMKit.Global.Runtime.BackendType.Cuda13, "Cuda13")]
+    [InlineData(LMKit.Global.Runtime.BackendType.Cuda12, "Cuda12")]
+    [InlineData(LMKit.Global.Runtime.BackendType.Vulkan, "Vulkan")]
+    public void A_CPU_Run_Whose_Backend_Is_A_GPU_One_Is_An_Error(LMKit.Global.Runtime.BackendType backend, string name)
+    {
+        string? verdict = GpuUseCheck.BackendVerdict("cpu", backend, out bool isError);
+
+        Assert.True(isError);
+        Assert.NotNull(verdict);
+        Assert.Contains("CPU mode asked", verdict, StringComparison.Ordinal);
+        Assert.Contains(name, verdict, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(LMKit.Global.Runtime.BackendType.CPU)]
+    [InlineData(LMKit.Global.Runtime.BackendType.Avx)]
+    [InlineData(LMKit.Global.Runtime.BackendType.Avx2)]
+    public void A_CPU_Run_Whose_Backend_Is_A_CPU_One_Is_Not_Reported(LMKit.Global.Runtime.BackendType backend) =>
+        Assert.Null(GpuUseCheck.BackendVerdict("cpu", backend, out bool _));
+
+    [Theory]
+    [InlineData("gpu")]
+    [InlineData("auto")]
+    public void A_GPU_Or_Auto_Run_Is_Not_Reported_Whatever_The_Backend(string device) =>
+        Assert.Null(GpuUseCheck.BackendVerdict(device, LMKit.Global.Runtime.BackendType.Cuda13, out bool _));
 }

@@ -74,7 +74,7 @@ public sealed class CorpusWerRunnerTests
 
         string report = CorpusWerRunner.BuildReport(Run(timing), []);
 
-        Assert.Contains("Device cpu, model load 1.5 s", report, StringComparison.Ordinal);
+        Assert.Contains("Device cpu, model load and warm-up 1.5 s", report, StringComparison.Ordinal);
         Assert.Contains("p50 412 ms", report, StringComparison.Ordinal);
         Assert.Contains("1 cached, excluded", report, StringComparison.Ordinal);
         Assert.Contains("GPU memory n/a", report, StringComparison.Ordinal);
