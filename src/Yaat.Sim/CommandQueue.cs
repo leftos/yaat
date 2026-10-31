@@ -352,6 +352,15 @@ public class CommandBlock
     public int TransmissionId { get; init; }
 
     /// <summary>
+    /// Whether an earlier block of the transmission that queued this block assigned a speed
+    /// (<see cref="Commands.DispatchContext.SpeedRestatedInTransmission"/>), so a via or approach clearance here leaves it
+    /// standing. Serialized and carried through a split, never recomputed from <see cref="SourceCommandText"/>: a block that
+    /// repeats an earlier one, or was split, cannot be placed in its transmission from the text. Defaults false, so an
+    /// older snapshot restores with no speed restated.
+    /// </summary>
+    public bool SpeedRestatedInTransmission { get; init; }
+
+    /// <summary>
     /// Set while this runway-entry block waits in the queue for its departure's release (<c>FlightPhysics.WaitsForRelease</c>),
     /// so the RPO's "waits for the release" notice and the wait/resume log lines each come once per block. Not serialized:
     /// it drives notices and logging only, and a restored block that is still held recomputes the wait from
@@ -382,6 +391,7 @@ public class CommandBlock
             HasDeleteCommand = HasDeleteCommand,
             IsScenarioScripted = IsScenarioScripted,
             TransmissionId = TransmissionId,
+            SpeedRestatedInTransmission = SpeedRestatedInTransmission,
         };
 
     public static CommandBlock FromSnapshot(CommandBlockDto dto) =>
@@ -407,6 +417,7 @@ public class CommandBlock
             HasDeleteCommand = dto.HasDeleteCommand,
             IsScenarioScripted = dto.IsScenarioScripted,
             TransmissionId = dto.TransmissionId,
+            SpeedRestatedInTransmission = dto.SpeedRestatedInTransmission,
             // ApplyAction is NOT restored here — this is a static context with no DispatchContext.
             // SimulationEngine.RehydrateRestoredQueueBlocks rebuilds it (and ParsedCommands) from
             // SourceCommandText on the next physics tick, before the queue can fire; track commands are

@@ -192,7 +192,7 @@ accepted. `LV`, `ATFN`, `ONHS` and `OTG` never reach this case: each refuses a m
    supersedes it.
 4. **Split-block metadata loss** (#281): `SplitBlockNonConflicting` rebuilds a partially-superseded
    block; every `CommandBlock` field must be re-derived or copied. `SplitBlockPreservationTests`
-   pins the full property set by reflection. `TransmissionId` belongs to the transmission that queued the kept commands, so the rebuilt block copies it rather than taking the superseding transmission's.
+   pins the full property set by reflection. `TransmissionId` belongs to the transmission that queued the kept commands, so the rebuilt block copies it rather than taking the superseding transmission's; so does `SpeedRestatedInTransmission`, which is serialized and never recomputed from `SourceCommandText`, since a repeated or split block cannot be placed in its transmission from the text.
 
    A queued block dropped before it applied (a later lateral command, `DELAT`/`DELCOND`, `NODEL`, a fire-time chain abort) needs no bookkeeping for a DVIA or CVIA it held: a CFIX takes no reverts only when a via clearance of its own transmission has already applied (`AircraftProcedure.StarViaTransmissionId` / `ClimbViaTransmissionId`, read by `NavigationCommandHandler.ViaAppliedInTransmission`), so a CFIX queued beside a dropped or refused via clearance fires as a lone CFIX would, with its reverts.
 5. **Idle-phase stranding** (#407/#311): a new "waiting for a command" ground phase must override

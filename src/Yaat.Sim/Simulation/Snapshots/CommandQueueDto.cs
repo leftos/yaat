@@ -58,6 +58,11 @@ public sealed class CommandBlockDto
     // Additive, no schema bump: 0 (omitted) in older snapshots.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int TransmissionId { get; init; }
+
+    // Whether an earlier block of that transmission assigned a speed, so a via or approach clearance here leaves it
+    // standing. Additive, no schema bump: false (omitted) in older snapshots.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SpeedRestatedInTransmission { get; init; }
 }
 
 public sealed class TrackedCommandDto

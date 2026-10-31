@@ -140,13 +140,17 @@ public sealed record DispatchContext
     public int TransmissionId { get; internal init; }
 
     /// <summary>
-    /// True once a speed assignment earlier in the block being applied has applied: SPD, SPEEDF, the forced final-approach
-    /// speed, MACH or RFAS (<c>CommandDispatcher.AssignsSpeed</c>). A DVIA, CVIA or approach clearance after it in the block
-    /// leaves that speed assigned, since a speed still required is restated with the clearance (7110.65 5-7-1.c). A crossing
-    /// speed (a CFIX or constrained DCTF carrying one, DVIA SPD n FIX) does not count: it restates only its own fix's
-    /// restriction, which the fix's speed stamp keeps. Set by the block's apply action only.
+    /// True when the transmission restated a speed before the command being applied: SPD, SPEEDF, the forced final-approach
+    /// speed, MACH, SMAX or RFAS (<c>CommandDispatcher.AssignsSpeed</c>). It has two sources: such a speed applied earlier
+    /// in the same block (set by the block's apply action), or one in an earlier block of the same transmission (set when
+    /// the block is built, from the transmission's blocks, and carried on the block
+    /// (<see cref="CommandBlock.SpeedRestatedInTransmission"/>) through a snapshot or a split). A DVIA, CVIA or approach
+    /// clearance then leaves the speed in force assigned, since a speed still required is restated with the clearance
+    /// (7110.65 5-7-1.c). A speed after the clearance does not count: it applies after it, or is refused and the clearance's
+    /// cancel stands. A crossing speed (a CFIX or constrained DCTF carrying one, DVIA SPD n FIX) does not count either: it
+    /// restates only its own fix's restriction, which the fix's speed stamp keeps.
     /// </summary>
-    public bool SpeedAssignedInBlock { get; internal init; }
+    public bool SpeedRestatedInTransmission { get; internal init; }
 
     /// <summary>
     /// The session clock at this dispatch: the record's mirror of <see cref="Simulation.SimScenarioState.SimTimeUtc"/>,

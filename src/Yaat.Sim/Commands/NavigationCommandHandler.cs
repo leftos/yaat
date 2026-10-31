@@ -383,7 +383,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     internal static bool CrossingBoundMetByClearance(AircraftState aircraft, CifpAltitudeRestriction restriction)
     {
-        if (aircraft.Procedure.StarViaMode || aircraft.Procedure.SidViaMode || (aircraft.Targets.AssignedAltitude is not { } cleared))
+        if (aircraft.Procedure.IsViaClearanceInForce || (aircraft.Targets.AssignedAltitude is not { } cleared))
         {
             return false;
         }
@@ -1329,7 +1329,7 @@ internal static class NavigationCommandHandler
         }
 
         SupersedeEarlierCrossingRestrictions(aircraft, ctx.TransmissionId, ActiveSidRestrictions);
-        CancelEarlierAssignedSpeed(aircraft, ctx.SpeedAssignedInBlock, ctx.TransmissionId);
+        CancelEarlierAssignedSpeed(aircraft, ctx.SpeedRestatedInTransmission, ctx.TransmissionId);
         (int target, int? exceptMaintain) = ResolveClimbViaTarget(cmd, aircraft, ctx.ArtccConfig);
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.SidViaCeiling = exceptMaintain;
@@ -1445,7 +1445,12 @@ internal static class NavigationCommandHandler
         return ((sidId is null) || string.IsNullOrEmpty(departure)) ? null : NavigationDatabase.Instance.GetSid(departure, sidId);
     }
 
-    internal static CommandResult DispatchDescendVia(DescendViaCommand cmd, AircraftState aircraft, int transmissionId, bool speedAssignedInBlock)
+    internal static CommandResult DispatchDescendVia(
+        DescendViaCommand cmd,
+        AircraftState aircraft,
+        int transmissionId,
+        bool speedRestatedInTransmission
+    )
     {
         // DVIA SPD <speed> <fix> names a fix on the route; refuse one off it before anything changes.
         NavigationTarget? speedFix = null;
@@ -1467,7 +1472,7 @@ internal static class NavigationCommandHandler
         }
 
         SupersedeEarlierCrossingRestrictions(aircraft, transmissionId, ActiveStarRestrictions);
-        CancelEarlierAssignedSpeed(aircraft, speedAssignedInBlock, transmissionId);
+        CancelEarlierAssignedSpeed(aircraft, speedRestatedInTransmission, transmissionId);
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.StarViaTransmissionId = StampedTransmission(transmissionId);
         aircraft.Procedure.StarViaFloor = cmd.Altitude;
@@ -1648,16 +1653,17 @@ internal static class NavigationCommandHandler
     /// <summary>
     /// A via clearance cancels any speed assigned before it, a superseded crossing speed included, so the procedure's
     /// published speeds and the default schedule take the speed back (7110.65 5-7-1; AIM 4-4-12). A speed assigned in
-    /// the via clearance's own block (<paramref name="speedAssignedInBlock"/>) is restated with it (7110.65 5-7-1.c) and
-    /// stands. The cancel ends only the ATC assignment: on a STAR the last crossed published speed is the ceiling again
+    /// the via clearance's own block or an earlier block of its transmission (<paramref name="speedRestatedInTransmission"/>)
+    /// is restated with it (7110.65 5-7-1.c) and stands. The cancel ends only the ATC assignment: on a STAR the last
+    /// crossed published speed is the ceiling again
     /// (<see cref="FlightCommandHandler.RestoreCrossedPublishedCeiling"/>), and a crossing speed of this same transmission
     /// stays in force (<see cref="KeepTransmissionCrossingSpeed"/>).
     /// </summary>
-    private static void CancelEarlierAssignedSpeed(AircraftState aircraft, bool speedAssignedInBlock, int transmissionId)
+    private static void CancelEarlierAssignedSpeed(AircraftState aircraft, bool speedRestatedInTransmission, int transmissionId)
     {
-        if (!speedAssignedInBlock)
+        if (!speedRestatedInTransmission)
         {
-            FlightCommandHandler.CancelAssignedSpeed(aircraft);
+            FlightCommandHandler.CancelAssignedSpeedKeepingProcedureFloor(aircraft);
             FlightCommandHandler.RestoreCrossedPublishedCeiling(aircraft);
             KeepTransmissionCrossingSpeed(aircraft, transmissionId);
         }
@@ -1851,17 +1857,59 @@ internal static class NavigationCommandHandler
         || (fix.RevertAssignedSpeed is not null)
         || fix.RevertSpeedMax;
 
+    /// <summary>
+    /// The speed the procedure of the via clearance in force publishes at <paramref name="fixName"/>, whatever a controller
+    /// set there; null when it publishes none, its procedure cannot be resolved or "delete speed restrictions" stands. The
+    /// fix must still be on the route: an enroute transition counts as flown only while one of its own fixes is.
+    /// </summary>
+    internal static CifpSpeedRestriction? ViaProcedureSpeedAt(AircraftState aircraft, string fixName)
+    {
+        if (aircraft.Procedure.SpeedRestrictionsDeleted)
+        {
+            return null;
+        }
+
+        if (ViaProcedureRestrictions(aircraft) is not { } published)
+        {
+            Log.LogWarning(
+                "{Callsign}: could not resolve the via clearance's procedure (STAR {Star}, SID {Sid}); no published speed read at {Fix}",
+                aircraft.Callsign,
+                aircraft.Procedure.ActiveStarId,
+                aircraft.Procedure.ActiveSidId,
+                fixName
+            );
+            return null;
+        }
+
+        return published.GetValueOrDefault(fixName)?.SpeedRestriction;
+    }
+
+    /// <summary>The published restrictions of the via clearance's procedure by fix name; null when it cannot be resolved.</summary>
+    private static Dictionary<string, NavigationTarget>? ViaProcedureRestrictions(AircraftState aircraft)
+    {
+        if (aircraft.Procedure.StarViaMode)
+        {
+            return ResolveActiveStar(aircraft) is { } star ? PublishedStarRestrictions(star, aircraft) : null;
+        }
+
+        return ResolveActiveSid(aircraft) is { } sid ? PublishedSidRestrictions(sid, aircraft) : null;
+    }
+
+    private static CifpStarProcedure? ResolveActiveStar(AircraftState aircraft)
+    {
+        string? starId = aircraft.Procedure.ActiveStarId;
+        return starId is null ? null : NavigationDatabase.Instance.GetStar(aircraft.FlightPlan.Destination, starId);
+    }
+
     /// <summary>The active STAR's published restrictions by fix name; empty when the STAR cannot be resolved.</summary>
     private static Dictionary<string, NavigationTarget> ActiveStarRestrictions(AircraftState aircraft)
     {
-        string? starId = aircraft.Procedure.ActiveStarId;
-        CifpStarProcedure? star = starId is null ? null : NavigationDatabase.Instance.GetStar(aircraft.FlightPlan.Destination, starId);
-        if (star is null)
+        if (ResolveActiveStar(aircraft) is not { } star)
         {
             Log.LogWarning(
                 "{Callsign}: DVIA could not resolve STAR {Star} at {Dest}; crossing restrictions it supersedes are cleared, not restored",
                 aircraft.Callsign,
-                starId,
+                aircraft.Procedure.ActiveStarId,
                 aircraft.FlightPlan.Destination
             );
             return new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);

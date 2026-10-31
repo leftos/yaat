@@ -176,6 +176,10 @@ _Avoid_: target, addressee
 A typed verb the desktop client sends with an empty callsign whatever aircraft is selected, because the room or the issuing position (or, for GHOST and TIMER, its own argument) addresses it: `CommandScopes.SendsWithoutSelection`. A malformed one is refused with the parser's reason, never as a missing aircraft.
 _Avoid_: global command (`CommandDefinition.IsGlobal` is a different question: the pilot never answers Unable)
 
+**Speed restated in transmission**:
+The fact (`CommandBlock.SpeedRestatedInTransmission`, `DispatchContext.SpeedRestatedInTransmission`) that a speed was assigned in the block or in an earlier block of the same transmission as a DVIA, CVIA or approach clearance, which then leaves that speed standing instead of cancelling it (7110.65 5-7-1.c). A crossing speed does not count.
+_Avoid_: speed in block
+
 **Speed stamp**:
 The transmission id (`NavigationTarget.SpeedTransmissionId`) of the transmission that set a fix's crossing speed: a CFIX carrying a speed, a constrained DCTF's speed constraint, or a `DVIA SPD n FIX`. Null when the speed is the procedure's or there is none, so an altitude-only CFIX leaves it alone. A DVIA, CVIA or approach clearance in the same transmission keeps the speed; a later one gives the fix its published speed back, and crossing a stamped fix is never remembered as a published speed. The fix's crossing altitude has its own stamp, `CrossingTransmissionId`.
 _Avoid_: crossing stamp (that one answers for the altitude only)

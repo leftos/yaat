@@ -194,6 +194,13 @@ public static class FlightPhysics
         if (shouldSequence)
         {
             NavigationTarget sequenced = nav;
+
+            // Read while the fix is on the route: an enroute transition counts as flown only while one of its own fixes is
+            // ahead, so past a transition's last fix the published speed a controller replaced there could not be found.
+            CifpSpeedRestriction? viaPublishedSpeed =
+                (aircraft.Procedure.IsViaClearanceInForce && IsControllerSetSpeed(sequenced))
+                    ? Commands.NavigationCommandHandler.ViaProcedureSpeedAt(aircraft, sequenced.Name)
+                    : null;
             route.RemoveAt(0);
 
             // Fire any AT fix triggers in the command queue for this fix
@@ -221,14 +228,28 @@ public static class FlightPhysics
                 aircraft.Targets.AssignedSpeed = sequenced.RevertAssignedSpeed;
             }
 
-            RecordCrossedPublishedSpeed(aircraft, sequenced);
+            // Under a via clearance a crossing speed the controller set ends at its fix (7110.65 5-7-2.e), and a speed the
+            // procedure publishes there is still the speed crossed (5-7-1.e NOTE, 5-7-1.g NOTE 3). With no via clearance
+            // the crossing speed holds until ATC ends it.
+            bool controllerCrossingEnds = aircraft.Procedure.IsViaClearanceInForce && IsControllerSetSpeed(sequenced);
+            CifpSpeedRestriction? crossedRestriction = sequenced.SpeedRestriction;
+            if (controllerCrossingEnds)
+            {
+                crossedRestriction = viaPublishedSpeed;
+                MoveAssignedSpeedPastControllerCrossing(aircraft, sequenced, route);
+            }
+
+            if (controllerCrossingEnds || !IsControllerSetSpeed(sequenced))
+            {
+                RecordCrossedPublishedSpeed(aircraft, crossedRestriction);
+            }
 
             // AIM 5-4-1 NOTE 2 / 7110.65 §5-7-1.g NOTE 3: once at a "cross at" speed the
             // pilot maintains it until ATC reassigns or the approach speed takes over.
             // Publish the crossed restriction as a ceiling so the auto altitude-band schedule
             // cannot accelerate the aircraft back to default cruise while flying the remaining
             // (often unrestricted) fixes. An explicit ATC speed wins and is left untouched.
-            if (sequenced.SpeedRestriction is { } crossedSpeed && !aircraft.Targets.HasExplicitSpeedCommand)
+            if ((crossedRestriction is { } crossedSpeed) && !aircraft.Targets.HasExplicitSpeedCommand)
             {
                 if (crossedSpeed.Type == CifpSpeedRestrictionType.AtOrAbove)
                 {
@@ -246,6 +267,11 @@ public static class FlightPhysics
                     aircraft.Targets.SpeedCeiling = aircraft.Targets.SpeedCeiling is { } existingCeiling
                         ? Math.Min(existingCeiling, ceilingKts)
                         : ceilingKts;
+
+                    if (controllerCrossingEnds)
+                    {
+                        aircraft.Procedure.LastProcedureSpeedKts = ceilingKts;
+                    }
                 }
             }
 
@@ -577,24 +603,7 @@ public static class FlightPhysics
                 continue;
             }
 
-            double constraintSpeed = ClampFixSpeedToApproachFloor(aircraft, restriction.SpeedKts);
-
-            // 14 CFR 91.117: cap at 250 KIAS below 10,000 ft MSL
-            if (aircraft.Altitude < 10_000 && !speedLimitWaived)
-            {
-                constraintSpeed = Math.Min(constraintSpeed, 250);
-            }
-
-            // Clamp to active floor/ceiling
-            if (aircraft.Targets.SpeedFloor is { } floor)
-            {
-                constraintSpeed = Math.Max(constraintSpeed, floor);
-            }
-
-            if (aircraft.Targets.SpeedCeiling is { } ceiling)
-            {
-                constraintSpeed = Math.Min(constraintSpeed, ceiling);
-            }
+            (double constraintSpeed, bool floorGivesWay) = PlannedConstraintSpeed(aircraft, restriction, speedLimitWaived);
 
             // A minimum ("at or above") restriction must never trigger a deceleration: the
             // aircraft may legally cross faster. Only act on it to accelerate up to the floor
@@ -620,7 +629,7 @@ public static class FlightPhysics
             {
                 // Pin TargetSpeed to the constraint so the auto speed schedule
                 // doesn't override it while the constrained fix is still ahead.
-                aircraft.Targets.TargetSpeed = constraintSpeed;
+                SetPlannedSpeed(aircraft, constraintSpeed, floorGivesWay);
                 break;
             }
 
@@ -638,11 +647,63 @@ public static class FlightPhysics
             // aircraft doesn't slow down prematurely.
             if (!needsDecel || (timeToFixSeconds <= changeTimeSeconds * 1.1))
             {
-                aircraft.Targets.TargetSpeed = constraintSpeed;
+                SetPlannedSpeed(aircraft, constraintSpeed, floorGivesWay);
             }
 
             break; // Step planning: only target the first speed-constrained fix
         }
+    }
+
+    /// <summary>
+    /// The speed the planner flies to cross a fix's <paramref name="restriction"/>: its published speed under 14 CFR 91.117,
+    /// clamped to the speed floor and ceiling in force. The planner runs only with no explicit ATC speed, so a floor is
+    /// the procedure's, a minimum crossed earlier: it holds until the pilot slows for a lower "at" or "at or below" speed
+    /// ahead, which it then gives way to (7110.65 5-7-1.g NOTE 3; AIM 5-4-1 NOTE 2), and <c>FloorGivesWay</c> says so.
+    /// </summary>
+    private static (double Speed, bool FloorGivesWay) PlannedConstraintSpeed(
+        AircraftState aircraft,
+        CifpSpeedRestriction restriction,
+        bool speedLimitWaived
+    )
+    {
+        double constraintSpeed = ClampFixSpeedToApproachFloor(aircraft, restriction.SpeedKts);
+
+        // 14 CFR 91.117: cap at 250 KIAS below 10,000 ft MSL
+        if (aircraft.Altitude < 10_000 && !speedLimitWaived)
+        {
+            constraintSpeed = Math.Min(constraintSpeed, 250);
+        }
+
+        bool floorGivesWay = false;
+        if (aircraft.Targets.SpeedFloor is { } floor)
+        {
+            floorGivesWay = (restriction.Type != CifpSpeedRestrictionType.AtOrAbove) && (floor > constraintSpeed);
+            if (!floorGivesWay)
+            {
+                constraintSpeed = Math.Max(constraintSpeed, floor);
+            }
+        }
+
+        if (aircraft.Targets.SpeedCeiling is { } ceiling)
+        {
+            constraintSpeed = Math.Min(constraintSpeed, ceiling);
+        }
+
+        return (constraintSpeed, floorGivesWay);
+    }
+
+    /// <summary>
+    /// Targets the planned <paramref name="speed"/>; when a procedure's floor gives way to it
+    /// (<see cref="PlannedConstraintSpeed"/>), the floor ends here, as the deceleration for the lower speed starts.
+    /// </summary>
+    private static void SetPlannedSpeed(AircraftState aircraft, double speed, bool floorGivesWay)
+    {
+        if (floorGivesWay)
+        {
+            aircraft.Targets.SpeedFloor = null;
+        }
+
+        aircraft.Targets.TargetSpeed = speed;
     }
 
     /// <summary>
@@ -836,8 +897,12 @@ public static class FlightPhysics
 
                 // AIM 5-4-1 NOTE 2: remember the last published speed so that if the
                 // procedure terminates without further ATC instruction the aircraft
-                // does not accelerate beyond it.
-                aircraft.Procedure.LastProcedureSpeedKts = targetSpeed;
+                // does not accelerate beyond it. Under a via clearance a crossing speed
+                // the controller set ends at its fix (7110.65 5-7-2.e), so it is not one.
+                if (!(aircraft.Procedure.IsViaClearanceInForce && IsControllerSetSpeed(target)))
+                {
+                    aircraft.Procedure.LastProcedureSpeedKts = targetSpeed;
+                }
             }
         }
     }
@@ -1065,22 +1130,31 @@ public static class FlightPhysics
     /// <summary>
     /// Remembers the "at" or "at or below" speed published on a procedure fix the aircraft just crossed, whatever speed
     /// it was flying, so a later "resume normal speed" or "resume published speed" holds it as the ceiling until the next
-    /// published speed restriction (AIM 5-4-1 NOTE 2). A crossing speed a controller set
-    /// (<see cref="IsControllerSetSpeed"/>) is not a published one and is not remembered. An "at or above" speed is a
-    /// minimum, never a ceiling, and leaves the memory as it was.
+    /// published speed restriction (AIM 5-4-1 NOTE 2). The caller passes only a published speed, never one a controller
+    /// set (<see cref="IsControllerSetSpeed"/>). An "at or above" speed is a minimum, never a ceiling, and leaves the
+    /// memory as it was.
     /// </summary>
-    private static void RecordCrossedPublishedSpeed(AircraftState aircraft, NavigationTarget sequenced)
+    private static void RecordCrossedPublishedSpeed(AircraftState aircraft, CifpSpeedRestriction? published)
     {
-        if (
-            (sequenced.SpeedRestriction is not { } crossed)
-            || (crossed.Type == CifpSpeedRestrictionType.AtOrAbove)
-            || IsControllerSetSpeed(sequenced)
-        )
+        if ((published is not { } crossed) || (crossed.Type == CifpSpeedRestrictionType.AtOrAbove))
         {
             return;
         }
 
         aircraft.Procedure.LastCrossedPublishedSpeedKts = ClampFixSpeedToApproachFloor(aircraft, crossed.SpeedKts);
+    }
+
+    /// <summary>
+    /// The assigned speed past a controller crossing under a via clearance: the next controller crossing's speed, else
+    /// none. An explicit ATC speed and SMAX's re-arm on <paramref name="crossed"/> keep their own. With neither, a speed the
+    /// fix reverted to is an earlier crossing's, which has ended too, or one ATC has since cancelled.
+    /// </summary>
+    private static void MoveAssignedSpeedPastControllerCrossing(AircraftState aircraft, NavigationTarget crossed, List<NavigationTarget> route)
+    {
+        if (!aircraft.Targets.HasExplicitSpeedCommand && !crossed.RevertSpeedMax)
+        {
+            aircraft.Targets.AssignedSpeed = route.Find(IsControllerSetSpeed)?.SpeedRestriction?.SpeedKts;
+        }
     }
 
     private static void ClearProcedureState(AircraftState aircraft)

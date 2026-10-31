@@ -90,10 +90,15 @@ public class SpeedCommandTests
 
     // --- RNS ---
 
+    /// <summary>
+    /// A floor with no explicit ATC speed in force is the procedure's (a crossed "at or above" minimum): RNS clears the
+    /// ATC speed fields but keeps it, since resuming normal speed does not delete a published restriction.
+    /// </summary>
     [Fact]
-    public void ResumeNormalSpeed_ClearsAllSpeed()
+    public void ResumeNormalSpeed_KeepsAProcedureFloor()
     {
         AircraftState ac = CreateAircraft();
+        ac.Procedure.ActiveStarId = "DOOBI3";
         ac.Targets.TargetSpeed = 210;
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 250;
@@ -102,8 +107,43 @@ public class SpeedCommandTests
 
         Assert.True(result.Success);
         Assert.Null(ac.Targets.TargetSpeed);
+        Assert.Equal(200, ac.Targets.SpeedFloor);
+        Assert.Null(ac.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// Once the procedure has ended, nothing published stands behind the floor, so RNS clears it with the rest
+    /// (7110.65 5-7-4.a).
+    /// </summary>
+    [Fact]
+    public void ResumeNormalSpeed_PastTheProcedure_ClearsTheFloor()
+    {
+        AircraftState ac = CreateAircraft();
+        ac.Targets.SpeedFloor = 200;
+
+        CommandResult result = CommandDispatcher.Dispatch(new ResumeNormalSpeedCommand(), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Null(ac.Targets.SpeedFloor);
+    }
+
+    /// <summary>A floor ATC assigned ("SPD 200+") ends with the rest of the ATC speed on RNS.</summary>
+    [Fact]
+    public void ResumeNormalSpeed_ClearsAnAtcFloor()
+    {
+        AircraftState ac = CreateAircraft();
+        ac.Targets.TargetSpeed = 210;
+        ac.Targets.SpeedFloor = 200;
+        ac.Targets.SpeedCeiling = 250;
+        ac.Targets.HasExplicitSpeedCommand = true;
+
+        CommandResult result = CommandDispatcher.Dispatch(new ResumeNormalSpeedCommand(), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Null(ac.Targets.TargetSpeed);
         Assert.Null(ac.Targets.SpeedFloor);
         Assert.Null(ac.Targets.SpeedCeiling);
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
     }
 
     // --- DSR ---

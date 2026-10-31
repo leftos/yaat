@@ -4,7 +4,9 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation;
@@ -29,6 +31,13 @@ public class DescendViaSpeedResumeTests
 
     /// <summary>How far over a crossing speed a crossing may still be, 7110.65 5-7-1.g NOTE 1's ±10 knots.</summary>
     private const double CrossingToleranceKts = 10.0;
+
+    /// <summary>KIAH DOOBI3's fix with a published "230 knots or above" minimum, and the 210-knot fix after it.</summary>
+    private const string Hhart = "HHART";
+
+    private const string Boppr = "BOPPR";
+    private const int GrudgPublishedKts = 260;
+    private const int HhartFloorKts = 230;
 
     private readonly ITestOutputHelper _output;
 
@@ -453,8 +462,12 @@ public class DescendViaSpeedResumeTests
         Assert.Equal(a.TargetMach, b.TargetMach);
         Assert.Equal(a.HasExplicitSpeedCommand, b.HasExplicitSpeedCommand);
         Assert.Equal(a.SpeedCommandIsControllerIssued, b.SpeedCommandIsControllerIssued);
-        Assert.Equal(cfixFirst.Aircraft.Procedure.LastProcedureSpeedKts, dviaFirst.Aircraft.Procedure.LastProcedureSpeedKts);
         Assert.Equal(cfixFirst.Aircraft.Procedure.SpeedRestrictionsDeleted, dviaFirst.Aircraft.Procedure.SpeedRestrictionsDeleted);
+
+        TickUntilPassed(cfixFirst, fixName);
+        TickUntilPassed(dviaFirst, fixName);
+        Assert.Equal(GrudgPublishedKts, cfixFirst.Aircraft.Procedure.LastProcedureSpeedKts);
+        Assert.Equal(GrudgPublishedKts, dviaFirst.Aircraft.Procedure.LastProcedureSpeedKts);
     }
 
     /// <summary>
@@ -480,7 +493,7 @@ public class DescendViaSpeedResumeTests
 
         SendOk(cfixFirst, $"CFIX {fixName} 110 230, DVIA");
         SendOk(dviaFirst, $"DVIA, CFIX {fixName} 110 230");
-        AssertSameSpeedState(cfixFirst.Aircraft, dviaFirst.Aircraft);
+        AssertSameAssignedSpeedState(cfixFirst.Aircraft, dviaFirst.Aircraft);
 
         foreach (OakesHarness harness in harnesses)
         {
@@ -493,6 +506,7 @@ public class DescendViaSpeedResumeTests
             Assert.Null(fix.RevertSpeed);
 
             TickUntilPassed(harness, fixName);
+            Assert.Equal(GrudgPublishedKts, harness.Aircraft.Procedure.LastProcedureSpeedKts);
             NavigationTarget next = NextSpeedRestrictedFix(harness.Aircraft);
             CifpSpeedRestriction published = next.SpeedRestriction!;
             (double crossingIas, _) = TickUntilPassed(harness, next.Name);
@@ -672,6 +686,722 @@ public class DescendViaSpeedResumeTests
         Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
         Tick(harness, 60);
         Assert.InRange(aircraft.IndicatedAirspeed, 210 - SnapKts, 210 + SnapKts);
+    }
+
+    // --- A speed restated anywhere in the clearance's transmission stands (7110.65 5-7-1.c) ---
+
+    /// <summary>"SPD 180; AT X CAPP I30": the speed given before the conditional approach clearance stands when it fires.</summary>
+    [Fact]
+    public void SpeedThenConditionalApproachClearance_SameTransmission_KeepsTheSpeed()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        string fix = harness.Aircraft.Targets.NavigationRoute[0].Name;
+        SendOk(harness, $"SPD 180; AT {fix} CAPP I30");
+        TickUntilPassed(harness, fix);
+        Tick(harness, 5);
+
+        AssertClearedKeeping180(harness.Aircraft);
+    }
+
+    /// <summary>"AT X CAPP I30; SPD 180": the speed given after the conditional approach clearance stands.</summary>
+    [Fact]
+    public void ConditionalApproachClearanceThenSpeed_SameTransmission_KeepsTheSpeed()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        string fix = harness.Aircraft.Targets.NavigationRoute[0].Name;
+        SendOk(harness, $"AT {fix} CAPP I30; SPD 180");
+        TickUntilPassed(harness, fix);
+        Tick(harness, 5);
+
+        AssertClearedKeeping180(harness.Aircraft);
+    }
+
+    /// <summary>"SPD 180; CAPP I30": the approach clearance in the next sequential block leaves the speed standing.</summary>
+    [Fact]
+    public void SpeedThenApproachClearance_SequentialBlocks_SameTransmission_KeepsTheSpeed()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        SendOk(harness, "SPD 180; CAPP I30");
+        Tick(harness, 120);
+
+        AssertClearedKeeping180(harness.Aircraft);
+    }
+
+    /// <summary>"SPD 180; DVIA": the descend via in the next sequential block leaves the speed standing.</summary>
+    [Fact]
+    public void SpeedThenDescendVia_SameTransmission_KeepsTheSpeed()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "SPD 180; DVIA");
+        Tick(harness, 120);
+
+        Assert.True(aircraft.Procedure.StarViaMode, "The descend via never applied");
+        Assert.Equal(180, aircraft.Targets.AssignedSpeed);
+        Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
+    }
+
+    /// <summary>
+    /// "CAPP I30; SPD 100", 100 knots below the jet's minimum: the refused speed restates nothing, so the approach
+    /// clearance's cancel of the 210 an earlier transmission assigned stands.
+    /// </summary>
+    [Fact]
+    public void ApproachClearanceThenRefusedSpeed_SameTransmission_CancelsTheEarlierSpeed()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "SPD 210");
+        Tick(harness, 5);
+        SendOk(harness, "CAPP I30; SPD 100");
+        Tick(harness, 120);
+        _output.WriteLine($"Warnings: {string.Join(" | ", aircraft.PendingWarnings)}");
+
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+    }
+
+    /// <summary>
+    /// As <see cref="SpeedThenConditionalApproachClearance_SameTransmission_KeepsTheSpeed"/>, across a snapshot taken
+    /// while the conditional clearance is still queued: the restored block carries the fact that the speed was restated before it.
+    /// </summary>
+    [Fact]
+    public void SpeedThenConditionalApproachClearance_RestoredFromSnapshot_KeepsTheSpeed()
+    {
+        if (BuildHarness() is not { } live)
+        {
+            return;
+        }
+
+        string fix = live.Aircraft.Targets.NavigationRoute[0].Name;
+        SendOk(live, $"SPD 180; AT {fix} CAPP I30");
+        Tick(live, 5);
+        StateSnapshotDto snapshot = live.Engine.CaptureSnapshot();
+
+        SimulationEngine engine = NewEngine("OAK");
+        engine.RestoreFromSnapshot(snapshot);
+        var restored = new OakesHarness(engine, Assert.IsType<AircraftState>(engine.FindAircraft(live.Aircraft.Callsign)));
+        TickUntilPassed(restored, fix);
+        Tick(restored, 5);
+
+        AssertClearedKeeping180(restored.Aircraft);
+    }
+
+    /// <summary>
+    /// As <see cref="SpeedThenConditionalApproachClearance_SameTransmission_KeepsTheSpeed"/>, with an altitude in the
+    /// conditional block that a later "DM 100" supersedes: the block is rebuilt around the approach clearance, which
+    /// still finds the speed restated before it in its own transmission.
+    /// </summary>
+    [Fact]
+    public void SpeedThenConditionalApproachClearance_RebuiltByALaterAltitude_KeepsTheSpeed()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        string fix = aircraft.Targets.NavigationRoute[0].Name;
+        SendOk(harness, $"SPD 180; AT {fix} CAPP I30, DM 120");
+        SendOk(harness, "DM 100");
+        string queue = string.Join(" | ", aircraft.Queue.Blocks.Select(b => b.Description));
+        _output.WriteLine($"Queue after DM 100: {queue}");
+        Assert.Contains(aircraft.Queue.Blocks, b => (b.Trigger is not null) && (b.Commands.Count == 1) && !b.IsApplied);
+
+        TickUntilPassed(harness, fix);
+        Tick(harness, 5);
+
+        AssertClearedKeeping180(aircraft);
+    }
+
+    /// <summary>
+    /// As <see cref="SpeedThenConditionalApproachClearance_RebuiltByALaterAltitude_KeepsTheSpeed"/>, with the speed in an
+    /// earlier transmission: the rebuilt block finds no speed restated before it, so the clearance's cancel stands.
+    /// </summary>
+    [Fact]
+    public void QueuedBlockRebuild_NoEarlierSpeed_FactIsFalse()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        string fix = aircraft.Targets.NavigationRoute[0].Name;
+        SendOk(harness, "SPD 180");
+        SendOk(harness, $"AT {fix} CAPP I30, DM 120");
+        SendOk(harness, "DM 100");
+        Assert.Contains(aircraft.Queue.Blocks, b => (b.Trigger is not null) && (b.Commands.Count == 1) && !b.IsApplied);
+
+        TickUntilPassed(harness, fix);
+        Tick(harness, 5);
+
+        Assert.True(
+            (aircraft.Approach.PendingClearance is not null) || (aircraft.Phases?.ActiveApproach is not null),
+            "The approach clearance never applied"
+        );
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+    }
+
+    /// <summary>
+    /// "CTO, SPD 230; CVIA" on an aircraft in a phase: the tower path takes the first block and queues the rest, and the
+    /// queued climb via finds the 230 restated before it at enqueue just as it does rebuilt from a snapshot.
+    /// </summary>
+    [Fact]
+    public void PhaseActiveCompound_SpeedBeforeCvia_EnqueueMatchesRebuild()
+    {
+        AircraftState takeoff = LinedUpAircraft.AtOak28R("TEST1");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("CTO, SPD 230; CVIA", takeoff.FlightPlan.Route);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, takeoff, ctx);
+        Assert.True(result.Success, result.Message);
+        CommandBlock enqueued = Assert.Single(takeoff.Queue.Blocks);
+
+        var rebuilt = CommandBlock.FromSnapshot(enqueued.ToSnapshot());
+        Assert.True(CommandDispatcher.RehydrateRestoredBlock(rebuilt, takeoff, ctx), "The queued climb via did not rehydrate");
+
+        Assert.Equal(230, AssignedSpeedAfterClimbVia(rebuilt));
+        Assert.Equal(230, AssignedSpeedAfterClimbVia(enqueued));
+    }
+
+    /// <summary>
+    /// "CVIA; SPD 230; AT WESLA CVIA": the queued climb via repeats the first block's text, so the source text cannot place
+    /// it after the 230. The fact crosses a snapshot on the block itself.
+    /// </summary>
+    [Fact]
+    public void RepeatedConditionalCvia_RestoredFromSnapshot_KeepsTheFactAndTheSpeed()
+    {
+        OakesHarness restored = RestoredWeslaAfter("CVIA; SPD 230; AT WESLA CVIA", 5);
+        Assert.True(restored.Aircraft.Queue.Blocks[^1].SpeedRestatedInTransmission);
+
+        TickUntilPassed(restored, "WESLA");
+        Tick(restored, 5);
+
+        Assert.True(restored.Aircraft.Queue.Blocks[^1].IsApplied, "The conditional climb via never fired");
+        Assert.Equal(230, restored.Aircraft.Targets.AssignedSpeed);
+    }
+
+    /// <summary>As <see cref="RepeatedConditionalCvia_RestoredFromSnapshot_KeepsTheFactAndTheSpeed"/>, with the last block matching the tail of the first.</summary>
+    [Fact]
+    public void RepeatedSequentialCvia_RestoredFromSnapshot_KeepsTheFactAndTheSpeed()
+    {
+        OakesHarness restored = RestoredWeslaAfter("DM 100, CVIA; SPD 230; CVIA", 1);
+        AircraftState aircraft = restored.Aircraft;
+        Assert.True(aircraft.Queue.Blocks[^1].SpeedRestatedInTransmission);
+
+        for (int t = 1; (t <= 1800) && !aircraft.Queue.Blocks[^1].IsApplied; t++)
+        {
+            restored.Engine.TickOneSecond();
+        }
+
+        Assert.True(aircraft.Queue.Blocks[^1].IsApplied, "The last climb via never fired");
+        Assert.Equal(230, aircraft.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// "SPD 180; AT X DM 120, SPD 200, CAPP I30" split twice, by "DM 100" and "SPD 190": the clearance's block keeps the
+    /// fact through both, so across a snapshot the clearance leaves the speed in force.
+    /// </summary>
+    [Fact]
+    public void SplitTwice_RestoredFromSnapshot_KeepsTheFactAndTheSpeed()
+    {
+        if (BuildHarness() is not { } live)
+        {
+            return;
+        }
+
+        string fix = live.Aircraft.Targets.NavigationRoute[0].Name;
+        SendOk(live, $"SPD 180; AT {fix} DM 120, SPD 200, CAPP I30");
+        SendOk(live, "DM 100");
+        SendOk(live, "SPD 190");
+        string queue = string.Join(" | ", live.Aircraft.Queue.Blocks.Select(b => b.Description));
+        _output.WriteLine($"Queue after both splits: {queue}");
+        Assert.Contains(live.Aircraft.Queue.Blocks, b => (b.Trigger is not null) && (b.Commands.Count == 1) && !b.IsApplied);
+
+        OakesHarness restored = RestoreSnapshot(live, "OAK");
+        CommandBlock clearance = Assert.Single(restored.Aircraft.Queue.Blocks, b => (b.Trigger is not null) && !b.IsApplied);
+        Assert.True(clearance.SpeedRestatedInTransmission);
+
+        TickUntilPassed(restored, fix);
+        Tick(restored, 5);
+
+        Assert.True(
+            (restored.Aircraft.Approach.PendingClearance is not null) || (restored.Aircraft.Phases?.ActiveApproach is not null),
+            "The approach clearance never applied"
+        );
+        Assert.Equal(190, restored.Aircraft.Targets.AssignedSpeed);
+    }
+
+    /// <summary>A WESLA5 departure sent <paramref name="command"/>, flown <paramref name="seconds"/> and restored from a snapshot.</summary>
+    private OakesHarness RestoredWeslaAfter(string command, int seconds)
+    {
+        SimulationEngine engine = NewEngine("SFO");
+        AircraftState aircraft = BuildWeslaDeparture();
+        engine.World.AddAircraft(aircraft);
+        var live = new OakesHarness(engine, aircraft);
+        SendOk(live, command);
+        Tick(live, seconds);
+        return RestoreSnapshot(live, "SFO");
+    }
+
+    private static OakesHarness RestoreSnapshot(OakesHarness live, string airport)
+    {
+        StateSnapshotDto snapshot = live.Engine.CaptureSnapshot();
+        SimulationEngine engine = NewEngine(airport);
+        engine.RestoreFromSnapshot(snapshot);
+        return new OakesHarness(engine, Assert.IsType<AircraftState>(engine.FindAircraft(live.Aircraft.Callsign)));
+    }
+
+    /// <summary>Fires <paramref name="climbVia"/> on an airborne WESLA5 departure assigned 230; returns the assigned speed left.</summary>
+    private static double? AssignedSpeedAfterClimbVia(CommandBlock climbVia)
+    {
+        AircraftState departure = BuildWeslaDeparture();
+        departure.Targets.TargetSpeed = 230;
+        departure.Targets.AssignedSpeed = 230;
+        departure.Targets.HasExplicitSpeedCommand = true;
+
+        CommandResult result = climbVia.ApplyAction!(departure, true);
+
+        Assert.True(result.Success, result.Message);
+        return departure.Targets.AssignedSpeed;
+    }
+
+    /// <summary>The approach clearance applied, and the 180 restated in its transmission is still the assigned speed.</summary>
+    private static void AssertClearedKeeping180(AircraftState aircraft)
+    {
+        Assert.True(
+            (aircraft.Approach.PendingClearance is not null) || (aircraft.Phases?.ActiveApproach is not null),
+            "The approach clearance never applied"
+        );
+        Assert.Equal(180, aircraft.Targets.AssignedSpeed);
+        Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
+    }
+
+    // --- A controller crossing speed under a via clearance ends at its fix (7110.65 5-7-2.e) ---
+
+    /// <summary>
+    /// On OAKES3 RW12, "CFIX GRUDG 160 230, DVIA": past GRUDG the 230 is not held as a ceiling, and the aircraft flies the
+    /// published profile, crossing SULRR at its 250.
+    /// </summary>
+    [Fact]
+    public void CfixAt230_UnderDvia_PastTheFix_FliesThePublishedSpeed()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "CFIX GRUDG 160 230, DVIA");
+        CifpSpeedRestriction sulrr = Assert.IsType<CifpSpeedRestriction>(RouteFix(aircraft, "SULRR").SpeedRestriction);
+        Assert.Equal(250, sulrr.SpeedKts);
+
+        TickUntilPassed(harness, "GRUDG");
+        Assert.NotEqual(230, aircraft.Targets.SpeedCeiling);
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+
+        (double crossingIas, double maxIas) = TickUntilPassed(harness, "SULRR");
+        Assert.True(maxIas > 235, $"The aircraft never rose above {maxIas:F0} kt between GRUDG and SULRR: still held at the 230");
+        Assert.InRange(crossingIas, sulrr.SpeedKts - ResumedMarginKts, sulrr.SpeedKts + SnapKts);
+    }
+
+    /// <summary>
+    /// With no via clearance, "CFIX GRUDG 160 230" keeps the 230 past GRUDG until ATC ends it (7110.65 5-7-1.g NOTE 3;
+    /// AIM 5-4-1 NOTE 2).
+    /// </summary>
+    [Fact]
+    public void CfixAt230_NoViaClearance_PastTheFix_Holds230()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "CFIX GRUDG 160 230");
+
+        TickUntilPassed(harness, "GRUDG");
+        for (int t = 1; t <= 120; t++)
+        {
+            harness.Engine.TickOneSecond();
+            Assert.True(
+                aircraft.IndicatedAirspeed <= 230 + SnapKts,
+                $"{aircraft.IndicatedAirspeed:F0} kt {t} s past GRUDG, above the 230 crossing speed; ceiling {aircraft.Targets.SpeedCeiling}"
+            );
+        }
+    }
+
+    /// <summary>
+    /// On OAKES3 RW12, "CFIX LOHGN 60 180, DVIA": the 180 replaces LOHGN's published 200 and ends at LOHGN, so past the
+    /// STAR's terminating fix the ceiling is the published speed under it, the 200 (7110.65 5-7-1.e NOTE, 5-7-1.g NOTE 3).
+    /// </summary>
+    [Fact]
+    public void ControllerCrossingSpeedUnderDvia_IsNotTheTerminatingCeiling()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "CFIX LOHGN 60 180, DVIA");
+        Assert.Equal(180, RouteFix(aircraft, "LOHGN").SpeedRestriction?.SpeedKts);
+
+        TickUntilPassed(harness, "HIRMO");
+
+        Assert.Equal(200, aircraft.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// Two controller crossings under a via clearance: past the first, the assigned speed moves to the second's, and it
+    /// clears past that one.
+    /// </summary>
+    [Fact]
+    public void TwoControllerCrossingSpeedsUnderDvia_AssignedSpeedMovesToTheNext()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "CFIX GRUDG 160 230, CFIX LOHGN 60 180, DVIA");
+
+        TickUntilPassed(harness, "GRUDG");
+        Assert.Equal(180, aircraft.Targets.AssignedSpeed);
+
+        TickUntilPassed(harness, "LOHGN");
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// KIAH DOOBI3's AEX transition publishes BEATL at 280, its last fix before the common route. "CFIX BEATL 200 250, DVIA"
+    /// replaces that speed, and past BEATL the published 280 is still the speed crossed (7110.65 5-7-1.e NOTE), though the
+    /// transition leaves the route with the fix.
+    /// </summary>
+    [Fact]
+    public void ControllerCrossingUnderDvia_OnAnEnrouteTransitionsLastFix_KeepsThePublishedSpeed()
+    {
+        OakesHarness harness = BuildDoobiHarness();
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "CFIX BEATL 200 250, DVIA");
+        Assert.Equal(250, RouteFix(aircraft, "BEATL").SpeedRestriction?.SpeedKts);
+
+        TickUntilPassed(harness, "BEATL");
+
+        Assert.Equal(280, aircraft.Procedure.LastCrossedPublishedSpeedKts);
+        Assert.Equal(280, aircraft.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// "CFIX GRUDG 160 230, DVIA", then "CFIX GRUDG 160 220" in a later transmission while the aircraft changes speed: the
+    /// speed the second crossing would revert to is the first's, which ends at GRUDG with it (7110.65 5-7-2.e), so no speed
+    /// is assigned past the fix.
+    /// </summary>
+    [Fact]
+    public void RestatedControllerCrossingUnderDvia_InALaterTransmission_ClearsAssignedSpeed()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "CFIX GRUDG 160 230, DVIA");
+        Assert.NotNull(aircraft.Targets.TargetSpeed);
+        SendOk(harness, "CFIX GRUDG 160 220");
+
+        TickUntilPassed(harness, "GRUDG");
+
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// As <see cref="TwoControllerCrossingSpeedsUnderDvia_AssignedSpeedMovesToTheNext"/>, with the crossings in separate
+    /// transmissions while the aircraft changes speed, so each leaves a speed revert on its fix.
+    /// </summary>
+    [Fact]
+    public void TwoControllerCrossingsInSeparateTransmissions_AssignedSpeedMovesToTheNext()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "DVIA");
+        Assert.NotNull(aircraft.Targets.TargetSpeed);
+        SendOk(harness, "CFIX GRUDG 160 230");
+        SendOk(harness, "CFIX LOHGN 60 180");
+
+        TickUntilPassed(harness, "GRUDG");
+        Assert.Equal(180, aircraft.Targets.AssignedSpeed);
+
+        TickUntilPassed(harness, "LOHGN");
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+    }
+
+    // --- Crossed at-or-above floor ---
+
+    /// <summary>
+    /// KIAH DOOBI3 publishes HHART at 230 knots or above, then BOPPR at 210. Past HHART the crossed minimum is a floor the
+    /// pilot keeps until slowing for BOPPR (7110.65 5-7-1.d NOTE, 5-7-1.g NOTE 3): a descend via issued again does not
+    /// delete it, and the aircraft still crosses BOPPR at its 210.
+    /// </summary>
+    [Fact]
+    public void DescendVia_PastHhart_ReissuedDvia_KeepsTheFloorUntilSlowingForBoppr() => AssertFloorKeptPastHhart("DVIA");
+
+    /// <summary>
+    /// With nothing sent past HHART, its crossed minimum gives way to the deceleration for BOPPR's lower published speed:
+    /// the aircraft crosses BOPPR at 210, not held at HHART's 230.
+    /// </summary>
+    [Fact]
+    public void DescendVia_PastHhart_NothingSent_CrossesBopprAtItsSpeed() => AssertFloorKeptPastHhart(null);
+
+    /// <summary>
+    /// As <see cref="DescendVia_PastHhart_ReissuedDvia_KeepsTheFloorUntilSlowingForBoppr"/>, with RNS: resuming normal
+    /// speed does not delete a published restriction (P/CG RESUME NORMAL SPEED).
+    /// </summary>
+    [Fact]
+    public void DescendVia_PastHhart_ThenRns_KeepsTheFloor() => AssertFloorKeptPastHhart("RNS");
+
+    /// <summary>As <see cref="DescendVia_PastHhart_ThenRns_KeepsTheFloor"/>, with RPS.</summary>
+    [Fact]
+    public void DescendVia_PastHhart_ThenRps_KeepsTheFloor() => AssertFloorKeptPastHhart("RPS");
+
+    /// <summary>"Delete speed restrictions" deletes the crossed published minimum with the rest.</summary>
+    [Fact]
+    public void DescendVia_PastHhart_ThenDsr_DropsTheFloor()
+    {
+        OakesHarness harness = PastHhart();
+        SendOk(harness, "DSR");
+
+        Assert.Null(harness.Aircraft.Targets.SpeedFloor);
+    }
+
+    /// <summary>
+    /// A vector ends the published minimum and the published-speed memory with the procedure (7110.65 5-7-1.e NOTE).
+    /// </summary>
+    [Fact]
+    public void CrossedFloor_FlyHeading_EndsTheFloor()
+    {
+        OakesHarness harness = PastHhart();
+        Assert.NotNull(harness.Aircraft.Procedure.LastProcedureSpeedKts);
+
+        SendOk(harness, "FH 270");
+
+        Assert.Null(harness.Aircraft.Targets.SpeedFloor);
+        Assert.Null(harness.Aircraft.Procedure.LastProcedureSpeedKts);
+    }
+
+    /// <summary>A direct ends them too, even to a fix still on the procedure (7110.65 5-7-1.e NOTE, "assigns a direct route").</summary>
+    [Fact]
+    public void CrossedFloor_DirectTo_EndsTheFloor()
+    {
+        OakesHarness harness = PastHhart();
+        Assert.NotNull(harness.Aircraft.Procedure.LastProcedureSpeedKts);
+        // The spawned flight plan does not program the STAR's fixes; the direct is the point here, not that check.
+        harness.Engine.Scenario!.ValidateDctFixes = false;
+
+        SendOk(harness, $"DCT {Boppr}");
+
+        Assert.Null(harness.Aircraft.Targets.SpeedFloor);
+        Assert.Null(harness.Aircraft.Procedure.LastProcedureSpeedKts);
+    }
+
+    /// <summary>Every other vector, direct and radial or airway join ends them as well.</summary>
+    [Theory]
+    [InlineData("TL 270")]
+    [InlineData("TR 270")]
+    [InlineData("LT 20")]
+    [InlineData("RT 20")]
+    [InlineData("FPH")]
+    [InlineData("TRDCT BOPPR")]
+    [InlineData("JRADO AEX090")]
+    [InlineData("JRADI AEX090")]
+    [InlineData("DEPART BOPPR 090")]
+    [InlineData("JAWY J2")]
+    public void CrossedFloor_OtherLateralCommands_EndTheFloor(string command) => AssertEndsTheFloor(command);
+
+    /// <summary>
+    /// A direct refused at its arm, as one fired from a queued block is with no dry run ahead of it, leaves the floor and the
+    /// published-speed memory: the aircraft is still on the procedure.
+    /// </summary>
+    [Fact]
+    public void CrossedFloor_RefusedDirect_KeepsTheFloor()
+    {
+        OakesHarness harness = PastHhart();
+        AircraftState aircraft = harness.Aircraft;
+        double? lastProcedureSpeed = aircraft.Procedure.LastProcedureSpeedKts;
+        SendOk(harness, $"AT ODISS DCT {Boppr}");
+
+        CommandResult result = aircraft.Queue.Blocks[^1].ApplyAction!(aircraft, true);
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal(HhartFloorKts, aircraft.Targets.SpeedFloor);
+        Assert.Equal(lastProcedureSpeed, aircraft.Procedure.LastProcedureSpeedKts);
+    }
+
+    /// <summary>A forced heading ends them as a vector does.</summary>
+    [Fact]
+    public void CrossedFloor_ForceHeading_EndsTheFloor() => AssertEndsTheFloor("FHN 270");
+
+    /// <summary>A forced direct ends them as a direct does.</summary>
+    [Fact]
+    public void CrossedFloor_ForceDirectTo_EndsTheFloor() => AssertEndsTheFloor($"DCTF {Boppr}");
+
+    /// <summary>A direct with a turn direction ends them as a direct does.</summary>
+    [Fact]
+    public void CrossedFloor_TurnDirectTo_EndsTheFloor() => AssertEndsTheFloor($"TLDCT {Boppr}");
+
+    /// <summary>Past HHART, <paramref name="command"/> ends the crossed floor and the published-speed memory.</summary>
+    private void AssertEndsTheFloor(string command)
+    {
+        OakesHarness harness = PastHhart();
+        Assert.NotNull(harness.Aircraft.Procedure.LastProcedureSpeedKts);
+        // The spawned flight plan does not program the STAR's fixes; the direct is the point here, not that check.
+        harness.Engine.Scenario!.ValidateDctFixes = false;
+
+        SendOk(harness, command);
+
+        Assert.Null(harness.Aircraft.Targets.SpeedFloor);
+        Assert.Null(harness.Aircraft.Procedure.LastProcedureSpeedKts);
+    }
+
+    /// <summary>A floor ATC assigned is not the procedure's: a vector leaves it standing.</summary>
+    [Fact]
+    public void CrossedFloor_FlyHeadingWithExplicitSpeed_KeepsTheAssignedFloor()
+    {
+        OakesHarness harness = PastHhart();
+        SendOk(harness, "SPD 240+");
+
+        SendOk(harness, "FH 270");
+
+        Assert.Equal(240, harness.Aircraft.Targets.SpeedFloor);
+        Assert.True(harness.Aircraft.Targets.HasExplicitSpeedCommand);
+    }
+
+    /// <summary>
+    /// A climb via, like a descend via, cancels the speeds ATC assigned, not a minimum crossed at a published speed. No
+    /// SID the navdata carries publishes one on this fixture, so the crossed floor is set as the physics leaves it.
+    /// </summary>
+    [Fact]
+    public void Cvia_KeepsTheCrossedFloor()
+    {
+        SimulationEngine engine = NewEngine("SFO");
+        AircraftState aircraft = BuildWeslaDeparture();
+        engine.World.AddAircraft(aircraft);
+        aircraft.Targets.SpeedFloor = HhartFloorKts;
+
+        SendOk(new OakesHarness(engine, aircraft), "CVIA");
+
+        Assert.Equal(HhartFloorKts, aircraft.Targets.SpeedFloor);
+    }
+
+    /// <summary>
+    /// Past HHART, sends <paramref name="command"/> (none when null) and flies to BOPPR: the speed stays at or above
+    /// HHART's minimum (less the crossing tolerance) until the aircraft is inside the deceleration window for BOPPR's
+    /// speed, and crosses BOPPR at that speed.
+    /// </summary>
+    private void AssertFloorKeptPastHhart(string? command)
+    {
+        OakesHarness harness = PastHhart();
+        AircraftState aircraft = harness.Aircraft;
+        if (command is not null)
+        {
+            SendOk(harness, command);
+        }
+
+        int bopprKts = RouteFix(aircraft, Boppr).SpeedRestriction!.SpeedKts;
+        double decelRate = AircraftPerformance.DecelRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
+        bool slowing = false;
+        for (int t = 1; t <= 1800; t++)
+        {
+            harness.Engine.TickOneSecond();
+            double ias = aircraft.IndicatedAirspeed;
+            if (!aircraft.Targets.NavigationRoute.Exists(f => f.Name.Equals(Boppr, StringComparison.OrdinalIgnoreCase)))
+            {
+                _output.WriteLine($"Passed {Boppr} after {t} s at {ias:F0} kt, {aircraft.Altitude:F0} ft");
+                Assert.InRange(ias, bopprKts - CrossingToleranceKts, bopprKts + CrossingToleranceKts);
+                return;
+            }
+
+            double windowNm = Math.Max(ias - bopprKts, 0) / decelRate * 1.1 * (aircraft.GroundSpeed / 3600.0);
+            double distanceNm = RouteDistanceNm(aircraft, Boppr);
+            if (!slowing && (distanceNm <= windowNm + 1.0))
+            {
+                _output.WriteLine($"Within {distanceNm:F1} nm of {Boppr} after {t} s at {ias:F0} kt");
+                slowing = true;
+            }
+
+            Assert.True(
+                slowing || (ias >= HhartFloorKts - CrossingToleranceKts),
+                $"{ias:F0} kt after {t} s, {distanceNm:F1} nm from {Boppr} (decel window {windowNm:F1} nm), at {aircraft.Altitude:F0} ft, "
+                    + $"target {aircraft.Targets.TargetSpeed}, floor {aircraft.Targets.SpeedFloor}, ceiling {aircraft.Targets.SpeedCeiling}"
+            );
+        }
+
+        Assert.Fail($"The aircraft did not pass {Boppr} within 1800 s");
+    }
+
+    /// <summary>A jet on KIAH DOOBI3 from AEX, descending via, just past HHART with its 230-or-above minimum as the floor.</summary>
+    private OakesHarness PastHhart()
+    {
+        OakesHarness harness = BuildDoobiHarness();
+        SendOk(harness, "DVIA");
+        Assert.Equal(new CifpSpeedRestriction(HhartFloorKts, CifpSpeedRestrictionType.AtOrAbove), RouteFix(harness.Aircraft, Hhart).SpeedRestriction);
+
+        TickUntilPassed(harness, Hhart);
+        Assert.Equal(HhartFloorKts, harness.Aircraft.Targets.SpeedFloor);
+        return harness;
+    }
+
+    /// <summary>A generated heavy jet level at FL240 at AEX on KIAH's DOOBI3 (AEX transition, common route to BOZZZ), DOOBI3 filed.</summary>
+    private OakesHarness BuildDoobiHarness() => SpawnOnStar("KIAH", "AEX", "DOOBI3", runway: null, altitudeFt: 24000);
+
+    /// <summary>
+    /// A generated heavy jet level at 16,000 on KOAK's OAKES3 RW12 transition (OAKES 280, GRUDG 260, SULRR 250, LOHGN
+    /// 200), just past OAKES.
+    /// </summary>
+    private OakesHarness BuildOakesRw12Harness()
+    {
+        OakesHarness harness = SpawnOnStar("KOAK", "OAKES", "OAKES3", runway: "12", altitudeFt: 16000);
+        TickUntilPassed(harness, "OAKES");
+        return harness;
+    }
+
+    /// <summary>A generated heavy jet level at <paramref name="altitudeFt"/> at <paramref name="entryFix"/> on a STAR, with the STAR filed.</summary>
+    private OakesHarness SpawnOnStar(string airport, string entryFix, string starId, string? runway, int altitudeFt)
+    {
+        var request = new SpawnRequest
+        {
+            Rules = FlightRulesKind.Ifr,
+            Weight = WeightClass.Heavy,
+            Engine = EngineKind.Jet,
+            PositionType = SpawnPositionType.OnStar,
+            StarEntryFix = entryFix,
+            StarId = starId,
+            StarRunway = runway,
+            DescendVia = false,
+            StarAltitude = altitudeFt,
+            DestinationAirportId = airport,
+        };
+        (AircraftState? aircraft, string? error) = AircraftGenerator.Generate(
+            request,
+            airport,
+            [],
+            groundLayout: null,
+            new Random(1),
+            new BeaconCodePool()
+        );
+        Assert.Null(error);
+        Assert.NotNull(aircraft);
+
+        SimulationEngine engine = NewEngine(airport[1..]);
+        engine.World.AddAircraft(aircraft);
+        string route = string.Join(" ", aircraft.Targets.NavigationRoute.Select(t => t.Name));
+        _output.WriteLine(
+            $"Spawned {aircraft.Callsign} {aircraft.AircraftType} at {aircraft.Altitude:F0}, IAS {aircraft.IndicatedAirspeed:F0}, route {route}"
+        );
+        return new OakesHarness(engine, aircraft);
     }
 
     private void AssertFliesPublished(string fixName, CifpSpeedRestriction published, double crossingIas)
@@ -1047,6 +1777,12 @@ public class DescendViaSpeedResumeTests
 
     private static void AssertSameSpeedState(AircraftState a, AircraftState b)
     {
+        AssertSameAssignedSpeedState(a, b);
+        Assert.Equal(a.Procedure.LastProcedureSpeedKts, b.Procedure.LastProcedureSpeedKts);
+    }
+
+    private static void AssertSameAssignedSpeedState(AircraftState a, AircraftState b)
+    {
         Assert.Equal(a.Targets.AssignedSpeed, b.Targets.AssignedSpeed);
         Assert.Equal(a.Targets.TargetSpeed, b.Targets.TargetSpeed);
         Assert.Equal(a.Targets.SpeedCeiling, b.Targets.SpeedCeiling);
@@ -1054,7 +1790,6 @@ public class DescendViaSpeedResumeTests
         Assert.Equal(a.Targets.TargetMach, b.Targets.TargetMach);
         Assert.Equal(a.Targets.HasExplicitSpeedCommand, b.Targets.HasExplicitSpeedCommand);
         Assert.Equal(a.Targets.SpeedCommandIsControllerIssued, b.Targets.SpeedCommandIsControllerIssued);
-        Assert.Equal(a.Procedure.LastProcedureSpeedKts, b.Procedure.LastProcedureSpeedKts);
         Assert.Equal(a.Procedure.SpeedRestrictionsDeleted, b.Procedure.SpeedRestrictionsDeleted);
     }
 

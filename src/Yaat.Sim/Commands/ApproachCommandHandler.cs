@@ -947,7 +947,7 @@ public static class ApproachCommandHandler
             return explicitAltitude;
         }
 
-        bool viaInForce = aircraft.Procedure.StarViaMode || aircraft.Procedure.SidViaMode;
+        bool viaInForce = aircraft.Procedure.IsViaClearanceInForce;
         // A VFR "at or above" / "at or below" restriction records its bound as AssignedAltitude; a bound is not an altitude to maintain
         bool vfrBoundInForce = (aircraft.Targets.AltitudeFloor is not null) || (aircraft.Targets.AltitudeCeiling is not null);
         if (!viaInForce && !vfrBoundInForce && (aircraft.Targets.AssignedAltitude is { } assigned))
@@ -3049,8 +3049,9 @@ public static class ApproachCommandHandler
     /// <summary>
     /// An approach clearance cancels any previously assigned speed (7110.65 5-7-1.d; AIM 4-4-12.g) and ends the STAR's
     /// last-crossed published speed with the STAR (7110.65 5-7-1.e and NOTE). The dispatcher puts back a speed restated
-    /// in the clearance's own block (7110.65 5-7-1.c). The same-runway in-trail reduction's ceiling is not a speed the
-    /// clearance cancels: it belongs to that pass and is restated with the clearance (<see cref="RestateStandingInTrailReduction"/>).
+    /// in the clearance's transmission (<see cref="DispatchContext.SpeedRestatedInTransmission"/>; 7110.65 5-7-1.c). The
+    /// same-runway in-trail reduction's ceiling is not a speed the clearance cancels: it belongs to that pass and is
+    /// restated with the clearance (<see cref="RestateStandingInTrailReduction"/>).
     /// </summary>
     private static void CancelSpeedsForApproachClearance(AircraftState aircraft)
     {

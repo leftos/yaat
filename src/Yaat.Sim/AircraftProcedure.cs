@@ -20,6 +20,9 @@ public class AircraftProcedure
     public bool SidViaMode { get; set; }
     public bool StarViaMode { get; set; }
 
+    /// <summary>Whether a descend via or climb via clearance is in force.</summary>
+    public bool IsViaClearanceInForce => StarViaMode || SidViaMode;
+
     /// <summary>
     /// The ATC-assigned "except maintain" altitude of the climb via in force: <c>CVIA nnn</c>'s, or, for a bare CVIA, the
     /// TDLS climb-via text's "EXC MAINT" altitude. Set and cleared with <see cref="ClimbViaTargetFt"/>; the check-in names

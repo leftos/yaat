@@ -602,11 +602,21 @@ public static class CommandDispatcher
                         }
                     }
 
+                    // The queued blocks are a cut-down list, so a speed in a block the phase took is carried in.
                     int firstRemainingIdx = aircraft.Queue.Blocks.Count;
-                    List<string> remainingMessages =
-                        remainingBlocks.Count > 0
-                            ? EnqueueBlocks(new CompoundCommand(remainingBlocks) { SourceText = compound.SourceText }, 0, aircraft, ctx)
-                            : [];
+                    List<string> remainingMessages = [];
+                    if (remainingBlocks.Count > 0)
+                    {
+                        DispatchContext remainingCtx = ctx with
+                        {
+                            SpeedRestatedInTransmission =
+                                ctx.SpeedRestatedInTransmission
+                                || SpeedAssignedBeforeBlock(compound.Blocks, compound.Blocks.IndexOf(remainingBlocks[0])),
+                        };
+                        var remaining = new CompoundCommand(remainingBlocks) { SourceText = compound.SourceText };
+                        remainingMessages = EnqueueBlocks(remaining, 0, aircraft, remainingCtx);
+                    }
+
                     AttachAfterRunwayCrossingTriggerForToweredFirstBlock(
                         compound,
                         aircraft,
@@ -1254,19 +1264,19 @@ public static class CommandDispatcher
         {
             // --- Heading ---
             case FlyHeadingCommand cmd:
-                return FlightCommandHandler.ApplyHeading(cmd, aircraft);
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyHeading(cmd, aircraft), aircraft);
             case TurnLeftCommand cmd:
-                return FlightCommandHandler.ApplyTurnLeft(cmd, aircraft);
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyTurnLeft(cmd, aircraft), aircraft);
             case TurnRightCommand cmd:
-                return FlightCommandHandler.ApplyTurnRight(cmd, aircraft);
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyTurnRight(cmd, aircraft), aircraft);
             case LeftTurnCommand cmd:
-                return FlightCommandHandler.ApplyLeftTurn(cmd, aircraft);
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyLeftTurn(cmd, aircraft), aircraft);
             case RightTurnCommand cmd:
-                return FlightCommandHandler.ApplyRightTurn(cmd, aircraft);
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyRightTurn(cmd, aircraft), aircraft);
             case FlyPresentHeadingCommand:
-                return FlightCommandHandler.ApplyFlyPresentHeading(aircraft);
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyFlyPresentHeading(aircraft), aircraft);
             case ForceHeadingCommand cmd:
-                return FlightCommandHandler.ApplyForceHeading(cmd, aircraft);
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyForceHeading(cmd, aircraft), aircraft);
 
             // --- Altitude ---
             case ClimbMaintainCommand cmd:
@@ -1326,19 +1336,25 @@ public static class CommandDispatcher
                 return rejection;
 
             case DirectToCommand cmd:
-                return FlightCommandHandler.ApplyDirectTo(cmd, aircraft, validateDctFixes);
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyDirectTo(cmd, aircraft, validateDctFixes), aircraft);
             case ForceDirectToCommand cmd:
-                return FlightCommandHandler.ApplyForceDirectTo(cmd, aircraft);
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyForceDirectTo(cmd, aircraft), aircraft);
             case ConstrainedForceDirectToCommand cmd:
-                return FlightCommandHandler.ApplyConstrainedForceDirectTo(cmd, aircraft, ctx);
+                return EndingPublishedSpeedFloor(FlightCommandHandler.ApplyConstrainedForceDirectTo(cmd, aircraft, ctx), aircraft);
             case AppendDirectToCommand cmd:
                 return FlightCommandHandler.ApplyAppendDirectTo(cmd, aircraft, validateDctFixes);
             case AppendForceDirectToCommand cmd:
                 return FlightCommandHandler.ApplyAppendForceDirectTo(cmd, aircraft);
             case TurnLeftDirectToCommand cmd:
-                return FlightCommandHandler.ApplyTurnDirectTo(cmd.Fixes, aircraft, validateDctFixes, TurnDirection.Left);
+                return EndingPublishedSpeedFloor(
+                    FlightCommandHandler.ApplyTurnDirectTo(cmd.Fixes, aircraft, validateDctFixes, TurnDirection.Left),
+                    aircraft
+                );
             case TurnRightDirectToCommand cmd:
-                return FlightCommandHandler.ApplyTurnDirectTo(cmd.Fixes, aircraft, validateDctFixes, TurnDirection.Right);
+                return EndingPublishedSpeedFloor(
+                    FlightCommandHandler.ApplyTurnDirectTo(cmd.Fixes, aircraft, validateDctFixes, TurnDirection.Right),
+                    aircraft
+                );
 
             // --- Warp ---
             case WarpCommand cmd:
@@ -1417,17 +1433,17 @@ public static class CommandDispatcher
 
             // --- Navigation commands ---
             case JoinRadialOutboundCommand cmd:
-                return NavigationCommandHandler.DispatchJrado(cmd, aircraft);
+                return EndingPublishedSpeedFloor(NavigationCommandHandler.DispatchJrado(cmd, aircraft), aircraft);
             case JoinRadialInboundCommand cmd:
-                return NavigationCommandHandler.DispatchJradi(cmd, aircraft);
+                return EndingPublishedSpeedFloor(NavigationCommandHandler.DispatchJradi(cmd, aircraft), aircraft);
             case DepartFixCommand cmd:
-                return NavigationCommandHandler.DispatchDepartFix(cmd, aircraft);
+                return EndingPublishedSpeedFloor(NavigationCommandHandler.DispatchDepartFix(cmd, aircraft), aircraft);
             case CrossFixCommand cmd:
                 return NavigationCommandHandler.DispatchCrossFix(cmd, aircraft, ctx);
             case ClimbViaCommand cmd:
                 return NavigationCommandHandler.DispatchClimbVia(cmd, aircraft, ctx);
             case DescendViaCommand cmd:
-                return NavigationCommandHandler.DispatchDescendVia(cmd, aircraft, ctx.TransmissionId, ctx.SpeedAssignedInBlock);
+                return NavigationCommandHandler.DispatchDescendVia(cmd, aircraft, ctx.TransmissionId, ctx.SpeedRestatedInTransmission);
 
             // RWY assigns the arrival/departure runway, which is a route decision rather than a surface one, so it
             // must apply with no phase active too — the tower switch has the same arm for the phase path.
@@ -1467,7 +1483,7 @@ public static class CommandDispatcher
             case JoinStarCommand cmd:
                 return NavigationCommandHandler.DispatchJarr(cmd, aircraft);
             case JoinAirwayCommand cmd:
-                return NavigationCommandHandler.DispatchJawy(cmd, aircraft);
+                return EndingPublishedSpeedFloor(NavigationCommandHandler.DispatchJawy(cmd, aircraft), aircraft);
             case ClearedIntoMilitaryRouteCommand cmd:
                 return MilitaryRouteCommandHandler.DispatchClearedInto(cmd, aircraft, ctx);
             case MaintainMilitaryRouteAltitudesCommand:
@@ -4038,6 +4054,7 @@ public static class CommandDispatcher
             HasDeleteCommand = parsedCommands.Exists(c => c is DeleteCommand),
             IsScenarioScripted = ctx.IsScenarioScripted,
             TransmissionId = ctx.TransmissionId,
+            SpeedRestatedInTransmission = ctx.SpeedRestatedInTransmission,
         };
         block.ApplyAction = BuildApplyAction(applyCommands, ctx, block);
         return block;
@@ -4084,6 +4101,35 @@ public static class CommandDispatcher
             return true;
         }
 
+        if (MatchSourceBlock(block, compound) is not { } matched)
+        {
+            return false;
+        }
+
+        // Mirror CreateBlock: track commands stay out of the ApplyAction (they have no ApplyCommand arm
+        // and are dispatched by SimulationEngine.ProcessTriggeredTrackBlocks) but stay in ParsedCommands.
+        // The speed restated in the transmission is the block's own serialized fact, as CreateBlock wrote it.
+        var applyCommands = matched.Where(c => !TrackEngine.IsTrackCommand(c)).ToList();
+        block.ParsedCommands = matched;
+        DispatchContext blockCtx = ctx with { SpeedRestatedInTransmission = block.SpeedRestatedInTransmission };
+        block.ApplyAction = BuildApplyAction(applyCommands, blockCtx, block);
+
+        // Dimensions is a coarse pre-filter derived from the commands, not durable state, so the live table
+        // wins over the value the writing build serialized: a snapshot taken before surface clearances
+        // narrowed from All to Ground would otherwise restore a taxi block that still wipes airborne work.
+        block.Dimensions = AggregateDimensions(matched);
+        return true;
+    }
+
+    /// <summary>
+    /// The commands <paramref name="block"/> holds, from the block of <paramref name="compound"/> (re-parsed from its source
+    /// text) it came from: each candidate is matched on its last <see cref="CommandBlock.Commands"/><c>.Count</c> commands
+    /// against the block's description, longest match winning and, between equal matches (a transmission that repeats a
+    /// block), the earliest, whose commands are the same. So the match cannot place a block in its transmission, and
+    /// nothing reads that from it. Null when none matches.
+    /// </summary>
+    private static List<ParsedCommand>? MatchSourceBlock(CommandBlock block, CompoundCommand compound)
+    {
         int commandCount = block.Commands.Count;
         List<ParsedCommand>? matched = null;
         int matchedLength = -1;
@@ -4103,23 +4149,17 @@ public static class CommandDispatcher
             }
         }
 
-        if (matched is null)
-        {
-            return false;
-        }
-
-        // Mirror CreateBlock: track commands stay out of the ApplyAction (they have no ApplyCommand arm
-        // and are dispatched by SimulationEngine.ProcessTriggeredTrackBlocks) but stay in ParsedCommands.
-        var applyCommands = matched.Where(c => !TrackEngine.IsTrackCommand(c)).ToList();
-        block.ParsedCommands = matched;
-        block.ApplyAction = BuildApplyAction(applyCommands, ctx, block);
-
-        // Dimensions is a coarse pre-filter derived from the commands, not durable state, so the live table
-        // wins over the value the writing build serialized: a snapshot taken before surface clearances
-        // narrowed from All to Ground would otherwise restore a taxi block that still wipes airborne work.
-        block.Dimensions = AggregateDimensions(matched);
-        return true;
+        return matched;
     }
+
+    /// <summary>
+    /// Whether a block before <paramref name="blockIndex"/> of a transmission's <paramref name="blocks"/> assigns a speed
+    /// (<see cref="AssignsSpeed"/>), so a via or approach clearance in that block finds the speed restated in its
+    /// transmission and leaves it standing (7110.65 5-7-1.c). A speed after the clearance needs no such fact: it applies
+    /// after the clearance and sets the speed itself, or is refused and the clearance's cancel stands.
+    /// </summary>
+    private static bool SpeedAssignedBeforeBlock(List<ParsedBlock> blocks, int blockIndex) =>
+        blocks.Take(blockIndex).Any(b => b.Commands.Exists(AssignsSpeed));
 
     /// <summary>
     /// Rebuilds a restored follow-up block queued by <see cref="NavigationCommandHandler"/> (JRADO/JRADI/JAWY
@@ -4256,7 +4296,8 @@ public static class CommandDispatcher
         var keptParsed = keepIndices.Select(i => block.ParsedCommands[i]).ToList();
         var labels = new BlockLabels(block.DescriptionPrefix, block.NaturalDescriptionPrefix);
 
-        // The kept commands still belong to the transmission that queued them, not to the superseding one.
+        // The kept commands still belong to the transmission that queued them, not to the superseding one, and so does
+        // a speed assigned in an earlier block of that transmission.
         CommandBlock rebuilt = CreateBlock(
             keptParsed,
             block.Trigger,
@@ -4265,6 +4306,7 @@ public static class CommandDispatcher
             ctx with
             {
                 TransmissionId = block.TransmissionId,
+                SpeedRestatedInTransmission = block.SpeedRestatedInTransmission,
             }
         );
 
@@ -4306,7 +4348,11 @@ public static class CommandDispatcher
             }
 
             BlockLabels labels = BuildConditionLabels(parsedBlock.Condition);
-            CommandBlock commandBlock = CreateBlock([.. parsedBlock.Commands], trigger, labels, compound.SourceText, ctx);
+            DispatchContext blockCtx = ctx with
+            {
+                SpeedRestatedInTransmission = ctx.SpeedRestatedInTransmission || SpeedAssignedBeforeBlock(compound.Blocks, i),
+            };
+            CommandBlock commandBlock = CreateBlock([.. parsedBlock.Commands], trigger, labels, compound.SourceText, blockCtx);
 
             aircraft.Queue.Blocks.Add(commandBlock);
             messages.Add(commandBlock.NaturalDescription);
@@ -4378,7 +4424,7 @@ public static class CommandDispatcher
         return (ac, firedFromQueue) =>
         {
             bool hadProcedure = ac.Procedure.ActiveSidId is not null || ac.Procedure.ActiveStarId is not null;
-            bool hadViaMode = ac.Procedure.SidViaMode || ac.Procedure.StarViaMode;
+            bool hadViaMode = ac.Procedure.IsViaClearanceInForce;
             var messages = new List<string>();
             DispatchContext current = ctx with { TransmissionId = block.TransmissionId };
             HandlerReadback? readback = null;
@@ -4416,7 +4462,7 @@ public static class CommandDispatcher
 
                 if (AssignsSpeed(cmd))
                 {
-                    current = current with { SpeedAssignedInBlock = true };
+                    current = current with { SpeedRestatedInTransmission = true };
                 }
             }
 
@@ -4428,7 +4474,8 @@ public static class CommandDispatcher
 
     /// <summary>
     /// Whether <paramref name="cmd"/> replaces the whole ATC speed assignment, so a via or approach clearance later in its
-    /// block finds that speed restated with it (7110.65 5-7-1.c) and leaves it standing: a speed or Mach, "maintain maximum
+    /// block or in a later block of its transmission finds that speed restated with it (7110.65 5-7-1.c) and leaves it
+    /// standing (<see cref="DispatchContext.SpeedRestatedInTransmission"/>): a speed or Mach, "maintain maximum
     /// forward speed", or "reduce to final approach speed". A crossing speed (a CFIX or constrained direct-to carrying
     /// one, or "DVIA SPD n FIX") restates only its own fix's restriction, which the fix's speed stamp keeps, so the
     /// clearance still cancels the speed assigned before it (7110.65 5-7-1.c, d).
@@ -4444,9 +4491,10 @@ public static class CommandDispatcher
 
     /// <summary>
     /// Runs an approach clearance (<paramref name="clear"/>), which cancels any speed assigned before it
-    /// (7110.65 5-7-1.d; AIM 4-4-12.g), and puts that speed back when it was restated in the clearance's own block
-    /// (7110.65 5-7-1.c, "maintain 180 until the final approach fix, cleared ILS") or the clearance is refused. A clearance that
-    /// applies leaves no crossing restriction able to revert to an earlier speed past its fix
+    /// (7110.65 5-7-1.d; AIM 4-4-12.g), and puts that speed back when it was restated before it in the clearance's
+    /// transmission, in its own block or an earlier one (7110.65 5-7-1.c, "maintain 180 until the final approach fix,
+    /// cleared ILS") or the clearance is refused. A clearance that applies leaves no crossing restriction able to revert
+    /// to an earlier speed past its fix
     /// (<see cref="NavigationCommandHandler.DropSpeedReverts"/>) and gives each fix whose crossing speed an earlier
     /// transmission set its published speed back, whether or not a speed is restated with it
     /// (<see cref="NavigationCommandHandler.RestorePublishedSpeedsForApproach"/>); a pending approach does so when it is
@@ -4465,13 +4513,27 @@ public static class CommandDispatcher
 
         NavigationCommandHandler.DropSpeedReverts(aircraft);
         NavigationCommandHandler.RestorePublishedSpeedsForApproach(aircraft, ctx.TransmissionId);
-        if (ctx.SpeedAssignedInBlock)
+        if (ctx.SpeedRestatedInTransmission)
         {
             before.Restore(aircraft);
         }
         else
         {
             NavigationCommandHandler.KeepTransmissionCrossingSpeed(aircraft, ctx.TransmissionId);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// A vector or direct's <paramref name="result"/>, having ended the published speed floor when it applied
+    /// (<see cref="FlightCommandHandler.EndPublishedSpeedFloor"/>); a refused one leaves it.
+    /// </summary>
+    private static CommandResult EndingPublishedSpeedFloor(CommandResult result, AircraftState aircraft)
+    {
+        if (result.Success)
+        {
+            FlightCommandHandler.EndPublishedSpeedFloor(aircraft);
         }
 
         return result;
@@ -4539,7 +4601,7 @@ public static class CommandDispatcher
         }
 
         // Procedure preserved (DCT to on-procedure fix) but via-mode was disabled
-        if (hadViaMode && !aircraft.Procedure.SidViaMode && !aircraft.Procedure.StarViaMode)
+        if (hadViaMode && !aircraft.Procedure.IsViaClearanceInForce)
         {
             bool hasViaCmd = commands.Any(c => c is ClimbViaCommand or DescendViaCommand);
             if (!hasAltCmd && !hasViaCmd)

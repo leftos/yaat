@@ -435,8 +435,9 @@ internal static class FlightCommandHandler
     /// <summary>
     /// Ends the ATC speed assignment in force: the assigned and target speed, floor, ceiling and Mach, and the
     /// procedural last-published-speed memory, so the procedure's published speeds and the default schedule take the
-    /// speed back. "Resume normal speed" does it (AIM 4-4-12.f.1), and so do a climb via or descend via clearance and an
-    /// approach clearance, which cancel any previously assigned speed (7110.65 5-7-1; AIM 4-4-12).
+    /// speed back. An approach clearance does it, cancelling any previously assigned speed (7110.65 5-7-1.d; AIM
+    /// 4-4-12.g). A climb via or descend via clearance and "resume normal" or "resume published speed" go through
+    /// <see cref="CancelAssignedSpeedKeepingProcedureFloor"/>, which keeps a floor the procedure set.
     /// </summary>
     internal static void CancelAssignedSpeed(AircraftState aircraft)
     {
@@ -451,6 +452,35 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedLimitsLifted = false;
         aircraft.Targets.SpeedMaxHeld = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
+    }
+
+    /// <summary>
+    /// <see cref="CancelAssignedSpeed"/>, keeping a floor the procedure set: a minimum the aircraft crossed at a published
+    /// "at or above" speed, which the physics writes only with no explicit ATC speed in force. A via clearance and "resume
+    /// normal speed" cancel the speeds ATC assigned, not a published restriction (7110.65 5-7-1.d NOTE, 5-7-1.g NOTE 3;
+    /// P/CG RESUME NORMAL SPEED); the floor gives way when the pilot slows for the next lower published speed. Past the
+    /// procedure nothing published stands behind it, so it ends with the rest (7110.65 5-7-4.a).
+    /// </summary>
+    internal static void CancelAssignedSpeedKeepingProcedureFloor(AircraftState aircraft)
+    {
+        bool onProcedure = (aircraft.Procedure.ActiveSidId is not null) || (aircraft.Procedure.ActiveStarId is not null);
+        double? procedureFloor = (onProcedure && !aircraft.Targets.HasExplicitSpeedCommand) ? aircraft.Targets.SpeedFloor : null;
+        CancelAssignedSpeed(aircraft);
+        aircraft.Targets.SpeedFloor = procedureFloor;
+    }
+
+    /// <summary>
+    /// A vector or a direct, even to a fix still on the procedure, ends the procedure's speeds (7110.65 5-7-1.e NOTE, "issues
+    /// a vector, assigns a direct route"): the floor crossed at a published "at or above" speed and the last-published-speed
+    /// memory go with it. With an explicit ATC speed in force the floor is ATC's and stands.
+    /// </summary>
+    internal static void EndPublishedSpeedFloor(AircraftState aircraft)
+    {
+        if (!aircraft.Targets.HasExplicitSpeedCommand)
+        {
+            aircraft.Targets.SpeedFloor = null;
+            aircraft.Procedure.LastProcedureSpeedKts = null;
+        }
     }
 
     /// <summary>The ATC speed fields <see cref="CancelAssignedSpeed"/> clears, captured so a speed restated with a clearance can stand.</summary>
@@ -554,7 +584,7 @@ internal static class FlightCommandHandler
             return CommandDispatcher.Ok("Resume normal taxi speed");
         }
 
-        CancelAssignedSpeed(aircraft);
+        CancelAssignedSpeedKeepingProcedureFloor(aircraft);
         NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
         ResumePublishedStarSpeeds(aircraft);
 

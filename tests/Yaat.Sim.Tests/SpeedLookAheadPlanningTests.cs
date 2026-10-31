@@ -196,8 +196,12 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         // TargetSpeed will be set by Mach hold logic instead
     }
 
+    /// <summary>
+    /// A procedure's floor (a crossed "at or above" minimum, no explicit ATC speed) gives way to a lower "at or below"
+    /// speed ahead once the deceleration for it starts: 2 nm out at 280 kt the planner targets the 210 and ends the floor.
+    /// </summary>
     [Fact]
-    public void SpeedFloor_ClampsPlannedSpeed()
+    public void SpeedFloor_GivesWayToLowerFixSpeedInsideDecelWindow()
     {
         AircraftState aircraft = CreateAircraft(ias: 280, altitude: 12000);
         aircraft.Targets.SpeedFloor = 230;
@@ -206,9 +210,29 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
 
         FlightPhysics.Update(aircraft, 0.25);
 
-        // Floor of 230 should clamp the 210 constraint up to 230
-        Assert.NotNull(aircraft.Targets.TargetSpeed);
-        Assert.True(aircraft.Targets.TargetSpeed >= 230, $"Expected TargetSpeed >= 230 (floor), got {aircraft.Targets.TargetSpeed}");
+        Assert.Equal(210, aircraft.Targets.TargetSpeed);
+        Assert.Null(aircraft.Targets.SpeedFloor);
+    }
+
+    /// <summary>
+    /// Outside the deceleration window for a lower "at or below" speed the procedure's floor holds: 30 nm out the planner
+    /// targets nothing below 230 and the floor stays.
+    /// </summary>
+    [Fact]
+    public void SpeedFloor_ClampsPlannedSpeed_OutsideDecelWindow()
+    {
+        AircraftState aircraft = CreateAircraft(ias: 280, altitude: 12000);
+        aircraft.Targets.SpeedFloor = 230;
+        NavigationTarget fix = MakeFix("CNSTR", 30.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
+        aircraft.Targets.NavigationRoute.Add(fix);
+
+        FlightPhysics.Update(aircraft, 0.25);
+
+        Assert.Equal(230, aircraft.Targets.SpeedFloor);
+        Assert.True(
+            (aircraft.Targets.TargetSpeed is null) || (aircraft.Targets.TargetSpeed >= 230),
+            $"Expected no target below the 230 floor outside the decel window, got {aircraft.Targets.TargetSpeed}"
+        );
     }
 
     [Fact]
