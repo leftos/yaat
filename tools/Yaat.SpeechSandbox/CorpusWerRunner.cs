@@ -18,12 +18,14 @@ namespace Yaat.SpeechSandbox;
 /// <c>slots.json</c>, <c>--slots</c> also runs the context decoder over each clip under its unpadded, padded and oracle rooms
 /// and scores the slots it recovers (<see cref="CorpusSlotRun"/>); <c>--resolve</c> decodes over the whole n-best, and
 /// <c>--room-hotwords</c> biases each clip's beam search with its room's spoken forms; <c>--two-pass</c> then decodes each clip
-/// again, biased toward the aircraft the first decode named.
+/// again, biased toward the aircraft the first decode named; and <c>--acoustic-weight</c> and <c>--confident-word-prob</c> set the
+/// context decoder's acoustic weight and confident-word probability for every decode and room of the run.
 ///
 /// Run with <c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--stt &lt;kind&gt;:&lt;source&gt;]
 /// [--device cpu|gpu] [--prompt default|none|both] [--decoding greedy|beam] [--num-paths N]
 /// [--hotwords-file &lt;path&gt;] [--hotword-score S] [--hotword-case asis|title|lower|upper]
-/// [--slots [--resolve] [--room-hotwords unpadded|padded|oracle [--hotword-cap N] [--two-pass aircraft|aircraft-airport]]]
+/// [--slots [--resolve] [--acoustic-weight W] [--confident-word-prob P]
+/// [--room-hotwords unpadded|padded|oracle [--hotword-cap N] [--two-pass aircraft|aircraft-airport]]]
 /// [--update-baseline] [--out &lt;dir&gt;]</c>. Writes <c>results.json</c>, <c>results.jsonl</c> and
 /// <c>report.md</c> into the out dir. Exit codes: 0 no regression (or no baseline), 1 usage error, 2 setup
 /// error, 3 regression.
@@ -42,7 +44,8 @@ public static class CorpusWerRunner
         "Usage: Yaat.SpeechSandbox --corpus-wer uwb-atcc|<dir> [--subset N | --all] [--seed S] [--stt <kind>:<source>] "
         + "[--device cpu|gpu] [--prompt default|none|both] [--decoding greedy|beam] [--num-paths N] [--hotwords-file <path>] "
         + "[--hotword-score S] [--hotword-case asis|title|lower|upper] "
-        + "[--slots [--resolve] [--room-hotwords unpadded|padded|oracle [--hotword-cap N] [--two-pass aircraft|aircraft-airport]]] "
+        + "[--slots [--resolve] [--acoustic-weight W] [--confident-word-prob P] "
+        + "[--room-hotwords unpadded|padded|oracle [--hotword-cap N] [--two-pass aircraft|aircraft-airport]]] "
         + "[--update-baseline] [--out <dir>]";
 
     private const string LoadFailureHint = "the model probably failed to load (see %LOCALAPPDATA%/yaat/yaat-speech-sandbox.log)";
@@ -253,7 +256,8 @@ public static class CorpusWerRunner
             CorpusSttEngines.RecordedModel(options.Stt),
             arms,
             options.HotwordsNote,
-            CorpusSlotRun.UnbuiltOf(slots)
+            CorpusSlotRun.UnbuiltOf(slots),
+            CorpusSlotRun.DecoderOf(slots)
         );
         Directory.CreateDirectory(options.OutDir);
         await WriteResultsAsync(options.OutDir, results, segmentLines).ConfigureAwait(false);
@@ -703,6 +707,7 @@ public static class CorpusWerRunner
         string corpus = $"- Corpus `{results.Corpus}`, revision `{revision}`, seed {results.Seed}, subset {subset}";
         report.AppendLine($"{corpus}, model `{results.SttModel}`{hotwords}");
         CorpusSlotReport.AppendUnbuilt(report, results.UnbuiltCallsigns);
+        CorpusSlotReport.AppendDecoder(report, results.Decoder);
         foreach (CorpusWerArm arm in results.Arms)
         {
             AppendArm(report, arm);

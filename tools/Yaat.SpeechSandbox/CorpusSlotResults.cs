@@ -87,6 +87,17 @@ public static class CorpusSlotReport
         }
     }
 
+    /// <summary>The report line naming the decoder weights the slot run used; nothing without <c>--slots</c>.</summary>
+    public static void AppendDecoder(StringBuilder report, CorpusDecoderWeights? decoder)
+    {
+        if (decoder is not null)
+        {
+            string weight = decoder.AcousticWeight.ToString(CultureInfo.InvariantCulture);
+            string prob = decoder.ConfidentWordProb.ToString(CultureInfo.InvariantCulture);
+            report.AppendLine($"- Decoder: acoustic weight {weight}, confident word prob {prob}");
+        }
+    }
+
     /// <summary>The arm's slot sections, one per room; nothing for an arm that did not score slots.</summary>
     public static void Append(StringBuilder report, CorpusWerArm arm)
     {

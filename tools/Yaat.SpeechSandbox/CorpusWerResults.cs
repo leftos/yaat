@@ -123,6 +123,11 @@ public sealed record CorpusWerTiming(
 /// <param name="PeakGpuBytes">Peak GPU memory; -1 means it was not measured.</param>
 public sealed record CorpusWerMemory(long PreLoadWorkingSetBytes, long PeakWorkingSetBytes, long PreLoadGpuBytes, long PeakGpuBytes);
 
+/// <summary>The context decoder's weights, as <c>results.json</c> records them.</summary>
+/// <param name="AcousticWeight">Weight of the acoustic score in the n-best combination.</param>
+/// <param name="ConfidentWordProb">Word confidence at or above which a non-exact match is refused.</param>
+public sealed record CorpusDecoderWeights(double AcousticWeight, double ConfidentWordProb);
+
 /// <summary>
 /// The <c>results.json</c> of one <c>--corpus-wer</c> run, and the shape of a committed baseline.
 /// </summary>
@@ -140,6 +145,9 @@ public sealed record CorpusWerMemory(long PreLoadWorkingSetBytes, long PeakWorki
 /// The run's gold callsigns no entity was built for, as <c>&lt;feed&gt;: &lt;callsign&gt;</c>, feeds and callsigns ordinal;
 /// null without <c>--slots</c> and in a committed baseline.
 /// </param>
+/// <param name="Decoder">
+/// The context decoder's weights the slot run used; null without <c>--slots</c> and in a committed baseline.
+/// </param>
 public sealed record CorpusWerBaseline(
     string Corpus,
     string Revision,
@@ -150,7 +158,8 @@ public sealed record CorpusWerBaseline(
     string SttModel,
     IReadOnlyList<CorpusWerArm> Arms,
     string? Hotwords,
-    IReadOnlyList<string>? UnbuiltCallsigns
+    IReadOnlyList<string>? UnbuiltCallsigns,
+    CorpusDecoderWeights? Decoder
 );
 
 /// <summary>One line of <c>results.jsonl</c>: one segment scored under one prompt arm.</summary>
@@ -312,14 +321,16 @@ public static class CorpusWerBaselineComparer
     public static string Percent(double wer) => (wer * 100).ToString("0.0", CultureInfo.InvariantCulture) + "%";
 
     /// <summary>
-    /// The document to commit as a baseline: the same run with every arm's timing and slot results and the run's unbuilt
-    /// callsigns stripped, since timing is measured per machine and per run and slot scoring is not part of the baseline.
+    /// The document to commit as a baseline: the same run with every arm's timing and slot results, the run's unbuilt
+    /// callsigns and the decoder weights stripped, since timing is measured per machine and per run and slot scoring is not part
+    /// of the baseline.
     /// </summary>
     public static CorpusWerBaseline ForBaseline(CorpusWerBaseline results) =>
         results with
         {
             Arms = [.. results.Arms.Select(a => a with { Timing = null, Slots = null, SlotSeconds = null, TwoPass = null })],
             UnbuiltCallsigns = null,
+            Decoder = null,
         };
 
     public static string Serialize(CorpusWerBaseline results) => JsonSerializer.Serialize(results, CorpusWerJsonContext.Default.CorpusWerBaseline);

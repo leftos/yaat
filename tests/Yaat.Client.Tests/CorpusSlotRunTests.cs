@@ -358,7 +358,10 @@ public sealed class CorpusSlotRunTests : IDisposable
     [Fact]
     public void TwoPassBias_AppliesCasingAndCap()
     {
-        CorpusSlotRun run = CreateRun(new CorpusSlotOptions(true, SlotRoom.Oracle, 1, HotwordCase.Title, TwoPassList.Aircraft), "{}");
+        CorpusSlotRun run = CreateRun(
+            new CorpusSlotOptions(true, SlotRoom.Oracle, 1, HotwordCase.Title, TwoPassList.Aircraft, DecoderSettings.Default),
+            "{}"
+        );
         TransmissionContext context = TwoPassContext();
         var ownFix = new ContextEntity(EntityKind.Fix, "MITOE", [new SpokenForm("mitoe", 1.0)]);
         TransmissionContext narrow = context with { Aircraft = [new RoomAircraft(context.Aircraft[0].Callsign, [ownFix])], AirportEntities = [] };
@@ -406,7 +409,10 @@ public sealed class CorpusSlotRunTests : IDisposable
     [Fact]
     public void PlanTwoPass_ResolvedClip_GivesNarrowBias()
     {
-        CorpusSlotRun run = CreateRun(new CorpusSlotOptions(true, SlotRoom.Oracle, 300, HotwordCase.Title, TwoPassList.Aircraft), "{}");
+        CorpusSlotRun run = CreateRun(
+            new CorpusSlotOptions(true, SlotRoom.Oracle, 300, HotwordCase.Title, TwoPassList.Aircraft, DecoderSettings.Default),
+            "{}"
+        );
 
         (CorpusTwoPassTarget target, SttBias? bias) = run.PlanTwoPass(GoldClip, Spoken(), NoBias);
 
@@ -419,7 +425,11 @@ public sealed class CorpusSlotRunTests : IDisposable
     [Fact]
     public void TwoPassResult_LineText()
     {
-        CorpusSlotArm arm = CreateRun(new CorpusSlotOptions(true, SlotRoom.Oracle, 300, HotwordCase.Title, TwoPassList.Aircraft), "{}").StartArm();
+        CorpusSlotArm arm = CreateRun(
+                new CorpusSlotOptions(true, SlotRoom.Oracle, 300, HotwordCase.Title, TwoPassList.Aircraft, DecoderSettings.Default),
+                "{}"
+            )
+            .StartArm();
         string[] outcomes = ["resolved", "resolved", "resolved", "sayagain", "nocallsign", "nocallsign", "empty"];
         foreach (string outcome in outcomes)
         {
@@ -496,7 +506,7 @@ public sealed class CorpusSlotRunTests : IDisposable
             false
         );
 
-    private static CorpusSlotOptions RoomOptions(SlotRoom room) => new(false, room, 300, HotwordCase.Title, null);
+    private static CorpusSlotOptions RoomOptions(SlotRoom room) => new(false, room, 300, HotwordCase.Title, null, DecoderSettings.Default);
 
     private static TransmissionContext Context() =>
         new(
@@ -543,5 +553,5 @@ public sealed class CorpusSlotRunTests : IDisposable
     private static CorpusSegment Segment(string id) =>
         new(id, CorpusRole.Unknown, [], "southwest two four nine five taxi via whiskey four", "koak-gnd", "owner");
 
-    private static CorpusSlotOptions Options() => new(false, null, 300, HotwordCase.Title, null);
+    private static CorpusSlotOptions Options() => new(false, null, 300, HotwordCase.Title, null, DecoderSettings.Default);
 }

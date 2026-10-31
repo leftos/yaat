@@ -35,9 +35,6 @@ public sealed class CorpusSlotRun
     /// <summary>The run's slot options.</summary>
     public CorpusSlotOptions Options { get; }
 
-    /// <summary>The settings every decode and room runs under.</summary>
-    public static DecoderSettings Settings => DecoderSettings.Default;
-
     /// <summary>Each run feed's gold callsigns that got no entity, as <c>&lt;feed&gt;: &lt;callsign&gt;</c>, feeds and callsigns ordinal.</summary>
     public IReadOnlyList<string> UnbuiltCallsigns { get; }
 
@@ -65,6 +62,10 @@ public sealed class CorpusSlotRun
 
     /// <summary>The run's unbuilt callsigns for <c>results.json</c>; null for a run without slots.</summary>
     public static IReadOnlyList<string>? UnbuiltOf(CorpusSlotRun? run) => run?.UnbuiltCallsigns;
+
+    /// <summary>The run's decoder weights for <c>results.json</c>; null for a run without slots.</summary>
+    public static CorpusDecoderWeights? DecoderOf(CorpusSlotRun? run) =>
+        run is null ? null : new CorpusDecoderWeights(run.Options.Decoder.AcousticWeight, run.Options.Decoder.ConfidentWordProb);
 
     /// <summary>
     /// Reads the corpus folder's rooms and gold and checks every segment has both; null with the first error otherwise. Loads
@@ -229,7 +230,7 @@ public sealed class CorpusSlotRun
             throw new InvalidOperationException($"{clipId}: a two-pass decode needs --two-pass and --room-hotwords");
         }
         TransmissionContext context = Context(clipId, room);
-        DecodeResult result = Decode(pass1, context, resolve: true, Settings);
+        DecodeResult result = Decode(pass1, context, resolve: true, Options.Decoder);
         CorpusTwoPassTarget target = TwoPassTarget(clipId, result, context, room, list);
         SttBias? bias = (target.Narrow is null) ? null : TwoPassBias(clipId, target.Narrow, armBias);
         return (target.Settled(bias), bias);
@@ -281,7 +282,7 @@ public sealed class CorpusSlotRun
         {
             return null;
         }
-        var builder = new RoomContextBuilder(Sources(repo, rooms, gold), Settings);
+        var builder = new RoomContextBuilder(Sources(repo, rooms, gold), options.Decoder);
         return new CorpusSlotRun(builder, gold, options, Unbuilt(builder, segments));
     }
 
@@ -457,7 +458,7 @@ public sealed class CorpusSlotArm
         foreach (RoomTally room in _rooms)
         {
             TransmissionContext context = Run.Context(segment.Id, room.Room);
-            DecodeResult result = CorpusSlotRun.Decode(transcript, context, resolve, CorpusSlotRun.Settings);
+            DecodeResult result = CorpusSlotRun.Decode(transcript, context, resolve, Run.Options.Decoder);
             room.Add(new CorpusSlotClip(segment, gold, result), RoomCoverage.Count(gold, context), resolve);
             lines.Add(DecodeLine(room.Label, result));
         }
