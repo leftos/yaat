@@ -690,10 +690,12 @@ public sealed class GroundNavigator
     internal bool IsEntryAligning => _pendingSegmentPrimitive is not null;
 
     /// <summary>
-    /// True while the current segment starts at a virtual node — a free-space leg (the approach leg
-    /// <see cref="Data.Airport.TaxiApproachLeg"/> prepends, a ramp-lane cut) rather than a painted edge. Such a
-    /// leg's line is anchored at the aircraft itself, not at a node the layout holds, so it is re-anchored on
-    /// the live position when the straight takes over.
+    /// True while the current segment is the route's first and starts at a virtual node — a free-space leg (the approach
+    /// leg <see cref="Data.Airport.TaxiApproachLeg"/> prepends, a ramp-lane cut) rather than a painted edge. Such a leg's
+    /// line is anchored at the aircraft itself, not at a node the layout holds, so it is re-anchored on the live position
+    /// when the straight takes over. A virtual node further along the route is an ordinary route point: its corner is
+    /// rounded onto the segment's line and the line stays anchored at that node, unless a node-aimed reversal entered the
+    /// leg, which re-anchors any leg (<see cref="_entryArcAimedAtNodeOffRealLeg"/>).
     /// </summary>
     private bool _segmentFromIsVirtual;
 
@@ -937,7 +939,7 @@ public sealed class GroundNavigator
         TargetLon = to.Position.Lon;
         _segmentFromLat = from.Position.Lat;
         _segmentFromLon = from.Position.Lon;
-        _segmentFromIsVirtual = (seg.FromNodeId < 0) && VirtualNode.IsVirtualEdge(seg.Edge.Edge);
+        _segmentFromIsVirtual = (route.CurrentSegmentIndex == 0) && (seg.FromNodeId < 0) && VirtualNode.IsVirtualEdge(seg.Edge.Edge);
         PrevDistToTarget = double.MaxValue;
         _cumulativeTurnSinceAdvanceDeg = 0.0;
         ResetAimAndTurnAboutState();
@@ -1102,7 +1104,7 @@ public sealed class GroundNavigator
 
         _currentPrimitive = FromPrimitiveDto(saved.Primitive);
         _pendingSegmentPrimitive = saved.HasPendingSegmentPrimitive ? PathPrimitiveBuilder.FromSegment(seg) : null;
-        _segmentFromIsVirtual = (seg.FromNodeId < 0) && VirtualNode.IsVirtualEdge(seg.Edge.Edge);
+        _segmentFromIsVirtual = (route.CurrentSegmentIndex == 0) && (seg.FromNodeId < 0) && VirtualNode.IsVirtualEdge(seg.Edge.Edge);
         _alignmentRoute = saved.AimedAtRouteNode ? route : null;
         _nodeAimSegmentIndex = saved.NodeAimSegmentIndex;
         _aimedPastThroughSegmentIndex = saved.AimedPastThroughSegmentIndex;
