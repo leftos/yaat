@@ -5,6 +5,8 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
@@ -525,6 +527,87 @@ public class GroundViewModelHoldShortMenuOrderTests
         Assert.True(a.Count == 1, $"{routeLine} → {dump}");
         Assert.Equal("HS A", a[0].Command);
         Assert.Equal(route.Segments[firstMeetingA].ToNodeId, a[0].Preview.Segments[^1].ToNodeId);
+    }
+
+    /// <summary>
+    /// OAK <c>D F</c>, the chord over 15/33: the ladder still stops at the crossing's near bar, a real node on D, though the chord
+    /// touches no centreline.
+    /// </summary>
+    [Fact]
+    public void HoldShortMenu_ChordCrossing_ListsTheCrossedRunwayBar()
+    {
+        (GroundViewModel vm, AircraftModel ac, _, GroundNode dBar) = OnDBoundOverTheChord();
+        Assert.NotEmpty(ChordOf(vm.ResolveRemainingRoute(ac)!));
+
+        HoldShortChoice runway = RunwayRow(vm.GetHoldShortMenu(ac).Rows);
+
+        Assert.Equal(dBar.Id, runway.Preview.Segments[^1].ToNodeId);
+    }
+
+    /// <summary>A chord over 15/33 counts as going onto that runway and no other, by the segment: it reaches no centreline node.</summary>
+    [Fact]
+    public void TravelsOnRunway_ChordCrossing_CountsTheCrossing()
+    {
+        (GroundViewModel vm, AircraftModel ac, AirportGroundLayout layout, GroundNode dBar) = OnDBoundOverTheChord();
+        TaxiRoute route = vm.ResolveRemainingRoute(ac)!;
+        Assert.DoesNotContain(route.Segments, s => s.Edge.ToNode.Edges.Exists(e => e.IsRunwayCenterline));
+
+        Assert.True(GroundViewModel.TravelsOnRunway(layout, route, dBar.RunwayId!.Value));
+        Assert.False(GroundViewModel.TravelsOnRunway(layout, route, RunwayIdentifier.Parse("10L/28R")));
+    }
+
+    /// <summary>The overlay rebuilds the straight-over leg the sim flies: the same virtual points, the taxiways' names, no centreline.</summary>
+    [Fact]
+    public void GroundViewModel_StraightOverLeg_OverlayDrawsTheServerLeg()
+    {
+        (GroundViewModel vm, AircraftModel ac, AirportGroundLayout layout, _) = OnDBoundOverTheChord();
+
+        TaxiRoute drawn = vm.ResolveRemainingRoute(ac)!;
+        TaxiRoute? server = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            drawn.Segments[0].FromNodeId,
+            ["D", "F"],
+            out string? failReason,
+            new ExplicitPathOptions
+            {
+                StartPose = null,
+                OccupiedTaxiway = "D",
+                ImpliedLeadTaxiway = null,
+                AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
+                StartHeadingTrue = ac.Heading.Degrees,
+            },
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
+        Assert.True(server is not null, failReason);
+
+        List<TaxiRouteSegment> drawnLeg = ChordOf(drawn);
+        Assert.Equal(["D", "D", "F"], drawnLeg.Take(3).Select(s => s.TaxiwayName));
+        Assert.Equal(ChordOf(server).Select(s => s.ToNodeId), drawnLeg.Select(s => s.ToNodeId));
+        Assert.Equal(ChordOf(server).Select(s => s.Edge.ToNode.Position), drawnLeg.Select(s => s.Edge.ToNode.Position));
+        Assert.DoesNotContain(drawn.Segments, s => s.Edge.Edge.IsRunwayCenterline);
+    }
+
+    private static List<TaxiRouteSegment> ChordOf(TaxiRoute route) => [.. route.Segments.Where(s => VirtualNode.IsVirtualEdge(s.Edge.Edge))];
+
+    /// <summary>
+    /// A B738 two nodes back along D from its 15/33 bar, facing it, cleared <c>D F</c>, which crosses by a chord. Parsed with the real
+    /// airport code, as the server parses it: the chord is capped at the 75 ft runway's edge, a width only navdata gives.
+    /// </summary>
+    private static (GroundViewModel Vm, AircraftModel Ac, AirportGroundLayout Layout, GroundNode DBar) OnDBoundOverTheChord()
+    {
+        string path = Path.Combine("TestData", "oak.geojson");
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "oak",
+            File.ReadAllText(path),
+            "OAK",
+            new LayoutInputs([], VideoMap: null),
+            FilletMode.Standard
+        );
+        GroundNode dBar = layout.Nodes.Values.Single(n => IsBar(n, "33", "D"));
+        (GroundViewModel vm, AircraftModel ac) = OnTheWayTo(layout, dBar, "D", "", NoActiveRunways);
+        ac.TaxiRoute = "D F";
+        return (vm, ac, layout, dBar);
     }
 
     // --- Fixtures ---------------------------------------------------------------------------

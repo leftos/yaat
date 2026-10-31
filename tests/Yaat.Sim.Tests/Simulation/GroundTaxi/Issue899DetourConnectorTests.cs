@@ -1040,15 +1040,12 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The declared crossing admits only an aircraft that can make it: KCOS <c>TAXI A2 C2 C</c> with the pair declared finds the
-    /// crossing (A2's join #12, 255 ft south along 17R/35L to C2's join #40), but C2 leaves #40 at 030° true against the runway's
-    /// 179°, a 150° reversal onto the 30° high-speed exit that a B738 cannot turn, so the B738 is refused with a reason where
-    /// the C172 of <see cref="CosA2C2_DeclaredPair_IsAnOffsetCrossing"/> crosses: terminal
-    /// "Unable, can't make the turn from A2 onto C2, request taxi instructions", spoken "…, unable the turn onto charlie two,
-    /// request taxi instructions", and no node id shown to the controller.
+    /// The declared crossing is measured on the path flown: KCOS <c>TAXI A2 C2 C</c> with the pair declared continues A2's line
+    /// to its meeting point with C2 and turns once, 59.6°, within a B738's limit, where the 150° reversal off the centreline
+    /// refused it.
     /// </summary>
     [Fact]
-    public void CosA2C2_DeclaredPair_DoesNotAdmitAB738ThroughTheReversalOntoC2()
+    public void CosA2C2_DeclaredPair_AdmitsAB738WithOneTurnOntoC2()
     {
         if ((CosStart("A2", "C2") is not { } start) || (TestVnasData.NavigationDb is not { } navDb))
         {
@@ -1058,17 +1055,14 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
         using IDisposable _ = NavigationDatabase.ScopedOverride(CosDeclaring(navDb, "A2", "C2", "17R/35L"));
         AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(start.Layout, "COS", start.Node, start.HeadingDeg);
         aircraft.AircraftType = "B738";
-        LatLon before = aircraft.Position;
         var taxi = new TaxiCommand(Path: ["A2", "C2", "C"], HoldShorts: [], Expedite: false, DestinationParking: null);
         CommandResult result = GroundCommandHandler.TryTaxi(aircraft, taxi, start.Layout);
-        output.WriteLine($"B738: {result.Success} — {result.Message} — spoken: {result.PilotUnable?.Tts}");
+        output.WriteLine($"B738: {result.Success} — {result.Message}");
 
-        Assert.False(result.Success, "TAXI A2 C2 C was accepted for a B738");
-        Assert.Equal("Unable, can't make the turn from A2 onto C2, request taxi instructions", result.Message);
-        Assert.Equal($"{SpokenCallsign(aircraft)}, unable the turn onto charlie two, request taxi instructions", result.PilotUnable?.Tts);
-        Assert.Equal(PilotResponder.BuildUnableCannotMakeTurn(aircraft, "A2", "C2"), result.PilotUnable);
-        Assert.Null(aircraft.Ground.AssignedTaxiRoute);
-        Assert.Equal(before, aircraft.Position);
+        Assert.True(result.Success, result.Message);
+        Assert.StartsWith("Taxi via A2 C2 C", result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
     }
 
     /// <summary>
@@ -1125,18 +1119,15 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             $"17R/35L hold short at #{crossing.NodeId} is not {fromTaxiway}'s bar"
         );
 
-        List<TaxiRouteSegment> centreline = [.. route.Segments.Where(s => s.Edge.Edge.IsRunwayCenterline)];
-        Assert.NotEmpty(centreline);
-        Assert.InRange(SegmentExpander.CenterlineLengthFt(centreline.Select(s => s.Edge.Edge)), 0.0, SegmentExpander.MaxOffsetRunwayCrossingFt);
-        Assert.All(
-            centreline,
-            s =>
-                Assert.True(
-                    Issue1334OakDToFAcross33Tests.IsAlongRunwayBetween(start.Layout.Nodes[s.FromNodeId], start.FromJoin, start.ToJoin)
-                        && Issue1334OakDToFAcross33Tests.IsAlongRunwayBetween(start.Layout.Nodes[s.ToNodeId], start.FromJoin, start.ToJoin),
-                    $"centreline segment #{s.FromNodeId}→#{s.ToNodeId} runs beyond the two joins"
-                )
+        Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
+        Assert.DoesNotContain(route.Segments, s => s.TaxiwayName.Contains(":link", StringComparison.Ordinal));
+        TaxiRouteSegment intoMeetingPoint = Assert.Single(route.Segments, s => s.ToNodeId < 0);
+        Assert.Equal(fromTaxiway, intoMeetingPoint.TaxiwayName);
+        double meetingPointOffFt = AirportGroundLayout.CrossTrackFromCenterlineFt(
+            RunwayCrossingDetector.BuildRunwayRectangle(Assert.IsType<GroundRunway>(start.Layout.FindRunway("35L"))),
+            intoMeetingPoint.Edge.ToNode
         );
+        Assert.InRange(meetingPointOffFt, 147.0, 153.0);
 
         // The readback names the hold the controller issued, as OAK's "Taxi via E C D F HS 15/33 at D" does.
         AircraftState withHold = Issue1334OakDToFAcross33Tests.MakeAircraftAt(start.Layout, "COS", start.Node, start.HeadingDeg);

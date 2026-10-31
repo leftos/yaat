@@ -1469,8 +1469,9 @@ public static partial class GroundCommandHandler
     /// The refusal, terminal and spoken, of a clearance whose two named taxiways do not connect
     /// (<see cref="FailureKind.TaxiwaysDoNotConnect"/>), meet only where the route cannot reach ahead
     /// (<see cref="FailureKind.NoRouteAhead"/>), cross a runway by a turn the aircraft cannot make
-    /// (<see cref="FailureKind.CannotMakeTurn"/>), or cross one onto a taxiway with no room to clear it
-    /// (<see cref="FailureKind.NoRoomToClearRunway"/>), logged at the inputs' failure level naming the aircraft, the taxi and
+    /// (<see cref="FailureKind.CannotMakeTurn"/>), cross one onto a taxiway with no room to clear it
+    /// (<see cref="FailureKind.NoRoomToClearRunway"/>), or cross one onto a taxiway their lines meet only past its bar
+    /// (<see cref="FailureKind.NoRoomToCrossStraight"/>), logged at the inputs' failure level naming the aircraft, the taxi and
     /// the refusal.
     /// </summary>
     private static TaxiResolution PairRefused(TaxiResolveInputs inputs, TaxiCommand taxi, PathfindingFailure unconnected)
@@ -1498,6 +1499,7 @@ public static partial class GroundCommandHandler
                 unconnected.UnclearedRunway
                     ?? throw new InvalidOperationException($"a {unconnected.Kind} failure names no runway: '{unconnected.HumanMessage}'")
             ),
+            FailureKind.NoRoomToCrossStraight => PilotResponder.BuildUnableNoRoomToCrossStraight(aircraft, to),
             _ => PilotResponder.BuildUnableTaxiwaysDoNotConnect(aircraft, from, to),
         };
         return TaxiResolution.Refused(taxi, new CommandResult(false, unconnected.HumanMessage) { PilotUnable = unable }) with
@@ -1763,7 +1765,7 @@ public static partial class GroundCommandHandler
             return route is null ? null : HeldShortOfDrivenTarget(route, groundLayout, foldTargets) ?? route;
         }
 
-        StartResolution start = ResolveFromBestStart(aircraft.Callsign, taxi, heldShortPrepend, currentTaxiwayPrepend, ResolveRoute);
+        StartResolution start = ResolveFromBestStart((aircraft.Callsign, groundLayout), taxi, heldShortPrepend, currentTaxiwayPrepend, ResolveRoute);
         taxi = start.Command;
         TaxiRoute? route = start.Route;
         PathfindingFailure? failure = start.Failure;
@@ -2525,13 +2527,15 @@ public static partial class GroundCommandHandler
     /// command and its failure in place, so the readback and every recovery after it see the clearance as issued.
     /// </summary>
     private static StartResolution ResolveFromBestStart(
-        string callsign,
+        (string Callsign, AirportGroundLayout Layout) aircraftAt,
         TaxiCommand asCleared,
         TaxiCommand? heldShortPrepend,
         TaxiCommand? currentTaxiwayPrepend,
         TaxiRouteResolver resolve
     )
     {
+        (string callsign, AirportGroundLayout layout) = aircraftAt;
+
         // The controller clears a continuation ("TAXI E") without re-naming the taxiway the aircraft is on, so the
         // path is resolved from the first of these that resolves:
         //   1. the taxiway the aircraft holds short of, prepended — holding short of K on B, "TAXI A" means
@@ -2548,7 +2552,7 @@ public static partial class GroundCommandHandler
             TaxiRoute? heldShortRoute = resolve(heldShortPrepend, out PathfindingFailure? heldShortFailure);
             string? rejection = heldShortRoute is null
                 ? (heldShortFailure?.HumanMessage ?? "no route")
-                : HeldShortLegRejection(heldShortRoute, heldShortPrepend.Path[1]);
+                : HeldShortLegRejection(layout, heldShortRoute, heldShortPrepend.Path[1]);
             Log.LogDebug(
                 "[TryTaxi] {Callsign}: holding short of {Twy}; path [{Path}] {Outcome}",
                 callsign,
@@ -2586,7 +2590,7 @@ public static partial class GroundCommandHandler
     /// Its leg up to <paramref name="firstCleared"/> must join it at the first junction of the two the leg reaches, hold
     /// short of no runway, cross none, and never reverse — including the turn onto <paramref name="firstCleared"/>.
     /// </summary>
-    private static string? HeldShortLegRejection(TaxiRoute route, string firstCleared)
+    private static string? HeldShortLegRejection(AirportGroundLayout layout, TaxiRoute route, string firstCleared)
     {
         if (HeldShortLegEnd(route, firstCleared) is not { } joinIndex)
         {
@@ -2595,7 +2599,7 @@ public static partial class GroundCommandHandler
 
         List<TaxiRouteSegment> leg = route.Segments.GetRange(0, joinIndex);
         int lastTurnIndex = Math.Min(joinIndex, route.Segments.Count - 1);
-        return ReversalUpTo(route.Segments, lastTurnIndex) ?? RunwayOnLeg(route, leg) ?? PassedJunctionOnLeg(leg, firstCleared);
+        return ReversalUpTo(route.Segments, lastTurnIndex) ?? RunwayOnLeg(layout, route, leg) ?? PassedJunctionOnLeg(leg, firstCleared);
     }
 
     /// <summary>
@@ -2640,14 +2644,22 @@ public static partial class GroundCommandHandler
         return null;
     }
 
-    private static string? RunwayOnLeg(TaxiRoute route, List<TaxiRouteSegment> leg)
+    /// <summary>
+    /// Why <paramref name="leg"/>, the part of <paramref name="route"/> up to the first cleared taxiway, cannot be taken: it reaches a
+    /// runway centreline node, crosses a runway on a virtual segment, which touches no such node, or holds short of a runway. Null
+    /// when it does none of these.
+    /// </summary>
+    internal static string? RunwayOnLeg(AirportGroundLayout layout, TaxiRoute route, List<TaxiRouteSegment> leg)
     {
         var legNodeIds = new HashSet<int>();
         foreach (TaxiRouteSegment segment in leg)
         {
             legNodeIds.Add(segment.FromNodeId);
             legNodeIds.Add(segment.ToNodeId);
-            if (AirportGroundLayout.HasRunwayCenterlineEdge(segment.Edge.ToNode))
+            if (
+                AirportGroundLayout.HasRunwayCenterlineEdge(segment.Edge.ToNode)
+                || layout.Runways.Exists(runway => HoldShortAnnotator.VirtualSegmentCrossesRunway(layout, segment, runway.Id))
+            )
             {
                 return $"crosses a runway at node {segment.ToNodeId}";
             }
@@ -3888,6 +3900,7 @@ public static partial class GroundCommandHandler
 
         var runwayBars = complete.HoldShortPoints.Where(IsRunwayHold).Select(h => h.NodeId).ToHashSet();
         int barKeep = -1;
+        RunwayIdentifier? barRunway = null;
         bool onPavementSinceBar = false;
         for (int i = 0; i < keep; i++)
         {
@@ -3896,12 +3909,14 @@ public static partial class GroundCommandHandler
             if (runwayBars.Contains(nodeId))
             {
                 (barKeep, onPavementSinceBar) = (HoldShortAnnotator.IsBarLeavingRunway(layout, complete.Segments[i]) ? -1 : i + 1, false);
+                barRunway = node?.RunwayId;
                 continue;
             }
 
             bool centreline = IsOnRunwayCentreline(node);
             barKeep = (barKeep > 0) && onPavementSinceBar && !centreline && (node?.Type == GroundNodeType.RunwayHoldShort) ? -1 : barKeep;
-            onPavementSinceBar |= centreline;
+            onPavementSinceBar |=
+                centreline || ((barRunway is { } crossed) && HoldShortAnnotator.VirtualSegmentCrossesRunway(layout, complete.Segments[i], crossed));
         }
 
         if (barKeep > 0)

@@ -3016,6 +3016,22 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// The refusal of a taxi clearance across a runway onto <paramref name="toTaxiway"/> when the line the aircraft crosses on meets
+    /// the taxiway only past its hold bar: it stays put, says it is unable (P/CG "UNABLE") and asks for taxi instructions. The
+    /// terminal line is the controller-facing <see cref="SegmentExpander.NoRoomToCrossStraightReason"/>; the spoken form spells the
+    /// taxiway (AIM 4-2-7).
+    /// </summary>
+    public static PilotSpeechText BuildUnableNoRoomToCrossStraight(AircraftState aircraft, string toTaxiway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string onto = PhraseologyVerbalizer.SpellTaxiway(toTaxiway);
+        return new PilotSpeechText(
+            SegmentExpander.NoRoomToCrossStraightReason(toTaxiway),
+            $"{spoken}, unable, no room to cross straight over onto {onto}, request taxi instructions"
+        );
+    }
+
+    /// <summary>
     /// The refusal of an aircraft whose turn about on <paramref name="taxiway"/> would carry some part of it past
     /// <paramref name="runway"/>'s hold line: it holds short of the runway instead (AIM 2-3-5.a.1). Without a taxiway (the
     /// aircraft stands on none) the "on" clause is left out. The spoken form spells the taxiway (AIM 4-2-7) and the runway.

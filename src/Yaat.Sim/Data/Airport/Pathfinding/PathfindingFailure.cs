@@ -39,6 +39,13 @@ public enum FailureKind
     /// <see cref="TaxiwaysDoNotConnect"/>.
     /// </summary>
     NoRoomToClearRunway,
+
+    /// <summary>
+    /// Two named taxiways meet across a runway as a crossing, but the line of the first meets the line of the second past the
+    /// second's hold bar, so the aircraft cannot cross straight over and land on the second short of it. Whatever the aircraft,
+    /// refused as issued, like <see cref="TaxiwaysDoNotConnect"/>.
+    /// </summary>
+    NoRoomToCrossStraight,
 }
 
 /// <summary>
@@ -73,11 +80,17 @@ public sealed record PathfindingFailure(
     /// <summary>
     /// Whether this failure refuses the clearance as issued for its pair of named taxiways
     /// (<see cref="FailureKind.TaxiwaysDoNotConnect"/>, <see cref="FailureKind.NoRouteAhead"/>,
-    /// <see cref="FailureKind.CannotMakeTurn"/>, <see cref="FailureKind.NoRoomToClearRunway"/>): no recovery may rewrite it
-    /// into a route the clearance never named, and the aircraft stays put.
+    /// <see cref="FailureKind.CannotMakeTurn"/>, <see cref="FailureKind.NoRoomToClearRunway"/>,
+    /// <see cref="FailureKind.NoRoomToCrossStraight"/>): no recovery may rewrite it into a route the clearance never named, and
+    /// the aircraft stays put.
     /// </summary>
     public bool RefusesPair =>
-        Kind is FailureKind.TaxiwaysDoNotConnect or FailureKind.NoRouteAhead or FailureKind.CannotMakeTurn or FailureKind.NoRoomToClearRunway;
+        Kind
+            is FailureKind.TaxiwaysDoNotConnect
+                or FailureKind.NoRouteAhead
+                or FailureKind.CannotMakeTurn
+                or FailureKind.NoRoomToClearRunway
+                or FailureKind.NoRoomToCrossStraight;
 }
 
 /// <summary>

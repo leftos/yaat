@@ -223,7 +223,12 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
 
         Assert.Contains(route.Segments, s => s.ToNodeId == OakDJJunctionNode(layout).Id);
         Assert.Contains(route.Segments, s => (s.Edge.Edge is not GroundArc) && s.Edge.Edge.MatchesTaxiway("D"));
-        Assert.Contains(route.Segments, s => s.Edge.Edge.IsRunwayCenterline && s.Edge.Edge.MatchesTaxiway(runway));
+        Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
+        List<TaxiRouteSegment> chord = [.. route.Segments.Where(s => VirtualNode.IsVirtualEdge(s.Edge.Edge))];
+        Assert.Equal(3, chord.Count);
+        double chordBearing = GeoMath.BearingTo(chord[1].Edge.FromNode.Position, chord[1].Edge.ToNode.Position);
+        Assert.InRange(RouteCostFunction.HeadingDelta(chord[0].Edge.DepartureBearing, chordBearing), 52.8, 53.0);
+        Assert.InRange(RouteCostFunction.HeadingDelta(chordBearing, chord[2].Edge.DepartureBearing), 54.2, 54.4);
         HoldShortPoint crossing = Assert.Single(route.HoldShortPoints, h => h.TargetName?.Contains("33") == true);
         Assert.Equal(HoldShortReason.RunwayCrossing, crossing.Reason);
         Assert.True(IsRunway33BarOnTaxiway(layout, crossing.NodeId, "F"), $"15/33 hold short at node {crossing.NodeId} is not F's bar");
@@ -399,7 +404,11 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
 
         double centerlineFt = SegmentExpander.CenterlineLengthFt(route.Segments.Select(s => s.Edge.Edge));
         output.WriteLine($"centreline run {centerlineFt:F0} ft");
-        Assert.InRange(centerlineFt, 110.0, 135.0);
+        Assert.Equal(0.0, centerlineFt);
+        List<TaxiRouteSegment> chord = [.. route.Segments.Where(s => VirtualNode.IsVirtualEdge(s.Edge.Edge))];
+        double chordBearing = GeoMath.BearingTo(chord[1].Edge.FromNode.Position, chord[1].Edge.ToNode.Position);
+        Assert.InRange(RouteCostFunction.HeadingDelta(chord[0].Edge.DepartureBearing, chordBearing), 44.9, 45.1);
+        Assert.InRange(RouteCostFunction.HeadingDelta(chordBearing, chord[2].Edge.DepartureBearing), 42.1, 42.3);
 
         HoldShortPoint crossing = Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.RunwayCrossing);
         Assert.Equal(cmh.E4Bar.Id, crossing.NodeId);
@@ -414,11 +423,11 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The stitched crossing's turn is measured from E4's heading onto F3's, about 3°, not from the runway centreline's bearing
-    /// onto F3 (about 90°): the aircraft drives straight across, the centreline run is only the graph's stand-in for it.
+    /// The chord's turns are the corners flown, 45.0° onto it and 42.2° off it, and every look-ahead probe of the transition
+    /// measures the same two.
     /// </summary>
     [Fact]
-    public void CmhE4F3_TurnMeasuredFromE4OntoF3()
+    public void CmhE4F3_ChordCornersAreTheTurnsFlown()
     {
         if (CmhE4Start() is not { } cmh)
         {
@@ -426,27 +435,18 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
         }
 
         List<string> diag = ResolveCmhE4F3(cmh, "B738");
-        List<string> turnLines = [.. diag.Where(line => line.StartsWith("[runway-crossing] E4→F3 turn ", StringComparison.Ordinal))];
-        Assert.NotEmpty(turnLines);
+        List<string> legLines = [.. diag.Where(line => line.StartsWith("[runway-crossing] E4→F3 straight-over ", StringComparison.Ordinal))];
+        Assert.NotEmpty(legLines);
         Assert.DoesNotContain(
             diag,
             line => line.Contains("refused", StringComparison.Ordinal) && line.StartsWith("[runway-crossing]", StringComparison.Ordinal)
         );
 
-        // Every look-ahead probe of the transition measures the turn again; each must see the same straight-across turn.
-        foreach (string turnLine in turnLines)
+        foreach (string legLine in legLines)
         {
-            output.WriteLine(turnLine);
-            Assert.InRange(TurnDeg(turnLine), 0.0, 10.0);
+            output.WriteLine(legLine);
+            Assert.EndsWith("corners 45.0° then 42.2°", legLine);
         }
-    }
-
-    private static double TurnDeg(string turnLine)
-    {
-        const string Marker = "turn ";
-        int from = turnLine.IndexOf(Marker, StringComparison.Ordinal) + Marker.Length;
-        int to = turnLine.IndexOf('°', from);
-        return double.Parse(turnLine[from..to], System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>

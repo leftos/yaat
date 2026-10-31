@@ -182,7 +182,8 @@ public class CrossingRunwayRestoreTests(ITestOutputHelper output)
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         int entryBarId = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase).HoldShort.NodeId;
         int farBarSegment = route.Segments.FindIndex(s =>
-            (s.FromNodeId != entryBarId)
+            (s.FromNodeId > 0)
+            && (s.FromNodeId != entryBarId)
             && (layout.Nodes[s.FromNodeId].Type == GroundNodeType.RunwayHoldShort)
             && (layout.Nodes[s.FromNodeId].RunwayId?.Contains("35L") == true)
         );
