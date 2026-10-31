@@ -17,12 +17,13 @@ namespace Yaat.SpeechSandbox;
 /// list — pooled per speaker role, and compared with a committed baseline. On a folder that carries <c>rooms.json</c> and
 /// <c>slots.json</c>, <c>--slots</c> also runs the context decoder over each clip under its unpadded, padded and oracle rooms
 /// and scores the slots it recovers (<see cref="CorpusSlotRun"/>); <c>--resolve</c> decodes over the whole n-best, and
-/// <c>--room-hotwords</c> biases each clip's beam search with its room's spoken forms.
+/// <c>--room-hotwords</c> biases each clip's beam search with its room's spoken forms; <c>--two-pass</c> then decodes each clip
+/// again, biased toward the aircraft the first decode named.
 ///
 /// Run with <c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--stt &lt;kind&gt;:&lt;source&gt;]
 /// [--device cpu|gpu] [--prompt default|none|both] [--decoding greedy|beam] [--num-paths N]
 /// [--hotwords-file &lt;path&gt;] [--hotword-score S] [--hotword-case asis|title|lower|upper]
-/// [--slots [--resolve] [--room-hotwords unpadded|padded|oracle [--hotword-cap N]]]
+/// [--slots [--resolve] [--room-hotwords unpadded|padded|oracle [--hotword-cap N] [--two-pass aircraft|aircraft-airport]]]
 /// [--update-baseline] [--out &lt;dir&gt;]</c>. Writes <c>results.json</c>, <c>results.jsonl</c> and
 /// <c>report.md</c> into the out dir. Exit codes: 0 no regression (or no baseline), 1 usage error, 2 setup
 /// error, 3 regression.
@@ -41,7 +42,8 @@ public static class CorpusWerRunner
         "Usage: Yaat.SpeechSandbox --corpus-wer uwb-atcc|<dir> [--subset N | --all] [--seed S] [--stt <kind>:<source>] "
         + "[--device cpu|gpu] [--prompt default|none|both] [--decoding greedy|beam] [--num-paths N] [--hotwords-file <path>] "
         + "[--hotword-score S] [--hotword-case asis|title|lower|upper] "
-        + "[--slots [--resolve] [--room-hotwords unpadded|padded|oracle [--hotword-cap N]]] [--update-baseline] [--out <dir>]";
+        + "[--slots [--resolve] [--room-hotwords unpadded|padded|oracle [--hotword-cap N] [--two-pass aircraft|aircraft-airport]]] "
+        + "[--update-baseline] [--out <dir>]";
 
     private const string LoadFailureHint = "the model probably failed to load (see %LOCALAPPDATA%/yaat/yaat-speech-sandbox.log)";
 
@@ -157,6 +159,11 @@ public static class CorpusWerRunner
         ArmTiming Timing,
         CorpusSlotArm? Slots
     );
+
+    /// <summary>The transcript a segment's line scores, with its latency, the bias that produced it and its two-pass record.</summary>
+    /// <param name="LatencyMs">The segment's latency; under <c>--two-pass</c>, both passes' and the finder's.</param>
+    /// <param name="TwoPass">The clip's two-pass record; null without <c>--two-pass</c>.</param>
+    private sealed record ClipTranscript(SttHypotheses Transcript, double LatencyMs, SttBias Bias, CorpusTwoPassLine? TwoPass);
 
     /// <summary>One prompt arm's running counts while its segments are transcribed.</summary>
     private sealed class ArmTally(int probeCount, int segmentCount, long afterLoadGpuBytes)
@@ -286,6 +293,10 @@ public static class CorpusWerRunner
             timing = timing with { DeviceWarning = null };
             Console.WriteLine($"{prompt}: WER {CorpusWerBaselineComparer.Percent(arm.Roles[0].Wer)} over {arm.Roles[0].Segments} segments");
             CorpusSlotReport.WriteConsole(arm);
+            if (arm.TwoPass is not null)
+            {
+                Console.WriteLine(arm.TwoPass.Line());
+            }
             if (arm.NoTranscript > 0)
             {
                 Console.WriteLine(arm.NoTranscriptLine());
@@ -454,7 +465,8 @@ public static class CorpusWerRunner
             CorpusWerGroups.ProvenanceRows(tally.Scored),
             CorpusWerGroups.FeedRows(tally.Scored),
             arm.Slots?.Results(),
-            slotSeconds
+            slotSeconds,
+            arm.Slots?.TwoPassResult()
         );
     }
 
@@ -465,20 +477,18 @@ public static class CorpusWerRunner
     private static async Task<bool> TranscribeArmSegmentAsync(ArmContext arm, ArmTally tally, CorpusSegment segment, int index)
     {
         SttBias bias = SegmentBias(arm, segment);
-        var segmentWatch = Stopwatch.StartNew();
-        SttHypotheses transcript = await arm.Engine.TranscribeAsync(segment.Samples16k, bias, CancellationToken.None).ConfigureAwait(false);
-        segmentWatch.Stop();
-        double latencyMs = transcript.LatencyMs ?? segmentWatch.Elapsed.TotalMilliseconds;
-        tally.Latencies.Add((latencyMs, transcript.Cached));
-        if (transcript.Text is null)
-        {
-            tally.NoTranscript++;
-        }
-        if (LoadProbeFailed(tally, index, transcript.Text))
+        ClipTranscript first = await TranscribeTimedAsync(arm.Engine, segment, bias).ConfigureAwait(false);
+        if (LoadProbeFailed(tally, index, first.Transcript.Text))
         {
             return false;
         }
-        WerCounts counts = ScoreSegment(arm, segment, transcript, latencyMs, bias);
+        ClipTranscript clip = await SecondPassAsync(arm, segment, first).ConfigureAwait(false);
+        tally.Latencies.Add((clip.LatencyMs, clip.Transcript.Cached));
+        if (clip.Transcript.Text is null)
+        {
+            tally.NoTranscript++;
+        }
+        WerCounts counts = ScoreSegment(arm, segment, clip);
         tally.Overall.Add(counts);
         tally.Scored.Add((segment, counts));
         RoleTally(tally.ByRole, segment.Role).Add(counts);
@@ -489,6 +499,44 @@ public static class CorpusWerRunner
             Console.WriteLine($"  {arm.Input.Prompt}: {index + 1}/{arm.Input.Segments.Count}");
         }
         return true;
+    }
+
+    /// <summary>
+    /// Transcribes the segment once under <paramref name="bias"/>; its latency is the engine's own figure when it reports one, else
+    /// the call's stopwatch.
+    /// </summary>
+    private static async Task<ClipTranscript> TranscribeTimedAsync(ICorpusSttEngine engine, CorpusSegment segment, SttBias bias)
+    {
+        var watch = Stopwatch.StartNew();
+        SttHypotheses transcript = await engine.TranscribeAsync(segment.Samples16k, bias, CancellationToken.None).ConfigureAwait(false);
+        watch.Stop();
+        return new ClipTranscript(transcript, transcript.LatencyMs ?? watch.Elapsed.TotalMilliseconds, bias, null);
+    }
+
+    /// <summary>
+    /// Under <c>--two-pass</c>, finds the aircraft the first transcript names and transcribes the segment again biased toward
+    /// it, counting the outcome into the arm; the finder's time is latency, not slot work. The latency sums both passes and the
+    /// finder. <paramref name="first"/> unchanged without the flag; with it but no second decode, <paramref name="first"/> with
+    /// its finder time and its two-pass line.
+    /// </summary>
+    private static async Task<ClipTranscript> SecondPassAsync(ArmContext arm, CorpusSegment segment, ClipTranscript first)
+    {
+        if ((arm.Slots is null) || (arm.Slots.Run.Options.TwoPass is null))
+        {
+            return first;
+        }
+        var finder = Stopwatch.StartNew();
+        (CorpusTwoPassTarget target, SttBias? bias) = arm.Slots.Run.PlanTwoPass(segment.Id, first.Transcript, first.Bias);
+        finder.Stop();
+        arm.Slots.AddTwoPass(target.Outcome);
+        double finderMs = finder.Elapsed.TotalMilliseconds;
+        var line = new CorpusTwoPassLine(target.Outcome, target.Aircraft, first.Transcript.Text, first.LatencyMs, finderMs, bias?.Hotwords.Count);
+        if (bias is null)
+        {
+            return first with { LatencyMs = first.LatencyMs + finderMs, TwoPass = line };
+        }
+        ClipTranscript second = await TranscribeTimedAsync(arm.Engine, segment, bias).ConfigureAwait(false);
+        return second with { LatencyMs = first.LatencyMs + finderMs + second.LatencyMs, TwoPass = line };
     }
 
     /// <summary>
@@ -530,12 +578,13 @@ public static class CorpusWerRunner
     /// Normalises both sides, scores them, decodes the segment's slots when the run scores them and records the segment's
     /// <c>results.jsonl</c> line.
     /// </summary>
-    private static WerCounts ScoreSegment(ArmContext arm, CorpusSegment segment, SttHypotheses transcript, double latencyMs, SttBias bias)
+    private static WerCounts ScoreSegment(ArmContext arm, CorpusSegment segment, ClipTranscript clip)
     {
+        SttHypotheses transcript = clip.Transcript;
         string reference = WerTextNormalizer.Normalize(segment.Reference);
         string? normalized = (transcript.Text is null) ? null : WerTextNormalizer.Normalize(transcript.Text);
         WerCounts counts = WerScorer.Score(reference, normalized);
-        CorpusSlotClipLines? slots = arm.Slots?.Add(segment, transcript, bias);
+        CorpusSlotClipLines? slots = arm.Slots?.Add(segment, transcript, clip.Bias);
         arm.SegmentLines.Add(
             new CorpusWerSegmentLine(
                 arm.Input.Prompt,
@@ -548,10 +597,11 @@ public static class CorpusWerRunner
                 counts.Deletions,
                 counts.Insertions,
                 counts.ReferenceWords,
-                latencyMs,
+                clip.LatencyMs,
                 transcript.Cached,
                 RecordedNbest(transcript),
                 slots?.HotwordPhrases,
+                clip.TwoPass,
                 slots?.Lines
             )
         );
@@ -697,6 +747,11 @@ public static class CorpusWerRunner
         if (arm.Timing is not null)
         {
             AppendTiming(report, arm.Timing);
+        }
+        if (arm.TwoPass is not null)
+        {
+            report.AppendLine(arm.TwoPass.Line());
+            report.AppendLine();
         }
         if (arm.NoTranscript > 0)
         {

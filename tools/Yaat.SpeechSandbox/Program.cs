@@ -53,7 +53,8 @@ namespace Yaat.SpeechSandbox;
 ///   <item><description><c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--stt &lt;kind&gt;:&lt;source&gt;]
 ///     [--device cpu|gpu] [--prompt default|none|both] [--decoding greedy|beam] [--num-paths N] [--hotwords-file &lt;path&gt;]
 ///     [--hotword-score S] [--hotword-case asis|title|lower|upper]
-///     [--slots [--resolve] [--room-hotwords unpadded|padded|oracle [--hotword-cap N]]] [--update-baseline] [--out &lt;dir&gt;]</c> — an
+///     [--slots [--resolve] [--room-hotwords unpadded|padded|oracle [--hotword-cap N] [--two-pass aircraft|aircraft-airport]]]
+///     [--update-baseline] [--out &lt;dir&gt;]</c> — an
 ///     STT engine's (<c>--stt</c>) word error rate on real ATC audio (<see cref="CorpusWerRunner"/>): the pinned
 ///     UWB-ATCC test split, downloaded into the YAAT cache, or a folder of WAV + transcript pairs; scored per
 ///     speaker role (Whisper with and without the biasing prompt; sherpa engines unprompted, greedy or by beam

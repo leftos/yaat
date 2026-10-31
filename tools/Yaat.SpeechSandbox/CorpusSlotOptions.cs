@@ -11,10 +11,35 @@ public enum SlotRoom
 }
 
 /// <summary>
-/// The slot-scoring part of a run: whether the decoder resolves over the n-best, which room's hotwords bias each clip (null for
-/// none), how many phrases at most, and their casing.
+/// Which forms a two-pass run's second decode is biased toward, once the first decode named the addressed aircraft.
 /// </summary>
-public sealed record CorpusSlotOptions(bool Resolve, SlotRoom? HotwordRoom, int HotwordCap, HotwordCase HotwordCasing);
+public enum TwoPassList
+{
+    /// <summary>The aircraft's callsign forms and its own entities' forms.</summary>
+    Aircraft,
+
+    /// <summary>Those, plus the room's airport entities' forms.</summary>
+    AircraftAndAirport,
+}
+
+/// <summary>
+/// The slot-scoring part of a run: whether the decoder resolves over the n-best, which room's hotwords bias each clip (null for
+/// none), how many phrases at most, their casing, and which list a second, per-aircraft decode takes (null for one pass).
+/// </summary>
+public sealed record CorpusSlotOptions(bool Resolve, SlotRoom? HotwordRoom, int HotwordCap, HotwordCase HotwordCasing, TwoPassList? TwoPass);
+
+/// <summary>The labels the <c>--two-pass</c> flag, the results and the report give a <see cref="TwoPassList"/>.</summary>
+public static class TwoPassLists
+{
+    /// <summary><c>aircraft</c> or <c>aircraft-airport</c>.</summary>
+    public static string Label(TwoPassList list) =>
+        list switch
+        {
+            TwoPassList.Aircraft => "aircraft",
+            TwoPassList.AircraftAndAirport => "aircraft-airport",
+            _ => throw new ArgumentOutOfRangeException(nameof(list), list, "no such two-pass list"),
+        };
+}
 
 /// <summary>The slot rooms in report order and the labels the results, the console and the flags give them.</summary>
 public static class SlotRooms
@@ -27,7 +52,7 @@ public static class SlotRooms
 }
 
 /// <summary>
-/// The <c>--slots</c>, <c>--resolve</c>, <c>--room-hotwords</c> and <c>--hotword-cap</c> flags as given, their checks against the
+/// The <c>--slots</c>, <c>--resolve</c>, <c>--room-hotwords</c>, <c>--hotword-cap</c> and <c>--two-pass</c> flags as given, their checks against the
 /// rest of the command line, and the <see cref="CorpusSlotOptions"/> they resolve to.
 /// </summary>
 internal sealed class CorpusSlotArgs
@@ -42,6 +67,8 @@ internal sealed class CorpusSlotArgs
     public SlotRoom? RoomHotwords { get; private set; }
 
     public int? HotwordCap { get; private set; }
+
+    public TwoPassList? TwoPass { get; private set; }
 
     /// <summary>
     /// Applies the slot flag at <paramref name="i"/> (advancing past its value); an error, or null. Any other flag is
@@ -58,7 +85,7 @@ internal sealed class CorpusSlotArgs
             case "--resolve":
                 Resolve = true;
                 return null;
-            case "--room-hotwords" or "--hotword-cap":
+            case "--room-hotwords" or "--hotword-cap" or "--two-pass":
                 return (i + 1 < args.Length) ? ApplyValue(flag, args[++i]) : $"{flag} needs a value";
             default:
                 return $"unrecognised argument '{flag}'";
@@ -79,10 +106,11 @@ internal sealed class CorpusSlotArgs
         {
             return "--resolve needs --slots";
         }
-        return (RoomHotwords is null) ? CapError() : RoomHotwordsError(beam, hotwordsFile);
+        string? error = (RoomHotwords is null) ? CapError() : RoomHotwordsError(beam, hotwordsFile);
+        return error ?? TwoPassError();
     }
 
-    /// <summary>The run's hotwords note under <c>--room-hotwords</c>; null without it.</summary>
+    /// <summary>The run's hotwords note under <c>--room-hotwords</c>, naming the <c>--two-pass</c> list when set; null without it.</summary>
     public string? Note(float score, HotwordCase casing)
     {
         if (RoomHotwords is not SlotRoom room)
@@ -91,13 +119,51 @@ internal sealed class CorpusSlotArgs
         }
         string scoreText = score.ToString(CultureInfo.InvariantCulture);
         string caseText = casing.ToString().ToLowerInvariant();
-        return $"room {SlotRooms.Label(room)}, cap {HotwordCap ?? DefaultHotwordCap}, score {scoreText}, case {caseText}";
+        string twoPass = (TwoPass is TwoPassList list) ? $", two-pass {TwoPassLists.Label(list)}" : string.Empty;
+        return $"room {SlotRooms.Label(room)}, cap {HotwordCap ?? DefaultHotwordCap}, score {scoreText}, case {caseText}{twoPass}";
     }
 
     /// <summary>The run's slot options; null without <c>--slots</c>.</summary>
-    public CorpusSlotOptions? ToOptions(HotwordCase casing) => Slots ? new(Resolve, RoomHotwords, HotwordCap ?? DefaultHotwordCap, casing) : null;
+    public CorpusSlotOptions? ToOptions(HotwordCase casing) =>
+        Slots ? new(Resolve, RoomHotwords, HotwordCap ?? DefaultHotwordCap, casing, TwoPass) : null;
 
-    private string? ApplyValue(string flag, string value) => (flag == "--room-hotwords") ? ApplyRoom(value) : ApplyCap(value);
+    private string? ApplyValue(string flag, string value) =>
+        flag switch
+        {
+            "--room-hotwords" => ApplyRoom(value),
+            "--hotword-cap" => ApplyCap(value),
+            "--two-pass" => ApplyTwoPass(value),
+            _ => throw new ArgumentOutOfRangeException(nameof(flag), flag, "not a slot flag that takes a value"),
+        };
+
+    private string? ApplyTwoPass(string value)
+    {
+        TwoPassList? list = value switch
+        {
+            "aircraft" => TwoPassList.Aircraft,
+            "aircraft-airport" => TwoPassList.AircraftAndAirport,
+            _ => null,
+        };
+        if (list is null)
+        {
+            return $"--two-pass must be aircraft or aircraft-airport, got '{value}'";
+        }
+        TwoPass = list;
+        return null;
+    }
+
+    private string? TwoPassError()
+    {
+        if (TwoPass is null)
+        {
+            return null;
+        }
+        if (RoomHotwords is null)
+        {
+            return "--two-pass needs --room-hotwords";
+        }
+        return Resolve ? null : "--two-pass needs --resolve";
+    }
 
     private string? ApplyRoom(string value)
     {

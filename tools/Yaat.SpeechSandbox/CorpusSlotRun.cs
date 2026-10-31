@@ -155,6 +155,86 @@ public sealed class CorpusSlotRun
         return new DecoderHypothesis(entry.Text, tokens, entry.Score);
     }
 
+    /// <summary>
+    /// Where a two-pass run's second decode goes: the aircraft the first decode named under the clip's room and the room
+    /// narrowed to it. A resolved callsign names it, and a say-again's best guess does too; with no callsign there is no
+    /// second decode.
+    /// </summary>
+    /// <param name="clipId">The clip, for the error.</param>
+    /// <param name="pass1">The first decode's result under <paramref name="context"/>.</param>
+    /// <param name="context">The clip's <c>--room-hotwords</c> room.</param>
+    /// <param name="room">That room, for the error.</param>
+    /// <param name="list">Whether the narrow room keeps the airport's entities.</param>
+    /// <exception cref="InvalidOperationException">
+    /// The decoder named an aircraft the room does not hold, or resolved without a callsign, or asked to say again without a
+    /// best guess.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">The decode state is not one this method knows.</exception>
+    public static CorpusTwoPassTarget TwoPassTarget(string clipId, DecodeResult pass1, TransmissionContext context, SlotRoom room, TwoPassList list)
+    {
+        EntityMatch? match = pass1.State switch
+        {
+            DecodeState.NoCallsign => null,
+            DecodeState.Resolved => pass1.Callsign ?? throw new InvalidOperationException($"{clipId}: resolved with no callsign"),
+            DecodeState.SayAgain => pass1.BestGuess ?? throw new InvalidOperationException($"{clipId}: say again with no best guess"),
+            _ => throw new ArgumentOutOfRangeException(nameof(pass1), pass1.State, "no such decode state"),
+        };
+        if (match is null)
+        {
+            return new CorpusTwoPassTarget(CorpusTwoPassTarget.NoCallsign, null, null);
+        }
+        string outcome = (pass1.State == DecodeState.Resolved) ? CorpusTwoPassTarget.Resolved : CorpusTwoPassTarget.SayAgain;
+        string value = match.Entity.Value;
+        RoomAircraft aircraft =
+            context.Aircraft.FirstOrDefault(candidate => string.Equals(candidate.Callsign.Value, value, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException($"{clipId}: the decoder named {value}, which is not in the {SlotRooms.Label(room)} room");
+        TransmissionContext narrow = context with
+        {
+            Aircraft = [aircraft],
+            AirportEntities = (list == TwoPassList.Aircraft) ? [] : context.AirportEntities,
+        };
+        return new CorpusTwoPassTarget(outcome, value, narrow);
+    }
+
+    /// <summary>
+    /// The second decode's stream bias: <paramref name="armBias"/> with the narrow room's hotwords, capped and cased as the run's
+    /// room hotwords are; null when the narrow room gives no phrase.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">A form carries a character the recognizer reads as hotword syntax.</exception>
+    public SttBias? TwoPassBias(string clipId, TransmissionContext narrow, SttBias armBias)
+    {
+        IReadOnlyList<string> phrases = RoomHotwords.Select(narrow, Options.HotwordCap);
+        if (phrases.Count == 0)
+        {
+            return null;
+        }
+        IReadOnlyList<string> parsed = SherpaHotwords.ParseLines(phrases, Options.HotwordCasing, out string? error);
+        return (error is null)
+            ? armBias with
+            {
+                Hotwords = parsed,
+            }
+            : throw new InvalidOperationException($"{clipId}: two-pass hotwords refused: {error}");
+    }
+
+    /// <summary>
+    /// Plans a clip's second decode from its first: the first decode's transcript decoded with resolution under the clip's
+    /// <c>--room-hotwords</c> room, its target, and the bias the second decode runs under (null when there is none).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The run has no <c>--two-pass</c> list or room hotwords.</exception>
+    public (CorpusTwoPassTarget Target, SttBias? Bias) PlanTwoPass(string clipId, SttHypotheses pass1, SttBias armBias)
+    {
+        if ((Options.TwoPass is not TwoPassList list) || (Options.HotwordRoom is not SlotRoom room))
+        {
+            throw new InvalidOperationException($"{clipId}: a two-pass decode needs --two-pass and --room-hotwords");
+        }
+        TransmissionContext context = Context(clipId, room);
+        DecodeResult result = Decode(pass1, context, resolve: true, Settings);
+        CorpusTwoPassTarget target = TwoPassTarget(clipId, result, context, room, list);
+        SttBias? bias = (target.Narrow is null) ? null : TwoPassBias(clipId, target.Narrow, armBias);
+        return (target.Settled(bias), bias);
+    }
+
     /// <summary>A fresh accumulator for one prompt arm's clips.</summary>
     public CorpusSlotArm StartArm() => new(this);
 
@@ -294,14 +374,38 @@ public sealed class CorpusSlotRun
     }
 }
 
+/// <summary>Where a clip's second decode goes under <c>--two-pass</c>.</summary>
+/// <param name="Outcome">
+/// <c>resolved</c> or <c>sayagain</c> (the second decode runs), <c>nocallsign</c> (the first decode named no aircraft) or
+/// <c>empty</c> (the aircraft's narrow room gave no hotword phrase); the first decode stands for the last two.
+/// </param>
+/// <param name="Aircraft">The callsign value the first decode named; null for <c>nocallsign</c>.</param>
+/// <param name="Narrow">The room narrowed to that aircraft; null when there is no second decode.</param>
+public sealed record CorpusTwoPassTarget(string Outcome, string? Aircraft, TransmissionContext? Narrow)
+{
+    public const string Resolved = "resolved";
+    public const string SayAgain = "sayagain";
+    public const string NoCallsign = "nocallsign";
+    public const string Empty = "empty";
+
+    /// <summary>The target once the second decode's bias is known: <c>empty</c> with no narrow room when a narrow room gave none.</summary>
+    public CorpusTwoPassTarget Settled(SttBias? passTwo) =>
+        ((Narrow is null) || (passTwo is not null)) ? this : this with { Outcome = Empty, Narrow = null };
+}
+
 /// <summary>
 /// One prompt arm's slot work: every clip decoded under the unpadded, padded and oracle rooms, with each room's clips,
-/// form coverage, gated count and, under <c>--resolve</c>, the word error counts of its rewritten transcripts.
+/// form coverage, gated count and, under <c>--resolve</c>, the word error counts of its rewritten transcripts; under
+/// <c>--two-pass</c> it also counts each clip's two-pass outcome.
 /// </summary>
 public sealed class CorpusSlotArm
 {
     private readonly RoomTally[] _rooms = [.. SlotRooms.All.Select(room => new RoomTally(room))];
     private readonly Stopwatch _work = new();
+    private int _twoPassResolved;
+    private int _twoPassSayAgain;
+    private int _twoPassNoCallsign;
+    private int _twoPassEmpty;
 
     internal CorpusSlotArm(CorpusSlotRun run) => Run = run;
 
@@ -363,6 +467,35 @@ public sealed class CorpusSlotArm
 
     /// <summary>The arm's slot results, one per room in room order.</summary>
     public IReadOnlyList<CorpusSlotRoomResult> Results() => [.. _rooms.Select(room => room.Result(Run.Options.Resolve))];
+
+    /// <summary>Counts one clip's two-pass outcome, one of the <see cref="CorpusTwoPassTarget"/> outcome labels.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The label is not an outcome.</exception>
+    public void AddTwoPass(string outcome)
+    {
+        switch (outcome)
+        {
+            case CorpusTwoPassTarget.Resolved:
+                _twoPassResolved++;
+                break;
+            case CorpusTwoPassTarget.SayAgain:
+                _twoPassSayAgain++;
+                break;
+            case CorpusTwoPassTarget.NoCallsign:
+                _twoPassNoCallsign++;
+                break;
+            case CorpusTwoPassTarget.Empty:
+                _twoPassEmpty++;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "no such two-pass outcome");
+        }
+    }
+
+    /// <summary>The arm's two-pass outcome counts; null without <c>--two-pass</c>.</summary>
+    public CorpusTwoPassResult? TwoPassResult() =>
+        (Run.Options.TwoPass is TwoPassList list)
+            ? new CorpusTwoPassResult(TwoPassLists.Label(list), _twoPassResolved, _twoPassSayAgain, _twoPassNoCallsign, _twoPassEmpty)
+            : null;
 
     private static CorpusSlotDecodeLine DecodeLine(string room, DecodeResult result) =>
         new(

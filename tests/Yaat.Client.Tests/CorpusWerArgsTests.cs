@@ -335,7 +335,7 @@ public sealed class CorpusWerArgsTests : IDisposable
 
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
-        Assert.Equal(new CorpusSlotOptions(true, SlotRoom.Padded, 300, HotwordCase.Title), options.Slots);
+        Assert.Equal(new CorpusSlotOptions(true, SlotRoom.Padded, 300, HotwordCase.Title, null), options.Slots);
         Assert.Equal("room padded, cap 300, score 1.5, case title", options.HotwordsNote);
         Assert.Empty(options.Hotwords);
     }
@@ -362,7 +362,7 @@ public sealed class CorpusWerArgsTests : IDisposable
 
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
-        Assert.Equal(new CorpusSlotOptions(false, SlotRoom.Oracle, 50, HotwordCase.Lower), options.Slots);
+        Assert.Equal(new CorpusSlotOptions(false, SlotRoom.Oracle, 50, HotwordCase.Lower, null), options.Slots);
         Assert.Equal(new SherpaDecoding(SherpaDecodingMethod.Beam, 4, 2.5f), options.Stt.Decoding);
         Assert.Equal("room oracle, cap 50, score 2.5, case lower", options.HotwordsNote);
     }
@@ -375,6 +375,68 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.Null(parse.Error);
         Assert.Null(Assert.IsType<CorpusWerRunner.Options>(parse.Options).Slots);
     }
+
+    [Theory]
+    [InlineData("aircraft", TwoPassList.Aircraft)]
+    [InlineData("aircraft-airport", TwoPassList.AircraftAndAirport)]
+    public void TwoPass_ParsesBothLists(string value, TwoPassList list)
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([.. TwoPassArgs(), "--room-hotwords", "padded", "--two-pass", value]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(new CorpusSlotOptions(true, SlotRoom.Padded, 300, HotwordCase.Title, list), options.Slots);
+        Assert.Equal($"room padded, cap 300, score 1.5, case title, two-pass {value}", options.HotwordsNote);
+    }
+
+    [Fact]
+    public void TwoPass_NeedsRoomHotwords()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([.. TwoPassArgs(), "--two-pass", "aircraft"]);
+
+        Assert.Null(parse.Options);
+        Assert.Equal("--two-pass needs --room-hotwords", parse.Error);
+    }
+
+    [Fact]
+    public void TwoPass_NeedsResolve()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([
+            Substitute(FolderToken),
+            "--slots",
+            "--stt",
+            "sherpa:m",
+            "--decoding",
+            "beam",
+            "--room-hotwords",
+            "padded",
+            "--two-pass",
+            "aircraft",
+        ]);
+
+        Assert.Null(parse.Options);
+        Assert.Equal("--two-pass needs --resolve", parse.Error);
+    }
+
+    [Fact]
+    public void TwoPass_BadValue_Error()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([.. TwoPassArgs(), "--room-hotwords", "padded", "--two-pass", "airport"]);
+
+        Assert.Null(parse.Options);
+        Assert.Equal("--two-pass must be aircraft or aircraft-airport, got 'airport'", parse.Error);
+    }
+
+    [Fact]
+    public void TwoPass_MissingValue_Error()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([.. TwoPassArgs(), "--room-hotwords", "padded", "--two-pass"]);
+
+        Assert.Null(parse.Options);
+        Assert.Equal("--two-pass needs a value", parse.Error);
+    }
+
+    private string[] TwoPassArgs() => [Substitute(FolderToken), "--slots", "--resolve", "--stt", "sherpa:m", "--decoding", "beam"];
 
     private string WriteHotwords(string name, params string[] lines)
     {

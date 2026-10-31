@@ -258,6 +258,183 @@ public sealed class CorpusSlotRunTests : IDisposable
         Assert.Equal(["unpadded", "padded", "oracle"], lines.Lines.Select(line => line.Room));
     }
 
+    [Fact]
+    public void TwoPassTarget_Resolved_NarrowsToThatAircraft()
+    {
+        TransmissionContext context = TwoPassContext();
+        RoomAircraft southwest = context.Aircraft[0];
+
+        CorpusTwoPassTarget target = CorpusSlotRun.TwoPassTarget(
+            GoldClip,
+            Decoded(DecodeState.Resolved, Matched(southwest), null),
+            context,
+            SlotRoom.Padded,
+            TwoPassList.Aircraft
+        );
+
+        Assert.Equal("resolved", target.Outcome);
+        Assert.Equal("SWA2495", target.Aircraft);
+        Assert.NotNull(target.Narrow);
+        Assert.Equal("KOAK", target.Narrow.AirportId);
+        Assert.Same(southwest, Assert.Single(target.Narrow.Aircraft));
+        Assert.Equal([OwnRunway], target.Narrow.Aircraft[0].OwnEntities);
+        Assert.Empty(target.Narrow.AirportEntities);
+    }
+
+    [Fact]
+    public void TwoPassTarget_AircraftAndAirport_KeepsAirportEntities()
+    {
+        TransmissionContext context = TwoPassContext();
+
+        CorpusTwoPassTarget target = CorpusSlotRun.TwoPassTarget(
+            GoldClip,
+            Decoded(DecodeState.Resolved, Matched(context.Aircraft[0]), null),
+            context,
+            SlotRoom.Padded,
+            TwoPassList.AircraftAndAirport
+        );
+
+        Assert.NotNull(target.Narrow);
+        Assert.Same(context.Aircraft[0], Assert.Single(target.Narrow.Aircraft));
+        Assert.Equal([AirportTaxiway], target.Narrow.AirportEntities);
+    }
+
+    [Fact]
+    public void TwoPassTarget_SayAgain_UsesBestGuess()
+    {
+        TransmissionContext context = TwoPassContext();
+        RoomAircraft united = context.Aircraft[1];
+
+        CorpusTwoPassTarget target = CorpusSlotRun.TwoPassTarget(
+            GoldClip,
+            Decoded(DecodeState.SayAgain, null, Matched(united)),
+            context,
+            SlotRoom.Padded,
+            TwoPassList.Aircraft
+        );
+
+        Assert.Equal("sayagain", target.Outcome);
+        Assert.Equal("UAL123", target.Aircraft);
+        Assert.NotNull(target.Narrow);
+        Assert.Same(united, Assert.Single(target.Narrow.Aircraft));
+    }
+
+    [Fact]
+    public void TwoPassTarget_NoCallsign_NoPassTwo()
+    {
+        CorpusTwoPassTarget target = CorpusSlotRun.TwoPassTarget(
+            GoldClip,
+            Decoded(DecodeState.NoCallsign, null, null),
+            TwoPassContext(),
+            SlotRoom.Padded,
+            TwoPassList.Aircraft
+        );
+
+        Assert.Equal(new CorpusTwoPassTarget("nocallsign", null, null), target);
+    }
+
+    [Fact]
+    public void TwoPassBias_NNumberOnly_EmptyListNoPassTwo()
+    {
+        CorpusSlotRun run = CreateRun(RoomOptions(SlotRoom.Oracle), "{}");
+        var november = new RoomAircraft(CallsignEntity("N123AB", ["N123AB"]), []);
+        var context = new TransmissionContext("KOAK", [november], []);
+        CorpusTwoPassTarget target = CorpusSlotRun.TwoPassTarget(
+            GoldClip,
+            Decoded(DecodeState.Resolved, Matched(november), null),
+            context,
+            SlotRoom.Oracle,
+            TwoPassList.Aircraft
+        );
+        Assert.NotNull(target.Narrow);
+
+        SttBias? bias = run.TwoPassBias(GoldClip, target.Narrow, NoBias);
+        CorpusTwoPassTarget settled = target.Settled(bias);
+
+        Assert.Null(bias);
+        Assert.Equal(new CorpusTwoPassTarget("empty", "N123AB", null), settled);
+    }
+
+    [Fact]
+    public void TwoPassBias_AppliesCasingAndCap()
+    {
+        CorpusSlotRun run = CreateRun(new CorpusSlotOptions(true, SlotRoom.Oracle, 1, HotwordCase.Title, TwoPassList.Aircraft), "{}");
+        TransmissionContext context = TwoPassContext();
+        var ownFix = new ContextEntity(EntityKind.Fix, "MITOE", [new SpokenForm("mitoe", 1.0)]);
+        TransmissionContext narrow = context with { Aircraft = [new RoomAircraft(context.Aircraft[0].Callsign, [ownFix])], AirportEntities = [] };
+        Assert.True(RoomHotwords.Select(narrow, 300).Count > 1);
+        string first = RoomHotwords.Select(narrow, 1)[0];
+
+        SttBias? bias = run.TwoPassBias(GoldClip, narrow, new SttBias("prompt", ["Other"]));
+
+        Assert.NotNull(bias);
+        Assert.Equal("prompt", bias.Prompt);
+        string phrase = Assert.Single(bias.Hotwords);
+        Assert.Equal(first, phrase, ignoreCase: true);
+        Assert.NotEqual(first, phrase);
+        Assert.True(char.IsUpper(phrase[0]), phrase);
+    }
+
+    [Fact]
+    public void TwoPassTarget_AircraftNotInRoom_Throws()
+    {
+        var stranger = new RoomAircraft(CallsignEntity("DAL55", ["DAL55"]), []);
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            CorpusSlotRun.TwoPassTarget(
+                GoldClip,
+                Decoded(DecodeState.Resolved, Matched(stranger), null),
+                TwoPassContext(),
+                SlotRoom.Padded,
+                TwoPassList.Aircraft
+            )
+        );
+
+        Assert.Equal($"{GoldClip}: the decoder named DAL55, which is not in the padded room", error.Message);
+    }
+
+    [Fact]
+    public void TwoPassTarget_ResolvedWithoutCallsign_Throws()
+    {
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            CorpusSlotRun.TwoPassTarget(GoldClip, Decoded(DecodeState.Resolved, null, null), TwoPassContext(), SlotRoom.Padded, TwoPassList.Aircraft)
+        );
+
+        Assert.Equal($"{GoldClip}: resolved with no callsign", error.Message);
+    }
+
+    [Fact]
+    public void PlanTwoPass_ResolvedClip_GivesNarrowBias()
+    {
+        CorpusSlotRun run = CreateRun(new CorpusSlotOptions(true, SlotRoom.Oracle, 300, HotwordCase.Title, TwoPassList.Aircraft), "{}");
+
+        (CorpusTwoPassTarget target, SttBias? bias) = run.PlanTwoPass(GoldClip, Spoken(), NoBias);
+
+        Assert.Equal("resolved", target.Outcome);
+        Assert.Equal("SWA2495", target.Aircraft);
+        Assert.NotNull(bias);
+        Assert.NotEmpty(bias.Hotwords);
+    }
+
+    [Fact]
+    public void TwoPassResult_LineText()
+    {
+        CorpusSlotArm arm = CreateRun(new CorpusSlotOptions(true, SlotRoom.Oracle, 300, HotwordCase.Title, TwoPassList.Aircraft), "{}").StartArm();
+        string[] outcomes = ["resolved", "resolved", "resolved", "sayagain", "nocallsign", "nocallsign", "empty"];
+        foreach (string outcome in outcomes)
+        {
+            arm.AddTwoPass(outcome);
+        }
+
+        CorpusTwoPassResult? result = arm.TwoPassResult();
+
+        Assert.NotNull(result);
+        Assert.Equal(
+            "Two-pass (aircraft): re-decoded 4 of 7 clips (3 resolved, 1 from a say-again guess); kept pass 1 for 3 (2 no callsign, 1 empty list)",
+            result.Line()
+        );
+    }
+
     private const string GoldClip = "koak-gnd_seg0001";
     private const string OtherGoldClip = "koak-gnd_seg0002";
     private const string EmptyClip = "koak-gnd_seg0003";
@@ -319,7 +496,7 @@ public sealed class CorpusSlotRunTests : IDisposable
             false
         );
 
-    private static CorpusSlotOptions RoomOptions(SlotRoom room) => new(false, room, 300, HotwordCase.Title);
+    private static CorpusSlotOptions RoomOptions(SlotRoom room) => new(false, room, 300, HotwordCase.Title, null);
 
     private static TransmissionContext Context() =>
         new(
@@ -333,6 +510,29 @@ public sealed class CorpusSlotRunTests : IDisposable
             []
         );
 
+    private static readonly ContextEntity OwnRunway = new(EntityKind.Runway, "KOAK/30", [new SpokenForm("runway three zero", 1.0)]);
+
+    private static readonly ContextEntity AirportTaxiway = new(EntityKind.Taxiway, "KOAK/W4", [new SpokenForm("whiskey four", 1.0)]);
+
+    private static ContextEntity CallsignEntity(string callsign, IReadOnlyCollection<string> room) =>
+        ContextEntityFactory.Callsign(callsign, null, new Dictionary<string, string>(), room, DecoderSettings.Default)!;
+
+    /// <summary>A room of SWA2495 (with its own runway) and UAL123, and one airport taxiway.</summary>
+    private static TransmissionContext TwoPassContext()
+    {
+        string[] room = ["SWA2495", "UAL123"];
+        return new(
+            "KOAK",
+            [new RoomAircraft(CallsignEntity("SWA2495", room), [OwnRunway]), new RoomAircraft(CallsignEntity("UAL123", room), [])],
+            [AirportTaxiway]
+        );
+    }
+
+    private static EntityMatch Matched(RoomAircraft aircraft) => new(aircraft.Callsign, new WordSpan(0, 1), 1.0, false, "heard");
+
+    private static DecodeResult Decoded(DecodeState state, EntityMatch? callsign, EntityMatch? bestGuess) =>
+        new(state, callsign, bestGuess, [], string.Empty, 0, 0, false);
+
     private static SttHypotheses Transcript() =>
         new(
             [new SttHypothesis("southwest two four nine six", [], [], null), new SttHypothesis("southwest two four nine five", [], [], null)],
@@ -343,5 +543,5 @@ public sealed class CorpusSlotRunTests : IDisposable
     private static CorpusSegment Segment(string id) =>
         new(id, CorpusRole.Unknown, [], "southwest two four nine five taxi via whiskey four", "koak-gnd", "owner");
 
-    private static CorpusSlotOptions Options() => new(false, null, 300, HotwordCase.Title);
+    private static CorpusSlotOptions Options() => new(false, null, 300, HotwordCase.Title, null);
 }
