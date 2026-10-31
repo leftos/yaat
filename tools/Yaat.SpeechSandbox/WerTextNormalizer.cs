@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using Yaat.Sim.Speech.Context;
 
 namespace Yaat.SpeechSandbox;
 
@@ -36,15 +37,7 @@ public static partial class WerTextNormalizer
     }.ToFrozenDictionary();
 
     /// <summary>Hesitation sounds that say nothing, so neither side is scored on them.</summary>
-    private static readonly FrozenSet<string> Fillers = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "uh",
-        "um",
-        "ah",
-        "er",
-        "erm",
-        "hmm",
-    }.ToFrozenSet();
+    private static readonly IReadOnlySet<string> Fillers = SpokenTokenizer.HesitationFillers;
 
     private static readonly string[] DigitNames = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
 

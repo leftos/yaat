@@ -21,6 +21,28 @@ namespace Yaat.Sim.Speech;
 ///   </item>
 /// </list>
 /// </summary>
+/// <summary>Which English number word a token is, as classified by <see cref="AtcNumberParser.TryGetNumberWord"/>.</summary>
+internal enum NumberWordKind
+{
+    /// <summary>A single-digit word ("three", "niner").</summary>
+    Digit,
+
+    /// <summary>A teen word ("sixteen").</summary>
+    Teen,
+
+    /// <summary>A tens word ("ninety").</summary>
+    Tens,
+
+    /// <summary>"Hundred".</summary>
+    Hundred,
+
+    /// <summary>"Thousand".</summary>
+    Thousand,
+
+    /// <summary>"Oh" or "o", a zero between number words.</summary>
+    Oh,
+}
+
 public static class AtcNumberParser
 {
     /// <summary>The longest digit run read as a number; nine digits always fit an <see cref="int"/>.</summary>
@@ -97,6 +119,52 @@ public static class AtcNumberParser
     /// the rule match cleanly.
     /// </summary>
     public static string? TryResolveCardinalLetter(string word) => CardinalToLetter.TryGetValue(word, out string? letter) ? letter : null;
+
+    /// <summary>
+    /// Classify a single word as an English number word, over the same tables
+    /// <see cref="NormalizeDigits"/> reads. <paramref name="value"/> is the number the word stands
+    /// for (0-9, 10-19, 20-90, 100, 1000, or 0 for a spoken zero).
+    /// </summary>
+    internal static bool TryGetNumberWord(string word, out NumberWordKind kind, out int value)
+    {
+        if (DigitWords.TryGetValue(word, out value))
+        {
+            kind = NumberWordKind.Digit;
+            return true;
+        }
+        if (TeenWords.TryGetValue(word, out value))
+        {
+            kind = NumberWordKind.Teen;
+            return true;
+        }
+        if (TensWords.TryGetValue(word, out value))
+        {
+            kind = NumberWordKind.Tens;
+            return true;
+        }
+        if (string.Equals(word, "hundred", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = NumberWordKind.Hundred;
+            value = 100;
+            return true;
+        }
+        if (string.Equals(word, "thousand", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = NumberWordKind.Thousand;
+            value = 1000;
+            return true;
+        }
+        if (string.Equals(word, "oh", StringComparison.OrdinalIgnoreCase) || string.Equals(word, "o", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = NumberWordKind.Oh;
+            value = 0;
+            return true;
+        }
+
+        kind = default;
+        value = 0;
+        return false;
+    }
 
     /// <summary>
     /// Scan a transcript and replace spoken number phrases with digit-form substrings.
