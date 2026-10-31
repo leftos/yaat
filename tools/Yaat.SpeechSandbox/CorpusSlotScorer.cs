@@ -84,7 +84,10 @@ public static class CorpusSlotScorer
         groups.Add(("owner+agreed", clip => (clip.Segment.Provenance == "owner") || (clip.Segment.Provenance == "agreed")));
     }
 
-    /// <summary>Adds one pool per feed in ordinal order and <c>unknown</c> last, exactly the ones <see cref="CorpusWerGroups.FeedRows"/> reports.</summary>
+    /// <summary>
+    /// Adds one pool per feed in ordinal order and <c>unknown</c> last, exactly the ones <see cref="CorpusWerGroups.FeedRows"/>
+    /// reports.
+    /// </summary>
     private static void AddFeedGroups(IReadOnlyList<CorpusSlotClip> clips, List<(string Label, Func<CorpusSlotClip, bool> Includes)> groups)
     {
         if (clips.All(clip => clip.Segment.Feed is null))

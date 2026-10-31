@@ -51,7 +51,7 @@ public sealed record CorpusRooms(
         {
             feeds[name] = ToFeed(feed, name, path);
         }
-        return new CorpusRooms(IgnoringCase(dto.Telephony), IgnoringCase(dto.Types), feeds);
+        return new CorpusRooms(IgnoringCase(dto.Telephony, "telephony", path), IgnoringCase(dto.Types, "types", path), feeds);
     }
 
     private static RoomsDto ReadDto(string path)
@@ -68,8 +68,19 @@ public sealed record CorpusRooms(
         return dto ?? throw new InvalidDataException($"{path} is empty or not a JSON object of telephony, types and feeds.");
     }
 
-    private static Dictionary<string, string> IgnoringCase(Dictionary<string, string>? map) =>
-        map is null ? new(StringComparer.OrdinalIgnoreCase) : new(map, StringComparer.OrdinalIgnoreCase);
+    /// <summary>The map keyed ignoring case; two keys equal ignoring case are an error naming the file and the key.</summary>
+    private static Dictionary<string, string> IgnoringCase(Dictionary<string, string>? map, string section, string path)
+    {
+        var keyed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string key, string value) in map ?? [])
+        {
+            if (!keyed.TryAdd(key, value))
+            {
+                throw new InvalidDataException($"{path} gives {section} key '{key}' twice, ignoring case.");
+            }
+        }
+        return keyed;
+    }
 
     /// <summary>One raw feed validated into a <see cref="CorpusRoomFeed"/>, naming the feed and the file it is wrong in.</summary>
     private static CorpusRoomFeed ToFeed(FeedDto? dto, string name, string path)

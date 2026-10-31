@@ -94,7 +94,7 @@ internal sealed class FeedRoom
     private readonly RoomSources _sources;
     private readonly DecoderSettings _settings;
     private readonly string _airport;
-    private readonly IReadOnlyList<string> _clipIds;
+    private readonly Dictionary<string, List<string>> _clipsByFirstCallsign = new(StringComparer.Ordinal);
     private readonly Dictionary<(EntityKind Kind, string Value), ContextEntity> _byValue = [];
     private readonly Dictionary<string, ContextEntity> _unpaddedCallsigns = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ContextEntity> _paddedCallsigns = new(StringComparer.Ordinal);
@@ -110,11 +110,12 @@ internal sealed class FeedRoom
         {
             _byValue.TryAdd((entity.Kind, entity.Value.ToUpperInvariant()), entity);
         }
-        _clipIds = [.. sources.Slots.Keys.Where(id => CorpusRoles.FeedFromId(id) == feed).Order(StringComparer.Ordinal)];
-        string[] real = [.. _clipIds.SelectMany(id => Callsigns(sources.Slots[id])).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
-        BuildUnpadded(real);
-        Unbuilt = [.. real.Where(callsign => !_unpaddedCallsigns.ContainsKey(callsign))];
-        string[] built = [.. real.Where(_unpaddedCallsigns.ContainsKey)];
+        string[] clipIds = [.. sources.Slots.Keys.Where(id => CorpusRoles.FeedFromId(id) == feed).Order(StringComparer.Ordinal)];
+        IndexByFirstCallsign(clipIds);
+        string[] real = [.. clipIds.SelectMany(id => Callsigns(sources.Slots[id])).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+        string[] built = [.. real.Where(Builds)];
+        Unbuilt = [.. real.Except(built, StringComparer.Ordinal)];
+        BuildUnpadded(built);
         _padded = RoomDistractors.Draw(new DistractorRequest(feed, spec, built, AirportEntities, sources.Rooms.Telephony, settings));
         BuildPadded();
     }
@@ -197,16 +198,40 @@ internal sealed class FeedRoom
     /// <summary>A navdata airport id as an ICAO id: a three-letter FAA id gains its "K".</summary>
     private static string ToIcao(string id) => ((id.Length == 3) && id.All(char.IsLetter)) ? "K" + id : id;
 
-    /// <summary>Builds each real callsign's entity against the real ones, leaving out the ones whose telephony is unknown.</summary>
-    private void BuildUnpadded(IReadOnlyList<string> real)
+    /// <summary>Whether a callsign gets an entity at all, which depends only on its telephony being known.</summary>
+    private bool Builds(string callsign)
     {
         CorpusRooms rooms = _sources.Rooms;
-        foreach (string callsign in real)
+        return ContextEntityFactory.Callsign(callsign, rooms.Types.GetValueOrDefault(callsign), rooms.Telephony, [callsign], _settings) is not null;
+    }
+
+    /// <summary>Records, per callsign, the feed's clips (in clip-id order) whose first gold callsign it is.</summary>
+    private void IndexByFirstCallsign(IReadOnlyList<string> clipIds)
+    {
+        foreach (string id in clipIds)
         {
-            if (ContextEntityFactory.Callsign(callsign, rooms.Types.GetValueOrDefault(callsign), rooms.Telephony, real, _settings) is { } entity)
+            if (Callsigns(_sources.Slots[id]).FirstOrDefault() is not { } first)
             {
-                _unpaddedCallsigns[callsign] = entity;
+                continue;
             }
+            if (!_clipsByFirstCallsign.TryGetValue(first, out List<string>? ids))
+            {
+                ids = [];
+                _clipsByFirstCallsign[first] = ids;
+            }
+            ids.Add(id);
+        }
+    }
+
+    /// <summary>Builds each buildable real callsign's entity against the buildable ones, so an unbuilt callsign is in no room.</summary>
+    private void BuildUnpadded(IReadOnlyList<string> built)
+    {
+        CorpusRooms rooms = _sources.Rooms;
+        foreach (string callsign in built)
+        {
+            _unpaddedCallsigns[callsign] =
+                ContextEntityFactory.Callsign(callsign, rooms.Types.GetValueOrDefault(callsign), rooms.Telephony, built, _settings)
+                ?? throw new InvalidOperationException($"Callsign {callsign} has no callsign entity in the unpadded room of {_airport}.");
         }
     }
 
@@ -229,10 +254,8 @@ internal sealed class FeedRoom
     /// </summary>
     private IReadOnlyList<ContextEntity> OwnEntities(string callsign, string clipId)
     {
-        IEnumerable<CorpusSlot> slots = _clipIds
-            .Where(id => (id != clipId) && (Callsigns(_sources.Slots[id]).FirstOrDefault() == callsign))
-            .SelectMany(id => _sources.Slots[id]);
-        return ResolveAll(slots);
+        IEnumerable<string> clips = _clipsByFirstCallsign.TryGetValue(callsign, out List<string>? ids) ? ids : [];
+        return ResolveAll(clips.Where(id => id != clipId).SelectMany(id => _sources.Slots[id]));
     }
 
     private TransmissionContext Oracle(IReadOnlyList<CorpusSlot> gold)
@@ -272,7 +295,7 @@ internal sealed class FeedRoom
         {
             return entity;
         }
-        return slot.Kind == EntityKind.Fix ? ContextEntityFactory.Fix(slot.Value, _sources.Nav) : null;
+        return (slot.Kind == EntityKind.Fix) ? ContextEntityFactory.Fix(slot.Value, _sources.Nav) : null;
     }
 }
 
@@ -329,8 +352,8 @@ internal static class RoomDistractors
     {
         IReadOnlyList<string> real = request.Real;
         var existing = new HashSet<string>(real, StringComparer.OrdinalIgnoreCase);
-        HashSet<string> realDigits = [.. real.Select(Digits)];
-        double gaShare = real.Count == 0 ? 0 : real.Count(IsGa) / (double)real.Count;
+        HashSet<string> realDigits = [.. real.Select(DistractorRules.Digits)];
+        double gaShare = (real.Count == 0) ? 0 : real.Count(IsGa) / (double)real.Count;
         var distractors = new List<string>();
         for (int draws = 0; real.Count + distractors.Count < RoomContextBuilder.PaddedRoomSize; draws++)
         {
@@ -341,10 +364,10 @@ internal static class RoomDistractors
                 );
             }
             string candidate =
-                rng.NextDouble() < gaShare
+                (rng.NextDouble() < gaShare)
                     ? AircraftGenerator.GenerateNNumber(existing, rng)
                     : AircraftGenerator.GenerateAirlineCallsign(PickAirline(request.Spec.Airport, rng), existing, rng);
-            if (Acceptable(candidate, existing, realDigits, request))
+            if (DistractorRules.Acceptable(candidate, existing, realDigits, request.Telephony, request.Settings))
             {
                 existing.Add(candidate);
                 distractors.Add(candidate);
@@ -352,11 +375,6 @@ internal static class RoomDistractors
         }
         return distractors;
     }
-
-    private static bool Acceptable(string candidate, HashSet<string> existing, HashSet<string> realDigits, DistractorRequest request) =>
-        !existing.Contains(candidate)
-        && !realDigits.Contains(Digits(candidate))
-        && (ContextEntityFactory.Callsign(candidate, null, request.Telephony, [candidate], request.Settings) is not null);
 
     /// <summary>An airline serving the airport, weighted by its arrivals as the scenario generator weights them.</summary>
     private static string PickAirline(string airport, Random rng)
@@ -395,6 +413,31 @@ internal static class RoomDistractors
     }
 
     private static bool IsGa(string callsign) => (callsign.Length >= 2) && (callsign[0] == 'N') && char.IsAsciiDigit(callsign[1]);
+}
 
-    private static string Digits(string callsign) => new([.. callsign.Where(char.IsAsciiDigit)]);
+/// <summary>Which drawn callsigns may pad a feed's room.</summary>
+public static class DistractorRules
+{
+    /// <summary>
+    /// True when <paramref name="candidate"/> is not already in the room (ignoring case), does not carry the digits of a real
+    /// callsign, and gets a callsign entity (its telephony is known).
+    /// </summary>
+    /// <param name="candidate">The drawn callsign.</param>
+    /// <param name="existing">The callsigns already in the room, real and drawn.</param>
+    /// <param name="realDigits">The digit strings of the real callsigns.</param>
+    /// <param name="telephony">The corpus's telephony overrides.</param>
+    /// <param name="settings">The decoder settings.</param>
+    public static bool Acceptable(
+        string candidate,
+        IReadOnlySet<string> existing,
+        IReadOnlySet<string> realDigits,
+        IReadOnlyDictionary<string, string> telephony,
+        DecoderSettings settings
+    ) =>
+        !existing.Any(callsign => string.Equals(callsign, candidate, StringComparison.OrdinalIgnoreCase))
+        && !realDigits.Contains(Digits(candidate))
+        && (ContextEntityFactory.Callsign(candidate, null, telephony, [candidate], settings) is not null);
+
+    /// <summary>The callsign's ASCII digits, in order.</summary>
+    public static string Digits(string callsign) => new([.. callsign.Where(char.IsAsciiDigit)]);
 }

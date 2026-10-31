@@ -90,6 +90,26 @@ public sealed class CorpusSlotsTests : IDisposable
     }
 
     [Fact]
+    public void Read_NullClip_Throws()
+    {
+        WriteSlots("""{ "koak-app_seg0004": null }""");
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => CorpusSlots.Read(_dir));
+
+        Assert.Equal($"koak-app_seg0004: {Path.Combine(_dir, CorpusSlots.FileName)} gives no slot array.", error.Message);
+    }
+
+    [Fact]
+    public void Read_NullSlot_Throws()
+    {
+        WriteSlots("""{ "koak-app_seg0004": [ null ] }""");
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => CorpusSlots.Read(_dir));
+
+        Assert.Equal($"koak-app_seg0004: {Path.Combine(_dir, CorpusSlots.FileName)} holds a null slot.", error.Message);
+    }
+
+    [Fact]
     public void Read_NotAnObject_Throws()
     {
         WriteSlots("[]");

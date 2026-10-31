@@ -77,6 +77,19 @@ public sealed class CorpusRoomsTests : IDisposable
     }
 
     [Theory]
+    [InlineData("telephony")]
+    [InlineData("types")]
+    public void Read_DuplicateKeyIgnoringCase_Throws(string section)
+    {
+        Write($$"""{ "{{section}}": { "QXE": "a", "qxe": "b" }, "feeds": { "koak-app": { "airport": "KOAK", "facility": "app", "seed": 1 } } }""");
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => CorpusRooms.Read(_dir));
+
+        Assert.Contains(Path.Combine(_dir, CorpusRooms.FileName), error.Message, StringComparison.Ordinal);
+        Assert.Contains("'qxe'", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData("""{ "feeds": {} }""")]
     [InlineData("""{ "telephony": { "QXE": "horizon" } }""")]
     [InlineData("""null""")]
