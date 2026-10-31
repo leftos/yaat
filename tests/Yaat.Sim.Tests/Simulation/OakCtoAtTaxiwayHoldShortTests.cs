@@ -666,7 +666,7 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         var compound = new CompoundCommand([new ParsedBlock(null, [new ClearedForTakeoffCommand(new DefaultDeparture())])]);
-        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, cto, aircraft, PilotSpeechContext.Canonical);
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, cto, aircraft, PilotSpeechContext.Canonical, ActiveRunways.Empty);
         Assert.NotNull(readback);
         return readback;
     }
