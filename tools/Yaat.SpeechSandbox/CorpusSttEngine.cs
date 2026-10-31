@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using Yaat.Client.Services;
 
 namespace Yaat.SpeechSandbox;
@@ -23,9 +24,10 @@ public enum SttDevice
 
 /// <summary>
 /// One resolved engine choice: the family, its source — a Whisper model id, URL or <c>.bin</c> file,
-/// a sherpa-onnx model directory, or a cloud provider's model id — and the device <c>--device</c> asks for.
+/// a sherpa-onnx model directory, or a cloud provider's model id — the device <c>--device</c> asks for, and
+/// how a sherpa transducer decodes (<see cref="SherpaDecoding.Greedy"/> for every other family).
 /// </summary>
-public sealed record SttChoice(SttKind Kind, string Source, SttDevice Device)
+public sealed record SttChoice(SttKind Kind, string Source, SttDevice Device, SherpaDecoding Decoding)
 {
     /// <summary>
     /// Only Whisper takes the production biasing prompt; the sherpa transducer exports decode without one,
@@ -34,14 +36,50 @@ public sealed record SttChoice(SttKind Kind, string Source, SttDevice Device)
     public bool TakesPrompt => Kind == SttKind.Whisper;
 }
 
-/// <summary>One engine's transcript of a clip, with the latency it measured and whether it came from a cache.</summary>
-/// <param name="Text">The transcript, or null when the engine returned nothing.</param>
+/// <summary>The sherpa transducer's two decoders.</summary>
+public enum SherpaDecodingMethod
+{
+    Greedy,
+    Beam,
+}
+
+/// <summary>How a sherpa transducer decodes a run.</summary>
+/// <param name="Method">Greedy search, or modified beam search.</param>
+/// <param name="NumPaths">Hypotheses a beam stream returns, 1 through <see cref="MaxBeamPaths"/>; 1 for greedy.</param>
+/// <param name="HotwordScore">The recognizer's hotword score; one per run, since the decoder reads it from the config.</param>
+public sealed record SherpaDecoding(SherpaDecodingMethod Method, int NumPaths, float HotwordScore)
+{
+    public const int MaxBeamPaths = 4;
+
+    public static readonly SherpaDecoding Greedy = new(SherpaDecodingMethod.Greedy, 1, SherpaHotwords.DefaultScore);
+}
+
+/// <summary>What a transmission's context asks of the recognizer: the Whisper prompt and/or the hotword phrases.</summary>
+public sealed record SttBias(string Prompt, IReadOnlyList<string> Hotwords);
+
+/// <summary>One decoded alternative of a clip.</summary>
+/// <param name="Text">The transcript, trimmed.</param>
+/// <param name="Tokens">The model's tokens; empty for an engine that reports none.</param>
+/// <param name="TokenLogProbs">The tokens' log probabilities; empty for an engine that reports none.</param>
+/// <param name="Score">The hypothesis's search score; null outside a beam search.</param>
+public sealed record SttHypothesis(string Text, IReadOnlyList<string> Tokens, IReadOnlyList<double> TokenLogProbs, double? Score);
+
+/// <summary>One engine's alternatives for a clip, best first, with the latency it measured and whether it came from a cache.</summary>
+/// <param name="Entries">The alternatives; empty when the engine returned nothing.</param>
 /// <param name="LatencyMs">
 /// The engine's own latency in milliseconds; null means the caller's stopwatch around the call is the latency.
 /// The streaming engine reports its own finalization time here.
 /// </param>
 /// <param name="Cached">True only for a cloud cache hit.</param>
-public sealed record CorpusTranscript(string? Text, double? LatencyMs, bool Cached);
+public sealed record SttHypotheses(IReadOnlyList<SttHypothesis> Entries, double? LatencyMs, bool Cached)
+{
+    /// <summary>The best alternative's transcript; null when there is none or it is empty.</summary>
+    public string? Text => ((Entries.Count > 0) && (Entries[0].Text.Length > 0)) ? Entries[0].Text : null;
+
+    /// <summary>The result of an engine that returns one plain transcript: no entry for null or empty text.</summary>
+    public static SttHypotheses Single(string? text, double? latencyMs, bool cached) =>
+        new(string.IsNullOrEmpty(text) ? [] : [new SttHypothesis(text, [], [], null)], latencyMs, cached);
+}
 
 /// <summary>One STT engine behind the seam <see cref="CorpusWerRunner"/> scores every arm through.</summary>
 internal interface ICorpusSttEngine : IDisposable
@@ -50,10 +88,10 @@ internal interface ICorpusSttEngine : IDisposable
     string? SetupError();
 
     /// <summary>
-    /// The transcript of 16 kHz mono Float32 samples. The prompt is the production biasing prompt, or
-    /// empty; an engine that takes none ignores it.
+    /// The alternatives for 16 kHz mono Float32 samples. The bias carries the production biasing prompt,
+    /// or empty, and any hotword phrases; an engine ignores what it does not take.
     /// </summary>
-    Task<CorpusTranscript> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct);
+    Task<SttHypotheses> TranscribeAsync(float[] samples16k, SttBias bias, CancellationToken ct);
 
     /// <summary>Loads the model, so the first timed segment pays no load cost.</summary>
     Task WarmUpAsync(CancellationToken ct);
@@ -79,10 +117,10 @@ internal sealed class WhisperCorpusSttEngine(string modelSource, int? gpuLayerCo
             : null;
     }
 
-    public async Task<CorpusTranscript> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct)
+    public async Task<SttHypotheses> TranscribeAsync(float[] samples16k, SttBias bias, CancellationToken ct)
     {
-        string? text = await _engine.TranscribeAsync(samples16k, prompt, ct).ConfigureAwait(false);
-        return new CorpusTranscript(text, null, false);
+        string? text = await _engine.TranscribeAsync(samples16k, bias.Prompt, ct).ConfigureAwait(false);
+        return SttHypotheses.Single(text, null, false);
     }
 
     public Task WarmUpAsync(CancellationToken ct) => _engine.PrewarmAsync(ct);
@@ -91,19 +129,41 @@ internal sealed class WhisperCorpusSttEngine(string modelSource, int? gpuLayerCo
 }
 
 /// <summary>A sherpa-onnx offline transducer export (Parakeet-TDT and its ATC fine-tunes).</summary>
-internal sealed class SherpaCorpusSttEngine(string modelDir, string provider) : ICorpusSttEngine
+public sealed class SherpaCorpusSttEngine(string modelDir, string provider, SherpaDecoding decoding) : ICorpusSttEngine
 {
-    private readonly SherpaSttEngine _engine = new(modelDir, provider);
+    private readonly SherpaSttEngine _engine = new(modelDir, provider, decoding);
 
-    public string? SetupError() => _engine.IsConfigured ? null : $"sherpa model dir {modelDir} has no encoder/decoder/joiner .onnx or tokens.txt";
+    public string? SetupError()
+    {
+        if (!_engine.IsConfigured)
+        {
+            return $"sherpa model dir {modelDir} has no encoder/decoder/joiner .onnx or tokens.txt";
+        }
+        return ((decoding.Method == SherpaDecodingMethod.Beam) && !_engine.HasBpeVocab)
+            ? $"sherpa model dir {modelDir} has no bpe.vocab, which --decoding beam needs"
+            : null;
+    }
 
-    public Task<CorpusTranscript> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct) =>
-        Task.Run(() => new CorpusTranscript(_engine.Transcribe(samples16k, AudioCaptureService.SampleRate), null, false), ct);
+    public Task<SttHypotheses> TranscribeAsync(float[] samples16k, SttBias bias, CancellationToken ct) =>
+        Task.Run(() => new SttHypotheses(_engine.Transcribe(samples16k, AudioCaptureService.SampleRate, bias.Hotwords), null, false), ct);
 
+    /// <summary>Loads the model; a beam run also proves the native can decode it, or throws saying why it cannot.</summary>
+    /// <exception cref="InvalidOperationException">The native cannot run this beam search.</exception>
     public Task WarmUpAsync(CancellationToken ct) =>
-        Task.Run(() => _engine.Transcribe(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate), ct);
+        (decoding.Method == SherpaDecodingMethod.Beam)
+            ? Task.Run(RefuseUnfitNative, ct)
+            : Task.Run(() => _engine.Transcribe(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate, []), ct);
 
     public void Dispose() => _engine.Dispose();
+
+    private void RefuseUnfitNative()
+    {
+        string? problem = _engine.NativeProblem();
+        if (problem is not null)
+        {
+            throw new InvalidOperationException(problem);
+        }
+    }
 }
 
 /// <summary>A sherpa-onnx streaming transducer export (Nemotron Speech Streaming and its relatives).</summary>
@@ -114,12 +174,12 @@ internal sealed class SherpaStreamingCorpusSttEngine(string modelDir, string pro
     public string? SetupError() =>
         _engine.IsConfigured ? null : $"sherpa-streaming model dir {modelDir} has no encoder/decoder/joiner .onnx or tokens.txt";
 
-    public Task<CorpusTranscript> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct) =>
+    public Task<SttHypotheses> TranscribeAsync(float[] samples16k, SttBias bias, CancellationToken ct) =>
         Task.Run(
             () =>
             {
                 (string? text, double finalizeMs) = _engine.TranscribeTimed(samples16k, AudioCaptureService.SampleRate);
-                return new CorpusTranscript(text, finalizeMs, false);
+                return SttHypotheses.Single(text, finalizeMs, false);
             },
             ct
         );
@@ -140,7 +200,7 @@ public static class CorpusSttEngines
         choice.Kind switch
         {
             SttKind.Whisper => CreateWhisper(choice),
-            SttKind.Sherpa => new SherpaCorpusSttEngine(choice.Source, Provider(choice.Device)),
+            SttKind.Sherpa => new SherpaCorpusSttEngine(choice.Source, Provider(choice.Device), choice.Decoding),
             SttKind.SherpaStreaming => new SherpaStreamingCorpusSttEngine(choice.Source, Provider(choice.Device)),
             SttKind.Gemini or SttKind.OpenAi => new CloudSttEngine(choice.Kind, choice.Source),
             _ => throw new ArgumentOutOfRangeException(nameof(choice), choice.Kind, "no corpus STT engine for this kind"),
@@ -223,7 +283,7 @@ public static class CorpusSttEngines
             error = $"--stt kind must be whisper, sherpa, sherpa-streaming, gemini or openai, got '{value[..colon]}'";
             return false;
         }
-        choice = new SttChoice(kind.Value, value[(colon + 1)..], SttDevice.Default);
+        choice = new SttChoice(kind.Value, value[(colon + 1)..], SttDevice.Default, SherpaDecoding.Greedy);
         return true;
     }
 
@@ -254,19 +314,23 @@ public static class CorpusSttEngines
     /// <summary>
     /// How a choice is recorded in results: Whisper's source as a rooted file's name so no machine path
     /// reaches a committed baseline (a URL or a catalog id as given), a sherpa model directory as
-    /// <c>sherpa:&lt;dir name&gt;</c> or <c>sherpa-streaming:&lt;dir name&gt;</c>, and a cloud model as
-    /// <c>gemini:&lt;model&gt;</c> or <c>openai:&lt;model&gt;</c>.
+    /// <c>sherpa:&lt;dir name&gt;</c> (with <c>+beam&lt;paths&gt;</c> on a beam run) or
+    /// <c>sherpa-streaming:&lt;dir name&gt;</c>, and a cloud model as <c>gemini:&lt;model&gt;</c> or
+    /// <c>openai:&lt;model&gt;</c>.
     /// </summary>
     public static string RecordedModel(SttChoice choice) =>
         choice.Kind switch
         {
             SttKind.Whisper => WhisperRecordedModel(choice.Source),
-            SttKind.Sherpa => "sherpa:" + DirectoryName(choice.Source),
+            SttKind.Sherpa => "sherpa:" + DirectoryName(choice.Source) + BeamSuffix(choice.Decoding),
             SttKind.SherpaStreaming => "sherpa-streaming:" + DirectoryName(choice.Source),
             SttKind.Gemini => "gemini:" + choice.Source,
             SttKind.OpenAi => "openai:" + choice.Source,
             _ => throw new ArgumentOutOfRangeException(nameof(choice), choice.Kind, "no recorded name for this kind"),
         };
+
+    private static string BeamSuffix(SherpaDecoding decoding) =>
+        (decoding.Method == SherpaDecodingMethod.Beam) ? $"+beam{decoding.NumPaths.ToString(CultureInfo.InvariantCulture)}" : string.Empty;
 
     private static string WhisperRecordedModel(string source)
     {

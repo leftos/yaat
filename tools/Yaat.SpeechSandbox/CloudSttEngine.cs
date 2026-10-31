@@ -68,9 +68,9 @@ public sealed class CloudSttEngine : ICorpusSttEngine
 
     /// <summary>
     /// The transcript of the clip, from the cache when this clip, model and instruction were sent before;
-    /// null when the provider refused it or every retry failed. The Whisper prompt is ignored.
+    /// no entry when the provider refused it or every retry failed. The bias is ignored.
     /// </summary>
-    public async Task<CorpusTranscript> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct)
+    public async Task<SttHypotheses> TranscribeAsync(float[] samples16k, SttBias bias, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(_apiKey))
         {
@@ -82,14 +82,14 @@ public sealed class CloudSttEngine : ICorpusSttEngine
         string? cached = ReadCache(cachePath);
         if (cached is not null)
         {
-            return new CorpusTranscript(cached, null, true);
+            return SttHypotheses.Single(cached, null, true);
         }
         string? text = await RequestAsync(wav, _apiKey, ct).ConfigureAwait(false);
         if (text is not null)
         {
             WriteCache(cachePath, text);
         }
-        return new CorpusTranscript(text, null, false);
+        return SttHypotheses.Single(text, null, false);
     }
 
     /// <summary>Nothing to load: the provider holds the model.</summary>

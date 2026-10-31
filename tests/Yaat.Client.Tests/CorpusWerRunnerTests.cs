@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Xunit;
 using Yaat.SpeechSandbox;
 
@@ -29,14 +30,14 @@ public sealed class CorpusWerRunnerTests
     {
         string path = Path.Combine(Path.GetTempPath(), "models", "ggml-atc.bin");
 
-        Assert.Equal("ggml-atc.bin", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Whisper, path, SttDevice.Default)));
+        Assert.Equal("ggml-atc.bin", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Whisper, path, SttDevice.Default, SherpaDecoding.Greedy)));
     }
 
     [Theory]
     [InlineData("https://huggingface.co/jacktol/whisper/resolve/main/ggml-model.bin")]
     [InlineData("whisper-medium")]
     public void A_Url_Or_Catalog_Id_Is_Recorded_As_Given(string source) =>
-        Assert.Equal(source, CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Whisper, source, SttDevice.Default)));
+        Assert.Equal(source, CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Whisper, source, SttDevice.Default, SherpaDecoding.Greedy)));
 
     [Theory]
     [InlineData(false)]
@@ -45,7 +46,21 @@ public sealed class CorpusWerRunnerTests
     {
         string dir = ModelDir("parakeet-v3-int8", trailingSeparator);
 
-        Assert.Equal("sherpa:parakeet-v3-int8", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Sherpa, dir, SttDevice.Default)));
+        Assert.Equal(
+            "sherpa:parakeet-v3-int8",
+            CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Sherpa, dir, SttDevice.Default, SherpaDecoding.Greedy))
+        );
+    }
+
+    [Fact]
+    public void A_Beam_Sherpa_Engine_Is_Recorded_With_Its_Path_Count()
+    {
+        var decoding = new SherpaDecoding(SherpaDecodingMethod.Beam, 4, 1.5f);
+
+        Assert.Equal(
+            "sherpa:parakeet-v3-int8+beam4",
+            CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Sherpa, ModelDir("parakeet-v3-int8", false), SttDevice.Default, decoding))
+        );
     }
 
     [Theory]
@@ -57,7 +72,7 @@ public sealed class CorpusWerRunnerTests
 
         Assert.Equal(
             "sherpa-streaming:nemotron-560ms-int8",
-            CorpusSttEngines.RecordedModel(new SttChoice(SttKind.SherpaStreaming, dir, SttDevice.Default))
+            CorpusSttEngines.RecordedModel(new SttChoice(SttKind.SherpaStreaming, dir, SttDevice.Default, SherpaDecoding.Greedy))
         );
     }
 
@@ -65,7 +80,7 @@ public sealed class CorpusWerRunnerTests
     [InlineData(SttKind.Gemini, "gemini-4-argon", "gemini:gemini-4-argon")]
     [InlineData(SttKind.OpenAi, "gpt-transcribe", "openai:gpt-transcribe")]
     public void A_Cloud_Model_Is_Recorded_With_Its_Kind_Prefix(SttKind kind, string model, string expected) =>
-        Assert.Equal(expected, CorpusSttEngines.RecordedModel(new SttChoice(kind, model, SttDevice.Default)));
+        Assert.Equal(expected, CorpusSttEngines.RecordedModel(new SttChoice(kind, model, SttDevice.Default, SherpaDecoding.Greedy)));
 
     [Fact]
     public void The_Report_Renders_An_Arm_That_Carries_A_Timing()
@@ -142,6 +157,58 @@ public sealed class CorpusWerRunnerTests
         Assert.DoesNotContain("Memory: working set", report, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void The_Report_Header_Names_The_Hotwords_Note()
+    {
+        string report = CorpusWerRunner.BuildReport(Run(null) with { Hotwords = "hot.txt, 3 phrases, score 1.5, case title" }, []);
+
+        Assert.Contains("model `model`, hotwords hot.txt, 3 phrases, score 1.5, case title", report, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_Report_Header_Omits_Hotwords_For_A_Run_Without_Them() =>
+        Assert.DoesNotContain("hotwords", CorpusWerRunner.BuildReport(Run(null), []), StringComparison.Ordinal);
+
+    [Fact]
+    public void A_Segment_Line_Without_Nbest_Serializes_A_Null()
+    {
+        string json = JsonSerializer.Serialize(Line(null), CorpusWerJsonlContext.Default.CorpusWerSegmentLine);
+
+        Assert.Contains("\"nbest\":null", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_Segment_Line_With_Nbest_Serializes_Every_Entry()
+    {
+        CorpusWerSegmentLine line = Line([new SttHypothesis("alpha", ["a"], [-0.5], -1.25), new SttHypothesis("alto", ["b"], [-0.75], null)]);
+
+        string json = JsonSerializer.Serialize(line, CorpusWerJsonlContext.Default.CorpusWerSegmentLine);
+
+        Assert.Contains(
+            "\"nbest\":[{\"text\":\"alpha\",\"tokens\":[\"a\"],\"tokenLogProbs\":[-0.5],\"score\":-1.25},"
+                + "{\"text\":\"alto\",\"tokens\":[\"b\"],\"tokenLogProbs\":[-0.75],\"score\":null}]",
+            json,
+            StringComparison.Ordinal
+        );
+    }
+
+    [Theory]
+    [InlineData("alpha")]
+    [InlineData(null)]
+    public void A_Transcript_Without_Tokens_Records_No_Nbest(string? text) =>
+        Assert.Null(CorpusWerRunner.RecordedNbest(SttHypotheses.Single(text, null, false)));
+
+    [Fact]
+    public void Entries_With_Tokens_Are_The_Recorded_Nbest()
+    {
+        SttHypothesis[] entries = [new SttHypothesis("alpha", ["a"], [-0.5], -1.25), new SttHypothesis("alto", [], [], -2)];
+
+        Assert.Same(entries, CorpusWerRunner.RecordedNbest(new SttHypotheses(entries, null, false)));
+    }
+
+    private static CorpusWerSegmentLine Line(IReadOnlyList<SttHypothesis>? nbest) =>
+        new("none", "id", "pilot", "alpha", "alpha", "alpha", 0, 0, 0, 1, 12, false, nbest);
+
     private static CorpusWerBaseline Run(CorpusWerTiming? timing) => RunWith(timing, null, null);
 
     private static CorpusWerBaseline RunWith(
@@ -157,7 +224,8 @@ public sealed class CorpusWerRunnerTests
             400,
             "fp",
             "model",
-            [new CorpusWerArm("default", [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)], 30, 6, 0, timing, provenance, feeds)]
+            [new CorpusWerArm("default", [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)], 30, 6, 0, timing, provenance, feeds)],
+            null
         );
 
     private static string ModelDir(string name, bool trailingSeparator)
