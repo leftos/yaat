@@ -51,7 +51,7 @@ public sealed partial class SimulationEngine
                 bool justExpired = false;
                 if (d.GiveWayTarget is not null)
                 {
-                    isReady = IsGiveWayDeferredMet(aircraft, d.GiveWayTarget);
+                    isReady = IsGiveWayDeferredMet(aircraft, d, d.GiveWayTarget);
                     if (isReady && aircraft.Ground.Hold is { Kind: HoldKind.GiveWay })
                     {
                         // Condition met — clear any active GIVEWAY hold so the payload can dispatch
@@ -411,7 +411,12 @@ public sealed partial class SimulationEngine
         return string.Join("; then ", parts);
     }
 
-    private bool IsGiveWayDeferredMet(AircraftState aircraft, string targetCallsign)
+    /// <summary>
+    /// Whether a deferred <c>GIVEWAY {target} ...</c> may fire. A TAXI anywhere in the payload's first block decides by the route it
+    /// would build, whatever the geometry says (<see cref="IsDeferredTaxiClearOf"/>). The bearing/heading geometry decides when
+    /// that route decides nothing, and for any other payload, a TAXI with no ground layout or one whose route does not build.
+    /// </summary>
+    private bool IsGiveWayDeferredMet(AircraftState aircraft, DeferredDispatch deferral, string targetCallsign)
     {
         AircraftState? target = FindAircraft(targetCallsign);
         if (target is null || !target.IsOnGround)
@@ -419,7 +424,78 @@ public sealed partial class SimulationEngine
             return true; // Target gone or airborne — no conflict
         }
 
+        if (
+            (deferral.Payload.Blocks.FirstOrDefault()?.Commands.OfType<TaxiCommand>().FirstOrDefault() is { } taxi)
+            && ((aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft)) is { } groundLayout)
+            && (IsDeferredTaxiClearOf(aircraft, target, taxi, groundLayout, deferral) is { } clear)
+        )
+        {
+            return clear;
+        }
+
         var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = targetCallsign };
         return FlightPhysics.IsGiveWayMet(aircraft, trigger, FindAircraft);
+    }
+
+    /// <summary>
+    /// What the route <paramref name="taxi"/> would build says of the deferral: the shared-node rule, final either way, and with no
+    /// node to decide, false while <paramref name="target"/> runs head-on along that route. Null when the route decides nothing,
+    /// or fails to build, which leaves the geometry to decide.
+    ///
+    /// <para>
+    /// The preview is the route resolution only, built under the switches the fire path dispatches the TAXI with: a TAXI the fire
+    /// path would refuse for any other reason still waits for the tail first. The route is rebuilt on each judgement from live
+    /// state and never kept, so a restore has nothing to restore. Deferrals have no safety timeout, as on the direct hold's junction
+    /// path: stopped traffic keeps the deferral, and a fresh TAXI clears one.
+    /// </para>
+    /// </summary>
+    private bool? IsDeferredTaxiClearOf(
+        AircraftState aircraft,
+        AircraftState target,
+        TaxiCommand taxi,
+        AirportGroundLayout groundLayout,
+        DeferredDispatch deferral
+    )
+    {
+        var dispatch = new GroundCommandHandler.TaxiDispatch(
+            Scenario?.AutoCrossRunwayMode ?? AutoCrossRunwayMode.Off,
+            Scenario?.ActiveRunways ?? ActiveRunways.Empty,
+            deferral.IsScenarioScripted,
+            ResultReachesController: false,
+            () => World.GetSnapshot()
+        );
+        if (GroundCommandHandler.ResolveTaxiRoute(aircraft, taxi, groundLayout, dispatch) is not { } route)
+        {
+            if (FlightPhysics.LatchGiveWayJudgement(deferral, verdict: null, nodeId: null))
+            {
+                _logger.LogDebug(
+                    "Deferred GIVEWAY for {Callsign} behind {Target}: left to the geometry, its taxi route does not build",
+                    aircraft.Callsign,
+                    target.Callsign
+                );
+            }
+
+            return null;
+        }
+
+        GroundConflictDetector.GiveWayJunction? junction = GroundConflictDetector.GiveWayJunctionOf(aircraft, target, route);
+        bool? clear =
+            GroundConflictDetector.GiveWayJunctionClear(junction)
+            ?? (GroundConflictDetector.GiveWayTrafficHeadOn(aircraft, target, route) ? false : null);
+        if (FlightPhysics.LatchGiveWayJudgement(deferral, clear, junction?.NodeId))
+        {
+            _logger.LogDebug(
+                "Deferred GIVEWAY for {Callsign} behind {Target}: clear={Clear}, shared node {Node}, "
+                    + "tail past {TailPast:F0} ft (needs {Required:F0} ft)",
+                aircraft.Callsign,
+                target.Callsign,
+                clear,
+                junction?.NodeId,
+                junction?.TailPastFt,
+                junction?.RequiredPastFt
+            );
+        }
+
+        return clear;
     }
 }

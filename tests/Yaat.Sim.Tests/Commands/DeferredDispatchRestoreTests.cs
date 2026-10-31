@@ -1,5 +1,9 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
 
@@ -12,9 +16,9 @@ namespace Yaat.Sim.Tests.Commands;
 /// has since been deleted is rejected outright, discarding the clearance. That makes a rewind or replay of a timeline
 /// diverge from the live session it came from.
 /// </summary>
-public sealed class DeferredDispatchRestoreTests
+public sealed class DeferredDispatchRestoreTests(ITestOutputHelper output)
 {
-    public DeferredDispatchRestoreTests()
+    static DeferredDispatchRestoreTests()
     {
         TestVnasData.EnsureInitialized();
     }
@@ -83,6 +87,71 @@ public sealed class DeferredDispatchRestoreTests
         Assert.NotNull(restored);
         Assert.Equal(deferral.GiveWayTarget, restored.GiveWayTarget);
         Assert.IsNotType<GiveWayCondition>(restored.Payload.Blocks[0].Condition);
+    }
+
+    /// <summary>
+    /// A deferred GIVEWAY's route preview keeps no state, so a session restored while it waits releases on the same second as the
+    /// run it was taken from (YAAT-1266).
+    /// </summary>
+    [Fact]
+    public void DeferredGiveWay_RestoredMidHold_ReleasesOnTheSameTick()
+    {
+        const string BundlePath = "TestData/sfo-gc-28rt-recording.yaat-bug-report-bundle.zip";
+        var groundData = RecordingGroundData.VersionPinned(BundlePath, "UAL2237's GIVEWAY to UAL926 crossing toward F");
+        if (groundData.GetLayout("SFO") is null)
+        {
+            return;
+        }
+
+        RecordingArchive? archive = RecordingLoader.OpenArchive(BundlePath);
+        Assert.NotNull(archive);
+
+        using (archive)
+        {
+            var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
+            engine.Replay(archive.ToBaseSessionRecording(), 2080);
+            engine.TickOneSecond();
+            engine.TickOneSecond();
+            AircraftState held = Assert.IsType<AircraftState>(engine.FindAircraft("UAL2237"));
+            AircraftState traffic = Assert.IsType<AircraftState>(engine.FindAircraft("UAL926"));
+            output.WriteLine($"t=2082 headings {held.TrueHeading.Degrees:F1}/{traffic.TrueHeading.Degrees:F1}");
+            double apart = Math.Abs(held.TrueHeading.Degrees - traffic.TrueHeading.Degrees);
+            Assert.True(Math.Min(apart, 360 - apart) is >= 60 and <= 120, "test setup: the pair must be in the 60-120 degree band");
+            CommandResult result = engine.SendCommand("UAL2237", "GIVEWAY UAL926 TAXI GL L LF F 28L");
+            Assert.True(result.Success, result.Message);
+            for (int t = 0; t < 10; t++)
+            {
+                engine.TickOneSecond();
+            }
+
+            Assert.True(GiveWayPending(engine), "test setup: the deferral should still be waiting 10 s in");
+            StateSnapshotDto snapshot = engine.CaptureSnapshot();
+
+            int live = SecondsUntilRelease(engine);
+            engine.RestoreFromSnapshot(snapshot);
+            int restored = SecondsUntilRelease(engine);
+            output.WriteLine($"released {live} s after the snapshot at t=2092, {restored} s after the restore");
+
+            Assert.Equal(live, restored);
+        }
+    }
+
+    private static bool GiveWayPending(SimulationEngine engine) =>
+        engine.FindAircraft("UAL2237")?.DeferredDispatches.Exists(d => d.GiveWayTarget == "UAL926") == true;
+
+    private static int SecondsUntilRelease(SimulationEngine engine)
+    {
+        for (int seconds = 1; seconds <= 400; seconds++)
+        {
+            engine.TickOneSecond();
+            if (!GiveWayPending(engine))
+            {
+                return seconds;
+            }
+        }
+
+        Assert.Fail("the deferred GIVEWAY never released");
+        return 0;
     }
 
     private static AircraftState MakeArrivalOnStar(string route)

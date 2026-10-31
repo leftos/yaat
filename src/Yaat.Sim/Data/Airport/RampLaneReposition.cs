@@ -48,6 +48,9 @@ public sealed record RampLaneRepositionRequest
 
     /// <summary>The aircraft's wake-turbulence class; one-way taxiway constraints can exempt a class.</summary>
     public required WakeTurbulenceData.WakeClass WakeClass { get; init; }
+
+    /// <summary>The level the plan's route-shape line logs at: Debug for a route only previewed.</summary>
+    public LogLevel PlanLogLevel { get; init; } = LogLevel.Information;
 }
 
 /// <summary>What <see cref="RampLaneReposition.TryPlanDestinationCut"/> plans a destination-end apron cut from.</summary>
@@ -76,6 +79,9 @@ public sealed record RampLaneDestinationCutRequest
     /// the roll-in onto its heading starts.
     /// </summary>
     public required double AircraftLengthFt { get; init; }
+
+    /// <summary>The level the plan's route-shape line logs at: Debug for a route only previewed.</summary>
+    public LogLevel PlanLogLevel { get; init; } = LogLevel.Information;
 }
 
 /// <summary>What <see cref="RampLaneReposition.TryPlanRampConfinedRoute"/> plans a bare spot or gate TAXI from inside the ramp from.</summary>
@@ -107,6 +113,9 @@ public sealed record RampConfinedRouteRequest
     /// pass within a wingtip buffer of one, or of the stand one is parked on.
     /// </summary>
     public required IReadOnlyList<NeighbourCandidate> OtherGroundAircraft { get; init; }
+
+    /// <summary>The level the plan's route-shape line logs at: Debug for a route only previewed.</summary>
+    public LogLevel PlanLogLevel { get; init; } = LogLevel.Information;
 }
 
 /// <summary>What <see cref="RampLaneReposition.TryPlanSpotLineUp"/> re-plans a ramp line-up on a spot from.</summary>
@@ -147,6 +156,9 @@ public sealed record SpotLineUpRequest
     /// pass within a wingtip buffer of one, or of the stand one is parked on.
     /// </summary>
     public required IReadOnlyList<NeighbourCandidate> OtherGroundAircraft { get; init; }
+
+    /// <summary>The level the plan's route-shape line logs at: Debug for a route only previewed.</summary>
+    public LogLevel PlanLogLevel { get; init; } = LogLevel.Information;
 }
 
 /// <summary>
@@ -331,14 +343,21 @@ public static class RampLaneReposition
                 continue;
             }
 
-            return BuildPlan(position, currentLane, lane, target, tail);
+            return BuildPlan(request, currentLane, lane, target, tail);
         }
 
         return null;
     }
 
-    private static RampLaneRepositionPlan BuildPlan(LatLon position, string currentLane, string lane, GroundNode target, TaxiRoute tail)
+    private static RampLaneRepositionPlan BuildPlan(
+        RampLaneRepositionRequest request,
+        string currentLane,
+        string lane,
+        GroundNode target,
+        TaxiRoute tail
+    )
     {
+        LatLon position = request.Position;
         double crossingFt = DistanceFt(position, target.Position);
         TaxiRouteSegment crossing = VirtualNode.CreateSegment(VirtualNode.Create(position.Lat, position.Lon), target, tail.Segments[0].TaxiwayName);
         var route = new TaxiRoute
@@ -352,7 +371,8 @@ public static class RampLaneReposition
             DestinationParking = tail.DestinationParking,
             DestinationSpot = tail.DestinationSpot,
         };
-        Log.LogInformation(
+        Log.Log(
+            request.PlanLogLevel,
             "[Reposition] cutting across the ramp from {Current} onto {Lane} at node {Node} ({Ft:F0} ft), then {Summary}",
             currentLane,
             lane,
@@ -466,7 +486,7 @@ public static class RampLaneReposition
                     continue;
                 }
 
-                return BuildDestinationCutPlan(destination, lane, destinationLane, origin, target, crossingFt, head, tail);
+                return BuildDestinationCutPlan(request, lane, destinationLane, origin, target, crossingFt, head, tail);
             }
         }
 
@@ -532,7 +552,7 @@ public static class RampLaneReposition
                 continue;
             }
 
-            return BuildDirectStandCutPlan(head, origin, approach, destination, (lane, destinationLane));
+            return BuildDirectStandCutPlan(head, origin, approach, request, (lane, destinationLane));
         }
 
         Log.LogDebug(
@@ -597,10 +617,11 @@ public static class RampLaneReposition
         TaxiRoute head,
         GroundNode origin,
         GroundNode approach,
-        GroundNode destination,
+        RampLaneDestinationCutRequest request,
         (string Lane, string DestinationLane) lanes
     )
     {
+        GroundNode destination = request.Destination;
         List<TaxiRouteSegment> legs = RollInLegs(origin, approach, destination);
         double driveFt = legs.Sum(l => l.Edge.DistanceNm) * GeoMath.FeetPerNm;
         var route = new TaxiRoute
@@ -613,7 +634,8 @@ public static class RampLaneReposition
             MandatoryConnectorCount = head.MandatoryConnectorCount,
             DestinationParking = destination.Name,
         };
-        Log.LogInformation(
+        Log.Log(
+            request.PlanLogLevel,
             "[Reposition] taxiing {Lane} to node {Origin}, cutting {Ft:F0} ft across the ramp to {Dest}, rolling in on the stand heading",
             lanes.Lane,
             origin.Id,
@@ -646,12 +668,14 @@ public static class RampLaneReposition
     /// <param name="resolvedRoute">The route the graph resolved to the stand.</param>
     /// <param name="destination">The stand the route ends at.</param>
     /// <param name="aircraftLengthFt">Fuselage length of the aircraft, feet; how far out from the stand the roll-in starts.</param>
+    /// <param name="planLogLevel">The level the plan's route-shape line logs at: Debug for a route only previewed.</param>
     /// <returns>The cut plan, or null to keep the resolved route.</returns>
     public static RampLaneDestinationCutPlan? TryPlanResolvedRouteCut(
         AirportGroundLayout layout,
         TaxiRoute resolvedRoute,
         GroundNode destination,
-        double aircraftLengthFt
+        double aircraftLengthFt,
+        LogLevel planLogLevel = LogLevel.Information
     )
     {
         if ((resolvedRoute.Segments.Count == 0) || (destination.Type is not (GroundNodeType.Parking or GroundNodeType.Helipad)))
@@ -701,6 +725,18 @@ public static class RampLaneReposition
         }
 
         string lane = family.Order(StringComparer.Ordinal).FirstOrDefault(l => HasStraightEdgeOf(best.Value.Node, l)) ?? destinationLane;
+        Log.Log(
+            planLogLevel,
+            "[Reposition] leaving {Lane} at node {Node} and driving {Ft:F0} ft across the ramp to {Dest} on {DestLane}, rolling in on "
+                + "the stand heading: {ResultFt:F0} ft instead of the {GraphFt:F0} ft the graph resolved",
+            lane,
+            best.Value.Node.Id,
+            best.Value.CutFt,
+            destination.Name,
+            destinationLane,
+            best.Value.ResultFt,
+            totalFt
+        );
         return BuildResolvedRouteCutPlan(resolvedRoute, destination, approach, (lane, destinationLane), best.Value);
     }
 
@@ -732,17 +768,6 @@ public static class RampLaneReposition
             MandatoryConnectorCount = resolvedRoute.MandatoryConnectorCount,
             DestinationParking = destination.Name,
         };
-        Log.LogInformation(
-            "[Reposition] leaving {Lane} at node {Node} and driving {Ft:F0} ft across the ramp to {Dest} on {DestLane}, rolling in on "
-                + "the stand heading: {ResultFt:F0} ft instead of the {GraphFt:F0} ft the graph resolved",
-            lanes.Lane,
-            cut.Node.Id,
-            cut.CutFt,
-            destination.Name,
-            lanes.DestinationLane,
-            cut.ResultFt,
-            resolvedRoute.TotalDistanceFt
-        );
         return new RampLaneDestinationCutPlan(cut.Node, destination, lanes.Lane, lanes.DestinationLane, cut.CutFt, route);
     }
 
@@ -832,7 +857,7 @@ public static class RampLaneReposition
             return null;
         }
 
-        return BuildRampCutRoute(chosen.Head, chosen.Cut, request.Destination);
+        return BuildRampCutRoute(chosen.Head, chosen.Cut, request);
     }
 
     /// <summary>
@@ -1048,7 +1073,7 @@ public static class RampLaneReposition
     /// The head, the drive across the apron (named RAMP, so the broadcast sequence and the readback name only the lanes)
     /// and the tail, as one route.
     /// </summary>
-    private static TaxiRoute BuildRampCutRoute(TaxiRoute head, RampCut cut, GroundNode destination)
+    private static TaxiRoute BuildRampCutRoute(TaxiRoute head, RampCut cut, RampConfinedRouteRequest request)
     {
         TaxiRoute tail = cut.Tail.Route;
         TaxiRouteSegment crossing = VirtualNode.CreateSegment(cut.Origin, cut.Tail.Target, "RAMP");
@@ -1060,9 +1085,10 @@ public static class RampLaneReposition
             ImpliedLanes = [.. head.ImpliedLanes.Concat(tail.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase)],
             ClearanceTaxiways = head.ClearanceTaxiways,
         };
-        Log.LogInformation(
+        Log.Log(
+            request.PlanLogLevel,
             "[RampConfined] {Dest}: {Head} to node {Origin}, cutting {Ft:F0} ft across the ramp to node {Target}, then {Tail}",
-            destination.Name,
+            request.Destination.Name,
             head.Segments.Count == 0 ? "from the start" : head.ToSummary(),
             cut.Origin.Id,
             cut.CutFt,
@@ -1117,7 +1143,7 @@ public static class RampLaneReposition
     }
 
     private static RampLaneDestinationCutPlan BuildDestinationCutPlan(
-        GroundNode destination,
+        RampLaneDestinationCutRequest request,
         string lane,
         string destinationLane,
         GroundNode origin,
@@ -1127,6 +1153,8 @@ public static class RampLaneReposition
         TaxiRoute tail
     )
     {
+        GroundNode destination = request.Destination;
+
         // The crossing is apron, not the lane: named RAMP so the broadcast taxiway sequence and the readback stay
         // the clearance as issued ("V T TE"), and the client reconstructs the cut from the destination instead.
         TaxiRouteSegment crossing = VirtualNode.CreateSegment(origin, target, "RAMP");
@@ -1141,7 +1169,8 @@ public static class RampLaneReposition
             DestinationParking = destination.Type == GroundNodeType.Spot ? null : destination.Name,
             DestinationSpot = destination.Type == GroundNodeType.Spot ? destination.Name : null,
         };
-        Log.LogInformation(
+        Log.Log(
+            request.PlanLogLevel,
             "[Reposition] taxiing {Lane} to node {Origin}, cutting across the ramp onto {DestLane} at node {Target} ({Ft:F0} ft), then {Summary}",
             lane,
             origin.Id,
@@ -1603,7 +1632,8 @@ public static class RampLaneReposition
             // The lane starts where the tail does, after however many free-space legs lead to it.
             SpotLineUpPullFromSegment = segments.Count - join.Tail.Segments.Count,
         };
-        Log.LogInformation(
+        Log.Log(
+            request.PlanLogLevel,
             "[SpotLineUp] {Callsign} lining up on {Spot} to leave the ramp: {Legs} free-space leg(s) of {Ft:F0} ft to node {Join}, "
                 + "{Run:F0} ft up the lane, then {Summary}",
             request.Callsign,

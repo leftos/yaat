@@ -192,12 +192,14 @@ public static partial class GroundCommandHandler
     /// <param name="AircraftLengthFt">Its fuselage length, feet.</param>
     /// <param name="ClearedPath">The taxiways the clearance named, as the controller worded it.</param>
     /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
+    /// <param name="RouteLogLevel">The level the plan's route-shape line logs at (<see cref="TaxiResolveInputs.RouteLogLevel"/>).</param>
     private sealed record SpotLineUpInputs(
         AircraftCategory Category,
         WakeTurbulenceData.WakeClass WakeClass,
         double AircraftLengthFt,
         IReadOnlyList<string> ClearedPath,
-        Func<IReadOnlyList<AircraftState>>? ListAircraft
+        Func<IReadOnlyList<AircraftState>>? ListAircraft,
+        LogLevel RouteLogLevel
     );
 
     /// <summary>The command a TAXI clearance resolved from, its route, and the failure when no route resolved.</summary>
@@ -234,7 +236,7 @@ public static partial class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        TaxiPreparation preparation = ResolveTaxiFromPosition(aircraft, taxi, groundLayout, options, LogLevel.Warning);
+        TaxiPreparation preparation = ResolveTaxiFromPosition(aircraft, taxi, groundLayout, options, ClearanceLogLevels);
         if (preparation.Prepared is not { } prepared)
         {
             return preparation.Refusal ?? throw new InvalidOperationException("a taxi preparation carries neither a resolution nor a refusal");
@@ -580,6 +582,17 @@ public static partial class GroundCommandHandler
     private sealed record TaxiPreparation(PreparedTaxi? Prepared, CommandResult? Refusal);
 
     /// <summary>
+    /// The levels a resolution logs at (<see cref="TaxiResolveInputs.FailureLogLevel"/>, <see cref="TaxiResolveInputs.RouteLogLevel"/>).
+    /// </summary>
+    private readonly record struct TaxiLogLevels(LogLevel Failure, LogLevel Route);
+
+    /// <summary>A clearance being given, whose resolution is worth telling once.</summary>
+    private static readonly TaxiLogLevels ClearanceLogLevels = new(LogLevel.Warning, LogLevel.Information);
+
+    /// <summary>A route previewed with nothing installed, possibly every second.</summary>
+    private static readonly TaxiLogLevels PreviewLogLevels = new(LogLevel.Debug, LogLevel.Debug);
+
+    /// <summary>
     /// Resolves a TAXI from where the aircraft stands without changing it: the clearance's spot vias, its hold-short directional
     /// hints, the start node clear of the traffic in view, and the route from there. <see cref="TryTaxiCore"/> runs this and then
     /// installs; <see cref="ResolveTaxiRoute"/> runs only this.
@@ -589,7 +602,7 @@ public static partial class GroundCommandHandler
         TaxiCommand taxi,
         AirportGroundLayout groundLayout,
         TaxiCoreOptions options,
-        LogLevel failureLogLevel
+        TaxiLogLevels logLevels
     )
     {
         // The clearance as the controller worded it. When a cleared taxiway has to be dropped below, the
@@ -625,7 +638,7 @@ public static partial class GroundCommandHandler
         if (groundLayout.PickTaxiStart(aircraft.Position, aircraft.TrueHeading, traffic) is not { } taxiStart)
         {
             Log.Log(
-                failureLogLevel,
+                logLevels.Failure,
                 "[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})",
                 aircraft.Callsign,
                 aircraft.Position.Lat,
@@ -646,7 +659,8 @@ public static partial class GroundCommandHandler
             Category = category,
             WakeClass = WakeTurbulenceData.WakeClassForType(aircraft.AircraftType, category),
             AircraftLengthFt = AircraftLength.ResolveFt(aircraft.AircraftType),
-            FailureLogLevel = failureLogLevel,
+            FailureLogLevel = logLevels.Failure,
+            RouteLogLevel = logLevels.Route,
         };
         TaxiResolution resolved = ResolveTaxiRouteFromStart(inputs, taxi, taxiStart.Node);
         return new TaxiPreparation(new PreparedTaxi(inputs, taxi, resolved, taxiStart.Blocker), null);
@@ -664,7 +678,7 @@ public static partial class GroundCommandHandler
                 taxi,
                 groundLayout,
                 TaxiCoreOptions.For(dispatch, isTaxiAuto: false),
-                LogLevel.Debug
+                PreviewLogLevels
             ).Prepared?.Resolved.Route
             : null;
 
@@ -1202,6 +1216,12 @@ public static partial class GroundCommandHandler
 
         /// <summary>The level a failed resolution logs at: Debug for a second attempt whose failure the first one reports.</summary>
         public required LogLevel FailureLogLevel { get; init; }
+
+        /// <summary>
+        /// The level the lines describing the route's shape log at: Information for a real clearance, Debug for a preview, which may
+        /// run every second. A reversal in the route warns on a real clearance whatever this says.
+        /// </summary>
+        public required LogLevel RouteLogLevel { get; init; }
     }
 
     /// <summary>A TAXI clearance resolved from one start node: the route with its approach leg, or the refusal.</summary>
@@ -1608,7 +1628,7 @@ public static partial class GroundCommandHandler
         startNode = AnchorToFirstClearedTaxiway(aircraft, groundLayout, taxi, startNode);
 
         // A drawn route's leading nodes go stale while the controller is drawing — see the helper.
-        taxi = TrimPassedNodeRefPrefix(aircraft, startNode, taxi);
+        taxi = TrimPassedNodeRefPrefix(inputs, startNode, taxi);
         if ((taxi.Path.Count == 0) && (taxi.DestinationRunway is null) && (taxi.DestinationParking is null) && (taxi.DestinationSpot is null))
         {
             return TaxiResolution.Refused(taxi, new CommandResult(false, $"{aircraft.Callsign} has already taxied past the whole route"));
@@ -1679,7 +1699,7 @@ public static partial class GroundCommandHandler
                     command,
                     new RampConfinedInputs(
                         aircraft,
-                        new SpotLineUpInputs(category, wakeClass, aircraftLengthFt, asCleared.Path, options.ListAircraft)
+                        new SpotLineUpInputs(category, wakeClass, aircraftLengthFt, asCleared.Path, options.ListAircraft, inputs.RouteLogLevel)
                     ),
                     out routeFailure
                 );
@@ -1688,15 +1708,12 @@ public static partial class GroundCommandHandler
             if (command.DestinationParking is not null || command.DestinationSpot is not null)
             {
                 return ResolveParkingRoute(
-                    groundLayout,
+                    inputs,
                     startNode,
                     command,
                     out routeFailure,
-                    category,
-                    wakeClass,
                     startHeadingTrueDeg,
                     startPose,
-                    aircraftLengthFt,
                     StartTaxiwaysOf(command, asCleared, occupiedTaxiway)
                 );
             }
@@ -1814,6 +1831,7 @@ public static partial class GroundCommandHandler
                     },
                     Category = category,
                     WakeClass = wakeClass,
+                    PlanLogLevel = inputs.RouteLogLevel,
                 },
                 failure,
                 out PathfindingFailure? tailRefusal
@@ -1860,6 +1878,7 @@ public static partial class GroundCommandHandler
                     Category = category,
                     WakeClass = wakeClass,
                     AircraftLengthFt = aircraftLengthFt,
+                    PlanLogLevel = inputs.RouteLogLevel,
                 }
             );
             if (cut is not null)
@@ -1880,7 +1899,8 @@ public static partial class GroundCommandHandler
                 groundLayout,
                 route,
                 resolvedDestination,
-                aircraftLengthFt
+                aircraftLengthFt,
+                inputs.RouteLogLevel
             );
             if (improved is not null)
             {
@@ -1892,7 +1912,7 @@ public static partial class GroundCommandHandler
         // exactly one cleared taxiway, re-resolves, and records the as-applied command for the readback.
         if (route is null && startNode.Type == GroundNodeType.Parking)
         {
-            DroppedTaxiwayRoute? leadOut = TryDropGateLeadOut(aircraft, groundLayout, taxi, failure, cmd => ResolveRoute(cmd, out _));
+            DroppedTaxiwayRoute? leadOut = TryDropGateLeadOut(inputs, taxi, failure, cmd => ResolveRoute(cmd, out _));
             if (leadOut is not null)
             {
                 effectiveCommand = WithoutPathToken(asCleared, leadOut.DroppedName);
@@ -1905,7 +1925,7 @@ public static partial class GroundCommandHandler
 
         if (route is null)
         {
-            DroppedTaxiwayRoute? via = TryDropContradictoryVia(aircraft, taxi, cmd => ResolveRoute(cmd, out _));
+            DroppedTaxiwayRoute? via = TryDropContradictoryVia(inputs, taxi, cmd => ResolveRoute(cmd, out _));
             if (via is not null)
             {
                 effectiveCommand = WithoutPathToken(asCleared, via.DroppedName);
@@ -1916,7 +1936,16 @@ public static partial class GroundCommandHandler
         }
 
         // Last, a clearance whose taxiways do not join up: hold short of the taxiway the route needs, or refuse naming it.
-        var startLink = new StartLinkInputs(aircraft.Callsign, groundLayout, startNode, taxi, occupiedTaxiway, category, wakeClass);
+        var startLink = new StartLinkInputs(
+            aircraft.Callsign,
+            groundLayout,
+            startNode,
+            taxi,
+            occupiedTaxiway,
+            category,
+            wakeClass,
+            inputs.RouteLogLevel
+        );
         bool endsAtTargetHold = (route is not null) && EndsAtTargetHold(route, foldTargets);
         MissingTaxiwayFallback fallback = ApplyMissingTaxiwayFallbacks(startLink, route, endsAtTargetHold, cmd => ResolveRoute(cmd, out _));
         route = fallback.Held ?? route;
@@ -1939,7 +1968,7 @@ public static partial class GroundCommandHandler
             groundLayout,
             route,
             endsShort ? null : destinationNode,
-            new SpotLineUpInputs(category, wakeClass, aircraftLengthFt, asCleared.Path, options.ListAircraft)
+            new SpotLineUpInputs(category, wakeClass, aircraftLengthFt, asCleared.Path, options.ListAircraft, inputs.RouteLogLevel)
         );
 
         // The resolver starts from the nearest graph node, which after a pushback onto open apron can be a
@@ -2435,6 +2464,7 @@ public static partial class GroundCommandHandler
             AircraftLengthFt = inputs.AircraftLengthFt,
             ClearedTaxiways = inputs.ClearedPath,
             OtherGroundAircraft = OtherGroundCandidates(inputs),
+            PlanLogLevel = inputs.RouteLogLevel,
         };
     }
 
@@ -3059,8 +3089,9 @@ public static partial class GroundCommandHandler
     /// stops at the first node that is still ahead: a named-taxiway clearance is untouched, and a drawn
     /// route that legitimately loops back past the aircraft later on keeps its tail.</para>
     /// </summary>
-    private static TaxiCommand TrimPassedNodeRefPrefix(AircraftState aircraft, GroundNode startNode, TaxiCommand taxi)
+    private static TaxiCommand TrimPassedNodeRefPrefix(TaxiResolveInputs inputs, GroundNode startNode, TaxiCommand taxi)
     {
+        AircraftState aircraft = inputs.Aircraft;
         int leadingRun = 0;
         while ((leadingRun < taxi.Path.Count) && NodeRefToken.IsNodeReference(taxi.Path[leadingRun]))
         {
@@ -3093,7 +3124,8 @@ public static partial class GroundCommandHandler
             return taxi;
         }
 
-        Log.LogInformation(
+        Log.Log(
+            inputs.RouteLogLevel,
             "[TryTaxi] {Callsign}: dropped {Count} node reference(s) already taxied past ({Dropped}); path now starts at {Head}",
             aircraft.Callsign,
             drop,
@@ -3428,13 +3460,14 @@ public static partial class GroundCommandHandler
     /// The caller has already established a parking start. Null when the guard fails or the rest does not resolve.
     /// </summary>
     private static DroppedTaxiwayRoute? TryDropGateLeadOut(
-        AircraftState aircraft,
-        AirportGroundLayout groundLayout,
+        TaxiResolveInputs inputs,
         TaxiCommand taxi,
         PathfindingFailure? failure,
         Func<TaxiCommand, TaxiRoute?> resolve
     )
     {
+        AircraftState aircraft = inputs.Aircraft;
+        AirportGroundLayout groundLayout = inputs.Layout;
         if (
             taxi.Path.Count < 2
             || taxi.Path[0].StartsWith('#')
@@ -3468,7 +3501,8 @@ public static partial class GroundCommandHandler
         }
 
         string laneUsed = FirstNonRampTaxiway(route) ?? withoutLeadOut.Path[0];
-        Log.LogInformation(
+        Log.Log(
+            inputs.RouteLogLevel,
             "[TryTaxi] {Callsign}: dropped unreachable gate lead-out taxiway {Twy} (nearest node {NodeId}, {Dist:F0} ft away); "
                 + "taxiing via {Lane}",
             aircraft.Callsign,
@@ -3490,7 +3524,7 @@ public static partial class GroundCommandHandler
     /// clearance as applied (without the dropped taxiway). Null when there is no
     /// parking/spot destination, fewer than two path elements, or no single drop resolves.
     /// </summary>
-    private static DroppedTaxiwayRoute? TryDropContradictoryVia(AircraftState aircraft, TaxiCommand taxi, Func<TaxiCommand, TaxiRoute?> resolve)
+    private static DroppedTaxiwayRoute? TryDropContradictoryVia(TaxiResolveInputs inputs, TaxiCommand taxi, Func<TaxiCommand, TaxiRoute?> resolve)
     {
         if ((taxi.DestinationParking is null && taxi.DestinationSpot is null) || taxi.Path.Count < 2)
         {
@@ -3525,9 +3559,10 @@ public static partial class GroundCommandHandler
             return null;
         }
 
-        Log.LogInformation(
+        Log.Log(
+            inputs.RouteLogLevel,
             "[TryTaxi] {Callsign}: dropped contradictory path element {Dropped} to reach " + "{Dest}",
-            aircraft.Callsign,
+            inputs.Aircraft.Callsign,
             droppedName,
             destLabel
         );
@@ -3578,7 +3613,7 @@ public static partial class GroundCommandHandler
         }
 
         bool shortOfDestination = (route is null) || (!endsAtTargetHold && IsRunwayRouteShortOfItsRunway(route, inputs.Taxi));
-        TaxiRoute? held = shortOfDestination ? TryHoldShortOfMissingTaxiway(inputs.Callsign, inputs.Layout, inputs.Taxi, resolve) : null;
+        TaxiRoute? held = shortOfDestination ? TryHoldShortOfMissingTaxiway(inputs, resolve) : null;
         return new MissingTaxiwayFallback(held, null);
     }
 
@@ -3589,7 +3624,8 @@ public static partial class GroundCommandHandler
             link.Held is { } held ? $"holding short on {inputs.OccupiedTaxiway} at node {held.Segments[^1].ToNodeId}"
             : route is null ? $"refusing: {link.Refusal}"
             : "accepting the route resolved";
-        Log.LogInformation(
+        Log.Log(
+            inputs.RouteLogLevel,
             "[TryTaxi] {Callsign}: start does not reach {First} as cleared; missing link {Missing} — {Outcome}",
             inputs.Callsign,
             link.First,
@@ -3626,13 +3662,10 @@ public static partial class GroundCommandHandler
     /// <see cref="MaxMissingTaxiwayCandidates"/> X are tried, those meeting the last taxiway nearest the destination
     /// first. Null when the path ends on no plain taxiway or no single extra taxiway reaches the destination.
     /// </summary>
-    private static TaxiRoute? TryHoldShortOfMissingTaxiway(
-        string callsign,
-        AirportGroundLayout layout,
-        TaxiCommand taxi,
-        Func<TaxiCommand, TaxiRoute?> resolve
-    )
+    private static TaxiRoute? TryHoldShortOfMissingTaxiway(StartLinkInputs inputs, Func<TaxiCommand, TaxiRoute?> resolve)
     {
+        AirportGroundLayout layout = inputs.Layout;
+        TaxiCommand taxi = inputs.Taxi;
         string? lastCleared = taxi.Path.Count > 0 ? taxi.Path[^1] : null;
         if (!HasDestination(taxi) || (lastCleared is null) || lastCleared.StartsWith('#') || (layout.GetNodesOnTaxiway(lastCleared).Count == 0))
         {
@@ -3657,9 +3690,10 @@ public static partial class GroundCommandHandler
             return null;
         }
 
-        Log.LogInformation(
+        Log.Log(
+            inputs.RouteLogLevel,
             "[TryTaxi] {Callsign}: route does not reach its destination as cleared; holding short of {Missing} at node {Node} ({Summary})",
-            callsign,
+            inputs.Callsign,
             best.Taxiway,
             best.Held.Segments[^1].ToNodeId,
             best.Held.ToSummary()
@@ -3996,7 +4030,8 @@ public static partial class GroundCommandHandler
         TaxiCommand Taxi,
         string? OccupiedTaxiway,
         AircraftCategory Category,
-        WakeTurbulenceData.WakeClass WakeClass
+        WakeTurbulenceData.WakeClass WakeClass,
+        LogLevel RouteLogLevel
     );
 
     /// <summary>
@@ -4343,6 +4378,7 @@ public static partial class GroundCommandHandler
             Callsign = inputs.Aircraft.Callsign,
             AircraftType = inputs.Aircraft.AircraftType,
             OtherGroundAircraft = OtherGroundCandidates(lineUp),
+            PlanLogLevel = lineUp.RouteLogLevel,
         };
         TaxiRoute? route = RampLaneReposition.TryPlanRampConfinedRoute(groundLayout, request) is { } confined
             ? SetDestination(confined, taxi)
@@ -4406,18 +4442,19 @@ public static partial class GroundCommandHandler
     }
 
     private static TaxiRoute? ResolveParkingRoute(
-        AirportGroundLayout groundLayout,
+        TaxiResolveInputs inputs,
         GroundNode startNode,
         TaxiCommand taxi,
         out PathfindingFailure? failure,
-        AircraftCategory category,
-        WakeTurbulenceData.WakeClass wakeClass,
         double startHeadingTrueDeg,
         StartPose startPose,
-        double aircraftLengthFt,
         StartTaxiways startTaxiways
     )
     {
+        AirportGroundLayout groundLayout = inputs.Layout;
+        AircraftCategory category = inputs.Category;
+        WakeTurbulenceData.WakeClass wakeClass = inputs.WakeClass;
+        double aircraftLengthFt = inputs.AircraftLengthFt;
         failure = null;
 
         string destLabel = taxi.DestinationSpot ?? taxi.DestinationParking!;
@@ -4522,7 +4559,8 @@ public static partial class GroundCommandHandler
             TaxiRouteSegment b = combined[i + 1];
             if (a.FromNodeId == b.ToNodeId && a.ToNodeId == b.FromNodeId)
             {
-                Log.LogWarning(
+                Log.Log(
+                    inputs.RouteLogLevel == LogLevel.Debug ? LogLevel.Debug : LogLevel.Warning,
                     "[TryTaxi] Resolved taxi route to {DestLabel} has a reversal at index {Index}: ({FromA}→{ToA}) then ({FromB}→{ToB})",
                     destLabel,
                     i,

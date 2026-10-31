@@ -3822,13 +3822,35 @@ public static class GroundConflictDetector
     /// such node.
     /// </para>
     /// </summary>
-    internal static GiveWayJunction? GiveWayJunctionOf(AircraftState held, AircraftState traffic)
-    {
-        if (GiveWayRoutes.Of(held, traffic) is not { } routes)
-        {
-            return null;
-        }
+    internal static GiveWayJunction? GiveWayJunctionOf(AircraftState held, AircraftState traffic) =>
+        (GiveWayRoutes.Of(held, traffic) is { } routes) ? FirstJunction(routes) : null;
 
+    /// <summary>
+    /// <see cref="GiveWayJunctionOf(AircraftState, AircraftState)"/> with <paramref name="heldRoute"/> as the held aircraft's route, driven
+    /// or not: the route a deferred TAXI would build. The route is read for its nodes only, so the held aircraft need not be on it.
+    /// </summary>
+    internal static GiveWayJunction? GiveWayJunctionOf(AircraftState held, AircraftState traffic, TaxiRoute heldRoute) =>
+        (GiveWayRoutes.Of(held, traffic, heldRoute) is { } routes) ? FirstJunction(routes) : null;
+
+    /// <summary>
+    /// What <paramref name="junction"/> says of a GIVEWAY: whether the traffic's tail has cleared the node, and null when no node
+    /// decides it, with no junction or with a cleared one the traffic's route then runs head-on along the held route from. A null
+    /// leaves the judgement to the pass geometry of <see cref="FlightPhysics.IsGiveWayMet"/>, which a deferred GIVEWAY and a queued
+    /// GiveWay block apply only once the traffic no longer runs head-on along the route (<see cref="GiveWayTrafficHeadOn"/>).
+    /// </summary>
+    internal static bool? GiveWayJunctionClear(GiveWayJunction? junction) =>
+        ((junction is { } met) && !(met.TrafficPast && met.TrafficHeadOn)) ? met.TrafficPast : null;
+
+    /// <summary>
+    /// Whether <paramref name="traffic"/>'s driven route, from its current segment on, runs head-on along <paramref name="heldRoute"/>
+    /// toward <paramref name="held"/> (<see cref="RunsHeadOnAlongHeldRoute"/>), at any distance; false when the traffic drives no
+    /// route. Read from its current segment, so it turns false once the traffic is past.
+    /// </summary>
+    internal static bool GiveWayTrafficHeadOn(AircraftState held, AircraftState traffic, TaxiRoute heldRoute) =>
+        GiveWayRoutes.Of(held, traffic, heldRoute) is { TrafficHeadOn: true };
+
+    private static GiveWayJunction? FirstJunction(GiveWayRoutes routes)
+    {
         GiveWayJunction? cleared = null;
         for (int k = routes.Current; k >= 0; k--)
         {
@@ -3908,13 +3930,23 @@ public static class GroundConflictDetector
         /// <summary>The traffic's current segment, clamped to its route: node <c>Current</c> is the last it passed.</summary>
         internal int Current { get; } = Math.Clamp(trafficRoute.CurrentSegmentIndex, 0, trafficRoute.Segments.Count);
 
+        /// <summary>
+        /// Whether the traffic's route, from its current segment on, runs head-on along the held route
+        /// (<see cref="RunsHeadOnAlongHeldRoute"/>).
+        /// </summary>
+        internal bool TrafficHeadOn => RunsHeadOnAlongHeldRoute(heldRoute, _heldNodes, TrafficRoute);
+
         /// <summary>The pair's routes; null when either aircraft drives no route, or the traffic's has no segment.</summary>
-        internal static GiveWayRoutes? Of(AircraftState held, AircraftState traffic)
+        internal static GiveWayRoutes? Of(AircraftState held, AircraftState traffic) =>
+            (FollowingPhase.DrivenRouteOf(held) is { } heldRoute) ? Of(held, traffic, heldRoute) : null;
+
+        /// <summary>
+        /// The pair's routes with <paramref name="heldRoute"/> as the held aircraft's; null when the traffic drives no route with a
+        /// segment.
+        /// </summary>
+        internal static GiveWayRoutes? Of(AircraftState held, AircraftState traffic, TaxiRoute heldRoute)
         {
-            if (
-                (FollowingPhase.DrivenRouteOf(held) is not { } heldRoute)
-                || (FollowingPhase.DrivenRouteOf(traffic) is not { Segments.Count: > 0 } route)
-            )
+            if (FollowingPhase.DrivenRouteOf(traffic) is not { Segments.Count: > 0 } route)
             {
                 return null;
             }
@@ -3932,7 +3964,7 @@ public static class GroundConflictDetector
                     nodeIndex,
                     CentrePastRouteNodeFt(traffic, TrafficRoute, nodeIndex) - _halfLengthFt,
                     requiredPastFt,
-                    RunsHeadOnAlongHeldRoute(heldRoute, _heldNodes, TrafficRoute)
+                    TrafficHeadOn
                 )
                 : null;
     }
