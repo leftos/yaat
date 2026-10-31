@@ -152,6 +152,25 @@ public class ContextEntityFactoryTests
         Assert.DoesNotContain(oakland.Forms, form => form.Text.Contains("vor", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void KoakNimitzSid_SpokenByRegisteredPronunciationFirst()
+    {
+        CifpSidProcedure sid = Assert.Single(
+            Nav.GetSids("KOAK").Concat(Nav.GetArtccFragmentSids("KOAK")),
+            candidate => candidate.ProcedureId.StartsWith("NIMI", StringComparison.Ordinal)
+        );
+        string id = sid.ProcedureId;
+        string version = id[4..];
+
+        IReadOnlyList<ContextEntity> procedures = ContextEntityFactory.DeparturesAndArrivals("KOAK", Nav);
+
+        ContextEntity nimitz = Assert.Single(procedures, entity => entity.Value == $"KOAK/{id}");
+        Assert.Equal($"nimitz {version}", Tokens(nimitz.Forms[0]));
+        Assert.Contains(nimitz.Forms, form => Tokens(form) == $"nimitz {version} departure");
+        string codeSpelled = TextTokens($"{PhraseologyVerbalizer.SpellFix("NIMI")} {version}");
+        Assert.Contains(nimitz.Forms, form => Tokens(form) == codeSpelled);
+    }
+
     private static bool IsOaklandSid(CifpSidProcedure sid) =>
         (sid.ProcedureId.Length == 4) && sid.ProcedureId.StartsWith("OAK", StringComparison.Ordinal) && char.IsAsciiDigit(sid.ProcedureId[3]);
 
@@ -160,7 +179,7 @@ public class ContextEntityFactoryTests
     [Fact]
     public void OakTaxiwayW4_FromLayout()
     {
-        IReadOnlyList<ContextEntity> ground = ContextEntityFactory.GroundEntities("KOAK", Layout("OAK"));
+        IReadOnlyList<ContextEntity> ground = ContextEntityFactory.GroundEntities("KOAK", Layout("OAK"), Nav);
 
         ContextEntity w4 = Assert.Single(ground, entity => entity.Value == "KOAK/W4");
         Assert.Equal(EntityKind.Taxiway, w4.Kind);
@@ -171,7 +190,7 @@ public class ContextEntityFactoryTests
     [Fact]
     public void SfoSpot6B_ValueSpot6B()
     {
-        IReadOnlyList<ContextEntity> ground = ContextEntityFactory.GroundEntities("KSFO", Layout("SFO"));
+        IReadOnlyList<ContextEntity> ground = ContextEntityFactory.GroundEntities("KSFO", Layout("SFO"), Nav);
 
         ContextEntity spot = Assert.Single(ground, entity => entity.Value == "KSFO/SPOT 6B");
         Assert.Equal(EntityKind.Gate, spot.Kind);
@@ -185,7 +204,7 @@ public class ContextEntityFactoryTests
         string? allDigit = GroundLayoutSpeechNames.SpotNames(sfo).FirstOrDefault(name => name.All(char.IsAsciiDigit));
         Assert.NotNull(allDigit);
 
-        IReadOnlyList<ContextEntity> ground = ContextEntityFactory.GroundEntities("KSFO", sfo);
+        IReadOnlyList<ContextEntity> ground = ContextEntityFactory.GroundEntities("KSFO", sfo, Nav);
 
         ContextEntity spot = Assert.Single(ground, entity => entity.Value == $"KSFO/SPOT {allDigit}");
         SpokenForm only = Assert.Single(spot.Forms);
@@ -195,7 +214,7 @@ public class ContextEntityFactoryTests
     [Fact]
     public void SfoC11_GateForms()
     {
-        IReadOnlyList<ContextEntity> ground = ContextEntityFactory.GroundEntities("KSFO", Layout("SFO"));
+        IReadOnlyList<ContextEntity> ground = ContextEntityFactory.GroundEntities("KSFO", Layout("SFO"), Nav);
 
         ContextEntity gate = Assert.Single(ground, entity => entity.Value == "KSFO/C11");
         Assert.Equal(EntityKind.Gate, gate.Kind);
@@ -252,5 +271,7 @@ public class ContextEntityFactoryTests
 
     private static double PriorOf(ContextEntity entity, string tokens) => Assert.Single(entity.Forms, form => Tokens(form) == tokens).Prior;
 
-    private static string Tokens(SpokenForm form) => string.Join(" ", SpokenTokenizer.Tokenize(form.Text).Select(token => token.Text));
+    private static string Tokens(SpokenForm form) => TextTokens(form.Text);
+
+    private static string TextTokens(string text) => string.Join(" ", SpokenTokenizer.Tokenize(text).Select(token => token.Text));
 }

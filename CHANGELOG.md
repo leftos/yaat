@@ -7,6 +7,10 @@
 - An aircraft in closed traffic tightens its pattern to stay clear of another runway's corridor, or warns once that its pattern crosses it.
 - An ARTCC's airport file can list the taxiways that raise CRC's ASDE-X taxiway-landing alert; an airport without a list alerts on any taxiway.
 
+### Changed
+
+- Pilots say a SID or STAR by its charted name: KOAK's NIMI5 is "Nimitz Five", not "nimi five".
+
 ### Fixed
 
 - A `CFIX` or constrained `DCTF` speed replaces a `MACH` hold until its fix, and the Mach resumes past it; `WARP` ends the hold.

@@ -293,6 +293,8 @@ public sealed class NavigationDatabase
         // AllFixNames is built at the end of this constructor.
         LoadMilitaryRoutes(MilitaryRouteDatabase.Default);
         LoadFixPronunciations(artccsBaseDir);
+        LoadGatePronunciations(artccsBaseDir);
+        LoadProcedurePronunciations(artccsBaseDir);
         InitialContactTransfers = LoadInitialContactTransfers(artccsBaseDir);
         WakeDirectives = LoadWakeDirectives(artccsBaseDir);
         AirportSidecars = LoadAirportSidecars(artccsBaseDir);
@@ -768,6 +770,25 @@ public sealed class NavigationDatabase
     /// </summary>
     private readonly Dictionary<string, string> _fixDisplayNames = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Gate and spot spoken forms and named ground places from <c>GatePronunciations/*.json</c>, keyed by
+    /// <see cref="NormalizeAirport"/>. Read by the speech-to-text context layer only.
+    /// </summary>
+    private readonly Dictionary<string, AirportGroundPronunciations> _groundPronunciations = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Spoken base names of SIDs and STARs from <c>ProcedurePronunciations/*.json</c>, keyed by base name (<c>NIMI</c> →
+    /// "nimitz"). Read by pilot speech and the speech-to-text context.
+    /// </summary>
+    private readonly Dictionary<string, List<string>> _procedurePronunciations = new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed class AirportGroundPronunciations
+    {
+        public Dictionary<string, List<string>> Gates { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, List<string>> Spots { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<GroundPlaceDefinition> Places { get; } = [];
+    }
+
     // ──────────────────────────────────────────────
     //  NavData lookups (eagerly built)
     // ──────────────────────────────────────────────
@@ -855,6 +876,34 @@ public sealed class NavigationDatabase
     /// of non-obviously-pronounced fix names.
     /// </summary>
     public IReadOnlyList<string> GetFixPronunciations(string fix) => _fixPronunciations.TryGetValue(fix, out List<string>? list) ? list : [];
+
+    /// <summary>The registered spoken forms of a gate (parking) name at an airport, in file order; empty when none.</summary>
+    /// <param name="airport">The airport, FAA or ICAO form, any case.</param>
+    /// <param name="gateName">The layout gate name, any case.</param>
+    public IReadOnlyList<string> GetGatePronunciations(string airport, string gateName) =>
+        ((GroundPronunciationsFor(airport) is { } ground) && ground.Gates.TryGetValue(gateName.Trim(), out List<string>? list))
+            ? list.AsReadOnly()
+            : [];
+
+    /// <summary>The registered spoken forms of a spot name at an airport, in file order; empty when none.</summary>
+    /// <param name="airport">The airport, FAA or ICAO form, any case.</param>
+    /// <param name="spotName">The layout spot name, any case.</param>
+    public IReadOnlyList<string> GetSpotPronunciations(string airport, string spotName) =>
+        ((GroundPronunciationsFor(airport) is { } ground) && ground.Spots.TryGetValue(spotName.Trim(), out List<string>? list))
+            ? list.AsReadOnly()
+            : [];
+
+    /// <summary>The airport's named ground places (FBOs, ramps, bays), in file order; empty when none.</summary>
+    /// <param name="airport">The airport, FAA or ICAO form, any case.</param>
+    public IReadOnlyList<GroundPlaceDefinition> GetGroundPlaces(string airport) => GroundPronunciationsFor(airport)?.Places.AsReadOnly() ?? [];
+
+    /// <summary>The registered spoken forms of a SID or STAR base name ("NIMI" → "nimitz"), in file order; empty when none.</summary>
+    /// <param name="procedureBaseName">The procedure id without its version digits, any case.</param>
+    public IReadOnlyList<string> GetProcedurePronunciations(string procedureBaseName) =>
+        _procedurePronunciations.TryGetValue(procedureBaseName.Trim(), out List<string>? list) ? list.AsReadOnly() : [];
+
+    private AirportGroundPronunciations? GroundPronunciationsFor(string airport) =>
+        _groundPronunciations.TryGetValue(NormalizeAirport(airport), out AirportGroundPronunciations? ground) ? ground : null;
 
     /// <summary>
     /// Returns the natural-language label for a fix used in spoken traffic advisories: the first
@@ -1484,6 +1533,52 @@ public sealed class NavigationDatabase
 
         return true;
     }
+
+    /// <summary>
+    /// The airport's SIDs supplied by an ARTCC CIFP fragment whose base name has no current-cycle SID, ordered by id: the
+    /// procedures <see cref="GetSid(string, string)"/> resolves from a fragment. Prior cached cycles are never listed, since
+    /// they differ between machines.
+    /// </summary>
+    /// <param name="airportCode">The airport, FAA or ICAO form, any case.</param>
+    public IReadOnlyList<CifpSidProcedure> GetArtccFragmentSids(string airportCode)
+    {
+        if (!TryGetCustomProcedures(airportCode, out CustomAirportProcedures? custom))
+        {
+            return [];
+        }
+
+        HashSet<string> currentBases = CurrentBaseNames(GetSids(airportCode).Select(sid => sid.ProcedureId));
+        return
+        [
+            .. custom
+                .Sids.Where(sid => !currentBases.Contains(StripTrailingDigits(sid.ProcedureId)))
+                .OrderBy(sid => sid.ProcedureId, StringComparer.Ordinal),
+        ];
+    }
+
+    /// <summary>
+    /// The airport's STARs supplied by an ARTCC CIFP fragment whose base name has no current-cycle STAR, ordered by id: the
+    /// procedures <see cref="GetStar(string, string)"/> resolves from a fragment. Prior cached cycles are never listed.
+    /// </summary>
+    /// <param name="airportCode">The airport, FAA or ICAO form, any case.</param>
+    public IReadOnlyList<CifpStarProcedure> GetArtccFragmentStars(string airportCode)
+    {
+        if (!TryGetCustomProcedures(airportCode, out CustomAirportProcedures? custom))
+        {
+            return [];
+        }
+
+        HashSet<string> currentBases = CurrentBaseNames(GetStars(airportCode).Select(star => star.ProcedureId));
+        return
+        [
+            .. custom
+                .Stars.Where(star => !currentBases.Contains(StripTrailingDigits(star.ProcedureId)))
+                .OrderBy(star => star.ProcedureId, StringComparer.Ordinal),
+        ];
+    }
+
+    private static HashSet<string> CurrentBaseNames(IEnumerable<string> procedureIds) =>
+        new(procedureIds.Select(StripTrailingDigits), StringComparer.OrdinalIgnoreCase);
 
     public CifpSidProcedure? GetSid(string airportCode, string sidId) => GetSid(airportCode, sidId, out _);
 
@@ -2645,6 +2740,107 @@ public sealed class NavigationDatabase
             _fixPronunciations.Count,
             loadResult.Definitions.Count,
             _fixDisplayNames.Count
+        );
+    }
+
+    /// <summary>
+    /// Loads <c>GatePronunciations/*.json</c>. Files for one airport merge in load order: a later file appends forms to a
+    /// gate or spot, and a place named again gains the later file's pronunciations and stands. Unlike fix pronunciations,
+    /// none of these become custom-fix speech collapse patterns.
+    /// </summary>
+    private void LoadGatePronunciations(string baseDir)
+    {
+        GatePronunciationLoadResult loadResult = GatePronunciationLoader.LoadAll(baseDir);
+        foreach (string warning in loadResult.Warnings)
+        {
+            Log.LogWarning("Gate pronunciation: {Warning}", warning);
+        }
+
+        foreach (GatePronunciationFile file in loadResult.Files)
+        {
+            string airport = NormalizeAirport(file.AirportId);
+            if (!_groundPronunciations.TryGetValue(airport, out AirportGroundPronunciations? ground))
+            {
+                ground = new AirportGroundPronunciations();
+                _groundPronunciations[airport] = ground;
+            }
+
+            MergeNamePronunciations(ground.Gates, file.Gates);
+            MergeNamePronunciations(ground.Spots, file.Spots);
+            foreach (GroundPlaceDefinition place in file.Places)
+            {
+                MergePlace(ground.Places, place);
+            }
+        }
+
+        Log.LogInformation("Gate pronunciations: {Airports} airports loaded from {Files} files", _groundPronunciations.Count, loadResult.Files.Count);
+    }
+
+    private static void MergeNamePronunciations(Dictionary<string, List<string>> target, IEnumerable<NamePronunciation> entries)
+    {
+        foreach (NamePronunciation entry in entries)
+        {
+            if (!target.TryGetValue(entry.Name, out List<string>? list))
+            {
+                list = [];
+                target[entry.Name] = list;
+            }
+
+            AppendDistinct(list, entry.Pronunciations);
+        }
+    }
+
+    private static void MergePlace(List<GroundPlaceDefinition> places, GroundPlaceDefinition place)
+    {
+        int index = places.FindIndex(candidate => string.Equals(candidate.Name, place.Name, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            places.Add(place);
+            return;
+        }
+
+        GroundPlaceDefinition existing = places[index];
+        List<string> pronunciations = [.. existing.Pronunciations];
+        List<string> stands = [.. existing.Stands];
+        AppendDistinct(pronunciations, place.Pronunciations);
+        AppendDistinct(stands, place.Stands);
+        places[index] = existing with { Pronunciations = pronunciations.AsReadOnly(), Stands = stands.AsReadOnly() };
+    }
+
+    private static void AppendDistinct(List<string> target, IEnumerable<string> additions)
+    {
+        foreach (string addition in additions)
+        {
+            if (!target.Contains(addition, StringComparer.OrdinalIgnoreCase))
+            {
+                target.Add(addition);
+            }
+        }
+    }
+
+    private void LoadProcedurePronunciations(string baseDir)
+    {
+        ProcedurePronunciationLoadResult loadResult = ProcedurePronunciationLoader.LoadAll(baseDir);
+        foreach (string warning in loadResult.Warnings)
+        {
+            Log.LogWarning("Procedure pronunciation: {Warning}", warning);
+        }
+
+        foreach (ProcedurePronunciationDefinition def in loadResult.Definitions)
+        {
+            if (!_procedurePronunciations.TryGetValue(def.Procedure, out List<string>? list))
+            {
+                list = [];
+                _procedurePronunciations[def.Procedure] = list;
+            }
+
+            AppendDistinct(list, def.Pronunciations);
+        }
+
+        Log.LogInformation(
+            "Procedure pronunciations: {Count} procedures loaded from {Definitions} definitions",
+            _procedurePronunciations.Count,
+            loadResult.Definitions.Count
         );
     }
 

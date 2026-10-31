@@ -109,7 +109,11 @@ public static class ContextEntityFactory
         return entities;
     }
 
-    /// <summary>The airport's SIDs and STARs, each as its spoken name alone and with "departure" or "arrival".</summary>
+    /// <summary>
+    /// The airport's SIDs and STARs, each as its spoken names alone and with "departure" or "arrival": the current cycle's
+    /// SIDs, then the ARTCC-fragment SIDs the current cycle lacks (<see cref="NavigationDatabase.GetArtccFragmentSids"/>),
+    /// then the same two for STARs. A base name with registered procedure pronunciations is spoken by those first.
+    /// </summary>
     /// <param name="airportIcao">The airport's ICAO id ("KOAK").</param>
     /// <param name="nav">The navigation database.</param>
     /// <returns>One procedure entity per SID or STAR with a spoken name, valued "&lt;ICAO&gt;/&lt;procedure id&gt;".</returns>
@@ -117,14 +121,14 @@ public static class ContextEntityFactory
     {
         string airport = AirportPrefix(airportIcao);
         var entities = new List<ContextEntity>();
-        foreach (CifpSidProcedure sid in nav.GetSids(airportIcao))
+        foreach (CifpSidProcedure sid in nav.GetSids(airportIcao).Concat(nav.GetArtccFragmentSids(airportIcao)))
         {
-            AddProcedure(entities, airport, sid.ProcedureId, "departure");
+            AddProcedure(entities, airport, sid.ProcedureId, nav, "departure");
         }
 
-        foreach (CifpStarProcedure star in nav.GetStars(airportIcao))
+        foreach (CifpStarProcedure star in nav.GetStars(airportIcao).Concat(nav.GetArtccFragmentStars(airportIcao)))
         {
-            AddProcedure(entities, airport, star.ProcedureId, "arrival");
+            AddProcedure(entities, airport, star.ProcedureId, nav, "arrival");
         }
 
         return entities;
@@ -163,12 +167,15 @@ public static class ContextEntityFactory
 
     /// <summary>
     /// The layout's taxiways ("taxiway whiskey four", "whiskey four"), gates ("gate …", "parking …" and bare) and spots
-    /// ("spot …" and bare), all at prior 1.0.
+    /// ("spot …" and bare), all at prior 1.0. After its spelled forms, a gate gets "gate p", "parking p" and bare p for each
+    /// registered gate pronunciation p, and a spot "spot p" and bare p for each spot pronunciation; a bare form is added only
+    /// when the layout name has a letter and the form's tokens are not a taxiway's bare form.
     /// </summary>
     /// <param name="airportIcao">The airport's ICAO id ("KSFO").</param>
     /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="nav">The navigation database holding the gate and spot pronunciations.</param>
     /// <returns>Taxiway entities, then gate entities, then spot entities valued "&lt;ICAO&gt;/SPOT &lt;name&gt;".</returns>
-    public static IReadOnlyList<ContextEntity> GroundEntities(string airportIcao, AirportGroundLayout layout)
+    public static IReadOnlyList<ContextEntity> GroundEntities(string airportIcao, AirportGroundLayout layout, NavigationDatabase nav)
     {
         string airport = AirportPrefix(airportIcao);
         var entities = new List<ContextEntity>();
@@ -186,6 +193,13 @@ public static class ContextEntityFactory
             string parking = PhraseologyVerbalizer.SpellDestinationName(name, "parking");
             List<string> texts = ["gate " + gate, "parking " + parking];
             AddBareIfUnambiguous(texts, name, parking, taxiwayBareTokens);
+            foreach (string pronunciation in nav.GetGatePronunciations(airportIcao, name))
+            {
+                texts.Add("gate " + pronunciation);
+                texts.Add("parking " + pronunciation);
+                AddBareIfUnambiguous(texts, name, pronunciation, taxiwayBareTokens);
+            }
+
             entities.Add(EntityAtFullPrior(EntityKind.Gate, $"{airport}/{name}", texts));
         }
 
@@ -194,6 +208,12 @@ public static class ContextEntityFactory
             string spot = PhraseologyVerbalizer.SpellDestinationName(name, "spot");
             List<string> texts = ["spot " + spot];
             AddBareIfUnambiguous(texts, name, spot, taxiwayBareTokens);
+            foreach (string pronunciation in nav.GetSpotPronunciations(airportIcao, name))
+            {
+                texts.Add("spot " + pronunciation);
+                AddBareIfUnambiguous(texts, name, pronunciation, taxiwayBareTokens);
+            }
+
             entities.Add(EntityAtFullPrior(EntityKind.Gate, $"{airport}/SPOT {name}", texts));
         }
 
@@ -375,21 +395,44 @@ public static class ContextEntityFactory
         forms.Add($"{spoken} {runway}", settings.BareRunwayPrior);
     }
 
-    private static void AddProcedure(List<ContextEntity> entities, string airport, string procedureId, string suffix)
+    /// <summary>
+    /// Adds a SID or STAR entity: each registered pronunciation of its base name with the version words (file order), then
+    /// the base name spelled like a fix with the version words, each alone and with <paramref name="suffix"/>. An id with no
+    /// name/version split is spoken as <see cref="PhraseologyVerbalizer.ProcedureName"/> says it.
+    /// </summary>
+    private static void AddProcedure(List<ContextEntity> entities, string airport, string procedureId, NavigationDatabase nav, string suffix)
     {
-        // A procedure named after a navaid is spoken by the navaid's name alone ("oakland six"), never with its type word.
-        IEnumerable<string> words = PhraseologyVerbalizer
-            .ProcedureName(procedureId)
-            .Tts.ToLowerInvariant()
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(word => !NavaidTypeWords.Contains(word));
-        string spoken = string.Join(" ", words);
-        if (spoken.Length == 0)
+        var spokenNames = new List<string>();
+        if (PhraseologyVerbalizer.SplitProcedureId(procedureId) is { } split)
         {
-            return;
+            spokenNames.AddRange(nav.GetProcedurePronunciations(split.BaseName).Select(name => $"{name} {split.VersionWords}"));
+            spokenNames.Add($"{PhraseologyVerbalizer.SpellFix(split.BaseName)} {split.VersionWords}");
+        }
+        else
+        {
+            spokenNames.Add(PhraseologyVerbalizer.ProcedureName(procedureId).Tts);
         }
 
-        entities.Add(EntityAtFullPrior(EntityKind.Procedure, $"{airport}/{procedureId}", [spoken, $"{spoken} {suffix}"]));
+        var texts = new List<string>();
+        foreach (string spokenName in spokenNames)
+        {
+            // A procedure named after a navaid is spoken by the navaid's name alone ("oakland six"), never with its type word.
+            IEnumerable<string> words = spokenName
+                .ToLowerInvariant()
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Where(word => !NavaidTypeWords.Contains(word));
+            string spoken = string.Join(" ", words);
+            if (spoken.Length > 0)
+            {
+                texts.Add(spoken);
+                texts.Add($"{spoken} {suffix}");
+            }
+        }
+
+        if (texts.Count > 0)
+        {
+            entities.Add(EntityAtFullPrior(EntityKind.Procedure, $"{airport}/{procedureId}", texts));
+        }
     }
 
     private static ContextEntity EntityAtFullPrior(EntityKind kind, string value, IReadOnlyList<string> texts)

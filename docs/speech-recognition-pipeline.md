@@ -371,6 +371,8 @@ depend on LM-Kit and PortAudio native libraries.
 
 `src/Yaat.Sim/Speech/Context/` reads one transmission against its closed set: the room's aircraft and the airport's entities, each with its spoken forms. `ContextDecoder.Decode` returns the addressed callsign, the entities around it and a rewritten transcript, or a say-again with its best guess. It is measured in the sandbox and is not yet wired into `SpeechRecognitionService`. Rules and rulings: [`plans/yaat-343-context-layer.md`](./plans/yaat-343-context-layer.md).
 
+Spoken forms come from the pilot-speech spelling plus the per-ARTCC pronunciation data in `NavigationDatabase` ([navigation-database.md](navigation-database.md)). `ContextEntityFactory.GroundEntities(airport, layout, nav)` adds each registered gate pronunciation as "gate p", "parking p" and a bare form, and each spot pronunciation as "spot p" and a bare form (a bare form only when the layout name has a letter and the form is not a taxiway's bare form). `AirportContextBuilder.Build` adds each named place (`GetGroundPlaces`: an FBO, ramp or bay) as a landmark entity valued `<airport>/<NAME>`, whether or not the layout is loaded; a caller-supplied landmark with the same value wins. SIDs and STARs are heard by every registered base-name pronunciation with the version ("nimitz five"), alone and with "departure" or "arrival", before the code-spelled form ("nimi five"), and include the ARTCC-fragment procedures the current cycle lacks.
+
 ## Orchestration — `SpeechRecognitionService`
 
 - `src/Yaat.Client/Services/SpeechRecognitionService.cs` — pure service
