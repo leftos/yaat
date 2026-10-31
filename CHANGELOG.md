@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- A speed given in the same transmission as an approach clearance, `CVIA` or `DVIA` is kept, wherever it sits in the transmission and across a rewind.
+- Under `DVIA` or `CVIA`, a controller's crossing speed ends at its fix; the aircraft then flies the procedure's published speed, not a lasting ceiling.
+- A crossed published "at or above" speed survives a re-issued `DVIA`, `CVIA`, `RNS` or `RPS`, and ends on a heading, a direct, or leaving the procedure.
 - A scenario aircraft handed to the student with no flight plan now arrives with a filed VFR plan and a discrete code, so the handoff can be taken.
 - `LUAW` at a taxiway hold short taxis onto that taxiway and lines up at the intersection; its readback and the later `CTO` name it ("at echo").
 - `CTO` at a taxiway hold short is refused with "unable, traffic on E" while another aircraft stands on that taxiway; re-issue it once clear.
@@ -28,9 +31,6 @@
 
 ### Fixed
 
-- A speed given in the same transmission as an approach clearance, `CVIA` or `DVIA` is kept, wherever it sits in the transmission and across a rewind.
-- Under `DVIA` or `CVIA`, a controller's crossing speed ends at its fix; the aircraft then flies the procedure's published speed, not a lasting ceiling.
-- A crossed published "at or above" speed survives a re-issued `DVIA`, `CVIA`, `RNS` or `RPS`, and ends on a heading, a direct, or leaving the procedure.
 - A taxi across a runway through linked taxiway stubs, such as CMH `TAXI E4 F3`, is accepted as one crossing and reads back without "on 10L".
 - At an ASDE-X airport on LIMITED safety logic, RPO occupied-runway warnings and solo line-up scoring apply again, as on any non-ASDE-X airport.
 - CRC's ASDE-X display no longer keeps closed runways or safety-logic alerts after a rewind, a scenario restart or an unload.
