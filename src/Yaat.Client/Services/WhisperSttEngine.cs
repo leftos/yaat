@@ -4,8 +4,8 @@ using LMKit.Model;
 using LMKit.Speech;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
-// LM-Kit nests DeviceConfiguration inside the LM class; we don't need it explicitly here (Whisper
-// models always use LM-Kit's auto-default device config), but the loading constructors take it.
+// LM-Kit nests DeviceConfiguration inside the LM class. A config that asks for a GPU layer count builds
+// one explicitly; one that leaves it null passes nothing and gets LM-Kit's auto-default device.
 using DeviceConfiguration = LMKit.Model.LM.DeviceConfiguration;
 
 namespace Yaat.Client.Services;
@@ -23,6 +23,12 @@ public interface IWhisperRuntimeConfig
     /// to a ggml/GGUF <c>.bin</c>, or http(s) URI (downloaded on first load).
     /// </summary>
     string ModelSource { get; }
+
+    /// <summary>
+    /// How many Whisper layers run on the GPU: null lets LM-Kit pick the device (production), and 0 keeps
+    /// every layer on the CPU.
+    /// </summary>
+    int? GpuLayerCount { get; }
 }
 
 /// <summary>Adapter exposing a <see cref="UserPreferences"/> through <see cref="IWhisperRuntimeConfig"/>.</summary>
@@ -31,6 +37,8 @@ public sealed class PreferencesWhisperRuntimeConfig(UserPreferences preferences)
     private readonly UserPreferences _preferences = preferences;
 
     public string ModelSource => _preferences.WhisperModelSize;
+
+    public int? GpuLayerCount => null;
 }
 
 /// <summary>
@@ -269,10 +277,10 @@ public sealed class WhisperSttEngine(IWhisperRuntimeConfig config) : IDisposable
 
             // Source dispatch matches LocalLlmService: rooted file path → file constructor;
             // http/https URI → URI constructor (auto-downloads); bare string → LoadFromModelID
-            // (LM-Kit's curated catalog like "whisper-base", "whisper-medium"). Whisper
-            // models use LM-Kit's auto-default DeviceConfiguration (null) — there's no
-            // user-tunable layer count for STT, the engine picks based on available VRAM.
-            DeviceConfiguration? deviceConfig = null;
+            // (LM-Kit's curated catalog like "whisper-base", "whisper-medium"). A config with no
+            // layer count (production) hands LM-Kit a null DeviceConfiguration and the engine picks
+            // the device from available VRAM; a CPU run asks for zero GPU layers.
+            DeviceConfiguration? deviceConfig = (_config.GpuLayerCount is int layers) ? new DeviceConfiguration { GpuLayerCount = layers } : null;
             if (Path.IsPathRooted(source) && File.Exists(source))
             {
                 _model = new LM(source, deviceConfig, loadingOptions: null, loadingProgress: null);

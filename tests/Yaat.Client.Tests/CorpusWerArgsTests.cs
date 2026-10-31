@@ -34,6 +34,9 @@ public sealed class CorpusWerArgsTests : IDisposable
     [InlineData("the openai engine cannot update it", "uwb-atcc", "--stt", "openai:m", "--update-baseline")]
     [InlineData("unrecognised argument '--whisper'", "uwb-atcc", "--whisper", "x")]
     [InlineData("unrecognised argument '--frobnicate'", "uwb-atcc", "--frobnicate")]
+    [InlineData("--device must be cpu or gpu, got 'tpu'", "uwb-atcc", "--device", "tpu")]
+    [InlineData("--device applies to local engines; gemini runs in the cloud", "uwb-atcc", "--device", "gpu", "--stt", "gemini:x")]
+    [InlineData("--device needs a value", "uwb-atcc", "--device")]
     [InlineData("the first argument must be the corpus")]
     [InlineData("the first argument must be the corpus", "--all")]
     [InlineData("nor an existing directory", MissingDirToken)]
@@ -85,7 +88,7 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
         Assert.Equal(["none"], options.Prompts);
-        Assert.Equal(new SttChoice(SttKind.Sherpa, modelDir), options.Stt);
+        Assert.Equal(new SttChoice(SttKind.Sherpa, modelDir, SttDevice.Default), options.Stt);
     }
 
     [Fact]
@@ -98,7 +101,7 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
         Assert.Equal(["none"], options.Prompts);
-        Assert.Equal(new SttChoice(SttKind.SherpaStreaming, modelDir), options.Stt);
+        Assert.Equal(new SttChoice(SttKind.SherpaStreaming, modelDir, SttDevice.Default), options.Stt);
     }
 
     [Theory]
@@ -111,7 +114,7 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
         Assert.Equal(["none"], options.Prompts);
-        Assert.Equal(new SttChoice(kind, model), options.Stt);
+        Assert.Equal(new SttChoice(kind, model, SttDevice.Default), options.Stt);
     }
 
     [Fact]
@@ -121,8 +124,40 @@ public sealed class CorpusWerArgsTests : IDisposable
 
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
-        Assert.Equal(new SttChoice(SttKind.Whisper, "https://h/m.bin"), options.Stt);
+        Assert.Equal(new SttChoice(SttKind.Whisper, "https://h/m.bin", SttDevice.Default), options.Stt);
         Assert.Equal(["default", "none"], options.Prompts);
+    }
+
+    [Fact]
+    public void A_GPU_Device_On_A_Sherpa_Engine_Reaches_The_Choice()
+    {
+        string modelDir = Directory.CreateDirectory(Path.Combine(_dir, "models", "parakeet-v3-int8")).FullName;
+
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs(["uwb-atcc", "--stt", $"sherpa:{modelDir}", "--device", "gpu"]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(SttDevice.Gpu, options.Stt.Device);
+        Assert.Equal("gpu", CorpusSttEngines.DeviceText(options.Stt));
+    }
+
+    [Theory]
+    [InlineData("whisper:m", null, "auto")]
+    [InlineData("sherpa-streaming:m", null, "cpu")]
+    [InlineData("whisper:m", "cpu", "cpu")]
+    public void The_Device_Text_A_Run_Records_Comes_From_The_Engine_And_The_Flag(string stt, string? device, string expected)
+    {
+        var args = new List<string> { "uwb-atcc", "--stt", stt };
+        if (device is not null)
+        {
+            args.AddRange(["--device", device]);
+        }
+
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([.. args]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(expected, CorpusSttEngines.DeviceText(options.Stt));
     }
 
     [Fact]

@@ -45,11 +45,12 @@ public static class StreamingChunks
 ///
 /// The model directory must contain a sherpa-onnx NeMo streaming transducer export:
 /// <c>encoder[.int8].onnx</c>, <c>decoder[.int8].onnx</c>, <c>joiner[.int8].onnx</c>,
-/// <c>tokens.txt</c>. Runs on CPU via the same sherpa-onnx native the Piper TTS path already ships.
+/// <c>tokens.txt</c>. Runs on the sherpa-onnx execution <paramref name="provider"/> — <c>cpu</c> with the
+/// native the Piper TTS path already ships, or <c>cuda</c> when the CUDA build's DLLs are in place.
 /// Decoding is greedy with endpointing off, matching sherpa-onnx's streaming NeMo example, which sets
 /// no model type and leaves the feature config at its defaults.
 /// </summary>
-internal sealed class SherpaStreamingSttEngine(string modelDir) : IDisposable
+internal sealed class SherpaStreamingSttEngine(string modelDir, string provider) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaStreamingSttEngine>();
 
@@ -143,12 +144,12 @@ internal sealed class SherpaStreamingSttEngine(string modelDir) : IDisposable
         config.ModelConfig.Transducer.Joiner = joiner;
         config.ModelConfig.Tokens = tokens;
         config.ModelConfig.NumThreads = Math.Clamp(Environment.ProcessorCount / 2, 2, 8);
-        config.ModelConfig.Provider = "cpu";
+        config.ModelConfig.Provider = provider;
         config.DecodingMethod = "greedy_search";
         config.EnableEndpoint = 0;
 
         _recognizer = new OnlineRecognizer(config);
-        Log.LogInformation("sherpa-onnx NeMo streaming transducer loaded from {Dir}", _modelDir);
+        Log.LogInformation("sherpa-onnx NeMo streaming transducer loaded from {Dir} on {Provider}", _modelDir, provider);
         return _recognizer;
     }
 

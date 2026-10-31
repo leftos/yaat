@@ -13,11 +13,19 @@ public enum SttKind
     OpenAi,
 }
 
+/// <summary>Which device a local STT engine runs on: the engine family's own default, the CPU, or the GPU.</summary>
+public enum SttDevice
+{
+    Default,
+    Cpu,
+    Gpu,
+}
+
 /// <summary>
-/// One resolved engine choice: the family and its source — a Whisper model id, URL or <c>.bin</c> file,
-/// a sherpa-onnx model directory, or a cloud provider's model id.
+/// One resolved engine choice: the family, its source — a Whisper model id, URL or <c>.bin</c> file,
+/// a sherpa-onnx model directory, or a cloud provider's model id — and the device <c>--device</c> asks for.
 /// </summary>
-public sealed record SttChoice(SttKind Kind, string Source)
+public sealed record SttChoice(SttKind Kind, string Source, SttDevice Device)
 {
     /// <summary>
     /// Only Whisper takes the production biasing prompt; the sherpa transducer exports decode without one,
@@ -51,10 +59,10 @@ internal interface ICorpusSttEngine : IDisposable
     Task WarmUpAsync(CancellationToken ct);
 }
 
-/// <summary>Whisper, the production engine, configured with an explicit model source.</summary>
-internal sealed class WhisperCorpusSttEngine(string modelSource) : ICorpusSttEngine
+/// <summary>Whisper, the production engine, configured with an explicit model source and GPU layer count.</summary>
+internal sealed class WhisperCorpusSttEngine(string modelSource, int? gpuLayerCount) : ICorpusSttEngine
 {
-    private readonly WhisperSttEngine _engine = new(new FixedWhisperRuntimeConfig(modelSource));
+    private readonly WhisperSttEngine _engine = new(new FixedWhisperRuntimeConfig(modelSource, gpuLayerCount));
 
     /// <summary>
     /// Why Whisper cannot transcribe, or null. A rooted model path that does not exist is caught
@@ -83,9 +91,9 @@ internal sealed class WhisperCorpusSttEngine(string modelSource) : ICorpusSttEng
 }
 
 /// <summary>A sherpa-onnx offline transducer export (Parakeet-TDT and its ATC fine-tunes).</summary>
-internal sealed class SherpaCorpusSttEngine(string modelDir) : ICorpusSttEngine
+internal sealed class SherpaCorpusSttEngine(string modelDir, string provider) : ICorpusSttEngine
 {
-    private readonly SherpaSttEngine _engine = new(modelDir);
+    private readonly SherpaSttEngine _engine = new(modelDir, provider);
 
     public string? SetupError() => _engine.IsConfigured ? null : $"sherpa model dir {modelDir} has no encoder/decoder/joiner .onnx or tokens.txt";
 
@@ -99,9 +107,9 @@ internal sealed class SherpaCorpusSttEngine(string modelDir) : ICorpusSttEngine
 }
 
 /// <summary>A sherpa-onnx streaming transducer export (Nemotron Speech Streaming and its relatives).</summary>
-internal sealed class SherpaStreamingCorpusSttEngine(string modelDir) : ICorpusSttEngine
+internal sealed class SherpaStreamingCorpusSttEngine(string modelDir, string provider) : ICorpusSttEngine
 {
-    private readonly SherpaStreamingSttEngine _engine = new(modelDir);
+    private readonly SherpaStreamingSttEngine _engine = new(modelDir, provider);
 
     public string? SetupError() =>
         _engine.IsConfigured ? null : $"sherpa-streaming model dir {modelDir} has no encoder/decoder/joiner .onnx or tokens.txt";
@@ -131,22 +139,36 @@ public static class CorpusSttEngines
     internal static ICorpusSttEngine Create(SttChoice choice) =>
         choice.Kind switch
         {
-            SttKind.Whisper => new WhisperCorpusSttEngine(choice.Source),
-            SttKind.Sherpa => new SherpaCorpusSttEngine(choice.Source),
-            SttKind.SherpaStreaming => new SherpaStreamingCorpusSttEngine(choice.Source),
+            SttKind.Whisper => new WhisperCorpusSttEngine(choice.Source, WhisperGpuLayers(choice.Device)),
+            SttKind.Sherpa => new SherpaCorpusSttEngine(choice.Source, Provider(choice.Device)),
+            SttKind.SherpaStreaming => new SherpaStreamingCorpusSttEngine(choice.Source, Provider(choice.Device)),
             SttKind.Gemini or SttKind.OpenAi => new CloudSttEngine(choice.Kind, choice.Source),
             _ => throw new ArgumentOutOfRangeException(nameof(choice), choice.Kind, "no corpus STT engine for this kind"),
         };
 
-    /// <summary>The device an engine family runs on when no <c>--device</c> names one.</summary>
-    public static string DefaultDevice(SttKind kind) =>
-        kind switch
+    /// <summary>
+    /// The device a run records for its engine: <c>auto</c> for Whisper left to LM-Kit, <c>cpu</c> or <c>gpu</c>
+    /// for a local engine, and <c>cloud</c> for a remote one.
+    /// </summary>
+    public static string DeviceText(SttChoice choice) =>
+        choice.Kind switch
         {
-            SttKind.Whisper => "auto",
-            SttKind.Sherpa or SttKind.SherpaStreaming => "cpu",
+            SttKind.Whisper => choice.Device switch
+            {
+                SttDevice.Cpu => "cpu",
+                SttDevice.Gpu => "gpu",
+                _ => "auto",
+            },
+            SttKind.Sherpa or SttKind.SherpaStreaming => (choice.Device == SttDevice.Gpu) ? "gpu" : "cpu",
             SttKind.Gemini or SttKind.OpenAi => "cloud",
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no default device for this kind"),
+            _ => throw new ArgumentOutOfRangeException(nameof(choice), choice.Kind, "no device text for this kind"),
         };
+
+    /// <summary>Whisper's GPU layers: every layer on the CPU for a CPU run, LM-Kit's own choice otherwise.</summary>
+    private static int? WhisperGpuLayers(SttDevice device) => (device == SttDevice.Cpu) ? 0 : null;
+
+    /// <summary>The sherpa-onnx execution provider: the CUDA build's <c>cuda</c>, or the CPU otherwise.</summary>
+    private static string Provider(SttDevice device) => (device == SttDevice.Gpu) ? "cuda" : "cpu";
 
     /// <summary>
     /// Parses an <c>--stt</c> value, <c>&lt;kind&gt;:&lt;source&gt;</c>, split at the first colon so a
@@ -172,7 +194,7 @@ public static class CorpusSttEngines
             error = $"--stt kind must be whisper, sherpa, sherpa-streaming, gemini or openai, got '{value[..colon]}'";
             return false;
         }
-        choice = new SttChoice(kind.Value, value[(colon + 1)..]);
+        choice = new SttChoice(kind.Value, value[(colon + 1)..], SttDevice.Default);
         return true;
     }
 

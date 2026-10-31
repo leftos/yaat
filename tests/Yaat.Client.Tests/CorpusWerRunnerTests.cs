@@ -29,14 +29,14 @@ public sealed class CorpusWerRunnerTests
     {
         string path = Path.Combine(Path.GetTempPath(), "models", "ggml-atc.bin");
 
-        Assert.Equal("ggml-atc.bin", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Whisper, path)));
+        Assert.Equal("ggml-atc.bin", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Whisper, path, SttDevice.Default)));
     }
 
     [Theory]
     [InlineData("https://huggingface.co/jacktol/whisper/resolve/main/ggml-model.bin")]
     [InlineData("whisper-medium")]
     public void A_Url_Or_Catalog_Id_Is_Recorded_As_Given(string source) =>
-        Assert.Equal(source, CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Whisper, source)));
+        Assert.Equal(source, CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Whisper, source, SttDevice.Default)));
 
     [Theory]
     [InlineData(false)]
@@ -45,7 +45,7 @@ public sealed class CorpusWerRunnerTests
     {
         string dir = ModelDir("parakeet-v3-int8", trailingSeparator);
 
-        Assert.Equal("sherpa:parakeet-v3-int8", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Sherpa, dir)));
+        Assert.Equal("sherpa:parakeet-v3-int8", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.Sherpa, dir, SttDevice.Default)));
     }
 
     [Theory]
@@ -55,14 +55,17 @@ public sealed class CorpusWerRunnerTests
     {
         string dir = ModelDir("nemotron-560ms-int8", trailingSeparator);
 
-        Assert.Equal("sherpa-streaming:nemotron-560ms-int8", CorpusSttEngines.RecordedModel(new SttChoice(SttKind.SherpaStreaming, dir)));
+        Assert.Equal(
+            "sherpa-streaming:nemotron-560ms-int8",
+            CorpusSttEngines.RecordedModel(new SttChoice(SttKind.SherpaStreaming, dir, SttDevice.Default))
+        );
     }
 
     [Theory]
     [InlineData(SttKind.Gemini, "gemini-4-argon", "gemini:gemini-4-argon")]
     [InlineData(SttKind.OpenAi, "gpt-transcribe", "openai:gpt-transcribe")]
     public void A_Cloud_Model_Is_Recorded_With_Its_Kind_Prefix(SttKind kind, string model, string expected) =>
-        Assert.Equal(expected, CorpusSttEngines.RecordedModel(new SttChoice(kind, model)));
+        Assert.Equal(expected, CorpusSttEngines.RecordedModel(new SttChoice(kind, model, SttDevice.Default)));
 
     [Fact]
     public void The_Report_Renders_An_Arm_That_Carries_A_Timing()
@@ -75,6 +78,30 @@ public sealed class CorpusWerRunnerTests
         Assert.Contains("p50 412 ms", report, StringComparison.Ordinal);
         Assert.Contains("1 cached, excluded", report, StringComparison.Ordinal);
         Assert.Contains("GPU memory n/a", report, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_Report_Renders_The_GPU_Memory_Figures_It_Measured()
+    {
+        CorpusWerTiming timing = CorpusWerLatency.Summarize("gpu", 1.5, [(412, false)], new CorpusWerMemory(10, 20, 0, 2L * 1024 * 1024 * 1024));
+
+        string report = CorpusWerRunner.BuildReport(Run(timing), []);
+
+        Assert.Contains("GPU memory 0 MB before load, peak 2048 MB", report, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_Report_Renders_A_Device_Warning_Under_The_Timing_Block()
+    {
+        const string warning = "CPU mode, but the process's GPU memory rose 100 MB through model load";
+        CorpusWerTiming timing = CorpusWerLatency.Summarize("cpu", 1.5, [(412, false)], new CorpusWerMemory(10, 20, 0, 100L * 1024 * 1024)) with
+        {
+            DeviceWarning = warning,
+        };
+
+        string report = CorpusWerRunner.BuildReport(Run(timing), []);
+
+        Assert.Contains(warning, report, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -137,7 +137,7 @@ internal sealed class EvalPipeline : IDisposable
         // STT stage: the --stt engine, or the prefs Whisper model. Every engine reaches the trial
         // loop through the same seam --corpus-wer scores through, so the scoring path is identical
         // regardless of engine.
-        SttChoice choice = stt ?? new SttChoice(SttKind.Whisper, prefs.WhisperModelSize);
+        SttChoice choice = stt ?? new SttChoice(SttKind.Whisper, prefs.WhisperModelSize, SttDevice.Default);
         _stt = CorpusSttEngines.Create(choice);
         // --prompt none blanks the Whisper biasing prompt for the whole run — the A/B knob for
         // asking whether the static vocabulary hint still earns its keep on a given model.
