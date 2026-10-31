@@ -1,0 +1,9 @@
+# Spoken aircraft type names controllers use that ICAO Doc 8643 data does not give.
+# Columns: designator<TAB>spoken name
+# Several rows may share a designator; the names are spoken in file order after the family and manufacturer.
+# Hand-kept: tools/refresh-aircraft-types.py regenerates aircraft-types.tsv and never touches this file.
+PA30	twin comanche
+PA30	comanche
+P28A	archer
+P28A	warrior
+C206	stationair

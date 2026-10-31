@@ -114,6 +114,22 @@ public class AircraftTypeNamesTests
     }
 
     [Fact]
+    public void GetSpokenNames_PA30_ReturnsFamilyManufacturerThenAliases()
+    {
+        IReadOnlyList<string> names = AircraftTypeNames.GetSpokenNames("PA30");
+
+        Assert.Equal(["twin", "piper", "twin comanche", "comanche"], names);
+    }
+
+    [Fact]
+    public void GetSpokenNames_P28A_ReturnsFamilyManufacturerThenAliases()
+    {
+        IReadOnlyList<string> names = AircraftTypeNames.GetSpokenNames("P28A");
+
+        Assert.Equal(["cherokee", "piper", "archer", "warrior"], names);
+    }
+
+    [Fact]
     public void GetSpokenNames_UnknownType_ReturnsEmpty()
     {
         Assert.Empty(AircraftTypeNames.GetSpokenNames("ZQX9"));

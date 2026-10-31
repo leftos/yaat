@@ -10,7 +10,9 @@ namespace Yaat.Sim.Speech;
 /// </summary>
 /// <remarks>
 /// Data is pre-processed by <c>tools/refresh-aircraft-types.py</c> from vNAS AircraftSpecs.json
-/// (which sources ICAO Doc 8643). The runtime just reads the small TSV output.
+/// (which sources ICAO Doc 8643). The runtime just reads the small TSV output. The extra spoken
+/// names controllers use that the ICAO data does not give live, hand-kept, in
+/// <c>aircraft-type-aliases.tsv</c>, which that script never touches.
 /// </remarks>
 public static class AircraftTypeNames
 {
@@ -50,9 +52,9 @@ public static class AircraftTypeNames
     }
 
     /// <summary>
-    /// Return all distinct spoken names for an ICAO type — both manufacturer and family if
-    /// available — in preference order. Empty list if the type is unknown. The caller uses
-    /// this to seed Whisper's <c>initial_prompt</c> with every form pilots might use.
+    /// Return all distinct spoken names for an ICAO type — the family, then the manufacturer, then
+    /// each hand-kept alias in file order — in preference order. Empty list if the type is unknown.
+    /// The caller uses this to seed Whisper's <c>initial_prompt</c> with every form pilots might use.
     /// </summary>
     public static IReadOnlyList<string> GetSpokenNames(string? icaoType)
     {
@@ -70,6 +72,16 @@ public static class AircraftTypeNames
         {
             names.Add(mfr);
         }
+        if (_data.Value.Aliases.TryGetValue(key, out List<string>? aliases))
+        {
+            foreach (string alias in aliases)
+            {
+                if (!names.Contains(alias, StringComparer.Ordinal))
+                {
+                    names.Add(alias);
+                }
+            }
+        }
         return names;
     }
 
@@ -79,7 +91,7 @@ public static class AircraftTypeNames
         if (!File.Exists(path))
         {
             Log.LogWarning("aircraft-types.tsv not found at {Path}; type-name map will be empty", path);
-            return new Data(new Dictionary<string, string>(), new Dictionary<string, string>());
+            return new Data(new Dictionary<string, string>(), new Dictionary<string, string>(), LoadAliases());
         }
 
         var mfr = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -119,8 +131,51 @@ public static class AircraftTypeNames
         }
 
         Log.LogInformation("Loaded {ManufacturerCount} ICAO type manufacturers and {FamilyCount} families", mfr.Count, fam.Count);
-        return new Data(mfr, fam);
+        return new Data(mfr, fam, LoadAliases());
     }
 
-    private sealed record Data(IReadOnlyDictionary<string, string> Manufacturer, IReadOnlyDictionary<string, string> Family);
+    private static Dictionary<string, List<string>> LoadAliases()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "Speech", "Data", "aircraft-type-aliases.tsv");
+        var aliases = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(path))
+        {
+            Log.LogWarning("aircraft-type-aliases.tsv not found at {Path}; spoken alias map will be empty", path);
+            return aliases;
+        }
+
+        foreach (string line in File.ReadLines(path))
+        {
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+            {
+                continue;
+            }
+            string[] fields = line.Split('\t');
+            if (fields.Length < 2)
+            {
+                continue;
+            }
+            string designator = fields[0].Trim().ToUpperInvariant();
+            string name = fields[1].Trim();
+            if ((designator.Length == 0) || (name.Length == 0))
+            {
+                continue;
+            }
+            if (!aliases.TryGetValue(designator, out List<string>? list))
+            {
+                list = [];
+                aliases[designator] = list;
+            }
+            list.Add(name);
+        }
+
+        Log.LogInformation("Loaded spoken alias names for {AliasCount} ICAO types", aliases.Count);
+        return aliases;
+    }
+
+    private sealed record Data(
+        IReadOnlyDictionary<string, string> Manufacturer,
+        IReadOnlyDictionary<string, string> Family,
+        IReadOnlyDictionary<string, List<string>> Aliases
+    );
 }

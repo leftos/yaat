@@ -5,6 +5,7 @@
 ### Changed
 
 - Pilots say Bay Area fixes, SIDs and STARs by their radio names ("Nimitz Five", SERFR "surfer"), from a generated list open to community corrections.
+- Speech recognition expects GA callsigns by the type names controllers use: Twin Comanche, Archer, Warrior and Stationair.
 
 ### Fixed
 

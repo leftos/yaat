@@ -72,6 +72,9 @@
     <Content Include="Speech\Data\aircraft-types.tsv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Speech\Data\aircraft-type-aliases.tsv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Data\PrecomputeCache\*.json.br">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
