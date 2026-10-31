@@ -162,7 +162,8 @@ internal sealed class EvalPipeline : IDisposable
         return new EvalPipeline(stt, noBiasingPrompt);
     }
 
-    public Task<string?> TranscribeAsync(float[] samples, string prompt, CancellationToken ct) => _stt.TranscribeAsync(samples, prompt, ct);
+    public async Task<string?> TranscribeAsync(float[] samples, string prompt, CancellationToken ct) =>
+        (await _stt.TranscribeAsync(samples, prompt, ct).ConfigureAwait(false)).Text;
 
     public void Dispose()
     {

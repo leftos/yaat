@@ -85,6 +85,9 @@ public static class CorpusWerRunner
     /// <summary>The loaded segments and the identity fields the results record for them.</summary>
     private sealed record LoadedCorpus(IReadOnlyList<CorpusSegment> Segments, string Revision, string Sha256);
 
+    /// <summary>What an arm's timing needs from the run: the process to sample, the device and the load it already paid.</summary>
+    private sealed record ArmTiming(Process Self, string Device, long PreLoadWorkingSetBytes, double LoadSeconds);
+
     public static async Task<int> RunAsync(string[] args)
     {
         ParseResult parse = ParseArgs(args);
@@ -108,6 +111,10 @@ public static class CorpusWerRunner
         }
         Console.WriteLine(LoadedLine(loaded.Segments));
 
+        using var self = Process.GetCurrentProcess();
+        self.Refresh();
+        long preLoadWorkingSetBytes = self.WorkingSet64;
+
         using ICorpusSttEngine engine = CorpusSttEngines.Create(options.Stt);
         string? setupError = engine.SetupError();
         if (setupError is not null)
@@ -115,12 +122,14 @@ public static class CorpusWerRunner
             Console.Error.WriteLine($"FATAL: {setupError}");
             return AtcOuroborosAnalysis.ExitSetupError;
         }
+        double loadSeconds = await WarmUpAsync(engine).ConfigureAwait(false);
+        var timing = new ArmTiming(self, CorpusSttEngines.DefaultDevice(options.Stt.Kind), preLoadWorkingSetBytes, loadSeconds);
 
         var arms = new List<CorpusWerArm>();
         var segmentLines = new List<CorpusWerSegmentLine>();
         foreach (string prompt in options.Prompts)
         {
-            CorpusWerArm? arm = await RunArmAsync(engine, prompt, loaded.Segments, segmentLines).ConfigureAwait(false);
+            CorpusWerArm? arm = await RunArmAsync(engine, prompt, loaded.Segments, segmentLines, timing).ConfigureAwait(false);
             if (arm is null)
             {
                 int probed = Math.Min(LoadProbeSegments, loaded.Segments.Count);
@@ -216,12 +225,14 @@ public static class CorpusWerRunner
         ICorpusSttEngine engine,
         string prompt,
         IReadOnlyList<CorpusSegment> segments,
-        List<CorpusWerSegmentLine> segmentLines
+        List<CorpusWerSegmentLine> segmentLines,
+        ArmTiming timing
     )
     {
         string promptText = (prompt == "default") ? WhisperBiasingPrompt.Default : string.Empty;
         int probeCount = Math.Min(LoadProbeSegments, segments.Count);
         var firstHypotheses = new List<string?>(probeCount);
+        var latencies = new List<(double LatencyMs, bool Cached)>(segments.Count);
         var overall = new WerTally();
         var byRole = new Dictionary<CorpusRole, WerTally>();
         double audioSeconds = 0;
@@ -230,7 +241,12 @@ public static class CorpusWerRunner
         for (int i = 0; i < segments.Count; i++)
         {
             CorpusSegment segment = segments[i];
-            string? hypothesis = await engine.TranscribeAsync(segment.Samples16k, promptText, CancellationToken.None).ConfigureAwait(false);
+            var segmentWatch = Stopwatch.StartNew();
+            CorpusTranscript transcript = await engine.TranscribeAsync(segment.Samples16k, promptText, CancellationToken.None).ConfigureAwait(false);
+            segmentWatch.Stop();
+            double latencyMs = transcript.LatencyMs ?? segmentWatch.Elapsed.TotalMilliseconds;
+            latencies.Add((latencyMs, transcript.Cached));
+            string? hypothesis = transcript.Text;
             if (hypothesis is null)
             {
                 noTranscript++;
@@ -243,7 +259,7 @@ public static class CorpusWerRunner
                     return null;
                 }
             }
-            WerCounts counts = ScoreSegment(prompt, segment, hypothesis, segmentLines);
+            WerCounts counts = ScoreSegment(prompt, segment, transcript, latencyMs, segmentLines);
             overall.Add(counts);
             RoleTally(byRole, segment.Role).Add(counts);
             audioSeconds += segment.Samples16k.Length / (double)AudioCaptureService.SampleRate;
@@ -252,14 +268,44 @@ public static class CorpusWerRunner
                 Console.WriteLine($"  {prompt}: {i + 1}/{segments.Count}");
             }
         }
-        return new CorpusWerArm(prompt, RoleRows(overall, byRole), audioSeconds, watch.Elapsed.TotalSeconds, noTranscript);
+        return new CorpusWerArm(
+            prompt,
+            RoleRows(overall, byRole),
+            audioSeconds,
+            watch.Elapsed.TotalSeconds,
+            noTranscript,
+            SummarizeTiming(timing, latencies)
+        );
+    }
+
+    /// <summary>Loads the model and returns how long the load took, which every arm of the run reports.</summary>
+    private static async Task<double> WarmUpAsync(ICorpusSttEngine engine)
+    {
+        var watch = Stopwatch.StartNew();
+        await engine.WarmUpAsync(CancellationToken.None).ConfigureAwait(false);
+        watch.Stop();
+        return watch.Elapsed.TotalSeconds;
+    }
+
+    /// <summary>Samples the process now and summarizes the arm's latency and memory into its timing.</summary>
+    private static CorpusWerTiming SummarizeTiming(ArmTiming timing, IReadOnlyList<(double LatencyMs, bool Cached)> latencies)
+    {
+        timing.Self.Refresh();
+        var memory = new CorpusWerMemory(timing.PreLoadWorkingSetBytes, timing.Self.PeakWorkingSet64, -1, -1);
+        return CorpusWerLatency.Summarize(timing.Device, timing.LoadSeconds, latencies, memory);
     }
 
     /// <summary>Normalises both sides, scores them and records the segment's <c>results.jsonl</c> line.</summary>
-    private static WerCounts ScoreSegment(string prompt, CorpusSegment segment, string? hypothesis, List<CorpusWerSegmentLine> segmentLines)
+    private static WerCounts ScoreSegment(
+        string prompt,
+        CorpusSegment segment,
+        CorpusTranscript transcript,
+        double latencyMs,
+        List<CorpusWerSegmentLine> segmentLines
+    )
     {
         string reference = WerTextNormalizer.Normalize(segment.Reference);
-        string? normalized = (hypothesis is null) ? null : WerTextNormalizer.Normalize(hypothesis);
+        string? normalized = (transcript.Text is null) ? null : WerTextNormalizer.Normalize(transcript.Text);
         WerCounts counts = WerScorer.Score(reference, normalized);
         segmentLines.Add(
             new CorpusWerSegmentLine(
@@ -267,12 +313,14 @@ public static class CorpusWerRunner
                 segment.Id,
                 CorpusRoles.Label(segment.Role),
                 reference,
-                hypothesis,
+                transcript.Text,
                 normalized ?? string.Empty,
                 counts.Substitutions,
                 counts.Deletions,
                 counts.Insertions,
-                counts.ReferenceWords
+                counts.ReferenceWords,
+                latencyMs,
+                transcript.Cached
             )
         );
         return counts;
@@ -310,7 +358,8 @@ public static class CorpusWerRunner
     private static async Task<int> UpdateBaselineAsync(Options options, string baselinePath, CorpusWerBaseline results)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(baselinePath)!);
-        await File.WriteAllTextAsync(baselinePath, CorpusWerBaselineComparer.Serialize(results)).ConfigureAwait(false);
+        await File.WriteAllTextAsync(baselinePath, CorpusWerBaselineComparer.Serialize(CorpusWerBaselineComparer.ForBaseline(results)))
+            .ConfigureAwait(false);
         await WriteReportAsync(options, results, [$"Baseline updated: `{baselinePath}`"]).ConfigureAwait(false);
         Console.WriteLine($"Baseline written to {baselinePath}");
         return AtcOuroborosAnalysis.ExitNoRegression;
@@ -396,12 +445,37 @@ public static class CorpusWerRunner
         string rtf = (arm.AudioSeconds > 0) ? (arm.WallSeconds / arm.AudioSeconds).ToString("0.00", CultureInfo.InvariantCulture) : "n/a";
         report.AppendLine($"Audio {audio} s, wall {wall} s, real-time factor {rtf}");
         report.AppendLine();
+        if (arm.Timing is not null)
+        {
+            AppendTiming(report, arm.Timing);
+        }
         if (arm.NoTranscript > 0)
         {
             report.AppendLine(arm.NoTranscriptLine());
             report.AppendLine();
         }
     }
+
+    /// <summary>The device, load, latency and memory lines of an arm that measured them.</summary>
+    private static void AppendTiming(StringBuilder report, CorpusWerTiming timing)
+    {
+        string load = timing.LoadSeconds.ToString("0.0", CultureInfo.InvariantCulture);
+        string p50 = timing.LatencyP50Ms.ToString("0", CultureInfo.InvariantCulture);
+        string p90 = timing.LatencyP90Ms.ToString("0", CultureInfo.InvariantCulture);
+        string max = timing.LatencyMaxMs.ToString("0", CultureInfo.InvariantCulture);
+        string gpu =
+            (timing.PeakGpuBytes < 0) ? "n/a" : $"{Megabytes(timing.PreLoadGpuBytes)} MB before load, peak {Megabytes(timing.PeakGpuBytes)} MB";
+        report.AppendLine($"Device {timing.Device}, model load {load} s");
+        report.AppendLine(
+            $"Latency over {timing.TimedSegments} segments ({timing.CachedSegments} cached, excluded): p50 {p50} ms, p90 {p90} ms, max {max} ms"
+        );
+        report.AppendLine(
+            $"Memory: working set {Megabytes(timing.PreLoadWorkingSetBytes)} MB before load, peak {Megabytes(timing.PeakWorkingSetBytes)} MB; GPU memory {gpu}"
+        );
+        report.AppendLine();
+    }
+
+    private static string Megabytes(long bytes) => ((double)bytes / 1048576).ToString("0", CultureInfo.InvariantCulture);
 
     /// <summary>Parses a <c>--corpus-wer</c> command line (the arguments after the flag) into a run, or the first error.</summary>
     public static ParseResult ParseArgs(string[] args)

@@ -94,7 +94,8 @@ public sealed class CorpusWerBaselineTests
                     [new CorpusWerRoleTotals("all", 4, 40, 1, 2, 3, 0.15), new CorpusWerRoleTotals("pilot", 2, 20, 1, 0, 0, 0.05)],
                     12.5,
                     3.25,
-                    1
+                    1,
+                    new CorpusWerTiming("auto", 2.5, 4, 1, 120, 240, 260, 1_000_000, 2_000_000, -1, -1)
                 ),
             ]
         );
@@ -116,6 +117,8 @@ public sealed class CorpusWerBaselineTests
         Assert.Equal(original.Arms[0].WallSeconds, arm.WallSeconds);
         Assert.Equal(original.Arms[0].Roles, arm.Roles);
         Assert.Equal(original.Arms[0].NoTranscript, arm.NoTranscript);
+        Assert.Equal(original.Arms[0].Timing, arm.Timing);
+        Assert.NotNull(arm.Timing);
     }
 
     [Fact]
@@ -131,7 +134,35 @@ public sealed class CorpusWerBaselineTests
         Assert.Equal(0, Assert.Single(Assert.IsType<CorpusWerBaseline>(back).Arms).NoTranscript);
     }
 
-    private static CorpusWerArm Arm(string prompt, double wer) => new(prompt, [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, wer)], 30, 6, 0);
+    [Fact]
+    public void An_Arm_Without_A_Timing_Reads_Back_Without_One()
+    {
+        const string json = """
+            {"corpus":"uwb-atcc","revision":"rev","sha256":"sha","seed":1117,"subset":400,"subsetFingerprint":"fp","sttModel":"model",
+             "arms":[{"prompt":"default","roles":[],"audioSeconds":30,"wallSeconds":6,"noTranscript":0}]}
+            """;
+
+        CorpusWerBaseline? back = JsonSerializer.Deserialize(json, CorpusWerJsonContext.Default.CorpusWerBaseline);
+
+        Assert.Null(Assert.Single(Assert.IsType<CorpusWerBaseline>(back).Arms).Timing);
+    }
+
+    [Fact]
+    public void A_Committed_Baseline_Drops_Every_Arm_Timing()
+    {
+        CorpusWerBaseline run = Run(1117, Arm("default", 0.200) with { Timing = Timing(120) }, Arm("none", 0.250) with { Timing = Timing(240) });
+
+        CorpusWerBaseline baseline = CorpusWerBaselineComparer.ForBaseline(run);
+
+        Assert.All(baseline.Arms, arm => Assert.Null(arm.Timing));
+        Assert.Equal(run.Arms[0].Roles, baseline.Arms[0].Roles);
+        Assert.Equal(run.Arms[1].Roles, baseline.Arms[1].Roles);
+    }
+
+    private static CorpusWerArm Arm(string prompt, double wer) =>
+        new(prompt, [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, wer)], 30, 6, 0, null);
+
+    private static CorpusWerTiming Timing(double p50Ms) => new("cpu", 1.5, 4, 1, p50Ms, p50Ms + 10, p50Ms + 20, 1000, 2000, -1, -1);
 
     private static CorpusWerBaseline Run(int seed, params CorpusWerArm[] arms) =>
         new("uwb-atcc", "rev", "sha", seed, 400, "subset-fp", "model", arms);
