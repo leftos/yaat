@@ -20,6 +20,21 @@ build to satisfy LGPL §4(d)(1).
 
 Copyright (c) Simon Bartlett and contributors.
 
+## piper-phonemize and espeak-ng (GPL-3.0-or-later)
+
+YAAT phonemizes pilot-voice text with the `piper_phonemize_core` native
+library, which statically links espeak-ng. It is consumed as an unmodified
+NuGet package reference. The espeak-ng data it reads ships inside the Piper
+voice pack that YAAT downloads on request.
+
+  Upstream: https://github.com/csukuangfj/piper-phonemize
+            https://github.com/espeak-ng/espeak-ng
+  Package:  https://www.nuget.org/packages/com.github.csukuangfj.piper.phonemize/
+  License:  GNU General Public License v3.0 or later (GPL-3.0-or-later)
+  Full text: https://www.gnu.org/licenses/gpl-3.0.txt
+
+Copyright (c) the piper-phonemize and espeak-ng contributors.
+
 ================================================================================
 Third-party source code included in this project
 ================================================================================

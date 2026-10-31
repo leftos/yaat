@@ -60,6 +60,8 @@
     <PackageReference Include="MetadataExtractor" Version="2.9.2" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
     <PackageReference Include="org.k2fsa.sherpa.onnx" Version="2.0.1" />
+    <!-- sherpa-onnx 2.0 dropped espeak-ng from its native, so this phonemizes TTS text (GPL-3.0-or-later); its build and content assets are excluded because the voice pack ships the identical espeak-ng-data. -->
+    <PackageReference Include="com.github.csukuangfj.piper.phonemize" Version="1.5.9" ExcludeAssets="build;contentFiles" />
     <!-- NAudio supplies the managed DSP pieces used by radio FX. Actual playback uses
          PortAudioSharp2 so pilot voice and the optional pilot-speech ding remain cross-platform. -->
     <PackageReference Include="NAudio" Version="2.2.1" />

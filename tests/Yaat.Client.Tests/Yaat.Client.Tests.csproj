@@ -23,6 +23,8 @@
          Sits alongside the CPU backend that flows in transitively from Yaat.Client.
          Does NOT ship in the production installer — only lands in this project's bin dir. -->
     <PackageReference Include="LLamaSharp.Backend.Cuda12" Version="0.26.0" />
+    <!-- Its build target copies espeak-ng-data beside the test assembly, which EspeakPhonemizerTests phonemizes from. -->
+    <PackageReference Include="com.github.csukuangfj.piper.phonemize" Version="1.5.9" />
   </ItemGroup>
 
   <ItemGroup>

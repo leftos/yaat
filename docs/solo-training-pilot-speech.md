@@ -415,6 +415,9 @@ Two scenario knobs control pilot-AI cadence (persisted via `RecordedSettingChang
 `PilotVoiceService` (in `Yaat.Client`) consumes `PilotTransmissionBroadcastDto` from the server. The service is unbounded-channel-backed and runs a single worker.
 
 - **Synthesizer.** `SherpaOnnxPilotVoiceSynthesizer` loads the Piper LibriTTS-R medium voice pack (904 speakers). The voice pack is downloaded by `PiperVoiceInstaller` from the sherpa-onnx GitHub release into `YaatPaths.Combine("voices", ...)` so Velopack upgrades don't wipe it.
+- **Phonemization.** sherpa-onnx 2.0 has no text frontend for Piper, so `EspeakPhonemizer` turns the text into IPA codepoints first (NuGet `com.github.csukuangfj.piper.phonemize`, espeak-ng, GPL-3.0-or-later) and synthesis gets them as `OfflineTtsGenerationConfig.PhonemeCodepoints`.
+
+  The phonemizer reads the voice pack's own `espeak-ng-data`. espeak-ng is process-global, so one data directory serves the whole process. Synthesis that yields no speech throws (`EspeakPhonemizer.RequireSpeech`); without the phonemes, 2.0 renders silence and raises no error.
 - **Speaker assignment.** `PilotVoiceAssigner` (yaat-server) maps `(scenarioRngSeed, callsign)` → speaker id 0–903 deterministically. Same callsign in the same scenario keeps the same voice.
 - **Speaking rate.** `UserPreferences.PilotVoiceSpeechRate` (0.75–1.5 in 0.05 steps, default 1.1) is read with volume and radio FX when `MainViewModel.OnPilotTransmissionReceived` enqueues a transmission, and becomes the synthesis call's `OfflineTtsGenerationConfig.Speed`, which shortens phoneme durations without shifting pitch.
 
@@ -434,7 +437,7 @@ The pipeline is silent and harmless if Piper isn't installed — `IsAvailable` r
 
 `Yaat.SpeechSandbox --tts-bench` compares small TTS models (size, cold load, first-audio latency, real-time factor) on the pilot readbacks the solo pipeline speaks, and builds a listening page with each model's clips. Run it before swapping or adding a pilot voice model; the flags, screen thresholds and exit codes are in the Speech Sandbox Tool table of [speech-recognition-pipeline.md](speech-recognition-pipeline.md).
 
-The findings are in `docs/research/2026-10-24-tts-benchmark/report.md`, the listening page in `docs/plans/canvases/tts-benchmark/` (`README.md`), and `RECIPE.md` there rebuilds the clips and the review copy. The benchmark runs on the sandbox's sherpa-onnx 1.13.8 while the client ships 1.12.40, so adopting a model other than Piper LibriTTS-R means a client package bump.
+The findings are in `docs/research/2026-10-24-tts-benchmark/report.md`, the listening page in `docs/plans/canvases/tts-benchmark/` (`README.md`), and `RECIPE.md` there rebuilds the clips and the review copy. The client and the sandbox both run sherpa-onnx 2.0.1; the bench phonemizes the Piper, Kitten and Matcha rows through `EspeakPhonemizer` with each model archive's `espeak-ng-data`, and ZipVoice tokenizes through its own lexicon.
 
 ## Pitfalls
 
