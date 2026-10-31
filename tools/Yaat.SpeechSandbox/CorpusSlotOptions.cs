@@ -1,4 +1,5 @@
 using System.Globalization;
+using Yaat.Sim.Speech.Context;
 
 namespace Yaat.SpeechSandbox;
 
@@ -24,9 +25,17 @@ public enum TwoPassList
 
 /// <summary>
 /// The slot-scoring part of a run: whether the decoder resolves over the n-best, which room's hotwords bias each clip (null for
-/// none), how many phrases at most, their casing, and which list a second, per-aircraft decode takes (null for one pass).
+/// none), how many phrases at most, their casing, which list a second, per-aircraft decode takes (null for one pass), and the
+/// decoder settings every decode and room runs under.
 /// </summary>
-public sealed record CorpusSlotOptions(bool Resolve, SlotRoom? HotwordRoom, int HotwordCap, HotwordCase HotwordCasing, TwoPassList? TwoPass);
+public sealed record CorpusSlotOptions(
+    bool Resolve,
+    SlotRoom? HotwordRoom,
+    int HotwordCap,
+    HotwordCase HotwordCasing,
+    TwoPassList? TwoPass,
+    DecoderSettings Decoder
+);
 
 /// <summary>The labels the <c>--two-pass</c> flag, the results and the report give a <see cref="TwoPassList"/>.</summary>
 public static class TwoPassLists
@@ -52,8 +61,9 @@ public static class SlotRooms
 }
 
 /// <summary>
-/// The <c>--slots</c>, <c>--resolve</c>, <c>--room-hotwords</c>, <c>--hotword-cap</c> and <c>--two-pass</c> flags as given, their checks against the
-/// rest of the command line, and the <see cref="CorpusSlotOptions"/> they resolve to.
+/// The <c>--slots</c>, <c>--resolve</c>, <c>--acoustic-weight</c>, <c>--confident-word-prob</c>, <c>--room-hotwords</c>,
+/// <c>--hotword-cap</c> and <c>--two-pass</c> flags as given, their checks against the rest of the command line, and the
+/// <see cref="CorpusSlotOptions"/> they resolve to.
 /// </summary>
 internal sealed class CorpusSlotArgs
 {
@@ -70,6 +80,10 @@ internal sealed class CorpusSlotArgs
 
     public TwoPassList? TwoPass { get; private set; }
 
+    public double? AcousticWeight { get; private set; }
+
+    public double? ConfidentWordProb { get; private set; }
+
     /// <summary>
     /// Applies the slot flag at <paramref name="i"/> (advancing past its value); an error, or null. Any other flag is
     /// unrecognised.
@@ -85,7 +99,7 @@ internal sealed class CorpusSlotArgs
             case "--resolve":
                 Resolve = true;
                 return null;
-            case "--room-hotwords" or "--hotword-cap" or "--two-pass":
+            case "--room-hotwords" or "--hotword-cap" or "--two-pass" or "--acoustic-weight" or "--confident-word-prob":
                 return (i + 1 < args.Length) ? ApplyValue(flag, args[++i]) : $"{flag} needs a value";
             default:
                 return $"unrecognised argument '{flag}'";
@@ -107,7 +121,7 @@ internal sealed class CorpusSlotArgs
             return "--resolve needs --slots";
         }
         string? error = (RoomHotwords is null) ? CapError() : RoomHotwordsError(beam, hotwordsFile);
-        return error ?? TwoPassError();
+        return error ?? TwoPassError() ?? DecoderWeightError();
     }
 
     /// <summary>The run's hotwords note under <c>--room-hotwords</c>, naming the <c>--two-pass</c> list when set; null without it.</summary>
@@ -125,7 +139,20 @@ internal sealed class CorpusSlotArgs
 
     /// <summary>The run's slot options; null without <c>--slots</c>.</summary>
     public CorpusSlotOptions? ToOptions(HotwordCase casing) =>
-        Slots ? new(Resolve, RoomHotwords, HotwordCap ?? DefaultHotwordCap, casing, TwoPass) : null;
+        Slots
+            ? new(
+                Resolve,
+                RoomHotwords,
+                HotwordCap ?? DefaultHotwordCap,
+                casing,
+                TwoPass,
+                DecoderSettings.Default with
+                {
+                    AcousticWeight = AcousticWeight ?? DecoderSettings.Default.AcousticWeight,
+                    ConfidentWordProb = ConfidentWordProb ?? DecoderSettings.Default.ConfidentWordProb,
+                }
+            )
+            : null;
 
     private string? ApplyValue(string flag, string value) =>
         flag switch
@@ -133,8 +160,45 @@ internal sealed class CorpusSlotArgs
             "--room-hotwords" => ApplyRoom(value),
             "--hotword-cap" => ApplyCap(value),
             "--two-pass" => ApplyTwoPass(value),
+            "--acoustic-weight" => ApplyAcousticWeight(value),
+            "--confident-word-prob" => ApplyConfidentWordProb(value),
             _ => throw new ArgumentOutOfRangeException(nameof(flag), flag, "not a slot flag that takes a value"),
         };
+
+    private string? ApplyAcousticWeight(string value)
+    {
+        if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double weight) || !double.IsFinite(weight) || (weight < 0))
+        {
+            return $"--acoustic-weight needs a number of 0 or more, got '{value}'";
+        }
+        AcousticWeight = weight;
+        return null;
+    }
+
+    private string? ApplyConfidentWordProb(string value)
+    {
+        if (
+            !double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double prob)
+            || !double.IsFinite(prob)
+            || (prob <= 0)
+            || (prob > 1)
+        )
+        {
+            return $"--confident-word-prob needs a number above 0 and at most 1, got '{value}'";
+        }
+        ConfidentWordProb = prob;
+        return null;
+    }
+
+    /// <summary>The first decoder-weight flag given without <c>--resolve</c>, or null.</summary>
+    private string? DecoderWeightError()
+    {
+        if ((AcousticWeight is not null) && !Resolve)
+        {
+            return "--acoustic-weight needs --resolve";
+        }
+        return ((ConfidentWordProb is not null) && !Resolve) ? "--confident-word-prob needs --resolve" : null;
+    }
 
     private string? ApplyTwoPass(string value)
     {

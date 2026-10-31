@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Sim.Speech.Context;
 using Yaat.SpeechSandbox;
 
 namespace Yaat.Client.Tests;
@@ -335,7 +336,7 @@ public sealed class CorpusWerArgsTests : IDisposable
 
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
-        Assert.Equal(new CorpusSlotOptions(true, SlotRoom.Padded, 300, HotwordCase.Title, null), options.Slots);
+        Assert.Equal(new CorpusSlotOptions(true, SlotRoom.Padded, 300, HotwordCase.Title, null, DecoderSettings.Default), options.Slots);
         Assert.Equal("room padded, cap 300, score 1.5, case title", options.HotwordsNote);
         Assert.Empty(options.Hotwords);
     }
@@ -362,7 +363,7 @@ public sealed class CorpusWerArgsTests : IDisposable
 
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
-        Assert.Equal(new CorpusSlotOptions(false, SlotRoom.Oracle, 50, HotwordCase.Lower, null), options.Slots);
+        Assert.Equal(new CorpusSlotOptions(false, SlotRoom.Oracle, 50, HotwordCase.Lower, null, DecoderSettings.Default), options.Slots);
         Assert.Equal(new SherpaDecoding(SherpaDecodingMethod.Beam, 4, 2.5f), options.Stt.Decoding);
         Assert.Equal("room oracle, cap 50, score 2.5, case lower", options.HotwordsNote);
     }
@@ -385,7 +386,7 @@ public sealed class CorpusWerArgsTests : IDisposable
 
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
-        Assert.Equal(new CorpusSlotOptions(true, SlotRoom.Padded, 300, HotwordCase.Title, list), options.Slots);
+        Assert.Equal(new CorpusSlotOptions(true, SlotRoom.Padded, 300, HotwordCase.Title, list, DecoderSettings.Default), options.Slots);
         Assert.Equal($"room padded, cap 300, score 1.5, case title, two-pass {value}", options.HotwordsNote);
     }
 
@@ -436,7 +437,100 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.Equal("--two-pass needs a value", parse.Error);
     }
 
-    private string[] TwoPassArgs() => [Substitute(FolderToken), "--slots", "--resolve", "--stt", "sherpa:m", "--decoding", "beam"];
+    [Fact]
+    public void DecoderWeights_DefaultWithoutFlags()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([
+            Substitute(FolderToken),
+            "--slots",
+            "--stt",
+            "sherpa:m",
+            "--decoding",
+            "beam",
+        ]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(DecoderSettings.Default, Assert.IsType<CorpusSlotOptions>(options.Slots).Decoder);
+    }
+
+    [Fact]
+    public void DecoderWeights_FlagsReachOptions()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([
+            .. ResolvedSlotArgs(),
+            "--acoustic-weight",
+            "1.0",
+            "--confident-word-prob",
+            "0.9",
+        ]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(
+            DecoderSettings.Default with
+            {
+                AcousticWeight = 1.0,
+                ConfidentWordProb = 0.9,
+            },
+            Assert.IsType<CorpusSlotOptions>(options.Slots).Decoder
+        );
+    }
+
+    [Fact]
+    public void AcousticWeight_NeedsResolve()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([
+            Substitute(FolderToken),
+            "--slots",
+            "--stt",
+            "sherpa:m",
+            "--decoding",
+            "beam",
+            "--acoustic-weight",
+            "1.0",
+        ]);
+
+        Assert.Null(parse.Options);
+        Assert.Equal("--acoustic-weight needs --resolve", parse.Error);
+    }
+
+    [Fact]
+    public void ConfidentWordProb_NeedsResolve()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([
+            Substitute(FolderToken),
+            "--slots",
+            "--stt",
+            "sherpa:m",
+            "--decoding",
+            "beam",
+            "--confident-word-prob",
+            "0.9",
+        ]);
+
+        Assert.Null(parse.Options);
+        Assert.Equal("--confident-word-prob needs --resolve", parse.Error);
+    }
+
+    [Theory]
+    [InlineData("--acoustic-weight", "-0.1", "--acoustic-weight needs a number of 0 or more, got '-0.1'")]
+    [InlineData("--acoustic-weight", "NaN", "--acoustic-weight needs a number of 0 or more, got 'NaN'")]
+    [InlineData("--acoustic-weight", "x", "--acoustic-weight needs a number of 0 or more, got 'x'")]
+    [InlineData("--confident-word-prob", "0", "--confident-word-prob needs a number above 0 and at most 1, got '0'")]
+    [InlineData("--confident-word-prob", "1.5", "--confident-word-prob needs a number above 0 and at most 1, got '1.5'")]
+    [InlineData("--confident-word-prob", "x", "--confident-word-prob needs a number above 0 and at most 1, got 'x'")]
+    public void DecoderWeights_BadValue_Error(string flag, string value, string expected)
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([.. ResolvedSlotArgs(), flag, value]);
+
+        Assert.Null(parse.Options);
+        Assert.Equal(expected, parse.Error);
+    }
+
+    private string[] TwoPassArgs() => ResolvedSlotArgs();
+
+    private string[] ResolvedSlotArgs() => [Substitute(FolderToken), "--slots", "--resolve", "--stt", "sherpa:m", "--decoding", "beam"];
 
     private string WriteHotwords(string name, params string[] lines)
     {
