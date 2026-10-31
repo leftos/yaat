@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Speech.Context;
 using Yaat.SpeechSandbox;
 
 namespace Yaat.Client.Tests;
@@ -207,7 +208,7 @@ public sealed class CorpusWerRunnerTests
     }
 
     private static CorpusWerSegmentLine Line(IReadOnlyList<SttHypothesis>? nbest) =>
-        new("none", "id", "pilot", "alpha", "alpha", "alpha", 0, 0, 0, 1, 12, false, nbest);
+        new("none", "id", "pilot", "alpha", "alpha", "alpha", 0, 0, 0, 1, 12, false, nbest, null, null);
 
     private static CorpusWerBaseline Run(CorpusWerTiming? timing) => RunWith(timing, null, null);
 
@@ -224,9 +225,42 @@ public sealed class CorpusWerRunnerTests
             400,
             "fp",
             "model",
-            [new CorpusWerArm("default", [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)], 30, 6, 0, timing, provenance, feeds)],
+            [new CorpusWerArm("default", [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)], 30, 6, 0, timing, provenance, feeds, null)],
+            null,
             null
         );
+
+    [Fact]
+    public void BuildReport_RendersSlotSections()
+    {
+        CorpusSlotKindRow[] kinds =
+        [
+            new("all", 2, 1, 1, 0.5, 50),
+            .. Enum.GetValues<EntityKind>()
+                .Select(kind =>
+                    (kind == EntityKind.Callsign)
+                        ? new CorpusSlotKindRow("callsign", 2, 1, 1, 0.5, 50)
+                        : new(CorpusSlots.KindLabel(kind), 0, 0, 0, 0, 0)
+                ),
+        ];
+        CorpusSlotCoverageRow[] coverage =
+        [
+            .. Enum.GetValues<EntityKind>()
+                .Select(kind =>
+                    (kind == EntityKind.Callsign) ? new CorpusSlotCoverageRow("callsign", 2, 2, 1) : new(CorpusSlots.KindLabel(kind), 0, 0, 0)
+                ),
+        ];
+        var room = new CorpusSlotRoomResult("padded", [new CorpusSlotGroup("all", 2, kinds, 2, 0, 1, 0)], coverage, null, 1);
+        CorpusWerBaseline run = Run(null) with { Arms = [Run(null).Arms[0] with { Slots = [room] }], UnbuiltCallsigns = ["koak-gnd: QXE2101"] };
+
+        string report = CorpusWerRunner.BuildReport(run, []);
+
+        Assert.Contains("- Callsigns with no entity: koak-gnd: QXE2101\n", report, StringComparison.Ordinal);
+        Assert.Contains("### Slots: padded\n", report, StringComparison.Ordinal);
+        Assert.Contains("| all | 2 | 50.0% (1/2) | - | - | - | - | - | - | 50.0% (1/2) | 50.0 | 0 | 1 | 0 |\n", report, StringComparison.Ordinal);
+        Assert.Contains("Form coverage (matched/reachable/gold): callsign 1/2/2\n", report, StringComparison.Ordinal);
+        Assert.Contains("Confidence gate on for 1 of 2 clips\n", report, StringComparison.Ordinal);
+    }
 
     private static string ModelDir(string name, bool trailingSeparator)
     {

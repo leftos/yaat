@@ -79,6 +79,17 @@ public sealed class CorpusSlotsTests : IDisposable
     }
 
     [Fact]
+    public void Read_MissingSpoken_ThrowsNamingClip()
+    {
+        WriteSlots("""{ "koak-app_seg0004": [ { "kind": "fix", "value": "MITOE" } ] }""");
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => CorpusSlots.Read(_dir));
+
+        Assert.Contains("koak-app_seg0004", error.Message, StringComparison.Ordinal);
+        Assert.Contains("no spoken form", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Read_NotAnObject_Throws()
     {
         WriteSlots("[]");

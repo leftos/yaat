@@ -14,11 +14,15 @@ namespace Yaat.SpeechSandbox;
 /// the YAAT cache) or a local folder of WAV + transcript pairs, transcribed through the engine
 /// <c>--stt</c> picks — Whisper with the production biasing prompt and without it, or a sherpa-onnx
 /// transducer export, which takes no prompt but can decode by beam search with hotwords and an n-best
-/// list — pooled per speaker role, and compared with a committed baseline.
+/// list — pooled per speaker role, and compared with a committed baseline. On a folder that carries <c>rooms.json</c> and
+/// <c>slots.json</c>, <c>--slots</c> also runs the context decoder over each clip under its unpadded, padded and oracle rooms
+/// and scores the slots it recovers (<see cref="CorpusSlotRun"/>); <c>--resolve</c> decodes over the whole n-best, and
+/// <c>--room-hotwords</c> biases each clip's beam search with its room's spoken forms.
 ///
 /// Run with <c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--stt &lt;kind&gt;:&lt;source&gt;]
 /// [--device cpu|gpu] [--prompt default|none|both] [--decoding greedy|beam] [--num-paths N]
 /// [--hotwords-file &lt;path&gt;] [--hotword-score S] [--hotword-case asis|title|lower|upper]
+/// [--slots [--resolve] [--room-hotwords unpadded|padded|oracle [--hotword-cap N]]]
 /// [--update-baseline] [--out &lt;dir&gt;]</c>. Writes <c>results.json</c>, <c>results.jsonl</c> and
 /// <c>report.md</c> into the out dir. Exit codes: 0 no regression (or no baseline), 1 usage error, 2 setup
 /// error, 3 regression.
@@ -36,7 +40,8 @@ public static class CorpusWerRunner
     private const string Usage =
         "Usage: Yaat.SpeechSandbox --corpus-wer uwb-atcc|<dir> [--subset N | --all] [--seed S] [--stt <kind>:<source>] "
         + "[--device cpu|gpu] [--prompt default|none|both] [--decoding greedy|beam] [--num-paths N] [--hotwords-file <path>] "
-        + "[--hotword-score S] [--hotword-case asis|title|lower|upper] [--update-baseline] [--out <dir>]";
+        + "[--hotword-score S] [--hotword-case asis|title|lower|upper] "
+        + "[--slots [--resolve] [--room-hotwords unpadded|padded|oracle [--hotword-cap N]]] [--update-baseline] [--out <dir>]";
 
     private const string LoadFailureHint = "the model probably failed to load (see %LOCALAPPDATA%/yaat/yaat-speech-sandbox.log)";
 
@@ -53,7 +58,11 @@ public static class CorpusWerRunner
     /// <param name="CorpusDir">The folder's full path; null for UWB-ATCC.</param>
     /// <param name="BaselinePath">Where the baseline lives; null when the run is not inside a yaat checkout.</param>
     /// <param name="Hotwords">The phrases every clip's stream is biased toward; empty for none.</param>
-    /// <param name="HotwordsNote">The <c>--hotwords-file</c> as results record it, never a directory; null with no file.</param>
+    /// <param name="HotwordsNote">
+    /// The <c>--hotwords-file</c> as results record it, never a directory, or the <c>--room-hotwords</c> room, cap, score and
+    /// case; null with neither.
+    /// </param>
+    /// <param name="Slots">The slot-scoring options; null without <c>--slots</c>.</param>
     public sealed record Options(
         string Corpus,
         string? CorpusDir,
@@ -65,7 +74,8 @@ public static class CorpusWerRunner
         string OutDir,
         string? BaselinePath,
         IReadOnlyList<string> Hotwords,
-        string? HotwordsNote
+        string? HotwordsNote,
+        CorpusSlotOptions? Slots
     );
 
     /// <summary>The outcome of <see cref="ParseArgs"/>: the options, or the error that stopped the parse.</summary>
@@ -90,6 +100,7 @@ public static class CorpusWerRunner
         public HotwordCase? Casing { get; set; }
         public IReadOnlyList<string> Hotwords { get; set; } = [];
         public string? HotwordsNote { get; set; }
+        public CorpusSlotArgs Slots { get; } = new();
     }
 
     /// <summary>The corpus the first argument names.</summary>
@@ -100,9 +111,13 @@ public static class CorpusWerRunner
     /// <summary>The loaded segments and the identity fields the results record for them.</summary>
     private sealed record LoadedCorpus(IReadOnlyList<CorpusSegment> Segments, string Revision, string Sha256);
 
+    /// <summary>What every prompt arm transcribes, and the slot work each scores; the slot run is null without <c>--slots</c>.</summary>
+    private sealed record RunInput(IReadOnlyList<CorpusSegment> Segments, CorpusSlotRun? Slots);
+
     /// <summary>What one prompt arm transcribes and how it biases the engine.</summary>
     /// <param name="Prompt"><c>default</c> (the production biasing prompt) or <c>none</c>.</param>
-    private sealed record ArmInput(string Prompt, IReadOnlyList<string> Hotwords, IReadOnlyList<CorpusSegment> Segments);
+    /// <param name="Slots">The run's slot work; null without <c>--slots</c>.</param>
+    private sealed record ArmInput(string Prompt, IReadOnlyList<string> Hotwords, IReadOnlyList<CorpusSegment> Segments, CorpusSlotRun? Slots);
 
     /// <summary>
     /// What an arm's timing needs from the run: the process to sample, the device, the load it already paid,
@@ -130,13 +145,17 @@ public static class CorpusWerRunner
         }
     }
 
-    /// <summary>What every segment of one prompt arm shares: the engine it runs on, its bias and where its lines go.</summary>
+    /// <summary>
+    /// What every segment of one prompt arm shares: the engine it runs on, its bias, where its lines go and its slot tallies
+    /// (null without <c>--slots</c>).
+    /// </summary>
     private sealed record ArmContext(
         ICorpusSttEngine Engine,
         ArmInput Input,
         SttBias Bias,
         List<CorpusWerSegmentLine> SegmentLines,
-        ArmTiming Timing
+        ArmTiming Timing,
+        CorpusSlotArm? Slots
     );
 
     /// <summary>One prompt arm's running counts while its segments are transcribed.</summary>
@@ -192,6 +211,10 @@ public static class CorpusWerRunner
             return AtcOuroborosAnalysis.ExitSetupError;
         }
         Console.WriteLine(LoadedLine(loaded.Segments));
+        if (!CorpusSlotRun.TrySetUp(options.CorpusDir, loaded.Segments, options.Slots, out CorpusSlotRun? slots))
+        {
+            return AtcOuroborosAnalysis.ExitSetupError;
+        }
 
         using var self = Process.GetCurrentProcess();
         self.Refresh();
@@ -205,7 +228,8 @@ public static class CorpusWerRunner
         ArmTiming timing = setup.Timing;
 
         var segmentLines = new List<CorpusWerSegmentLine>();
-        List<CorpusWerArm>? arms = await RunArmsAsync(setup.Engine, options, loaded.Segments, segmentLines, timing).ConfigureAwait(false);
+        var run = new RunInput(loaded.Segments, slots);
+        List<CorpusWerArm>? arms = await RunArmsAsync(setup.Engine, options, run, segmentLines, timing).ConfigureAwait(false);
         if (arms is null)
         {
             return AtcOuroborosAnalysis.ExitSetupError;
@@ -221,7 +245,8 @@ public static class CorpusWerRunner
             subsetFingerprint,
             CorpusSttEngines.RecordedModel(options.Stt),
             arms,
-            options.HotwordsNote
+            options.HotwordsNote,
+            CorpusSlotRun.UnbuiltOf(slots)
         );
         Directory.CreateDirectory(options.OutDir);
         await WriteResultsAsync(options.OutDir, results, segmentLines).ConfigureAwait(false);
@@ -237,15 +262,16 @@ public static class CorpusWerRunner
     private static async Task<List<CorpusWerArm>?> RunArmsAsync(
         ICorpusSttEngine engine,
         Options options,
-        IReadOnlyList<CorpusSegment> segments,
+        RunInput run,
         List<CorpusWerSegmentLine> segmentLines,
         ArmTiming timing
     )
     {
+        IReadOnlyList<CorpusSegment> segments = run.Segments;
         var arms = new List<CorpusWerArm>();
         foreach (string prompt in options.Prompts)
         {
-            var input = new ArmInput(prompt, options.Hotwords, segments);
+            var input = new ArmInput(prompt, options.Hotwords, segments, run.Slots);
             CorpusWerArm? arm = await RunArmAsync(engine, input, segmentLines, timing).ConfigureAwait(false);
             if (arm is null)
             {
@@ -259,6 +285,7 @@ public static class CorpusWerRunner
             arms.Add(arm);
             timing = timing with { DeviceWarning = null };
             Console.WriteLine($"{prompt}: WER {CorpusWerBaselineComparer.Percent(arm.Roles[0].Wer)} over {arm.Roles[0].Segments} segments");
+            CorpusSlotReport.WriteConsole(arm);
             if (arm.NoTranscript > 0)
             {
                 Console.WriteLine(arm.NoTranscriptLine());
@@ -407,7 +434,7 @@ public static class CorpusWerRunner
         IReadOnlyList<CorpusSegment> segments = input.Segments;
         var bias = new SttBias((prompt == "default") ? WhisperBiasingPrompt.Default : string.Empty, input.Hotwords);
         var tally = new ArmTally(Math.Min(LoadProbeSegments, segments.Count), segments.Count, timing.AfterLoadGpuBytes);
-        var arm = new ArmContext(engine, input, bias, segmentLines, timing);
+        var arm = new ArmContext(engine, input, bias, segmentLines, timing, input.Slots?.StartArm());
         var watch = Stopwatch.StartNew();
         for (int i = 0; i < segments.Count; i++)
         {
@@ -424,7 +451,8 @@ public static class CorpusWerRunner
             tally.NoTranscript,
             SummarizeTiming(timing, tally.PeakGpuBytes, tally.Latencies),
             CorpusWerGroups.ProvenanceRows(tally.Scored),
-            CorpusWerGroups.FeedRows(tally.Scored)
+            CorpusWerGroups.FeedRows(tally.Scored),
+            arm.Slots?.Results()
         );
     }
 
@@ -434,8 +462,9 @@ public static class CorpusWerRunner
     /// </summary>
     private static async Task<bool> TranscribeArmSegmentAsync(ArmContext arm, ArmTally tally, CorpusSegment segment, int index)
     {
+        SttBias bias = SegmentBias(arm, segment);
         var segmentWatch = Stopwatch.StartNew();
-        SttHypotheses transcript = await arm.Engine.TranscribeAsync(segment.Samples16k, arm.Bias, CancellationToken.None).ConfigureAwait(false);
+        SttHypotheses transcript = await arm.Engine.TranscribeAsync(segment.Samples16k, bias, CancellationToken.None).ConfigureAwait(false);
         segmentWatch.Stop();
         double latencyMs = transcript.LatencyMs ?? segmentWatch.Elapsed.TotalMilliseconds;
         tally.Latencies.Add((latencyMs, transcript.Cached));
@@ -447,7 +476,7 @@ public static class CorpusWerRunner
         {
             return false;
         }
-        WerCounts counts = ScoreSegment(arm.Input.Prompt, segment, transcript, latencyMs, arm.SegmentLines);
+        WerCounts counts = ScoreSegment(arm, segment, transcript, latencyMs, bias);
         tally.Overall.Add(counts);
         tally.Scored.Add((segment, counts));
         RoleTally(tally.ByRole, segment.Role).Add(counts);
@@ -491,21 +520,23 @@ public static class CorpusWerRunner
         return CorpusWerLatency.Summarize(timing.Device, timing.LoadSeconds, latencies, memory) with { DeviceWarning = timing.DeviceWarning };
     }
 
-    /// <summary>Normalises both sides, scores them and records the segment's <c>results.jsonl</c> line.</summary>
-    private static WerCounts ScoreSegment(
-        string prompt,
-        CorpusSegment segment,
-        SttHypotheses transcript,
-        double latencyMs,
-        List<CorpusWerSegmentLine> segmentLines
-    )
+    /// <summary>The bias the segment's stream runs under: the arm's, with the clip's room hotwords under <c>--room-hotwords</c>.</summary>
+    private static SttBias SegmentBias(ArmContext arm, CorpusSegment segment) =>
+        (arm.Slots is null) ? arm.Bias : arm.Slots.Run.BiasFor(segment, arm.Bias);
+
+    /// <summary>
+    /// Normalises both sides, scores them, decodes the segment's slots when the run scores them and records the segment's
+    /// <c>results.jsonl</c> line.
+    /// </summary>
+    private static WerCounts ScoreSegment(ArmContext arm, CorpusSegment segment, SttHypotheses transcript, double latencyMs, SttBias bias)
     {
         string reference = WerTextNormalizer.Normalize(segment.Reference);
         string? normalized = (transcript.Text is null) ? null : WerTextNormalizer.Normalize(transcript.Text);
         WerCounts counts = WerScorer.Score(reference, normalized);
-        segmentLines.Add(
+        CorpusSlotClipLines? slots = arm.Slots?.Add(segment, transcript, bias);
+        arm.SegmentLines.Add(
             new CorpusWerSegmentLine(
-                prompt,
+                arm.Input.Prompt,
                 segment.Id,
                 CorpusRoles.Label(segment.Role),
                 reference,
@@ -517,7 +548,9 @@ public static class CorpusWerRunner
                 counts.ReferenceWords,
                 latencyMs,
                 transcript.Cached,
-                RecordedNbest(transcript)
+                RecordedNbest(transcript),
+                slots?.HotwordPhrases,
+                slots?.Lines
             )
         );
         return counts;
@@ -617,6 +650,7 @@ public static class CorpusWerRunner
         string hotwords = (results.Hotwords is null) ? string.Empty : $", hotwords {results.Hotwords}";
         string corpus = $"- Corpus `{results.Corpus}`, revision `{revision}`, seed {results.Seed}, subset {subset}";
         report.AppendLine($"{corpus}, model `{results.SttModel}`{hotwords}");
+        CorpusSlotReport.AppendUnbuilt(report, results.UnbuiltCallsigns);
         foreach (CorpusWerArm arm in results.Arms)
         {
             AppendArm(report, arm);
@@ -646,6 +680,7 @@ public static class CorpusWerRunner
             report.AppendLine();
             AppendTable(report, "Feed", arm.Feeds);
         }
+        CorpusSlotReport.Append(report, arm);
         report.AppendLine();
         string audio = arm.AudioSeconds.ToString("0.0", CultureInfo.InvariantCulture);
         string wall = arm.WallSeconds.ToString("0.0", CultureInfo.InvariantCulture);
@@ -664,7 +699,7 @@ public static class CorpusWerRunner
     }
 
     /// <summary>One totals table: the <paramref name="label"/> column and the pooled counts beside it.</summary>
-    private static void AppendTable(StringBuilder report, string label, IReadOnlyList<CorpusWerRoleTotals> rows)
+    internal static void AppendTable(StringBuilder report, string label, IReadOnlyList<CorpusWerRoleTotals> rows)
     {
         report.AppendLine($"| {label} | Segments | Reference words | S | D | I | WER |");
         report.AppendLine("|---|---|---|---|---|---|---|");
@@ -741,7 +776,7 @@ public static class CorpusWerRunner
             case "--decoding" or "--num-paths" or "--hotwords-file" or "--hotword-score" or "--hotword-case":
                 return (i + 1 < args.Length) ? ApplySherpaValue(parsed, flag, args[++i]) : $"{flag} needs a value";
             default:
-                return $"unrecognised argument '{flag}'";
+                return parsed.Slots.Apply(args, ref i);
         }
     }
 
@@ -890,7 +925,7 @@ public static class CorpusWerRunner
         {
             return Failed("--subset and --all exclude each other");
         }
-        string? error = ResolveDevice(parsed) ?? ResolveDecoding(parsed);
+        string? error = ResolveDevice(parsed) ?? SlotFlagError(parsed) ?? ResolveDecoding(parsed);
         if (error is not null)
         {
             return Failed(error);
@@ -927,7 +962,18 @@ public static class CorpusWerRunner
         float score = parsed.HotwordScore ?? SherpaHotwords.DefaultScore;
         var decoding = new SherpaDecoding(SherpaDecodingMethod.Beam, parsed.NumPaths ?? SherpaDecoding.MaxBeamPaths, score);
         parsed.Stt = parsed.Stt with { Decoding = decoding };
-        return (parsed.HotwordsFile is null) ? null : LoadHotwords(parsed, parsed.HotwordsFile, score);
+        return (parsed.HotwordsFile is null) ? NoteRoomHotwords(parsed, score) : LoadHotwords(parsed, parsed.HotwordsFile, score);
+    }
+
+    /// <summary>Checks the slot flags against the corpus, the decoding and the hotwords file.</summary>
+    private static string? SlotFlagError(ParsedArgs parsed) =>
+        parsed.Slots.Error(parsed.Corpus == UwbCorpusName, parsed.Decoding == SherpaDecodingMethod.Beam, parsed.HotwordsFile is not null);
+
+    /// <summary>Writes the <c>--room-hotwords</c> note into the run, if it has room hotwords; never an error.</summary>
+    private static string? NoteRoomHotwords(ParsedArgs parsed, float score)
+    {
+        parsed.HotwordsNote = parsed.Slots.Note(score, parsed.Casing ?? HotwordCase.Title);
+        return null;
     }
 
     private static string? DecodingFlagError(ParsedArgs parsed)
@@ -947,7 +993,7 @@ public static class CorpusWerRunner
 
     private static string? HotwordFlagError(ParsedArgs parsed)
     {
-        if (parsed.HotwordsFile is not null)
+        if ((parsed.HotwordsFile is not null) || (parsed.Slots.RoomHotwords is not null))
         {
             return null;
         }
@@ -1042,7 +1088,8 @@ public static class CorpusWerRunner
             outDir,
             baselinePath,
             parsed.Hotwords,
-            parsed.HotwordsNote
+            parsed.HotwordsNote,
+            parsed.Slots.ToOptions(parsed.Casing ?? HotwordCase.Title)
         );
         return new ParseResult(options, null);
     }
