@@ -543,7 +543,10 @@ public static class AsdexSafetyLogicDetector
     private static bool LanderOccupies(ConvergingUser user, AsdexRunwaySurface runway) =>
         (user.Role == AsdexRunwayUserRole.Arrival) && AsdexRunwayUsers.Occupies(user.Aircraft, runway.Runway);
 
-    /// <summary>The arrivals and departures using <c>configured[runwayIndex]</c>, each with its use of it and its role there.</summary>
+    /// <summary>
+    /// The arrivals and departures using <c>configured[runwayIndex]</c>, each with its use of it and its role there. A departure
+    /// counts only from over the runway: passing through a parallel's arrival box is no use of that parallel.
+    /// </summary>
     private static List<ConvergingUser> ConvergingUsers(
         IReadOnlyList<AsdexHoldBarRunway> configured,
         IReadOnlyList<AircraftState> candidates,
@@ -560,7 +563,11 @@ public static class AsdexSafetyLogicDetector
             }
 
             AsdexRunwayUserRole role = AsdexRunwayUsers.Role(candidates[k], AsdexRunwayUsers.ArrivesOn(uses[k], configured, runwayIndex));
-            if ((role != AsdexRunwayUserRole.Other) && (AsdexRunwayUsers.UseOn(uses[k], configured, runwayIndex) is { } use))
+            AsdexRunwayUse? runwayUse =
+                role == AsdexRunwayUserRole.Departure
+                    ? AsdexRunwayUsers.OverRunwayUseOn(uses[k], configured, runwayIndex)
+                    : AsdexRunwayUsers.UseOn(uses[k], configured, runwayIndex);
+            if ((role != AsdexRunwayUserRole.Other) && (runwayUse is { } use))
             {
                 users.Add(new ConvergingUser(candidates[k], use, role));
             }

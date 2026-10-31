@@ -3,6 +3,8 @@ using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.Asdex;
 
@@ -377,5 +379,124 @@ public class AsdexRunwayUsersTests
         AsdexRunwayUses uses = AsdexRunwayUsers.UsesOf(shadow, _runways, _axes, _fieldElevationFt);
 
         Assert.Equal(expected, AsdexRunwayUsers.Role(shadow, AsdexRunwayUsers.ArrivesOn(uses, _runways, IndexOf("28R"))));
+    }
+
+    /// <summary>An aircraft inside 28L's arrival box, 3,000 ft before the threshold and 300 ft up, in <paramref name="phase"/>.</summary>
+    private AircraftState InsideThe28LBox(Phase phase) => WithPhase(Arrival(End("28L"), 3000, 300), phase);
+
+    private static AircraftState WithPhase(AircraftState aircraft, Phase phase)
+    {
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        return aircraft;
+    }
+
+    /// <summary>The role of an aircraft on 28L, proved to be inside 28L's arrival box first.</summary>
+    private AsdexRunwayUserRole RoleInsideThe28LBox(AircraftState aircraft)
+    {
+        AsdexRunwayUses uses = AsdexRunwayUsers.UsesOf(aircraft, _runways, _axes, _fieldElevationFt);
+        bool arrivesOn28L = AsdexRunwayUsers.ArrivesOn(uses, _runways, IndexOf("28L"));
+        Assert.True(arrivesOn28L);
+        return AsdexRunwayUsers.Role(aircraft, arrivesOn28L);
+    }
+
+    /// <summary>A takeoff phase already airborne off a parallel stays a departure inside the arrival box it is passing through.</summary>
+    [Fact]
+    public void Role_TakeoffPhaseInsideAParallelsBox_IsDeparture() =>
+        Assert.Equal(AsdexRunwayUserRole.Departure, RoleInsideThe28LBox(InsideThe28LBox(new TakeoffPhase())));
+
+    /// <summary>An initial climb off a parallel stays a departure inside the arrival box it is passing through.</summary>
+    [Fact]
+    public void Role_InitialClimbInsideAParallelsBox_IsDeparture() =>
+        Assert.Equal(AsdexRunwayUserRole.Departure, RoleInsideThe28LBox(InsideThe28LBox(new InitialClimbPhase())));
+
+    /// <summary>A helicopter takeoff off a parallel stays a departure inside the arrival box it is passing through.</summary>
+    [Fact]
+    public void Role_HelicopterTakeoffInsideAParallelsBox_IsDeparture() =>
+        Assert.Equal(AsdexRunwayUserRole.Departure, RoleInsideThe28LBox(InsideThe28LBox(new HelicopterTakeoffPhase())));
+
+    /// <summary>A touch-and-go that has re-accelerated is a departure (7110.65 §3-8-2), inside another runway's arrival box too.</summary>
+    [Fact]
+    public void Role_ReacceleratingTouchAndGoInsideAParallelsBox_IsDeparture() =>
+        Assert.Equal(AsdexRunwayUserRole.Departure, RoleInsideThe28LBox(InsideThe28LBox(LiftedOffOptionPhases.TouchAndGo(End("28L")))));
+
+    /// <summary>A go-around climbs, but it is still an arrival to the runway whose box it is in until it is past the threshold.</summary>
+    [Fact]
+    public void Role_GoAroundInsideARunwaysBox_StaysArrival() =>
+        Assert.Equal(AsdexRunwayUserRole.Arrival, RoleInsideThe28LBox(InsideThe28LBox(new GoAroundPhase())));
+
+    /// <summary>A live-traffic shadow has no phase to tell a departure by, so inside a box it is an arrival even while climbing.</summary>
+    [Fact]
+    public void Role_ShadowClimbingInsideABox_StaysArrival()
+    {
+        AircraftState shadow = Arrival(End("28L"), 3000, 300);
+        shadow.LiveTraffic = new AircraftLiveTraffic { Source = LiveTrafficSource.Asdex };
+        shadow.VerticalSpeed = 1500;
+
+        Assert.Equal(AsdexRunwayUserRole.Arrival, RoleInsideThe28LBox(shadow));
+    }
+
+    /// <summary>The runway end whose takeoff or landing direction leads along the axis toward <paramref name="crossing"/>.</summary>
+    private static string EndTowardTheCrossing(AsdexRunwayAxis axis, LatLon crossing) =>
+        axis.Along(crossing) > axis.LengthFt ? axis.Runway.Id.End1 : axis.Runway.Id.End2;
+
+    /// <summary>A 400 ft wide footprint ring along the runway, from <paramref name="end"/>'s threshold.</summary>
+    private static List<LatLon> Footprint(RunwayInfo end, double lengthFt)
+    {
+        var start = new LatLon(end.ThresholdLatitude, end.ThresholdLongitude);
+        LatLon stop = GeoMath.ProjectPoint(start, end.TrueHeading, lengthFt / GeoMath.FeetPerNm);
+        var right = new TrueHeading(end.TrueHeading.Degrees + 90);
+        var left = new TrueHeading(end.TrueHeading.Degrees - 90);
+        double halfWidthNm = 200 / GeoMath.FeetPerNm;
+        return
+        [
+            GeoMath.ProjectPoint(start, left, halfWidthNm),
+            GeoMath.ProjectPoint(stop, left, halfWidthNm),
+            GeoMath.ProjectPoint(stop, right, halfWidthNm),
+            GeoMath.ProjectPoint(start, right, halfWidthNm),
+        ];
+    }
+
+    /// <summary>
+    /// IAH 15L/33R and 8R/26L meet beyond their ends, inside the 1 NM reach. A departure climbing out 100 ft up still converges
+    /// with an arrival to the other runway while it is over its own, and stops counting once it is airborne past the end, the
+    /// crossing still ahead of it: the reach holds only while it is a runway user.
+    /// </summary>
+    [Theory]
+    [InlineData(-1000, true)]
+    [InlineData(1000, false)]
+    public void ADepartureAirbornePastItsRunwaysEnd_StopsCounting(double pastTheEndFt, bool converges)
+    {
+        (AsdexRunwayAxis[] axes, LatLon crossing) = IahPair("15L", "8R");
+        RunwayInfo departureEnd = axes[0].Runway.ForApproach(EndTowardTheCrossing(axes[0], crossing));
+        RunwayInfo arrivalEnd = axes[1].Runway.ForApproach(EndTowardTheCrossing(axes[1], crossing));
+        Assert.True(pastTheEndFt < BeyondTheEndFt(axes[0], crossing));
+        AircraftState departure = WithPhase(
+            At(departureEnd, axes[0].LengthFt + pastTheEndFt, RunwayElevationFt(departureEnd) + 100, onGround: false, speedKts: 160, offsetDeg: 0),
+            new InitialClimbPhase()
+        );
+        AircraftState arrival = WithPhase(
+            At(arrivalEnd, -3000, RunwayElevationFt(arrivalEnd) + 300, onGround: false, speedKts: 140, offsetDeg: 0),
+            new FinalApproachPhase()
+        );
+        AsdexHoldBarRunway[] runways =
+        [
+            new("15L-33R", axes[0].Runway, Footprint(departureEnd, axes[0].LengthFt)),
+            new("8R-26L", axes[1].Runway, Footprint(arrivalEnd, axes[1].LengthFt)),
+        ];
+        var surfaces = new AsdexSafetyLogicRunways(
+            [new AsdexRunwaySurface(runways[0], axes[0], isClosed: false), new AsdexRunwaySurface(runways[1], axes[1], isClosed: false)],
+            [runways[0].Area, runways[1].Area]
+        );
+
+        AsdexDetection detection = AsdexSafetyLogicDetector.Detect(
+            surfaces,
+            [],
+            [departure, arrival],
+            RunwayElevationFt(arrivalEnd),
+            new AsdexDetectionInputs(false, AsdexDetection.NoOppDirPairs)
+        );
+
+        Assert.Equal(converges, detection.Alerts.Any(alert => alert.Kind == AsdexAlertKind.Converging));
     }
 }
