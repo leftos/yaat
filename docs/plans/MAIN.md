@@ -27,8 +27,6 @@
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-1057 ASDE-X safety logic parity with CRC (SFO report) · release vNext
 - [/] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form · release vNext
-- [/] YAAT-1378 Keep a crossed at-or-above floor through a re-issued DVIA; keep a restated speed through a later-block CAPP · release vNext
-- [/] YAAT-1379 Lift a controller crossing speed's ceiling past its fix under a via clearance · release vNext
 - [ ] YAAT-1428 Handle a CTO naming a different runway while holding short of a taxiway (intersection, crossing or query) · release vNext
 - [ ] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer
 
@@ -205,7 +203,7 @@
 
 ## Runway exits and landing rollout
 
-### 1 Defects (0/25 done)
+### 1 Defects (0/24 done)
 - [ ] YAAT-31 LAHSO residuals: carry the limit past handoff, arc fit, ALD gate, CROSS release
 - [ ] YAAT-46 Stop the rollout's straight-line exit fallback picking non-exit nodes
 - [ ] YAAT-47 CLANDF follow-ups: clear the forced landing on phase clear, aim point, teleport
@@ -230,7 +228,6 @@
 - [ ] YAAT-1289 Keep the rollout's brake rate on the hand-off sub-tick instead of falling back to the taxi rate
 - [ ] YAAT-1291 Keep the landing straight-line exit fallback from taking a near-parallel taxiway as a high-speed exit (OAK 30 W at 3°)
 - [ ] YAAT-1293 Refused standard exit says 'no exit ahead' while the branch is still ahead
-- [ ] YAAT-1463 C172 rolls past OAK 28R exit E now that E measures as a standard exit · release vNext
 
 ### 2 Refinements and rulings (0/12 done)
 - [ ] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates
@@ -323,13 +320,15 @@
 - [ ] YAAT-1391 Stop a follower planning a head-on merge at the end of its lead's route (OAK TAXI B R, 048° against 228°)
 - [ ] YAAT-1470 TaxiRoute.RemainingDistanceFt reads a node overshoot as distance left
 
-### 2 Refinements and rulings (0/6 done)
+### 2 Refinements and rulings (0/8 done)
 - [ ] YAAT-34 Ground-speed realism: follow stop distance by weight class, static takeoffs
 - [ ] YAAT-1311 Brake a FOLLOWG follower that turns back with its nose at an exit bar instead of stopping dead
 - [ ] YAAT-1276 Rule on the GIVEWAY rejoin rule's unbounded detour; test the bug_bundle trim tail paths
 - [ ] YAAT-767 Number a no-runway FOLLOWG follower behind its lead in the departure queue while it taxis
 - [ ] YAAT-554 FOLLOWG: decide whether a same-edge head-on pair keeps the follower moving too
 - [ ] YAAT-1267 Say or warn when a GIVEWAY releases by the stationary bypass or the safety timeout
+- [ ] YAAT-1587 Judge a deferred GIVEWAY PUSH on the path the push would take
+- [ ] YAAT-1588 Break a mutual give-way between a deferred GIVEWAY and a hold
 
 ### 3 Hygiene and tests (0/4 done)
 - [ ] YAAT-326 Split the over-150-character lines in GroundConflictDetector and NodeAimedEntryOntoFilletTests
@@ -584,7 +583,7 @@
 
 ## Speed control and performance limits
 
-### 1 Defects (0/24 done)
+### 1 Defects (0/26 done)
 - [ ] YAAT-188 Cap descent by angle in UpdateDescentPlanning
 - [ ] YAAT-190 Use one snap tolerance in FlightPhysics.BoundsCorrectionTarget
 - [ ] YAAT-853 Refuse a rolling takeoff to a Super or heavy that has no aircraft profile (A388, A225, IL76, KC10)
@@ -609,6 +608,8 @@
 - [ ] YAAT-1453 Write a constrained DCTF's speed revert on its last speed-constrained fix too · release vNext
 - [ ] YAAT-1454 Restore a dropped crossing restriction's speed revert (or SMAX) when DCTF replaces the route · release vNext
 - [ ] YAAT-1577 End a crossed published speed ceiling when the aircraft is vectored or sent direct off the procedure
+- [ ] YAAT-1586 Stop a crossing fix's revert restoring a speed RNS already ended
+- [ ] YAAT-1589 Keep the published speed under a controller crossing at shared STAR fixes, and end its target speed past the fix
 
 ### 2 Refinements and rulings (0/9 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
@@ -625,7 +626,6 @@
 - [ ] YAAT-117 Split FlightPhysics.UpdateSpeed into layer helpers (complexity ≤8)
 
 ### No milestone
-- [/] YAAT-1520 End a crossed published speed floor when the aircraft is vectored or sent direct off the procedure · release vNext
 - [ ] YAAT-1523 Apply or refuse an SPD/MACH given beside CTO in a phase-handled block instead of dropping it silently
 - [ ] YAAT-1524 Decelerate at a descending rate, not the level-flight rate, when slowing for a fix in a descent
 
@@ -1061,7 +1061,7 @@
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-305 UI tests: AppLifetime.IsShuttingDown never resets after a MainWindow close · release vNext
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
-- [ ] YAAT-995 Stop ManagedStackCapture's ClrMD snapshot clones outliving the capture · release vNext
+- [/] YAAT-995 Stop ManagedStackCapture's ClrMD snapshot clones outliving the capture · release vNext
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
 
 ### 2 Refinements and rulings (0/4 done)
