@@ -56,7 +56,10 @@ public class ContextDecoderTests
 
     private static readonly Lazy<IReadOnlyList<ContextEntity>> AirportWithKaiser = new(() => BuildAirport([Kaiser]));
 
-    private static readonly Lazy<IReadOnlyList<ContextEntity>> AirportWithoutKaiser = new(() => BuildAirport([]));
+    // Real KOAK data ships the ground place KAISER, so the "no Kaiser in context" premise removes it explicitly.
+    private static readonly Lazy<IReadOnlyList<ContextEntity>> AirportWithoutKaiser = new(() =>
+        [.. BuildAirport([]).Where(entity => entity.Value != "KOAK/KAISER")]
+    );
 
     private static DecoderSettings Settings => DecoderSettings.Default;
 

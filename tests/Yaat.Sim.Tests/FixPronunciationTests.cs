@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Proto;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Sim.Tests;
 
@@ -180,5 +181,76 @@ public class FixPronunciationTests
 
         Assert.Contains("see rah", hint);
         Assert.Contains("seppin", hint);
+    }
+
+    // --- Tests 7-9: a generated one-word form stays a TTS/STT-context form and never collapses a transcript ---
+
+    private const string GeneratedAndAuthoredEntries = """
+        [
+            {"fix": "CITYY", "pronunciations": ["city"], "generated": true},
+            {"fix": "PTRYS", "pronunciations": ["point reyes"], "generated": true},
+            {"fix": "NIKLZ", "pronunciations": ["nickels"]}
+        ]
+        """;
+
+    [Fact]
+    public void GeneratedOneWordForm_DoesNotCollapse_ButIsStillAPronunciation()
+    {
+        WithDatabaseOver(
+            GeneratedAndAuthoredEntries,
+            db =>
+            {
+                List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(["direct", "to", "city"], db.CustomFixSpeechPatterns);
+                Assert.Equal(["direct", "to", "city"], collapsed);
+                Assert.Equal(["city"], db.GetFixPronunciations("CITYY"));
+            }
+        );
+    }
+
+    [Fact]
+    public void GeneratedMultiWordForm_Collapses()
+    {
+        WithDatabaseOver(
+            GeneratedAndAuthoredEntries,
+            db =>
+            {
+                List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(["direct", "to", "point", "reyes"], db.CustomFixSpeechPatterns);
+                Assert.Equal(["direct", "to", "PTRYS"], collapsed);
+            }
+        );
+    }
+
+    [Fact]
+    public void AuthoredOneWordForm_StillCollapses()
+    {
+        WithDatabaseOver(
+            GeneratedAndAuthoredEntries,
+            db =>
+            {
+                List<string> collapsed = PhraseologyMapper.CollapseCustomFixNames(["direct", "to", "nickels"], db.CustomFixSpeechPatterns);
+                Assert.Equal(["direct", "to", "NIKLZ"], collapsed);
+            }
+        );
+    }
+
+    /// <summary>Builds a NavigationDatabase over the real navdata and a temp ARTCC dir holding one FixPronunciations file.</summary>
+    private static void WithDatabaseOver(string fixPronunciationsJson, Action<NavigationDatabase> assert)
+    {
+        string? cifpPath = TestVnasData.GetCifpPath();
+        Assert.NotNull(cifpPath);
+        NavDataSet navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(Path.Combine("TestData", "NavData.dat")));
+
+        string tempDir = Path.Combine(Path.GetTempPath(), $"yaat-fp-gen-{Guid.NewGuid():N}");
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "FixPronunciations");
+        Directory.CreateDirectory(categoryDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(categoryDir, "test.json"), fixPronunciationsJson);
+            assert(new NavigationDatabase(navData, cifpPath!, tempDir, supplementaryCifpFilePaths: []));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
     }
 }

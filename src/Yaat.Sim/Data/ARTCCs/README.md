@@ -134,6 +134,7 @@ Each file is a JSON array of pronunciation entries. Use lowercase space-separate
 - `fix` — canonical fix name (case-insensitive; stored uppercase internally).
 - `pronunciations` — array of phonetic variants. Multiple entries are useful for regional pronunciation differences (e.g., `["see rah", "sih rah"]`).
 - `displayName` — optional human-readable name (e.g. `"Oakland Coliseum"` for `VPCOL`). Only an entry with a `displayName` shows in operator-facing text and pilot readbacks; a phonetic-only entry stays hidden from the display. An entry is skipped only when it has neither `pronunciations` nor a `displayName`.
+- `generated` — optional, default `false`. Written as `true` by `tools/generate-speech-lexicon.py apply` on the model-proposed entries it creates. A generated one-word form is not a transcript collapse pattern: it still reaches pilot speech and the speech-to-text context, but "city" in a transcript stays "city". A generated multi-word form collapses as usual. Removing the flag once a human has checked the entry restores normal collapse.
 
 ### When to add a hint
 

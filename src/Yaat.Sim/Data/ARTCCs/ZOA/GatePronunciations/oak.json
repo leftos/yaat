@@ -1,0 +1,1212 @@
+{
+  "airportId": "KOAK",
+  "gates": [
+    {
+      "name": "1A",
+      "pronunciations": [
+        "gate 1 alpha",
+        "1 alpha"
+      ]
+    },
+    {
+      "name": "1B",
+      "pronunciations": [
+        "gate 1 bravo",
+        "1 bravo"
+      ]
+    },
+    {
+      "name": "1C",
+      "pronunciations": [
+        "gate 1 charlie",
+        "1 charlie"
+      ]
+    },
+    {
+      "name": "1D",
+      "pronunciations": [
+        "gate 1 delta",
+        "1 delta"
+      ]
+    },
+    {
+      "name": "3A",
+      "pronunciations": [
+        "gate 3 alpha",
+        "3 alpha"
+      ]
+    },
+    {
+      "name": "7A",
+      "pronunciations": [
+        "gate 7 alpha",
+        "7 alpha"
+      ]
+    },
+    {
+      "name": "8A",
+      "pronunciations": [
+        "gate 8 alpha",
+        "8 alpha"
+      ]
+    },
+    {
+      "name": "8B",
+      "pronunciations": [
+        "gate 8 bravo",
+        "8 bravo"
+      ]
+    },
+    {
+      "name": "9A",
+      "pronunciations": [
+        "gate 9 alpha",
+        "9 alpha"
+      ]
+    },
+    {
+      "name": "A",
+      "pronunciations": [
+        "spot alpha",
+        "alpha"
+      ]
+    },
+    {
+      "name": "ARGUS",
+      "pronunciations": [
+        "argus",
+        "the argus ramp"
+      ]
+    },
+    {
+      "name": "B",
+      "pronunciations": [
+        "spot bravo",
+        "bravo"
+      ]
+    },
+    {
+      "name": "C",
+      "pronunciations": [
+        "spot charlie",
+        "charlie"
+      ]
+    },
+    {
+      "name": "CARGO1",
+      "pronunciations": [
+        "cargo 1",
+        "cargo ramp 1"
+      ]
+    },
+    {
+      "name": "CARGO2",
+      "pronunciations": [
+        "cargo 2",
+        "cargo ramp 2"
+      ]
+    },
+    {
+      "name": "CHEVRON",
+      "pronunciations": [
+        "chevron",
+        "the chevron hangar"
+      ]
+    },
+    {
+      "name": "D",
+      "pronunciations": [
+        "spot delta",
+        "delta"
+      ]
+    },
+    {
+      "name": "DHL1",
+      "pronunciations": [
+        "d h l 1",
+        "d h l ramp 1"
+      ]
+    },
+    {
+      "name": "DHL2",
+      "pronunciations": [
+        "d h l 2",
+        "d h l ramp 2"
+      ]
+    },
+    {
+      "name": "E",
+      "pronunciations": [
+        "spot echo",
+        "echo"
+      ]
+    },
+    {
+      "name": "F",
+      "pronunciations": [
+        "spot foxtrot",
+        "foxtrot"
+      ]
+    },
+    {
+      "name": "FDX1",
+      "pronunciations": [
+        "fedex 1",
+        "fedex spot 1"
+      ]
+    },
+    {
+      "name": "FDX10",
+      "pronunciations": [
+        "fedex 10",
+        "fedex spot 10"
+      ]
+    },
+    {
+      "name": "FDX11",
+      "pronunciations": [
+        "fedex 11",
+        "fedex spot 11"
+      ]
+    },
+    {
+      "name": "FDX12",
+      "pronunciations": [
+        "fedex 12",
+        "fedex spot 12"
+      ]
+    },
+    {
+      "name": "FDX13",
+      "pronunciations": [
+        "fedex 13",
+        "fedex spot 13"
+      ]
+    },
+    {
+      "name": "FDX14",
+      "pronunciations": [
+        "fedex 14",
+        "fedex spot 14"
+      ]
+    },
+    {
+      "name": "FDX15",
+      "pronunciations": [
+        "fedex 15",
+        "fedex spot 15"
+      ]
+    },
+    {
+      "name": "FDX16",
+      "pronunciations": [
+        "fedex 16",
+        "fedex spot 16"
+      ]
+    },
+    {
+      "name": "FDX17",
+      "pronunciations": [
+        "fedex 17",
+        "fedex spot 17"
+      ]
+    },
+    {
+      "name": "FDX18",
+      "pronunciations": [
+        "fedex 18",
+        "fedex spot 18"
+      ]
+    },
+    {
+      "name": "FDX2",
+      "pronunciations": [
+        "fedex 2",
+        "fedex spot 2"
+      ]
+    },
+    {
+      "name": "FDX3",
+      "pronunciations": [
+        "fedex 3",
+        "fedex spot 3"
+      ]
+    },
+    {
+      "name": "FDX4",
+      "pronunciations": [
+        "fedex 4",
+        "fedex spot 4"
+      ]
+    },
+    {
+      "name": "FDX5",
+      "pronunciations": [
+        "fedex 5",
+        "fedex spot 5"
+      ]
+    },
+    {
+      "name": "FDX6",
+      "pronunciations": [
+        "fedex 6",
+        "fedex spot 6"
+      ]
+    },
+    {
+      "name": "FDX7",
+      "pronunciations": [
+        "fedex 7",
+        "fedex spot 7"
+      ]
+    },
+    {
+      "name": "FDX8",
+      "pronunciations": [
+        "fedex 8",
+        "fedex spot 8"
+      ]
+    },
+    {
+      "name": "FDX9",
+      "pronunciations": [
+        "fedex 9",
+        "fedex spot 9"
+      ]
+    },
+    {
+      "name": "G",
+      "pronunciations": [
+        "spot golf",
+        "golf"
+      ]
+    },
+    {
+      "name": "GA1",
+      "pronunciations": [
+        "g a 1",
+        "general aviation 1"
+      ]
+    },
+    {
+      "name": "GA10",
+      "pronunciations": [
+        "g a 10",
+        "general aviation 10"
+      ]
+    },
+    {
+      "name": "GA11",
+      "pronunciations": [
+        "g a 11",
+        "general aviation 11"
+      ]
+    },
+    {
+      "name": "GA12",
+      "pronunciations": [
+        "g a 12",
+        "general aviation 12"
+      ]
+    },
+    {
+      "name": "GA13",
+      "pronunciations": [
+        "g a 13",
+        "general aviation 13"
+      ]
+    },
+    {
+      "name": "GA14",
+      "pronunciations": [
+        "g a 14",
+        "general aviation 14"
+      ]
+    },
+    {
+      "name": "GA15",
+      "pronunciations": [
+        "g a 15",
+        "general aviation 15"
+      ]
+    },
+    {
+      "name": "GA16",
+      "pronunciations": [
+        "g a 16",
+        "general aviation 16"
+      ]
+    },
+    {
+      "name": "GA17",
+      "pronunciations": [
+        "g a 17",
+        "general aviation 17"
+      ]
+    },
+    {
+      "name": "GA18",
+      "pronunciations": [
+        "g a 18",
+        "general aviation 18"
+      ]
+    },
+    {
+      "name": "GA19",
+      "pronunciations": [
+        "g a 19",
+        "general aviation 19"
+      ]
+    },
+    {
+      "name": "GA2",
+      "pronunciations": [
+        "g a 2",
+        "general aviation 2"
+      ]
+    },
+    {
+      "name": "GA20",
+      "pronunciations": [
+        "g a 20",
+        "general aviation 20"
+      ]
+    },
+    {
+      "name": "GA3",
+      "pronunciations": [
+        "g a 3",
+        "general aviation 3"
+      ]
+    },
+    {
+      "name": "GA4",
+      "pronunciations": [
+        "g a 4",
+        "general aviation 4"
+      ]
+    },
+    {
+      "name": "GA5",
+      "pronunciations": [
+        "g a 5",
+        "general aviation 5"
+      ]
+    },
+    {
+      "name": "GA6",
+      "pronunciations": [
+        "g a 6",
+        "general aviation 6"
+      ]
+    },
+    {
+      "name": "GA7",
+      "pronunciations": [
+        "g a 7",
+        "general aviation 7"
+      ]
+    },
+    {
+      "name": "GA8",
+      "pronunciations": [
+        "g a 8",
+        "general aviation 8"
+      ]
+    },
+    {
+      "name": "GA9",
+      "pronunciations": [
+        "g a 9",
+        "general aviation 9"
+      ]
+    },
+    {
+      "name": "HELI",
+      "pronunciations": [
+        "helipad",
+        "the helipad"
+      ]
+    },
+    {
+      "name": "HELI1",
+      "pronunciations": [
+        "helipad 1",
+        "helispot 1"
+      ]
+    },
+    {
+      "name": "HELI2",
+      "pronunciations": [
+        "helipad 2",
+        "helispot 2"
+      ]
+    },
+    {
+      "name": "JSX1",
+      "pronunciations": [
+        "j s x 1",
+        "j s x ramp 1"
+      ]
+    },
+    {
+      "name": "JSX2",
+      "pronunciations": [
+        "j s x 2",
+        "j s x ramp 2"
+      ]
+    },
+    {
+      "name": "JSX3",
+      "pronunciations": [
+        "j s x 3",
+        "j s x ramp 3"
+      ]
+    },
+    {
+      "name": "KAI1",
+      "pronunciations": [
+        "kaiser 1",
+        "kaiser air 1"
+      ]
+    },
+    {
+      "name": "KAI2",
+      "pronunciations": [
+        "kaiser 2",
+        "kaiser air 2"
+      ]
+    },
+    {
+      "name": "KAI3",
+      "pronunciations": [
+        "kaiser 3",
+        "kaiser air 3"
+      ]
+    },
+    {
+      "name": "KAI4",
+      "pronunciations": [
+        "kaiser 4",
+        "kaiser air 4"
+      ]
+    },
+    {
+      "name": "KAI5",
+      "pronunciations": [
+        "kaiser 5",
+        "kaiser air 5"
+      ]
+    },
+    {
+      "name": "KAI6",
+      "pronunciations": [
+        "kaiser 6",
+        "kaiser air 6"
+      ]
+    },
+    {
+      "name": "KAI7",
+      "pronunciations": [
+        "kaiser 7",
+        "kaiser air 7"
+      ]
+    },
+    {
+      "name": "MTN1",
+      "pronunciations": [
+        "mountain 1",
+        "mountain air 1"
+      ]
+    },
+    {
+      "name": "MTN1A",
+      "pronunciations": [
+        "mountain 1 alpha",
+        "mountain air 1 alpha"
+      ]
+    },
+    {
+      "name": "MTN2",
+      "pronunciations": [
+        "mountain 2",
+        "mountain air 2"
+      ]
+    },
+    {
+      "name": "MTN2A",
+      "pronunciations": [
+        "mountain 2 alpha",
+        "mountain air 2 alpha"
+      ]
+    },
+    {
+      "name": "MTN3",
+      "pronunciations": [
+        "mountain 3",
+        "mountain air 3"
+      ]
+    },
+    {
+      "name": "MTN4",
+      "pronunciations": [
+        "mountain 4",
+        "mountain air 4"
+      ]
+    },
+    {
+      "name": "MTN5",
+      "pronunciations": [
+        "mountain 5",
+        "mountain air 5"
+      ]
+    },
+    {
+      "name": "MTN6",
+      "pronunciations": [
+        "mountain 6",
+        "mountain air 6"
+      ]
+    },
+    {
+      "name": "MTN6A",
+      "pronunciations": [
+        "mountain 6 alpha",
+        "mountain air 6 alpha"
+      ]
+    },
+    {
+      "name": "MTN7",
+      "pronunciations": [
+        "mountain 7",
+        "mountain air 7"
+      ]
+    },
+    {
+      "name": "MTN8",
+      "pronunciations": [
+        "mountain 8",
+        "mountain air 8"
+      ]
+    },
+    {
+      "name": "NEW1",
+      "pronunciations": [
+        "new 1",
+        "new ramp 1"
+      ]
+    },
+    {
+      "name": "NEW2",
+      "pronunciations": [
+        "new 2",
+        "new ramp 2"
+      ]
+    },
+    {
+      "name": "NEW3",
+      "pronunciations": [
+        "new 3",
+        "new ramp 3"
+      ]
+    },
+    {
+      "name": "NEW4",
+      "pronunciations": [
+        "new 4",
+        "new ramp 4"
+      ]
+    },
+    {
+      "name": "NEW5",
+      "pronunciations": [
+        "new 5",
+        "new ramp 5"
+      ]
+    },
+    {
+      "name": "NEW6",
+      "pronunciations": [
+        "new 6",
+        "new ramp 6"
+      ]
+    },
+    {
+      "name": "NEW7",
+      "pronunciations": [
+        "new 7",
+        "new ramp 7"
+      ]
+    },
+    {
+      "name": "OLD1",
+      "pronunciations": [
+        "old 1",
+        "old ramp 1"
+      ]
+    },
+    {
+      "name": "OLD2",
+      "pronunciations": [
+        "old 2",
+        "old ramp 2"
+      ]
+    },
+    {
+      "name": "OLD3",
+      "pronunciations": [
+        "old 3",
+        "old ramp 3"
+      ]
+    },
+    {
+      "name": "OLD4",
+      "pronunciations": [
+        "old 4",
+        "old ramp 4"
+      ]
+    },
+    {
+      "name": "OLD5",
+      "pronunciations": [
+        "old 5",
+        "old ramp 5"
+      ]
+    },
+    {
+      "name": "OLD6",
+      "pronunciations": [
+        "old 6",
+        "old ramp 6"
+      ]
+    },
+    {
+      "name": "OLD7",
+      "pronunciations": [
+        "old 7",
+        "old ramp 7"
+      ]
+    },
+    {
+      "name": "OLD8",
+      "pronunciations": [
+        "old 8",
+        "old ramp 8"
+      ]
+    },
+    {
+      "name": "PCM1",
+      "pronunciations": [
+        "p c m 1"
+      ]
+    },
+    {
+      "name": "PCM2",
+      "pronunciations": [
+        "p c m 2"
+      ]
+    },
+    {
+      "name": "PCM3",
+      "pronunciations": [
+        "p c m 3"
+      ]
+    },
+    {
+      "name": "PT1",
+      "pronunciations": [
+        "p t 1",
+        "papa tango 1"
+      ]
+    },
+    {
+      "name": "PT2",
+      "pronunciations": [
+        "p t 2",
+        "papa tango 2"
+      ]
+    },
+    {
+      "name": "PXT1",
+      "pronunciations": [
+        "p x t 1"
+      ]
+    },
+    {
+      "name": "PXT2",
+      "pronunciations": [
+        "p x t 2"
+      ]
+    },
+    {
+      "name": "PXT3",
+      "pronunciations": [
+        "p x t 3"
+      ]
+    },
+    {
+      "name": "R1",
+      "pronunciations": [
+        "romeo 1",
+        "spot romeo 1"
+      ]
+    },
+    {
+      "name": "RON1",
+      "pronunciations": [
+        "ron 1",
+        "r o n 1",
+        "ron spot 1"
+      ]
+    },
+    {
+      "name": "RON10",
+      "pronunciations": [
+        "ron 10",
+        "r o n 10",
+        "ron spot 10"
+      ]
+    },
+    {
+      "name": "RON2",
+      "pronunciations": [
+        "ron 2",
+        "r o n 2",
+        "ron spot 2"
+      ]
+    },
+    {
+      "name": "RON3",
+      "pronunciations": [
+        "ron 3",
+        "r o n 3",
+        "ron spot 3"
+      ]
+    },
+    {
+      "name": "RON4",
+      "pronunciations": [
+        "ron 4",
+        "r o n 4",
+        "ron spot 4"
+      ]
+    },
+    {
+      "name": "RON5",
+      "pronunciations": [
+        "ron 5",
+        "r o n 5",
+        "ron spot 5"
+      ]
+    },
+    {
+      "name": "RON5A",
+      "pronunciations": [
+        "ron 5 alpha",
+        "r o n 5 alpha"
+      ]
+    },
+    {
+      "name": "RON6",
+      "pronunciations": [
+        "ron 6",
+        "r o n 6",
+        "ron spot 6"
+      ]
+    },
+    {
+      "name": "RON7",
+      "pronunciations": [
+        "ron 7",
+        "r o n 7",
+        "ron spot 7"
+      ]
+    },
+    {
+      "name": "RON8",
+      "pronunciations": [
+        "ron 8",
+        "r o n 8",
+        "ron spot 8"
+      ]
+    },
+    {
+      "name": "RON9",
+      "pronunciations": [
+        "ron 9",
+        "r o n 9",
+        "ron spot 9"
+      ]
+    },
+    {
+      "name": "S1",
+      "pronunciations": [
+        "sierra 1",
+        "spot sierra 1"
+      ]
+    },
+    {
+      "name": "S12",
+      "pronunciations": [
+        "sierra 12",
+        "spot sierra 12"
+      ]
+    },
+    {
+      "name": "S13",
+      "pronunciations": [
+        "sierra 13",
+        "spot sierra 13"
+      ]
+    },
+    {
+      "name": "S14",
+      "pronunciations": [
+        "sierra 14",
+        "spot sierra 14"
+      ]
+    },
+    {
+      "name": "S15",
+      "pronunciations": [
+        "sierra 15",
+        "spot sierra 15"
+      ]
+    },
+    {
+      "name": "S2",
+      "pronunciations": [
+        "sierra 2",
+        "spot sierra 2"
+      ]
+    },
+    {
+      "name": "S3",
+      "pronunciations": [
+        "sierra 3",
+        "spot sierra 3"
+      ]
+    },
+    {
+      "name": "S4",
+      "pronunciations": [
+        "sierra 4",
+        "spot sierra 4"
+      ]
+    },
+    {
+      "name": "S5",
+      "pronunciations": [
+        "sierra 5",
+        "spot sierra 5"
+      ]
+    },
+    {
+      "name": "S5A",
+      "pronunciations": [
+        "sierra 5 alpha"
+      ]
+    },
+    {
+      "name": "S5B",
+      "pronunciations": [
+        "sierra 5 bravo"
+      ]
+    },
+    {
+      "name": "S6",
+      "pronunciations": [
+        "sierra 6",
+        "spot sierra 6"
+      ]
+    },
+    {
+      "name": "S7",
+      "pronunciations": [
+        "sierra 7",
+        "spot sierra 7"
+      ]
+    },
+    {
+      "name": "S8",
+      "pronunciations": [
+        "sierra 8",
+        "spot sierra 8"
+      ]
+    },
+    {
+      "name": "S8B",
+      "pronunciations": [
+        "sierra 8 bravo"
+      ]
+    },
+    {
+      "name": "S9",
+      "pronunciations": [
+        "sierra 9",
+        "spot sierra 9"
+      ]
+    },
+    {
+      "name": "SIG1",
+      "pronunciations": [
+        "signature 1",
+        "signature ramp 1"
+      ]
+    },
+    {
+      "name": "SIG2",
+      "pronunciations": [
+        "signature 2",
+        "signature ramp 2"
+      ]
+    },
+    {
+      "name": "SIG3",
+      "pronunciations": [
+        "signature 3",
+        "signature ramp 3"
+      ]
+    },
+    {
+      "name": "SIG4",
+      "pronunciations": [
+        "signature 4",
+        "signature ramp 4"
+      ]
+    },
+    {
+      "name": "SIG5",
+      "pronunciations": [
+        "signature 5",
+        "signature ramp 5"
+      ]
+    },
+    {
+      "name": "SIG6",
+      "pronunciations": [
+        "signature 6",
+        "signature ramp 6"
+      ]
+    },
+    {
+      "name": "SIG7",
+      "pronunciations": [
+        "signature 7",
+        "signature ramp 7"
+      ]
+    }
+  ],
+  "spots": [
+    {
+      "name": "A8RN",
+      "pronunciations": [
+        "alpha 8 romeo november",
+        "alpha 28 right north"
+      ]
+    },
+    {
+      "name": "A8RS",
+      "pronunciations": [
+        "alpha 8 romeo sierra",
+        "alpha 28 right south"
+      ]
+    },
+    {
+      "name": "C",
+      "pronunciations": [
+        "spot charlie",
+        "charlie"
+      ]
+    },
+    {
+      "name": "E",
+      "pronunciations": [
+        "spot echo",
+        "echo"
+      ]
+    },
+    {
+      "name": "I30",
+      "pronunciations": [
+        "india 30",
+        "india runway 30"
+      ]
+    },
+    {
+      "name": "I8R",
+      "pronunciations": [
+        "india 8 romeo",
+        "india 28 right"
+      ]
+    },
+    {
+      "name": "K0LN",
+      "pronunciations": [
+        "kilo 0 lima november",
+        "kilo 10 left north"
+      ]
+    },
+    {
+      "name": "K0LS",
+      "pronunciations": [
+        "kilo 0 lima sierra",
+        "kilo 10 left south"
+      ]
+    },
+    {
+      "name": "W",
+      "pronunciations": [
+        "spot whiskey",
+        "whiskey"
+      ]
+    }
+  ],
+  "places": [
+    {
+      "name": "SIGNATURE",
+      "pronunciations": [
+        "signature",
+        "signature flight support",
+        "the signature ramp"
+      ],
+      "stands": [
+        "SIG*"
+      ],
+      "notes": "FBO on the North Field."
+    },
+    {
+      "name": "KAISER",
+      "pronunciations": [
+        "kaiser",
+        "kaiser air",
+        "the kaiser ramp"
+      ],
+      "stands": [
+        "KAI*",
+        "JSX*"
+      ],
+      "notes": "North Field FBO. JSX operates from the KaiserAir terminal."
+    },
+    {
+      "name": "FEDEX RAMP",
+      "pronunciations": [
+        "fedex ramp",
+        "fedex",
+        "the fedex ramp"
+      ],
+      "stands": [
+        "FDX*"
+      ],
+      "notes": "Large FedEx sort and cargo ramp on the South Field."
+    },
+    {
+      "name": "MOUNTAIN AIR CARGO",
+      "pronunciations": [
+        "mountain air cargo",
+        "mountain ramp",
+        "mountain"
+      ],
+      "stands": [
+        "MTN*"
+      ],
+      "notes": "FedEx feeder operator."
+    },
+    {
+      "name": "DHL RAMP",
+      "pronunciations": [
+        "d h l ramp",
+        "d h l"
+      ],
+      "stands": [
+        "DHL*"
+      ],
+      "notes": "Cargo ramp."
+    },
+    {
+      "name": "CARGO RAMP",
+      "pronunciations": [
+        "cargo ramp",
+        "the cargo ramp"
+      ],
+      "stands": [
+        "CARGO*"
+      ],
+      "notes": "Generic cargo parking."
+    },
+    {
+      "name": "GENERAL AVIATION PARKING",
+      "pronunciations": [
+        "general aviation parking",
+        "g a parking",
+        "transient parking"
+      ],
+      "stands": [
+        "GA*"
+      ]
+    },
+    {
+      "name": "REMAIN OVERNIGHT RAMP",
+      "pronunciations": [
+        "ron ramp",
+        "the ron spots",
+        "remain overnight parking"
+      ],
+      "stands": [
+        "RON*"
+      ],
+      "notes": "Airline overnight parking."
+    },
+    {
+      "name": "CHEVRON HANGAR",
+      "pronunciations": [
+        "chevron",
+        "the chevron hangar"
+      ],
+      "stands": [
+        "CHEVRON"
+      ],
+      "notes": "Corporate flight department."
+    },
+    {
+      "name": "HELIPAD",
+      "pronunciations": [
+        "helipad",
+        "the helipad"
+      ],
+      "stands": [
+        "HELI*"
+      ]
+    },
+    {
+      "name": "TERMINAL 1",
+      "pronunciations": [
+        "terminal 1"
+      ],
+      "notes": "South Field passenger terminal. Its stand mapping is unknown."
+    },
+    {
+      "name": "TERMINAL 2",
+      "pronunciations": [
+        "terminal 2"
+      ],
+      "notes": "South Field passenger terminal, mainly Southwest. Its stand mapping is unknown."
+    },
+    {
+      "name": "NORTH FIELD",
+      "pronunciations": [
+        "north field",
+        "the north field"
+      ],
+      "notes": "General aviation side with runways 10L/28R, 10R/28L and 15/33."
+    },
+    {
+      "name": "SOUTH FIELD",
+      "pronunciations": [
+        "south field",
+        "the south field"
+      ],
+      "notes": "Air carrier side with runway 12/30."
+    }
+  ]
+}

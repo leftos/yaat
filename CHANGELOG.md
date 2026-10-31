@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Pilots say a SID or STAR by its charted name: KOAK's NIMI5 is "Nimitz Five", not "nimi five".
+- Pilots say Bay Area fixes, SIDs and STARs by their radio names ("Nimitz Five", SERFR "surfer"), from a generated list open to community corrections.
 
 ### Fixed
 
