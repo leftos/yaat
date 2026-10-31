@@ -20,8 +20,9 @@ public enum TokenKind
 /// <summary>One normalised token and the whitespace word of the input it came from.</summary>
 /// <param name="Text">The normalised token text: a lowercase word, one digit, or a NATO word.</param>
 /// <param name="Kind">How the token was classified.</param>
-/// <param name="SourceWord">Index of the whitespace-delimited input word the token came from.</param>
-public sealed record SpokenToken(string Text, TokenKind Kind, int SourceWord);
+/// <param name="SourceWord">Index of the first whitespace-delimited input word the token came from.</param>
+/// <param name="SourceWordEnd">Index after the last input word the token came from; a joined letter run spans several.</param>
+public sealed record SpokenToken(string Text, TokenKind Kind, int SourceWord, int SourceWordEnd);
 
 /// <summary>
 /// One normaliser for transcripts and spoken forms: lowercase, folded accents, no apostrophes,
@@ -62,7 +63,7 @@ public static class SpokenTokenizer
         {
             foreach (string piece in SplitWord(words[i]))
             {
-                units.Add(new Unit(piece, i));
+                units.Add(new Unit(piece, i, i + 1));
             }
         }
         return units;
@@ -151,7 +152,7 @@ public static class SpokenTokenizer
         {
             if ((i + 1 < units.Count) && (units[i].Text == "x") && (units[i + 1].Text == "ray"))
             {
-                merged.Add(new Unit("xray", units[i].SourceWord));
+                merged.Add(new Unit("xray", units[i].SourceWord, units[i + 1].SourceWordEnd));
                 i += 2;
                 continue;
             }
@@ -182,7 +183,7 @@ public static class SpokenTokenizer
 
             if ((text == "o") && IsBetweenNumberWords(units, i))
             {
-                tokens.Add(new SpokenToken("0", TokenKind.Digit, units[i].SourceWord));
+                tokens.Add(new SpokenToken("0", TokenKind.Digit, units[i].SourceWord, units[i].SourceWordEnd));
                 i++;
                 continue;
             }
@@ -201,12 +202,19 @@ public static class SpokenTokenizer
 
             if (NatoPhoneticAlphabet.WordToLetter.TryGetValue(text, out char letter))
             {
-                tokens.Add(new SpokenToken(NatoPhoneticAlphabet.LetterToWord[char.ToUpperInvariant(letter)], TokenKind.Nato, units[i].SourceWord));
+                tokens.Add(
+                    new SpokenToken(
+                        NatoPhoneticAlphabet.LetterToWord[char.ToUpperInvariant(letter)],
+                        TokenKind.Nato,
+                        units[i].SourceWord,
+                        units[i].SourceWordEnd
+                    )
+                );
                 i++;
                 continue;
             }
 
-            tokens.Add(new SpokenToken(text, TokenKind.Word, units[i].SourceWord));
+            tokens.Add(new SpokenToken(text, TokenKind.Word, units[i].SourceWord, units[i].SourceWordEnd));
             i++;
         }
         return tokens;
@@ -218,7 +226,7 @@ public static class SpokenTokenizer
         if ((unit.Text.Length <= 2) && (start + 1 < units.Count) && RunwaySuffixWords.TryGetValue(units[start + 1].Text, out string? suffix))
         {
             AddDigits(tokens, unit.Text, unit.SourceWord);
-            tokens.Add(new SpokenToken(suffix, TokenKind.Word, units[start + 1].SourceWord));
+            tokens.Add(new SpokenToken(suffix, TokenKind.Word, units[start + 1].SourceWord, units[start + 1].SourceWordEnd));
             return start + 2;
         }
 
@@ -241,17 +249,17 @@ public static class SpokenTokenizer
             {
                 joined.Append(units[i].Text);
             }
-            tokens.Add(new SpokenToken(joined.ToString(), TokenKind.Word, units[start].SourceWord));
+            tokens.Add(new SpokenToken(joined.ToString(), TokenKind.Word, units[start].SourceWord, units[end - 1].SourceWordEnd));
             return end;
         }
 
         if (NatoPhoneticAlphabet.LetterToWord.TryGetValue(char.ToUpperInvariant(units[start].Text[0]), out string? word))
         {
-            tokens.Add(new SpokenToken(word, TokenKind.Nato, units[start].SourceWord));
+            tokens.Add(new SpokenToken(word, TokenKind.Nato, units[start].SourceWord, units[start].SourceWordEnd));
         }
         else
         {
-            tokens.Add(new SpokenToken(units[start].Text, TokenKind.Word, units[start].SourceWord));
+            tokens.Add(new SpokenToken(units[start].Text, TokenKind.Word, units[start].SourceWord, units[start].SourceWordEnd));
         }
         return start + 1;
     }
@@ -269,11 +277,11 @@ public static class SpokenTokenizer
             case NumberWordKind.Oh:
                 if (IsBetweenNumberWords(units, start))
                 {
-                    tokens.Add(new SpokenToken("0", TokenKind.Digit, unit.SourceWord));
+                    tokens.Add(new SpokenToken("0", TokenKind.Digit, unit.SourceWord, unit.SourceWordEnd));
                 }
                 else
                 {
-                    tokens.Add(new SpokenToken(unit.Text, TokenKind.Word, unit.SourceWord));
+                    tokens.Add(new SpokenToken(unit.Text, TokenKind.Word, unit.SourceWord, unit.SourceWordEnd));
                 }
                 return start + 1;
 
@@ -296,7 +304,7 @@ public static class SpokenTokenizer
                 return start + 1;
 
             default:
-                tokens.Add(new SpokenToken(unit.Text, TokenKind.Word, unit.SourceWord));
+                tokens.Add(new SpokenToken(unit.Text, TokenKind.Word, unit.SourceWord, unit.SourceWordEnd));
                 return start + 1;
         }
     }
@@ -310,7 +318,7 @@ public static class SpokenTokenizer
         }
         if ((start + 1 < units.Count) && TryGetNextDigit(units[start + 1].Text, out _))
         {
-            tokens.Add(new SpokenToken("0", TokenKind.Digit, sourceWord));
+            tokens.Add(new SpokenToken("0", TokenKind.Digit, sourceWord, sourceWord + 1));
             return;
         }
         AddDigits(tokens, "00", sourceWord);
@@ -329,7 +337,7 @@ public static class SpokenTokenizer
         }
         if ((start + 1 < units.Count) && IsPairWord(units[start + 1].Text))
         {
-            tokens.Add(new SpokenToken("0", TokenKind.Digit, sourceWord));
+            tokens.Add(new SpokenToken("0", TokenKind.Digit, sourceWord, sourceWord + 1));
             return;
         }
         if ((start + 1 < units.Count) && TryGetNextDigit(units[start + 1].Text, out _))
@@ -344,7 +352,7 @@ public static class SpokenTokenizer
     {
         foreach (char c in digits)
         {
-            tokens.Add(new SpokenToken(c.ToString(), TokenKind.Digit, sourceWord));
+            tokens.Add(new SpokenToken(c.ToString(), TokenKind.Digit, sourceWord, sourceWord + 1));
         }
     }
 
@@ -378,5 +386,5 @@ public static class SpokenTokenizer
 
     private static bool IsSingleLetter(string text) => (text.Length == 1) && char.IsLetter(text[0]);
 
-    private readonly record struct Unit(string Text, int SourceWord);
+    private readonly record struct Unit(string Text, int SourceWord, int SourceWordEnd);
 }

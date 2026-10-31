@@ -68,28 +68,123 @@ public static class SpokenFormScore
         double prior,
         MatchMode mode,
         DecoderSettings settings
-    ) => NameScore(heard, form, mode, settings) * CodeScore(heard, form, mode, settings) * prior;
-
-    private static double NameScore(IReadOnlyList<SpokenToken> heard, IReadOnlyList<SpokenToken> form, MatchMode mode, DecoderSettings settings)
+    )
     {
-        string heardName = Concat(heard, isCode: false);
-        string formName = Concat(form, isCode: false);
-        if ((heardName.Length == 0) || (formName.Length == 0))
+        (IReadOnlyList<SpokenToken> Name, IReadOnlyList<SpokenToken> Code) parts = SplitHeard(heard, form);
+        return NameScore(parts.Name, form, mode, settings) * CodeScore(parts.Code, form, mode, settings) * prior;
+    }
+
+    /// <summary>
+    /// Splits a heard span into the part compared with the form's name and the part compared with its code. The first heard
+    /// words, as many as the form's name has, are name; heard words beyond those are near misses of NATO tokens when the form
+    /// has NATO tokens, and stay name when it has none.
+    /// </summary>
+    /// <param name="heard">The tokens of the heard span.</param>
+    /// <param name="form">The tokens of the spoken form.</param>
+    /// <returns>The heard name tokens and the heard code tokens, each in token order.</returns>
+    public static (IReadOnlyList<SpokenToken> Name, IReadOnlyList<SpokenToken> Code) SplitHeard(
+        IReadOnlyList<SpokenToken> heard,
+        IReadOnlyList<SpokenToken> form
+    )
+    {
+        int formNameCount = form.Count(token => token.Kind == TokenKind.Word);
+        bool surplusIsCode = form.Any(token => token.Kind == TokenKind.Nato);
+        var name = new List<SpokenToken>();
+        var code = new List<SpokenToken>();
+        foreach (SpokenToken token in heard)
+        {
+            bool isName = (token.Kind == TokenKind.Word) && ((name.Count < formNameCount) || !surplusIsCode);
+            (isName ? name : code).Add(token);
+        }
+        return (name, code);
+    }
+
+    private static double NameScore(IReadOnlyList<SpokenToken> heardName, IReadOnlyList<SpokenToken> form, MatchMode mode, DecoderSettings settings)
+    {
+        List<string> heardWords = [.. heardName.Select(token => token.Text)];
+        List<string> formWords = [.. form.Where(token => !IsCodeToken(token)).Select(token => token.Text)];
+        if (!SameDiscriminators(heardWords, formWords) || HasForeignLiteral(heardWords, formWords))
+        {
+            return 0.0;
+        }
+        if ((heardWords.Count == 0) || (formWords.Count == 0))
         {
             return 1.0;
         }
-        return WordScore(heardName, formName, mode, settings);
+        return WordScore(string.Concat(heardWords), string.Concat(formWords), mode, settings);
     }
 
-    private static double CodeScore(IReadOnlyList<SpokenToken> heard, IReadOnlyList<SpokenToken> form, MatchMode mode, DecoderSettings settings)
+    /// <summary>One short differing word would vanish inside a long concatenated name, so these words must match exactly.</summary>
+    private static bool SameDiscriminators(List<string> heard, List<string> form)
     {
-        List<SpokenToken> heardCode = [.. heard.Where(IsCodeToken)];
+        IEnumerable<string> heardWords = heard.Where(ContextPhraseWords.DiscriminatorWords.Contains).Order(StringComparer.Ordinal);
+        IEnumerable<string> formWords = form.Where(ContextPhraseWords.DiscriminatorWords.Contains).Order(StringComparer.Ordinal);
+        return heardWords.SequenceEqual(formWords);
+    }
+
+    private static bool HasForeignLiteral(List<string> heard, List<string> form) =>
+        heard.Any(word =>
+            (NatoNearMissResolver.RuleLiteralWords.Contains(word) || ContextPhraseWords.FacilityWords.Contains(word)) && !form.Contains(word)
+        );
+
+    private static double CodeScore(IReadOnlyList<SpokenToken> heardCode, IReadOnlyList<SpokenToken> form, MatchMode mode, DecoderSettings settings)
+    {
         List<SpokenToken> formCode = [.. form.Where(IsCodeToken)];
         if ((heardCode.Count == 0) || (formCode.Count == 0))
         {
             return 1.0;
         }
+        if ((formCode.Count == form.Count) && !CodeOnlyFormHeard(heardCode, formCode, mode, settings))
+        {
+            return 0.0;
+        }
         return AlignmentScore(heardCode, formCode, mode, settings);
+    }
+
+    /// <summary>
+    /// Whether a form names an aircraft by itself: it has a word, or starts with "november", or starts with a NATO word then a
+    /// digit ("delta 7 7 2"). Every other callsign form is a bare number or letters.
+    /// </summary>
+    /// <param name="form">The tokens of the spoken form.</param>
+    /// <returns>Whether the form is prefixed.</returns>
+    public static bool IsPrefixedForm(IReadOnlyList<SpokenToken> form)
+    {
+        bool hasWord = form.Any(token => token.Kind == TokenKind.Word);
+        return hasWord || StartsWithLetterPrefix(form);
+    }
+
+    private static bool StartsWithLetterPrefix(IReadOnlyList<SpokenToken> form)
+    {
+        bool startsNovember = (form.Count > 0) && (form[0].Text == "november");
+        bool letterThenDigit = (form.Count > 1) && (form[0].Kind == TokenKind.Nato) && (form[1].Kind == TokenKind.Digit);
+        return startsNovember || letterThenDigit;
+    }
+
+    /// <summary>A letter prefix has to be heard: digits alone are any number, however well they align with the rest.</summary>
+    private static bool CodeOnlyFormHeard(IReadOnlyList<SpokenToken> heard, List<SpokenToken> form, MatchMode mode, DecoderSettings settings)
+    {
+        bool prefixMissing = StartsWithLetterPrefix(form) && (heard[0].Text != form[0].Text);
+        return !prefixMissing && HeardWordsStandInPlace(heard, form, mode, settings);
+    }
+
+    /// <summary>
+    /// In a form with no words, a heard word can only be a near miss of the NATO token at its own position, past the first:
+    /// a word before the digits is what was said in place of the prefix, not a mishearing of it.
+    /// </summary>
+    private static bool HeardWordsStandInPlace(IReadOnlyList<SpokenToken> heard, List<SpokenToken> form, MatchMode mode, DecoderSettings settings)
+    {
+        for (int i = 0; i < heard.Count; i++)
+        {
+            if (heard[i].Kind != TokenKind.Word)
+            {
+                continue;
+            }
+            if ((i == 0) || (heard.Count != form.Count) || (WordScore(heard[i].Text, form[i].Text, mode, settings) < settings.NatoCodeAccept))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static double AlignmentScore(IReadOnlyList<SpokenToken> heard, IReadOnlyList<SpokenToken> form, MatchMode mode, DecoderSettings settings)
@@ -119,19 +214,6 @@ public static class SpokenFormScore
             return score >= settings.NatoCodeAccept ? score : 0.0;
         }
         return score;
-    }
-
-    private static string Concat(IReadOnlyList<SpokenToken> tokens, bool isCode)
-    {
-        var joined = new StringBuilder();
-        foreach (SpokenToken token in tokens)
-        {
-            if (IsCodeToken(token) == isCode)
-            {
-                joined.Append(token.Text);
-            }
-        }
-        return joined.ToString();
     }
 
     private static bool IsCodeToken(SpokenToken token) => (token.Kind == TokenKind.Digit) || (token.Kind == TokenKind.Nato);

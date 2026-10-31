@@ -66,6 +66,9 @@ public sealed record DecoderSettings
     /// <summary>Exponent applied to the joint score's coverage term.</summary>
     public required double CoverageExponent { get; init; }
 
+    /// <summary>Lowest coverage the joint score counts, so an unexplained value never zeroes it.</summary>
+    public required double CoverageFloor { get; init; }
+
     /// <summary>Word confidence at or above which a non-exact match is refused.</summary>
     public required double ConfidentWordProb { get; init; }
 
@@ -99,6 +102,7 @@ public sealed record DecoderSettings
             ShortGaPrior = 0.95,
             TelephonyMinusAirPrior = 0.95,
             CoverageExponent = 0.5,
+            CoverageFloor = 0.05,
             ConfidentWordProb = 0.97,
             AcousticWeight = 0.3,
             MissingAcousticRankPenalty = 0.1,
