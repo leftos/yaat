@@ -58,6 +58,9 @@ namespace Yaat.SpeechSandbox;
 ///     UWB-ATCC test split, downloaded into the YAAT cache, or a folder of WAV + transcript pairs; scored per
 ///     speaker role (Whisper with and without the biasing prompt; sherpa engines unprompted, greedy or by beam
 ///     search with hotwords and an n-best list), and compared with the corpus's committed baseline.</description></item>
+///   <item><description><c>--lexicon-inputs &lt;ICAO&gt; &lt;out.json&gt;</c> — dumps an airport's fixes, SIDs/STARs, lettered
+///     gates and spots, ground places and landmarks with their registered spoken forms (<see cref="LexiconInputsRunner"/>), the
+///     input of <c>tools/generate-speech-lexicon.py</c>.</description></item>
 ///   <item><description>(no args) — launches the GUI sandbox window (App.axaml / MainWindow.axaml).
 ///     Interactive mode for recording, replaying, and iterating on Whisper / LLM prompts.</description></item>
 /// </list>
@@ -108,6 +111,8 @@ public static class Program
                         return TtsBenchSynthesis.RunOneAsync(args[1..]).GetAwaiter().GetResult();
                     case "--corpus-wer":
                         return CorpusWerRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
+                    case "--lexicon-inputs":
+                        return LexiconInputsRunner.Run(args[1..]);
                 }
             }
             finally

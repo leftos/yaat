@@ -20,7 +20,7 @@ dotnet workload restore                                 # Once per clone: instal
 dotnet build                                            # Build entire solution
 dotnet run --project src/Yaat.Client                    # Run client (needs yaat-server; see the port note below)
 dotnet run --project tools/Yaat.Scratch                 # Ad-hoc throwaway scratchpad (intentionally empty placeholder)
-dotnet run --project tools/Yaat.SpeechSandbox           # Speech sandbox GUI (or `-- --pipeline <wav>`, `--lmkit-stt`, `--lmkit-models`, `--lmkit-gpus`, `--yaat-catalog`, `--llm-probe`, `--ouroboros`, `--eval`, `--synth-corpus`, `--atc-ouroboros`, `--corpus-wer`, `--tts-bench`)
+dotnet run --project tools/Yaat.SpeechSandbox           # Speech sandbox GUI (or `-- --pipeline <wav>`, `--lmkit-stt`, `--lmkit-models`, `--lmkit-gpus`, `--yaat-catalog`, `--llm-probe`, `--ouroboros`, `--eval`, `--synth-corpus`, `--atc-ouroboros`, `--corpus-wer`, `--lexicon-inputs`, `--tts-bench`)
 dotnet run --project tools/Yaat.GuideCapture            # Regenerate USER_GUIDE.md screenshots into docs/user-guide/img/ (or `-- --scene <name>`)
 dotnet build ../yaat-server/tools/Yaat.ClientDriver.Mcp # Once per yaat-server checkout: the client-driver MCP lives in the private yaat-server repo (see yaat-server docs/client-driver-mcp.md); `.mcp.json` runs a shadow copy of this build output and never builds
 dotnet run -c Release --project tools/Yaat.PrecomputeCache # Maintainer: compute the committed precompute-cache entries (`-- --check` lists stale ones, `-- --refresh-airports` rebuilds airports.txt; src/Yaat.Sim/Data/PrecomputeCache/README.md)
