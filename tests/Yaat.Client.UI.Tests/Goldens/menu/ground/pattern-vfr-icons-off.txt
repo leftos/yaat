@@ -170,10 +170,10 @@ All Commands
       Reporting points · nearest first [disabled]
       VPBCQ · 0.4 NM · 125° — REPORT VPBCQ
       OAK30NUM · 0.9 NM · 224° — REPORT OAK30NUM
+      SLMARINA · 1.0 NM · 141° — REPORT SLMARINA
       VPCOL · 2.5 NM · 350° — REPORT VPCOL
       VPBCR · 2.7 NM · 159° — REPORT VPBCR
       VPBEH · 2.9 NM · 205° — REPORT VPBEH
-      VPBCN · 3.3 NM · 297° — REPORT VPBCN
     ---
     Ask pilot to say…
       Altitude

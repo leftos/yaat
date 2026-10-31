@@ -141,7 +141,7 @@ All Commands
       VPBDS · 1.8 NM · 309° — REPORT VPBDS
       OAK30NUM · 2.0 NM · 161° — REPORT OAK30NUM
       VPBCQ · 2.2 NM · 133° — REPORT VPBCQ
-      VPBEL · 3.1 NM · 230° — REPORT VPBEL
+      SLMARINA · 2.8 NM · 137° — REPORT SLMARINA
     ---
     Ask pilot to say…
       Altitude

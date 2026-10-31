@@ -138,8 +138,8 @@ All Commands
       VPBCD · 4.4 NM · 088° — REPORT VPBCD
       VPBCL · 5.2 NM · 222° — REPORT VPBCL
       VPMOR · 6.0 NM · 144° — REPORT VPMOR
+      MORMONTEMPLE · 6.1 NM · 143° — REPORT MORMONTEMPLE
       VPBCM · 6.2 NM · 153° — REPORT VPBCM
-      VPBDR · 7.4 NM · 189° — REPORT VPBDR
     ---
     Ask pilot to say…
       Altitude

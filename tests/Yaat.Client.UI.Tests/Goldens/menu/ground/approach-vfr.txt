@@ -147,7 +147,7 @@ All Commands
       VPBCR · 4.5 NM · 269° — REPORT VPBCR
       VPBCS · 4.5 NM · 146° — REPORT VPBCS
       VPCBT · 4.7 NM · 338° — REPORT VPCBT
-      VPBDV · 5.1 NM · 187° — REPORT VPBDV
+      SLMARINA · 5.1 NM · 289° — REPORT SLMARINA
     ---
     Ask pilot to say…
       Altitude
