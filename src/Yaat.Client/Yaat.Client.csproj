@@ -59,7 +59,7 @@
     <PackageReference Include="Microsoft.Diagnostics.Runtime" Version="4.0.732401" />
     <PackageReference Include="MetadataExtractor" Version="2.9.2" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
-    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.13.8" />
+    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="2.0.1" />
     <!-- NAudio supplies the managed DSP pieces used by radio FX. Actual playback uses
          PortAudioSharp2 so pilot voice and the optional pilot-speech ding remain cross-platform. -->
     <PackageReference Include="NAudio" Version="2.2.1" />

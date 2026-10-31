@@ -35,7 +35,7 @@
        transitively via Yaat.Client reference (used for STT capture today, output here). -->
   <ItemGroup>
     <!-- Keep in step with Yaat.Client's pin: a lower version here fails restore as a NU1605 downgrade. -->
-    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.13.8" />
+    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="2.0.1" />
     <PackageReference Include="NAudio.Core" Version="2.3.0" />
   </ItemGroup>
 
