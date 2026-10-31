@@ -14,12 +14,13 @@ namespace Yaat.SpeechSandbox;
 /// The model directory must contain a sherpa-onnx NeMo transducer export
 /// (e.g. <c>csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8</c>):
 /// <c>encoder[.int8].onnx</c>, <c>decoder[.int8].onnx</c>, <c>joiner[.int8].onnx</c>,
-/// <c>tokens.txt</c>. Runs on CPU via the same sherpa-onnx native the Piper TTS path already
-/// ships. Decoding is greedy; hotword biasing needs <c>modified_beam_search</c> plus the BPE
+/// <c>tokens.txt</c>. Runs on the sherpa-onnx execution <paramref name="provider"/> — <c>cpu</c> with
+/// the native the Piper TTS path already ships, or <c>cuda</c> when the CUDA build's DLLs are in place.
+/// Decoding is greedy; hotword biasing needs <c>modified_beam_search</c> plus the BPE
 /// vocab file, which the published int8 export does not include — regenerate it from the NeMo
 /// tokenizer before wiring hotwords.
 /// </summary>
-internal sealed class SherpaSttEngine(string modelDir) : IDisposable
+internal sealed class SherpaSttEngine(string modelDir, string provider) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaSttEngine>();
 
@@ -85,11 +86,11 @@ internal sealed class SherpaSttEngine(string modelDir) : IDisposable
         config.ModelConfig.Tokens = tokens;
         config.ModelConfig.ModelType = "nemo_transducer";
         config.ModelConfig.NumThreads = Math.Clamp(Environment.ProcessorCount / 2, 2, 8);
-        config.ModelConfig.Provider = "cpu";
+        config.ModelConfig.Provider = provider;
         config.DecodingMethod = "greedy_search";
 
         _recognizer = new OfflineRecognizer(config);
-        Log.LogInformation("sherpa-onnx NeMo transducer loaded from {Dir}", _modelDir);
+        Log.LogInformation("sherpa-onnx NeMo transducer loaded from {Dir} on {Provider}", _modelDir, provider);
         return _recognizer;
     }
 

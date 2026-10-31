@@ -45,6 +45,10 @@ public sealed record CorpusWerArm(
 /// <param name="PeakWorkingSetBytes">The process's peak working set at the end of the arm.</param>
 /// <param name="PreLoadGpuBytes">GPU memory before the load; -1 means it was not measured.</param>
 /// <param name="PeakGpuBytes">Peak GPU memory; -1 means it was not measured.</param>
+/// <param name="DeviceWarning">
+/// What the GPU memory figures said about the device next to what it asked for, when worth reporting; null
+/// when there is nothing to say.
+/// </param>
 /// <remarks>Timing is measured per run and is never written to a committed baseline.</remarks>
 public sealed record CorpusWerTiming(
     string Device,
@@ -57,7 +61,8 @@ public sealed record CorpusWerTiming(
     long PreLoadWorkingSetBytes,
     long PeakWorkingSetBytes,
     long PreLoadGpuBytes,
-    long PeakGpuBytes
+    long PeakGpuBytes,
+    string? DeviceWarning
 );
 
 /// <summary>The working-set and GPU figures a run measured around the model load.</summary>
@@ -164,6 +169,7 @@ public static class CorpusWerLatency
     /// <param name="loadSeconds">How long the model load took.</param>
     /// <param name="segments">Every segment's latency and whether it came from a cache.</param>
     /// <param name="memory">The working-set and GPU figures measured around the load.</param>
+    /// <remarks>The device warning is set by the caller with <c>with</c>: most summaries carry none.</remarks>
     public static CorpusWerTiming Summarize(
         string device,
         double loadSeconds,
@@ -183,7 +189,8 @@ public static class CorpusWerLatency
             memory.PreLoadWorkingSetBytes,
             memory.PeakWorkingSetBytes,
             memory.PreLoadGpuBytes,
-            memory.PeakGpuBytes
+            memory.PeakGpuBytes,
+            null
         );
     }
 }

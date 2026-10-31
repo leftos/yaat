@@ -17,9 +17,9 @@ namespace Yaat.SpeechSandbox;
 /// baseline.
 ///
 /// Run with <c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--stt &lt;kind&gt;:&lt;source&gt;]
-/// [--prompt default|none|both] [--update-baseline] [--out &lt;dir&gt;]</c>. Writes <c>results.json</c>,
-/// <c>results.jsonl</c> and <c>report.md</c> into the out dir. Exit codes: 0 no regression (or no
-/// baseline), 1 usage error, 2 setup error, 3 regression.
+/// [--device cpu|gpu] [--prompt default|none|both] [--update-baseline] [--out &lt;dir&gt;]</c>. Writes
+/// <c>results.json</c>, <c>results.jsonl</c> and <c>report.md</c> into the out dir. Exit codes: 0 no
+/// regression (or no baseline), 1 usage error, 2 setup error, 3 regression.
 /// </summary>
 public static class CorpusWerRunner
 {
@@ -33,7 +33,7 @@ public static class CorpusWerRunner
 
     private const string Usage =
         "Usage: Yaat.SpeechSandbox --corpus-wer uwb-atcc|<dir> [--subset N | --all] [--seed S] [--stt <kind>:<source>] "
-        + "[--prompt default|none|both] [--update-baseline] [--out <dir>]";
+        + "[--device cpu|gpu] [--prompt default|none|both] [--update-baseline] [--out <dir>]";
 
     private const string LoadFailureHint = "the model probably failed to load (see %LOCALAPPDATA%/yaat/yaat-speech-sandbox.log)";
 
@@ -71,7 +71,8 @@ public static class CorpusWerRunner
         public int? Subset { get; set; }
         public bool All { get; set; }
         public int Seed { get; set; } = DefaultSeed;
-        public SttChoice Stt { get; set; } = new(SttKind.Whisper, LmKitModelCatalog.RecommendedWhisperId);
+        public SttChoice Stt { get; set; } = new(SttKind.Whisper, LmKitModelCatalog.RecommendedWhisperId, SttDevice.Default);
+        public SttDevice? Device { get; set; }
         public string? Prompt { get; set; }
         public bool UpdateBaseline { get; set; }
         public string? OutDir { get; set; }
@@ -85,8 +86,31 @@ public static class CorpusWerRunner
     /// <summary>The loaded segments and the identity fields the results record for them.</summary>
     private sealed record LoadedCorpus(IReadOnlyList<CorpusSegment> Segments, string Revision, string Sha256);
 
-    /// <summary>What an arm's timing needs from the run: the process to sample, the device and the load it already paid.</summary>
-    private sealed record ArmTiming(Process Self, string Device, long PreLoadWorkingSetBytes, double LoadSeconds);
+    /// <summary>
+    /// What an arm's timing needs from the run: the process to sample, the device, the load it already paid,
+    /// the GPU memory before and after that load, the probe to sample through the arm, and the run's warning
+    /// about the device.
+    /// </summary>
+    private sealed record ArmTiming(
+        Process Self,
+        string Device,
+        long PreLoadWorkingSetBytes,
+        long PreLoadGpuBytes,
+        long AfterLoadGpuBytes,
+        double LoadSeconds,
+        GpuMemoryProbe Gpu,
+        string? DeviceWarning
+    );
+
+    /// <summary>The run's engine and the timing every arm of it reports; disposing it releases both.</summary>
+    private sealed record EngineSetup(ICorpusSttEngine Engine, ArmTiming Timing) : IDisposable
+    {
+        public void Dispose()
+        {
+            Engine.Dispose();
+            Timing.Gpu.Dispose();
+        }
+    }
 
     public static async Task<int> RunAsync(string[] args)
     {
@@ -115,21 +139,18 @@ public static class CorpusWerRunner
         self.Refresh();
         long preLoadWorkingSetBytes = self.WorkingSet64;
 
-        using ICorpusSttEngine engine = CorpusSttEngines.Create(options.Stt);
-        string? setupError = engine.SetupError();
-        if (setupError is not null)
+        using EngineSetup? setup = await SetUpEngineAsync(options.Stt, self, preLoadWorkingSetBytes).ConfigureAwait(false);
+        if (setup is null)
         {
-            Console.Error.WriteLine($"FATAL: {setupError}");
             return AtcOuroborosAnalysis.ExitSetupError;
         }
-        double loadSeconds = await WarmUpAsync(engine).ConfigureAwait(false);
-        var timing = new ArmTiming(self, CorpusSttEngines.DefaultDevice(options.Stt.Kind), preLoadWorkingSetBytes, loadSeconds);
+        ArmTiming timing = setup.Timing;
 
         var arms = new List<CorpusWerArm>();
         var segmentLines = new List<CorpusWerSegmentLine>();
         foreach (string prompt in options.Prompts)
         {
-            CorpusWerArm? arm = await RunArmAsync(engine, prompt, loaded.Segments, segmentLines, timing).ConfigureAwait(false);
+            CorpusWerArm? arm = await RunArmAsync(setup.Engine, prompt, loaded.Segments, segmentLines, timing).ConfigureAwait(false);
             if (arm is null)
             {
                 int probed = Math.Min(LoadProbeSegments, loaded.Segments.Count);
@@ -140,6 +161,7 @@ public static class CorpusWerRunner
                 return AtcOuroborosAnalysis.ExitSetupError;
             }
             arms.Add(arm);
+            timing = timing with { DeviceWarning = null };
             Console.WriteLine($"{prompt}: WER {CorpusWerBaselineComparer.Percent(arm.Roles[0].Wer)} over {arm.Roles[0].Segments} segments");
             if (arm.NoTranscript > 0)
             {
@@ -163,6 +185,44 @@ public static class CorpusWerRunner
         return options.UpdateBaseline
             ? await UpdateBaselineAsync(options, options.BaselinePath, results).ConfigureAwait(false)
             : await CompareAndReportAsync(options, options.BaselinePath, results).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Creates the run's engine, samples the process's GPU memory around its model load and checks the run
+    /// reached the device it asked for. Null (after printing why) when the engine cannot be set up.
+    /// </summary>
+    private static async Task<EngineSetup?> SetUpEngineAsync(SttChoice choice, Process self, long preLoadWorkingSetBytes)
+    {
+        var gpu = new GpuMemoryProbe();
+        long preLoadGpuBytes = gpu.Sample();
+        ICorpusSttEngine engine = CorpusSttEngines.Create(choice);
+        string? setupError = engine.SetupError();
+        if (setupError is not null)
+        {
+            Console.Error.WriteLine($"FATAL: {setupError}");
+            engine.Dispose();
+            gpu.Dispose();
+            return null;
+        }
+
+        double loadSeconds = await WarmUpAsync(engine).ConfigureAwait(false);
+        long afterLoadGpuBytes = gpu.Sample();
+        string device = CorpusSttEngines.DeviceText(choice);
+        string? warning = GpuUseCheck.Verdict(device, preLoadGpuBytes, afterLoadGpuBytes, out bool isError);
+        if (isError)
+        {
+            Console.Error.WriteLine($"FATAL: {warning}");
+            engine.Dispose();
+            gpu.Dispose();
+            return null;
+        }
+        if (warning is not null)
+        {
+            Console.WriteLine($"WARNING: {warning}");
+        }
+
+        var timing = new ArmTiming(self, device, preLoadWorkingSetBytes, preLoadGpuBytes, afterLoadGpuBytes, loadSeconds, gpu, warning);
+        return new EngineSetup(engine, timing);
     }
 
     /// <summary>
@@ -237,6 +297,7 @@ public static class CorpusWerRunner
         var byRole = new Dictionary<CorpusRole, WerTally>();
         double audioSeconds = 0;
         int noTranscript = 0;
+        long peakGpuBytes = timing.AfterLoadGpuBytes;
         var watch = Stopwatch.StartNew();
         for (int i = 0; i < segments.Count; i++)
         {
@@ -263,6 +324,7 @@ public static class CorpusWerRunner
             overall.Add(counts);
             RoleTally(byRole, segment.Role).Add(counts);
             audioSeconds += segment.Samples16k.Length / (double)AudioCaptureService.SampleRate;
+            peakGpuBytes = Math.Max(peakGpuBytes, timing.Gpu.Sample());
             if ((i + 1) % ProgressEvery == 0)
             {
                 Console.WriteLine($"  {prompt}: {i + 1}/{segments.Count}");
@@ -274,7 +336,7 @@ public static class CorpusWerRunner
             audioSeconds,
             watch.Elapsed.TotalSeconds,
             noTranscript,
-            SummarizeTiming(timing, latencies)
+            SummarizeTiming(timing, peakGpuBytes, latencies)
         );
     }
 
@@ -288,11 +350,11 @@ public static class CorpusWerRunner
     }
 
     /// <summary>Samples the process now and summarizes the arm's latency and memory into its timing.</summary>
-    private static CorpusWerTiming SummarizeTiming(ArmTiming timing, IReadOnlyList<(double LatencyMs, bool Cached)> latencies)
+    private static CorpusWerTiming SummarizeTiming(ArmTiming timing, long peakGpuBytes, IReadOnlyList<(double LatencyMs, bool Cached)> latencies)
     {
         timing.Self.Refresh();
-        var memory = new CorpusWerMemory(timing.PreLoadWorkingSetBytes, timing.Self.PeakWorkingSet64, -1, -1);
-        return CorpusWerLatency.Summarize(timing.Device, timing.LoadSeconds, latencies, memory);
+        var memory = new CorpusWerMemory(timing.PreLoadWorkingSetBytes, timing.Self.PeakWorkingSet64, timing.PreLoadGpuBytes, peakGpuBytes);
+        return CorpusWerLatency.Summarize(timing.Device, timing.LoadSeconds, latencies, memory) with { DeviceWarning = timing.DeviceWarning };
     }
 
     /// <summary>Normalises both sides, scores them and records the segment's <c>results.jsonl</c> line.</summary>
@@ -472,6 +534,10 @@ public static class CorpusWerRunner
         report.AppendLine(
             $"Memory: working set {Megabytes(timing.PreLoadWorkingSetBytes)} MB before load, peak {Megabytes(timing.PeakWorkingSetBytes)} MB; GPU memory {gpu}"
         );
+        if (timing.DeviceWarning is not null)
+        {
+            report.AppendLine(timing.DeviceWarning);
+        }
         report.AppendLine();
     }
 
@@ -508,7 +574,7 @@ public static class CorpusWerRunner
             case "--update-baseline":
                 parsed.UpdateBaseline = true;
                 return null;
-            case "--subset" or "--seed" or "--stt" or "--prompt" or "--out":
+            case "--subset" or "--seed" or "--stt" or "--device" or "--prompt" or "--out":
                 return (i + 1 < args.Length) ? ApplyValue(parsed, flag, args[++i]) : $"{flag} needs a value";
             default:
                 return $"unrecognised argument '{flag}'";
@@ -525,6 +591,8 @@ public static class CorpusWerRunner
                 return ApplySeed(parsed, value);
             case "--stt":
                 return ApplyStt(parsed, value);
+            case "--device":
+                return ApplyDevice(parsed, value);
             case "--prompt":
                 return ApplyPrompt(parsed, value);
             default:
@@ -563,6 +631,16 @@ public static class CorpusWerRunner
         return null;
     }
 
+    private static string? ApplyDevice(ParsedArgs parsed, string value)
+    {
+        if (value is not ("cpu" or "gpu"))
+        {
+            return $"--device must be cpu or gpu, got '{value}'";
+        }
+        parsed.Device = (value == "cpu") ? SttDevice.Cpu : SttDevice.Gpu;
+        return null;
+    }
+
     private static string? ApplyPrompt(ParsedArgs parsed, string value)
     {
         if (value is not ("default" or "none" or "both"))
@@ -580,7 +658,29 @@ public static class CorpusWerRunner
         {
             return Failed("--subset and --all exclude each other");
         }
-        return TryResolveCorpus(parsed.Corpus, out CorpusChoice? choice, out string? error) ? ResolveDefaults(parsed, choice) : Failed(error);
+        string? error = ResolveDevice(parsed);
+        if (error is not null)
+        {
+            return Failed(error);
+        }
+        return TryResolveCorpus(parsed.Corpus, out CorpusChoice? choice, out string? corpusError)
+            ? ResolveDefaults(parsed, choice)
+            : Failed(corpusError);
+    }
+
+    /// <summary>Puts <c>--device</c> on the engine choice; the cloud engines have no local device to name.</summary>
+    private static string? ResolveDevice(ParsedArgs parsed)
+    {
+        if (parsed.Device is not SttDevice device)
+        {
+            return null;
+        }
+        if (parsed.Stt.Kind is SttKind.Gemini or SttKind.OpenAi)
+        {
+            return $"--device applies to local engines; {CorpusSttEngines.KindText(parsed.Stt.Kind)} runs in the cloud";
+        }
+        parsed.Stt = parsed.Stt with { Device = device };
+        return null;
     }
 
     /// <summary>

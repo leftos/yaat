@@ -44,6 +44,11 @@
     <PackageReference Include="Parquet.Net" Version="6.1.0" />
   </ItemGroup>
 
+  <!-- The corpus-wer mode reads the per-process GPU memory counters to show whether a run reached the GPU. -->
+  <ItemGroup>
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="10.0.14" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Yaat.Client\Yaat.Client.csproj" />
   </ItemGroup>
