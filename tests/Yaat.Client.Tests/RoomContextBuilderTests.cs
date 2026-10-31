@@ -222,8 +222,67 @@ public sealed class RoomContextBuilderTests
         Assert.Equal(new CorpusSlotCoverage(EntityKind.Fix, 0, 0, 0), rows.Single(row => row.Kind == EntityKind.Fix));
     }
 
-    private static RoomContextBuilder Builder() =>
-        new(new RoomSources(Rooms, Slots, Layout, Landmarks, NavigationDatabase.Instance), DecoderSettings.Default);
+    [Fact]
+    public void Unpadded_UnbuiltCallsignDoesNotBlockNumberOnlyForm()
+    {
+        var slots = new Dictionary<string, IReadOnlyList<CorpusSlot>>(StringComparer.Ordinal)
+        {
+            ["koak-gnd_seg0001"] = [Slot(EntityKind.Callsign, "SWA2495", "southwest two four nine five")],
+            ["koak-gnd_seg0002"] = [Slot(EntityKind.Callsign, "QQQ2495", "two four nine five")],
+        };
+        RoomContextBuilder builder = BuilderWith(slots);
+
+        RoomContexts contexts = builder.For("koak-gnd_seg0001");
+
+        Assert.Equal(["QQQ2495"], builder.UnbuiltCallsigns("koak-gnd"));
+        ContextEntity unpadded = contexts.Unpadded.Aircraft.Single(aircraft => aircraft.Callsign.Value == "SWA2495").Callsign;
+        ContextEntity padded = contexts.Padded.Aircraft.Single(aircraft => aircraft.Callsign.Value == "SWA2495").Callsign;
+        Assert.Contains(unpadded.Forms, form => TokenText(form.Text) == "2 4 9 5");
+        Assert.Equal(unpadded.Forms.Select(form => form.Text), padded.Forms.Select(form => form.Text));
+    }
+
+    [Fact]
+    public void Unpadded_KeepsPaddedRelativeOrder()
+    {
+        RoomContexts contexts = Builder().For("koak-gnd_seg0001");
+
+        string[] real = ["N4926F", "SWA2495"];
+        Assert.Equal(
+            contexts.Padded.Aircraft.Select(aircraft => aircraft.Callsign.Value).Where(real.Contains),
+            contexts.Unpadded.Aircraft.Select(aircraft => aircraft.Callsign.Value)
+        );
+    }
+
+    [Fact]
+    public void OwnEntities_OnlyFromClipsWhereTheAircraftIsFirst()
+    {
+        var slots = new Dictionary<string, IReadOnlyList<CorpusSlot>>(StringComparer.Ordinal)
+        {
+            ["koak-gnd_seg0001"] =
+            [
+                Slot(EntityKind.Callsign, "UAL1515", "united fifteen fifteen"),
+                Slot(EntityKind.Callsign, "SWA2495", "southwest two four nine five"),
+                Slot(EntityKind.Taxiway, "KOAK/W4", "whiskey four"),
+            ],
+            ["koak-gnd_seg0002"] = [Slot(EntityKind.Callsign, "UAL1515", "united fifteen fifteen")],
+            ["koak-gnd_seg0003"] = [Slot(EntityKind.Callsign, "SWA2495", "southwest two four nine five")],
+        };
+        RoomContextBuilder builder = BuilderWith(slots);
+
+        TransmissionContext second = builder.For("koak-gnd_seg0002").Unpadded;
+        TransmissionContext third = builder.For("koak-gnd_seg0003").Unpadded;
+
+        Assert.Equal(["KOAK/W4"], OwnValues(second, "UAL1515"));
+        Assert.Empty(OwnValues(second, "SWA2495"));
+        Assert.Empty(OwnValues(third, "SWA2495"));
+    }
+
+    private static RoomContextBuilder Builder() => BuilderWith(Slots);
+
+    private static RoomContextBuilder BuilderWith(IReadOnlyDictionary<string, IReadOnlyList<CorpusSlot>> slots) =>
+        new(new RoomSources(Rooms, slots, Layout, Landmarks, NavigationDatabase.Instance), DecoderSettings.Default);
+
+    private static string TokenText(string text) => string.Join(" ", SpokenTokenizer.Tokenize(text).Select(token => token.Text));
 
     private static AirportGroundLayout? Layout(string airport) => airport == "KOAK" ? OakLayout.Value : null;
 

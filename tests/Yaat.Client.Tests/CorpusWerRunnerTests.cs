@@ -225,7 +225,7 @@ public sealed class CorpusWerRunnerTests
             400,
             "fp",
             "model",
-            [new CorpusWerArm("default", [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)], 30, 6, 0, timing, provenance, feeds, null)],
+            [new CorpusWerArm("default", [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)], 30, 6, 0, timing, provenance, feeds, null, null)],
             null,
             null
         );
@@ -251,7 +251,11 @@ public sealed class CorpusWerRunnerTests
                 ),
         ];
         var room = new CorpusSlotRoomResult("padded", [new CorpusSlotGroup("all", 2, kinds, 2, 0, 1, 0)], coverage, null, 1);
-        CorpusWerBaseline run = Run(null) with { Arms = [Run(null).Arms[0] with { Slots = [room] }], UnbuiltCallsigns = ["koak-gnd: QXE2101"] };
+        CorpusWerBaseline run = Run(null) with
+        {
+            Arms = [Run(null).Arms[0] with { Slots = [room], SlotSeconds = 2.4 }],
+            UnbuiltCallsigns = ["koak-gnd: QXE2101"],
+        };
 
         string report = CorpusWerRunner.BuildReport(run, []);
 
@@ -260,6 +264,11 @@ public sealed class CorpusWerRunnerTests
         Assert.Contains("| all | 2 | 50.0% (1/2) | - | - | - | - | - | - | 50.0% (1/2) | 50.0 | 0 | 1 | 0 |\n", report, StringComparison.Ordinal);
         Assert.Contains("Form coverage (matched/reachable/gold): callsign 1/2/2\n", report, StringComparison.Ordinal);
         Assert.Contains("Confidence gate on for 1 of 2 clips\n", report, StringComparison.Ordinal);
+        Assert.Contains(
+            "real-time factor 0.20\nSlot decoding 2.4 s, excluded from wall time and real-time factor\n",
+            report,
+            StringComparison.Ordinal
+        );
     }
 
     private static string ModelDir(string name, bool trailingSeparator)

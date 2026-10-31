@@ -51,10 +51,14 @@ public static class CorpusSlots
         {
             return null;
         }
-        Dictionary<string, List<SlotDto>> clips = ReadClips(path);
+        Dictionary<string, List<SlotDto?>?> clips = ReadClips(path);
         var slots = new Dictionary<string, IReadOnlyList<CorpusSlot>>(StringComparer.Ordinal);
-        foreach ((string id, List<SlotDto> dtos) in clips)
+        foreach ((string id, List<SlotDto?>? dtos) in clips)
         {
+            if (dtos is null)
+            {
+                throw new InvalidDataException($"{id}: {path} gives no slot array.");
+            }
             slots[id] = [.. dtos.Select(dto => ToSlot(dto, id, path))];
         }
         return slots;
@@ -64,12 +68,12 @@ public static class CorpusSlots
     public static string KindLabel(EntityKind kind) => Known.First(entry => entry.Kind == kind).Label;
 
     /// <summary>The gold file's clips, still as raw slots so each can be validated against its clip id.</summary>
-    private static Dictionary<string, List<SlotDto>> ReadClips(string path)
+    private static Dictionary<string, List<SlotDto?>?> ReadClips(string path)
     {
-        Dictionary<string, List<SlotDto>>? clips;
+        Dictionary<string, List<SlotDto?>?>? clips;
         try
         {
-            clips = JsonSerializer.Deserialize<Dictionary<string, List<SlotDto>>>(File.ReadAllText(path, Encoding.UTF8));
+            clips = JsonSerializer.Deserialize<Dictionary<string, List<SlotDto?>?>>(File.ReadAllText(path, Encoding.UTF8));
         }
         catch (JsonException error)
         {
@@ -79,8 +83,12 @@ public static class CorpusSlots
     }
 
     /// <summary>One raw slot validated into a <see cref="CorpusSlot"/>, naming the clip and the file it is wrong in.</summary>
-    private static CorpusSlot ToSlot(SlotDto dto, string id, string path)
+    private static CorpusSlot ToSlot(SlotDto? dto, string id, string path)
     {
+        if (dto is null)
+        {
+            throw new InvalidDataException($"{id}: {path} holds a null slot.");
+        }
         if (string.IsNullOrWhiteSpace(dto.Kind))
         {
             throw new InvalidDataException($"{id}: a slot in {path} has no kind.");

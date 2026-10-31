@@ -74,7 +74,8 @@ public static class CorpusSlotReport
         string callsign = CorpusWerBaselineComparer.Percent(KindRow(all, CorpusSlots.KindLabel(EntityKind.Callsign)).Recall);
         string recall = CorpusWerBaselineComparer.Percent(total.Recall);
         string inserted = total.InsertedPer100Clips.ToString("0.0", CultureInfo.InvariantCulture);
-        return $"{prompt} slots {room.Room}: callsign recall {callsign}, all recall {recall}, inserted {inserted}/100 clips, wrong addressee {all.WrongAddressee}";
+        string counts = $"inserted {inserted}/100 clips, wrong addressee {all.WrongAddressee}";
+        return $"{prompt} slots {room.Room}: callsign recall {callsign}, all recall {recall}, {counts}";
     }
 
     /// <summary>The report line naming the callsigns no entity was built for; nothing when there are none.</summary>

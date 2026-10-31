@@ -28,6 +28,10 @@ public sealed record CorpusWerRoleTotals(string Role, int Segments, int Referenc
 /// </param>
 /// <param name="Feeds">Pooled totals per feed, ordinal by feed name with the unfed segments pooled last under <c>unknown</c>; null when no segment carries one.</param>
 /// <param name="Slots">The arm's slot results, one per room; null without <c>--slots</c> and in a committed baseline.</param>
+/// <param name="SlotSeconds">
+/// How long the arm's slot work took, excluded from <paramref name="WallSeconds"/>; null without <c>--slots</c> and in a
+/// committed baseline.
+/// </param>
 public sealed record CorpusWerArm(
     string Prompt,
     IReadOnlyList<CorpusWerRoleTotals> Roles,
@@ -37,7 +41,8 @@ public sealed record CorpusWerArm(
     CorpusWerTiming? Timing,
     IReadOnlyList<CorpusWerRoleTotals>? Provenance,
     IReadOnlyList<CorpusWerRoleTotals>? Feeds,
-    IReadOnlyList<CorpusSlotRoomResult>? Slots
+    IReadOnlyList<CorpusSlotRoomResult>? Slots,
+    double? SlotSeconds
 )
 {
     /// <summary>The console and report line naming the segments without a transcript.</summary>
@@ -273,7 +278,7 @@ public static class CorpusWerBaselineComparer
     public static CorpusWerBaseline ForBaseline(CorpusWerBaseline results) =>
         results with
         {
-            Arms = [.. results.Arms.Select(a => a with { Timing = null, Slots = null })],
+            Arms = [.. results.Arms.Select(a => a with { Timing = null, Slots = null, SlotSeconds = null })],
             UnbuiltCallsigns = null,
         };
 

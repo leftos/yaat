@@ -43,7 +43,10 @@ internal sealed class CorpusSlotArgs
 
     public int? HotwordCap { get; private set; }
 
-    /// <summary>Applies the slot flag at <paramref name="i"/> (advancing past its value); an error, or null. Any other flag is unrecognised.</summary>
+    /// <summary>
+    /// Applies the slot flag at <paramref name="i"/> (advancing past its value); an error, or null. Any other flag is
+    /// unrecognised.
+    /// </summary>
     public string? Apply(string[] args, ref int i)
     {
         string flag = args[i];

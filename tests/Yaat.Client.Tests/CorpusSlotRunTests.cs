@@ -43,8 +43,7 @@ public sealed class CorpusSlotRunTests : IDisposable
             CorpusSlotRun.ToDecoderHypothesis(new SttHypothesis("number", [" num", "ber"], [-0.25], null))
         );
 
-        Assert.Contains("2", error.Message, StringComparison.Ordinal);
-        Assert.Contains("1", error.Message, StringComparison.Ordinal);
+        Assert.Equal("A hypothesis has 2 tokens but 1 token log-probabilities: 'number'.", error.Message);
     }
 
     [Fact]
@@ -61,7 +60,13 @@ public sealed class CorpusSlotRunTests : IDisposable
     [Fact]
     public void Decode_ResolveOff_FirstHypothesisExactOnly()
     {
-        DecodeResult result = CorpusSlotRun.Decode(Transcript(), Context(), false, DecoderSettings.Default);
+        var nearMiss = new SttHypotheses([new SttHypothesis("southwast two four nine five", [], [], null)], null, false);
+
+        DecodeResult fuzzy = CorpusSlotRun.Decode(nearMiss, Context(), true, DecoderSettings.Default);
+        DecodeResult result = CorpusSlotRun.Decode(nearMiss, Context(), false, DecoderSettings.Default);
+
+        Assert.Equal(DecodeState.Resolved, fuzzy.State);
+        Assert.Equal("SWA2495", fuzzy.Callsign?.Entity.Value);
 
         Assert.NotEqual(DecodeState.Resolved, result.State);
     }
@@ -102,6 +107,220 @@ public sealed class CorpusSlotRunTests : IDisposable
         Assert.Equal("koak-gnd_seg0002 has no entry in slots.json", error);
     }
 
+    [Fact]
+    public void TryCreate_UnknownAirport_Error()
+    {
+        File.WriteAllText(
+            Path.Combine(_dir, CorpusRooms.FileName),
+            """{ "feeds": { "koak-gnd": { "airport": "ZZZZ", "facility": "gnd", "seed": 1 } } }"""
+        );
+        File.WriteAllText(Path.Combine(_dir, CorpusSlots.FileName), """{ "koak-gnd_seg0001": [] }""");
+
+        var run = CorpusSlotRun.TryCreate(_dir, [Segment("koak-gnd_seg0001")], Options(), out string? error);
+
+        Assert.Null(run);
+        Assert.NotNull(error);
+        Assert.Contains("ZZZZ", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BiasFor_NoRoom_ArmBiasUnchanged()
+    {
+        CorpusSlotRun run = CreateRun(Options(), "{}");
+        var bias = new SttBias(string.Empty, ["Southwest"]);
+
+        Assert.Same(bias, run.BiasFor(Segment(GoldClip), bias));
+    }
+
+    [Fact]
+    public void BiasFor_RoomWithoutForms_NoHotwords()
+    {
+        CorpusSlotRun run = CreateRun(RoomOptions(SlotRoom.Oracle), "{}");
+
+        SttBias bias = run.BiasFor(Segment(EmptyClip), new SttBias(string.Empty, ["Southwest"]));
+
+        Assert.Empty(bias.Hotwords);
+    }
+
+    [Fact]
+    public void BiasFor_AppliesCasing()
+    {
+        CorpusSlotRun run = CreateRun(RoomOptions(SlotRoom.Oracle), "{}");
+
+        SttBias bias = run.BiasFor(Segment(GoldClip), new SttBias(string.Empty, []));
+
+        Assert.Contains("southwest twenty four ninety five", RoomHotwords.Select(run.Context(GoldClip, SlotRoom.Oracle), 300));
+        Assert.Contains("Southwest Twenty Four Ninety Five", bias.Hotwords);
+    }
+
+    [Fact]
+    public void BiasFor_FormWithSlash_ThrowsNamingSegment()
+    {
+        CorpusSlotRun run = CreateRun(RoomOptions(SlotRoom.Oracle), """{ "QXE": "hori/zon" }""");
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            run.BiasFor(Segment(SlashClip), new SttBias(string.Empty, []))
+        );
+
+        Assert.Contains(SlashClip, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Arms_NeverShareClips()
+    {
+        CorpusSlotRun run = CreateRun(Options(), "{}");
+        CorpusSlotArm first = run.StartArm();
+        CorpusSlotArm second = run.StartArm();
+
+        first.Add(Segment(GoldClip), Spoken(), NoBias);
+        second.Add(Segment(OtherGoldClip), Spoken(), NoBias);
+        second.Add(Segment(EmptyClip), Spoken(), NoBias);
+
+        Assert.All(first.Results(), room => Assert.Equal(1, room.Groups[0].Clips));
+        Assert.All(second.Results(), room => Assert.Equal(2, room.Groups[0].Clips));
+    }
+
+    [Fact]
+    public void Arm_SumsCoveragePerKind()
+    {
+        CorpusSlotArm arm = CreateRun(Options(), "{}").StartArm();
+
+        arm.Add(Segment(GoldClip), Spoken(), NoBias);
+        arm.Add(Segment(OtherGoldClip), Spoken(), NoBias);
+
+        CorpusSlotRoomResult oracle = arm.Results()[2];
+        Assert.Equal(2, oracle.Coverage.Single(row => row.Kind == "callsign").Slots);
+        Assert.Equal(2, oracle.Coverage.Single(row => row.Kind == "taxiway").Slots);
+        Assert.Equal(0, oracle.Coverage.Single(row => row.Kind == "fix").Slots);
+    }
+
+    [Fact]
+    public void Arm_CountsConfidenceGatedClips()
+    {
+        CorpusSlotArm arm = CreateRun(Options(), "{}").StartArm();
+
+        CorpusSlotClipLines withTokens = arm.Add(Segment(GoldClip), SpokenWithTokens(), NoBias);
+        CorpusSlotClipLines withoutTokens = arm.Add(Segment(OtherGoldClip), Spoken(), NoBias);
+
+        IReadOnlyList<CorpusSlotRoomResult> results = arm.Results();
+        for (int i = 0; i < results.Count; i++)
+        {
+            int gated = (withTokens.Lines[i].ConfidenceGated ? 1 : 0) + (withoutTokens.Lines[i].ConfidenceGated ? 1 : 0);
+            Assert.Equal(gated, results[i].ConfidenceGated);
+            Assert.Equal(1, results[i].ConfidenceGated);
+        }
+    }
+
+    [Fact]
+    public void Arm_ResolvedWerRowsAreAllThenProvenanceThenFeeds()
+    {
+        CorpusSlotArm arm = CreateRun(Options() with { Resolve = true }, "{}").StartArm();
+
+        arm.Add(Segment(GoldClip), Spoken(), NoBias);
+        arm.Add(Segment(OtherGoldClip), Spoken(), NoBias);
+
+        Assert.All(arm.Results(), room => Assert.Equal(["all", "owner", "owner+agreed", "koak-gnd"], room.ResolvedWer!.Select(row => row.Role)));
+    }
+
+    [Fact]
+    public void Arm_ResolveOff_NoResolvedWer() =>
+        Assert.All(AddOne(CreateRun(Options(), "{}").StartArm()).Results(), room => Assert.Null(room.ResolvedWer));
+
+    [Fact]
+    public void Arm_HotwordPhrases_NullWithoutRoomHotwords()
+    {
+        CorpusSlotArm arm = CreateRun(Options(), "{}").StartArm();
+
+        CorpusSlotClipLines lines = arm.Add(Segment(GoldClip), Spoken(), new SttBias(string.Empty, ["Southwest"]));
+
+        Assert.Null(lines.HotwordPhrases);
+    }
+
+    [Fact]
+    public void Arm_HotwordPhrases_CountWithRoomHotwords()
+    {
+        CorpusSlotArm arm = CreateRun(RoomOptions(SlotRoom.Oracle), "{}").StartArm();
+        SttBias bias = arm.BiasFor(Segment(GoldClip), NoBias);
+
+        CorpusSlotClipLines lines = arm.Add(Segment(GoldClip), Spoken(), bias);
+
+        Assert.NotEmpty(bias.Hotwords);
+        Assert.Equal(bias.Hotwords.Count, lines.HotwordPhrases);
+    }
+
+    [Fact]
+    public void Arm_DecodeLinesInRoomOrder()
+    {
+        CorpusSlotArm arm = CreateRun(Options(), "{}").StartArm();
+
+        CorpusSlotClipLines lines = arm.Add(Segment(GoldClip), Spoken(), NoBias);
+
+        Assert.Equal(["unpadded", "padded", "oracle"], lines.Lines.Select(line => line.Room));
+    }
+
+    private const string GoldClip = "koak-gnd_seg0001";
+    private const string OtherGoldClip = "koak-gnd_seg0002";
+    private const string EmptyClip = "koak-gnd_seg0003";
+    private const string SlashClip = "koak-gnd_seg0004";
+
+    private static readonly SttBias NoBias = new(string.Empty, []);
+
+    private static CorpusSlotArm AddOne(CorpusSlotArm arm)
+    {
+        arm.Add(Segment(GoldClip), Spoken(), NoBias);
+        return arm;
+    }
+
+    private CorpusSlotRun CreateRun(CorpusSlotOptions options, string telephony)
+    {
+        File.WriteAllText(
+            Path.Combine(_dir, CorpusRooms.FileName),
+            $$"""{ "telephony": {{telephony}}, "feeds": { "koak-gnd": { "airport": "KOAK", "facility": "gnd", "seed": 1 } } }"""
+        );
+        File.WriteAllText(
+            Path.Combine(_dir, CorpusSlots.FileName),
+            """
+            {
+              "koak-gnd_seg0001": [
+                { "kind": "callsign", "value": "SWA2495", "spoken": "southwest two four nine five" },
+                { "kind": "taxiway", "value": "KOAK/W4", "spoken": "whiskey four" }
+              ],
+              "koak-gnd_seg0002": [
+                { "kind": "callsign", "value": "SWA2495", "spoken": "southwest two four nine five" },
+                { "kind": "taxiway", "value": "KOAK/W4", "spoken": "whiskey four" }
+              ],
+              "koak-gnd_seg0003": [],
+              "koak-gnd_seg0004": [ { "kind": "callsign", "value": "QXE2101", "spoken": "horizon two one zero one" } ]
+            }
+            """
+        );
+        CorpusSegment[] segments = [Segment(GoldClip), Segment(OtherGoldClip), Segment(EmptyClip), Segment(SlashClip)];
+
+        var run = CorpusSlotRun.TryCreate(_dir, segments, options, out string? error);
+
+        Assert.True(run is not null, error);
+        return run;
+    }
+
+    private static SttHypotheses Spoken() =>
+        new([new SttHypothesis("southwest two four nine five taxi via whiskey four", [], [], null)], null, false);
+
+    private static SttHypotheses SpokenWithTokens() =>
+        new(
+            [
+                new SttHypothesis(
+                    "southwest two four nine five taxi via whiskey four",
+                    [" southwest", " two", " four", " nine", " five", " taxi", " via", " whiskey", " four"],
+                    [-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1],
+                    -1
+                ),
+            ],
+            null,
+            false
+        );
+
+    private static CorpusSlotOptions RoomOptions(SlotRoom room) => new(false, room, 300, HotwordCase.Title);
+
     private static TransmissionContext Context() =>
         new(
             "KOAK",
@@ -121,7 +340,8 @@ public sealed class CorpusSlotRunTests : IDisposable
             false
         );
 
-    private static CorpusSegment Segment(string id) => new(id, CorpusRole.Unknown, [], "reference", "koak-gnd", null);
+    private static CorpusSegment Segment(string id) =>
+        new(id, CorpusRole.Unknown, [], "southwest two four nine five taxi via whiskey four", "koak-gnd", "owner");
 
     private static CorpusSlotOptions Options() => new(false, null, 300, HotwordCase.Title);
 }

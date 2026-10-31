@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -85,7 +86,7 @@ public sealed class CorpusSlotRun
         {
             return Create(repo, corpusDir, segments, options, out error);
         }
-        catch (InvalidDataException ex)
+        catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or IOException or JsonException)
         {
             error = ex.Message;
             return null;
@@ -231,7 +232,7 @@ public sealed class CorpusSlotRun
             .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal);
-        return [.. feeds.Select(feed => (feed, builder.UnbuiltCallsigns(feed))).Where(entry => entry.Item2.Count > 0)];
+        return [.. feeds.Select(feed => (Feed: feed, Callsigns: builder.UnbuiltCallsigns(feed))).Where(entry => entry.Callsigns.Count > 0)];
     }
 
     private void PrintUnbuilt()
@@ -300,17 +301,51 @@ public sealed class CorpusSlotRun
 public sealed class CorpusSlotArm
 {
     private readonly RoomTally[] _rooms = [.. SlotRooms.All.Select(room => new RoomTally(room))];
+    private readonly Stopwatch _work = new();
 
     internal CorpusSlotArm(CorpusSlotRun run) => Run = run;
 
     /// <summary>The run the arm belongs to.</summary>
     public CorpusSlotRun Run { get; }
 
-    /// <summary>Decodes one clip under every room into the arm's tallies and returns what its <c>results.jsonl</c> line records.</summary>
+    /// <summary>How long the arm's slot work (room hotwords, decoding and scoring) has taken, which the arm's wall time excludes.</summary>
+    public double Seconds => _work.Elapsed.TotalSeconds;
+
+    /// <summary>The clip's stream bias (<see cref="CorpusSlotRun.BiasFor"/>), timed as slot work.</summary>
+    public SttBias BiasFor(CorpusSegment segment, SttBias armBias)
+    {
+        _work.Start();
+        try
+        {
+            return Run.BiasFor(segment, armBias);
+        }
+        finally
+        {
+            _work.Stop();
+        }
+    }
+
+    /// <summary>
+    /// Decodes one clip under every room into the arm's tallies, timed as slot work, and returns what its <c>results.jsonl</c>
+    /// line records.
+    /// </summary>
     /// <param name="segment">The clip.</param>
     /// <param name="transcript">The engine's alternatives for it.</param>
     /// <param name="bias">The bias its stream ran under, whose hotwords are the clip's room hotwords under <c>--room-hotwords</c>.</param>
     public CorpusSlotClipLines Add(CorpusSegment segment, SttHypotheses transcript, SttBias bias)
+    {
+        _work.Start();
+        try
+        {
+            return Score(segment, transcript, bias);
+        }
+        finally
+        {
+            _work.Stop();
+        }
+    }
+
+    private CorpusSlotClipLines Score(CorpusSegment segment, SttHypotheses transcript, SttBias bias)
     {
         IReadOnlyList<CorpusSlot> gold = Run.Gold(segment.Id);
         bool resolve = Run.Options.Resolve;

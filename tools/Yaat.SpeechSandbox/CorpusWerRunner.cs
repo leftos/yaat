@@ -443,16 +443,18 @@ public static class CorpusWerRunner
                 return null;
             }
         }
+        double? slotSeconds = arm.Slots?.Seconds;
         return new CorpusWerArm(
             prompt,
             RoleRows(tally.Overall, tally.ByRole),
             tally.AudioSeconds,
-            watch.Elapsed.TotalSeconds,
+            watch.Elapsed.TotalSeconds - (slotSeconds ?? 0),
             tally.NoTranscript,
             SummarizeTiming(timing, tally.PeakGpuBytes, tally.Latencies),
             CorpusWerGroups.ProvenanceRows(tally.Scored),
             CorpusWerGroups.FeedRows(tally.Scored),
-            arm.Slots?.Results()
+            arm.Slots?.Results(),
+            slotSeconds
         );
     }
 
@@ -522,7 +524,7 @@ public static class CorpusWerRunner
 
     /// <summary>The bias the segment's stream runs under: the arm's, with the clip's room hotwords under <c>--room-hotwords</c>.</summary>
     private static SttBias SegmentBias(ArmContext arm, CorpusSegment segment) =>
-        (arm.Slots is null) ? arm.Bias : arm.Slots.Run.BiasFor(segment, arm.Bias);
+        (arm.Slots is null) ? arm.Bias : arm.Slots.BiasFor(segment, arm.Bias);
 
     /// <summary>
     /// Normalises both sides, scores them, decodes the segment's slots when the run scores them and records the segment's
@@ -686,6 +688,11 @@ public static class CorpusWerRunner
         string wall = arm.WallSeconds.ToString("0.0", CultureInfo.InvariantCulture);
         string rtf = (arm.AudioSeconds > 0) ? (arm.WallSeconds / arm.AudioSeconds).ToString("0.00", CultureInfo.InvariantCulture) : "n/a";
         report.AppendLine($"Audio {audio} s, wall {wall} s, real-time factor {rtf}");
+        if (arm.SlotSeconds is double slotSeconds)
+        {
+            string slots = slotSeconds.ToString("0.0", CultureInfo.InvariantCulture);
+            report.AppendLine($"Slot decoding {slots} s, excluded from wall time and real-time factor");
+        }
         report.AppendLine();
         if (arm.Timing is not null)
         {
