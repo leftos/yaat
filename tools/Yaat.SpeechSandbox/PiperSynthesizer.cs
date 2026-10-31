@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using NAudio.Wave;
 using SherpaOnnx;
+using Yaat.Client.Services;
 
 namespace Yaat.SpeechSandbox;
 
@@ -22,6 +23,7 @@ public sealed class PiperSynthesizer : IDisposable
     public const float LengthScale = 1.0f;
 
     private readonly OfflineTts _tts;
+    private readonly string _espeakDataDir;
     public string VoiceDir { get; }
     public int SampleRate => _tts.SampleRate;
 
@@ -46,6 +48,12 @@ public sealed class PiperSynthesizer : IDisposable
             throw new FileNotFoundException($"tokens.txt missing in voice dir: {voiceDir}");
         }
         string dataDir = Path.Combine(voiceDir, "espeak-ng-data");
+        if (!Directory.Exists(dataDir))
+        {
+            throw new DirectoryNotFoundException($"espeak-ng-data missing in voice dir: {voiceDir}");
+        }
+
+        _espeakDataDir = dataDir;
         using (FileStream modelStream = File.OpenRead(onnxFile.FullName))
         {
             string modelHash = Convert.ToHexString(SHA256.HashData(modelStream)).ToLowerInvariant();
@@ -55,7 +63,6 @@ public sealed class PiperSynthesizer : IDisposable
         var config = new OfflineTtsConfig();
         config.Model.Vits.Model = onnxFile.FullName;
         config.Model.Vits.Tokens = tokensPath;
-        config.Model.Vits.DataDir = dataDir;
         config.Model.Vits.LengthScale = LengthScale;
         config.Model.NumThreads = 2;
         config.Model.Provider = "cpu";
@@ -107,9 +114,11 @@ public sealed class PiperSynthesizer : IDisposable
     {
         var gen = new OfflineTtsGenerationConfig { Sid = speakerId, Speed = speed };
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        OfflineTtsGeneratedAudio audio = _tts.GenerateWithConfig(text, gen, null);
+        gen.PhonemeCodepoints = EspeakPhonemizer.Phonemize(text, EspeakPhonemizer.VoiceFor(_tts.Lang), _espeakDataDir);
+        OfflineTtsGeneratedAudio audio = _tts.GenerateWithConfig("", gen, null);
         sw.Stop();
-        return new SynthResult(audio.Samples, _tts.SampleRate, (int)sw.ElapsedMilliseconds);
+        float[] samples = EspeakPhonemizer.RequireSpeech(audio.Samples, "Piper synthesis");
+        return new SynthResult(samples, _tts.SampleRate, (int)sw.ElapsedMilliseconds);
     }
 
     /// <summary>

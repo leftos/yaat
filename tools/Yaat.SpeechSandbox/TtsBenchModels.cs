@@ -155,6 +155,12 @@ internal static class TtsBenchModels
             _ => null,
         };
 
+    /// <summary>Whether the runtime renders text from espeak-ng phonemes, so the caller phonemizes first.</summary>
+    public static bool NeedsPhonemes(TtsRuntime runtime) => runtime is TtsRuntime.Vits or TtsRuntime.Kitten or TtsRuntime.Matcha;
+
+    /// <summary>The <c>espeak-ng-data</c> directory a model archive carries beside its tokens.</summary>
+    public static string EspeakDataDir(string modelDir) => Path.Combine(modelDir, "espeak-ng-data");
+
     /// <summary>Builds the CPU config at <paramref name="numThreads"/> for a sherpa-onnx model extracted at <paramref name="dir"/>.</summary>
     public static OfflineTtsConfig BuildConfig(TtsBenchModel model, string dir, string? vocoderPath, int numThreads)
     {
@@ -163,26 +169,23 @@ internal static class TtsBenchModels
         config.Model.Provider = "cpu";
         config.Model.Debug = 0;
         string tokens = Path.Combine(dir, "tokens.txt");
-        string espeak = Path.Combine(dir, "espeak-ng-data");
+        string espeak = EspeakDataDir(dir);
         switch (model.Runtime)
         {
             case TtsRuntime.Vits:
                 config.Model.Vits.Model = One(dir, "*.onnx");
                 config.Model.Vits.Tokens = tokens;
-                config.Model.Vits.DataDir = espeak;
                 config.Model.Vits.LengthScale = 1.0f;
                 break;
             case TtsRuntime.Kitten:
                 config.Model.Kitten.Model = One(dir, "model*.onnx");
                 config.Model.Kitten.Voices = Path.Combine(dir, "voices.bin");
                 config.Model.Kitten.Tokens = tokens;
-                config.Model.Kitten.DataDir = espeak;
                 break;
             case TtsRuntime.Matcha:
                 config.Model.Matcha.AcousticModel = One(dir, "model-steps-*.onnx");
                 config.Model.Matcha.Vocoder = vocoderPath ?? throw new InvalidOperationException("Matcha needs its vocoder path.");
                 config.Model.Matcha.Tokens = tokens;
-                config.Model.Matcha.DataDir = espeak;
                 break;
             case TtsRuntime.Pocket:
                 BindPocket(config.Model.Pocket, dir);

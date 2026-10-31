@@ -190,27 +190,31 @@ internal static class TtsBenchSynthesis
 
     private sealed record ProcessOutcome(int ExitCode, bool TimedOut, string? FirstError, string? LastError);
 
+    /// <summary>The espeak-ng data directory the model's text is phonemized from, or null when its runtime tokenizes its own text.</summary>
+    private static string? PhonemeDataDir(TtsBenchModel model, TtsBenchJob job) =>
+        TtsBenchModels.NeedsPhonemes(model.Runtime) ? TtsBenchModels.EspeakDataDir(job.ModelDir) : null;
+
     /// <summary>Renders each of the reference model's speakers reading <see cref="ReferenceText"/>; returns the files written.</summary>
     private static List<string> RenderReferences(TtsBenchModel model, TtsBenchJob job)
     {
         using var tts = new OfflineTts(TtsBenchModels.BuildConfig(model, job.ModelDir, null, job.Threads));
         Directory.CreateDirectory(job.ReferenceDir);
+        string? espeakDataDir = PhonemeDataDir(model, job);
         var written = new List<string>();
         foreach (int speaker in model.Voices.Select(v => v.Sid))
         {
-            OfflineTtsGeneratedAudio audio = tts.GenerateWithConfig(
-                ReferenceText,
-                new OfflineTtsGenerationConfig { Sid = speaker, Speed = 1.0f },
-                null
-            );
-            if (audio.Samples.Length == 0)
+            var gen = new OfflineTtsGenerationConfig { Sid = speaker, Speed = 1.0f };
+            if (espeakDataDir is not null)
             {
-                throw new InvalidDataException($"{model.Id} speaker {speaker} rendered an empty reference clip.");
+                gen.PhonemeCodepoints = EspeakPhonemizer.Phonemize(ReferenceText, EspeakPhonemizer.VoiceFor(tts.Lang), espeakDataDir);
             }
+
+            OfflineTtsGeneratedAudio audio = tts.GenerateWithConfig(espeakDataDir is null ? ReferenceText : "", gen, null);
+            float[] samples = EspeakPhonemizer.RequireSpeech(audio.Samples, $"{model.Id} speaker {speaker} reference clip");
             string path = ReferencePath(job.ReferenceDir, speaker);
-            WritePcm16(path, audio.Samples, tts.SampleRate);
+            WritePcm16(path, samples, tts.SampleRate);
             written.Add(path);
-            Console.WriteLine($"  reference speaker {speaker}: {audio.Samples.Length / (double)tts.SampleRate:F1} s");
+            Console.WriteLine($"  reference speaker {speaker}: {samples.Length / (double)tts.SampleRate:F1} s");
         }
         return written;
     }
@@ -232,7 +236,7 @@ internal static class TtsBenchSynthesis
         List<TtsBenchClip> clips = [];
         if (stoppedEarly is null)
         {
-            warmupMs = Synthesize(tts, WarmupText, voices[0], RefFor(references, voices[0])).SynthMs;
+            warmupMs = Synthesize(tts, WarmupText, voices[0], RefFor(references, voices[0]), PhonemeDataDir(model, job)).SynthMs;
             (clips, stoppedEarly) = SynthesizeAll(tts, model, job, voices, references);
         }
         return new TtsBenchModelResult(
@@ -283,11 +287,12 @@ internal static class TtsBenchSynthesis
     )
     {
         var clips = new List<TtsBenchClip>();
+        string? espeakDataDir = PhonemeDataDir(model, job);
         foreach (TtsBenchVoice voice in voices)
         {
             foreach (TtsBenchLine line in job.Lines)
             {
-                SynthTiming t = Synthesize(tts, line.Text, voice, RefFor(references, voice));
+                SynthTiming t = Synthesize(tts, line.Text, voice, RefFor(references, voice), espeakDataDir);
                 clips.Add(ToClip(job.SaveClips ? job.ClipsRoot : null, model.Id, voice.Label, line.Index, t));
                 if (!job.SaveClips && clips.Count == 1 && t.FirstAudioMs is { } firstMs && firstMs > TtsBenchRunner.FirstLineFirstAudioLimitMs)
                 {
@@ -299,8 +304,12 @@ internal static class TtsBenchSynthesis
         return (clips, null);
     }
 
-    /// <summary>One synthesis through the callback API: first audio is the first callback carrying samples, null when none did.</summary>
-    private static SynthTiming Synthesize(OfflineTts tts, string text, TtsBenchVoice voice, ReferenceClip? reference)
+    /// <summary>
+    /// One synthesis through the callback API: first audio is the first callback carrying samples, null when none did.
+    /// <paramref name="espeakDataDir"/> is the model's espeak-ng data directory when its runtime needs phonemes,
+    /// null for one that tokenizes its own text.
+    /// </summary>
+    private static SynthTiming Synthesize(OfflineTts tts, string text, TtsBenchVoice voice, ReferenceClip? reference, string? espeakDataDir)
     {
         var gen = new OfflineTtsGenerationConfig { Sid = voice.Sid, Speed = TtsBenchRunner.Speed };
         if (reference is not null)
@@ -311,6 +320,10 @@ internal static class TtsBenchSynthesis
         }
         long firstTicks = -1;
         var watch = Stopwatch.StartNew();
+        if (espeakDataDir is not null)
+        {
+            gen.PhonemeCodepoints = EspeakPhonemizer.Phonemize(text, EspeakPhonemizer.VoiceFor(tts.Lang), espeakDataDir);
+        }
         OfflineTtsCallbackProgressWithArg callback = (_, n, _, _) =>
         {
             if (n > 0 && firstTicks < 0)
@@ -319,11 +332,12 @@ internal static class TtsBenchSynthesis
             }
             return 1;
         };
-        OfflineTtsGeneratedAudio audio = tts.GenerateWithConfig(text, gen, callback);
+        OfflineTtsGeneratedAudio audio = tts.GenerateWithConfig(espeakDataDir is null ? text : "", gen, callback);
         watch.Stop();
         GC.KeepAlive(callback);
+        float[] samples = EspeakPhonemizer.RequireSpeech(audio.Samples, $"Synthesis for voice {voice.Label}");
         double? firstMs = firstTicks < 0 ? null : firstTicks * 1000.0 / Stopwatch.Frequency;
-        return new SynthTiming(audio.Samples, tts.SampleRate, firstMs, watch.Elapsed.TotalMilliseconds);
+        return new SynthTiming(samples, tts.SampleRate, firstMs, watch.Elapsed.TotalMilliseconds);
     }
 
     /// <summary>The clip's timing row; with a clips root, also writes its dry and radio-FX copies, peak-normalised for the page.</summary>

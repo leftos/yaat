@@ -11,21 +11,21 @@ using NAudio.Dsp;
 using NAudio.Wave;
 using PortAudioSharp;
 using SherpaOnnx;
+using Yaat.Client.Services;
 
 namespace Yaat.SpeechSandbox;
 
 /// <summary>
 /// TTS sandbox tab — a durable home for the Piper VITS + sherpa-onnx + radio-FX experiments
-/// that began in Yaat.Scratch as the M10.0 spike. Lets us iterate on speaker IDs, band-pass /
-/// drive / squelch parameters, and pre-warm timing before locking the M10.3 implementation in
-/// Yaat.Sim.Pilot / Yaat.Client.Audio.
+/// that began in Yaat.Scratch. Lets us iterate on speaker IDs, band-pass / drive / squelch
+/// parameters, and pre-warm timing.
 ///
 /// Voice pack expected at <see cref="DefaultVoiceDirCandidates"/> — a Piper-format directory
 /// with the .onnx model, tokens.txt, and an espeak-ng-data/ subdir. Auto-detected by walking up
 /// from the .exe location looking for .tmp/voices/vits-piper-en_US-libritts_r-medium.
 ///
 /// Audio playback uses PortAudioSharp2 (already a Yaat.Client dependency for STT capture). The
-/// TTS model runs on CPU; sherpa-onnx 1.12.40 + Piper LibriTTS-R medium gives ~150-200 ms warm
+/// TTS model runs on CPU; sherpa-onnx + Piper LibriTTS-R medium gives ~150-200 ms warm
 /// synth latency for ATC-length utterances on commodity hardware.
 /// </summary>
 public partial class TtsSandboxView : UserControl
@@ -33,6 +33,7 @@ public partial class TtsSandboxView : UserControl
     private readonly StringBuilder _log = new();
     private OfflineTts? _tts;
     private string? _loadedVoiceDir;
+    private string? _espeakDataDir;
     private bool _isLoading;
 
     // Owned PortAudio state — lifetime tied to first playback. Terminated in OnDetachedFromVisualTree.
@@ -158,6 +159,13 @@ public partial class TtsSandboxView : UserControl
             return;
         }
 
+        if (!Directory.Exists(dataDir))
+        {
+            SetStatus($"espeak-ng-data missing in {voiceDir}");
+            _isLoading = false;
+            return;
+        }
+
         SetStatus("Loading model...");
         AppendLog($"Loading model: {onnxFile.FullName}");
 
@@ -169,7 +177,6 @@ public partial class TtsSandboxView : UserControl
                 var config = new OfflineTtsConfig();
                 config.Model.Vits.Model = onnxFile.FullName;
                 config.Model.Vits.Tokens = tokensPath;
-                config.Model.Vits.DataDir = dataDir;
                 config.Model.Vits.LengthScale = 1.0f;
                 config.Model.NumThreads = 2;
                 config.Model.Provider = "cpu";
@@ -181,6 +188,7 @@ public partial class TtsSandboxView : UserControl
 
                 Dispatcher.UIThread.Post(() =>
                 {
+                    _espeakDataDir = dataDir;
                     _loadedVoiceDir = voiceDir;
                     AppendLog($"Loaded in {loadSw.ElapsedMilliseconds} ms — sample rate {_tts.SampleRate} Hz");
                     SetStatus($"Model ready ({loadSw.ElapsedMilliseconds} ms load).");
@@ -218,8 +226,7 @@ public partial class TtsSandboxView : UserControl
     /// <summary>
     /// Synthesize and discard a short utterance to prime the model's internal caches. Spike
     /// measured 1287 ms cold first-call latency vs 133-207 ms warm — pre-warming on app boot
-    /// keeps the first real readback responsive. M10.3 will move this into
-    /// <c>SherpaOnnxPilotVoice</c>'s constructor as a background Task.
+    /// keeps the first real readback responsive.
     /// </summary>
     private async Task PrewarmAsync()
     {
@@ -231,11 +238,17 @@ public partial class TtsSandboxView : UserControl
         SetStatus("Pre-warming...");
         try
         {
+            string espeakDataDir = _espeakDataDir!;
             var sw = Stopwatch.StartNew();
             await Task.Run(() =>
             {
-                var gen = new OfflineTtsGenerationConfig { Sid = 0, Speed = 1.0f };
-                _ = _tts.GenerateWithConfig("warmup", gen, null);
+                var gen = new OfflineTtsGenerationConfig
+                {
+                    Sid = 0,
+                    Speed = 1.0f,
+                    PhonemeCodepoints = EspeakPhonemizer.Phonemize("warmup", EspeakPhonemizer.VoiceFor(_tts.Lang), espeakDataDir),
+                };
+                _ = _tts.GenerateWithConfig("", gen, null);
             });
             sw.Stop();
             AppendLog($"Pre-warm: {sw.ElapsedMilliseconds} ms (model now warm).");
@@ -291,12 +304,13 @@ public partial class TtsSandboxView : UserControl
     {
         var gen = new OfflineTtsGenerationConfig { Sid = sid, Speed = speed };
         var sw = Stopwatch.StartNew();
-        OfflineTtsGeneratedAudio audio = _tts!.GenerateWithConfig(text, gen, null);
+        gen.PhonemeCodepoints = EspeakPhonemizer.Phonemize(text, EspeakPhonemizer.VoiceFor(_tts!.Lang), _espeakDataDir!);
+        OfflineTtsGeneratedAudio audio = _tts!.GenerateWithConfig("", gen, null);
         sw.Stop();
         int latencyMs = (int)sw.ElapsedMilliseconds;
         int sampleRate = _tts.SampleRate;
 
-        float[] samples = audio.Samples;
+        float[] samples = EspeakPhonemizer.RequireSpeech(audio.Samples, "TTS synthesis");
         double durationSec = samples.Length / (double)sampleRate;
         double rtf = sw.Elapsed.TotalSeconds / Math.Max(durationSec, 1e-6);
 

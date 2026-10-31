@@ -611,6 +611,9 @@ How busy the solo frequency is, in three steps (quiet, normal, busy), judged by 
 **Lowest position worked**:
 The lowest position type a solo student works (`SimScenarioState.StudentLowestWorkedLevel`, CTR > APP > TWR > GND > DEL): the student works its own position and every type below it down to this one, answers the pilot calls those types take, and the sim plays the rest. The sidecar, the session-setup prompt or the session flyout's "Positions you work" row sets it, and `ScenarioAnswers` carries it per scenario.
 
+**Phonemize**:
+Turn TTS text into IPA phoneme codepoints with espeak-ng (`EspeakPhonemizer`, NuGet piper.phonemize) before synthesis; sherpa-onnx 2.0 has no text frontend for Piper, Kitten or Matcha and renders silence without it (docs/solo-training-pilot-speech.md).
+
 **Pilot trait**:
 How much a pilot says on the frequency regardless of load: terse (25%), normal (50%) or chatty (25%), derived from the callsign and the scenario seed and never stored. Terse speaks at the next busier load band, chatty at the next quieter, clamped to quiet..busy (`PilotTrait`, `PilotTraits.EffectiveBand`, docs/solo-training-pilot-speech.md).
 

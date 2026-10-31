@@ -98,6 +98,7 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
     private readonly PortAudioFloatPlayer _player = new(preferences);
     private OfflineTts? _tts;
     private string? _loadedVoiceDir;
+    private string? _espeakDataDir;
 
     public bool IsAvailable => TryFindVoiceDir() is not null && PortAudioFloatPlayer.HasDefaultOutputDevice();
 
@@ -109,24 +110,27 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
             return;
         }
 
+        string espeakDataDir = _espeakDataDir!;
         (float[]? samples, int sampleRate) = await Task.Run(
                 () =>
                 {
                     int sid = Math.Abs(request.SpeakerId) % 904;
                     var gen = new OfflineTtsGenerationConfig { Sid = sid, Speed = (float)request.SpeechRate };
                     var sw = Stopwatch.StartNew();
-                    OfflineTtsGeneratedAudio audio = tts.GenerateWithConfig(request.Text, gen, null);
+                    gen.PhonemeCodepoints = EspeakPhonemizer.Phonemize(request.Text, EspeakPhonemizer.VoiceFor(tts.Lang), espeakDataDir);
+                    OfflineTtsGeneratedAudio audio = tts.GenerateWithConfig("", gen, null);
                     sw.Stop();
+                    float[] synthesized = EspeakPhonemizer.RequireSpeech(audio.Samples, $"Pilot voice for {request.Callsign}");
                     Log.LogDebug(
                         "Synthesized pilot voice for {Callsign}: sid={Sid}, speed={Speed}, samples={Samples}, sampleRate={SampleRate}, latencyMs={LatencyMs}",
                         request.Callsign,
                         sid,
                         gen.Speed,
-                        audio.Samples.Length,
+                        synthesized.Length,
                         tts.SampleRate,
                         sw.ElapsedMilliseconds
                     );
-                    return (audio.Samples, tts.SampleRate);
+                    return (synthesized, tts.SampleRate);
                 },
                 ct
             )
@@ -181,13 +185,12 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
                 return null;
             }
 
-            _tts = await Task.Run(
+            OfflineTts tts = await Task.Run(
                     () =>
                     {
                         var config = new OfflineTtsConfig();
                         config.Model.Vits.Model = onnxFile.FullName;
                         config.Model.Vits.Tokens = tokensPath;
-                        config.Model.Vits.DataDir = dataDir;
                         config.Model.Vits.LengthScale = 1.0f;
                         config.Model.NumThreads = 2;
                         config.Model.Provider = "cpu";
@@ -198,10 +201,12 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
                 )
                 .ConfigureAwait(false);
 
+            _espeakDataDir = dataDir;
             _loadedVoiceDir = voiceDir;
+            _tts = tts;
             Log.LogInformation("Loaded pilot voice pack from {VoiceDir}; sample rate {SampleRate} Hz.", _loadedVoiceDir, _tts.SampleRate);
-            _ = Task.Run(() => Prewarm(_tts), CancellationToken.None);
-            return _tts;
+            _ = Task.Run(() => Prewarm(tts), CancellationToken.None);
+            return tts;
         }
         finally
         {
@@ -209,12 +214,17 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
         }
     }
 
-    private static void Prewarm(OfflineTts tts)
+    private void Prewarm(OfflineTts tts)
     {
         try
         {
-            var gen = new OfflineTtsGenerationConfig { Sid = 0, Speed = 1.0f };
-            _ = tts.GenerateWithConfig("warmup", gen, null);
+            var gen = new OfflineTtsGenerationConfig
+            {
+                Sid = 0,
+                Speed = 1.0f,
+                PhonemeCodepoints = EspeakPhonemizer.Phonemize("warmup", EspeakPhonemizer.VoiceFor(tts.Lang), _espeakDataDir!),
+            };
+            _ = tts.GenerateWithConfig("", gen, null);
         }
         catch (Exception ex)
         {
