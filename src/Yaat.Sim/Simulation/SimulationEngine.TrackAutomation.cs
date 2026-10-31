@@ -15,6 +15,44 @@ namespace Yaat.Sim.Simulation;
 public sealed partial class SimulationEngine
 {
     /// <summary>
+    /// Files the VFR plan and discrete code an aircraft with no plan needs before it is handed to the student. The
+    /// departure is the handing-off facility's airport (the roster entry's facility, else the owner's), blank when
+    /// that facility is not an airport. The destination stays blank here: <see cref="DispatchPresetCommands"/>
+    /// backfills it to the primary airport when the aircraft spawns.
+    /// </summary>
+    private void FileHandoffPlan(LoadedAircraft loaded, ResolvedAtcPosition? handingOff, TrackOwner owner)
+    {
+        AircraftState state = loaded.State;
+
+        // Not through AmendFlightPlan: it finds the aircraft in the world, and a delayed spawn is not there yet.
+        state.FlightPlan.HasFlightPlan = true;
+        state.FlightPlan.FlightRules = "VFR";
+        FiledAircraftType filed = FlightPlanNormalization.SplitTypeAndSuffix(state.AircraftType);
+        if (string.IsNullOrEmpty(state.FlightPlan.AircraftType))
+        {
+            state.FlightPlan.AircraftType = filed.Type;
+        }
+
+        state.FlightPlan.EquipmentSuffix = "A";
+        state.FlightPlan.ApplyFiledAircraftData(filed);
+
+        string? rosterFacility = handingOff?.Source.FacilityId;
+        string facility = string.IsNullOrEmpty(rosterFacility) ? (owner.FacilityId ?? "") : rosterFacility;
+        string facilityAirport = NavigationDatabase.NormalizeAirport(facility);
+        state.FlightPlan.Departure = NavigationDatabase.Instance.GetAirportPosition(facilityAirport) is null ? "" : facilityAirport;
+
+        uint code = BeaconCodePool.AssignNextCode(true);
+        if (code == 0)
+        {
+            _logger.LogWarning("Beacon code pool exhausted; filing {Callsign} on 1200 without a discrete code", state.Callsign);
+            return;
+        }
+
+        state.Transponder.AssignCode(code, null, null);
+        state.Transponder.Code = state.Transponder.AssignedCode;
+    }
+
+    /// <summary>
     /// Applies a scenario or generator aircraft's auto-track conditions: the airport-based owner from the ATC
     /// roster, the scratchpad rules, the configured owner and scratchpad, the delayed handoff to the student and
     /// the ERAM datablock altitudes. The <c>[AutoTrack] …</c> lines go into
@@ -94,6 +132,11 @@ public sealed partial class SimulationEngine
 
         if (autoTrack.HandoffDelay is not null && scenario.StudentPosition is not null)
         {
+            if ((owner is not null) && !loaded.State.FlightPlan.HasFlightPlan)
+            {
+                FileHandoffPlan(loaded, scenario.AtcPositions.FirstOrDefault(p => p.Source.PositionId == autoTrack.PositionId), owner);
+            }
+
             string targetLabel = TrackEngine.FormatOwner(scenario.StudentPosition);
             // Always queue autotrack handoffs — don't set HandoffPeer immediately.
             // TickDelayedHandoffs will fire them once the target position is online.

@@ -28,7 +28,7 @@ timed presets, and global triggers, one check per sim-second in PrePhysics ([tic
 | Trigger | `LoadScenario` / `LoadScenarioAsync` at session start | `ADD` command, or an arrival `ScenarioGeneratorConfig` firing each interval |
 | Input | `ScenarioAircraft` (authored JSON) | `SpawnRequest` (parsed from `ADD` args, or built by a generator) |
 | Type / callsign | copied from JSON | invented from weight+engine bucket, airline fleet, N-number/airline rules |
-| Flight plan | authored departure/destination/route | blank for VFR cold call; synthetic for IFR |
+| Flight plan | authored departure/destination/route | blank for VFR cold call (filed at spawn when auto-tracked and handed to the student, see "AutoTrack at spawn"); synthetic for IFR |
 | Phase list | seeded per spawn-condition type | seeded per `SpawnPositionType` (same `AircraftInitializer`) |
 
 Both pipelines share `AircraftInitializer` (runway/parking/final pose + phase list) and `GlideSlopeGeometry` (on-final altitude).
@@ -44,7 +44,7 @@ in `src/Yaat.Sim/Simulation/ScenarioQueues.cs`:
 | `TriggerQueue` | `ScheduledTrigger` | `ProcessTriggers` | run a global scenario command (SQALL/SNALL/SSALL) at its fire time |
 
 (`DelayedHandoffQueue` also lives there but belongs to track/handoff scheduling, not spawn — out of scope here.) All four are
-drained in `SimulationEngine.TickPrePhysics` (`src/Yaat.Sim/Simulation/SimulationEngine.cs:465`) in the fixed order
+drained in `SimulationEngine.TickPrePhysics` (`SimulationEngine.TickPrePhysics`) in the fixed order
 delayed-spawns → generators → triggers → timed-presets, before physics runs.
 
 ## Scenario JSON model (ATCTrainer format)
@@ -154,7 +154,7 @@ entry, so `ResolveStripBayAssignments` joins ULID → callsign at load. Both loa
 (`SimulationEngine.AfterAircraftSpawned`) reads it to drop configured departures straight into their
 bay instead of the printer queue (see [`flight-strips.md`](flight-strips.md)).
 
-The server's `PopulateRoom` (`ScenarioLifecycleService.PlaceLoadedAircraft`, run by a load's commit and by every reload) iterates the three buckets: immediate aircraft are added to the world and `DispatchPresetCommands` runs synchronously; delayed aircraft are queued; deferred aircraft only have their `ScenarioId` stamped and are reported in the manifest. `SimulationEngine.LoadScenario` (`SimulationEngine.cs:378`) is the standalone (test/replay) equivalent.
+The server's `PopulateRoom` (`ScenarioLifecycleService.PlaceLoadedAircraft`, run by a load's commit and by every reload) iterates the three buckets: immediate aircraft are added to the world and `DispatchPresetCommands` runs synchronously; delayed aircraft are queued; deferred aircraft only have their `ScenarioId` stamped and are reported in the manifest. `SimulationEngine.LoadScenario` is the standalone (test/replay) equivalent.
 
 Placement runs the spawn hooks through `SimulationEngine.AfterLoadedAircraftPlaced`, not `AfterAircraftSpawned`: the two are the same except that placement never plans a push-back stand's push plan, since the load's prepare and a reload have planned every parked stand (immediate and delayed) into the room's `PushPlanStore` through `LoadSeeded`.
 
@@ -257,12 +257,12 @@ See [phases.md](phases.md) for what each seeded phase does once the aircraft sta
   immediately after `ScenarioLoader.Load` (no banks reach Yaat.Sim, so it falls back to sequential codes), and the server calls it
   right after `ConfigureBeaconCodePool` in `ScenarioLifecycleService`. An aircraft with a filed FP draws a discrete code from
   `BeaconCodePool.AssignNextCode(isVfr)` — the same allocator `AmendFlightPlan` uses, so codes come from the facility's IFR/VFR
-  banks and never duplicate a live aircraft's. A cold-call aircraft gets no `AssignedCode` and squawks 1200 (VFR conspicuity).
+  banks and never duplicate a live aircraft's. A cold-call aircraft gets no `AssignedCode` and squawks 1200 (VFR conspicuity), unless it is owned and handed to the student: `ApplyAutoTrackConditions` then files its plan and a discrete code at spawn (see "AutoTrack at spawn"). A preset `SQV` still leaves Code on 1200 with that discrete code assigned.
   `InferFlightRules` (`:161`) returns the explicit `rules` if set, else `VFR` when there's no FP or cruise altitude ≤ 0, else
   `IFR`.
 
 `DispatchPresetCommands` also backfills a missing destination for *filed* plans to the primary airport
-(`SimulationEngine.cs:2105`) so arrivals show in STARS lists; cold-call aircraft are left destination-less until a controller
+(in `DispatchPresetCommands`) so arrivals show in STARS lists; cold-call aircraft are left destination-less until a controller
 files via `DA`/`VP`.
 
 ## Navigation route building and the RouteExpander mismatch footgun
@@ -397,7 +397,7 @@ tokens. The `SpawnRequest` shape and field-per-variant usage is in `src/Yaat.Sim
    trailing letters, `I`/`O` excluded); else `GenerateAirlineCallsign` (`{airline}{3-or-4 digits}`). Both retry up to 100 times
    against the existing-callsign set, then fall back to a wide random.
 4. **Beacon / transponder.** Parking spawns sit on `Standby`; everything else squawks Mode C. VFR gets no assigned code and
-   squawks 1200; IFR gets a discrete `GenerateBeaconCode`.
+   squawks 1200 (until auto-track files a plan and discrete code for one handed to the student); IFR gets a discrete `GenerateBeaconCode`.
 5. **Position.** Switches on `SpawnPositionType` to the matching `Generate*` method, each of which uses the same
    `AircraftInitializer` / `GlideSlopeGeometry` as the loader.
 
@@ -434,9 +434,9 @@ have a non-blank readout. IFR runway/final spawns canonicalize the departure/des
 
 ## Runtime firing of the four queues
 
-All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-second:
+All four drain in `SimulationEngine.TickPrePhysics` once per sim-second:
 
-- **`ProcessDelayedSpawns`** (`:1669`) — iterates `DelayedQueue` backward; when `ElapsedSeconds >= SpawnAtSeconds`, removes the
+- **`ProcessDelayedSpawns`** (`SimulationEngine.Generators.cs`) — iterates `DelayedQueue` backward; when `ElapsedSeconds >= SpawnAtSeconds`, removes the
   entry, stamps `SpawnedAtSeconds`, adds to world, dispatches presets, emits a `[Spawn] Delayed` terminal line and any
   auto-track messages.
 - **`ProcessGenerators`** — skipped entirely while the run profile is a replay (`RunProfile.RunsGenerators` is
@@ -492,6 +492,7 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     `LoadScenario` carries neither, and a replay restores its positions from snapshot 0) and, inside `TickPrePhysics`, on a generator spawn
     carrying an autotrack configuration **before** the spawn is recorded and handed to the host, so the recorded snapshot and
     the first datablock both carry the owner. Its `[AutoTrack] …` lines ride `LoadedAircraft.AutoTrackMessages`.
+  - **A cold call can be owned and filed.** When a no-plan aircraft has a resolved owner and a handoff to the student, `FileHandoffPlan` runs before the handoff is queued: it files a VFR plan (type from the aircraft, suffix `A`, departure the handing-off facility's airport, else blank) and a discrete VFR-bank code the aircraft squawks at once. It cannot use `AmendFlightPlan`, which finds the aircraft in the world and a delayed spawn is not there yet. Generators reach the same path. A cold call with no handoff is unchanged: no plan, 1200.
   - **AutoTrack altitudes (`interimAltitude` / `clearedAltitude`).** `AutoTrackConditions` carries both (vNAS-faithful;
     `interimAltitude` was previously dropped on deserialize). They are inherited **datablock-display** state and never touch the
     aircraft's flight target. `ApplyAutoTrackConditions` resolves each STARS hundreds-of-feet string (stripping a leading
@@ -663,9 +664,9 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   Speed is still its only actuator; a real TRACON would vector first (§5-7-1.a.1). Aviation-reviewed against
   §3-10-3, §3-10-6, §5-5-4, §5-7-1, §5-7-3; the 10 NM tower hand-off and the FAS instruction are a working
   controller's practice.
-- **`ProcessTriggers`** (`:1994`) — fires `ScheduledTrigger`s whose `FireAtSeconds` elapsed via `ExecuteGlobalCommand`, which
+- **`ProcessTriggers`** — fires `ScheduledTrigger`s whose `FireAtSeconds` elapsed via `ExecuteGlobalCommand`, which
   only handles the global squawk commands (`SQALL`/`SNALL`/`SSALL`).
-- **`ProcessTimedPresets`** (`:1931`) — fires `ScheduledPreset`s whose `FireAtSeconds` elapsed: parses the command with
+- **`ProcessTimedPresets`** — fires `ScheduledPreset`s whose `FireAtSeconds` elapsed: parses the command with
   `CommandParser.ParseCompound`, then dispatches through the **live** `CommandDispatcher.DispatchCompound` against a world
   snapshot (see next section).
 
@@ -677,7 +678,7 @@ on replay), then adds the room's spawn hooks and broadcasts and hands the spawne
 ## Preset pre-execution through the LIVE dispatcher
 
 Presets are not a separate execution path — they run through the same `CommandDispatcher.DispatchCompound` that controller
-commands use ([command-pipeline.md](command-pipeline.md)). `DispatchPresetCommands(loaded)` (`SimulationEngine.cs:2095`) runs at
+commands use ([command-pipeline.md](command-pipeline.md)). `DispatchPresetCommands(loaded)` (`SimulationEngine.Presets.cs`) runs at
 spawn:
 
 1. Invokes the optional `PresetOverride` hook (tests use it to rewrite presets).
@@ -820,10 +821,10 @@ The four queues are part of the scenario snapshot so a rewind checkpoint can res
   cadence cursor — and `WasActive`, the previous tick's `GeneratorActivation.IsActive` result, kept only so an off→on edge can pull
   the cadence forward; there is no exhaustion latch) and the runway snapshot.
 
-`SimulationEngine.RestoreFromSnapshot` (`SimulationEngine.cs:142`) clears and rebuilds all four queues from the DTOs. The one
+`SimulationEngine.RestoreFromSnapshot` clears and rebuilds all four queues from the DTOs. The one
 runtime-only field that does not survive JSON is `AircraftState.Ground.Layout` (it's `[JsonIgnore]`d in `AircraftGroundOps.cs:20`)
 — on restore, the delayed aircraft's layout is **reattached by airport id** from the persisted `LayoutAirportId`
-(`SimulationEngine.cs:207`), and each live aircraft is re-bound to its own airport's layout the same way (primary layout as
+(in `RestoreFromSnapshot`), and each live aircraft is re-bound to its own airport's layout the same way (primary layout as
 the fallback). If you add a runtime-only reference to a queued type, you must reattach it the same way or it comes
 back null after a rewind. See [snapshots-and-replay.md](snapshots-and-replay.md) for the full DTO tree and the `[JsonIgnore]`
 reattachment pattern.

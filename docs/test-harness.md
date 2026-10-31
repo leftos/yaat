@@ -232,6 +232,8 @@ The same targets file can swap a source file for a variant with `<Compile Remove
 
 A routed gate snapshot omits the gitignored `.tmp`, so a probe compiled from `.tmp` needs `--local --reason`. Afterwards rebuild the test project so the probe types leave `bin/obj`.
 
+Two `--local` builds, one of a yaat test project and one of a yaat-server test project, cannot run at once: both write `Yaat.Sim.dll` and collide with CS2012. Run them in sequence.
+
 ### Linux runs: CI investigation and cross-platform verification
 
 CI runs on `ubuntu-latest` (`.github/workflows/ci.yml`). A test can pass on Windows and fail there: floating-point results differ in the last bits between the platforms' runtimes, and a value that is zero on paper can land on either side of it (see the footgun below). Two ways to run the suite on Linux from this machine, both against the Windows Release build (the test assemblies are portable, so any .NET 10 runtime runs them):
