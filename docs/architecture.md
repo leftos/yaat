@@ -2043,7 +2043,6 @@ Data/HttpFileCache.cs          # Shared vNAS download→disk cache: AlwaysRefetc
 # Data/Airport/
 IAirportGroundData.cs          # Interface: GetLayout(airportId) + GetSourceGeoJson(airportId)
 AirportLayoutDownloader.cs     # Fetches airport ground GeoJSON from vNAS training API; caches under %LOCALAPPDATA%/yaat/cache/airports/
-AirportLayoutFile.cs           # Parses a ground layout from a local GeoJSON file the way AirportLayoutDownloader parses a download (the sandbox's rooms)
 TaxiEdgeLocator.cs             # Static EdgeUnder(layout, position, lastEdge): the taxi edge under an aircraft (near the last edge first, then the whole layout; runway centrelines and ramp connectors excluded; OnTaxiwayMaxOffsetFt 50), shared by FollowingPhase and FollowRoutePlanner
                                # DrivenEdgeUnder: the same with ramp connectors, keeping the last edge while the aircraft rounds a fillet arc off it (FilletArcRounding) — what the TaxiEdgeTrail records
                                # OnFilletArcMaxOffsetFt (8 ft): how far off a fillet's curve a follow route still starts on it; InsideClosestPoint (a curve's nearest point strictly between its ends), shared with GroundNavigator's mid-curve entry
@@ -2790,6 +2789,7 @@ UwbAtccCorpus.cs               # UWB-ATCC test split: pinned-revision download i
 LocalCorpus.cs                 # Local <id>.wav + <id>.txt corpus folder (any sample rate) and its content fingerprint
 CorpusWerGroups.cs             # Folder-corpus WER rows beyond role: per provenance (owner, owner+agreed from decisions.json) and per feed (id prefix)
 CorpusSlots.cs                 # A corpus folder's slots.json: each clip's gold entity slots (kind, canonical value, spoken form)
+AirportLayoutFile.cs           # Parses a ground layout from a local GeoJSON file the way AirportLayoutDownloader parses a download (kept out of Yaat.Sim's Data/Airport, whose files key the precompute cache)
 CorpusRooms.cs                 # A corpus folder's rooms.json: per feed the airport, facility (gnd|twr|app) and padding seed, plus telephony and aircraft-type overrides
 RoomContextBuilder.cs          # Expands a feed room and the slot gold into three TransmissionContexts per clip: unpadded (leave-one-out own entities), padded to 35 with seeded distractors, and the clip's oracle
 RoomHotwords.cs                # A room context's hotword phrases (callsigns, own entities, airport entities; noun-only forms dropped, capped) and per-kind form coverage of the gold

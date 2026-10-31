@@ -1,6 +1,12 @@
-namespace Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 
-/// <summary>Loads an airport ground layout from a GeoJSON file on disk, parsed as <see cref="AirportLayoutDownloader"/> parses a download.</summary>
+namespace Yaat.SpeechSandbox;
+
+/// <summary>
+/// Loads an airport ground layout from a GeoJSON file on disk, parsed as <see cref="AirportLayoutDownloader"/> parses a download.
+/// It lives in the sandbox, not under Yaat.Sim's <c>Data/Airport</c>, whose files key the precompute cache.
+/// </summary>
 public static class AirportLayoutFile
 {
     /// <summary>
