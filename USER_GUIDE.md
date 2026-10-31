@@ -869,6 +869,8 @@ Add a hold-short in the same clearance — `CROSS 28R HS 20` crosses 28R then ho
 
 A crossing's expedite belongs to that crossing: `CROSS 28L 28R EXP` expedites both, including the taxi between the runways, and ends once the aircraft is clear of 28R; a plain `CROSS` cancels it on the crossings it names.
 
+**Departing from a taxiway hold short.** `CTO` or `LUAW` sent to an aircraft holding short of a taxiway (`TAXI D C HS E RWY 28R`, held short of E) taxis it onto that taxiway to the departure runway's hold line on it and lines it up there for an intersection departure, with the traffic and active runways the taxi would be judged against if you had typed it. The pilot reads it back with the intersection: "line up and wait runway 28R at echo", and a later `CTO` to that aircraft "cleared for takeoff runway 28R at echo". `LUAW` needs a departure runway assigned. If an aircraft stands still on the taxiway between it and the runway, the pilot answers "unable, traffic on E" and stays where it is; send the clearance again once the taxiway is clear.
+
 `CROSS HS 20 EXP` with no runway is refused. `NORM`, `SPD`, `RNS`, `HOLD`, `HS`, `GIVEWAY`, or a `TAXI`, `TAXIAUTO`, `RES` or `CROSS` without `EXP` that sets the aircraft moving from a stop ends the expedite everywhere, crossings included; a bare `RES` to a rolling aircraft keeps it.
 
 **Holding short of a specific crossing.** When a taxi route meets the same taxiway or runway more than once — a looping clearance like `TAXI C D J` at OAK, which starts at C and meets it again at the far end of J — a bare `HS C` binds the *first* crossing in route order, which may be right where the aircraft already sits.

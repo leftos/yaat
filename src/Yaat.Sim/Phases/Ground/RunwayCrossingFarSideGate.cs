@@ -181,6 +181,41 @@ internal static class RunwayCrossingFarSideGate
         return route.Segments.Count;
     }
 
+    /// <summary>An aircraft standing on a path (<see cref="StandingOnPathAhead"/>) and where along it (ft from its first point).</summary>
+    internal readonly record struct StandingTraffic(AircraftState Aircraft, double AlongFt);
+
+    /// <summary>
+    /// The aircraft other than <paramref name="self"/> at rest on the ground (at or below
+    /// <see cref="GroundConflictDetector.HeldStationarySpeedKts"/>) that stand on <paramref name="path"/> short of its last point:
+    /// within <see cref="PathLateralFt"/> of a leg and ahead of its first point (<see cref="AircraftOnPath"/>, with no crossing to be
+    /// aligned with). One standing past the last point, though within reach of it, is not counted, nor one moving through. Nearest
+    /// along the path first.
+    /// </summary>
+    internal static List<StandingTraffic> StandingOnPathAhead(AircraftState self, IReadOnlyList<AircraftState> all, List<LatLon> path)
+    {
+        if (path.Count < 2)
+        {
+            return [];
+        }
+
+        LatLon end = path[^1];
+        double pathFt = 0.0;
+        double farthestFromEndFt = 0.0;
+        for (int i = 1; i < path.Count; i++)
+        {
+            pathFt += GeoMath.DistanceNm(path[i - 1], path[i]) * GeoMath.FeetPerNm;
+            farthestFromEndFt = Math.Max(farthestFromEndFt, GeoMath.DistanceNm(end, path[i - 1]) * GeoMath.FeetPerNm);
+        }
+
+        return
+        [
+            .. AircraftOnPath(self, all, path, 0.0, (end, farthestFromEndFt + PathLateralFt))
+                .Where(other => (other.AlongFt < pathFt) && (other.Aircraft.GroundSpeed <= GroundConflictDetector.HeldStationarySpeedKts))
+                .OrderBy(other => other.AlongFt)
+                .Select(other => new StandingTraffic(other.Aircraft, other.AlongFt)),
+        ];
+    }
+
     /// <summary>
     /// The aircraft other than <paramref name="self"/> on <paramref name="path"/> (<see cref="OnPathOf"/>), each first ruled out
     /// by one distance check against <paramref name="reach"/>, the far bar and the farthest any part of the path lies from it.

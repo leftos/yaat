@@ -54,8 +54,8 @@ public record CommandResult(
     internal GroundCommandHandler.TaxiRouteReadbackSource? TaxiRouteReadback { get; init; }
 
     /// <summary>
-    /// Where a takeoff clearance given at a taxiway hold short leaves the aircraft, so the dispatcher can build its readback
-    /// with the clearance's "immediate" wording; null for any other result.
+    /// Where a takeoff or line-up-and-wait clearance given at a taxiway hold short leaves the aircraft, so the dispatcher can build its
+    /// readback with the clearance's "immediate" or "without delay" wording; null for any other result.
     /// </summary>
     internal TaxiwayHoldTakeoff? TaxiwayHoldTakeoff { get; init; }
 
@@ -73,18 +73,22 @@ public record CommandResult(
     public bool IsOperatorGuidance { get; init; }
 }
 
-/// <summary>A takeoff clearance given while holding short of a taxiway (<see cref="CommandResult.TaxiwayHoldTakeoff"/>).</summary>
+/// <summary>
+/// A takeoff or line-up-and-wait clearance given while holding short of a taxiway (<see cref="CommandResult.TaxiwayHoldTakeoff"/>).
+/// </summary>
 /// <param name="Taxiway">The taxiway held short of.</param>
 /// <param name="Outcome">Where the clearance leaves the aircraft.</param>
 internal sealed record TaxiwayHoldTakeoff(string Taxiway, TaxiwayHoldTakeoffOutcome Outcome);
 
-/// <summary>Where a takeoff clearance given at a taxiway hold short leaves the aircraft (<see cref="TaxiwayHoldTakeoff"/>).</summary>
+/// <summary>
+/// Where a takeoff or line-up-and-wait clearance given at a taxiway hold short leaves the aircraft (<see cref="TaxiwayHoldTakeoff"/>).
+/// </summary>
 internal enum TaxiwayHoldTakeoffOutcome
 {
-    /// <summary>It taxis onto the taxiway to the runway's hold line on it and departs from the intersection.</summary>
+    /// <summary>It taxis onto the taxiway to the runway's hold line on it and lines up (and departs) at the intersection.</summary>
     IntersectionDeparture,
 
-    /// <summary>It taxis onto the taxiway, but the route reaches the runway at another entry, where it departs.</summary>
+    /// <summary>It taxis onto the taxiway, but the route reaches the runway at another entry, where it lines up (and departs).</summary>
     OtherEntry,
 
     /// <summary>It stays held short of the taxiway, the clearance stored on its route.</summary>
@@ -2885,7 +2889,13 @@ public static class CommandDispatcher
         return result;
     }
 
-    private static CommandResult ApplyClearedForTakeoff(ClearedForTakeoffCommand cto, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
+    private static CommandResult ApplyClearedForTakeoff(
+        ClearedForTakeoffCommand cto,
+        AircraftState aircraft,
+        Phase currentPhase,
+        DispatchContext ctx,
+        GroundCommandHandler.TaxiDispatch taxiDispatch
+    )
     {
         CommandResult ctoResult = currentPhase is LinedUpAndWaitingPhase luaw
             ? DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, ctx)
@@ -2896,6 +2906,7 @@ public static class CommandDispatcher
                 cto.Departure,
                 cto.AssignedAltitude,
                 ctx,
+                taxiDispatch,
                 Log
             );
         // "Cleared for immediate takeoff" — brisk lineup taxi (+ rolling takeoff via the
@@ -2958,7 +2969,7 @@ public static class CommandDispatcher
         switch (command)
         {
             case ClearedForTakeoffCommand cto:
-                return ApplyClearedForTakeoff(cto, aircraft, currentPhase, ctx);
+                return ApplyClearedForTakeoff(cto, aircraft, currentPhase, ctx, taxiDispatch);
 
             case CancelTakeoffClearanceCommand:
                 // Cancelling the takeoff clearance moots any pending expedite intent.
@@ -2974,6 +2985,7 @@ public static class CommandDispatcher
                     new DefaultDeparture(),
                     null,
                     ctx,
+                    taxiDispatch,
                     Log
                 );
                 // "Line up and wait, without delay" — brisk lineup taxi; still stops at the centerline.
@@ -2981,6 +2993,13 @@ public static class CommandDispatcher
                 {
                     aircraft.Ground.IsExpeditingLineup = luawCmd.WithoutDelay;
                 }
+
+                if (luawResult.TaxiwayHoldTakeoff is { } taxiwayHold)
+                {
+                    PilotSpeechText readback = PilotResponder.BuildLineUpAndWaitAtTaxiwayHold(aircraft, luawCmd.WithoutDelay, taxiwayHold);
+                    return luawResult with { PilotReadback = new HandlerReadback(CanonicalCommandType.LineUpAndWait, readback) };
+                }
+
                 return luawResult;
             }
 

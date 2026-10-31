@@ -11,6 +11,13 @@ public sealed class PhaseListDto
     public RunwayInfoDto? AssignedRunway { get; init; }
     public TaxiRouteDto? TaxiRoute { get; init; }
     public DepartureClearanceDto? DepartureClearance { get; init; }
+
+    // The intersection a line-up and wait at a taxiway hold short lined the aircraft up at (PhaseList.LineUpIntersectionTaxiway). Not
+    // `required`: absent on older snapshots, which restore none and read a later takeoff clearance back without it; and not written while
+    // null, so a snapshot with none — every snapshot 0 — serializes exactly as it did before the field existed (yaat-server pins
+    // snapshot 0's hash).
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LineUpIntersectionTaxiway { get; init; }
     public int? LandingClearance { get; init; }
     public string? ClearedRunwayId { get; init; }
     public bool ForceLanding { get; init; }

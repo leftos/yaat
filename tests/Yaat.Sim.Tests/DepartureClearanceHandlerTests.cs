@@ -83,6 +83,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -109,6 +110,7 @@ public class DepartureClearanceHandlerTests
             new RunwayHeadingDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -137,6 +139,7 @@ public class DepartureClearanceHandlerTests
             new RunwayHeadingDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -167,6 +170,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -215,6 +219,7 @@ public class DepartureClearanceHandlerTests
             new RunwayHeadingDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -264,6 +269,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             5000,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -311,6 +317,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             5000,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -359,6 +366,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             5000,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -438,6 +446,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -474,6 +483,7 @@ public class DepartureClearanceHandlerTests
             new RunwayHeadingDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -496,6 +506,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -526,6 +537,7 @@ public class DepartureClearanceHandlerTests
             new RunwayHeadingDeparture(),
             5000,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -564,6 +576,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -609,6 +622,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             null,
             TestDispatch.Context(Random.Shared, groundLayout: layout),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -644,6 +658,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -674,6 +689,7 @@ public class DepartureClearanceHandlerTests
             departure,
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -837,6 +853,7 @@ public class DepartureClearanceHandlerTests
             new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -881,6 +898,7 @@ public class DepartureClearanceHandlerTests
             new ClosedTrafficDeparture(PatternDirection.Left, "28L", null),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -907,6 +925,7 @@ public class DepartureClearanceHandlerTests
             new ClosedTrafficDeparture(PatternDirection.Right, null, null),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -1016,6 +1035,7 @@ public class DepartureClearanceHandlerTests
             new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -1079,6 +1099,7 @@ public class DepartureClearanceHandlerTests
             new DefaultDeparture(),
             null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 

@@ -177,6 +177,14 @@ public sealed class PhaseList
     public DepartureClearanceInfo? DepartureClearance { get; set; }
 
     /// <summary>
+    /// The taxiway a line-up and wait given at its hold short sent the aircraft onto, to line up on the runway at that intersection
+    /// (7110.65 3-9-4.m). A takeoff clearance read back afterwards names it ("cleared for takeoff runway 28R at E"). Cleared when the
+    /// takeoff roll starts, when the stored clearance is cancelled, and when the aircraft leaves line-up and wait other than by its
+    /// takeoff. Null for none.
+    /// </summary>
+    public string? LineUpIntersectionTaxiway { get; set; }
+
+    /// <summary>
     /// Landing clearance that persists across phases.
     /// Set by CLAND command (possibly on downwind/base), consumed by FinalApproachPhase.
     /// Cleared by CTOC or supplanted by a new clearance for a different runway.
@@ -486,6 +494,7 @@ public sealed class PhaseList
             AssignedRunway = dto.AssignedRunway is not null ? RunwayInfo.FromSnapshot(dto.AssignedRunway) : null,
             TaxiRoute = dto.TaxiRoute is not null ? Data.Airport.TaxiRoute.FromSnapshot(dto.TaxiRoute, groundLayout) : null,
             DepartureClearance = dto.DepartureClearance is not null ? DepartureClearanceInfo.FromSnapshot(dto.DepartureClearance) : null,
+            LineUpIntersectionTaxiway = dto.LineUpIntersectionTaxiway,
             LandingClearance = dto.LandingClearance.HasValue ? (ClearanceType)dto.LandingClearance.Value : null,
             ClearedRunwayId = dto.ClearedRunwayId,
             ForceLanding = dto.ForceLanding,
@@ -644,6 +653,7 @@ public sealed class PhaseList
             AssignedRunway = AssignedRunway?.ToSnapshot(),
             TaxiRoute = TaxiRoute?.ToSnapshot(),
             DepartureClearance = DepartureClearance?.ToSnapshot(),
+            LineUpIntersectionTaxiway = LineUpIntersectionTaxiway,
             LandingClearance = LandingClearance.HasValue ? (int)LandingClearance.Value : null,
             ClearedRunwayId = ClearedRunwayId,
             ForceLanding = ForceLanding,

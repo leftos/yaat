@@ -644,7 +644,7 @@ public static partial class PilotResponder
                 cto.Immediate ? "cleared for immediate takeoff" : "cleared for takeoff",
                 cto.Departure,
                 cto.AssignedAltitude,
-                new TakeoffRunwayWording(IncludeRunway: true, Intersection: null)
+                new TakeoffRunwayWording(IncludeRunway: true, Intersection: aircraft.Phases?.LineUpIntersectionTaxiway)
             ),
             ClearedTakeoffPresentCommand ctopp => BuildTakeoffClearanceClause(
                 aircraft,
@@ -1453,6 +1453,50 @@ public static partial class PilotResponder
             $"{clause.Tts}, holding short of {PhraseologyVerbalizer.SpellTaxiway(site.Taxiway)}"
         );
     }
+
+    /// <summary>
+    /// Pilot readback of a line-up-and-wait clearance given while holding short of a taxiway (the handler's
+    /// <see cref="CommandResult.PilotReadback"/>). A line-up at the intersection with that taxiway names it right after the runway
+    /// ("line up and wait runway 28R at E"); a clearance stored while the aircraft stays held says where it holds ("line up and wait
+    /// runway 28R, holding short of E"). "Without delay" follows the runway clause of a clearance that sets the aircraft moving; one
+    /// that stays held is not moving, so its readback drops it.
+    /// </summary>
+    /// <param name="aircraft">The aircraft reading back.</param>
+    /// <param name="withoutDelay">Whether the clearance said "without delay".</param>
+    /// <param name="site">The taxiway held short of and where the clearance leaves the aircraft.</param>
+    internal static PilotSpeechText BuildLineUpAndWaitAtTaxiwayHold(AircraftState aircraft, bool withoutDelay, TaxiwayHoldTakeoff site)
+    {
+        string? intersection = site.Outcome == TaxiwayHoldTakeoffOutcome.IntersectionDeparture ? site.Taxiway : null;
+        PilotSpeechText lineUp = BuildLineUpAndWaitClause(aircraft, intersection);
+        if (site.Outcome == TaxiwayHoldTakeoffOutcome.StaysHeld)
+        {
+            return AppendClause(
+                lineUp,
+                $", holding short of {site.Taxiway}",
+                $", holding short of {PhraseologyVerbalizer.SpellTaxiway(site.Taxiway)}"
+            );
+        }
+
+        return AppendWithoutDelayClause(lineUp, withoutDelay) ?? lineUp;
+    }
+
+    /// <summary>
+    /// "line up and wait runway 28R", with " at E" after the runway for a line-up at <paramref name="intersection"/>; the runway clause's
+    /// RPO terminal line is carried through.
+    /// </summary>
+    private static PilotSpeechText BuildLineUpAndWaitClause(AircraftState aircraft, string? intersection)
+    {
+        const string lead = "line up and wait";
+        PilotSpeechText clause = BuildRunwayInstructionClause(aircraft, lead) ?? new PilotSpeechText(lead, lead);
+        return intersection is null ? clause : AppendClause(clause, $" at {intersection}", $" at {PhraseologyVerbalizer.SpellTaxiway(intersection)}");
+    }
+
+    /// <summary><paramref name="clause"/> with <paramref name="terminal"/> and <paramref name="tts"/> appended, its RPO terminal line too.</summary>
+    private static PilotSpeechText AppendClause(PilotSpeechText clause, string terminal, string tts) =>
+        new($"{clause.Terminal}{terminal}", $"{clause.Tts}{tts}")
+        {
+            RpoTerminal = clause.RpoTerminal is { } rpoTerminal ? rpoTerminal + terminal : null,
+        };
 
     /// <summary>How a takeoff clearance's readback names the runway.</summary>
     /// <param name="IncludeRunway">Whether the runway is named ("cleared for takeoff runway 28R").</param>
@@ -2985,6 +3029,17 @@ public static partial class PilotResponder
             $"unable, no room to turn around{onTaxiway}, holding short of runway {runway}.",
             $"{spoken}, unable, no room to turn around{onSpokenTaxiway}, holding short of runway {PhraseologyVerbalizer.SpellRunway(runway)}."
         );
+    }
+
+    /// <summary>
+    /// The refusal of a takeoff or line-up clearance given at the hold short of <paramref name="taxiway"/> while traffic stands on
+    /// that taxiway between the aircraft and the runway: the pilot says unable (P/CG "UNABLE") and stays held short, and the
+    /// controller re-issues the clearance once the taxiway is clear. The spoken form spells the taxiway (AIM 4-2-7).
+    /// </summary>
+    public static PilotSpeechText BuildUnableTrafficOnTaxiway(AircraftState aircraft, string taxiway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText($"unable, traffic on {taxiway}", $"{spoken}, unable, traffic on {PhraseologyVerbalizer.SpellTaxiway(taxiway)}");
     }
 
     /// <summary>

@@ -869,6 +869,7 @@ public class ClimbViaTopAltitudeTests
             new DefaultDeparture(),
             assignedAltitude: ctoAltitude,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             NullLogger.Instance
         );
         Assert.True(cto.Success, cto.Message);

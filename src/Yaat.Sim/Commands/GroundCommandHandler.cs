@@ -234,68 +234,21 @@ public static partial class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        // The clearance as the controller worded it. When a cleared taxiway has to be dropped below, the
-        // pilot's readback is built from this minus the dropped lane — not from the internally folded /
-        // prepended working copy — so the solo student hears "unable M4, taxi via M1 …" and nothing else.
-        TaxiCommand asCleared = taxi;
-
-        // A $spot inside the path is a via — the route has to pass through that spot's node on its way to the
-        // destination. The resolver already understands a #nodeId token, so the via is rewritten into one here,
-        // the one place the clearance first meets the layout. The readback still names the lanes, because it is
-        // built from the resolved route's segments and from asCleared above.
-        (TaxiCommand withSpotVias, string? unknownSpot) = ResolveSpotVias(groundLayout, taxi);
-        if (unknownSpot is not null)
+        TaxiPreparation preparation = ResolveTaxiFromPosition(aircraft, taxi, groundLayout, options, LogLevel.Warning);
+        if (preparation.Prepared is not { } prepared)
         {
-            return new CommandResult(false, $"Unknown spot {unknownSpot}");
+            return preparation.Refusal ?? throw new InvalidOperationException("a taxi preparation carries neither a resolution nor a refusal");
         }
 
-        taxi = withSpotVias;
-
-        // A taxiway named only as a hold-short target ("... HS E") can also be a directional hint.
-        // With a destination the clearance is resolved as cleared first and the hint is folded into
-        // the path only when that route cannot honor it (see ResolveRoute below — issue #395: SFO
-        // "TAXI T7A A A1 1R HS H" crosses H on A and must not detour back to H after A1). Without a
-        // destination the hint is the only direction cue, so it is folded up front.
-        List<HoldShortTarget> foldTargets = HoldShortTaxiwaysToFold(groundLayout, taxi);
-        if ((foldTargets.Count > 0) && !HasDestination(taxi))
-        {
-            taxi = AugmentPathWithHoldShortTaxiways(taxi, foldTargets);
-            foldTargets = [];
-        }
-
-        var traffic = TaxiStartTraffic.Of(aircraft, NeighbourCandidate.OnGround(options.ListAircraft?.Invoke()));
-        if (groundLayout.PickTaxiStart(aircraft.Position, aircraft.TrueHeading, traffic) is not { } taxiStart)
-        {
-            Log.LogWarning(
-                "[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})",
-                aircraft.Callsign,
-                aircraft.Position.Lat,
-                aircraft.Position.Lon
-            );
-            return new CommandResult(false, "Cannot find position on taxiway graph");
-        }
-
-        GroundNode startNode = taxiStart.Node;
-        string? startBlocker = taxiStart.Blocker;
-
-        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        WakeTurbulenceData.WakeClass wakeClass = WakeTurbulenceData.WakeClassForType(aircraft.AircraftType, category);
-        double aircraftLengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
-
-        var inputs = new TaxiResolveInputs
-        {
-            Aircraft = aircraft,
-            Layout = groundLayout,
-            AsCleared = asCleared,
-            FoldTargets = foldTargets,
-            Options = options,
-            Traffic = traffic,
-            Category = category,
-            WakeClass = wakeClass,
-            AircraftLengthFt = aircraftLengthFt,
-            FailureLogLevel = LogLevel.Warning,
-        };
-        TaxiResolution resolved = ResolveTaxiRouteFromStart(inputs, taxi, startNode);
+        TaxiResolveInputs inputs = prepared.Inputs;
+        taxi = prepared.Taxi;
+        TaxiResolution resolved = prepared.Resolved;
+        TaxiCommand asCleared = inputs.AsCleared;
+        TaxiStartTraffic traffic = inputs.Traffic;
+        string? startBlocker = prepared.StartBlocker;
+        AircraftCategory category = inputs.Category;
+        WakeTurbulenceData.WakeClass wakeClass = inputs.WakeClass;
+        double aircraftLengthFt = inputs.AircraftLengthFt;
 
         // On the landing rollout a TAXIAUTO turns off at the first exit the aircraft can make, and a TAXI whose first taxiway is off
         // the runway, or no route from the runway resolves for, joins from one (GroundCommandHandler.RolloutTaxi.cs).
@@ -615,6 +568,105 @@ public static partial class GroundCommandHandler
             TaxiRouteReadback = (options.IsTaxiAuto || (unableEndHold is not null)) ? null : readbackSource,
         };
     }
+
+    /// <summary>A TAXI resolved from where the aircraft stands, before anything is installed.</summary>
+    /// <param name="Inputs">What the resolution ran on.</param>
+    /// <param name="Taxi">The working command it resolved: the clearance with its spot vias rewritten and its hold-short hints folded.</param>
+    /// <param name="Resolved">The route, or the refusal.</param>
+    /// <param name="StartBlocker">The aircraft that kept the taxi from starting at the nearest node, or null.</param>
+    private sealed record PreparedTaxi(TaxiResolveInputs Inputs, TaxiCommand Taxi, TaxiResolution Resolved, string? StartBlocker);
+
+    /// <summary>The outcome of <see cref="ResolveTaxiFromPosition"/>: a resolution, or the refusal given before one could run.</summary>
+    private sealed record TaxiPreparation(PreparedTaxi? Prepared, CommandResult? Refusal);
+
+    /// <summary>
+    /// Resolves a TAXI from where the aircraft stands without changing it: the clearance's spot vias, its hold-short directional
+    /// hints, the start node clear of the traffic in view, and the route from there. <see cref="TryTaxiCore"/> runs this and then
+    /// installs; <see cref="ResolveTaxiRoute"/> runs only this.
+    /// </summary>
+    private static TaxiPreparation ResolveTaxiFromPosition(
+        AircraftState aircraft,
+        TaxiCommand taxi,
+        AirportGroundLayout groundLayout,
+        TaxiCoreOptions options,
+        LogLevel failureLogLevel
+    )
+    {
+        // The clearance as the controller worded it. When a cleared taxiway has to be dropped below, the
+        // pilot's readback is built from this minus the dropped lane — not from the internally folded /
+        // prepended working copy — so the solo student hears "unable M4, taxi via M1 …" and nothing else.
+        TaxiCommand asCleared = taxi;
+
+        // A $spot inside the path is a via — the route has to pass through that spot's node on its way to the
+        // destination. The resolver already understands a #nodeId token, so the via is rewritten into one here,
+        // the one place the clearance first meets the layout. The readback still names the lanes, because it is
+        // built from the resolved route's segments and from asCleared above.
+        (TaxiCommand withSpotVias, string? unknownSpot) = ResolveSpotVias(groundLayout, taxi);
+        if (unknownSpot is not null)
+        {
+            return new TaxiPreparation(null, new CommandResult(false, $"Unknown spot {unknownSpot}"));
+        }
+
+        taxi = withSpotVias;
+
+        // A taxiway named only as a hold-short target ("... HS E") can also be a directional hint.
+        // With a destination the clearance is resolved as cleared first and the hint is folded into
+        // the path only when that route cannot honor it (see ResolveRoute below — issue #395: SFO
+        // "TAXI T7A A A1 1R HS H" crosses H on A and must not detour back to H after A1). Without a
+        // destination the hint is the only direction cue, so it is folded up front.
+        List<HoldShortTarget> foldTargets = HoldShortTaxiwaysToFold(groundLayout, taxi);
+        if ((foldTargets.Count > 0) && !HasDestination(taxi))
+        {
+            taxi = AugmentPathWithHoldShortTaxiways(taxi, foldTargets);
+            foldTargets = [];
+        }
+
+        var traffic = TaxiStartTraffic.Of(aircraft, NeighbourCandidate.OnGround(options.ListAircraft?.Invoke()));
+        if (groundLayout.PickTaxiStart(aircraft.Position, aircraft.TrueHeading, traffic) is not { } taxiStart)
+        {
+            Log.Log(
+                failureLogLevel,
+                "[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})",
+                aircraft.Callsign,
+                aircraft.Position.Lat,
+                aircraft.Position.Lon
+            );
+            return new TaxiPreparation(null, new CommandResult(false, "Cannot find position on taxiway graph"));
+        }
+
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        var inputs = new TaxiResolveInputs
+        {
+            Aircraft = aircraft,
+            Layout = groundLayout,
+            AsCleared = asCleared,
+            FoldTargets = foldTargets,
+            Options = options,
+            Traffic = traffic,
+            Category = category,
+            WakeClass = WakeTurbulenceData.WakeClassForType(aircraft.AircraftType, category),
+            AircraftLengthFt = AircraftLength.ResolveFt(aircraft.AircraftType),
+            FailureLogLevel = failureLogLevel,
+        };
+        TaxiResolution resolved = ResolveTaxiRouteFromStart(inputs, taxi, taxiStart.Node);
+        return new TaxiPreparation(new PreparedTaxi(inputs, taxi, resolved, taxiStart.Blocker), null);
+    }
+
+    /// <summary>
+    /// The route a <c>TAXI</c> dispatched as <paramref name="dispatch"/> resolves to from where the aircraft stands, resolved as
+    /// <see cref="TryTaxi(AircraftState, TaxiCommand, AirportGroundLayout?, TaxiDispatch)"/> resolves it, with nothing installed on
+    /// the aircraft. Null when the aircraft is airborne or the clearance resolves to no route.
+    /// </summary>
+    internal static TaxiRoute? ResolveTaxiRoute(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout groundLayout, TaxiDispatch dispatch) =>
+        aircraft.IsOnGround
+            ? ResolveTaxiFromPosition(
+                aircraft,
+                taxi,
+                groundLayout,
+                TaxiCoreOptions.For(dispatch, isTaxiAuto: false),
+                LogLevel.Debug
+            ).Prepared?.Resolved.Route
+            : null;
 
     /// <summary>
     /// The target of the no-destination end hold (<see cref="NoDestinationEndHold"/>) of the route just assigned, when the rolling

@@ -109,6 +109,19 @@ public sealed class LinedUpAndWaitingPhase : Phase
         return Requirements[0].IsSatisfied;
     }
 
+    /// <summary>
+    /// Leaving the position other than by the takeoff (a new taxi, a hold short, a phase list rebuilt) forgets the intersection the
+    /// aircraft lined up at (<see cref="PhaseList.LineUpIntersectionTaxiway"/>), so a later takeoff clearance does not name it. The
+    /// takeoff clears it itself (<see cref="TakeoffPhase"/>).
+    /// </summary>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        if (endStatus != PhaseStatus.Completed)
+        {
+            ctx.Aircraft.Phases?.LineUpIntersectionTaxiway = null;
+        }
+    }
+
     /// <summary>The call at the lined-up call point, by the runway-spawn rules (<see cref="RunwaySpawnCall"/>).</summary>
     private static void MakeLinedUpCall(PhaseContext ctx, RunwayInfo rwy, RunwaySpawnCallKind kind)
     {

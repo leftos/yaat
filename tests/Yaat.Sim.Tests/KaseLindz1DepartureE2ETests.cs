@@ -94,6 +94,7 @@ public class KaseLindz1DepartureE2ETests
             new DefaultDeparture(),
             assignedAltitude: null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             NullLogger.Instance
         );
         _output.WriteLine($"CTO success={result.Success}: {result.Message}");
@@ -236,6 +237,7 @@ public class KaseLindz1DepartureE2ETests
             new DefaultDeparture(),
             assignedAltitude: null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             NullLogger.Instance
         );
         Assert.True(cto.Success, cto.Message);

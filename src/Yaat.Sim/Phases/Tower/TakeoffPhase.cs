@@ -97,6 +97,9 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock, IPendingPursuitClimb
 
     public override void OnStart(PhaseContext ctx)
     {
+        // The roll is the departure the intersection line-up was for; a later takeoff clearance names no intersection.
+        ctx.Aircraft.Phases?.LineUpIntersectionTaxiway = null;
+
         // Cross-runway closed traffic takes off on the DEPARTURE runway, not the
         // pattern runway carried in AssignedRunway/ctx.Runway.
         RunwayInfo? rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;

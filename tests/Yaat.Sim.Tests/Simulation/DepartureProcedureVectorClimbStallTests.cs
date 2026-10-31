@@ -521,6 +521,7 @@ public class DepartureProcedureVectorClimbStallTests
             new DefaultDeparture(),
             assignedAltitude: null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             NullLogger.Instance
         );
         Assert.True(cto.Success, cto.Message);

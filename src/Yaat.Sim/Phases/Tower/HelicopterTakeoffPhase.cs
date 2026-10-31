@@ -73,6 +73,9 @@ public sealed class HelicopterTakeoffPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
+        // The liftoff is the departure the intersection line-up was for; a later takeoff clearance names no intersection.
+        ctx.Aircraft.Phases?.LineUpIntersectionTaxiway = null;
+
         _fieldElevation = ctx.FieldElevation;
         _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
         _departure = Departure;

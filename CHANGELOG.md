@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `LUAW` at a taxiway hold short taxis onto that taxiway and lines up at the intersection; its readback and the later `CTO` name it ("at echo").
+- `CTO` at a taxiway hold short is refused with "unable, traffic on E" while another aircraft stands on that taxiway; re-issue it once clear.
+- The taxi that `CTO` or `LUAW` starts from a taxiway hold short accounts for traffic and active runways, and pre-clears no crossing.
+
 ## v0.17.2-beta [2026/10/30]
 
 ### Highlights

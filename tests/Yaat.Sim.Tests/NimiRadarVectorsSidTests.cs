@@ -154,6 +154,7 @@ public class NimiRadarVectorsSidTests
             new DefaultDeparture(),
             assignedAltitude: 5000,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 
@@ -194,6 +195,7 @@ public class NimiRadarVectorsSidTests
             new DefaultDeparture(),
             assignedAltitude: 5000,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             Logger
         );
 

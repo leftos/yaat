@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -7,7 +8,9 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -38,6 +41,26 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
 
     /// <summary>How far (ft) from 28R's bar on E the aircraft may be when its takeoff roll starts: the line-up's length.</summary>
     private const double TakeoffStartNearBarFt = 700;
+
+    /// <summary>
+    /// How far (ft) past the turn off C onto E the traffic standing on E is placed: on the first segment on E, which runs about 53 ft
+    /// from the end of the C-E fillet to 28R's bar, so short of the bar.
+    /// </summary>
+    private const double PastTheTurnFt = 20.0;
+
+    /// <summary>How far (ft) behind N45912 on C the traffic standing there is placed.</summary>
+    private const double BehindOnCFt = 150.0;
+
+    /// <summary>The taxiing traffic's speed (kt): well above at rest.</summary>
+    private const double TaxiingTrafficKts = 15.0;
+
+    /// <summary>The airborne traffic's altitude (ft MSL) and speed (kt) over E.</summary>
+    private const double AirborneTrafficAltitudeFt = 500.0;
+
+    private const double AirborneTrafficKts = 90.0;
+
+    /// <summary>How long (simulated s) an aircraft that said unable is watched to stay held short of E.</summary>
+    private const int UnableHoldCheckSeconds = 30;
 
     /// <summary>Below this indicated airspeed (kt) the aircraft counts as stopped.</summary>
     private const double StoppedIasKts = 0.5;
@@ -211,8 +234,471 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         Assert.Contains(departure.PendingWarnings, w => w.Contains("N100LU", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// With N314WN still standing on E at 28R's bar, a CTO at the hold short of E is refused at once: the pilot says unable, stays
+    /// held short of E, and no takeoff clearance or taxi onto E is installed. The controller re-issues the CTO once E is clear.
+    /// </summary>
+    [Fact]
+    public void DCHsE_HeldShortOfE_N314WNOnE_Cto_SaysUnableAndKeepsTheHold() => AssertUnableWithTrafficOnE("CTO");
+
+    /// <summary>With N314WN still standing on E at 28R's bar, a LUAW at the hold short of E is refused as a CTO there is.</summary>
+    [Fact]
+    public void DCHsE_HeldShortOfE_N314WNOnE_Luaw_SaysUnableAndKeepsTheHold() => AssertUnableWithTrafficOnE("LUAW");
+
+    private void AssertUnableWithTrafficOnE(string command)
+    {
+        SimulationEngine? engine = EngineHeldShortOfEWithTrafficOnE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        Assert.NotNull(engine.FindAircraft(ExitingTrafficOnE));
+        TaxiRoute? routeBefore = aircraft.Ground.AssignedTaxiRoute;
+        int eSegmentsBefore = CountESegments(routeBefore);
+
+        CommandResult result = engine.SendCommand(Callsign, command);
+        output.WriteLine($"[{command}] success={result.Success} message={result.Message}");
+        output.WriteLine($"[{command}] unable terminal={result.PilotUnable?.Terminal} spoken={result.PilotUnable?.Tts}");
+        Assert.False(result.Success, $"{command} with N314WN on E was accepted: {result.Message}");
+        Assert.NotNull(result.PilotUnable);
+        Assert.Equal("unable, traffic on E", result.PilotUnable.Terminal);
+        Assert.Contains("unable, traffic on echo", result.PilotUnable.Tts);
+
+        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
+        for (int t = 0; t < UnableHoldCheckSeconds; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        AircraftState? after = engine.FindAircraft(Callsign);
+        Assert.NotNull(after);
+        Assert.Same(holding, after.Phases?.CurrentPhase);
+        Assert.True(IsHoldingShortOfE(after), $"{Callsign} is no longer holding short of E: {after.Phases?.CurrentPhase?.Name}");
+        Assert.Null(after.Phases?.DepartureClearance);
+        Assert.Same(routeBefore, after.Ground.AssignedTaxiRoute);
+        Assert.Equal(eSegmentsBefore, CountESegments(after.Ground.AssignedTaxiRoute));
+    }
+
+    /// <summary>
+    /// A LUAW at the hold short of E is an implicit taxi onto E and a line-up at the intersection (7110.65 3-9-4.m): the pilot reads
+    /// back "line up and wait runway 28R at E", taxis E to 28R's bar, lines up on 28R there and holds in position.
+    /// </summary>
+    [Fact]
+    public void DCHsE_HeldShortOfE_Luaw_LinesUpOn28RAtE()
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        LineUpAtE(engine);
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        for (int t = 0; t < UnableHoldCheckSeconds; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.IsType<LinedUpAndWaitingPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.Equal("E", aircraft.Phases?.LineUpIntersectionTaxiway);
+    }
+
+    /// <summary>
+    /// Lined up at E after a LUAW there, a CTO needs no taxi step and its readback still names the intersection: "cleared for takeoff
+    /// runway 28R at E". The intersection is forgotten once the takeoff roll starts.
+    /// </summary>
+    [Fact]
+    public void DCHsE_LuawAtE_LinedUp_ThenCto_ReadsBackAtE()
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        LineUpAtE(engine);
+        CommandResult cto = SendCto(engine, "CTO");
+        Assert.StartsWith("cleared for takeoff runway 28R at E", AppliedCtoReadback(engine, cto).Terminal);
+        Assert.Contains("cleared for takeoff runway two eight right at echo", AppliedCtoReadback(engine, cto).Tts);
+
+        AircraftState aircraft = TickUntil(engine, a => a.Phases?.CurrentPhase is TakeoffPhase, CtoToTakeoffLimitSeconds, "in TakeoffPhase");
+        Assert.Null(aircraft.Phases?.LineUpIntersectionTaxiway);
+    }
+
+    /// <summary>
+    /// A CTO given after a LUAW at E while the aircraft still taxis E toward 28R's bar replaces the stored line-up, reads back "at E"
+    /// and departs 28R from E.
+    /// </summary>
+    [Fact]
+    public void DCHsE_LuawAtE_WhileTaxiingOnE_ThenCto_ReadsBackAtE()
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        SendCto(engine, "LUAW");
+        LatLon barPosition = AssertRouteEndsAt28RBarOnE(engine);
+        TickUntil(engine, IsTaxiingOnE, CtoToTakeoffLimitSeconds, "taxiing on E");
+
+        CommandResult cto = SendCto(engine, "CTO");
+        Assert.StartsWith("cleared for takeoff runway 28R at E", AppliedCtoReadback(engine, cto).Terminal);
+        Assert.Contains("cleared for takeoff runway two eight right at echo", AppliedCtoReadback(engine, cto).Tts);
+
+        AircraftState aircraft = TickUntil(engine, a => a.Phases?.CurrentPhase is TakeoffPhase, CtoToTakeoffLimitSeconds, "in TakeoffPhase");
+        double fromBarFt = GeoMath.DistanceNm(aircraft.Position, barPosition) * GeoMath.FeetPerNm;
+        Assert.True(fromBarFt < TakeoffStartNearBarFt, $"{Callsign} began its takeoff roll {fromBarFt:F0} ft from 28R's bar on E");
+        Assert.Equal("28R", aircraft.Procedure.DepartureRunway);
+    }
+
+    /// <summary>
+    /// Lined up at E after a LUAW there, a CTOC leaves the aircraft lined up at E, so a CTO afterwards still departs from E and reads
+    /// it back (7110.65 3-9-10.b).
+    /// </summary>
+    [Fact]
+    public void DCHsE_LuawAtE_LinedUp_ThenCtocThenCto_StillReadsBackAtE()
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        LineUpAtE(engine);
+        SendCto(engine, "CTO");
+        CommandResult cancel = engine.SendCommand(Callsign, "CTOC");
+        Assert.True(cancel.Success, $"CTOC refused: {cancel.Message}");
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        Assert.Equal("E", aircraft.Phases?.LineUpIntersectionTaxiway);
+
+        CommandResult cto = SendCto(engine, "CTO");
+        Assert.StartsWith("cleared for takeoff runway 28R at E", AppliedCtoReadback(engine, cto).Terminal);
+    }
+
+    /// <summary>
+    /// A LUAW at E followed, while the aircraft still taxis on E, by a new TAXI to 28R's full length forgets the intersection: a CTO
+    /// afterwards reads back no "at E".
+    /// </summary>
+    [Fact]
+    public void DCHsE_LuawAtE_WhileTaxiingOnE_ThenTaxiToFullLength_ThenCto_ReadsBackNoIntersection()
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        SendCto(engine, "LUAW");
+        TickUntil(engine, IsTaxiingOnE, CtoToTakeoffLimitSeconds, "taxiing on E");
+        CommandResult retaxi = engine.SendCommand(Callsign, "TAXI E C B RWY 28R");
+        output.WriteLine($"[re-taxi] success={retaxi.Success} message={retaxi.Message}");
+        Assert.True(retaxi.Success, $"TAXI E C B RWY 28R refused: {retaxi.Message}");
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        LogRoute("after re-taxi", aircraft.Ground.AssignedTaxiRoute);
+        Assert.Null(aircraft.Phases?.LineUpIntersectionTaxiway);
+
+        CommandResult cto = SendCto(engine, "CTO");
+        PilotSpeechText readback = AppliedCtoReadback(engine, cto);
+        Assert.StartsWith("cleared for takeoff runway 28R", readback.Terminal);
+        Assert.DoesNotContain(" at E", readback.Terminal);
+    }
+
+    /// <summary>A helicopter lined up at E after a LUAW there forgets the intersection once its takeoff starts.</summary>
+    [Fact]
+    public void Helicopter_DCHsE_LuawAtE_ThenCto_ForgetsTheIntersectionAtTakeoff()
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        AircraftState? helicopter = engine.FindAircraft(Callsign);
+        Assert.NotNull(helicopter);
+        helicopter.AircraftType = "S76";
+        Assert.Equal(AircraftCategory.Helicopter, AircraftCategorization.Categorize(helicopter.AircraftType));
+
+        LineUpAtE(engine);
+        SendCto(engine, "CTO");
+        AircraftState aircraft = TickUntil(
+            engine,
+            a => a.Phases?.CurrentPhase is HelicopterTakeoffPhase,
+            CtoToTakeoffLimitSeconds,
+            "in HelicopterTakeoffPhase"
+        );
+        Assert.Null(aircraft.Phases?.LineUpIntersectionTaxiway);
+    }
+
+    /// <summary>"LUAW WD" at the hold short of E: "line up and wait runway 28R at E, without delay".</summary>
+    [Fact]
+    public void DCHsE_HeldShortOfE_LuawWithoutDelay_ReadsBackAtEWithoutDelay()
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        CommandResult luaw = SendCto(engine, "LUAW WD");
+        Assert.Equal("line up and wait runway 28R at E, without delay", luaw.PilotReadback?.Speech.Terminal);
+        Assert.Equal("line up and wait runway two eight right at echo, without delay", luaw.PilotReadback?.Speech.Tts);
+    }
+
+    /// <summary>The RPO's terminal line of the LUAW at E readback keeps the runway and intersection clause.</summary>
+    [Fact]
+    public void DCHsE_HeldShortOfE_Luaw_RpoTerminalKeepsTheRunwayClause()
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        CommandResult luaw = SendCto(engine, "LUAW");
+        Assert.StartsWith("line up and wait runway 28R at E", luaw.PilotReadback?.Speech.TerminalForRpo ?? "");
+    }
+
+    /// <summary>Traffic at rest on E just past the turn off C stands on the way to 28R: the CTO is refused.</summary>
+    [Fact]
+    public void DCHsE_HeldShortOfE_TrafficStandingOnEPastTheTurn_Cto_SaysUnable()
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        (LatLon turn, LatLon along) = FirstESegment(engine);
+        double bearing = GeoMath.BearingTo(turn, along);
+        Assert.True(
+            GeoMath.DistanceNm(turn, along) * GeoMath.FeetPerNm > PastTheTurnFt,
+            "the first segment on E is too short to stand traffic on it short of 28R's bar"
+        );
+        AddTraffic(engine, GeoMath.ProjectPoint(turn, new TrueHeading(bearing), PastTheTurnFt / GeoMath.FeetPerNm), bearing, TrafficState.AtRest);
+
+        CommandResult result = engine.SendCommand(Callsign, "CTO");
+        output.WriteLine($"[CTO] success={result.Success} message={result.Message}");
+        Assert.False(result.Success, $"CTO with traffic standing on E was accepted: {result.Message}");
+        Assert.Equal("unable, traffic on E", result.PilotUnable?.Terminal);
+    }
+
+    /// <summary>Traffic taxiing across E is moving through, not standing on it: the CTO is accepted.</summary>
+    [Fact]
+    public void DCHsE_HeldShortOfE_TrafficTaxiingAcrossE_Cto_Accepted() =>
+        AssertCtoAcceptedWithTraffic(engine => MidpointOfLastESegment(engine), acrossE: true, TrafficState.Taxiing);
+
+    /// <summary>Airborne traffic over E is not on the ground: the CTO is accepted.</summary>
+    [Fact]
+    public void DCHsE_HeldShortOfE_AirborneTrafficOverE_Cto_Accepted() =>
+        AssertCtoAcceptedWithTraffic(engine => MidpointOfLastESegment(engine), acrossE: false, TrafficState.Airborne);
+
+    /// <summary>Traffic at rest on C behind the held aircraft is not on its way to 28R: the CTO is accepted.</summary>
+    [Fact]
+    public void DCHsE_HeldShortOfE_TrafficStandingOnCBehind_Cto_Accepted() =>
+        AssertCtoAcceptedWithTraffic(
+            engine =>
+            {
+                AircraftState? held = engine.FindAircraft(Callsign);
+                Assert.NotNull(held);
+                var behind = new TrueHeading(held.TrueHeading.Degrees + 180.0);
+                return (GeoMath.ProjectPoint(held.Position, behind, BehindOnCFt / GeoMath.FeetPerNm), held.TrueHeading.Degrees);
+            },
+            acrossE: false,
+            TrafficState.AtRest
+        );
+
+    private void AssertCtoAcceptedWithTraffic(Func<SimulationEngine, (LatLon Position, double AlongDeg)> place, bool acrossE, TrafficState state)
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        (LatLon position, double alongDeg) = place(engine);
+        AddTraffic(engine, position, acrossE ? alongDeg + 90.0 : alongDeg, state);
+        CommandResult cto = SendCto(engine, "CTO");
+        Assert.Null(cto.PilotUnable);
+    }
+
+    private enum TrafficState
+    {
+        AtRest,
+        Taxiing,
+        Airborne,
+    }
+
+    private static void AddTraffic(SimulationEngine engine, LatLon position, double headingDeg, TrafficState state) =>
+        engine.World.AddAircraft(
+            new AircraftState
+            {
+                Callsign = "N200TR",
+                AircraftType = "B738",
+                Position = position,
+                TrueHeading = new TrueHeading(headingDeg),
+                Altitude = state == TrafficState.Airborne ? AirborneTrafficAltitudeFt : 6,
+                IndicatedAirspeed = state switch
+                {
+                    TrafficState.AtRest => 0,
+                    TrafficState.Taxiing => TaxiingTrafficKts,
+                    _ => AirborneTrafficKts,
+                },
+                IsOnGround = state != TrafficState.Airborne,
+                FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            }
+        );
+
+    /// <summary>The implicit taxi's route onto E from where N45912 holds, resolved without installing it.</summary>
+    private static TaxiRoute ImplicitRouteOntoE(SimulationEngine engine)
+    {
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        Assert.NotNull(aircraft.Ground.Layout);
+        TaxiRoute? route = GroundCommandHandler.ResolveTaxiRoute(
+            aircraft,
+            new TaxiCommand(["E"], [], Expedite: false, DestinationRunway: "28R"),
+            aircraft.Ground.Layout,
+            TestDispatch.EmptyTaxi
+        );
+        Assert.NotNull(route);
+        return route;
+    }
+
+    /// <summary>
+    /// The implicit route's first segment on E that starts ahead of N45912 (the turn off C onto E, past the fillet it is held on),
+    /// and the segment's far end.
+    /// </summary>
+    private static (LatLon Turn, LatLon Along) FirstESegment(SimulationEngine engine)
+    {
+        TaxiRoute route = ImplicitRouteOntoE(engine);
+        AircraftState held = engine.FindAircraft(Callsign)!;
+        AirportGroundLayout layout = held.Ground.Layout!;
+        TaxiRouteSegment first = route.Segments.First(s =>
+            string.Equals(s.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase)
+            && (
+                Math.Abs(
+                    GeoMath.SignedBearingDifference(held.TrueHeading.Degrees, GeoMath.BearingTo(held.Position, layout.Nodes[s.FromNodeId].Position))
+                ) < 90.0
+            )
+        );
+        return (layout.Nodes[first.FromNodeId].Position, layout.Nodes[first.ToNodeId].Position);
+    }
+
+    /// <summary>The midpoint of the implicit route's last segment on E, and the segment's bearing.</summary>
+    private static (LatLon Position, double AlongDeg) MidpointOfLastESegment(SimulationEngine engine)
+    {
+        TaxiRoute route = ImplicitRouteOntoE(engine);
+        AirportGroundLayout layout = engine.FindAircraft(Callsign)!.Ground.Layout!;
+        TaxiRouteSegment last = route.Segments.Last(s => string.Equals(s.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase));
+        LatLon from = layout.Nodes[last.FromNodeId].Position;
+        LatLon to = layout.Nodes[last.ToNodeId].Position;
+        double bearing = GeoMath.BearingTo(from, to);
+        double halfNm = GeoMath.DistanceNm(from, to) / 2.0;
+        return (GeoMath.ProjectPoint(from, new TrueHeading(bearing), halfNm), bearing);
+    }
+
+    /// <summary>An aircraft lined up at E after a LUAW there keeps the intersection through a snapshot round trip.</summary>
+    [Fact]
+    public void DCHsE_LuawAtE_LinedUp_SnapshotRoundTrip_KeepsTheIntersection()
+    {
+        SimulationEngine? engine = EngineHoldingShortOfE("TAXI D C HS E RWY 28R");
+        if (engine is null)
+        {
+            return;
+        }
+
+        LineUpAtE(engine);
+        SimulationEngine? restored = BuildEngine();
+        Assert.NotNull(restored);
+        restored.RestoreFromSnapshot(RoundTrip(engine.CaptureSnapshot()));
+
+        AircraftState? aircraft = restored.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        Assert.IsType<LinedUpAndWaitingPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.Equal("E", aircraft.Phases?.LineUpIntersectionTaxiway);
+    }
+
+    private static StateSnapshotDto RoundTrip(StateSnapshotDto snapshot) =>
+        Assert.IsType<StateSnapshotDto>(
+            JsonSerializer.Deserialize<StateSnapshotDto>(
+                JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default),
+                RecordingJsonOptions.Default
+            )
+        );
+
+    /// <summary>
+    /// Sends LUAW at the hold short of E, checks the "at E" readback and the route onto E, and ticks the aircraft until it is lined up and
+    /// waiting on 28R within the line-up's length of 28R's bar on E.
+    /// </summary>
+    private void LineUpAtE(SimulationEngine engine)
+    {
+        CommandResult luaw = SendCto(engine, "LUAW");
+        Assert.StartsWith("line up and wait runway 28R at E", luaw.PilotReadback?.Speech.Terminal ?? "");
+        Assert.Contains("line up and wait runway two eight right at echo", luaw.PilotReadback?.Speech.Tts ?? "");
+        LatLon barPosition = AssertRouteEndsAt28RBarOnE(engine);
+
+        AircraftState aircraft = TickUntil(
+            engine,
+            a => a.Phases?.CurrentPhase is LinedUpAndWaitingPhase,
+            CtoToTakeoffLimitSeconds,
+            "lined up and waiting"
+        );
+        double fromBarFt = GeoMath.DistanceNm(aircraft.Position, barPosition) * GeoMath.FeetPerNm;
+        output.WriteLine($"[lined up] {fromBarFt:F0} ft from the 28R bar on E");
+        Assert.True(fromBarFt < TakeoffStartNearBarFt, $"{Callsign} lined up {fromBarFt:F0} ft from 28R's bar on E");
+        Assert.Equal("28R", aircraft.Phases?.AssignedRunway?.Designator);
+        Assert.Equal("E", aircraft.Phases?.LineUpIntersectionTaxiway);
+    }
+
+    /// <summary>
+    /// The readback the pilot gives for a bare CTO that <paramref name="cto"/> answered: the handler's own when it built one, else the
+    /// clause read from the aircraft as the dispatch left it (<see cref="PilotResponder.BuildReadbackAsApplied"/>).
+    /// </summary>
+    private static PilotSpeechText AppliedCtoReadback(SimulationEngine engine, CommandResult cto)
+    {
+        AircraftState? aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ClearedForTakeoffCommand(new DefaultDeparture())])]);
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(compound, cto, aircraft, PilotSpeechContext.Canonical);
+        Assert.NotNull(readback);
+        return readback;
+    }
+
+    private static bool IsTaxiingOnE(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase is TaxiingPhase
+        && aircraft.Ground.AssignedTaxiRoute is { } route
+        && (route.CurrentSegmentIndex >= 0)
+        && (route.CurrentSegmentIndex < route.Segments.Count)
+        && string.Equals(route.Segments[route.CurrentSegmentIndex].TaxiwayName, "E", StringComparison.OrdinalIgnoreCase);
+
+    private static int CountESegments(TaxiRoute? route) =>
+        route?.Segments.Count(s => string.Equals(s.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase)) ?? 0;
+
     /// <summary>Replays to the taxi, clears N45912 and ticks it to the hold short of E, then removes the traffic standing on E.</summary>
     private SimulationEngine? EngineHoldingShortOfE(string clearance)
+    {
+        SimulationEngine? engine = EngineHeldShortOfEWithTrafficOnE(clearance);
+        if (engine is null)
+        {
+            return null;
+        }
+
+        // The traffic N45912 holds short of: N314WN exits 28R onto E and stops there, holding after its exit, at 28R's bar on E.
+        // With no controller to taxi it in, it would block E for good; it is removed so E is clear for the departure.
+        CommandResult clearE = engine.SendCommand(ExitingTrafficOnE, "DEL");
+        Assert.True(clearE.Success, $"DEL {ExitingTrafficOnE} refused: {clearE.Message}");
+        return engine;
+    }
+
+    /// <summary>Replays to the taxi, clears N45912 and ticks it to the hold short of E; N314WN still stands on E at 28R's bar.</summary>
+    private SimulationEngine? EngineHeldShortOfEWithTrafficOnE(string clearance)
     {
         SessionRecording? recording = LoadRecording();
         SimulationEngine? engine = BuildEngine();
@@ -227,11 +713,6 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
 
         AircraftState aircraft = TickUntil(engine, IsHoldingShortOfE, TaxiToHoldLimitSeconds, "holding short of E");
         LogRoute("before CTO", aircraft.Ground.AssignedTaxiRoute);
-
-        // The traffic N45912 holds short of: N314WN exits 28R onto E and stops there, holding after its exit, at 28R's bar on E.
-        // With no controller to taxi it in, it would block E for good; it is removed so E is clear for the departure.
-        CommandResult clearE = engine.SendCommand(ExitingTrafficOnE, "DEL");
-        Assert.True(clearE.Success, $"DEL {ExitingTrafficOnE} refused: {clearE.Message}");
         return engine;
     }
 
@@ -388,6 +869,49 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         Assert.NotNull(ac.Phases!.DepartureClearance);
         Assert.Equal(ClearanceType.ClearedForTakeoff, ac.Phases.DepartureClearance!.Type);
         AssertStillHeldAfterTenSeconds(ac, holding, rwy28R);
+    }
+
+    /// <summary>
+    /// A LUAW at a taxiway hold short whose implicit taxi to the assigned runway cannot be resolved keeps the aircraft held as a CTO
+    /// there does, stores the line-up on its route, and reads back where it holds: "line up and wait runway 28R, holding short of E".
+    /// </summary>
+    [Fact]
+    public void ImplicitTaxiUnresolvable_Luaw_KeepsTheHold_ReadsBackHoldingShort()
+    {
+        TestVnasData.EnsureInitialized();
+        RunwayInfo rwy28R = Oak28R();
+        (AircraftState ac, HoldingShortPhase holding) = HeldShortOfEWithoutLayout(rwy28R);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy28R));
+
+        CommandResult result = CommandDispatcher.Dispatch(new LineUpAndWaitCommand(), ac, TestDispatch.Context(Random.Shared));
+        output.WriteLine($"[LUAW] success={result.Success} message={result.Message}");
+        output.WriteLine($"[LUAW] readback terminal={result.PilotReadback?.Speech.Terminal} spoken={result.PilotReadback?.Speech.Tts}");
+
+        Assert.True(result.Success, $"LUAW refused: {result.Message}");
+        Assert.Equal("line up and wait runway 28R, holding short of E", result.PilotReadback?.Speech.Terminal);
+        Assert.Equal("line up and wait runway two eight right, holding short of echo", result.PilotReadback?.Speech.Tts);
+        Assert.Equal(ClearanceType.LineUpAndWait, ac.Phases!.DepartureClearance?.Type);
+        Assert.Null(ac.Phases.LineUpIntersectionTaxiway);
+        AssertStillHeldAfterTenSeconds(ac, holding, rwy28R);
+    }
+
+    /// <summary>
+    /// A "without delay" LUAW at a taxiway hold short whose implicit taxi cannot be resolved leaves the aircraft standing, so its
+    /// readback drops "without delay": "line up and wait runway 28R, holding short of E".
+    /// </summary>
+    [Fact]
+    public void ImplicitTaxiUnresolvable_LuawWithoutDelay_DropsWithoutDelay_ReadsBackHoldingShort()
+    {
+        TestVnasData.EnsureInitialized();
+        RunwayInfo rwy28R = Oak28R();
+        AircraftState ac = HeldShortOfEWithoutLayout(rwy28R).Aircraft;
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy28R));
+
+        CommandResult result = CommandDispatcher.Dispatch(new LineUpAndWaitCommand { WithoutDelay = true }, ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success, $"LUAW WD refused: {result.Message}");
+        Assert.Equal("line up and wait runway 28R, holding short of E", result.PilotReadback?.Speech.Terminal);
+        Assert.Equal("line up and wait runway two eight right, holding short of echo", result.PilotReadback?.Speech.Tts);
     }
 
     /// <summary>

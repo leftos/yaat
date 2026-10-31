@@ -18,6 +18,10 @@ namespace Yaat.Sim.Tests.Helpers;
 /// </summary>
 internal static class TestDispatch
 {
+    /// <summary>A taxi dispatch with no world and no auto-cross: no other aircraft in view, no active runways, crossings left to a CROSS.</summary>
+    public static GroundCommandHandler.TaxiDispatch EmptyTaxi { get; } =
+        new(AutoCrossRunwayMode.Off, ActiveRunways.Empty, IsScenarioScripted: false, ResultReachesController: true, ListAircraft: null);
+
     public static DispatchContext Context(
         Random rng,
         bool validateDctFixes = true,

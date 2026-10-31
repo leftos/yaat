@@ -106,6 +106,7 @@ public class Issue227Coast9ClimbRestrictionTests
             new DefaultDeparture(),
             assignedAltitude: null,
             TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
             NullLogger.Instance
         );
         Assert.True(cto.Success, cto.Message);
