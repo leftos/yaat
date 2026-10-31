@@ -54,8 +54,12 @@ internal sealed class SherpaStreamingSttEngine(string modelDir, string provider)
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaStreamingSttEngine>();
 
-    /// <summary>0.3 s of silence sherpa-onnx's <c>streaming-nemotron-c-api.c</c> example pads a tail with.</summary>
-    private const double TailPaddingSeconds = 0.3;
+    /// <summary>
+    /// Silence fed after the last real sample so the recognizer decodes the final chunk. The 0.3 s that
+    /// sherpa-onnx's <c>streaming-nemotron-c-api.c</c> example uses, and 0.6 s, leave the last words of a
+    /// 560 ms-chunk export undecoded; 1.0 s flushes them, and 2.0 s decodes the same text more slowly.
+    /// </summary>
+    private const double TailPaddingSeconds = 1.0;
 
     /// <summary>How much audio one feed to the recognizer carries: 1,600 samples at 16 kHz.</summary>
     private const double FeedChunkSeconds = 0.1;

@@ -206,8 +206,13 @@ public static class CorpusWerRunner
         }
 
         double loadSeconds = await WarmUpAsync(engine).ConfigureAwait(false);
-        long afterLoadGpuBytes = gpu.Sample();
         string device = CorpusSttEngines.DeviceText(choice);
+        if ((choice.Kind == SttKind.Whisper) && BackendCheckFailed(device, engine, gpu))
+        {
+            return null;
+        }
+
+        long afterLoadGpuBytes = gpu.Sample();
         string? warning = GpuUseCheck.Verdict(device, preLoadGpuBytes, afterLoadGpuBytes, out bool isError);
         if (isError)
         {
@@ -223,6 +228,24 @@ public static class CorpusWerRunner
 
         var timing = new ArmTiming(self, device, preLoadWorkingSetBytes, preLoadGpuBytes, afterLoadGpuBytes, loadSeconds, gpu, warning);
         return new EngineSetup(engine, timing);
+    }
+
+    /// <summary>
+    /// Prints why a Whisper run did not reach the CPU backend and disposes the engine and the probe it
+    /// cannot use on it; false when the backend is the one the run asked for.
+    /// </summary>
+    private static bool BackendCheckFailed(string device, ICorpusSttEngine engine, GpuMemoryProbe gpu)
+    {
+        string? verdict = GpuUseCheck.BackendVerdict(device, LMKit.Global.Runtime.Backend, out bool isError);
+        if (!isError)
+        {
+            return false;
+        }
+
+        Console.Error.WriteLine($"FATAL: {verdict}");
+        engine.Dispose();
+        gpu.Dispose();
+        return true;
     }
 
     /// <summary>
@@ -527,7 +550,7 @@ public static class CorpusWerRunner
         string max = timing.LatencyMaxMs.ToString("0", CultureInfo.InvariantCulture);
         string gpu =
             (timing.PeakGpuBytes < 0) ? "n/a" : $"{Megabytes(timing.PreLoadGpuBytes)} MB before load, peak {Megabytes(timing.PeakGpuBytes)} MB";
-        report.AppendLine($"Device {timing.Device}, model load {load} s");
+        report.AppendLine($"Device {timing.Device}, model load and warm-up {load} s");
         report.AppendLine(
             $"Latency over {timing.TimedSegments} segments ({timing.CachedSegments} cached, excluded): p50 {p50} ms, p90 {p90} ms, max {max} ms"
         );
