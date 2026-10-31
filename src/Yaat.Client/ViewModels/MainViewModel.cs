@@ -2400,27 +2400,14 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private HashSet<string> CollectLoadedTaxiwayNames()
     {
-        var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Primary-only by design: the extra Ground View windows mirror this same layout.
         AirportGroundLayout? layout = Ground.DomainLayout;
         if (layout is null)
         {
-            return taxiwayNames;
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
-        foreach (GroundEdge edge in layout.Edges)
-        {
-            if (edge.IsRunwayCenterline || edge.IsRamp || edge is null)
-            {
-                continue;
-            }
-            if (!string.IsNullOrEmpty(edge.TaxiwayName))
-            {
-                taxiwayNames.Add(edge.TaxiwayName.ToUpperInvariant());
-            }
-        }
-
-        return taxiwayNames;
+        return new HashSet<string>(GroundLayoutSpeechNames.TaxiwayNames(layout), StringComparer.OrdinalIgnoreCase);
     }
 
     private void HandleSpeechServiceStatusChange(SpeechStatus status) => Avalonia.Threading.Dispatcher.UIThread.Post(() => SpeechStatus = status);

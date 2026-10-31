@@ -49,7 +49,7 @@ public sealed record DecodeResult(DecodeState State, EntityMatch? Callsign, Enti
 
 No optional parameters (repo rule): every caller passes `Prior`, `Tokens`, `AcousticScore` and `Mode`.
 
-**Canonical values.** Callsigns are ICAO (`SWA2495`, `N4926F`); fixes bare ids (`MITOE`); every other kind is airport-prefixed: `KOAK/30`, `KOAK/28L`, `KOAK/W4`, `KSFO/C11`, `KSFO/SPOT 6B`, `KOAK/KAISER`, `KOAK/I30`, `KHWD/R28L`. Runways use `RunwayIdentifier.NormalizeDesignator` (`src/Yaat.Sim/Data/RunwayInfo.cs:29`).
+**Canonical values.** Callsigns are ICAO (`SWA2495`, `N4926F`); fixes bare ids (`MITOE`); every other kind is airport-prefixed: `KOAK/30`, `KOAK/28L`, `KOAK/W4`, `KSFO/C11`, `KSFO/SPOT 6B`, `KOAK/KAISER`, `KOAK/I30`, `KHWD/R28L`. Runways use `RunwayIdentifier.NormalizeDesignator` (`src/Yaat.Sim/Data/Airport/RunwayIdentifier.cs:179`).
 
 ## Token normalisation (`SpokenTokenizer.cs`)
 
@@ -78,20 +78,20 @@ One normaliser for transcripts and spoken forms: `SpokenTokenizer.Tokenize(strin
 | taxiway charlie abeam kaiser | `taxiway charlie(N) abeam kaiser` |
 | direct mitoe | `direct mitoe` |
 
-## Spoken forms (`SpokenForms.cs`, `ContextEntityFactory`)
+## Spoken forms (`ContextEntityFactory.cs`)
 
 Forms are deduplicated after normalisation; each keeps its raw `Text` for recognizer hotwords (YAAT-1570).
 
-- **Airline callsign:** telephony from the caller's override map (ICAO → telephony), else `AirlineTelephony.TryGetTelephony` (`AirlineTelephony.cs:29`). Forms: telephony + `FlightNumberToPairedWords` and telephony + `FlightNumberToWords` (`AtcNumberParser.cs:265`, `:242`), prior 1.0; telephony minus a trailing `AIR`/`AIRLINES` word, 0.95; flight number alone, 0.90, only when no other room aircraft has those digits. `CallsignParser.GetSpokenVariants` takes no override, so it is not used for airlines.
-- **GA callsign:** `CallsignParser.GetSpokenVariants(icao, type, room)` (`CallsignParser.cs:247`: "november" + full tail, type names, unambiguous last-three with prefix, `:258-289`), plus `ShortenedNNumberSpoken` (`:206`) at 0.95, plus the last three characters alone at 0.90 when unique in the room. 7110.65 2-4-20.a.1, 2-4-9.a, 2-4-20.a.2, 2-4-14.b/c ("heavy"/"super").
-- **Runway:** "runway " + `PhraseologyVerbalizer.SpellRunway` (`PhraseologyVerbalizer.cs:2001`), 1.0; bare, 0.90. Source `NavigationDatabase.GetRunways` (`NavigationDatabase.cs:1191`), both ends, keyed through `NormalizeAirport` (`:3146`).
+- **Airline callsign:** telephony from the caller's override map (ICAO → telephony), else `AirlineTelephony.TryGetTelephony` (`AirlineTelephony.cs:29`). Forms: telephony + `FlightNumberToPairedWords` and telephony + `FlightNumberToWords` (`AtcNumberParser.cs:333`, `:310`), prior 1.0 (a leading-zero or letter-suffixed flight number is spelled character by character only); telephony minus a trailing `AIR`/`AIRLINES` word, 0.95; flight number alone, 0.90, only when it has three or more digits (a two-digit one tokenizes like a bare runway) and no other room callsign's digits equal the flight digits. No telephony known: no entity. `CallsignParser.GetSpokenVariants` takes no override, so it is not used for airlines.
+- **GA callsign:** `CallsignParser.GetSpokenVariants(icao, type, activeCallsigns)` (`CallsignParser.cs:247-307`: "november" + full tail, type names, and the prefixed last three when no other N-number ends in them): full-tail forms 1.0, prefixed short forms 0.95 (`ShortenedNNumberSpoken` is the same form and is not called), plus the last three characters alone at 0.90 when no other room callsign ends in them. 7110.65 2-4-20.a.1, 2-4-9.a, 2-4-20.a.2, 2-4-14.b/c ("heavy"/"super").
+- **Runway:** "runway " + `PhraseologyVerbalizer.SpellRunway` (`PhraseologyVerbalizer.cs:2001`), 1.0; bare, 0.90. Source `NavigationDatabase.GetRunways` (`NavigationDatabase.cs:1191`), which indexes both the FAA and the ICAO id and returns one `RunwayInfo` per runway pair, so both `Id.End1` and `Id.End2` are emitted.
 - **Taxiway:** "taxiway " + `SpellTaxiway` (`:2186`), and bare. Names from a new `GroundLayoutSpeechNames.TaxiwayNames(layout)` in Yaat.Sim, lifting the filter at `src/Yaat.Client/ViewModels/MainViewModel.cs:2411-2421`.
-- **Gate:** parking nodes → value `<name>`, forms "gate "/"parking " + `SpellDestinationName(name, noun)` (`:2214`) and bare; spot nodes → `SPOT <name>`, "spot " + the same. From `layout.Nodes` by `GroundNodeType` (`MainViewModel.cs:2342`). YAAT-1568's gate pronunciations add forms later.
-- **Fix:** `GetFixPronunciations` (`NavigationDatabase.cs:857`), `GetFixDisplayName` (`:883`), `SpellFix` (`PhraseologyVerbalizer.cs:1841`), and the lowercase id. Sources: `FixesWithin(airport, radius)` (`NavigationDatabase.cs:591`) plus the aircraft's own route fixes.
+- **Gate:** parking and helipad nodes → value `<name>`, forms "gate "/"parking " + `SpellDestinationName(name, noun)` (`:2214`) and bare; spot nodes → `SPOT <name>`, "spot " + the same and bare. The bare form is kept only when the name has a letter and does not tokenize like a taxiway's bare form (an all-digit spot such as SFO "7" would match any number). From `layout.Nodes` by `GroundNodeType` (`MainViewModel.cs:2342`). YAAT-1568's gate pronunciations add forms later.
+- **Fix:** `GetFixPronunciations` (`NavigationDatabase.cs:857`), `GetFixDisplayName` (`:883`), `SpellFix` (`PhraseologyVerbalizer.cs:1841`), and the lowercase id, all lowercased (the first three can be mixed case). Sources: `FixesWithin(LatLon, radiusNm)` (`NavigationDatabase.cs:591`) at the airport's `GetAirportPosition` (`:798`), plus the aircraft's own route fixes. MITOE is 7.11 nm from KOAK.
 - **Landmark:** from YAAT-1568's `<apt>-landmarks.json` (name + `spokenPatterns`), value `KOAK/<alias>`; passed to the builder with its airport explicitly (`CustomFixSpeechPatterns`, `:743`, is not airport-scoped). Tests build Kaiser in code until that data exists.
-- **SID/STAR:** `ProcedureName(id).Tts` (`:1922`).
-- **Approach:** `ApproachReadbackName.TypeAndRunway` (`src/Yaat.Sim/Pilot/ApproachReadbackName.cs:43`): "<type> runway <rwy> approach", "<type> runway <rwy>", "<type> <rwy>"; RNAV adds "r nav". Not `SpellApproach` (`PhraseologyVerbalizer.cs:2289-2325`), whose `L` branch speaks "ILS" as "india left sierra" (booked separately).
-- **Airport entities:** a new `AirportContextBuilder.Build(airportId, layout, radiusNm, landmarks)` in Yaat.Sim collects runways, taxiways, gates, fixes, procedures and landmarks.
+- **SID/STAR:** `GetSids`/`GetStars` (`NavigationDatabase.cs:1552`, `:1663`), forms `ProcedureName(id).Tts` (`:1922`) alone and with "departure"/"arrival", value `<apt>/<ProcedureId>`. Navaid-type words (vor, vortac, vordme, tacan, ndb, dme) that `SpellFix`'s navaid fallback appends are dropped, so OAK7 is "oakland seven". Names the CIFP truncates (NIMI5 "Nimitz Five") need YAAT-1568's lexicon.
+- **Approach:** `GetApproaches` (`NavigationDatabase.cs:1785`) and `ApproachReadbackName.TypeAndRunway` (`src/Yaat.Sim/Pilot/ApproachReadbackName.cs:43`), which returns `(Terminal, Spoken, Runway)?`; the builder composes "<spoken> runway <rwy> approach", "<spoken> runway <rwy>" (1.0) and "<spoken> <rwy>" (0.90). `Spoken` says "RNAV", so each RNAV form also gets an "r nav" copy. Circling approaches (no runway) are skipped. Not `SpellApproach` (`PhraseologyVerbalizer.cs:2289-2325`), whose `L` branch speaks "ILS" as "india left sierra" (booked separately).
+- **Airport entities:** a new `AirportContextBuilder.Build(airportIcao, layout, radiusNm, landmarks, nav, settings)` in Yaat.Sim collects runways, approaches, SIDs, STARs, taxiways, gates, spots, fixes and landmarks, deduplicated by (kind, value). Taxiway, gate and spot names come from `GroundLayoutSpeechNames` (`src/Yaat.Sim/Data/Airport/`), which `MainViewModel.CollectLoadedTaxiwayNames` also calls.
 
 ## Scoring and decoding
 
@@ -139,11 +139,11 @@ A span against a form splits into a name part (words) and a code part (digits, N
 
 ## Tests (`tests/Yaat.Sim.Tests/Speech/Context/`)
 
-Real navdata (ModuleInit) and layouts (`new TestAirportGroundData().GetLayout("KOAK"/"KSFO")`).
+Real navdata (ModuleInit) and layouts (`new TestAirportGroundData().GetLayout("OAK"/"SFO")`).
 
 - `SpokenTokenizerTests`: one per worked example (tokens and SourceWord); `DigitRunsMatchNormalizeDigits` (oracle: concatenated digits equal `NormalizeDigits` for single-number runs); `ThirtyEqualsThreeZero`, `OneHundredIsOneZeroZero`, `OhBetweenDigitsIsZero`, `IcaoTokenSplits`.
 - `SpokenFormScoreTests`: `Exact_IsOne`, `KizerKaiser_AboveEntityAccept`, `SkywestSouthwest_BelowCallsignAccept`, `DigitMismatch_Zero`, `ShortWord_NoFuzzy`, `ExactOnly_RejectsNearMiss`.
-- `ContextEntityFactoryTests`: `Swa2495_GroupedAndDigitFormsDedupe`, `Qxe2101_HasHorizonForm`, `Pcm772_PacValley`, `N4926F_FullShortAndLastThree` (last-three absent when another room N-number ends in 26F), `NumberOnly_OmittedWhenDigitsShared`, `Runway30_ThreeForms`, `OakTaxiwayW4_FromLayout`, `SfoSpot6B_ValueSpot6B`, `SfoC11_GateForms`, `OakI30_IlsRunwayThreeZero`, `KoakFixesWithin_IncludeMitoe` (if MITOE is outside the radius, the test names a fix that is inside and the report says so).
+- `ContextEntityFactoryTests`: `Swa2495_GroupedAndDigitFormsDedupe`, `NumberOnly_OmittedWhenDigitsShared`, `Qxe2101_HasHorizonForm`, `Pcm772_PacValley`, `UnknownAirline_ReturnsNull`, `N4926F_FullShortAndLastThree`, `N4926F_LastThreeAbsentWhenShared`, `Runway30_RunwayAndBareForms`, `OakI30_IlsRunwayThreeZero`, `OakRnav_HasRNavForm`, `OakTaxiwayW4_FromLayout`, `SfoSpot6B_ValueSpot6B`, `SfoC11_GateForms`, `KoakFixesWithin_IncludeMitoe`, `Build_DedupesAndIncludesLandmark`, `GroundLayoutSpeechNames_TaxiwayNamesMatchClientFilter`.
 - `ContextDecoderTests`: the nine transcripts resolve to their gold values; `FedexHeavy_SpanIncludesHeavy`; `TrailingCallsign_Resolves`; `CloseCall_RemainderDecides` (room QXE2101 with own `KOAK/30`, and HOR2101: "horizon twenty one oh one runway three zero" → QXE2101). Non-examples: `PaddedRoom_SkywestDoesNotSnap` (35-aircraft seeded room, no SKW: NoCallsign); `SkywestWithSameDigitsSwa_IsSayAgainNotResolved`; `Kizer_NoKaiserInContext_NotResolved`; `Kizer_WithKaiser_Resolves`; `Typed_Swa249_StaysUnresolved_TextUnchanged`; `Typed_ExactIcao_Resolves`; `ExactOnly_NearMissNotRecovered`; `HeadingDigits_NotRunway30` ("heading three zero zero"); `ConfidentWord_NotSnapped` (−0.01); `LowConfidence_Snapped` (−1.5); `PieceCountMismatch_GateOff`; `NBest_PrefersResolvedHypothesis`; `NBest_LargeAcousticGapWins`; `Rewrite_ReplacesNameKeepsDigits`.
 
 ## Sandbox rooms and slot scoring (YAAT-1567)
@@ -156,10 +156,10 @@ Real navdata (ModuleInit) and layouts (`new TestAirportGroundData().GetLayout("K
 ## Briefs
 
 - **A. Core primitives:** `ContextTypes.cs`, `DecoderSettings.cs`, `SpokenTokenizer.cs`, `SpokenFormScore.cs`; `AtcNumberParser.TryGetNumberWord`; `WerTextNormalizer` filler pointer; `NatoNearMissResolver.RuleLiteralWords`. Proven by `SpokenTokenizerTests`, `SpokenFormScoreTests`, existing `AtcNumberParser*` and `CorpusWer*` green.
-- **B. Spoken forms and airport context:** `SpokenForms.cs`, `GroundLayoutSpeechNames.cs`, `AirportContextBuilder.cs`. Proven by `ContextEntityFactoryTests`; then the aviation-sim-expert review of the form rules.
+- **B. Spoken forms and airport context:** `ContextEntityFactory.cs`, `GroundLayoutSpeechNames.cs`, `AirportContextBuilder.cs`. Proven by `ContextEntityFactoryTests`; then the aviation-sim-expert review of the form rules.
 - **C. Decoder:** `ContextDecoder.cs`. Proven by `ContextDecoderTests`.
 - **D. Sandbox:** `CorpusSlots.cs`, `RoomContextBuilder.cs`, `CorpusSlotScorer.cs`, generator methods public, `CorpusWerRunner` flags. Proven by `RoomContextBuilderTests`, `CorpusSlotScorerTests` (`tests/Yaat.Client.Tests`).
 
 ## Unconfirmed
 
-- MITOE within the KOAK radius; the `GetRunways` key form (KOAK or OAK); sherpa piece-to-word mapping (until YAAT-1570's JSON); landmark files carrying their airport (YAAT-1568).
+- Sherpa piece-to-word mapping (until YAAT-1570's JSON); landmark files carrying their airport (YAAT-1568).
