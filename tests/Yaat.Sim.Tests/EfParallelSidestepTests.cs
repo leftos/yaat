@@ -119,7 +119,9 @@ public class EfParallelSidestepTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Final,
             runwayId: "28L",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, $"sidestep should succeed but got: {result.Message}");
@@ -151,7 +153,9 @@ public class EfParallelSidestepTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Final,
             runwayId: "28L",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success);
@@ -177,7 +181,9 @@ public class EfParallelSidestepTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Final,
             runwayId: "28L",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.False(result.Success);
@@ -202,7 +208,9 @@ public class EfParallelSidestepTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Final,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.DoesNotContain("Sidestep", result.Message ?? "", StringComparison.OrdinalIgnoreCase);

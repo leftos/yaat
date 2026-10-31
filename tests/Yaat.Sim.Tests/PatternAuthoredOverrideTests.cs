@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -121,7 +122,9 @@ public class PatternAuthoredOverrideTests
             sizeOverrideNm: null,
             altitudeOverrideFt: alt,
             airportRunways: null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Equal(609, wp.PatternAltitude);

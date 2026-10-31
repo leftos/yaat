@@ -179,7 +179,7 @@ public sealed class DownwindPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         if (!ctx.Targets.HasExplicitTurnRate)
         {
-            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+            ctx.Targets.TurnRateOverride = PatternCompression.TurnRate(Waypoints, ctx.Category);
         }
         ctx.Targets.NavigationRoute.Clear();
 
@@ -207,7 +207,7 @@ public sealed class DownwindPhase : Phase
         // the next leg must not revert it.
         if (!ctx.Targets.HasExplicitSpeedCommand)
         {
-            ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            ctx.Targets.TargetSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
         }
 
         Log.LogDebug(
@@ -246,7 +246,7 @@ public sealed class DownwindPhase : Phase
                 LateralOffset
             );
         }
-        else if (RejoinTrack && Waypoints is not null)
+        else if ((RejoinTrack || (Waypoints?.CompressedTurnRateDegPerSec is not null)) && (Waypoints is not null))
         {
             // Re-intercept the computed downwind line (through the abeam point, on the downwind heading)
             // when the aircraft is off it — turn toward the line with a bounded intercept angle,
@@ -335,7 +335,7 @@ public sealed class DownwindPhase : Phase
             // (7110.65 §5-7-4).
             if (!ctx.Targets.HasExplicitSpeedCommand)
             {
-                ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
+                ctx.Targets.TargetSpeed = PatternCompression.BaseSpeed(Waypoints, ctx.AircraftType, ctx.Category);
             }
         }
 
@@ -348,8 +348,8 @@ public sealed class DownwindPhase : Phase
         if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
             double baseline = _pastAbeam
-                ? AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category)
-                : AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+                ? PatternCompression.BaseSpeed(Waypoints, ctx.AircraftType, ctx.Category)
+                : PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)
@@ -740,7 +740,7 @@ public sealed class DownwindPhase : Phase
     private void StartLineDescent(PhaseContext ctx, PatternWaypoints waypoints, double aircraftAlongTrack)
     {
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
-        double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ctx.Aircraft, ctx.Category), ctx.Category);
+        double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ctx.Aircraft, ctx.Category, Waypoints), ctx.Category, Waypoints);
         double rolloutDistNm = Math.Max(_baseTurnAlongTrack - AlongTrackToleranceNm, turnRadiusNm) + turnRadiusNm;
         double rolloutAlt = GlideSlopeGeometry.AltitudeAtDistance(rolloutDistNm, thresholdElev, ctx.Category);
         double currentAlt = ctx.Aircraft.Altitude;

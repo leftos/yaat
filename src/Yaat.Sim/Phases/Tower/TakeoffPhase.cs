@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -214,10 +215,10 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock, IPendingPursuitClimb
     private void SetInitialClimbTargets(PhaseContext ctx)
     {
         double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
-        double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
         ctx.Targets.TargetAltitude = _fieldElevation + CompletionAgl;
         ctx.Targets.DesiredVerticalRate = climbRate;
-        ctx.Targets.TargetSpeed = climbSpeed;
+        PatternWaypoints? circuit = ctx.Aircraft.Phases?.Phases.OfType<UpwindPhase>().FirstOrDefault()?.Waypoints;
+        ctx.Targets.TargetSpeed = PatternCompression.TakeoffClimbSpeed(circuit, ctx.AircraftType, ctx.Category);
 
         // Heading remains the runway heading throughout the airborne portion of
         // TakeoffPhase. The assigned departure heading (relative turn / fly heading /

@@ -96,7 +96,9 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
             patternSizeNm: null,
             altitudeOverrideFt: null,
             NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
     /// <summary>
@@ -215,7 +217,9 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
             null,
             null,
             NavigationDatabase.Instance.GetRunways("KOAK"),
-            null
+            null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
     private static AircraftState AddCrosswindLead(SimulationEngine engine) =>
@@ -624,7 +628,9 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
                 patternSizeNm: null,
                 altitudeOverrideFt: null,
                 NavigationDatabase.Instance.GetRunways("KOAK"),
-                authoredRunway: null
+                authoredRunway: null,
+                activeRunways: ActiveRunways.Empty,
+                commanded: PatternCommanded.None
             )
         )
         {
@@ -1404,7 +1410,9 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
             altitudeOverrideFt,
             NavigationDatabase.Instance.GetRunways("KOAK"),
             ac.Ground.Layout?.FindRunway(flown.Designator),
-            authoredPatternRunway
+            authoredPatternRunway,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         if (flownPatternAltitudeFt is { } flownAltitude)
         {
@@ -1417,7 +1425,9 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
                 sizeOverrideNm,
                 flownAltitude,
                 NavigationDatabase.Instance.GetRunways("KOAK"),
-                ac.Ground.Layout?.FindRunway(flown.Designator)
+                ac.Ground.Layout?.FindRunway(flown.Designator),
+                activeRunways: ActiveRunways.Empty,
+                commanded: PatternCommanded.None
             );
         }
 

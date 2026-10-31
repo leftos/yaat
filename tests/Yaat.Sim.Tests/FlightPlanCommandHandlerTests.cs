@@ -278,7 +278,15 @@ public class FlightPlanCommandHandlerTests
             Phases = new PhaseList(),
         };
 
-        CommandResult entered = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, "30R", null);
+        CommandResult entered = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            "30R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         Assert.True(entered.Success, entered.Message);
         Assert.NotNull(aircraft.Phases?.CurrentPhase);
         Assert.Equal("SJC", NavigationDatabase.NormalizeAirport(aircraft.Phases!.AssignedRunway!.AirportId));
@@ -349,7 +357,16 @@ public class FlightPlanCommandHandlerTests
         CommandResult changed = FlightPlanCommandHandler.TryChangeDestination(aircraft, "OAK");
         Assert.True(changed.Success, changed.Message);
 
-        CommandResult entered = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Base, "28L", 4, null);
+        CommandResult entered = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Left,
+            PatternEntryLeg.Base,
+            "28L",
+            4,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            null
+        );
 
         Assert.True(entered.Success, entered.Message);
         Assert.Equal("OAK", NavigationDatabase.NormalizeAirport(aircraft.Phases!.AssignedRunway!.AirportId));

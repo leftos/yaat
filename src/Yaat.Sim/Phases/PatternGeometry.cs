@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases;
@@ -67,6 +68,21 @@ public sealed class PatternWaypoints
     /// <summary>Pattern direction (left or right turns).</summary>
     public PatternDirection Direction { get; init; }
 
+    /// <summary>Downwind speed of a compressed circuit (kt). Null marks a normal circuit, older snapshots included.</summary>
+    public double? CompressedDownwindSpeedKts { get; init; }
+
+    /// <summary>Base speed of a compressed circuit (kt); null on a normal circuit.</summary>
+    public double? CompressedBaseSpeedKts { get; init; }
+
+    /// <summary>Turn rate of a compressed circuit (deg/s); null on a normal circuit.</summary>
+    public double? CompressedTurnRateDegPerSec { get; init; }
+
+    /// <summary>
+    /// The runway this circuit crosses because the type could not be compressed clear of it; null otherwise. Read when the
+    /// circuit is first built, so it is not carried in snapshots.
+    /// </summary>
+    public PatternRunwayCrossing? RunwayCrossing { get; init; }
+
     /// <summary>A copy of these waypoints with the same geometry, flown at <paramref name="patternAltitudeFt"/>.</summary>
     /// <param name="patternAltitudeFt">The copy's pattern altitude (feet MSL).</param>
     public PatternWaypoints WithPatternAltitude(double patternAltitudeFt) =>
@@ -92,6 +108,10 @@ public sealed class PatternWaypoints
             PatternAltitude = patternAltitudeFt,
             PatternSizeNm = PatternSizeNm,
             Direction = Direction,
+            CompressedDownwindSpeedKts = CompressedDownwindSpeedKts,
+            CompressedBaseSpeedKts = CompressedBaseSpeedKts,
+            CompressedTurnRateDegPerSec = CompressedTurnRateDegPerSec,
+            RunwayCrossing = RunwayCrossing,
         };
 
     public PatternWaypointsDto ToSnapshot() =>
@@ -117,6 +137,9 @@ public sealed class PatternWaypoints
             PatternAltitudeFt = PatternAltitude,
             PatternSizeNm = PatternSizeNm,
             Direction = (int)Direction,
+            CompressedDownwindSpeedKts = CompressedDownwindSpeedKts,
+            CompressedBaseSpeedKts = CompressedBaseSpeedKts,
+            CompressedTurnRateDegPerSec = CompressedTurnRateDegPerSec,
         };
 
     public static PatternWaypoints FromSnapshot(PatternWaypointsDto dto)
@@ -176,6 +199,9 @@ public sealed class PatternWaypoints
                     )
                 ),
             Direction = direction,
+            CompressedDownwindSpeedKts = dto.CompressedDownwindSpeedKts,
+            CompressedBaseSpeedKts = dto.CompressedBaseSpeedKts,
+            CompressedTurnRateDegPerSec = dto.CompressedTurnRateDegPerSec,
         };
     }
 }
@@ -339,6 +365,8 @@ public static class PatternGeometry
     /// threshold displacement. Null when no airport map is loaded, in which case the pattern is built to
     /// the pavement threshold.
     /// </param>
+    /// <param name="activeRunways">The room's active runways; an airport that names none counts every runway.</param>
+    /// <param name="commanded">The PSIZE and controller speed that bound compression.</param>
     public static PatternWaypoints Compute(
         RunwayInfo runway,
         AircraftCategory category,
@@ -348,7 +376,9 @@ public static class PatternGeometry
         double? sizeOverrideNm,
         double? altitudeOverrideFt,
         IReadOnlyList<RunwayInfo>? airportRunways,
-        GroundRunway? authoredRunway
+        GroundRunway? authoredRunway,
+        ActiveRunways activeRunways,
+        PatternCommanded commanded
     )
     {
         // Departure end of runway. Deliberately the pavement end, not a displaced-threshold-derived
@@ -366,7 +396,9 @@ public static class PatternGeometry
             sizeOverrideNm,
             altitudeOverrideFt,
             airportRunways,
-            authoredRunway
+            authoredRunway,
+            activeRunways,
+            commanded
         );
     }
 
@@ -389,7 +421,7 @@ public static class PatternGeometry
     /// <summary>
     /// Pattern geometry for an aircraft transitioning from <paramref name="flownRunway"/>'s upwind
     /// onto <paramref name="patternRunway"/>'s pattern: identical to
-    /// <see cref="Compute(RunwayInfo, AircraftCategory, string, double, PatternDirection, double?, double?, IReadOnlyList{RunwayInfo}?, GroundRunway?)"/>
+    /// <see cref="Compute(RunwayInfo, AircraftCategory, string, double, PatternDirection, double?, double?, IReadOnlyList{RunwayInfo}?, GroundRunway?, ActiveRunways, PatternCommanded)"/>
     /// for the pattern runway, except that the crosswind turn is anchored at whichever of the two
     /// runways' departure ends lies farther along the pattern runway's heading.
     ///
@@ -409,7 +441,9 @@ public static class PatternGeometry
         double? sizeOverrideNm,
         double? altitudeOverrideFt,
         IReadOnlyList<RunwayInfo>? airportRunways,
-        GroundRunway? patternAuthoredRunway
+        GroundRunway? patternAuthoredRunway,
+        ActiveRunways activeRunways,
+        PatternCommanded commanded
     )
     {
         LatLon departureEnd = TransitionDepartureEnd(flownRunway, patternRunway);
@@ -425,7 +459,9 @@ public static class PatternGeometry
             sizeOverrideNm,
             altitudeOverrideFt,
             airportRunways,
-            patternAuthoredRunway
+            patternAuthoredRunway,
+            activeRunways,
+            commanded
         );
     }
 
@@ -459,7 +495,9 @@ public static class PatternGeometry
         double? sizeOverrideNm,
         double? altitudeOverrideFt,
         IReadOnlyList<RunwayInfo>? airportRunways,
-        GroundRunway? authoredRunway
+        GroundRunway? authoredRunway,
+        ActiveRunways activeRunways,
+        PatternCommanded commanded
     )
     {
         TrueHeading rwyHdg = runway.TrueHeading;
@@ -477,7 +515,11 @@ public static class PatternGeometry
         double patternSize = sizeOverrideNm ?? defaultSize;
 
         // Deconfliction: shrink pattern if downwind would encroach on another runway
-        patternSize = ApplyRunwayDeconfliction(runway, direction, patternSize, airportRunways);
+        // A PSIZE is flown as told, over a neighbouring runway included.
+        if (!commanded.SizeIsExplicit)
+        {
+            patternSize = ApplyRunwayDeconfliction(runway, direction, patternSize, airportRunways);
+        }
 
         // Flyability floor — wins over the category default, authored/command sizes, AND the
         // deconfliction shrink: an unflyable width overshoots the final onto whatever lies
@@ -485,17 +527,48 @@ public static class PatternGeometry
         // the parallel 28R final), which is strictly worse than a wide downwind overlying a
         // neighboring runway. AIM 4-3-3.b: pattern size varies with aircraft performance.
         double floorNm = MinFlyablePatternSizeNm(aircraftType, category, windSpeedKt);
-        if (patternSize < floorNm)
+        CompressedLegs compressedLegs = PatternCompression.Legs(aircraftType, category, windSpeedKt);
+        double requestedSize = patternSize;
+        if (!commanded.SizeIsExplicit && (patternSize < floorNm))
+        {
+            patternSize = floorNm;
+        }
+
+        // The landing threshold anchors everything the arrival flies to — downwind abeam, the base turn,
+        // and the final's aim point. A displaced threshold moves all three downfield with it.
+        LatLon threshold = LandingThreshold.Resolve(runway, authoredRunway);
+
+        PatternCompressionResult resolved = commanded.SizeIsExplicit
+            ? PatternCompression.ResolveExplicit(patternSize, floorNm, compressedLegs, commanded)
+            : PatternCompression.Resolve(
+                new PatternCompressionRequest(
+                    runway,
+                    new LatLon(depEndLat, depEndLon),
+                    threshold,
+                    direction,
+                    patternSize,
+                    CategoryPerformance.BaseExtensionNm(category) * (patternSize / defaultSize),
+                    BasePhase.TurnRadiusNm(AircraftPerformance.DownwindSpeed(aircraftType, category) + windSpeedKt, category),
+                    category,
+                    compressedLegs,
+                    commanded,
+                    airportRunways,
+                    activeRunways
+                )
+            );
+        patternSize = resolved.SizeNm;
+        CompressedLegs? legs = resolved.Legs;
+
+        if (patternSize > requestedSize)
         {
             Log.LogInformation(
                 "Pattern for {Runway} widened from {Requested:F2} nm to the {Type} flyability floor {Floor:F2} nm (wind {Wind:F0} kt)",
                 runway.Designator,
-                patternSize,
+                requestedSize,
                 aircraftType,
-                floorNm,
+                patternSize,
                 windSpeedKt
             );
-            patternSize = floorNm;
         }
 
         // The base extension scales proportionally with pattern size (a smaller pattern has a tighter
@@ -503,14 +576,11 @@ public static class PatternGeometry
         // the upwind length is governed by runway geometry, not pattern size. AIM 4-3-2 commences the
         // crosswind turn beyond the departure end of the runway within 300 ft of pattern altitude —
         // UpwindPhase enforces that gate, so a smaller pattern keeps the same at-the-DER upwind.
-        double sizeRatio = patternSize / defaultSize;
-        double baseExt = CategoryPerformance.BaseExtensionNm(category) * sizeRatio;
+        double baseExt = legs is null
+            ? CategoryPerformance.BaseExtensionNm(category) * (patternSize / defaultSize)
+            : CompressedBaseExtensionNm(category, patternSize);
         double patternAltAgl = CategoryPerformance.PatternAltitudeAgl(category);
         double patternAlt = altitudeOverrideFt ?? (runway.AirportElevationFt + patternAltAgl);
-
-        // The landing threshold anchors everything the arrival flies to — downwind abeam, the base turn,
-        // and the final's aim point. A displaced threshold moves all three downfield with it.
-        LatLon threshold = LandingThreshold.Resolve(runway, authoredRunway);
 
         // Crosswind turn point: at the departure end anchor the caller supplied.
         (double Lat, double Lon) crosswindTurn = (depEndLat, depEndLon);
@@ -546,7 +616,18 @@ public static class PatternGeometry
             PatternAltitude = patternAlt,
             PatternSizeNm = patternSize,
             Direction = direction,
+            CompressedDownwindSpeedKts = legs?.DownwindKts,
+            CompressedBaseSpeedKts = legs?.BaseKts,
+            CompressedTurnRateDegPerSec = legs?.TurnRateDegPerSec,
+            RunwayCrossing = resolved.Crossing,
         };
+    }
+
+    /// <summary>Base extension of a compressed pattern: scaled with its size, never under the type's shortest final.</summary>
+    internal static double CompressedBaseExtensionNm(AircraftCategory category, double patternSizeNm)
+    {
+        double scaled = CategoryPerformance.BaseExtensionNm(category) * (patternSizeNm / CategoryPerformance.PatternSizeNm(category));
+        return Math.Max(scaled, CategoryPerformance.MinShortApproachFinalNm(category));
     }
 
     /// <summary>
@@ -642,7 +723,7 @@ public static class PatternGeometry
     /// Tests whether two line segments (p1→p2 and p3→p4) intersect.
     /// Uses the cross-product orientation method.
     /// </summary>
-    private static bool SegmentsIntersect(double p1x, double p1y, double p2x, double p2y, double p3x, double p3y, double p4x, double p4y)
+    internal static bool SegmentsIntersect(double p1x, double p1y, double p2x, double p2y, double p3x, double p3y, double p4x, double p4y)
     {
         double d1 = CrossProduct(p3x, p3y, p4x, p4y, p1x, p1y);
         double d2 = CrossProduct(p3x, p3y, p4x, p4y, p2x, p2y);

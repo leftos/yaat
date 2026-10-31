@@ -77,7 +77,19 @@ public class VfrPatternFollowSequencingTests
         IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            Cat,
+            "",
+            0,
+            Dir,
+            null,
+            null,
+            allRunways,
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
+        );
 
         var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
@@ -99,7 +111,9 @@ public class VfrPatternFollowSequencingTests
             null,
             null,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         lead.Phases = new PhaseList
         {
@@ -129,7 +143,9 @@ public class VfrPatternFollowSequencingTests
             null,
             null,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         follower.Phases = new PhaseList
         {
@@ -246,7 +262,19 @@ public class VfrPatternFollowSequencingTests
         IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
         const AircraftCategory Cat = AircraftCategory.Piston;
-        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            Cat,
+            "",
+            0,
+            Dir,
+            null,
+            null,
+            allRunways,
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
+        );
         var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
         double baseTurnAlong = GeoMath.AlongTrackDistanceNm(baseTurn, threshold, wp.DownwindHeading);

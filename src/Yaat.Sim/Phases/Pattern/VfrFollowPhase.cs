@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -941,7 +942,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: patternAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
         int downwindIndex = circuit.FindIndex(phase => phase is DownwindPhase);
         if (downwindIndex < 0)
@@ -1028,6 +1031,8 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             ReturnEntryLeg(aircraft, patternReturn.Runway),
             runwayId: null,
             finalDistanceNm: null,
+            activeRunways: ctx.ActiveRunways,
+            warnRunwayCrossing: false,
             groundLayout: ctx.GroundLayout
         );
         if (!entry.Success)
@@ -1159,7 +1164,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: patternAltitudeFt,
             airportRunways: airportRunways,
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(leadRunway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(leadRunway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
 
         // Replace the follower's phase list entirely (InstallJoinedCircuit carries any armed clearance over).
@@ -1261,7 +1268,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: joinAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
         var entry = new PatternEntryPhase
         {
@@ -1339,7 +1348,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: joinAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
 
         Log.LogDebug(
@@ -1624,7 +1635,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: deferredAltitudeFt,
             airportRunways: airportRunways,
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
 
         var entryPhase = new PatternEntryPhase
@@ -2189,7 +2202,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: patternAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(circuit.Runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(circuit.Runway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(circuit.Runway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
         Log.LogDebug(
             "[VfrFollow] {Callsign}: {Lead} has passed, turning base to {Rwy} {Along:F2} nm out",

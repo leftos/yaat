@@ -48,7 +48,9 @@ public class PhaseTransparentCommandTests
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         var phases = new PhaseList { AssignedRunway = rwy };
         phases.Add(new UpwindPhase { Waypoints = waypoints });

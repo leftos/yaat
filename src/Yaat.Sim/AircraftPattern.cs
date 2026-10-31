@@ -104,6 +104,18 @@ public class AircraftPattern
     /// </summary>
     public PendingLandingClearance? PendingLandingClearance { get; set; }
 
+    /// <summary>
+    /// The warning owed for a circuit that crosses another runway, set when the circuit is first built and voiced on the next
+    /// tick, where the solo and RPO routing is known. Laps and waypoint rebuilds never set it.
+    /// </summary>
+    public PatternRunwayCrossing? PendingRunwayCrossing { get; set; }
+
+    /// <summary>Records the crossing of a newly built <paramref name="circuit"/>, if it has one.</summary>
+    public void NoteRunwayCrossing(IEnumerable<Phase> circuit) =>
+        PendingRunwayCrossing = circuit
+            .Select(phase => AirborneFollowHelper.PatternWaypointsOf(phase)?.RunwayCrossing)
+            .FirstOrDefault(c => c is not null);
+
     public AircraftPatternDto ToSnapshot() =>
         new()
         {
@@ -117,6 +129,9 @@ public class AircraftPattern
             PendingLandingClearanceRunwayId = PendingLandingClearance?.RunwayId,
             PendingLandingClearancePatternRunwayId = PendingLandingClearance?.PatternRunwayId,
             PendingLandingClearancePatternAltitudeFt = PendingLandingClearance?.PatternAltitudeFt,
+            PendingCrossingPatternRunway = PendingRunwayCrossing?.PatternRunway,
+            PendingCrossingCrossedRunway = PendingRunwayCrossing?.CrossedRunway,
+            PendingCrossingTightestFlyableNm = PendingRunwayCrossing?.TightestFlyableNm,
         };
 
     public static AircraftPattern FromSnapshot(AircraftPatternDto dto) =>
@@ -138,6 +153,12 @@ public class AircraftPattern
                         dto.PendingLandingClearancePatternRunwayId,
                         dto.PendingLandingClearancePatternAltitudeFt
                     )
+                    : null,
+            PendingRunwayCrossing =
+                dto.PendingCrossingPatternRunway is { } patternRunway
+                && dto.PendingCrossingCrossedRunway is { } crossedRunway
+                && dto.PendingCrossingTightestFlyableNm is { } tightestNm
+                    ? new PatternRunwayCrossing(patternRunway, crossedRunway, tightestNm)
                     : null,
         };
 }

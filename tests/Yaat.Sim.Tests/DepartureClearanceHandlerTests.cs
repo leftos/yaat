@@ -1516,7 +1516,13 @@ public class DepartureClearanceHandlerTests
         Assert.True(cancel.Success);
         Assert.True(lineup.HoldPosition);
 
-        CommandResult recleared = DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance(ac, new DefaultDeparture(), null, Logger);
+        CommandResult recleared = DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance(
+            ac,
+            new DefaultDeparture(),
+            null,
+            Logger,
+            ActiveRunways.Empty
+        );
 
         Assert.True(recleared.Success, $"re-clear rejected: {recleared.Message}");
         Assert.False(lineup.HoldPosition, "re-clearing for takeoff must lift the CTOC hold-position");

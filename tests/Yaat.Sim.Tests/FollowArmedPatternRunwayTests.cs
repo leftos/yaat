@@ -552,7 +552,9 @@ public class FollowArmedPatternRunwayTests
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
             airportRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         var abeam = new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);

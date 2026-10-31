@@ -1249,7 +1249,9 @@ public static class ApproachCommandHandler
                 sizeOverrideNm: null,
                 ifrPatternAltMsl,
                 airportRunways: null,
-                authoredRunway
+                authoredRunway,
+                ctx.ActiveRunways,
+                PatternCommanded.Of(aircraft)
             );
 
             List<Phase> circuitPhases = PatternBuilder.BuildCircuit(
@@ -1264,7 +1266,9 @@ public static class ApproachCommandHandler
                 patternSizeNm: null,
                 ifrPatternAltMsl,
                 airportRunways: null,
-                authoredRunway
+                authoredRunway,
+                ctx.ActiveRunways,
+                PatternCommanded.Of(aircraft)
             );
 
             // Check if the aircraft is already established on the downwind leg.

@@ -41,7 +41,19 @@ public class TeardropReentryEntryHeightTests
         Assert.NotNull(rwy);
 
         // A field with no authored pattern altitude: the turbine TPA defaults to field + 1,500 ft.
-        PatternWaypoints wp = PatternGeometry.Compute(rwy, category, aircraftType, 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            category,
+            aircraftType,
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
+        );
 
         // The altitude the MidfieldCrossingPhase actually hands the teardrop (crossAtPatternAltitude is
         // false here — this is exactly the gate PatternBuilder uses to decide a teardrop is inserted).
@@ -113,7 +125,19 @@ public class TeardropReentryEntryHeightTests
 
         // No authored pattern altitude, so the turbine TPA is field + 1,500 ft — exactly the AIM 4-3-3.a.2
         // entry crossing height, which leaves the teardrop nothing to shed.
-        PatternWaypoints wp = PatternGeometry.Compute(rwy, category, aircraftType, 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy,
+            category,
+            aircraftType,
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
+        );
 
         var crossing = new MidfieldCrossingPhase { Waypoints = wp, CrossAtPatternAltitude = false };
         var downwind = new DownwindPhase { Waypoints = wp };
@@ -177,7 +201,9 @@ public class TeardropReentryEntryHeightTests
             null,
             patternAltitudeMsl,
             null,
-            authoredRunway: authored
+            authoredRunway: authored,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         var crossing = new MidfieldCrossingPhase { Waypoints = wp, CrossAtPatternAltitude = false };
@@ -228,7 +254,9 @@ public class TeardropReentryEntryHeightTests
             null,
             patternAltitudeMsl,
             null,
-            authoredRunway: authored
+            authoredRunway: authored,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         var downwind = new DownwindPhase { Waypoints = wp };

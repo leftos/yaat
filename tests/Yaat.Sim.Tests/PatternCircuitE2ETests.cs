@@ -127,7 +127,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         foreach (Phase p in phases)
         {
@@ -161,7 +163,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         AircraftState ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
         ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
@@ -178,7 +182,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         foreach (Phase p in phases)
         {
@@ -215,7 +221,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         AircraftState ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
         ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
@@ -233,7 +241,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         foreach (Phase p in phases)
         {
@@ -307,7 +317,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         foreach (Phase p in phases)
         {
@@ -350,7 +362,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         AircraftState ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 400, heading: rwy.TrueHeading.Degrees, ias: 150);
         ac.Phases!.TrafficDirection = PatternDirection.Left;
@@ -478,7 +492,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Equal(6, phases.Count);
@@ -506,7 +522,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Equal(4, phases.Count);
@@ -532,7 +550,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Equal(3, phases.Count);
@@ -557,7 +577,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Equal(2, phases.Count);
@@ -581,7 +603,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Equal(2, phases.Count);
@@ -603,7 +627,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             authoredRunway: null,
-            touchAndGo: true
+            touchAndGo: true,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Equal(6, phases.Count);
@@ -625,7 +651,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             authoredRunway: null,
-            touchAndGo: false
+            touchAndGo: false,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Equal(6, phases.Count);
@@ -647,7 +675,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         PatternWaypoints newWp = PatternGeometry.Compute(
             rwy,
@@ -658,7 +688,9 @@ public class PatternCircuitE2ETests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         var downwind = new DownwindPhase { Waypoints = oldWp };

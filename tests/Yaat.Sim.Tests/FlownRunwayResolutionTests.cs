@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -56,7 +57,9 @@ public class FlownRunwayResolutionTests
             null,
             null,
             airportRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         RunwayInfo? resolved = PatternCommandHandler.ResolveFlownRunway(waypoints, airportRunways);
@@ -95,7 +98,9 @@ public class FlownRunwayResolutionTests
             null,
             null,
             airportRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         RunwayInfo? resolved = PatternCommandHandler.ResolveFlownRunway(waypoints, airportRunways);

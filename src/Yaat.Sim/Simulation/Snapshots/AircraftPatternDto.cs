@@ -1,9 +1,23 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 public sealed class AircraftPatternDto
 {
     public double? SizeOverrideNm { get; init; }
     public double? AltitudeOverrideFt { get; init; }
+
+    /// <summary>Pattern runway of a crossing warning not yet voiced; null when none is owed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PendingCrossingPatternRunway { get; init; }
+
+    /// <summary>Crossed runway of a crossing warning not yet voiced.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PendingCrossingCrossedRunway { get; init; }
+
+    /// <summary>Tightest flyable width (nm) of a crossing warning not yet voiced.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? PendingCrossingTightestFlyableNm { get; init; }
 
     /// <summary>
     /// Persistent pattern direction (0=Left, 1=Right). Null when no MLT/MRT was issued

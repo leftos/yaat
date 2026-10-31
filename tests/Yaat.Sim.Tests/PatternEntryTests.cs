@@ -161,7 +161,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -184,7 +186,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         double distToAbeam = GeoMath.DistanceNm(entry.EntryLat, entry.EntryLon, waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);
         _output.WriteLine($"Entry point dist to DownwindAbeam: {distToAbeam:F3}nm");
@@ -212,7 +216,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -238,7 +244,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -263,7 +271,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -287,7 +297,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         AircraftState aircraft = MakeAircraft(waypoints.DownwindAbeamLat + 0.005, waypoints.DownwindAbeamLon, waypoints.PatternAltitude, 112);
 
@@ -298,7 +310,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -327,7 +341,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -351,7 +367,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -378,7 +396,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -407,7 +427,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -429,7 +451,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: 3.0
+            finalDistanceNm: 3.0,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -462,7 +486,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Final,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -485,7 +511,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Final,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -519,13 +547,23 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
 
@@ -546,7 +584,15 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         PatternWaypoints waypoints = PatternGeometry.Compute(
@@ -558,7 +604,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // Pattern altitude = field elevation + AGL for the resolved category
@@ -602,7 +650,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");
@@ -645,7 +695,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");
@@ -680,7 +732,15 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, leg, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            leg,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         DumpPhases(aircraft);
         List<Phase> phases = aircraft.Phases!.Phases;
@@ -704,7 +764,15 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -727,7 +795,15 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.80, -122.10, 3000, 270);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Base,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -746,7 +822,15 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -774,14 +858,24 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // South of airport — wrong side for right pattern (pattern is north)
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         MidfieldCrossingPhase mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
         Assert.NotNull(mc.Waypoints);
@@ -799,7 +893,15 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.87, -122.21, 3000, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         DumpPhases(aircraft);
 
@@ -824,7 +926,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // For left pattern on runway heading 292:
@@ -850,7 +954,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // For right pattern on runway heading 292:
@@ -876,7 +982,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         double distToThreshold = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.ThresholdLat, wp.ThresholdLon);
@@ -933,7 +1041,15 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases = new PhaseList();
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, null, null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         Assert.False(result.Success);
         Assert.Contains("runway", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -955,7 +1071,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.False(result.Success);
@@ -975,7 +1093,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // Place aircraft 0.8nm from the entry point (under 1nm threshold), on correct side
@@ -1000,7 +1120,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -1044,7 +1166,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -1068,7 +1192,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -1113,7 +1239,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "12",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");
@@ -1158,7 +1286,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -1177,7 +1307,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         double bearingAbeamToLeadIn = GeoMath.BearingTo(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expected45Bearing = new TrueHeading(wp.DownwindHeading.Degrees + 45.0 + 180.0).Degrees; // 337° for OAK 28R right
@@ -1211,7 +1343,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -1221,7 +1355,19 @@ public class PatternEntryTests : IDisposable
         Assert.NotNull(entry.LeadInLat);
         Assert.NotNull(entry.LeadInLon);
 
-        PatternWaypoints wp = PatternGeometry.Compute(runway, ResolvedCategory, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            runway,
+            ResolvedCategory,
+            "",
+            0,
+            PatternDirection.Left,
+            null,
+            null,
+            null,
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
+        );
         double bearingAbeamToLeadIn = GeoMath.BearingTo(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expected45Bearing = new TrueHeading(wp.DownwindHeading.Degrees - 45.0 + 180.0).Degrees; // 247° for OAK 28R left
         double expectedXDWBearing = wp.DownwindHeading.ToReciprocal().Degrees;
@@ -1254,7 +1400,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         (double Lat, double Lon) upwindPos = GeoMath.ProjectPoint(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.DownwindHeading.ToReciprocal(), 5.0);
         AircraftState aircraft = MakeAircraft(upwindPos.Lat, upwindPos.Lon, wp.PatternAltitude, wp.DownwindHeading.Degrees);
@@ -1265,7 +1413,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -1300,7 +1450,15 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.72, -122.00, 3000, 270); // C182, VPMOR-like → 45° expected
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         PatternWaypoints wp = PatternGeometry.Compute(
@@ -1312,7 +1470,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expectedNm = runway.PavementLengthFt * 0.5 / 6076.12;
@@ -1331,12 +1491,32 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "DH8D"; // Dash 8-Q400 — turboprop
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         Assert.Equal(AircraftCategory.Turboprop, cat);
-        PatternWaypoints wp = PatternGeometry.Compute(runway, cat, "", 0, PatternDirection.Right, null, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            runway,
+            cat,
+            "",
+            0,
+            PatternDirection.Right,
+            null,
+            null,
+            null,
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
+        );
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
 
         _output.WriteLine($"Turboprop lead-in distance from abeam: {distAbeamToLeadIn:F3}nm (expected 1.5nm floor)");
@@ -1352,7 +1532,15 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "B738"; // 737-800 — jet
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
@@ -1366,7 +1554,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
 
@@ -1405,7 +1595,15 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
@@ -1418,7 +1616,9 @@ public class PatternEntryTests : IDisposable
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
         double expectedNm = runway.PavementLengthFt * 0.5 / 6076.12;
@@ -1449,7 +1649,15 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0); // C182 default
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         MidfieldCrossingPhase mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
         PhaseContext ctx = MakeContext(aircraft);
@@ -1471,7 +1679,15 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         MidfieldCrossingPhase mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
         PhaseContext ctx = MakeContext(aircraft);
@@ -1498,7 +1714,15 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "DH8D";
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -1517,7 +1741,15 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -1542,7 +1774,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Pattern.SetAltitudeOverride(1500, null, AircraftCategorization.Categorize(aircraft.AircraftType));
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -1824,6 +2064,8 @@ public class PatternEntryTests : IDisposable
             PatternEntryLeg.Downwind,
             runwayId: "28R",
             finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
             groundLayout: layout
         );
         Assert.True(entry.Success, entry.Message);
@@ -1889,7 +2131,9 @@ public class PatternEntryTests : IDisposable
             altitudeOverrideFt: null,
             real.GetRunways("KOAK"),
             flownAuthoredRunway: null,
-            patternAuthoredRunway: null
+            patternAuthoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         AircraftState aircraft = MakeAircraft(flownRunway.EndLatitude, flownRunway.EndLongitude, 600, flownRunway.TrueHeading.Degrees);
         aircraft.AircraftType = "B738";
@@ -1996,7 +2240,8 @@ public class PatternEntryTests : IDisposable
             aircraft,
             PatternDirection.Right,
             runwayId: "28R",
-            altitudeOverride: null
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty
         );
         Assert.True(result.Success, result.Message);
 
@@ -2053,7 +2298,13 @@ public class PatternEntryTests : IDisposable
         {
             "CM" => FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(altitudeFt), aircraft, aircraft.Ground.Layout),
             "DM" => FlightCommandHandler.ApplyDescendMaintain(new DescendMaintainCommand(altitudeFt), aircraft, aircraft.Ground.Layout),
-            "MRT" => PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: null, altitudeOverride: altitudeFt),
+            "MRT" => PatternCommandHandler.TryChangePatternDirection(
+                aircraft,
+                PatternDirection.Right,
+                runwayId: null,
+                altitudeOverride: altitudeFt,
+                activeRunways: ActiveRunways.Empty
+            ),
             _ => throw new ArgumentOutOfRangeException(nameof(instruction), instruction, "no pattern-altitude instruction by that name"),
         };
         Assert.True(result.Success, result.Message);
@@ -2075,7 +2326,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
         aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", null, 1500);
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -2104,7 +2363,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
         aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", null, 1500);
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -2132,7 +2399,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Pattern.SetAltitudeOverride(1500, null, AircraftCategorization.Categorize(aircraft.AircraftType));
         aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "28L", null);
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -2234,7 +2509,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
         aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", "28R", 1500);
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -2285,7 +2568,13 @@ public class PatternEntryTests : IDisposable
 
         if (instruction == "MLT")
         {
-            CommandResult result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, "28R", altitudeOverride: null);
+            CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+                aircraft,
+                PatternDirection.Left,
+                "28R",
+                altitudeOverride: null,
+                activeRunways: ActiveRunways.Empty
+            );
             Assert.True(result.Success, result.Message);
         }
         else
@@ -2362,7 +2651,13 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = EnterRightDownwind28R(standingOverrideFt: null);
         IssueOption(aircraft, new OptionPatternModifier(PatternDirection.Left, "28L", 2000));
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(aircraft, direction, runwayId: null, altitudeOverride: 1500);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            aircraft,
+            direction,
+            runwayId: null,
+            altitudeOverride: 1500,
+            activeRunways: ActiveRunways.Empty
+        );
         Assert.True(result.Success, result.Message);
 
         Assert.Equal(1500.0, aircraft.Pattern.AltitudeOverrideFt);
@@ -2398,7 +2693,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28L",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -2503,7 +2800,8 @@ public class PatternEntryTests : IDisposable
             aircraft,
             aircraft.Phases,
             runway28R,
-            removeInitialClimb: false
+            removeInitialClimb: false,
+            activeRunways: ActiveRunways.Empty
         );
 
         Assert.Equal("28R", aircraft.Phases.PatternRunway?.Designator);
@@ -2526,7 +2824,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28L",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         Assert.True(result.Success, result.Message);
@@ -2551,7 +2851,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
         Assert.True(result.Success, result.Message);
         return aircraft;
@@ -2579,7 +2881,9 @@ public class PatternEntryTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
         Assert.True(result.Success, result.Message);
         return aircraft;
@@ -2615,7 +2919,15 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -2634,7 +2946,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
         PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
@@ -2664,7 +2984,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
         PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
@@ -2693,7 +3021,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
         PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
@@ -2728,7 +3064,15 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "R44";
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         MidfieldCrossingPhase mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
         AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
@@ -2751,7 +3095,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
         PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
@@ -2776,7 +3128,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
         PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);
@@ -2806,7 +3166,15 @@ public class PatternEntryTests : IDisposable
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
         PhaseContext ctx = MakeContext(aircraft);
         teardrop.OnStart(ctx);

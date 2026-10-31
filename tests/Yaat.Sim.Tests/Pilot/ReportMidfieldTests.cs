@@ -41,7 +41,19 @@ public class ReportMidfieldTests(ITestOutputHelper output)
     private static PatternWaypoints Waypoints(PatternDirection dir) => Waypoints(Runway28R(), dir);
 
     private static PatternWaypoints Waypoints(RunwayInfo runway, PatternDirection dir) =>
-        PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, dir, null, null, null, authoredRunway: null);
+        PatternGeometry.Compute(
+            runway,
+            AircraftCategory.Piston,
+            "",
+            0,
+            dir,
+            null,
+            null,
+            null,
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
+        );
 
     private static double AlongTrack(PatternWaypoints wp, LatLon position) =>
         GeoMath.AlongTrackDistanceNm(position, new LatLon(wp.ThresholdLat, wp.ThresholdLon), wp.DownwindHeading);
@@ -552,7 +564,13 @@ public class ReportMidfieldTests(ITestOutputHelper output)
         Fly(phase, ac, ctx, wp, midfield + StepNm);
         Assert.Single(DownwindCalls(ac));
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: null, altitudeOverride: null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Left,
+            runwayId: null,
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty
+        );
         Assert.True(result.Success, result.Message);
         DownwindPhase rebuilt = Assert.IsType<DownwindPhase>(ac.Phases!.CurrentPhase);
         Assert.NotSame(phase, rebuilt);
@@ -590,7 +608,13 @@ public class ReportMidfieldTests(ITestOutputHelper output)
             ac.Position = PointAtAlongTrack(wp, along);
         }
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: "28L", altitudeOverride: null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Left,
+            runwayId: "28L",
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty
+        );
         Assert.True(result.Success, result.Message);
         DownwindPhase rebuilt = Assert.IsType<DownwindPhase>(ac.Phases!.CurrentPhase);
         Fly(rebuilt, ac, ctx, rebuilt.Waypoints!, double.MaxValue);
@@ -619,7 +643,15 @@ public class ReportMidfieldTests(ITestOutputHelper output)
         Fly(phase, ac, ctx, wp, midfield + StepNm);
         Assert.Single(DownwindCalls(ac));
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         Assert.True(result.Success, result.Message);
         DownwindPhase reentered = Assert.IsType<DownwindPhase>(ac.Phases!.CurrentPhase);
         Assert.NotSame(phase, reentered);
@@ -648,7 +680,7 @@ public class ReportMidfieldTests(ITestOutputHelper output)
         ac.Phases.AdvanceToNext(ctx);
         Assert.IsType<BasePhase>(ac.Phases.CurrentPhase);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind, activeRunways: ActiveRunways.Empty);
         Assert.True(result.Success, result.Message);
         DownwindPhase extended = Assert.IsType<DownwindPhase>(ac.Phases!.CurrentPhase);
         Assert.True(extended.IsExtended);
@@ -675,7 +707,13 @@ public class ReportMidfieldTests(ITestOutputHelper output)
         Fly(phase, ac, ctx, wp, midfield + StepNm);
         Assert.Single(DownwindCalls(ac));
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, runwayId: null, altitudeOverride: null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Right,
+            runwayId: null,
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty
+        );
         Assert.True(result.Success, result.Message);
         MidfieldCrossingPhase crossing = Assert.IsType<MidfieldCrossingPhase>(ac.Phases!.CurrentPhase);
         LatLon target = MidfieldCrossingPhase.MidfieldTarget(crossing.Waypoints!);
@@ -782,6 +820,7 @@ public class ReportMidfieldTests(ITestOutputHelper output)
                 PatternDirection.Left,
                 "28L",
                 null,
+                activeRunways: ActiveRunways.Empty,
                 aircraft.Ground.Layout
             );
             Assert.True(result.Success, result.Message);

@@ -277,7 +277,9 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
             patternSizeNm: null,
             altitudeOverrideFt: null,
             airportRunways: null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         foreach (Phase p in phases)
         {

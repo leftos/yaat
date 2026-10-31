@@ -196,7 +196,15 @@ public class Issue228EnterFinalShortFinalTests(ITestOutputHelper output)
             Phases = new PhaseList { AssignedRunway = rwy28L },
         };
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28L",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         output.WriteLine($"TryEnterPattern(28L) -> Success={result.Success} Message='{result.Message}'");
 

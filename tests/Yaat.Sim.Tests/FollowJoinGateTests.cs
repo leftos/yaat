@@ -411,7 +411,9 @@ public class FollowJoinGateTests
             null,
             null,
             [rwy],
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         return (wp, rwy);
     }

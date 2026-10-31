@@ -2,6 +2,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -168,7 +169,13 @@ public class PatternAltitudeArgumentTests
             Phases = new PhaseList { AssignedRunway = runway },
         };
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, null, 1500);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Left,
+            null,
+            1500,
+            activeRunways: ActiveRunways.Empty
+        );
 
         Assert.True(result.Success);
         Assert.Equal(1500, ac.Pattern.AltitudeOverrideFt);

@@ -106,7 +106,15 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
             );
 
             // Mirror what the user typed. EF carries no L/R, so the dispatcher passes null.
-            CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, requestedDirection: null, PatternEntryLeg.Final, "28L", null);
+            CommandResult result = PatternCommandHandler.TryEnterPattern(
+                aircraft,
+                requestedDirection: null,
+                PatternEntryLeg.Final,
+                "28L",
+                null,
+                activeRunways: ActiveRunways.Empty,
+                warnRunwayCrossing: true
+            );
             output.WriteLine($"TryEnterPattern(28L) -> Success={result.Success} Message='{result.Message}'");
 
             Assert.True(result.Success, $"EF 28L from a 0.9 nm base must be accepted. Got: '{result.Message}'");
@@ -166,7 +174,15 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
             RunwayInfo? rwy28L = NavigationDatabase.Instance.GetRunway("KOAK", "28L");
             Assert.NotNull(rwy28L);
 
-            CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, requestedDirection: null, PatternEntryLeg.Final, "28L", null);
+            CommandResult result = PatternCommandHandler.TryEnterPattern(
+                aircraft,
+                requestedDirection: null,
+                PatternEntryLeg.Final,
+                "28L",
+                null,
+                activeRunways: ActiveRunways.Empty,
+                warnRunwayCrossing: true
+            );
             Assert.True(result.Success, result.Message);
 
             double startAltitude = aircraft.Altitude;
@@ -231,7 +247,15 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         AircraftState aircraft = MakeBaseLegAircraft(runway, "C150", alongTrackNm: 0.9, crossTrackRightNm: 0.4, altAgl: 500);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Final,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
         Assert.True(result.Success, $"Piston on a 0.9 nm base must turn final. Got: '{result.Message}'");
@@ -261,7 +285,15 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
         AircraftState aircraft = MakeAircraft("N1DW", "C150", lat, lon, runway.ElevationFt + 1000, runway.TrueHeading.ToReciprocal().Degrees);
         aircraft.Phases!.AssignedRunway = runway;
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Final,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
         Assert.True(result.Success, $"EF from downwind abeam must still be accepted. Got: '{result.Message}'");
@@ -290,7 +322,15 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
         // 1.5 nm along-track is inside the jet 2.0 nm straight-in floor.
         AircraftState aircraft = MakeBaseLegAircraft(runway, "B738", alongTrackNm: 1.5, crossTrackRightNm: 0.8, altAgl: 700);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Final,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
         Assert.False(result.Success);
@@ -315,7 +355,15 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
         // through it, on the LEFT side — the centerline is behind, not ahead.
         AircraftState aircraft = MakeBaseLegAircraft(runway, "C150", alongTrackNm: 0.9, crossTrackRightNm: -0.4, altAgl: 500);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Final,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
         Assert.False(result.Success);
@@ -340,7 +388,15 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
         // actually inserted (inside 1 nm the aircraft simply joins final with no entry waypoint).
         AircraftState aircraft = MakeBaseLegAircraft(runway, "C150", alongTrackNm: 1.05, crossTrackRightNm: 1.5, altAgl: 500);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Final,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
         Assert.True(result.Success, result.Message);
 

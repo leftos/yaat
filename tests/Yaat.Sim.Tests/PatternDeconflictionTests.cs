@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -60,7 +61,9 @@ public class PatternDeconflictionTests
             null,
             null,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         double floor = PatternGeometry.MinFlyablePatternSizeNm("", AircraftCategory.Jet, 0);
@@ -70,7 +73,7 @@ public class PatternDeconflictionTests
     }
 
     [Fact]
-    public void LeftTraffic28L_Piston_AlreadyFits_NoShrinkage()
+    public void LeftTraffic28L_Piston_CompressesToClearRunway30()
     {
         NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
@@ -83,8 +86,7 @@ public class PatternDeconflictionTests
 
         IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
 
-        // Piston default 0.75nm < rwy 30 distance (1.04nm - 0.15nm buffer = 0.89nm)
-        // No shrinkage needed.
+        // Flown at 0.75 nm plus one crosswind turn radius, the piston's normal pattern reaches runway 30.
         PatternWaypoints waypoints = PatternGeometry.Compute(
             rwy28L,
             AircraftCategory.Piston,
@@ -94,13 +96,14 @@ public class PatternDeconflictionTests
             null,
             null,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
-        double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
         double actual = MeasureDownwindOffset(waypoints, rwy28L);
 
-        Assert.True(actual >= defaultSize - 0.01, $"Piston should use default {defaultSize:F3}, got {actual:F3}");
+        Assert.Equal(0.60, actual, 2);
     }
 
     [Fact]
@@ -127,7 +130,9 @@ public class PatternDeconflictionTests
             null,
             null,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Jet);
@@ -161,7 +166,9 @@ public class PatternDeconflictionTests
             null,
             null,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
@@ -253,7 +260,9 @@ public class PatternDeconflictionTests
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
@@ -276,7 +285,9 @@ public class PatternDeconflictionTests
             null,
             null,
             [runway],
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);

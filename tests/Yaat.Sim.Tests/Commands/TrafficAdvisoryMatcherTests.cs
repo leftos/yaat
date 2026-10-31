@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -320,7 +321,22 @@ public sealed class TrafficAdvisoryMatcherTests
     private static List<TrafficAdvisoryCandidate> Candidates(params AircraftState[] aircraft) => [.. aircraft.Select(TrafficAdvisoryCandidate.From)];
 
     private static BasePhase MakeBasePhase(RunwayInfo runway, PatternDirection side) =>
-        new() { Waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, side, null, null, null, authoredRunway: null) };
+        new()
+        {
+            Waypoints = PatternGeometry.Compute(
+                runway,
+                AircraftCategory.Piston,
+                "",
+                0,
+                side,
+                null,
+                null,
+                null,
+                authoredRunway: null,
+                activeRunways: ActiveRunways.Empty,
+                commanded: PatternCommanded.None
+            ),
+        };
 
     private static AircraftState PatternCandidate(string callsign, RunwayInfo runway, Phase phase, double distanceNm)
     {

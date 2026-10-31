@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -83,7 +84,15 @@ public class SingleDigitRunwayCommandTests
         using IDisposable _ = NavigationDatabase.ScopedOverride(MakeMiaNavDb());
 
         // PT with the FAA form "8R" must resolve the 08R runway.
-        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, "8R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            "8R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases?.AssignedRunway);

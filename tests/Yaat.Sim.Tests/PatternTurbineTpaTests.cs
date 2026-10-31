@@ -122,7 +122,9 @@ public class PatternTurbineTpaTests
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // Place the aircraft on the downwind just past abeam-the-threshold, at pattern altitude.
@@ -162,7 +164,7 @@ public class PatternTurbineTpaTests
         var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
         double baseTriggerNm =
             GeoMath.AlongTrackDistanceNm(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), threshold, downwindHdg) - DownwindPhase.AlongTrackToleranceNm;
-        double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ac, AircraftCategory.Jet), AircraftCategory.Jet);
+        double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ac, AircraftCategory.Jet, null), AircraftCategory.Jet);
         double rolloutDistNm = Math.Max(baseTriggerNm, turnRadiusNm) + turnRadiusNm;
         double rolloutAlt = GlideSlopeGeometry.AltitudeAtDistance(rolloutDistNm, rwy.ElevationFt, AircraftCategory.Jet);
 

@@ -29,17 +29,25 @@ public sealed class BasePhase : Phase
         return Math.Max(Math.Max(groundSpeedKt, MinPlanningSpeedKt) / (turnRate * 62.832), MinTurnRadiusNm);
     }
 
+    /// <summary>Radius (nm) of the turn to final at the rate of <paramref name="waypoints"/>' circuit.</summary>
+    internal static double TurnRadiusNm(double groundSpeedKt, AircraftCategory category, PatternWaypoints? waypoints) =>
+        waypoints?.CompressedTurnRateDegPerSec is { } turnRate ? TurnRadiusNm(groundSpeedKt, turnRate) : TurnRadiusNm(groundSpeedKt, category);
+
+    /// <summary>Radius (nm) of a turn flown at <paramref name="turnRateDegPerSec"/>.</summary>
+    internal static double TurnRadiusNm(double groundSpeedKt, double turnRateDegPerSec) =>
+        Math.Max(Math.Max(groundSpeedKt, MinPlanningSpeedKt) / (turnRateDegPerSec * 62.832), MinTurnRadiusNm);
+
     /// <summary>
     /// The speed the base leg is planned at: a standing controller speed assignment outranks
     /// the type's base speed (7110.65 §5-7-4). Shared with the ERB altitude-feasibility gate so
     /// the gate budgets the same leg the phase flies.
     /// </summary>
-    internal static double PlannedSpeedKt(AircraftState aircraft, AircraftCategory category)
+    internal static double PlannedSpeedKt(AircraftState aircraft, AircraftCategory category, PatternWaypoints? waypoints)
     {
         double speedKt =
             aircraft.Targets.HasExplicitSpeedCommand && aircraft.Targets.TargetSpeed is { } assigned
                 ? assigned
-                : AircraftPerformance.BaseSpeed(aircraft.AircraftType, category);
+                : PatternCompression.BaseSpeed(waypoints, aircraft.AircraftType, category);
         return Math.Max(speedKt, MinPlanningSpeedKt);
     }
 
@@ -121,7 +129,7 @@ public sealed class BasePhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         if (!ctx.Targets.HasExplicitTurnRate)
         {
-            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+            ctx.Targets.TurnRateOverride = PatternCompression.TurnRate(Waypoints, ctx.Category);
         }
         ctx.Targets.NavigationRoute.Clear();
 
@@ -136,7 +144,7 @@ public sealed class BasePhase : Phase
         // A controller speed assignment outranks the leg baseline (7110.65 §5-7-4).
         if (!ctx.Targets.HasExplicitSpeedCommand)
         {
-            ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
+            ctx.Targets.TargetSpeed = PatternCompression.BaseSpeed(Waypoints, ctx.AircraftType, ctx.Category);
         }
 
         Log.LogDebug(
@@ -161,8 +169,8 @@ public sealed class BasePhase : Phase
         // final, so rollout is at (finalDist + r) from the threshold.
         double descentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
-        double plannedSpeedKt = PlannedSpeedKt(ctx.Aircraft, ctx.Category);
-        double turnRadiusNm = TurnRadiusNm(plannedSpeedKt, ctx.Category);
+        double plannedSpeedKt = PlannedSpeedKt(ctx.Aircraft, ctx.Category, waypoints);
+        double turnRadiusNm = TurnRadiusNm(plannedSpeedKt, ctx.Category, waypoints);
         double finalDist =
             finalDistanceNm
             ?? Math.Max(
@@ -253,7 +261,7 @@ public sealed class BasePhase : Phase
         // settled follower (the issue #206 overtake).
         if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
-            double baseline = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
+            double baseline = PatternCompression.BaseSpeed(Waypoints, ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)
@@ -272,7 +280,7 @@ public sealed class BasePhase : Phase
         // Turn initiation: begin turn when cross-track from extended centerline
         // equals the turn radius. This produces a geometrically correct 90° arc
         // that rolls out on centerline at the expected final approach distance.
-        double turnRadiusNm = TurnRadiusNm(ctx.Aircraft.GroundSpeed, ctx.Category);
+        double turnRadiusNm = TurnRadiusNm(ctx.Aircraft.GroundSpeed, ctx.Category, Waypoints);
         bool complete = crossTrack <= turnRadiusNm;
         if (complete)
         {

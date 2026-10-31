@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -124,7 +125,15 @@ public class EfAltitudeAwareStraightInTests : IDisposable
         AircraftState aircraft = MakeAircraft(lat, lon, alt: runway.ElevationFt + altAgl, heading: HeadingDeg);
         aircraft.Phases!.AssignedRunway = runway;
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Final,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         Assert.True(result.Success, result.Message);
 
         PatternEntryPhase entry = RequireEntryPhase(aircraft);

@@ -284,6 +284,18 @@ public sealed class PatternWaypointsDto
     /// FromSnapshot derives it from the abeam offset from the threshold.</summary>
     public double? PatternSizeNm { get; init; }
 
+    /// <summary>Downwind speed of a compressed circuit (kt). Null marks a normal circuit.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CompressedDownwindSpeedKts { get; init; }
+
+    /// <summary>Base speed of a compressed circuit (kt); null on a normal circuit.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CompressedBaseSpeedKts { get; init; }
+
+    /// <summary>Turn rate of a compressed circuit (deg/s); null on a normal circuit.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CompressedTurnRateDegPerSec { get; init; }
+
     /// <summary>0=Left, 1=Right. Optional for backward compat — when null,
     /// FromSnapshot infers from the abeam position relative to the threshold
     /// along the landing heading.</summary>

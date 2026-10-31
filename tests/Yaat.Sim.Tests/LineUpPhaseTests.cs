@@ -589,7 +589,8 @@ public class LineUpPhaseTests(ITestOutputHelper output)
             aircraft,
             new RunwayHeadingDeparture(),
             null,
-            NullLogger.Instance
+            NullLogger.Instance,
+            ActiveRunways.Empty
         );
 
         Assert.True(result.Success);

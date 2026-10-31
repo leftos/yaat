@@ -121,7 +121,9 @@ public class FinalApproachLateralTests(ITestOutputHelper output)
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         ScenarioResult r = RunScenario(
@@ -151,7 +153,9 @@ public class FinalApproachLateralTests(ITestOutputHelper output)
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         ScenarioResult r = RunScenario(
@@ -181,7 +185,9 @@ public class FinalApproachLateralTests(ITestOutputHelper output)
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         ScenarioResult r = RunScenario(

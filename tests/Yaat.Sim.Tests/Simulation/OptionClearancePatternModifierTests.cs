@@ -547,7 +547,9 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
         );
 
         output.WriteLine($"entry: success={entry.Success} — {entry.Message}");

@@ -311,7 +311,9 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         var ac = new AircraftState
         {

@@ -88,7 +88,9 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             sizeOverrideNm,
             altitudeOverrideFt,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         double crosswindPointNm = GeoMath.AlongTrackDistanceNm(
@@ -110,7 +112,9 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             sizeOverrideNm,
             altitudeOverrideFt,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         foreach (Phase p in circuit)
         {
@@ -235,7 +239,9 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
                 sizeNm,
                 609,
                 allRunways,
-                authoredRunway: null
+                authoredRunway: null,
+                activeRunways: ActiveRunways.Empty,
+                commanded: PatternCommanded.None
             );
             return GeoMath.AlongTrackDistanceNm(
                 new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon),
@@ -333,7 +339,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
                 ac,
                 ac.Phases,
                 rwy28L,
-                removeInitialClimb: false
+                removeInitialClimb: false,
+                activeRunways: ActiveRunways.Empty
             );
 
             UpwindPhase? upwind = ac.Phases.Phases.OfType<UpwindPhase>().FirstOrDefault();
@@ -376,7 +383,19 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
 
         AircraftCategory cat = AircraftCategory.Piston;
         // First circuit built with the authored override so the entry leg is flyable; alt 609.
-        PatternWaypoints wp = PatternGeometry.Compute(rwy28L, cat, "", 0, PatternDirection.Right, 0.5, 609, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            rwy28L,
+            cat,
+            "",
+            0,
+            PatternDirection.Right,
+            0.5,
+            609,
+            allRunways,
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
+        );
         var ac = new AircraftState
         {
             Callsign = "N12345",
@@ -405,7 +424,9 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             0.5,
             609,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         foreach (Phase p in circuit)
         {
@@ -481,6 +502,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             PatternEntryLeg.Downwind,
             runwayId: "28L",
             finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
             groundLayout: layout
         );
         Assert.True(result.Success, result.Message);

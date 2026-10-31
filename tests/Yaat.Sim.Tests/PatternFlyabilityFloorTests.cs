@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -57,7 +58,9 @@ public class PatternFlyabilityFloorTests
             0.5,
             null,
             navDb.GetRunways("KOAK"),
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         double actual = MeasureDownwindOffset(waypoints, rwy28L);
@@ -93,7 +96,9 @@ public class PatternFlyabilityFloorTests
             null,
             null,
             navDb.GetRunways("KOAK"),
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Equal(defaultSize, waypoints.PatternSizeNm, 2);
@@ -124,7 +129,9 @@ public class PatternFlyabilityFloorTests
             null,
             null,
             navDb.GetRunways("KOAK"),
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Equal(floor, waypoints.PatternSizeNm, 2);
@@ -166,7 +173,9 @@ public class PatternFlyabilityFloorTests
             0.5,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         double baseExtNm = GeoMath.AlongTrackDistanceNm(

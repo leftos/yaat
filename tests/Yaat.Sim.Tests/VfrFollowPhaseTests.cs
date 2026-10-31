@@ -671,7 +671,9 @@ public class VfrFollowPhaseTests : IDisposable
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
             airportRunways: [runway],
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // Place follower 20 nm east of the runway threshold
@@ -712,7 +714,9 @@ public class VfrFollowPhaseTests : IDisposable
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
             airportRunways: [runway],
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // Place follower 1 nm further south of the downwind abeam point — within
@@ -762,7 +766,9 @@ public class VfrFollowPhaseTests : IDisposable
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
             airportRunways: [runway],
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // Left pattern for runway 28 → downwind is south of the runway.
@@ -862,7 +868,9 @@ public class VfrFollowPhaseTests : IDisposable
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
             airportRunways: [runway],
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // Place follower 0.5 nm past the abeam point along the downwind heading
@@ -938,7 +946,9 @@ public class VfrFollowPhaseTests : IDisposable
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
             airportRunways: [runway],
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         (double Lat, double Lon) followerPos = GeoMath.ProjectPoint(
@@ -1001,7 +1011,9 @@ public class VfrFollowPhaseTests : IDisposable
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
             airportRunways: [runway],
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         AircraftState ac = MakeVfrAircraft("BASE", "C172", waypoints.BaseTurnLat, waypoints.BaseTurnLon, 190, 1000, 90, onGround: false);
         var basePhase = new BasePhase { Waypoints = waypoints };

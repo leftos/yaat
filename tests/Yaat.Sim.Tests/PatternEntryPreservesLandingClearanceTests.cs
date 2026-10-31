@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -103,14 +104,30 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
 
         // First pattern entry after CLAND is correct (Landing), but it stamps a
         // pattern turn-direction onto the chain — the precondition for the bug.
-        CommandResult erb1 = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Right, PatternEntryLeg.Base, "28R", null);
+        CommandResult erb1 = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Right,
+            PatternEntryLeg.Base,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         Assert.True(erb1.Success, erb1.Message);
         Assert.IsType<LandingPhase>(Terminator(ac));
         Assert.NotNull(ac.Phases.TrafficDirection);
 
         // Second pattern entry must NOT downgrade the standing landing clearance
         // to a touch-and-go. (Fails before the fix: terminal is TouchAndGoPhase.)
-        CommandResult erb2 = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Right, PatternEntryLeg.Base, "28R", null);
+        CommandResult erb2 = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Right,
+            PatternEntryLeg.Base,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         Assert.True(erb2.Success, erb2.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases.LandingClearance);
 
@@ -135,7 +152,15 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
         Assert.True(tg.Success, tg.Message);
         Assert.Equal(ClearanceType.ClearedTouchAndGo, ac.Phases!.LandingClearance);
 
-        CommandResult erb = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Right, PatternEntryLeg.Base, "28R", null);
+        CommandResult erb = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Right,
+            PatternEntryLeg.Base,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true
+        );
         Assert.True(erb.Success, erb.Message);
 
         Phase? terminator = Terminator(ac);

@@ -215,7 +215,9 @@ public class DisplacedThresholdLandingTests
             null,
             null,
             null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         PatternWaypoints landingPattern = PatternGeometry.Compute(
             rwy,
@@ -226,7 +228,9 @@ public class DisplacedThresholdLandingTests
             null,
             null,
             null,
-            authored
+            authored,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         double thresholdMovedFt =

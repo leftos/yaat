@@ -7,6 +7,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -86,7 +87,9 @@ public class AdvisoryCandidateParityTests
                     null,
                     null,
                     null,
-                    authoredRunway: null
+                    authoredRunway: null,
+                    activeRunways: ActiveRunways.Empty,
+                    commanded: PatternCommanded.None
                 ),
             }
         );

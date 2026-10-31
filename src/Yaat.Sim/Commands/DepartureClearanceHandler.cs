@@ -114,7 +114,15 @@ internal static class DepartureClearanceHandler
             if (IsCircuitDeparture(cto.Departure) && aircraft.Phases.AssignedRunway is { } ctRunway)
             {
                 takeoffDesignator = ctRunway.Designator;
-                ApplyCircuitDeparture(cto.Departure, aircraft, aircraft.Phases, ctRunway, cto.AssignedAltitude, removeInitialClimb: true);
+                ApplyCircuitDeparture(
+                    cto.Departure,
+                    aircraft,
+                    aircraft.Phases,
+                    ctRunway,
+                    cto.AssignedAltitude,
+                    removeInitialClimb: true,
+                    activeRunways: ctx.ActiveRunways
+                );
             }
         }
 
@@ -158,7 +166,8 @@ internal static class DepartureClearanceHandler
             assignedAltitude,
             ctx.GroundLayout,
             taxiDispatch,
-            logger
+            logger,
+            ctx.ActiveRunways
         );
 
         // 7110.65 3-9-4: do not authorize LUAW when an aircraft holds a landing-family clearance
@@ -208,12 +217,13 @@ internal static class DepartureClearanceHandler
         int? assignedAltitude,
         AirportGroundLayout? groundLayout,
         GroundCommandHandler.TaxiDispatch taxiDispatch,
-        ILogger logger
+        ILogger logger,
+        ActiveRunways activeRunways
     )
     {
         if (currentPhase is HoldingShortPhase holding)
         {
-            return LineUpFromHoldShort(aircraft, holding, clearanceType, departure, assignedAltitude, taxiDispatch, logger);
+            return LineUpFromHoldShort(aircraft, holding, clearanceType, departure, assignedAltitude, taxiDispatch, logger, activeRunways);
         }
 
         // A crossing on the way to the route's destination runway is the same rolling situation as
@@ -228,7 +238,7 @@ internal static class DepartureClearanceHandler
         // Aircraft is lining up — CTO can pre-satisfy the upcoming LUAW phase
         if (currentPhase is LineUpPhase && clearanceType == ClearanceType.ClearedForTakeoff)
         {
-            return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, logger);
+            return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, logger, activeRunways);
         }
 
         // Re-issuing LUAW to an aircraft held mid-line-up (via HOLD) lifts the hold so the
@@ -243,7 +253,7 @@ internal static class DepartureClearanceHandler
         // A WARPG onto a gate or helipad parks the aircraft instead, and AtParkingPhase refuses both.
         if (currentPhase is HoldingInPositionPhase)
         {
-            return LineUpFromPosition(aircraft, clearanceType, departure, assignedAltitude, groundLayout, logger);
+            return LineUpFromPosition(aircraft, clearanceType, departure, assignedAltitude, groundLayout, logger, activeRunways);
         }
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
@@ -261,7 +271,8 @@ internal static class DepartureClearanceHandler
         DepartureInstruction departure,
         int? assignedAltitude,
         GroundCommandHandler.TaxiDispatch taxiDispatch,
-        ILogger logger
+        ILogger logger,
+        ActiveRunways activeRunways
     )
     {
         string? runwayId = holding.HoldShort.TargetName;
@@ -302,7 +313,15 @@ internal static class DepartureClearanceHandler
         // Set the assigned runway and insert tower phases
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Procedure.DepartureRunway = runway.Designator;
-        DepartureRouteResult? routeResult = InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, logger);
+        DepartureRouteResult? routeResult = InsertTowerPhasesAfterCurrent(
+            aircraft,
+            clearanceType,
+            departure,
+            assignedAltitude,
+            runway,
+            logger,
+            activeRunways
+        );
         SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude) with
@@ -508,7 +527,8 @@ internal static class DepartureClearanceHandler
         DepartureInstruction departure,
         int? assignedAltitude,
         AirportGroundLayout? groundLayout,
-        ILogger logger
+        ILogger logger,
+        ActiveRunways activeRunways
     )
     {
         if (aircraft.Phases?.AssignedRunway is not { } runway)
@@ -528,7 +548,15 @@ internal static class DepartureClearanceHandler
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.Procedure.DepartureRunway = runway.Designator;
-        DepartureRouteResult? routeResult = InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, logger);
+        DepartureRouteResult? routeResult = InsertTowerPhasesAfterCurrent(
+            aircraft,
+            clearanceType,
+            departure,
+            assignedAltitude,
+            runway,
+            logger,
+            activeRunways
+        );
         // No route to the room's active runways: this handler is not given the dispatch context.
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
@@ -670,7 +698,8 @@ internal static class DepartureClearanceHandler
         DepartureInstruction departure,
         int? assignedAltitude,
         RunwayInfo runway,
-        ILogger logger
+        ILogger logger,
+        ActiveRunways activeRunways
     )
     {
         DepartureRouteResult? routeResult = ResolveDepartureRoute(departure, aircraft);
@@ -750,7 +779,15 @@ internal static class DepartureClearanceHandler
 
             if (IsCircuitDeparture(departure))
             {
-                ApplyCircuitDeparture(departure, aircraft, aircraft.Phases!, runway, assignedAltitude, removeInitialClimb: false);
+                ApplyCircuitDeparture(
+                    departure,
+                    aircraft,
+                    aircraft.Phases!,
+                    runway,
+                    assignedAltitude,
+                    removeInitialClimb: false,
+                    activeRunways: activeRunways
+                );
             }
         }
 
@@ -769,7 +806,8 @@ internal static class DepartureClearanceHandler
         AircraftState aircraft,
         DepartureInstruction departure,
         int? assignedAltitude,
-        ILogger logger
+        ILogger logger,
+        ActiveRunways activeRunways
     )
     {
         PhaseList? phases = aircraft.Phases;
@@ -831,7 +869,7 @@ internal static class DepartureClearanceHandler
         string takeoffDesignator = phases.AssignedRunway?.Designator ?? "unknown";
         if (IsCircuitDeparture(departure) && phases.AssignedRunway is { } rwy)
         {
-            ApplyCircuitDeparture(departure, aircraft, phases, rwy, assignedAltitude, removeInitialClimb: true);
+            ApplyCircuitDeparture(departure, aircraft, phases, rwy, assignedAltitude, removeInitialClimb: true, activeRunways: activeRunways);
         }
 
         // Rolling-takeoff upgrade: if an active LineUpPhase exists and the
@@ -954,7 +992,8 @@ internal static class DepartureClearanceHandler
         AircraftState aircraft,
         PhaseList phases,
         RunwayInfo fallbackRunway,
-        bool removeInitialClimb
+        bool removeInitialClimb,
+        ActiveRunways activeRunways
     )
     {
         phases.TrafficDirection = ct.Direction;
@@ -1000,7 +1039,9 @@ internal static class DepartureClearanceHandler
                 altOv,
                 airportRunways,
                 aircraft.Ground.Layout?.FindRunway(fallbackRunway.Designator),
-                authoredPatternRunway
+                authoredPatternRunway,
+                activeRunways,
+                PatternCommanded.Of(aircraft)
             )
             : PatternBuilder.BuildCircuit(
                 patternRunway,
@@ -1014,10 +1055,13 @@ internal static class DepartureClearanceHandler
                 sizeOv,
                 altOv,
                 airportRunways,
-                authoredPatternRunway
+                authoredPatternRunway,
+                activeRunways,
+                PatternCommanded.Of(aircraft)
             );
 
         phases.Phases.AddRange(circuit);
+        aircraft.Pattern.NoteRunwayCrossing(circuit);
         phases.PatternRunway = patternRunway;
         // The pattern runway is re-armed here, so a transition an earlier option clearance armed, and the altitude it
         // deferred, are replaced.
@@ -1044,16 +1088,17 @@ internal static class DepartureClearanceHandler
         PhaseList phases,
         RunwayInfo fallbackRunway,
         int? assignedAltitude,
-        bool removeInitialClimb
+        bool removeInitialClimb,
+        ActiveRunways activeRunways
     )
     {
         switch (departure)
         {
             case ClosedTrafficDeparture ct:
-                ApplyClosedTraffic(ct, aircraft, phases, fallbackRunway, removeInitialClimb);
+                ApplyClosedTraffic(ct, aircraft, phases, fallbackRunway, removeInitialClimb, activeRunways: activeRunways);
                 break;
             case PatternExitDeparture ped:
-                ApplyPatternExitDeparture(ped, aircraft, phases, fallbackRunway, assignedAltitude, removeInitialClimb);
+                ApplyPatternExitDeparture(ped, aircraft, phases, fallbackRunway, assignedAltitude, removeInitialClimb, activeRunways: activeRunways);
                 break;
         }
     }
@@ -1071,7 +1116,8 @@ internal static class DepartureClearanceHandler
         PhaseList phases,
         RunwayInfo runway,
         int? assignedAltitude,
-        bool removeInitialClimb
+        bool removeInitialClimb,
+        ActiveRunways activeRunways
     )
     {
         phases.TrafficDirection = ped.Direction;
@@ -1105,7 +1151,9 @@ internal static class DepartureClearanceHandler
             sizeOv,
             altOv,
             airportRunways,
-            authoredRunway
+            authoredRunway,
+            activeRunways,
+            PatternCommanded.Of(aircraft)
         );
 
         phases.Phases.AddRange(circuit);

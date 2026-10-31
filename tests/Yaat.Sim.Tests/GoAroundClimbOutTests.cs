@@ -61,7 +61,9 @@ public class GoAroundClimbOutTests
             sizeOverrideNm: null,
             altitudeOverrideFt: null,
             airportRunways: null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
     // ---- ResolvePatternIntent -------------------------------------------------------------
@@ -368,7 +370,8 @@ public class GoAroundClimbOutTests
             aircraft,
             PatternDirection.Right,
             runwayId: "30",
-            altitudeOverride: null
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty
         );
 
         Assert.True(result.Success, result.Message);
@@ -399,7 +402,8 @@ public class GoAroundClimbOutTests
             aircraft,
             PatternDirection.Right,
             runwayId: "28R",
-            altitudeOverride: null
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty
         );
 
         Assert.True(result.Success, result.Message);
@@ -442,7 +446,8 @@ public class GoAroundClimbOutTests
             aircraft,
             PatternDirection.Right,
             runwayId: null,
-            altitudeOverride: null
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty
         );
 
         Assert.True(result.Success, result.Message);
@@ -480,7 +485,13 @@ public class GoAroundClimbOutTests
 
         GoAroundPhase goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
 
-        PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: null, altitudeOverride: null);
+        PatternCommandHandler.TryChangePatternDirection(
+            aircraft,
+            PatternDirection.Right,
+            runwayId: null,
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty
+        );
 
         Assert.Null(goAround.AssignedMagneticHeading);
         Assert.Equal(runway.TrueHeading.Degrees, aircraft.Targets.TargetTrueHeading?.Degrees ?? double.NaN, 3);
