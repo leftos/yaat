@@ -4,8 +4,8 @@ using LMKit.Model;
 using LMKit.Speech;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
-// LM-Kit nests DeviceConfiguration inside the LM class; we don't need it explicitly here (Whisper
-// models always use LM-Kit's auto-default device config), but the loading constructors take it.
+// LM-Kit nests DeviceConfiguration inside the LM class. A config that asks for a GPU layer count builds
+// one explicitly; one that leaves it null passes nothing and gets LM-Kit's auto-default device.
 using DeviceConfiguration = LMKit.Model.LM.DeviceConfiguration;
 
 namespace Yaat.Client.Services;
@@ -13,7 +13,7 @@ namespace Yaat.Client.Services;
 /// <summary>
 /// Minimal settings surface needed by <see cref="WhisperSttEngine"/> — mirrors
 /// <see cref="ILlmRuntimeConfig"/> so production code passes a <see cref="UserPreferences"/>-backed
-/// adapter while tools (e.g. the speech sandbox's <c>--eval --whisper</c> A/B mode) pass an
+/// adapter while tools (e.g. the speech sandbox's <c>--stt whisper:</c> engine) pass an
 /// explicit model source without touching the user's saved preferences.
 /// </summary>
 public interface IWhisperRuntimeConfig
@@ -23,6 +23,12 @@ public interface IWhisperRuntimeConfig
     /// to a ggml/GGUF <c>.bin</c>, or http(s) URI (downloaded on first load).
     /// </summary>
     string ModelSource { get; }
+
+    /// <summary>
+    /// How many Whisper layers run on the GPU: null lets LM-Kit pick the device (production), and 0 keeps
+    /// every layer on the CPU.
+    /// </summary>
+    int? GpuLayerCount { get; }
 }
 
 /// <summary>Adapter exposing a <see cref="UserPreferences"/> through <see cref="IWhisperRuntimeConfig"/>.</summary>
@@ -31,6 +37,8 @@ public sealed class PreferencesWhisperRuntimeConfig(UserPreferences preferences)
     private readonly UserPreferences _preferences = preferences;
 
     public string ModelSource => _preferences.WhisperModelSize;
+
+    public int? GpuLayerCount => null;
 }
 
 /// <summary>
@@ -269,10 +277,10 @@ public sealed class WhisperSttEngine(IWhisperRuntimeConfig config) : IDisposable
 
             // Source dispatch matches LocalLlmService: rooted file path → file constructor;
             // http/https URI → URI constructor (auto-downloads); bare string → LoadFromModelID
-            // (LM-Kit's curated catalog like "whisper-base", "whisper-medium"). Whisper
-            // models use LM-Kit's auto-default DeviceConfiguration (null) — there's no
-            // user-tunable layer count for STT, the engine picks based on available VRAM.
-            DeviceConfiguration? deviceConfig = null;
+            // (LM-Kit's curated catalog like "whisper-base", "whisper-medium"). A config with no
+            // layer count (production) hands LM-Kit a null DeviceConfiguration and the engine picks
+            // the device from available VRAM; a CPU run asks for zero GPU layers.
+            DeviceConfiguration? deviceConfig = (_config.GpuLayerCount is int layers) ? new DeviceConfiguration { GpuLayerCount = layers } : null;
             if (Path.IsPathRooted(source) && File.Exists(source))
             {
                 _model = new LM(source, deviceConfig, loadingOptions: null, loadingProgress: null);
@@ -338,6 +346,13 @@ public sealed class WhisperSttEngine(IWhisperRuntimeConfig config) : IDisposable
 }
 
 /// <summary>
+/// PCM samples decoded from a WAV file, together with the sample rate its header declares. The
+/// samples are exactly as stored; the caller decides whether they must be resampled for a 16 kHz
+/// consumer.
+/// </summary>
+public readonly record struct Pcm16Audio(float[] Samples, int SampleRate);
+
+/// <summary>
 /// Writes a minimal 44-byte RIFF/WAV header followed by 16-bit signed little-endian PCM samples
 /// into a <see cref="MemoryStream"/>. Used by <see cref="WhisperSttEngine"/> to hand captured
 /// PortAudio Float32 samples to LM-Kit via <see cref="LMKit.Media.Audio.WaveFile"/>.
@@ -347,7 +362,7 @@ public sealed class WhisperSttEngine(IWhisperRuntimeConfig config) : IDisposable
 /// matches what whisper.cpp's own ffmpeg helper produces, so the conversion cost (one multiply +
 /// clamp per sample) is negligible relative to inference and avoids any disk IO on the hot path.
 /// </summary>
-internal static class WavHeader
+public static class WavHeader
 {
     public static MemoryStream WritePcm16(float[] samples, int sampleRate)
     {
@@ -401,19 +416,40 @@ internal static class WavHeader
     /// a third-party audio library. Throws <see cref="InvalidDataException"/> if the file isn't
     /// a recognizable PCM mono WAV.
     /// </summary>
-    public static float[] ReadPcm16(string path)
+    public static float[] ReadPcm16(string path) => ReadPcm16WithRate(path).Samples;
+
+    /// <summary>
+    /// Reads a RIFF/WAV file from <paramref name="path"/> and returns its samples together with the
+    /// sample rate its <c>fmt </c> chunk declares.
+    /// </summary>
+    public static Pcm16Audio ReadPcm16WithRate(string path)
     {
         using FileStream fs = File.OpenRead(path);
-        using var reader = new BinaryReader(fs, Encoding.ASCII, leaveOpen: false);
+        return ReadPcm16Core(fs, path);
+    }
+
+    /// <summary>
+    /// Reads a complete RIFF/WAV file already in memory. <paramref name="sourceName"/> names the input
+    /// in every exception message, since there is no path to report.
+    /// </summary>
+    public static Pcm16Audio ReadPcm16WithRate(byte[] wav, string sourceName)
+    {
+        using var stream = new MemoryStream(wav, writable: false);
+        return ReadPcm16Core(stream, sourceName);
+    }
+
+    private static Pcm16Audio ReadPcm16Core(Stream stream, string sourceName)
+    {
+        using var reader = new BinaryReader(stream, Encoding.ASCII, leaveOpen: true);
 
         if (Encoding.ASCII.GetString(reader.ReadBytes(4)) != "RIFF")
         {
-            throw new InvalidDataException($"Not a RIFF file: {path}");
+            throw new InvalidDataException($"Not a RIFF file: {sourceName}");
         }
         _ = reader.ReadInt32(); // total chunk size — we don't trust it, just read until EOF
         if (Encoding.ASCII.GetString(reader.ReadBytes(4)) != "WAVE")
         {
-            throw new InvalidDataException($"Not a WAVE file: {path}");
+            throw new InvalidDataException($"Not a WAVE file: {sourceName}");
         }
 
         // Walk subchunks until we find both fmt and data. Real-world WAVs sometimes have extra
@@ -421,9 +457,10 @@ internal static class WavHeader
         ushort channels = 0;
         ushort bitsPerSample = 0;
         ushort formatTag = 0;
+        int sampleRate = 0;
         byte[]? pcmBytes = null;
 
-        while (fs.Position < fs.Length - 8)
+        while (stream.Position < stream.Length - 8)
         {
             string chunkId = Encoding.ASCII.GetString(reader.ReadBytes(4));
             int chunkSize = reader.ReadInt32();
@@ -431,14 +468,14 @@ internal static class WavHeader
             {
                 formatTag = reader.ReadUInt16();
                 channels = reader.ReadUInt16();
-                _ = reader.ReadInt32(); // sample rate
+                sampleRate = reader.ReadInt32();
                 _ = reader.ReadInt32(); // byte rate
                 _ = reader.ReadUInt16(); // block align
                 bitsPerSample = reader.ReadUInt16();
                 // Skip any extra fmt bytes (extensible WAVs).
                 if (chunkSize > 16)
                 {
-                    fs.Seek(chunkSize - 16, SeekOrigin.Current);
+                    stream.Seek(chunkSize - 16, SeekOrigin.Current);
                 }
             }
             else if (chunkId == "data")
@@ -448,17 +485,19 @@ internal static class WavHeader
             else
             {
                 // Unknown chunk — skip it. Chunks are word-aligned, so round up odd sizes.
-                fs.Seek(chunkSize + (chunkSize & 1), SeekOrigin.Current);
+                stream.Seek(chunkSize + (chunkSize & 1), SeekOrigin.Current);
             }
         }
 
         if (pcmBytes is null || formatTag == 0)
         {
-            throw new InvalidDataException($"WAV is missing fmt or data chunk: {path}");
+            throw new InvalidDataException($"WAV is missing fmt or data chunk: {sourceName}");
         }
         if (formatTag != 1 || channels != 1 || bitsPerSample != 16)
         {
-            throw new InvalidDataException($"WAV must be PCM mono 16-bit, got format={formatTag} channels={channels} bits={bitsPerSample}: {path}");
+            throw new InvalidDataException(
+                $"WAV must be PCM mono 16-bit, got format={formatTag} channels={channels} bits={bitsPerSample}: {sourceName}"
+            );
         }
 
         int sampleCount = pcmBytes.Length / sizeof(short);
@@ -472,6 +511,6 @@ internal static class WavHeader
             short value = (short)((hi << 8) | lo);
             samples[i] = value / (float)short.MaxValue;
         }
-        return samples;
+        return new Pcm16Audio(samples, sampleRate);
     }
 }

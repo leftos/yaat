@@ -120,6 +120,21 @@ public class AtcNumberParserTests
     public void NormalizeDigits_ThousandBoundary_OnlyWordPairsJoinTheNumber(string input, string expected) =>
         Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
 
+    [Theory]
+    // A garbled or stepped-on transmission can carry a digit run longer than any number a
+    // controller says. Normalization keeps the digits as spoken and never throws or wraps.
+    [InlineData("altimator two nine eight six two nine eight six eight nine five juliett juliett", "altimator 29862986895 juliett juliett")]
+    [InlineData("nine eight seven six five four three two one zero", "9876543210")]
+    [InlineData("one two three four five six seven eight nine zero thousand", "1234567890 thousand")]
+    [InlineData("one two three four five six seven eight nine thousand", "123456789000")]
+    [InlineData("five thousand one two three four five six seven eight nine zero hundred", "5000 1234567890 hundred")]
+    [InlineData("one twenty three forty five sixty seven eighty nine twenty one", "12345678921")]
+    // A flight level is at most three digits; the rest of the run is a number of its own.
+    [InlineData("flight level three five zero two five zero", "35000 250")]
+    [InlineData("flight level one two three four five six seven eight nine zero", "12300 4567890")]
+    public void NormalizeDigits_LongDigitRun_KeepsTheDigits(string input, string expected) =>
+        Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
+
     // --- NormalizeDigits: paired-cardinal flight-number coalescing ---
     //
     // Inverse of FlightNumberToPairedWords. The pre-fix parser treated each spoken compound as

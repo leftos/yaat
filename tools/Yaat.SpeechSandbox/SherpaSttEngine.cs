@@ -7,19 +7,20 @@ namespace Yaat.SpeechSandbox;
 /// <summary>
 /// Offline STT probe engine backed by sherpa-onnx's <see cref="OfflineRecognizer"/> with a
 /// NeMo transducer export — built for evaluating NVIDIA Parakeet-TDT against the Whisper
-/// production path (<c>--eval --parakeet &lt;model-dir&gt;</c> / <c>--sherpa-stt</c>).
+/// production path (<c>--eval --stt sherpa:&lt;dir&gt;</c> / <c>--corpus-wer --stt sherpa:&lt;dir&gt;</c>).
 /// Sandbox-only for now: promotion into Yaat.Client happens only if eval results justify a
 /// second production STT engine.
 ///
 /// The model directory must contain a sherpa-onnx NeMo transducer export
 /// (e.g. <c>csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8</c>):
 /// <c>encoder[.int8].onnx</c>, <c>decoder[.int8].onnx</c>, <c>joiner[.int8].onnx</c>,
-/// <c>tokens.txt</c>. Runs on CPU via the same sherpa-onnx native the Piper TTS path already
-/// ships. Decoding is greedy; hotword biasing needs <c>modified_beam_search</c> plus the BPE
+/// <c>tokens.txt</c>. Runs on the sherpa-onnx execution <paramref name="provider"/> — <c>cpu</c> with
+/// the native the Piper TTS path already ships, or <c>cuda</c> when the CUDA build's DLLs are in place.
+/// Decoding is greedy; hotword biasing needs <c>modified_beam_search</c> plus the BPE
 /// vocab file, which the published int8 export does not include — regenerate it from the NeMo
 /// tokenizer before wiring hotwords.
 /// </summary>
-internal sealed class SherpaSttEngine(string modelDir) : IDisposable
+internal sealed class SherpaSttEngine(string modelDir, string provider) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaSttEngine>();
 
@@ -85,11 +86,11 @@ internal sealed class SherpaSttEngine(string modelDir) : IDisposable
         config.ModelConfig.Tokens = tokens;
         config.ModelConfig.ModelType = "nemo_transducer";
         config.ModelConfig.NumThreads = Math.Clamp(Environment.ProcessorCount / 2, 2, 8);
-        config.ModelConfig.Provider = "cpu";
+        config.ModelConfig.Provider = provider;
         config.DecodingMethod = "greedy_search";
 
         _recognizer = new OfflineRecognizer(config);
-        Log.LogInformation("sherpa-onnx NeMo transducer loaded from {Dir}", _modelDir);
+        Log.LogInformation("sherpa-onnx NeMo transducer loaded from {Dir} on {Provider}", _modelDir, provider);
         return _recognizer;
     }
 

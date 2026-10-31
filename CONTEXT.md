@@ -1013,6 +1013,9 @@ A pushback that ends farther than the aircraft's own lead-in line, typically acr
 **West end** (SFO):
 Taxiway Z from C to Z2, past the departure ends of runways 28, which a taxi route from the north field to runways 1 follows; Local owns it when landing the 10s, departing the 28s or when given, and Ground requests it by count ("once around the west end") (SFO ATCT SOP 3-1.a.vi; `sfo-video-lessons.md` S10).
 
+**Corpus WER**:
+The word error rate of the STT stage alone over a set of real recordings, pooled over every reference word (total substitutions, deletions and insertions divided by total reference words), not averaged per clip (`--corpus-wer`, docs/speech-recognition-pipeline.md).
+
 **Node id**:
 The pipe host's stable id for a window, popup or element, issued by its `NodeRegistry` and kept for as long as the element lives, so a driver can name the same element across calls.
 
@@ -1027,6 +1030,9 @@ The cheap first phase of `--tts-bench`: 3 readback lines, 1 voice, at 8, 4 and 2
 
 **Speech telemetry**:
 Push-to-talk samples (audio, per-stage transcripts, scenario context) that opted-in users' clients upload to the official yaat-server, which stores them for developers to pull with `tools/speech_telemetry.py` (docs/speech-recognition-pipeline.md).
+
+**WER** (word error rate):
+The edits (substituted, deleted and inserted words) a transcript needs to match its reference, divided by the reference's word count, after both pass through `WerTextNormalizer` (`WerScorer`).
 
 ## Bug report privacy
 
