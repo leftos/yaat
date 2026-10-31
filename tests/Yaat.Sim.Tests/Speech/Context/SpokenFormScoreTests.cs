@@ -45,4 +45,30 @@ public class SpokenFormScoreTests
         // Name part exact (1), code part 3 of 4 aligned tokens match (0.75), product with the prior.
         Assert.Equal(0.75 * 0.9, SpokenFormScore.ScoreSpan(heard, form, 0.9, MatchMode.Fuzzy, Settings), 6);
     }
+
+    [Fact]
+    public void NatoNearMiss_LeemaAlignsWithLima()
+    {
+        double score = Score("november 8 2 9 8 leema", "november 8 2 9 8 lima");
+        Assert.True(score >= Settings.CallsignAccept, $"score {score} below CallsignAccept {Settings.CallsignAccept}");
+    }
+
+    [Fact]
+    public void Discriminator_LeftNotRight() => Assert.Equal(0.0, Score("ils runway 2 8 left approach", "ils runway 2 8 right approach"));
+
+    [Fact]
+    public void LiteralWord_NotFuzzed() => Assert.Equal(0.0, Score("say", "sahey"));
+
+    [Fact]
+    public void Facility_NotFuzzed() => Assert.Equal(0.0, Score("san francisco tower", "san francisco vor"));
+
+    [Fact]
+    public void Kizer_StillMatches()
+    {
+        double score = Score("kizer", "kaiser");
+        Assert.True(score >= Settings.EntityAcceptName, $"score {score} below EntityAcceptName {Settings.EntityAcceptName}");
+    }
+
+    private static double Score(string heard, string form) =>
+        SpokenFormScore.ScoreSpan(SpokenTokenizer.Tokenize(heard), SpokenTokenizer.Tokenize(form), 1.0, MatchMode.Fuzzy, Settings);
 }

@@ -367,6 +367,10 @@ depend on LM-Kit and PortAudio native libraries.
   Earlier Qwen3.5 4B models couldn't make the EOG-vs-invent decision
   correctly.
 
+## Context-Layer Decoder
+
+`src/Yaat.Sim/Speech/Context/` reads one transmission against its closed set: the room's aircraft and the airport's entities, each with its spoken forms. `ContextDecoder.Decode` returns the addressed callsign, the entities around it and a rewritten transcript, or a say-again with its best guess. It is measured in the sandbox and is not yet wired into `SpeechRecognitionService`. Rules and rulings: [`plans/yaat-343-context-layer.md`](./plans/yaat-343-context-layer.md).
+
 ## Orchestration — `SpeechRecognitionService`
 
 - `src/Yaat.Client/Services/SpeechRecognitionService.cs` — pure service

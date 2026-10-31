@@ -629,6 +629,23 @@ The aviation floor for a rule's variant rows, checked by value rather than by re
 **Variant row**:
 One alternative spoken wording of a rule's readback, a template over the rule pattern's own `{capture}` placeholders listed under a load band in the rule's `PilotVariantSet` (`PilotVariant`, `PhraseologyRule.PilotVariants`); a Varied pilot's seeded pick chooses among the band's renderable rows (docs/solo-training-pilot-speech.md).
 
+## Speech decoding
+
+**Bare form**:
+A runway, taxiway or gate spoken form that does not start with its noun ("three zero", "whiskey four"); the context decoder accepts one only after a lead-in word, since a bare number or NATO word usually means something else (docs/plans/yaat-343-context-layer.md).
+
+**Leading candidate**:
+A callsign candidate whose span starts within the first tokens of a transmission and scores at least the say-again floor; when any candidate leads, no trailing one can be the addressee (`ContextDecoder`).
+
+**Opener**:
+A word a prefixless callsign may directly follow ("tower", "roger", "correction"), listed in `ContextPhraseWords.Openers`.
+
+**Prefixless form**:
+A callsign spoken form without its telephony or "november": a flight number alone or a GA last three. It takes the address only at the start of a transmission or after an opener; every other callsign form is a **prefixed form**.
+
+**Traffic lead-in**:
+A word showing that the callsign after it is traffic and not the addressee ("follow", "behind"), listed in `ContextPhraseWords.TrafficLeadIns`.
+
 ## Live traffic
 
 **Shadow**:

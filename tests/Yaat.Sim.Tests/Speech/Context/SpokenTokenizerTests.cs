@@ -127,6 +127,17 @@ public class SpokenTokenizerTests
     [Fact]
     public void Fillers() => Assert.Equal(["southwest", "5"], SpokenTokenizer.Tokenize("uh southwest um five").Select(t => t.Text));
 
+    [Fact]
+    public void LetterRun_RecordsSourceWordEnd()
+    {
+        IReadOnlyList<SpokenToken> tokens = SpokenTokenizer.Tokenize("abeam k i z e r now");
+
+        Assert.Equal(3, tokens.Count);
+        Assert.Equal(("kizer", 1, 6), (tokens[1].Text, tokens[1].SourceWord, tokens[1].SourceWordEnd));
+        Assert.Equal((0, 1), (tokens[0].SourceWord, tokens[0].SourceWordEnd));
+        Assert.Equal((6, 7), (tokens[2].SourceWord, tokens[2].SourceWordEnd));
+    }
+
     private static void AssertTokens(string transcript, params (string Text, TokenKind Kind, int SourceWord)[] expected)
     {
         IReadOnlyList<SpokenToken> tokens = SpokenTokenizer.Tokenize(transcript);
