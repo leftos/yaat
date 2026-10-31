@@ -142,12 +142,12 @@ All Commands
       Mile final — ···
       Passing a fix — ···
       Reporting points · nearest first [disabled]
+      SLMARINA · 0.6 NM · 225° — REPORT SLMARINA
       VPBCQ · 0.7 NM · 281° — REPORT VPBCQ
       OAK30NUM · 1.7 NM · 262° — REPORT OAK30NUM
       VPBCR · 2.2 NM · 182° — REPORT VPBCR
       VPBEH · 3.2 NM · 226° — REPORT VPBEH
       VPCOL · 3.2 NM · 332° — REPORT VPCOL
-      VPCBT · 3.5 NM · 048° — REPORT VPCBT
     ---
     Ask pilot to say…
       Altitude

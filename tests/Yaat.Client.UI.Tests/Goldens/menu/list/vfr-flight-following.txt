@@ -138,7 +138,7 @@ All Commands
       VPBCK · 8.6 NM · 218° — REPORT VPBCK
       VPSSR · 8.8 NM · 267° — REPORT VPSSR
       VPCQZ · 8.9 NM · 029° — REPORT VPCQZ
-      VPBCD · 9.9 NM · 100° — REPORT VPBCD
+      BAYBRIDGE · 9.2 NM · 175° — REPORT BAYBRIDGE
     ---
     Ask pilot to say…
       Altitude
