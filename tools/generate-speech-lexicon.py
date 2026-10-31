@@ -9,6 +9,8 @@ procedures, its SIDs and STARs, lettered layout gates and spots, named ground pl
 the spoken forms already registered. `generate` asks Claude how controllers and pilots say each one on the radio,
 `review` serves a local page where every proposal is accepted, edited or rejected, and `apply` merges the accepted
 ones into the ARTCC's data files (FixPronunciations, ProcedurePronunciations, GatePronunciations, CustomFixes).
+`apply` reads the inputs.json in --dir, skips a fix that is a navaid, an airport or a landmark alias (those already
+have spoken names), and marks every fix entry it creates `"generated": true`.
 
 The API key is read from ANTHROPIC_API_KEY only; it is never printed, logged or written. `generate` writes
 candidates.json after every batch; run again, it skips the batches already recorded there (`--fresh` starts over).
@@ -801,7 +803,18 @@ def fixes_in_other_files(directory: Path, target: Path) -> dict[str, str]:
     return taken
 
 
-def apply_fixes(artcc_dir: Path, faa: str, pairs: list[tuple[dict[str, Any], dict[str, Any]]]) -> None:
+def named_elsewhere(record: dict[str, Any]) -> str | None:
+    """What already gives a fix its spoken name (a navaid or airport from navdata, a landmark alias), else None."""
+    if record.get("navaidName"):
+        return f"a navaid ({record['navaidName']})"
+    if record.get("isAirport"):
+        return "an airport"
+    if record.get("isLandmark"):
+        return "a landmark alias"
+    return None
+
+
+def apply_fixes(artcc_dir: Path, faa: str, pairs: list[tuple[dict[str, Any], dict[str, Any]]], fix_records: dict[str, dict[str, Any]]) -> None:
     directory = artcc_dir / "FixPronunciations"
     target = directory / f"{faa.lower()}-generated.json"
     taken = fixes_in_other_files(directory, target)
@@ -812,7 +825,10 @@ def apply_fixes(artcc_dir: Path, faa: str, pairs: list[tuple[dict[str, Any], dic
         if fix in taken:
             print(f"skipped fix {fix}: already in FixPronunciations/{taken[fix]}")
             continue
-        entry, created = upsert(entries, "fix", fix, {"fix": fix, "pronunciations": []})
+        if (named := named_elsewhere(fix_records.get(fix, {}))) is not None:
+            print(f"skipped fix {fix}: {named} already has its spoken name")
+            continue
+        entry, created = upsert(entries, "fix", fix, {"fix": fix, "pronunciations": [], "generated": True})
         append_unique(entry["pronunciations"], forms_of(item, decision, "pronunciations"))
         display_name = str(decision.get("displayName") or "").strip()
         if display_name and "displayName" not in entry:
@@ -918,6 +934,10 @@ def cmd_apply(args: argparse.Namespace) -> int:
         raise LexiconError(f"{decisions_path} not found; review the candidates and Save first", 2)
     if not candidates_path.is_file():
         raise LexiconError(f"{candidates_path} not found; run generate first", 2)
+    inputs_path = root / "inputs.json"
+    if not inputs_path.is_file():
+        raise LexiconError(f"{inputs_path} not found; write the sandbox's --lexicon-inputs dump there first", 2)
+    fix_records = {str(record["id"]).upper(): record for record in read_json(inputs_path).get("fixes", [])}
     candidates = read_json(candidates_path)
     accepted = accepted_items(candidates, read_json(decisions_path))
     artcc_dir = Path(args.repo) / "src" / "Yaat.Sim" / "Data" / "ARTCCs" / args.artcc
@@ -925,7 +945,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
         raise LexiconError(f"{artcc_dir} not found; check --repo and --artcc", 2)
     airport = str(candidates["airport"]).upper()
     faa = faa_code(airport)
-    apply_fixes(artcc_dir, faa, accepted["fixes"])
+    apply_fixes(artcc_dir, faa, accepted["fixes"], fix_records)
     apply_procedures(artcc_dir, args.artcc, accepted["procedures"])
     apply_ground(artcc_dir, airport, accepted, layout_stands(root, candidates))
     apply_landmarks(artcc_dir, faa, accepted["landmarks"])

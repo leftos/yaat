@@ -1,15 +1,57 @@
 [
   {
     "name": "Oakland Runway 30 Numbers",
-    "aliases": ["OAK30NUM"],
+    "aliases": [
+      "OAK30NUM"
+    ],
     "spokenPatterns": [
       "runway 30 numbers",
       "the runway 30 numbers",
       "oakland runway 30 numbers",
       "the oakland runway 30 numbers",
-      "30 numbers"
+      "30 numbers",
+      "the numbers for runway 30"
     ],
     "lat": 37.70208081559119,
     "lon": -122.2152109537947
+  },
+  {
+    "name": "San Leandro Marina",
+    "aliases": [
+      "SLMARINA"
+    ],
+    "spokenPatterns": [
+      "san leandro marina",
+      "the san leandro marina",
+      "over the san leandro marina"
+    ],
+    "lat": 37.6948,
+    "lon": -122.1906
+  },
+  {
+    "name": "Oakland California Temple",
+    "aliases": [
+      "MORMONTEMPLE"
+    ],
+    "spokenPatterns": [
+      "mormon temple",
+      "the mormon temple",
+      "oakland temple"
+    ],
+    "lat": 37.8063,
+    "lon": -122.198
+  },
+  {
+    "name": "San Francisco-Oakland Bay Bridge",
+    "aliases": [
+      "BAYBRIDGE"
+    ],
+    "spokenPatterns": [
+      "bay bridge",
+      "the bay bridge",
+      "over the bay bridge"
+    ],
+    "lat": 37.7983,
+    "lon": -122.3778
   }
 ]

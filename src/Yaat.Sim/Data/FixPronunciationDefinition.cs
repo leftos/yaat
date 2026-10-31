@@ -32,4 +32,11 @@ public sealed class FixPronunciationDefinition
 
     [JsonPropertyName("displayName")]
     public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// True for an entry <c>tools/generate-speech-lexicon.py apply</c> wrote from a model proposal. Its one-word forms stay
+    /// TTS and speech-to-text context forms but are not transcript collapse patterns; its multi-word forms collapse as usual.
+    /// </summary>
+    [JsonPropertyName("generated")]
+    public bool Generated { get; set; }
 }

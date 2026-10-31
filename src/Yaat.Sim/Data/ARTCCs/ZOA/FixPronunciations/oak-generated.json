@@ -1,0 +1,751 @@
+[
+  {
+    "fix": "AAAME",
+    "pronunciations": [
+      "aim"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "ADDMM",
+    "pronunciations": [
+      "adam"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "ALLXX",
+    "pronunciations": [
+      "alex"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "ALMDN",
+    "pronunciations": [
+      "almaden"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "ARGGG",
+    "pronunciations": [
+      "arg"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "ARRTU",
+    "pronunciations": [
+      "artoo"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "AXXXX",
+    "pronunciations": [
+      "ax"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BAAHH",
+    "pronunciations": [
+      "baa"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BANND",
+    "pronunciations": [
+      "band"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BARTN",
+    "pronunciations": [
+      "barton"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BBUBB",
+    "pronunciations": [
+      "bub",
+      "bubba"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BDEGA",
+    "pronunciations": [
+      "bodega"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BLURZ",
+    "pronunciations": [
+      "blurs"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BMBOO",
+    "pronunciations": [
+      "bamboo"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BMRNG",
+    "pronunciations": [
+      "boomerang"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BOLDR",
+    "pronunciations": [
+      "boulder"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BOYYS",
+    "pronunciations": [
+      "boys"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "CHSTR",
+    "pronunciations": [
+      "chester"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "CIITY",
+    "pronunciations": [
+      "city"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "CNDEL",
+    "pronunciations": [
+      "candle"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "COGGR",
+    "pronunciations": [
+      "cogger"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "CORDD",
+    "pronunciations": [
+      "cord"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "CORKK",
+    "pronunciations": [
+      "cork"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "COSMC",
+    "pronunciations": [
+      "cosmic"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "CRTER",
+    "pronunciations": [
+      "crater"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "CUKOO",
+    "pronunciations": [
+      "cuckoo"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "CYMBL",
+    "pronunciations": [
+      "cymbal",
+      "symbol"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "CYPRS",
+    "pronunciations": [
+      "cypress"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "DEDHD",
+    "pronunciations": [
+      "deadhead"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "DOKKS",
+    "pronunciations": [
+      "docks"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "DOTTR",
+    "pronunciations": [
+      "dotter"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "EDDYY",
+    "pronunciations": [
+      "eddy"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "EDMND",
+    "pronunciations": [
+      "edmund"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "EMAAA",
+    "pronunciations": [
+      "emma"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "EUGEN",
+    "pronunciations": [
+      "eugene"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "FATHM",
+    "pronunciations": [
+      "fathom"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "FAWNE",
+    "pronunciations": [
+      "fawn"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "FERNE",
+    "pronunciations": [
+      "fern"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "FFIST",
+    "pronunciations": [
+      "fist"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "FFOIL",
+    "pronunciations": [
+      "foil"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "FLEAT",
+    "pronunciations": [
+      "fleet"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "FRELY",
+    "pronunciations": [
+      "freely"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "GAARY",
+    "pronunciations": [
+      "gary"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "GAYNS",
+    "pronunciations": [
+      "gains"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "GGUGL",
+    "pronunciations": [
+      "google"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "GRRIF",
+    "pronunciations": [
+      "griff"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "GRTFL",
+    "pronunciations": [
+      "grateful"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "GRUDG",
+    "pronunciations": [
+      "grudge"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "HUBRT",
+    "pronunciations": [
+      "hubert"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "JANYY",
+    "pronunciations": [
+      "janey"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "KARNN",
+    "pronunciations": [
+      "karen"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "KATFH",
+    "pronunciations": [
+      "catfish"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "KEENR",
+    "pronunciations": [
+      "keener"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "KEPLR",
+    "pronunciations": [
+      "kepler"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "KIKRR",
+    "pronunciations": [
+      "kicker"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "KLARK",
+    "pronunciations": [
+      "clark"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "KRLOS",
+    "pronunciations": [
+      "carlos"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "LIZRD",
+    "pronunciations": [
+      "lizard"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "LOHGN",
+    "pronunciations": [
+      "logan"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "MAAYS",
+    "pronunciations": [
+      "mays"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "MCOVY",
+    "pronunciations": [
+      "mccovey"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "MLPTS",
+    "pronunciations": [
+      "milpitas"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "MMOSA",
+    "pronunciations": [
+      "mimosa"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "MVRKK",
+    "pronunciations": [
+      "maverick"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "MYSHN",
+    "pronunciations": [
+      "my shin",
+      "myshin"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "NIITE",
+    "pronunciations": [
+      "night"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "NORCL",
+    "pronunciations": [
+      "norcal"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "NTFLX",
+    "pronunciations": [
+      "netflix"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "ORRCA",
+    "pronunciations": [
+      "orca"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "PDROW",
+    "pronunciations": [
+      "pedro"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "PIRAT",
+    "pronunciations": [
+      "pirate"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "PLLAR",
+    "pronunciations": [
+      "pillar"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "POYSN",
+    "pronunciations": [
+      "poison"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "PRFCT",
+    "pronunciations": [
+      "perfect"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "PRTLA",
+    "pronunciations": [
+      "portola"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "RAIDR",
+    "pronunciations": [
+      "raider"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "ROOAR",
+    "pronunciations": [
+      "roar"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SHNGL",
+    "pronunciations": [
+      "shingle"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SHRRP",
+    "pronunciations": [
+      "sharp"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SKIZM",
+    "pronunciations": [
+      "schism",
+      "skism"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SKYLN",
+    "pronunciations": [
+      "skyline"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SNOMA",
+    "pronunciations": [
+      "sonoma"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SNTNA",
+    "pronunciations": [
+      "santana"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SPTNS",
+    "pronunciations": [
+      "spartans"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SQIRL",
+    "pronunciations": [
+      "squirrel"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SRENA",
+    "pronunciations": [
+      "serena"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "STCLR",
+    "pronunciations": [
+      "santa clara"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "STEEV",
+    "pronunciations": [
+      "steve"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "STINS",
+    "pronunciations": [
+      "stinson",
+      "stins"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SUNNE",
+    "pronunciations": [
+      "sunny"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "TAMMM",
+    "pronunciations": [
+      "tam"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "THHEO",
+    "pronunciations": [
+      "theo"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "TOOOL",
+    "pronunciations": [
+      "tool"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "TRUKN",
+    "pronunciations": [
+      "truckin",
+      "trucking"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "TYDYE",
+    "pronunciations": [
+      "tie dye"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "UTOOB",
+    "pronunciations": [
+      "youtube",
+      "you tube"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "VNYRD",
+    "pronunciations": [
+      "vineyard"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "WDSTC",
+    "pronunciations": [
+      "woodstock"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "WEBRR",
+    "pronunciations": [
+      "webber"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "WNDML",
+    "pronunciations": [
+      "windmill"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "WNDSR",
+    "pronunciations": [
+      "windsor"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "WPOUT",
+    "pronunciations": [
+      "wipeout"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "XATTU",
+    "pronunciations": [
+      "zattoo"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "YYUNG",
+    "pronunciations": [
+      "young"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "ZINNN",
+    "pronunciations": [
+      "zin"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "ZUCKR",
+    "pronunciations": [
+      "zucker"
+    ],
+    "generated": true
+  }
+]

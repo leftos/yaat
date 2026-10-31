@@ -2722,9 +2722,11 @@ public sealed class NavigationDatabase
                 // Each pronunciation also collapses in spoken transcripts to the fix identifier, so a
                 // landmark advisory like "traffic over the oakland coliseum" resolves VPCOL even though
                 // the fix isn't on any aircraft's route. Mirrors the custom-fix spokenPatterns pre-pass.
+                // A generated one-word form ("city") is too likely an ordinary word to swallow from a transcript.
                 string normalized = Speech.AtcNumberParser.NormalizeDigits(pronunciation).ToLowerInvariant();
                 string[] tokens = normalized.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (tokens.Length > 0)
+                int minimumTokens = def.Generated ? 2 : 1;
+                if (tokens.Length >= minimumTokens)
                 {
                     _customFixSpeechPatterns.Add(new Speech.CustomFixSpeechPattern(tokens, def.Fix));
                 }

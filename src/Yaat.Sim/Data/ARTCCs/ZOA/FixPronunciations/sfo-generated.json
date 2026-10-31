@@ -1,0 +1,238 @@
+[
+  {
+    "fix": "ALWYS",
+    "pronunciations": [
+      "always"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "ARCHI",
+    "pronunciations": [
+      "archie"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "BRRZI",
+    "pronunciations": [
+      "breezy"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "CARME",
+    "pronunciations": [
+      "carmel"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "EPICK",
+    "pronunciations": [
+      "epic"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "FLOWZ",
+    "pronunciations": [
+      "flows"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "GNNRR",
+    "pronunciations": [
+      "gunner",
+      "gunner 3"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "HUSSH",
+    "pronunciations": [
+      "hush"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "INYOE",
+    "pronunciations": [
+      "inyo"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "LAANE",
+    "pronunciations": [
+      "lane"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "LEGGS",
+    "pronunciations": [
+      "legs"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "MLBEC",
+    "pronunciations": [
+      "malbec"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "MNTNA",
+    "pronunciations": [
+      "montana"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "MRRLO",
+    "pronunciations": [
+      "merlot"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "MSCAT",
+    "pronunciations": [
+      "muscat"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "NORMM",
+    "pronunciations": [
+      "norm"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "NTELL",
+    "pronunciations": [
+      "intel"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "PASIF",
+    "pronunciations": [
+      "pacific"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "PPEGS",
+    "pronunciations": [
+      "pegs"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SAHEY",
+    "pronunciations": [
+      "say hey"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SEGUL",
+    "pronunciations": [
+      "seagull"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SERFR",
+    "pronunciations": [
+      "surfer"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "SNORA",
+    "pronunciations": [
+      "sonora"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "URRSA",
+    "pronunciations": [
+      "ursa"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "VPCAL",
+    "pronunciations": [
+      "calaveras reservoir",
+      "calaveras"
+    ],
+    "generated": true,
+    "displayName": "Calaveras Reservoir"
+  },
+  {
+    "fix": "VPDSH",
+    "pronunciations": [
+      "stanford dish",
+      "the dish"
+    ],
+    "generated": true,
+    "displayName": "Stanford Dish"
+  },
+  {
+    "fix": "VPDUB",
+    "pronunciations": [
+      "dublin",
+      "dublin interchange"
+    ],
+    "generated": true,
+    "displayName": "Dublin"
+  },
+  {
+    "fix": "VPGGF",
+    "pronunciations": [
+      "golden gate fields"
+    ],
+    "generated": true,
+    "displayName": "Golden Gate Fields"
+  },
+  {
+    "fix": "VPLEX",
+    "pronunciations": [
+      "lexington reservoir",
+      "lexington"
+    ],
+    "generated": true,
+    "displayName": "Lexington Reservoir"
+  },
+  {
+    "fix": "VPOYS",
+    "pronunciations": [
+      "oyster point"
+    ],
+    "generated": true,
+    "displayName": "Oyster Point"
+  },
+  {
+    "fix": "WWAVS",
+    "pronunciations": [
+      "waves"
+    ],
+    "generated": true
+  },
+  {
+    "fix": "YOSEM",
+    "pronunciations": [
+      "yosemite",
+      "yosem"
+    ],
+    "generated": true
+  }
+]

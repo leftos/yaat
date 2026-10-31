@@ -1,1 +1,182 @@
-[ { "procedure": "NIMI", "pronunciations": ["nimitz"] } ]
+[
+  {
+    "procedure": "NIMI",
+    "pronunciations": [
+      "nimitz"
+    ]
+  },
+  {
+    "procedure": "CNDEL",
+    "pronunciations": [
+      "candle"
+    ]
+  },
+  {
+    "procedure": "HUSSH",
+    "pronunciations": [
+      "hush"
+    ]
+  },
+  {
+    "procedure": "KATFH",
+    "pronunciations": [
+      "catfish"
+    ]
+  },
+  {
+    "procedure": "OAK",
+    "pronunciations": [
+      "oakland"
+    ]
+  },
+  {
+    "procedure": "SKYL",
+    "pronunciations": [
+      "skyline"
+    ]
+  },
+  {
+    "procedure": "SLNT",
+    "pronunciations": [
+      "silent"
+    ]
+  },
+  {
+    "procedure": "SUNNE",
+    "pronunciations": [
+      "sunny"
+    ]
+  },
+  {
+    "procedure": "OAKES",
+    "pronunciations": [
+      "oaks"
+    ]
+  },
+  {
+    "procedure": "PIRAT",
+    "pronunciations": [
+      "pirate"
+    ]
+  },
+  {
+    "procedure": "PXN",
+    "pronunciations": [
+      "panoche"
+    ]
+  },
+  {
+    "procedure": "WNDSR",
+    "pronunciations": [
+      "windsor"
+    ]
+  },
+  {
+    "procedure": "CIITY",
+    "pronunciations": [
+      "city"
+    ]
+  },
+  {
+    "procedure": "GAPP",
+    "pronunciations": [
+      "gap"
+    ]
+  },
+  {
+    "procedure": "GNNRR",
+    "pronunciations": [
+      "gunner"
+    ]
+  },
+  {
+    "procedure": "NIITE",
+    "pronunciations": [
+      "night"
+    ]
+  },
+  {
+    "procedure": "SAHEY",
+    "pronunciations": [
+      "say hey"
+    ]
+  },
+  {
+    "procedure": "SEGUL",
+    "pronunciations": [
+      "seagull"
+    ]
+  },
+  {
+    "procedure": "SNTNA",
+    "pronunciations": [
+      "santana"
+    ]
+  },
+  {
+    "procedure": "SSTIK",
+    "pronunciations": [
+      "stick"
+    ]
+  },
+  {
+    "procedure": "TRUKN",
+    "pronunciations": [
+      "truckin"
+    ]
+  },
+  {
+    "procedure": "ALWYS",
+    "pronunciations": [
+      "always"
+    ]
+  },
+  {
+    "procedure": "BDEGA",
+    "pronunciations": [
+      "bodega"
+    ]
+  },
+  {
+    "procedure": "BSR",
+    "pronunciations": [
+      "big sur"
+    ]
+  },
+  {
+    "procedure": "DYAMD",
+    "pronunciations": [
+      "diamond"
+    ]
+  },
+  {
+    "procedure": "MOD",
+    "pronunciations": [
+      "modesto"
+    ]
+  },
+  {
+    "procedure": "PYE",
+    "pronunciations": [
+      "point reyes"
+    ]
+  },
+  {
+    "procedure": "SERFR",
+    "pronunciations": [
+      "surfer"
+    ]
+  },
+  {
+    "procedure": "WWAVS",
+    "pronunciations": [
+      "waves"
+    ]
+  },
+  {
+    "procedure": "YOSEM",
+    "pronunciations": [
+      "yosemite"
+    ]
+  }
+]

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import shutil
 import sys
 import threading
 import urllib.error
@@ -25,7 +24,21 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TOOL_PATH = REPO_ROOT / "tools" / "generate-speech-lexicon.py"
-ZOA_DIR = REPO_ROOT / "src" / "Yaat.Sim" / "Data" / "ARTCCs" / "ZOA"
+ZOA_FIXTURE: dict[str, Any] = {
+    "CustomFixes/oak-landmarks.json": [
+        {
+            "name": "Oakland Runway 30 Numbers",
+            "aliases": ["OAK30NUM"],
+            "spokenPatterns": ["runway 30 numbers", "the runway 30 numbers"],
+            "lat": 37.70208081559119,
+            "lon": -122.2152109537947,
+        }
+    ],
+    "ProcedurePronunciations/zoa.json": [{"procedure": "NIMI", "pronunciations": ["nimitz"]}],
+    "FixPronunciations/visual.json": [
+        {"fix": "VPCOL", "pronunciations": ["Oakland Colliseum", "Oakland Coliseum"], "displayName": "Oakland Coliseum"}
+    ],
+}
 SENTINEL_KEY = "sk-ant-test-SENTINEL-KEY-0000"
 EXIT_USAGE = 2
 EXIT_FAILED = 1
@@ -159,12 +172,11 @@ def all_replies() -> list[Any]:
 
 
 def make_repo(tmp_path: Path) -> Path:
-    """A repo root in tmp_path holding copies of the ZOA files apply merges into."""
+    """A repo root in tmp_path holding fixed copies of the ZOA files apply merges into, independent of the live data."""
     repo = tmp_path / "repo"
     zoa = repo / "src" / "Yaat.Sim" / "Data" / "ARTCCs" / "ZOA"
-    for relative in ("CustomFixes/oak-landmarks.json", "ProcedurePronunciations/zoa.json", "FixPronunciations/visual.json"):
-        (zoa / relative).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(ZOA_DIR / relative, zoa / relative)
+    for relative, content in ZOA_FIXTURE.items():
+        write(zoa / relative, content)
     return repo
 
 
@@ -208,6 +220,8 @@ def apply_with(tmp_path: Path, candidates: dict[str, Any], decisions: dict[str, 
     directory = tmp_path / "out"
     write(directory / "candidates.json", candidates)
     write(directory / "decisions.json", decisions)
+    if not (directory / "inputs.json").is_file():
+        write(directory / "inputs.json", INPUTS)
     code = lexicon.main(["apply", "--dir", str(directory), "--repo", str(repo), "--artcc", "ZOA"], lambda: None)
     return code, repo / "src" / "Yaat.Sim" / "Data" / "ARTCCs" / "ZOA"
 
@@ -372,6 +386,44 @@ def test_apply_never_writes_reads_as_spelled_items(tmp_path: Path) -> None:
     assert places["places"][0]["stands"] == ["SIG*"]
 
 
+def test_apply_marks_every_created_fix_entry_generated(tmp_path: Path) -> None:
+    code, zoa = run_apply(tmp_path)
+    assert code == 0
+    assert read(zoa / "FixPronunciations" / "oak-generated.json") == [{"fix": "MITOE", "pronunciations": ["my toe", "mitoe"], "generated": True}]
+
+
+@pytest.mark.parametrize(
+    ("fix", "flags", "reason"),
+    [
+        ("OAK", {"navaidName": "OAKLAND"}, "a navaid (OAKLAND)"),
+        ("KOAK", {"isAirport": True}, "an airport"),
+        ("OAK30NUM", {"isLandmark": True}, "a landmark alias"),
+    ],
+)
+def test_apply_skips_a_fix_named_by_navdata_or_a_landmark(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], fix: str, flags: dict[str, Any], reason: str
+) -> None:
+    inputs = json.loads(json.dumps(INPUTS))
+    inputs["fixes"] = [{"id": "MITOE"}, {"id": fix, **flags}]
+    write(tmp_path / "out" / "inputs.json", inputs)
+    candidates = base_candidates()
+    candidates["fixes"] = [candidates["fixes"][0], {"id": fix, "verdict": "needs_form", "pronunciations": ["oakland"], "displayName": None}]
+    decisions = base_decisions()
+    decisions[f"fix:{fix}"] = {"status": "accepted", "pronunciations": ["oakland"]}
+    code, zoa = apply_with(tmp_path, candidates, decisions)
+    assert code == 0
+    assert [entry["fix"] for entry in read(zoa / "FixPronunciations" / "oak-generated.json")] == ["MITOE"]
+    assert f"skipped fix {fix}: {reason} already has its spoken name" in capsys.readouterr().out
+
+
+def test_apply_without_inputs_exits_2(tmp_path: Path) -> None:
+    directory = tmp_path / "out"
+    write(directory / "candidates.json", base_candidates())
+    write(directory / "decisions.json", base_decisions())
+    code = lexicon.main(["apply", "--dir", str(directory), "--repo", str(make_repo(tmp_path)), "--artcc", "ZOA"], lambda: None)
+    assert code == EXIT_USAGE
+
+
 def test_apply_without_decisions_exits_2(tmp_path: Path) -> None:
     directory = tmp_path / "out"
     write(directory / "candidates.json", {"airport": "KOAK"})
@@ -420,6 +472,7 @@ def test_apply_matches_a_landmark_by_any_alias_and_keeps_its_coordinates(tmp_pat
     directory = tmp_path / "out"
     write(directory / "candidates.json", base_candidates())
     write(directory / "decisions.json", base_decisions())
+    write(directory / "inputs.json", INPUTS)
     code = lexicon.main(["apply", "--dir", str(directory), "--repo", str(repo), "--artcc", "ZOA"], lambda: None)
     assert code == 0
     landmarks = read(landmarks_path)
@@ -440,7 +493,7 @@ def test_apply_skips_a_procedure_base_name_the_loader_would_reject(tmp_path: Pat
     code, zoa = apply_with(tmp_path, candidates, decisions)
     assert code == 0
     assert "skipped procedure" in capsys.readouterr().out
-    assert read(zoa / "ProcedurePronunciations" / "zoa.json") == read(ZOA_DIR / "ProcedurePronunciations" / "zoa.json")
+    assert read(zoa / "ProcedurePronunciations" / "zoa.json") == ZOA_FIXTURE["ProcedurePronunciations/zoa.json"]
 
 
 def test_apply_writes_the_reviewed_place_name_and_landmark_alias(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

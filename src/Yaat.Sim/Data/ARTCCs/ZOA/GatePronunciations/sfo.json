@@ -1,0 +1,1573 @@
+{
+  "airportId": "KSFO",
+  "gates": [
+    {
+      "name": "2-1A",
+      "pronunciations": [
+        "2 1 alpha",
+        "spot 2 1 alpha"
+      ]
+    },
+    {
+      "name": "2-1B",
+      "pronunciations": [
+        "2 1 bravo",
+        "spot 2 1 bravo"
+      ]
+    },
+    {
+      "name": "2-2B",
+      "pronunciations": [
+        "2 2 bravo",
+        "spot 2 2 bravo"
+      ]
+    },
+    {
+      "name": "2-3A",
+      "pronunciations": [
+        "2 3 alpha",
+        "spot 2 3 alpha"
+      ]
+    },
+    {
+      "name": "9-3A",
+      "pronunciations": [
+        "9 3 alpha",
+        "spot 9 3 alpha"
+      ]
+    },
+    {
+      "name": "9-3B",
+      "pronunciations": [
+        "9 3 bravo",
+        "spot 9 3 bravo"
+      ]
+    },
+    {
+      "name": "9-4A",
+      "pronunciations": [
+        "9 4 alpha",
+        "spot 9 4 alpha"
+      ]
+    },
+    {
+      "name": "9-4B",
+      "pronunciations": [
+        "9 4 bravo",
+        "spot 9 4 bravo"
+      ]
+    },
+    {
+      "name": "9-5A",
+      "pronunciations": [
+        "9 5 alpha",
+        "spot 9 5 alpha"
+      ]
+    },
+    {
+      "name": "9-5B",
+      "pronunciations": [
+        "9 5 bravo",
+        "spot 9 5 bravo"
+      ]
+    },
+    {
+      "name": "9-8A",
+      "pronunciations": [
+        "9 8 alpha",
+        "spot 9 8 alpha"
+      ]
+    },
+    {
+      "name": "9-8B",
+      "pronunciations": [
+        "9 8 bravo",
+        "spot 9 8 bravo"
+      ]
+    },
+    {
+      "name": "9-9A",
+      "pronunciations": [
+        "9 9 alpha",
+        "spot 9 9 alpha"
+      ]
+    },
+    {
+      "name": "9-9B",
+      "pronunciations": [
+        "9 9 bravo",
+        "spot 9 9 bravo"
+      ]
+    },
+    {
+      "name": "A10",
+      "pronunciations": [
+        "alpha 10",
+        "a 10",
+        "gate a 10"
+      ]
+    },
+    {
+      "name": "A11",
+      "pronunciations": [
+        "alpha 11",
+        "a 11",
+        "gate a 11"
+      ]
+    },
+    {
+      "name": "A12",
+      "pronunciations": [
+        "alpha 12",
+        "a 12",
+        "gate a 12"
+      ]
+    },
+    {
+      "name": "A13R",
+      "pronunciations": [
+        "alpha 13",
+        "alpha 13 romeo",
+        "a 13"
+      ]
+    },
+    {
+      "name": "A13V",
+      "pronunciations": [
+        "alpha 13",
+        "alpha 13 victor",
+        "a 13"
+      ]
+    },
+    {
+      "name": "A14T",
+      "pronunciations": [
+        "alpha 14",
+        "alpha 14 tango",
+        "a 14"
+      ]
+    },
+    {
+      "name": "A15",
+      "pronunciations": [
+        "alpha 15",
+        "a 15",
+        "gate a 15"
+      ]
+    },
+    {
+      "name": "A1T",
+      "pronunciations": [
+        "alpha 1",
+        "alpha 1 tango",
+        "a 1"
+      ]
+    },
+    {
+      "name": "A1V",
+      "pronunciations": [
+        "alpha 1",
+        "alpha 1 victor",
+        "a 1"
+      ]
+    },
+    {
+      "name": "A2",
+      "pronunciations": [
+        "alpha 2",
+        "a 2",
+        "gate a 2"
+      ]
+    },
+    {
+      "name": "A4",
+      "pronunciations": [
+        "alpha 4",
+        "a 4",
+        "gate a 4"
+      ]
+    },
+    {
+      "name": "A5",
+      "pronunciations": [
+        "alpha 5",
+        "a 5",
+        "gate a 5"
+      ]
+    },
+    {
+      "name": "A6S",
+      "pronunciations": [
+        "alpha 6",
+        "alpha 6 sierra",
+        "a 6"
+      ]
+    },
+    {
+      "name": "A7T",
+      "pronunciations": [
+        "alpha 7",
+        "alpha 7 tango",
+        "a 7"
+      ]
+    },
+    {
+      "name": "A8",
+      "pronunciations": [
+        "alpha 8",
+        "a 8",
+        "gate a 8"
+      ]
+    },
+    {
+      "name": "A9",
+      "pronunciations": [
+        "alpha 9",
+        "a 9",
+        "gate a 9"
+      ]
+    },
+    {
+      "name": "B1",
+      "pronunciations": [
+        "bravo 1",
+        "b 1",
+        "gate b 1"
+      ]
+    },
+    {
+      "name": "B10",
+      "pronunciations": [
+        "bravo 10",
+        "b 10",
+        "gate b 10"
+      ]
+    },
+    {
+      "name": "B11",
+      "pronunciations": [
+        "bravo 11",
+        "b 11",
+        "gate b 11"
+      ]
+    },
+    {
+      "name": "B11S",
+      "pronunciations": [
+        "bravo 11",
+        "bravo 11 sierra",
+        "b 11"
+      ]
+    },
+    {
+      "name": "B12",
+      "pronunciations": [
+        "bravo 12",
+        "b 12",
+        "gate b 12"
+      ]
+    },
+    {
+      "name": "B13",
+      "pronunciations": [
+        "bravo 13",
+        "b 13",
+        "gate b 13"
+      ]
+    },
+    {
+      "name": "B14",
+      "pronunciations": [
+        "bravo 14",
+        "b 14",
+        "gate b 14"
+      ]
+    },
+    {
+      "name": "B15",
+      "pronunciations": [
+        "bravo 15",
+        "b 15",
+        "gate b 15"
+      ]
+    },
+    {
+      "name": "B16",
+      "pronunciations": [
+        "bravo 16",
+        "b 16",
+        "gate b 16"
+      ]
+    },
+    {
+      "name": "B16S",
+      "pronunciations": [
+        "bravo 16",
+        "bravo 16 sierra",
+        "b 16"
+      ]
+    },
+    {
+      "name": "B17",
+      "pronunciations": [
+        "bravo 17",
+        "b 17",
+        "gate b 17"
+      ]
+    },
+    {
+      "name": "B18",
+      "pronunciations": [
+        "bravo 18",
+        "b 18",
+        "gate b 18"
+      ]
+    },
+    {
+      "name": "B19",
+      "pronunciations": [
+        "bravo 19",
+        "b 19",
+        "gate b 19"
+      ]
+    },
+    {
+      "name": "B2",
+      "pronunciations": [
+        "bravo 2",
+        "b 2",
+        "gate b 2"
+      ]
+    },
+    {
+      "name": "B20",
+      "pronunciations": [
+        "bravo 20",
+        "b 20",
+        "gate b 20"
+      ]
+    },
+    {
+      "name": "B20S",
+      "pronunciations": [
+        "bravo 20",
+        "bravo 20 sierra",
+        "b 20"
+      ]
+    },
+    {
+      "name": "B21",
+      "pronunciations": [
+        "bravo 21",
+        "b 21",
+        "gate b 21"
+      ]
+    },
+    {
+      "name": "B22",
+      "pronunciations": [
+        "bravo 22",
+        "b 22",
+        "gate b 22"
+      ]
+    },
+    {
+      "name": "B23",
+      "pronunciations": [
+        "bravo 23",
+        "b 23",
+        "gate b 23"
+      ]
+    },
+    {
+      "name": "B23V",
+      "pronunciations": [
+        "bravo 23",
+        "bravo 23 victor",
+        "b 23"
+      ]
+    },
+    {
+      "name": "B24",
+      "pronunciations": [
+        "bravo 24",
+        "b 24",
+        "gate b 24"
+      ]
+    },
+    {
+      "name": "B25",
+      "pronunciations": [
+        "bravo 25",
+        "b 25",
+        "gate b 25"
+      ]
+    },
+    {
+      "name": "B26",
+      "pronunciations": [
+        "bravo 26",
+        "b 26",
+        "gate b 26"
+      ]
+    },
+    {
+      "name": "B27",
+      "pronunciations": [
+        "bravo 27",
+        "b 27",
+        "gate b 27"
+      ]
+    },
+    {
+      "name": "B27V",
+      "pronunciations": [
+        "bravo 27",
+        "bravo 27 victor",
+        "b 27"
+      ]
+    },
+    {
+      "name": "B4",
+      "pronunciations": [
+        "bravo 4",
+        "b 4",
+        "gate b 4"
+      ]
+    },
+    {
+      "name": "B5",
+      "pronunciations": [
+        "bravo 5",
+        "b 5",
+        "gate b 5"
+      ]
+    },
+    {
+      "name": "B5S",
+      "pronunciations": [
+        "bravo 5",
+        "bravo 5 sierra",
+        "b 5"
+      ]
+    },
+    {
+      "name": "B6",
+      "pronunciations": [
+        "bravo 6",
+        "b 6",
+        "gate b 6"
+      ]
+    },
+    {
+      "name": "B7",
+      "pronunciations": [
+        "bravo 7",
+        "b 7",
+        "gate b 7"
+      ]
+    },
+    {
+      "name": "B8",
+      "pronunciations": [
+        "bravo 8",
+        "b 8",
+        "gate b 8"
+      ]
+    },
+    {
+      "name": "B9",
+      "pronunciations": [
+        "bravo 9",
+        "b 9",
+        "gate b 9"
+      ]
+    },
+    {
+      "name": "C10",
+      "pronunciations": [
+        "charlie 10",
+        "c 10",
+        "gate c 10"
+      ]
+    },
+    {
+      "name": "C11",
+      "pronunciations": [
+        "charlie 11",
+        "c 11",
+        "gate c 11"
+      ]
+    },
+    {
+      "name": "C3",
+      "pronunciations": [
+        "charlie 3",
+        "c 3",
+        "gate c 3"
+      ]
+    },
+    {
+      "name": "C4R",
+      "pronunciations": [
+        "charlie 4",
+        "charlie 4 romeo",
+        "c 4"
+      ]
+    },
+    {
+      "name": "C4U",
+      "pronunciations": [
+        "charlie 4",
+        "charlie 4 uniform",
+        "c 4"
+      ]
+    },
+    {
+      "name": "C5",
+      "pronunciations": [
+        "charlie 5",
+        "c 5",
+        "gate c 5"
+      ]
+    },
+    {
+      "name": "C6",
+      "pronunciations": [
+        "charlie 6",
+        "c 6",
+        "gate c 6"
+      ]
+    },
+    {
+      "name": "C7",
+      "pronunciations": [
+        "charlie 7",
+        "c 7",
+        "gate c 7"
+      ]
+    },
+    {
+      "name": "C8",
+      "pronunciations": [
+        "charlie 8",
+        "c 8",
+        "gate c 8"
+      ]
+    },
+    {
+      "name": "C9",
+      "pronunciations": [
+        "charlie 9",
+        "c 9",
+        "gate c 9"
+      ]
+    },
+    {
+      "name": "C9V",
+      "pronunciations": [
+        "charlie 9",
+        "charlie 9 victor",
+        "c 9"
+      ]
+    },
+    {
+      "name": "CG1",
+      "pronunciations": [
+        "coast guard 1",
+        "coast guard ramp",
+        "coast guard spot 1"
+      ]
+    },
+    {
+      "name": "CG2",
+      "pronunciations": [
+        "coast guard 2",
+        "coast guard ramp",
+        "coast guard spot 2"
+      ]
+    },
+    {
+      "name": "CG3",
+      "pronunciations": [
+        "coast guard 3",
+        "coast guard ramp",
+        "coast guard spot 3"
+      ]
+    },
+    {
+      "name": "CG4",
+      "pronunciations": [
+        "coast guard 4",
+        "coast guard ramp",
+        "coast guard spot 4"
+      ]
+    },
+    {
+      "name": "D1",
+      "pronunciations": [
+        "delta 1",
+        "d 1",
+        "gate d 1"
+      ]
+    },
+    {
+      "name": "D10",
+      "pronunciations": [
+        "delta 10",
+        "d 10",
+        "gate d 10"
+      ]
+    },
+    {
+      "name": "D11",
+      "pronunciations": [
+        "delta 11",
+        "d 11",
+        "gate d 11"
+      ]
+    },
+    {
+      "name": "D12",
+      "pronunciations": [
+        "delta 12",
+        "d 12",
+        "gate d 12"
+      ]
+    },
+    {
+      "name": "D14",
+      "pronunciations": [
+        "delta 14",
+        "d 14",
+        "gate d 14"
+      ]
+    },
+    {
+      "name": "D15",
+      "pronunciations": [
+        "delta 15",
+        "d 15",
+        "gate d 15"
+      ]
+    },
+    {
+      "name": "D16",
+      "pronunciations": [
+        "delta 16",
+        "d 16",
+        "gate d 16"
+      ]
+    },
+    {
+      "name": "D2",
+      "pronunciations": [
+        "delta 2",
+        "d 2",
+        "gate d 2"
+      ]
+    },
+    {
+      "name": "D3",
+      "pronunciations": [
+        "delta 3",
+        "d 3",
+        "gate d 3"
+      ]
+    },
+    {
+      "name": "D4",
+      "pronunciations": [
+        "delta 4",
+        "d 4",
+        "gate d 4"
+      ]
+    },
+    {
+      "name": "D5",
+      "pronunciations": [
+        "delta 5",
+        "d 5",
+        "gate d 5"
+      ]
+    },
+    {
+      "name": "D6",
+      "pronunciations": [
+        "delta 6",
+        "d 6",
+        "gate d 6"
+      ]
+    },
+    {
+      "name": "D7",
+      "pronunciations": [
+        "delta 7",
+        "d 7",
+        "gate d 7"
+      ]
+    },
+    {
+      "name": "D8",
+      "pronunciations": [
+        "delta 8",
+        "d 8",
+        "gate d 8"
+      ]
+    },
+    {
+      "name": "D9",
+      "pronunciations": [
+        "delta 9",
+        "d 9",
+        "gate d 9"
+      ]
+    },
+    {
+      "name": "E1",
+      "pronunciations": [
+        "echo 1",
+        "e 1",
+        "gate e 1"
+      ]
+    },
+    {
+      "name": "E10U",
+      "pronunciations": [
+        "echo 10",
+        "echo 10 uniform",
+        "e 10"
+      ]
+    },
+    {
+      "name": "E10V",
+      "pronunciations": [
+        "echo 10",
+        "echo 10 victor",
+        "e 10"
+      ]
+    },
+    {
+      "name": "E11U",
+      "pronunciations": [
+        "echo 11",
+        "echo 11 uniform",
+        "e 11"
+      ]
+    },
+    {
+      "name": "E11V",
+      "pronunciations": [
+        "echo 11",
+        "echo 11 victor",
+        "e 11"
+      ]
+    },
+    {
+      "name": "E12",
+      "pronunciations": [
+        "echo 12",
+        "e 12",
+        "gate e 12"
+      ]
+    },
+    {
+      "name": "E13K",
+      "pronunciations": [
+        "echo 13",
+        "echo 13 kilo",
+        "e 13"
+      ]
+    },
+    {
+      "name": "E13T",
+      "pronunciations": [
+        "echo 13",
+        "echo 13 tango",
+        "e 13"
+      ]
+    },
+    {
+      "name": "E2",
+      "pronunciations": [
+        "echo 2",
+        "e 2",
+        "gate e 2"
+      ]
+    },
+    {
+      "name": "E3K",
+      "pronunciations": [
+        "echo 3",
+        "echo 3 kilo",
+        "e 3"
+      ]
+    },
+    {
+      "name": "E3T",
+      "pronunciations": [
+        "echo 3",
+        "echo 3 tango",
+        "e 3"
+      ]
+    },
+    {
+      "name": "E4",
+      "pronunciations": [
+        "echo 4",
+        "e 4",
+        "gate e 4"
+      ]
+    },
+    {
+      "name": "E5",
+      "pronunciations": [
+        "echo 5",
+        "e 5",
+        "gate e 5"
+      ]
+    },
+    {
+      "name": "E6",
+      "pronunciations": [
+        "echo 6",
+        "e 6",
+        "gate e 6"
+      ]
+    },
+    {
+      "name": "E7",
+      "pronunciations": [
+        "echo 7",
+        "e 7",
+        "gate e 7"
+      ]
+    },
+    {
+      "name": "E8",
+      "pronunciations": [
+        "echo 8",
+        "e 8",
+        "gate e 8"
+      ]
+    },
+    {
+      "name": "E9",
+      "pronunciations": [
+        "echo 9",
+        "e 9",
+        "gate e 9"
+      ]
+    },
+    {
+      "name": "F1",
+      "pronunciations": [
+        "foxtrot 1",
+        "f 1",
+        "gate f 1"
+      ]
+    },
+    {
+      "name": "F10",
+      "pronunciations": [
+        "foxtrot 10",
+        "f 10",
+        "gate f 10"
+      ]
+    },
+    {
+      "name": "F11",
+      "pronunciations": [
+        "foxtrot 11",
+        "f 11",
+        "gate f 11"
+      ]
+    },
+    {
+      "name": "F12",
+      "pronunciations": [
+        "foxtrot 12",
+        "f 12",
+        "gate f 12"
+      ]
+    },
+    {
+      "name": "F13",
+      "pronunciations": [
+        "foxtrot 13",
+        "f 13",
+        "gate f 13"
+      ]
+    },
+    {
+      "name": "F14",
+      "pronunciations": [
+        "foxtrot 14",
+        "f 14",
+        "gate f 14"
+      ]
+    },
+    {
+      "name": "F15",
+      "pronunciations": [
+        "foxtrot 15",
+        "f 15",
+        "gate f 15"
+      ]
+    },
+    {
+      "name": "F16",
+      "pronunciations": [
+        "foxtrot 16",
+        "f 16",
+        "gate f 16"
+      ]
+    },
+    {
+      "name": "F17",
+      "pronunciations": [
+        "foxtrot 17",
+        "f 17",
+        "gate f 17"
+      ]
+    },
+    {
+      "name": "F18",
+      "pronunciations": [
+        "foxtrot 18",
+        "f 18",
+        "gate f 18"
+      ]
+    },
+    {
+      "name": "F19",
+      "pronunciations": [
+        "foxtrot 19",
+        "f 19",
+        "gate f 19"
+      ]
+    },
+    {
+      "name": "F2",
+      "pronunciations": [
+        "foxtrot 2",
+        "f 2",
+        "gate f 2"
+      ]
+    },
+    {
+      "name": "F20",
+      "pronunciations": [
+        "foxtrot 20",
+        "f 20",
+        "gate f 20"
+      ]
+    },
+    {
+      "name": "F21",
+      "pronunciations": [
+        "foxtrot 21",
+        "f 21",
+        "gate f 21"
+      ]
+    },
+    {
+      "name": "F22",
+      "pronunciations": [
+        "foxtrot 22",
+        "f 22",
+        "gate f 22"
+      ]
+    },
+    {
+      "name": "F3",
+      "pronunciations": [
+        "foxtrot 3",
+        "f 3",
+        "gate f 3"
+      ]
+    },
+    {
+      "name": "F3A",
+      "pronunciations": [
+        "foxtrot 3 alpha",
+        "f 3 a",
+        "foxtrot 3"
+      ]
+    },
+    {
+      "name": "F4",
+      "pronunciations": [
+        "foxtrot 4",
+        "f 4",
+        "gate f 4"
+      ]
+    },
+    {
+      "name": "F5",
+      "pronunciations": [
+        "foxtrot 5",
+        "f 5",
+        "gate f 5"
+      ]
+    },
+    {
+      "name": "F6",
+      "pronunciations": [
+        "foxtrot 6",
+        "f 6",
+        "gate f 6"
+      ]
+    },
+    {
+      "name": "F7",
+      "pronunciations": [
+        "foxtrot 7",
+        "f 7",
+        "gate f 7"
+      ]
+    },
+    {
+      "name": "F8",
+      "pronunciations": [
+        "foxtrot 8",
+        "f 8",
+        "gate f 8"
+      ]
+    },
+    {
+      "name": "F9",
+      "pronunciations": [
+        "foxtrot 9",
+        "f 9",
+        "gate f 9"
+      ]
+    },
+    {
+      "name": "G1",
+      "pronunciations": [
+        "golf 1",
+        "g 1",
+        "gate g 1"
+      ]
+    },
+    {
+      "name": "G10",
+      "pronunciations": [
+        "golf 10",
+        "g 10",
+        "gate g 10"
+      ]
+    },
+    {
+      "name": "G103",
+      "pronunciations": [
+        "golf 103",
+        "golf 1 0 3",
+        "g 103"
+      ]
+    },
+    {
+      "name": "G104",
+      "pronunciations": [
+        "golf 104",
+        "golf 1 0 4",
+        "g 104"
+      ]
+    },
+    {
+      "name": "G105",
+      "pronunciations": [
+        "golf 105",
+        "golf 1 0 5",
+        "g 105"
+      ]
+    },
+    {
+      "name": "G11R",
+      "pronunciations": [
+        "golf 11",
+        "golf 11 romeo",
+        "g 11"
+      ]
+    },
+    {
+      "name": "G12S",
+      "pronunciations": [
+        "golf 12",
+        "golf 12 sierra",
+        "g 12"
+      ]
+    },
+    {
+      "name": "G12T",
+      "pronunciations": [
+        "golf 12",
+        "golf 12 tango",
+        "g 12"
+      ]
+    },
+    {
+      "name": "G12V",
+      "pronunciations": [
+        "golf 12",
+        "golf 12 victor",
+        "g 12"
+      ]
+    },
+    {
+      "name": "G13R",
+      "pronunciations": [
+        "golf 13",
+        "golf 13 romeo",
+        "g 13"
+      ]
+    },
+    {
+      "name": "G13S",
+      "pronunciations": [
+        "golf 13",
+        "golf 13 sierra",
+        "g 13"
+      ]
+    },
+    {
+      "name": "G14T",
+      "pronunciations": [
+        "golf 14",
+        "golf 14 tango",
+        "g 14"
+      ]
+    },
+    {
+      "name": "G2",
+      "pronunciations": [
+        "golf 2",
+        "g 2",
+        "gate g 2"
+      ]
+    },
+    {
+      "name": "G3",
+      "pronunciations": [
+        "golf 3",
+        "g 3",
+        "gate g 3"
+      ]
+    },
+    {
+      "name": "G4",
+      "pronunciations": [
+        "golf 4",
+        "g 4",
+        "gate g 4"
+      ]
+    },
+    {
+      "name": "G5",
+      "pronunciations": [
+        "golf 5",
+        "g 5",
+        "gate g 5"
+      ]
+    },
+    {
+      "name": "G6",
+      "pronunciations": [
+        "golf 6",
+        "g 6",
+        "gate g 6"
+      ]
+    },
+    {
+      "name": "G7",
+      "pronunciations": [
+        "golf 7",
+        "g 7",
+        "gate g 7"
+      ]
+    },
+    {
+      "name": "G8",
+      "pronunciations": [
+        "golf 8",
+        "g 8",
+        "gate g 8"
+      ]
+    },
+    {
+      "name": "G9",
+      "pronunciations": [
+        "golf 9",
+        "g 9",
+        "gate g 9"
+      ]
+    },
+    {
+      "name": "SAFETY",
+      "pronunciations": [
+        "safety",
+        "safety area"
+      ]
+    },
+    {
+      "name": "SBE1",
+      "pronunciations": [
+        "sierra bravo echo 1",
+        "s b e 1"
+      ]
+    },
+    {
+      "name": "SBE2",
+      "pronunciations": [
+        "sierra bravo echo 2",
+        "s b e 2"
+      ]
+    },
+    {
+      "name": "SBE3",
+      "pronunciations": [
+        "sierra bravo echo 3",
+        "s b e 3"
+      ]
+    },
+    {
+      "name": "SBE4",
+      "pronunciations": [
+        "sierra bravo echo 4",
+        "s b e 4"
+      ]
+    },
+    {
+      "name": "SBE5",
+      "pronunciations": [
+        "sierra bravo echo 5",
+        "s b e 5"
+      ]
+    },
+    {
+      "name": "SBE6",
+      "pronunciations": [
+        "sierra bravo echo 6",
+        "s b e 6"
+      ]
+    },
+    {
+      "name": "SBE7",
+      "pronunciations": [
+        "sierra bravo echo 7",
+        "s b e 7"
+      ]
+    },
+    {
+      "name": "SBE8",
+      "pronunciations": [
+        "sierra bravo echo 8",
+        "s b e 8"
+      ]
+    },
+    {
+      "name": "SBW1",
+      "pronunciations": [
+        "sierra bravo whiskey 1",
+        "s b w 1"
+      ]
+    },
+    {
+      "name": "SBW2",
+      "pronunciations": [
+        "sierra bravo whiskey 2",
+        "s b w 2"
+      ]
+    },
+    {
+      "name": "SBW3",
+      "pronunciations": [
+        "sierra bravo whiskey 3",
+        "s b w 3"
+      ]
+    },
+    {
+      "name": "SBW4",
+      "pronunciations": [
+        "sierra bravo whiskey 4",
+        "s b w 4"
+      ]
+    },
+    {
+      "name": "SBW5",
+      "pronunciations": [
+        "sierra bravo whiskey 5",
+        "s b w 5"
+      ]
+    },
+    {
+      "name": "SIG1",
+      "pronunciations": [
+        "signature 1",
+        "signature",
+        "signature spot 1"
+      ]
+    },
+    {
+      "name": "SIG10",
+      "pronunciations": [
+        "signature 10",
+        "signature",
+        "signature spot 10"
+      ]
+    },
+    {
+      "name": "SIG2",
+      "pronunciations": [
+        "signature 2",
+        "signature",
+        "signature spot 2"
+      ]
+    },
+    {
+      "name": "SIG3",
+      "pronunciations": [
+        "signature 3",
+        "signature",
+        "signature spot 3"
+      ]
+    },
+    {
+      "name": "SIG4",
+      "pronunciations": [
+        "signature 4",
+        "signature",
+        "signature spot 4"
+      ]
+    },
+    {
+      "name": "SIG5",
+      "pronunciations": [
+        "signature 5",
+        "signature",
+        "signature spot 5"
+      ]
+    },
+    {
+      "name": "SIG6",
+      "pronunciations": [
+        "signature 6",
+        "signature",
+        "signature spot 6"
+      ]
+    },
+    {
+      "name": "SIG7",
+      "pronunciations": [
+        "signature 7",
+        "signature",
+        "signature spot 7"
+      ]
+    },
+    {
+      "name": "SIG8",
+      "pronunciations": [
+        "signature 8",
+        "signature",
+        "signature spot 8"
+      ]
+    },
+    {
+      "name": "SIG9",
+      "pronunciations": [
+        "signature 9",
+        "signature",
+        "signature spot 9"
+      ]
+    },
+    {
+      "name": "UB1",
+      "pronunciations": [
+        "united maintenance",
+        "united base 1",
+        "uniform bravo 1"
+      ]
+    },
+    {
+      "name": "UB2",
+      "pronunciations": [
+        "united maintenance",
+        "united base 2",
+        "uniform bravo 2"
+      ]
+    },
+    {
+      "name": "UB3",
+      "pronunciations": [
+        "united maintenance",
+        "united base 3",
+        "uniform bravo 3"
+      ]
+    },
+    {
+      "name": "UB4",
+      "pronunciations": [
+        "united maintenance",
+        "united base 4",
+        "uniform bravo 4"
+      ]
+    },
+    {
+      "name": "UB5",
+      "pronunciations": [
+        "united maintenance",
+        "united base 5",
+        "uniform bravo 5"
+      ]
+    },
+    {
+      "name": "UNKN",
+      "pronunciations": [
+        "unknown"
+      ]
+    }
+  ],
+  "spots": [
+    {
+      "name": "5A",
+      "pronunciations": [
+        "spot 5 alpha",
+        "5 alpha"
+      ]
+    },
+    {
+      "name": "5B",
+      "pronunciations": [
+        "spot 5 bravo",
+        "5 bravo"
+      ]
+    },
+    {
+      "name": "6A",
+      "pronunciations": [
+        "spot 6 alpha",
+        "6 alpha"
+      ]
+    },
+    {
+      "name": "6B",
+      "pronunciations": [
+        "spot 6 bravo",
+        "6 bravo"
+      ]
+    },
+    {
+      "name": "7A",
+      "pronunciations": [
+        "spot 7 alpha",
+        "7 alpha"
+      ]
+    },
+    {
+      "name": "7B",
+      "pronunciations": [
+        "spot 7 bravo",
+        "7 bravo"
+      ]
+    },
+    {
+      "name": "I8L",
+      "pronunciations": [
+        "india 8 left",
+        "spot india 8 left"
+      ]
+    },
+    {
+      "name": "I8R",
+      "pronunciations": [
+        "india 8 right",
+        "spot india 8 right"
+      ]
+    }
+  ],
+  "places": [
+    {
+      "name": "SIGNATURE",
+      "pronunciations": [
+        "signature",
+        "signature ramp",
+        "signature flight support"
+      ],
+      "stands": [
+        "SIG*"
+      ],
+      "notes": "FBO serving general and business aviation at SFO."
+    },
+    {
+      "name": "COAST GUARD AIR STATION SAN FRANCISCO",
+      "pronunciations": [
+        "coast guard",
+        "coast guard ramp",
+        "coast guard station"
+      ],
+      "stands": [
+        "CG*"
+      ],
+      "notes": "USCG air station on the airport's west side."
+    },
+    {
+      "name": "UNITED MAINTENANCE CENTER",
+      "pronunciations": [
+        "united maintenance",
+        "united maintenance base",
+        "united hangars"
+      ],
+      "stands": [
+        "UB*"
+      ],
+      "notes": "United Airlines maintenance base at SFO; UB mapping unverified."
+    },
+    {
+      "name": "INTERNATIONAL TERMINAL",
+      "pronunciations": [
+        "international terminal",
+        "the international",
+        "i t"
+      ],
+      "stands": [
+        "A*",
+        "G*"
+      ],
+      "notes": "Boarding areas A and G."
+    },
+    {
+      "name": "TERMINAL 1",
+      "pronunciations": [
+        "terminal 1",
+        "harvey milk terminal"
+      ],
+      "stands": [
+        "B*",
+        "C*"
+      ],
+      "notes": "Harvey Milk Terminal 1, boarding areas B and C."
+    },
+    {
+      "name": "TERMINAL 2",
+      "pronunciations": [
+        "terminal 2"
+      ],
+      "stands": [
+        "D*"
+      ],
+      "notes": "Boarding area D."
+    },
+    {
+      "name": "TERMINAL 3",
+      "pronunciations": [
+        "terminal 3"
+      ],
+      "stands": [
+        "E*",
+        "F*"
+      ],
+      "notes": "Boarding areas E and F, mainly United."
+    }
+  ]
+}

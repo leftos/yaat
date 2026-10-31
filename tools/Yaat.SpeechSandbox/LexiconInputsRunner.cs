@@ -55,14 +55,16 @@ internal static partial class LexiconInputsRunner
         }
 
         AirportGroundLayout? layout = LoadLayout(repo, airport);
+        List<LexiconLandmark> landmarks = LoadLandmarks(repo, airport);
+        HashSet<string> landmarkAliases = AllLandmarkAliases(repo);
         var inputs = new LexiconInputs(
             airport,
-            Fixes(nav, airport, new LatLon(position.Lat, position.Lon)),
+            Fixes(nav, airport, new LatLon(position.Lat, position.Lon), landmarkAliases),
             Procedures(nav, airport),
             LayoutNames(layout is null ? [] : GroundLayoutSpeechNames.GateNames(layout), name => nav.GetGatePronunciations(airport, name)),
             LayoutNames(layout is null ? [] : GroundLayoutSpeechNames.SpotNames(layout), name => nav.GetSpotPronunciations(airport, name)),
             [.. nav.GetGroundPlaces(airport).Select(place => new LexiconPlace(place.Name, place.Pronunciations, place.Stands))],
-            LoadLandmarks(repo, airport)
+            landmarks
         );
 
         string outPath = Path.GetFullPath(args[1]);
@@ -75,7 +77,7 @@ internal static partial class LexiconInputsRunner
         return 0;
     }
 
-    private static List<LexiconFix> Fixes(NavigationDatabase nav, string airport, LatLon airportPosition)
+    private static List<LexiconFix> Fixes(NavigationDatabase nav, string airport, LatLon airportPosition, IReadOnlySet<string> landmarkAliases)
     {
         SortedDictionary<string, SortedSet<string>> onProcedures = ProcedureFixes(nav, airport);
         var ids = new SortedSet<string>(onProcedures.Keys, StringComparer.Ordinal);
@@ -103,6 +105,8 @@ internal static partial class LexiconInputsRunner
                     nav.GetFixPronunciations(id),
                     nav.GetFixDisplayName(id),
                     nav.GetNavaidName(id),
+                    nav.GetAirportPosition(id) is not null,
+                    landmarkAliases.Contains(id),
                     PhraseologyVerbalizer.SpellFix(id)
                 )
             );
@@ -215,6 +219,18 @@ internal static partial class LexiconInputsRunner
         return [.. paths.SelectMany(LandmarksIn)];
     }
 
+    /// <summary>The first alias of every landmark in any ARTCC's <c>CustomFixes/*-landmarks.json</c>, whichever airport it serves.</summary>
+    private static HashSet<string> AllLandmarkAliases(string repo)
+    {
+        string artccs = Path.Combine(repo, "src", "Yaat.Sim", "Data", "ARTCCs");
+        IEnumerable<string> paths = Directory
+            .EnumerateDirectories(artccs)
+            .Select(artcc => Path.Combine(artcc, "CustomFixes"))
+            .Where(Directory.Exists)
+            .SelectMany(directory => Directory.EnumerateFiles(directory, "*-landmarks.json"));
+        return new HashSet<string>(paths.SelectMany(LandmarksIn).Select(landmark => landmark.Alias), StringComparer.OrdinalIgnoreCase);
+    }
+
     private static IEnumerable<LexiconLandmark> LandmarksIn(string path)
     {
         List<CustomFixDefinition> definitions =
@@ -254,6 +270,8 @@ internal static partial class LexiconInputsRunner
         IReadOnlyList<string> ExistingPronunciations,
         string? DisplayName,
         string? NavaidName,
+        bool IsAirport,
+        bool IsLandmark,
         string SpellFix
     );
 

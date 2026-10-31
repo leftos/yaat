@@ -133,23 +133,20 @@ public class ContextEntityFactoryTests
     }
 
     [Fact]
-    public void KoakOaklandSid_SpokenWithoutNavaidWord()
+    public void KoakOaklandSid_SpokenByChartedNameWithoutNavaidWord()
     {
         // The OAK SID's version changes with the AIRAC cycle, so it is found by its ^OAK\d$ shape rather than named.
+        // Its entity is said by the charted name, "oakland <version>", never with a "vor"/"vortac" word.
         CifpSidProcedure sid = Assert.Single(Nav.GetSids("KOAK"), IsOaklandSid);
         string id = sid.ProcedureId;
         string digit = id[3..];
 
-        string rawTts = PhraseologyVerbalizer.ProcedureName(id).Tts.ToLowerInvariant();
-        string[] rawWords = rawTts.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        Assert.True(rawWords.Contains("vor") || rawWords.Contains("vortac"), $"Raw procedure TTS has no navaid word: '{rawTts}'");
-
         IReadOnlyList<ContextEntity> procedures = ContextEntityFactory.DeparturesAndArrivals("KOAK", Nav);
 
         ContextEntity oakland = Assert.Single(procedures, entity => entity.Value == $"KOAK/{id}");
-        Assert.Contains(oakland.Forms, form => Tokens(form) == $"oakland {digit}");
+        Assert.Equal($"oakland {digit}", Tokens(oakland.Forms[0]));
         Assert.Contains(oakland.Forms, form => Tokens(form) == $"oakland {digit} departure");
-        Assert.DoesNotContain(oakland.Forms, form => form.Text.Contains("vor", StringComparison.Ordinal));
+        Assert.DoesNotContain(oakland.Forms, form => Tokens(form).Split(' ').Any(word => word is "vor" or "vortac"));
     }
 
     [Fact]

@@ -1,0 +1,110 @@
+[
+  {
+    "name": "San Mateo Bridge",
+    "aliases": [
+      "SANMATEOBRIDGE"
+    ],
+    "spokenPatterns": [
+      "san mateo bridge",
+      "the san mateo bridge",
+      "hayward bridge"
+    ],
+    "lat": 37.5855,
+    "lon": -122.25
+  },
+  {
+    "name": "Coyote Point",
+    "aliases": [
+      "COYOTEPOINT"
+    ],
+    "spokenPatterns": [
+      "coyote point"
+    ],
+    "lat": 37.5905,
+    "lon": -122.3195
+  },
+  {
+    "name": "Oyster Point",
+    "aliases": [
+      "OYSTERPOINT"
+    ],
+    "spokenPatterns": [
+      "oyster point"
+    ],
+    "lat": 37.665,
+    "lon": -122.38
+  },
+  {
+    "name": "Candlestick Point",
+    "aliases": [
+      "CANDLESTICK"
+    ],
+    "spokenPatterns": [
+      "candlestick",
+      "candlestick point"
+    ],
+    "lat": 37.713,
+    "lon": -122.382
+  },
+  {
+    "name": "Hunters Point",
+    "aliases": [
+      "HUNTERSPOINT"
+    ],
+    "spokenPatterns": [
+      "hunters point"
+    ],
+    "lat": 37.724,
+    "lon": -122.365
+  },
+  {
+    "name": "San Francisco-Oakland Bay Bridge",
+    "aliases": [
+      "BAYBRIDGE"
+    ],
+    "spokenPatterns": [
+      "bay bridge",
+      "the bay bridge",
+      "oakland bay bridge"
+    ],
+    "lat": 37.7983,
+    "lon": -122.3778
+  },
+  {
+    "name": "Golden Gate Bridge",
+    "aliases": [
+      "GOLDENGATE"
+    ],
+    "spokenPatterns": [
+      "golden gate bridge",
+      "golden gate",
+      "the gate"
+    ],
+    "lat": 37.8199,
+    "lon": -122.4783
+  },
+  {
+    "name": "Sutro Tower",
+    "aliases": [
+      "SUTROTOWER"
+    ],
+    "spokenPatterns": [
+      "sutro tower",
+      "sutro"
+    ],
+    "lat": 37.7552,
+    "lon": -122.4528
+  },
+  {
+    "name": "Dumbarton Bridge",
+    "aliases": [
+      "DUMBARTONBRIDGE"
+    ],
+    "spokenPatterns": [
+      "dumbarton bridge",
+      "the dumbarton"
+    ],
+    "lat": 37.505,
+    "lon": -122.117
+  }
+]
