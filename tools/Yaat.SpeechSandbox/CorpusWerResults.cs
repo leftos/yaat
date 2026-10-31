@@ -32,6 +32,7 @@ public sealed record CorpusWerRoleTotals(string Role, int Segments, int Referenc
 /// How long the arm's slot work took, excluded from <paramref name="WallSeconds"/>; null without <c>--slots</c> and in a
 /// committed baseline.
 /// </param>
+/// <param name="TwoPass">The arm's two-pass outcome counts; null without <c>--two-pass</c> and in a committed baseline.</param>
 public sealed record CorpusWerArm(
     string Prompt,
     IReadOnlyList<CorpusWerRoleTotals> Roles,
@@ -42,12 +43,46 @@ public sealed record CorpusWerArm(
     IReadOnlyList<CorpusWerRoleTotals>? Provenance,
     IReadOnlyList<CorpusWerRoleTotals>? Feeds,
     IReadOnlyList<CorpusSlotRoomResult>? Slots,
-    double? SlotSeconds
+    double? SlotSeconds,
+    CorpusTwoPassResult? TwoPass
 )
 {
     /// <summary>The console and report line naming the segments without a transcript.</summary>
     public string NoTranscriptLine() => $"{Prompt}: {NoTranscript} of {Roles[0].Segments} segments returned no transcript";
 }
+
+/// <summary>How an arm's clips fared under <c>--two-pass</c>, one count per <see cref="CorpusTwoPassTarget"/> outcome.</summary>
+/// <param name="List"><c>aircraft</c> or <c>aircraft-airport</c>.</param>
+/// <param name="Resolved">Clips re-decoded for the aircraft the first decode resolved.</param>
+/// <param name="SayAgain">Clips re-decoded for the first decode's say-again best guess.</param>
+/// <param name="NoCallsign">Clips whose first decode named no aircraft, so it stands.</param>
+/// <param name="Empty">Clips whose aircraft gave no hotword phrase, so the first decode stands.</param>
+public sealed record CorpusTwoPassResult(string List, int Resolved, int SayAgain, int NoCallsign, int Empty)
+{
+    /// <summary>The console and report line.</summary>
+    public string Line()
+    {
+        int total = Resolved + SayAgain + NoCallsign + Empty;
+        string redecoded = $"re-decoded {Resolved + SayAgain} of {total} clips ({Resolved} resolved, {SayAgain} from a say-again guess)";
+        return $"Two-pass ({List}): {redecoded}; kept pass 1 for {NoCallsign + Empty} ({NoCallsign} no callsign, {Empty} empty list)";
+    }
+}
+
+/// <summary>What one clip's <c>results.jsonl</c> line records of its <c>--two-pass</c> decode.</summary>
+/// <param name="Outcome"><c>resolved</c>, <c>sayagain</c>, <c>nocallsign</c> or <c>empty</c>.</param>
+/// <param name="Aircraft">The callsign value the first decode named; null for <c>nocallsign</c>.</param>
+/// <param name="Pass1Hypothesis">The first decode's transcript; null when it returned nothing.</param>
+/// <param name="Pass1LatencyMs">The first decode's latency, measured as the line's latency is.</param>
+/// <param name="FinderMs">How long finding the aircraft and building its hotword list took.</param>
+/// <param name="Pass2HotwordPhrases">The second decode's hotword count; null when there was no second decode.</param>
+public sealed record CorpusTwoPassLine(
+    string Outcome,
+    string? Aircraft,
+    string? Pass1Hypothesis,
+    double Pass1LatencyMs,
+    double FinderMs,
+    int? Pass2HotwordPhrases
+);
 
 /// <summary>One arm's speed and memory: the model load, the latency percentiles and the working set.</summary>
 /// <param name="Device">The device the engine ran on: <c>auto</c>, <c>cpu</c> or <c>cloud</c>.</param>
@@ -125,7 +160,11 @@ public sealed record CorpusWerBaseline(
 /// <param name="LatencyMs">The segment's latency: the engine's own figure when it reported one, else the caller's stopwatch.</param>
 /// <param name="Cached">True when a cloud engine answered from its cache.</param>
 /// <param name="Nbest">The engine's alternatives, best first; null unless some entry carries tokens.</param>
-/// <param name="HotwordPhrases">The clip's room-hotword count; null without <c>--room-hotwords</c>.</param>
+/// <param name="HotwordPhrases">
+/// The room-hotword count of the decode the line scores (the second one when <c>--two-pass</c> ran it); null without
+/// <c>--room-hotwords</c>.
+/// </param>
+/// <param name="TwoPass">The clip's two-pass decode; null without <c>--two-pass</c>.</param>
 /// <param name="Slots">The clip's decode under the unpadded, padded and oracle rooms; null without <c>--slots</c>.</param>
 public sealed record CorpusWerSegmentLine(
     string Prompt,
@@ -142,6 +181,7 @@ public sealed record CorpusWerSegmentLine(
     bool Cached,
     IReadOnlyList<SttHypothesis>? Nbest,
     int? HotwordPhrases,
+    CorpusTwoPassLine? TwoPass,
     IReadOnlyList<CorpusSlotDecodeLine>? Slots
 );
 
@@ -278,7 +318,7 @@ public static class CorpusWerBaselineComparer
     public static CorpusWerBaseline ForBaseline(CorpusWerBaseline results) =>
         results with
         {
-            Arms = [.. results.Arms.Select(a => a with { Timing = null, Slots = null, SlotSeconds = null })],
+            Arms = [.. results.Arms.Select(a => a with { Timing = null, Slots = null, SlotSeconds = null, TwoPass = null })],
             UnbuiltCallsigns = null,
         };
 

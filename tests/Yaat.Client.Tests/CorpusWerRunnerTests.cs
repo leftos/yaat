@@ -193,6 +193,21 @@ public sealed class CorpusWerRunnerTests
         );
     }
 
+    [Fact]
+    public void A_Segment_Line_With_TwoPass_Serializes_CamelCase()
+    {
+        CorpusWerSegmentLine line = Line(null) with { TwoPass = new CorpusTwoPassLine("resolved", "SWA2495", "alpha", 120.5, 3.25, 4) };
+
+        string json = JsonSerializer.Serialize(line, CorpusWerJsonlContext.Default.CorpusWerSegmentLine);
+
+        Assert.Contains(
+            "\"twoPass\":{\"outcome\":\"resolved\",\"aircraft\":\"SWA2495\",\"pass1Hypothesis\":\"alpha\","
+                + "\"pass1LatencyMs\":120.5,\"finderMs\":3.25,\"pass2HotwordPhrases\":4}",
+            json,
+            StringComparison.Ordinal
+        );
+    }
+
     [Theory]
     [InlineData("alpha")]
     [InlineData(null)]
@@ -208,7 +223,7 @@ public sealed class CorpusWerRunnerTests
     }
 
     private static CorpusWerSegmentLine Line(IReadOnlyList<SttHypothesis>? nbest) =>
-        new("none", "id", "pilot", "alpha", "alpha", "alpha", 0, 0, 0, 1, 12, false, nbest, null, null);
+        new("none", "id", "pilot", "alpha", "alpha", "alpha", 0, 0, 0, 1, 12, false, nbest, null, null, null);
 
     private static CorpusWerBaseline Run(CorpusWerTiming? timing) => RunWith(timing, null, null);
 
@@ -225,7 +240,21 @@ public sealed class CorpusWerRunnerTests
             400,
             "fp",
             "model",
-            [new CorpusWerArm("default", [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)], 30, 6, 0, timing, provenance, feeds, null, null)],
+            [
+                new CorpusWerArm(
+                    "default",
+                    [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)],
+                    30,
+                    6,
+                    0,
+                    timing,
+                    provenance,
+                    feeds,
+                    null,
+                    null,
+                    null
+                ),
+            ],
             null,
             null
         );
