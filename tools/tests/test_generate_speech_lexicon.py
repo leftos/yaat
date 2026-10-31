@@ -171,6 +171,7 @@ def make_repo(tmp_path: Path) -> Path:
 def base_candidates() -> dict[str, Any]:
     return {
         "airport": "KOAK",
+        "layoutStands": ["6B", "SIG1", "SIG2"],
         "fixes": [
             {"id": "MITOE", "verdict": "needs_form", "pronunciations": ["my toe"], "displayName": None},
             {"id": "VPCOL", "verdict": "needs_form", "pronunciations": ["coliseum"], "displayName": None},
@@ -230,6 +231,7 @@ def test_generate_sends_the_briefed_request_and_merges_every_batch(tmp_path: Pat
     assert "thinking" not in call and "temperature" not in call
     candidates = read(tmp_path / "out" / "candidates.json")
     assert candidates["requestedModel"] == "claude-opus-5-5"
+    assert candidates["layoutStands"] == ["SIG1"]
     assert [batch["kind"] for batch in candidates["batches"]] == ["fixes", "procedures", "ground"]
     assert candidates["batches"][0]["requestId"] == "req_fake"
     assert candidates["batches"][0]["sent"] == {"fixes": ["MITOE", "OAK"]}
@@ -441,6 +443,40 @@ def test_apply_skips_a_procedure_base_name_the_loader_would_reject(tmp_path: Pat
     assert read(zoa / "ProcedurePronunciations" / "zoa.json") == read(ZOA_DIR / "ProcedurePronunciations" / "zoa.json")
 
 
+def test_apply_writes_the_reviewed_place_name_and_landmark_alias(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    candidates = base_candidates()
+    candidates["places"].append({"name": "KaiserAir", "pronunciations": ["kaiser"], "stands": [], "notes": ""})
+    decisions = base_decisions()
+    decisions["place:SIGNATURE"]["name"] = "  signature ramp "
+    decisions["place:KaiserAir"] = {"status": "accepted", "pronunciations": ["kaiser"], "stands": [], "name": "Kaiser-Air"}
+    decisions["landmark:VPCOL"]["alias"] = "coliseum"
+    code, zoa = apply_with(tmp_path, candidates, decisions)
+    assert code == 0
+    assert [place["name"] for place in read(zoa / "GatePronunciations" / "oak.json")["places"]] == ["SIGNATURE RAMP"]
+    assert "skipped place KaiserAir: its name must be letters A-Z, digits and spaces" in capsys.readouterr().out
+    assert [entry["aliases"] for entry in read(zoa / "CustomFixes" / "oak-landmarks.json")] == [["OAK30NUM"], ["COLISEUM"]]
+
+
+def test_apply_drops_a_stand_pattern_that_matches_no_layout_stand(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    decisions = base_decisions()
+    decisions["place:SIGNATURE"]["stands"] = ["SIG*", "6b", "NOPE*", "SIG9"]
+    code, zoa = apply_with(tmp_path, base_candidates(), decisions)
+    assert code == 0
+    assert read(zoa / "GatePronunciations" / "oak.json")["places"][0]["stands"] == ["SIG*", "6B"]
+    out = capsys.readouterr().out
+    assert "dropped stand NOPE* of place SIGNATURE: matches no layout gate or spot" in out
+    assert "dropped stand SIG9 of place SIGNATURE" in out
+
+
+def test_apply_reads_layout_stands_from_inputs_beside_older_candidates(tmp_path: Path) -> None:
+    candidates = base_candidates()
+    del candidates["layoutStands"]
+    write(tmp_path / "out" / "inputs.json", INPUTS)
+    code, zoa = apply_with(tmp_path, candidates, base_decisions())
+    assert code == 0
+    assert read(zoa / "GatePronunciations" / "oak.json")["places"][0]["stands"] == ["SIG*"]
+
+
 def test_key_is_absent_from_every_written_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", SENTINEL_KEY)
     code, _ = run_generate(tmp_path, all_replies(), [])
@@ -484,6 +520,14 @@ def test_save_writes_decisions_from_this_servers_page(review_server: tuple[str, 
     assert post(url, GOOD_BODY, {"Content-Type": "application/json", "Origin": url}) == HTTP_OK
     assert read(root / "decisions.json") == {"fix:MITOE": {"pronunciations": ["my toe"], "status": "accepted"}}
     assert '"Content-Type": "application/json"' in lexicon.REVIEW_HTML
+
+
+def test_state_carries_the_layout_stands(review_server: tuple[str, Path]) -> None:
+    url, _ = review_server
+    with urllib.request.urlopen(f"{url}/api/state") as response:
+        state = json.loads(response.read())
+    assert state["layoutStands"] == ["6B", "SIG1", "SIG2"]
+    assert state["decisions"] == {}
 
 
 def test_save_refuses_a_body_that_is_not_json(review_server: tuple[str, Path]) -> None:
