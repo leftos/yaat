@@ -66,7 +66,14 @@ public class AsdexSnapshotSchema41Tests
             new RecordedAsdexSafetyLogicChange(
                 0,
                 "OAK",
-                new AsdexSafetyLogicConfig([new AsdexRunwayConfig("28R", area, IsClosed: true)], "OAKCFG", [], RunwayConfigurationChosen: false)
+                new AsdexSafetyLogicConfig(
+                    [new AsdexRunwayConfig("28R", area, IsClosed: true)],
+                    "OAKCFG",
+                    [],
+                    RunwayConfigurationChosen: false,
+                    AsdexSafetyLogicConfig.NoSeconds,
+                    AsdexSafetyLogicConfig.NoSeconds
+                )
             )
         );
         engine.TickAsdexAlerts(new Helpers.SpineCapturingHost(engine));

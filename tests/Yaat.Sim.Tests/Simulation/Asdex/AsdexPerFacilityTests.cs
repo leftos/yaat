@@ -85,7 +85,9 @@ public class AsdexPerFacilityTests
             ],
             "WEST-PLAN",
             [],
-            RunwayConfigurationChosen: false
+            RunwayConfigurationChosen: false,
+            AsdexSafetyLogicConfig.NoSeconds,
+            AsdexSafetyLogicConfig.NoSeconds
         );
     }
 
