@@ -531,6 +531,87 @@ public class AsdexRunwayUserAlertTests
         Assert.False(alert.GoAround);
     }
 
+    /// <summary>
+    /// A departure just airborne off SFO runway A, short of its close parallel B's staggered threshold and so inside B's
+    /// arrival box, is still a departure: against a departure rolling on a runway that crosses both, two departures raise no
+    /// CONVERGING. A and B are the SFO parallel ends with the widest threshold stagger in the departure's direction.
+    /// </summary>
+    [Fact]
+    public void ADepartureClimbingOutInsideAParallelsArrivalBox_RaisesNoConvergingWithACrossingDeparture()
+    {
+        (string a, string b, double staggerFt) = WidestStaggeredParallels();
+
+        RunwayInfo crossingRunway = RunwayCrossing(a);
+        Assert.True(new AsdexRunwayAxis(crossingRunway).TryCrossing(new AsdexRunwayAxis(End(b)), out LatLon crossing));
+        double crossingFt =
+            GeoMath.DistanceNm(crossingRunway.ThresholdLatitude, crossingRunway.ThresholdLongitude, crossing.Lat, crossing.Lon) * GeoMath.FeetPerNm;
+
+        SimulationEngine engine = Engine(closedEnd: null);
+        WithPhase(Place(engine, "UAL1", End(a), staggerFt / 2, airborne: true, heightFt: 100, speedKts: 150), new TakeoffPhase());
+        WithPhase(Place(engine, "UAL2", crossingRunway, crossingFt - 2000, airborne: false, heightFt: 0, speedKts: 80), new TakeoffPhase());
+
+        Assert.DoesNotContain(AlertsAfterATick(engine), alert => alert.Kind == AsdexAlertKind.Converging);
+    }
+
+    /// <summary>
+    /// A departure's arrival-box passage counts for nothing in converging: against an arrival on a runway crossing both A and
+    /// B, the departure just airborne off A inside B's box raises one CONVERGING, naming A, and none naming B.
+    /// </summary>
+    [Fact]
+    public void ADepartureInsideAParallelsBox_ConvergesOnlyOnItsOwnRunway()
+    {
+        (string a, _, double staggerFt) = WidestStaggeredParallels();
+        RunwayInfo crossingRunway = RunwayCrossing(a);
+
+        SimulationEngine engine = Engine(closedEnd: null);
+        WithPhase(Place(engine, "UAL1", End(a), staggerFt / 2, airborne: true, heightFt: 100, speedKts: 150), new TakeoffPhase());
+        WithPhase(Place(engine, "UAL2", crossingRunway, -3000, airborne: true, heightFt: 200, speedKts: 140), new FinalApproachPhase());
+
+        AsdexSafetyAlert alert = Assert.Single(AlertsAfterATick(engine), alert => alert.Kind == AsdexAlertKind.Converging);
+        Assert.Equal(["UAL1", "UAL2"], alert.Callsigns);
+        Assert.Equal(a.TrimStart('0'), alert.RunwayEnds![0]);
+    }
+
+    /// <summary>
+    /// A departure just airborne off open runway A inside closed parallel B's arrival box is a user of B, so B reads RWY
+    /// CLOSED, but it is no arrival, so there is no GO AROUND.
+    /// </summary>
+    [Fact]
+    public void ADepartureInsideAClosedParallelsBox_ReadsRwyClosed_WithoutGoAround()
+    {
+        (string a, string b, double staggerFt) = WidestStaggeredParallels();
+
+        SimulationEngine engine = Engine(closedEnd: b);
+        WithPhase(Place(engine, "UAL1", End(a), staggerFt / 2, airborne: true, heightFt: 100, speedKts: 150), new TakeoffPhase());
+
+        AsdexSafetyAlert alert = Assert.Single(AlertsAfterATick(engine), alert => alert.Kind == AsdexAlertKind.ClosedRunway);
+        Assert.Equal(AsdexSafetyLogicDetector.ClosedRunwayText, alert.MessageLines[2]);
+        Assert.False(alert.GoAround);
+    }
+
+    /// <summary>The SFO parallel ends with the widest threshold stagger: A behind B along A's heading.</summary>
+    private static (string A, string B, double StaggerFt) WidestStaggeredParallels()
+    {
+        (string a, string b, double staggerFt) = new[]
+        {
+            ("28R", "28L"),
+            ("28L", "28R"),
+            ("10L", "10R"),
+            ("10R", "10L"),
+            ("01R", "01L"),
+            ("01L", "01R"),
+            ("19L", "19R"),
+            ("19R", "19L"),
+        }
+            .Select(pair => (pair.Item1, pair.Item2, StaggerFt(End(pair.Item1), End(pair.Item2))))
+            .MaxBy(pair => pair.Item3);
+        Assert.True(staggerFt >= 300, $"the widest SFO parallel threshold stagger is {staggerFt:F0} ft ({a} behind {b})");
+        return (a, b, staggerFt);
+    }
+
+    /// <summary>A runway end, its crossing well past its threshold, on a runway crossing <paramref name="end"/> and its parallel.</summary>
+    private static RunwayInfo RunwayCrossing(string end) => End(end is "28R" or "28L" or "10L" or "10R" ? "01R" : "10R");
+
     /// <summary>How far (ft) <paramref name="b"/>'s threshold lies ahead of <paramref name="a"/>'s along <paramref name="a"/>'s heading.</summary>
     private static double StaggerFt(RunwayInfo a, RunwayInfo b) =>
         GeoMath.AlongTrackDistanceNm(

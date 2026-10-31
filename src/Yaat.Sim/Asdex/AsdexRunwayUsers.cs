@@ -9,7 +9,8 @@ public enum AsdexRunwayUserRole
 {
     /// <summary>
     /// Airborne inside the runway's own arrival box (before its threshold, inside the arrival range, band and ceiling) whatever its
-    /// phase or vertical speed; otherwise landing or rolling out (final approach, landing, runway exit, a touch-and-go before
+    /// vertical speed, unless its phase makes it a <see cref="Departure"/>; a live-traffic shadow there always is an arrival;
+    /// otherwise landing or rolling out (final approach, landing, runway exit, a touch-and-go before
     /// it re-accelerates, a stop-and-go before its stop, low approach), or going around: a go-around stays a runway user until
     /// it is past the threshold.
     /// </summary>
@@ -17,8 +18,8 @@ public enum AsdexRunwayUserRole
 
     /// <summary>
     /// Rolling for takeoff (or rejecting it) at <see cref="AsdexRunwayUsers.RollingSpeedKts"/> or more, whether from a line-up
-    /// or a takeoff roll, or in the initial climb; and a touch-and-go or a stop-and-go once it re-accelerates after its
-    /// touchdown or its stop (7110.65 §3-8-2).
+    /// or a takeoff roll, or in the initial climb, even inside another runway's arrival box; and a touch-and-go or a stop-and-go
+    /// once it re-accelerates after its touchdown or its stop (7110.65 §3-8-2).
     /// </summary>
     Departure = 1,
 
@@ -146,8 +147,10 @@ public static class AsdexRunwayUsers
 
     /// <summary>
     /// The aircraft's role on one runway. An airborne aircraft inside that runway's arrival box (<paramref name="arrivesOnRunway"/>,
-    /// from <see cref="ArrivesOn"/>) is <see cref="AsdexRunwayUserRole.Arrival"/> whatever its phase or vertical speed; inside
-    /// another runway's box only, it takes the role it would have anyway. A ground aircraft below <see cref="RollingSpeedKts"/>
+    /// from <see cref="ArrivesOn"/>) is <see cref="AsdexRunwayUserRole.Arrival"/> whatever its vertical speed, unless it is a sim
+    /// aircraft whose phase makes it a departure, as one just airborne off a staggered parallel is (a go-around or low approach
+    /// stays an arrival, and a live-traffic shadow has no phase to tell it by); inside another runway's box only, it takes the
+    /// role it would have anyway. A ground aircraft below <see cref="RollingSpeedKts"/>
     /// is <see cref="AsdexRunwayUserRole.Other"/> whatever it is doing. A sim aircraft otherwise takes its role from its current
     /// phase; a live-traffic shadow, which has none, from its kinematics: airborne it is an arrival unless climbing, and on the
     /// ground an arrival while it decelerates and a departure while it accelerates (with no acceleration to read, an arrival
@@ -155,7 +158,7 @@ public static class AsdexRunwayUsers
     /// </summary>
     internal static AsdexRunwayUserRole Role(AircraftState aircraft, bool arrivesOnRunway)
     {
-        if (arrivesOnRunway)
+        if (arrivesOnRunway && (aircraft.IsShadow || (PhaseRole(aircraft) != AsdexRunwayUserRole.Departure)))
         {
             return AsdexRunwayUserRole.Arrival;
         }
@@ -223,15 +226,15 @@ public static class AsdexRunwayUsers
     /// The use <paramref name="uses"/> makes of <c>runways[runwayIndex]</c>'s navdata runway: its arrival box when that is
     /// on the runway, else its use from over it when that is the same navdata runway; null when it makes neither.
     /// </summary>
-    internal static AsdexRunwayUse? UseOn(AsdexRunwayUses uses, IReadOnlyList<AsdexHoldBarRunway> runways, int runwayIndex)
-    {
-        if (ArrivesOn(uses, runways, runwayIndex))
-        {
-            return uses.Arrival;
-        }
+    internal static AsdexRunwayUse? UseOn(AsdexRunwayUses uses, IReadOnlyList<AsdexHoldBarRunway> runways, int runwayIndex) =>
+        ArrivesOn(uses, runways, runwayIndex) ? uses.Arrival : OverRunwayUseOn(uses, runways, runwayIndex);
 
-        return ((uses.OverRunway is { } over) && ReferenceEquals(runways[over.RunwayIndex].Runway, runways[runwayIndex].Runway)) ? over : null;
-    }
+    /// <summary>
+    /// The use <paramref name="uses"/> makes of <c>runways[runwayIndex]</c>'s navdata runway from over it, never through its
+    /// arrival box; null when it makes none.
+    /// </summary>
+    internal static AsdexRunwayUse? OverRunwayUseOn(AsdexRunwayUses uses, IReadOnlyList<AsdexHoldBarRunway> runways, int runwayIndex) =>
+        ((uses.OverRunway is { } over) && ReferenceEquals(runways[over.RunwayIndex].Runway, runways[runwayIndex].Runway)) ? over : null;
 
     /// <summary>
     /// True when two uses of different runways, whose axes <paramref name="axes"/> holds by runway index, converge: the
