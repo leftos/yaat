@@ -26,6 +26,15 @@ public sealed record SttChoice(SttKind Kind, string Source)
     public bool TakesPrompt => Kind == SttKind.Whisper;
 }
 
+/// <summary>One engine's transcript of a clip, with the latency it measured and whether it came from a cache.</summary>
+/// <param name="Text">The transcript, or null when the engine returned nothing.</param>
+/// <param name="LatencyMs">
+/// The engine's own latency in milliseconds; null means the caller's stopwatch around the call is the latency.
+/// The streaming engine reports its own finalization time here.
+/// </param>
+/// <param name="Cached">True only for a cloud cache hit.</param>
+public sealed record CorpusTranscript(string? Text, double? LatencyMs, bool Cached);
+
 /// <summary>One STT engine behind the seam <see cref="CorpusWerRunner"/> scores every arm through.</summary>
 internal interface ICorpusSttEngine : IDisposable
 {
@@ -33,10 +42,13 @@ internal interface ICorpusSttEngine : IDisposable
     string? SetupError();
 
     /// <summary>
-    /// The transcript of 16 kHz mono Float32 samples, or null when the engine returned nothing. The
-    /// prompt is the production biasing prompt, or empty; an engine that takes none ignores it.
+    /// The transcript of 16 kHz mono Float32 samples. The prompt is the production biasing prompt, or
+    /// empty; an engine that takes none ignores it.
     /// </summary>
-    Task<string?> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct);
+    Task<CorpusTranscript> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct);
+
+    /// <summary>Loads the model, so the first timed segment pays no load cost.</summary>
+    Task WarmUpAsync(CancellationToken ct);
 }
 
 /// <summary>Whisper, the production engine, configured with an explicit model source.</summary>
@@ -59,7 +71,13 @@ internal sealed class WhisperCorpusSttEngine(string modelSource) : ICorpusSttEng
             : null;
     }
 
-    public Task<string?> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct) => _engine.TranscribeAsync(samples16k, prompt, ct);
+    public async Task<CorpusTranscript> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct)
+    {
+        string? text = await _engine.TranscribeAsync(samples16k, prompt, ct).ConfigureAwait(false);
+        return new CorpusTranscript(text, null, false);
+    }
+
+    public Task WarmUpAsync(CancellationToken ct) => _engine.PrewarmAsync(ct);
 
     public void Dispose() => _engine.Dispose();
 }
@@ -71,8 +89,11 @@ internal sealed class SherpaCorpusSttEngine(string modelDir) : ICorpusSttEngine
 
     public string? SetupError() => _engine.IsConfigured ? null : $"sherpa model dir {modelDir} has no encoder/decoder/joiner .onnx or tokens.txt";
 
-    public Task<string?> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct) =>
-        Task.Run(() => _engine.Transcribe(samples16k, AudioCaptureService.SampleRate), ct);
+    public Task<CorpusTranscript> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct) =>
+        Task.Run(() => new CorpusTranscript(_engine.Transcribe(samples16k, AudioCaptureService.SampleRate), null, false), ct);
+
+    public Task WarmUpAsync(CancellationToken ct) =>
+        Task.Run(() => _engine.Transcribe(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate), ct);
 
     public void Dispose() => _engine.Dispose();
 }
@@ -85,8 +106,18 @@ internal sealed class SherpaStreamingCorpusSttEngine(string modelDir) : ICorpusS
     public string? SetupError() =>
         _engine.IsConfigured ? null : $"sherpa-streaming model dir {modelDir} has no encoder/decoder/joiner .onnx or tokens.txt";
 
-    public Task<string?> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct) =>
-        Task.Run(() => _engine.Transcribe(samples16k, AudioCaptureService.SampleRate), ct);
+    public Task<CorpusTranscript> TranscribeAsync(float[] samples16k, string prompt, CancellationToken ct) =>
+        Task.Run(
+            () =>
+            {
+                (string? text, double finalizeMs) = _engine.TranscribeTimed(samples16k, AudioCaptureService.SampleRate);
+                return new CorpusTranscript(text, finalizeMs, false);
+            },
+            ct
+        );
+
+    public Task WarmUpAsync(CancellationToken ct) =>
+        Task.Run(() => _engine.TranscribeTimed(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate), ct);
 
     public void Dispose() => _engine.Dispose();
 }
@@ -105,6 +136,16 @@ public static class CorpusSttEngines
             SttKind.SherpaStreaming => new SherpaStreamingCorpusSttEngine(choice.Source),
             SttKind.Gemini or SttKind.OpenAi => new CloudSttEngine(choice.Kind, choice.Source),
             _ => throw new ArgumentOutOfRangeException(nameof(choice), choice.Kind, "no corpus STT engine for this kind"),
+        };
+
+    /// <summary>The device an engine family runs on when no <c>--device</c> names one.</summary>
+    public static string DefaultDevice(SttKind kind) =>
+        kind switch
+        {
+            SttKind.Whisper => "auto",
+            SttKind.Sherpa or SttKind.SherpaStreaming => "cpu",
+            SttKind.Gemini or SttKind.OpenAi => "cloud",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "no default device for this kind"),
         };
 
     /// <summary>

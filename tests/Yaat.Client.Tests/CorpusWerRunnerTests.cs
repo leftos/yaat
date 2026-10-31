@@ -64,6 +64,41 @@ public sealed class CorpusWerRunnerTests
     public void A_Cloud_Model_Is_Recorded_With_Its_Kind_Prefix(SttKind kind, string model, string expected) =>
         Assert.Equal(expected, CorpusSttEngines.RecordedModel(new SttChoice(kind, model)));
 
+    [Fact]
+    public void The_Report_Renders_An_Arm_That_Carries_A_Timing()
+    {
+        CorpusWerTiming timing = CorpusWerLatency.Summarize("cpu", 1.5, [(412, false), (100, true)], new CorpusWerMemory(10, 20, -1, -1));
+
+        string report = CorpusWerRunner.BuildReport(Run(timing), []);
+
+        Assert.Contains("Device cpu, model load 1.5 s", report, StringComparison.Ordinal);
+        Assert.Contains("p50 412 ms", report, StringComparison.Ordinal);
+        Assert.Contains("1 cached, excluded", report, StringComparison.Ordinal);
+        Assert.Contains("GPU memory n/a", report, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_Report_Omits_The_Timing_Lines_For_An_Arm_Without_One()
+    {
+        string report = CorpusWerRunner.BuildReport(Run(null), []);
+
+        Assert.DoesNotContain("model load", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Latency over", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Memory: working set", report, StringComparison.Ordinal);
+    }
+
+    private static CorpusWerBaseline Run(CorpusWerTiming? timing) =>
+        new(
+            "uwb-atcc",
+            "rev",
+            "sha",
+            1117,
+            400,
+            "fp",
+            "model",
+            [new CorpusWerArm("default", [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, 0.2)], 30, 6, 0, timing)]
+        );
+
     private static string ModelDir(string name, bool trailingSeparator)
     {
         string dir = Path.Combine(Path.GetTempPath(), "models", name);
