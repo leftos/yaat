@@ -1,7 +1,11 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Asdex;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
@@ -29,24 +33,42 @@ public class AsdexAlertStepTests
 
     private SimulationEngine? Engine() => _zoa is null ? null : AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
 
-    /// <summary>A point inside <see cref="RunwayArea"/> — where the scenario's one aircraft is put.</summary>
-    private static readonly LatLon OnTheRunway = new(37.7213, -122.2208);
+    /// <summary>SFO, the facility the taxiway-landing tests alert at.</summary>
+    private const string Sfo = "SFO";
+
+    /// <summary>OAK 28R, the runway the tests close.</summary>
+    private static RunwayInfo Oak28R() =>
+        NavigationDatabase.Instance.GetRunway("OAK", "28R")
+        ?? NavigationDatabase.Instance.GetRunway("KOAK", "28R")
+        ?? throw new InvalidOperationException("OAK 28R is not in navdata");
+
+    /// <summary>A point on the 28R centreline 1,500 ft past its threshold, where the scenario's one aircraft is put.</summary>
+    private static LatLon OnTheRunway()
+    {
+        RunwayInfo runway = Oak28R();
+        return GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading, 1500 / GeoMath.FeetPerNm);
+    }
 
     /// <summary>Well clear of <see cref="RunwayArea"/>, on the field but off every configured footprint.</summary>
     private static readonly LatLon OffTheRunway = new(37.7350, -122.2100);
 
     /// <summary>The footprint ring a CRC surface display pushes for the runway: a box around <see cref="OnTheRunway"/>.</summary>
-    private static readonly IReadOnlyList<LatLon> RunwayArea =
-    [
-        new(37.7208, -122.2215),
-        new(37.7218, -122.2215),
-        new(37.7218, -122.2201),
-        new(37.7208, -122.2201),
-    ];
+    private static IReadOnlyList<LatLon> RunwayArea()
+    {
+        const double Half = 0.002;
+        LatLon centre = OnTheRunway();
+        return
+        [
+            new(centre.Lat - Half, centre.Lon - Half),
+            new(centre.Lat + Half, centre.Lon - Half),
+            new(centre.Lat + Half, centre.Lon + Half),
+            new(centre.Lat - Half, centre.Lon + Half),
+        ];
+    }
 
     private static AsdexSafetyLogicConfig ClosedRunways(params string[] runwayIds) =>
         new(
-            [.. runwayIds.Select(id => new AsdexRunwayConfig(id, RunwayArea, IsClosed: true))],
+            [.. runwayIds.Select(id => new AsdexRunwayConfig(id, RunwayArea(), IsClosed: true))],
             "WEST-PLAN",
             [],
             RunwayConfigurationChosen: false,
@@ -55,16 +77,22 @@ public class AsdexAlertStepTests
         );
 
     /// <summary>
-    /// Puts the scenario's one aircraft onto the configured footprint, aligned with the runway axis (28R is 280
-    /// magnetic; OAK's variation is about 13°E, and the detector's tolerance is ±35° about the axis either way).
+    /// Puts the scenario's one aircraft onto the configured footprint, rolling down the 28R centreline at 80 kt: a runway
+    /// user, which a stopped aircraft is not.
     /// </summary>
     private static AircraftState PutOnTheRunway(SimulationEngine engine)
     {
+        RunwayInfo runway = Oak28R();
         AircraftState ac = engine.World.GetSnapshot()[0];
-        ac.Position = OnTheRunway;
-        ac.TrueHeading = new TrueHeading(293);
+        ac.Position = OnTheRunway();
+        ac.TrueHeading = runway.TrueHeading;
+        ac.TrueTrack = runway.TrueHeading;
         ac.IsOnGround = true;
-        ac.Altitude = 9;
+        ac.Altitude = runway.ElevationFt;
+        ac.IndicatedAirspeed = 80;
+        // Off its parking phase and holding 80 kt, so a whole second of physics keeps it rolling down the runway.
+        ac.Phases = new PhaseList();
+        ac.Targets.TargetSpeed = 80;
         return ac;
     }
 
@@ -86,7 +114,7 @@ public class AsdexAlertStepTests
         AsdexSafetyAlert standing = Assert.Single(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts).Values);
         Assert.Equal(AsdexAlertKind.ClosedRunway, standing.Kind);
         Assert.Equal([ac.Callsign], standing.Callsigns);
-        Assert.Equal(["28R", ac.Callsign, "CLOSED RWY"], standing.MessageLines);
+        Assert.Equal(["RWY 28R", ac.Callsign, "RWY CLOSED"], standing.MessageLines);
 
         (IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) = Assert.Single(spine.AsdexAlertChanges);
         Assert.Equal(standing.Id, Assert.Single(newAlerts).Id);
@@ -294,5 +322,160 @@ public class AsdexAlertStepTests
                 $"new={string.Join(",", change.NewAlerts.Select(a => a.Id))} cleared={string.Join(",", change.ClearedAlertIds)}"
             ),
         ];
+    }
+
+    /// <summary>
+    /// One SFO aircraft — the scenario for the taxiway-landing tests, which need the SFO ground layout and a facility whose own
+    /// ASDE-X configuration names the configuration the test alerts under.
+    /// </summary>
+    private const string OneAtSfo = """
+        {
+          "id": "asdex-taxiway-landing", "name": "ASDE-X taxiway landing at SFO", "artccId": "ZOA", "primaryAirportId": "SFO",
+          "aircraft": [
+            {
+              "id": "a1", "aircraftId": "UAL1", "aircraftType": "B738", "transponderMode": "C",
+              "startingConditions": {
+                "type": "Coordinates", "coordinates": { "lat": 37.9, "lon": -122.6 }, "altitude": 5000, "heading": 280, "speed": 250
+              },
+              "flightplan": {
+                "rules": "IFR", "departure": "KSFO", "destination": "KLAX", "cruiseAltitude": 35000, "cruiseSpeed": 450,
+                "route": "", "remarks": "", "aircraftType": "B738"
+              }
+            }
+          ]
+        }
+        """;
+
+    /// <summary>SFO's L28D01 runway configuration, by the config id the ZOA snapshot names it with.</summary>
+    private const string SfoConfiguration = "01GVF4AGA8HX03NSN8QJS4WJS4";
+
+    /// <summary>
+    /// The bare engine on an SFO scenario under a named SFO runway configuration. OAK has no ASDE-X facility configuration, so
+    /// with an OAK facility the detector always runs LIMITED and raises closed-runway alerts only: a taxiway landing is
+    /// observable only under a facility whose configuration is named, hence SFO and the real ZOA config the other ASDE-X tests
+    /// seed from.
+    /// </summary>
+    private static SimulationEngine SfoEngine()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(
+            OneAtSfo,
+            7,
+            new DateTime(2026, 8, 26, 12, 0, 0, DateTimeKind.Utc),
+            scenario => scenario.ArtccConfig = ZoaArtccConfig.Full
+        );
+        AsdexSafetyLogicConfig config = engine.Scenario!.AsdexSafetyLogicConfigs[Sfo];
+        engine.Scenario.AsdexSafetyLogicConfigs = engine.Scenario.AsdexSafetyLogicConfigs.SetItem(
+            Sfo,
+            config with
+            {
+                RunwayConfigurationId = SfoConfiguration,
+            }
+        );
+        return engine;
+    }
+
+    /// <summary>
+    /// The navigation data reading an SFO sidecar that lists <paramref name="taxiways"/> as its only ASDE-X landing taxiways, in
+    /// place of the shipped sidecars.
+    /// </summary>
+    private static IDisposable LandingTaxiwaysSidecar(params string[] taxiways) =>
+        NavigationDatabase.ScopedOverride(
+            NavigationDatabase.Instance.WithAirportSidecars(
+                new AirportSidecarCatalog([
+                    new AirportSidecar("KSFO") { AsdexLandingTaxiways = new HashSet<string>(taxiways, StringComparer.OrdinalIgnoreCase) },
+                ])
+            )
+        );
+
+    /// <summary>
+    /// The middle of a real SFO taxiway edge clear of every configured footprint, with the taxiway name the layout spells: a spot
+    /// where only a taxiway landing can be judged.
+    /// </summary>
+    private static (LatLon Point, string Taxiway) TaxiwayOffEveryFootprint(SimulationEngine engine)
+    {
+        AsdexSafetyLogicConfig config = engine.Scenario!.AsdexSafetyLogicConfigs[Sfo];
+        foreach (GroundEdge edge in engine.World.GroundLayout!.Edges)
+        {
+            if (edge.IsRunwayCenterline || edge.IsRunwayCrossingLink || edge.IsRamp || (edge.Nodes.Length < 2))
+            {
+                continue;
+            }
+
+            LatLon point = new(
+                (edge.Nodes[0].Position.Lat + edge.Nodes[^1].Position.Lat) / 2,
+                (edge.Nodes[0].Position.Lon + edge.Nodes[^1].Position.Lon) / 2
+            );
+            if (!config.Runways.Any(runway => (runway.AreaPoints.Count >= 3) && GeoMath.PointInRing(point, runway.AreaPoints)))
+            {
+                return (point, edge.TaxiwayName);
+            }
+        }
+
+        throw new InvalidOperationException("SFO's layout has no taxiway edge clear of every configured footprint");
+    }
+
+    /// <summary>The scenario's one aircraft 60 ft above the field over <paramref name="point"/>, airborne: a taxiway landing.</summary>
+    private static void PutLanderOver(SimulationEngine engine, LatLon point)
+    {
+        AircraftState ac = engine.World.GetSnapshot()[0];
+        ac.Position = point;
+        ac.IsOnGround = false;
+        ac.Altitude = (NavigationDatabase.Instance.GetAirportElevation(Sfo) ?? 0) + 60;
+        ac.IndicatedAirspeed = 100;
+    }
+
+    /// <summary>
+    /// The taxiway-landing alert is limited to the airport's sidecar <c>asdexLandingTaxiways</c>: a lander over a taxiway the
+    /// list omits raises nothing, while over a listed taxiway it raises as it does with no list at all. The list's case does not
+    /// matter — the test authors the layout's upper-case name in lower case.
+    /// </summary>
+    [Fact]
+    public void TaxiwayLanding_OverATaxiwayTheSidecarOmits_RaisesNothing_AndOverAListedOne_Raises()
+    {
+        SimulationEngine engine = SfoEngine();
+
+        (LatLon point, string taxiway) = TaxiwayOffEveryFootprint(engine);
+        PutLanderOver(engine, point);
+
+        using (LandingTaxiwaysSidecar("NOT A TAXIWAY"))
+        {
+            engine.TickAsdexAlerts(new SpineCapturingHost(engine));
+        }
+
+        Assert.DoesNotContain(
+            engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault(Sfo, SimScenarioState.NoAsdexAlerts).Values,
+            alert => alert.Kind == AsdexAlertKind.TaxiwayLanding
+        );
+
+        using (LandingTaxiwaysSidecar(taxiway.ToLowerInvariant()))
+        {
+            engine.TickAsdexAlerts(new SpineCapturingHost(engine));
+        }
+
+        AsdexSafetyAlert alert = Assert.Single(
+            engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault(Sfo, SimScenarioState.NoAsdexAlerts).Values,
+            candidate => candidate.Kind == AsdexAlertKind.TaxiwayLanding
+        );
+        Assert.Equal([taxiway, "UAL1", "TAXIWAY LANDING"], alert.MessageLines);
+    }
+
+    /// <summary>
+    /// With no <c>asdexLandingTaxiways</c> list for SFO the default path stands: a lander over any layout taxiway raises the alert.
+    /// </summary>
+    [Fact]
+    public void TaxiwayLanding_WithNoSidecarList_Raises()
+    {
+        SimulationEngine engine = SfoEngine();
+
+        (LatLon point, string taxiway) = TaxiwayOffEveryFootprint(engine);
+        PutLanderOver(engine, point);
+        engine.TickAsdexAlerts(new SpineCapturingHost(engine));
+
+        AsdexSafetyAlert alert = Assert.Single(
+            engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault(Sfo, SimScenarioState.NoAsdexAlerts).Values,
+            candidate => candidate.Kind == AsdexAlertKind.TaxiwayLanding
+        );
+        Assert.Equal([taxiway, "UAL1", "TAXIWAY LANDING"], alert.MessageLines);
     }
 }

@@ -405,14 +405,26 @@ The ground layout's node at a runway's painted hold line (`RunwayHoldShort`, `Ru
 **Holding distance**:
 How far from a runway's centerline its holding position markings sit: its base separation S (*Standoff*), `GroundRunway.HoldShortStandoffFt`. An aircraft is clear of the runway only with its tail past a bar at this distance.
 
+**LIMITED configuration** (ASDE-X):
+The runway configuration id CRC uses when no named configuration applies: `limited`, empty, or an id that is none of the facility's `runwayConfigurations`. Only closed-runway alerts are raised under it; a named configuration raises every kind (`AsdexSafetyLogicSeed.NamesRunwayConfiguration`, docs/crc-display-state.md).
+
+**Occupant** (ASDE-X):
+An aircraft inside a runway's footprint, on the ground or airborne below 200 ft above the runway, at any speed, track or role (`AsdexRunwayUsers.Occupies`). It is the other party of an occupied-runway alert; below 50 kt on the ground it has role Other and is not a *Runway user (ASDE-X)*.
+
 **Paint-paired bar**:
 A runway hold-short node seated on the painted hold bar the tower-cab videomap draws on its taxiway, at that bar's distance from the centerline (D_paint) instead of the rule's D (`RunwayPaintPairing`, `GroundNode.PaintSegmentIndex`). It is always its runway's hold line, never a short bar (docs/ground/hold-short-placement.md).
+
+**Pair memory** (ASDE-X):
+After a pair raised an OPP DIR alert, the record that keeps it from raising RWY OCCUPIED until one of the two leaves the runway (`SimScenarioState.AsdexOppDirPairs`, docs/crc-display-state.md); snapshotted, never broadcast.
 
 **Runway rank**:
 Who gives way to whom across a runway in the ground-conflict pass (`GroundConflictDetector.ComputeRank`): a runway user (taking off, landing, rolling out, lined up on the pavement) outranks an aircraft vacating the runway, which outranks everything else; the lower rank yields (7110.65 3-1-3, AIM 4-3-21.a).
 
 **Runway user**:
 An aircraft taking off, landing, rolling out, lined up on the pavement, or crossing it: the one that outranks an aircraft vacating the runway in the ground-conflict pass (`RunwayRank.RunwayUser`). The solo scorer also counts one on, crossing or past the hold line of a runway ahead of another's takeoff roll or landing threshold crossing as a "Runway not clear" finding (docs/solo-training-evaluation.md).
+
+**Runway user (ASDE-X)**:
+The one rule every ASDE-X alert kind and every *Hold bar* reads (`AsdexRunwayUsers`, docs/crc-display-state.md): an aircraft tracking along the runway that is either an arrival inside 6,000 ft of the threshold along the extended centreline (within 1,000 ft laterally, below 1,500 ft above field), or over the footprint at 50 kt or more, on the ground or below 200 ft above the runway. Lined-up and stopped aircraft are not users. Not the ground-conflict *Runway user* above.
 
 **Short bar**:
 A runway hold-short node nearer the centreline than the runway's holding distance, a dead-end fallback where the taxiway ends or merges before reaching it (`GroundNode.IsShortBar` true, set by `RunwayCrossingDetector.MarkShortBars`); the runway's hold line is the node at S or D (docs/ground/hold-short-placement.md). A route that passes the holding distance without a bar keeps the short bar.

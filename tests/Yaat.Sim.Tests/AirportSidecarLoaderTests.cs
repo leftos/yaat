@@ -192,6 +192,37 @@ public class AirportSidecarLoaderTests
     }
 
     /// <summary>
+    /// The <c>asdexLandingTaxiways</c> list loads trimmed, upper-cased and de-duplicated, and a blank name is warned and
+    /// skipped.
+    /// </summary>
+    [Fact]
+    public void LoadAll_AsdexLandingTaxiways_TrimUpperCaseDedupeAndWarnOnBlank()
+    {
+        AirportSidecarLoadResult result = LoadOakSidecar("""{ "airportId": "KOAK", "asdexLandingTaxiways": [ " a ", "B", "A", "  " ] }""");
+
+        AirportSidecar oak = Assert.Single(result.Airports);
+        Assert.NotNull(oak.AsdexLandingTaxiways);
+        Assert.Equal(["A", "B"], [.. oak.AsdexLandingTaxiways.OrderBy(name => name, StringComparer.Ordinal)]);
+        string warning = Assert.Single(result.Warnings);
+        Assert.Contains("asdexLandingTaxiways[3] missing name", warning, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An absent <c>asdexLandingTaxiways</c> reads as null, which is any taxiway; an empty list reads as an empty set, which
+    /// is no taxiway-landing alert.
+    /// </summary>
+    [Fact]
+    public void LoadAll_AsdexLandingTaxiways_AbsentIsNull_EmptyListStaysEmpty()
+    {
+        AirportSidecar absent = Assert.Single(LoadOakSidecar("""{ "airportId": "KOAK" }""").Airports);
+        Assert.Null(absent.AsdexLandingTaxiways);
+
+        AirportSidecar empty = Assert.Single(LoadOakSidecar("""{ "airportId": "KOAK", "asdexLandingTaxiways": [] }""").Airports);
+        Assert.NotNull(empty.AsdexLandingTaxiways);
+        Assert.Empty(empty.AsdexLandingTaxiways);
+    }
+
+    /// <summary>
     /// A <c>crossingPairs</c> entry loads trimmed and upper-cased only when it names two distinct taxiways and a runway with both
     /// ends; one with a wrong taxiway count, a duplicated name, no runway or a one-ended runway is warned and skipped.
     /// </summary>

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- An ARTCC's airport file can list the taxiways that raise CRC's ASDE-X taxiway-landing alert; an airport without a list alerts on any taxiway.
+
 ### Fixed
 
 - A speed given in the same transmission as an approach clearance, `CVIA` or `DVIA` is kept, wherever it sits in the transmission and across a rewind.
@@ -11,6 +15,10 @@
 - `LUAW` at a taxiway hold short taxis onto that taxiway and lines up at the intersection; its readback and the later `CTO` name it ("at echo").
 - `CTO` at a taxiway hold short is refused with "unable, traffic on E" while another aircraft stands on that taxiway; re-issue it once clear.
 - The taxi that `CTO` or `LUAW` starts from a taxiway hold short accounts for traffic and active runways, and pre-clears no crossing.
+- CRC's ASDE-X raises vNAS's opposite-direction alerts (`OPP DIR TAXI`, `OPP DIR DEPARTURE`, `OPP DIR LANDER`) for aircraft closing head-on along a runway.
+- CRC's ASDE-X raises `CONVERGING` when a landing meets a departure, or another landing, on a converging runway, naming both runway ends.
+- CRC's ASDE-X alerts read as vNAS sends them (`RWY OCCUPIED`, `RWY CLOSED`, `RWY CLOSED, GO AROUND`), one per conflicting pair, with no `RWY INCURSION` alert.
+- CRC's ASDE-X alerts fire on vNAS's triggers: a departure from 50 kt, an arrival from about 1 NM out; a lined-up or stopped aircraft raises none.
 
 ## v0.17.2-beta [2026/10/30]
 

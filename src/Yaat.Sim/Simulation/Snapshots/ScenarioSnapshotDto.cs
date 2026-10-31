@@ -175,6 +175,13 @@ public sealed class ScenarioSnapshotDto
     // is told about — a restore that started from an empty set would re-announce every standing alert.
     public List<AsdexSafetyAlertDto>? ActiveAsdexAlerts { get; set; }
 
+    // The ASDE-X opposite-direction pair memory at the moment of the snapshot, ordinal-sorted by facility then pair key.
+    // Optional: absent in snapshots that predate it and whenever no pair is remembered, and an absent list restores as an
+    // empty memory, so no migrator step. Left out of the JSON while empty, so a snapshot without it stays byte-identical.
+    // Snapshotted because a restore that lost it would raise the RWY OCCUPIED the live run withheld after an OPP DIR alert.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<AsdexOppDirPairDto>? AsdexOppDirPairs { get; init; }
+
     // The tracks still coasting after their aircraft left the world, in the dictionary's ordinal callsign order and
     // each facet in its registered order. Optional: null in snapshots that predate it and whenever nothing is
     // coasting, which is also what the scenario state then holds. Snapshotted because a restore of an empty set would
@@ -200,11 +207,27 @@ public sealed class AsdexSafetyAlertDto
     // The ASDE-X facility the alert stands at. Empty in snapshots before V36, which SnapshotSchemaMigrator fills in.
     public string FacilityId { get; set; } = "";
     public required string Id { get; init; }
-    public required AsdexAlertKind Kind { get; init; }
+
+    // Serialized by number. Settable so SnapshotSchemaMigrator can rewrite a retired kind.
+    public required AsdexAlertKind Kind { get; set; }
     public required List<string> RunwayIds { get; init; }
     public required List<string> Callsigns { get; init; }
     public required List<string> MessageLines { get; init; }
     public required bool PlayAuralAlert { get; init; }
+
+    // True on a closed-runway alert raised for an arrival (aural ends with GO AROUND). Absent before V41, which reads false.
+    public bool GoAround { get; init; }
+
+    // The runway end each aircraft in Callsigns uses, on a converging alert only; null on every other kind, and absent
+    // from their JSON. Not required, since only converging alerts write it.
+    public List<string>? RunwayEnds { get; init; }
+}
+
+/// <summary>Snapshot of one remembered ASDE-X opposite-direction pair: its facility and its pair key ("28L|DAL2988,DAL530").</summary>
+public sealed class AsdexOppDirPairDto
+{
+    public required string FacilityId { get; init; }
+    public required string PairKey { get; init; }
 }
 
 /// <summary>Snapshot of one coasting <c>AircraftDisconnectCoast</c>: the last position and velocity the removed track

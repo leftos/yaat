@@ -66,6 +66,31 @@ public class AsdexPerFacilityTests
             AsdexSafetyLogicConfig.NoSeconds
         );
 
+    /// <summary>A closed "28R" whose footprint is a box around <paramref name="centre"/>.</summary>
+    private static AsdexSafetyLogicConfig Closed28R(LatLon centre)
+    {
+        const double Half = 0.002;
+        return new(
+            [
+                new AsdexRunwayConfig(
+                    "28R",
+                    [
+                        new(centre.Lat - Half, centre.Lon - Half),
+                        new(centre.Lat + Half, centre.Lon - Half),
+                        new(centre.Lat + Half, centre.Lon + Half),
+                        new(centre.Lat - Half, centre.Lon + Half),
+                    ],
+                    IsClosed: true
+                ),
+            ],
+            "WEST-PLAN",
+            [],
+            RunwayConfigurationChosen: false,
+            AsdexSafetyLogicConfig.NoSeconds,
+            AsdexSafetyLogicConfig.NoSeconds
+        );
+    }
+
     [Fact]
     public void APushUnderSfo_LeavesOaksEntryAlone()
     {
@@ -86,39 +111,54 @@ public class AsdexPerFacilityTests
     }
 
     /// <summary>
-    /// SFO and OAK both configure a closed "28R" over the same ground, and the one aircraft stands on it: the two alerts
-    /// share an id, and keeping them per facility is what lets both stand, each diff naming its own facility.
+    /// SFO and OAK both configure a closed "28R", each its own airport's, with a different aircraft rolling down each: each
+    /// facility raises the closed-runway alert for its own aircraft only (a runway user is judged against the facility's own
+    /// navdata runway), both alerts stand at once under their own facility, and each diff names its facility. The two alerts'
+    /// ids differ by callsign; two facilities holding one alert id at once are covered by <see cref="AsdexSnapshotSchema36Tests"/>.
     /// </summary>
     [Fact]
-    public void TwoFacilitiesWithA28ROccupiedAtOnce_KeepTwoAlerts_AndEachDiffNamesItsFacility()
+    public void TwoFacilitiesWithAClosed28RInUseAtOnce_KeepTwoAlerts_AndEachDiffNamesItsFacility()
     {
-        if (_zoa is null)
-        {
-            return;
-        }
-
-        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(TwoAircraftAtSfo, 7, MagneticDeclination.EvaluationDateUtc, scenario => scenario.ArtccConfig = ZoaArtccConfig.Full);
         var spine = new SpineCapturingHost(engine);
-        engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", Closed28R()));
-        engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "SFO", Closed28R()));
-        AircraftState ac = engine.World.GetSnapshot()[0];
-        ac.Position = new LatLon(37.7213, -122.2208);
-        ac.TrueHeading = new TrueHeading(293);
-        ac.IsOnGround = true;
-        ac.Altitude = 9;
+        List<AircraftState> aircraft = engine.World.GetSnapshot();
+        engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "OAK", Closed28R(RollDown28R(aircraft[0], "OAK"))));
+        engine.ApplyRecordedAsdexSafetyLogic(new RecordedAsdexSafetyLogicChange(0, "SFO", Closed28R(RollDown28R(aircraft[1], "SFO"))));
 
         engine.TickAsdexAlerts(spine);
 
         AsdexSafetyAlert oak = Assert.Single(engine.Scenario!.ActiveAsdexAlerts["OAK"].Values);
         AsdexSafetyAlert sfo = Assert.Single(engine.Scenario.ActiveAsdexAlerts["SFO"].Values);
-        Assert.Equal(oak.Id, sfo.Id);
+        Assert.Equal($"ClosedRunway|28R|{aircraft[0].Callsign}", oak.Id);
+        Assert.Equal($"ClosedRunway|28R|{aircraft[1].Callsign}", sfo.Id);
         Assert.Equal(["OAK", "SFO"], spine.AsdexAlertFacilities);
-        Assert.All(spine.AsdexAlertChanges, change => Assert.Equal(oak.Id, Assert.Single(change.NewAlerts).Id));
+        Assert.Equal([oak.Id, sfo.Id], spine.AsdexAlertChanges.Select(change => Assert.Single(change.NewAlerts).Id));
+    }
+
+    /// <summary>Puts <paramref name="ac"/> rolling at 80 kt 1,500 ft down <paramref name="airport"/>'s 28R, answering where.</summary>
+    private static LatLon RollDown28R(AircraftState ac, string airport)
+    {
+        RunwayInfo runway =
+            NavigationDatabase.Instance.GetRunway(airport, "28R")
+            ?? NavigationDatabase.Instance.GetRunway("K" + airport, "28R")
+            ?? throw new InvalidOperationException($"{airport} 28R is not in navdata");
+        ac.Position = GeoMath.ProjectPoint(
+            new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
+            runway.TrueHeading,
+            1500 / GeoMath.FeetPerNm
+        );
+        ac.TrueHeading = runway.TrueHeading;
+        ac.TrueTrack = runway.TrueHeading;
+        ac.IsOnGround = true;
+        ac.Altitude = runway.ElevationFt;
+        ac.IndicatedAirspeed = 80;
+        return ac.Position;
     }
 
     /// <summary>
-    /// The scenario of the server's <c>SfoScenarioLoad_RunsTheDetector_WithoutADisplayPush</c>: two aligned aircraft on
-    /// the surface of SFO 28R, with only the seeded configuration in the scenario, stand as an occupied-runway alert at SFO.
+    /// The scenario of the server's <c>SfoScenarioLoad_RunsTheDetector_WithoutADisplayPush</c>: one aircraft rolling
+    /// down SFO 28R and one stopped on it, with only the seeded configuration in the scenario, stand as an occupied-runway alert at SFO.
     /// </summary>
     [Fact]
     public void ASeededConfigAlone_RaisesTheOccupiedRunwayAlertOnSfo28R()
@@ -138,8 +178,10 @@ public class AsdexPerFacilityTests
             aircraft[i].Position = GeoMath.ProjectPoint(threshold, r28R.TrueHeading, 0.2 + (0.4 * i));
             aircraft[i].Altitude = r28R.ElevationFt;
             aircraft[i].IsOnGround = true;
-            aircraft[i].IndicatedAirspeed = 0;
+            // The first rolls at 80 kt, a runway user; the second is stopped on the runway, occupying it.
+            aircraft[i].IndicatedAirspeed = i == 0 ? 80 : 0;
             aircraft[i].TrueHeading = r28R.TrueHeading;
+            aircraft[i].TrueTrack = r28R.TrueHeading;
         }
 
         var spine = new SpineCapturingHost(engine);

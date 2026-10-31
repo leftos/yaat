@@ -6,6 +6,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Simulation.Spine;
@@ -383,17 +384,15 @@ public sealed partial class SimulationEngine
         return _surfaceAirports;
     }
 
-    /// <summary>Airports farther than this from a configured runway footprint are not its owner.</summary>
-    private const double AsdexRunwayAirportSearchNm = 5;
-
     /// <summary>
     /// The post-physics ASDE-X Safety Logic pass. It clears facilities with no configuration and runway-less
     /// configurations first, then runs the detector per runway facility in ordinal order: the facility's configured
-    /// runway footprints (plus the ground layout's taxiways at the layout's own airport) go to the stateless detector,
-    /// with <c>closedRunwayAlertsOnly</c> decided each tick by whether the facility's runway configuration id is one of
-    /// its configurations (<see cref="AsdexSafetyLogicSeed.NamesRunwayConfiguration"/>), and what it finds is diffed
-    /// against the alerts that facility is already holding.
-    /// With no navigation data the runway facilities keep their standing alerts.
+    /// runways as navdata resolves them, with their cached axes and current footprints (plus the ground layout's taxiways
+    /// at the layout's own airport), go to the detector with the facility's opposite-direction pair memory, whether or not
+    /// a layout is loaded, with <c>closedRunwayAlertsOnly</c> decided each tick by whether the facility's runway
+    /// configuration id is one of its configurations (<see cref="AsdexSafetyLogicSeed.NamesRunwayConfiguration"/>), and what
+    /// it finds is diffed against the alerts that facility is already holding; the memory it returns replaces the old one.
+    /// With no navigation data the runway facilities keep their standing alerts and their memory.
     /// Only the difference leaves the engine — the alerts that appeared
     /// and the ids that went away, named by facility — because CRC's alert topic is additive with an explicit delete.
     /// Runs on every run kind: the standing set is snapshotted scenario state, so a replay, a rewind and a session
@@ -408,14 +407,21 @@ public sealed partial class SimulationEngine
 
         LapseAsdexInhibits(scenario);
         ImmutableSortedDictionary<string, AsdexSafetyLogicConfig> configs = scenario.AsdexSafetyLogicConfigs;
-        foreach (string facilityId in scenario.ActiveAsdexAlerts.Keys.Where(id => !configs.ContainsKey(id)).ToList())
+        List<string> unconfigured =
+        [
+            .. scenario
+                .ActiveAsdexAlerts.Keys.Union(scenario.AsdexOppDirPairs.Keys, StringComparer.Ordinal)
+                .Where(id => !configs.ContainsKey(id))
+                .Order(StringComparer.Ordinal),
+        ];
+        foreach (string facilityId in unconfigured)
         {
-            ApplyAsdexDetection(scenario, facilityId, [], host);
+            ApplyAsdexDetection(scenario, facilityId, AsdexDetection.None, host);
         }
 
         foreach (string facilityId in configs.Where(entry => entry.Value.Runways.Count == 0).Select(entry => entry.Key))
         {
-            ApplyAsdexDetection(scenario, facilityId, [], host);
+            ApplyAsdexDetection(scenario, facilityId, AsdexDetection.None, host);
         }
 
         if (NavigationDatabase.InstanceOrNull is not { } navDb)
@@ -423,26 +429,37 @@ public sealed partial class SimulationEngine
             return;
         }
 
+        foreach (string facilityId in _asdexRunways.Keys.Where(id => !configs.ContainsKey(id)).ToList())
+        {
+            _asdexRunways.Remove(facilityId);
+        }
+
         List<AircraftState>? aircraft = null;
         foreach ((string facilityId, AsdexSafetyLogicConfig config) in configs.Where(entry => entry.Value.Runways.Count > 0))
         {
             aircraft ??= World.GetSnapshot();
             double fieldElevationFt = FacilityFieldElevation(facilityId, navDb);
-            List<AsdexRunwaySurface> runways = BuildAsdexRunwaySurfaces(config.Runways, navDb, fieldElevationFt);
-            List<AsdexTaxiwaySegment> taxiways = IsLayoutAirport(World.GroundLayout, facilityId) ? BuildAsdexTaxiwaySegments(World.GroundLayout) : [];
+            AsdexFacilityRunways runways = CurrentAsdexRunways(facilityId, config, navDb);
+            IReadOnlyList<AsdexTaxiwaySegment> taxiways = AsdexConfiguredTaxiways.Filter(
+                IsLayoutAirport(World.GroundLayout, facilityId) ? BuildAsdexTaxiwaySegments(World.GroundLayout) : [],
+                navDb.AirportSidecars.GetAsdexLandingTaxiways(facilityId)
+            );
 
             ApplyAsdexDetection(
                 scenario,
                 facilityId,
                 AsdexSafetyLogicDetector.Detect(
-                    runways,
+                    runways.Alerting,
                     taxiways,
                     aircraft,
                     fieldElevationFt,
-                    closedRunwayAlertsOnly: !AsdexSafetyLogicSeed.NamesRunwayConfiguration(
-                        scenario.ArtccConfig,
-                        facilityId,
-                        config.RunwayConfigurationId
+                    new AsdexDetectionInputs(
+                        ClosedRunwayAlertsOnly: !AsdexSafetyLogicSeed.NamesRunwayConfiguration(
+                            scenario.ArtccConfig,
+                            facilityId,
+                            config.RunwayConfigurationId
+                        ),
+                        OppDirPairs: scenario.AsdexOppDirPairs.GetValueOrDefault(facilityId) ?? AsdexDetection.NoOppDirPairs
                     )
                 ),
                 host
@@ -451,14 +468,12 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// One facility's hold bars: the layout and safety-logic runways they were built from (with the footprints the
-    /// configuration last carried), each runway's axis, the fixed set itself and its ids, and the bars last reported Active to
-    /// the host. Immutable, so a reader off the tick thread takes the reference once.
+    /// One facility's hold bars: the layout and the runway resolution they were built from, the fixed set itself and its ids,
+    /// and the bars last reported Active to the host. Immutable, so a reader off the tick thread takes the reference once.
     /// </summary>
     private sealed record AsdexHoldBarFacility(
         AirportGroundLayout Layout,
-        IReadOnlyList<AsdexHoldBarRunway> Runways,
-        IReadOnlyList<AsdexRunwayAxis> Axes,
+        AsdexRunwayResolution Resolution,
         IReadOnlyList<AsdexHoldBar> Bars,
         FrozenSet<string> BarIds,
         ImmutableSortedDictionary<string, AsdexHoldBar> ReportedActive
@@ -480,7 +495,9 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// The post-physics hold-bar pass, run on every run kind beside <see cref="TickAsdexAlerts"/>. Bars exist only at the
-    /// facility whose airport is the loaded ground layout; the set is built once per facility and layout. Each tick the
+    /// facility whose airport is the loaded ground layout; the set is built from the runway cache the alerts read too, once
+    /// per facility, layout and runway resolution, so a configuration that changes the runway list switches the bars and the
+    /// alerts in the same tick. Each tick the
     /// stateless <see cref="AsdexHoldBarStatusEvaluator"/> decides which bars are Active, and only the bars whose status
     /// differs from the one last reported reach the host. A facility that no longer has bars (another layout, no scenario)
     /// reports every bar it held Active as Suppressed and is dropped. With no navigation data nothing changes.
@@ -508,11 +525,12 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            AsdexHoldBarFacility facility = WithCurrentAreas(facilityId, CurrentHoldBarFacility(facilityId, config, layout, navDb), config);
+            AsdexFacilityRunways runways = CurrentAsdexRunways(facilityId, config, navDb);
+            AsdexHoldBarFacility facility = CurrentHoldBarFacility(facilityId, runways, layout);
             aircraft ??= World.GetSnapshot();
             IReadOnlySet<string> active = AsdexHoldBarStatusEvaluator.ActiveBarIds(
-                facility.Runways,
-                facility.Axes,
+                runways.Runways,
+                runways.Resolution.Axes,
                 facility.Bars,
                 aircraft,
                 FacilityFieldElevation(facilityId, navDb)
@@ -522,26 +540,19 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// The facility's set for <paramref name="layout"/>: the one already held, or a fresh build that keeps the statuses
-    /// last reported, so bars a rebuilt set no longer lights are still reported Suppressed.
+    /// The facility's set for <paramref name="layout"/> and the current runway resolution: the one already held, or a fresh
+    /// build (a new layout, or a configuration naming other runways) that keeps the statuses last reported, so bars a rebuilt
+    /// set no longer has are still reported Suppressed.
     /// </summary>
-    private AsdexHoldBarFacility CurrentHoldBarFacility(
-        string facilityId,
-        AsdexSafetyLogicConfig config,
-        AirportGroundLayout layout,
-        NavigationDatabase navDb
-    )
+    private AsdexHoldBarFacility CurrentHoldBarFacility(string facilityId, AsdexFacilityRunways runways, AirportGroundLayout layout)
     {
         AsdexHoldBarFacility? held = _asdexHoldBars.GetValueOrDefault(facilityId);
-        if ((held is not null) && ReferenceEquals(held.Layout, layout))
+        if ((held is not null) && ReferenceEquals(held.Layout, layout) && ReferenceEquals(held.Resolution, runways.Resolution))
         {
             return held;
         }
 
-        AsdexHoldBarFacility built = BuildHoldBarFacility(facilityId, config, layout, navDb) with
-        {
-            ReportedActive = held?.ReportedActive ?? NoActiveHoldBars,
-        };
+        AsdexHoldBarFacility built = BuildHoldBarFacility(runways, layout) with { ReportedActive = held?.ReportedActive ?? NoActiveHoldBars };
         _asdexHoldBars = _asdexHoldBars.SetItem(facilityId, built);
         _logger.LogDebug(
             "ASDE-X hold bars for {FacilityId}: {Count} built from the {Airport} layout",
@@ -552,65 +563,16 @@ public sealed partial class SimulationEngine
         return built;
     }
 
-    private static AsdexHoldBarFacility BuildHoldBarFacility(
-        string facilityId,
-        AsdexSafetyLogicConfig config,
-        AirportGroundLayout layout,
-        NavigationDatabase navDb
-    )
+    private static AsdexHoldBarFacility BuildHoldBarFacility(AsdexFacilityRunways runways, AirportGroundLayout layout)
     {
-        IReadOnlyList<AsdexHoldBarRunway> runways = AsdexHoldBarBuilder.ResolveRunways(facilityId, config.Runways, navDb);
-        IReadOnlyList<AsdexHoldBar> bars = AsdexHoldBarBuilder.Build(runways, layout);
+        IReadOnlyList<AsdexHoldBar> bars = AsdexHoldBarBuilder.Build(runways.Runways, layout);
         return new AsdexHoldBarFacility(
             layout,
-            runways,
-            [.. runways.Select(runway => new AsdexRunwayAxis(runway.Runway))],
+            runways.Resolution,
             bars,
             bars.Select(bar => bar.Id).ToFrozenSet(StringComparer.Ordinal),
             NoActiveHoldBars
         );
-    }
-
-    /// <summary>
-    /// The facility with the footprints its configuration carries now (a display may have pushed a new one), kept for the
-    /// next tick; the same facility when no footprint changed.
-    /// </summary>
-    private AsdexHoldBarFacility WithCurrentAreas(string facilityId, AsdexHoldBarFacility facility, AsdexSafetyLogicConfig config)
-    {
-        List<AsdexHoldBarRunway>? updated = null;
-        for (int i = 0; i < facility.Runways.Count; i++)
-        {
-            AsdexHoldBarRunway runway = facility.Runways[i];
-            IReadOnlyList<LatLon> area = ConfiguredArea(config, runway.Id);
-            if (!ReferenceEquals(area, runway.Area))
-            {
-                updated ??= [.. facility.Runways];
-                updated[i] = runway with { Area = area };
-            }
-        }
-
-        if (updated is null)
-        {
-            return facility;
-        }
-
-        AsdexHoldBarFacility refreshed = facility with { Runways = updated };
-        _asdexHoldBars = _asdexHoldBars.SetItem(facilityId, refreshed);
-        return refreshed;
-    }
-
-    /// <summary>The footprint the configuration carries for <paramref name="runwayId"/>, its first entry's; empty when it has none.</summary>
-    private static IReadOnlyList<LatLon> ConfiguredArea(AsdexSafetyLogicConfig config, string runwayId)
-    {
-        foreach (AsdexRunwayConfig runway in config.Runways)
-        {
-            if (string.Equals(runway.Id, runwayId, StringComparison.Ordinal))
-            {
-                return runway.AreaPoints;
-            }
-        }
-
-        return [];
     }
 
     /// <summary>Reports the bars whose status differs from the last report, and records what was reported.</summary>
@@ -685,7 +647,8 @@ public sealed partial class SimulationEngine
             && (NavigationDatabase.InstanceOrNull is { } navDb)
         )
         {
-            return [.. BuildHoldBarFacility(facilityId, config, layout, navDb).Bars.Select(bar => new AsdexHoldBarState(bar, IsActive: false))];
+            AsdexFacilityRunways runways = ResolveAsdexRunways(facilityId, config, navDb);
+            return [.. BuildHoldBarFacility(runways, layout).Bars.Select(bar => new AsdexHoldBarState(bar, IsActive: false))];
         }
 
         return [];
@@ -725,7 +688,9 @@ public sealed partial class SimulationEngine
                     [.. dto.RunwayIds],
                     [.. dto.Callsigns],
                     [.. dto.MessageLines],
-                    dto.PlayAuralAlert
+                    dto.PlayAuralAlert,
+                    dto.GoAround,
+                    dto.RunwayEnds is { } ends ? [.. ends] : null
                 );
             }
 
@@ -735,14 +700,39 @@ public sealed partial class SimulationEngine
         return restored.ToImmutable();
     }
 
+    /// <summary>The snapshot's opposite-direction pair memory, grouped by facility; an empty or missing list restores none.</summary>
+    private static ImmutableSortedDictionary<string, ImmutableSortedSet<string>> RestoreAsdexOppDirPairs(List<AsdexOppDirPairDto>? pairDtos)
+    {
+        ImmutableSortedDictionary<string, ImmutableSortedSet<string>>.Builder restored = ImmutableSortedDictionary.CreateBuilder<
+            string,
+            ImmutableSortedSet<string>
+        >(StringComparer.Ordinal);
+        foreach (IGrouping<string, AsdexOppDirPairDto> facility in (pairDtos ?? []).GroupBy(dto => dto.FacilityId, StringComparer.Ordinal))
+        {
+            restored[facility.Key] = facility.Select(dto => dto.PairKey).ToImmutableSortedSet(StringComparer.Ordinal);
+        }
+
+        return restored.ToImmutable();
+    }
+
     /// <summary>
     /// Folds one facility's detector findings for this tick into its standing set and tells the host what moved. An
     /// alert already standing is left as it is (its id is the identity the display keyed on); one the detector no longer
     /// reports is cleared by id. A tick that moves nothing leaves the standing set's reference alone, so a reader
-    /// holding it keeps reading the same instance; a facility left with no alert loses its entry.
+    /// holding it keeps reading the same instance; a facility left with no alert loses its entry. The detection's pair
+    /// memory is written first, whether or not any alert moved (a pair forgotten while no alert stands is a change too).
     /// </summary>
-    private void ApplyAsdexDetection(SimScenarioState scenario, string facilityId, IReadOnlyList<AsdexSafetyAlert> detected, IHostConsumers host)
+    private void ApplyAsdexDetection(SimScenarioState scenario, string facilityId, AsdexDetection detection, IHostConsumers host)
     {
+        ImmutableSortedDictionary<string, ImmutableSortedSet<string>> allPairs = scenario.AsdexOppDirPairs;
+        ImmutableSortedSet<string> pairs = allPairs.GetValueOrDefault(facilityId) ?? AsdexDetection.NoOppDirPairs;
+        if (!pairs.SetEquals(detection.OppDirPairs))
+        {
+            scenario.AsdexOppDirPairs =
+                (detection.OppDirPairs.Count > 0) ? allPairs.SetItem(facilityId, detection.OppDirPairs) : allPairs.Remove(facilityId);
+        }
+
+        IReadOnlyList<AsdexSafetyAlert> detected = detection.Alerts;
         ImmutableSortedDictionary<string, ImmutableSortedDictionary<string, AsdexSafetyAlert>> all = scenario.ActiveAsdexAlerts;
         ImmutableSortedDictionary<string, AsdexSafetyAlert> active = all.GetValueOrDefault(facilityId) ?? SimScenarioState.NoAsdexAlerts;
         var detectedById = detected.ToDictionary(alert => alert.Id);
@@ -776,41 +766,128 @@ public sealed partial class SimulationEngine
         host.OnAsdexAlertsChanged(facilityId, newAlerts, clearedIds);
     }
 
-    private static List<AsdexRunwaySurface> BuildAsdexRunwaySurfaces(
-        IReadOnlyList<AsdexRunwayConfig> runways,
-        NavigationDatabase navDb,
-        double fieldElevationFt
-    )
-    {
-        var surfaces = new List<AsdexRunwaySurface>(runways.Count);
-        foreach (AsdexRunwayConfig runway in runways)
-        {
-            if (runway.AreaPoints.Count == 0)
-            {
-                continue;
-            }
+    /// <summary>
+    /// One facility's safety-logic runways resolved against navigation data: the navigation data and the configuration's runway
+    /// ids they were resolved from, and for each runway navdata resolves (in configuration order) the index of its own entry in
+    /// the configuration and its axis. Built once and kept until the ids or the navigation data change; the hold bars are
+    /// rebuilt when it is.
+    /// </summary>
+    private sealed record AsdexRunwayResolution(
+        NavigationDatabase NavDb,
+        IReadOnlyList<string> Ids,
+        IReadOnlyList<int> ConfigIndices,
+        IReadOnlyList<AsdexRunwayAxis> Axes
+    );
 
-            var area = runway.AreaPoints.ToList();
-            var centroid = new LatLon(area.Average(point => point.Lat), area.Average(point => point.Lon));
-            double variation = MagneticDeclination.GetDeclination(centroid.Lat, centroid.Lon);
-            double elevation = ResolveAsdexRunwayElevation(runway.Id, centroid, navDb) ?? fieldElevationFt;
-            surfaces.Add(new AsdexRunwaySurface(runway.Id, area, runway.IsClosed, variation, elevation));
+    /// <summary>
+    /// One facility's safety-logic runways as the hold bars and the alerts both read them: the resolution, each resolved runway
+    /// with the footprint its configuration entry carries now, and the detector's input (those runways with the entries'
+    /// closed states, and every entry's footprint, resolved or not).
+    /// </summary>
+    private sealed record AsdexFacilityRunways(
+        AsdexRunwayResolution Resolution,
+        IReadOnlyList<AsdexHoldBarRunway> Runways,
+        AsdexSafetyLogicRunways Alerting
+    );
+
+    /// <summary>
+    /// Each facility's safety-logic runways, read by <see cref="TickAsdexAlerts"/> and <see cref="TickAsdexHoldBars"/> alike.
+    /// Transient engine state, never snapshotted: everything in it is derived from the configuration and navigation data, so a
+    /// restore or a replay rebuilds the same runways and axes.
+    /// </summary>
+    private readonly Dictionary<string, AsdexFacilityRunways> _asdexRunways = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The facility's safety-logic runways with the footprints and closed states its configuration carries now: the cached
+    /// resolution while the runway ids and navigation data are unchanged, a fresh one otherwise.
+    /// </summary>
+    private AsdexFacilityRunways CurrentAsdexRunways(string facilityId, AsdexSafetyLogicConfig config, NavigationDatabase navDb)
+    {
+        if (
+            !_asdexRunways.TryGetValue(facilityId, out AsdexFacilityRunways? held)
+            || !ReferenceEquals(held.Resolution.NavDb, navDb)
+            || !held.Resolution.Ids.SequenceEqual(config.Runways.Select(runway => runway.Id), StringComparer.Ordinal)
+        )
+        {
+            held = ResolveAsdexRunways(facilityId, config, navDb);
+            _asdexRunways[facilityId] = held;
+            return held;
         }
 
-        return surfaces;
+        if (HasNewFootprintsOrClosedStates(held, config))
+        {
+            held = FromConfiguration(held.Resolution, held.Runways, config);
+            _asdexRunways[facilityId] = held;
+        }
+
+        return held;
     }
 
-    /// <summary>The CRC safety-logic config names runways without an airport, so the owning airport is the
-    /// nearest one to the footprint; the threshold elevation of the runway end the id names first ("28R" of
-    /// "28R-10L") is the AGL datum for arrivals over it.</summary>
-    private static double? ResolveAsdexRunwayElevation(string runwayId, LatLon centroid, NavigationDatabase navDb)
+    /// <summary>The facility's safety-logic runways resolved afresh against <paramref name="navDb"/>, nothing kept.</summary>
+    private static AsdexFacilityRunways ResolveAsdexRunways(string facilityId, AsdexSafetyLogicConfig config, NavigationDatabase navDb)
     {
-        (string Id, double Lat, double Lon)? airport = navDb.FindNearestSizeableAirport(
-            centroid,
-            minRunwayLengthFt: 0,
-            maxRangeNm: AsdexRunwayAirportSearchNm
-        );
-        return airport is null ? null : navDb.GetRunway(airport.Value.Id, runwayId.Split('-')[0])?.ElevationFt;
+        IReadOnlyList<RunwayInfo> navRunways = AsdexSafetyLogicSeed.FacilityRunways(facilityId, navDb);
+        var indices = new List<int>(config.Runways.Count);
+        var resolved = new List<AsdexHoldBarRunway>(config.Runways.Count);
+        var axes = new List<AsdexRunwayAxis>(config.Runways.Count);
+        for (int j = 0; j < config.Runways.Count; j++)
+        {
+            if (AsdexHoldBarBuilder.ResolveRunway(facilityId, config.Runways[j], navRunways) is { } runway)
+            {
+                indices.Add(j);
+                resolved.Add(runway);
+                axes.Add(new AsdexRunwayAxis(runway.Runway));
+            }
+        }
+
+        var resolution = new AsdexRunwayResolution(navDb, [.. config.Runways.Select(runway => runway.Id)], indices, axes);
+        return FromConfiguration(resolution, resolved, config);
+    }
+
+    /// <summary>True when an entry of <paramref name="config"/> carries another footprint or closed state than <paramref name="held"/>.</summary>
+    private static bool HasNewFootprintsOrClosedStates(AsdexFacilityRunways held, AsdexSafetyLogicConfig config)
+    {
+        for (int j = 0; j < config.Runways.Count; j++)
+        {
+            if (!ReferenceEquals(config.Runways[j].AreaPoints, held.Alerting.Footprints[j]))
+            {
+                return true;
+            }
+        }
+
+        for (int i = 0; i < held.Runways.Count; i++)
+        {
+            if (config.Runways[held.Resolution.ConfigIndices[i]].IsClosed != held.Alerting.Surfaces[i].IsClosed)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The resolved runways with the footprint and closed state of each one's own configuration entry (by index, so two
+    /// entries with one id each keep their own), and every entry's footprint.
+    /// </summary>
+    private static AsdexFacilityRunways FromConfiguration(
+        AsdexRunwayResolution resolution,
+        IReadOnlyList<AsdexHoldBarRunway> resolved,
+        AsdexSafetyLogicConfig config
+    )
+    {
+        var runways = new List<AsdexHoldBarRunway>(resolved.Count);
+        var surfaces = new List<AsdexRunwaySurface>(resolved.Count);
+        for (int i = 0; i < resolved.Count; i++)
+        {
+            AsdexRunwayConfig entry = config.Runways[resolution.ConfigIndices[i]];
+            AsdexHoldBarRunway runway = resolved[i] with { Area = entry.AreaPoints };
+            runways.Add(runway);
+            surfaces.Add(new AsdexRunwaySurface(runway, resolution.Axes[i], entry.IsClosed));
+        }
+
+        List<IReadOnlyList<LatLon>> footprints = [.. config.Runways.Select(entry => entry.AreaPoints)];
+        return new AsdexFacilityRunways(resolution, runways, new AsdexSafetyLogicRunways(surfaces, footprints));
     }
 
     private static List<AsdexTaxiwaySegment> BuildAsdexTaxiwaySegments(AirportGroundLayout? layout)

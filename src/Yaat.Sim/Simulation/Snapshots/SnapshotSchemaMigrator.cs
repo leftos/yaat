@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
@@ -28,10 +29,13 @@ public static class SnapshotSchemaMigrator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("SnapshotSchemaMigrator");
 
-    public const int CurrentSchemaVersion = 40;
+    public const int CurrentSchemaVersion = 41;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
+
+    /// <summary>The number snapshots before V41 stored for the retired taxi-onto-active-runway ASDE-X alert kind.</summary>
+    private const int RetiredTaxiOntoActiveRunwayKind = 2;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -319,6 +323,29 @@ public static class SnapshotSchemaMigrator
             }
         }
 
+        // V40→V41: AsdexAlertKind lost TaxiOntoActiveRunway (stored as 2): an aircraft taxiing onto an active runway now
+        //   raises an occupied-runway alert, as vNAS does; the alert texts became vNAS's; AsdexSafetyAlertDto.GoAround was
+        //   added, whose absence reads false. A standing alert of the retired kind restores as OccupiedRunway (1) under its
+        //   stored id, which the detector no longer raises, so the next tick clears it and raises the pair's alert. Every
+        //   other standing alert's third line is rewritten to the plain current text ("OCCUPIED RWY" → "RWY OCCUPIED").
+        //   A standing closed-runway alert (kind 0) is dropped instead: it does not say whether its aircraft was an
+        //   arrival, which decides between "RWY CLOSED" and "RWY CLOSED, GO AROUND" and GoAround, and only the detector's
+        //   arrival box over a live aircraft can tell. A restore that kept it would keep GoAround false until it cleared,
+        //   because ApplyAsdexDetection never rewrites a standing alert; dropped, the next tick raises it again under the
+        //   same id with the right role, at the cost of one extra aural.
+        if (snapshot.SchemaVersion < 41)
+        {
+            List<AsdexSafetyAlertDto>? alerts = snapshot.Scenario.ActiveAsdexAlerts;
+            if (alerts is not null)
+            {
+                alerts.RemoveAll(alert => alert.Kind == AsdexAlertKind.ClosedRunway);
+                foreach (AsdexSafetyAlertDto alert in alerts)
+                {
+                    MigrateLegacyAsdexAlert(alert);
+                }
+            }
+        }
+
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }
 
@@ -346,6 +373,30 @@ public static class SnapshotSchemaMigrator
 
         snapshot.LegacyFrequencyTransmissionTimes = null;
     }
+
+    /// <summary>
+    /// Maps a pre-V41 alert's retired kind to OccupiedRunway and its pre-V41 third line to the current text. Closed-runway
+    /// alerts are dropped before this runs, so none reaches it.
+    /// </summary>
+    private static void MigrateLegacyAsdexAlert(AsdexSafetyAlertDto alert)
+    {
+        if ((int)alert.Kind == RetiredTaxiOntoActiveRunwayKind)
+        {
+            alert.Kind = AsdexAlertKind.OccupiedRunway;
+        }
+
+        if ((alert.MessageLines.Count > 2) && LegacyAsdexAlertTexts.TryGetValue(alert.MessageLines[2], out string? current))
+        {
+            alert.MessageLines[2] = current;
+        }
+    }
+
+    /// <summary>The pre-V41 third lines of the alert kinds that are kept and the texts that replaced them.</summary>
+    private static readonly Dictionary<string, string> LegacyAsdexAlertTexts = new(StringComparer.Ordinal)
+    {
+        ["OCCUPIED RWY"] = AsdexSafetyLogicDetector.OccupiedRunwayText,
+        ["RWY INCURSION"] = AsdexSafetyLogicDetector.OccupiedRunwayText,
+    };
 
     /// <summary>Gives each fix a pre-V37 aircraft carries with a crossing stamp and a speed restriction that stamp as its speed stamp.</summary>
     private static void MigrateLegacySpeedStamps(AircraftSnapshotDto ac)
