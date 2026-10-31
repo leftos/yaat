@@ -1045,7 +1045,15 @@ public static class AircraftGenerator
         return compatible[^1].Icao;
     }
 
-    private static string GenerateAirlineCallsign(string airline, HashSet<string> existing, Random rng)
+    /// <summary>
+    /// A callsign of the airline with a random 3- or 4-digit flight number that is not in <paramref name="existing"/>; after
+    /// 100 colliding draws, a 5-digit flight number that is not checked against it.
+    /// </summary>
+    /// <param name="airline">The airline's ICAO prefix ("SWA").</param>
+    /// <param name="existing">Callsigns already in use, compared with the set's own comparer; not modified.</param>
+    /// <param name="rng">The random source the draws come from.</param>
+    /// <returns>The callsign, e.g. "SWA2495".</returns>
+    public static string GenerateAirlineCallsign(string airline, HashSet<string> existing, Random rng)
     {
         for (int attempt = 0; attempt < 100; attempt++)
         {
@@ -1061,7 +1069,15 @@ public static class AircraftGenerator
         return $"{airline}{rng.Next(10000, 99999)}";
     }
 
-    private static string GenerateNNumber(HashSet<string> existing, Random rng)
+    /// <summary>
+    /// A random US N-number ("N" and five characters: a leading digit 1-9, then digits with up to two trailing letters other
+    /// than I and O) that is not in <paramref name="existing"/>; after 100 colliding draws, an all-digit one that is not
+    /// checked against it.
+    /// </summary>
+    /// <param name="existing">Callsigns already in use, compared with the set's own comparer; not modified.</param>
+    /// <param name="rng">The random source the draws come from.</param>
+    /// <returns>The N-number, e.g. "N4926F".</returns>
+    public static string GenerateNNumber(HashSet<string> existing, Random rng)
     {
         // FAA N-number format: N followed by 5 alphanumeric characters. First char
         // must be a digit 1-9 (no leading zero). Up to 2 letters allowed, at the
