@@ -130,6 +130,46 @@ public static class CorpusWerRunner
         }
     }
 
+    /// <summary>What every segment of one prompt arm shares: the engine it runs on, its bias and where its lines go.</summary>
+    private sealed record ArmContext(
+        ICorpusSttEngine Engine,
+        ArmInput Input,
+        SttBias Bias,
+        List<CorpusWerSegmentLine> SegmentLines,
+        ArmTiming Timing
+    );
+
+    /// <summary>One prompt arm's running counts while its segments are transcribed.</summary>
+    private sealed class ArmTally(int probeCount, int segmentCount, long afterLoadGpuBytes)
+    {
+        /// <summary>How many opening segments the load probe watches.</summary>
+        public int ProbeCount { get; } = probeCount;
+
+        /// <summary>The probe segments' hypotheses so far, in order.</summary>
+        public List<string?> FirstHypotheses { get; } = new(probeCount);
+
+        /// <summary>Every segment's latency and whether the engine served it from its cache.</summary>
+        public List<(double LatencyMs, bool Cached)> Latencies { get; } = new(segmentCount);
+
+        /// <summary>Every scored segment pooled together.</summary>
+        public WerTally Overall { get; } = new();
+
+        /// <summary>Every scored segment pooled by speaker role.</summary>
+        public Dictionary<CorpusRole, WerTally> ByRole { get; } = [];
+
+        /// <summary>Every segment's counts, in the order they were transcribed, for the group rows.</summary>
+        public List<(CorpusSegment Segment, WerCounts Counts)> Scored { get; } = new(segmentCount);
+
+        /// <summary>How much audio the arm has transcribed.</summary>
+        public double AudioSeconds { get; set; }
+
+        /// <summary>How many segments came back with no transcript.</summary>
+        public int NoTranscript { get; set; }
+
+        /// <summary>The highest GPU memory the arm sampled, starting from what the load left behind.</summary>
+        public long PeakGpuBytes { get; set; } = afterLoadGpuBytes;
+    }
+
     public static async Task<int> RunAsync(string[] args)
     {
         ParseResult parse = ParseArgs(args);
@@ -164,28 +204,11 @@ public static class CorpusWerRunner
         }
         ArmTiming timing = setup.Timing;
 
-        var arms = new List<CorpusWerArm>();
         var segmentLines = new List<CorpusWerSegmentLine>();
-        foreach (string prompt in options.Prompts)
+        List<CorpusWerArm>? arms = await RunArmsAsync(setup.Engine, options, loaded.Segments, segmentLines, timing).ConfigureAwait(false);
+        if (arms is null)
         {
-            var input = new ArmInput(prompt, options.Hotwords, loaded.Segments);
-            CorpusWerArm? arm = await RunArmAsync(setup.Engine, input, segmentLines, timing).ConfigureAwait(false);
-            if (arm is null)
-            {
-                int probed = Math.Min(LoadProbeSegments, loaded.Segments.Count);
-                string kind = CorpusSttEngines.KindText(options.Stt.Kind);
-                Console.Error.WriteLine(
-                    $"FATAL: {kind} model {options.Stt.Source} returned no transcript for the first {probed} segments; {LoadFailureHint}"
-                );
-                return AtcOuroborosAnalysis.ExitSetupError;
-            }
-            arms.Add(arm);
-            timing = timing with { DeviceWarning = null };
-            Console.WriteLine($"{prompt}: WER {CorpusWerBaselineComparer.Percent(arm.Roles[0].Wer)} over {arm.Roles[0].Segments} segments");
-            if (arm.NoTranscript > 0)
-            {
-                Console.WriteLine(arm.NoTranscriptLine());
-            }
+            return AtcOuroborosAnalysis.ExitSetupError;
         }
 
         string subsetFingerprint = CorpusSubset.Fingerprint(loaded.Segments.Select(s => s.Id));
@@ -205,6 +228,43 @@ public static class CorpusWerRunner
         return options.UpdateBaseline
             ? await UpdateBaselineAsync(options, options.BaselinePath, results).ConfigureAwait(false)
             : await CompareAndReportAsync(options, options.BaselinePath, results).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Transcribes the whole corpus once per prompt arm, reporting each arm as it finishes. Null (after
+    /// printing the same FATAL line) when an arm's load probe failed.
+    /// </summary>
+    private static async Task<List<CorpusWerArm>?> RunArmsAsync(
+        ICorpusSttEngine engine,
+        Options options,
+        IReadOnlyList<CorpusSegment> segments,
+        List<CorpusWerSegmentLine> segmentLines,
+        ArmTiming timing
+    )
+    {
+        var arms = new List<CorpusWerArm>();
+        foreach (string prompt in options.Prompts)
+        {
+            var input = new ArmInput(prompt, options.Hotwords, segments);
+            CorpusWerArm? arm = await RunArmAsync(engine, input, segmentLines, timing).ConfigureAwait(false);
+            if (arm is null)
+            {
+                int probed = Math.Min(LoadProbeSegments, segments.Count);
+                string kind = CorpusSttEngines.KindText(options.Stt.Kind);
+                Console.Error.WriteLine(
+                    $"FATAL: {kind} model {options.Stt.Source} returned no transcript for the first {probed} segments; {LoadFailureHint}"
+                );
+                return null;
+            }
+            arms.Add(arm);
+            timing = timing with { DeviceWarning = null };
+            Console.WriteLine($"{prompt}: WER {CorpusWerBaselineComparer.Percent(arm.Roles[0].Wer)} over {arm.Roles[0].Segments} segments");
+            if (arm.NoTranscript > 0)
+            {
+                Console.WriteLine(arm.NoTranscriptLine());
+            }
+        }
+        return arms;
     }
 
     /// <summary>
@@ -346,58 +406,72 @@ public static class CorpusWerRunner
         string prompt = input.Prompt;
         IReadOnlyList<CorpusSegment> segments = input.Segments;
         var bias = new SttBias((prompt == "default") ? WhisperBiasingPrompt.Default : string.Empty, input.Hotwords);
-        int probeCount = Math.Min(LoadProbeSegments, segments.Count);
-        var firstHypotheses = new List<string?>(probeCount);
-        var latencies = new List<(double LatencyMs, bool Cached)>(segments.Count);
-        var overall = new WerTally();
-        var byRole = new Dictionary<CorpusRole, WerTally>();
-        var scored = new List<(CorpusSegment Segment, WerCounts Counts)>(segments.Count);
-        double audioSeconds = 0;
-        int noTranscript = 0;
-        long peakGpuBytes = timing.AfterLoadGpuBytes;
+        var tally = new ArmTally(Math.Min(LoadProbeSegments, segments.Count), segments.Count, timing.AfterLoadGpuBytes);
+        var arm = new ArmContext(engine, input, bias, segmentLines, timing);
         var watch = Stopwatch.StartNew();
         for (int i = 0; i < segments.Count; i++)
         {
-            CorpusSegment segment = segments[i];
-            var segmentWatch = Stopwatch.StartNew();
-            SttHypotheses transcript = await engine.TranscribeAsync(segment.Samples16k, bias, CancellationToken.None).ConfigureAwait(false);
-            segmentWatch.Stop();
-            double latencyMs = transcript.LatencyMs ?? segmentWatch.Elapsed.TotalMilliseconds;
-            latencies.Add((latencyMs, transcript.Cached));
-            string? hypothesis = transcript.Text;
-            if (hypothesis is null)
+            if (!await TranscribeArmSegmentAsync(arm, tally, segments[i], i).ConfigureAwait(false))
             {
-                noTranscript++;
-            }
-            if (i < probeCount)
-            {
-                firstHypotheses.Add(hypothesis);
-                if ((i == probeCount - 1) && LooksLikeLoadFailure(firstHypotheses))
-                {
-                    return null;
-                }
-            }
-            WerCounts counts = ScoreSegment(prompt, segment, transcript, latencyMs, segmentLines);
-            overall.Add(counts);
-            scored.Add((segment, counts));
-            RoleTally(byRole, segment.Role).Add(counts);
-            audioSeconds += segment.Samples16k.Length / (double)AudioCaptureService.SampleRate;
-            peakGpuBytes = Math.Max(peakGpuBytes, timing.Gpu.Sample());
-            if ((i + 1) % ProgressEvery == 0)
-            {
-                Console.WriteLine($"  {prompt}: {i + 1}/{segments.Count}");
+                return null;
             }
         }
         return new CorpusWerArm(
             prompt,
-            RoleRows(overall, byRole),
-            audioSeconds,
+            RoleRows(tally.Overall, tally.ByRole),
+            tally.AudioSeconds,
             watch.Elapsed.TotalSeconds,
-            noTranscript,
-            SummarizeTiming(timing, peakGpuBytes, latencies),
-            CorpusWerGroups.ProvenanceRows(scored),
-            CorpusWerGroups.FeedRows(scored)
+            tally.NoTranscript,
+            SummarizeTiming(timing, tally.PeakGpuBytes, tally.Latencies),
+            CorpusWerGroups.ProvenanceRows(tally.Scored),
+            CorpusWerGroups.FeedRows(tally.Scored)
         );
+    }
+
+    /// <summary>
+    /// Transcribes one segment into the arm's tally, printing the progress line. False when the arm's load
+    /// probe has now failed, which ends the arm at this segment.
+    /// </summary>
+    private static async Task<bool> TranscribeArmSegmentAsync(ArmContext arm, ArmTally tally, CorpusSegment segment, int index)
+    {
+        var segmentWatch = Stopwatch.StartNew();
+        SttHypotheses transcript = await arm.Engine.TranscribeAsync(segment.Samples16k, arm.Bias, CancellationToken.None).ConfigureAwait(false);
+        segmentWatch.Stop();
+        double latencyMs = transcript.LatencyMs ?? segmentWatch.Elapsed.TotalMilliseconds;
+        tally.Latencies.Add((latencyMs, transcript.Cached));
+        if (transcript.Text is null)
+        {
+            tally.NoTranscript++;
+        }
+        if (LoadProbeFailed(tally, index, transcript.Text))
+        {
+            return false;
+        }
+        WerCounts counts = ScoreSegment(arm.Input.Prompt, segment, transcript, latencyMs, arm.SegmentLines);
+        tally.Overall.Add(counts);
+        tally.Scored.Add((segment, counts));
+        RoleTally(tally.ByRole, segment.Role).Add(counts);
+        tally.AudioSeconds += segment.Samples16k.Length / (double)AudioCaptureService.SampleRate;
+        tally.PeakGpuBytes = Math.Max(tally.PeakGpuBytes, arm.Timing.Gpu.Sample());
+        if ((index + 1) % ProgressEvery == 0)
+        {
+            Console.WriteLine($"  {arm.Input.Prompt}: {index + 1}/{arm.Input.Segments.Count}");
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Records a probe segment's hypothesis and says whether the probe has now failed: the arm's last
+    /// opening segment, with every earlier one, came back empty.
+    /// </summary>
+    private static bool LoadProbeFailed(ArmTally tally, int index, string? hypothesis)
+    {
+        if (index >= tally.ProbeCount)
+        {
+            return false;
+        }
+        tally.FirstHypotheses.Add(hypothesis);
+        return (index == tally.ProbeCount - 1) && LooksLikeLoadFailure(tally.FirstHypotheses);
     }
 
     /// <summary>Loads the model and returns how long the load took, which every arm of the run reports.</summary>
@@ -956,10 +1030,7 @@ public static class CorpusWerRunner
                 $"--update-baseline writes the shipped Whisper baseline; the {CorpusSttEngines.KindText(parsed.Stt.Kind)} engine cannot update it"
             );
         }
-        int? subset = parsed.All ? null : (parsed.Subset ?? ((choice.Dir is null) ? DefaultUwbSubset : null));
-        string outDir = Path.GetFullPath(parsed.OutDir ?? DefaultOutDir());
-        string? baselinePath =
-            (RepoRoot is null) ? null : Path.Combine(RepoRoot, "tools", "Yaat.SpeechSandbox", "Corpus", $"{choice.Name}-wer-baseline.json");
+        (int? subset, string outDir, string? baselinePath) = ResolveTargets(parsed, choice);
         var options = new Options(
             choice.Name,
             choice.Dir,
@@ -974,6 +1045,20 @@ public static class CorpusWerRunner
             parsed.HotwordsNote
         );
         return new ParseResult(options, null);
+    }
+
+    /// <summary>
+    /// The subset, out dir and baseline path the run resolves to: the subset the arguments pick (the UWB
+    /// corpus's default one unless <c>--all</c>), a timestamped folder under <c>.tmp/corpus-wer</c> when
+    /// <c>--out</c> names none, and the corpus's shipped baseline inside a checkout.
+    /// </summary>
+    private static (int? Subset, string OutDir, string? BaselinePath) ResolveTargets(ParsedArgs parsed, CorpusChoice choice)
+    {
+        int? subset = parsed.All ? null : (parsed.Subset ?? ((choice.Dir is null) ? DefaultUwbSubset : null));
+        string outDir = Path.GetFullPath(parsed.OutDir ?? DefaultOutDir());
+        string? baselinePath =
+            (RepoRoot is null) ? null : Path.Combine(RepoRoot, "tools", "Yaat.SpeechSandbox", "Corpus", $"{choice.Name}-wer-baseline.json");
+        return (subset, outDir, baselinePath);
     }
 
     /// <summary>
