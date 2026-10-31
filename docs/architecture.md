@@ -731,6 +731,8 @@ tools/tests/test_bug_bundle_trim.py # pytest for bug_bundle.py trim: --keep-at k
 tools/tests/test_airac.py          # pytest for airac.py: cycle ids, indexes and dates on the 28-day grid, serial_cycle
 tools/tests/test_airac_pin_status.py # pytest for airac-pin-status.py: exit codes, the declined-cycle state file
 tools/tests/test_refresh_navdata.py # pytest for refresh-navdata.py: the cycle stamp and the all-or-nothing write
+tools/generate-speech-lexicon.py  # Spoken-form lexicon generator (PEP 723, ANTHROPIC_API_KEY from the environment only): generate (claude-opus-5-5 proposes spoken forms for a Yaat.SpeechSandbox --lexicon-inputs dump: fixes, procedures, gates, spots, named places, VFR landmarks), review (local page on 127.0.0.1, owner accepts/edits/rejects into decisions.json), apply (writes only accepted items into Data/ARTCCs/<ARTCC>/{FixPronunciations,ProcedurePronunciations,GatePronunciations,CustomFixes}).
+tools/tests/test_generate_speech_lexicon.py # pytest for generate-speech-lexicon.py with a fake model client: the request's model/beta/fallback/schema, a refusal failing its batch while earlier batches stay written, the missing-key exit, apply's merges (existing landmarks and procedure forms kept, a fix already in another FixPronunciations file skipped, reads_as_spelled never written), missing decisions.json, and the key absent from every written file
 tools/tests/test_speech_telemetry.py # pytest for speech_telemetry.py against a fake admin server: pull watermark and errors, summary ordering/JSON/width, reviewed bookkeeping, promote (text-only, sorted, duplicate/unreviewed refusal), case staging, gate-run eval command
 ```
 
