@@ -318,6 +318,7 @@ public static class CorpusWerRunner
         var latencies = new List<(double LatencyMs, bool Cached)>(segments.Count);
         var overall = new WerTally();
         var byRole = new Dictionary<CorpusRole, WerTally>();
+        var scored = new List<(CorpusSegment Segment, WerCounts Counts)>(segments.Count);
         double audioSeconds = 0;
         int noTranscript = 0;
         long peakGpuBytes = timing.AfterLoadGpuBytes;
@@ -345,6 +346,7 @@ public static class CorpusWerRunner
             }
             WerCounts counts = ScoreSegment(prompt, segment, transcript, latencyMs, segmentLines);
             overall.Add(counts);
+            scored.Add((segment, counts));
             RoleTally(byRole, segment.Role).Add(counts);
             audioSeconds += segment.Samples16k.Length / (double)AudioCaptureService.SampleRate;
             peakGpuBytes = Math.Max(peakGpuBytes, timing.Gpu.Sample());
@@ -359,7 +361,9 @@ public static class CorpusWerRunner
             audioSeconds,
             watch.Elapsed.TotalSeconds,
             noTranscript,
-            SummarizeTiming(timing, peakGpuBytes, latencies)
+            SummarizeTiming(timing, peakGpuBytes, latencies),
+            CorpusWerGroups.ProvenanceRows(scored),
+            CorpusWerGroups.FeedRows(scored)
         );
     }
 
@@ -517,12 +521,16 @@ public static class CorpusWerRunner
         report.AppendLine();
         report.AppendLine($"## Prompt: {arm.Prompt}");
         report.AppendLine();
-        report.AppendLine("| Role | Segments | Reference words | S | D | I | WER |");
-        report.AppendLine("|---|---|---|---|---|---|---|");
-        foreach (CorpusWerRoleTotals r in arm.Roles)
+        AppendTable(report, "Role", arm.Roles);
+        if (arm.Provenance is not null)
         {
-            string wer = CorpusWerBaselineComparer.Percent(r.Wer);
-            report.AppendLine($"| {r.Role} | {r.Segments} | {r.ReferenceWords} | {r.Substitutions} | {r.Deletions} | {r.Insertions} | {wer} |");
+            report.AppendLine();
+            AppendTable(report, "Provenance", arm.Provenance);
+        }
+        if (arm.Feeds is not null)
+        {
+            report.AppendLine();
+            AppendTable(report, "Feed", arm.Feeds);
         }
         report.AppendLine();
         string audio = arm.AudioSeconds.ToString("0.0", CultureInfo.InvariantCulture);
@@ -539,6 +547,24 @@ public static class CorpusWerRunner
             report.AppendLine(arm.NoTranscriptLine());
             report.AppendLine();
         }
+    }
+
+    /// <summary>One totals table: the <paramref name="label"/> column and the pooled counts beside it.</summary>
+    private static void AppendTable(StringBuilder report, string label, IReadOnlyList<CorpusWerRoleTotals> rows)
+    {
+        report.AppendLine($"| {label} | Segments | Reference words | S | D | I | WER |");
+        report.AppendLine("|---|---|---|---|---|---|---|");
+        foreach (CorpusWerRoleTotals row in rows)
+        {
+            report.AppendLine(Row(row));
+        }
+    }
+
+    /// <summary>One <c>report.md</c> table row.</summary>
+    private static string Row(CorpusWerRoleTotals row)
+    {
+        string wer = CorpusWerBaselineComparer.Percent(row.Wer);
+        return $"| {row.Role} | {row.Segments} | {row.ReferenceWords} | {row.Substitutions} | {row.Deletions} | {row.Insertions} | {wer} |";
     }
 
     /// <summary>The device, load, latency and memory lines of an arm that measured them.</summary>

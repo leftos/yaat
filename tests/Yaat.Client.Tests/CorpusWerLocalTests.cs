@@ -75,6 +75,68 @@ public sealed class CorpusWerLocalTests : IDisposable
     [Fact]
     public void Load_Throws_On_A_Directory_Without_Wavs() => Assert.Throws<InvalidDataException>(() => LocalCorpus.Load(_dir, subset: null, seed: 1));
 
+    [Fact]
+    public void Load_Reads_The_Decisions_File_Into_Provenance()
+    {
+        WritePair("koak-app_seg0004", 400, 16000, "one");
+        WritePair("ksfo-gnd_seg0012", 400, 16000, "two");
+        WriteDecisions(("koak-app_seg0004", "owner"), ("ksfo-gnd_seg0012", "agreed"), ("kjfk-twr_seg0001", "claude"));
+
+        IReadOnlyList<CorpusSegment> segments = LocalCorpus.Load(_dir, subset: null, seed: 1);
+
+        Assert.Equal(["owner", "agreed"], [.. segments.Select(s => s.Provenance ?? "none")]);
+    }
+
+    [Fact]
+    public void Load_Without_A_Decisions_File_Carries_No_Provenance()
+    {
+        WritePair("koak-app_seg0004", 400, 16000, "one");
+
+        IReadOnlyList<CorpusSegment> segments = LocalCorpus.Load(_dir, subset: null, seed: 1);
+
+        Assert.All(segments, s => Assert.Null(s.Provenance));
+    }
+
+    [Fact]
+    public void Load_Throws_When_A_Decision_Is_Not_One_Of_The_Three_Values()
+    {
+        WritePair("koak-app_seg0004", 400, 16000, "one");
+        WriteDecisions(("koak-app_seg0004", "maybe"));
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => LocalCorpus.Load(_dir, subset: null, seed: 1));
+
+        Assert.Contains("koak-app_seg0004", error.Message, StringComparison.Ordinal);
+        Assert.Contains("maybe", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Load_Throws_When_A_Loaded_Clip_Has_No_Decision()
+    {
+        WritePair("koak-app_seg0004", 400, 16000, "one");
+        WritePair("ksfo-gnd_seg0012", 400, 16000, "two");
+        WriteDecisions(("koak-app_seg0004", "owner"));
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => LocalCorpus.Load(_dir, subset: null, seed: 1));
+
+        Assert.Contains("ksfo-gnd_seg0012", error.Message, StringComparison.Ordinal);
+        Assert.Contains("decisions.json", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Load_Fills_Feed_From_The_Id()
+    {
+        WritePair("koak-app_seg0004", 400, 16000, "one");
+        WritePair("sm1_01_PI", 400, 16000, "two");
+
+        IReadOnlyList<CorpusSegment> segments = LocalCorpus.Load(_dir, subset: null, seed: 1);
+
+        Assert.Equal("koak-app", segments[0].Feed);
+        Assert.Null(segments[1].Feed);
+    }
+
+    private void WriteDecisions(params (string Id, string Value)[] decisions) =>
+        File.WriteAllText(Path.Combine(_dir, "decisions.json"), "{" + string.Join(",", decisions.Select(d => $"\"{d.Id}\":\"{d.Value}\"")) + "}");
+
     private void WritePair(string id, int samples, int sampleRate, string transcript)
     {
         WriteWav(id, samples, sampleRate);

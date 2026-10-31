@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Yaat.Client.Services;
 
 namespace Yaat.SpeechSandbox;
@@ -14,10 +15,12 @@ public enum CorpusRole
 }
 
 /// <summary>One utterance of a word error rate corpus: 16 kHz mono samples and the human transcript.</summary>
-public sealed record CorpusSegment(string Id, CorpusRole Role, float[] Samples16k, string Reference);
+/// <param name="Feed">The feed a folder corpus's <c>&lt;feed&gt;_seg&lt;n&gt;</c> id names; null for any other corpus.</param>
+/// <param name="Provenance">Who checked the reference, from a folder corpus's decisions file; null when it has none.</param>
+public sealed record CorpusSegment(string Id, CorpusRole Role, float[] Samples16k, string Reference, string? Feed, string? Provenance);
 
-/// <summary>Role lookup and audio conversion shared by the corpus loaders.</summary>
-public static class CorpusRoles
+/// <summary>Role, feed and audio conversion shared by the corpus loaders.</summary>
+public static partial class CorpusRoles
 {
     private const int WhisperSampleRate = 16000;
 
@@ -47,6 +50,19 @@ public static class CorpusRoles
             CorpusRole.Mixed => "mixed",
             _ => "unknown",
         };
+
+    /// <summary>
+    /// The feed an id names: the part before <c>_seg</c> when the id ends in <c>_seg</c> and a run of
+    /// digits, so <c>koak-app_seg0004</c> names <c>koak-app</c>; null for every other id.
+    /// </summary>
+    public static string? FeedFromId(string id)
+    {
+        Match match = FeedId().Match(id);
+        return match.Success ? match.Groups["feed"].Value : null;
+    }
+
+    [GeneratedRegex(@"^(?<feed>[a-z0-9]+(?:-[a-z0-9]+)*)_seg\d+$")]
+    private static partial Regex FeedId();
 
     /// <summary>
     /// Resamples decoded audio to the 16 kHz Whisper expects; 16 kHz audio comes back unchanged. The

@@ -95,7 +95,9 @@ public sealed class CorpusWerBaselineTests
                     12.5,
                     3.25,
                     1,
-                    new CorpusWerTiming("auto", 2.5, 4, 1, 120, 240, 260, 1_000_000, 2_000_000, -1, -1, null)
+                    new CorpusWerTiming("auto", 2.5, 4, 1, 120, 240, 260, 1_000_000, 2_000_000, -1, -1, null),
+                    null,
+                    null
                 ),
             ]
         );
@@ -160,7 +162,7 @@ public sealed class CorpusWerBaselineTests
     }
 
     private static CorpusWerArm Arm(string prompt, double wer) =>
-        new(prompt, [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, wer)], 30, 6, 0, null);
+        new(prompt, [new CorpusWerRoleTotals("all", 10, 100, 0, 0, 0, wer)], 30, 6, 0, null, null, null);
 
     private static CorpusWerTiming Timing(double p50Ms) => new("cpu", 1.5, 4, 1, p50Ms, p50Ms + 10, p50Ms + 20, 1000, 2000, -1, -1, null);
 
