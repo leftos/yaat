@@ -2793,6 +2793,9 @@ CorpusSlots.cs                 # A corpus folder's slots.json: each clip's gold 
 CorpusRooms.cs                 # A corpus folder's rooms.json: per feed the airport, facility (gnd|twr|app) and padding seed, plus telephony and aircraft-type overrides
 RoomContextBuilder.cs          # Expands a feed room and the slot gold into three TransmissionContexts per clip: unpadded (leave-one-out own entities), padded to 35 with seeded distractors, and the clip's oracle
 RoomHotwords.cs                # A room context's hotword phrases (callsigns, own entities, airport entities; noun-only forms dropped, capped) and per-kind form coverage of the gold
+CorpusSlotOptions.cs           # --slots / --resolve / --room-hotwords / --hotword-cap: SlotRoom, CorpusSlotOptions and their parsing and cross-flag checks
+CorpusSlotRun.cs               # --slots set-up (navdata, rooms, slots, layouts, landmarks) and per clip: the room-hotword bias, sherpa hypotheses mapped to decoder input, the decode under each room, the per-arm tallies
+CorpusSlotResults.cs           # results.json / jsonl slot records (per room: groups, coverage, resolved WER, gate count; per clip decode lines) and the report.md slot sections
 CorpusSlotScorer.cs            # Context-decoder output against the gold slots: per-kind recall and false insertions, wrong addressee, say-again and no-callsign counts, pooled overall, per provenance and per feed
 WerScorer.cs                   # WerCounts (S/D/I, rate), WerScorer (word Levenshtein alignment), WerTally (pooled rate)
 WerTextNormalizer.cs           # Puts reference and hypothesis in one form for WER: lowercase, no punctuation, accents folded, digits spelled, NATO spelling variants, split compounds and letter runs joined, fillers dropped

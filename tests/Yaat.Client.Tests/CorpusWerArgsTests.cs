@@ -15,6 +15,7 @@ public sealed class CorpusWerArgsTests : IDisposable
     private const string MissingHotwordsToken = "<missing-hotwords>";
     private const string SyntaxHotwordsToken = "<syntax-hotwords>";
     private const string BlankHotwordsToken = "<blank-hotwords>";
+    private const string FolderToken = "<folder>";
 
     private readonly string _dir = Directory.CreateTempSubdirectory("corpus-wer-args-").FullName;
 
@@ -63,6 +64,37 @@ public sealed class CorpusWerArgsTests : IDisposable
     [InlineData("--hotword-score needs --hotwords-file", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam", "--hotword-score", "2")]
     [InlineData("--hotword-case must be asis, title, lower or upper, got 'x'", "uwb-atcc", "--hotword-case", "x")]
     [InlineData("--hotword-case needs --hotwords-file", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam", "--hotword-case", "lower")]
+    [InlineData("--slots needs a corpus folder, not uwb-atcc", "uwb-atcc", "--slots")]
+    [InlineData("--resolve needs --slots", FolderToken, "--resolve")]
+    [InlineData(
+        "--room-hotwords must be unpadded, padded or oracle, got 'x'",
+        FolderToken,
+        "--slots",
+        "--stt",
+        "sherpa:m",
+        "--decoding",
+        "beam",
+        "--room-hotwords",
+        "x"
+    )]
+    [InlineData("--room-hotwords needs --slots", FolderToken, "--stt", "sherpa:m", "--decoding", "beam", "--room-hotwords", "padded")]
+    [InlineData("--room-hotwords needs --decoding beam", FolderToken, "--slots", "--stt", "sherpa:m", "--room-hotwords", "padded")]
+    [InlineData(
+        "--room-hotwords and --hotwords-file exclude each other",
+        FolderToken,
+        "--slots",
+        "--stt",
+        "sherpa:m",
+        "--decoding",
+        "beam",
+        "--room-hotwords",
+        "padded",
+        "--hotwords-file",
+        "x.txt"
+    )]
+    [InlineData("--hotword-cap needs a positive integer, got '0'", FolderToken, "--hotword-cap", "0")]
+    [InlineData("--hotword-cap needs a positive integer, got 'x'", FolderToken, "--hotword-cap", "x")]
+    [InlineData("--hotword-cap needs --room-hotwords", FolderToken, "--slots", "--stt", "sherpa:m", "--decoding", "beam", "--hotword-cap", "50")]
     public void A_Malformed_Command_Line_Fails_With_A_Message(string fragment, params string[] args)
     {
         CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([.. args.Select(Substitute)]);
@@ -286,6 +318,64 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.StartsWith($"could not read the hotwords file {file}: ", parse.Error, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Slots_ParsesResolveAndRoomHotwords()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([
+            Substitute(FolderToken),
+            "--slots",
+            "--resolve",
+            "--stt",
+            "sherpa:m",
+            "--decoding",
+            "beam",
+            "--room-hotwords",
+            "padded",
+        ]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(new CorpusSlotOptions(true, SlotRoom.Padded, 300, HotwordCase.Title), options.Slots);
+        Assert.Equal("room padded, cap 300, score 1.5, case title", options.HotwordsNote);
+        Assert.Empty(options.Hotwords);
+    }
+
+    [Fact]
+    public void HotwordScoreAndCase_ApplyToRoomHotwords()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([
+            Substitute(FolderToken),
+            "--slots",
+            "--stt",
+            "sherpa:m",
+            "--decoding",
+            "beam",
+            "--room-hotwords",
+            "oracle",
+            "--hotword-score",
+            "2.5",
+            "--hotword-case",
+            "lower",
+            "--hotword-cap",
+            "50",
+        ]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(new CorpusSlotOptions(false, SlotRoom.Oracle, 50, HotwordCase.Lower), options.Slots);
+        Assert.Equal(new SherpaDecoding(SherpaDecodingMethod.Beam, 4, 2.5f), options.Stt.Decoding);
+        Assert.Equal("room oracle, cap 50, score 2.5, case lower", options.HotwordsNote);
+    }
+
+    [Fact]
+    public void NoSlots_SlotsNull()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([Substitute(FolderToken)]);
+
+        Assert.Null(parse.Error);
+        Assert.Null(Assert.IsType<CorpusWerRunner.Options>(parse.Options).Slots);
+    }
+
     private string WriteHotwords(string name, params string[] lines)
     {
         string path = Path.Combine(_dir, name);
@@ -301,6 +391,7 @@ public sealed class CorpusWerArgsTests : IDisposable
             MissingHotwordsToken => Path.Combine(_dir, "no-hotwords.txt"),
             SyntaxHotwordsToken => WriteHotwords("syntax.txt", "alpha/bravo"),
             BlankHotwordsToken => WriteHotwords("blank.txt", "", "  "),
+            FolderToken => Directory.CreateDirectory(Path.Combine(_dir, "liveatc")).FullName,
             _ => arg,
         };
 }

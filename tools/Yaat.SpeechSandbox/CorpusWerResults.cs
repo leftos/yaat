@@ -27,6 +27,7 @@ public sealed record CorpusWerRoleTotals(string Role, int Segments, int Referenc
 /// <c>agreed</c>-checked, in that order; null when no segment carries a provenance.
 /// </param>
 /// <param name="Feeds">Pooled totals per feed, ordinal by feed name with the unfed segments pooled last under <c>unknown</c>; null when no segment carries one.</param>
+/// <param name="Slots">The arm's slot results, one per room; null without <c>--slots</c> and in a committed baseline.</param>
 public sealed record CorpusWerArm(
     string Prompt,
     IReadOnlyList<CorpusWerRoleTotals> Roles,
@@ -35,7 +36,8 @@ public sealed record CorpusWerArm(
     int NoTranscript,
     CorpusWerTiming? Timing,
     IReadOnlyList<CorpusWerRoleTotals>? Provenance,
-    IReadOnlyList<CorpusWerRoleTotals>? Feeds
+    IReadOnlyList<CorpusWerRoleTotals>? Feeds,
+    IReadOnlyList<CorpusSlotRoomResult>? Slots
 )
 {
     /// <summary>The console and report line naming the segments without a transcript.</summary>
@@ -90,7 +92,14 @@ public sealed record CorpusWerMemory(long PreLoadWorkingSetBytes, long PeakWorki
 /// <param name="Subset">How many segments the run drew; null for every segment.</param>
 /// <param name="SubsetFingerprint">The drawn ids' <see cref="CorpusSubset.Fingerprint"/>.</param>
 /// <param name="SttModel">The <c>--stt</c> engine as <see cref="CorpusSttEngines.RecordedModel"/> records it; never a machine path.</param>
-/// <param name="Hotwords">The <c>--hotwords-file</c> note (name, phrase count, score, case); null for a run without one.</param>
+/// <param name="Hotwords">
+/// The <c>--hotwords-file</c> note (name, phrase count, score, case) or the <c>--room-hotwords</c> note (room, cap, score, case);
+/// null for a run without either.
+/// </param>
+/// <param name="UnbuiltCallsigns">
+/// The run's gold callsigns no entity was built for, as <c>&lt;feed&gt;: &lt;callsign&gt;</c>, feeds and callsigns ordinal;
+/// null without <c>--slots</c> and in a committed baseline.
+/// </param>
 public sealed record CorpusWerBaseline(
     string Corpus,
     string Revision,
@@ -100,7 +109,8 @@ public sealed record CorpusWerBaseline(
     string SubsetFingerprint,
     string SttModel,
     IReadOnlyList<CorpusWerArm> Arms,
-    string? Hotwords
+    string? Hotwords,
+    IReadOnlyList<string>? UnbuiltCallsigns
 );
 
 /// <summary>One line of <c>results.jsonl</c>: one segment scored under one prompt arm.</summary>
@@ -110,6 +120,8 @@ public sealed record CorpusWerBaseline(
 /// <param name="LatencyMs">The segment's latency: the engine's own figure when it reported one, else the caller's stopwatch.</param>
 /// <param name="Cached">True when a cloud engine answered from its cache.</param>
 /// <param name="Nbest">The engine's alternatives, best first; null unless some entry carries tokens.</param>
+/// <param name="HotwordPhrases">The clip's room-hotword count; null without <c>--room-hotwords</c>.</param>
+/// <param name="Slots">The clip's decode under the unpadded, padded and oracle rooms; null without <c>--slots</c>.</param>
 public sealed record CorpusWerSegmentLine(
     string Prompt,
     string Id,
@@ -123,7 +135,9 @@ public sealed record CorpusWerSegmentLine(
     int ReferenceWords,
     double LatencyMs,
     bool Cached,
-    IReadOnlyList<SttHypothesis>? Nbest
+    IReadOnlyList<SttHypothesis>? Nbest,
+    int? HotwordPhrases,
+    IReadOnlyList<CorpusSlotDecodeLine>? Slots
 );
 
 /// <summary>How a run compares with the baseline.</summary>
@@ -253,13 +267,14 @@ public static class CorpusWerBaselineComparer
     public static string Percent(double wer) => (wer * 100).ToString("0.0", CultureInfo.InvariantCulture) + "%";
 
     /// <summary>
-    /// The document to commit as a baseline: the same run with every arm's timing stripped, since timing
-    /// is measured per machine and per run.
+    /// The document to commit as a baseline: the same run with every arm's timing and slot results and the run's unbuilt
+    /// callsigns stripped, since timing is measured per machine and per run and slot scoring is not part of the baseline.
     /// </summary>
     public static CorpusWerBaseline ForBaseline(CorpusWerBaseline results) =>
         results with
         {
-            Arms = [.. results.Arms.Select(a => a with { Timing = null })],
+            Arms = [.. results.Arms.Select(a => a with { Timing = null, Slots = null })],
+            UnbuiltCallsigns = null,
         };
 
     public static string Serialize(CorpusWerBaseline results) => JsonSerializer.Serialize(results, CorpusWerJsonContext.Default.CorpusWerBaseline);

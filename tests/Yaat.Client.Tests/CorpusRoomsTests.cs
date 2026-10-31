@@ -63,6 +63,20 @@ public sealed class CorpusRoomsTests : IDisposable
     }
 
     [Theory]
+    [InlineData("""{ "airport": "  ", "facility": "app", "seed": 1 }""")]
+    [InlineData("""{ "airport": "KOAK", "facility": "app" }""")]
+    [InlineData("""{ "airport": "KOAK", "facility": "app", "seed": 1.5 }""")]
+    public void Read_BadFeedField_ThrowsNamingFeed(string feed)
+    {
+        Write($$"""{ "feeds": { "koak-app": {{feed}} } }""");
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => CorpusRooms.Read(_dir));
+
+        Assert.Contains("koak-app", error.Message, StringComparison.Ordinal);
+        Assert.Contains(Path.Combine(_dir, CorpusRooms.FileName), error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData("""{ "feeds": {} }""")]
     [InlineData("""{ "telephony": { "QXE": "horizon" } }""")]
     [InlineData("""null""")]
