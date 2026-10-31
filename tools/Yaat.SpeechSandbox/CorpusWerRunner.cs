@@ -13,13 +13,15 @@ namespace Yaat.SpeechSandbox;
 /// Word error rate of one STT engine on real ATC audio: the pinned UWB-ATCC test split (downloaded into
 /// the YAAT cache) or a local folder of WAV + transcript pairs, transcribed through the engine
 /// <c>--stt</c> picks — Whisper with the production biasing prompt and without it, or a sherpa-onnx
-/// transducer export, which takes no prompt — pooled per speaker role, and compared with a committed
-/// baseline.
+/// transducer export, which takes no prompt but can decode by beam search with hotwords and an n-best
+/// list — pooled per speaker role, and compared with a committed baseline.
 ///
 /// Run with <c>--corpus-wer uwb-atcc|&lt;dir&gt; [--subset N | --all] [--seed S] [--stt &lt;kind&gt;:&lt;source&gt;]
-/// [--device cpu|gpu] [--prompt default|none|both] [--update-baseline] [--out &lt;dir&gt;]</c>. Writes
-/// <c>results.json</c>, <c>results.jsonl</c> and <c>report.md</c> into the out dir. Exit codes: 0 no
-/// regression (or no baseline), 1 usage error, 2 setup error, 3 regression.
+/// [--device cpu|gpu] [--prompt default|none|both] [--decoding greedy|beam] [--num-paths N]
+/// [--hotwords-file &lt;path&gt;] [--hotword-score S] [--hotword-case asis|title|lower|upper]
+/// [--update-baseline] [--out &lt;dir&gt;]</c>. Writes <c>results.json</c>, <c>results.jsonl</c> and
+/// <c>report.md</c> into the out dir. Exit codes: 0 no regression (or no baseline), 1 usage error, 2 setup
+/// error, 3 regression.
 /// </summary>
 public static class CorpusWerRunner
 {
@@ -33,7 +35,8 @@ public static class CorpusWerRunner
 
     private const string Usage =
         "Usage: Yaat.SpeechSandbox --corpus-wer uwb-atcc|<dir> [--subset N | --all] [--seed S] [--stt <kind>:<source>] "
-        + "[--device cpu|gpu] [--prompt default|none|both] [--update-baseline] [--out <dir>]";
+        + "[--device cpu|gpu] [--prompt default|none|both] [--decoding greedy|beam] [--num-paths N] [--hotwords-file <path>] "
+        + "[--hotword-score S] [--hotword-case asis|title|lower|upper] [--update-baseline] [--out <dir>]";
 
     private const string LoadFailureHint = "the model probably failed to load (see %LOCALAPPDATA%/yaat/yaat-speech-sandbox.log)";
 
@@ -49,6 +52,8 @@ public static class CorpusWerRunner
     /// <param name="Corpus"><c>uwb-atcc</c>, or the folder's lowercased directory name.</param>
     /// <param name="CorpusDir">The folder's full path; null for UWB-ATCC.</param>
     /// <param name="BaselinePath">Where the baseline lives; null when the run is not inside a yaat checkout.</param>
+    /// <param name="Hotwords">The phrases every clip's stream is biased toward; empty for none.</param>
+    /// <param name="HotwordsNote">The <c>--hotwords-file</c> as results record it, never a directory; null with no file.</param>
     public sealed record Options(
         string Corpus,
         string? CorpusDir,
@@ -58,7 +63,9 @@ public static class CorpusWerRunner
         IReadOnlyList<string> Prompts,
         bool UpdateBaseline,
         string OutDir,
-        string? BaselinePath
+        string? BaselinePath,
+        IReadOnlyList<string> Hotwords,
+        string? HotwordsNote
     );
 
     /// <summary>The outcome of <see cref="ParseArgs"/>: the options, or the error that stopped the parse.</summary>
@@ -71,11 +78,18 @@ public static class CorpusWerRunner
         public int? Subset { get; set; }
         public bool All { get; set; }
         public int Seed { get; set; } = DefaultSeed;
-        public SttChoice Stt { get; set; } = new(SttKind.Whisper, LmKitModelCatalog.RecommendedWhisperId, SttDevice.Default);
+        public SttChoice Stt { get; set; } = new(SttKind.Whisper, LmKitModelCatalog.RecommendedWhisperId, SttDevice.Default, SherpaDecoding.Greedy);
         public SttDevice? Device { get; set; }
         public string? Prompt { get; set; }
         public bool UpdateBaseline { get; set; }
         public string? OutDir { get; set; }
+        public SherpaDecodingMethod? Decoding { get; set; }
+        public int? NumPaths { get; set; }
+        public string? HotwordsFile { get; set; }
+        public float? HotwordScore { get; set; }
+        public HotwordCase? Casing { get; set; }
+        public IReadOnlyList<string> Hotwords { get; set; } = [];
+        public string? HotwordsNote { get; set; }
     }
 
     /// <summary>The corpus the first argument names.</summary>
@@ -85,6 +99,10 @@ public static class CorpusWerRunner
 
     /// <summary>The loaded segments and the identity fields the results record for them.</summary>
     private sealed record LoadedCorpus(IReadOnlyList<CorpusSegment> Segments, string Revision, string Sha256);
+
+    /// <summary>What one prompt arm transcribes and how it biases the engine.</summary>
+    /// <param name="Prompt"><c>default</c> (the production biasing prompt) or <c>none</c>.</param>
+    private sealed record ArmInput(string Prompt, IReadOnlyList<string> Hotwords, IReadOnlyList<CorpusSegment> Segments);
 
     /// <summary>
     /// What an arm's timing needs from the run: the process to sample, the device, the load it already paid,
@@ -150,7 +168,8 @@ public static class CorpusWerRunner
         var segmentLines = new List<CorpusWerSegmentLine>();
         foreach (string prompt in options.Prompts)
         {
-            CorpusWerArm? arm = await RunArmAsync(setup.Engine, prompt, loaded.Segments, segmentLines, timing).ConfigureAwait(false);
+            var input = new ArmInput(prompt, options.Hotwords, loaded.Segments);
+            CorpusWerArm? arm = await RunArmAsync(setup.Engine, input, segmentLines, timing).ConfigureAwait(false);
             if (arm is null)
             {
                 int probed = Math.Min(LoadProbeSegments, loaded.Segments.Count);
@@ -178,7 +197,8 @@ public static class CorpusWerRunner
             options.Subset,
             subsetFingerprint,
             CorpusSttEngines.RecordedModel(options.Stt),
-            arms
+            arms,
+            options.HotwordsNote
         );
         Directory.CreateDirectory(options.OutDir);
         await WriteResultsAsync(options.OutDir, results, segmentLines).ConfigureAwait(false);
@@ -199,13 +219,21 @@ public static class CorpusWerRunner
         string? setupError = engine.SetupError();
         if (setupError is not null)
         {
-            Console.Error.WriteLine($"FATAL: {setupError}");
-            engine.Dispose();
-            gpu.Dispose();
+            AbortSetup(setupError, engine, gpu);
             return null;
         }
 
-        double loadSeconds = await WarmUpAsync(engine).ConfigureAwait(false);
+        double loadSeconds;
+        try
+        {
+            loadSeconds = await WarmUpAsync(engine).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex)
+        {
+            AbortSetup(ex.Message, engine, gpu);
+            return null;
+        }
+
         string device = CorpusSttEngines.DeviceText(choice);
         if ((choice.Kind == SttKind.Whisper) && BackendCheckFailed(device, engine, gpu))
         {
@@ -216,9 +244,7 @@ public static class CorpusWerRunner
         string? warning = GpuUseCheck.Verdict(device, preLoadGpuBytes, afterLoadGpuBytes, out bool isError);
         if (isError)
         {
-            Console.Error.WriteLine($"FATAL: {warning}");
-            engine.Dispose();
-            gpu.Dispose();
+            AbortSetup(warning, engine, gpu);
             return null;
         }
         if (warning is not null)
@@ -242,10 +268,16 @@ public static class CorpusWerRunner
             return false;
         }
 
-        Console.Error.WriteLine($"FATAL: {verdict}");
+        AbortSetup(verdict, engine, gpu);
+        return true;
+    }
+
+    /// <summary>Prints why the run cannot go on and releases what set-up had made for it.</summary>
+    private static void AbortSetup(string? reason, ICorpusSttEngine engine, GpuMemoryProbe gpu)
+    {
+        Console.Error.WriteLine($"FATAL: {reason}");
         engine.Dispose();
         gpu.Dispose();
-        return true;
     }
 
     /// <summary>
@@ -306,13 +338,14 @@ public static class CorpusWerRunner
     /// </summary>
     private static async Task<CorpusWerArm?> RunArmAsync(
         ICorpusSttEngine engine,
-        string prompt,
-        IReadOnlyList<CorpusSegment> segments,
+        ArmInput input,
         List<CorpusWerSegmentLine> segmentLines,
         ArmTiming timing
     )
     {
-        string promptText = (prompt == "default") ? WhisperBiasingPrompt.Default : string.Empty;
+        string prompt = input.Prompt;
+        IReadOnlyList<CorpusSegment> segments = input.Segments;
+        var bias = new SttBias((prompt == "default") ? WhisperBiasingPrompt.Default : string.Empty, input.Hotwords);
         int probeCount = Math.Min(LoadProbeSegments, segments.Count);
         var firstHypotheses = new List<string?>(probeCount);
         var latencies = new List<(double LatencyMs, bool Cached)>(segments.Count);
@@ -327,7 +360,7 @@ public static class CorpusWerRunner
         {
             CorpusSegment segment = segments[i];
             var segmentWatch = Stopwatch.StartNew();
-            CorpusTranscript transcript = await engine.TranscribeAsync(segment.Samples16k, promptText, CancellationToken.None).ConfigureAwait(false);
+            SttHypotheses transcript = await engine.TranscribeAsync(segment.Samples16k, bias, CancellationToken.None).ConfigureAwait(false);
             segmentWatch.Stop();
             double latencyMs = transcript.LatencyMs ?? segmentWatch.Elapsed.TotalMilliseconds;
             latencies.Add((latencyMs, transcript.Cached));
@@ -388,7 +421,7 @@ public static class CorpusWerRunner
     private static WerCounts ScoreSegment(
         string prompt,
         CorpusSegment segment,
-        CorpusTranscript transcript,
+        SttHypotheses transcript,
         double latencyMs,
         List<CorpusWerSegmentLine> segmentLines
     )
@@ -409,11 +442,16 @@ public static class CorpusWerRunner
                 counts.Insertions,
                 counts.ReferenceWords,
                 latencyMs,
-                transcript.Cached
+                transcript.Cached,
+                RecordedNbest(transcript)
             )
         );
         return counts;
     }
+
+    /// <summary>The alternatives a <c>results.jsonl</c> line keeps: only an engine's that carry tokens, else null.</summary>
+    public static IReadOnlyList<SttHypothesis>? RecordedNbest(SttHypotheses transcript) =>
+        transcript.Entries.Any(e => e.Tokens.Count > 0) ? transcript.Entries : null;
 
     private static WerTally RoleTally(Dictionary<CorpusRole, WerTally> byRole, CorpusRole role)
     {
@@ -502,7 +540,9 @@ public static class CorpusWerRunner
         report.AppendLine();
         string revision = (results.Revision.Length == 0) ? "n/a" : results.Revision;
         string subset = results.Subset?.ToString(CultureInfo.InvariantCulture) ?? "all";
-        report.AppendLine($"- Corpus `{results.Corpus}`, revision `{revision}`, seed {results.Seed}, subset {subset}, model `{results.SttModel}`");
+        string hotwords = (results.Hotwords is null) ? string.Empty : $", hotwords {results.Hotwords}";
+        string corpus = $"- Corpus `{results.Corpus}`, revision `{revision}`, seed {results.Seed}, subset {subset}";
+        report.AppendLine($"{corpus}, model `{results.SttModel}`{hotwords}");
         foreach (CorpusWerArm arm in results.Arms)
         {
             AppendArm(report, arm);
@@ -580,9 +620,8 @@ public static class CorpusWerRunner
         report.AppendLine(
             $"Latency over {timing.TimedSegments} segments ({timing.CachedSegments} cached, excluded): p50 {p50} ms, p90 {p90} ms, max {max} ms"
         );
-        report.AppendLine(
-            $"Memory: working set {Megabytes(timing.PreLoadWorkingSetBytes)} MB before load, peak {Megabytes(timing.PeakWorkingSetBytes)} MB; GPU memory {gpu}"
-        );
+        string workingSet = $"{Megabytes(timing.PreLoadWorkingSetBytes)} MB before load, peak {Megabytes(timing.PeakWorkingSetBytes)} MB";
+        report.AppendLine($"Memory: working set {workingSet}; GPU memory {gpu}");
         if (timing.DeviceWarning is not null)
         {
             report.AppendLine(timing.DeviceWarning);
@@ -625,6 +664,8 @@ public static class CorpusWerRunner
                 return null;
             case "--subset" or "--seed" or "--stt" or "--device" or "--prompt" or "--out":
                 return (i + 1 < args.Length) ? ApplyValue(parsed, flag, args[++i]) : $"{flag} needs a value";
+            case "--decoding" or "--num-paths" or "--hotwords-file" or "--hotword-score" or "--hotword-case":
+                return (i + 1 < args.Length) ? ApplySherpaValue(parsed, flag, args[++i]) : $"{flag} needs a value";
             default:
                 return $"unrecognised argument '{flag}'";
         }
@@ -648,6 +689,74 @@ public static class CorpusWerRunner
                 parsed.OutDir = value;
                 return null;
         }
+    }
+
+    private static string? ApplySherpaValue(ParsedArgs parsed, string flag, string value)
+    {
+        switch (flag)
+        {
+            case "--decoding":
+                return ApplyDecoding(parsed, value);
+            case "--num-paths":
+                return ApplyNumPaths(parsed, value);
+            case "--hotword-score":
+                return ApplyHotwordScore(parsed, value);
+            case "--hotword-case":
+                return ApplyHotwordCase(parsed, value);
+            default:
+                parsed.HotwordsFile = value;
+                return null;
+        }
+    }
+
+    private static string? ApplyDecoding(ParsedArgs parsed, string value)
+    {
+        if (value is not ("greedy" or "beam"))
+        {
+            return $"--decoding must be greedy or beam, got '{value}'";
+        }
+        parsed.Decoding = (value == "greedy") ? SherpaDecodingMethod.Greedy : SherpaDecodingMethod.Beam;
+        return null;
+    }
+
+    private static string? ApplyNumPaths(ParsedArgs parsed, string value)
+    {
+        bool valid = int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int paths);
+        if (!valid || (paths < 1) || (paths > SherpaDecoding.MaxBeamPaths))
+        {
+            return $"--num-paths needs an integer from 1 to {SherpaDecoding.MaxBeamPaths}, got '{value}'";
+        }
+        parsed.NumPaths = paths;
+        return null;
+    }
+
+    private static string? ApplyHotwordScore(ParsedArgs parsed, string value)
+    {
+        bool valid = float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float score);
+        if (!valid || !float.IsFinite(score) || (score <= 0))
+        {
+            return $"--hotword-score needs a positive number, got '{value}'";
+        }
+        parsed.HotwordScore = score;
+        return null;
+    }
+
+    private static string? ApplyHotwordCase(ParsedArgs parsed, string value)
+    {
+        HotwordCase? casing = value switch
+        {
+            "asis" => HotwordCase.AsIs,
+            "title" => HotwordCase.Title,
+            "lower" => HotwordCase.Lower,
+            "upper" => HotwordCase.Upper,
+            _ => null,
+        };
+        if (casing is null)
+        {
+            return $"--hotword-case must be asis, title, lower or upper, got '{value}'";
+        }
+        parsed.Casing = casing;
+        return null;
     }
 
     private static string? ApplySubset(ParsedArgs parsed, string value)
@@ -707,7 +816,7 @@ public static class CorpusWerRunner
         {
             return Failed("--subset and --all exclude each other");
         }
-        string? error = ResolveDevice(parsed);
+        string? error = ResolveDevice(parsed) ?? ResolveDecoding(parsed);
         if (error is not null)
         {
             return Failed(error);
@@ -729,6 +838,80 @@ public static class CorpusWerRunner
             return $"--device applies to local engines; {CorpusSttEngines.KindText(parsed.Stt.Kind)} runs in the cloud";
         }
         parsed.Stt = parsed.Stt with { Device = device };
+        return null;
+    }
+
+    /// <summary>Checks the sherpa decoding flags against each other, then puts the beam choice and its hotwords on the run.</summary>
+    private static string? ResolveDecoding(ParsedArgs parsed)
+    {
+        string? error = DecodingFlagError(parsed) ?? HotwordFlagError(parsed);
+        if ((error is not null) || (parsed.Decoding != SherpaDecodingMethod.Beam))
+        {
+            return error;
+        }
+
+        float score = parsed.HotwordScore ?? SherpaHotwords.DefaultScore;
+        var decoding = new SherpaDecoding(SherpaDecodingMethod.Beam, parsed.NumPaths ?? SherpaDecoding.MaxBeamPaths, score);
+        parsed.Stt = parsed.Stt with { Decoding = decoding };
+        return (parsed.HotwordsFile is null) ? null : LoadHotwords(parsed, parsed.HotwordsFile, score);
+    }
+
+    private static string? DecodingFlagError(ParsedArgs parsed)
+    {
+        if ((parsed.Decoding is not null) && (parsed.Stt.Kind != SttKind.Sherpa))
+        {
+            return $"--decoding applies to the sherpa engine, got {CorpusSttEngines.KindText(parsed.Stt.Kind)}";
+        }
+
+        bool isBeam = parsed.Decoding == SherpaDecodingMethod.Beam;
+        if ((parsed.NumPaths is not null) && !isBeam)
+        {
+            return "--num-paths needs --decoding beam";
+        }
+        return ((parsed.HotwordsFile is not null) && !isBeam) ? "--hotwords-file needs --decoding beam" : null;
+    }
+
+    private static string? HotwordFlagError(ParsedArgs parsed)
+    {
+        if (parsed.HotwordsFile is not null)
+        {
+            return null;
+        }
+        if (parsed.HotwordScore is not null)
+        {
+            return "--hotword-score needs --hotwords-file";
+        }
+        return (parsed.Casing is not null) ? "--hotword-case needs --hotwords-file" : null;
+    }
+
+    /// <summary>Reads the hotwords file into the run and writes its note, which names the file but never its directory.</summary>
+    private static string? LoadHotwords(ParsedArgs parsed, string path, float score)
+    {
+        if (!File.Exists(path))
+        {
+            return $"the hotwords file {path} does not exist";
+        }
+
+        string[] lines;
+        try
+        {
+            lines = File.ReadAllLines(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return $"could not read the hotwords file {path}: {ex.Message}";
+        }
+
+        HotwordCase casing = parsed.Casing ?? HotwordCase.Title;
+        parsed.Hotwords = SherpaHotwords.ParseLines(lines, casing, out string? error);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        string scoreText = score.ToString(CultureInfo.InvariantCulture);
+        string caseText = casing.ToString().ToLowerInvariant();
+        parsed.HotwordsNote = $"{Path.GetFileName(path)}, {parsed.Hotwords.Count} phrases, score {scoreText}, case {caseText}";
         return null;
     }
 
@@ -777,7 +960,19 @@ public static class CorpusWerRunner
         string outDir = Path.GetFullPath(parsed.OutDir ?? DefaultOutDir());
         string? baselinePath =
             (RepoRoot is null) ? null : Path.Combine(RepoRoot, "tools", "Yaat.SpeechSandbox", "Corpus", $"{choice.Name}-wer-baseline.json");
-        var options = new Options(choice.Name, choice.Dir, subset, parsed.Seed, parsed.Stt, prompts, parsed.UpdateBaseline, outDir, baselinePath);
+        var options = new Options(
+            choice.Name,
+            choice.Dir,
+            subset,
+            parsed.Seed,
+            parsed.Stt,
+            prompts,
+            parsed.UpdateBaseline,
+            outDir,
+            baselinePath,
+            parsed.Hotwords,
+            parsed.HotwordsNote
+        );
         return new ParseResult(options, null);
     }
 

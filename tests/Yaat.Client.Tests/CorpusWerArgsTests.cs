@@ -12,6 +12,9 @@ public sealed class CorpusWerArgsTests : IDisposable
 {
     private const string MissingDirToken = "<missing-dir>";
     private const string UwbNamedDirToken = "<uwb-named-dir>";
+    private const string MissingHotwordsToken = "<missing-hotwords>";
+    private const string SyntaxHotwordsToken = "<syntax-hotwords>";
+    private const string BlankHotwordsToken = "<blank-hotwords>";
 
     private readonly string _dir = Directory.CreateTempSubdirectory("corpus-wer-args-").FullName;
 
@@ -41,6 +44,25 @@ public sealed class CorpusWerArgsTests : IDisposable
     [InlineData("the first argument must be the corpus", "--all")]
     [InlineData("nor an existing directory", MissingDirToken)]
     [InlineData("rename", UwbNamedDirToken)]
+    [InlineData("--decoding must be greedy or beam, got 'x'", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "x")]
+    [InlineData("--decoding applies to the sherpa engine, got whisper", "uwb-atcc", "--decoding", "beam")]
+    [InlineData("--decoding applies to the sherpa engine, got sherpa-streaming", "uwb-atcc", "--stt", "sherpa-streaming:m", "--decoding", "greedy")]
+    [InlineData("--decoding needs a value", "uwb-atcc", "--decoding")]
+    [InlineData("--num-paths needs an integer from 1 to 4, got 'x'", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam", "--num-paths", "x")]
+    [InlineData("--num-paths needs an integer from 1 to 4, got '0'", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam", "--num-paths", "0")]
+    [InlineData("--num-paths needs an integer from 1 to 4, got '5'", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam", "--num-paths", "5")]
+    [InlineData("--num-paths needs --decoding beam", "uwb-atcc", "--stt", "sherpa:m", "--num-paths", "2")]
+    [InlineData("--num-paths needs --decoding beam", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "greedy", "--num-paths", "1")]
+    [InlineData("--hotwords-file needs --decoding beam", "uwb-atcc", "--stt", "sherpa:m", "--hotwords-file", "x.txt")]
+    [InlineData("does not exist", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam", "--hotwords-file", MissingHotwordsToken)]
+    [InlineData("cannot contain '/'", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam", "--hotwords-file", SyntaxHotwordsToken)]
+    [InlineData("the hotwords file has no phrases", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam", "--hotwords-file", BlankHotwordsToken)]
+    [InlineData("--hotword-score needs a positive number, got 'x'", "uwb-atcc", "--hotword-score", "x")]
+    [InlineData("--hotword-score needs a positive number, got '0'", "uwb-atcc", "--hotword-score", "0")]
+    [InlineData("--hotword-score needs a positive number, got 'Infinity'", "uwb-atcc", "--hotword-score", "Infinity")]
+    [InlineData("--hotword-score needs --hotwords-file", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam", "--hotword-score", "2")]
+    [InlineData("--hotword-case must be asis, title, lower or upper, got 'x'", "uwb-atcc", "--hotword-case", "x")]
+    [InlineData("--hotword-case needs --hotwords-file", "uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam", "--hotword-case", "lower")]
     public void A_Malformed_Command_Line_Fails_With_A_Message(string fragment, params string[] args)
     {
         CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([.. args.Select(Substitute)]);
@@ -88,7 +110,7 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
         Assert.Equal(["none"], options.Prompts);
-        Assert.Equal(new SttChoice(SttKind.Sherpa, modelDir, SttDevice.Default), options.Stt);
+        Assert.Equal(new SttChoice(SttKind.Sherpa, modelDir, SttDevice.Default, SherpaDecoding.Greedy), options.Stt);
     }
 
     [Fact]
@@ -101,7 +123,7 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
         Assert.Equal(["none"], options.Prompts);
-        Assert.Equal(new SttChoice(SttKind.SherpaStreaming, modelDir, SttDevice.Default), options.Stt);
+        Assert.Equal(new SttChoice(SttKind.SherpaStreaming, modelDir, SttDevice.Default, SherpaDecoding.Greedy), options.Stt);
     }
 
     [Theory]
@@ -114,7 +136,7 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
         Assert.Equal(["none"], options.Prompts);
-        Assert.Equal(new SttChoice(kind, model, SttDevice.Default), options.Stt);
+        Assert.Equal(new SttChoice(kind, model, SttDevice.Default, SherpaDecoding.Greedy), options.Stt);
     }
 
     [Fact]
@@ -124,7 +146,7 @@ public sealed class CorpusWerArgsTests : IDisposable
 
         Assert.Null(parse.Error);
         CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
-        Assert.Equal(new SttChoice(SttKind.Whisper, "https://h/m.bin", SttDevice.Default), options.Stt);
+        Assert.Equal(new SttChoice(SttKind.Whisper, "https://h/m.bin", SttDevice.Default, SherpaDecoding.Greedy), options.Stt);
         Assert.Equal(["default", "none"], options.Prompts);
     }
 
@@ -171,11 +193,114 @@ public sealed class CorpusWerArgsTests : IDisposable
         Assert.Equal(LmKitModelCatalog.RecommendedWhisperId, options.Stt.Source);
     }
 
+    [Fact]
+    public void Beam_Decoding_Alone_Takes_Four_Paths_And_The_Default_Score()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs(["uwb-atcc", "--stt", "sherpa:m", "--decoding", "beam"]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(new SherpaDecoding(SherpaDecodingMethod.Beam, 4, 1.5f), options.Stt.Decoding);
+        Assert.Empty(options.Hotwords);
+        Assert.Null(options.HotwordsNote);
+    }
+
+    [Fact]
+    public void An_Explicit_Greedy_Decoding_Is_The_Default_Choice()
+    {
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs(["uwb-atcc", "--stt", "sherpa:m", "--decoding", "greedy"]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(SherpaDecoding.Greedy, options.Stt.Decoding);
+    }
+
+    [Fact]
+    public void The_Hotword_Flags_Resolve_The_Choice_The_Phrases_And_The_Note()
+    {
+        string file = WriteHotwords("hotwords.txt", "Southwest", "", "KAISER  Air");
+
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([
+            "uwb-atcc",
+            "--stt",
+            "sherpa:m",
+            "--decoding",
+            "beam",
+            "--num-paths",
+            "2",
+            "--hotwords-file",
+            file,
+            "--hotword-score",
+            "2.5",
+            "--hotword-case",
+            "lower",
+        ]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(new SherpaDecoding(SherpaDecodingMethod.Beam, 2, 2.5f), options.Stt.Decoding);
+        Assert.Equal(["southwest", "kaiser air"], options.Hotwords);
+        Assert.Equal("hotwords.txt, 2 phrases, score 2.5, case lower", options.HotwordsNote);
+        Assert.DoesNotContain(_dir, options.HotwordsNote, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void A_Hotwords_File_Alone_Takes_Title_Case_And_The_Default_Score()
+    {
+        string file = WriteHotwords("hotwords.txt", "SOUTHWEST two");
+
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([
+            "uwb-atcc",
+            "--stt",
+            "sherpa:m",
+            "--decoding",
+            "beam",
+            "--hotwords-file",
+            file,
+        ]);
+
+        Assert.Null(parse.Error);
+        CorpusWerRunner.Options options = Assert.IsType<CorpusWerRunner.Options>(parse.Options);
+        Assert.Equal(["Southwest Two"], options.Hotwords);
+        Assert.Equal("hotwords.txt, 1 phrases, score 1.5, case title", options.HotwordsNote);
+    }
+
+    [Fact]
+    public void A_Hotwords_File_That_Cannot_Be_Read_Fails_With_A_Message()
+    {
+        string file = WriteHotwords("held.txt", "Southwest");
+        using var hold = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+        CorpusWerRunner.ParseResult parse = CorpusWerRunner.ParseArgs([
+            "uwb-atcc",
+            "--stt",
+            "sherpa:m",
+            "--decoding",
+            "beam",
+            "--hotwords-file",
+            file,
+        ]);
+
+        Assert.Null(parse.Options);
+        Assert.NotNull(parse.Error);
+        Assert.StartsWith($"could not read the hotwords file {file}: ", parse.Error, StringComparison.Ordinal);
+    }
+
+    private string WriteHotwords(string name, params string[] lines)
+    {
+        string path = Path.Combine(_dir, name);
+        File.WriteAllLines(path, lines);
+        return path;
+    }
+
     private string Substitute(string arg) =>
         arg switch
         {
             MissingDirToken => Path.Combine(_dir, "does-not-exist"),
             UwbNamedDirToken => Directory.CreateDirectory(Path.Combine(_dir, "UWB-ATCC")).FullName,
+            MissingHotwordsToken => Path.Combine(_dir, "no-hotwords.txt"),
+            SyntaxHotwordsToken => WriteHotwords("syntax.txt", "alpha/bravo"),
+            BlankHotwordsToken => WriteHotwords("blank.txt", "", "  "),
             _ => arg,
         };
 }

@@ -99,7 +99,8 @@ public sealed class CorpusWerBaselineTests
                     null,
                     null
                 ),
-            ]
+            ],
+            null
         );
 
         string json = JsonSerializer.Serialize(original, CorpusWerJsonContext.Default.CorpusWerBaseline);
@@ -167,5 +168,5 @@ public sealed class CorpusWerBaselineTests
     private static CorpusWerTiming Timing(double p50Ms) => new("cpu", 1.5, 4, 1, p50Ms, p50Ms + 10, p50Ms + 20, 1000, 2000, -1, -1, null);
 
     private static CorpusWerBaseline Run(int seed, params CorpusWerArm[] arms) =>
-        new("uwb-atcc", "rev", "sha", seed, 400, "subset-fp", "model", arms);
+        new("uwb-atcc", "rev", "sha", seed, 400, "subset-fp", "model", arms, null);
 }

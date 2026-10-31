@@ -120,6 +120,8 @@ The same 106 clips through `--corpus-wer`. Each run is ranked on accuracy, speed
   - On CPU: p50 324 ms with 2.8 GB RAM.
 
   Its gap to Gemini 4 Argon is about 12 points owner-only (31.3% against 19.1%) and 9 points on all clips (22.9% against 13.8%). v1 and v2 tie. Its weights are under the Llama 3.2 Community License, which carries more conditions than MIT or Apache.
+
+  On sherpa-onnx 2.0.1 the same model file scores 30.0% owner-only and 22.5% on all clips by this note's scorer, and 29.6% and 22.1% by `--corpus-wer`, on CPU at p50 296 ms. 33 clips changed (14 better, 8 worse, 11 the same error count). YAAT's own native gives identical text to the stock 2.0.1 native on all 106 clips, so the change came with the upgrade; upstream #3999 (a log-zero fix for NeMo mel features) is the likely cause, not isolated by a build. The other sherpa rows here are on 1.13.8 and were not re-run.
 - **The best MIT-licensed local model is the qenneth Parakeet v3 ATC fine-tune in fp32:** 45.9% owner-only, at the same speed as rasr.
 - **Whisper is the slow family on CPU.** The shipped medium ATC takes p50 3.9 s per clip on CPU and 221 ms on GPU. large-v3 ATC is no more accurate (50.4–50.5%) at twice the latency, and stock large-v3 is worse on both.
 - **Nemotron streaming has the shortest wait:** 51 ms after the last sample on GPU, 191 ms on CPU (int8). That is because it decodes while the user speaks, but its accuracy (49–51%) matches Whisper's, not rasr's.

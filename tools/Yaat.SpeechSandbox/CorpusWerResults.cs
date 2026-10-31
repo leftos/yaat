@@ -90,6 +90,7 @@ public sealed record CorpusWerMemory(long PreLoadWorkingSetBytes, long PeakWorki
 /// <param name="Subset">How many segments the run drew; null for every segment.</param>
 /// <param name="SubsetFingerprint">The drawn ids' <see cref="CorpusSubset.Fingerprint"/>.</param>
 /// <param name="SttModel">The <c>--stt</c> engine as <see cref="CorpusSttEngines.RecordedModel"/> records it; never a machine path.</param>
+/// <param name="Hotwords">The <c>--hotwords-file</c> note (name, phrase count, score, case); null for a run without one.</param>
 public sealed record CorpusWerBaseline(
     string Corpus,
     string Revision,
@@ -98,7 +99,8 @@ public sealed record CorpusWerBaseline(
     int? Subset,
     string SubsetFingerprint,
     string SttModel,
-    IReadOnlyList<CorpusWerArm> Arms
+    IReadOnlyList<CorpusWerArm> Arms,
+    string? Hotwords
 );
 
 /// <summary>One line of <c>results.jsonl</c>: one segment scored under one prompt arm.</summary>
@@ -107,6 +109,7 @@ public sealed record CorpusWerBaseline(
 /// <param name="HypothesisNormalized">The normalised transcript; empty when there was none.</param>
 /// <param name="LatencyMs">The segment's latency: the engine's own figure when it reported one, else the caller's stopwatch.</param>
 /// <param name="Cached">True when a cloud engine answered from its cache.</param>
+/// <param name="Nbest">The engine's alternatives, best first; null unless some entry carries tokens.</param>
 public sealed record CorpusWerSegmentLine(
     string Prompt,
     string Id,
@@ -119,7 +122,8 @@ public sealed record CorpusWerSegmentLine(
     int Insertions,
     int ReferenceWords,
     double LatencyMs,
-    bool Cached
+    bool Cached,
+    IReadOnlyList<SttHypothesis>? Nbest
 );
 
 /// <summary>How a run compares with the baseline.</summary>
@@ -141,7 +145,7 @@ public sealed partial class CorpusWerJsonContext : JsonSerializerContext;
 /// <summary>Source-generated JSON for the one-line-per-segment <c>results.jsonl</c>; nulls are kept.</summary>
 [JsonSerializable(typeof(CorpusWerSegmentLine))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
-internal sealed partial class CorpusWerJsonlContext : JsonSerializerContext;
+public sealed partial class CorpusWerJsonlContext : JsonSerializerContext;
 
 /// <summary>Nearest-rank latency percentiles, and the per-arm timing built from them.</summary>
 public static class CorpusWerLatency
