@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -45,6 +46,7 @@ ICAO_LENGTH = 4
 READS_AS_SPELLED = "reads_as_spelled"
 GROUND_LISTS = ("gates", "spots", "places", "landmarks")
 CLOSED_LISTS = ("fixes", "procedures", "gates", "spots")
+CANONICAL_NAME = re.compile(r"[A-Z0-9 ]+")
 
 
 @dataclass(frozen=True)
@@ -335,6 +337,7 @@ def cmd_generate(args: argparse.Namespace, client_factory: Callable[[], Any]) ->
     inputs = read_json(Path(args.inputs))
     out_path = Path(args.out) / "candidates.json"
     candidates = load_candidates(out_path, inputs["airport"], fresh=args.fresh)
+    candidates["layoutStands"] = stand_names(inputs)
     recorded = {batch_key(record["kind"], record.get("sent", {})) for record in candidates["batches"]}
     batches = build_batches(inputs)
     pending = [batch for batch in batches if batch_key(batch.kind, batch.sent_ids()) not in recorded]
@@ -369,6 +372,8 @@ body { font-family: system-ui, sans-serif; margin: 1.5em; max-width: 70em; }
 .context, .rationale { color: #444; margin: .3em 0; }
 textarea { width: 30em; font-family: monospace; }
 .status { margin-left: 1em; font-style: italic; }
+.refusal, .stand-match.none { color: #c00; }
+.stand-match { font-family: monospace; color: #262; }
 #bar { position: sticky; top: 0; background: #fff; padding: .5em 0; border-bottom: 1px solid #ccc; }
 </style>
 </head>
@@ -442,7 +447,46 @@ function coordinate(text) {
   return text.trim() === "" ? null : Number(text);
 }
 
-function card(kind, key, item) {
+const CANONICAL = /^[A-Z0-9 ]+$/;
+
+function standMatches(pattern) {
+  const upper = pattern.toUpperCase();
+  const stands = state.layoutStands || [];
+  if (upper.endsWith("*")) return stands.filter(s => s.startsWith(upper.slice(0, -1))).length;
+  return stands.filter(s => s === upper).length;
+}
+
+function showStandMatches(area, list) {
+  list.replaceChildren();
+  for (const pattern of lines(area.value)) {
+    const count = standMatches(pattern);
+    const row = el("div", count > 0 ? `${pattern}: matches ${count} stand${count === 1 ? "" : "s"}` : `${pattern}: matches no stand`);
+    row.className = count > 0 ? "stand-match" : "stand-match none";
+    list.append(row);
+  }
+}
+
+function standsField(box, saved, item) {
+  const [wrap, area] = field("Stands (exact name, or a prefix ending in *):", ((saved && saved.stands) || item.stands || []).join("\\n"), 2);
+  const list = el("div");
+  list.className = "stand-matches";
+  area.addEventListener("input", () => showStandMatches(area, list));
+  showStandMatches(area, list);
+  wrap.append(list);
+  box.append(wrap);
+  return area;
+}
+
+function canonicalField(box, label, value) {
+  const input = textInput(value);
+  input.className = "canonical-name";
+  const wrap = el("div");
+  wrap.append(label, input);
+  box.append(wrap);
+  return input;
+}
+
+function card(kind, key, item, register) {
   const name = item[key];
   const id = `${kind}:${name}`;
   const saved = state.decisions[id];
@@ -454,18 +498,18 @@ function card(kind, key, item) {
   box.append(contextOf(kind, item));
   const [formsWrap, forms] = field("Forms (first line is what pilots say):", ((saved && saved[formsKey]) || item[formsKey] || []).join("\\n"), 3);
   box.append(formsWrap);
-  let stands = null, lat = null, lon = null, display = null;
+  let stands = null, lat = null, lon = null, display = null, canonical = null;
   if (kind === "fix") {
     display = textInput(saved && "displayName" in saved ? saved.displayName : item.displayName);
     display.className = "display-name";
     box.append("Display name (empty for none) ", display);
   }
   if (kind === "place") {
-    const [standsWrap, area] = field("Stands:", ((saved && saved.stands) || item.stands || []).join("\\n"), 2);
-    stands = area;
-    box.append(standsWrap);
+    canonical = canonicalField(box, "Name (id) ", (saved && saved.name) || item.name);
+    stands = standsField(box, saved, item);
   }
   if (kind === "landmark") {
+    canonical = canonicalField(box, "Alias ", (saved && saved.alias) || item.alias);
     lat = numberInput(saved ? saved.lat : item.lat);
     lon = numberInput(saved ? saved.lon : item.lon);
     box.append("lat ", lat, " lon ", lon);
@@ -475,24 +519,51 @@ function card(kind, key, item) {
   box.append(why);
   const status = el("span", saved ? saved.status : "undecided");
   status.className = "status";
+  const refusal = el("span");
+  refusal.className = "refusal";
   const decide = verdict => {
+    const canonicalValue = canonical ? canonical.value.trim().toUpperCase() : null;
+    if (verdict === "accepted" && canonical && !CANONICAL.test(canonicalValue)) {
+      refusal.textContent = `cannot accept: the ${kind === "place" ? "name" : "alias"} must be letters A-Z, digits and spaces`;
+      return false;
+    }
+    refusal.textContent = "";
     const decision = { status: verdict };
     decision[formsKey] = lines(forms.value);
     if (stands) decision.stands = lines(stands.value);
     if (display) decision.displayName = display.value.trim() || null;
     if (lat) { decision.lat = coordinate(lat.value); decision.lon = coordinate(lon.value); }
+    if (canonical) decision[kind === "place" ? "name" : "alias"] = canonicalValue;
     state.decisions[id] = decision;
     status.textContent = verdict;
     box.className = "item " + verdict;
+    return true;
   };
+  register({ undecided: () => !(id in state.decisions), accept: () => decide("accepted") });
   const accept = el("button", "Accept");
   accept.onclick = () => decide("accepted");
   const reject = el("button", "Reject");
   reject.onclick = () => decide("rejected");
   const buttons = el("div");
-  buttons.append(accept, " ", reject, status);
+  buttons.append(accept, " ", reject, status, " ", refusal);
   box.append(buttons);
   return box;
+}
+
+function bulkAcceptButton(cards) {
+  const wrap = el("div");
+  const button = el("button", "Accept all undecided in this section");
+  button.className = "bulk-accept";
+  const result = el("span");
+  result.className = "bulk-result";
+  button.onclick = () => {
+    const pending = cards.filter(c => c.undecided());
+    const accepted = pending.filter(c => c.accept()).length;
+    const refused = pending.length - accepted;
+    result.textContent = ` accepted ${accepted}` + (refused > 0 ? `, ${refused} refused (see the cards)` : "") + "; not saved until Save";
+  };
+  wrap.append(button, result);
+  return wrap;
 }
 
 function section(list, kind, key) {
@@ -501,7 +572,9 @@ function section(list, kind, key) {
   const shown = items.filter(i => i.verdict !== "reads_as_spelled");
   const sec = el("section");
   sec.append(el("h2", `${list} (${shown.length})`));
-  for (const item of shown) sec.append(card(kind, key, item));
+  const cards = [];
+  if (shown.length > 0) sec.append(bulkAcceptButton(cards));
+  for (const item of shown) sec.append(card(kind, key, item, c => cards.push(c)));
   if (spelled.length > 0) {
     const details = el("details");
     details.append(el("summary", `${spelled.length} read as spelled`), el("p", spelled.map(i => i[key]).join(", ")));
@@ -576,7 +649,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self.send(HTTPStatus.OK, REVIEW_HTML.encode("utf-8"), "text/html; charset=utf-8")
         elif path == "/api/state":
             decisions = read_json(self.decisions_path()) if self.decisions_path().is_file() else {}
-            self.send_json({"candidates": read_json(self.root / "candidates.json"), "decisions": decisions})
+            candidates = read_json(self.root / "candidates.json")
+            self.send_json({"candidates": candidates, "decisions": decisions, "layoutStands": layout_stands(self.root, candidates)})
         else:
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
@@ -642,6 +716,33 @@ def cmd_review(args: argparse.Namespace) -> int:
     print(f"review server: http://127.0.0.1:{args.port}/  ({root})", flush=True)
     server.serve_forever()
     return 0
+
+
+def stand_names(inputs: dict[str, Any]) -> list[str]:
+    """The layout's gate and spot names from lexicon inputs, upper-cased, distinct and sorted."""
+    return sorted({str(record["name"]).upper() for list_name in ("gates", "spots") for record in inputs.get(list_name, [])})
+
+
+def layout_stands(root: Path, candidates: dict[str, Any]) -> list[str]:
+    """The stand names a place's patterns must match: recorded by generate, else from the inputs.json beside the candidates."""
+    if "layoutStands" in candidates:
+        return candidates["layoutStands"]
+    inputs_path = root / "inputs.json"
+    return stand_names(read_json(inputs_path)) if inputs_path.is_file() else []
+
+
+def stand_matches(pattern: str, stands: list[str]) -> int:
+    """How many stands a pattern names: an exact name, or a prefix when it ends in *."""
+    upper = pattern.strip().upper()
+    if upper.endswith("*"):
+        return sum(1 for stand in stands if stand.startswith(upper[:-1]))
+    return sum(1 for stand in stands if stand == upper)
+
+
+def canonical_name(item: dict[str, Any], decision: dict[str, Any], key: str) -> str | None:
+    """The reviewed place name or landmark alias, trimmed and upper-cased; None when blank or not letters, digits and spaces."""
+    value = str(reviewed(item, decision, key) or "").strip().upper()
+    return value if CANONICAL_NAME.fullmatch(value) else None
 
 
 def forms_of(item: dict[str, Any], decision: dict[str, Any], forms_key: str) -> list[str]:
@@ -742,26 +843,40 @@ def apply_procedures(artcc_dir: Path, artcc: str, pairs: list[tuple[dict[str, An
         report(target, added, updated)
 
 
-def apply_ground(artcc_dir: Path, airport: str, faa: str, accepted: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]]) -> None:
+def merge_place(entry: dict[str, Any], item: dict[str, Any], decision: dict[str, Any], layout: list[str]) -> None:
+    """Adds the reviewed stands that name a layout stand (dropping the rest, with a message) and the notes when the entry has none."""
+    stands = []
+    for pattern in forms_of(item, decision, "stands"):
+        if stand_matches(pattern, layout) == 0:
+            print(f"dropped stand {pattern} of place {entry['name']}: matches no layout gate or spot")
+        else:
+            stands.append(pattern.upper())
+    if stands:
+        append_unique(entry.setdefault("stands", []), stands)
+    if item.get("notes") and not entry.get("notes"):
+        entry["notes"] = item["notes"]
+
+
+def apply_ground(artcc_dir: Path, airport: str, accepted: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]], layout: list[str]) -> None:
     pairs = [(list_name, item, decision) for list_name in ("gates", "spots", "places") for item, decision in accepted[list_name]]
     if not pairs:
         return
-    target = artcc_dir / "GatePronunciations" / f"{faa.lower()}.json"
+    target = artcc_dir / "GatePronunciations" / f"{faa_code(airport).lower()}.json"
     document: dict[str, Any] = read_json(target) if target.is_file() else {"airportId": airport}
-    added = 0
+    added = updated = 0
     for list_name, item, decision in pairs:
-        name = str(item["name"]).upper()
+        name = canonical_name(item, decision, "name") if list_name == "places" else str(item["name"]).upper()
+        if name is None:
+            print(f"skipped place {item['name']}: its name must be letters A-Z, digits and spaces")
+            continue
         entry, created = upsert(document.setdefault(list_name, []), "name", name, {"name": name, "pronunciations": []})
         append_unique(entry["pronunciations"], forms_of(item, decision, "pronunciations"))
         if list_name == "places":
-            stands = forms_of(item, decision, "stands")
-            if stands:
-                append_unique(entry.setdefault("stands", []), stands)
-            if item.get("notes") and not entry.get("notes"):
-                entry["notes"] = item["notes"]
-        added += created
-    write_json(target, document)
-    report(target, added, len(pairs) - added)
+            merge_place(entry, item, decision, layout)
+        added, updated = added + created, updated + (not created)
+    if added or updated:
+        write_json(target, document)
+        report(target, added, updated)
 
 
 def apply_landmarks(artcc_dir: Path, faa: str, pairs: list[tuple[dict[str, Any], dict[str, Any]]]) -> None:
@@ -771,7 +886,10 @@ def apply_landmarks(artcc_dir: Path, faa: str, pairs: list[tuple[dict[str, Any],
     entries: list[dict[str, Any]] = read_json(target) if target.is_file() else []
     added = updated = 0
     for item, decision in pairs:
-        alias = str(item["alias"]).upper()
+        alias = canonical_name(item, decision, "alias")
+        if alias is None:
+            print(f"skipped landmark {item['alias']}: its alias must be letters A-Z, digits and spaces")
+            continue
         lat, lon = reviewed(item, decision, "lat"), reviewed(item, decision, "lon")
         if lat is None or lon is None:
             print(f"skipped landmark {alias}: accepted without a lat/lon")
@@ -809,7 +927,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
     faa = faa_code(airport)
     apply_fixes(artcc_dir, faa, accepted["fixes"])
     apply_procedures(artcc_dir, args.artcc, accepted["procedures"])
-    apply_ground(artcc_dir, airport, faa, accepted)
+    apply_ground(artcc_dir, airport, accepted, layout_stands(root, candidates))
     apply_landmarks(artcc_dir, faa, accepted["landmarks"])
     return 0
 
