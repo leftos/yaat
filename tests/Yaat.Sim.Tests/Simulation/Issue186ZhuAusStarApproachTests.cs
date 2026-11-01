@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -243,6 +244,165 @@ public class Issue186ZhuAusStarApproachTests
         Assert.DoesNotContain(warnings, w => w.Contains("cancelled by CAPP", StringComparison.OrdinalIgnoreCase));
         Assert.True(capturedBeforeCapp, "SWA387 should capture the I18L localizer on the clean ~24 deg JFAC intercept");
         Assert.True(descended, "SWA387 should descend on the glideslope after CAPP upgrades the join in place");
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // #3 / YAAT-1429 — the in-place CAPP upgrade is an approach clearance like any other: it cancels
+    // the speed assigned before it (7110.65 §5-7-1.d; AIM 4-4-12.g), SPDN's lift of the
+    // speed limits and SMAX's maximum-speed hold included.
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Swa387_SpeedAssignedBeforeTheInPlaceCapp_IsCancelled()
+    {
+        Swa387Staging? staged = StageSwa387BeforeTheInPlaceCapp();
+        if (staged is null)
+        {
+            return;
+        }
+
+        Assert.True(staged.Engine.SendCommand("SWA387", "SPD 180").Success);
+        AircraftState ac = staged.Engine.FindAircraft("SWA387")!;
+        Assert.Equal(180, ac.Targets.AssignedSpeed);
+
+        staged.Engine.ReplayRange(584, 592, staged.Actions);
+
+        ac = staged.Engine.FindAircraft("SWA387")!;
+        _output.WriteLine(
+            $"after in-place CAPP: assigned={ac.Targets.AssignedSpeed} explicit={ac.Targets.HasExplicitSpeedCommand} "
+                + $"controller={ac.Targets.SpeedCommandIsControllerIssued} warnings=[{string.Join(" | ", staged.Warnings)}]"
+        );
+
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
+        Assert.False(ac.Targets.SpeedCommandIsControllerIssued);
+        Assert.DoesNotContain(staged.Warnings, w => w.Contains("cancelled by CAPP", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Swa387_SpdnBeforeTheInPlaceCapp_DropsTheLift()
+    {
+        Swa387Staging? staged = StageSwa387BeforeTheInPlaceCapp();
+        if (staged is null)
+        {
+            return;
+        }
+
+        Assert.True(staged.Engine.SendCommand("SWA387", "SPDN 180").Success);
+        AircraftState ac = staged.Engine.FindAircraft("SWA387")!;
+        Assert.True(ac.Targets.SpeedLimitsLifted);
+        Assert.Equal(180, ac.Targets.AssignedSpeed);
+
+        staged.Engine.ReplayRange(584, 592, staged.Actions);
+
+        ac = staged.Engine.FindAircraft("SWA387")!;
+        _output.WriteLine($"after in-place CAPP: assigned={ac.Targets.AssignedSpeed} lifted={ac.Targets.SpeedLimitsLifted}");
+
+        Assert.False(ac.Targets.SpeedLimitsLifted);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    [Fact]
+    public void Swa387_SmaxBeforeTheInPlaceCapp_EndsTheMaximumSpeedHold()
+    {
+        Swa387Staging? staged = StageSwa387BeforeTheInPlaceCapp();
+        if (staged is null)
+        {
+            return;
+        }
+
+        Assert.True(staged.Engine.SendCommand("SWA387", "SMAX").Success);
+        AircraftState ac = staged.Engine.FindAircraft("SWA387")!;
+        Assert.True(ac.Targets.SpeedMaxHeld);
+
+        staged.Engine.ReplayRange(584, 592, staged.Actions);
+
+        ac = staged.Engine.FindAircraft("SWA387")!;
+        _output.WriteLine($"after in-place CAPP: assigned={ac.Targets.AssignedSpeed} speedMax={ac.Targets.SpeedMaxHeld}");
+
+        Assert.False(ac.Targets.SpeedMaxHeld);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // #3 / YAAT-1429 (review) — the same-runway in-trail reduction is not a speed the clearance
+    // cancels: it belongs to that pass and is restated with the clearance (7110.65 §5-7-1.c). The
+    // clearance does end the STAR and its last-crossed published speed (7110.65 §5-7-1.e NOTE).
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Swa387_InTrailProtectionCeiling_SurvivesTheInPlaceCappAndIsRestated()
+    {
+        Swa387Staging? staged = StageSwa387BeforeTheInPlaceCapp();
+        if (staged is null)
+        {
+            return;
+        }
+
+        // The protection pass hands back any stamp it did not re-stamp on the next tick, so the recorded CAPP is
+        // dispatched directly: no tick may stand between the standing reduction and the clearance that restates it.
+        RecordedCommand? recordedCapp = staged
+            .Actions.OfType<RecordedCommand>()
+            .FirstOrDefault(action =>
+                (action.Callsign == "SWA387") && (action.ElapsedSeconds >= 584) && action.Command.Contains("CAPP", StringComparison.Ordinal)
+            );
+        Assert.NotNull(recordedCapp);
+
+        AircraftState ac = staged.Engine.FindAircraft("SWA387")!;
+        ac.Approach.SameRunwayProtectionCeilingKts = 170;
+        ac.Approach.SameRunwayProtectionFasInstructed = false;
+        ac.Targets.SpeedCeiling = 170;
+        string expectedLine = SameRunwayArrivalProtection.RestatementLine(
+            ac.Track.Owner?.Callsign ?? SameRunwayArrivalProtection.SimulatedApproachControllerLabel,
+            "SWA387",
+            170
+        );
+
+        Assert.True(staged.Engine.SendCommand("SWA387", recordedCapp.Command).Success);
+
+        ac = staged.Engine.FindAircraft("SWA387")!;
+        _output.WriteLine(
+            $"after in-place CAPP ({recordedCapp.Command}): ceiling={ac.Targets.SpeedCeiling} responses=[{string.Join(" | ", ac.PendingNotifications)}]"
+        );
+
+        Assert.Equal(170, ac.Targets.SpeedCeiling);
+        Assert.Contains(expectedLine, ac.PendingNotifications);
+    }
+
+    [Fact]
+    public void Swa387_InPlaceCapp_EndsTheStarsLastCrossedCeiling_ForALaterRns()
+    {
+        Swa387Staging? staged = StageSwa387BeforeTheInPlaceCapp();
+        if (staged is null)
+        {
+            return;
+        }
+
+        string starId = NavigationDatabase
+            .Instance.GetStars("KAUS")
+            .Select(star => star.ProcedureId)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .First();
+        AircraftState ac = staged.Engine.FindAircraft("SWA387")!;
+        ac.Procedure.ActiveStarId = starId;
+        ac.Procedure.StarViaMode = true;
+        ac.Procedure.LastCrossedPublishedSpeedKts = 250;
+        _output.WriteLine($"injected STAR {starId} at t=584");
+
+        staged.Engine.ReplayRange(584, 592, staged.Actions);
+
+        ac = staged.Engine.FindAircraft("SWA387")!;
+        _output.WriteLine(
+            $"after in-place CAPP: star={ac.Procedure.ActiveStarId} via={ac.Procedure.StarViaMode} lastCrossed={ac.Procedure.LastCrossedPublishedSpeedKts} ceiling={ac.Targets.SpeedCeiling}"
+        );
+
+        Assert.Null(ac.Procedure.ActiveStarId);
+        Assert.False(ac.Procedure.StarViaMode);
+        Assert.Null(ac.Procedure.LastCrossedPublishedSpeedKts);
+
+        Assert.True(staged.Engine.SendCommand("SWA387", "RNS").Success);
+        ac = staged.Engine.FindAircraft("SWA387")!;
+        Assert.Null(ac.Targets.SpeedCeiling);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -573,4 +733,59 @@ public class Issue186ZhuAusStarApproachTests
         ac.Phases is null ? "null" : string.Join(", ", ac.Phases.Phases.Select(p => $"{p.Name}({p.Status})"));
 
     private static string FormatWarnings(AircraftState ac) => ac.PendingWarnings.Count == 0 ? "none" : string.Join("; ", ac.PendingWarnings);
+
+    /// <summary>
+    /// SWA387's staging for the in-place CAPP tests: restore the snapshot just before the JFAC at 463, replay the JFAC
+    /// and the lateral intercept up to just before the recorded CAPP at 586, and hand back the engine with SWA387's
+    /// warnings and the recording's actions. Null when the recording or NavData is absent, having said so in the output.
+    /// </summary>
+    private Swa387Staging? StageSwa387BeforeTheInPlaceCapp()
+    {
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
+        if (archive is null || engine is null)
+        {
+            _output.WriteLine("Recording or NavData not available, skipping");
+            return null;
+        }
+
+        SessionRecording recording = archive.ToBaseSessionRecording();
+        engine.Replay(recording, 0);
+
+        TimedSnapshot? snap = archive.ReadSnapshotAt(461);
+        if (snap is null)
+        {
+            _output.WriteLine("No snapshot near t=461, skipping");
+            return null;
+        }
+
+        var warnings = new List<string>();
+        engine.WarningEmitted += (cs, w) =>
+        {
+            if (cs == "SWA387")
+            {
+                warnings.Add(w);
+            }
+        };
+
+        engine.RestoreFromSnapshot(snap.State);
+        int start = (int)snap.ElapsedSeconds;
+
+        // Apply JFAC I18L @463, then fly the lateral intercept up to just before CAPP.
+        engine.ReplayRange(start, 470, recording.Actions);
+        engine.ReplayRange(470, 584, recording.Actions);
+
+        AircraftState? ac = engine.FindAircraft("SWA387");
+        if (ac is null)
+        {
+            _output.WriteLine("No SWA387 at t=584, skipping");
+            return null;
+        }
+
+        _output.WriteLine($"before in-place CAPP: lateralOnly={ac.Phases?.ActiveApproach?.LateralInterceptOnly} phases={FormatPhases(ac)}");
+
+        return new Swa387Staging(engine, recording.Actions, warnings);
+    }
+
+    private sealed record Swa387Staging(SimulationEngine Engine, List<RecordedAction> Actions, List<string> Warnings);
 }

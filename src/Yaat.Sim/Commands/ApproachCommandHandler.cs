@@ -3055,7 +3055,7 @@ public static class ApproachCommandHandler
     /// same-runway in-trail reduction's ceiling is not a speed the clearance cancels: it belongs to that pass and is
     /// restated with the clearance (<see cref="RestateStandingInTrailReduction"/>).
     /// </summary>
-    private static void CancelSpeedsForApproachClearance(AircraftState aircraft)
+    internal static void CancelSpeedsForApproachClearance(AircraftState aircraft)
     {
         double? ceiling = aircraft.Targets.SpeedCeiling;
         FlightCommandHandler.CancelAssignedSpeed(aircraft);
@@ -3080,7 +3080,7 @@ public static class ApproachCommandHandler
     /// approach speed" — a speed below the §5-7-3.c minima under §5-7-3.f, and never a number — so the approach
     /// controller issuing the clearance has neither the instruction nor the figure to restate.</para>
     /// </summary>
-    private static void RestateStandingInTrailReduction(AircraftState aircraft)
+    internal static void RestateStandingInTrailReduction(AircraftState aircraft)
     {
         if (aircraft.Approach.SameRunwayProtectionFasInstructed)
         {

@@ -1455,7 +1455,8 @@ writes nothing to the aircraft. It is silent when nothing stands, and when the l
   bypasses the 30° `BustThroughAlignmentDeg` gate like `ForcedIntercept` but stays **passive** (no pre-LOC steering; turns
   only at capture) — keep the two flags distinct. Only `PTAC` expects a controller-limited intercept. **A bare same-approach
   `CAPP` on an established JFAC/JLOC join upgrades in place** via `CommandDispatcher.TryUpgradeLateralJoinInPlace` (early
-  short-circuit before phase-clearing): it flips `LateralInterceptOnly` false and cancels the assigned speed
-  (7110.65 §5-7-1) with no teardown/rebuild, so there is no spurious "…cancelled by CAPP" warning. `CAPPF`/`AT`/`DCT`/altitude/different-approach
+  short-circuit before phase-clearing): it flips `LateralInterceptOnly` false with no teardown/rebuild, so there is no spurious "…cancelled by CAPP" warning,
+  and it applies the same speed cancellation as a full `CAPP` (7110.65 §5-7-1.d): the assigned speed and its flags go, the STAR ends with its last-crossed published speed, and route fixes drop their speed reverts and take their published speeds back.
+  A same-runway in-trail ceiling in force is kept and restated in the terminal log (§5-7-1.c; the §5-7-1.e NOTE), via the `ApproachCommandHandler` helpers the upgrade shares with the full path. `JFAC` itself keeps the assigned speed. `CAPPF`/`AT`/`DCT`/altitude/different-approach
   still rebuild. The glideslope-established bypass is scoped to `PTACF` via `ApproachClearance.ForcedInterceptCapture` (not
   the old steep-capture-angle proxy); `InterceptCaptureAngleDeg` now only feeds approach scoring.

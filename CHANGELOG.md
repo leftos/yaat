@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- `CAPP` after `JFAC` or `JLOC` cancels assigned speeds like any approach clearance, keeping and restating a standing in-trail reduction.
 - `TAXI C 33` given to an aircraft already holding at a runway 33 bar on C holds it there instead of crossing the runway's end.
 - A crossing between two taxiways that meet a runway apart goes straight over the runway, and only its sharpest corner decides whether the type can make it.
 - A speed given in the same transmission as an approach clearance, `CVIA` or `DVIA` is kept, wherever it sits in the transmission and across a rewind.

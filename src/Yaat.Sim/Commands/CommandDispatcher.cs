@@ -521,7 +521,7 @@ public static class CommandDispatcher
         // glideslope descent in place — it does not tear the join down and rebuild it (which
         // would emit a spurious "… cancelled by CAPP" warning). The aircraft is already tracking
         // the localizer; CAPP just clears it to descend.
-        CommandResult? lateralUpgrade = TryUpgradeLateralJoinInPlace(compound, aircraft);
+        CommandResult? lateralUpgrade = TryUpgradeLateralJoinInPlace(compound, aircraft, ctx);
         if (lateralUpgrade is not null)
         {
             return lateralUpgrade;
@@ -925,7 +925,7 @@ public static class CommandDispatcher
     /// or <c>null</c> to fall through to normal CAPP dispatch (forced CAPPF, a different approach,
     /// AT/DCT/maintain-altitude forms, or any aircraft not on a lateral join).
     /// </summary>
-    private static CommandResult? TryUpgradeLateralJoinInPlace(CompoundCommand compound, AircraftState aircraft)
+    private static CommandResult? TryUpgradeLateralJoinInPlace(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
         if (compound.Blocks.Count != 1)
         {
@@ -965,12 +965,18 @@ public static class CommandDispatcher
         // Authorize the descent on the join already in progress. The glideslope still gates on the
         // aircraft's lateral establishment (5°/0.15nm) — a relaxed join is not a PTACF forced
         // intercept, so ForcedInterceptCapture stays false and the gate is not bypassed even from a
-        // steep cut. An intercept-only join upgraded in place keeps the assigned speed and its flags:
-        // only the target speed and the SPDN lift are dropped (the full approach-clearance cancel is
-        // booked as YAAT-1429).
+        // steep cut. Like every approach clearance, the upgrade cancels the assigned speed and its flags and
+        // restores the published speeds (7110.65 5-7-1.d (5-7-1.c for a restated speed)), and ends the STAR
+        // with its last-crossed published speed (7110.65 5-7-1.e NOTE).
         clearance.LateralInterceptOnly = false;
-        aircraft.Targets.TargetSpeed = null;
-        aircraft.Targets.SpeedLimitsLifted = false;
+        ApproachCommandHandler.CancelSpeedsForApproachClearance(aircraft);
+        ApproachCommandHandler.RestateStandingInTrailReduction(aircraft);
+        aircraft.Procedure.ActiveStarId = null;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
+        aircraft.Procedure.StarViaFloor = null;
+        NavigationCommandHandler.DropSpeedReverts(aircraft);
+        NavigationCommandHandler.RestorePublishedSpeedsForApproach(aircraft, ctx.TransmissionId);
 
         return Ok($"Cleared {clearance.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(clearance.RunwayId)}");
     }
