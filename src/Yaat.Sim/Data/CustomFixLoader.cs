@@ -89,7 +89,33 @@ public static class CustomFixLoader
                 def.Frd = null;
             }
 
+            def.SourceFile = filePath;
             result.Fixes.Add(def);
         }
     }
+
+    /// <summary>
+    /// The FAA id of the airport a landmark file serves, from its name <c>&lt;faa&gt;-landmarks.json</c>, uppercased
+    /// ("OAK" from <c>oak-landmarks.json</c>); null for any other custom-fix file.
+    /// </summary>
+    /// <param name="sourceFile">The path or name of the custom-fix file.</param>
+    public static string? LandmarkAirport(string sourceFile)
+    {
+        const string Suffix = "-landmarks.json";
+        string name = Path.GetFileName(sourceFile);
+        if (!name.EndsWith(Suffix, StringComparison.OrdinalIgnoreCase) || (name.Length == Suffix.Length))
+        {
+            return null;
+        }
+
+        return name[..^Suffix.Length].ToUpperInvariant();
+    }
 }
+
+/// <summary>A landmark custom fix, with the airport whose landmark file declares it.</summary>
+/// <param name="Airport">The FAA id of the airport from the file name ("OAK").</param>
+/// <param name="Alias">The fix's first alias ("OAK30NUM").</param>
+/// <param name="SpokenPatterns">The raw non-blank spoken patterns, trimmed and lowercased.</param>
+/// <param name="Lat">The landmark's latitude.</param>
+/// <param name="Lon">The landmark's longitude.</param>
+public sealed record CustomFixLandmark(string Airport, string Alias, IReadOnlyList<string> SpokenPatterns, double Lat, double Lon);

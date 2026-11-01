@@ -32,4 +32,8 @@ public sealed class CustomFixDefinition
     /// </summary>
     [JsonPropertyName("spokenPatterns")]
     public List<string>? SpokenPatterns { get; set; }
+
+    /// <summary>The path of the JSON file the definition was loaded from; set by <see cref="CustomFixLoader"/>, never read from JSON.</summary>
+    [JsonIgnore]
+    public string SourceFile { get; set; } = "";
 }

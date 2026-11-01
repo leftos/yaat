@@ -747,6 +747,14 @@ public sealed class NavigationDatabase
     private readonly List<Speech.CustomFixSpeechPattern> _customFixSpeechPatterns = [];
 
     /// <summary>
+    /// Every custom fix loaded from an airport's <c>&lt;faa&gt;-landmarks.json</c> that has a position and at least one
+    /// non-blank spoken pattern, with that airport. Read by the speech-to-text context layer.
+    /// </summary>
+    public IReadOnlyList<CustomFixLandmark> CustomFixLandmarks => _customFixLandmarks;
+
+    private readonly List<CustomFixLandmark> _customFixLandmarks = [];
+
+    /// <summary>
     /// Phonetic pronunciation hints for fixes whose spelling doesn't match their spoken form.
     /// Keyed by canonical uppercase fix name; each entry lists one or more phonetic spellings.
     /// Used by <see cref="BuildWhisperPronunciationHint"/> to seed Whisper's <c>initial_prompt</c>
@@ -2667,6 +2675,8 @@ public sealed class NavigationDatabase
 
                     _customFixSpeechPatterns.Add(new Speech.CustomFixSpeechPattern(tokens, canonical));
                 }
+
+                AddLandmark(def, pos.Value);
             }
         }
 
@@ -2681,6 +2691,21 @@ public sealed class NavigationDatabase
             loadResult.Fixes.Count,
             _customFixSpeechPatterns.Count
         );
+    }
+
+    /// <summary>Records a definition from an airport's landmark file whose spoken patterns are not all blank.</summary>
+    private void AddLandmark(CustomFixDefinition def, (double Lat, double Lon) pos)
+    {
+        if ((CustomFixLoader.LandmarkAirport(def.SourceFile) is not { } airport) || (def.SpokenPatterns is null))
+        {
+            return;
+        }
+
+        List<string> patterns = [.. def.SpokenPatterns.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p.Trim().ToLowerInvariant())];
+        if (patterns.Count > 0)
+        {
+            _customFixLandmarks.Add(new CustomFixLandmark(airport, def.Aliases[0], patterns, pos.Lat, pos.Lon));
+        }
     }
 
     private void LoadFixPronunciations(string baseDir)
