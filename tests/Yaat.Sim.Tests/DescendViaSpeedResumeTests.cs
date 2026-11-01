@@ -159,6 +159,60 @@ public class DescendViaSpeedResumeTests
         AssertFliesPublished(fix.Name, published, crossingIas);
     }
 
+    /// <summary>
+    /// The planner ends its slowdown where the fix sequences, inside the sequencing threshold before the fix itself, so
+    /// the aircraft is at GRUDG's published 260 when GRUDG sequences, not still slowing toward it (YAAT-1367).
+    /// </summary>
+    [Fact]
+    public void ResumePublishedSpeed_AfterDeleteSpeedRestrictions_IsAtThePublishedSpeedWhenTheFixSequences()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        SendOk(harness, "DVIA");
+        SendOk(harness, "DSR");
+        SendOk(harness, "RPS");
+
+        NavigationTarget fix = NextSpeedRestrictedFix(harness.Aircraft);
+        Assert.Equal("GRUDG", fix.Name);
+        Assert.Equal(GrudgPublishedKts, fix.SpeedRestriction!.SpeedKts);
+        AssertCrossesGrudgAtThePublishedSpeed(harness);
+    }
+
+    /// <summary>
+    /// On a descend via the aircraft keeps its present speed and the planner slows it to cross GRUDG at its published 260
+    /// (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2): the clearance itself does not target 260 tens of miles early
+    /// (YAAT-1367).
+    /// </summary>
+    [Fact]
+    public void DescendVia_FarFromAnAtOrBelowSpeedFix_LeavesTheSlowdownToThePlanner()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        Assert.True(aircraft.IndicatedAirspeed > GrudgPublishedKts + SnapKts, $"The harness starts at {aircraft.IndicatedAirspeed:F0} kt");
+        double? targetBefore = aircraft.Targets.TargetSpeed;
+
+        SendOk(harness, "DVIA");
+
+        Assert.Equal(GrudgPublishedKts, RouteFix(aircraft, "GRUDG").SpeedRestriction?.SpeedKts);
+        Assert.NotEqual(GrudgPublishedKts, aircraft.Targets.TargetSpeed);
+        Assert.Equal(targetBefore, aircraft.Targets.TargetSpeed);
+        AssertCrossesGrudgAtThePublishedSpeed(harness);
+    }
+
+    /// <summary>Ticks until GRUDG sequences and asserts the speed then is at most its published 260.</summary>
+    private void AssertCrossesGrudgAtThePublishedSpeed(OakesHarness harness)
+    {
+        (double crossingIas, _) = TickUntilPassed(harness, "GRUDG");
+        Assert.True(crossingIas <= GrudgPublishedKts + SnapKts, $"GRUDG sequenced at {crossingIas:F1} kt, above its published {GrudgPublishedKts}");
+    }
+
     /// <summary>As <see cref="ResumeNormalSpeed_AfterCrossedPublishedSpeed_DoesNotExceedItBeforeTheNextRestriction"/>, with RPS.</summary>
     [Fact]
     public void ResumePublishedSpeed_AfterCrossedPublishedSpeed_DoesNotExceedItBeforeTheNextRestriction()
@@ -1109,7 +1163,8 @@ public class DescendViaSpeedResumeTests
         OakesHarness harness = BuildOakesRw12Harness();
         AircraftState aircraft = harness.Aircraft;
         SendOk(harness, "CFIX GRUDG 160 230, DVIA");
-        Assert.NotNull(aircraft.Targets.TargetSpeed);
+        Assert.Null(aircraft.Targets.TargetSpeed);
+        TickUntilThePlannerSlowsFor(harness, "GRUDG");
         SendOk(harness, "CFIX GRUDG 160 220");
 
         TickUntilPassed(harness, "GRUDG");
@@ -1128,7 +1183,8 @@ public class DescendViaSpeedResumeTests
         OakesHarness harness = BuildOakesRw12Harness();
         AircraftState aircraft = harness.Aircraft;
         SendOk(harness, "DVIA");
-        Assert.NotNull(aircraft.Targets.TargetSpeed);
+        Assert.Null(aircraft.Targets.TargetSpeed);
+        TickUntilThePlannerSlowsFor(harness, "GRUDG");
         SendOk(harness, "CFIX GRUDG 160 230");
         SendOk(harness, "CFIX LOHGN 60 180");
 
@@ -1845,6 +1901,30 @@ public class DescendViaSpeedResumeTests
         {
             harness.Engine.TickOneSecond();
         }
+    }
+
+    /// <summary>
+    /// Ticks until the planner targets a speed while <paramref name="fixName"/> is still ahead: a via clearance leaves the
+    /// slowdown for a lower speed there to the planner, so the aircraft changes speed only from then on.
+    /// </summary>
+    private void TickUntilThePlannerSlowsFor(OakesHarness harness, string fixName)
+    {
+        AircraftState aircraft = harness.Aircraft;
+        for (int t = 1; t <= 1800; t++)
+        {
+            harness.Engine.TickOneSecond();
+            Assert.True(
+                aircraft.Targets.NavigationRoute.Exists(f => f.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase)),
+                $"The aircraft passed {fixName} with no speed targeted"
+            );
+            if (aircraft.Targets.TargetSpeed is { } target)
+            {
+                _output.WriteLine($"The planner targets {target:F0} kt {t} s on, at {aircraft.IndicatedAirspeed:F0} kt");
+                return;
+            }
+        }
+
+        Assert.Fail($"No speed targeted before {fixName} within 1800 s");
     }
 
     /// <summary>Ticks until <paramref name="fixName"/> leaves the route; returns the speed on that tick and the highest on the way.</summary>

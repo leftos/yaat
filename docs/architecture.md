@@ -1360,7 +1360,7 @@ FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan�
                                #   TargetSpeed/DesiredDecelRate for physics to close (roll phases — TakeoffPhase,
                                #   RunwayHoldingPhase, etc. — still write IndicatedAirspeed directly by design)
                                # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
-                               # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints
+                               # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints (ApplyViaClearanceFixConstraints leaves a slowdown to the planner); SequencingThreshold: turn anticipation / NavArrivalNm before a fix
                                # Bank angle: computed in UpdateHeading from atan(TAS × turnRate × coeff); sign follows turn direction
                                # Expedite: IsExpediting → direction-split rate (climb ×1.15 / descent ×2.0, per-category caps+floor); Mach hold: TargetMach → recompute IAS each tick
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF), PointInRing (even-odd ray-cast)

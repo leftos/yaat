@@ -1512,7 +1512,8 @@ internal static class NavigationCommandHandler
     /// Applies constraints from the first fix in the nav route that has an altitude
     /// or speed restriction. Called immediately when CVIA/DVIA is issued so the
     /// aircraft starts working toward the first constraint right away, rather than
-    /// waiting to sequence through unconstrained fixes.
+    /// waiting to sequence through unconstrained fixes. A slowdown for its speed is left to
+    /// the planner (<see cref="FlightPhysics.ApplyViaClearanceFixConstraints"/>).
     /// </summary>
     private static void ApplyFirstConstrainedFix(AircraftState aircraft)
     {
@@ -1520,7 +1521,7 @@ internal static class NavigationCommandHandler
         {
             if (target.AltitudeRestriction is not null || target.SpeedRestriction is not null)
             {
-                FlightPhysics.ApplyFixConstraints(aircraft, target);
+                FlightPhysics.ApplyViaClearanceFixConstraints(aircraft, target);
                 break;
             }
         }

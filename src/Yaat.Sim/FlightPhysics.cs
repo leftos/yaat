@@ -157,24 +157,8 @@ public static class FlightPhysics
         NavigationTarget nav = route[0];
         double distNm = GeoMath.DistanceNm(aircraft.Position, nav.Position);
 
-        // Determine sequencing threshold: fly-by waypoints with a following waypoint
-        // use turn anticipation; fly-over and terminal waypoints use NavArrivalNm.
-        double threshold = NavArrivalNm;
-        double anticipationNm = 0;
-        bool inAnticipationZone;
-
-        if (route.Count >= 2 && !nav.IsFlyOver)
-        {
-            double currentLegBearing = GeoMath.BearingTo(aircraft.Position, nav.Position);
-            double nextLegBearing = GeoMath.BearingTo(nav.Position, route[1].Position);
-            double turnRate =
-                aircraft.Targets.TurnRateOverride
-                ?? AircraftPerformance.TurnRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
-            anticipationNm = ComputeAnticipationDistanceNm(aircraft.GroundSpeed, turnRate, currentLegBearing, nextLegBearing);
-            threshold = Math.Max(anticipationNm, NavArrivalNm);
-        }
-
-        inAnticipationZone = anticipationNm > NavArrivalNm && distNm < threshold;
+        (double threshold, double anticipationNm) = SequencingThreshold(aircraft, aircraft.Position, nav, (route.Count >= 2) ? route[1] : null);
+        bool inAnticipationZone = (anticipationNm > NavArrivalNm) && (distNm < threshold);
 
         // Sequence waypoint: for fly-by with anticipation, wait until the aircraft
         // has passed abeam the waypoint (along-track goes negative along the next leg bearing).
@@ -527,9 +511,22 @@ public static class FlightPhysics
                 continue;
             }
 
-            // Only handle climb constraints here; descent is handled by UpdateDescentPlanning
+            // Only handle climb constraints here; descent is handled by UpdateDescentPlanning. A nearer restriction that
+            // needs a descent ends the scan: a climb for one beyond it would undo that descent before its fix.
+            if (targetAlt < aircraft.Altitude - AltitudeSnapFt)
+            {
+                break;
+            }
+
+            // A met "at" crossing pins the altitude to its fix, so no climb for a restriction beyond it starts before then.
+            bool pinsAltitude = restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.GlideSlopeIntercept;
             if (targetAlt <= aircraft.Altitude)
             {
+                if (pinsAltitude)
+                {
+                    break;
+                }
+
                 continue;
             }
 
@@ -638,8 +635,12 @@ public static class FlightPhysics
                 ? AircraftPerformance.DecelRate(aircraft.AircraftType, cat)
                 : AircraftPerformance.AccelRate(aircraft.AircraftType, cat);
 
+            // The constraint holds where the fix sequences, its sequencing threshold before the fix itself.
+            LatLon legStart = (i == 0) ? aircraft.Position : route[i - 1].Position;
+            NavigationTarget? nextFix = (i + 1 < route.Count) ? route[i + 1] : null;
+            double sequencingDistNm = Math.Max(0, cumulativeDistNm - SequencingThreshold(aircraft, legStart, route[i], nextFix).ThresholdNm);
             double changeTimeSeconds = speedDelta / rate;
-            double timeToFixSeconds = cumulativeDistNm / (aircraft.GroundSpeed / 3600.0);
+            double timeToFixSeconds = sequencingDistNm / (aircraft.GroundSpeed / 3600.0);
 
             // Acceleration: set TargetSpeed immediately — there's no benefit to
             // delaying, and starting early ensures the aircraft meets the constraint.
@@ -704,6 +705,33 @@ public static class FlightPhysics
         }
 
         aircraft.Targets.TargetSpeed = speed;
+    }
+
+    /// <summary>
+    /// The distance before <paramref name="fix"/>, flown from <paramref name="legStart"/>, at which the sequencer starts
+    /// the turn, or sequences the fix: for a fly-by fix with <paramref name="nextFix"/> after it the larger of its turn
+    /// anticipation and <see cref="NavArrivalNm"/>, for a fly-over or last fix <see cref="NavArrivalNm"/> alone. Also
+    /// returns the anticipation distance (0 for the latter).
+    /// </summary>
+    internal static (double ThresholdNm, double AnticipationNm) SequencingThreshold(
+        AircraftState aircraft,
+        LatLon legStart,
+        NavigationTarget fix,
+        NavigationTarget? nextFix
+    )
+    {
+        if ((nextFix is null) || fix.IsFlyOver)
+        {
+            return (NavArrivalNm, 0);
+        }
+
+        double currentLegBearing = GeoMath.BearingTo(legStart, fix.Position);
+        double nextLegBearing = GeoMath.BearingTo(fix.Position, nextFix.Position);
+        double turnRate =
+            aircraft.Targets.TurnRateOverride
+            ?? AircraftPerformance.TurnRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
+        double anticipationNm = ComputeAnticipationDistanceNm(aircraft.GroundSpeed, turnRate, currentLegBearing, nextLegBearing);
+        return (Math.Max(anticipationNm, NavArrivalNm), anticipationNm);
     }
 
     /// <summary>
@@ -808,7 +836,19 @@ public static class FlightPhysics
     /// Applies altitude and speed constraints from a navigation target when via mode is active.
     /// SID via mode enforces climb restrictions; STAR via mode enforces descent restrictions.
     /// </summary>
-    internal static void ApplyFixConstraints(AircraftState aircraft, NavigationTarget target)
+    internal static void ApplyFixConstraints(AircraftState aircraft, NavigationTarget target) =>
+        ApplyFixConstraints(aircraft, target, slowdownLeftToPlanner: false);
+
+    /// <summary>
+    /// As <see cref="ApplyFixConstraints(AircraftState, NavigationTarget)"/>, for the first constrained fix when a climb via
+    /// or descend via is issued: the slowdown for a lower speed there is left to the planner's deceleration timing rather
+    /// than started at once (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2). A higher speed or an "at or
+    /// above" minimum still applies at once, and the speed is still remembered as the last published one.
+    /// </summary>
+    internal static void ApplyViaClearanceFixConstraints(AircraftState aircraft, NavigationTarget target) =>
+        ApplyFixConstraints(aircraft, target, slowdownLeftToPlanner: true);
+
+    private static void ApplyFixConstraints(AircraftState aircraft, NavigationTarget target, bool slowdownLeftToPlanner)
     {
         bool sidVia = aircraft.Procedure.SidViaMode;
         bool starVia = aircraft.Procedure.StarViaMode;
@@ -826,7 +866,7 @@ public static class FlightPhysics
             ApplyFixAltitudeConstraint(aircraft, alt);
         }
 
-        ApplyFixSpeedConstraint(aircraft, target);
+        ApplyFixSpeedConstraint(aircraft, target, slowdownLeftToPlanner);
     }
 
     /// <summary>
@@ -843,7 +883,7 @@ public static class FlightPhysics
             && ((spd.Type == CifpSpeedRestrictionType.AtOrAbove) || (spd.SpeedKts > aircraft.IndicatedAirspeed))
         )
         {
-            ApplyFixSpeedConstraint(aircraft, next);
+            ApplyFixSpeedConstraint(aircraft, next, slowdownLeftToPlanner: false);
         }
     }
 
@@ -856,7 +896,12 @@ public static class FlightPhysics
     internal static bool IsControllerSetSpeed(NavigationTarget fix) =>
         (fix.SpeedTransmissionId is not null) || (fix.RevertSpeed is not null) || fix.RevertSpeedMax;
 
-    private static void ApplyFixSpeedConstraint(AircraftState aircraft, NavigationTarget target)
+    /// <summary>
+    /// Applies <paramref name="target"/>'s speed restriction: an "at or above" minimum as the floor, any other as the
+    /// target speed and the last published speed. With <paramref name="slowdownLeftToPlanner"/>, a target below the
+    /// present speed is left to <see cref="UpdateSpeedPlanning"/>, though still remembered as the last published speed.
+    /// </summary>
+    private static void ApplyFixSpeedConstraint(AircraftState aircraft, NavigationTarget target, bool slowdownLeftToPlanner)
     {
         // An ATC-assigned speed outranks a published one until ATC ends it (7110.65 5-7-1.c, 5-7-4; AIM 4-4-12.f), the
         // same rule UpdateSpeedPlanning and the speed stamp (SpeedTransmissionId) keep. A crossing speed a controller set is itself an ATC
@@ -893,7 +938,10 @@ public static class FlightPhysics
                     targetSpeed = Math.Min(targetSpeed, ceiling);
                 }
 
-                aircraft.Targets.TargetSpeed = targetSpeed;
+                if ((!slowdownLeftToPlanner) || (targetSpeed > aircraft.IndicatedAirspeed))
+                {
+                    aircraft.Targets.TargetSpeed = targetSpeed;
+                }
 
                 // AIM 5-4-1 NOTE 2: remember the last published speed so that if the
                 // procedure terminates without further ATC instruction the aircraft

@@ -133,6 +133,115 @@ public class DescendViaSupersedesEarlierAltitudeTests
     }
 
     /// <summary>
+    /// On OAKES3 joined by JARR, "CFIX GRUDG 110 230" from 16,000 is a descent to cross GRUDG at 11,000 (AIM 4-4-10.g).
+    /// The STAR's higher window past GRUDG (BANND between 17,000 and 19,000) is not a climb before it: the aircraft never
+    /// targets above 11,000 nor climbs before GRUDG (YAAT-1402).
+    /// </summary>
+    [Fact]
+    public void Cfix_BelowTheAircraft_WithAHigherWindowBeyondIt_DoesNotClimbBeforeTheFix()
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        TickUntilPassed(harness, aircraft.Targets.NavigationRoute[0].Name, _ => { });
+        SendOk(harness, "JARR OAKES3");
+        SendOk(harness, "SPD 250");
+        for (int t = 0; t < 5; t++)
+        {
+            harness.Engine.TickOneSecond();
+        }
+
+        SendOk(harness, "CFIX GRUDG 110 230");
+        double cfixAltitude = aircraft.Altitude;
+        SendOk(harness, "SPD 240, CAPP I30");
+
+        (double highestTarget, int highestTargetSecond, double highestAltitude) = HighestUntilGrudg(harness);
+
+        Assert.True(highestTarget <= 11000, $"Before GRUDG the target rose to {highestTarget:F0} ft, {highestTargetSecond} s after the CFIX");
+        Assert.True(
+            highestAltitude <= cfixAltitude + 50,
+            $"Before GRUDG the aircraft climbed to {highestAltitude:F0} ft from {cfixAltitude:F0} ft at the CFIX"
+        );
+    }
+
+    /// <summary>
+    /// Level at 11,000 (or within the altitude snap above it), "CFIX GRUDG 110 230" on OAKES3 joined by JARR is already met:
+    /// the met "at" crossing still ends the climb scan, so BANND's higher window past GRUDG is no climb before it.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(5)]
+    public void Cfix_AlreadyMetAt_WithAHigherWindowBeyondIt_DoesNotClimbBeforeTheFix(int feetAbove)
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        LevelAt11000(harness);
+        aircraft.Altitude = 11000 + feetAbove;
+        SendOk(harness, "JARR OAKES3");
+        SendOk(harness, "CFIX GRUDG 110 230");
+
+        (double highestTarget, int highestTargetSecond, _) = HighestUntilGrudg(harness);
+
+        Assert.True(highestTarget <= 11000, $"Before GRUDG the target rose to {highestTarget:F0} ft, {highestTargetSecond} s after the CFIX");
+    }
+
+    /// <summary>"DM 110" from the harness's 16,000, ticked until level at 11,000.</summary>
+    private void LevelAt11000(Harness harness)
+    {
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "DM 110");
+        for (int t = 0; (t < 600) && (Math.Abs(aircraft.Altitude - 11000) > FlightPhysics.AltitudeSnapFt); t++)
+        {
+            harness.Engine.TickOneSecond();
+        }
+
+        Assert.InRange(aircraft.Altitude, 11000 - FlightPhysics.AltitudeSnapFt, 11000 + FlightPhysics.AltitudeSnapFt);
+    }
+
+    /// <summary>
+    /// Ticks until GRUDG sequences; returns the highest target altitude, the second it was first set, and the highest
+    /// altitude. Tracked from the first tick, while GRUDG is still ahead: the target standing before the first tick is the
+    /// planner's from before the last command, and on the tick GRUDG sequences the planners already fly the fixes past it.
+    /// </summary>
+    private (double HighestTarget, int HighestTargetSecond, double HighestAltitude) HighestUntilGrudg(Harness harness)
+    {
+        AircraftState aircraft = harness.Aircraft;
+        double highestTarget = 0;
+        int highestTargetSecond = 0;
+        double highestAltitude = aircraft.Altitude;
+        TickUntilPassed(
+            harness,
+            "GRUDG",
+            t =>
+            {
+                if (!aircraft.Targets.NavigationRoute.Exists(f => f.Name.Equals("GRUDG", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return;
+                }
+
+                if ((aircraft.Targets.TargetAltitude ?? 0) > highestTarget)
+                {
+                    highestTarget = aircraft.Targets.TargetAltitude ?? 0;
+                    highestTargetSecond = t;
+                }
+
+                highestAltitude = Math.Max(highestAltitude, aircraft.Altitude);
+            }
+        );
+
+        return (highestTarget, highestTargetSecond, highestAltitude);
+    }
+
+    /// <summary>
     /// "CFIX X 110, DVIA" restates the crossing with the via clearance, whether the STAR was already active (the DVIA
     /// supersede pass keeps it) or the DVIA activates it (the published overlay skips it).
     /// </summary>
