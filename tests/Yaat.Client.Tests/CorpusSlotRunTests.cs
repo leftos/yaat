@@ -338,7 +338,7 @@ public sealed class CorpusSlotRunTests : IDisposable
     {
         CorpusSlotRun run = CreateRun(RoomOptions(SlotRoom.Oracle), "{}");
         var november = new RoomAircraft(CallsignEntity("N123AB", ["N123AB"]), []);
-        var context = new TransmissionContext("KOAK", [november], []);
+        var context = new TransmissionContext("KOAK", [november], [], []);
         CorpusTwoPassTarget target = CorpusSlotRun.TwoPassTarget(
             GoldClip,
             Decoded(DecodeState.Resolved, Matched(november), null),
@@ -517,6 +517,7 @@ public sealed class CorpusSlotRunTests : IDisposable
                     []
                 ),
             ],
+            [],
             []
         );
 
@@ -534,7 +535,8 @@ public sealed class CorpusSlotRunTests : IDisposable
         return new(
             "KOAK",
             [new RoomAircraft(CallsignEntity("SWA2495", room), [OwnRunway]), new RoomAircraft(CallsignEntity("UAL123", room), [])],
-            [AirportTaxiway]
+            [AirportTaxiway],
+            []
         );
     }
 

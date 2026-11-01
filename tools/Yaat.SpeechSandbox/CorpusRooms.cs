@@ -17,10 +17,12 @@ public sealed record CorpusRoomFeed(string Airport, string Facility, int Seed);
 /// <param name="Telephony">Telephony by airline prefix, consulted before the built-in table; keys compared ignoring case.</param>
 /// <param name="Types">Aircraft type designator by callsign; keys compared ignoring case.</param>
 /// <param name="Feeds">Each feed's room by feed name ("koak-app"); keys compared ordinally.</param>
+/// <param name="FacilityNames">The rooms' spoken facility names ("oakland", "san francisco"), lowercase and trimmed.</param>
 public sealed record CorpusRooms(
     IReadOnlyDictionary<string, string> Telephony,
     IReadOnlyDictionary<string, string> Types,
-    IReadOnlyDictionary<string, CorpusRoomFeed> Feeds
+    IReadOnlyDictionary<string, CorpusRoomFeed> Feeds,
+    IReadOnlyList<string> FacilityNames
 )
 {
     /// <summary>The rooms file's name inside a corpus folder, beside <c>slots.json</c>.</summary>
@@ -29,10 +31,11 @@ public sealed record CorpusRooms(
     private static readonly string[] Facilities = ["gnd", "twr", "app"];
 
     /// <summary>
-    /// The folder's rooms, or null when it carries no <c>rooms.json</c>. <c>telephony</c> and <c>types</c> are optional;
-    /// <c>feeds</c> is required and non-empty. Throws <see cref="InvalidDataException"/> on a file that is not a JSON object of
-    /// that shape, on no feeds, and on a feed with a blank airport, a facility other than <c>gnd</c>, <c>twr</c> or <c>app</c>,
-    /// or a seed that is not an integer; every message names the file, and the feed where there is one.
+    /// The folder's rooms, or null when it carries no <c>rooms.json</c>. <c>telephony</c>, <c>types</c> and
+    /// <c>facilityNames</c> are optional; <c>feeds</c> is required and non-empty. Throws <see cref="InvalidDataException"/> on a
+    /// file that is not a JSON object of that shape, on no feeds, on a blank facility name, and on a feed with a blank airport,
+    /// a facility other than <c>gnd</c>, <c>twr</c> or <c>app</c>, or a seed that is not an integer; every message names the
+    /// file, and the feed where there is one.
     /// </summary>
     public static CorpusRooms? Read(string dir)
     {
@@ -51,7 +54,27 @@ public sealed record CorpusRooms(
         {
             feeds[name] = ToFeed(feed, name, path);
         }
-        return new CorpusRooms(IgnoringCase(dto.Telephony, "telephony", path), IgnoringCase(dto.Types, "types", path), feeds);
+        return new CorpusRooms(
+            IgnoringCase(dto.Telephony, "telephony", path),
+            IgnoringCase(dto.Types, "types", path),
+            feeds,
+            CleanFacilityNames(dto.FacilityNames, path)
+        );
+    }
+
+    /// <summary>The facility names lowercased and trimmed; a blank one is an error naming the file.</summary>
+    private static List<string> CleanFacilityNames(List<string?>? names, string path)
+    {
+        var cleaned = new List<string>();
+        foreach (string? name in names ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                throw new InvalidDataException($"{path} gives a blank entry in facilityNames.");
+            }
+            cleaned.Add(name.Trim().ToLowerInvariant());
+        }
+        return cleaned;
     }
 
     private static RoomsDto ReadDto(string path)
@@ -111,6 +134,9 @@ public sealed record CorpusRooms(
 
         [JsonPropertyName("feeds")]
         public Dictionary<string, FeedDto>? Feeds { get; set; }
+
+        [JsonPropertyName("facilityNames")]
+        public List<string?>? FacilityNames { get; set; }
     }
 
     /// <summary>One feed as the rooms file holds it.</summary>

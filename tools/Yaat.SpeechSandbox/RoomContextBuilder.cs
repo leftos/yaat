@@ -143,8 +143,8 @@ internal sealed class FeedRoom
             )),
         ];
         return new RoomContexts(
-            new TransmissionContext(_airport, unpadded, AirportEntities),
-            new TransmissionContext(_airport, padded, AirportEntities),
+            new TransmissionContext(_airport, unpadded, AirportEntities, _sources.Rooms.FacilityNames),
+            new TransmissionContext(_airport, padded, AirportEntities, _sources.Rooms.FacilityNames),
             Oracle(gold)
         );
     }
@@ -271,7 +271,7 @@ internal sealed class FeedRoom
                 .OfType<ContextEntity>()
                 .Select(entity => new RoomAircraft(entity, [])),
         ];
-        return new TransmissionContext(_airport, aircraft, ResolveAll(gold));
+        return new TransmissionContext(_airport, aircraft, ResolveAll(gold), rooms.FacilityNames);
     }
 
     /// <summary>The non-callsign slots resolved to entities, deduplicated by kind and value with the first kept.</summary>
