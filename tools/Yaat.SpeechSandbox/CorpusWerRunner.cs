@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Speech;
 using Yaat.Sim.Speech;
 
 namespace Yaat.SpeechSandbox;
@@ -1026,7 +1027,7 @@ public static class CorpusWerRunner
             return error;
         }
 
-        float score = parsed.HotwordScore ?? SherpaHotwords.DefaultScore;
+        float score = parsed.HotwordScore ?? SherpaDecoding.DefaultHotwordScore;
         var decoding = new SherpaDecoding(SherpaDecodingMethod.Beam, parsed.NumPaths ?? SherpaDecoding.MaxBeamPaths, score);
         parsed.Stt = parsed.Stt with { Decoding = decoding };
         return (parsed.HotwordsFile is null) ? NoteRoomHotwords(parsed, score) : LoadHotwords(parsed, parsed.HotwordsFile, score);

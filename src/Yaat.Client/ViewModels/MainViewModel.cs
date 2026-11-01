@@ -11,6 +11,7 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Speech;
 using Yaat.Client.Tdls.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
@@ -1739,7 +1740,7 @@ public partial class MainViewModel : ObservableObject
         _speechService = new SpeechRecognitionService(
             _preferences,
             _audioCapture,
-            _whisperStt,
+            new WhisperClientSttEngine(_whisperStt),
             _llmService,
             _ruleMapper,
             _llmMapper,

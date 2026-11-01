@@ -14,8 +14,6 @@ public enum HotwordCase
 /// <summary>The hotword text a sherpa-onnx stream takes, and the phrase lines that feed it.</summary>
 public static class SherpaHotwords
 {
-    public const float DefaultScore = 1.5f;
-
     /// <summary>The stream's hotword text: the native separates phrases with <c>/</c>.</summary>
     public static string Join(IReadOnlyList<string> phrases) => string.Join('/', phrases);
 

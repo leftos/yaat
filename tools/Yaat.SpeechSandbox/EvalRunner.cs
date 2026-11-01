@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Speech;
 using Yaat.Sim.Speech;
 
 namespace Yaat.SpeechSandbox;

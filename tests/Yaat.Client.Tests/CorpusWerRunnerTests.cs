@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Client.Services.Speech;
 using Yaat.Sim.Speech.Context;
 using Yaat.SpeechSandbox;
 
