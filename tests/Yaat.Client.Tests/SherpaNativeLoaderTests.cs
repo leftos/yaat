@@ -141,7 +141,7 @@ public sealed class SherpaNativeLoaderTests
             string nativeDir = Path.GetFullPath(Path.Combine(root!, SherpaCudaInstaller.NativeDirName));
 
             SherpaNativeLoader.UseCudaSet(nativeDir);
-            using var engine = new SherpaSttEngine(int8Dir!, "cuda", SherpaDecoding.Greedy);
+            using var engine = new SherpaSttEngine(int8Dir!, "cuda", SherpaDecoding.Greedy, SherpaOfflineNativeApi.Instance);
             engine.Transcribe(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate, string.Empty);
 
             Assert.Equal(SherpaNativeSet.Cuda, SherpaNativeLoader.LoadedSet);
