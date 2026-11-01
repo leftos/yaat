@@ -28,7 +28,11 @@ public sealed class SttModelInstallerTests : IDisposable
         {
             Directory.Delete(_root, recursive: true);
         }
-        File.Delete(_root + ".lock");
+        // A test that never installs leaves no lock, and its parent folder may not exist yet; File.Delete throws on a missing folder.
+        if (File.Exists(_root + ".lock"))
+        {
+            File.Delete(_root + ".lock");
+        }
     }
 
     [Fact]
