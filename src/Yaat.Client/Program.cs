@@ -156,7 +156,8 @@ public static class Program
 
     /// <summary>
     /// Picks sherpa-onnx's native set before anything touches sherpa: the installed CUDA set when the user chose the GPU,
-    /// the CPU set beside the app otherwise. A GPU pick that ends on the CPU says why in the log and in
+    /// the CPU set beside the app otherwise. A removal of the CUDA set scheduled in Settings runs first, so a scheduled
+    /// removal starts on the CPU, and so does one that could not run yet (it is retried on the next start). A GPU pick that ends on the CPU says why in the log and in
     /// <see cref="SherpaNativeLoader.CpuFallbackReason"/>; any failure is logged and leaves speech recognition on the CPU.
     /// </summary>
     private static void ConfigureSherpaNatives(ILogger log)
@@ -164,7 +165,17 @@ public static class Program
         SttDevice device = SttDevice.Cpu;
         try
         {
+            bool removalPending = !SherpaCudaInstaller.ProcessPendingRemoval(SherpaCudaInstaller.InstallRootDefault);
             device = new UserPreferences().SttDevice;
+            if (removalPending)
+            {
+                if (device == SttDevice.Gpu)
+                {
+                    SherpaNativeLoader.RecordCpuFallback("The GPU runtime is scheduled for removal; running on CPU until it is removed.");
+                }
+                SherpaNativeLoader.LogCpuSet();
+                return;
+            }
             SherpaStartupChoice choice = SherpaNativeLoader.ChooseAtStartup(
                 device,
                 Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json"),

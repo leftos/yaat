@@ -88,12 +88,75 @@ public static class SherpaNativeLoader
     private static readonly Lock Gate = new();
     private static IntPtr _cApi;
     private static bool _cudaSetUsed;
+    private static string? _cudaNativeDir;
 
     /// <summary>The set this process loaded; <see cref="SherpaNativeSet.Cpu"/> until <see cref="UseCudaSet"/> runs.</summary>
     public static SherpaNativeSet LoadedSet { get; private set; } = SherpaNativeSet.Cpu;
 
     /// <summary>Why a GPU pick ended on the CPU, for the Settings and Speech Debug surfaces; null until one does.</summary>
     public static string? CpuFallbackReason { get; private set; }
+
+    /// <summary>Why Accurate mode is off while the Whisper card is selected: Whisper gives one hypothesis only.</summary>
+    public const string WhisperAccurateReason = "Whisper gives one hypothesis only; running Fast";
+
+    private const string NbestReason = "Accurate needs the n-best native; running Fast";
+    private const string FallbackMarkerName = "sherpa-native-FALLBACK.txt";
+
+    /// <summary>
+    /// Whether the sherpa-onnx native this process loads can run Accurate mode, read without a model: the build copies
+    /// <c>sherpa-native-FALLBACK.txt</c> beside the C API library when it kept NuGet's stock native, which has no n-best.
+    /// The CUDA set is always our own build.
+    /// </summary>
+    public static (bool Available, string? Reason) NbestAvailability()
+    {
+        string? dir = CApiDirectory();
+        if (dir is null)
+        {
+            Log.LogWarning("No sherpa-onnx C API library was found beside the app; Accurate mode is unavailable");
+            return (false, NbestReason);
+        }
+        return NbestAvailability(dir);
+    }
+
+    /// <summary>Whether the sherpa-onnx native in <paramref name="nativeDir"/> can run Accurate mode.</summary>
+    /// <param name="nativeDir">The folder holding the C API library.</param>
+    public static (bool Available, string? Reason) NbestAvailability(string nativeDir)
+    {
+        if (!Directory.Exists(nativeDir))
+        {
+            Log.LogWarning("The sherpa-onnx native folder {Dir} does not exist; Accurate mode is unavailable", nativeDir);
+            return (false, NbestReason);
+        }
+        if (File.Exists(Path.Combine(nativeDir, FallbackMarkerName)))
+        {
+            Log.LogInformation("{Dir} holds the stock sherpa-onnx native, which has no n-best; Accurate mode runs Fast", nativeDir);
+            return (false, NbestReason);
+        }
+        return (true, null);
+    }
+
+    /// <summary>
+    /// The folder the C API library loads from: the CUDA set's folder once it loaded, else the first of the app folder and
+    /// <c>runtimes/&lt;rid&gt;/native</c> that holds the library, as default probing finds it; null when neither does.
+    /// </summary>
+    public static string? CApiDirectory()
+    {
+        string? cudaDir = Volatile.Read(ref _cudaNativeDir);
+        if (cudaDir is not null)
+        {
+            return cudaDir;
+        }
+        string fileName =
+            OperatingSystem.IsWindows() ? $"{CApiLibraryName}.dll"
+            : OperatingSystem.IsMacOS() ? $"lib{CApiLibraryName}.dylib"
+            : $"lib{CApiLibraryName}.so";
+        string[] candidates =
+        [
+            AppContext.BaseDirectory,
+            Path.Combine(AppContext.BaseDirectory, "runtimes", RuntimeInformation.RuntimeIdentifier, "native"),
+        ];
+        return candidates.FirstOrDefault(dir => File.Exists(Path.Combine(dir, fileName)));
+    }
 
     /// <summary>Records why a GPU pick ended on the CPU and logs it.</summary>
     /// <param name="reason">The reason, shown to the user.</param>
@@ -175,6 +238,7 @@ public static class SherpaNativeLoader
             IntPtr cApi = LoadAllOrNone(paths);
 
             Volatile.Write(ref _cApi, cApi);
+            Volatile.Write(ref _cudaNativeDir, nativeDir);
             _cudaSetUsed = true;
             LoadedSet = SherpaNativeSet.Cuda;
         }
