@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
 using Yaat.SpeechSandbox;
 
@@ -745,22 +744,6 @@ public sealed class AtcOuroborosTests
         Assert.Equal(SttDevice.Gpu, stt.Device);
         Assert.Equal(SherpaDecodingMethod.Beam, stt.Decoding.Method);
         Assert.Equal(3, stt.Decoding.NumPaths);
-    }
-
-    [Fact]
-    public void ParseArgs_Carries_The_Accurate_Text_Mode()
-    {
-        AtcOuroborosRunner.Options? options = AtcOuroborosRunner.ParseArgs([
-            "--stt",
-            @"sherpa:C:\m\rasr",
-            "--decoding",
-            "beam",
-            "--accurate-text",
-            "rewritten",
-        ]);
-
-        Assert.NotNull(options);
-        Assert.Equal(AccurateCommandText.Rewritten, options.AccurateText);
     }
 
     [Fact]

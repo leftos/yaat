@@ -5,8 +5,8 @@ using Yaat.Client.Services.Speech;
 namespace Yaat.SpeechSandbox;
 
 /// <summary>
-/// The engine flags <c>--eval</c> and <c>--atc-ouroboros</c> share: <c>--stt</c>, <c>--device</c>, <c>--decoding</c>,
-/// <c>--num-paths</c> and <c>--accurate-text</c>, parsed one at a time and then checked against each other into one engine
+/// The engine flags <c>--eval</c> and <c>--atc-ouroboros</c> share: <c>--stt</c>, <c>--device</c>, <c>--decoding</c>
+/// and <c>--num-paths</c>, parsed one at a time and then checked against each other into one engine
 /// choice. The messages are the ones <c>--corpus-wer</c> prints for the same flags.
 /// </summary>
 public sealed class EngineFlags
@@ -15,13 +15,9 @@ public sealed class EngineFlags
     private SttDevice? _device;
     private SherpaDecodingMethod? _decoding;
     private int? _numPaths;
-    private AccurateCommandText? _accurateText;
 
-    /// <summary>True for exactly the five engine flags, each of which takes a value.</summary>
-    public static bool Handles(string flag) => flag is "--stt" or "--device" or "--decoding" or "--num-paths" or "--accurate-text";
-
-    /// <summary>Which text accurate mode hands the mappers; <see cref="AccurateCommandText.RawHypothesis"/> unless the flags said otherwise.</summary>
-    public AccurateCommandText AccurateText => _accurateText ?? AccurateCommandText.RawHypothesis;
+    /// <summary>True for exactly the four engine flags, each of which takes a value.</summary>
+    public static bool Handles(string flag) => flag is "--stt" or "--device" or "--decoding" or "--num-paths";
 
     /// <summary>Applies one engine flag's value.</summary>
     /// <param name="flag">One of the flags <see cref="Handles"/> accepts.</param>
@@ -35,7 +31,6 @@ public sealed class EngineFlags
             "--device" => ApplyDevice(value),
             "--decoding" => ApplyDecoding(value),
             "--num-paths" => ApplyNumPaths(value),
-            "--accurate-text" => ApplyAccurateText(value),
             _ => throw new ArgumentOutOfRangeException(nameof(flag), flag, "not an engine flag"),
         };
 
@@ -48,7 +43,7 @@ public sealed class EngineFlags
     {
         if (_stt is null)
         {
-            bool anyEngineFlag = (_device is not null) || (_decoding is not null) || (_numPaths is not null) || (_accurateText is not null);
+            bool anyEngineFlag = (_device is not null) || (_decoding is not null) || (_numPaths is not null);
             error = anyEngineFlag ? "--device, --decoding and --num-paths need --stt" : null;
             return null;
         }
@@ -109,16 +104,6 @@ public sealed class EngineFlags
         return null;
     }
 
-    private string? ApplyAccurateText(string value)
-    {
-        if (value is not ("raw" or "rewritten"))
-        {
-            return $"--accurate-text must be raw or rewritten, got '{value}'";
-        }
-        _accurateText = (value == "raw") ? AccurateCommandText.RawHypothesis : AccurateCommandText.Rewritten;
-        return null;
-    }
-
     /// <summary>The cloud engines have no local device to name.</summary>
     private string? DeviceError(SttChoice stt) =>
         ((_device is not null) && (stt.Kind is SttKind.Gemini or SttKind.OpenAi))
@@ -131,10 +116,6 @@ public sealed class EngineFlags
         {
             return $"--decoding applies to the sherpa engine, got {CorpusSttEngines.KindText(stt.Kind)}";
         }
-        if ((_numPaths is not null) && (_decoding != SherpaDecodingMethod.Beam))
-        {
-            return "--num-paths needs --decoding beam";
-        }
-        return ((_accurateText is not null) && (_decoding != SherpaDecodingMethod.Beam)) ? "--accurate-text needs --decoding beam" : null;
+        return ((_numPaths is not null) && (_decoding != SherpaDecodingMethod.Beam)) ? "--num-paths needs --decoding beam" : null;
     }
 }

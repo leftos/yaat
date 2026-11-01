@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
 using Yaat.SpeechSandbox;
 
@@ -57,36 +56,6 @@ public sealed class EngineFlagsTests
         Assert.Null(choice);
         Assert.Equal(expected, error);
     }
-
-    [Fact]
-    public void Accurate_Text_Takes_The_Mode_And_Defaults_To_Raw()
-    {
-        Assert.Equal(AccurateCommandText.RawHypothesis, new EngineFlags().AccurateText);
-
-        var flags = new EngineFlags();
-        Assert.Null(flags.TryApply("--stt", @"sherpa:C:\m\rasr"));
-        Assert.Null(flags.TryApply("--decoding", "beam"));
-        Assert.Null(flags.TryApply("--accurate-text", "rewritten"));
-        Assert.NotNull(flags.Resolve(out string? error));
-        Assert.Null(error);
-
-        Assert.Equal(AccurateCommandText.Rewritten, flags.AccurateText);
-    }
-
-    [Fact]
-    public void Accurate_Text_Without_Beam_Is_Refused()
-    {
-        var flags = new EngineFlags();
-        Assert.Null(flags.TryApply("--stt", "sherpa:m"));
-        Assert.Null(flags.TryApply("--accurate-text", "rewritten"));
-        Assert.Null(flags.Resolve(out string? error));
-
-        Assert.Equal("--accurate-text needs --decoding beam", error);
-    }
-
-    [Fact]
-    public void Accurate_Text_Value_Must_Be_Raw_Or_Rewritten() =>
-        Assert.Equal("--accurate-text must be raw or rewritten, got 'loud'", new EngineFlags().TryApply("--accurate-text", "loud"));
 
     [Fact]
     public void Num_Paths_Beyond_The_Beam_Limit_Fails_To_Apply()
