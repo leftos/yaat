@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using SherpaOnnx;
 using Yaat.Client.Logging;
@@ -18,19 +17,23 @@ namespace Yaat.Client.Services.Speech;
 ///
 /// Greedy and <c>modified_beam_search</c> share one code path, and every result is read from the C API's
 /// JSON. A beam run also needs <c>bpe.vocab</c> in the model directory, takes per-stream hotwords and returns
-/// an n-best list. The NuGet recognizer keeps its handle private, so hotword streams go through the imports
-/// below. The stock native has no n-best and drops speech in TDT beam search, so a beam run needs the native
-/// the speech sandbox's <c>New-SherpaNativeSandbox.ps1</c> overlays.
+/// an n-best list. Every native call goes through <paramref name="api"/>, since the NuGet recognizer keeps its
+/// handle private. The stock native has no n-best and drops speech in TDT beam search, so a beam run needs the
+/// native the speech sandbox's <c>New-SherpaNativeSandbox.ps1</c> overlays.
+///
+/// Safe to call from several threads: loads, decodes and <see cref="Dispose"/> are serialised on one lock, so at
+/// most one recognizer is made and none is destroyed under a running decode. After <see cref="Dispose"/> the
+/// engine makes no native call at all.
 /// </summary>
-public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDecoding decoding) : IDisposable
+public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDecoding decoding, ISherpaOfflineApi api) : IDisposable
 {
-    private const string NativeLibrary = "sherpa-onnx-c-api";
-
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaSttEngine>();
 
     private readonly string _modelDir = modelDir;
     private readonly bool _isBeam = decoding.Method == SherpaDecodingMethod.Beam;
+    private readonly Lock _gate = new();
     private IntPtr _recognizer;
+    private bool _disposed;
 
     public bool IsConfigured => File.Exists(FindModelFile("encoder")) && File.Exists(Path.Combine(_modelDir, "tokens.txt"));
 
@@ -55,8 +58,17 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
 
         try
         {
-            string? json = DecodeToJson(samples, sampleRate, hotwords);
-            return (json is null) ? [] : SherpaResultJson.Parse(json);
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    Log.LogWarning("sherpa-onnx engine for {Dir} was disposed; transcription skipped", _modelDir);
+                    return [];
+                }
+
+                string? json = DecodeToJson(samples, sampleRate, hotwords);
+                return (json is null) ? [] : SherpaResultJson.Parse(json);
+            }
         }
         catch (Exception ex)
         {
@@ -77,26 +89,47 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
             return null;
         }
 
-        string? json = DecodeToJson(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate, string.Empty);
-        if (json is null)
+        lock (_gate)
         {
-            return $"sherpa model {_modelDir} failed to load";
+            if (_disposed)
+            {
+                return $"sherpa model {_modelDir} was disposed";
+            }
+
+            string? json = DecodeToJson(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate, string.Empty);
+            if (json is null)
+            {
+                return $"sherpa model {_modelDir} failed to load";
+            }
+            return SherpaResultJson.CarriesNbest(json)
+                ? null
+                : "this sherpa-onnx native has no n-best and drops speech in TDT beam search; run the sandbox from New-SherpaNativeSandbox.ps1";
         }
-        return SherpaResultJson.CarriesNbest(json)
-            ? null
-            : "this sherpa-onnx native has no n-best and drops speech in TDT beam search; run the sandbox from New-SherpaNativeSandbox.ps1";
     }
 
     public void Dispose()
     {
-        if (_recognizer != IntPtr.Zero)
+        lock (_gate)
         {
-            SherpaOnnxDestroyOfflineRecognizer(_recognizer);
-            _recognizer = IntPtr.Zero;
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_recognizer != IntPtr.Zero)
+            {
+                api.DestroyRecognizer(_recognizer);
+                _recognizer = IntPtr.Zero;
+            }
+
+            _disposed = true;
         }
     }
 
-    /// <summary>Decodes one stream; null (after logging why) when the recognizer or a native object could not be made.</summary>
+    /// <summary>
+    /// Decodes one stream; null (after logging why) when the recognizer or a native object could not be made. Only ever
+    /// runs with the gate held.
+    /// </summary>
     private string? DecodeToJson(float[] samples, int sampleRate, string hotwords)
     {
         IntPtr recognizer = EnsureLoaded();
@@ -105,44 +138,35 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
             return null;
         }
 
-        IntPtr handle =
-            (hotwords.Length > 0) ? SherpaOnnxCreateOfflineStreamWithHotwords(recognizer, hotwords) : SherpaOnnxCreateOfflineStream(recognizer);
-        if (handle == IntPtr.Zero)
+        IntPtr stream = api.CreateStream(recognizer, hotwords);
+        if (stream == IntPtr.Zero)
         {
             Log.LogError("sherpa-onnx could not create a stream for model dir {Dir}", _modelDir);
             return null;
         }
 
-        using var stream = new OfflineStream(handle);
-        if (_isBeam)
-        {
-            stream.SetOption("num_return_paths", decoding.NumPaths.ToString(CultureInfo.InvariantCulture));
-        }
-        stream.AcceptWaveform(sampleRate, samples);
-        SherpaOnnxDecodeOfflineStream(recognizer, stream.Handle);
-        return ReadResultJson(stream);
-    }
-
-    /// <summary>The stream's result; the native writes UTF-8 and the tokens carry non-ASCII word markers.</summary>
-    private string? ReadResultJson(OfflineStream stream)
-    {
-        IntPtr json = SherpaOnnxGetOfflineStreamResultAsJson(stream.Handle);
-        if (json == IntPtr.Zero)
-        {
-            Log.LogError("sherpa-onnx returned no result JSON for model dir {Dir}", _modelDir);
-            return null;
-        }
-
         try
         {
-            return Marshal.PtrToStringUTF8(json);
+            if (_isBeam)
+            {
+                api.SetStreamOption(stream, "num_return_paths", decoding.NumPaths.ToString(CultureInfo.InvariantCulture));
+            }
+            api.AcceptWaveform(stream, sampleRate, samples);
+            api.Decode(recognizer, stream);
+            string? json = api.ResultJson(stream);
+            if (json is null)
+            {
+                Log.LogError("sherpa-onnx returned no result JSON for model dir {Dir}", _modelDir);
+            }
+            return json;
         }
         finally
         {
-            SherpaOnnxDestroyOfflineStreamResultJson(json);
+            api.DestroyStream(stream);
         }
     }
 
+    /// <summary>The recognizer, created on first use. Only ever runs with the gate held, so it is created at most once.</summary>
     private IntPtr EnsureLoaded()
     {
         if (_recognizer != IntPtr.Zero)
@@ -177,7 +201,7 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
             config.HotwordsScore = decoding.HotwordScore;
         }
 
-        _recognizer = SherpaOnnxCreateOfflineRecognizer(ref config);
+        _recognizer = api.CreateRecognizer(ref config);
         if (_recognizer == IntPtr.Zero)
         {
             Log.LogError("sherpa-onnx rejected the recognizer config for model dir {Dir}", _modelDir);
@@ -194,25 +218,4 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
         string int8 = Path.Combine(_modelDir, $"{stem}.int8.onnx");
         return File.Exists(int8) ? int8 : Path.Combine(_modelDir, $"{stem}.onnx");
     }
-
-    [DllImport(NativeLibrary)]
-    private static extern IntPtr SherpaOnnxCreateOfflineRecognizer(ref OfflineRecognizerConfig config);
-
-    [DllImport(NativeLibrary)]
-    private static extern void SherpaOnnxDestroyOfflineRecognizer(IntPtr recognizer);
-
-    [DllImport(NativeLibrary)]
-    private static extern IntPtr SherpaOnnxCreateOfflineStream(IntPtr recognizer);
-
-    [DllImport(NativeLibrary)]
-    private static extern IntPtr SherpaOnnxCreateOfflineStreamWithHotwords(IntPtr recognizer, [MarshalAs(UnmanagedType.LPUTF8Str)] string hotwords);
-
-    [DllImport(NativeLibrary)]
-    private static extern void SherpaOnnxDecodeOfflineStream(IntPtr recognizer, IntPtr stream);
-
-    [DllImport(NativeLibrary)]
-    private static extern IntPtr SherpaOnnxGetOfflineStreamResultAsJson(IntPtr stream);
-
-    [DllImport(NativeLibrary)]
-    private static extern void SherpaOnnxDestroyOfflineStreamResultJson(IntPtr json);
 }
