@@ -682,6 +682,18 @@ public sealed partial class UserPreferences
     public SttDevice SttDevice => Enum.TryParse<SttDevice>(_data.SttDevice, out SttDevice device) ? device : SttDevice.Cpu;
 
     /// <summary>
+    /// Which speech-recognition model transcribes. Defaults to <see cref="SttEngine.RasrV2Fp32"/>, as does a missing or
+    /// unrecognised stored value.
+    /// </summary>
+    public SttEngine SttEngine => Enum.TryParse<SttEngine>(_data.SttEngine, out SttEngine engine) ? engine : SttEngine.RasrV2Fp32;
+
+    /// <summary>
+    /// How speech recognition trades accuracy against latency. Defaults to <see cref="SttMode.Accurate"/>, as does a missing or
+    /// unrecognised stored value.
+    /// </summary>
+    public SttMode SttMode => Enum.TryParse<SttMode>(_data.SttMode, out SttMode mode) ? mode : SttMode.Accurate;
+
+    /// <summary>
     /// How far the VFR-only command set opens up for IFR aircraft. Defaults to
     /// <see cref="Sim.Commands.VfrCommandsForIfr.EnterFinalOnly"/> so <c>EF</c> works on an IFR
     /// arrival flying a visual without cancelling IFR first.
@@ -1215,13 +1227,25 @@ public sealed partial class UserPreferences
         Save();
     }
 
-    public void SetSpeechSettings(bool enabled, string whisperModelSize, string llmModelPath, int llmGpuLayers, bool autoFocusInputAfterSpeech)
+    public void SetSpeechSettings(
+        bool enabled,
+        string whisperModelSize,
+        string llmModelPath,
+        int llmGpuLayers,
+        bool autoFocusInputAfterSpeech,
+        SttEngine sttEngine,
+        SttMode sttMode,
+        SttDevice sttDevice
+    )
     {
         _data.SpeechEnabled = enabled;
         _data.WhisperModelSize = whisperModelSize;
         _data.LlmModelPath = llmModelPath;
         _data.LlmGpuLayers = llmGpuLayers;
         _data.AutoFocusInputAfterSpeech = autoFocusInputAfterSpeech;
+        _data.SttEngine = sttEngine.ToString();
+        _data.SttMode = sttMode.ToString();
+        _data.SttDevice = sttDevice.ToString();
         Save();
     }
 
@@ -1484,12 +1508,6 @@ public sealed partial class UserPreferences
     public void SetRendererMode(RendererMode mode)
     {
         _data.RendererMode = mode.ToString();
-        Save();
-    }
-
-    public void SetSttDevice(SttDevice device)
-    {
-        _data.SttDevice = device.ToString();
         Save();
     }
 
@@ -2168,6 +2186,8 @@ public sealed partial class UserPreferences
             TerminalTimestampMode = GetFieldOr(obj, "terminalTimestampMode", nameof(Models.TerminalTimestampMode.WallClock)),
             RendererMode = GetFieldOr(obj, "rendererMode", nameof(Models.RendererMode.Auto)),
             SttDevice = GetFieldOr(obj, "sttDevice", nameof(Models.SttDevice.Cpu)),
+            SttEngine = GetFieldOr(obj, "sttEngine", nameof(Models.SttEngine.RasrV2Fp32)),
+            SttMode = GetFieldOr(obj, "sttMode", nameof(Models.SttMode.Accurate)),
             ShowTimelineBar = GetFieldOr(obj, "showTimelineBar", false),
             DataGridAlternatingRowColor = GetFieldOr(obj, "dataGridAlternatingRowColor", true),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
@@ -2753,6 +2773,12 @@ public sealed partial class UserPreferences
 
         // Where speech recognition runs: "Cpu" or "Gpu". Stored as a string so enum reordering can't misassign it.
         public string SttDevice { get; set; } = nameof(Models.SttDevice.Cpu);
+
+        // Which speech-recognition model transcribes: "RasrV2Fp32", "RasrV2Int8" or "Whisper" (string for the same reason).
+        public string SttEngine { get; set; } = nameof(Models.SttEngine.RasrV2Fp32);
+
+        // How speech recognition trades accuracy against latency: "Accurate" or "Fast" (string for the same reason).
+        public string SttMode { get; set; } = nameof(Models.SttMode.Accurate);
         public int InterfaceFontSize { get; set; } = 12;
         public int StripsZoomPercent { get; set; } = 80;
         public int TdlsZoomPercent { get; set; } = 100;

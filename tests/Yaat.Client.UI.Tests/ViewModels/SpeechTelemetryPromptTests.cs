@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
@@ -68,7 +69,16 @@ public class SpeechTelemetryPromptTests
             prefs.SetSpeechTelemetryEnabled(false);
             prefs.SetSpeechSampleSettings(enabled: false, maxMb: prefs.SpeechSampleCacheMaxMb);
             prefs.SetSpeechTelemetryPromptShown(promptShown);
-            prefs.SetSpeechSettings(speechEnabled, "", "", _llmGpuLayers, _autoFocusInputAfterSpeech);
+            prefs.SetSpeechSettings(
+                speechEnabled,
+                "",
+                "",
+                _llmGpuLayers,
+                _autoFocusInputAfterSpeech,
+                SttEngine.RasrV2Fp32,
+                SttMode.Accurate,
+                SttDevice.Cpu
+            );
         }
 
         public void Dispose()
@@ -77,7 +87,16 @@ public class SpeechTelemetryPromptTests
             prefs.SetSpeechTelemetryEnabled(_telemetryEnabled);
             prefs.SetSpeechSampleSettings(_captureEnabled, prefs.SpeechSampleCacheMaxMb);
             prefs.SetSpeechTelemetryPromptShown(_promptShown);
-            prefs.SetSpeechSettings(_speechEnabled, _whisperModelSource, _llmModelSource, _llmGpuLayers, _autoFocusInputAfterSpeech);
+            prefs.SetSpeechSettings(
+                _speechEnabled,
+                _whisperModelSource,
+                _llmModelSource,
+                _llmGpuLayers,
+                _autoFocusInputAfterSpeech,
+                SttEngine.RasrV2Fp32,
+                SttMode.Accurate,
+                SttDevice.Cpu
+            );
         }
     }
 
