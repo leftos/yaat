@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -264,7 +265,13 @@ public static partial class SynthTemplates
     // LibriTTS-R medium is multi-speaker; a spread of ids + speeds approximates voice variety.
     // Faster speeds mimic rapid-fire controller delivery.
     private static readonly int[] SpeakerPool = [50, 92, 147, 246, 421, 588, 700, 810];
-    private static readonly float[] SpeedPool = [0.9f, 1.0f, 1.1f, 1.2f];
+
+    /// <summary>Lowest and highest speed multiplier <c>--speeds</c> accepts.</summary>
+    private const float MinSpeed = 0.5f;
+    private const float MaxSpeed = 3.0f;
+
+    /// <summary>The speed pool every run uses unless <c>--speeds</c> names another.</summary>
+    public static readonly IReadOnlyList<float> DefaultSpeeds = [0.9f, 1.0f, 1.1f, 1.2f];
 
     [GeneratedRegex(@"\{(\w+)\}")]
     private static partial Regex SlotRegex();
@@ -294,7 +301,7 @@ public static partial class SynthTemplates
     /// does not verify — a whole template, or one slot combination of a verified template — is a gap
     /// and never reaches the corpus, so a mislabeled case cannot be emitted.
     /// </summary>
-    public static async Task<SynthPlan> PlanAsync(IReadOnlyList<SynthTemplate> templates, int count, int seed)
+    public static async Task<SynthPlan> PlanAsync(IReadOnlyList<SynthTemplate> templates, int count, int seed, IReadOnlyList<float> speeds)
     {
         // Real navdata: PhraseologyMapper validates emitted canonicals through CommandParser, whose
         // fix resolution (the DCT / CFIX / HFIX templates) requires NavigationDatabase.
@@ -305,7 +312,7 @@ public static partial class SynthTemplates
         var verified = new List<SynthTemplate>();
         foreach (SynthTemplate template in templates)
         {
-            TemplateGap? gap = await VerifyAsync(Render(template, -1, rng)).ConfigureAwait(false);
+            TemplateGap? gap = await VerifyAsync(Render(template, -1, rng, speeds)).ConfigureAwait(false);
             if (gap is null)
             {
                 verified.Add(template);
@@ -320,7 +327,7 @@ public static partial class SynthTemplates
         List<SynthTemplate> sampled = verified.Count == 0 ? [] : SampleTemplates(verified, count, seed);
         for (int i = 0; i < sampled.Count; i++)
         {
-            RenderedCase rendered = Render(sampled[i], i, rng);
+            RenderedCase rendered = Render(sampled[i], i, rng, speeds);
             TemplateGap? gap = await VerifyAsync(rendered).ConfigureAwait(false);
             if (gap is null)
             {
@@ -335,8 +342,13 @@ public static partial class SynthTemplates
     }
 
     /// <summary>Renders one case: callsign + active traffic, slot values, the scenario context, and a Piper voice.</summary>
-    public static RenderedCase Render(SynthTemplate template, int index, Random rng)
+    public static RenderedCase Render(SynthTemplate template, int index, Random rng, IReadOnlyList<float> speeds)
     {
+        if (speeds.Count == 0)
+        {
+            throw new ArgumentException("at least one speed is required", nameof(speeds));
+        }
+
         string callsign = CallsignPool[rng.Next(CallsignPool.Length)];
         List<string> activeCallsigns = BuildActiveCallsigns(callsign, rng);
         var slots = new Dictionary<string, (string Spoken, string Canonical)>(StringComparer.Ordinal);
@@ -370,8 +382,36 @@ public static partial class SynthTemplates
             FacilityRadioNames: [.. CaseFacilityRadioNames]
         );
         int speaker = SpeakerPool[rng.Next(SpeakerPool.Length)];
-        float speed = SpeedPool[rng.Next(SpeedPool.Length)];
+        float speed = speeds[rng.Next(speeds.Count)];
         return new RenderedCase(template, index, expectation, speaker, speed);
+    }
+
+    /// <summary>
+    /// Parses a <c>--speeds</c> value: comma-separated Piper speed multipliers, each from 0.5 to 3.0.
+    /// Duplicates are allowed and weight the pool.
+    /// </summary>
+    public static bool TryParseSpeeds(string value, [NotNullWhen(true)] out IReadOnlyList<float>? speeds, [NotNullWhen(false)] out string? error)
+    {
+        var parsed = new List<float>();
+        foreach (string item in value.Split(','))
+        {
+            string text = item.Trim();
+            if (
+                !float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float speed)
+                || !float.IsFinite(speed)
+                || (speed < MinSpeed)
+                || (speed > MaxSpeed)
+            )
+            {
+                speeds = null;
+                error = $"--speeds needs comma-separated speeds from 0.5 to 3.0, got '{value}'";
+                return false;
+            }
+            parsed.Add(speed);
+        }
+        speeds = parsed;
+        error = null;
+        return true;
     }
 
     /// <summary>

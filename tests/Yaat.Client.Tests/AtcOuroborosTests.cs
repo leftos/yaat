@@ -36,7 +36,7 @@ public sealed class AtcOuroborosTests
         {
             for (int i = 0; i < RendersPerTemplate; i++)
             {
-                TemplateGap? gap = await SynthTemplates.VerifyAsync(SynthTemplates.Render(template, i, rng));
+                TemplateGap? gap = await SynthTemplates.VerifyAsync(SynthTemplates.Render(template, i, rng, SynthTemplates.DefaultSpeeds));
                 if (gap is not null)
                 {
                     failures.Add(gap);
@@ -89,8 +89,8 @@ public sealed class AtcOuroborosTests
     [Fact]
     public async Task Same_Seed_Plans_The_Same_Cases()
     {
-        SynthPlan first = await SynthTemplates.PlanAsync(SynthTemplates.All, 60, 99);
-        SynthPlan second = await SynthTemplates.PlanAsync(SynthTemplates.All, 60, 99);
+        SynthPlan first = await SynthTemplates.PlanAsync(SynthTemplates.All, 60, 99, SynthTemplates.DefaultSpeeds);
+        SynthPlan second = await SynthTemplates.PlanAsync(SynthTemplates.All, 60, 99, SynthTemplates.DefaultSpeeds);
 
         Assert.Equal(Describe(first), Describe(second));
         Assert.Equal(60, first.Cases.Count);
@@ -101,7 +101,7 @@ public sealed class AtcOuroborosTests
     {
         SynthTemplate[] templates = [Good, Mislabeled];
 
-        SynthPlan plan = await SynthTemplates.PlanAsync(templates, 6, 1);
+        SynthPlan plan = await SynthTemplates.PlanAsync(templates, 6, 1, SynthTemplates.DefaultSpeeds);
 
         Assert.Equal(["good"], plan.VerifiedTemplates.Select(t => t.Key));
         TemplateGap gap = Assert.Single(plan.Gaps);
@@ -117,7 +117,7 @@ public sealed class AtcOuroborosTests
     [Fact]
     public async Task Distribution_Covers_Only_Verified_Templates()
     {
-        SynthPlan plan = await SynthTemplates.PlanAsync(SynthTemplates.All, 200, AtcOuroborosSeed);
+        SynthPlan plan = await SynthTemplates.PlanAsync(SynthTemplates.All, 200, AtcOuroborosSeed, SynthTemplates.DefaultSpeeds);
 
         HashSet<string> gapTemplates = [.. plan.Gaps.Select(g => g.Template)];
         Assert.True(gapTemplates.SetEquals(KnownGaps), string.Join(", ", gapTemplates));
@@ -129,6 +129,53 @@ public sealed class AtcOuroborosTests
             plan.VerifiedTemplates,
             t => Assert.True(plan.Cases.Count(c => c.Template.Key == t.Key) >= floor, $"{t.Key} got fewer than {floor} cases")
         );
+    }
+
+    [Fact]
+    public async Task Another_Speed_Pool_Plans_The_Same_Cases_With_A_New_Speed()
+    {
+        SynthPlan today = await SynthTemplates.PlanAsync(SynthTemplates.All, 40, 99, SynthTemplates.DefaultSpeeds);
+        SynthPlan faster = await SynthTemplates.PlanAsync(SynthTemplates.All, 40, 99, [1.6f]);
+
+        Assert.Equal(40, today.Cases.Count);
+        Assert.Equal(
+            today.Cases.Select(c => (c.Index, c.Template.Key, c.Expectation.Transcript, c.Expectation.Canonical, c.Speaker)),
+            faster.Cases.Select(c => (c.Index, c.Template.Key, c.Expectation.Transcript, c.Expectation.Canonical, c.Speaker))
+        );
+        Assert.All(faster.Cases, c => Assert.Equal(1.6f, c.Speed));
+    }
+
+    [Fact]
+    public async Task Every_Case_Speed_Comes_From_The_Pool()
+    {
+        SynthPlan plan = await SynthTemplates.PlanAsync(SynthTemplates.All, 40, 99, [1.4f, 1.8f]);
+
+        Assert.Equal(40, plan.Cases.Count);
+        Assert.All(plan.Cases, c => Assert.True((c.Speed == 1.4f) || (c.Speed == 1.8f), $"{c.Speed} is not in the pool"));
+    }
+
+    [Fact]
+    public void TryParseSpeeds_Splits_And_Trims_The_List()
+    {
+        bool parsed = SynthTemplates.TryParseSpeeds("1.4, 1.6,1.8", out IReadOnlyList<float>? speeds, out string? error);
+
+        Assert.True(parsed);
+        Assert.Null(error);
+        Assert.Equal([1.4f, 1.6f, 1.8f], speeds);
+    }
+
+    [Theory]
+    [InlineData("1.4,abc")]
+    [InlineData("0.4")]
+    [InlineData("3.5")]
+    [InlineData("")]
+    public void TryParseSpeeds_Refuses_A_Bad_Speed_With_The_Range_Message(string value)
+    {
+        bool parsed = SynthTemplates.TryParseSpeeds(value, out IReadOnlyList<float>? speeds, out string? error);
+
+        Assert.False(parsed);
+        Assert.Null(speeds);
+        Assert.Equal($"--speeds needs comma-separated speeds from 0.5 to 3.0, got '{value}'", error);
     }
 
     [Fact]
@@ -599,6 +646,43 @@ public sealed class AtcOuroborosTests
     }
 
     [Fact]
+    public void A_Results_Document_Without_Speeds_Reads_As_The_Default_Pool()
+    {
+        const string json = """
+            {
+              "seed": 1,
+              "cases": 4,
+              "trials": 3,
+              "sttModel": "stt",
+              "llmModel": "llm",
+              "families": [],
+              "templates": [],
+              "totals": { "cases": 4, "pass": 4, "flaky": 0, "fail": 0, "passRate": 1 },
+              "gaps": []
+            }
+            """;
+
+        AtcOuroborosResults? back = AtcOuroborosAnalysis.Deserialize(json);
+
+        Assert.NotNull(back);
+        Assert.Null(back.Speeds);
+    }
+
+    [Fact]
+    public void A_Named_Speed_Pool_Round_Trips_Through_The_Baseline()
+    {
+        AtcOuroborosResults results = Results([Family("HeadingRules", 0.75, 0.1)], [Template("fh", "HeadingRules", 0.75, 0.1)], []) with
+        {
+            Speeds = [1.6f],
+        };
+
+        AtcOuroborosResults? back = AtcOuroborosAnalysis.Deserialize(AtcOuroborosAnalysis.Serialize(AtcOuroborosAnalysis.ToBaseline(results)));
+
+        Assert.NotNull(back);
+        Assert.Equal([1.6f], back.Speeds);
+    }
+
+    [Fact]
     public void Serialize_WritesLfLineEndingsOnly()
     {
         AtcOuroborosResults results = Results([Family("HeadingRules", 0.75, 0.1)], [Template("fh", "HeadingRules", 0.75, 0.1)], [Gap("cm")]);
@@ -626,6 +710,18 @@ public sealed class AtcOuroborosTests
         Assert.DoesNotContain("\r", withDiff);
         Assert.Contains("\n", withoutDiff);
         Assert.DoesNotContain("\r", withoutDiff);
+    }
+
+    [Fact]
+    public void BuildReport_Names_A_Non_Default_Speed_Pool_Only()
+    {
+        AtcOuroborosResults results = Results([Family("HeadingRules", 0.75, 0.1)], [Template("fh", "HeadingRules", 0.75, 0.1)], []);
+
+        string named = AtcOuroborosRunner.BuildReport(results with { Speeds = [1.6f] }, null, "No baseline.");
+        string byDefault = AtcOuroborosRunner.BuildReport(results, null, "No baseline.");
+
+        Assert.Contains("- Piper speeds: 1.6\n", named);
+        Assert.DoesNotContain("Piper speeds", byDefault);
     }
 
     [Fact]
@@ -680,9 +776,30 @@ public sealed class AtcOuroborosTests
     public void ParseArgs_Refuses_An_Engine_Flag_Without_Stt() => Assert.Null(AtcOuroborosRunner.ParseArgs(["--num-paths", "3"]));
 
     [Fact]
+    public void ParseArgs_Carries_The_Speed_Pool()
+    {
+        AtcOuroborosRunner.Options? options = AtcOuroborosRunner.ParseArgs(["--speeds", "1.5,1.7"]);
+
+        Assert.NotNull(options);
+        Assert.Equal([1.5f, 1.7f], options.Speeds);
+    }
+
+    [Fact]
+    public void ParseArgs_Without_Speeds_Carries_The_Default_Pool()
+    {
+        AtcOuroborosRunner.Options? options = AtcOuroborosRunner.ParseArgs(["--cases", "4"]);
+
+        Assert.NotNull(options);
+        Assert.Equal(SynthTemplates.DefaultSpeeds, options.Speeds);
+    }
+
+    [Fact]
+    public void ParseArgs_Refuses_A_Bad_Speed_Pool() => Assert.Null(AtcOuroborosRunner.ParseArgs(["--speeds", "x"]));
+
+    [Fact]
     public void A_Synthetic_Case_Names_Its_Room()
     {
-        EvalExpectation expectation = SynthTemplates.Render(SynthTemplates.All[0], 0, new Random(1)).Expectation;
+        EvalExpectation expectation = SynthTemplates.Render(SynthTemplates.All[0], 0, new Random(1), SynthTemplates.DefaultSpeeds).Expectation;
 
         Assert.Equal("KOAK", expectation.Airport);
         Assert.True(expectation.ApproachPosition);
@@ -842,9 +959,9 @@ public sealed class AtcOuroborosTests
             families.Sum(f => f.Commands.Wrong)
         );
         var totals = new TotalsResult(cases, pass, 0, cases - pass, cases == 0 ? 0 : (double)pass / cases, null, pooled);
-        return new AtcOuroborosResults(1, cases, 3, "stt", "llm", DateTime.UtcNow, families, templates, totals, gaps, [], null, null);
+        return new AtcOuroborosResults(1, cases, 3, "stt", "llm", DateTime.UtcNow, families, templates, totals, gaps, [], null, null, null);
     }
 
     private static AtcOuroborosResults Aggregated(AtcAggregate aggregate) =>
-        new(1, aggregate.Totals.Cases, 1, "stt", "llm", null, aggregate.Families, aggregate.Templates, aggregate.Totals, [], [], null, null);
+        new(1, aggregate.Totals.Cases, 1, "stt", "llm", null, aggregate.Families, aggregate.Templates, aggregate.Totals, [], [], null, null, null);
 }
