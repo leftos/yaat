@@ -10,28 +10,13 @@ namespace Yaat.Sim.Tests;
 /// <summary>
 /// A jet whose planned base speed is driven below the drag-angle descent threshold (≈87 kt) — e.g. after an
 /// <c>SPDN</c> force-speed, or a scenario-scripted sub-minimum speed, both of which bypass the min-operating-IAS
-/// refusal — must still fly the base leg. <see cref="BasePhase.PlanDescent"/> clamps the descent rate with
-/// <c>Math.Clamp(computedRate, PatternDescentRate, MaxDescentRateFpm(speed))</c>; at a low speed the drag-limited
-/// <see cref="BasePhase.MaxDescentRateFpm"/> falls BELOW the category's normal <c>PatternDescentRate</c>, so the
-/// lower clamp bound exceeds the upper one and <see cref="Math.Clamp(double,double,double)"/> throws
-/// <see cref="ArgumentException"/>, crashing the tick when the aircraft turns base.
+/// refusal — must still fly the base leg. <see cref="BasePhase.PlanDescent"/> clamps the descent rate between the
+/// category's normal <c>PatternDescentRate</c> and the drag-limited <see cref="BasePhase.MaxDescentRateFpm"/>; at a low
+/// speed that ceiling falls BELOW the normal rate, so a bare <see cref="Math.Clamp(double,double,double)"/> throws
+/// <see cref="ArgumentException"/>, crashing the tick when the aircraft turns base. The ceiling must bind instead.
 /// </summary>
-[Collection("NavDbMutator")]
-public class BasePhaseDescentClampTests : IDisposable
+public class BasePhaseDescentClampTests
 {
-    private readonly IDisposable _navDbScope;
-
-    public BasePhaseDescentClampTests()
-    {
-        TestVnasData.EnsureInitialized();
-        _navDbScope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(Rwy()));
-    }
-
-    public void Dispose() => _navDbScope.Dispose();
-
-    // Field elevation 9 ft, heading 280 — mirrors OAK 28.
-    private static RunwayInfo Rwy() => TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 9);
-
     private static PhaseContext Ctx(AircraftState ac)
     {
         RunwayInfo rwy = ac.Phases!.AssignedRunway!;
@@ -49,10 +34,14 @@ public class BasePhaseDescentClampTests : IDisposable
     }
 
     [Fact]
-    public void JetTurningBaseWithForcedLowSpeed_DoesNotThrowOnDescentClamp()
+    public void JetTurningBaseWithForcedLowSpeed_DescendsAtTheDragLimitedCeiling()
     {
-        RunwayInfo rwy = Rwy();
+        TestVnasData.EnsureInitialized();
+        RunwayInfo? found = NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        Assert.NotNull(found);
+        RunwayInfo rwy = found;
         const double sizeNm = 1.5;
+        const double plannedSpeedKt = 70;
 
         PatternWaypoints wp = PatternGeometry.Compute(
             rwy,
@@ -77,25 +66,32 @@ public class BasePhaseDescentClampTests : IDisposable
             TrueHeading = wp.DownwindHeading,
             TrueTrack = wp.DownwindHeading,
             Altitude = wp.PatternAltitude,
-            IndicatedAirspeed = 70,
+            IndicatedAirspeed = plannedSpeedKt,
             IsOnGround = false,
-            FlightPlan = new AircraftFlightPlan { Departure = "TEST" },
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
             Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left },
         };
 
         // The SPDN / scenario-scripted outcome: an explicit controller speed below the jet's min operating IAS.
         ac.Targets.HasExplicitSpeedCommand = true;
-        ac.Targets.TargetSpeed = 70;
+        ac.Targets.TargetSpeed = plannedSpeedKt;
 
         var basePhase = new BasePhase { Waypoints = wp, FinalDistanceNm = 1.0 };
         ac.Phases.Add(basePhase);
 
-        // OnStart runs PlanDescent — this is the tick that throws today.
+        // OnStart runs PlanDescent, whose descent-rate clamp threw for a jet this slow.
         Exception? thrown = Record.Exception(() => ac.Phases.Start(Ctx(ac)));
 
         Assert.True(
             thrown is null,
             $"BasePhase.PlanDescent threw on the descent-rate clamp for a jet at 70 kt: {thrown?.GetType().Name}: {thrown?.Message}"
         );
+
+        // The drag-limited ceiling binds, not the jet's normal 1000 fpm pattern rate.
+        double expectedRate = -BasePhase.MaxDescentRateFpm(plannedSpeedKt, AircraftCategory.Jet);
+        Assert.NotNull(ac.Targets.DesiredVerticalRate);
+        double rate = ac.Targets.DesiredVerticalRate.Value;
+        Assert.Equal(expectedRate, rate, 0.5);
+        Assert.True(rate > -1000, $"base descent {rate:F1} fpm should be shallower than the jet's normal 1000 fpm pattern rate");
     }
 }
