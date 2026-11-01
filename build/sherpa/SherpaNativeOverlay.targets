@@ -9,7 +9,7 @@
     stock native for that RID and copies a sherpa-native-FALLBACK.txt marker beside it.
   -->
   <PropertyGroup>
-    <!-- Exists so a test can point the build at a tampered manifest; not a user setting. -->
+    <!-- Lets a build point at another manifest (a test's manifest with unreachable sources); not a user setting. -->
     <YaatSherpaManifest Condition="'$(YaatSherpaManifest)' == ''">$(MSBuildThisFileDirectory)../../src/Yaat.Client/Speech/stt-downloads.json</YaatSherpaManifest>
     <!-- A fallback must not fail a /warnaserror build (CI); a publish refuses to fall back instead. -->
     <MSBuildWarningsNotAsErrors>$(MSBuildWarningsNotAsErrors);YAATSHERPA001</MSBuildWarningsNotAsErrors>

@@ -112,3 +112,25 @@ resharper_xaml_possible_null_reference_exception_highlighting = none
 
 [*.{bat,cmd}]
 end_of_line = crlf
+
+# build/sherpa/EnsureSherpaNatives.cs is compiled twice: in memory by RoslynCodeTaskFactory with no analyzers and no
+# nullable context (that copy is the one the build runs), and linked into tests/Yaat.Client.Tests so that
+# EnsureSherpaNativesTests drives the same source. The test project's style rules and nullable settings were not
+# written for it, and rewriting the task to satisfy them would only make the two compiles differ.
+[build/sherpa/EnsureSherpaNatives.cs]
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.CS8600.severity = none
+dotnet_diagnostic.CS8603.severity = none
+dotnet_diagnostic.CS8604.severity = none
+dotnet_diagnostic.CS8618.severity = none
+# Every rule the [*.cs] section pins individually, since a pinned rule outranks the blanket default above.
+dotnet_diagnostic.IDE0007.severity = none
+dotnet_diagnostic.IDE0008.severity = none
+dotnet_diagnostic.IDE0011.severity = none
+dotnet_diagnostic.IDE0022.severity = none
+dotnet_diagnostic.IDE0130.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.IDE0290.severity = none
+dotnet_diagnostic.IDE0300.severity = none
+dotnet_diagnostic.IDE0301.severity = none
+dotnet_diagnostic.IDE0305.severity = none

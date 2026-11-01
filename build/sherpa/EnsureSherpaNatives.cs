@@ -7,20 +7,24 @@ using System.Net.Http;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Security.Cryptography;
+using System.Threading;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 
 /// <summary>
 /// Makes sure our sherpa-onnx CPU native for each requested RID is downloaded, SHA-256 verified and extracted
-/// under %LOCALAPPDATA%\yaat\cache\, and returns the extract directory per RID. Each zip is tried from the manifest's
-/// baseUrl, then from each of natives.mirrors, until one verifies. When none does, a required build (a publish) fails,
-/// and any other build warns YAATSHERPA001 and returns the RID as a fallback to NuGet's stock native. Compiled by
-/// RoslynCodeTaskFactory against netstandard, so it uses only netstandard APIs.
+/// under %LOCALAPPDATA%\yaat\cache\ (or the cache below YAAT_APPDATA_DIR when that is set), and returns the extract
+/// directory per RID. A per-RID lock beside the cached zip serializes that work: one build prepares the native, and
+/// every other build on the machine waits for it and then keeps the finished extraction. Each zip is tried from the
+/// manifest's baseUrl, then from each of natives.mirrors, until one verifies. When none does, a required build (a
+/// publish) fails, and any other build warns YAATSHERPA001 and returns the RID as a fallback to NuGet's stock native.
+/// Compiled by RoslynCodeTaskFactory against netstandard, so it uses only netstandard APIs.
 /// </summary>
-public class EnsureSherpaNatives : Task
+public class EnsureSherpaNatives : Microsoft.Build.Utilities.Task
 {
     private const string ManifestCopyName = "sherpa-native-MANIFEST.txt";
     private const string FallbackWarningCode = "YAATSHERPA001";
+    private const int LockWaitSeconds = 600;
 
     [Required]
     public string ManifestPath { get; set; }
@@ -160,27 +164,84 @@ public class EnsureSherpaNatives : Task
 
     private string EnsureRid(string[] urls, string rid, SherpaNativeFile entry)
     {
-        string cacheRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yaat", "cache");
-        string zipPath = Path.Combine(cacheRoot, entry.Key.Replace('/', Path.DirectorySeparatorChar));
         string label = rid + "-cpu";
         string[] required = RequiredFiles(rid);
-
-        EnsureZip(label, zipPath, urls, entry.Sha256);
-
-        string extractDir = zipPath.Substring(0, zipPath.Length - ".zip".Length);
-        if (IsComplete(extractDir, required))
+        try
         {
-            return extractDir;
+            string zipPath = Path.Combine(CacheRoot(), entry.Key.Replace('/', Path.DirectorySeparatorChar));
+            string cacheDir = Path.GetDirectoryName(zipPath);
+            Directory.CreateDirectory(cacheDir);
+            using (AcquireLock(label, Path.Combine(cacheDir, ".lock")))
+            {
+                EnsureZip(label, zipPath, urls, entry.Sha256);
+
+                string extractDir = zipPath.Substring(0, zipPath.Length - ".zip".Length);
+                if (IsComplete(extractDir, required))
+                {
+                    return extractDir;
+                }
+
+                if (Directory.Exists(extractDir))
+                {
+                    Log.LogMessage(MessageImportance.High, "Sherpa native " + label + ": " + extractDir + " is incomplete; extracting it again.");
+                    Directory.Delete(extractDir, true);
+                }
+
+                Extract(label, zipPath, extractDir, required);
+                return extractDir;
+            }
+        }
+        catch (Exception ex) when ((ex is IOException) || (ex is UnauthorizedAccessException))
+        {
+            throw new SherpaNativeException("Sherpa native " + label + ": " + ex.Message);
+        }
+    }
+
+    // The inline task is compiled alone by RoslynCodeTaskFactory and cannot reference Yaat.Sim's YaatPaths, so it
+    // repeats that helper's rule: the cache below YAAT_APPDATA_DIR when that is set, else below %LOCALAPPDATA%\yaat.
+    private static string CacheRoot()
+    {
+        string root = Environment.GetEnvironmentVariable("YAAT_APPDATA_DIR");
+        if (string.IsNullOrEmpty(root))
+        {
+            root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yaat");
         }
 
-        if (Directory.Exists(extractDir))
-        {
-            Log.LogMessage(MessageImportance.High, "Sherpa native " + label + ": " + extractDir + " is incomplete; extracting it again.");
-            Directory.Delete(extractDir, true);
-        }
+        return Path.Combine(root, "cache");
+    }
 
-        Extract(label, zipPath, extractDir, required);
-        return extractDir;
+    /// <summary>
+    /// Opens the per-RID lock beside the cached zip, waiting for the build that holds it instead of racing it. The lock
+    /// file stays in place; only the handle is exclusive.
+    /// </summary>
+    private FileStream AcquireLock(string label, string lockPath)
+    {
+        bool announced = false;
+        for (int failures = 0; ; failures++)
+        {
+            try
+            {
+                return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException)
+            {
+                if (failures >= LockWaitSeconds)
+                {
+                    throw new SherpaNativeException("Sherpa native " + label + ": timed out after 10 minutes waiting for " + lockPath + ".");
+                }
+
+                if (!announced)
+                {
+                    Log.LogMessage(
+                        MessageImportance.High,
+                        "Sherpa native " + label + ": waiting for another build to finish preparing it (" + lockPath + ")."
+                    );
+                    announced = true;
+                }
+
+                Thread.Sleep(1000);
+            }
+        }
     }
 
     private void EnsureZip(string label, string zipPath, string[] urls, string expected)
