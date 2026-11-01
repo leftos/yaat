@@ -103,7 +103,9 @@ public sealed class TouchdownSpeedCancelTests
             patternSizeNm: null,
             altitudeOverrideFt: null,
             airportRunways: [runway],
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         return Assert.IsType<UpwindPhase>(circuit[0]);
     }

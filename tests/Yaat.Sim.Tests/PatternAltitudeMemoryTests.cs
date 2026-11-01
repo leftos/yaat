@@ -33,7 +33,17 @@ public class PatternAltitudeMemoryTests
             FlightPlan = new AircraftFlightPlan { Departure = "KTEST", Destination = "KTEST" },
         };
 
-        _ = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left, null, null, null, authoredRunway: null);
+        _ = PatternGeometry.Compute(
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
         var phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         phases.Add(currentPhase);
         phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
@@ -49,15 +59,15 @@ public class PatternAltitudeMemoryTests
     public void ClimbMaintain_DuringDownwind_SetsPatternAltitudeOverride()
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         AircraftState ac = MakePatternAircraft(new DownwindPhase { Waypoints = waypoints });
 
@@ -70,15 +80,15 @@ public class PatternAltitudeMemoryTests
     public void DescendMaintain_DuringUpwind_SetsPatternAltitudeOverride()
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         AircraftState ac = MakePatternAircraft(new UpwindPhase { Waypoints = waypoints });
 
@@ -95,15 +105,15 @@ public class PatternAltitudeMemoryTests
     public void ClimbMaintain_DuringDownwind_DoesNotClearPattern()
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var dw = new DownwindPhase { Waypoints = waypoints };
         _ = MakePatternAircraft(dw);
@@ -117,15 +127,15 @@ public class PatternAltitudeMemoryTests
     public void DescendMaintain_DuringBase_DoesNotClearPattern()
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var bp = new BasePhase { Waypoints = waypoints };
         _ = MakePatternAircraft(bp);
@@ -138,15 +148,15 @@ public class PatternAltitudeMemoryTests
     public void ClimbMaintain_AllPatternPhases_ReturnAllowed()
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         Assert.Equal(CommandAcceptance.Allowed, new UpwindPhase { Waypoints = waypoints }.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
@@ -190,15 +200,15 @@ public class PatternAltitudeMemoryTests
     {
         RunwayInfo runway = DefaultRunway();
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            1500,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = 1500,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         Assert.Equal(1500, waypoints.PatternAltitude);
@@ -209,15 +219,15 @@ public class PatternAltitudeMemoryTests
     {
         RunwayInfo runway = DefaultRunway();
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         // Piston TPA = field elevation (100) + 1000 AGL = 1100
@@ -284,15 +294,15 @@ public class PatternAltitudeMemoryTests
         };
         ac.Pattern.SetAltitudeOverride(1500, null, AircraftCategory.Piston);
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         phases.Add(new DownwindPhase { Waypoints = waypoints });
@@ -300,7 +310,14 @@ public class PatternAltitudeMemoryTests
         ac.Phases = phases;
 
         // Changing to 28R (different runway) should clear the altitude override
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, "28R", null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Right,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
         Assert.True(result.Success);
         Assert.Null(ac.Pattern.AltitudeOverrideFt);
     }
@@ -332,15 +349,15 @@ public class PatternAltitudeMemoryTests
         };
         ac.Pattern.SetAltitudeOverride(1500, null, AircraftCategory.Piston);
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         phases.Add(new DownwindPhase { Waypoints = waypoints });
@@ -348,7 +365,14 @@ public class PatternAltitudeMemoryTests
         ac.Phases = phases;
 
         // Changing direction only (no new runway) should keep the altitude override
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, null, null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Right,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
         Assert.True(result.Success);
         Assert.Equal(1500, ac.Pattern.AltitudeOverrideFt);
     }

@@ -106,7 +106,9 @@ public class FollowTurnOutTests(ITestOutputHelper output)
             patternSizeNm: null,
             altitudeOverrideFt: null,
             NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         lead.Phases = new PhaseList
         {

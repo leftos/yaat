@@ -91,7 +91,9 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
             patternSizeNm: null,
             altitudeOverrideFt: null,
             NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
         foreach (Phase phase in circuit)

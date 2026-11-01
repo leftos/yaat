@@ -4,6 +4,7 @@
 
 ### Added
 
+- An aircraft in closed traffic tightens its pattern to stay clear of another runway's corridor, or warns once that its pattern crosses it.
 - An ARTCC's airport file can list the taxiways that raise CRC's ASDE-X taxiway-landing alert; an airport without a list alerts on any taxiway.
 
 ### Fixed

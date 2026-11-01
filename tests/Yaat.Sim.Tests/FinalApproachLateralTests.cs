@@ -113,15 +113,21 @@ public class FinalApproachLateralTests(ITestOutputHelper output)
     public void VFR_Pattern_1nm_Final()
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(
+                TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
+                AircraftCategory.Piston,
+                "",
+                0,
+                PatternDirection.Left
+            )
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         ScenarioResult r = RunScenario(
@@ -143,15 +149,21 @@ public class FinalApproachLateralTests(ITestOutputHelper output)
     public void VFR_Pattern_3nm_Final()
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(
+                TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
+                AircraftCategory.Piston,
+                "",
+                0,
+                PatternDirection.Left
+            )
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         ScenarioResult r = RunScenario(
@@ -173,15 +185,21 @@ public class FinalApproachLateralTests(ITestOutputHelper output)
     public void VFR_Pattern_RightTraffic_1nm()
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(
+                TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6),
+                AircraftCategory.Piston,
+                "",
+                0,
+                PatternDirection.Right
+            )
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         ScenarioResult r = RunScenario(

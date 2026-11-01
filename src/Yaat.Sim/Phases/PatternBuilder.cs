@@ -1,6 +1,7 @@
 ﻿using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Phases;
 
@@ -38,19 +39,21 @@ public static class PatternBuilder
         double? patternSizeNm,
         double? altitudeOverrideFt,
         IReadOnlyList<RunwayInfo>? airportRunways,
-        GroundRunway? authoredRunway
+        GroundRunway? authoredRunway,
+        ActiveRunways activeRunways,
+        PatternCommanded commanded
     )
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            category,
-            aircraftType,
-            windSpeedKt,
-            direction,
-            patternSizeNm,
-            altitudeOverrideFt,
-            airportRunways,
-            authoredRunway
+            new PatternGeometryRequest(runway, category, aircraftType, windSpeedKt, direction)
+            {
+                SizeOverrideNm = patternSizeNm,
+                AltitudeOverrideFt = altitudeOverrideFt,
+                AirportRunways = airportRunways,
+                AuthoredRunway = authoredRunway,
+                ActiveRunways = activeRunways,
+                Commanded = commanded,
+            }
         );
         var phases = new List<Phase>();
 
@@ -109,19 +112,21 @@ public static class PatternBuilder
         double? patternSizeNm,
         double? altitudeOverrideFt,
         IReadOnlyList<RunwayInfo>? airportRunways,
-        GroundRunway? authoredRunway
+        GroundRunway? authoredRunway,
+        ActiveRunways activeRunways,
+        PatternCommanded commanded
     )
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            category,
-            aircraftType,
-            windSpeedKt,
-            direction,
-            patternSizeNm,
-            altitudeOverrideFt,
-            airportRunways,
-            authoredRunway
+            new PatternGeometryRequest(runway, category, aircraftType, windSpeedKt, direction)
+            {
+                SizeOverrideNm = patternSizeNm,
+                AltitudeOverrideFt = altitudeOverrideFt,
+                AirportRunways = airportRunways,
+                AuthoredRunway = authoredRunway,
+                ActiveRunways = activeRunways,
+                Commanded = commanded,
+            }
         );
 
         // Altitude resolution (COMMANDS.md, CTO Departure Modifiers): an assigned altitude wins; else
@@ -175,7 +180,9 @@ public static class PatternBuilder
         double? altitudeOverrideFt,
         IReadOnlyList<RunwayInfo>? airportRunways,
         GroundRunway? authoredRunway,
-        bool touchAndGo
+        bool touchAndGo,
+        ActiveRunways activeRunways,
+        PatternCommanded commanded
     )
     {
         return BuildCircuit(
@@ -190,7 +197,9 @@ public static class PatternBuilder
             patternSizeNm,
             altitudeOverrideFt,
             airportRunways,
-            authoredRunway
+            authoredRunway,
+            activeRunways,
+            commanded
         );
     }
 
@@ -224,35 +233,25 @@ public static class PatternBuilder
         double? altitudeOverrideFt,
         IReadOnlyList<RunwayInfo>? airportRunways,
         GroundRunway? flownAuthoredRunway,
-        GroundRunway? patternAuthoredRunway
+        GroundRunway? patternAuthoredRunway,
+        ActiveRunways activeRunways,
+        PatternCommanded commanded
     )
     {
         PatternWaypoints patternWaypoints = PatternGeometry.Compute(
-            patternRunway,
-            category,
-            aircraftType,
-            windSpeedKt,
-            direction,
-            patternSizeNm,
-            altitudeOverrideFt,
-            airportRunways,
-            patternAuthoredRunway
+            new PatternGeometryRequest(patternRunway, category, aircraftType, windSpeedKt, direction)
+            {
+                SizeOverrideNm = patternSizeNm,
+                AltitudeOverrideFt = altitudeOverrideFt,
+                AirportRunways = airportRunways,
+                AuthoredRunway = patternAuthoredRunway,
+                ActiveRunways = activeRunways,
+                Commanded = commanded,
+            }
         );
 
         List<Phase> phases = RunwayGeometry.AreCloseParallels(flownRunway, patternRunway)
-            ? BuildParallelTransitionLegs(
-                flownRunway,
-                patternRunway,
-                category,
-                aircraftType,
-                windSpeedKt,
-                direction,
-                patternSizeNm,
-                altitudeOverrideFt,
-                airportRunways,
-                patternAuthoredRunway,
-                patternWaypoints
-            )
+            ? BuildParallelTransitionLegs(flownRunway, patternRunway, patternWaypoints)
             : BuildCrossingTransitionLegs(
                 flownRunway,
                 category,
@@ -263,7 +262,9 @@ public static class PatternBuilder
                 altitudeOverrideFt,
                 airportRunways,
                 flownAuthoredRunway,
-                patternWaypoints
+                patternWaypoints,
+                activeRunways,
+                commanded
             );
 
         phases.Add(new BasePhase { Waypoints = patternWaypoints });
@@ -274,32 +275,9 @@ public static class PatternBuilder
         return phases;
     }
 
-    private static List<Phase> BuildParallelTransitionLegs(
-        RunwayInfo flownRunway,
-        RunwayInfo patternRunway,
-        AircraftCategory category,
-        string aircraftType,
-        double windSpeedKt,
-        PatternDirection direction,
-        double? patternSizeNm,
-        double? altitudeOverrideFt,
-        IReadOnlyList<RunwayInfo>? airportRunways,
-        GroundRunway? patternAuthoredRunway,
-        PatternWaypoints patternWaypoints
-    )
+    private static List<Phase> BuildParallelTransitionLegs(RunwayInfo flownRunway, RunwayInfo patternRunway, PatternWaypoints patternWaypoints)
     {
-        PatternWaypoints transitionWaypoints = PatternGeometry.ComputeTransition(
-            flownRunway,
-            patternRunway,
-            category,
-            aircraftType,
-            windSpeedKt,
-            direction,
-            patternSizeNm,
-            altitudeOverrideFt,
-            airportRunways,
-            patternAuthoredRunway
-        );
+        PatternWaypoints transitionWaypoints = PatternGeometry.ComputeTransition(flownRunway, patternRunway, patternWaypoints);
 
         return
         [
@@ -321,20 +299,26 @@ public static class PatternBuilder
         double? altitudeOverrideFt,
         IReadOnlyList<RunwayInfo>? airportRunways,
         GroundRunway? flownAuthoredRunway,
-        PatternWaypoints patternWaypoints
+        PatternWaypoints patternWaypoints,
+        ActiveRunways activeRunways,
+        PatternCommanded commanded
     )
     {
-        PatternWaypoints flownWaypoints = PatternGeometry.Compute(
-            flownRunway,
-            category,
-            aircraftType,
-            windSpeedKt,
-            direction,
-            patternSizeNm,
-            altitudeOverrideFt,
-            airportRunways,
-            flownAuthoredRunway
-        );
+        // The upwind on the flown runway climbs out into the pattern runway's circuit, so it flies that circuit's compression
+        // rather than a second decision of its own.
+        PatternWaypoints flownWaypoints = PatternGeometry
+            .Compute(
+                new PatternGeometryRequest(flownRunway, category, aircraftType, windSpeedKt, direction)
+                {
+                    SizeOverrideNm = patternSizeNm,
+                    AltitudeOverrideFt = altitudeOverrideFt,
+                    AirportRunways = airportRunways,
+                    AuthoredRunway = flownAuthoredRunway,
+                    ActiveRunways = activeRunways,
+                    Commanded = commanded with { NeverCompresses = true },
+                }
+            )
+            .WithCompressionOf(patternWaypoints);
 
         var crossing = new MidfieldCrossingPhase
         {

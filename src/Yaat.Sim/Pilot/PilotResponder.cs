@@ -3229,6 +3229,25 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// Advisory for a pattern the type cannot compress clear of another runway: the aircraft flies its normal pattern and
+    /// never refuses. Solo pilots say so; the RPO terminal carries the tightest size that could be asked for.
+    /// </summary>
+    public static PilotSpeechText BuildPatternCrossesRunway(AircraftState aircraft, PatternRunwayCrossing crossing)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string crossed = RunwayIdentifier.ToDisplayDesignator(crossing.CrossedRunway);
+        string pattern = RunwayIdentifier.ToDisplayDesignator(crossing.PatternRunway);
+        return new PilotSpeechText(
+            $"be advised our downwind will take us across runway {PhraseologyVerbalizer.CompactRunway(crossed)}.",
+            $"{spoken}, be advised our downwind will take us across runway {PhraseologyVerbalizer.SpellRunway(crossed)}."
+        )
+        {
+            RpoTerminal =
+                $"{aircraft.Callsign} {aircraft.AircraftType}: pattern runway {pattern} crosses runway {crossed}, tightest flyable {crossing.TightestFlyableNm:F1} NM",
+        };
+    }
+
+    /// <summary>
     /// Colloquial spoken form of a pattern width for the unable readback — pilots say halves of
     /// miles, never decimals ("one point one" is TTS poison; see docs/pilot-phraseology.md).
     /// </summary>

@@ -98,7 +98,7 @@ public sealed class MidfieldCrossingPhase : Phase
         // Downwind speed for the category. A controller speed assignment outranks it (7110.65 §5-7-4).
         if (!ctx.Targets.HasExplicitSpeedCommand)
         {
-            ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            ctx.Targets.TargetSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
         }
 
         Log.LogDebug("[MidfieldCrossing] {Callsign}: started, cat={Cat}, crossingAlt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Category, crossingAlt);
@@ -181,7 +181,7 @@ public sealed class MidfieldCrossingPhase : Phase
         // wider free-flight desired distance, and only ever SLOW below the crossing baseline.
         if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
-            double normalSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            double normalSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double? adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
             if (adjusted is not null)

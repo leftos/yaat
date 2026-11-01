@@ -1245,7 +1245,7 @@ A pattern entry that is still **queued** behind another instruction (`DCT VPCOL;
 | `L270` / `R270` | Left/right 270° turn (immediate). Flies at holding speed, then resumes normal speed. Airborne only — for a 270° departure use `CTO MR270` / `CTO ML270`; the paired form `CTO, R270` is refused with that pointer. |
 | `P270` / `PLAN270` | Plan a 270° turn at the next pattern turn point |
 | `NO270` | Cancel a 270 in progress or a planned 270 |
-| `PS 1.5` / `PATTSIZE 1.5` | Set pattern size (0.25–10.0 NM downwind offset). A size below the aircraft's turn-radius minimum (roughly two pattern-turn radii at its downwind/base speeds) gets an "unable" readback and the pattern is flown at that minimum instead — a tighter pattern would overshoot the turn to final. |
+| `PS 1.5` / `PATTSIZE 1.5` | Set pattern size (0.25–10.0 NM downwind offset). A size below the aircraft's turn-radius minimum (roughly two pattern-turn radii at its downwind/base speeds) is still flown as told, down to the type's compressed floor (slower speeds and a 25° bank; a standing controller speed above the compressed one rules this out) and even over a neighbouring runway; below that floor the pilot gives an "unable" readback and the pattern is flown at the floor instead — a tighter pattern would overshoot the turn to final. Without a `PS`, a pattern that would cross another active runway is compressed automatically (see the [User Guide](USER_GUIDE.md)). |
 | `MLS` / `MRS` | S-turns on final, initial left/right (default 2 turns) |
 | `MLS 3` / `MRS 4` | S-turns with specified count |
 | `OFL` / `OFR` | Offset pattern left/right (default 0.5 NM perpendicular to current pattern heading) |

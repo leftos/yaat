@@ -197,6 +197,8 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
             return false;
         }
 
+        // The next circuit is built when this phase completes, so the cap is the circuit just flown.
+        PatternCompression.HoldClimbCap(ctx, PatternCompression.FlownCircuit(ctx.Aircraft.Phases));
         double agl = ctx.Aircraft.Altitude - _fieldElevation;
         return agl >= LiftoffAgl;
     }

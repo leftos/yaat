@@ -80,7 +80,17 @@ public class FollowPatternTerminalLeadFlowAheadTests
 
         IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
         const PatternDirection Dir = PatternDirection.Left;
-        PatternWaypoints wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, Dir, null, null, allRunways, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "", 0, Dir)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
 
         static AircraftState? lookup(string _) => null;
 
@@ -99,7 +109,9 @@ public class FollowPatternTerminalLeadFlowAheadTests
             null,
             null,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         follower.Phases = new PhaseList
         {
@@ -161,7 +173,9 @@ public class FollowPatternTerminalLeadFlowAheadTests
             null,
             null,
             allRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         Assert.IsType<HelicopterLandingPhase>(heliCircuit[^1]);
 

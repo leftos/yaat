@@ -61,7 +61,7 @@ public sealed class CrosswindPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         if (!ctx.Targets.HasExplicitTurnRate)
         {
-            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+            ctx.Targets.TurnRateOverride = PatternCompression.TurnRate(Waypoints, ctx.Category);
         }
         ctx.Targets.NavigationRoute.Clear();
 
@@ -84,6 +84,22 @@ public sealed class CrosswindPhase : Phase
             Waypoints.CrosswindHeading.Degrees,
             ctx.Aircraft.Altitude
         );
+    }
+
+    /// <summary>
+    /// A compressed circuit turns downwind one turn radius short of its width, so the turn rolls out on the downwind track
+    /// instead of one radius outside it.
+    /// </summary>
+    private bool CompressedDownwindTurnDue(PhaseContext ctx)
+    {
+        if (Waypoints?.CompressedTurnRateDegPerSec is not { } turnRate)
+        {
+            return false;
+        }
+
+        var turnPoint = new LatLon(Waypoints.CrosswindTurnLat, Waypoints.CrosswindTurnLon);
+        double outNm = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, turnPoint, _crosswindHeading);
+        return outNm >= Waypoints.PatternSizeNm - BasePhase.TurnRadiusNm(ctx.Aircraft.GroundSpeed, turnRate);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -122,7 +138,7 @@ public sealed class CrosswindPhase : Phase
         double bearingDiff = Math.Abs(GeoMath.SignedBearingDifference(bearingToTarget, _crosswindHeading.Degrees));
         bool targetIsBehind = bearingDiff > 90.0;
 
-        bool complete = dist < ArrivalNm || targetIsBehind;
+        bool complete = dist < ArrivalNm || targetIsBehind || CompressedDownwindTurnDue(ctx);
         if (complete)
         {
             Log.LogDebug(
@@ -141,7 +157,7 @@ public sealed class CrosswindPhase : Phase
         // the leg speed is reached, which would silently stop spacing for a settled follower.
         if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
-            double baseline = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            double baseline = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)

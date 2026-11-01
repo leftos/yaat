@@ -57,7 +57,17 @@ public class ExtendedDownwindAltitudeTests
         RunwayInfo? rwy = navDb.GetRunway("KOAK", "28R");
         Assert.NotNull(rwy);
         IReadOnlyList<RunwayInfo> all = navDb.GetRunways("KOAK");
-        PatternWaypoints wp = PatternGeometry.Compute(rwy, Cat, "", 0, Dir, null, null, all, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            new PatternGeometryRequest(rwy, Cat, "", 0, Dir)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = all,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
         return new Koak28R(rwy, all, wp);
     }
 
@@ -104,7 +114,9 @@ public class ExtendedDownwindAltitudeTests
             null,
             null,
             koak.AllRunways,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         ac.Phases = new PhaseList
         {
@@ -297,7 +309,7 @@ public class ExtendedDownwindAltitudeTests
 
         // The rollout point BasePhase plans its descent to when it starts at the base trigger: the trigger's distance
         // out (floored at one turn radius) plus one turn radius.
-        double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ac, Cat), Cat);
+        double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ac, Cat, null), Cat);
         double rolloutDistNm = Math.Max(koak.BaseTriggerAlongTrack, turnRadiusNm) + turnRadiusNm;
         double rolloutAlt = GlideSlopeGeometry.AltitudeAtDistance(rolloutDistNm, koak.Runway.ElevationFt, Cat);
         // The distance BasePhase descends over: the downwind-to-base arc, then the straight base to the start of the

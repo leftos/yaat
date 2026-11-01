@@ -19,7 +19,17 @@ public class PatternPhaseTests
     private static PatternWaypoints DefaultWaypoints(PatternDirection dir = PatternDirection.Left)
     {
         RunwayInfo rwy = DefaultRunway();
-        return PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, dir, null, null, null, authoredRunway: null);
+        return PatternGeometry.Compute(
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, dir)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
     }
 
     private static AircraftState MakeAircraft(
@@ -544,15 +554,15 @@ public class PatternPhaseTests
         // PatternGeometry.ResolveAuthoredOverrides), gives a 1,100 ft AGL pattern altitude.
         double authoredPatternAltitude = rwy.AirportElevationFt + 1100;
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            authoredPatternAltitude,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = authoredPatternAltitude,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
         var phase = new MidfieldCrossingPhase { Waypoints = wp };
@@ -575,15 +585,15 @@ public class PatternPhaseTests
         RunwayInfo rwy = DefaultRunway();
         const double AssignedPatternAltitude = 1200;
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            AssignedPatternAltitude,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = AssignedPatternAltitude,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         AircraftState ac = MakeAircraft(altitude: wp.PatternAltitude);
         ac.Pattern.SetAltitudeOverride(AssignedPatternAltitude, null, AircraftCategorization.Categorize(ac.AircraftType));
@@ -711,15 +721,15 @@ public class PatternPhaseTests
     {
         RunwayInfo rwy = DefaultRunway(100);
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         double expectedAgl = CategoryPerformance.PatternAltitudeAgl(AircraftCategory.Jet);

@@ -211,6 +211,8 @@ public sealed class LowApproachPhase : Phase
             return true;
         }
 
+        // The next circuit is built when this phase completes, so the cap is the circuit just flown.
+        PatternCompression.HoldClimbCap(ctx, PatternCompression.FlownCircuit(ctx.Aircraft.Phases));
         bool complete = agl >= SelfClearAgl;
         if (complete)
         {

@@ -663,15 +663,15 @@ public class VfrFollowPhaseTests : IDisposable
         // Lead is in DownwindPhase in the same pattern.
         RunwayInfo runway = DefaultRunway();
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            sizeOverrideNm: null,
-            altitudeOverrideFt: null,
-            airportRunways: [runway],
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = [runway],
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         // Place follower 20 nm east of the runway threshold
@@ -704,15 +704,15 @@ public class VfrFollowPhaseTests : IDisposable
     {
         RunwayInfo runway = DefaultRunway();
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            sizeOverrideNm: null,
-            altitudeOverrideFt: null,
-            airportRunways: [runway],
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = [runway],
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         // Place follower 1 nm further south of the downwind abeam point — within
@@ -754,15 +754,15 @@ public class VfrFollowPhaseTests : IDisposable
         // have to cross final to reach the abeam point — don't auto-join.
         RunwayInfo runway = DefaultRunway();
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            sizeOverrideNm: null,
-            altitudeOverrideFt: null,
-            airportRunways: [runway],
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = [runway],
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         // Left pattern for runway 28 → downwind is south of the runway.
@@ -854,15 +854,15 @@ public class VfrFollowPhaseTests : IDisposable
     {
         RunwayInfo runway = DefaultRunway();
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            sizeOverrideNm: null,
-            altitudeOverrideFt: null,
-            airportRunways: [runway],
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = [runway],
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         // Place follower 0.5 nm past the abeam point along the downwind heading
@@ -930,15 +930,15 @@ public class VfrFollowPhaseTests : IDisposable
     {
         RunwayInfo runway = DefaultRunway();
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            sizeOverrideNm: null,
-            altitudeOverrideFt: null,
-            airportRunways: [runway],
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = [runway],
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         (double Lat, double Lon) followerPos = GeoMath.ProjectPoint(
@@ -993,15 +993,15 @@ public class VfrFollowPhaseTests : IDisposable
     {
         RunwayInfo runway = DefaultRunway();
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            sizeOverrideNm: null,
-            altitudeOverrideFt: null,
-            airportRunways: [runway],
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = [runway],
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         AircraftState ac = MakeVfrAircraft("BASE", "C172", waypoints.BaseTurnLat, waypoints.BaseTurnLon, 190, 1000, 90, onGround: false);
         var basePhase = new BasePhase { Waypoints = waypoints };

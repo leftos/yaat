@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -124,7 +125,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -156,7 +160,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -187,7 +194,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -218,7 +228,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: 3.0
+            finalDistanceNm: 3.0,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -257,7 +270,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: 3.0
+            finalDistanceNm: 3.0,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -297,7 +313,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Left,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: 3.0
+            finalDistanceNm: 3.0,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -338,7 +357,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.False(result.Success);
@@ -361,7 +383,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.False(result.Success);
@@ -394,7 +419,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.False(result.Success);
@@ -419,7 +447,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.False(result.Success);
@@ -448,7 +479,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -474,7 +508,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -503,7 +540,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.False(result.Success);
@@ -525,7 +565,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -551,7 +594,10 @@ public class ErbElbNoDistanceTests : IDisposable
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -578,7 +624,16 @@ public class ErbElbNoDistanceTests : IDisposable
         AircraftState aircraft = MakeAircraft(lat, lon, 2000, heading: 90);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Right,
+            PatternEntryLeg.Base,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         var basePhase = (BasePhase)aircraft.Phases!.Phases[0];
         Assert.NotNull(basePhase.Waypoints);
@@ -597,7 +652,16 @@ public class ErbElbNoDistanceTests : IDisposable
         AircraftState aircraft = MakeAircraft(lat, lon, 2000, heading: 90);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Base, runwayId: "28R", finalDistanceNm: null);
+        PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            PatternDirection.Left,
+            PatternEntryLeg.Base,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         var basePhase = (BasePhase)aircraft.Phases!.Phases[0];
         Assert.NotNull(basePhase.Waypoints);

@@ -83,7 +83,16 @@ public class PatternCommandHandlerTests
         (double northLat, double northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(10.0), 2.0);
         AircraftState ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.Contains("crossing midfield", result.Message!);
@@ -99,7 +108,16 @@ public class PatternCommandHandlerTests
         (double southLat, double southLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(190.0), 2.0);
         AircraftState ac = MakeAircraft(lat: southLat, lon: southLon, altitude: 1500);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.DoesNotContain("crossing midfield", result.Message!);
@@ -113,7 +131,16 @@ public class PatternCommandHandlerTests
         (double northLat, double northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(10.0), 2.0);
         AircraftState ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Base, null, null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Base,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.Contains(ac.Phases!.Phases, p => p is MidfieldCrossingPhase);
@@ -131,7 +158,16 @@ public class PatternCommandHandlerTests
         (double farLat, double farLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(190.0), 10.0);
         AircraftState ac = MakeAircraft(lat: farLat, lon: farLon, altitude: 3000);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.Contains(ac.Phases!.Phases, p => p is PatternEntryPhase);
@@ -143,19 +179,28 @@ public class PatternCommandHandlerTests
         RunwayInfo rwy = DefaultRunway();
         // Place aircraft very close to the downwind abeam point
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         AircraftState ac = MakeAircraft(lat: wp.DownwindAbeamLat, lon: wp.DownwindAbeamLon, altitude: wp.PatternAltitude);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.DoesNotContain(ac.Phases!.Phases, p => p is PatternEntryPhase);
@@ -171,7 +216,16 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft();
         ac.Phases = new PhaseList(); // no runway
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Downwind,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("No assigned runway", result.Message!);
@@ -186,22 +240,22 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var downwind = new DownwindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(downwind);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null, activeRunways: ActiveRunways.Empty, groundLayout: null);
 
         Assert.True(result.Success);
         Assert.True(downwind.IsExtended);
@@ -212,22 +266,22 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var upwind = new UpwindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(upwind);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null, activeRunways: ActiveRunways.Empty, groundLayout: null);
 
         Assert.True(result.Success);
         Assert.True(upwind.IsExtended);
@@ -238,22 +292,22 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var crosswind = new CrosswindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(crosswind);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null, activeRunways: ActiveRunways.Empty, groundLayout: null);
 
         Assert.True(result.Success);
         Assert.True(crosswind.IsExtended);
@@ -264,21 +318,21 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new BasePhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null, activeRunways: ActiveRunways.Empty, groundLayout: null);
 
         Assert.False(result.Success);
         Assert.Contains("base", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -292,7 +346,7 @@ public class PatternCommandHandlerTests
         ac.Phases.Add(new InitialClimbPhase());
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null, activeRunways: ActiveRunways.Empty, groundLayout: null);
 
         Assert.False(result.Success);
     }
@@ -306,15 +360,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         phase = new TPhase();
         // All four pattern phases expose Waypoints — set it via reflection-free property dispatch.
@@ -359,7 +413,9 @@ public class PatternCommandHandlerTests
             patternSizeNm: null,
             altitudeOverrideFt: null,
             airportRunways: null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         foreach (Phase p in circuit)
@@ -376,7 +432,12 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraftOnLeg<UpwindPhase>(out UpwindPhase? upwind);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Upwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.True(upwind.IsExtended);
@@ -389,7 +450,12 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraftOnLeg<CrosswindPhase>(out CrosswindPhase? crosswind);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Upwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.IsType<UpwindPhase>(ac.Phases!.CurrentPhase);
@@ -403,7 +469,12 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraftOnLeg<DownwindPhase>(out _);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Crosswind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Crosswind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.IsType<CrosswindPhase>(ac.Phases!.CurrentPhase);
@@ -415,7 +486,12 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraftOnLeg<BasePhase>(out _);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Downwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.IsType<DownwindPhase>(ac.Phases!.CurrentPhase);
@@ -427,7 +503,12 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraftOnLeg<DownwindPhase>(out _);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Upwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("roll back", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -439,7 +520,12 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out PhaseList? phases);
         Assert.IsType<UpwindPhase>(phases.CurrentPhase);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Crosswind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Crosswind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         // Pre-arm must NOT clear the leg the aircraft is currently flying.
@@ -452,7 +538,12 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out PhaseList? phases);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Downwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.IsType<UpwindPhase>(phases.CurrentPhase);
@@ -467,7 +558,12 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraftWithCircuit(PatternEntryLeg.Crosswind, out PhaseList? phases);
         Assert.IsType<CrosswindPhase>(phases.CurrentPhase);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Downwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.IsType<CrosswindPhase>(phases.CurrentPhase);
@@ -478,7 +574,7 @@ public class PatternCommandHandlerTests
     public void TryExtendPattern_PreArmedDownwind_PersistsToActiveLeg()
     {
         AircraftState ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out PhaseList? phases);
-        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind, activeRunways: ActiveRunways.Empty, groundLayout: null);
 
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         phases.AdvanceToNext(ctx); // upwind -> crosswind
@@ -495,7 +591,12 @@ public class PatternCommandHandlerTests
         // nothing to pre-arm, so a future-leg target is rejected.
         AircraftState ac = MakeAircraftOnLeg<UpwindPhase>(out _);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Downwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("downwind", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -516,15 +617,15 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft();
         RunwayInfo rwy = DefaultRunway();
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         List<Phase> circuit = PatternBuilder.BuildCircuit(
             rwy,
@@ -538,7 +639,9 @@ public class PatternCommandHandlerTests
             patternSizeNm: null,
             altitudeOverrideFt: null,
             airportRunways: null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         ac.Phases = new PhaseList { AssignedRunway = rwy };
         ac.Phases.Add(
@@ -565,7 +668,12 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Downwind, out PhaseList? phases);
         Assert.IsType<PatternEntryPhase>(phases.CurrentPhase);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Downwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         // Pre-arm must not tear down the entry leg the aircraft is flying.
@@ -578,7 +686,7 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Downwind, out PhaseList? phases);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null, activeRunways: ActiveRunways.Empty, groundLayout: null);
 
         Assert.True(result.Success);
         Assert.IsType<PatternEntryPhase>(phases.CurrentPhase);
@@ -590,7 +698,7 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Crosswind, out PhaseList? phases);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null, activeRunways: ActiveRunways.Empty, groundLayout: null);
 
         Assert.True(result.Success);
         Assert.IsType<PatternEntryPhase>(phases.CurrentPhase);
@@ -605,7 +713,12 @@ public class PatternCommandHandlerTests
         // ERD-style entry: no crosswind leg in the queue, so EXT CROSSWIND has nothing to arm.
         AircraftState ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Downwind, out _);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Crosswind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Crosswind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("crosswind", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -615,7 +728,7 @@ public class PatternCommandHandlerTests
     public void TryExtendPattern_PatternEntryPreArm_PersistsToActiveDownwind()
     {
         AircraftState ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Downwind, out PhaseList? phases);
-        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind, activeRunways: ActiveRunways.Empty, groundLayout: null);
 
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
         phases.AdvanceToNext(ctx); // pattern entry -> downwind
@@ -629,7 +742,12 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraftOnLeg<BasePhase>(out _);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Base);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Base,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("base", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -640,7 +758,12 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraftOnLeg<DownwindPhase>(out _);
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Final);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Final,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("final", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -655,21 +778,26 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft();
         RunwayInfo rwy = DefaultRunway();
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new CrosswindPhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Upwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.Contains(ac.Phases!.Phases, p => p is Yaat.Sim.Phases.Tower.TouchAndGoPhase);
@@ -682,12 +810,27 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft();
         RunwayInfo rwy = DefaultRunway();
         ac.Pattern.SizeOverrideNm = 2.5;
-        PatternWaypoints wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left, 2.5, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = 2.5,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new CrosswindPhase { Waypoints = wp });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Upwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         UpwindPhase newUpwind = Assert.IsType<UpwindPhase>(ac.Phases!.CurrentPhase);
@@ -696,15 +839,15 @@ public class PatternCommandHandlerTests
         // the rebuilt waypoints reflect the same authored size by recomputing and
         // comparing the downwind offset.
         PatternWaypoints expectedWp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            2.5,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = 2.5,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         Assert.Equal(expectedWp.DownwindAbeamLat, newUpwind.Waypoints!.DownwindAbeamLat, precision: 4);
         Assert.Equal(expectedWp.DownwindAbeamLon, newUpwind.Waypoints!.DownwindAbeamLon, precision: 4);
@@ -719,22 +862,27 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft();
         RunwayInfo rwy = DefaultRunway();
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var crosswind = new CrosswindPhase { Waypoints = wp };
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
         ac.Phases.Add(crosswind);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
+        CommandResult result = PatternCommandHandler.TryExtendPattern(
+            ac,
+            PatternEntryLeg.Upwind,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         UpwindPhase newUpwind = Assert.IsType<UpwindPhase>(ac.Phases!.CurrentPhase);
@@ -750,15 +898,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var downwind = new DownwindPhase { Waypoints = wp };
         var basep = new BasePhase { Waypoints = wp };
@@ -796,7 +944,14 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, null, null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Right,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.Equal(PatternDirection.Right, ac.Phases!.TrafficDirection);
@@ -809,7 +964,14 @@ public class PatternCommandHandlerTests
         AircraftState ac = MakeAircraft();
         ac.Phases = new PhaseList(); // no runway
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, null, null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Left,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("No assigned runway", result.Message!);
@@ -828,15 +990,15 @@ public class PatternCommandHandlerTests
         (double northLat, double northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(10.0), 2.0);
 
         PatternWaypoints wpRight = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var upwind = new UpwindPhase { Waypoints = wpRight };
         AircraftState ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500);
@@ -846,7 +1008,14 @@ public class PatternCommandHandlerTests
         ac.Phases.Add(new CrosswindPhase { Waypoints = wpRight });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: null, altitudeOverride: null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Left,
+            runwayId: null,
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.Equal(PatternDirection.Left, ac.Phases!.TrafficDirection);
@@ -871,15 +1040,15 @@ public class PatternCommandHandlerTests
         (double northLat, double northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(10.0), 2.0);
 
         PatternWaypoints wpRight = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "B738",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "B738", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         AircraftState ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500); // B738 → Jet
         ac.Ground.Layout = AuthoredLowPatternLayout();
@@ -889,7 +1058,14 @@ public class PatternCommandHandlerTests
         ac.Phases.Add(new DownwindPhase { Waypoints = wpRight });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: null, altitudeOverride: null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Left,
+            runwayId: null,
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.IsType<MidfieldCrossingPhase>(ac.Phases!.CurrentPhase);
@@ -912,15 +1088,15 @@ public class PatternCommandHandlerTests
 
         IReadOnlyList<RunwayInfo> airportRunways = Yaat.Sim.Data.NavigationDatabase.Instance.GetRunways(rwy28R.AirportId);
         PatternWaypoints wpRight = PatternGeometry.Compute(
-            rwy28R,
-            AircraftCategory.Jet,
-            "B738",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            airportRunways,
-            null
+            new PatternGeometryRequest(rwy28R, AircraftCategory.Jet, "B738", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = airportRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         // Early on the right downwind, before midfield.
         (double Lat, double Lon) onDownwind = GeoMath.ProjectPoint(wpRight.DownwindStartLat, wpRight.DownwindStartLon, wpRight.DownwindHeading, 0.3);
@@ -932,7 +1108,14 @@ public class PatternCommandHandlerTests
         ac.Phases.Add(new DownwindPhase { Waypoints = wpRight });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: "28L", altitudeOverride: null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Left,
+            runwayId: "28L",
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success, result.Message);
         MidfieldCrossingPhase crossing = Assert.Single(ac.Phases!.Phases.OfType<MidfieldCrossingPhase>());
@@ -956,15 +1139,15 @@ public class PatternCommandHandlerTests
         (double southLat, double southLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(190.0), 1.5);
 
         PatternWaypoints wpRight = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var crosswind = new CrosswindPhase { Waypoints = wpRight };
         AircraftState ac = MakeAircraft(lat: southLat, lon: southLon, altitude: 1500);
@@ -978,7 +1161,14 @@ public class PatternCommandHandlerTests
         Assert.NotNull(ac.Targets.TargetTrueHeading);
         Assert.Equal(wpRight.CrosswindHeading.Degrees, ac.Targets.TargetTrueHeading.Value.Degrees, 1);
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, runwayId: null, altitudeOverride: null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Left,
+            runwayId: null,
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         Assert.Equal(PatternDirection.Left, ac.Phases!.TrafficDirection);
@@ -992,15 +1182,15 @@ public class PatternCommandHandlerTests
         // The fix: TargetTrueHeading is now the LEFT crosswind heading, not the
         // OLD Right value. (Old Right ≈ rwy+90 = 10°; new Left ≈ rwy-90 = 190°.)
         PatternWaypoints wpLeft = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         Assert.NotNull(ac.Targets.TargetTrueHeading);
         Assert.Equal(wpLeft.CrosswindHeading.Degrees, ac.Targets.TargetTrueHeading.Value.Degrees, 1);
@@ -1027,7 +1217,9 @@ public class PatternCommandHandlerTests
             patternSizeNm: null,
             altitudeOverrideFt: null,
             airportRunways: null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         pendingUpwind = (UpwindPhase)circuit[0];
         pendingExit = (PatternExitPhase)circuit[1];
@@ -1114,15 +1306,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var downwind = new DownwindPhase { Waypoints = wp };
         var basep = new BasePhase { Waypoints = wp };
@@ -1147,15 +1339,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var downwind = new DownwindPhase { Waypoints = wp };
         var basep = new BasePhase { Waypoints = wp };
@@ -1182,15 +1374,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var downwind = new DownwindPhase { Waypoints = wp };
         var basep = new BasePhase { Waypoints = wp };
@@ -1219,15 +1411,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var downwind = new DownwindPhase { Waypoints = wp };
         var basep = new BasePhase { Waypoints = wp };
@@ -1250,7 +1442,17 @@ public class PatternCommandHandlerTests
     public void TryPlan270_PlansOppositeDirection_SoTurnRollsOutOnFinal(PatternDirection traffic, TurnDirection expectedTurn)
     {
         RunwayInfo runway = DefaultRunway();
-        PatternWaypoints wp = PatternGeometry.Compute(runway, AircraftCategory.Jet, "", 0, traffic, null, null, null, authoredRunway: null);
+        PatternWaypoints wp = PatternGeometry.Compute(
+            new PatternGeometryRequest(runway, AircraftCategory.Jet, "", 0, traffic)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
         AircraftState ac = MakeAircraft();
         // Established on the base leg — the heading MakeTurn will capture as its start.
         ac.TrueHeading = wp.BaseHeading;
@@ -1292,15 +1494,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
@@ -1317,15 +1519,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
@@ -1348,15 +1550,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
@@ -1377,15 +1579,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
@@ -1409,15 +1611,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
@@ -1437,15 +1639,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway(), TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
@@ -1454,6 +1656,7 @@ public class PatternCommandHandlerTests
         CommandResult result = PatternCommandHandler.TrySetPatternSize(
             ac,
             2.5,
+            ActiveRunways.Empty,
             soloTrainingMode: false,
             rpoShowPilotSpeech: false,
             groundLayout: null
@@ -1471,6 +1674,7 @@ public class PatternCommandHandlerTests
         CommandResult result = PatternCommandHandler.TrySetPatternSize(
             ac,
             0.1,
+            ActiveRunways.Empty,
             soloTrainingMode: false,
             rpoShowPilotSpeech: false,
             groundLayout: null
@@ -1488,6 +1692,7 @@ public class PatternCommandHandlerTests
         CommandResult result = PatternCommandHandler.TrySetPatternSize(
             ac,
             15.0,
+            ActiveRunways.Empty,
             soloTrainingMode: false,
             rpoShowPilotSpeech: false,
             groundLayout: null
@@ -1507,6 +1712,7 @@ public class PatternCommandHandlerTests
         CommandResult result = PatternCommandHandler.TrySetPatternSize(
             ac,
             0.5,
+            ActiveRunways.Empty,
             soloTrainingMode: false,
             rpoShowPilotSpeech: false,
             groundLayout: null
@@ -1527,15 +1733,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var basep = new BasePhase { Waypoints = wp, FinalDistanceNm = 0.5 };
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
@@ -1553,15 +1759,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
@@ -1589,7 +1795,7 @@ public class PatternCommandHandlerTests
     public void TryMakeNormalApproach_ClearsPreArmedDownwindExtension()
     {
         AircraftState ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out PhaseList? phases);
-        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind, activeRunways: ActiveRunways.Empty, groundLayout: null);
         DownwindPhase downwind = phases.Phases.OfType<DownwindPhase>().First();
         Assert.True(downwind.IsExtended);
 
@@ -1603,7 +1809,7 @@ public class PatternCommandHandlerTests
     public void TryMakeNormalApproach_ClearsPreArmedCrosswindExtension()
     {
         AircraftState ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out PhaseList? phases);
-        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Crosswind);
+        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Crosswind, activeRunways: ActiveRunways.Empty, groundLayout: null);
         CrosswindPhase crosswind = phases.Phases.OfType<CrosswindPhase>().First();
         Assert.True(crosswind.IsExtended);
 
@@ -1622,15 +1828,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
@@ -1653,15 +1859,15 @@ public class PatternCommandHandlerTests
     {
         AircraftState ac = MakeAircraft();
         PatternWaypoints wp = PatternGeometry.Compute(
-            DefaultRunway(),
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         ac.Phases.Add(new DownwindPhase { Waypoints = wp });
@@ -1692,19 +1898,28 @@ public class PatternCommandHandlerTests
         RunwayInfo rwy = DefaultRunway();
         // Place aircraft near the crosswind turn point
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         AircraftState ac = MakeAircraft(lat: wp.CrosswindTurnLat, lon: wp.CrosswindTurnLon, altitude: wp.PatternAltitude);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Crosswind, null, null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Crosswind,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         // Should have CrosswindPhase → DownwindPhase → BasePhase → FinalApproachPhase → landing
@@ -1753,7 +1968,16 @@ public class PatternCommandHandlerTests
         // rejection message is "too low for sidestep" instead of "short final". Either
         // way, the assertion is the same: EF must not retarget below the stabilized-
         // approach floor.
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("too low", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -1789,7 +2013,16 @@ public class PatternCommandHandlerTests
         ac.Phases = phases;
 
         // Request EF for 28R — should be accepted (far enough from threshold)
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
     }
@@ -1811,7 +2044,16 @@ public class PatternCommandHandlerTests
         ac.FlightPlan.Destination = "KOAK";
         ac.Phases = new PhaseList { AssignedRunway = rwy };
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28L",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         // useAircraftPositionAsEntry = true → entry distance ≈ 0 → no PatternEntryPhase queued.
@@ -1831,7 +2073,16 @@ public class PatternCommandHandlerTests
         ac.FlightPlan.Destination = "KOAK";
         ac.Phases = new PhaseList { AssignedRunway = rwy };
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28L",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.True(result.Success);
         // Aircraft sits outside the close-in window, so the standard far entry path runs
@@ -1865,7 +2116,16 @@ public class PatternCommandHandlerTests
         ac.FlightPlan.Destination = "KOAK";
         ac.Phases = new PhaseList { AssignedRunway = rwy };
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28L",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.True(result.Success, result.Message);
         Assert.Contains(ac.Phases!.Phases, p => p is FinalApproachPhase);
@@ -1900,7 +2160,16 @@ public class PatternCommandHandlerTests
         ac.FlightPlan.Destination = "KOAK";
         ac.Phases = new PhaseList { AssignedRunway = rwy };
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28L",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -1922,7 +2191,16 @@ public class PatternCommandHandlerTests
         ac.FlightPlan.Destination = "KOAK";
         ac.Phases = new PhaseList { AssignedRunway = rwy };
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28L",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -1944,7 +2222,16 @@ public class PatternCommandHandlerTests
         ac.FlightPlan.Destination = "KOAK";
         ac.Phases = new PhaseList { AssignedRunway = rwy };
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", 5.0);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28L",
+            5.0,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
@@ -2078,7 +2365,16 @@ public class PatternCommandHandlerTests
         // should come via CTO MLT/MRT, not via ERD/ELD/etc on a ground aircraft.
         AircraftState ac = MakeAircraft(altitude: 100, onGround: true);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, entryLeg, null, null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            entryLeg,
+            null,
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         Assert.False(result.Success);
         Assert.Contains("airborne", result.Message!, System.StringComparison.OrdinalIgnoreCase);

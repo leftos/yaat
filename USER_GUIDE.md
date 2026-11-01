@@ -763,6 +763,10 @@ Any command can follow `OTG`. The option clearances take the same modifier direc
 
 A runway change issued while the aircraft is already on a pattern leg of the neighbouring runway transitions leg to leg — from the upwind it keeps climbing straight ahead and turns crosswind only past both departure ends; from a close parallel's downwind it crosses over at midfield — instead of cutting across the field the moment the command lands.
 
+**Pattern compression.** A traffic pattern whose normal size would take it across another active runway (its pavement, or the runway's extended centerline for 1 NM past each end) is flown narrower on its own, at slower speeds (downwind no faster than Vref + 20, base Vref + 10, the climb off the runway held to the same cap) and a 25° bank. It is all or nothing: the pattern shrinks only if a flyable size clears every active runway, and never below the type's compressed floor. A speed you assigned that is above the compressed speed rules compression out, and a `PS` you gave is flown as told down to the compressed floor instead. An airport with no active runways set counts every runway.
+
+When no flyable size clears, the aircraft flies its normal pattern and says so once per pattern runway and side: in the RPO terminal as `N123 B738: pattern runway 28L crosses runway 30, tightest flyable 1.6 NM` (the narrowest size the type can fly), in solo mode as the pilot's call. The warning is voiced only for a circuit that is still ahead when it is due; a dropped one is owed by the next circuit on that runway and side. Parallel runways count as crossed too.
+
 ![Ground View zoomed in on UAL546 rolling out on runway 30 just after touchdown](docs/user-guide/img/just-landed.png)
 
 **Expedite a runway exit ("without delay").** When you need a landed aircraft off the runway fast — to land or depart the next one — add `EXP` to its exit command (`ER EXP`, `ER W5 EXP`, `EL EXP`, `EXIT A3 EXP`), or type a bare `EXP` to one that is rolling out or already exiting.

@@ -428,6 +428,8 @@ PhaseRunner.Tick(aircraft, ctx);
 FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
 ```
 
+A hand-stepped pattern loop that flies lap after lap sets `Phases.LandingClearance` (for example `ClearedTouchAndGo`) every lap: the next circuit clears it, and a final flown without one goes around at 200 ft AGL (`PatternCompressionFlownTests`).
+
 `StartNodeHoldShortArmingTests` is the worked example — real SFO layout, route from `TaxiPathfinder.ResolveExplicitPath`, aircraft placed
 with `GeoMath.ProjectPoint` off the route's own `DepartureBearing`. Older `GroundPhaseTests` sidestep the split by teleporting the aircraft
 between nodes by hand.

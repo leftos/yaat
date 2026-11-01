@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -52,15 +53,15 @@ public class PatternDeconflictionTests
         // (~1.96nm) — overshooting onto the 28R parallel's final is worse than a downwind
         // overlying rwy 30, so the floor wins (issue #412).
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            rwy28L,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy28L, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         double floor = PatternGeometry.MinFlyablePatternSizeNm("", AircraftCategory.Jet, 0);
@@ -70,7 +71,7 @@ public class PatternDeconflictionTests
     }
 
     [Fact]
-    public void LeftTraffic28L_Piston_AlreadyFits_NoShrinkage()
+    public void LeftTraffic28L_Piston_CompressesToClearRunway30()
     {
         NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
@@ -83,24 +84,23 @@ public class PatternDeconflictionTests
 
         IReadOnlyList<RunwayInfo> allRunways = navDb.GetRunways("KOAK");
 
-        // Piston default 0.75nm < rwy 30 distance (1.04nm - 0.15nm buffer = 0.89nm)
-        // No shrinkage needed.
+        // Flown at 0.75 nm plus one crosswind turn radius, the piston's normal pattern reaches runway 30.
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            rwy28L,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy28L, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
-        double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
         double actual = MeasureDownwindOffset(waypoints, rwy28L);
 
-        Assert.True(actual >= defaultSize - 0.01, $"Piston should use default {defaultSize:F3}, got {actual:F3}");
+        // The search starts from the flown normal width (size + r), so the buffer comes off a clear width of about 0.762 nm.
+        Assert.Equal(0.6119, actual, 3);
     }
 
     [Fact]
@@ -119,15 +119,15 @@ public class PatternDeconflictionTests
 
         // Right traffic: rwy 30 is on the left, no conflict on right side
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            rwy28L,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy28L, AircraftCategory.Jet, "", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Jet);
@@ -153,15 +153,15 @@ public class PatternDeconflictionTests
         // 28L is only ~0.16nm to the left of 28R. 0.16 - 0.15 buffer = 0.01nm, below min floor.
         // Deconfliction should skip — use default size.
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            rwy28R,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy28R, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
@@ -245,15 +245,15 @@ public class PatternDeconflictionTests
         RunwayInfo runway = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
 
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
@@ -268,15 +268,15 @@ public class PatternDeconflictionTests
         RunwayInfo runway = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
 
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            [runway],
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = [runway],
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         double defaultSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);

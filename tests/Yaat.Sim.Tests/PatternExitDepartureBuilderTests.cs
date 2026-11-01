@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -42,7 +43,9 @@ public class PatternExitDepartureBuilderTests
             patternSizeNm: null,
             altitudeOverrideFt: null,
             airportRunways: null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Collection(phases, p => Assert.IsType<UpwindPhase>(p), p => Assert.IsType<CrosswindPhase>(p), p => Assert.IsType<PatternExitPhase>(p));
@@ -74,7 +77,9 @@ public class PatternExitDepartureBuilderTests
             patternSizeNm: null,
             altitudeOverrideFt: null,
             airportRunways: null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         // OAK 28R piston pattern altitude = field elev 9 ft + 1000 ft AGL = 1009 ft MSL.
@@ -99,7 +104,9 @@ public class PatternExitDepartureBuilderTests
             patternSizeNm: null,
             altitudeOverrideFt: null,
             airportRunways: null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
         Assert.Collection(phases, p => Assert.IsType<UpwindPhase>(p), p => Assert.IsType<PatternExitPhase>(p));

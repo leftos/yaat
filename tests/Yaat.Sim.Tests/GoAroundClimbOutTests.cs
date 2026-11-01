@@ -53,15 +53,15 @@ public class GoAroundClimbOutTests
 
     private static PatternWaypoints WaypointsFor(RunwayInfo runway, PatternDirection direction) =>
         PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            direction,
-            sizeOverrideNm: null,
-            altitudeOverrideFt: null,
-            airportRunways: null,
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, direction)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
     // ---- ResolvePatternIntent -------------------------------------------------------------
@@ -368,7 +368,9 @@ public class GoAroundClimbOutTests
             aircraft,
             PatternDirection.Right,
             runwayId: "30",
-            altitudeOverride: null
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -399,7 +401,9 @@ public class GoAroundClimbOutTests
             aircraft,
             PatternDirection.Right,
             runwayId: "28R",
-            altitudeOverride: null
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -442,7 +446,9 @@ public class GoAroundClimbOutTests
             aircraft,
             PatternDirection.Right,
             runwayId: null,
-            altitudeOverride: null
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -480,7 +486,14 @@ public class GoAroundClimbOutTests
 
         GoAroundPhase goAround = Assert.IsType<GoAroundPhase>(aircraft.Phases.CurrentPhase);
 
-        PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: null, altitudeOverride: null);
+        PatternCommandHandler.TryChangePatternDirection(
+            aircraft,
+            PatternDirection.Right,
+            runwayId: null,
+            altitudeOverride: null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.Null(goAround.AssignedMagneticHeading);
         Assert.Equal(runway.TrueHeading.Degrees, aircraft.Targets.TargetTrueHeading?.Degrees ?? double.NaN, 3);

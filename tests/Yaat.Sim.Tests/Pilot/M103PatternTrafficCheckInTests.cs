@@ -41,7 +41,17 @@ public class M103PatternTrafficCheckInTests
     }
 
     private static PatternWaypoints DefaultWaypoints(PatternDirection dir = PatternDirection.Left) =>
-        PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Piston, "", 0, dir, null, null, null, authoredRunway: null);
+        PatternGeometry.Compute(
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Piston, "", 0, dir)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
 
     private static AircraftState MakeAircraft(
         string callsign = "N123AB",

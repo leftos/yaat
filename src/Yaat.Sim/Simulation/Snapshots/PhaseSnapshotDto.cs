@@ -284,6 +284,18 @@ public sealed class PatternWaypointsDto
     /// FromSnapshot derives it from the abeam offset from the threshold.</summary>
     public double? PatternSizeNm { get; init; }
 
+    /// <summary>Downwind speed of a compressed circuit (kt). Null marks a normal circuit.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CompressedDownwindSpeedKts { get; init; }
+
+    /// <summary>Base speed of a compressed circuit (kt); null on a normal circuit.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CompressedBaseSpeedKts { get; init; }
+
+    /// <summary>Turn rate of a compressed circuit (deg/s); null on a normal circuit.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CompressedTurnRateDegPerSec { get; init; }
+
     /// <summary>0=Left, 1=Right. Optional for backward compat — when null,
     /// FromSnapshot infers from the abeam position relative to the threshold
     /// along the landing heading.</summary>
@@ -1975,6 +1987,10 @@ public sealed class FollowClimbOutGateDto
     public required double DepartureEndLon { get; init; }
     public required double UpwindHeadingDeg { get; init; }
     public required double MinTurnAltitude { get; init; }
+
+    /// <summary>Downwind speed of the compressed circuit the departure leg climbs into (kt); null for a normal one.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CompressedDownwindSpeedKts { get; init; }
 }
 
 /// <summary>A follower's turn-out to the downwind heading: the runway and circuit it rejoins, and where the turn began.</summary>

@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -438,7 +439,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         }
 
         ctx.Targets.TargetTrueHeading = gate.UpwindHeading;
-        HoldUpwindSpeed(ctx);
+        HoldUpwindSpeed(ctx, gate);
         return true;
     }
 
@@ -466,9 +467,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// baseline unless the controller assigned a speed (7110.65 §5-7-4), slowed for a lead followed too closely and never sped
     /// up to chase one.
     /// </summary>
-    private static void HoldUpwindSpeed(PhaseContext ctx)
+    private static void HoldUpwindSpeed(PhaseContext ctx, FollowClimbOutGate gate)
     {
-        double baseline = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        double baseline = gate.CompressedDownwindSpeedKts ?? AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
         if (!ctx.Targets.HasExplicitSpeedCommand)
         {
             ctx.Targets.TargetSpeed = baseline;
@@ -941,7 +942,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: patternAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
         int downwindIndex = circuit.FindIndex(phase => phase is DownwindPhase);
         if (downwindIndex < 0)
@@ -1028,6 +1031,8 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             ReturnEntryLeg(aircraft, patternReturn.Runway),
             runwayId: null,
             finalDistanceNm: null,
+            activeRunways: ctx.ActiveRunways,
+            warnRunwayCrossing: false,
             groundLayout: ctx.GroundLayout
         );
         if (!entry.Success)
@@ -1159,7 +1164,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: patternAltitudeFt,
             airportRunways: airportRunways,
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(leadRunway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(leadRunway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
 
         // Replace the follower's phase list entirely (InstallJoinedCircuit carries any armed clearance over).
@@ -1261,7 +1268,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: joinAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
         var entry = new PatternEntryPhase
         {
@@ -1339,7 +1348,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: joinAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
 
         Log.LogDebug(
@@ -1624,7 +1635,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: deferredAltitudeFt,
             airportRunways: airportRunways,
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
 
         var entryPhase = new PatternEntryPhase
@@ -2189,7 +2202,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             patternSizeNm: null,
             altitudeOverrideFt: patternAltitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(circuit.Runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(circuit.Runway.Designator)
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(circuit.Runway.Designator),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(ctx.Aircraft)
         );
         Log.LogDebug(
             "[VfrFollow] {Callsign}: {Lead} has passed, turning base to {Rwy} {Along:F2} nm out",
@@ -2475,6 +2490,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
                     DepartureEndLon = climbOutGate.DepartureEnd.Lon,
                     UpwindHeadingDeg = climbOutGate.UpwindHeading.Degrees,
                     MinTurnAltitude = climbOutGate.MinTurnAltitude,
+                    CompressedDownwindSpeedKts = climbOutGate.CompressedDownwindSpeedKts,
                 }
                 : null,
             StallWindowStartGapNm = _parallelHold?.StartGapNm,
@@ -2531,7 +2547,8 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
                 ? new FollowClimbOutGate(
                     new LatLon(climbOutGate.DepartureEndLat, climbOutGate.DepartureEndLon),
                     new TrueHeading(climbOutGate.UpwindHeadingDeg),
-                    climbOutGate.MinTurnAltitude
+                    climbOutGate.MinTurnAltitude,
+                    climbOutGate.CompressedDownwindSpeedKts
                 )
                 : null,
         };
@@ -2577,14 +2594,15 @@ public sealed record FollowPatternReturn(RunwayInfo Runway, PatternDirection Dir
 /// <param name="DepartureEnd">The departure-end / crosswind-turn point, past which the hold ends.</param>
 /// <param name="UpwindHeading">The upwind heading held while the gate is set.</param>
 /// <param name="MinTurnAltitude">Pattern altitude less <see cref="UpwindPhase.PatternHandoffMarginFt"/>, feet MSL.</param>
-internal sealed record FollowClimbOutGate(LatLon DepartureEnd, TrueHeading UpwindHeading, double MinTurnAltitude)
+internal sealed record FollowClimbOutGate(LatLon DepartureEnd, TrueHeading UpwindHeading, double MinTurnAltitude, double? CompressedDownwindSpeedKts)
 {
     /// <summary>The gate a circuit's waypoints put on a pursuit: its crosswind-turn point, its upwind heading and its turn altitude.</summary>
     internal static FollowClimbOutGate FromWaypoints(PatternWaypoints waypoints) =>
         new(
             new LatLon(waypoints.CrosswindTurnLat, waypoints.CrosswindTurnLon),
             waypoints.UpwindHeading,
-            waypoints.PatternAltitude - UpwindPhase.PatternHandoffMarginFt
+            waypoints.PatternAltitude - UpwindPhase.PatternHandoffMarginFt,
+            waypoints.CompressedDownwindSpeedKts
         );
 
     /// <summary>
@@ -2598,7 +2616,8 @@ internal sealed record FollowClimbOutGate(LatLon DepartureEnd, TrueHeading Upwin
         new(
             PatternGeometry.TransitionDepartureEnd(flownRunway, patternRunway),
             flownRunway.TrueHeading,
-            patternAltitudeFt - UpwindPhase.PatternHandoffMarginFt
+            patternAltitudeFt - UpwindPhase.PatternHandoffMarginFt,
+            null
         );
 }
 

@@ -192,7 +192,14 @@ public class PatternModifierArgumentGrammarTests
 
         AircraftState ac = OnDownwindFor(runway28R, PatternDirection.Right);
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, "33", null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Left,
+            "33",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.True(result.Success, $"MLT 33 was refused: {result.Message}");
         Assert.Equal("33", ac.Phases?.AssignedRunway?.Designator);
@@ -216,7 +223,14 @@ public class PatternModifierArgumentGrammarTests
 
         AircraftState ac = OnDownwindFor(runway28R, PatternDirection.Left);
 
-        CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, "15", null);
+        CommandResult result = PatternCommandHandler.TryChangePatternDirection(
+            ac,
+            PatternDirection.Left,
+            "15",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            groundLayout: null
+        );
 
         Assert.False(result.Success, "SFO has no runway 15 — MLT 15 must be refused, not read as 1,500 ft");
         Assert.Contains("Runway 15 not found", result.Message ?? "", StringComparison.Ordinal);
@@ -243,7 +257,7 @@ public class PatternModifierArgumentGrammarTests
         ClosedTrafficDeparture ct = Assert.IsType<ClosedTrafficDeparture>(Assert.IsType<ClearedForTakeoffCommand>(parsed.Value).Departure);
 
         AircraftState ac = LinedUpOn(runway28R);
-        DepartureClearanceHandler.ApplyClosedTraffic(ct, ac, ac.Phases!, runway28R, removeInitialClimb: false);
+        DepartureClearanceHandler.ApplyClosedTraffic(ct, ac, ac.Phases!, runway28R, removeInitialClimb: false, activeRunways: ActiveRunways.Empty);
 
         Assert.Equal("33", ac.Phases?.PatternRunway?.Designator);
         Assert.Equal("33", ac.Phases?.AssignedRunway?.Designator);
@@ -278,15 +292,15 @@ public class PatternModifierArgumentGrammarTests
     private static AircraftState OnDownwindFor(RunwayInfo runway, PatternDirection direction)
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "C172",
-            windSpeedKt: 0,
-            direction,
-            sizeOverrideNm: null,
-            altitudeOverrideFt: null,
-            NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "C172", 0, direction)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         AircraftState ac = MakeVfr(runway, new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon), waypoints.PatternAltitude);

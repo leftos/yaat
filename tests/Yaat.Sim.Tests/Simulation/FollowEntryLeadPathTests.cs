@@ -60,7 +60,9 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
             patternSizeNm: null,
             altitudeOverrideFt: null,
             NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
     /// <summary>The right-traffic 28R geometry a <paramref name="type"/> flies (its downwind's waypoints).</summary>

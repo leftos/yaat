@@ -81,7 +81,7 @@ public sealed class UpwindPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         if (!ctx.Targets.HasExplicitTurnRate)
         {
-            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+            ctx.Targets.TurnRateOverride = PatternCompression.TurnRate(Waypoints, ctx.Category);
         }
         ctx.Targets.NavigationRoute.Clear();
 
@@ -94,7 +94,7 @@ public sealed class UpwindPhase : Phase
         // A controller speed assignment outranks the leg baseline (7110.65 §5-7-4).
         if (!ctx.Targets.HasExplicitSpeedCommand)
         {
-            ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            ctx.Targets.TargetSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
         }
 
         Log.LogDebug(
@@ -167,7 +167,7 @@ public sealed class UpwindPhase : Phase
         // speed is reached, which would silently stop spacing for a settled follower.
         if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
-            double baseline = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            double baseline = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)

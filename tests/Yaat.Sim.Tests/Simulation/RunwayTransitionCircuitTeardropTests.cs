@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -98,7 +99,9 @@ public class RunwayTransitionCircuitTeardropTests
             altitudeOverrideFt: null,
             navDb.GetRunways("KOAK"),
             flownAuthoredRunway: null,
-            patternAuthoredRunway: null
+            patternAuthoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
     }
 }

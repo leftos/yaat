@@ -1241,15 +1241,15 @@ public static class ApproachCommandHandler
             // is still supplied for it.
             GroundRunway? authoredRunway = (ctx.GroundLayout ?? aircraft.Ground.Layout)?.FindRunway(approachRunway.Designator);
             PatternWaypoints waypoints = PatternGeometry.Compute(
-                approachRunway,
-                category,
-                aircraft.AircraftType,
-                aircraft.WindSpeedKts,
-                direction,
-                sizeOverrideNm: null,
-                ifrPatternAltMsl,
-                airportRunways: null,
-                authoredRunway
+                new PatternGeometryRequest(approachRunway, category, aircraft.AircraftType, aircraft.WindSpeedKts, direction)
+                {
+                    SizeOverrideNm = null,
+                    AltitudeOverrideFt = ifrPatternAltMsl,
+                    AirportRunways = null,
+                    AuthoredRunway = authoredRunway,
+                    ActiveRunways = ctx.ActiveRunways,
+                    Commanded = PatternCommanded.Of(aircraft),
+                }
             );
 
             List<Phase> circuitPhases = PatternBuilder.BuildCircuit(
@@ -1264,7 +1264,9 @@ public static class ApproachCommandHandler
                 patternSizeNm: null,
                 ifrPatternAltMsl,
                 airportRunways: null,
-                authoredRunway
+                authoredRunway,
+                ctx.ActiveRunways,
+                PatternCommanded.Of(aircraft)
             );
 
             // Check if the aircraft is already established on the downwind leg.

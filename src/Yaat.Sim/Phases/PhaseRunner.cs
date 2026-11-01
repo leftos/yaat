@@ -3,6 +3,8 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Phases;
 
@@ -22,6 +24,7 @@ public static class PhaseRunner
             return;
         }
 
+        VoicePendingRunwayCrossing(aircraft, ctx);
         StartPendingPhase(ctx, phases);
 
         current.ElapsedSeconds += ctx.DeltaSeconds;
@@ -224,6 +227,40 @@ public static class PhaseRunner
     }
 
     /// <summary>
+    /// The one message owed for a circuit the type cannot compress clear of another runway, voiced only while that circuit is
+    /// still the one ahead: a crossing whose circuit was cleared or replaced before the tick that voices it is dropped, and its
+    /// runway and side stay unwarned, so the next circuit that crosses owes it again.
+    /// </summary>
+    private static void VoicePendingRunwayCrossing(AircraftState aircraft, PhaseContext ctx)
+    {
+        if (aircraft.Pattern.PendingRunwayCrossing is not { } crossing)
+        {
+            return;
+        }
+
+        aircraft.Pattern.PendingRunwayCrossing = null;
+        PhaseList? phases = aircraft.Phases;
+        PatternWaypoints? circuitAhead = phases
+            ?.Phases.Skip(phases.CurrentIndex)
+            .Select(AirborneFollowHelper.PatternWaypointsOf)
+            .FirstOrDefault(waypoints => waypoints?.RunwayCrossing == crossing);
+        if (circuitAhead is null)
+        {
+            return;
+        }
+
+        aircraft.Pattern.MarkRunwayCrossingWarned(crossing, circuitAhead.Direction);
+        PilotResponder.RouteSoloOrRpoTransmission(
+            aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            PilotResponder.BuildPatternCrossesRunway(aircraft, crossing),
+            PilotResponder.SoloPositionsTowerApproach
+        );
+    }
+
+    /// <summary>
     /// Builds the next circuit for the pattern direction and appends it, moving AssignedRunway with a
     /// cross-runway transition. Returns the appended phases.
     /// </summary>
@@ -275,7 +312,9 @@ public static class PhaseRunner
                 altOv,
                 airportRunways,
                 patternLayout?.FindRunway(flownRunway.Designator),
-                authoredRunway
+                authoredRunway,
+                ctx.ActiveRunways,
+                PatternCommanded.Of(ctx.Aircraft)
             )
             : PatternBuilder.BuildNextCircuit(
                 runway,
@@ -287,9 +326,13 @@ public static class PhaseRunner
                 altOv,
                 airportRunways,
                 authoredRunway,
-                nextTouchAndGo
+                nextTouchAndGo,
+                ctx.ActiveRunways,
+                PatternCommanded.Of(ctx.Aircraft)
             );
         phases.Phases.AddRange(nextCircuit);
+        // A circuit after a go-around or an option clearance is built here; a lap of a circuit already warned stays quiet.
+        ctx.Aircraft.Pattern.NoteRunwayCrossing(nextCircuit);
 
         if (runwayTransition)
         {

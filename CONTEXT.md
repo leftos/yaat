@@ -586,6 +586,12 @@ A controller's altitude (CM, DM, forced altitude, `EXP <alt>`) given outside the
 **Inside the FAF**:
 Established on the final and no further out than a limit measured to the landing threshold. For the speed gate and the FOLLOW refusal the limit is the published FAF capped at 5 NM (`FinalApproachFix.IsInside`); for the altitude hold and the bare-go-around refusal it is the published FAF uncapped (`FinalApproachFix.IsInsidePublishedFaf`, docs/approach-and-pattern-geometry.md).
 
+**Pattern compression**:
+A traffic pattern flown narrower, at slower speeds and a 25° bank, because its normal size would cross another active runway; all or nothing, and only down to the type's compressed floor (`PatternCompression`, docs/approach-and-pattern-geometry.md, *Pattern compression*).
+
+**Protected corridor** (of a runway):
+A runway's pavement plus its extended centerline 1 NM past each end, which pattern compression keeps a circuit's legs out of and the "crosses runway" warning tests (`PatternCompression`).
+
 ## Aircraft performance
 
 **Crossover** (IAS/Mach crossover):

@@ -71,10 +71,13 @@ internal static class PatternCommandHandler
         PatternEntryLeg entryLeg,
         string? runwayId,
         double? finalDistanceNm,
+        ActiveRunways activeRunways,
+        // False for a circuit the controller did not clear (a follower returning to the pattern), where the warning is noise.
+        bool warnRunwayCrossing,
         // Resolved ground layout for authored pattern size/altitude. Production dispatch passes
         // ctx.GroundLayout (resolves the authored TPA even when the per-aircraft Ground.Layout is unset,
-        // issue #210); the null default falls back to aircraft.Ground.Layout for direct test callers.
-        AirportGroundLayout? groundLayout = null
+        // issue #210); null falls back to aircraft.Ground.Layout.
+        AirportGroundLayout? groundLayout
     )
     {
         // Pattern entry only makes sense airborne — on the ground it would
@@ -270,15 +273,15 @@ internal static class PatternCommandHandler
                     circuitAltitudeOverrideFt
                 );
                 waypoints = PatternGeometry.Compute(
-                    runway,
-                    category,
-                    aircraft.AircraftType,
-                    aircraft.WindSpeedKts,
-                    direction,
-                    sizeOv,
-                    altOv,
-                    airportRunways,
-                    AuthoredRunway(aircraft, groundLayout, runway)
+                    new PatternGeometryRequest(runway, category, aircraft.AircraftType, aircraft.WindSpeedKts, direction)
+                    {
+                        SizeOverrideNm = sizeOv,
+                        AltitudeOverrideFt = altOv,
+                        AirportRunways = airportRunways,
+                        AuthoredRunway = AuthoredRunway(aircraft, groundLayout, runway),
+                        ActiveRunways = activeRunways,
+                        Commanded = PatternCommanded.Of(aircraft),
+                    }
                 );
             }
         }
@@ -304,15 +307,15 @@ internal static class PatternCommandHandler
                 aircraft.Pattern.AltitudeOverrideFt
             );
             waypoints ??= PatternGeometry.Compute(
-                runway,
-                category,
-                aircraft.AircraftType,
-                aircraft.WindSpeedKts,
-                direction,
-                sizeOvCi,
-                altOvCi,
-                airportRunwaysCi,
-                AuthoredRunway(aircraft, groundLayout, runway)
+                new PatternGeometryRequest(runway, category, aircraft.AircraftType, aircraft.WindSpeedKts, direction)
+                {
+                    SizeOverrideNm = sizeOvCi,
+                    AltitudeOverrideFt = altOvCi,
+                    AirportRunways = airportRunwaysCi,
+                    AuthoredRunway = AuthoredRunway(aircraft, groundLayout, runway),
+                    ActiveRunways = activeRunways,
+                    Commanded = PatternCommanded.Of(aircraft),
+                }
             );
 
             TrueHeading reciprocalCi = waypoints.FinalHeading.ToReciprocal();
@@ -394,15 +397,15 @@ internal static class PatternCommandHandler
                 aircraft.Pattern.AltitudeOverrideFt
             );
             waypoints ??= PatternGeometry.Compute(
-                runway,
-                category,
-                aircraft.AircraftType,
-                aircraft.WindSpeedKts,
-                direction,
-                sizeOvAa,
-                altOvAa,
-                airportRunwaysAa,
-                AuthoredRunway(aircraft, groundLayout, runway)
+                new PatternGeometryRequest(runway, category, aircraft.AircraftType, aircraft.WindSpeedKts, direction)
+                {
+                    SizeOverrideNm = sizeOvAa,
+                    AltitudeOverrideFt = altOvAa,
+                    AirportRunways = airportRunwaysAa,
+                    AuthoredRunway = AuthoredRunway(aircraft, groundLayout, runway),
+                    ActiveRunways = activeRunways,
+                    Commanded = PatternCommanded.Of(aircraft),
+                }
             );
 
             double alongTrackOutboundAa = GeoMath.AlongTrackDistanceNm(
@@ -466,7 +469,15 @@ internal static class PatternCommandHandler
             && !alreadyOnFinalForRequestedRunway
         )
         {
-            PatternRetargetGate gate = EvaluatePatternRetarget(aircraft, runway, category, direction, groundLayout, ref waypoints);
+            PatternRetargetGate gate = EvaluatePatternRetarget(
+                aircraft,
+                runway,
+                category,
+                direction,
+                groundLayout,
+                ref waypoints,
+                activeRunways: activeRunways
+            );
             if (gate.IsRetarget)
             {
                 isPatternRetarget = true;
@@ -497,15 +508,15 @@ internal static class PatternCommandHandler
                 aircraft.Pattern.AltitudeOverrideFt
             );
             waypoints ??= PatternGeometry.Compute(
-                runway,
-                category,
-                aircraft.AircraftType,
-                aircraft.WindSpeedKts,
-                direction,
-                sizeOv,
-                altOv,
-                airportRunways,
-                AuthoredRunway(aircraft, groundLayout, runway)
+                new PatternGeometryRequest(runway, category, aircraft.AircraftType, aircraft.WindSpeedKts, direction)
+                {
+                    SizeOverrideNm = sizeOv,
+                    AltitudeOverrideFt = altOv,
+                    AirportRunways = airportRunways,
+                    AuthoredRunway = AuthoredRunway(aircraft, groundLayout, runway),
+                    ActiveRunways = activeRunways,
+                    Commanded = PatternCommanded.Of(aircraft),
+                }
             );
             (double eLat, double eLon) = GetEntryPoint(waypoints, PatternEntryLeg.Final, finalDistanceNm, category);
 
@@ -693,15 +704,15 @@ internal static class PatternCommandHandler
                 circuitAltitudeOverrideFt
             );
             waypoints ??= PatternGeometry.Compute(
-                runway,
-                category,
-                aircraft.AircraftType,
-                aircraft.WindSpeedKts,
-                direction,
-                sizeOv,
-                altOv,
-                airportRunways,
-                AuthoredRunway(aircraft, groundLayout, runway)
+                new PatternGeometryRequest(runway, category, aircraft.AircraftType, aircraft.WindSpeedKts, direction)
+                {
+                    SizeOverrideNm = sizeOv,
+                    AltitudeOverrideFt = altOv,
+                    AirportRunways = airportRunways,
+                    AuthoredRunway = AuthoredRunway(aircraft, groundLayout, runway),
+                    ActiveRunways = activeRunways,
+                    Commanded = PatternCommanded.Of(aircraft),
+                }
             );
         }
 
@@ -740,7 +751,7 @@ internal static class PatternCommandHandler
                     waypoints.FinalHeading
                 )
             );
-            baseDescentFeasibility = EvaluateBaseDescent(aircraft, runway, category, crossTrackAbsNm, alongTrackOutbound);
+            baseDescentFeasibility = EvaluateBaseDescent(aircraft, runway, category, crossTrackAbsNm, alongTrackOutbound, waypoints);
             if (baseDescentFeasibility == BaseDescentFeasibility.Infeasible)
             {
                 return new CommandResult(false, "Unable, too high for base");
@@ -778,7 +789,9 @@ internal static class PatternCommandHandler
             circuitSizeOv,
             circuitAltOv,
             NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            AuthoredRunway(aircraft, groundLayout, runway)
+            AuthoredRunway(aircraft, groundLayout, runway),
+            activeRunways,
+            PatternCommanded.Of(aircraft)
         );
 
         var phases = new PhaseList { AssignedRunway = runway, ActiveApproach = BuildVisualClearanceForIfr(aircraft, runway) };
@@ -863,6 +876,10 @@ internal static class PatternCommandHandler
         }
 
         CarryMidfieldReportLatch(previousActivePhase as DownwindPhase, circuitPhases, runway);
+        if (warnRunwayCrossing)
+        {
+            aircraft.Pattern.NoteRunwayCrossing(circuitPhases);
+        }
         foreach (Phase phase in circuitPhases)
         {
             phases.Add(phase);
@@ -940,7 +957,8 @@ internal static class PatternCommandHandler
         PatternDirection newDirection,
         string? runwayId,
         int? altitudeOverride,
-        AirportGroundLayout? groundLayout = null
+        ActiveRunways activeRunways,
+        AirportGroundLayout? groundLayout
     )
     {
         // Captured before the resolution below overwrites them: the runway and direction the aircraft
@@ -1007,7 +1025,7 @@ internal static class PatternCommandHandler
         RunwayInfo runway = aircraft.Phases.AssignedRunway;
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
         (double? sizeOv, double? altOv) = ResolvePatternOverrides(aircraft, runway, groundLayout);
-        PatternWaypoints waypoints = ComputePatternWaypoints(aircraft, runway, newDirection, groundLayout);
+        PatternWaypoints waypoints = ComputePatternWaypoints(aircraft, runway, newDirection, groundLayout, activeRunways: activeRunways);
 
         // Set traffic direction — aircraft is now in pattern mode. Stamp both the
         // transient PhaseList field (current circuit) and the persistent
@@ -1078,10 +1096,12 @@ internal static class PatternCommandHandler
                 category,
                 sizeOv,
                 altOv,
-                airportRunways
+                airportRunways,
+                activeRunways: activeRunways
             );
 
             CarryMidfieldReportLatch(aircraft.Phases.CurrentPhase as DownwindPhase, rebuiltChain, runway);
+            aircraft.Pattern.NoteRunwayCrossing(rebuiltChain);
             ApplyRebuiltPatternChain(aircraft, runway, newDirection, rebuiltChain);
 
             Log.LogDebug(
@@ -1135,8 +1155,11 @@ internal static class PatternCommandHandler
                 sizeOv,
                 altOv,
                 airportRunways,
-                AuthoredRunway(aircraft, groundLayout, runway)
+                AuthoredRunway(aircraft, groundLayout, runway),
+                activeRunways,
+                PatternCommanded.Of(aircraft)
             );
+            aircraft.Pattern.NoteRunwayCrossing(circuit);
             aircraft.Phases.InsertAfterCurrent(circuit);
 
             // On a completed chain the insert lands at the current index with nothing to start it
@@ -1267,7 +1290,8 @@ internal static class PatternCommandHandler
         AircraftCategory category,
         double? sizeOv,
         double? altOv,
-        IReadOnlyList<RunwayInfo>? airportRunways
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        ActiveRunways activeRunways
     )
     {
         if (legSwitch.RunwaySwitch && (legSwitch.PreviousRunway is { } flownRunway))
@@ -1286,7 +1310,9 @@ internal static class PatternCommandHandler
                     altOv,
                     airportRunways,
                     AuthoredRunway(aircraft, groundLayout, flownRunway),
-                    AuthoredRunway(aircraft, groundLayout, runway)
+                    AuthoredRunway(aircraft, groundLayout, runway),
+                    activeRunways,
+                    PatternCommanded.Of(aircraft)
                 );
             }
 
@@ -1302,13 +1328,26 @@ internal static class PatternCommandHandler
                     category,
                     sizeOv,
                     altOv,
-                    airportRunways
+                    airportRunways,
+                    activeRunways
                 );
             }
         }
 
         return legSwitch.WrongSide
-            ? BuildWrongSideJoin(aircraft, groundLayout, runway, newDirection, newWaypoints, category, sizeOv, altOv, airportRunways, crossing: null)
+            ? BuildWrongSideJoin(
+                aircraft,
+                groundLayout,
+                runway,
+                newDirection,
+                newWaypoints,
+                category,
+                sizeOv,
+                altOv,
+                airportRunways,
+                crossing: null,
+                activeRunways: activeRunways
+            )
             : BuildSameSideRebuild(
                 aircraft,
                 groundLayout,
@@ -1319,7 +1358,8 @@ internal static class PatternCommandHandler
                 sizeOv,
                 altOv,
                 airportRunways,
-                rejoinTrack: false
+                rejoinTrack: false,
+                activeRunways: activeRunways
             );
     }
 
@@ -1342,7 +1382,8 @@ internal static class PatternCommandHandler
         AircraftCategory category,
         double? sizeOv,
         double? altOv,
-        IReadOnlyList<RunwayInfo>? airportRunways
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        ActiveRunways activeRunways
     )
     {
         RunwayInfo flownRunway = legSwitch.PreviousRunway!;
@@ -1358,7 +1399,8 @@ internal static class PatternCommandHandler
                 sizeOv,
                 altOv,
                 airportRunways,
-                rejoinTrack: true
+                rejoinTrack: true,
+                activeRunways: activeRunways
             );
         }
 
@@ -1374,7 +1416,8 @@ internal static class PatternCommandHandler
                 sizeOv,
                 altOv,
                 airportRunways,
-                crossing: null
+                crossing: null,
+                activeRunways: activeRunways
             );
         }
 
@@ -1394,7 +1437,8 @@ internal static class PatternCommandHandler
             sizeOv,
             altOv,
             airportRunways,
-            crossing
+            crossing,
+            activeRunways: activeRunways
         );
 
         PatternWaypoints flownWaypoints = ComputeFlownWaypoints(
@@ -1403,7 +1447,8 @@ internal static class PatternCommandHandler
             flownRunway,
             legSwitch.PreviousDirection,
             category,
-            airportRunways
+            airportRunways,
+            activeRunways: activeRunways
         );
         double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
             aircraft.Position,
@@ -1433,7 +1478,8 @@ internal static class PatternCommandHandler
         double? sizeOv,
         double? altOv,
         IReadOnlyList<RunwayInfo>? airportRunways,
-        MidfieldCrossingPhase? crossing
+        MidfieldCrossingPhase? crossing,
+        ActiveRunways activeRunways
     )
     {
         List<Phase> circuit = PatternBuilder.BuildCircuit(
@@ -1448,7 +1494,9 @@ internal static class PatternCommandHandler
             sizeOv,
             altOv,
             airportRunways,
-            AuthoredRunway(aircraft, groundLayout, runway)
+            AuthoredRunway(aircraft, groundLayout, runway),
+            activeRunways,
+            PatternCommanded.Of(aircraft)
         );
 
         List<Phase> chain = PatternBuilder.BuildFieldCrossingPrefix(
@@ -1478,7 +1526,8 @@ internal static class PatternCommandHandler
         double? sizeOv,
         double? altOv,
         IReadOnlyList<RunwayInfo>? airportRunways,
-        bool rejoinTrack
+        bool rejoinTrack,
+        ActiveRunways activeRunways
     )
     {
         List<Phase> chain = PatternBuilder.BuildCircuit(
@@ -1493,7 +1542,9 @@ internal static class PatternCommandHandler
             sizeOv,
             altOv,
             airportRunways,
-            AuthoredRunway(aircraft, groundLayout, runway)
+            AuthoredRunway(aircraft, groundLayout, runway),
+            activeRunways,
+            PatternCommanded.Of(aircraft)
         );
 
         if (rejoinTrack && (chain.OfType<DownwindPhase>().FirstOrDefault() is { } downwind))
@@ -1511,7 +1562,8 @@ internal static class PatternCommandHandler
         RunwayInfo flownRunway,
         PatternDirection flownDirection,
         AircraftCategory category,
-        IReadOnlyList<RunwayInfo>? airportRunways
+        IReadOnlyList<RunwayInfo>? airportRunways,
+        ActiveRunways activeRunways
     )
     {
         GroundRunway? authored = AuthoredRunway(aircraft, groundLayout, flownRunway);
@@ -1523,15 +1575,15 @@ internal static class PatternCommandHandler
             aircraft.Pattern.AltitudeOverrideFt
         );
         return PatternGeometry.Compute(
-            flownRunway,
-            category,
-            aircraft.AircraftType,
-            aircraft.WindSpeedKts,
-            flownDirection,
-            sizeOv,
-            altOv,
-            airportRunways,
-            authored
+            new PatternGeometryRequest(flownRunway, category, aircraft.AircraftType, aircraft.WindSpeedKts, flownDirection)
+            {
+                SizeOverrideNm = sizeOv,
+                AltitudeOverrideFt = altOv,
+                AirportRunways = airportRunways,
+                AuthoredRunway = authored,
+                ActiveRunways = activeRunways,
+                Commanded = PatternCommanded.Of(aircraft),
+            }
         );
     }
 
@@ -1718,7 +1770,12 @@ internal static class PatternCommandHandler
     // and in real ops the equivalent instructions are "continue runway heading,
     // I'll call your crosswind" or a vector. The leg-arg form maps the
     // training-tool shorthand onto those underlying maneuvers.
-    internal static CommandResult TryExtendPattern(AircraftState aircraft, PatternEntryLeg? requestedLeg, AirportGroundLayout? groundLayout = null)
+    internal static CommandResult TryExtendPattern(
+        AircraftState aircraft,
+        PatternEntryLeg? requestedLeg,
+        ActiveRunways activeRunways,
+        AirportGroundLayout? groundLayout
+    )
     {
         if (requestedLeg is not { } leg)
         {
@@ -1774,7 +1831,7 @@ internal static class PatternCommandHandler
             );
         }
 
-        return RebuildPatternFromLeg(aircraft, leg, groundLayout);
+        return RebuildPatternFromLeg(aircraft, leg, activeRunways, groundLayout);
     }
 
     private static CommandResult TryExtendCurrentLeg(AircraftState aircraft)
@@ -2034,7 +2091,12 @@ internal static class PatternCommandHandler
         return new PatternPosition(leg.Value, side, distanceNm);
     }
 
-    private static CommandResult RebuildPatternFromLeg(AircraftState aircraft, PatternEntryLeg leg, AirportGroundLayout? groundLayout = null)
+    private static CommandResult RebuildPatternFromLeg(
+        AircraftState aircraft,
+        PatternEntryLeg leg,
+        ActiveRunways activeRunways,
+        AirportGroundLayout? groundLayout
+    )
     {
         if (aircraft.Phases?.AssignedRunway is null)
         {
@@ -2066,7 +2128,9 @@ internal static class PatternCommandHandler
             sizeOv,
             altOv,
             NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            AuthoredRunway(aircraft, groundLayout, runway)
+            AuthoredRunway(aircraft, groundLayout, runway),
+            activeRunways,
+            PatternCommanded.Of(aircraft)
         );
 
         // Mark the first phase of the new circuit as extended so the aircraft holds
@@ -2803,9 +2867,39 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok($"Plan {dirStr} 270 at next turn");
     }
 
+    /// <summary>
+    /// Re-applies the speed and turn rate a pattern leg sets when it starts, so a PSIZE that compresses or decompresses the
+    /// circuit takes effect on the leg being flown as well as the legs to come. A controller speed and turn rate win.
+    /// </summary>
+    private static void ApplyActiveLegSpeedAndTurnRate(AircraftState aircraft, PatternWaypoints waypoints, AircraftCategory category)
+    {
+        Phase? leg = aircraft.Phases?.CurrentPhase;
+        if (leg is not (UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase))
+        {
+            return;
+        }
+
+        if (!aircraft.Targets.HasExplicitTurnRate)
+        {
+            aircraft.Targets.TurnRateOverride = PatternCompression.TurnRate(waypoints, category);
+        }
+
+        if (!aircraft.Targets.HasExplicitSpeedCommand)
+        {
+            // A downwind past the abeam point has already slowed to its base speed (DownwindPhase).
+            var abeam = new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);
+            bool pastAbeam = (leg is DownwindPhase) && (GeoMath.AlongTrackDistanceNm(aircraft.Position, abeam, waypoints.DownwindHeading) > 0);
+            aircraft.Targets.TargetSpeed =
+                (leg is BasePhase) || pastAbeam
+                    ? PatternCompression.BaseSpeed(waypoints, aircraft.AircraftType, category)
+                    : PatternCompression.DownwindSpeed(waypoints, aircraft.AircraftType, category);
+        }
+    }
+
     internal static CommandResult TrySetPatternSize(
         AircraftState aircraft,
         double sizeNm,
+        ActiveRunways activeRunways,
         bool soloTrainingMode,
         bool rpoShowPilotSpeech,
         AirportGroundLayout? groundLayout
@@ -2823,7 +2917,12 @@ internal static class PatternCommandHandler
         // (PatternGeometry.MinFlyablePatternSizeNm) — the pattern is built at the floor
         // instead, and the pilot says so rather than silently ignoring the instruction
         // (AIM 4-4-1.b; AIM 4-3-5).
-        double floorNm = PatternGeometry.MinFlyablePatternSizeNm(aircraft.AircraftType, category, aircraft.WindSpeedKts);
+        double floorNm = PatternCompression.CommandedFloorNm(
+            aircraft.AircraftType,
+            category,
+            aircraft.WindSpeedKts,
+            PatternCommanded.Of(aircraft).SpeedKts
+        );
         bool unableTooTight = sizeNm < floorNm;
 
         // Update waypoints on active pattern phases if in a pattern
@@ -2839,17 +2938,18 @@ internal static class PatternCommandHandler
                 aircraft.Pattern.AltitudeOverrideFt
             );
             PatternWaypoints waypoints = PatternGeometry.Compute(
-                runway,
-                category,
-                aircraft.AircraftType,
-                aircraft.WindSpeedKts,
-                direction,
-                sizeOv,
-                altOv,
-                airportRunways,
-                AuthoredRunway(aircraft, groundLayout, runway)
+                new PatternGeometryRequest(runway, category, aircraft.AircraftType, aircraft.WindSpeedKts, direction)
+                {
+                    SizeOverrideNm = sizeOv,
+                    AltitudeOverrideFt = altOv,
+                    AirportRunways = airportRunways,
+                    AuthoredRunway = AuthoredRunway(aircraft, groundLayout, runway),
+                    ActiveRunways = activeRunways,
+                    Commanded = PatternCommanded.Of(aircraft),
+                }
             );
             PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
+            ApplyActiveLegSpeedAndTurnRate(aircraft, waypoints, category);
         }
 
         if (unableTooTight)
@@ -3512,7 +3612,7 @@ internal static class PatternCommandHandler
             return true;
         }
         double totalPathNm = Math.Max(0.0, baseTurnBeyondEntryNm - alongPastEntryNm) + patternWidthNm;
-        double speedKt = BasePhase.PlannedSpeedKt(aircraft, category);
+        double speedKt = BasePhase.PlannedSpeedKt(aircraft, category, waypoints);
         double pathMinutes = totalPathNm / (speedKt / 60.0);
         double maxDescentFt = BasePhase.MaxDescentRateFpm(speedKt, category) * pathMinutes;
         return excessAboveTpaFt <= maxDescentFt;
@@ -3739,7 +3839,8 @@ internal static class PatternCommandHandler
         AircraftCategory category,
         PatternDirection direction,
         AirportGroundLayout? groundLayout,
-        ref PatternWaypoints? waypoints
+        ref PatternWaypoints? waypoints,
+        ActiveRunways activeRunways
     )
     {
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
@@ -3751,15 +3852,15 @@ internal static class PatternCommandHandler
             aircraft.Pattern.AltitudeOverrideFt
         );
         waypoints ??= PatternGeometry.Compute(
-            runway,
-            category,
-            aircraft.AircraftType,
-            aircraft.WindSpeedKts,
-            direction,
-            sizeOv,
-            altOv,
-            airportRunways,
-            AuthoredRunway(aircraft, groundLayout, runway)
+            new PatternGeometryRequest(runway, category, aircraft.AircraftType, aircraft.WindSpeedKts, direction)
+            {
+                SizeOverrideNm = sizeOv,
+                AltitudeOverrideFt = altOv,
+                AirportRunways = airportRunways,
+                AuthoredRunway = AuthoredRunway(aircraft, groundLayout, runway),
+                ActiveRunways = activeRunways,
+                Commanded = PatternCommanded.Of(aircraft),
+            }
         );
 
         var threshold = new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon);
@@ -3781,7 +3882,7 @@ internal static class PatternCommandHandler
             && (alongTrackNm > MinPatternRetargetFinalNm(category))
             && (alongTrackNm < MinimumPerpendicularBaseFinalDistanceNm(category))
             && closingOnCenterline
-            && EvaluateBaseDescent(aircraft, runway, category, Math.Abs(rightOffsetNm), alongTrackNm) != BaseDescentFeasibility.Infeasible;
+            && EvaluateBaseDescent(aircraft, runway, category, Math.Abs(rightOffsetNm), alongTrackNm, waypoints) != BaseDescentFeasibility.Infeasible;
 
         if (!engages)
         {
@@ -3794,15 +3895,15 @@ internal static class PatternCommandHandler
         // there would be a wrong-side base.
         PatternDirection side = rightOffsetNm >= 0 ? PatternDirection.Right : PatternDirection.Left;
         PatternWaypoints retargetWaypoints = PatternGeometry.Compute(
-            runway,
-            category,
-            aircraft.AircraftType,
-            aircraft.WindSpeedKts,
-            side,
-            sizeOv,
-            altOv,
-            airportRunways,
-            AuthoredRunway(aircraft, groundLayout, runway)
+            new PatternGeometryRequest(runway, category, aircraft.AircraftType, aircraft.WindSpeedKts, side)
+            {
+                SizeOverrideNm = sizeOv,
+                AltitudeOverrideFt = altOv,
+                AirportRunways = airportRunways,
+                AuthoredRunway = AuthoredRunway(aircraft, groundLayout, runway),
+                ActiveRunways = activeRunways,
+                Commanded = PatternCommanded.Of(aircraft),
+            }
         );
 
         Log.LogDebug(
@@ -3840,11 +3941,12 @@ internal static class PatternCommandHandler
         RunwayInfo runway,
         AircraftCategory category,
         double baseLenNm,
-        double alongTrackNm
+        double alongTrackNm,
+        PatternWaypoints? waypoints
     )
     {
-        double speedKt = BasePhase.PlannedSpeedKt(aircraft, category);
-        double turnRadiusNm = BasePhase.TurnRadiusNm(speedKt, category);
+        double speedKt = BasePhase.PlannedSpeedKt(aircraft, category, waypoints);
+        double turnRadiusNm = BasePhase.TurnRadiusNm(speedKt, category, waypoints);
         double rolloutNm = alongTrackNm + turnRadiusNm;
         double gsAltAtRolloutFt = GlideSlopeGeometry.AltitudeAtDistance(rolloutNm, runway.ElevationFt, category);
         double altitudeToLoseOnBaseFt = aircraft.Altitude - gsAltAtRolloutFt;
@@ -3950,20 +4052,27 @@ internal static class PatternCommandHandler
         AircraftState aircraft,
         RunwayInfo runway,
         PatternDirection side,
-        AirportGroundLayout? groundLayout
+        AirportGroundLayout? groundLayout,
+        ActiveRunways activeRunways
     )
     {
         (double? sizeOv, double? altOv) = ResolvePatternOverrides(aircraft, runway, groundLayout);
         return PatternGeometry.Compute(
-            runway,
-            AircraftCategorization.Categorize(aircraft.AircraftType),
-            aircraft.AircraftType,
-            aircraft.WindSpeedKts,
-            side,
-            sizeOv,
-            altOv,
-            NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            AuthoredRunway(aircraft, groundLayout, runway)
+            new PatternGeometryRequest(
+                runway,
+                AircraftCategorization.Categorize(aircraft.AircraftType),
+                aircraft.AircraftType,
+                aircraft.WindSpeedKts,
+                side
+            )
+            {
+                SizeOverrideNm = sizeOv,
+                AltitudeOverrideFt = altOv,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId),
+                AuthoredRunway = AuthoredRunway(aircraft, groundLayout, runway),
+                ActiveRunways = activeRunways,
+                Commanded = PatternCommanded.Of(aircraft),
+            }
         );
     }
 
@@ -4010,7 +4119,13 @@ internal static class PatternCommandHandler
             return;
         }
 
-        double patternAltitudeFt = ComputePatternWaypoints(aircraft, runway, circuit.Direction, groundLayout).PatternAltitude;
+        double patternAltitudeFt = ComputePatternWaypoints(
+            aircraft,
+            runway,
+            circuit.Direction,
+            groundLayout,
+            activeRunways: ActiveRunways.Empty
+        ).PatternAltitude;
         PatternBuilder.SetPendingPatternAltitude(phases, patternAltitudeFt);
         PatternBuilder.ReconcileFieldCrossingPrefix(
             phases,
@@ -4570,7 +4685,9 @@ internal static class PatternCommandHandler
             sizeOvB,
             altOvB,
             airportRunwaysB,
-            AuthoredRunway(aircraft, ctx.GroundLayout, runwayB)
+            AuthoredRunway(aircraft, ctx.GroundLayout, runwayB),
+            ctx.ActiveRunways,
+            PatternCommanded.Of(aircraft)
         );
 
         // The sharp turn onto B's short final starts far off B's centerline by design —

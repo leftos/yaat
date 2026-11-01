@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -49,15 +50,15 @@ public class PatternFlyabilityFloorTests
         // r(150) + r(130) at 4°/s ≈ 1.11 nm — the authored width must lose.
         double floor = PatternGeometry.MinFlyablePatternSizeNm("", AircraftCategory.Turboprop, 0);
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            rwy28L,
-            AircraftCategory.Turboprop,
-            "",
-            0,
-            PatternDirection.Left,
-            0.5,
-            null,
-            navDb.GetRunways("KOAK"),
-            authoredRunway: null
+            new PatternGeometryRequest(rwy28L, AircraftCategory.Turboprop, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = 0.5,
+                AltitudeOverrideFt = null,
+                AirportRunways = navDb.GetRunways("KOAK"),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         double actual = MeasureDownwindOffset(waypoints, rwy28L);
@@ -85,15 +86,15 @@ public class PatternFlyabilityFloorTests
         Assert.True(floor < defaultSize, $"Piston floor {floor:F3} should be below the default {defaultSize:F3}");
 
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            rwy28R,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            navDb.GetRunways("KOAK"),
-            authoredRunway: null
+            new PatternGeometryRequest(rwy28R, AircraftCategory.Piston, "", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = navDb.GetRunways("KOAK"),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         Assert.Equal(defaultSize, waypoints.PatternSizeNm, 2);
@@ -116,15 +117,15 @@ public class PatternFlyabilityFloorTests
         // parallel is strictly worse than a downwind overlying 30, so the floor wins.
         double floor = PatternGeometry.MinFlyablePatternSizeNm("", AircraftCategory.Jet, 0);
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            rwy28L,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            navDb.GetRunways("KOAK"),
-            authoredRunway: null
+            new PatternGeometryRequest(rwy28L, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = navDb.GetRunways("KOAK"),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         Assert.Equal(floor, waypoints.PatternSizeNm, 2);
@@ -158,15 +159,15 @@ public class PatternFlyabilityFloorTests
         // the final-approach length) grows with the pattern instead of staying at the
         // too-short 0.5-ratio value that rolled out at ~240 ft AGL.
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            rwy28L,
-            AircraftCategory.Turboprop,
-            "",
-            0,
-            PatternDirection.Left,
-            0.5,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy28L, AircraftCategory.Turboprop, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = 0.5,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         double baseExtNm = GeoMath.AlongTrackDistanceNm(

@@ -26,15 +26,15 @@ public class ExtendedDownwindNoClimbTests
     {
         RunwayInfo rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 9);
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         TrueHeading downwindHdg = wp.DownwindHeading;
@@ -45,7 +45,7 @@ public class ExtendedDownwindNoClimbTests
         // is the altitude the aircraft has legitimately descended to by the base turn.
         double baseExtNm = GeoMath.AlongTrackDistanceNm(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), abeam, downwindHdg);
         double turnRadiusNm = BasePhase.TurnRadiusNm(
-            BasePhase.PlannedSpeedKt(MakeJet(abeam, downwindHdg, 0), AircraftCategory.Jet),
+            BasePhase.PlannedSpeedKt(MakeJet(abeam, downwindHdg, 0), AircraftCategory.Jet, null),
             AircraftCategory.Jet
         );
         double baseTurnInterceptAlt = GlideSlopeGeometry.AltitudeAtDistance(baseExtNm + turnRadiusNm, rwy.ElevationFt, AircraftCategory.Jet);

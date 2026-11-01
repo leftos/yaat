@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -48,15 +49,15 @@ public class FlownRunwayResolutionTests
 
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            AircraftCategory.Piston,
-            "DA42",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            airportRunways,
-            authoredRunway: null
+            new PatternGeometryRequest(runway, AircraftCategory.Piston, "DA42", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = airportRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         RunwayInfo? resolved = PatternCommandHandler.ResolveFlownRunway(waypoints, airportRunways);
@@ -87,15 +88,15 @@ public class FlownRunwayResolutionTests
 
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(rwy28R.AirportId);
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            rwy28R,
-            AircraftCategory.Piston,
-            "DA42",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            airportRunways,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy28R, AircraftCategory.Piston, "DA42", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = airportRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         RunwayInfo? resolved = PatternCommandHandler.ResolveFlownRunway(waypoints, airportRunways);

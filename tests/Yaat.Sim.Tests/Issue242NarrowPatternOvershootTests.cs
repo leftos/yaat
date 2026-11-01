@@ -56,15 +56,15 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
         const double sizeNm = 0.5; // OAK 28L's real (unclamped) pattern width
 
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            sizeNm,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = sizeNm,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         // Simulate the cross-runway join outcome: the aircraft is on the downwind heading but INSIDE the
@@ -104,7 +104,9 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
             patternSizeNm: sizeNm,
             altitudeOverrideFt: null,
             airportRunways: null,
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         // This aircraft was dropped inside its pattern by a cross-runway join, so its downwind is a
         // rejoin (as the wrong-side / cross-runway build paths mark it).

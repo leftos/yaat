@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -145,7 +146,20 @@ public sealed class TrafficAdvisoryCandidateTests
         NavigationDatabase.Instance.GetRunway(Airport, Designator) ?? throw new InvalidOperationException($"{Airport} {Designator} not in navdata");
 
     private static BasePhase MakeBasePhase(RunwayInfo runway, PatternDirection side) =>
-        new() { Waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, "", 0, side, null, null, null, authoredRunway: null) };
+        new()
+        {
+            Waypoints = PatternGeometry.Compute(
+                new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, side)
+                {
+                    SizeOverrideNm = null,
+                    AltitudeOverrideFt = null,
+                    AirportRunways = null,
+                    AuthoredRunway = null,
+                    ActiveRunways = ActiveRunways.Empty,
+                    Commanded = PatternCommanded.None,
+                }
+            ),
+        };
 
     private static AircraftState PatternAircraft(string callsign, RunwayInfo runway, Phase phase, double distanceNm)
     {

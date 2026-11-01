@@ -7,6 +7,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -78,15 +79,15 @@ public class AdvisoryCandidateParityTests
             new BasePhase
             {
                 Waypoints = PatternGeometry.Compute(
-                    runway,
-                    AircraftCategory.Piston,
-                    "",
-                    0,
-                    PatternDirection.Left,
-                    null,
-                    null,
-                    null,
-                    authoredRunway: null
+                    new PatternGeometryRequest(runway, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+                    {
+                        SizeOverrideNm = null,
+                        AltitudeOverrideFt = null,
+                        AirportRunways = null,
+                        AuthoredRunway = null,
+                        ActiveRunways = ActiveRunways.Empty,
+                        Commanded = PatternCommanded.None,
+                    }
                 ),
             }
         );

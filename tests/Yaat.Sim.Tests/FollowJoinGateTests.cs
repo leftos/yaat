@@ -403,15 +403,15 @@ public class FollowJoinGateTests
     {
         RunwayInfo rwy = Runway28R();
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            [rwy],
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = [rwy],
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         return (wp, rwy);
     }

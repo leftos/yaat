@@ -303,15 +303,15 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         // PatternEntryPhase / MidfieldCrossingPhase). That way the assertion can
         // inspect the just-installed Downwind directly.
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var ac = new AircraftState
         {

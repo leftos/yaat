@@ -185,7 +185,7 @@ public sealed class PatternEntryPhase : Phase
     {
         if (Kind == PatternEntryKind.Base)
         {
-            return AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
+            return PatternCompression.BaseSpeed(PatternCompression.UpcomingCircuit(ctx.Aircraft.Phases), ctx.AircraftType, ctx.Category);
         }
 
         if (Kind == PatternEntryKind.Final && ctx.Runway is { } runway)
@@ -200,7 +200,7 @@ public sealed class PatternEntryPhase : Phase
             }
         }
 
-        return AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        return PatternCompression.DownwindSpeed(PatternCompression.UpcomingCircuit(ctx.Aircraft.Phases), ctx.AircraftType, ctx.Category);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -224,7 +224,11 @@ public sealed class PatternEntryPhase : Phase
         // speed is reached, which would silently stop spacing for a settled follower.
         if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
-            double normalSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            double normalSpeed = PatternCompression.DownwindSpeed(
+                PatternCompression.UpcomingCircuit(ctx.Aircraft.Phases),
+                ctx.AircraftType,
+                ctx.Category
+            );
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double? adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
             if (adjusted is not null)

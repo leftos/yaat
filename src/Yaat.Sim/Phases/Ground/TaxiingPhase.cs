@@ -2871,7 +2871,8 @@ public sealed class TaxiingPhase : Phase
                     phases,
                     rwy,
                     dep.AssignedAltitude,
-                    removeInitialClimb: false
+                    removeInitialClimb: false,
+                    activeRunways: ctx.ActiveRunways
                 );
             }
         }

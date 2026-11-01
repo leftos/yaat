@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -113,15 +114,15 @@ public class PatternAuthoredOverrideTests
             commandAltitudeMslFt: null
         );
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            sizeOverrideNm: null,
-            altitudeOverrideFt: alt,
-            airportRunways: null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = alt,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         Assert.Equal(609, wp.PatternAltitude);

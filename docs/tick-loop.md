@@ -182,6 +182,8 @@ Inside `SimulationWorld.Tick(delta, preTick, …)`, the `preTick` callback const
 
 This is why phases write directly to `ctx.Targets` and never enqueue commands: they own targets up until physics reads them.
 
+A test that steps physics and then `PhaseRunner.Tick` (the order `PatternCompressionFlownTests` uses) samples the aircraft after the phase has written its targets and before physics applies them, the reverse of the engine's order above; its samples (and the tick a trigger fires on) are not the engine's, so assert on outcomes, not on a tick number.
+
 ## Conflict detection
 
 Two detectors. Both are server-only (clients see results in broadcast snapshots).

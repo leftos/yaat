@@ -44,15 +44,15 @@ public class BasePhaseDescentClampTests
         const double plannedSpeedKt = 70;
 
         PatternWaypoints wp = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Jet,
-            "B738",
-            0,
-            PatternDirection.Left,
-            sizeNm,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Jet, "B738", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = sizeNm,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         // On the downwind, abeam, about to turn base.

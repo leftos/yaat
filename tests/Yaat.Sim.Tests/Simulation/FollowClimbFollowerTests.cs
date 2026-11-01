@@ -96,7 +96,9 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
             patternSizeNm: null,
             altitudeOverrideFt: null,
             NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-            authoredRunway: null
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
 
     /// <summary>
@@ -207,15 +209,15 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
     private static PatternWaypoints CircuitWaypoints(AircraftState ac) =>
         AirborneFollowHelper.FirstPatternWaypoints(ac.Phases)
         ?? PatternGeometry.Compute(
-            Oak28R(),
-            AircraftCategorization.Categorize("C172"),
-            "C172",
-            0,
-            PatternDirection.Right,
-            null,
-            null,
-            NavigationDatabase.Instance.GetRunways("KOAK"),
-            null
+            new PatternGeometryRequest(Oak28R(), AircraftCategorization.Categorize("C172"), "C172", 0, PatternDirection.Right)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = NavigationDatabase.Instance.GetRunways("KOAK"),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
     private static AircraftState AddCrosswindLead(SimulationEngine engine) =>
@@ -624,7 +626,9 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
                 patternSizeNm: null,
                 altitudeOverrideFt: null,
                 NavigationDatabase.Instance.GetRunways("KOAK"),
-                authoredRunway: null
+                authoredRunway: null,
+                activeRunways: ActiveRunways.Empty,
+                commanded: PatternCommanded.None
             )
         )
         {
@@ -1209,6 +1213,87 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A PC12 on the upwind of a compressed OAK 28L left circuit, 1 nm short of its crosswind turn at its compressed speed, told
+    /// to FOLLOW a runwayless lead in its downwind box and flown 1 s into the pursuit's departure-leg hold.
+    /// </summary>
+    private (SimulationEngine Engine, AircraftState Follower) CompressedUpwindPursuit()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28L");
+        AircraftState follower = MakeAircraft(Follower, OffFinal(rwy, 1.0, 0), rwy.TrueHeading, 1000, "VFR");
+        follower.AircraftType = "PC12";
+        follower.Approach.HasReportedTrafficInSight = true;
+        engine.World.AddAircraft(follower);
+        follower.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
+        List<Phase> circuit = PatternBuilder.BuildCircuit(
+            rwy,
+            AircraftCategory.Turboprop,
+            "PC12",
+            windSpeedKt: 0,
+            PatternDirection.Left,
+            PatternEntryLeg.Upwind,
+            touchAndGo: true,
+            finalDistanceNm: null,
+            patternSizeNm: null,
+            altitudeOverrideFt: null,
+            NavigationDatabase.Instance.GetRunways(rwy.AirportId),
+            authoredRunway: null,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
+        );
+        foreach (Phase phase in circuit)
+        {
+            follower.Phases.Add(phase);
+        }
+
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
+        PatternWaypoints wp =
+            AirborneFollowHelper.PatternWaypointsOf(follower.Phases.CurrentPhase) ?? throw new InvalidOperationException("no waypoints");
+        Assert.NotNull(wp.CompressedDownwindSpeedKts);
+        (LatLon position, TrueHeading heading) = UpwindShortOfCrosswindTurn(wp, 1.0);
+        follower.Position = position;
+        follower.TrueHeading = heading;
+        follower.TrueTrack = heading;
+        follower.IndicatedAirspeed = wp.CompressedDownwindSpeedKts.Value;
+        AddLeadInDownwindBox(engine, follower);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        TickSeconds(engine, 1);
+        return (engine, follower);
+    }
+
+    /// <summary>
+    /// The compressed downwind speed a climb-out gate carries survives a snapshot taken mid climb-out, and the restored pursuit
+    /// flies the same capped speed as the live run for the next 30 s.
+    /// </summary>
+    [Fact]
+    public void CompressedUpwindPursuit_GateSpeedSurvivesSnapshot_AndFliesAsTheLiveRun()
+    {
+        (SimulationEngine liveEngine, AircraftState live) = CompressedUpwindPursuit();
+        (SimulationEngine restoredEngine, AircraftState restored) = CompressedUpwindPursuit();
+        FollowClimbOutGate gate =
+            Assert.IsType<VfrFollowPhase>(live.Phases!.CurrentPhase).ClimbOutGate
+            ?? throw new InvalidOperationException("the pursuit must hold the departure leg");
+        double capKts = gate.CompressedDownwindSpeedKts ?? throw new InvalidOperationException("the gate must carry the compressed speed");
+
+        restored.Phases = PhaseList.FromSnapshot(restored.Phases!.ToSnapshot(), groundLayout: null);
+
+        VfrFollowPhase restoredPursuit = Assert.IsType<VfrFollowPhase>(restored.Phases.CurrentPhase);
+        FollowClimbOutGate restoredGate = restoredPursuit.ClimbOutGate ?? throw new InvalidOperationException("the hold must survive the snapshot");
+        Assert.Equal(capKts, restoredGate.CompressedDownwindSpeedKts);
+        for (int i = 0; i < 30 * 4; i++)
+        {
+            liveEngine.TickPhysics(0.25);
+            restoredEngine.TickPhysics(0.25);
+            Assert.Equal(live.Targets.TargetSpeed, restored.Targets.TargetSpeed);
+            Assert.Equal(live.IndicatedAirspeed, restored.IndicatedAirspeed, 9);
+            if (restoredPursuit.ClimbOutGate is not null)
+            {
+                Assert.True(restored.IndicatedAirspeed <= capKts + 0.01, $"flew {restored.IndicatedAirspeed:F1} kt against the {capKts:F1} kt cap");
+            }
+        }
+    }
+
+    /// <summary>
     /// The VFR follower re-sequenced in place out of a non-reentering go-around keeps that climb for a lead flying the
     /// follower's own runway: a runway-bearing lead is sequenced in trail, so nothing is left pending for the hand-over.
     /// </summary>
@@ -1404,20 +1489,22 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
             altitudeOverrideFt,
             NavigationDatabase.Instance.GetRunways("KOAK"),
             ac.Ground.Layout?.FindRunway(flown.Designator),
-            authoredPatternRunway
+            authoredPatternRunway,
+            activeRunways: ActiveRunways.Empty,
+            commanded: PatternCommanded.None
         );
         if (flownPatternAltitudeFt is { } flownAltitude)
         {
             circuit.OfType<UpwindPhase>().First().Waypoints = PatternGeometry.Compute(
-                flown,
-                category,
-                "C172",
-                0,
-                PatternDirection.Right,
-                sizeOverrideNm,
-                flownAltitude,
-                NavigationDatabase.Instance.GetRunways("KOAK"),
-                ac.Ground.Layout?.FindRunway(flown.Designator)
+                new PatternGeometryRequest(flown, category, "C172", 0, PatternDirection.Right)
+                {
+                    SizeOverrideNm = sizeOverrideNm,
+                    AltitudeOverrideFt = flownAltitude,
+                    AirportRunways = NavigationDatabase.Instance.GetRunways("KOAK"),
+                    AuthoredRunway = ac.Ground.Layout?.FindRunway(flown.Designator),
+                    ActiveRunways = ActiveRunways.Empty,
+                    Commanded = PatternCommanded.None,
+                }
             );
         }
 

@@ -76,15 +76,15 @@ public class CompoundTowerCommandTests
             },
         };
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            null,
-            null,
-            null,
-            authoredRunway: null
+            new PatternGeometryRequest(rwy, AircraftCategory.Piston, "", 0, PatternDirection.Left)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         var phases = new PhaseList { AssignedRunway = rwy };
         phases.Add(new Yaat.Sim.Phases.Pattern.DownwindPhase { Waypoints = waypoints });

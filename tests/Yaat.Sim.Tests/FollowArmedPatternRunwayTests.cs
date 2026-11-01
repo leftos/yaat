@@ -544,15 +544,15 @@ public class FollowArmedPatternRunwayTests
     {
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(leadRunway.AirportId);
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            leadRunway,
-            AircraftCategory.Piston,
-            "C172",
-            windSpeedKt: 0,
-            direction,
-            sizeOverrideNm: null,
-            altitudeOverrideFt: null,
-            airportRunways,
-            authoredRunway: null
+            new PatternGeometryRequest(leadRunway, AircraftCategory.Piston, "C172", 0, direction)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = airportRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         var abeam = new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);

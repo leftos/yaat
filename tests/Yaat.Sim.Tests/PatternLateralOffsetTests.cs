@@ -23,7 +23,17 @@ public class PatternLateralOffsetTests
     private static RunwayInfo DefaultRunway() => TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
 
     private static PatternWaypoints DefaultWaypoints(PatternDirection dir = PatternDirection.Left) =>
-        PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Piston, "", 0, dir, null, null, null, authoredRunway: null);
+        PatternGeometry.Compute(
+            new PatternGeometryRequest(DefaultRunway(), AircraftCategory.Piston, "", 0, dir)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
 
     private static AircraftState MakeAircraft(double lat, double lon, double headingDeg = 100)
     {

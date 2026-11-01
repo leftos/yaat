@@ -97,7 +97,16 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
 
             // Mirror what the user typed (`EF 28L`): EnterFinalCommand dispatches
             // with PatternDirection.Left.
-            CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
+            CommandResult result = PatternCommandHandler.TryEnterPattern(
+                aircraft,
+                PatternDirection.Left,
+                PatternEntryLeg.Final,
+                "28L",
+                null,
+                activeRunways: ActiveRunways.Empty,
+                warnRunwayCrossing: true,
+                groundLayout: null
+            );
 
             output.WriteLine($"TryEnterPattern(28L) -> Success={result.Success} Message='{result.Message}'");
 
@@ -158,7 +167,16 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         };
         SetUpFinalApproach(ac, rwy28R, AircraftCategory.Piston);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
         Assert.True(result.Success, $"Close-in aligned VFR aircraft must be accepted. Got: '{result.Message}'");
@@ -203,7 +221,16 @@ public class VfrShortFinalRunwayChangeTests(ITestOutputHelper output)
         };
         SetUpFinalApproach(ac, rwy28L, AircraftCategory.Jet);
 
-        CommandResult result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Left,
+            PatternEntryLeg.Final,
+            "28R",
+            null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
 
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
         Assert.False(result.Success);

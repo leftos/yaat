@@ -87,6 +87,7 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
                 PatternDirection.Left,
                 "28L",
                 null,
+                activeRunways: ActiveRunways.Empty,
                 aircraft.Ground.Layout
             );
             Assert.True(result.Success, $"MLT 28L was refused: {result.Message}");
@@ -132,6 +133,7 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
                 PatternDirection.Left,
                 "28L",
                 null,
+                activeRunways: ActiveRunways.Empty,
                 aircraft.Ground.Layout
             );
             Assert.True(toLeft.Success, $"MLT 28L was refused: {toLeft.Message}");
@@ -143,6 +145,7 @@ public class ParallelRunwayMltFromUpwindTests(ITestOutputHelper output)
                 PatternDirection.Right,
                 "28R",
                 null,
+                activeRunways: ActiveRunways.Empty,
                 aircraft.Ground.Layout
             );
             Assert.True(back.Success, $"MRT 28R was refused: {back.Message}");

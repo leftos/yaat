@@ -157,7 +157,7 @@ public sealed class TeardropReentryPhase : Phase
         // A controller speed assignment outranks the leg baseline (7110.65 §5-7-4).
         if (!ctx.Targets.HasExplicitSpeedCommand)
         {
-            ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            ctx.Targets.TargetSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
         }
 
         Log.LogDebug(
@@ -183,7 +183,7 @@ public sealed class TeardropReentryPhase : Phase
         // SLOW below the re-entry baseline.
         if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
-            double normalSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+            double normalSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double? adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
             if (adjusted is not null)

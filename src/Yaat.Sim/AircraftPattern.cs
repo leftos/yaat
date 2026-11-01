@@ -104,6 +104,42 @@ public class AircraftPattern
     /// </summary>
     public PendingLandingClearance? PendingLandingClearance { get; set; }
 
+    /// <summary>
+    /// The warning owed for a circuit that crosses another runway, set when the circuit is first built and voiced on the next
+    /// tick, where the solo and RPO routing is known. Laps and waypoint rebuilds never set it.
+    /// </summary>
+    public PatternRunwayCrossing? PendingRunwayCrossing { get; set; }
+
+    /// <summary>The pattern runways and sides already warned about, as "28L Left", so each is said once.</summary>
+    private readonly SortedSet<string> _warnedRunwayCrossings = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Records the crossing of a newly built <paramref name="circuit"/> as owed, if it has one and its runway and side have not
+    /// been warned about yet; a lap of the same circuit never warns again, and a circuit noted again before its warning is voiced
+    /// replaces the one owed.
+    /// </summary>
+    public void NoteRunwayCrossing(IEnumerable<Phase> circuit)
+    {
+        PatternWaypoints? crossingCircuit = circuit
+            .Select(AirborneFollowHelper.PatternWaypointsOf)
+            .FirstOrDefault(w => w?.RunwayCrossing is not null);
+        if (crossingCircuit?.RunwayCrossing is not { } crossing)
+        {
+            return;
+        }
+
+        if (!_warnedRunwayCrossings.Contains(WarnedKey(crossing, crossingCircuit.Direction)))
+        {
+            PendingRunwayCrossing = crossing;
+        }
+    }
+
+    /// <summary>Marks the runway and side of <paramref name="crossing"/> warned about, once its warning is voiced.</summary>
+    public void MarkRunwayCrossingWarned(PatternRunwayCrossing crossing, PatternDirection direction) =>
+        _warnedRunwayCrossings.Add(WarnedKey(crossing, direction));
+
+    private static string WarnedKey(PatternRunwayCrossing crossing, PatternDirection direction) => $"{crossing.PatternRunway} {direction}";
+
     public AircraftPatternDto ToSnapshot() =>
         new()
         {
@@ -117,10 +153,15 @@ public class AircraftPattern
             PendingLandingClearanceRunwayId = PendingLandingClearance?.RunwayId,
             PendingLandingClearancePatternRunwayId = PendingLandingClearance?.PatternRunwayId,
             PendingLandingClearancePatternAltitudeFt = PendingLandingClearance?.PatternAltitudeFt,
+            PendingCrossingPatternRunway = PendingRunwayCrossing?.PatternRunway,
+            PendingCrossingCrossedRunway = PendingRunwayCrossing?.CrossedRunway,
+            PendingCrossingTightestFlyableNm = PendingRunwayCrossing?.TightestFlyableNm,
+            WarnedRunwayCrossings = _warnedRunwayCrossings.Count > 0 ? [.. _warnedRunwayCrossings] : null,
         };
 
-    public static AircraftPattern FromSnapshot(AircraftPatternDto dto) =>
-        new()
+    public static AircraftPattern FromSnapshot(AircraftPatternDto dto)
+    {
+        var pattern = new AircraftPattern
         {
             SizeOverrideNm = dto.SizeOverrideNm,
             AltitudeOverrideFt = dto.AltitudeOverrideFt,
@@ -139,5 +180,15 @@ public class AircraftPattern
                         dto.PendingLandingClearancePatternAltitudeFt
                     )
                     : null,
+            PendingRunwayCrossing =
+                dto.PendingCrossingPatternRunway is { } patternRunway
+                && dto.PendingCrossingCrossedRunway is { } crossedRunway
+                && dto.PendingCrossingTightestFlyableNm is { } tightestNm
+                    ? new PatternRunwayCrossing(patternRunway, crossedRunway, tightestNm)
+                    : null,
         };
+
+        pattern._warnedRunwayCrossings.UnionWith(dto.WarnedRunwayCrossings ?? []);
+        return pattern;
+    }
 }
