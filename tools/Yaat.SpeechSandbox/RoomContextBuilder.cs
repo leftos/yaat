@@ -88,9 +88,6 @@ public sealed class RoomContextBuilder(RoomSources sources, DecoderSettings sett
 /// <summary>One feed's rooms: its airport entities, its real aircraft, its padded room and its gold lookup.</summary>
 internal sealed class FeedRoom
 {
-    private const double LocalRadiusNm = 10;
-    private const double ApproachRadiusNm = 40;
-
     private readonly RoomSources _sources;
     private readonly DecoderSettings _settings;
     private readonly string _airport;
@@ -152,51 +149,13 @@ internal sealed class FeedRoom
     private static IEnumerable<string> Callsigns(IReadOnlyList<CorpusSlot> gold) =>
         gold.Where(slot => slot.Kind == EntityKind.Callsign).Select(slot => slot.Value.ToUpperInvariant());
 
-    private List<ContextEntity> BuildAirportEntities(CorpusRoomFeed spec)
-    {
-        NavigationDatabase nav = _sources.Nav;
-        bool approach = spec.Facility == "app";
-        double radius = approach ? ApproachRadiusNm : LocalRadiusNm;
-        var entities = new List<ContextEntity>(
-            AirportContextBuilder.Build(spec.Airport, _sources.Layouts(spec.Airport), radius, _sources.Landmarks(spec.Airport), nav, _settings)
+    private IReadOnlyList<ContextEntity> BuildAirportEntities(CorpusRoomFeed spec) =>
+        RoomContextFactory.AirportEntities(
+            new AirportContextKey(spec.Airport, spec.Facility == "app", _sources.Layouts(spec.Airport)),
+            _sources.Landmarks(spec.Airport),
+            _sources.Nav,
+            _settings
         );
-        if (approach)
-        {
-            entities.AddRange(NearbyInstrumentAirports(spec.Airport));
-        }
-        var seen = new HashSet<(EntityKind Kind, string Value)>();
-        return [.. entities.Where(entity => seen.Add((entity.Kind, entity.Value)))];
-    }
-
-    /// <summary>The runways and approaches of every other airport within the approach radius that has an instrument approach.</summary>
-    private IEnumerable<ContextEntity> NearbyInstrumentAirports(string airport)
-    {
-        NavigationDatabase nav = _sources.Nav;
-        (double Lat, double Lon) point =
-            nav.GetAirportPosition(airport)
-            ?? throw new InvalidOperationException($"Airport '{airport}' has no reference point in the navigation database.");
-        string home = AirportLayoutDownloader.ToFaaCode(airport);
-        foreach ((string id, LatLon _) in nav.FindAirportsWithin(new LatLon(point.Lat, point.Lon), ApproachRadiusNm))
-        {
-            string icao = ToIcao(id);
-            if (AirportLayoutDownloader.ToFaaCode(icao) == home)
-            {
-                continue;
-            }
-            IReadOnlyList<ContextEntity> approaches = ContextEntityFactory.Approaches(icao, nav, _settings);
-            if (approaches.Count == 0)
-            {
-                continue;
-            }
-            foreach (ContextEntity entity in ContextEntityFactory.Runways(icao, nav, _settings).Concat(approaches))
-            {
-                yield return entity;
-            }
-        }
-    }
-
-    /// <summary>A navdata airport id as an ICAO id: a three-letter FAA id gains its "K".</summary>
-    private static string ToIcao(string id) => ((id.Length == 3) && id.All(char.IsLetter)) ? "K" + id : id;
 
     /// <summary>Whether a callsign gets an entity at all, which depends only on its telephony being known.</summary>
     private bool Builds(string callsign)
