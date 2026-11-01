@@ -22,6 +22,7 @@
 - A `TAXI` given on a curved fillet that ends at a runway hold bar now stops the nose at the hold line, not past it.
 - An assigned speed or `SMAX` now ends at touchdown, so a touch-and-go or stop-and-go climbs out at pattern speed.
 - An exact `SPD` held back by the 250-knot limit below 10,000 feet or the aircraft's top speed is flown again once that limit lifts.
+- A jet or turboprop flying base very slowly (after `SPDN` or a scenario speed) no longer stops the simulation; it descends as steeply as drag allows.
 
 ## v0.17.2-beta [2026/10/30]
 
