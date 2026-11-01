@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -43,19 +44,19 @@ public sealed class SwappableSttEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task Swap_DisposesTheOldEngineOffTheCallersThread()
+    public void Swap_DisposesTheOldEngineOffTheCallersThread()
     {
-        int callerThread = Environment.CurrentManagedThreadId;
         var next = new FakeEngine("new");
         SwappableSttEngine? swappable = null;
         bool newEngineWasCurrentAtDispose = false;
         var old = new FakeEngine("old") { OnDispose = () => newEngineWasCurrentAtDispose = ReferenceEquals(swappable!.Current, next) };
         swappable = new SwappableSttEngine(old);
 
-        await swappable.SwapAsync(next, CancellationToken.None).WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        (int CallerThread, bool SwapCompleted) swap = SwapFromADedicatedBlockedThread(swappable, next);
 
+        Assert.True(swap.SwapCompleted, "The swap did not finish within the hang guard");
         Assert.True(old.Disposed);
-        Assert.NotEqual(callerThread, old.DisposeThreadId);
+        Assert.NotEqual(swap.CallerThread, old.DisposeThreadId);
         Assert.True(newEngineWasCurrentAtDispose);
         swappable.Dispose();
     }
@@ -295,6 +296,41 @@ public sealed class SwappableSttEngineTests : IDisposable
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "encoder.onnx"), string.Empty);
         File.WriteAllText(Path.Combine(dir, "tokens.txt"), string.Empty);
+    }
+
+    /// <summary>
+    /// Runs a whole swap on a thread that is never a pool thread, blocked on the swap until it finishes, so the thread-pool
+    /// dispose of the replaced engine cannot be scheduled onto the caller's thread. Fails as hung when either wait runs past
+    /// the hang guard, and rethrows on the test thread whatever the swap thread threw.
+    /// </summary>
+    private static (int CallerThread, bool SwapCompleted) SwapFromADedicatedBlockedThread(SwappableSttEngine swappable, ISttEngine next)
+    {
+        int callerThread = 0;
+        bool swapCompleted = false;
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                callerThread = Environment.CurrentManagedThreadId;
+                swapCompleted = swappable.SwapAsync(next, CancellationToken.None).Wait(HangGuard);
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+        })
+        {
+            IsBackground = true,
+        };
+
+        thread.Start();
+        Assert.True(thread.Join(HangGuard), "The swap thread did not finish within the hang guard");
+        if (failure is not null)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+        return (callerThread, swapCompleted);
     }
 
     private sealed class FixedWhisperConfig : IWhisperRuntimeConfig
