@@ -53,7 +53,24 @@ internal static class ContextPhraseWords
 
     /// <summary>Words before a callsign that make its aircraft traffic, not the addressee.</summary>
     public static IReadOnlySet<string> TrafficLeadIns { get; } =
-        Set("follow", "following", "behind", "traffic", "to", "for", "from", "with", "is", "after", "sight", "turbulence", "mile", "miles", "oclock");
+        Set(
+            "follow",
+            "following",
+            "behind",
+            "traffic",
+            "to",
+            "for",
+            "from",
+            "with",
+            "is",
+            "after",
+            "sight",
+            "turbulence",
+            "mile",
+            "miles",
+            "oclock",
+            "report"
+        );
 
     /// <summary>Articles that may stand between a traffic lead-in and the callsign it introduces.</summary>
     public static IReadOnlySet<string> Articles { get; } = Set("the", "a", "an");
@@ -73,6 +90,22 @@ internal static class ContextPhraseWords
 
     /// <summary>Verbs that hand off to a facility, so the facility word after them is not an opener.</summary>
     public static IReadOnlySet<string> FrequencyVerbs { get; } = Set("contact", "monitor");
+
+    /// <summary>Words that may open a transmission's opener run, at token 0 only.</summary>
+    public static IReadOnlySet<string> OpenerLeads { get; } = Set("and", "okay", "ok", "alright", "roger");
+
+    /// <summary>The function words of a facility's name ("oakland tower", "san francisco clearance delivery"), or a facility alone.</summary>
+    public static IReadOnlySet<string> FacilityFunctionWords { get; } =
+        Set("tower", "ground", "approach", "departure", "center", "clearance", "delivery", "ramp", "radio", "unicom");
+
+    /// <summary>One-word greetings.</summary>
+    public static IReadOnlySet<string> Greetings { get; } = Set("morning", "afternoon", "evening", "hello", "hi", "hey");
+
+    /// <summary>The words after "good" that make a two-word greeting.</summary>
+    public static IReadOnlySet<string> GoodGreetings { get; } = Set("morning", "afternoon", "evening", "day");
+
+    /// <summary>Words that hand off to a frequency, so an opener run that reaches one is a frequency change, not a check-in.</summary>
+    public static IReadOnlySet<string> FrequencyChangeWords { get; } = Set("contact", "monitor", "change", "switch", "switching");
 
     /// <summary>Words that open a noun-led entity form; a runway, taxiway or gate form without one is bare.</summary>
     public static IReadOnlySet<string> EntityNouns { get; } = Set("runway", "taxiway", "gate", "parking", "spot");

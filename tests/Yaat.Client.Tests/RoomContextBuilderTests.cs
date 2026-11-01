@@ -17,7 +17,8 @@ public sealed class RoomContextBuilderTests
     private static readonly CorpusRooms Rooms = new(
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["QXE"] = "horizon" },
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["N4926F"] = "C172" },
-        new Dictionary<string, CorpusRoomFeed>(StringComparer.Ordinal) { ["koak-gnd"] = new("KOAK", "gnd", 1), ["koak-app"] = new("KOAK", "app", 2) }
+        new Dictionary<string, CorpusRoomFeed>(StringComparer.Ordinal) { ["koak-gnd"] = new("KOAK", "gnd", 1), ["koak-app"] = new("KOAK", "app", 2) },
+        ["oakland", "norcal"]
     );
 
     private static readonly Dictionary<string, IReadOnlyList<CorpusSlot>> Slots = new(StringComparer.Ordinal)
@@ -158,6 +159,16 @@ public sealed class RoomContextBuilderTests
         Assert.Empty(oracle.Aircraft[0].OwnEntities);
         Assert.Equal(["KHWD/R28L", "KHWD/28L"], oracle.AirportEntities.Select(entity => entity.Value));
         Assert.Equal("KOAK", oracle.AirportId);
+    }
+
+    [Fact]
+    public void FacilityNames_ReachEveryRoom()
+    {
+        RoomContexts contexts = Builder().For("koak-gnd_seg0001");
+
+        Assert.Equal(["oakland", "norcal"], contexts.Unpadded.FacilityNames);
+        Assert.Equal(["oakland", "norcal"], contexts.Padded.FacilityNames);
+        Assert.Equal(["oakland", "norcal"], contexts.Oracle.FacilityNames);
     }
 
     [Theory]

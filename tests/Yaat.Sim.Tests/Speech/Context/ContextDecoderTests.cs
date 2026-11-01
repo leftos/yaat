@@ -54,6 +54,23 @@ public class ContextDecoderTests
         "N53PL",
     ];
 
+    private static readonly string[] OpenerRoomCallsigns =
+    [
+        "SWA3170",
+        "SWA2495",
+        "UPS2956",
+        "UAL1914",
+        "UAL512",
+        "DAL51",
+        "N8298L",
+        "N123G",
+        "N1234",
+        "N5552Q",
+        "N17652",
+    ];
+
+    private static readonly string[] OpenerFacilities = ["oakland", "norcal", "bay", "san francisco"];
+
     private static readonly Lazy<IReadOnlyList<ContextEntity>> AirportWithKaiser = new(() => BuildAirport([Kaiser]));
 
     // Real KOAK data ships the ground place KAISER, so the "no Kaiser in context" premise removes it explicitly.
@@ -135,7 +152,7 @@ public class ContextDecoderTests
         ContextEntity runway30 = Airport.Single(entity => (entity.Kind == EntityKind.Runway) && (entity.Value == "KOAK/30"));
         string[] callsigns = ["QXE2101", "HOR2101"];
         RoomAircraft[] aircraft = [Aircraft("QXE2101", callsigns, [runway30]), Aircraft("HOR2101", callsigns, [])];
-        var context = new TransmissionContext("KOAK", aircraft, Airport);
+        var context = new TransmissionContext("KOAK", aircraft, Airport, []);
 
         DecodeResult result = DecodeSpoken("horizon twenty one oh one runway three zero", context);
 
@@ -580,7 +597,7 @@ public class ContextDecoderTests
     public void TokenlessExactWord_DoesNotThrow()
     {
         RoomAircraft aircraft = new(new ContextEntity(EntityKind.Callsign, "UM", [new SpokenForm("um", 1.0)]), []);
-        var context = new TransmissionContext("KOAK", [aircraft], []);
+        var context = new TransmissionContext("KOAK", [aircraft], [], []);
 
         DecodeResult result = Decode([new DecoderHypothesis("um", null, null)], InputSource.Typed, MatchMode.ExactOnly, context);
 
@@ -592,7 +609,7 @@ public class ContextDecoderTests
     {
         ContextEntity runway30 = Airport.Single(entity => (entity.Kind == EntityKind.Runway) && (entity.Value == "KOAK/30"));
         string[] callsigns = ["SWA2495"];
-        var context = new TransmissionContext("KOAK", [Aircraft("SWA2495", callsigns, [runway30])], Airport);
+        var context = new TransmissionContext("KOAK", [Aircraft("SWA2495", callsigns, [runway30])], Airport, []);
 
         DecodeResult result = DecodeSpoken("southwest twenty four ninety five runway three zero", context);
 
@@ -624,7 +641,7 @@ public class ContextDecoderTests
         string[] callsigns = ["SWA2495", "SWA2496"];
         ContextEntity blorp = FixOf("BLORP", "blorp");
         RoomAircraft[] aircraft = [Aircraft("SWA2495", callsigns, []), Aircraft("SWA2496", callsigns, [blorp])];
-        var context = new TransmissionContext("KOAK", aircraft, []);
+        var context = new TransmissionContext("KOAK", aircraft, [], []);
 
         // SWA2496 explains "blorp" and would win on the joint score, but its one wrong digit puts it outside the margin.
         DecodeResult result = DecodeSpoken("southwest twenty four ninety five direct blorp", context);
@@ -646,7 +663,7 @@ public class ContextDecoderTests
     public void SayAgain_EntitiesAreAirportOnly()
     {
         string[] callsigns = ["SWA2495"];
-        var context = new TransmissionContext("KOAK", [Aircraft("SWA2495", callsigns, [FixOf("BLORP", "blorp")])], Airport);
+        var context = new TransmissionContext("KOAK", [Aircraft("SWA2495", callsigns, [FixOf("BLORP", "blorp")])], Airport, []);
 
         DecodeResult result = DecodeSpoken("skywest twenty four ninety five direct blorp runway three zero", context);
 
@@ -723,7 +740,7 @@ public class ContextDecoderTests
     public void Typed_NoCallsign_AirportOnly()
     {
         string[] callsigns = ["SWA2495"];
-        var context = new TransmissionContext("KOAK", [Aircraft("SWA2495", callsigns, [FixOf("BLORP", "blorp")])], Airport);
+        var context = new TransmissionContext("KOAK", [Aircraft("SWA2495", callsigns, [FixOf("BLORP", "blorp")])], Airport, []);
 
         DecodeResult result = Decode([new DecoderHypothesis("BLORP 30", null, null)], InputSource.Typed, MatchMode.ExactOnly, context);
 
@@ -1138,7 +1155,7 @@ public class ContextDecoderTests
     public void OwnRunwayTail()
     {
         ContextEntity runway30 = Airport.Single(entity => (entity.Kind == EntityKind.Runway) && (entity.Value == "KOAK/30"));
-        var context = new TransmissionContext("KOAK", [Aircraft("SWA2495", ["SWA2495"], [runway30])], []);
+        var context = new TransmissionContext("KOAK", [Aircraft("SWA2495", ["SWA2495"], [runway30])], [], []);
 
         DecodeResult result = DecodeSpoken(Swa + "three zero", context);
 
@@ -1173,7 +1190,63 @@ public class ContextDecoderTests
     public void StartOffset_Limit()
     {
         AssertResolved(DecodeSpoken("good morning fedex five sixty eight turn left", Room(WithBase(), Airport)), "FDX568");
-        Assert.Equal(DecodeState.NoCallsign, DecodeSpoken("good morning tower fedex five sixty eight turn left", Room(WithBase(), Airport)).State);
+        Assert.Equal(DecodeState.NoCallsign, DecodeSpoken("say again request fedex five sixty eight turn left", Room(WithBase(), Airport)).State);
+        AssertResolved(DecodeSpoken("good morning tower fedex five sixty eight turn left", Room(WithBase(), Airport)), "FDX568");
+    }
+
+    [Theory]
+    [InlineData("oakland good afternoon ups twenty nine fifty six heavys on with flight level three eight zero", "UPS2956")]
+    [InlineData("good evening ground united nineteen fourteen hotel november", "UAL1914")]
+    [InlineData("norcal approach good morning southwest twenty four ninety five descending via the serfr", "SWA2495")]
+    [InlineData("san francisco ground hello united five twelve at gate f three ready to taxi", "UAL512")]
+    [InlineData("hello oakland tower mooney five five five two quebec left downwind runway three three", "N5552Q")]
+    [InlineData("oakland center good day delta fifty one heavy level three five zero", "DAL51")]
+    [InlineData("and bay departure good afternoon southwest thirty one seventy passing two thousand", "SWA3170")]
+    [InlineData("ground good evening nineteen fourteen ready to taxi", "UAL1914")]
+    public void OpenerRun_Resolves(string transcript, string addressee) => AssertResolved(DecodeSpoken(transcript, OpenerRoom()), addressee);
+
+    [Theory]
+    [InlineData("contact oakland center one three two point two good day", DecodeState.NoCallsign, null)]
+    [InlineData("monitor tower one one eight point three", DecodeState.NoCallsign, null)]
+    [InlineData("oakland center good day alaska fifty one level three five zero", DecodeState.NoCallsign, null)]
+    [InlineData("good afternoon follow southwest thirty one seventy runway two eight right cleared to land", DecodeState.NoCallsign, null)]
+    [InlineData("oakland tower traffic southwest thirty one seventy two mile final", DecodeState.NoCallsign, null)]
+    [InlineData("southwest thirty one seventy and united five twelve descend and maintain four thousand", DecodeState.SayAgain, "SWA3170")]
+    [InlineData("norcal approach good afternoon one two thousand five hundred", DecodeState.NoCallsign, null)]
+    [InlineData("hello behind the united seven fifty seven cross runway two eight left", DecodeState.NoCallsign, null)]
+    [InlineData("oakland altimeter two niner niner two", DecodeState.NoCallsign, null)]
+    [InlineData("good evening report the southwest thirty one seventy in sight", DecodeState.NoCallsign, null)]
+    [InlineData("good day contact tower united five twelve one one eight point three", DecodeState.NoCallsign, null)]
+    public void OpenerRun_NonExample_NotAddressee(string transcript, DecodeState state, string? guess)
+    {
+        DecodeResult result = DecodeSpoken(transcript, OpenerRoom());
+
+        Assert.Equal(state, result.State);
+        Assert.Equal(guess, result.BestGuess?.Entity.Value);
+    }
+
+    [Fact]
+    public void OpenerRun_FacilityNameThatIsTelephony_NeverSkipped()
+    {
+        string[] callsigns = ["UAL512", "SWA2495"];
+        var context = new TransmissionContext(
+            "KOAK",
+            [.. callsigns.Select(callsign => Aircraft(callsign, callsigns, []))],
+            Airport,
+            ["oakland", "united"]
+        );
+
+        AssertResolved(DecodeSpoken("united five twelve", context), "UAL512");
+        Assert.NotEqual("SWA2495", DecodeSpoken("united ground hello southwest twenty four ninety five", context).Callsign?.Entity.Value);
+    }
+
+    [Fact]
+    public void HeavysAfterCallsign_JoinsSpan()
+    {
+        DecodeResult result = DecodeSpoken("fedex five sixty eight heavy's", Room(MainRoom, Airport));
+
+        AssertResolved(result, "FDX568");
+        Assert.Equal(new WordSpan(0, 5), result.Callsign!.Span);
     }
 
     [Fact]
@@ -1191,7 +1264,7 @@ public class ContextDecoderTests
         ContextEntity runway30 = Airport.Single(entity => (entity.Kind == EntityKind.Runway) && (entity.Value == "KOAK/30"));
         string[] callsigns = ["QXE2101", "HOR2101"];
         RoomAircraft[] aircraft = [Aircraft("QXE2101", callsigns, [runway30]), Aircraft("HOR2101", callsigns, [])];
-        var context = new TransmissionContext("KOAK", aircraft, Airport);
+        var context = new TransmissionContext("KOAK", aircraft, Airport, []);
         var input = new DecoderInput(
             [new DecoderHypothesis("horizon twenty one oh one runway three zero", null, null)],
             InputSource.Spoken,
@@ -1251,7 +1324,21 @@ public class ContextDecoderTests
     }
 
     private static TransmissionContext Room(string[] callsigns, IReadOnlyList<ContextEntity> airport) =>
-        new("KOAK", [.. callsigns.Select(callsign => Aircraft(callsign, callsigns, []))], airport);
+        new("KOAK", [.. callsigns.Select(callsign => Aircraft(callsign, callsigns, []))], airport, []);
+
+    /// <summary>The opener-run test room; N5552Q is a Mooney, so it carries the "mooney" form.</summary>
+    private static TransmissionContext OpenerRoom()
+    {
+        RoomAircraft[] aircraft =
+        [
+            .. OpenerRoomCallsigns.Select(callsign =>
+                callsign == "N5552Q"
+                    ? new RoomAircraft(ContextEntityFactory.Callsign(callsign, "M20P", Overrides, OpenerRoomCallsigns, Settings)!, [])
+                    : Aircraft(callsign, OpenerRoomCallsigns, [])
+            ),
+        ];
+        return new TransmissionContext("KOAK", aircraft, Airport, OpenerFacilities);
+    }
 
     private static DecodeResult Decode(DecoderHypothesis[] hypotheses, InputSource source, MatchMode mode, TransmissionContext context) =>
         ContextDecoder.Decode(new DecoderInput(hypotheses, source, mode), context, Settings);

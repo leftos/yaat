@@ -22,11 +22,26 @@ public static partial class ContextDecoder
 
     private sealed record CallsignDecision(CallsignHit Hit, EntitySelection Selection, double Joint);
 
+    private const int MaxOpenerRun = 6;
+
+    private const int MaxFacilityFunctionWords = 2;
+
     /// <summary>
     /// One callsign pass; <paramref name="SeparatorOpens"/> marks a scan after a second-callsign word directly after the winner,
-    /// which acts as an opener.
+    /// which acts as an opener. <paramref name="OpenerRun"/> is how many tokens of opener run precede the callsign; they do not
+    /// count toward the start offset.
     /// </summary>
-    private sealed record CallsignScan(HeardText Heard, DecodeCall Call, bool SeparatorOpens);
+    private sealed record CallsignScan(HeardText Heard, DecodeCall Call, bool SeparatorOpens, int OpenerRun);
+
+    /// <summary>The classes an opener run is built from, each used at most once.</summary>
+    private enum OpenerClass
+    {
+        Lead,
+        Facility,
+        Greeting,
+    }
+
+    private readonly record struct OpenerPart(OpenerClass Class, int Length);
 
     private static List<CallsignHit> FindCallsignCandidates(HeardText heard, DecodeCall call)
     {
@@ -35,24 +50,122 @@ public static partial class ContextDecoder
             return [exact];
         }
 
-        DecoderSettings settings = call.Settings;
-        List<CallsignHit> hits = HitsByAircraft(CallsignRanges(heard, settings), new CallsignScan(heard, call, SeparatorOpens: false));
-        List<CallsignHit> leading = [.. hits.Where(hit => Leads(hit, settings) && !FollowsTrafficLeadIn(heard, hit))];
-        return Ranked(leading.Count > 0 ? leading : TrailingCandidates(heard, hits, settings), settings);
+        var scan = new CallsignScan(heard, call, SeparatorOpens: false, OpenerRunLength(heard, call));
+        List<CallsignHit> hits = HitsByAircraft(CallsignRanges(scan), scan);
+        List<CallsignHit> leading = [.. hits.Where(hit => Leads(hit, scan) && !FollowsTrafficLeadIn(heard, hit))];
+        return Ranked(leading.Count > 0 ? leading : TrailingCandidates(hits, scan), call.Settings);
     }
 
     /// <summary>
     /// The candidates left when none leads. An opening no candidate matched is another aircraft's call, so nothing later can be
     /// the addressee; a candidate refused as traffic still matched its opening.
     /// </summary>
-    private static IEnumerable<CallsignHit> TrailingCandidates(HeardText heard, List<CallsignHit> hits, DecoderSettings settings)
+    private static IEnumerable<CallsignHit> TrailingCandidates(List<CallsignHit> hits, CallsignScan scan)
     {
-        bool startUnclaimed = !hits.Any(hit => Leads(hit, settings)) && OpensWithUnmatchedCall(heard, settings);
-        return startUnclaimed ? [] : hits.Where(hit => !FollowsTrafficLeadIn(heard, hit));
+        bool startUnclaimed = !hits.Any(hit => Leads(hit, scan)) && OpensWithUnmatchedCall(scan);
+        return startUnclaimed ? [] : hits.Where(hit => !FollowsTrafficLeadIn(scan.Heard, hit));
     }
 
-    private static bool OpensWithUnmatchedCall(HeardText heard, DecoderSettings settings) =>
-        Enumerable.Range(0, settings.MaxStartOffset + 1).Any(index => OpensCallAt(heard.Tokens, index));
+    /// <summary>The opening is scanned from where the opener run ends.</summary>
+    private static bool OpensWithUnmatchedCall(CallsignScan scan) =>
+        Enumerable.Range(scan.OpenerRun, scan.Call.Settings.MaxStartOffset + 1).Any(index => OpensCallAt(scan.Heard.Tokens, index));
+
+    /// <summary>A start's offset past the opener run; a start inside the run keeps its own offset.</summary>
+    private static int EffectiveStart(int start, CallsignScan scan) => start >= scan.OpenerRun ? start - scan.OpenerRun : start;
+
+    /// <summary>
+    /// How many tokens at the start of the transmission are an opener run: a lead word at token 0, a facility, a greeting, each at
+    /// most once and in any order, at most <see cref="MaxOpenerRun"/> tokens. A run that reaches a frequency change is none.
+    /// </summary>
+    private static int OpenerRunLength(HeardText heard, DecodeCall call)
+    {
+        IReadOnlyList<SpokenToken> tokens = heard.Tokens;
+        List<string[]> names = FacilityNameWords(call);
+        var used = new HashSet<OpenerClass>();
+        int end = 0;
+        while ((OpenerPartAt(tokens, end, names) is { } part) && used.Add(part.Class) && (end + part.Length <= MaxOpenerRun))
+        {
+            end += part.Length;
+        }
+        return StartsFrequencyChange(tokens, end) ? 0 : end;
+    }
+
+    private static OpenerPart? OpenerPartAt(IReadOnlyList<SpokenToken> tokens, int index, List<string[]> names)
+    {
+        if (index >= tokens.Count)
+        {
+            return null;
+        }
+        if ((index == 0) && ContextPhraseWords.OpenerLeads.Contains(tokens[0].Text))
+        {
+            return new OpenerPart(OpenerClass.Lead, 1);
+        }
+        int greeting = GreetingLength(tokens, index);
+        if (greeting > 0)
+        {
+            return new OpenerPart(OpenerClass.Greeting, greeting);
+        }
+        int facility = FacilityLength(tokens, index, names);
+        return facility > 0 ? new OpenerPart(OpenerClass.Facility, facility) : null;
+    }
+
+    private static int GreetingLength(IReadOnlyList<SpokenToken> tokens, int index)
+    {
+        bool good = (tokens[index].Text == "good") && (index + 1 < tokens.Count) && ContextPhraseWords.GoodGreetings.Contains(tokens[index + 1].Text);
+        if (good)
+        {
+            return 2;
+        }
+        return ContextPhraseWords.Greetings.Contains(tokens[index].Text) ? 1 : 0;
+    }
+
+    /// <summary>A facility name then up to two function words, or one function word alone.</summary>
+    private static int FacilityLength(IReadOnlyList<SpokenToken> tokens, int index, List<string[]> names)
+    {
+        int nameLength = names.Where(name => WordsAt(tokens, index, name)).Select(name => name.Length).DefaultIfEmpty(0).Max();
+        int maxFunctions = nameLength > 0 ? MaxFacilityFunctionWords : 1;
+        int end = index + nameLength;
+        while (
+            (end < tokens.Count) && (end - index - nameLength < maxFunctions) && ContextPhraseWords.FacilityFunctionWords.Contains(tokens[end].Text)
+        )
+        {
+            end++;
+        }
+        return end - index;
+    }
+
+    private static bool WordsAt(IReadOnlyList<SpokenToken> tokens, int index, string[] words) =>
+        (index + words.Length <= tokens.Count) && words.Select((word, offset) => tokens[index + offset].Text == word).All(match => match);
+
+    /// <summary>The room's facility names as token texts, without any name that shares a word with a room aircraft's telephony.</summary>
+    private static List<string[]> FacilityNameWords(DecodeCall call)
+    {
+        HashSet<string> telephony =
+        [
+            .. call
+                .Context.Aircraft.SelectMany(aircraft => aircraft.Callsign.Forms)
+                .SelectMany(form => call.ShapeOf(form).Tokens)
+                .Where(token => token.Kind == TokenKind.Word)
+                .Select(token => token.Text),
+        ];
+        return
+        [
+            .. call
+                .Context.FacilityNames.Select(name => SpokenTokenizer.Tokenize(name).Select(token => token.Text).ToArray())
+                .Where(words => (words.Length > 0) && !words.Any(telephony.Contains)),
+        ];
+    }
+
+    private static bool StartsFrequencyChange(IReadOnlyList<SpokenToken> tokens, int index)
+    {
+        if (index >= tokens.Count)
+        {
+            return false;
+        }
+        string text = tokens[index].Text;
+        bool overTo = (text == "over") && (index + 1 < tokens.Count) && (tokens[index + 1].Text == "to");
+        return overTo || ContextPhraseWords.FrequencyChangeWords.Contains(text);
+    }
 
     private static bool OpensCallAt(IReadOnlyList<SpokenToken> tokens, int index) =>
         IsUnknownCallAt(tokens, index) && !IsCorrectionValueWord(tokens, index) && !((index > 0) && IsCorrectionValueWord(tokens, index - 1));
@@ -75,8 +188,8 @@ public static partial class ContextDecoder
         [.. hits.OrderByDescending(hit => hit.Weighted).ThenByDescending(hit => hit.Core.Length).Take(settings.CallsignTopK)];
 
     /// <summary>The addressee is named first, so once a candidate leads, a later match can only be a value or traffic.</summary>
-    private static bool Leads(CallsignHit hit, DecoderSettings settings) =>
-        (hit.Core.Start <= settings.MaxStartOffset) && (hit.Raw >= settings.CallsignSayAgainFloor);
+    private static bool Leads(CallsignHit hit, CallsignScan scan) =>
+        (EffectiveStart(hit.Core.Start, scan) <= scan.Call.Settings.MaxStartOffset) && (hit.Raw >= scan.Call.Settings.CallsignSayAgainFloor);
 
     private static bool FollowsTrafficLeadIn(HeardText heard, CallsignHit hit)
     {
@@ -102,8 +215,10 @@ public static partial class ContextDecoder
         return null;
     }
 
-    private static List<TokenRange> CallsignRanges(HeardText heard, DecoderSettings settings)
+    private static List<TokenRange> CallsignRanges(CallsignScan scan)
     {
+        HeardText heard = scan.Heard;
+        DecoderSettings settings = scan.Call.Settings;
         int tokenCount = heard.Tokens.Count;
         var ranges = new List<TokenRange>();
         for (int start = 0; start < tokenCount; start++)
@@ -112,7 +227,8 @@ public static partial class ContextDecoder
             for (int end = start + 1; end <= lastEnd; end++)
             {
                 var range = new TokenRange(start, end);
-                if (((start <= settings.MaxStartOffset) || ReachesLastToken(heard, end)) && !heard.StartsInsideDigits(range, heard.Whole))
+                bool early = EffectiveStart(start, scan) <= settings.MaxStartOffset;
+                if ((early || ReachesLastToken(heard, end)) && !heard.StartsInsideDigits(range, heard.Whole))
                 {
                     ranges.Add(range);
                 }
@@ -127,7 +243,8 @@ public static partial class ContextDecoder
         return (end == tokenCount) || ((end == tokenCount - 1) && IsWeightClassToken(heard.Tokens[end]));
     }
 
-    private static bool IsWeightClassToken(SpokenToken token) => (token.Kind == TokenKind.Word) && (token.Text is "heavy" or "super");
+    private static bool IsWeightClassToken(SpokenToken token) =>
+        (token.Kind == TokenKind.Word) && (token.Text is "heavy" or "super" or "heavys" or "supers");
 
     private static CallsignHit? BestCallsignSpan(RoomAircraft aircraft, List<TokenRange> ranges, CallsignScan scan)
     {
@@ -138,7 +255,7 @@ public static partial class ContextDecoder
             {
                 if (HitAt(aircraft, range, form, scan) is { } hit)
                 {
-                    best = IsBetterSpan(hit, best, scan.Call.Settings) ? hit : best;
+                    best = IsBetterSpan(hit, best, scan) ? hit : best;
                 }
             }
         }
@@ -182,20 +299,22 @@ public static partial class ContextDecoder
 
         HeardText heard = scan.Heard;
         bool beforeValue = (range.End < heard.Tokens.Count) && ContextPhraseWords.PrefixlessValueFollowers.Contains(heard.Tokens[range.End].Text);
-        return beforeValue || !(scan.SeparatorOpens || OpensPrefixless(heard, range.Start, scan.Call.Settings));
+        return beforeValue || !(scan.SeparatorOpens || OpensPrefixless(range.Start, scan));
     }
 
-    private static bool OpensPrefixless(HeardText heard, int start, DecoderSettings settings)
+    /// <summary>At token 0, or within the start offset past the opener run with an opener directly before it.</summary>
+    private static bool OpensPrefixless(int start, CallsignScan scan)
     {
         if (start == 0)
         {
             return true;
         }
-        if (start > settings.MaxStartOffset)
+        if (EffectiveStart(start, scan) > scan.Call.Settings.MaxStartOffset)
         {
             return false;
         }
 
+        HeardText heard = scan.Heard;
         string before = heard.Tokens[start - 1].Text;
         bool frequencyCall =
             (start >= 2)
@@ -248,15 +367,15 @@ public static partial class ContextDecoder
         return absorbs ? new TokenRange(core.Start, core.End + 1) : core;
     }
 
-    private static bool IsBetterSpan(CallsignHit hit, CallsignHit? best, DecoderSettings settings)
+    private static bool IsBetterSpan(CallsignHit hit, CallsignHit? best, CallsignScan scan)
     {
         if (best is null)
         {
             return true;
         }
 
-        (bool, double, double, int, int) hitRank = (Leads(hit, settings), hit.Weighted, hit.Raw, hit.Full.Length, -hit.Full.Start);
-        (bool, double, double, int, int) bestRank = (Leads(best, settings), best.Weighted, best.Raw, best.Full.Length, -best.Full.Start);
+        (bool, double, double, int, int) hitRank = (Leads(hit, scan), hit.Weighted, hit.Raw, hit.Full.Length, -hit.Full.Start);
+        (bool, double, double, int, int) bestRank = (Leads(best, scan), best.Weighted, best.Raw, best.Full.Length, -best.Full.Start);
         return hitRank.CompareTo(bestRank) > 0;
     }
 
@@ -362,7 +481,7 @@ public static partial class ContextDecoder
         int start = separator + 1;
         int lastEnd = Math.Min(heard.Tokens.Count, start + call.Settings.MaxCallsignSpan);
         List<TokenRange> ranges = [.. Enumerable.Range(start + 1, Math.Max(0, lastEnd - start)).Select(end => new TokenRange(start, end))];
-        return Ranked(HitsByAircraft(ranges, new CallsignScan(heard, call, separatorOpens)), call.Settings).FirstOrDefault();
+        return Ranked(HitsByAircraft(ranges, new CallsignScan(heard, call, separatorOpens, OpenerRun: 0)), call.Settings).FirstOrDefault();
     }
 
     private static bool NamesUnknownCallsign(HeardText heard, int separator) =>

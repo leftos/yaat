@@ -78,7 +78,13 @@ public sealed record RoomAircraft(ContextEntity Callsign, IReadOnlyList<ContextE
 /// <param name="AirportId">The airport the controller is working.</param>
 /// <param name="Aircraft">Every aircraft in the room.</param>
 /// <param name="AirportEntities">Entities belonging to the airport, shared by every aircraft.</param>
-public sealed record TransmissionContext(string AirportId, IReadOnlyList<RoomAircraft> Aircraft, IReadOnlyList<ContextEntity> AirportEntities);
+/// <param name="FacilityNames">The room's spoken facility names, lowercase, one or two words each ("oakland", "san francisco").</param>
+public sealed record TransmissionContext(
+    string AirportId,
+    IReadOnlyList<RoomAircraft> Aircraft,
+    IReadOnlyList<ContextEntity> AirportEntities,
+    IReadOnlyList<string> FacilityNames
+);
 
 /// <summary>One recogniser piece and its log-probability.</summary>
 /// <param name="Piece">The piece text, word-marked with <c>▁</c> where the recogniser opens a word.</param>

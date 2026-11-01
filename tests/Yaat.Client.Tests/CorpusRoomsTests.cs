@@ -49,6 +49,43 @@ public sealed class CorpusRoomsTests : IDisposable
         Assert.Equal(new CorpusRoomFeed("KOAK", "twr", 1), rooms.Feeds["koak-twr"]);
     }
 
+    [Fact]
+    public void Read_FacilityNames_LowercasedAndTrimmed()
+    {
+        Write(
+            """{ "facilityNames": [" Oakland ", "SAN Francisco"], "feeds": { "koak-twr": { "airport": "KOAK", "facility": "twr", "seed": 1 } } }"""
+        );
+
+        var rooms = CorpusRooms.Read(_dir);
+
+        Assert.NotNull(rooms);
+        Assert.Equal(["oakland", "san francisco"], rooms.FacilityNames);
+    }
+
+    [Fact]
+    public void Read_FacilityNamesAbsent_Empty()
+    {
+        Write("""{ "feeds": { "koak-twr": { "airport": "KOAK", "facility": "twr", "seed": 1 } } }""");
+
+        var rooms = CorpusRooms.Read(_dir);
+
+        Assert.NotNull(rooms);
+        Assert.Empty(rooms.FacilityNames);
+    }
+
+    [Theory]
+    [InlineData("\"  \"")]
+    [InlineData("\"\"")]
+    [InlineData("null")]
+    public void Read_BlankFacilityName_Throws(string entry)
+    {
+        Write($$"""{ "facilityNames": ["oakland", {{entry}}], "feeds": { "koak-twr": { "airport": "KOAK", "facility": "twr", "seed": 1 } } }""");
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => CorpusRooms.Read(_dir));
+
+        Assert.Equal($"{Path.Combine(_dir, CorpusRooms.FileName)} gives a blank entry in facilityNames.", error.Message);
+    }
+
     [Theory]
     [InlineData("tower")]
     [InlineData("APP")]
