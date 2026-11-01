@@ -26,12 +26,26 @@ public static partial class ContextDecoder
 
     private const int MaxFacilityFunctionWords = 2;
 
+    private const int MaxClosingTailWords = 5;
+
+    private const int MaxClosingPhrases = 2;
+
+    private const int SightingBlockWindow = 3;
+
+    private const string MedevacWord = "medevac";
+
+    private const string TangoWord = "tango";
+
+    /// <summary>A sighting report's object before a trailing callsign, from <paramref name="Start"/>, and the words that block it.</summary>
+    private readonly record struct SightingPattern(int Start, IReadOnlySet<string> Blockers);
+
     /// <summary>
     /// One callsign pass; <paramref name="SeparatorOpens"/> marks a scan after a second-callsign word directly after the winner,
     /// which acts as an opener. <paramref name="OpenerRun"/> is how many tokens of opener run precede the callsign; they do not
-    /// count toward the start offset.
+    /// count toward the start offset. <paramref name="AfterSeparator"/> marks any scan after a second-callsign word, whose ranges
+    /// start right after it or, past an identification prefix, one token later.
     /// </summary>
-    private sealed record CallsignScan(HeardText Heard, DecodeCall Call, bool SeparatorOpens, int OpenerRun);
+    private sealed record CallsignScan(HeardText Heard, DecodeCall Call, bool SeparatorOpens, int OpenerRun, bool AfterSeparator);
 
     /// <summary>The classes an opener run is built from, each used at most once.</summary>
     private enum OpenerClass
@@ -50,7 +64,7 @@ public static partial class ContextDecoder
             return [exact];
         }
 
-        var scan = new CallsignScan(heard, call, SeparatorOpens: false, OpenerRunLength(heard, call));
+        var scan = new CallsignScan(heard, call, SeparatorOpens: false, OpenerRunLength(heard, call), AfterSeparator: false);
         List<CallsignHit> hits = HitsByAircraft(CallsignRanges(scan), scan);
         List<CallsignHit> leading = [.. hits.Where(hit => Leads(hit, scan) && !FollowsTrafficLeadIn(heard, hit))];
         return Ranked(leading.Count > 0 ? leading : TrailingCandidates(hits, scan), call.Settings);
@@ -58,13 +72,45 @@ public static partial class ContextDecoder
 
     /// <summary>
     /// The candidates left when none leads. An opening no candidate matched is another aircraft's call, so nothing later can be
-    /// the addressee; a candidate refused as traffic still matched its opening.
+    /// the addressee; a candidate refused as traffic still matched its opening, and is still the addressee when it closes a
+    /// sighting report.
     /// </summary>
     private static IEnumerable<CallsignHit> TrailingCandidates(List<CallsignHit> hits, CallsignScan scan)
     {
         bool startUnclaimed = !hits.Any(hit => Leads(hit, scan)) && OpensWithUnmatchedCall(scan);
-        return startUnclaimed ? [] : hits.Where(hit => !FollowsTrafficLeadIn(scan.Heard, hit));
+        return startUnclaimed ? [] : hits.Where(hit => !FollowsTrafficLeadIn(scan.Heard, hit) || ClosesSightingReport(scan.Heard, hit));
     }
+
+    /// <summary>
+    /// A span reaching the last token right after "that/the traffic", "traffic/it/him/her/them in sight" or "negative contact"
+    /// identifies the speaker (AIM 4-2-3c), unless a word shortly before the pattern makes the callsign its object.
+    /// </summary>
+    private static bool ClosesSightingReport(HeardText heard, CallsignHit hit) =>
+        ReachesLastToken(heard, hit.Core.End)
+        && (SightingPatternBefore(heard.Tokens, hit.Full.Start) is { } pattern)
+        && !IsSightingBlocked(heard.Tokens, pattern);
+
+    private static SightingPattern? SightingPatternBefore(IReadOnlyList<SpokenToken> tokens, int spanStart)
+    {
+        string last = TextAt(tokens, spanStart - 1);
+        string second = TextAt(tokens, spanStart - 2);
+        bool theTraffic = (last == "traffic") && ContextPhraseWords.SightingArticles.Contains(second);
+        bool negativeContact = (last == "contact") && (second == "negative");
+        if (theTraffic || negativeContact)
+        {
+            return new SightingPattern(spanStart - 2, ContextPhraseWords.SightingBlockers);
+        }
+        bool inSight = (last == "sight") && (second == "in") && ContextPhraseWords.SightingObjects.Contains(TextAt(tokens, spanStart - 3));
+        return inSight ? new SightingPattern(spanStart - 3, ContextPhraseWords.InSightBlockers) : null;
+    }
+
+    private static bool IsSightingBlocked(IReadOnlyList<SpokenToken> tokens, SightingPattern pattern)
+    {
+        int from = Math.Max(0, pattern.Start - SightingBlockWindow);
+        return Enumerable.Range(from, pattern.Start - from).Any(index => pattern.Blockers.Contains(tokens[index].Text));
+    }
+
+    private static string TextAt(IReadOnlyList<SpokenToken> tokens, int index) => index >= 0 ? tokens[index].Text : "";
 
     /// <summary>The opening is scanned from where the opener run ends.</summary>
     private static bool OpensWithUnmatchedCall(CallsignScan scan) =>
@@ -187,13 +233,19 @@ public static partial class ContextDecoder
     private static List<CallsignHit> Ranked(IEnumerable<CallsignHit> hits, DecoderSettings settings) =>
         [.. hits.OrderByDescending(hit => hit.Weighted).ThenByDescending(hit => hit.Core.Length).Take(settings.CallsignTopK)];
 
-    /// <summary>The addressee is named first, so once a candidate leads, a later match can only be a value or traffic.</summary>
+    /// <summary>
+    /// The addressee is named first, so once a candidate leads, a later match can only be a value or traffic. An absorbed
+    /// identification prefix starts the span.
+    /// </summary>
     private static bool Leads(CallsignHit hit, CallsignScan scan) =>
-        (EffectiveStart(hit.Core.Start, scan) <= scan.Call.Settings.MaxStartOffset) && (hit.Raw >= scan.Call.Settings.CallsignSayAgainFloor);
+        IsEarly(hit.Full.Start, scan) && (hit.Raw >= scan.Call.Settings.CallsignSayAgainFloor);
 
+    private static bool IsEarly(int start, CallsignScan scan) => EffectiveStart(start, scan) <= scan.Call.Settings.MaxStartOffset;
+
+    /// <summary>The word before the span, an identification prefix included, skipping articles.</summary>
     private static bool FollowsTrafficLeadIn(HeardText heard, CallsignHit hit)
     {
-        int before = hit.Core.Start - 1;
+        int before = hit.Full.Start - 1;
         while ((before >= 0) && heard.IsArticle(before))
         {
             before--;
@@ -227,7 +279,7 @@ public static partial class ContextDecoder
             for (int end = start + 1; end <= lastEnd; end++)
             {
                 var range = new TokenRange(start, end);
-                bool early = EffectiveStart(start, scan) <= settings.MaxStartOffset;
+                bool early = IsEarly(start, scan) || (IsPrefixWordAt(heard, start - 1) && IsEarly(start - 1, scan));
                 if ((early || ReachesLastToken(heard, end)) && !heard.StartsInsideDigits(range, heard.Whole))
                 {
                     ranges.Add(range);
@@ -237,11 +289,39 @@ public static partial class ContextDecoder
         return ranges;
     }
 
+    /// <summary>Whether a span ending at <paramref name="end"/> ends the transmission, past a weight class and a closing tail.</summary>
     private static bool ReachesLastToken(HeardText heard, int end)
     {
         int tokenCount = heard.Tokens.Count;
-        return (end == tokenCount) || ((end == tokenCount - 1) && IsWeightClassToken(heard.Tokens[end]));
+        int tailStart = (end < tokenCount) && IsWeightClassToken(heard.Tokens[end]) ? end + 1 : end;
+        return (tailStart == tokenCount) || IsClosingTail(heard, tailStart);
     }
+
+    /// <summary>One or two closing phrases, at most <see cref="MaxClosingTailWords"/> words, from a word boundary to the end.</summary>
+    private static bool IsClosingTail(HeardText heard, int start)
+    {
+        if ((start >= heard.Tokens.Count) || !heard.OpensSourceWord(start))
+        {
+            return false;
+        }
+
+        string[] words = [.. heard.Words[heard.Tokens[start].SourceWord..].Select(LetterWord)];
+        return (words.Length <= MaxClosingTailWords) && IsClosingPhraseRun(words, MaxClosingPhrases);
+    }
+
+    private static bool IsClosingPhraseRun(string[] words, int phrasesLeft)
+    {
+        if (words.Length == 0)
+        {
+            return true;
+        }
+        return (phrasesLeft > 0)
+            && ContextPhraseWords.ClosingPhrases.Any(phrase =>
+                words.Take(phrase.Length).SequenceEqual(phrase) && IsClosingPhraseRun(words[phrase.Length..], phrasesLeft - 1)
+            );
+    }
+
+    private static string LetterWord(string word) => string.Concat(word.Where(char.IsLetter)).ToLowerInvariant();
 
     private static bool IsWeightClassToken(SpokenToken token) =>
         (token.Kind == TokenKind.Word) && (token.Text is "heavy" or "super" or "heavys" or "supers");
@@ -262,10 +342,83 @@ public static partial class ContextDecoder
         return best;
     }
 
-    private static CallsignHit? HitAt(RoomAircraft aircraft, TokenRange range, SpokenForm form, CallsignScan scan) =>
-        IsPrefixlessRefused(range, scan.Call.ShapeOf(form), scan)
-            ? null
-            : FormHit(aircraft, new CandidateRange(range, scan.Heard.Whole), form, scan.Heard, scan.Call);
+    /// <summary>A form's hit on a range; an identification prefix directly before the range joins the span.</summary>
+    private static CallsignHit? HitAt(RoomAircraft aircraft, TokenRange range, SpokenForm form, CallsignScan scan)
+    {
+        FormShape shape = scan.Call.ShapeOf(form);
+        int? prefix = PrefixStart(aircraft, range, shape, scan);
+        if (!IsHitPlaced(range, prefix, shape, scan))
+        {
+            return null;
+        }
+
+        CallsignHit? hit = FormHit(aircraft, new CandidateRange(range, scan.Heard.Whole), form, scan.Heard, scan.Call);
+        return (hit is null) || (prefix is not { } start) ? hit : hit with { Place = new SpanPlace(hit.Core, new TokenRange(start, hit.Full.End)) };
+    }
+
+    /// <summary>
+    /// The position rules a range obeys before it is scored. A prefix word is never scored as part of a form that does not open
+    /// with it; after "medevac" a prefixless form counts as prefixed; a range placed only through a prefix word that does not
+    /// apply to this form is out of place.
+    /// </summary>
+    private static bool IsHitPlaced(TokenRange range, int? prefix, FormShape shape, CallsignScan scan)
+    {
+        HeardText heard = scan.Heard;
+        bool scoresPrefixWord = IsPrefixWordAt(heard, range.Start) && (shape.Tokens.FirstOrDefault()?.Text != heard.Tokens[range.Start].Text);
+        if (scoresPrefixWord)
+        {
+            return false;
+        }
+        if (prefix is { } start)
+        {
+            return (heard.Tokens[start].Text == MedevacWord) || !IsPrefixlessRefused(range, shape, scan);
+        }
+
+        bool placedByItself = !scan.AfterSeparator && (IsEarly(range.Start, scan) || ReachesLastToken(heard, range.End));
+        bool placedOnlyByPrefix = IsPrefixWordAt(heard, range.Start - 1) && !placedByItself;
+        return !placedOnlyByPrefix && !IsPrefixlessRefused(range, shape, scan);
+    }
+
+    /// <summary>
+    /// Where an identification prefix directly before the range starts, or null: "medevac" before any form unless an article
+    /// makes it a noun ("the medevac"), per 7110.65 2-4-20a4 and a5; "tango" per <see cref="IsTangoPrefix"/>.
+    /// </summary>
+    private static int? PrefixStart(RoomAircraft aircraft, TokenRange range, FormShape shape, CallsignScan scan)
+    {
+        HeardText heard = scan.Heard;
+        int index = range.Start - 1;
+        if (!IsPrefixWordAt(heard, index))
+        {
+            return null;
+        }
+
+        bool applies =
+            heard.Tokens[index].Text == MedevacWord ? !((index > 0) && heard.IsArticle(index - 1)) : IsTangoPrefix(aircraft, shape, index, scan);
+        return applies ? index : null;
+    }
+
+    /// <summary>
+    /// "tango" is stated on initial contact (7110.65 2-4-20a3), so it is a prefix only before a registration form on a span that
+    /// opens the transmission or follows a second-callsign word, and never as a taxiway after a surface lead-in.
+    /// </summary>
+    private static bool IsTangoPrefix(RoomAircraft aircraft, FormShape shape, int index, CallsignScan scan)
+    {
+        bool afterSurfaceLeadIn = (index > 0) && ContextPhraseWords.BareSurfaceLeadIns.Contains(scan.Heard.Tokens[index - 1].Text);
+        bool opensCall = scan.AfterSeparator || IsEarly(index, scan);
+        return opensCall && !afterSurfaceLeadIn && IsRegistrationForm(aircraft, shape);
+    }
+
+    private static bool IsPrefixWordAt(HeardText heard, int index) =>
+        (index >= 0) && (index < heard.Tokens.Count) && (heard.Tokens[index].Text is MedevacWord or TangoWord);
+
+    /// <summary>A form that opens with "november", or a US registration's form that opens with its type or manufacturer name.</summary>
+    private static bool IsRegistrationForm(RoomAircraft aircraft, FormShape shape)
+    {
+        SpokenToken? first = shape.Tokens.FirstOrDefault();
+        string acid = aircraft.Callsign.Value;
+        bool usRegistration = (acid.Length >= 2) && (acid[0] == 'N') && char.IsAsciiDigit(acid[1]);
+        return (first is not null) && ((first.Text == "november") || (usRegistration && (first.Kind == TokenKind.Word)));
+    }
 
     /// <summary>The span rules every callsign match obeys, in the callsign stage and as traffic: its shape, a score, and where it may end.</summary>
     private static CallsignHit? FormHit(RoomAircraft aircraft, CandidateRange candidate, SpokenForm form, HeardText heard, DecodeCall call)
@@ -479,9 +632,19 @@ public static partial class ContextDecoder
     private static CallsignHit? HitAfterSeparator(HeardText heard, int separator, bool separatorOpens, DecodeCall call)
     {
         int start = separator + 1;
+        List<TokenRange> ranges = [.. RangesFrom(heard, start, call)];
+        if (IsPrefixWordAt(heard, start))
+        {
+            ranges.AddRange(RangesFrom(heard, start + 1, call));
+        }
+        var scan = new CallsignScan(heard, call, separatorOpens, OpenerRun: 0, AfterSeparator: true);
+        return Ranked(HitsByAircraft(ranges, scan), call.Settings).FirstOrDefault();
+    }
+
+    private static IEnumerable<TokenRange> RangesFrom(HeardText heard, int start, DecodeCall call)
+    {
         int lastEnd = Math.Min(heard.Tokens.Count, start + call.Settings.MaxCallsignSpan);
-        List<TokenRange> ranges = [.. Enumerable.Range(start + 1, Math.Max(0, lastEnd - start)).Select(end => new TokenRange(start, end))];
-        return Ranked(HitsByAircraft(ranges, new CallsignScan(heard, call, separatorOpens, OpenerRun: 0)), call.Settings).FirstOrDefault();
+        return Enumerable.Range(start + 1, Math.Max(0, lastEnd - start)).Select(end => new TokenRange(start, end));
     }
 
     private static bool NamesUnknownCallsign(HeardText heard, int separator) =>

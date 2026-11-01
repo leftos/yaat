@@ -1240,6 +1240,93 @@ public class ContextDecoderTests
         Assert.NotEqual("SWA2495", DecodeSpoken("united ground hello southwest twenty four ninety five", context).Callsign?.Entity.Value);
     }
 
+    [Theory]
+    [InlineData("one three five point six five southwest twenty four ninety five good day", "SWA2495")]
+    [InlineData("over to norcal southwest twenty four ninety five have a good one", "SWA2495")]
+    [InlineData("taxi runway three zero via bravo hold short of runway two eight right united five twelve thanks a lot", "UAL512")]
+    [InlineData("climb and maintain one one thousand delta fifty one heavy see ya", "DAL51")]
+    [InlineData("descend and maintain four thousand southwest thirty one seventy wilco", "SWA3170")]
+    [InlineData("cleared to land two eight right united nineteen fourteen thanks good night", "UAL1914")]
+    [InlineData("contact tower one one eight point three ups twenty nine fifty six heavy so long", "UPS2956")]
+    public void ClosingTail_Resolves(string transcript, string addressee) => AssertResolved(DecodeSpoken(transcript, OpenerRoom()), addressee);
+
+    [Theory]
+    [InlineData("contact norcal departure one three five point one good day", DecodeState.NoCallsign, null)]
+    [InlineData("squawk two four nine five have a good one", DecodeState.NoCallsign, null)]
+    [InlineData("follow southwest twenty four ninety five good day", DecodeState.NoCallsign, null)]
+    [InlineData("maintain visual separation from southwest thirty one seventy thanks", DecodeState.NoCallsign, null)]
+    [InlineData("cleared to land runway two eight right number two following southwest thirty one seventy thanks", DecodeState.NoCallsign, null)]
+    [InlineData("descend and maintain four thousand united five twelve negative contact", DecodeState.NoCallsign, null)]
+    [InlineData("southwest twenty four ninety five good day united five twelve", DecodeState.Resolved, "SWA2495")]
+    [InlineData("runway two eight right good day", DecodeState.NoCallsign, null)]
+    public void ClosingTail_NonExample_NotAddressee(string transcript, DecodeState state, string? callsign) =>
+        AssertOutcome(DecodeSpoken(transcript, OpenerRoom()), state, callsign);
+
+    [Theory]
+    [InlineData("medevac eight two nine eight lima ten miles east inbound for landing", "N8298L")]
+    [InlineData("norcal approach medevac eight two nine eight lima with you at three thousand", "N8298L")]
+    [InlineData("medevac delta fifty one heavy descend and maintain one one thousand", "DAL51")]
+    [InlineData("tango november one two three four taxi to runway three zero via charlie", "N1234")]
+    [InlineData("tango mooney five five five two quebec request taxi", "N5552Q")]
+    [InlineData("medevac one two three golf cleared to land runway three three", "N123G")]
+    [InlineData("cleared to land runway three three medevac one two three golf thanks", "N123G")]
+    public void IdentificationPrefix_Resolves(string transcript, string addressee) =>
+        AssertResolved(DecodeSpoken(transcript, OpenerRoom()), addressee);
+
+    [Theory]
+    [InlineData("number two following medevac one two three golf", DecodeState.NoCallsign, null)]
+    [InlineData("behind the medevac cross runway two eight left", DecodeState.NoCallsign, null)]
+    [InlineData("traffic is a medevac helicopter eleven o'clock three miles", DecodeState.NoCallsign, null)]
+    [InlineData("lifeguard one two three golf", DecodeState.NoCallsign, null)]
+    [InlineData("air evac one seven six five two", DecodeState.NoCallsign, null)]
+    [InlineData("medevac alaska fifty one", DecodeState.NoCallsign, null)]
+    [InlineData("united five twelve taxi via tango hold short of runway three zero", DecodeState.Resolved, "UAL512")]
+    [InlineData("tango twenty four ninety five", DecodeState.NoCallsign, null)]
+    [InlineData("number two follow the medevac southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("second right after tango november one two three four", DecodeState.Resolved, "N1234")]
+    [InlineData("united five twelve correction tango twenty four ninety five", DecodeState.Resolved, "UAL512")]
+    public void IdentificationPrefix_NonExample_NotAddressee(string transcript, DecodeState state, string? callsign) =>
+        AssertOutcome(DecodeSpoken(transcript, OpenerRoom()), state, callsign);
+
+    [Theory]
+    [InlineData("southwest twenty four ninety five correction medevac one two three golf", "N123G")]
+    [InlineData("united five twelve correction tango november one two three four", "N1234")]
+    public void IdentificationPrefix_AfterCorrection_SwitchesAddressee(string transcript, string addressee) =>
+        AssertResolved(DecodeSpoken(transcript, OpenerRoom()), addressee);
+
+    [Theory]
+    [InlineData("alright descend to four thousand searching for that traffic southwest thirty one seventy", "SWA3170")]
+    [InlineData("looking for the traffic united five twelve", "UAL512")]
+    [InlineData("traffic in sight southwest thirty one seventy", "SWA3170")]
+    [InlineData("negative contact united five twelve", "UAL512")]
+    [InlineData("have the traffic delta fifty one heavy", "DAL51")]
+    [InlineData("okay got him in sight southwest twenty four ninety five thanks", "SWA2495")]
+    [InlineData("do you have the traffic southwest thirty one seventy", "SWA3170")]
+    public void TrailingAfterTraffic_Resolves(string transcript, string addressee) =>
+        AssertResolved(DecodeSpoken(transcript, OpenerRoom()), addressee);
+
+    [Theory]
+    [InlineData("caution wake turbulence following southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("number two following southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("traffic is southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("follow that traffic southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("looking for southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("your traffic southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("is that traffic southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("has you in sight southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("has him in sight southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData(
+        "number two following a seven thirty seven on a two mile final thatll be the traffic southwest thirty one seventy",
+        DecodeState.NoCallsign,
+        null
+    )]
+    [InlineData("theres the traffic united five twelve", DecodeState.NoCallsign, null)]
+    [InlineData("maintain visual separation from southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("hold short behind the southwest thirty one seventy", DecodeState.NoCallsign, null)]
+    [InlineData("united five twelve traffic in sight southwest thirty one seventy", DecodeState.Resolved, "UAL512")]
+    public void TrailingAfterTraffic_NonExample_NotAddressee(string transcript, DecodeState state, string? callsign) =>
+        AssertOutcome(DecodeSpoken(transcript, OpenerRoom()), state, callsign);
+
     [Fact]
     public void HeavysAfterCallsign_JoinsSpan()
     {
@@ -1365,6 +1452,14 @@ public class ContextDecoderTests
     {
         Assert.Equal(DecodeState.Resolved, result.State);
         Assert.Equal(callsign, result.Callsign?.Entity.Value);
+    }
+
+    /// <summary>The state, then the addressee when resolved, else the best guess.</summary>
+    private static void AssertOutcome(DecodeResult result, DecodeState state, string? callsign)
+    {
+        Assert.Equal(state, result.State);
+        string? actual = state == DecodeState.Resolved ? result.Callsign?.Entity.Value : result.BestGuess?.Entity.Value;
+        Assert.Equal(callsign, actual);
     }
 
     private static void AssertHasEntity(DecodeResult result, EntityKind kind, string value) =>
