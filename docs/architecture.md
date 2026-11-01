@@ -930,6 +930,7 @@ Models/
   CommandHistoryEntry.cs        # Up-arrow recall entry: (Callsign, Command). Callsign-less command text + the aircraft it was sent to (empty = global/untargeted); recall filters by selected aircraft
   DatablockDeconflictMode.cs    # Per-view datablock-deconfliction setting (Off / Snap / Free-form); persisted per view in UserPreferences
   GroundColorScheme.cs          # Theme/color scheme for strips
+  SttDevice.cs                  # Cpu / Gpu for sherpa STT (UserPreferences.SttDevice, stored as a string like RendererMode); Gpu takes effect only with the CUDA native set installed, on the next start
   RendererMode.cs               # User-selectable GPU backend (Auto/Metal/OpenGl/Software); macOS-only — the default OpenGL path is emulated over Metal and burns CPU on Apple Silicon, so Metal renders directly; ignored on Windows/Linux
   TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say/Warning/Error/Chat/PilotSpeech/Tdls/Strip); Sequence (process-wide counter, a log position that survives trimming; LastSequence reads the newest) and IsHistory (a line rebuilt from a loaded recording)
   LiveTrafficListFilter.cs      # Aircraft List treatment of live-traffic shadows (All / HideLive / OnlyLive); persisted in UserPreferences
@@ -1069,6 +1070,8 @@ Services/
     WhisperClientSttEngine.cs   # ISttEngine over WhisperSttEngine (one transcript as a single hypothesis); does not dispose the engine, MainViewModel owns it
     SherpaClientSttEngine.cs    # ISttEngine over SherpaSttEngine: no hotwords, prompt ignored, decode latency from a Stopwatch; warm-up decodes 0.5 s of silence
     SherpaSttEngine.cs          # sherpa-onnx C API recognizer by P/Invoke (NeMo transducer, e.g. Parakeet-TDT): greedy or modified_beam_search, per-stream hotword text and n-best, every result read as JSON; NativeProblem refuses beam on a native without the n-best
+    SherpaCudaInstaller.cs      # On-demand CUDA native set (win-x64, linux-x64) into %LOCALAPPDATA%/yaat/backends/sherpa-cuda13/native: our CUDA zip (R2, then natives.mirrors) plus pinned NVIDIA PyPI wheels (cuBLAS, cuDNN; Linux adds cudart, cuRAND), each SHA-256 checked, built in .partial/, sentinel (one line per download) written last
+    SherpaNativeLoader.cs       # One native set per process: Choose(cudaInstalled, SttDevice); UseCudaSet preloads the CUDA set by absolute path in dependency order and sets the DllImport resolver for Yaat.Client and sherpa-onnx (Piper), freeing everything on a failed load; called from Program.ConfigureSherpaNatives
     SherpaResultJson.cs         # sherpa-onnx result JSON to SttHypothesis entries, and whether a native writes the n-best
     SttHypotheses.cs            # SttHypothesis / SttHypotheses (alternatives best first, latency, cache flag) and SherpaDecoding / SherpaDecodingMethod (greedy or beam, paths, hotword score)
   Discord/                      # Discord Rich Presence over Discord's local RPC-over-IPC channel, hand-rolled with no package dependency — see docs/discord-integration.md "Desktop client Rich Presence"

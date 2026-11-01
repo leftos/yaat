@@ -7,6 +7,7 @@ using Yaat.Client.Automation;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Speech;
 using Yaat.Client.Views;
 using Yaat.Sim;
 
@@ -92,6 +93,8 @@ public static class Program
             log.LogInformation("CUDA backend directory set to {Path}", CudaBackendInstaller.InstallRoot);
         }
 
+        ConfigureSherpaNatives(log);
+
         // LM-Kit licensing must run before any LM construction so the licensing layer is
         // initialized. The helper resolves the key from LMKIT_LICENSE_KEY or the solution-root
         // .env file, falling back to empty string (Community Edition). LM-Kit picks the backend
@@ -149,6 +152,35 @@ public static class Program
         SynchronizationContext.SetSynchronizationContext(null);
         AppLog.Flush();
         StartExitWatchdog(log);
+    }
+
+    /// <summary>
+    /// Picks sherpa-onnx's native set before anything touches sherpa: the installed CUDA set when the user chose the GPU,
+    /// the CPU set beside the app otherwise. Any failure is logged and leaves speech recognition on the CPU.
+    /// </summary>
+    private static void ConfigureSherpaNatives(ILogger log)
+    {
+        try
+        {
+            SttDevice device = new UserPreferences().SttDevice;
+            string root = SherpaCudaInstaller.InstallRootDefault;
+            IReadOnlyList<SherpaCudaDownload>? downloads = SherpaCudaInstaller.ForCurrentPlatform(
+                Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json")
+            );
+            bool installed = (downloads is not null) && SherpaCudaInstaller.IsInstalledOnDisk(root, downloads);
+            if (SherpaNativeLoader.Choose(installed, device) == SherpaNativeSet.Cuda)
+            {
+                SherpaNativeLoader.UseCudaSet(Path.Combine(root, SherpaCudaInstaller.NativeDirName));
+            }
+            else
+            {
+                SherpaNativeLoader.LogCpuSet();
+            }
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Failed to set up the sherpa-onnx CUDA native set; speech recognition stays on the CPU");
+        }
     }
 
     /// <summary>
