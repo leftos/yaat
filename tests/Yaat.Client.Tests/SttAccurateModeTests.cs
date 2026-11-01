@@ -9,7 +9,8 @@ namespace Yaat.Client.Tests;
 
 /// <summary>
 /// The accurate-mode mapping entry: an n-best decoded against the room resolves the callsign and the command text from the
-/// hypothesis that names it, and every other decode falls back to the callsign parser on the top hypothesis.
+/// decoder's rewritten transcript of the hypothesis that names it, and every other decode falls back to the callsign parser
+/// on that transcript.
 /// </summary>
 public sealed class SttAccurateModeTests
 {
@@ -30,7 +31,7 @@ public sealed class SttAccurateModeTests
             false
         );
 
-        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "UAL1"], AccurateCommandText.RawHypothesis);
+        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "UAL1"]);
 
         Assert.Equal(DecodeState.Resolved, mapped.Decode.State);
         Assert.Equal(2, mapped.Decode.HypothesisIndex);
@@ -49,7 +50,7 @@ public sealed class SttAccurateModeTests
             false
         );
 
-        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "UAL1"], AccurateCommandText.RawHypothesis);
+        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "UAL1"]);
 
         Assert.Equal(DecodeState.Resolved, mapped.Decode.State);
         Assert.Equal("SWA2495", mapped.Result.Callsign);
@@ -70,7 +71,7 @@ public sealed class SttAccurateModeTests
             false
         );
 
-        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "N346G"], AccurateCommandText.RawHypothesis);
+        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "N346G"]);
 
         Assert.NotEqual(DecodeState.Resolved, mapped.Decode.State);
         Assert.Equal("N346G", mapped.Result.Callsign);
@@ -82,7 +83,7 @@ public sealed class SttAccurateModeTests
     {
         TransmissionContext room = Context(new RoomAircraftInput("SWA2495", "B737", [], null));
 
-        HypothesesMapResult mapped = await MapAsync(new SttHypotheses([], null, false), room, ["SWA2495"], AccurateCommandText.RawHypothesis);
+        HypothesesMapResult mapped = await MapAsync(new SttHypotheses([], null, false), room, ["SWA2495"]);
 
         Assert.Equal(DecodeState.NoCallsign, mapped.Decode.State);
         Assert.Null(mapped.Result.Callsign);
@@ -90,19 +91,9 @@ public sealed class SttAccurateModeTests
     }
 
     [Fact]
-    public async Task Raw_Text_Hands_The_Mapper_The_Heard_Kizer()
+    public async Task Hands_The_Mapper_The_Spoken_Form_The_Decoder_Rewrote()
     {
-        HypothesesMapResult mapped = await MapAsync(OneHypothesis(KizerHypothesis), KaiserRoom(), ["SWA2495"], AccurateCommandText.RawHypothesis);
-
-        Assert.Equal(DecodeState.Resolved, mapped.Decode.State);
-        Assert.Equal("SWA2495", mapped.Result.Callsign);
-        Assert.Equal(AtcNumberParser.NormalizeDigits("abeam kizer"), mapped.Result.CommandText);
-    }
-
-    [Fact]
-    public async Task Rewritten_Text_Hands_The_Mapper_The_Spoken_Kaiser()
-    {
-        HypothesesMapResult mapped = await MapAsync(OneHypothesis(KizerHypothesis), KaiserRoom(), ["SWA2495"], AccurateCommandText.Rewritten);
+        HypothesesMapResult mapped = await MapAsync(OneHypothesis(KizerHypothesis), KaiserRoom(), ["SWA2495"]);
 
         Assert.Equal(DecodeState.Resolved, mapped.Decode.State);
         Assert.Equal("SWA2495", mapped.Result.Callsign);
@@ -132,15 +123,10 @@ public sealed class SttAccurateModeTests
             DecoderSettings.Default
         );
 
-    private static Task<HypothesesMapResult> MapAsync(
-        SttHypotheses hypotheses,
-        TransmissionContext room,
-        IReadOnlyList<string> activeCallsigns,
-        AccurateCommandText commandText
-    ) =>
+    private static Task<HypothesesMapResult> MapAsync(SttHypotheses hypotheses, TransmissionContext room, IReadOnlyList<string> activeCallsigns) =>
         SpeechRecognitionService.MapHypothesesWithTraceAsync(
             hypotheses,
-            new AccurateDecodeInput(room, DecoderSettings.Default, commandText),
+            new AccurateDecodeInput(room, DecoderSettings.Default),
             new SpeechContext(activeCallsigns, [], string.Empty),
             new SpeechMappers(new PhraseologyCommandMapper(), null, null),
             CancellationToken.None

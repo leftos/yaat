@@ -668,11 +668,10 @@ public sealed class SpeechRecognitionService(
     /// <summary>
     /// Maps an STT n-best the accurate way: every hypothesis is decoded against the room's transmission context, so an
     /// aircraft the transcript names is resolved from the room rather than from the active-callsign list alone. A resolved
-    /// decode names the callsign itself and makes the winning hypothesis minus the callsign's words the command text, digit
-    /// normalized, or under <see cref="AccurateCommandText.Rewritten"/> the decode's remainder from its rewritten transcript; a
-    /// <see cref="DecodeState.SayAgain"/> or <see cref="DecodeState.NoCallsign"/> decode falls back to the
-    /// callsign parser on the top hypothesis, so accurate mode never resolves fewer callsigns than the fast path. An n-best
-    /// with no entry is mapped as an empty transcript without a decode.
+    /// decode names the callsign itself and makes the decoder's rewritten transcript minus the callsign span the command
+    /// text, digit normalized; a <see cref="DecodeState.SayAgain"/> or <see cref="DecodeState.NoCallsign"/> decode falls back
+    /// to the callsign parser on the decoder's rewritten transcript, so accurate mode never resolves fewer callsigns than the
+    /// fast path. An n-best with no entry is mapped as an empty transcript without a decode.
     /// </summary>
     /// <param name="hypotheses">The engine's alternatives, best first.</param>
     /// <param name="decode">The room's transmission context and the decoder settings.</param>
@@ -689,28 +688,13 @@ public sealed class SpeechRecognitionService(
     )
     {
         DecodeResult decoded = DecodeHypotheses(hypotheses, decode);
-        string transcript = (hypotheses.Entries.Count > 0) ? hypotheses.Entries[0].Text : string.Empty;
-        (string CommandText, string? Callsign) extracted;
-        if (decoded.State == DecodeState.Resolved)
-        {
-            string winner = hypotheses.Entries[decoded.HypothesisIndex].Text;
-            transcript = (decode.CommandText == AccurateCommandText.Rewritten) ? decoded.RewrittenTranscript : winner;
-            extracted = ResolvedCommandText(decoded, winner, decode.CommandText);
-        }
-        else
-        {
-            if ((decode.CommandText == AccurateCommandText.Rewritten) && (hypotheses.Entries.Count > 0))
-            {
-                transcript = decoded.RewrittenTranscript;
-            }
-
-            extracted = ExtractAndStripCallsign(transcript, ctx.ActiveCallsigns);
-        }
+        string transcript = decoded.RewrittenTranscript;
+        (string CommandText, string? Callsign) extracted =
+            (decoded.State == DecodeState.Resolved) ? ResolvedCommandText(decoded) : ExtractAndStripCallsign(transcript, ctx.ActiveCallsigns);
 
         Log.LogDebug(
-            "Accurate decode of {Count} hypotheses in {Mode} mode: {State} on hypothesis {Index}, callsign {Callsign}",
+            "Accurate decode of {Count} hypotheses: {State} on hypothesis {Index}, callsign {Callsign}",
             hypotheses.Entries.Count,
-            decode.CommandText,
             decoded.State,
             decoded.HypothesisIndex,
             decoded.Callsign?.Entity.Value ?? "(none)"
@@ -740,23 +724,15 @@ public sealed class SpeechRecognitionService(
     }
 
     /// <summary>
-    /// The command text a resolved decode leaves under <paramref name="mode"/>, beside the callsign the decoder resolved: the
-    /// winning hypothesis's whitespace words without those of the callsign span, or the decode's remainder, each digit-normalized.
+    /// The command text a resolved decode leaves, beside the callsign the decoder resolved: its remainder, digit-normalized.
     /// </summary>
     /// <exception cref="InvalidOperationException">The decode resolved without naming a callsign, which the decoder never does.</exception>
-    private static (string CommandText, string? Callsign) ResolvedCommandText(DecodeResult decoded, string winner, AccurateCommandText mode)
+    private static (string CommandText, string? Callsign) ResolvedCommandText(DecodeResult decoded)
     {
         EntityMatch callsign =
-            decoded.Callsign ?? throw new InvalidOperationException($"The decode resolved without a callsign on hypothesis '{winner}'.");
-        if (mode == AccurateCommandText.Rewritten)
-        {
-            return (AtcNumberParser.NormalizeDigits(decoded.Remainder), callsign.Entity.Value);
-        }
-
-        string[] words = winner.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        IEnumerable<string> kept = words.Take(callsign.Span.Start).Concat(words.Skip(callsign.Span.End));
-        string commandText = AtcNumberParser.NormalizeDigits(string.Join(' ', kept));
-        return (commandText, callsign.Entity.Value);
+            decoded.Callsign
+            ?? throw new InvalidOperationException($"The decode resolved without a callsign on hypothesis {decoded.HypothesisIndex}.");
+        return (AtcNumberParser.NormalizeDigits(decoded.Remainder), callsign.Entity.Value);
     }
 
     /// <summary>
@@ -911,23 +887,10 @@ internal sealed record TranscriptMapResult(string CommandText, string? Canonical
 /// <param name="CallsignResolver">The LLM callsign resolver, or null where the deployment has none.</param>
 internal sealed record SpeechMappers(ISpeechCommandMapper Rule, ISpeechCommandMapper? Llm, LocalLlmCallsignResolver? CallsignResolver);
 
-/// <summary>Which text accurate mode hands the mappers once the decoder has settled the callsign.</summary>
-public enum AccurateCommandText
-{
-    /// <summary>The winning hypothesis's raw text minus the callsign's words: what the recogniser heard.</summary>
-    RawHypothesis,
-
-    /// <summary>
-    /// The decoder's rewritten transcript minus the callsign's words: the entity spans it matched, corrected to their spoken forms.
-    /// </summary>
-    Rewritten,
-}
-
 /// <summary>What an accurate-mode decode runs against.</summary>
 /// <param name="Context">The room's transmission context: its aircraft and the airport's entities.</param>
 /// <param name="Settings">The decoder's thresholds and weights.</param>
-/// <param name="CommandText">Which text the mappers see once the callsign is settled.</param>
-internal sealed record AccurateDecodeInput(TransmissionContext Context, DecoderSettings Settings, AccurateCommandText CommandText);
+internal sealed record AccurateDecodeInput(TransmissionContext Context, DecoderSettings Settings);
 
 /// <summary>An accurate-mode mapping: what the mappers made of the n-best and how the decoder settled the callsign.</summary>
 /// <param name="Result">The mapped transcript.</param>
