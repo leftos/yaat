@@ -190,7 +190,9 @@ public sealed partial class SherpaCudaInstaller(
     /// Windows x64 and Linux x64).
     /// </summary>
     /// <param name="manifestPath">The <c>stt-downloads.json</c> that pins our CUDA native zips.</param>
-    /// <exception cref="InvalidDataException">The manifest is not a valid STT download manifest, or lists no CUDA native for the platform.</exception>
+    /// <exception cref="InvalidDataException">
+    /// The manifest is not a valid STT download manifest, or lists no CUDA native for the platform.
+    /// </exception>
     /// <exception cref="IOException">The manifest could not be read.</exception>
     /// <exception cref="UnauthorizedAccessException">The manifest could not be read.</exception>
     public static IReadOnlyList<SherpaCudaDownload>? ForCurrentPlatform(string manifestPath)
@@ -322,15 +324,26 @@ public sealed partial class SherpaCudaInstaller(
         {
             throw new InvalidOperationException("Install in progress; cannot uninstall.");
         }
+        FileStream? rootLock = null;
         try
         {
-            using FileStream rootLock = LockRootOrRefuse();
-            RefuseIfSetInUse();
+            try
+            {
+                rootLock = LockRootOrRefuse();
+                RefuseIfSetInUse();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log.LogError(ex, "Checking the sherpa CUDA native set at {Root} before removing it failed", _installRoot);
+                StatusMessage = $"Failed: {ex.Message}";
+                throw;
+            }
             RemoveSet();
             StatusMessage = "Removed. Restart YAAT to fall back to the CPU.";
         }
         finally
         {
+            rootLock?.Dispose();
             _lock.Release();
         }
     }
@@ -428,7 +441,7 @@ public sealed partial class SherpaCudaInstaller(
             {
                 new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None).Dispose();
             }
-            catch (IOException ex)
+            catch (IOException ex) when (IsSharingViolation(ex))
             {
                 Log.LogInformation(ex, "{Path} refuses an exclusive open, so a process has it loaded", path);
                 return true;
@@ -526,7 +539,10 @@ public sealed partial class SherpaCudaInstaller(
         SetProgress(1.0);
     }
 
-    /// <summary>Deletes the staging, old-set and legacy partial folders an earlier run left under the root.</summary>
+    /// <summary>
+    /// Deletes the staging, old-set and legacy partial folders an earlier run left under the root. An old-set folder is kept
+    /// while no <c>native/</c> is beside it, since a swap that could not restore leaves the only good copy there.
+    /// </summary>
     private void SweepLeftovers()
     {
         if (!Directory.Exists(_installRoot))
@@ -536,9 +552,20 @@ public sealed partial class SherpaCudaInstaller(
         List<string> leftovers =
         [
             .. Directory.EnumerateDirectories(_installRoot, StagingDirPrefix + "*"),
-            .. Directory.EnumerateDirectories(_installRoot, OldDirPrefix + "*"),
             .. Directory.EnumerateDirectories(_installRoot, LegacyPartialDirName),
         ];
+        List<string> oldSets = [.. Directory.EnumerateDirectories(_installRoot, OldDirPrefix + "*")];
+        if (Directory.Exists(Path.Combine(_installRoot, NativeDirName)))
+        {
+            leftovers.AddRange(oldSets);
+        }
+        else
+        {
+            foreach (string dir in oldSets)
+            {
+                Log.LogWarning("Keeping {Dir}: no native set is beside it, so it may hold the only good copy", dir);
+            }
+        }
         foreach (string dir in leftovers)
         {
             DeleteDirBestEffort(dir);
@@ -546,8 +573,9 @@ public sealed partial class SherpaCudaInstaller(
     }
 
     /// <summary>
-    /// Replaces <c>native/</c> with the staged set and writes the sentinel last. A failure puts the old set and its sentinel
-    /// back and rethrows; a failure to delete the replaced set afterwards only logs.
+    /// Deletes the sentinel first, replaces <c>native/</c> with the staged set and writes the sentinel last. A failure puts
+    /// the old set back, and its sentinel only once the set is back, and rethrows; a failure to delete the replaced set
+    /// afterwards only logs.
     /// </summary>
     private void SwapIn(string stagingRoot)
     {
@@ -560,14 +588,14 @@ public sealed partial class SherpaCudaInstaller(
         bool newInPlace = false;
         try
         {
+            if (File.Exists(sentinelPath))
+            {
+                File.Delete(sentinelPath);
+            }
             if (Directory.Exists(nativeDir))
             {
                 Directory.Move(nativeDir, oldDir);
                 oldMoved = true;
-            }
-            if (File.Exists(sentinelPath))
-            {
-                File.Delete(sentinelPath);
             }
             Directory.Move(stagingNative, nativeDir);
             newInPlace = true;
@@ -606,9 +634,11 @@ public sealed partial class SherpaCudaInstaller(
         {
             RestoreStep("move the new set back to staging", () => Directory.Move(nativeDir, undo.StagingNative));
         }
-        if (undo.OldMoved)
+        bool oldSetBack = !undo.OldMoved || RestoreStep("move the old set back", () => Directory.Move(undo.OldDir, nativeDir));
+        if (!oldSetBack)
         {
-            RestoreStep("move the old set back", () => Directory.Move(undo.OldDir, nativeDir));
+            Log.LogError("The old sherpa CUDA native set is left at {OldDir}; no sentinel was written", undo.OldDir);
+            return;
         }
         if (undo.OldSentinel is string oldSentinel)
         {
@@ -616,15 +646,18 @@ public sealed partial class SherpaCudaInstaller(
         }
     }
 
-    private static void RestoreStep(string step, Action action)
+    /// <summary>Runs one restore step, logging a failure; true when the step succeeded.</summary>
+    private static bool RestoreStep(string step, Action action)
     {
         try
         {
             action();
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.LogError(ex, "Failed to restore the sherpa CUDA native set: {Step}", step);
+            return false;
         }
     }
 
@@ -686,6 +719,7 @@ public sealed partial class SherpaCudaInstaller(
             {
                 idle.CancelAfter(IdleReadTimeout);
                 int read = await stream.ReadAsync(buffer, linked.Token).ConfigureAwait(false);
+                idle.CancelAfter(Timeout.InfiniteTimeSpan);
                 if (read == 0)
                 {
                     break;

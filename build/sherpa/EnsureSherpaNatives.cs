@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Security.Cryptography;
@@ -14,8 +15,8 @@ using Microsoft.Build.Utilities;
 /// <summary>
 /// Makes sure our sherpa-onnx CPU native for each requested RID is downloaded, SHA-256 verified and extracted
 /// under %LOCALAPPDATA%\yaat\cache\ (or the cache below YAAT_APPDATA_DIR when that is set), and returns the extract
-/// directory per RID. A per-RID lock beside the cached zip serializes that work: one build prepares the native, and
-/// every other build on the machine waits for it and then keeps the finished extraction. Each zip is tried from the
+/// directory per RID. A lock in each cached-zip folder (one per manifest commit) serializes that work: one build prepares
+/// the native, and every other build on the machine waits for it and then keeps the finished extraction. Each zip is tried from the
 /// manifest's baseUrl, then from each of natives.mirrors, until one verifies. When none does, a required build (a
 /// publish) fails, and any other build warns YAATSHERPA001 and returns the RID as a fallback to NuGet's stock native.
 /// Compiled by RoslynCodeTaskFactory against netstandard, so it uses only netstandard APIs.
@@ -211,7 +212,7 @@ public class EnsureSherpaNatives : Microsoft.Build.Utilities.Task
     }
 
     /// <summary>
-    /// Opens the per-RID lock beside the cached zip, waiting for the build that holds it instead of racing it. The lock
+    /// Opens the lock in the cached zip's folder, waiting for the build that holds it instead of racing it. The lock
     /// file stays in place; only the handle is exclusive.
     /// </summary>
     private FileStream AcquireLock(string label, string lockPath)
@@ -223,7 +224,7 @@ public class EnsureSherpaNatives : Microsoft.Build.Utilities.Task
             {
                 return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             }
-            catch (IOException)
+            catch (IOException ex) when (IsLockContention(ex))
             {
                 if (failures >= LockWaitSeconds)
                 {
@@ -242,6 +243,19 @@ public class EnsureSherpaNatives : Microsoft.Build.Utilities.Task
                 Thread.Sleep(1000);
             }
         }
+    }
+
+    /// <summary>Whether opening the lock failed because another handle holds it: a sharing or lock violation on Windows.</summary>
+    private static bool IsLockContention(IOException ex)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            int code = ex.HResult & 0xFFFF;
+            return (code == 32) || (code == 33);
+        }
+
+        // netstandard has no portable way to tell EWOULDBLOCK from another I/O error, so off Windows every IOException waits.
+        return true;
     }
 
     private void EnsureZip(string label, string zipPath, string[] urls, string expected)

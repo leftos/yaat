@@ -172,7 +172,7 @@ public static class Program
             );
             if (choice.Set == SherpaNativeSet.Cuda)
             {
-                LoadCudaSet(log);
+                LoadCudaSet(log, choice);
             }
             else
             {
@@ -185,6 +185,7 @@ public static class Program
             if (device == SttDevice.Gpu)
             {
                 SherpaNativeLoader.RecordCpuFallback($"Setting up the GPU runtime failed: {ex.Message}");
+                SherpaNativeLoader.LogCpuSet();
             }
         }
     }
@@ -200,14 +201,24 @@ public static class Program
 
     /// <summary>
     /// Loads the CUDA set while holding the install root's writer lock, so an install or removal cannot pull the files out
-    /// from under the load. A lock held elsewhere, or a failed load, keeps speech recognition on the CPU and says why.
+    /// from under the load. A lock held elsewhere, a set removed before the lock was taken, or a failed load keeps speech
+    /// recognition on the CPU and says why.
     /// </summary>
-    private static void LoadCudaSet(ILogger log)
+    private static void LoadCudaSet(ILogger log, SherpaStartupChoice choice)
     {
+        IReadOnlyList<SherpaCudaDownload> downloads =
+            choice.Downloads ?? throw new InvalidOperationException("A CUDA startup choice carries no downloads.");
         using FileStream? rootLock = SherpaCudaInstaller.TryLockRoot(SherpaCudaInstaller.InstallRootDefault);
         if (rootLock is null)
         {
             SherpaNativeLoader.RecordCpuFallback("The GPU runtime is being installed or removed by another YAAT.");
+            SherpaNativeLoader.LogCpuSet();
+            return;
+        }
+
+        if (!SherpaCudaInstaller.IsInstalledOnDisk(SherpaCudaInstaller.InstallRootDefault, downloads))
+        {
+            SherpaNativeLoader.RecordCpuFallback("The GPU runtime is not installed; install it in Settings > Speech.");
             SherpaNativeLoader.LogCpuSet();
             return;
         }

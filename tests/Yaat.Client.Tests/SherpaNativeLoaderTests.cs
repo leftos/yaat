@@ -140,6 +140,7 @@ public sealed class SherpaNativeLoaderTests
 
         Assert.Equal(SherpaNativeSet.Cpu, choice.Set);
         Assert.Null(choice.CpuReason);
+        Assert.Null(choice.Downloads);
     }
 
     [Fact]
@@ -153,6 +154,7 @@ public sealed class SherpaNativeLoaderTests
         Assert.Equal(SherpaNativeSet.Cpu, choice.Set);
         Assert.NotNull(choice.CpuReason);
         Assert.Contains("not installed", choice.CpuReason);
+        Assert.Null(choice.Downloads);
     }
 
     [Fact]
@@ -167,6 +169,7 @@ public sealed class SherpaNativeLoaderTests
         Assert.Equal(SherpaNativeSet.Cpu, choice.Set);
         Assert.NotNull(choice.CpuReason);
         Assert.Contains("out of date", choice.CpuReason);
+        Assert.Null(choice.Downloads);
     }
 
     [Fact]
@@ -181,6 +184,8 @@ public sealed class SherpaNativeLoaderTests
 
         Assert.Equal(SherpaNativeSet.Cuda, choice.Set);
         Assert.Null(choice.CpuReason);
+        Assert.NotNull(choice.Downloads);
+        Assert.Equivalent(downloads, choice.Downloads, strict: true);
     }
 
     [Fact]
@@ -196,6 +201,19 @@ public sealed class SherpaNativeLoaderTests
         Assert.Equal(SherpaNativeSet.Cpu, choice.Set);
         Assert.NotNull(choice.CpuReason);
         Assert.Contains("could not be read", choice.CpuReason);
+        Assert.Null(choice.Downloads);
+    }
+
+    [Fact]
+    public void LogManifestHead_Unreadable_Manifest_Does_Not_Throw()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Only Windows refuses to read a file another handle holds exclusively.");
+        string manifest = Path.Combine(NewTempDir(), "MANIFEST.txt");
+        File.WriteAllText(manifest, "HEAD: abc");
+        using (new FileStream(manifest, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            SherpaNativeLoader.LogManifestHead("CUDA", [manifest]);
+        }
     }
 
     /// <summary>Every library file the CUDA set must hold, the CUDA provider included, so both load tests read one list.</summary>
