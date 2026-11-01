@@ -12,12 +12,15 @@ using Microsoft.Build.Utilities;
 
 /// <summary>
 /// Makes sure our sherpa-onnx CPU native for each requested RID is downloaded, SHA-256 verified and extracted
-/// under %LOCALAPPDATA%\yaat\cache\, and returns the extract directory per RID. Compiled by RoslynCodeTaskFactory
-/// against netstandard, so it uses only netstandard APIs.
+/// under %LOCALAPPDATA%\yaat\cache\, and returns the extract directory per RID. Each zip is tried from the manifest's
+/// baseUrl, then from each of natives.mirrors, until one verifies. When none does, a required build (a publish) fails,
+/// and any other build warns YAATSHERPA001 and returns the RID as a fallback to NuGet's stock native. Compiled by
+/// RoslynCodeTaskFactory against netstandard, so it uses only netstandard APIs.
 /// </summary>
 public class EnsureSherpaNatives : Task
 {
     private const string ManifestCopyName = "sherpa-native-MANIFEST.txt";
+    private const string FallbackWarningCode = "YAATSHERPA001";
 
     [Required]
     public string ManifestPath { get; set; }
@@ -25,9 +28,17 @@ public class EnsureSherpaNatives : Task
     [Required]
     public string[] Rids { get; set; }
 
+    /// <summary>True when no source verifying a RID's native fails the build instead of falling back to NuGet's.</summary>
+    [Required]
+    public bool Required { get; set; }
+
     /// <summary>One item per overlaid RID: ItemSpec is the RID, with ExtractDir and ShortCommit metadata.</summary>
     [Output]
     public ITaskItem[] Overlays { get; set; }
+
+    /// <summary>One item per RID that keeps NuGet's stock native: ItemSpec is the RID, with Reason metadata.</summary>
+    [Output]
+    public ITaskItem[] Fallbacks { get; set; }
 
     public override bool Execute()
     {
@@ -36,6 +47,7 @@ public class EnsureSherpaNatives : Task
             SherpaManifest manifest = ReadManifest(ManifestPath);
             string shortCommit = manifest.Natives.Commit.Length > 10 ? manifest.Natives.Commit.Substring(0, 10) : manifest.Natives.Commit;
             List<ITaskItem> overlays = new List<ITaskItem>();
+            List<ITaskItem> fallbacks = new List<ITaskItem>();
             foreach (string rid in Rids.Distinct(StringComparer.Ordinal))
             {
                 SherpaNativeFile entry = manifest.Natives.Files.FirstOrDefault(f => (f.Rid == rid) && (f.Variant == "cpu"));
@@ -44,14 +56,22 @@ public class EnsureSherpaNatives : Task
                     continue;
                 }
 
-                string extractDir = EnsureRid(manifest.BaseUrl, rid, entry);
-                TaskItem item = new TaskItem(rid);
-                item.SetMetadata("ExtractDir", extractDir);
-                item.SetMetadata("ShortCommit", shortCommit);
-                overlays.Add(item);
+                try
+                {
+                    string extractDir = EnsureRid(SourceUrls(manifest, entry), rid, entry);
+                    TaskItem item = new TaskItem(rid);
+                    item.SetMetadata("ExtractDir", extractDir);
+                    item.SetMetadata("ShortCommit", shortCommit);
+                    overlays.Add(item);
+                }
+                catch (SherpaSourcesException ex)
+                {
+                    ReportNoSource(rid, ex, fallbacks);
+                }
             }
 
             Overlays = overlays.ToArray();
+            Fallbacks = fallbacks.ToArray();
         }
         catch (SherpaNativeException ex)
         {
@@ -59,6 +79,55 @@ public class EnsureSherpaNatives : Task
         }
 
         return !Log.HasLoggedErrors;
+    }
+
+    private static string[] SourceUrls(SherpaManifest manifest, SherpaNativeFile entry)
+    {
+        string fileName = entry.Key.Substring(entry.Key.LastIndexOf('/') + 1);
+        List<string> urls = new List<string> { manifest.BaseUrl + entry.Key };
+        if (manifest.Natives.Mirrors != null)
+        {
+            urls.AddRange(manifest.Natives.Mirrors.Select(mirror => mirror + fileName));
+        }
+
+        return urls.ToArray();
+    }
+
+    private void ReportNoSource(string rid, SherpaSourcesException ex, List<ITaskItem> fallbacks)
+    {
+        string label = rid + "-cpu";
+        if (Required)
+        {
+            Log.LogError(
+                "Sherpa native "
+                    + label
+                    + ": no verified native from any source; a publish never ships NuGet's stock native."
+                    + string.Concat(ex.Failures.Select(failure => Environment.NewLine + "  " + failure))
+            );
+            return;
+        }
+
+        string warning =
+            "Sherpa native "
+            + label
+            + ": no verified native from any source ("
+            + string.Join("; ", ex.Failures)
+            + "); this build ships NuGet's stock sherpa-onnx native, which has no accurate (n-best) mode. A publish refuses to fall back.";
+        Log.LogWarning(
+            subcategory: null,
+            warningCode: FallbackWarningCode,
+            helpKeyword: null,
+            file: null,
+            lineNumber: 0,
+            columnNumber: 0,
+            endLineNumber: 0,
+            endColumnNumber: 0,
+            message: warning
+        );
+        TaskItem item = new TaskItem(rid);
+        // Literal, so the semicolons between failures survive MSBuild's item-list splitting in WriteLinesToFile.
+        ((ITaskItem2)item).SetMetadataValueLiteral("Reason", warning);
+        fallbacks.Add(item);
     }
 
     private static SherpaManifest ReadManifest(string path)
@@ -89,15 +158,14 @@ public class EnsureSherpaNatives : Task
         }
     }
 
-    private string EnsureRid(string baseUrl, string rid, SherpaNativeFile entry)
+    private string EnsureRid(string[] urls, string rid, SherpaNativeFile entry)
     {
         string cacheRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yaat", "cache");
         string zipPath = Path.Combine(cacheRoot, entry.Key.Replace('/', Path.DirectorySeparatorChar));
-        string url = baseUrl + entry.Key;
         string label = rid + "-cpu";
         string[] required = RequiredFiles(rid);
 
-        EnsureZip(label, zipPath, url, entry.Sha256);
+        EnsureZip(label, zipPath, urls, entry.Sha256);
 
         string extractDir = zipPath.Substring(0, zipPath.Length - ".zip".Length);
         if (IsComplete(extractDir, required))
@@ -115,14 +183,39 @@ public class EnsureSherpaNatives : Task
         return extractDir;
     }
 
-    private void EnsureZip(string label, string zipPath, string url, string expected)
+    private void EnsureZip(string label, string zipPath, string[] urls, string expected)
+    {
+        if (CachedZipMatches(label, zipPath, expected))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(zipPath));
+        List<string> failures = new List<string>();
+        foreach (string url in urls)
+        {
+            string partPath = zipPath + "." + Guid.NewGuid().ToString("N") + ".part";
+            string failure = TryDownloadVerified(label, url, partPath, expected);
+            if (failure == null)
+            {
+                MoveIntoCache(label, partPath, zipPath, url, expected);
+                return;
+            }
+
+            failures.Add(url + ": " + failure);
+        }
+
+        throw new SherpaSourcesException(failures);
+    }
+
+    private bool CachedZipMatches(string label, string zipPath, string expected)
     {
         if (File.Exists(zipPath))
         {
             string actual = Sha256Of(zipPath);
             if (string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
             {
-                return;
+                return true;
             }
 
             Log.LogMessage(
@@ -140,31 +233,50 @@ public class EnsureSherpaNatives : Task
             File.Delete(zipPath);
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(zipPath));
-        string partPath = zipPath + "." + Guid.NewGuid().ToString("N") + ".part";
-        Download(label, url, partPath);
+        return false;
+    }
 
-        string partSha = Sha256Of(partPath);
-        if (!string.Equals(partSha, expected, StringComparison.OrdinalIgnoreCase))
+    /// <summary>Downloads url to partPath and checks its SHA-256; returns null on success, else the failure, with partPath gone.</summary>
+    private string TryDownloadVerified(string label, string url, string partPath, string expected)
+    {
+        try
         {
-            File.Delete(partPath);
-            throw new SherpaNativeException(
-                "Sherpa native "
-                    + label
-                    + ": SHA-256 of "
-                    + partPath
-                    + " is "
-                    + partSha
-                    + ", but "
-                    + ManifestPath
-                    + " lists "
-                    + expected
-                    + " for "
-                    + url
-                    + "."
-            );
+            Download(label, url, partPath);
+        }
+        catch (SherpaSourceException ex)
+        {
+            Log.LogMessage(MessageImportance.High, ex.Message);
+            return ex.Reason;
         }
 
+        string partSha = Sha256Of(partPath);
+        if (string.Equals(partSha, expected, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        File.Delete(partPath);
+        Log.LogMessage(
+            MessageImportance.High,
+            "Sherpa native "
+                + label
+                + ": SHA-256 of "
+                + partPath
+                + " is "
+                + partSha
+                + ", but "
+                + ManifestPath
+                + " lists "
+                + expected
+                + " for "
+                + url
+                + "."
+        );
+        return "SHA-256 " + partSha + ", expected " + expected;
+    }
+
+    private void MoveIntoCache(string label, string partPath, string zipPath, string url, string expected)
+    {
         try
         {
             File.Move(partPath, zipPath);
@@ -216,7 +328,10 @@ public class EnsureSherpaNatives : Task
                 File.Delete(partPath);
             }
 
-            throw new SherpaNativeException("Sherpa native " + label + ": download of " + url + " failed: " + ex.Message);
+            throw new SherpaSourceException(
+                "Sherpa native " + label + ": download of " + url + " failed: " + ex.Message,
+                "download failed: " + ex.Message
+            );
         }
     }
 
@@ -290,6 +405,30 @@ public class EnsureSherpaNatives : Task
         public SherpaNativeException(string message)
             : base(message) { }
     }
+
+    /// <summary>One source URL failed; Message is the full log text, Reason the short form for the summary.</summary>
+    private sealed class SherpaSourceException : Exception
+    {
+        public SherpaSourceException(string message, string reason)
+            : base(message)
+        {
+            Reason = reason;
+        }
+
+        public string Reason { get; }
+    }
+
+    /// <summary>Every source URL failed; each failure is "url: reason", in the order tried.</summary>
+    private sealed class SherpaSourcesException : Exception
+    {
+        public SherpaSourcesException(List<string> failures)
+            : base("Sherpa native: no source verified.")
+        {
+            Failures = failures;
+        }
+
+        public List<string> Failures { get; }
+    }
 }
 
 [DataContract]
@@ -307,6 +446,9 @@ public class SherpaNatives
 {
     [DataMember(Name = "commit")]
     public string Commit { get; set; }
+
+    [DataMember(Name = "mirrors")]
+    public string[] Mirrors { get; set; }
 
     [DataMember(Name = "files")]
     public SherpaNativeFile[] Files { get; set; }

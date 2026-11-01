@@ -24,6 +24,12 @@ public sealed partial class SherpaNativeOverlayTests
 
         string nativeDir = Path.Combine(AppContext.BaseDirectory, "runtimes", rid!, "native");
         string manifestPath = Path.Combine(nativeDir, "sherpa-native-MANIFEST.txt");
+        string fallbackPath = Path.Combine(nativeDir, "sherpa-native-FALLBACK.txt");
+        if (File.Exists(fallbackPath))
+        {
+            Assert.Skip($"The build fell back to NuGet's stock sherpa native: {File.ReadAllText(fallbackPath).Trim()}");
+        }
+
         Assert.True(File.Exists(manifestPath), $"{manifestPath} is missing: the sherpa native overlay did not run.");
 
         string[] lines = File.ReadAllLines(manifestPath);

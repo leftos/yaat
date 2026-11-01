@@ -99,8 +99,9 @@ def test_dry_run_writes_manifest_in_documented_shape_and_order(inputs: dict[str,
     manifest = json.loads(raw)
     assert list(manifest) == ["baseUrl", "natives", "models"]
     assert manifest["baseUrl"] == "https://dl.leftos.dev/"
-    assert list(manifest["natives"]) == ["commit", "files"]
+    assert list(manifest["natives"]) == ["commit", "mirrors", "files"]
     assert manifest["natives"]["commit"] == COMMIT
+    assert manifest["natives"]["mirrors"] == []
 
     natives = manifest["natives"]["files"]
     assert [(entry["rid"], entry["variant"]) for entry in natives] == [
@@ -134,6 +135,24 @@ def test_dry_run_writes_manifest_in_documented_shape_and_order(inputs: dict[str,
     licence = next(file for file in models[1]["files"] if file["name"] == "LICENSE")
     assert licence["key"] == "stt/rasr-parakeet-v2/int8/LICENSE"
     assert licence["sha256"] == _sha256(inputs["license"])
+
+
+def test_mirror_values_land_in_natives_mirrors_in_order(inputs: dict[str, Path]) -> None:
+    first = "https://github.com/leftos/sherpa-onnx/releases/download/yaat-natives-804a1d0c29/"
+    second = "https://mirror.example/natives/"
+
+    assert tool.main(_argv(inputs, "--dry-run", "--mirror", first, "--mirror", second)) == 0
+
+    manifest = json.loads(inputs["manifest"].read_bytes())
+    assert list(manifest["natives"]) == ["commit", "mirrors", "files"]
+    assert manifest["natives"]["mirrors"] == [first, second]
+
+
+def test_absent_mirror_writes_empty_mirrors(inputs: dict[str, Path]) -> None:
+    assert tool.main(_argv(inputs, "--dry-run")) == 0
+
+    manifest = json.loads(inputs["manifest"].read_bytes())
+    assert manifest["natives"]["mirrors"] == []
 
 
 def test_macos_zips_map_to_cpu_variant_and_keep_their_own_names(inputs: dict[str, Path]) -> None:
