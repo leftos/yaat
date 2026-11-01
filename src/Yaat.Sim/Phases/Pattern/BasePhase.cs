@@ -197,7 +197,11 @@ public sealed class BasePhase : Phase
         );
         double timeMin = baseLen / (plannedSpeedKt / 60.0);
         double computedRate = timeMin > 0 ? deltaAlt / timeMin : descentRate;
-        descentRate = Math.Clamp(computedRate, descentRate, MaxDescentRateFpm(plannedSpeedKt, ctx.Category));
+        // Drag limits the path angle, so at a low planned speed the angle-limited ceiling can fall below the category's
+        // normal pattern rate; the ceiling binds either way, so floor the lower bound at it (never demand more descent
+        // than the drag limit allows — a bare Math.Clamp with min > max throws, crashing the tick, leftos/yaat#1361).
+        double maxRate = MaxDescentRateFpm(plannedSpeedKt, ctx.Category);
+        descentRate = Math.Clamp(computedRate, Math.Min(descentRate, maxRate), maxRate);
 
         ctx.Targets.DesiredVerticalRate = -descentRate;
         ctx.Targets.TargetAltitude = targetAlt;
