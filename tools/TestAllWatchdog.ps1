@@ -40,6 +40,11 @@ function Get-TestAllProcessTree {
             if ($process.Name -notmatch $ProcessNamePattern) {
                 continue
             }
+            # A dead process another holder keeps open (a ClrMD snapshot clone the gate's job still holds)
+            # reads as an idle child with no CPU: it is not a host.
+            if ($process.HasExited) {
+                continue
+            }
             # Read once: each read of .Parent costs a native query.
             $parent = $process.Parent
             $entry = [pscustomobject]@{
