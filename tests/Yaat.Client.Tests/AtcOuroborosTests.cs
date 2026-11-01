@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Client.Services.Speech;
 using Yaat.SpeechSandbox;
 
 namespace Yaat.Client.Tests;
@@ -626,6 +627,113 @@ public sealed class AtcOuroborosTests
         Assert.DoesNotContain("\r", withoutDiff);
     }
 
+    [Fact]
+    public void ParseArgs_Carries_The_Engine_Flags_Onto_The_Choice()
+    {
+        AtcOuroborosRunner.Options? options = AtcOuroborosRunner.ParseArgs([
+            "--stt",
+            @"sherpa:C:\m\rasr",
+            "--device",
+            "gpu",
+            "--decoding",
+            "beam",
+            "--num-paths",
+            "3",
+        ]);
+
+        Assert.NotNull(options);
+        SttChoice? stt = options.Stt;
+        Assert.NotNull(stt);
+        Assert.Equal(SttKind.Sherpa, stt.Kind);
+        Assert.Equal(SttDevice.Gpu, stt.Device);
+        Assert.Equal(SherpaDecodingMethod.Beam, stt.Decoding.Method);
+        Assert.Equal(3, stt.Decoding.NumPaths);
+    }
+
+    [Fact]
+    public void ParseArgs_Without_Engine_Flags_Keeps_The_Preferences_Engine()
+    {
+        AtcOuroborosRunner.Options? options = AtcOuroborosRunner.ParseArgs(["--cases", "4"]);
+
+        Assert.NotNull(options);
+        Assert.Null(options.Stt);
+    }
+
+    [Fact]
+    public void ParseArgs_Refuses_An_Engine_Flag_Without_Stt() => Assert.Null(AtcOuroborosRunner.ParseArgs(["--num-paths", "3"]));
+
+    [Fact]
+    public void A_Synthetic_Case_Names_Its_Room()
+    {
+        EvalExpectation expectation = SynthTemplates.Render(SynthTemplates.All[0], 0, new Random(1)).Expectation;
+
+        Assert.Equal("KOAK", expectation.Airport);
+        Assert.True(expectation.ApproachPosition);
+        Assert.Equal(["Oakland Tower", "Oakland Ground", "NorCal Approach"], expectation.FacilityRadioNames);
+    }
+
+    [Fact]
+    public void ToRoomContextRequest_Gives_The_Programmed_Fixes_To_The_Addressed_Aircraft_Only()
+    {
+        EvalExpectation expectation = RoomCase("KOAK");
+
+        var request = expectation.ToRoomContextRequest(null, "case-room");
+
+        Assert.Equal("KOAK", request.AirportIcao);
+        Assert.Equal(["UAL234", "N346G"], request.Aircraft.Select(a => a.Callsign));
+        Assert.Equal(["SUNOL"], request.Aircraft[0].ProgrammedFixes);
+        Assert.Empty(request.Aircraft[1].ProgrammedFixes);
+        Assert.All(request.Aircraft, a => Assert.Null(a.AircraftType));
+        Assert.All(request.Aircraft, a => Assert.Null(a.AssignedRunway));
+    }
+
+    [Fact]
+    public void ToRoomContextRequest_Without_An_Airport_Names_The_Case()
+    {
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => RoomCase(null).ToRoomContextRequest(null, "case-room"));
+
+        Assert.Contains("case-room", error.Message);
+    }
+
+    [Fact]
+    public void ToBaseline_Drops_Timing_And_Decode_And_Round_Trips_The_Rest()
+    {
+        var timing = new CorpusWerTiming("cpu", 1.5, 3, 0, 100, 200, 300, 1_000_000, 2_000_000, -1, -1, null);
+        AtcOuroborosResults results = Results([Family("HeadingRules", 0.75, 0.1)], [Template("fh", "HeadingRules", 0.75, 0.1)], [Gap("cm")]) with
+        {
+            Timing = timing,
+            Decode = new AccurateDecodeStats(2, 1, 0, 40, 60),
+        };
+
+        string full = AtcOuroborosAnalysis.Serialize(results);
+        string baseline = AtcOuroborosAnalysis.Serialize(AtcOuroborosAnalysis.ToBaseline(results));
+        AtcOuroborosResults? back = AtcOuroborosAnalysis.Deserialize(baseline);
+
+        Assert.Contains("\"timing\"", full);
+        Assert.Contains("\"decode\"", full);
+        Assert.DoesNotContain("\"timing\"", baseline);
+        Assert.DoesNotContain("\"decode\"", baseline);
+        Assert.NotNull(back);
+        Assert.Equal(baseline, AtcOuroborosAnalysis.Serialize(back));
+    }
+
+    private static EvalExpectation RoomCase(string? airport) =>
+        new(
+            "FH 270",
+            null,
+            "UAL234",
+            ["UAL234", "N346G"],
+            ["SUNOL"],
+            Synthetic: true,
+            Template: "fh",
+            AvailableRunways: null,
+            TaxiwayNames: null,
+            DestinationNames: null,
+            Airport: airport,
+            ApproachPosition: false,
+            FacilityRadioNames: null
+        );
+
     private static readonly SynthTemplate Good = new("good", "HeadingRules", "fly heading {hdg}", "FH {hdg}");
 
     // Spoken as "fly heading" but labeled as a right turn — the rule mapper can never agree.
@@ -717,9 +825,9 @@ public sealed class AtcOuroborosTests
             families.Sum(f => f.Commands.Wrong)
         );
         var totals = new TotalsResult(cases, pass, 0, cases - pass, cases == 0 ? 0 : (double)pass / cases, null, pooled);
-        return new AtcOuroborosResults(1, cases, 3, "stt", "llm", DateTime.UtcNow, families, templates, totals, gaps, []);
+        return new AtcOuroborosResults(1, cases, 3, "stt", "llm", DateTime.UtcNow, families, templates, totals, gaps, [], null, null);
     }
 
     private static AtcOuroborosResults Aggregated(AtcAggregate aggregate) =>
-        new(1, aggregate.Totals.Cases, 1, "stt", "llm", null, aggregate.Families, aggregate.Templates, aggregate.Totals, [], []);
+        new(1, aggregate.Totals.Cases, 1, "stt", "llm", null, aggregate.Families, aggregate.Templates, aggregate.Totals, [], [], null, null);
 }

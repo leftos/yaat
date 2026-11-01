@@ -227,6 +227,18 @@ public static partial class SynthTemplates
 
     private static readonly string[] RunwayPool = [.. AirportRunways.Values.SelectMany(r => r).Distinct()];
 
+    /// <summary>The airport every synthetic case's room is built at in accurate mode: the KOAK the pools are drawn from.</summary>
+    public const string CaseAirport = "KOAK";
+
+    /// <summary>
+    /// Every synthetic case's room is an approach position: the corpus mixes ground, tower and approach families, and the
+    /// approach room carries the superset of the airport's entities, so it is the harder decode.
+    /// </summary>
+    public const bool CaseApproachPosition = true;
+
+    /// <summary>The facilities a KOAK controller across those families talks as, so a spoken facility name is in the room.</summary>
+    public static readonly IReadOnlyList<string> CaseFacilityRadioNames = ["Oakland Tower", "Oakland Ground", "NorCal Approach"];
+
     /// <summary>
     /// KOAK single-letter taxiways. T is left out because KOAK also has TC and TE, which a spoken
     /// "tango charlie" / "tango echo" run legitimately collapses to.
@@ -352,7 +364,10 @@ public static partial class SynthTemplates
             Template: template.Key,
             AvailableRunways: AirportRunways.ToDictionary(kv => kv.Key, kv => new List<string>(kv.Value)),
             TaxiwayNames: [.. TaxiwayPool, "T", "TC", "TE"],
-            DestinationNames: [.. ParkingPool.Select(p => p.Name), .. SpotPool]
+            DestinationNames: [.. ParkingPool.Select(p => p.Name), .. SpotPool],
+            Airport: CaseAirport,
+            ApproachPosition: CaseApproachPosition,
+            FacilityRadioNames: [.. CaseFacilityRadioNames]
         );
         int speaker = SpeakerPool[rng.Next(SpeakerPool.Length)];
         float speed = SpeedPool[rng.Next(SpeedPool.Length)];

@@ -326,7 +326,8 @@ public sealed class CorpusSlotRun
         return value;
     }
 
-    private static AirportGroundLayout? LoadLayout(string repo, string airport)
+    /// <summary>The airport's committed test layout under <paramref name="repo"/>, or null when there is none.</summary>
+    internal static AirportGroundLayout? LoadLayout(string repo, string airport)
     {
         string faa = AirportLayoutDownloader.ToFaaCode(airport).ToLowerInvariant();
         string path = Path.Combine(repo, "tests", "Yaat.Sim.Tests", "TestData", $"{faa}.geojson");
