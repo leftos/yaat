@@ -19,6 +19,7 @@
 - CRC's ASDE-X raises `CONVERGING` when a landing meets a departure, or another landing, on a converging runway, naming both runway ends.
 - CRC's ASDE-X alerts read as vNAS sends them (`RWY OCCUPIED`, `RWY CLOSED`, `RWY CLOSED, GO AROUND`), one per conflicting pair, with no `RWY INCURSION` alert.
 - CRC's ASDE-X alerts fire on vNAS's triggers: a departure from 50 kt, an arrival from about 1 NM out; a lined-up or stopped aircraft raises none.
+- A `TAXI` given on a curved fillet that ends at a runway hold bar now stops the nose at the hold line, not past it.
 
 ## v0.17.2-beta [2026/10/30]
 

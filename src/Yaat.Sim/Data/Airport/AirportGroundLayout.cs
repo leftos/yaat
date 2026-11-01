@@ -1556,7 +1556,7 @@ public sealed class AirportGroundLayout
     /// centreline) whose curve passes within <see cref="OnTaxiEdgeMaxOffsetFt"/> of the position, the nearest point of the
     /// curve lying strictly between its end nodes. Null when there is none.
     /// </summary>
-    private GroundArc? FindOccupiedFilletArc(LatLon position)
+    public GroundArc? FindOccupiedFilletArc(LatLon position)
     {
         double maxOffsetNm = OnTaxiEdgeMaxOffsetFt / GeoMath.FeetPerNm;
         GroundArc? best = null;

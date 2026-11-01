@@ -17,8 +17,9 @@ namespace Yaat.Sim.Data.Airport;
 /// clearance readback is unchanged.</para>
 ///
 /// <para>A free-space leg is bounded by <see cref="RampLaneReposition.MaxCrossingFt"/>, except where it runs along the
-/// straight taxiway the aircraft is on to one of that edge's nodes: an aircraft stopped mid-way along a long taxiway edge
-/// follows the centreline it is on, so the leg there carries no length bound.</para>
+/// straight taxi edge or the taxi fillet arc the aircraft is on, ending at the bar that edge or arc ends at: an aircraft
+/// stopped mid-way along a long taxiway edge, or rounding the fillet onto a runway bar's taxiway, follows the painted
+/// centreline it is on, so the leg there carries no length bound.</para>
 /// </summary>
 public static class TaxiApproachLeg
 {
@@ -55,7 +56,7 @@ public static class TaxiApproachLeg
     /// than that it is standing on it and there is nothing to drive;</item>
     /// <item>the node is not a holding position the aircraft is waiting at or already over. The route must not hold
     /// short at a taxiway holding position on the node, and a runway bar on the node is refused unless the aircraft
-    /// stands on the straight taxi edge leading to it (<see cref="OccupiedTaxiEdgeLeadingTo"/>), behind the node along the
+    /// stands on the straight taxi edge or taxi fillet arc leading to it (<see cref="OccupiedTaxiEdgeLeadingTo"/>), behind the node along the
     /// route's first leg, and behind its painted stop along that edge: its centre more than half
     /// <paramref name="aircraftLengthFt"/> plus <see cref="Phases.Ground.GroundNavigator.SetBackStopMarginFt"/> behind the
     /// node along the edge. A TAXI starts the route on a bar's node from anywhere on a bar-ended edge, so an aircraft hundreds
@@ -131,7 +132,7 @@ public static class TaxiApproachLeg
         }
 
         LatLon position = pose.Position;
-        GroundEdge? occupied = OccupiedTaxiEdgeLeadingTo(layout, position, from);
+        IGroundEdge? occupied = OccupiedTaxiEdgeLeadingTo(layout, position, from);
         if (HoldingPositionRefusal(pose, route, from, occupied, distFt) is { } atHoldingPosition)
         {
             return atHoldingPosition;
@@ -162,14 +163,14 @@ public static class TaxiApproachLeg
     /// <summary>
     /// The refusal for a start node that is a holding position the aircraft is waiting at or already over, or null. A
     /// taxiway hold-short on the node always refuses. A runway bar on the node refuses unless the aircraft is on
-    /// <paramref name="occupied"/>, the straight taxi edge leading to it, behind the node along the route's first leg's
-    /// departure bearing, and behind its painted stop along that edge: its centre more than half its length plus
-    /// <see cref="Phases.Ground.GroundNavigator.SetBackStopMarginFt"/> behind the node along the edge
+    /// <paramref name="occupied"/>, the straight taxi edge or taxi fillet arc leading to it, behind the node along the route's
+    /// first leg's departure bearing, and behind its painted stop along that edge or arc: its centre more than half its length
+    /// plus <see cref="Phases.Ground.GroundNavigator.SetBackStopMarginFt"/> behind the node along it
     /// (<see cref="BehindBarAlongEdgeFt"/>), where the leg ends at the bar and the bar's stop is set back half a fuselage. The
-    /// distance is taken along the edge, not the first leg, so a bar at a bend does not shorten it by the bend's cosine. An
-    /// aircraft ahead of the node along the first leg's bearing has already passed the bar the route leaves by.
+    /// distance is taken along the edge or arc, not the first leg, so a bar at a bend does not shorten it by the bend's cosine.
+    /// An aircraft ahead of the node along the first leg's bearing has already passed the bar the route leaves by.
     /// </summary>
-    private static string? HoldingPositionRefusal(Pose pose, TaxiRoute route, GroundNode from, GroundEdge? occupied, double distFt)
+    private static string? HoldingPositionRefusal(Pose pose, TaxiRoute route, GroundNode from, IGroundEdge? occupied, double distFt)
     {
         HoldShortPoint? hold = route.GetHoldShortAt(from.Id);
         bool runwayBar = (from.Type == GroundNodeType.RunwayHoldShort) && ((hold is null) || !TaxiRoute.IsTaxiwayClassHoldShort(hold));
@@ -202,26 +203,32 @@ public static class TaxiApproachLeg
         }
 
         return $"the route starts at a runway holding position {distFt:F0} ft away, {alongFt:F0} ft along the first leg from it and "
-            + $"{behindFt:F0} ft behind it along the edge, not behind its {paintedStopFt:F0} ft painted stop";
+            + $"{behindFt:F0} ft behind it along the edge or arc, not behind its {paintedStopFt:F0} ft painted stop";
     }
 
     /// <summary>
-    /// How far (ft) <paramref name="position"/> lies behind <paramref name="bar"/> along <paramref name="occupied"/>: the
-    /// along-track distance from the position to the bar on the bearing from the edge's other node to the bar, positive when
-    /// the position is before the bar.
+    /// How far (ft) <paramref name="position"/> lies behind <paramref name="bar"/> along <paramref name="occupied"/>. Along a
+    /// straight edge it is the along-track distance from the position to the bar on the bearing from the edge's other node to
+    /// the bar, positive when the position is before the bar; along a fillet arc it is the distance along the curve from the
+    /// bar to the position's nearest point on it (<see cref="GroundArc.Locate"/>).
     /// </summary>
-    internal static double BehindBarAlongEdgeFt(LatLon position, GroundNode bar, GroundEdge occupied)
+    internal static double BehindBarAlongEdgeFt(LatLon position, GroundNode bar, IGroundEdge occupied)
     {
+        if (occupied is GroundArc arc)
+        {
+            return arc.Locate(bar, position).AlongFt;
+        }
+
         var towardTheBar = new TrueHeading(GeoMath.BearingTo(occupied.OtherNode(bar).Position, bar.Position));
         return -GeoMath.AlongTrackDistanceNm(position, bar.Position, towardTheBar) * GeoMath.FeetPerNm;
     }
 
     /// <summary>
     /// The refusal for a drive beyond <see cref="RampLaneReposition.MaxCrossingFt"/>, or null when the drive is inside
-    /// that bound or runs along <paramref name="occupied"/>, the taxiway edge the aircraft is on that leads to
+    /// that bound or runs along <paramref name="occupied"/>, the taxiway edge or arc the aircraft is on that leads to
     /// <paramref name="from"/> (<see cref="OccupiedTaxiEdgeLeadingTo"/>), which waives it.
     /// </summary>
-    private static string? FreeSpaceBoundRefusal(GroundEdge? occupied, GroundNode from, double distFt)
+    private static string? FreeSpaceBoundRefusal(IGroundEdge? occupied, GroundNode from, double distFt)
     {
         if (distFt <= RampLaneReposition.MaxCrossingFt)
         {
@@ -234,7 +241,7 @@ public static class TaxiApproachLeg
         }
 
         Log.LogDebug(
-            "[ApproachLeg] {DistFt:F0} ft leg past the {BoundFt:F0} ft bound runs along {Taxiway} edge {First}-{Second} to its node {NodeId}",
+            "[ApproachLeg] {DistFt:F0} ft leg past the {BoundFt:F0} ft bound runs along {Taxiway} edge or arc {First}-{Second} to its node {NodeId}",
             distFt,
             RampLaneReposition.MaxCrossingFt,
             occupied.TaxiwayName,
@@ -251,17 +258,25 @@ public static class TaxiApproachLeg
     /// the painted centreline the aircraft is already on, however long the edge (issue #880: an aircraft mid-B at SFO,
     /// 600 ft from the next node). The endpoint is usually the one ahead; it is the one behind when the route from the
     /// node ahead would reverse back over this edge, and the aircraft turns about on the taxiway instead.
+    /// <para>
+    /// Off every straight edge, a <paramref name="from"/> that is a runway bar is led to by the taxi fillet arc the aircraft is
+    /// on (<see cref="AirportGroundLayout.FindOccupiedFilletArc"/>) when that arc ends at the bar, so an aircraft rounding the
+    /// corner onto the bar's taxiway is driven to the bar's painted stop like one on a straight approach edge. An arc ending
+    /// at another node short of the bar is not followed.
+    /// </para>
     /// </summary>
-    private static GroundEdge? OccupiedTaxiEdgeLeadingTo(AirportGroundLayout layout, LatLon position, GroundNode from)
+    public static IGroundEdge? OccupiedTaxiEdgeLeadingTo(AirportGroundLayout layout, LatLon position, GroundNode from)
     {
-        if (layout.FindOccupiedTaxiEdge(position) is not { } occupied)
+        if (layout.FindOccupiedTaxiEdge(position) is { } occupied)
         {
-            return null;
+            return EndsAt(occupied, from) ? occupied : null;
         }
 
-        bool endsAtFrom = (occupied.Nodes[0] == from) || (occupied.Nodes[1] == from);
-        return endsAtFrom ? occupied : null;
+        bool toARunwayBar = from.Type == GroundNodeType.RunwayHoldShort;
+        return (toARunwayBar && (layout.FindOccupiedFilletArc(position) is { } arc) && EndsAt(arc, from)) ? arc : null;
     }
+
+    private static bool EndsAt(IGroundEdge edge, GroundNode node) => (edge.Nodes[0] == node) || (edge.Nodes[1] == node);
 
     /// <summary>
     /// The refusal for an aircraft that has already driven past the route's start node, or null when it has not.

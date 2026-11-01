@@ -44,6 +44,7 @@
          reconstruction tests. Linked from Yaat.Sim.Tests so there is a single source of truth. -->
     <None Include="..\Yaat.Sim.Tests\TestData\oak.geojson" Link="TestData\oak.geojson" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Yaat.Sim.Tests\TestData\sfo.geojson" Link="TestData\sfo.geojson" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Sim.Tests\TestData\atl.geojson" Link="TestData\atl.geojson" CopyToOutputDirectory="PreserveNewest" />
     <!-- Real aircraft-type specs: TestVnasData.EnsureInitialized categorizes types from them (a C172 as a piston). -->
     <None Include="..\Yaat.Sim.Tests\TestData\AircraftSpecs.json" Link="TestData\AircraftSpecs.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Yaat.Sim.Tests\TestData\AircraftCwt.json" Link="TestData\AircraftCwt.json" CopyToOutputDirectory="PreserveNewest" />

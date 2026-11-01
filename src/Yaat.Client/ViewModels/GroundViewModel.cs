@@ -3037,15 +3037,22 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The plain taxiway of the straight edge an approach leg runs along: the edge the leg's start (the aircraft) is on
-    /// (<see cref="AirportGroundLayout.FindOccupiedTaxiEdge"/>, the same edge the sim's <see cref="TaxiApproachLeg"/> picks),
-    /// when it ends at the leg's end node. Null for a leg across open pavement, which runs along no taxiway.
+    /// The plain taxiway of the straight edge or fillet arc an approach leg runs along: the one the leg's start (the aircraft)
+    /// is on that ends at the leg's end node (<see cref="TaxiApproachLeg.OccupiedTaxiEdgeLeadingTo"/>, the same the sim's
+    /// <see cref="TaxiApproachLeg"/> picks). An arc counts as its taxiway that carries on from the end node by a straight edge
+    /// (K for an M - K arc ending at a bar on K). Null for a leg across open pavement, which runs along no taxiway.
     /// </summary>
     private static string? ApproachLegTaxiway(AirportGroundLayout layout, TaxiRouteSegment leg)
     {
         GroundNode end = leg.Edge.ToNode;
-        GroundEdge? occupied = layout.FindOccupiedTaxiEdge(leg.Edge.FromNode.Position);
-        return ((occupied is not null) && occupied.HasNode(end.Id)) ? PlainTaxiway(occupied.TaxiwayName) : null;
+        return TaxiApproachLeg.OccupiedTaxiEdgeLeadingTo(layout, leg.Edge.FromNode.Position, end) switch
+        {
+            GroundArc arc => (end.Edges.OfType<GroundEdge>().Select(edge => edge.TaxiwayName).FirstOrDefault(arc.MatchesTaxiway) is { } name)
+                ? PlainTaxiway(name)
+                : null,
+            { } occupied => PlainTaxiway(occupied.TaxiwayName),
+            null => null,
+        };
     }
 
     /// <summary>The first plain taxiway name in <paramref name="taxiwayName"/> (a fillet arc's joined name split); null on runway/ramp.</summary>
