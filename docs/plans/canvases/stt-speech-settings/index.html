@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT-1602 Settings &gt; Speech: STT block layouts</title>
+<style>
+  :root {
+    --bg: #1c1c1c; --panel: #232323; --card: #1E293B; --border: #334155; --text: #e6e6e6; --subtle: #B0B0B0;
+    --link: #60A5FA; --ok: #90EE90; --warn: #FFA500; --accent: #3b82f6; --ctl: #2d2d2d; --ctl-border: #4a4a4a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #111; color: var(--text); font: 12px "Segoe UI", Inter, system-ui, sans-serif; }
+  header.top { padding: 16px 24px 4px; }
+  header.top h1 { font-size: 18px; margin: 0 0 6px; }
+  header.top p { color: var(--subtle); margin: 0 0 4px; max-width: 1200px; line-height: 1.5; }
+  .lanes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; padding: 16px 24px 32px; }
+  .lane > h2 { font-size: 14px; margin: 0 0 4px; }
+  .lane > .why { color: var(--subtle); margin: 0 0 10px; line-height: 1.45; min-height: 52px; }
+  .state { color: #93C5FD; font-weight: 600; font-size: 11px; margin: 14px 0 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .window { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .win-title { background: #202020; padding: 6px 12px; border-bottom: 1px solid var(--border); color: var(--subtle); }
+  .win-body { display: grid; grid-template-columns: 150px 1fr; min-height: 300px; }
+  .side { border-right: 1px solid var(--border); padding: 10px 0; color: var(--subtle); }
+  .side div { padding: 4px 12px; }
+  .side .grp { font-size: 11px; font-weight: 600; padding-top: 10px; }
+  .side .on { background: #2b3a52; color: var(--text); }
+  .content { padding: 10px 16px 16px; }
+  .content > .title { font-size: 18px; font-weight: 600; margin: 0 0 10px; }
+  .exp { border: 1px solid var(--ctl-border); border-radius: 4px; padding: 8px 10px; background: var(--panel); }
+  .exp > .hdr { display: flex; gap: 6px; align-items: center; font-weight: 600; margin-bottom: 8px; }
+  h3 { font-size: 12px; font-weight: 600; margin: 12px 0 4px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+  .subtle { color: var(--subtle); font-size: 11px; line-height: 1.4; }
+  .tiny { color: var(--subtle); font-size: 10px; line-height: 1.4; }
+  .combo { background: var(--ctl); border: 1px solid var(--ctl-border); border-radius: 3px; padding: 4px 8px; width: 380px; display: flex; justify-content: space-between; }
+  .combo .chev { color: var(--subtle); }
+  .btn { background: var(--ctl); border: 1px solid var(--ctl-border); border-radius: 3px; padding: 3px 10px; color: var(--text); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); }
+  .btn.dis, .dis { opacity: .45; }
+  .cached { color: var(--ok); font-size: 10px; }
+  .warn { color: var(--warn); font-size: 11px; }
+  .bar { height: 8px; width: 380px; background: #333; border-radius: 4px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 42%; background: var(--accent); }
+  .radio { display: inline-flex; gap: 5px; align-items: flex-start; margin-right: 14px; }
+  .radio .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--ctl-border); margin-top: 1px; flex: none; }
+  .radio .dot.sel { border: 4px solid var(--accent); }
+  .radio .lbl small { display: block; color: var(--subtle); font-size: 10px; }
+  .hint { color: var(--subtle); font-size: 11px; font-style: italic; }
+  .link { color: var(--link); }
+  .seg { display: inline-flex; border: 1px solid var(--ctl-border); border-radius: 4px; overflow: hidden; }
+  .seg span { padding: 3px 12px; border-right: 1px solid var(--ctl-border); }
+  .seg span:last-child { border-right: none; }
+  .seg span.sel { background: var(--accent); }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 4px 0; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+  .card.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .card .name { font-weight: 600; display: flex; justify-content: space-between; }
+  .card dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 8px; margin: 6px 0; font-size: 11px; }
+  .card dt { color: var(--subtle); }
+  .card dd { margin: 0; }
+  .gpucard { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-top: 6px; }
+  .note { border-left: 3px solid var(--warn); padding: 2px 8px; margin: 4px 0; }
+  .ann { color: #fbbf24; font-size: 11px; margin: 6px 0 0; }
+  .footnote { color: var(--subtle); padding: 0 24px 24px; max-width: 1200px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>YAAT-1602: Settings &gt; Speech, the new speech-recognition block</h1>
+  <p>Two layouts for the same controls: the STT model (rasr-parakeet v2 fp32 by default, int8, and Whisper until YAAT-1574), the mode (accurate by default, fast), the device (CPU or GPU) and the GPU runtime download. Each lane shows two states: <b>a fresh install</b>, where nothing is downloaded and the card is too old for CUDA 13, and <b>a configured machine</b>, where fp32 is ready and the GPU was just chosen, so a restart is pending. Only the speech-recognition part of the section is drawn. The LLM, push-to-talk, telemetry and TTS groups below it are unchanged.</p>
+  <p>The driver and compute-capability figures are placeholders. The real minimums are taken from NVIDIA's CUDA 13 release notes when the check is built.</p>
+</header>
+
+<div class="lanes" style="grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);">
+<!-- ======================= LANE C (round 2) ======================= -->
+<section class="lane" id="lane-c" style="grid-column: 1 / -1;">
+  <h2>C. Round 2: lane A's rows, with a ComboBox that opens into a scrollable card list</h2>
+  <p class="why">This answers round 1 ("Combobox with custom control for expansion that shows a scrollable card list rather than just names"). The closed picker reads as one row, as in lane A. Opening it shows a card for each model, with its size, where it runs best, its download state and, once YAAT-1604 lands, the measured RAM and latency for the chosen mode and device. Picking a card closes the list. Download and Delete stay in the row under the picker, for the selected model. Whisper is the last card, marked legacy, until YAAT-1574 removes it.</p>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+  <div>
+  <div class="state">Closed (fresh install)</div>
+  <div class="window"><div class="win-title">Settings</div><div class="win-body">
+    <div class="side"><div class="grp">Voice</div><div class="on">Speech</div><div>Audio devices</div></div>
+    <div class="content"><div class="title">Speech</div>
+      <div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h3>Speech recognition model</h3>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="subtle">2.55 GB · Not downloaded</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn primary">Download (2.55 GB)</span><span class="btn dis">Delete</span><span class="subtle">Not downloaded</span></div>
+        <div class="tiny">Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span></div>
+        <div class="hint">Takes effect at once; Cancel doesn't undo it.</div>
+        <h3>Mode</h3>
+        <div class="row">
+          <span class="radio"><span class="dot sel"></span><span class="lbl">Accurate<small>Several hypotheses, checked against the room's callsigns, fixes and taxiways</small></span></span>
+          <span class="radio"><span class="dot"></span><span class="lbl">Fast<small>Best guess only, lowest latency</small></span></span>
+        </div>
+        <h3>Device</h3>
+        <div class="row">
+          <span class="radio"><span class="dot sel"></span><span class="lbl">CPU</span></span>
+          <span class="radio dis"><span class="dot"></span><span class="lbl">GPU (NVIDIA CUDA)<small>Needs the GPU runtime below</small></span></span>
+        </div>
+      </div>
+    </div>
+  </div></div>
+  </div>
+  <div>
+  <div class="state">Open: the drop-down card list (scrolls; the third card is cut off)</div>
+  <div class="window"><div class="win-title">Settings</div><div class="win-body">
+    <div class="side"><div class="grp">Voice</div><div class="on">Speech</div><div>Audio devices</div></div>
+    <div class="content"><div class="title">Speech</div>
+      <div class="exp" style="position:relative;"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h3>Speech recognition model</h3>
+        <div class="combo" style="border-color: var(--accent);"><span>rasr-parakeet v2 · fp32 <span class="subtle">2.55 GB · Not downloaded</span></span><span class="chev">▴</span></div>
+        <div style="position:relative; width: 380px; height: 236px; overflow-y: scroll; background: #262626; border: 1px solid var(--ctl-border); border-radius: 4px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.6); margin-top: 2px;">
+          <div class="card sel" style="margin-bottom:6px"><div class="name"><span>rasr-parakeet v2 · fp32</span><span class="subtle">Default · selected</span></div>
+            <dl><dt>Download</dt><dd>2.55 GB</dd><dt>Best on</dt><dd>GPU, or a fast CPU</dd><dt>Measured</dt><dd class="subtle">Not yet: run the benchmark</dd><dt>State</dt><dd>Not downloaded</dd></dl></div>
+          <div class="card" style="margin-bottom:6px"><div class="name"><span>rasr-parakeet v2 · int8</span><span></span></div>
+            <dl><dt>Download</dt><dd>0.67 GB</dd><dt>Best on</dt><dd>CPU with little memory</dd><dt>Measured</dt><dd>CPU accurate: 412 ms p50 · 1.1 GB RAM <span class="subtle">(example)</span></dd><dt>State</dt><dd class="cached">✓ Downloaded</dd></dl></div>
+          <div class="card"><div class="name"><span>Whisper (LM-Kit) <span class="subtle">· legacy</span></span><span></span></div>
+            <dl><dt>Download</dt><dd>Per Whisper size, from LM-Kit</dd><dt>Note</dt><dd>One hypothesis only, so accurate mode is unavailable. Removed in a later release.</dd></dl></div>
+        </div>
+        <div class="ann">The list overlays the rows below it, as a ComboBox drop-down does. Picking a card selects that model and closes the list; the arrow keys move between cards.</div>
+      </div>
+    </div>
+  </div></div>
+  </div>
+  </div>
+</section>
+
+<!-- ======================= LANE A ======================= -->
+<section class="lane" id="lane-a">
+  <h2>A. Inline rows: the existing Speech-section pattern</h2>
+  <p class="why">This uses the same controls as today's Whisper and LLM groups: a model ComboBox with a Download / Delete row, then radio rows for mode and device, then the GPU runtime as a sub-group. It is the least new UI. Sizes appear in the picker, and the benchmark numbers (YAAT-1604) would later add a line under the picker.</p>
+
+  <div class="state">State 1: fresh install, unsupported card</div>
+  <div class="window"><div class="win-title">Settings</div><div class="win-body">
+    <div class="side"><div class="grp">Voice</div><div class="on">Speech</div><div>Audio devices</div></div>
+    <div class="content"><div class="title">Speech</div>
+      <div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <div class="row">☑ Auto-focus command input after PTT</div>
+
+        <h3>Speech recognition model</h3>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="subtle">(2.55 GB)</span></span><span class="chev">▾</span></div>
+        <div class="subtle" style="width:380px">ATC-tuned Parakeet. The most accurate, about 2.5 GB on disk. int8 (0.67 GB) uses less memory on the CPU and is slower on the GPU. Whisper stays listed until it is removed.</div>
+        <div class="row"><span class="btn primary">Download (2.55 GB)</span><span class="btn dis">Delete</span><span class="subtle">Not downloaded</span></div>
+        <div class="tiny">Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span></div>
+        <div class="hint">Takes effect at once; Cancel doesn't undo it.</div>
+
+        <h3>Mode</h3>
+        <div class="row">
+          <span class="radio"><span class="dot sel"></span><span class="lbl">Accurate<small>Several hypotheses, checked against the room's callsigns, fixes and taxiways</small></span></span>
+          <span class="radio"><span class="dot"></span><span class="lbl">Fast<small>Best guess only, lowest latency</small></span></span>
+        </div>
+
+        <h3>Device</h3>
+        <div class="row">
+          <span class="radio"><span class="dot sel"></span><span class="lbl">CPU</span></span>
+          <span class="radio dis"><span class="dot"></span><span class="lbl">GPU (NVIDIA CUDA)<small>Needs the GPU runtime below</small></span></span>
+        </div>
+        <div class="subtle" style="margin-left:2px">GPU runtime</div>
+        <div class="note warn">NVIDIA GeForce GTX 1070 (compute 6.1, driver 552.22): CUDA 13 needs compute ≥ <i>X.Y</i> and driver ≥ <i>NNN</i>. Speech recognition runs on the CPU.</div>
+        <div class="row"><span class="btn dis">Download GPU runtime (~1.1 GB)</span></div>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="state">State 2: fp32 ready, GPU runtime installed, GPU just picked</div>
+  <div class="window"><div class="win-title">Settings</div><div class="win-body">
+    <div class="side"><div class="grp">Voice</div><div class="on">Speech</div><div>Audio devices</div></div>
+    <div class="content"><div class="title">Speech</div>
+      <div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h3>Speech recognition model</h3>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn dis">Download</span><span class="btn">Delete</span><span class="subtle">Ready (2.55 GB on disk)</span></div>
+        <div class="tiny">Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span></div>
+
+        <h3>Mode</h3>
+        <div class="row">
+          <span class="radio"><span class="dot sel"></span><span class="lbl">Accurate<small>Several hypotheses, checked against the room's callsigns, fixes and taxiways</small></span></span>
+          <span class="radio"><span class="dot"></span><span class="lbl">Fast<small>Best guess only, lowest latency</small></span></span>
+        </div>
+
+        <h3>Device</h3>
+        <div class="row">
+          <span class="radio"><span class="dot"></span><span class="lbl">CPU</span></span>
+          <span class="radio"><span class="dot sel"></span><span class="lbl">GPU (NVIDIA CUDA)</span></span>
+        </div>
+        <div class="warn">Restart YAAT to switch speech recognition to the GPU.</div>
+        <div class="subtle" style="margin-top:6px">GPU runtime: NVIDIA GeForce RTX 4090, driver 617.42, supported · installed (1.1 GB)</div>
+        <div class="row"><span class="btn">Remove GPU runtime</span></div>
+        <div class="hint">Takes effect at once; Cancel doesn't undo it.</div>
+      </div>
+    </div>
+  </div></div>
+  <p class="ann">Download in progress (either lane): the Download button becomes Cancel, a progress bar shows under the row, and the status reads "Downloading encoder.weights (3 of 8)… 1.0 / 2.55 GB".</p>
+  <div class="row" style="margin-top:4px"><span class="btn">Cancel</span><span class="subtle">Downloading encoder.weights (3 of 8)… 1.0 / 2.55 GB</span></div>
+  <div class="bar"><i></i></div>
+</section>
+
+<!-- ======================= LANE B ======================= -->
+<section class="lane" id="lane-b">
+  <h2>B. Model cards with segmented toggles</h2>
+  <p class="why">Each rasr model is a card showing its size, its memory and where it runs best, and the card is the selection. Mode and device are segmented toggles, and the GPU runtime gets its own card. The cards are where the in-app benchmark (YAAT-1604) puts measured RAM and latency per model and mode. Whisper sits under the cards as a legacy link.</p>
+
+  <div class="state">State 1: fresh install, unsupported card</div>
+  <div class="window"><div class="win-title">Settings</div><div class="win-body">
+    <div class="side"><div class="grp">Voice</div><div class="on">Speech</div><div>Audio devices</div></div>
+    <div class="content"><div class="title">Speech</div>
+      <div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h3>Speech recognition model</h3>
+        <div class="cards">
+          <div class="card sel"><div class="name"><span>rasr-parakeet v2 · fp32</span><span class="subtle">Default</span></div>
+            <dl><dt>Download</dt><dd>2.55 GB</dd><dt>Best on</dt><dd>GPU, or a fast CPU</dd><dt>Measured</dt><dd class="subtle">Run the benchmark</dd></dl>
+            <div class="row"><span class="btn primary">Download</span><span class="subtle">Not downloaded</span></div></div>
+          <div class="card"><div class="name"><span>rasr-parakeet v2 · int8</span><span></span></div>
+            <dl><dt>Download</dt><dd>0.67 GB</dd><dt>Best on</dt><dd>CPU with little memory</dd><dt>Measured</dt><dd class="subtle">Run the benchmark</dd></dl>
+            <div class="row"><span class="btn">Download</span><span class="subtle">Not downloaded</span></div></div>
+        </div>
+        <div class="tiny">Built with Llama. Models from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span> · <span class="link">Use Whisper instead (legacy)</span></div>
+        <div class="hint">Takes effect at once; Cancel doesn't undo it.</div>
+
+        <div class="row" style="margin-top:10px"><b style="width:56px">Mode</b><span class="seg"><span class="sel">Accurate</span><span>Fast</span></span><span class="subtle">Checks several hypotheses against the room</span></div>
+        <div class="row"><b style="width:56px">Device</b><span class="seg"><span class="sel">CPU</span><span class="dis">GPU</span></span><span class="subtle">GPU needs a supported NVIDIA card and the GPU runtime</span></div>
+
+        <div class="gpucard"><div style="font-weight:600">GPU runtime (NVIDIA CUDA 13)</div>
+          <div class="note warn">GeForce GTX 1070 (compute 6.1, driver 552.22) is not supported: CUDA 13 needs compute ≥ <i>X.Y</i> and driver ≥ <i>NNN</i>.</div>
+          <div class="row"><span class="btn dis">Download (~1.1 GB)</span></div></div>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="state">State 2: fp32 ready, GPU runtime installed, GPU just picked</div>
+  <div class="window"><div class="win-title">Settings</div><div class="win-body">
+    <div class="side"><div class="grp">Voice</div><div class="on">Speech</div><div>Audio devices</div></div>
+    <div class="content"><div class="title">Speech</div>
+      <div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h3>Speech recognition model</h3>
+        <div class="cards">
+          <div class="card sel"><div class="name"><span>rasr-parakeet v2 · fp32</span><span class="cached">✓ Ready</span></div>
+            <dl><dt>On disk</dt><dd>2.55 GB</dd><dt>Best on</dt><dd>GPU, or a fast CPU</dd><dt>Measured</dt><dd class="subtle">Run the benchmark</dd></dl>
+            <div class="row"><span class="btn">Delete</span></div></div>
+          <div class="card"><div class="name"><span>rasr-parakeet v2 · int8</span><span></span></div>
+            <dl><dt>Download</dt><dd>0.67 GB</dd><dt>Best on</dt><dd>CPU with little memory</dd><dt>Measured</dt><dd class="subtle">Run the benchmark</dd></dl>
+            <div class="row"><span class="btn">Download</span><span class="subtle">Not downloaded</span></div></div>
+        </div>
+        <div class="tiny">Built with Llama. Models from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span> · <span class="link">Use Whisper instead (legacy)</span></div>
+
+        <div class="row" style="margin-top:10px"><b style="width:56px">Mode</b><span class="seg"><span class="sel">Accurate</span><span>Fast</span></span><span class="subtle">Checks several hypotheses against the room</span></div>
+        <div class="row"><b style="width:56px">Device</b><span class="seg"><span>CPU</span><span class="sel">GPU</span></span><span class="warn">Restart YAAT to switch to the GPU</span></div>
+
+        <div class="gpucard"><div style="font-weight:600">GPU runtime (NVIDIA CUDA 13)</div>
+          <div class="subtle">GeForce RTX 4090, driver 617.42: supported · installed (1.1 GB)</div>
+          <div class="row"><span class="btn">Remove</span></div>
+          <div class="hint">Takes effect at once; Cancel doesn't undo it.</div></div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+</div>
+<p class="footnote">Both lanes: Accurate is disabled, with the reason, when the native has no n-best (the stock-native fallback, YAATSHERPA001) or when Whisper is the model. A provider fallback at engine load ("Failed to enable CUDA … Fallback to cpu") shows in orange next to Device, and in Speech Debug. The rasr download shows the "Built with Llama" line and its licence link before the download starts. The About window and NOTICE carry the same attribution.</p>
+</body>
+</html>
