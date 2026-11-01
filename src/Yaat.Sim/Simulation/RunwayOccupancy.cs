@@ -222,7 +222,8 @@ public static class RunwayOccupancy
     /// Whether an aircraft on the ground off <paramref name="runway"/>'s pavement fouls it: a judged part of its body
     /// (<see cref="PartsJudged"/>) more than <see cref="HoldLineFoulToleranceFt"/> past the holding position marking
     /// (<see cref="DepthPastMarkingFt"/>) or over the strict paved half-width whatever the bars (<see cref="AnyPartPastTheMarking"/>:
-    /// a leaving aircraft's tail over the pavement is past the marking), and either stopped or restricted short of the marking
+    /// a leaving aircraft's tail over the pavement is past the marking; on the far side of a crossing, the tail against the far bar
+    /// it crosses to, <see cref="TailInsideTheMarking"/>), and either stopped or restricted short of the marking
     /// (<see cref="IsStoppedOrRestricted"/>) or approaching the runway to hold short of it (<see cref="IsApproachingToHoldShort"/>).
     /// A moving aircraft with nothing stopping it is not a fouler when it is leaving the runway (clear of it) or cleared past this
     /// marking (a crossing or line-up under way, which becomes a runway use once on the pavement).
@@ -236,7 +237,10 @@ public static class RunwayOccupancy
 
         var body = AircraftBody.Of(ac.AircraftType);
         (LatLon, double) pose = (ac.Position, ac.TrueHeading.Degrees);
-        bool pastTheMarking = AnyPartPastTheMarking(layout, runway, body, PartsJudged(ac, runway, layout, body), pose);
+        bool pastTheMarking =
+            (CrossingFarBarOf(ac, runway, layout, ac.Position) is not null)
+                ? TailInsideTheMarking(ac, layout, runway, body, pose)
+                : AnyPartPastTheMarking(layout, runway, body, PartsJudged(ac, runway, layout, body), pose);
         return pastTheMarking && (IsStoppedOrRestricted(ac, runway, layout, body) || IsApproachingToHoldShort(ac, runway, layout, body));
     }
 
@@ -264,8 +268,9 @@ public static class RunwayOccupancy
     /// <summary>
     /// The pilot rule for ground-conflict priority (AIM 2-3-5.a.1, 4-3-21.b): an aircraft on the ground leaving
     /// <paramref name="runway"/> (<see cref="IsLeavingForPriority"/>) whose tail is still over its strict paved half-width or more
-    /// than <see cref="HoldLineFoulToleranceFt"/> inside its holding position marking (<see cref="AnyPartPastTheMarking"/>, the
-    /// same test the leaving case of <see cref="RunwayUseKind.Fouling"/> uses) has not finished vacating it. Moving or stopped,
+    /// than <see cref="HoldLineFoulToleranceFt"/> inside the holding position marking that applies to it
+    /// (<see cref="TailInsideTheMarking"/>: a crossing's far bar on its far side, else the test the leaving case of
+    /// <see cref="RunwayUseKind.Fouling"/> uses) has not finished vacating it. Moving or stopped,
     /// restricted or not: unlike the controller definition, a leaver keeps vacating until its tail is out. Only for
     /// <paramref name="layout"/>'s own runways (<see cref="IsLayoutOf"/>).
     /// </summary>
@@ -284,7 +289,52 @@ public static class RunwayOccupancy
         }
 
         (LatLon, double) pose = (ac.Position, ac.TrueHeading.Degrees);
-        return IsLeavingForPriority(ac, runway, layout, body) && AnyPartPastTheMarking(layout, runway, body, TailOnly, pose);
+        return IsLeavingForPriority(ac, runway, layout, body) && TailInsideTheMarking(ac, layout, runway, body, pose);
+    }
+
+    /// <summary>
+    /// Whether the tail of an aircraft leaving <paramref name="runway"/> is still over its strict paved half-width or more than
+    /// <see cref="HoldLineFoulToleranceFt"/> inside the holding position marking that applies to it. On the far side of a crossing
+    /// of this runway whose target is one of its bars, that is the target, the far bar it crosses to, judged wherever the tail
+    /// lies along the runway: a straight-over leg runs along the far taxiway's line to its bar, more than
+    /// <see cref="HoldLineFootprint.MarkedBarReachFt"/> along the runway from where it left the pavement. Otherwise the nearest bar
+    /// on its side (<see cref="AnyPartPastTheMarking"/>).
+    /// </summary>
+    private static bool TailInsideTheMarking(
+        AircraftState ac,
+        AirportGroundLayout layout,
+        RunwayInfo runway,
+        AircraftBody body,
+        (LatLon Position, double HeadingDeg) pose
+    )
+    {
+        if (CrossingFarBarOf(ac, runway, layout, pose.Position) is not { } farBar)
+        {
+            return AnyPartPastTheMarking(layout, runway, body, TailOnly, pose);
+        }
+
+        LatLon tail = body.PointOf(AircraftBodyPart.Tail, pose.Position, pose.HeadingDeg);
+        return IsOverStrictPavement(tail, runway)
+            || (RunwayHoldBars.DepthPastMarkingFt(layout, runway, farBar, tail, pose.Position) > HoldLineFoulToleranceFt);
+    }
+
+    /// <summary>
+    /// The far bar of the aircraft's crossing of <paramref name="runway"/>: the crossing's target (<see cref="CrossingTargetOf"/>)
+    /// when it is one of this runway's bars on <paramref name="position"/>'s side of the centreline. Null for any other phase, a
+    /// target that is not a bar, or a main gear still on the near side.
+    /// </summary>
+    private static GroundNode? CrossingFarBarOf(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout, LatLon position)
+    {
+        if (
+            (ac.Phases?.CurrentPhase is not CrossingRunwayPhase crossing)
+            || (CrossingTargetOf(layout, crossing, runway) is not { } target)
+            || !IsBarOf(layout, target.Id, runway)
+        )
+        {
+            return null;
+        }
+
+        return (RunwayHoldBars.IsRightOfCentreline(runway, target.Position) == RunwayHoldBars.IsRightOfCentreline(runway, position)) ? target : null;
     }
 
     /// <summary>

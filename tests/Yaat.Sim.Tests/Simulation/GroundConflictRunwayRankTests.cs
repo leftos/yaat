@@ -519,6 +519,122 @@ public class GroundConflictRunwayRankTests
         Assert.Equal(0.0, restoredTraffic.Ground.SpeedLimit);
     }
 
+    /// <summary>
+    /// A square crossing keeps the pilot rule: N70CS crossing 28R unrestricted, past the far edge and moving, is vacating while its
+    /// tail is inside the far bar's line and stops vacating once the tail is past it (AIM 2-3-5.a.1, 4-3-21.b). The tail is
+    /// measured apart from the predicate under test, against the far bar's distance from the centreline.
+    /// </summary>
+    [Fact]
+    public void N70csCrossingPastTheFarEdge_VacatingUntilTheTailPassesTheFarBar()
+    {
+        if (N70csClearedAcross() is not { } cleared)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AirportGroundLayout layout, RunwayInfo runway, _) = cleared;
+        AircraftState crosser = engine.FindAircraft("N70CS")!;
+        var body = AircraftBody.Of(crosser.AircraftType);
+        GroundNode? farBar = null;
+        bool approachRight = false;
+        (int inside, int past) = (0, 0);
+        string? wrong = null;
+
+        for (int t = 1; (t <= 180) && (past < 5) && (wrong is null); t++)
+        {
+            engine.TickOneSecond();
+            if ((farBar is null) && (crosser.Phases?.CurrentPhase is CrossingRunwayPhase crossing))
+            {
+                farBar = layout.Nodes[crossing.TargetNodeId];
+                approachRight = RunwayHoldBars.IsRightOfCentreline(runway, layout.Nodes[crossing.ApproachNodeId].Position);
+            }
+
+            bool farSide = (farBar is not null) && (RunwayHoldBars.IsRightOfCentreline(runway, crosser.Position) != approachRight);
+            if (!farSide || RunwayOccupancy.IsOverStrictPavement(crosser.Position, runway) || (crosser.GroundSpeed < 0.5))
+            {
+                continue;
+            }
+
+            double barFt = RunwayHoldBars.CentrelineFt(runway, farBar!.Position);
+            double tailFt = RunwayHoldBars.CentrelineFt(runway, body.PointOf(AircraftBodyPart.Tail, crosser.Position, crosser.TrueHeading.Degrees));
+            bool vacating = RunwayOccupancy.IsVacating(crosser, body, runway, layout);
+            string where =
+                $"t={t}, tail {tailFt:F0} ft and far bar {barFt:F0} ft off the centreline, in {crosser.Phases?.CurrentPhase?.GetType().Name}";
+            if (tailFt < (barFt - (2.0 * RunwayOccupancy.HoldLineFoulToleranceFt)))
+            {
+                inside++;
+                wrong = vacating ? null : $"not vacating with the tail inside the far line: {where}";
+            }
+            else if (tailFt > barFt)
+            {
+                past++;
+                wrong = vacating ? $"still vacating with the tail past the far bar: {where}" : null;
+            }
+        }
+
+        Assert.Null(wrong);
+        Assert.Equal(GroundNodeType.RunwayHoldShort, farBar?.Type);
+        Assert.True(inside > 0, "no sample past the far edge with the tail inside the far line");
+        Assert.True(past > 0, "no sample with the tail past the far bar");
+    }
+
+    /// <summary>
+    /// A crossing whose main gear lies nearer another far-side bar than its target: at ATL 08R/26L the far bar on B4 sits 4 ft from
+    /// E3's bar and 88 ft from B4's second bar. A B738 leaving along B4 past the far edge is vacating while its tail is inside the
+    /// target's line, judged against the target although its main gear is nearer E3's bar, and stops vacating 10 ft past the
+    /// target's line, although its main gear is then nearer B4's second bar.
+    /// </summary>
+    [Fact]
+    public void AtlB4Crossing_GearNearerAnotherFarBar_VacatingEndsAtTheTargetsLine()
+    {
+        TestVnasData.EnsureInitialized();
+        if (new TestAirportGroundData().GetLayout("ATL") is not { } layout)
+        {
+            return;
+        }
+
+        RunwayInfo runway = Assert.Single(RunwayOccupancy.AirportRunways("ATL"), r => r.Id.Contains("08R"));
+        GroundNode[] bars = RunwayHoldBars.RunwayBars(layout, runway);
+        GroundNode target = Assert.Single(
+            bars,
+            b =>
+                (RunwayHoldBars.BarTaxiwayName(b) == "B4")
+                && bars.Any(e =>
+                    (RunwayHoldBars.BarTaxiwayName(e) == "E3") && (GeoMath.DistanceNm(b.Position, e.Position) * GeoMath.FeetPerNm < 10.0)
+                )
+        );
+        bool targetRight = RunwayHoldBars.IsRightOfCentreline(runway, target.Position);
+        GroundNode approach = RunwayHoldBars
+            .RunwayBars(layout, runway)
+            .First(b => RunwayHoldBars.IsRightOfCentreline(runway, b.Position) != targetRight);
+        var body = AircraftBody.Of("B738");
+        double outwardDeg = RunwayHoldBars.TaxiwayAxisBearingDeg(runway, target);
+        var inward = new TrueHeading(outwardDeg + 180.0);
+
+        AircraftState Leaving(double gearInwardFt)
+        {
+            AircraftState ac = Ground(
+                "N943",
+                "B738",
+                Project(target.Position, inward, gearInwardFt),
+                new TrueHeading(outwardDeg),
+                10.0,
+                new CrossingRunwayPhase(approach.Id, target.Id, "08R"),
+                runway
+            );
+            Assert.NotEqual(target.Id, RunwayHoldBars.NearestSameSideBar(layout, runway, ac.Position)?.Id);
+            return ac;
+        }
+
+        AircraftState inside = Leaving(100.0);
+        LatLon insideTail = body.PointOf(AircraftBodyPart.Tail, inside.Position, outwardDeg);
+        Assert.False(RunwayOccupancy.IsOverStrictPavement(insideTail, runway), "the tail should be past the far edge");
+        AircraftState past = Leaving(-((body.LengthFt / 2.0) + (2.0 * RunwayOccupancy.HoldLineFoulToleranceFt)));
+
+        Assert.True(RunwayOccupancy.IsVacating(inside, body, runway, layout), "tail inside the target's line");
+        Assert.False(RunwayOccupancy.IsVacating(past, body, runway, layout), "tail past the target's line");
+    }
+
     private const string N70csRecording = "TestData/n70cs-cross-stops-on-runway-recording.yaat-bug-report-bundle.zip";
 
     /// <summary>
@@ -555,25 +671,12 @@ public class GroundConflictRunwayRankTests
     /// </summary>
     private static HeldCrossing? N70csHeld(CrossingStop stop)
     {
-        using RecordingArchive? archive = RecordingLoader.OpenArchive(N70csRecording);
-        var groundData = RecordingGroundData.Evergreen("CROSS clearing past the far 28R bar");
-        if ((archive is null) || (groundData.GetLayout("OAK") is not { } layout))
+        if (N70csClearedAcross() is not { } cleared)
         {
             return null;
         }
 
-        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
-        SessionRecording recording = archive.ToBaseSessionRecording();
-        engine.Replay(recording, 0);
-        TimedSnapshot snapshot = Assert.IsType<TimedSnapshot>(archive.ReadSnapshotAt(2410));
-        engine.RestoreFromSnapshot(snapshot.State);
-        engine.ReplayRange((int)snapshot.ElapsedSeconds, 2430, recording.Actions);
-        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
-        int nearBar = TickUntilHoldingShort(engine);
-        TaxiRoute route = engine.FindAircraft("N70CS")!.Ground.AssignedTaxiRoute!;
-        int firstPastTheBar = route.Segments.SkipWhile(s => s.ToNodeId != nearBar).Skip(1).First().ToNodeId;
-        Assert.True(engine.SendCommand("N70CS", "CROSS").Success);
-
+        (SimulationEngine engine, AirportGroundLayout layout, RunwayInfo runway, int firstPastTheBar) = cleared;
         for (int t = 1; t <= 120; t++)
         {
             engine.TickOneSecond();
@@ -594,6 +697,36 @@ public class GroundConflictRunwayRankTests
 
         Assert.Fail($"N70CS never reached {stop} in its crossing of 28R within 120 s");
         return null;
+    }
+
+    /// <summary>N70CS's engine just cleared across 28R, with its layout, the runway and the first route node past its near bar.</summary>
+    private sealed record ClearedCrossing(SimulationEngine Engine, AirportGroundLayout Layout, RunwayInfo Runway, int FirstNodePastTheBar);
+
+    /// <summary>
+    /// The N70CS recording (OAK) restored before its <c>TAXI &gt;J HS 28R</c>, which is replayed, ticked until it holds short of
+    /// 28R and cleared across. Null when the recording or the layout is unavailable.
+    /// </summary>
+    private static ClearedCrossing? N70csClearedAcross()
+    {
+        using RecordingArchive? archive = RecordingLoader.OpenArchive(N70csRecording);
+        var groundData = RecordingGroundData.Evergreen("CROSS clearing past the far 28R bar");
+        if ((archive is null) || (groundData.GetLayout("OAK") is not { } layout))
+        {
+            return null;
+        }
+
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped());
+        SessionRecording recording = archive.ToBaseSessionRecording();
+        engine.Replay(recording, 0);
+        TimedSnapshot snapshot = Assert.IsType<TimedSnapshot>(archive.ReadSnapshotAt(2410));
+        engine.RestoreFromSnapshot(snapshot.State);
+        engine.ReplayRange((int)snapshot.ElapsedSeconds, 2430, recording.Actions);
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        int nearBar = TickUntilHoldingShort(engine);
+        TaxiRoute route = engine.FindAircraft("N70CS")!.Ground.AssignedTaxiRoute!;
+        int firstPastTheBar = route.Segments.SkipWhile(s => s.ToNodeId != nearBar).Skip(1).First().ToNodeId;
+        Assert.True(engine.SendCommand("N70CS", "CROSS").Success);
+        return new ClearedCrossing(engine, layout, runway, firstPastTheBar);
     }
 
     private static bool IsAt(CrossingStop stop, HeldCrossing held)

@@ -78,34 +78,47 @@ internal sealed record TaxiwayLine(string Taxiway, GroundNode Via, double Outwar
 /// <see cref="LandingBearingDeg"/>. <see cref="CornersDeg"/> are the turns flown, in order. <see cref="PastEntryNodeIds"/> are the
 /// first taxiway's nodes between <see cref="Entry"/> and its join, from which the leg cannot start, and
 /// <see cref="SkippedNodeIds"/> the second taxiway's nodes the leg passes without touching. <see cref="SetBackFt"/> is a chord's
-/// set-back on each line, 0 for <see cref="StraightOverKind.Continue"/>.
+/// set-back on each line, 0 for <see cref="StraightOverKind.Continue"/> and for a chord between the joins themselves.
 /// </summary>
-internal sealed record StraightOverLeg(
-    StraightOverKind Kind,
-    IReadOnlyList<DirectionalEdge> Edges,
-    IReadOnlyList<double> CornersDeg,
-    double SetBackFt,
-    GroundNode Entry,
-    GroundNode Landing,
-    double LandingBearingDeg,
-    IReadOnlyList<int> PastEntryNodeIds,
-    IReadOnlyList<int> SkippedNodeIds
-)
+internal sealed record StraightOverLeg
 {
+    public required StraightOverKind Kind { get; init; }
+
+    public required IReadOnlyList<DirectionalEdge> Edges { get; init; }
+
+    public required IReadOnlyList<double> CornersDeg { get; init; }
+
+    public required double SetBackFt { get; init; }
+
+    public required GroundNode Entry { get; init; }
+
+    public required GroundNode Landing { get; init; }
+
+    public required double LandingBearingDeg { get; init; }
+
+    public required IReadOnlyList<int> PastEntryNodeIds { get; init; }
+
+    public required IReadOnlyList<int> SkippedNodeIds { get; init; }
+
     /// <summary>The larger corner, the turn judged against a category's limit.</summary>
     public double MaxCornerDeg => CornersDeg.Max();
 }
 
-/// <summary>What a crossing's straight-over geometry came to: its <see cref="Leg"/>, or why none was built (<see cref="NotBuilt"/>).</summary>
-internal sealed record StraightOver(StraightOverLeg? Leg, string? NotBuilt)
+/// <summary>
+/// What a crossing's straight-over geometry came to: its <see cref="Leg"/>, or why none was built (<see cref="Reason"/>), in which
+/// case the crossing takes today's route along the centreline.
+/// </summary>
+internal sealed record StraightOver(StraightOverLeg? Leg, string? Reason)
 {
     /// <summary>
-    /// The lines meet past the second taxiway's bar, so no leg lands short of it and today's route is no answer either: the clearance
-    /// is refused for every aircraft (<see cref="FailureKind.NoRoomToCrossStraight"/>).
+    /// No leg was built because the layout lacks what one is measured on: a taxiway's line, its bar of the runway, or a straight
+    /// run out to the meeting point. False when the layout has all of it and no leg fits the geometry.
     /// </summary>
-    public bool NoRoom { get; init; }
+    public bool MissingLayoutData { get; init; }
 
-    public static StraightOver Refused(string reason) => new(null, reason);
+    public static StraightOver NotBuilt(string reason) => new(null, reason);
+
+    public static StraightOver NoLayoutData(string reason) => new(null, reason) { MissingLayoutData = true };
 }
 
 /// <summary>
@@ -130,14 +143,21 @@ internal static class StraightOverGeometry
     /// <summary>Steps of the set-back bisection: fixed so the result is the same in every process.</summary>
     private const int ChordBisectionSteps = 40;
 
-    /// <summary>The leg from <paramref name="from"/> onto <paramref name="to"/> across the runway of <paramref name="rect"/>.</summary>
+    /// <summary>A line's rate along the runway smaller than this is square to it: the line never reaches the runway's ends.</summary>
+    private const double MinRate = 1e-9;
+
+    /// <summary>
+    /// The leg from <paramref name="from"/> onto <paramref name="to"/> across the runway of <paramref name="rect"/>: lines meeting
+    /// at <see cref="NearParallelDeg"/> or more, short of both bars, continue to their meeting point; near-parallel lines, and lines
+    /// meeting behind the first bar or past the second, take the set-back chord.
+    /// </summary>
     public static StraightOver Build(TaxiwayLine from, TaxiwayLine to, in RunwayRectangle rect)
     {
         double lineAngleDeg = RouteCostFunction.HeadingDelta(from.InboundBearingDeg, to.OutwardBearingDeg);
         if (lineAngleDeg >= NearParallelDeg)
         {
             (double onFromFt, double onToFt) = Meet(from, to);
-            if (onFromFt < from.BarFt)
+            if ((onFromFt < from.BarFt) && (onToFt <= to.BarFt))
             {
                 return Continue(from, to, onFromFt, onToFt);
             }
@@ -164,45 +184,42 @@ internal static class StraightOverGeometry
 
     private static StraightOver Continue(TaxiwayLine from, TaxiwayLine to, double onFromFt, double onToFt)
     {
-        if (onToFt > to.BarFt)
-        {
-            return StraightOver.Refused(FormattableString.Invariant($"the lines meet {onToFt:F0}ft along {to.Taxiway}, past its bar")) with
-            {
-                NoRoom = true,
-            };
-        }
-
         if ((onFromFt > from.RunFt) || (onToFt > to.RunFt))
         {
-            return StraightOver.Refused(FormattableString.Invariant($"the lines meet off a straight run ({onFromFt:F0}ft, {onToFt:F0}ft)"));
+            return StraightOver.NoLayoutData(FormattableString.Invariant($"the lines meet off a straight run ({onFromFt:F0}ft, {onToFt:F0}ft)"));
         }
 
         return Leg(StraightOverKind.Continue, (from, onFromFt), (to, onToFt), [from.PointAt(onFromFt)], 0.0);
     }
 
+    /// <summary>
+    /// The chord: between the joins themselves when the corners there are already within <see cref="ChordCornerDeg"/>, else
+    /// between points set back on each line (<see cref="ChordSetBackFt"/>), no farther than either taxiway runs straight or the
+    /// runway's pavement reaches.
+    /// </summary>
     private static StraightOver Chord(TaxiwayLine from, TaxiwayLine to, in RunwayRectangle rect)
     {
-        double capFt = Math.Min(Math.Min(from.RunFt, to.RunFt), Math.Min(PavementReachFt(from, rect), PavementReachFt(to, rect)));
-        double setBackFt = ChordSetBackFt(from, to, capFt);
-        if (setBackFt <= 0.0)
+        if (MaxChordCornerDeg(from, to, 0.0) <= ChordCornerDeg)
         {
-            return StraightOver.Refused(FormattableString.Invariant($"no chord: set-back {setBackFt:F1}ft, room {capFt:F1}ft"));
+            return Leg(StraightOverKind.Chord, (from, 0.0), (to, 0.0), [], 0.0);
         }
 
+        double capFt = Math.Min(Math.Min(from.RunFt, to.RunFt), Math.Min(PavementReachFt(from, rect), PavementReachFt(to, rect)));
+        if (capFt <= 0.0)
+        {
+            return StraightOver.NotBuilt(FormattableString.Invariant($"no chord: no room to set back ({capFt:F1}ft)"));
+        }
+
+        double setBackFt = ChordSetBackFt(from, to, capFt);
         return Leg(StraightOverKind.Chord, (from, setBackFt), (to, setBackFt), [from.PointAt(setBackFt), to.PointAt(setBackFt)], setBackFt);
     }
 
     /// <summary>
-    /// The smallest set-back at which a chord's larger corner comes down to <see cref="ChordCornerDeg"/>, or
-    /// <paramref name="capFt"/> when the larger corner is still over it there; 0 when the joins need none.
+    /// The smallest set-back at which a chord's larger corner, over <see cref="ChordCornerDeg"/> between the joins, comes down to
+    /// it, or <paramref name="capFt"/>, which is positive, when the larger corner is still over it there.
     /// </summary>
     private static double ChordSetBackFt(TaxiwayLine from, TaxiwayLine to, double capFt)
     {
-        if ((capFt <= 0.0) || (MaxChordCornerDeg(from, to, 0.0) <= ChordCornerDeg))
-        {
-            return 0.0;
-        }
-
         if (MaxChordCornerDeg(from, to, capFt) > ChordCornerDeg)
         {
             return capFt;
@@ -255,13 +272,19 @@ internal static class StraightOverGeometry
         double acrossRate = Math.Abs(Sin(line.OutwardBearingDeg - headingDeg));
         double alongRate = Cos(line.OutwardBearingDeg - headingDeg);
         double acrossReachFt = (halfWidthFt - offCentreFt) / acrossRate;
-        double alongReachFt = (alongRate >= 0.0 ? lengthFt - alongFt : alongFt) / Math.Abs(alongRate);
+        double alongReachFt = double.PositiveInfinity;
+        if (Math.Abs(alongRate) >= MinRate)
+        {
+            alongReachFt = (alongRate >= 0.0 ? lengthFt - alongFt : alongFt) / Math.Abs(alongRate);
+        }
+
         return Math.Min(acrossReachFt, alongReachFt);
     }
 
     /// <summary>
     /// The leg through <paramref name="points"/>, from the real node at or outward of the first point's position on its line to
     /// the one at or outward of the last point's: every edge but the last named for the first taxiway, the last for the second.
+    /// With no points the leg is one edge between the two real nodes, its corners turned at each.
     /// </summary>
     private static StraightOver Leg(
         StraightOverKind kind,
@@ -281,27 +304,28 @@ internal static class StraightOverGeometry
             (GroundNode a, GroundNode b) = (path[i - 1], path[i]);
             if ((GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm) < MinLegEdgeFt)
             {
-                return StraightOver.Refused($"a point of the leg falls on #{(a.Id > 0 ? a.Id : b.Id)}");
+                return StraightOver.NotBuilt($"a point of the leg falls on #{(a.Id > 0 ? a.Id : b.Id)}");
             }
 
             string taxiway = i == (path.Count - 1) ? last.Line.Taxiway : first.Line.Taxiway;
             edges.Add(VirtualNode.CreateEdge(a, b, taxiway).Directed(a, b));
         }
 
-        bearings.AddRange(path.Skip(1).Take(points.Count - 1).Zip(path.Skip(2), (a, b) => GeoMath.BearingTo(a.Position, b.Position)));
+        IReadOnlyList<LatLon> turnPoints = points.Count > 0 ? points : [entry.Position, landing.Position];
+        bearings.AddRange(turnPoints.Zip(turnPoints.Skip(1), (a, b) => GeoMath.BearingTo(a, b)));
         bearings.Add(last.Line.OutwardBearingDeg);
-        List<double> corners = [.. bearings.Zip(bearings.Skip(1), RouteCostFunction.HeadingDelta)];
-        var leg = new StraightOverLeg(
-            kind,
-            edges,
-            corners,
-            setBackFt,
-            entry,
-            landing,
-            last.Line.OutwardBearingDeg,
-            first.Line.NodeIdsInsideOf(entry),
-            last.Line.NodeIdsInsideOf(landing)
-        );
+        var leg = new StraightOverLeg
+        {
+            Kind = kind,
+            Edges = edges,
+            CornersDeg = [.. bearings.Zip(bearings.Skip(1), RouteCostFunction.HeadingDelta)],
+            SetBackFt = setBackFt,
+            Entry = entry,
+            Landing = landing,
+            LandingBearingDeg = last.Line.OutwardBearingDeg,
+            PastEntryNodeIds = first.Line.NodeIdsInsideOf(entry),
+            SkippedNodeIds = last.Line.NodeIdsInsideOf(landing),
+        };
         return new StraightOver(leg, null);
     }
 }

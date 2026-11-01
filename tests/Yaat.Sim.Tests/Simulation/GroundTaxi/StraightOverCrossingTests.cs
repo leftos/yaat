@@ -4,8 +4,10 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -68,7 +70,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         }
 
         StraightOver over = Assert.IsType<StraightOver>(SegmentExpander.FindStraightOver(layout, fromTaxiway, toTaxiway, CosPair));
-        output.WriteLine($"{fromTaxiway}→{toTaxiway}: not built: {over.NotBuilt}");
+        output.WriteLine($"{fromTaxiway}→{toTaxiway}: not built: {over.Reason}");
         StraightOverLeg leg = Assert.IsType<StraightOverLeg>(over.Leg);
         output.WriteLine($"{leg.Kind} #{leg.Entry.Id}→#{leg.Landing.Id} corners {string.Join("/", leg.CornersDeg)} set back {leg.SetBackFt}");
 
@@ -112,7 +114,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         GroundNode start = FarthestOn(layout, "A2", GroundNodeLookup.HoldShortBar(layout, "35L", "A2"));
         GroundNode a2Bar = GroundNodeLookup.HoldShortBar(layout, "35L", "A2");
         GroundNode c2Bar = GroundNodeLookup.HoldShortBar(layout, "35L", "C2");
-        TaxiRoute route = Taxi(layout, "COS", start, a2Bar, "B738", ["A2", "C2", "C"], "Taxi via A2 C2 C");
+        TaxiRoute route = Taxi(new(layout, "COS", start, a2Bar, "B738"), ["A2", "C2", "C"], "Taxi via A2 C2 C");
 
         Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
         List<TaxiRouteSegment> leg = VirtualSegments(route);
@@ -139,7 +141,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         using IDisposable _ = NavigationDatabase.ScopedOverride(Issue899DetourConnectorTests.CosDeclaring(navDb, "A2", "C2", "17R/35L"));
         GroundNode c2Bar = GroundNodeLookup.HoldShortBar(layout, "35L", "C2");
         GroundNode start = FarthestOn(layout, "C2", GroundNodeLookup.HoldShortBar(layout, "35L", "A2"));
-        TaxiRoute route = Taxi(layout, "COS", start, c2Bar, "B738", ["C2", "A2", "A"], "Taxi via C2 A2 A");
+        TaxiRoute route = Taxi(new(layout, "COS", start, c2Bar, "B738"), ["C2", "A2", "A"], "Taxi via C2 A2 A");
 
         Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
         List<TaxiRouteSegment> leg = VirtualSegments(route);
@@ -168,7 +170,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         GroundNode start = GroundNodeLookup.Junction(layout, "E", "E4");
         GroundNode e4Bar = GroundNodeLookup.HoldShortBar(layout, "10L", "E4", start);
         GroundNode f3Bar = GroundNodeLookup.HoldShortBar(layout, "10L", "F3", start);
-        TaxiRoute route = Taxi(layout, "CMH", start, e4Bar, aircraftType, ["E4", "F3"], "Taxi via E4 F3");
+        TaxiRoute route = Taxi(new(layout, "CMH", start, e4Bar, aircraftType), ["E4", "F3"], "Taxi via E4 F3");
 
         Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline || s.TaxiwayName.Contains(":link", StringComparison.Ordinal));
         List<TaxiRouteSegment> leg = VirtualSegments(route);
@@ -194,7 +196,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         GroundNode e4Bar = GroundNodeLookup.HoldShortBar(layout, "10L", "E4", GroundNodeLookup.Junction(layout, "E", "E4"));
         GroundNode f3Bar = GroundNodeLookup.HoldShortBar(layout, "10L", "F3", e4Bar);
         GroundNode start = FarthestOn(layout, "F3", e4Bar);
-        TaxiRoute route = Taxi(layout, "CMH", start, f3Bar, "C172", ["F3", "E4"], "Taxi via F3 E4");
+        TaxiRoute route = Taxi(new(layout, "CMH", start, f3Bar, "C172"), ["F3", "E4"], "Taxi via F3 E4");
 
         List<TaxiRouteSegment> leg = VirtualSegments(route);
         Assert.Equal(f3Bar.Id, leg[0].FromNodeId);
@@ -262,7 +264,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         InitLog();
         StraightOverLeg leg = Assert.IsType<StraightOverLeg>(SegmentExpander.FindStraightOver(layout, fromTaxiway, toTaxiway, [])?.Leg);
         Assert.Equal(StraightOverKind.Chord, leg.Kind);
-        TaxiRoute route = Taxi(layout, airport, leg.Entry, leg.Landing, "C172", [fromTaxiway, toTaxiway], $"Taxi via {fromTaxiway} {toTaxiway}");
+        TaxiRoute route = Taxi(new(layout, airport, leg.Entry, leg.Landing, "C172"), [fromTaxiway, toTaxiway], $"Taxi via {fromTaxiway} {toTaxiway}");
         Assert.Equal(leg.Edges.Select(e => e.ToNodeId), VirtualSegments(route).Take(3).Select(s => s.ToNodeId));
         Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
     }
@@ -325,13 +327,13 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         GroundNode e4Junction = GroundNodeLookup.Junction(cmh, "E", "E4");
         GroundNode e4Bar = GroundNodeLookup.HoldShortBar(cmh, "10L", "E4", e4Junction);
         GroundNode f3Bar = GroundNodeLookup.HoldShortBar(cmh, "10L", "F3", e4Junction);
-        TaxiRoute cmhRoute = Taxi(cmh, "CMH", e4Bar, f3Bar, "C172", ["E4", "F3"], "Taxi via E4 F3");
+        TaxiRoute cmhRoute = Taxi(new(cmh, "CMH", e4Bar, f3Bar, "C172"), ["E4", "F3"], "Taxi via E4 F3");
         Assert.Equal(e4Bar.Id, Assert.Single(cmhRoute.HoldShortPoints, h => h.Reason == HoldShortReason.RunwayCrossing).NodeId);
 
         using IDisposable _ = NavigationDatabase.ScopedOverride(Issue899DetourConnectorTests.CosDeclaring(navDb, "A2", "C2", "17R/35L"));
         GroundNode c2Bar = GroundNodeLookup.HoldShortBar(cos, "35L", "C2");
         GroundNode a2Bar = GroundNodeLookup.HoldShortBar(cos, "35L", "A2");
-        TaxiRoute cosRoute = Taxi(cos, "COS", c2Bar, a2Bar, "C172", ["C2", "A2", "A"], "Taxi via C2 A2 A");
+        TaxiRoute cosRoute = Taxi(new(cos, "COS", c2Bar, a2Bar, "C172"), ["C2", "A2", "A"], "Taxi via C2 A2 A");
         Assert.Equal(c2Bar.Id, Assert.Single(cosRoute.HoldShortPoints, h => h.Reason == HoldShortReason.RunwayCrossing).NodeId);
     }
 
@@ -351,27 +353,32 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         GroundNode start = GroundNodeLookup.Junction(layout, "E", "E4");
         GroundNode e4Bar = GroundNodeLookup.HoldShortBar(layout, "10L", "E4", start);
         GroundNode f3Bar = GroundNodeLookup.HoldShortBar(layout, "10L", "F3", start);
-        TaxiRoute route = Taxi(layout, "CMH", start, e4Bar, "C172", ["E4", "F3", "F"], "Taxi via E4 F3 F");
+        TaxiRoute route = Taxi(new(layout, "CMH", start, e4Bar, "C172"), ["E4", "F3", "F"], "Taxi via E4 F3 F");
 
         Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
         Assert.Contains(route.Segments, s => s.ToNodeId == f3Bar.Id);
         Assert.Equal(e4Bar.Id, Assert.Single(route.HoldShortPoints, h => h.Reason == HoldShortReason.RunwayCrossing).NodeId);
     }
 
-    /// <summary>Lines 50° apart meeting 331 ft along Y, past its bar at 200 ft: no leg can land on Y short of the bar.</summary>
+    /// <summary>
+    /// Lines 50° apart meeting 331 ft along Y, past its bar at 200 ft: no leg continues to the meeting point, so the crossing takes
+    /// the chord, set back to the runway's edge.
+    /// </summary>
     [Fact]
-    public void StraightOverGeometry_LinesMeetPastTheFarBar_IsNoRoom()
+    public void StraightOverGeometry_LinesMeetPastTheFarBar_TakesTheChord()
     {
         AirportGroundLayout layout = CrossingField(inboundDeg: 155.0, outwardDeg: 205.0, barFt: 200.0);
 
         StraightOver over = Assert.IsType<StraightOver>(SegmentExpander.FindStraightOver(layout, "X", "Y", []));
-        output.WriteLine($"not built: {over.NotBuilt}");
+        output.WriteLine($"{over.Leg?.Kind} corners {string.Join("/", over.Leg?.CornersDeg ?? [])} set back {over.Leg?.SetBackFt}: {over.Reason}");
 
-        Assert.Null(over.Leg);
-        Assert.True(over.NoRoom, over.NotBuilt);
+        StraightOverLeg leg = Assert.IsType<StraightOverLeg>(over.Leg);
+        Assert.Equal(StraightOverKind.Chord, leg.Kind);
+        Assert.Equal(2, leg.CornersDeg.Count);
+        AssertNear(82.8, leg.SetBackFt, 0.5);
     }
 
-    /// <summary>The same lines with Y's bar at 400 ft land short of it: the refusal is the bar's, not the angle's.</summary>
+    /// <summary>The same lines with Y's bar at 400 ft land short of it: the chord is the bar's doing, not the angle's.</summary>
     [Fact]
     public void StraightOverGeometry_LinesMeetShortOfTheFarBar_IsALeg()
     {
@@ -379,8 +386,103 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
 
         StraightOver over = Assert.IsType<StraightOver>(SegmentExpander.FindStraightOver(layout, "X", "Y", []));
 
-        Assert.False(over.NoRoom, over.NotBuilt);
+        Assert.Null(over.Reason);
         Assert.Equal(StraightOverKind.Continue, over.Leg?.Kind);
+    }
+
+    /// <summary>
+    /// X and Y both leave the runway 30° off it, so the corners between their joins are already 30°: the chord runs between the
+    /// joins themselves: a zero set-back chord, one virtual edge named for Y between the two joins.
+    /// </summary>
+    [Fact]
+    public void StraightOverGeometry_JoinsWithinTheChordCorner_TakeOneChordBetweenThem()
+    {
+        AirportGroundLayout layout = CrossingField(inboundDeg: 120.0, outwardDeg: 120.0, barFt: 400.0);
+        CrossingPair declared = new("X", "Y", "09/27", "declared by the test");
+
+        StraightOver over = Assert.IsType<StraightOver>(SegmentExpander.FindStraightOver(layout, "X", "Y", [declared]));
+        output.WriteLine($"not built: {over.Reason}");
+
+        StraightOverLeg leg = Assert.IsType<StraightOverLeg>(over.Leg);
+        Assert.Equal(StraightOverKind.Chord, leg.Kind);
+        Assert.Equal(0.0, leg.SetBackFt);
+        DirectionalEdge chord = Assert.Single(leg.Edges);
+        Assert.Equal((FieldXJoin, FieldYJoin, "Y"), (chord.FromNode.Id, chord.ToNode.Id, chord.TaxiwayName));
+        Assert.Equal(2, leg.CornersDeg.Count);
+        AssertNear(30.0, leg.CornersDeg[0], 0.1);
+        AssertNear(30.0, leg.CornersDeg[1], 0.1);
+    }
+
+    /// <summary>
+    /// X forks at its join, square to the runway toward its bar and 20° off the runway's line along a spur with no bar: the line is
+    /// the square edge, not the one leaning away from Y's join.
+    /// </summary>
+    [Fact]
+    public void StraightOverGeometry_FirstLineIsTheEdgeSquareToTheRunway()
+    {
+        AirportGroundLayout layout = CrossingField(inboundDeg: 180.0, outwardDeg: 180.0, barFt: 400.0);
+        GroundNode xJoin = layout.Nodes[FieldXJoin];
+        var spurEnd = new GroundNode
+        {
+            Id = 9,
+            Position = Along(xJoin.Position, 290.0, 300.0),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        layout.Nodes[spurEnd.Id] = spurEnd;
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [xJoin, spurEnd],
+                TaxiwayName = "X",
+                DistanceNm = GeoMath.DistanceNm(xJoin.Position, spurEnd.Position),
+            }
+        );
+        layout.RebuildAdjacencyLists();
+        CrossingPair declared = new("X", "Y", "09/27", "declared by the test");
+
+        StraightOver over = Assert.IsType<StraightOver>(SegmentExpander.FindStraightOver(layout, "X", "Y", [declared]));
+        output.WriteLine($"not built: {over.Reason}");
+
+        StraightOverLeg leg = Assert.IsType<StraightOverLeg>(over.Leg);
+        Assert.Equal(FieldXBar, leg.Entry.Id);
+    }
+
+    /// <summary>
+    /// X flown on 255° and Y leaving square on 180°, their lines meeting 290 ft out along X, past its bar at 250 ft: the chord can
+    /// set back only 75 ft, to the runway's edge on Y, leaving a 141° corner off X. Past a jet's 135°, the jet's crossing falls back
+    /// to today's route along the centreline, never a turn refusal of the chord; here that route's 165° turn onto the centreline
+    /// leaves the jet no route at all, since a chord's corners are never wider than the centreline's turns. A helicopter's 175°
+    /// admits the chord.
+    /// </summary>
+    [Fact]
+    public void StraightOver_ChordCornerBeyondTheTurnLimit_FallsBackFromTheChord()
+    {
+        if (TestVnasData.NavigationDb is not { } navDb)
+        {
+            return;
+        }
+
+        InitLog();
+        AirportGroundLayout layout = CrossingField(inboundDeg: 255.0, outwardDeg: 180.0, barFt: 250.0);
+        CrossingPair declared = new("X", "Y", "09/27", "declared by the test");
+        var sidecars = new AirportSidecarCatalog([new AirportSidecar("KTST") { CrossingPairs = [declared] }]);
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb.WithAirportSidecars(sidecars));
+        StraightOverLeg leg = Assert.IsType<StraightOverLeg>(SegmentExpander.FindStraightOver(layout, "X", "Y", [declared])?.Leg);
+        output.WriteLine($"{leg.Kind} corners {string.Join("/", leg.CornersDeg)} set back {leg.SetBackFt}");
+        Assert.Equal(StraightOverKind.Chord, leg.Kind);
+        Assert.InRange(leg.MaxCornerDeg, CategoryLimits.MaxHeadingChangeDeg(AircraftCategory.Jet), 175.0);
+
+        var diag = new List<string>();
+        TaxiRoute? jet = ResolveOverField(layout, AircraftCategory.Jet, diag, out string? jetRefusal);
+        output.WriteLine($"jet: {jetRefusal}");
+        Assert.Contains(diag, l => l.StartsWith("[runway-crossing] X→Y straight-over not built: the chord's", StringComparison.Ordinal));
+        Assert.DoesNotContain(diag, l => l.StartsWith("[runway-crossing] X→Y refused:", StringComparison.Ordinal));
+        Assert.NotEqual(SegmentExpander.CannotMakeTurnReason("X", "Y"), jetRefusal);
+        Assert.Empty(jet is null ? [] : VirtualSegments(jet));
+
+        TaxiRoute? helicopter = ResolveOverField(layout, AircraftCategory.Helicopter, [], out string? helicopterRefusal);
+        Assert.True(helicopter is not null, helicopterRefusal);
+        Assert.Equal(leg.Edges.Select(e => e.ToNodeId), VirtualSegments(helicopter).Take(3).Select(s => s.ToNodeId));
     }
 
     /// <summary>
@@ -403,47 +505,31 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         Assert.Equal(StraightOverKind.Continue, leg.Kind);
         AssertNear(150.0, leg.MaxCornerDeg, 0.1);
 
-        Assert.Null(ResolveOverField(layout, AircraftCategory.Jet, out string? jetRefusal));
+        Assert.Null(ResolveOverField(layout, AircraftCategory.Jet, [], out string? jetRefusal));
         Assert.Equal(SegmentExpander.CannotMakeTurnReason("X", "Y"), jetRefusal);
 
-        TaxiRoute? helicopter = ResolveOverField(layout, AircraftCategory.Helicopter, out string? helicopterRefusal);
+        TaxiRoute? helicopter = ResolveOverField(layout, AircraftCategory.Helicopter, [], out string? helicopterRefusal);
         Assert.True(helicopter is not null, helicopterRefusal);
         Assert.Equal(leg.Edges.Select(e => e.ToNodeId), VirtualSegments(helicopter).Take(2).Select(s => s.ToNodeId));
     }
 
-    /// <summary>The owner's wording, terminal and spoken, whatever the aircraft: the check comes before any turn is judged.</summary>
+    /// <summary>
+    /// TAXI X Y where the lines meet past Y's bar is no refusal, whatever the aircraft: it crosses on the chord, the leg's own points,
+    /// and touches no centreline.
+    /// </summary>
     [Theory]
     [InlineData("C172")]
     [InlineData("B738")]
-    public void NoRoomToCrossStraight_TerminalAndSpoken(string aircraftType)
+    public void LinesMeetPastTheFarBar_TaxiCrossesOnTheChord(string aircraftType)
     {
+        InitLog();
         AirportGroundLayout layout = CrossingField(inboundDeg: 155.0, outwardDeg: 205.0, barFt: 200.0);
-        GroundNode start = layout.Nodes[FieldXFar];
-        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(layout, "TST", start, 155.0);
-        aircraft.AircraftType = aircraftType;
+        StraightOverLeg leg = Assert.IsType<StraightOverLeg>(SegmentExpander.FindStraightOver(layout, "X", "Y", [])?.Leg);
 
-        CommandResult result = GroundCommandHandler.TryTaxi(aircraft, new TaxiCommand(["X", "Y"], [], Expedite: false), layout);
-        output.WriteLine($"{result.Success} — {result.Message} — {result.PilotUnable?.Tts}");
+        TaxiRoute route = Taxi(new(layout, "TST", layout.Nodes[FieldXFar], layout.Nodes[FieldXBar], aircraftType), ["X", "Y"], "Taxi via X Y");
 
-        Assert.False(result.Success, "TAXI X Y was accepted");
-        Assert.Equal("Unable, no room to cross straight onto Y, request taxi instructions", result.Message);
-        PilotSpeechText unable = Assert.IsType<PilotSpeechText>(result.PilotUnable);
-        Assert.Equal(result.Message, unable.Terminal);
-        Assert.EndsWith(", unable, no room to cross straight over onto yankee, request taxi instructions", unable.Tts);
-        Assert.Null(aircraft.Ground.AssignedTaxiRoute);
-    }
-
-    /// <summary>The owner's literals: the second taxiway named, spelled when spoken.</summary>
-    [Fact]
-    public void NoRoomToCrossStraight_OwnerLiterals()
-    {
-        var aircraft = new AircraftState { Callsign = Issue1334OakDToFAcross33Tests.Callsign, AircraftType = "C172" };
-
-        PilotSpeechText speech = PilotResponder.BuildUnableNoRoomToCrossStraight(aircraft, "C2");
-
-        Assert.Equal("Unable, no room to cross straight onto C2, request taxi instructions", speech.Terminal);
-        Assert.EndsWith(", unable, no room to cross straight over onto charlie two, request taxi instructions", speech.Tts);
-        Assert.Equal(speech.Terminal, SegmentExpander.NoRoomToCrossStraightReason("C2"));
+        Assert.Equal(leg.Edges.Select(e => e.ToNodeId), VirtualSegments(route).Take(3).Select(s => s.ToNodeId));
+        Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
     }
 
     /// <summary>
@@ -461,11 +547,11 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         InitLog();
         GroundNode e4Junction = GroundNodeLookup.Junction(cmh, "E", "E4");
         GroundNode e4Bar = GroundNodeLookup.HoldShortBar(cmh, "10L", "E4", e4Junction);
-        AssertLegRestores(Taxi(cmh, "CMH", e4Junction, e4Bar, "C172", ["E4", "F3"], "Taxi via E4 F3"), cmh);
+        AssertLegRestores(Taxi(new(cmh, "CMH", e4Junction, e4Bar, "C172"), ["E4", "F3"], "Taxi via E4 F3"), cmh);
 
         using IDisposable _ = NavigationDatabase.ScopedOverride(Issue899DetourConnectorTests.CosDeclaring(navDb, "A2", "C2", "17R/35L"));
         GroundNode a2Bar = GroundNodeLookup.HoldShortBar(cos, "35L", "A2");
-        AssertLegRestores(Taxi(cos, "COS", FarthestOn(cos, "A2", a2Bar), a2Bar, "B738", ["A2", "C2", "C"], "Taxi via A2 C2 C"), cos);
+        AssertLegRestores(Taxi(new(cos, "COS", FarthestOn(cos, "A2", a2Bar), a2Bar, "B738"), ["A2", "C2", "C"], "Taxi via A2 C2 C"), cos);
     }
 
     private static void AssertLegRestores(TaxiRoute route, AirportGroundLayout layout)
@@ -520,6 +606,198 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// KCOS's leg turns at P, 150 ft off the centreline and off the runway's pavement, and runs on along C2's line to its bar. A
+    /// B738 cleared TAXI A2 C2 and CROSS 35L meets both "clear of the runway" definitions there (docs/runway-fouling.md): while
+    /// its position is on the runway's pavement it is on the runway (Crossing or OnSurface); once off the pavement and it
+    /// moves on unrestricted it is clear for the controller (P/CG b, AIM 4-3-21.b), yet still vacating for the pilot's rule
+    /// (AIM 2-3-5.a.1) until its tail passes C2's bar.
+    /// </summary>
+    [Fact]
+    public void StraightOver_KcosOffPavementStretch_FollowsBothClearDefinitions()
+    {
+        if ((Layout("COS") is not { } layout) || (TestVnasData.NavigationDb is not { } navDb))
+        {
+            return;
+        }
+
+        InitLog();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(Issue899DetourConnectorTests.CosDeclaring(navDb, "A2", "C2", "17R/35L"));
+        GroundNode a2Bar = GroundNodeLookup.HoldShortBar(layout, "35L", "A2");
+        GroundNode c2Bar = GroundNodeLookup.HoldShortBar(layout, "35L", "C2");
+        GroundNode start = FarthestOn(layout, "A2", a2Bar);
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(
+            layout,
+            "COS",
+            start,
+            GeoMath.BearingTo(start.Position, a2Bar.Position)
+        );
+        aircraft.AircraftType = "B738";
+        engine.World.AddAircraft(aircraft);
+        engine.Scenario = new SimScenarioState
+        {
+            ScenarioId = "test-yaat-943-cos-off-pavement",
+            ScenarioName = "COS A2/C2 straight over 17R/35L",
+            RngSeed = 42,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = "COS",
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+        };
+
+        CommandResult taxi = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "TAXI A2 C2");
+        Assert.True(taxi.Success, taxi.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        int stretch = route.Segments.FindIndex(s => (s.FromNodeId < 0) && (s.ToNodeId == c2Bar.Id));
+        Assert.True(stretch >= 0, "the route has no P→C2 bar stretch");
+        GroundNode meet = route.Segments[stretch].Edge.FromNode;
+        AssertNear(150.0, OffCentrelineFt(layout, "35L", meet), 3.0);
+
+        Assert.IsType<HoldingShortPhase>(
+            Issue1334OakDToFAcross33Tests.TickUntil(output, engine, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900)?.Phases?.CurrentPhase
+        );
+        CommandResult cross = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "CROSS 35L");
+        Assert.True(cross.Success, cross.Message);
+
+        RunwayInfo runway = Assert.Single(RunwayOccupancy.AirportRunways("COS"), r => r.Id.Contains("35L"));
+        var body = AircraftBody.Of("B738");
+        double halfLengthFt = AircraftLength.ResolveFt("B738") / 2.0;
+        double c2Bearing = GeoMath.BearingTo(meet.Position, c2Bar.Position);
+        double barAlongFt = Ft(meet.Position, c2Bar.Position);
+        (int onPavement, int clearForController, int vacatingForPilot) = (0, 0, 0);
+        bool enteredRunway = false;
+        string? wrong = null;
+        bool tailPastBar = false;
+
+        string Where(AircraftState ac, RunwayUseKind? kind, bool vacating) =>
+            $"Classify {kind?.ToString() ?? "null"}, IsVacating {vacating} in {ac.Phases?.CurrentPhase?.GetType().Name ?? "no phase"}, "
+            + $"{Ft(meet.Position, ac.Position):F0} ft from P, {Ft(c2Bar.Position, ac.Position):F0} ft from C2's bar, {ac.GroundSpeed:F1} kt";
+
+        SubTickDriver.TickSubTicksUntil(
+            engine,
+            Issue1334OakDToFAcross33Tests.Callsign,
+            _ => tailPastBar || (wrong is not null),
+            300,
+            ac =>
+            {
+                double alongFt = GeoMath.AlongTrackDistanceNmRaw(ac.Position, meet.Position, c2Bearing) * GeoMath.FeetPerNm;
+                double offFt = Math.Abs(GeoMath.SignedCrossTrackDistanceNmRaw(ac.Position, meet.Position, c2Bearing)) * GeoMath.FeetPerNm;
+                // Vacating ends inside the same tolerance of the bar as a square crossing's.
+                tailPastBar = (alongFt > (barAlongFt + halfLengthFt - RunwayOccupancy.HoldLineFoulToleranceFt)) && (offFt < 30.0);
+                bool onRunwayPavement = RunwayOccupancy.IsOnPavement(ac, runway);
+                enteredRunway |= onRunwayPavement;
+                if (!enteredRunway || tailPastBar)
+                {
+                    return;
+                }
+
+                RunwayUseKind? kind = RunwayOccupancy.Classify(ac, runway, layout)?.Kind;
+                bool vacating = RunwayOccupancy.IsVacating(ac, body, runway, layout);
+                if (onRunwayPavement)
+                {
+                    onPavement++;
+                    wrong ??= (kind is RunwayUseKind.Crossing or RunwayUseKind.OnSurface) ? null : $"on the pavement: {Where(ac, kind, vacating)}";
+                    return;
+                }
+
+                if (ac.GroundSpeed < 0.5)
+                {
+                    wrong ??= $"stopped off the pavement: {Where(ac, kind, vacating)}";
+                    return;
+                }
+
+                clearForController += kind is null ? 1 : 0;
+                vacatingForPilot += vacating ? 1 : 0;
+                wrong ??= ((kind is null) && vacating) ? null : $"off the pavement, moving: {Where(ac, kind, vacating)}";
+            }
+        );
+
+        output.WriteLine(
+            $"on the pavement {onPavement}, clear for the controller {clearForController}, vacating {vacatingForPilot}: {wrong ?? "as defined"}"
+        );
+        Assert.Null(wrong);
+        Assert.True(tailPastBar, "the tail never passed C2's bar");
+        Assert.True(onPavement > 0, "no sample on the pavement");
+        Assert.True(clearForController > 0, "no sample past the edge clear for the controller");
+        Assert.True(vacatingForPilot > 0, "no sample past the edge still vacating for the pilot");
+    }
+
+    /// <summary>
+    /// The controller rule on KCOS's P→C2-bar stretch (docs/runway-fouling.md): a B738 crossing 35L straight over, given HOLD
+    /// 40 ft past P along C2's line, stops off the pavement with its tail still inside C2's marking. Leaving and stopped with its
+    /// tail inside the far marking, it fouls the runway, although C2's bar lies more than 200 ft along the runway from it.
+    /// </summary>
+    [Fact]
+    public void StraightOver_KcosHeldOnTheStretch_TailInsideC2sMarking_Fouls()
+    {
+        if ((Layout("COS") is not { } layout) || (TestVnasData.NavigationDb is not { } navDb))
+        {
+            return;
+        }
+
+        InitLog();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(Issue899DetourConnectorTests.CosDeclaring(navDb, "A2", "C2", "17R/35L"));
+        GroundNode a2Bar = GroundNodeLookup.HoldShortBar(layout, "35L", "A2");
+        GroundNode c2Bar = GroundNodeLookup.HoldShortBar(layout, "35L", "C2");
+        GroundNode start = FarthestOn(layout, "A2", a2Bar);
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(
+            layout,
+            "COS",
+            start,
+            GeoMath.BearingTo(start.Position, a2Bar.Position)
+        );
+        aircraft.AircraftType = "B738";
+        engine.World.AddAircraft(aircraft);
+        engine.Scenario = new SimScenarioState
+        {
+            ScenarioId = "test-yaat-943-cos-held-on-stretch",
+            ScenarioName = "COS A2/C2 straight over 17R/35L, held on the stretch",
+            RngSeed = 42,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = "COS",
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+        };
+
+        CommandResult taxi = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "TAXI A2 C2");
+        Assert.True(taxi.Success, taxi.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        int stretch = route.Segments.FindIndex(s => (s.FromNodeId < 0) && (s.ToNodeId == c2Bar.Id));
+        Assert.True(stretch >= 0, "the route has no P→C2 bar stretch");
+        GroundNode meet = route.Segments[stretch].Edge.FromNode;
+        Assert.IsType<HoldingShortPhase>(
+            Issue1334OakDToFAcross33Tests.TickUntil(output, engine, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900)?.Phases?.CurrentPhase
+        );
+        CommandResult cross = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "CROSS 35L");
+        Assert.True(cross.Success, cross.Message);
+
+        double c2Bearing = GeoMath.BearingTo(meet.Position, c2Bar.Position);
+        double AlongFt(AircraftState ac) => GeoMath.AlongTrackDistanceNmRaw(ac.Position, meet.Position, c2Bearing) * GeoMath.FeetPerNm;
+        Assert.NotNull(SubTickDriver.TickSubTicksUntil(engine, Issue1334OakDToFAcross33Tests.Callsign, ac => AlongFt(ac) > 40.0, 300, _ => { }));
+        CommandResult hold = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "HOLD");
+        Assert.True(hold.Success, hold.Message);
+        Assert.NotNull(
+            SubTickDriver.TickSubTicksUntil(
+                engine,
+                Issue1334OakDToFAcross33Tests.Callsign,
+                ac => ac.GroundSpeed <= RunwayOccupancy.StoppedGroundSpeedKts,
+                60,
+                _ => { }
+            )
+        );
+
+        RunwayInfo runway = Assert.Single(RunwayOccupancy.AirportRunways("COS"), r => r.Id.Contains("35L"));
+        double tailAlongFt = AlongFt(aircraft) - (AircraftLength.ResolveFt("B738") / 2.0);
+        string where =
+            $"{AlongFt(aircraft):F0} ft past P, tail {Ft(meet.Position, c2Bar.Position) - tailAlongFt:F0} ft short of C2's bar, "
+            + $"{aircraft.GroundSpeed:F1} kt in {aircraft.Phases?.CurrentPhase?.GetType().Name}";
+        Assert.IsType<CrossingRunwayPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.False(RunwayOccupancy.IsOnPavement(aircraft, runway), where);
+        Assert.True(tailAlongFt < (Ft(meet.Position, c2Bar.Position) - (2.0 * RunwayOccupancy.HoldLineFoulToleranceFt)), where);
+        RunwayUseKind? kind = RunwayOccupancy.Classify(aircraft, runway, layout)?.Kind;
+        Assert.True(kind == RunwayUseKind.Fouling, $"Classify {kind?.ToString() ?? "null"}, {where}");
+    }
+
+    /// <summary>
     /// OAK D→F from the leg's entry, already on the runway side of D's bar: the chord touches no centreline node and the leg passes
     /// no bar with a hold, so the held-short leg's scan has only the chord itself to find the crossing by.
     /// </summary>
@@ -571,14 +849,12 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
     /// <summary>
     /// A field no real layout gives: runway 09/27 with X joining it from the north and Y leaving south, joins 280 ft apart, X flown on
     /// <paramref name="inboundDeg"/> and Y on <paramref name="outwardDeg"/>, each bar <paramref name="barFt"/> along its taxiway from
-    /// its join and a node 400 ft past that.
+    /// its join and a node 400 ft past that. Hand-built because the geometry these tests need is in no real layout: no test airport
+    /// has two lines meeting past the far bar, joins already within the chord's corner, or a chord whose corners are wide.
     /// </summary>
     private static AirportGroundLayout CrossingField(double inboundDeg, double outwardDeg, double barFt)
     {
         var centre = new LatLon(40.0, -100.0);
-        LatLon Along(LatLon from, double bearingDeg, double feet) =>
-            GeoMath.ProjectPoint(from, new TrueHeading(bearingDeg), feet / GeoMath.FeetPerNm);
-
         var layout = new AirportGroundLayout { AirportId = "TST" };
         LatLon west = Along(centre, 270.0, 4000.0);
         LatLon east = Along(centre, 90.0, 4000.0);
@@ -643,7 +919,10 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         return layout;
     }
 
-    private static TaxiRoute? ResolveOverField(AirportGroundLayout layout, AircraftCategory category, out string? refusal)
+    private static LatLon Along(LatLon from, double bearingDeg, double feet) =>
+        GeoMath.ProjectPoint(from, new TrueHeading(bearingDeg), feet / GeoMath.FeetPerNm);
+
+    private static TaxiRoute? ResolveOverField(AirportGroundLayout layout, AircraftCategory category, List<string> diag, out string? refusal)
     {
         GroundNode start = layout.Nodes[FieldXFar];
         return TaxiPathfinder.ResolveExplicitPath(
@@ -658,6 +937,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 StartHeadingTrue = GeoMath.BearingTo(start.Position, layout.Nodes[FieldXBar].Position),
+                DiagnosticLog = diag.Add,
             },
             category,
             WakeTurbulenceData.WakeClass.Large
@@ -668,17 +948,19 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
     private static GroundNode FarthestOn(AirportGroundLayout layout, string taxiway, GroundNode point) =>
         layout.GetNodesOnTaxiway(taxiway).OrderByDescending(n => Ft(n.Position, point.Position)).First();
 
-    /// <summary>The route <paramref name="path"/> gives a <paramref name="aircraftType"/> at <paramref name="start"/> nosed at <paramref name="facing"/>, its readback starting <paramref name="readback"/>.</summary>
-    private TaxiRoute Taxi(
-        AirportGroundLayout layout,
-        string airport,
-        GroundNode start,
-        GroundNode facing,
-        string aircraftType,
-        List<string> path,
-        string readback
-    )
+    /// <summary>
+    /// A <see cref="AircraftType"/> standing at <see cref="Start"/> on <see cref="Airport"/>'s layout, nosed at
+    /// <see cref="Facing"/>.
+    /// </summary>
+    private sealed record TaxiFrom(AirportGroundLayout Layout, string Airport, GroundNode Start, GroundNode Facing, string AircraftType);
+
+    /// <summary>
+    /// The route <paramref name="path"/> gives the aircraft <paramref name="from"/> stands as, its readback starting
+    /// <paramref name="readback"/>.
+    /// </summary>
+    private TaxiRoute Taxi(TaxiFrom from, List<string> path, string readback)
     {
+        (AirportGroundLayout layout, string airport, GroundNode start, GroundNode facing, string aircraftType) = from;
         double heading = start.Id == facing.Id ? 0.0 : GeoMath.BearingTo(start.Position, facing.Position);
         AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(layout, airport, start, heading);
         aircraft.AircraftType = aircraftType;
@@ -706,9 +988,12 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
         }
 
         InitLog();
+        var capture = WarningLogCapture.Install();
         StraightOver over = Assert.IsType<StraightOver>(SegmentExpander.FindStraightOver(layout, "L11", "M11", []));
         Assert.Null(over.Leg);
-        output.WriteLine($"not built: {over.NotBuilt}");
+        output.WriteLine($"not built: {over.Reason}");
+        Assert.True(over.MissingLayoutData, over.Reason);
+        Assert.Contains($"[runway-crossing] L11→M11 straight-over not built: {over.Reason}", capture.Warnings);
 
         List<GroundNode> onL11 = layout.GetNodesOnTaxiway("L11");
         GroundNode join = onL11.First(n => n.Edges.Exists(e => e.IsRunwayCenterline));

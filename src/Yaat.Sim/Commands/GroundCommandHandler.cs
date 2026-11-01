@@ -203,6 +203,9 @@ public static partial class GroundCommandHandler
     /// <summary>The command a TAXI clearance resolved from, its route, and the failure when no route resolved.</summary>
     private sealed record StartResolution(TaxiCommand Command, TaxiRoute? Route, PathfindingFailure? Failure);
 
+    /// <summary>The aircraft a TAXI clearance is resolved for, by callsign, and the layout it taxis on.</summary>
+    private sealed record TaxiingOn(string Callsign, AirportGroundLayout Layout);
+
     /// <summary>Resolves one candidate command to a route, or to null with the failure.</summary>
     private delegate TaxiRoute? TaxiRouteResolver(TaxiCommand command, out PathfindingFailure? failure);
 
@@ -1469,9 +1472,8 @@ public static partial class GroundCommandHandler
     /// The refusal, terminal and spoken, of a clearance whose two named taxiways do not connect
     /// (<see cref="FailureKind.TaxiwaysDoNotConnect"/>), meet only where the route cannot reach ahead
     /// (<see cref="FailureKind.NoRouteAhead"/>), cross a runway by a turn the aircraft cannot make
-    /// (<see cref="FailureKind.CannotMakeTurn"/>), cross one onto a taxiway with no room to clear it
-    /// (<see cref="FailureKind.NoRoomToClearRunway"/>), or cross one onto a taxiway their lines meet only past its bar
-    /// (<see cref="FailureKind.NoRoomToCrossStraight"/>), logged at the inputs' failure level naming the aircraft, the taxi and
+    /// (<see cref="FailureKind.CannotMakeTurn"/>), or cross one onto a taxiway with no room to clear it
+    /// (<see cref="FailureKind.NoRoomToClearRunway"/>), logged at the inputs' failure level naming the aircraft, the taxi and
     /// the refusal.
     /// </summary>
     private static TaxiResolution PairRefused(TaxiResolveInputs inputs, TaxiCommand taxi, PathfindingFailure unconnected)
@@ -1499,7 +1501,6 @@ public static partial class GroundCommandHandler
                 unconnected.UnclearedRunway
                     ?? throw new InvalidOperationException($"a {unconnected.Kind} failure names no runway: '{unconnected.HumanMessage}'")
             ),
-            FailureKind.NoRoomToCrossStraight => PilotResponder.BuildUnableNoRoomToCrossStraight(aircraft, to),
             _ => PilotResponder.BuildUnableTaxiwaysDoNotConnect(aircraft, from, to),
         };
         return TaxiResolution.Refused(taxi, new CommandResult(false, unconnected.HumanMessage) { PilotUnable = unable }) with
@@ -1765,7 +1766,13 @@ public static partial class GroundCommandHandler
             return route is null ? null : HeldShortOfDrivenTarget(route, groundLayout, foldTargets) ?? route;
         }
 
-        StartResolution start = ResolveFromBestStart((aircraft.Callsign, groundLayout), taxi, heldShortPrepend, currentTaxiwayPrepend, ResolveRoute);
+        StartResolution start = ResolveFromBestStart(
+            new TaxiingOn(aircraft.Callsign, groundLayout),
+            taxi,
+            heldShortPrepend,
+            currentTaxiwayPrepend,
+            ResolveRoute
+        );
         taxi = start.Command;
         TaxiRoute? route = start.Route;
         PathfindingFailure? failure = start.Failure;
@@ -2527,7 +2534,7 @@ public static partial class GroundCommandHandler
     /// command and its failure in place, so the readback and every recovery after it see the clearance as issued.
     /// </summary>
     private static StartResolution ResolveFromBestStart(
-        (string Callsign, AirportGroundLayout Layout) aircraftAt,
+        TaxiingOn aircraftAt,
         TaxiCommand asCleared,
         TaxiCommand? heldShortPrepend,
         TaxiCommand? currentTaxiwayPrepend,

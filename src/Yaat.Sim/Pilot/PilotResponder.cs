@@ -2983,10 +2983,10 @@ public static partial class PilotResponder
     }
 
     /// <summary>
-    /// The refusal of a taxi clearance naming <paramref name="fromTaxiway"/> then <paramref name="toTaxiway"/>, a crossing the
-    /// airport declares that this aircraft cannot turn onto: the turn from the runway onto the second taxiway exceeds its
-    /// type's turn limit (KCOS A2 onto C2, a 150° reversal onto a high-speed exit, for a B738). It stays put and asks for taxi
-    /// instructions. The terminal line is the controller-facing <see cref="SegmentExpander.CannotMakeTurnReason"/>; the spoken
+    /// The refusal of a taxi clearance naming <paramref name="fromTaxiway"/> then <paramref name="toTaxiway"/>, a runway crossing
+    /// this aircraft cannot turn onto: the corner flown on the straight-over leg, or the turn off the centreline on a crossing that
+    /// falls back to it, exceeds its type's turn limit (lines meeting at a 150° corner, past a jet's 135°). It stays put and asks
+    /// for taxi instructions. The terminal line is the controller-facing <see cref="SegmentExpander.CannotMakeTurnReason"/>; the spoken
     /// form spells the taxiway turned onto (AIM 4-2-7).
     /// </summary>
     public static PilotSpeechText BuildUnableCannotMakeTurn(AircraftState aircraft, string fromTaxiway, string toTaxiway)
@@ -3012,22 +3012,6 @@ public static partial class PilotResponder
         return new PilotSpeechText(
             SegmentExpander.NoRoomToClearRunwayReason(taxiway, runway),
             $"{spoken}, unable, no room on {onto} to clear the runway, request taxi instructions"
-        );
-    }
-
-    /// <summary>
-    /// The refusal of a taxi clearance across a runway onto <paramref name="toTaxiway"/> when the line the aircraft crosses on meets
-    /// the taxiway only past its hold bar: it stays put, says it is unable (P/CG "UNABLE") and asks for taxi instructions. The
-    /// terminal line is the controller-facing <see cref="SegmentExpander.NoRoomToCrossStraightReason"/>; the spoken form spells the
-    /// taxiway (AIM 4-2-7).
-    /// </summary>
-    public static PilotSpeechText BuildUnableNoRoomToCrossStraight(AircraftState aircraft, string toTaxiway)
-    {
-        string spoken = SpokenOwnCallsign(aircraft);
-        string onto = PhraseologyVerbalizer.SpellTaxiway(toTaxiway);
-        return new PilotSpeechText(
-            SegmentExpander.NoRoomToCrossStraightReason(toTaxiway),
-            $"{spoken}, unable, no room to cross straight over onto {onto}, request taxi instructions"
         );
     }
 
