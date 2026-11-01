@@ -3,19 +3,25 @@
     Overlays our patched sherpa-onnx CPU native (n-best + TDT beam fix) over the NuGet
     org.k2fsa.sherpa.onnx.runtime.<rid> natives, for every RID the STT download manifest lists.
     Runs in every project that resolves those packages, so test projects and tools that reference
-    Yaat.Client ship the same native as the app. A build that cannot verify our native fails;
-    there is no fallback to NuGet's.
+    Yaat.Client ship the same native as the app. Each zip is tried from the manifest's baseUrl,
+    then from each natives.mirrors entry. When none verifies, `dotnet publish` (or a build with
+    YaatSherpaRequireOverlay=true) fails; any other build warns YAATSHERPA001, keeps NuGet's
+    stock native for that RID and copies a sherpa-native-FALLBACK.txt marker beside it.
   -->
   <PropertyGroup>
     <!-- Exists so a test can point the build at a tampered manifest; not a user setting. -->
     <YaatSherpaManifest Condition="'$(YaatSherpaManifest)' == ''">$(MSBuildThisFileDirectory)../../src/Yaat.Client/Speech/stt-downloads.json</YaatSherpaManifest>
+    <!-- A fallback must not fail a /warnaserror build (CI); a publish refuses to fall back instead. -->
+    <MSBuildWarningsNotAsErrors>$(MSBuildWarningsNotAsErrors);YAATSHERPA001</MSBuildWarningsNotAsErrors>
   </PropertyGroup>
 
   <UsingTask TaskName="EnsureSherpaNatives" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
       <ManifestPath ParameterType="System.String" Required="true" />
       <Rids ParameterType="System.String[]" Required="true" />
+      <Required ParameterType="System.Boolean" Required="true" />
       <Overlays ParameterType="Microsoft.Build.Framework.ITaskItem[]" Output="true" />
+      <Fallbacks ParameterType="Microsoft.Build.Framework.ITaskItem[]" Output="true" />
     </ParameterGroup>
     <Task>
       <Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)EnsureSherpaNatives.cs" />
@@ -23,9 +29,15 @@
   </UsingTask>
 
   <Target Name="YaatOverlaySherpaNatives" AfterTargets="ResolvePackageAssets">
+    <PropertyGroup>
+      <_YaatSherpaRequired>false</_YaatSherpaRequired>
+      <_YaatSherpaRequired Condition="('$(_IsPublishing)' == 'true') or ('$(YaatSherpaRequireOverlay)' == 'true')">true</_YaatSherpaRequired>
+    </PropertyGroup>
+
     <ItemGroup>
       <_YaatSherpaNative Remove="@(_YaatSherpaNative)" />
       <_YaatSherpaOverlay Remove="@(_YaatSherpaOverlay)" />
+      <_YaatSherpaFallback Remove="@(_YaatSherpaFallback)" />
       <_YaatSherpaNative Include="@(RuntimeTargetsCopyLocalItems)" YaatItemType="RuntimeTargets" Condition="$([System.String]::Copy('%(RuntimeTargetsCopyLocalItems.NuGetPackageId)').StartsWith('org.k2fsa.sherpa.onnx.runtime.'))" />
       <_YaatSherpaNative Include="@(NativeCopyLocalItems)" YaatItemType="Native" Condition="$([System.String]::Copy('%(NativeCopyLocalItems.NuGetPackageId)').StartsWith('org.k2fsa.sherpa.onnx.runtime.'))" />
       <!-- The RID is the package id's suffix: NativeCopyLocalItems need not carry RuntimeIdentifier. -->
@@ -34,9 +46,49 @@
       </_YaatSherpaNative>
     </ItemGroup>
 
-    <EnsureSherpaNatives Condition="'@(_YaatSherpaNative)' != ''" ManifestPath="$(YaatSherpaManifest)" Rids="@(_YaatSherpaNative->'%(YaatRid)'->Distinct())">
+    <EnsureSherpaNatives
+      Condition="'@(_YaatSherpaNative)' != ''"
+      ManifestPath="$(YaatSherpaManifest)"
+      Rids="@(_YaatSherpaNative->'%(YaatRid)'->Distinct())"
+      Required="$(_YaatSherpaRequired)">
       <Output TaskParameter="Overlays" ItemName="_YaatSherpaOverlay" />
+      <Output TaskParameter="Fallbacks" ItemName="_YaatSherpaFallback" />
     </EnsureSherpaNatives>
+  </Target>
+
+  <!--
+    Batched once per RID that kept NuGet's native: writes the warning text to obj/sherpa-native-fallback/<rid>/ and copies it as
+    sherpa-native-FALLBACK.txt wherever that RID's c-api library goes, as the overlay does with its MANIFEST.
+  -->
+  <Target Name="_YaatSherpaFallbackForRid" AfterTargets="YaatOverlaySherpaNatives" Condition="'@(_YaatSherpaFallback)' != ''" Outputs="%(_YaatSherpaFallback.Identity)">
+    <PropertyGroup>
+      <_YaatSherpaFallbackRid>%(_YaatSherpaFallback.Identity)</_YaatSherpaFallbackRid>
+      <!-- Copy-local items land under their source file name, so the obj copy already carries the output name. -->
+      <_YaatSherpaFallbackFile>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'sherpa-native-fallback', '$(_YaatSherpaFallbackRid)', 'sherpa-native-FALLBACK.txt'))</_YaatSherpaFallbackFile>
+    </PropertyGroup>
+
+    <WriteLinesToFile File="$(_YaatSherpaFallbackFile)" Lines="%(_YaatSherpaFallback.Reason)" Overwrite="true" />
+
+    <ItemGroup>
+      <_YaatSherpaFallbackRuntimeTargets Remove="@(_YaatSherpaFallbackRuntimeTargets)" />
+      <_YaatSherpaFallbackNatives Remove="@(_YaatSherpaFallbackNatives)" />
+      <_YaatSherpaFallbackRuntimeTargets Include="@(_YaatSherpaNative)" Condition="('%(YaatRid)' == '$(_YaatSherpaFallbackRid)') and ('%(YaatItemType)' == 'RuntimeTargets')" />
+      <_YaatSherpaFallbackNatives Include="@(_YaatSherpaNative)" Condition="('%(YaatRid)' == '$(_YaatSherpaFallbackRid)') and ('%(YaatItemType)' == 'Native')" />
+
+      <RuntimeTargetsCopyLocalItems
+        Include="@(_YaatSherpaFallbackRuntimeTargets->'$(_YaatSherpaFallbackFile)')"
+        Condition="$([System.String]::Copy('%(Filename)').EndsWith('sherpa-onnx-c-api'))"
+        DestinationSubPath="%(_YaatSherpaFallbackRuntimeTargets.DestinationSubDirectory)sherpa-native-FALLBACK.txt"
+        PathInPackage=""
+        RemoveMetadata="YaatRid;YaatItemType" />
+      <NativeCopyLocalItems
+        Include="@(_YaatSherpaFallbackNatives->'$(_YaatSherpaFallbackFile)')"
+        Condition="$([System.String]::Copy('%(Filename)').EndsWith('sherpa-onnx-c-api'))"
+        DestinationSubPath="%(_YaatSherpaFallbackNatives.DestinationSubDirectory)sherpa-native-FALLBACK.txt"
+        PathInPackage=""
+        RemoveMetadata="YaatRid;YaatItemType" />
+      <FileWrites Include="$(_YaatSherpaFallbackFile)" />
+    </ItemGroup>
   </Target>
 
   <!-- Batched once per overlaid RID; Outputs without Inputs only drives the batching. -->

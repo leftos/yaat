@@ -2,6 +2,9 @@
   "baseUrl": "https://dl.leftos.dev/",
   "natives": {
     "commit": "804a1d0c29121a01853916698d4a9b87851bed2e",
+    "mirrors": [
+      "https://github.com/leftos/sherpa-onnx/releases/download/yaat-natives-804a1d0c29/"
+    ],
     "files": [
       {
         "rid": "linux-x64",

@@ -13,7 +13,9 @@ G:\\My Drive\\Private Config\\yaat\\secrets\\r2.env; no value is ever printed.
 
 Usage:
     uv run tools/publish_stt_downloads.py --natives-dir .tmp/natives-<sha> --native-commit <40-hex> \\
-        --model fp32=<dir> --model int8=<dir> --license <file> --notice <file> [--dry-run]
+        --model fp32=<dir> --model int8=<dir> --license <file> --notice <file> [--mirror <base-url>]... [--dry-run]
+
+Each --mirror is written to natives.mirrors; the tool does not upload to a mirror.
 """
 
 from __future__ import annotations
@@ -136,6 +138,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--model", type=parse_model_arg, action="append", required=True, help="fp32=<dir> or int8=<dir>, repeatable")
     parser.add_argument("--license", type=Path, required=True, help="licence file published as LICENSE with every model")
     parser.add_argument("--notice", type=Path, required=True, help="notice file published as NOTICE with every model")
+    parser.add_argument("--mirror", action="append", default=[], help="base URL of a mirror serving the native zips flat by file name, repeatable")
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST, help="manifest to write (default: %(default)s)")
     parser.add_argument("--dry-run", action="store_true", help="hash and write the manifest, upload nothing")
     return parser.parse_args(argv)
@@ -243,12 +246,13 @@ def hash_file(local: LocalFile) -> HashedFile:
     return HashedFile(local.key, local.path, local.path.stat().st_size, digest)
 
 
-def build_manifest(natives: list[NativeZip], commit: str, models: list[Model]) -> tuple[dict[str, Any], list[HashedFile]]:
+def build_manifest(natives: list[NativeZip], commit: str, mirrors: list[str], models: list[Model]) -> tuple[dict[str, Any], list[HashedFile]]:
     """Hashes every file and builds the manifest.
 
     Args:
         natives: The native zips in manifest order.
         commit: The sherpa-onnx commit the natives were built from.
+        mirrors: Base URLs of mirrors serving the native zips flat by file name, in the order a build tries them.
         models: The models in manifest order.
 
     Returns:
@@ -268,7 +272,7 @@ def build_manifest(natives: list[NativeZip], commit: str, models: list[Model]) -
             hashed.append(file)
             file_entries.append({"name": name, "key": file.key, "size": file.size, "sha256": file.sha256})
         model_entries.append({"id": model.model_id, "files": file_entries})
-    manifest = {"baseUrl": BASE_URL, "natives": {"commit": commit, "files": native_entries}, "models": model_entries}
+    manifest = {"baseUrl": BASE_URL, "natives": {"commit": commit, "mirrors": list(mirrors), "files": native_entries}, "models": model_entries}
     return manifest, hashed
 
 
@@ -430,7 +434,7 @@ def run(args: argparse.Namespace) -> None:
     natives = collect_natives(args.natives_dir, args.native_commit)
     models = collect_models(args.model, args.license, args.notice)
     credentials = None if args.dry_run else load_r2_credentials(SECRETS_PATH)
-    manifest, files = build_manifest(natives, args.native_commit, models)
+    manifest, files = build_manifest(natives, args.native_commit, args.mirror, models)
     if credentials is not None:
         upload_all(make_s3_client(credentials), files)
         verify_public(files)
