@@ -22,6 +22,12 @@ public enum SpeechStatus
     Transcribing,
     Mapping,
     Error,
+
+    /// <summary>
+    /// The speech-recognition model the preferences name is not downloaded, so a push-to-talk press was refused. Treated
+    /// as start-legal by <see cref="SpeechRecognitionService.StartPtt"/>, so a press after the download records.
+    /// </summary>
+    ModelMissing,
 }
 
 public enum SpeechSessionOutcome
@@ -158,20 +164,21 @@ public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadO
 /// </summary>
 public sealed class SpeechRecognitionService(
     UserPreferences preferences,
-    AudioCaptureService audio,
+    IAudioCapture audio,
     ISttEngine stt,
     LocalLlmService? llmService,
     ISpeechCommandMapper ruleMapper,
     ISpeechCommandMapper? llmMapper,
     LocalLlmCallsignResolver? callsignResolver,
     Func<SpeechContext> contextProvider,
-    SpeechSampleStore? sampleStore
+    SpeechSampleStore? sampleStore,
+    Func<bool> isModelReady
 ) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SpeechRecognitionService>();
 
     private readonly UserPreferences _preferences = preferences;
-    private readonly AudioCaptureService _audio = audio;
+    private readonly IAudioCapture _audio = audio;
     private readonly ISttEngine _stt = stt;
     private readonly LocalLlmService? _llmService = llmService;
     private readonly ISpeechCommandMapper _ruleMapper = ruleMapper;
@@ -179,6 +186,7 @@ public sealed class SpeechRecognitionService(
     private readonly LocalLlmCallsignResolver? _callsignResolver = callsignResolver;
     private readonly Func<SpeechContext> _contextProvider = contextProvider;
     private readonly SpeechSampleStore? _sampleStore = sampleStore;
+    private readonly Func<bool> _isModelReady = isModelReady;
 
     private SpeechStatus _status = SpeechStatus.Idle;
     private CancellationTokenSource? _pendingCts;
@@ -221,7 +229,12 @@ public sealed class SpeechRecognitionService(
     /// back to <see cref="SpeechStatus.Idle"/> on completion (unless another transition raced us —
     /// in that case we leave the current status alone).
     /// </summary>
-    public async Task PrewarmAsync(CancellationToken ct)
+    /// <param name="prepareEngine">
+    /// Runs first, under <see cref="SpeechStatus.Warming"/>, before the engine warms up: the caller's chance to swap in
+    /// the engine the warm-up should load. A failure is logged and the warm-up runs on the engine already in place.
+    /// </param>
+    /// <param name="ct">Cancels the warm-up.</param>
+    public async Task PrewarmAsync(Func<Task> prepareEngine, CancellationToken ct)
     {
         if (!_preferences.SpeechEnabled)
         {
@@ -232,7 +245,23 @@ public sealed class SpeechRecognitionService(
         var sw = Stopwatch.StartNew();
         try
         {
-            Task sttTask = _stt.WarmUpAsync(ct);
+            try
+            {
+                await prepareEngine().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log.LogWarning(ex, "Preparing the speech-recognition engine failed; warming up the one in place");
+            }
+            Task sttTask = Task.CompletedTask;
+            if (_isModelReady())
+            {
+                sttTask = _stt.WarmUpAsync(ct);
+            }
+            else
+            {
+                Log.LogInformation("Speech-recognition model not downloaded; skipping its warm-up");
+            }
             Task llmTask = _llmService?.PrewarmAsync(ct) ?? Task.CompletedTask;
             await Task.WhenAll(sttTask, llmTask).ConfigureAwait(false);
             sw.Stop();
@@ -275,9 +304,17 @@ public sealed class SpeechRecognitionService(
 
         // Warming is treated as start-legal — the engine locks already serialize a user PTT
         // against an in-flight prewarm, which matches the previous lazy-load behavior exactly.
+        // ModelMissing is too: the model may have been downloaded since the refused press.
         SpeechStatus current = Status;
-        if (current != SpeechStatus.Idle && current != SpeechStatus.Warming)
+        if ((current != SpeechStatus.Idle) && (current != SpeechStatus.Warming) && (current != SpeechStatus.ModelMissing))
         {
+            return false;
+        }
+
+        if (!_isModelReady())
+        {
+            Log.LogInformation("PTT refused: the speech-recognition model is not downloaded");
+            SetStatus(SpeechStatus.ModelMissing);
             return false;
         }
 

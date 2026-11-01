@@ -116,9 +116,13 @@ cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the gr
 
 1. **Preferences mirror** — `_isSpeechEnabled`, `_sessionSoloTrainingMode`, etc. seeded from `_preferences`.
 2. **Speech pipeline** — order matters: `AudioCaptureService` → `WhisperSttEngine` → `LocalLlmService` → the two LLM
-   consumers (`LocalLlmCommandMapper`, `LocalLlmCallsignResolver`) → `SpeechRecognitionService` (needs all of them).
-   `_speechService.StatusChanged`/`CommandReady` are hooked here, and a fire-and-forget `PrewarmAsync` runs when
-   `SpeechEnabled` so the first PTT press doesn't stall on model load. See
+   consumers (`LocalLlmCommandMapper`, `LocalLlmCallsignResolver`) → `SwappableSttEngine` (wrapping `SttEngineFactory.Create` for the
+   preferences' `SttEngine` and `SttMode`) → `SpeechRecognitionService` (needs all of them, plus an `isModelReady` check).
+   `_speechService.StatusChanged`/`CommandReady` are hooked here, and a fire-and-forget `PrewarmSpeechAsync` runs when
+   `SpeechEnabled` so the first PTT press doesn't stall on model load. With Accurate mode and the rasr model downloaded, the startup
+   engine decodes greedily (building it makes no native call) and the first prewarm runs `ApplySttEngineAsync` under `Warming`, which
+   probes the beam and swaps it in. `ApplySttEngineAsync()` rebuilds the engine from the current preferences and swaps it in live (the
+   latest request wins); it is the call Settings' Apply makes. See
    [speech-recognition-pipeline.md](speech-recognition-pipeline.md).
 3. **Aircraft view filter** — `AircraftView = new DataGridCollectionView(Aircraft)` with the active/text filter.
 4. **Sub-VM construction** — `Ground` and `Radar` built with the `SendCommandForViewAsync` callback and an aircraft

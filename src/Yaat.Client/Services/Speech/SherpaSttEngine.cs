@@ -34,6 +34,28 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
     private readonly Lock _gate = new();
     private IntPtr _recognizer;
     private bool _disposed;
+    private volatile string? _loadError;
+
+    /// <summary>The folder the model is loaded from.</summary>
+    public string ModelDir => _modelDir;
+
+    /// <summary>Why the last attempt to load the model failed; null before any attempt and after a successful load.</summary>
+    public string? LoadError => _loadError;
+
+    /// <summary>True once <see cref="Dispose"/> has run.</summary>
+    public bool IsDisposed
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _disposed;
+            }
+        }
+    }
+
+    /// <summary>How the engine decodes: greedy, or beam with its paths and hotword score.</summary>
+    public SherpaDecoding Decoding { get; } = decoding;
 
     public bool IsConfigured => File.Exists(FindModelFile("encoder")) && File.Exists(Path.Combine(_modelDir, "tokens.txt"));
 
@@ -149,7 +171,7 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
         {
             if (_isBeam)
             {
-                api.SetStreamOption(stream, "num_return_paths", decoding.NumPaths.ToString(CultureInfo.InvariantCulture));
+                api.SetStreamOption(stream, "num_return_paths", Decoding.NumPaths.ToString(CultureInfo.InvariantCulture));
             }
             api.AcceptWaveform(stream, sampleRate, samples);
             api.Decode(recognizer, stream);
@@ -180,6 +202,7 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
         string tokens = Path.Combine(_modelDir, "tokens.txt");
         if (!File.Exists(encoder) || !File.Exists(decoder) || !File.Exists(joiner) || !File.Exists(tokens))
         {
+            _loadError = $"the model folder {_modelDir} is missing encoder/decoder/joiner .onnx or tokens.txt";
             Log.LogError("sherpa-onnx model dir {Dir} is missing encoder/decoder/joiner .onnx or tokens.txt", _modelDir);
             return IntPtr.Zero;
         }
@@ -198,17 +221,27 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
         {
             config.ModelConfig.ModelingUnit = "bpe";
             config.ModelConfig.BpeVocab = BpeVocabPath;
-            config.HotwordsScore = decoding.HotwordScore;
+            config.HotwordsScore = Decoding.HotwordScore;
         }
 
-        _recognizer = api.CreateRecognizer(ref config);
+        try
+        {
+            _recognizer = api.CreateRecognizer(ref config);
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"sherpa-onnx failed to create the recognizer for {_modelDir}: {ex.Message}";
+            throw;
+        }
         if (_recognizer == IntPtr.Zero)
         {
+            _loadError = $"sherpa-onnx rejected the recognizer config for {_modelDir}";
             Log.LogError("sherpa-onnx rejected the recognizer config for model dir {Dir}", _modelDir);
             return IntPtr.Zero;
         }
 
-        Log.LogInformation("sherpa-onnx NeMo transducer loaded from {Dir} on {Provider} ({Method})", _modelDir, provider, decoding.Method);
+        _loadError = null;
+        Log.LogInformation("sherpa-onnx NeMo transducer loaded from {Dir} on {Provider} ({Method})", _modelDir, provider, Decoding.Method);
         return _recognizer;
     }
 

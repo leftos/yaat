@@ -54,6 +54,11 @@ public partial class MainViewModel : ObservableObject
     // PTT key. When disabled, these sit dormant with zero cost.
     private readonly AudioCaptureService _audioCapture;
     private readonly WhisperSttEngine _whisperStt;
+    private readonly SwappableSttEngine _sttEngine;
+
+    // 1 while the startup engine decodes greedily in place of the accurate-mode beam the preferences ask for, until the
+    // first prewarm probes the beam (PrewarmSpeechAsync).
+    private int _sttBeamProbePending;
     private readonly LocalLlmService _llmService;
     private readonly LocalLlmCommandMapper _llmMapper;
     private readonly LocalLlmCallsignResolver _llmCallsignResolver;
@@ -1673,7 +1678,7 @@ public partial class MainViewModel : ObservableObject
         // _speechService is assigned in the constructor.
         if (value && _speechService is not null)
         {
-            _ = Task.Run(() => _speechService.PrewarmAsync(CancellationToken.None));
+            _ = Task.Run(PrewarmSpeechAsync);
         }
 
         if (value)
@@ -1692,6 +1697,39 @@ public partial class MainViewModel : ObservableObject
     public void RefreshIsSpeechEnabledFromPrefs() => IsSpeechEnabled = _preferences.SpeechEnabled;
 
     public void RefreshWindowTitleFromPrefs() => OnPropertyChanged(nameof(WindowTitle));
+
+    /// <summary>
+    /// Builds the speech-recognition engine the preferences name (model and mode) and swaps it in without a restart, on
+    /// the thread pool. An accurate-mode rasr model is probed for beam support and falls back to greedy decoding when this
+    /// native cannot run it. A push-to-talk transcription started mid-swap waits for the swap.
+    /// </summary>
+    /// <remarks>When requests overlap, the latest one wins, whichever build finishes first.</remarks>
+    public Task ApplySttEngineAsync() =>
+        Task.Run(() =>
+            _sttEngine.SwapToLatestAsync(
+                () =>
+                    SttEngineFactory.CreateCheckedAsync(
+                        _preferences.SttEngine,
+                        _preferences.SttMode,
+                        SttModelInstaller.InstallRootDefault,
+                        () => _whisperStt,
+                        engine => engine.NativeProblem()
+                    ),
+                CancellationToken.None
+            )
+        );
+
+    /// <summary>
+    /// Pre-loads the speech pipeline. When the preferences asked for an accurate-mode rasr model that was downloaded at
+    /// startup, the startup engine decodes greedily (it was built without a native call), so the first prewarm runs
+    /// <see cref="ApplySttEngineAsync"/> under <see cref="SpeechStatus.Warming"/>: its beam-support probe loads the model and
+    /// swaps the beam engine in, or a greedy one when this native cannot run the beam.
+    /// </summary>
+    private Task PrewarmSpeechAsync() =>
+        _speechService.PrewarmAsync(
+            () => (Interlocked.Exchange(ref _sttBeamProbePending, 0) == 1) ? ApplySttEngineAsync() : Task.CompletedTask,
+            CancellationToken.None
+        );
 
     public MainViewModel(IFilePickerService filePicker)
         : this(filePicker, TimeProvider.System) { }
@@ -1737,16 +1775,27 @@ public partial class MainViewModel : ObservableObject
             _speechSampleStore,
             _preferences
         );
+        string sttManifestPath = Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json");
+        bool probeBeamOnPrewarm =
+            (_preferences.SttMode == SttMode.Accurate)
+            && (_preferences.SttEngine.ManifestModelId() is not null)
+            && SttEngineFactory.IsModelReady(_preferences.SttEngine, SttModelInstaller.InstallRootDefault, sttManifestPath);
+        _sttBeamProbePending = probeBeamOnPrewarm ? 1 : 0;
+        SttMode startupMode = probeBeamOnPrewarm ? SttMode.Fast : _preferences.SttMode;
+        _sttEngine = new SwappableSttEngine(
+            SttEngineFactory.Create(_preferences.SttEngine, startupMode, SttModelInstaller.InstallRootDefault, () => _whisperStt)
+        );
         _speechService = new SpeechRecognitionService(
             _preferences,
             _audioCapture,
-            new WhisperClientSttEngine(_whisperStt),
+            _sttEngine,
             _llmService,
             _ruleMapper,
             _llmMapper,
             _llmCallsignResolver,
             () => BuildSpeechContext(),
-            _speechSampleStore
+            _speechSampleStore,
+            () => SttEngineFactory.IsModelReady(_preferences.SttEngine, SttModelInstaller.InstallRootDefault, sttManifestPath)
         );
         _speechService.StatusChanged += HandleSpeechServiceStatusChange;
         _speechService.CommandReady += HandleSpeechServiceCommandReady;
@@ -1757,7 +1806,7 @@ public partial class MainViewModel : ObservableObject
         // no startup cost. OnIsSpeechEnabledChanged also kicks prewarm when toggled on.
         if (_preferences.SpeechEnabled)
         {
-            _ = Task.Run(() => _speechService.PrewarmAsync(CancellationToken.None));
+            _ = Task.Run(PrewarmSpeechAsync);
         }
 
         AircraftView = new DataGridCollectionView(Aircraft)
