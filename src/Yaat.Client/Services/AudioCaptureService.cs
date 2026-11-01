@@ -5,6 +5,16 @@ using Yaat.Client.Logging;
 
 namespace Yaat.Client.Services;
 
+/// <summary>The push-to-talk pipeline's microphone: records between a start and a stop.</summary>
+public interface IAudioCapture
+{
+    /// <summary>Starts recording; false when the input device could not be opened.</summary>
+    bool StartCapture();
+
+    /// <summary>Stops recording and returns the 16 kHz mono Float32 samples; empty when nothing was recorded.</summary>
+    float[] StopCapture();
+}
+
 /// <summary>
 /// Push-to-talk microphone capture via PortAudioSharp2. Records 16 kHz mono Float32 PCM into a
 /// growing buffer and returns the full capture as a <see cref="float"/>[] on stop.
@@ -22,7 +32,7 @@ namespace Yaat.Client.Services;
 /// of the service. Disposal terminates PortAudio globally — only call <see cref="Dispose"/> at app
 /// shutdown since there's no way to re-initialize in the same process without side effects.
 /// </summary>
-public sealed class AudioCaptureService(UserPreferences preferences) : IDisposable
+public sealed class AudioCaptureService(UserPreferences preferences) : IAudioCapture, IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<AudioCaptureService>();
 

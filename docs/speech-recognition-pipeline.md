@@ -18,8 +18,9 @@ describes the **current** pipeline.
 
 ## Overview
 
-User holds the PTT key. Audio is captured as 16 kHz mono float32, Whisper
-(via LM-Kit) transcribes it with a statically-built biasing prompt,
+User holds the PTT key. Audio is captured as 16 kHz mono float32, the
+preferred STT engine (a rasr model on sherpa-onnx by default, or Whisper via
+LM-Kit with a statically-built biasing prompt; see STT Stage) transcribes it,
 spoken numbers are normalized to digits, a rule-based phraseology mapper
 tries first, and an LLM fallback (also via LM-Kit, grammar-constrained to
 the canonical command surface) runs if no rule matches. The final
@@ -73,7 +74,9 @@ depend on LM-Kit and PortAudio native libraries.
 - **Prewarm:** `SpeechRecognitionService.PrewarmAsync` is called at
   startup so first PTT press doesn't stall on the multi-second model
   load. Fires `StatusChanged(Warming)` on entry and returns to `Idle`
-  unless a user PTT raced it to another state.
+  unless a user PTT raced it to another state. It first runs the caller's
+  `prepareEngine` (a failure is logged and the engine in place warms up),
+  and skips the STT warm-up when the chosen model is not downloaded.
 
 ## STT Stage — LM-Kit Whisper
 
@@ -107,6 +110,10 @@ depend on LM-Kit and PortAudio native libraries.
   **delisted from the picker** (the old default would invite
   regressions); a saved preference that still names it keeps loading
   through the curated-ID path, it just shows as a custom source.
+- **Which engine the live client builds:** `src/Yaat.Client/Services/Speech/SttEngineFactory.cs` makes the `ISttEngine` from `UserPreferences.SttEngine` (default the rasr v2 fp32 model on sherpa-onnx; `Whisper` keeps the LM-Kit engine above) and `SttMode` (default `Accurate`). `Create` makes no native call: a rasr model decodes greedily in `Fast` and with beam search (4 paths, hotword score 1.5) in `Accurate`. `CreateCheckedAsync` probes an accurate rasr model by decoding on the beam engine it built, and falls back to a greedy engine when this native cannot run the beam; a model that fails to load throws. `IsModelReady` says whether the chosen model's files are on disk (Whisper is always ready).
+- **The swap:** `MainViewModel` wraps the engine in `SwappableSttEngine`, so a model or mode change takes effect without a restart (`MainViewModel.ApplySttEngineAsync`). One gate serializes warm-up, transcribe and swap; a PTT mid-swap waits and then runs on the new engine. The new engine is warmed before it replaces the old one, so a rasr model that fails to load fails the swap and the old engine stays. When requests overlap the latest wins, and the replaced engine is disposed off the caller's thread.
+- **Startup in Accurate mode:** with the model downloaded, the startup engine decodes greedily and the first prewarm runs the beam probe and swap under `Warming` (the `prepareEngine` argument of `PrewarmAsync`), so startup stays free of native calls.
+- **Model not downloaded:** a PTT whose chosen rasr model is not on disk is refused with `SpeechStatus.ModelMissing` (the mic indicator shows "mic: ModelMissing"); prewarm skips the STT warm-up then. `ModelMissing` is start-legal, so a press after the download records.
 - **Sherpa model install:** the client reads `src/Yaat.Client/Speech/stt-downloads.json`'s `models[]` through `SttModelInstaller` (`ReadModels`/`ReadModel`), which downloads and SHA-256-verifies a model's files into `%LOCALAPPDATA%/yaat/models/stt/<id>/`. The files are built in a staging folder with the `.installed` sentinel written last, then swapped in, so a failed or cancelled install leaves an installed model as it was; one writer per root via `models/stt.lock`. Downloads go through `VerifiedFileDownloader`, shared with `SherpaCudaInstaller`, so download log lines log under that category. No UI calls the installer yet.
 - **Licensing:** every process funnels through
   `src/Yaat.Client/Services/LmKitLicense.Initialize()` exactly once
@@ -382,9 +389,11 @@ Spoken forms come from the pilot-speech spelling plus the per-ARTCC pronunciatio
   controls how scenario state is observed and the service stays
   decoupled from the view model.
 - **State machine** (`SpeechStatus`): `Idle`, `Warming`, `Recording`,
-  `Transcribing`, `Mapping`, `Error`. `Warming` is treated as
+  `Transcribing`, `Mapping`, `Error`, `ModelMissing`. `Warming` is treated as
   start-legal — `StartPtt` can fire mid-prewarm because the engine
-  locks serialize the in-flight load against the user press.
+  locks serialize the in-flight load against the user press. So is
+  `ModelMissing`, set when a press is refused because the chosen model is
+  not downloaded.
 - **Session history**: last `MaxSessionHistory = 20` PTT presses are
   captured as `SpeechSession` records (transcript, canonical, elapsed
   timings, outcome) in a ring buffer `ObservableCollection`, exposed
