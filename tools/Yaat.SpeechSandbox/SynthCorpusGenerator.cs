@@ -90,6 +90,12 @@ internal static class SynthCorpusGenerator
             return 2;
         }
 
+        if (!SandboxNavData.TryInitialize(out string? navDataError))
+        {
+            Console.Error.WriteLine($"FATAL: {navDataError}");
+            return 2;
+        }
+
         SynthCorpusResult result = await GenerateAsync(new SynthCorpusOptions(outDir, cases, seed, voiceDir, useSynthCache)).ConfigureAwait(false);
         int fromCache = result.Written.Count(c => c.CacheHit);
         string fullOutDir = Path.GetFullPath(outDir);
