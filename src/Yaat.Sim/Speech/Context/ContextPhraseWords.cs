@@ -107,6 +107,70 @@ internal static class ContextPhraseWords
     /// <summary>Words that hand off to a frequency, so an opener run that reaches one is a frequency change, not a check-in.</summary>
     public static IReadOnlySet<string> FrequencyChangeWords { get; } = Set("contact", "monitor", "change", "switch", "switching");
 
+    /// <summary>
+    /// The phrases a closing tail after a trailing callsign is made of, as letter-only words; "g'day" reads as "gday". Farewells
+    /// are convention, the acknowledgements are AIM 4-2-3c.
+    /// </summary>
+    public static IReadOnlyList<string[]> ClosingPhrases { get; } =
+    [
+        ["good", "day"],
+        ["good", "night"],
+        ["gday"],
+        ["have", "a", "good", "one"],
+        ["have", "a", "good", "day"],
+        ["have", "a", "good", "night"],
+        ["have", "a", "good", "evening"],
+        ["have", "a", "nice", "day"],
+        ["have", "a", "great", "day"],
+        ["thanks"],
+        ["thank", "you"],
+        ["thanks", "a", "lot"],
+        ["thanks", "much"],
+        ["cheers"],
+        ["appreciate", "it"],
+        ["so", "long"],
+        ["see", "ya"],
+        ["see", "you"],
+        ["take", "care"],
+        ["bye"],
+        ["later"],
+        ["roger"],
+        ["wilco"],
+        ["affirmative"],
+        ["over"],
+    ];
+
+    /// <summary>The words before "traffic" that make it the object of a sighting report ("looking for that traffic").</summary>
+    public static IReadOnlySet<string> SightingArticles { get; } = Set("that", "the");
+
+    /// <summary>The objects before "in sight" in a sighting report ("got him in sight").</summary>
+    public static IReadOnlySet<string> SightingObjects { get; } = Set("traffic", "it", "him", "her", "them");
+
+    /// <summary>Words shortly before a sighting pattern that make the callsign after it traffic, not the speaker.</summary>
+    public static IReadOnlySet<string> SightingBlockers { get; } =
+        Set(
+            "follow",
+            "following",
+            "behind",
+            "number",
+            "caution",
+            "wake",
+            "turbulence",
+            "your",
+            "report",
+            "from",
+            "is",
+            "was",
+            "thats",
+            "its",
+            "theres",
+            "be",
+            "thatll"
+        );
+
+    /// <summary>The blockers of an "in sight" pattern, which add the controller's "has you in sight" (7110.65 7-2-1a.2(d)).</summary>
+    public static IReadOnlySet<string> InSightBlockers { get; } = Set([.. SightingBlockers, "has", "you"]);
+
     /// <summary>Words that open a noun-led entity form; a runway, taxiway or gate form without one is bare.</summary>
     public static IReadOnlySet<string> EntityNouns { get; } = Set("runway", "taxiway", "gate", "parking", "spot");
 
