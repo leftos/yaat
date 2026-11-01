@@ -829,7 +829,7 @@ Two taxiways that do meet but nowhere the aircraft can reach ahead are refused `
 
 Two taxiways that face each other across a runway where one is a high-speed exit (KCOS A2 and C2 over 17R/35L) are refused the same way: name the runway between them (`TAXI A2 17R C2 C`), and the aircraft holds short of it on A2 and, once cleared, taxis along it onto C2.
 
-An ARTCC's airport sidecar can declare such a pair a crossing, after which `TAXI A2 C2` holds short and crosses, if the aircraft's type can make the turn from the runway onto the second taxiway (a B738 onto C2 cannot and is refused `Unable, can't make the turn from A2 onto C2, request taxi instructions`; a C172 can); YAAT ships no such declaration.
+An ARTCC's airport sidecar can declare such a pair a crossing, after which `TAXI A2 C2` holds short and crosses, if the aircraft's type can make the turn onto the second taxiway (the crossing goes straight over the runway on a path from one taxiway's line to the other's, and its sharpest corner is judged; a B738 onto C2 cannot and is refused `Unable, can't make the turn from A2 onto C2, request taxi instructions`; a C172 can); YAAT ships no such declaration.
 
 Any other taxiway the route drives that you didn't clear is flagged: `[taxiing via T — not in the route issued]`. A ramp taxilane you name is driven, and from it the aircraft crosses the apron and rolls into the stand on the stand's heading — see [Command Reference](COMMANDS.md#taxi-to-a-stand-or-spot).
 

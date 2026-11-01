@@ -439,10 +439,7 @@ public static class RouteMaterialiser
         }
 
         bool crossesAfterStart = HoldShortAnnotator.RouteCrossesRunwayAfterStart(ctx.Layout, segments, startNodeId, startRwyId);
-        bool barAhead =
-            (ctx.StartPose is { } pose)
-            && ctx.Layout.Nodes.TryGetValue(segments[0].ToNodeId, out GroundNode? firstLegNext)
-            && HoldShortAnnotator.StartBarHolds(ctx.Layout, startNode, firstLegNext, pose);
+        bool barAhead = (ctx.StartPose is { } pose) && HoldShortAnnotator.StartBarHolds(ctx.Layout, startNode, segments[0].Edge.ToNode, pose);
         if (!crossesAfterStart && !barAhead)
         {
             return;

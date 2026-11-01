@@ -26,9 +26,9 @@ public enum FailureKind
     NoRouteAhead,
 
     /// <summary>
-    /// Two named taxiways meet across a runway as a crossing, but the turn from the runway onto the second exceeds the
-    /// aircraft's turn limit (KCOS A2 onto C2, a 150° reversal onto a high-speed exit, for a B738). Refused as issued, like
-    /// <see cref="TaxiwaysDoNotConnect"/>.
+    /// Two named taxiways meet across a runway as a crossing, but the turn onto the second exceeds the aircraft's turn limit:
+    /// the corner flown on the straight-over leg, or the turn off the centreline on a crossing that falls back to it (lines
+    /// meeting at a 150° corner, past a jet's 135°). Refused as issued, like <see cref="TaxiwaysDoNotConnect"/>.
     /// </summary>
     CannotMakeTurn,
 
@@ -73,8 +73,8 @@ public sealed record PathfindingFailure(
     /// <summary>
     /// Whether this failure refuses the clearance as issued for its pair of named taxiways
     /// (<see cref="FailureKind.TaxiwaysDoNotConnect"/>, <see cref="FailureKind.NoRouteAhead"/>,
-    /// <see cref="FailureKind.CannotMakeTurn"/>, <see cref="FailureKind.NoRoomToClearRunway"/>): no recovery may rewrite it
-    /// into a route the clearance never named, and the aircraft stays put.
+    /// <see cref="FailureKind.CannotMakeTurn"/>, <see cref="FailureKind.NoRoomToClearRunway"/>): no recovery may rewrite it into
+    /// a route the clearance never named, and the aircraft stays put.
     /// </summary>
     public bool RefusesPair =>
         Kind is FailureKind.TaxiwaysDoNotConnect or FailureKind.NoRouteAhead or FailureKind.CannotMakeTurn or FailureKind.NoRoomToClearRunway;

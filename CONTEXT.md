@@ -335,6 +335,9 @@ The outline an aircraft of the pushing type would occupy parked on an empty neig
 The straight a taxi flies in place of a fillet's curve when a node-aimed entry-alignment arc rolls out pointing at the fillet's far node from off the curve: from where the aircraft stands straight to that node (`GroundNavigator.InstallAimedLineOverFillet`, docs/ground/navigator.md). It survives a snapshot (`GroundNavigatorDto.OnAimedLineOverFillet`).
 _Avoid_: lead-in (a lead-in is the along-tangent shortfall before a curve the aircraft is flying)
 
+**Meeting point** (of a straight-over leg):
+Where the two taxiways' lines, each drawn outward from its join of the runway along its straight edge, cross; a Continue leg runs along the first line to it and on along the second (`StraightOverGeometry.Meet`, docs/ground/pathfinder.md).
+
 **Mid-edge start**:
 Where a TAXI issued to an aircraft standing on a straight taxiway edge begins: the route is planned from both ends of the occupied edge and the one that does not drive back over it is kept, the end ahead winning ties; an aircraft on a fillet arc starts at the arc's end ahead (docs/ground/pathfinder.md).
 
@@ -365,11 +368,17 @@ A takeoff or landing the solo evaluator's runway tracker detects and judges: a d
 **Re-aim past the bend**:
 A turn about's reversal aimed, with no jog, at a node on the leg out of the bend at its aim node, instead of turning about to that node, when the bend runs back against the reversal by more than 90° and the cut keeps the main gear within the type's TDG half-width of the two taxiways' centrelines (`GroundNavigator.ReAimPastTheBend`, docs/ground/navigator.md). Never past a bar.
 
+**Set-back chord** (of a straight-over leg):
+The leg's straight diagonal between a point set back on each taxiway's line, taken when the lines are near-parallel (under 45°) or meet behind the first bar or past the second; the set-back is the smallest that brings the larger corner down to 45° (`StraightOverKind.Chord`, docs/ground/pathfinder.md).
+
 **Square stop line**:
 The straight after a turn about laid on the taxiway's centreline through a stop, from abeam the aircraft or from abeam the offset line's start when a hold short is issued on that line, and steered in its last look-ahead window at a point past the stop, so the aircraft stops on the centreline square to the bar (`GroundNavigator.LayStraightSquareToStop`, docs/ground/navigator.md).
 
 **Stitched join** (of an offset runway crossing):
 A taxiway's join of a runway centreline through a (taxiway end node, centreline node) pair linked by a `RWY…:link` edge (CMH E4 and F3 over 10L/28R), against a direct join where the taxiway edge meets the centreline itself; the 300 ft is measured between the two centreline nodes, side and obliqueness on the taxiway's own edge (`SegmentExpander.StitchedRunwayJoins`, docs/ground/pathfinder.md).
+
+**Straight-over leg** (of an offset runway crossing):
+The virtual path flown across the runway from a real node on the first taxiway to a real node on the second, measured on the taxiways' own lines rather than along the centreline, so the turn judged is the one flown: a Continue to the meeting point or a set-back chord (`StraightOverGeometry`, `SegmentExpander.RouteStraightOver`, docs/ground/pathfinder.md). When none is built the crossing takes the route along the centreline.
 
 **Taxiway design group (TDG)**:
 The FAA's grouping of aircraft by main-gear width and cockpit-to-main-gear distance (1A, 1B, 2A, 2B, 3–6), read from the FAA aircraft characteristics database; AC 150/5300-13B Table 4-2 sets each group's taxiway width, of which half (12.5 ft for 1A/1B, 17.5 for 2A/2B, 25 for 3/4, 37.5 for 5/6) is the pavement a turn about is checked against. The ground layout carries no TDG, so a taxiway is assumed to be of the aircraft's own group.

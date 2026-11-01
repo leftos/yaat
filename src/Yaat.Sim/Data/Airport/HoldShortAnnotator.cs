@@ -78,7 +78,7 @@ public static class HoldShortAnnotator
                 continue;
             }
 
-            traversedRunway = traversedRunway || SegmentRunsAlongRunway(seg, startRwyId);
+            traversedRunway = traversedRunway || SegmentRunsAlongRunway(seg, startRwyId) || VirtualSegmentCrossesRunway(layout, seg, startRwyId);
 
             if (!layout.Nodes.TryGetValue(seg.ToNodeId, out GroundNode? node))
             {
@@ -99,6 +99,35 @@ public static class HoldShortAnnotator
     /// <summary>True when this segment runs along <paramref name="runwayId"/>'s centerline.</summary>
     private static bool SegmentRunsAlongRunway(TaxiRouteSegment segment, RunwayIdentifier runwayId) =>
         segment.Edge.Edge.IsRunwayCenterline && (segment.Edge.Edge.MatchesRunway(runwayId.End1) || segment.Edge.Edge.MatchesRunway(runwayId.End2));
+
+    /// <summary>
+    /// True when this virtual segment, a straight-over chord, has its ends on opposite sides of <paramref name="runwayId"/>'s
+    /// centerline and crosses it inside the runway's rectangle. A chord touches no centerline node, so this is how its crossing
+    /// is recognised; without it the far bar reads as a new entry and the aircraft crosses unheld (issue #316).
+    /// </summary>
+    public static bool VirtualSegmentCrossesRunway(AirportGroundLayout layout, TaxiRouteSegment segment, RunwayIdentifier runwayId)
+    {
+        if (!VirtualNode.IsVirtualEdge(segment.Edge.Edge) || (layout.FindRunway(runwayId.End1) is not { } runway))
+        {
+            return false;
+        }
+
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
+        var threshold = new LatLon(rect.RefLat, rect.RefLon);
+        LatLon from = segment.Edge.FromNode.Position;
+        LatLon to = segment.Edge.ToNode.Position;
+        double fromCross = GeoMath.SignedCrossTrackDistanceNm(from, threshold, rect.TrueHeading);
+        double toCross = GeoMath.SignedCrossTrackDistanceNm(to, threshold, rect.TrueHeading);
+        if ((fromCross * toCross) >= 0.0)
+        {
+            return false;
+        }
+
+        double fromAlong = GeoMath.AlongTrackDistanceNm(from, threshold, rect.TrueHeading);
+        double toAlong = GeoMath.AlongTrackDistanceNm(to, threshold, rect.TrueHeading);
+        double crossingAlong = fromAlong + ((toAlong - fromAlong) * fromCross / (fromCross - toCross));
+        return (crossingAlong >= 0.0) && (crossingAlong <= rect.LengthNm);
+    }
 
     /// <summary>
     /// True when this node sits on <paramref name="runwayId"/>'s centerline. A taxiway that crosses a

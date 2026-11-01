@@ -2099,7 +2099,7 @@ public partial class GroundViewModel : ObservableObject
                     search.WakeClass
                 )
                 .FirstOrDefault();
-            if ((route is { Segments.Count: > 0 }) && (!PassesAnotherHoldShortOf(layout, route, runway)) && (!TravelsOnRunway(route, runway)))
+            if ((route is { Segments.Count: > 0 }) && (!PassesAnotherHoldShortOf(layout, route, runway)) && (!TravelsOnRunway(layout, route, runway)))
             {
                 routes.Add((bar, route));
             }
@@ -2116,13 +2116,17 @@ public partial class GroundViewModel : ObservableObject
 
     /// <summary>
     /// Whether <paramref name="route"/> goes onto <paramref name="runway"/>'s centreline: before the bar it ends at, it
-    /// reaches a node on one of the runway's centreline edges, whether it then runs along the runway or straight across it.
-    /// The bar itself is not counted, so a bar with an edge on its own runway's centreline is still an entry.
+    /// reaches a node on one of the runway's centreline edges, whether it then runs along the runway or straight across it, or
+    /// crosses the runway on a virtual segment, which touches no such node. The bar itself is not counted, so a bar with an edge on
+    /// its own runway's centreline is still an entry.
     /// </summary>
-    private static bool TravelsOnRunway(TaxiRoute route, RunwayIdentifier runway) =>
+    internal static bool TravelsOnRunway(AirportGroundLayout layout, TaxiRoute route, RunwayIdentifier runway) =>
         route
             .Segments.Take(route.Segments.Count - 1)
-            .Any(segment => segment.Edge.ToNode.Edges.Any(edge => (edge.IsRunwayCenterline) && (edge.MatchesRunway(runway.End1))));
+            .Any(segment =>
+                segment.Edge.ToNode.Edges.Any(edge => (edge.IsRunwayCenterline) && (edge.MatchesRunway(runway.End1)))
+                || HoldShortAnnotator.VirtualSegmentCrossesRunway(layout, segment, runway)
+            );
 
     /// <summary>Whether <paramref name="route"/> passes a hold short of <paramref name="runway"/> before the one it ends at.</summary>
     private static bool PassesAnotherHoldShortOf(AirportGroundLayout layout, TaxiRoute route, RunwayIdentifier runway) =>

@@ -572,11 +572,13 @@ The straight arrives on the fillet's to-node through the ordinary straight arriv
 
 **A free-space first leg is aimed at its node, not at its bearing.**
 
-When the segment's from-node is virtual — the approach leg `TaxiApproachLeg` prepends to a route whose first graph node the aircraft is not standing on (a plain `PUSH` leaves it ~100 ft out on the apron), or a ramp-lane cut — the arc's exit tangent is solved to pass *through a route node ahead* (`FindAimNode`, above — the leg's own to-node when the arc cannot overshoot it, otherwise the first node beyond that it cannot) via `PathPrimitiveBuilder.SlowTurnToPoint`.
+When the route's **first** segment's from-node is virtual — the approach leg `TaxiApproachLeg` prepends to a route whose first graph node the aircraft is not standing on (a plain `PUSH` leaves it ~100 ft out on the apron), or a ramp-lane cut — the arc's exit tangent is solved to pass *through a route node ahead* (`FindAimNode`, above — the leg's own to-node when the arc cannot overshoot it, otherwise the first node beyond that it cannot) via `PathPrimitiveBuilder.SlowTurnToPoint`.
 
 That is the Dubins arc-then-tangent-line, at the comfortable main-gear turn radius since there is no painted outgoing centerline to exit onto; the direction with the smaller sweep wins, and sweeps over `PathPrimitiveBuilder.MaxAimSweepDeg` = 270° fall back to the bearing aim. The cap is geometric headroom under the 360° orbit guard, not an airmanship limit; the real limits on a powered ground turn are swept envelope and taxi power, which a sweep angle does not express.
 
 The straight's line is then re-anchored at the arc exit (`_segmentFromLat/Lon` = the live position, also on a snapshot restore, where the virtual node is rebuilt at its *original* position), so the straight runs exactly onto the node and the fillet that follows starts on-centerline. Aiming at the bearing alone left the arc exit ~30 ft abeam the line and the fillet's closed-form playback then wrote the aircraft onto its start point — the OAK gate-15 "rotated in place, then snapped to T" report.
+
+Only the route's first segment counts as free space (`_segmentFromIsVirtual` needs `CurrentSegmentIndex == 0`, also on restore). A virtual node further along, such as a straight-over leg's corner points ([pathfinder.md](./pathfinder.md), offset runway crossings), is an ordinary route point: its corner is rounded onto the segment's line and the line stays anchored at that node. A node-aimed reversal into the leg still re-anchors it.
 
 **Adaptive rounding radius.** The entry-alignment slow-turn and the incoming tangent-rounding both use an *adaptive* radius (`GroundNavigator.AdaptiveCornerRadiusFt`), not a fixed main-gear turn radius.
 
