@@ -96,6 +96,11 @@
     <Content Include="..\..\docs\command-cheatsheet.html" Link="command-cheatsheet.html" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The STT download manifest: the sherpa native overlay (build/sherpa) reads it at build time, the installer at runtime. -->
+  <ItemGroup>
+    <Content Include="Speech\stt-downloads.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Yaat.Client.Core\Yaat.Client.Core.csproj" />
     <ProjectReference Include="..\Yaat.Client.InputSynthesis\Yaat.Client.InputSynthesis.csproj" />
