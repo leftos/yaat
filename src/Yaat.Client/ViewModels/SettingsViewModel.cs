@@ -1126,7 +1126,16 @@ public partial class SettingsViewModel : ObservableObject
 
     private void ApplySpeechAndWindows()
     {
-        _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, AutoFocusInputAfterSpeech);
+        _preferences.SetSpeechSettings(
+            SpeechEnabled,
+            WhisperModelSize,
+            LlmModelPath,
+            LlmGpuLayers,
+            AutoFocusInputAfterSpeech,
+            _preferences.SttEngine,
+            _preferences.SttMode,
+            _preferences.SttDevice
+        );
         // Before the sample settings: enabling telemetry there forces capture on, and writing capture
         // first would briefly store it off.
         if (SpeechTelemetryEnabled != _appliedSpeechTelemetryEnabled)

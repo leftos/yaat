@@ -197,6 +197,8 @@ public sealed partial class UserPreferences
         ["rendererMode"] = "a graphics backend choice for this machine",
         ["llmGpuLayers"] = "depends on this machine's GPU",
         ["sttDevice"] = "depends on this machine's GPU and its installed CUDA set",
+        ["sttEngine"] = "names a model downloaded on this machine, sized to its RAM",
+        ["sttMode"] = "its latency depends on this machine's CPU or GPU",
         ["speechSampleCaptureEnabled"] = "records the user's voice; each user consents on their own machine",
         ["speechTelemetryEnabled"] = "telemetry consent",
         ["speechTelemetryPromptShown"] = "telemetry consent prompt shown",

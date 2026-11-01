@@ -12,11 +12,20 @@ public class UserPreferencesSttDeviceTests
     public void Default_IsCpu() => Assert.Equal(SttDevice.Cpu, new UserPreferences().SttDevice);
 
     [Fact]
-    public void SetSttDevice_Gpu_PersistsAcrossInstances()
+    public void SetSpeechSettings_GpuDevice_PersistsAcrossInstances()
     {
         var prefs = new UserPreferences();
 
-        prefs.SetSttDevice(SttDevice.Gpu);
+        prefs.SetSpeechSettings(
+            prefs.SpeechEnabled,
+            prefs.WhisperModelSize,
+            prefs.LlmModelPath,
+            prefs.LlmGpuLayers,
+            prefs.AutoFocusInputAfterSpeech,
+            prefs.SttEngine,
+            prefs.SttMode,
+            SttDevice.Gpu
+        );
 
         Assert.Equal(SttDevice.Gpu, prefs.SttDevice);
         Assert.Equal(SttDevice.Gpu, new UserPreferences().SttDevice);
