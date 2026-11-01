@@ -268,6 +268,8 @@ A restore applies the stored decision instead of deciding again, a snapshot with
 
 `ApproachClearanceDto.AltitudeHeldUntilEstablished` (bool?, in `PhaseSnapshotDto.cs`) is `ApproachClearance.AltitudeHeldUntilEstablished`, a controller's altitude held outside the final approach fix ([approach-and-pattern-geometry.md](approach-and-pattern-geometry.md) § A controller's altitude held until established). It is written only when true and absent on older snapshots, which restore unheld; no schema bump.
 
+`ProcedureTurnPhaseDto.CeilingImposed` (bool, optional, default false) records whether the phase wrote its own 200 KIAS ceiling, so on exit it clears only that ceiling and an exact `SPD 200` survives. Absent on older snapshots, which restore false; no schema bump.
+
 `ApproachClearanceDto.TransitionName` (string?) is `ApproachClearance.TransitionName`, the procedure transition the clearance selected when it was issued; `ClearedApproachSpeeds` reads that transition's legs and then the common legs. It is written only when set (a clearance with no transition, a lateral intercept or a visual approach has none) and absent on older snapshots, within schema 37 and with no migration step.
 
 A crossing also carries its slice segment and the pose that segment was set up at (`CrossingRunwayPhaseDto.CrossingRouteSegmentIndex`, `SegmentSetup*`), and a runway exit whose route cannot be rebuilt drops the navigator it was restored with.

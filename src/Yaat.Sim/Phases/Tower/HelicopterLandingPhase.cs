@@ -77,12 +77,15 @@ public sealed class HelicopterLandingPhase : Phase
             _touchedDown = true;
             Log.LogDebug("[Landing-H] {Callsign}: touchdown", ctx.Aircraft.Callsign);
             ctx.Aircraft.IsOnGround = true;
+
+            // Touchdown ends the ATC speed assignment in force (§5-7-1.b.4; AIM 4-4-12.g).
+            FlightCommandHandler.CancelAssignedSpeedAtTouchdown(ctx.Aircraft);
+
             ctx.Aircraft.Altitude = _fieldElevation;
             ctx.Aircraft.VerticalSpeed = 0;
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetAltitude = null;
             ctx.Targets.DesiredVerticalRate = null;
-            ctx.Targets.TargetSpeed = null;
             return true;
         }
 

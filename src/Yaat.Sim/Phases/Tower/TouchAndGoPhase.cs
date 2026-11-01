@@ -101,6 +101,11 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
 
         // Start decelerating on the runway (air → ground frame flip: the field becomes wheel speed)
         GroundFrame.EnterGround(ctx.Aircraft, ctx.Aircraft.IndicatedAirspeed);
+
+        // Touchdown ends the arrival's ATC speed assignment (§5-7-1.b.4; AIM 4-4-12.g): the climb-out is a departure
+        // from the touchdown on and flies the type's own pattern speeds (§5-7-3.d).
+        FlightCommandHandler.CancelAssignedSpeedAtTouchdown(ctx.Aircraft);
+
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
         if (!ctx.Targets.HasExplicitTurnRate)
@@ -111,13 +116,8 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
         ctx.Targets.TargetAltitude = _fieldElevation;
         ctx.Targets.DesiredVerticalRate = null;
 
-        // Decelerate briefly
+        // Decelerate briefly — the approach speed floor/ceiling and the 5nm-final gate ceiling went with the assignment.
         ctx.Targets.TargetSpeed = RolloutTargetSpeedKts(ctx.AircraftType, ctx.Category);
-
-        // Drop any approach speed floor/ceiling (including the 5nm-final gate ceiling) so
-        // the re-acceleration and climb-out are not capped at the approach speed.
-        ctx.Targets.SpeedFloor = null;
-        ctx.Targets.SpeedCeiling = null;
 
         Log.LogDebug(
             "[TouchAndGo] {Callsign}: started, rollout={Roll:F1}s, rwyHdg={Hdg:F0}",

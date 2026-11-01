@@ -908,6 +908,14 @@ public sealed class LandingPhase : Phase
         double touchdownIas = Math.Min(ctx.Aircraft.IndicatedAirspeed, plan.Vtd);
         GroundFrame.EnterGround(ctx.Aircraft, touchdownIas);
 
+        // Touchdown ends the arrival's ATC speed assignment (§5-7-1.b.4); the rollout and everything after it fly the
+        // landing's own speeds.
+        // The flare's target belongs to the landing, not to the controller's assignment; the touchdown tick keeps
+        // braking with it.
+        double? flareTarget = ctx.Targets.TargetSpeed;
+        FlightCommandHandler.CancelAssignedSpeedAtTouchdown(ctx.Aircraft);
+        ctx.Targets.TargetSpeed = flareTarget;
+
         _touchdownLat = ctx.Aircraft.Position.Lat;
         _touchdownLon = ctx.Aircraft.Position.Lon;
         TouchdownGroundSpeedKts = ctx.Aircraft.GroundSpeed;

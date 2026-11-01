@@ -65,6 +65,9 @@ public sealed class ProcedureTurnPhase : Phase
     private PtState _state = PtState.NavigateToFix;
     private double _ptOutboundTimerSeconds;
 
+    /// <summary>Whether this phase wrote the 200 KIAS cap itself, rather than finding the controller's ceiling already there.</summary>
+    private bool _ceilingImposed;
+
     public override string Name => "ProcedureTurn";
 
     public override void OnStart(PhaseContext ctx)
@@ -320,9 +323,10 @@ public sealed class ProcedureTurnPhase : Phase
     /// AIM 5-4-9.a.3 caps PT IAS at 200 KIAS to keep the maneuver inside protected airspace.
     /// Clamp <see cref="ControlTargets.SpeedCeiling"/> for the duration of the phase.
     /// </summary>
-    private static void ClampPtSpeed(PhaseContext ctx)
+    private void ClampPtSpeed(PhaseContext ctx)
     {
-        if (ctx.Targets.SpeedCeiling is null || ctx.Targets.SpeedCeiling > MaxPtIasKts)
+        _ceilingImposed = ctx.Targets.SpeedCeiling is null || ctx.Targets.SpeedCeiling > MaxPtIasKts;
+        if (_ceilingImposed)
         {
             ctx.Targets.SpeedCeiling = MaxPtIasKts;
         }
@@ -334,13 +338,20 @@ public sealed class ProcedureTurnPhase : Phase
     /// silent permanent cap — a jet vectored off the turn would climb away still limited to 200 KIAS.
     ///
     /// Only released when it is still the value this phase imposed: <see cref="ClampPtSpeed"/> never overwrites a
-    /// ceiling already tighter than the cap, so that one belongs to the controller and has to survive the phase.
-    /// (A controller ceiling of exactly 200 is indistinguishable from ours and is released with it.)
+    /// ceiling already tighter than the cap, so that one belongs to the controller and has to survive the phase. The cap
+    /// this phase imposed is not the controller's bound, so it never ends a speed assignment: an exact <c>SPD 200</c>
+    /// keeps flying 200 past the turn. A controller ceiling of exactly 200 is theirs, and goes with its assignment
+    /// (<see cref="FlightCommandHandler.EndBoundWithTheAssignment"/>).
     /// </summary>
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
         if (ctx.Targets.SpeedCeiling == MaxPtIasKts)
         {
+            if (!_ceilingImposed)
+            {
+                FlightCommandHandler.EndBoundWithTheAssignment(ctx.Targets, ctx.Targets.SpeedCeiling);
+            }
+
             ctx.Targets.SpeedCeiling = null;
         }
     }
@@ -376,6 +387,7 @@ public sealed class ProcedureTurnPhase : Phase
             MinAltitudeFt = MinAltitudeFt,
             State = (int)_state,
             PtOutboundTimerSeconds = _ptOutboundTimerSeconds,
+            CeilingImposed = _ceilingImposed,
         };
 
     public static ProcedureTurnPhase FromSnapshot(ProcedureTurnPhaseDto dto)
@@ -394,6 +406,7 @@ public sealed class ProcedureTurnPhase : Phase
             ElapsedSeconds = dto.ElapsedSeconds,
             _state = (PtState)dto.State,
             _ptOutboundTimerSeconds = dto.PtOutboundTimerSeconds,
+            _ceilingImposed = dto.CeilingImposed,
         };
         return phase;
     }

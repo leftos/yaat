@@ -1631,7 +1631,9 @@ public static class FlightPhysics
     /// complies with 91.117 without being told to (7110.65 §5-7-2 NOTE 1; AIM 4-4-12.i), so an aircraft that comes under
     /// a Class B shelf faster than 200 kt with nothing left to fly to slows to it, and one past its Vmo/Mmo slows to that.
     /// A floor above the cap does not hold the aircraft up there — 91.117 and the type's own maximum outrank an ATC
-    /// "or greater", which is the same clamp <paramref name="speedLimit"/> already puts on the floor. On the ground the
+    /// "or greater", which is the same clamp <paramref name="speedLimit"/> already puts on the floor. When an exact
+    /// assignment stands behind the cap, the limit arm targets the assignment rather than the cap, which is what lets the
+    /// aircraft take it back where the cap no longer applies (<see cref="HoldsAssignedSpeedBehindTheLimit"/>). On the ground the
     /// cap does not apply at all; the ground-conflict <see cref="AircraftGroundOps.SpeedLimit"/> governs there.
     /// </summary>
     private static double? BoundsCorrectionTarget(AircraftState aircraft, double speedLimit)
@@ -1651,11 +1653,32 @@ public static class FlightPhysics
 
         if (!aircraft.IsOnGround && (aircraft.IndicatedAirspeed > speedLimit + SpeedSnapKts))
         {
-            return speedLimit;
+            return HoldsAssignedSpeedBehindTheLimit(aircraft) ? aircraft.Targets.AssignedSpeed : speedLimit;
         }
 
         return null;
     }
+
+    /// <summary>
+    /// True when an exact ATC assignment stands behind the speed limit that is holding <paramref name="aircraft"/> short,
+    /// so the limit branch of <see cref="BoundsCorrectionTarget"/> targets the assignment instead of the cap: the pilot
+    /// flies the cap, the assignment stays on the books, and the aircraft takes it back as the cap allows (7110.65
+    /// §5-7-2.a NOTE 1, §5-7-4; AIM 4-4-12.f.1).
+    ///
+    /// The bound forms <c>SPD n+</c>/<c>SPD n-</c> hold a floor or a ceiling rather than a speed to fly, so neither is
+    /// resumed as an assignment; SMAX holds its own target behind the same cap; and a Mach hold's target is its Mach,
+    /// resolved to an IAS each tick. <see cref="ControlTargets.HasExplicitSpeedCommand"/> is the test rather than
+    /// <see cref="ControlTargets.SpeedCommandIsControllerIssued"/> because a scenario preset is an ATC assignment to the
+    /// pilot too.
+    /// </summary>
+    private static bool HoldsAssignedSpeedBehindTheLimit(AircraftState aircraft) =>
+        aircraft.Targets.HasExplicitSpeedCommand
+        && (aircraft.Targets.AssignedSpeed is { } assigned)
+        && (aircraft.Targets.TargetMach is null)
+        && !aircraft.Targets.SpeedMaxHeld
+        && (aircraft.Targets.SpeedFloor != assigned)
+        // Never decides alone: a standing ceiling takes the ceiling arm first, and a phase clearing it ends the assignment (`EndBoundWithTheAssignment`).
+        && (aircraft.Targets.SpeedCeiling != assigned);
 
     /// <summary>
     /// IAS snaps onto the integration goal, and the target that asked for it is retired — unless the speed limit (14 CFR

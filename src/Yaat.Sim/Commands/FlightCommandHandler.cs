@@ -455,6 +455,30 @@ internal static class FlightCommandHandler
     }
 
     /// <summary>
+    /// Ends the ATC assignment a speed bound stood for, as a phase clearing the bound drops it: "maintain 280 or greater"
+    /// and "do not exceed 280" are a bound, not a speed to fly, so an assignment left behind after the bound goes would
+    /// read as an exact 280 and be flown that way where nothing caps it. An exact assignment's bounds never equal it, so
+    /// one is kept as it was.
+    /// </summary>
+    internal static void EndBoundWithTheAssignment(ControlTargets targets, double? clearedBound)
+    {
+        if ((clearedBound is not null) && (targets.AssignedSpeed == clearedBound))
+        {
+            targets.AssignedSpeed = null;
+            targets.HasExplicitSpeedCommand = false;
+        }
+    }
+
+    /// <summary>
+    /// Touchdown ends the ATC speed assignment in force: the pilot who lands is done flying the speed it was given
+    /// (7110.65 §5-7-1.b.4; AIM 4-4-12.g), and a touch-and-go is a landing followed by a departure from the touchdown
+    /// on, so its climb-out is flown at the type's own pattern speed rather than at the arrival's assignment (§5-7-3.d).
+    /// Everything <see cref="CancelAssignedSpeed"/> clears goes, the maximum-forward-speed hold and its Mach included. A
+    /// go-around before touchdown keeps its assignment, so this is called from the touchdown sites alone.
+    /// </summary>
+    internal static void CancelAssignedSpeedAtTouchdown(AircraftState aircraft) => CancelAssignedSpeed(aircraft);
+
+    /// <summary>
     /// <see cref="CancelAssignedSpeed"/>, keeping a floor the procedure set: a minimum the aircraft crossed at a published
     /// "at or above" speed, which the physics writes only with no explicit ATC speed in force. A via clearance and "resume
     /// normal speed" cancel the speeds ATC assigned, not a published restriction (7110.65 5-7-1.d NOTE, 5-7-1.g NOTE 3;

@@ -108,6 +108,8 @@ public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
         // is not capped at the approach speed. Altitude restrictions (AOA/AOB) go too:
         // OnTick's completion check reads the aircraft's own altitude, so a stale floor or
         // ceiling would silently level the climb somewhere the phase never notices.
+        FlightCommandHandler.EndBoundWithTheAssignment(ctx.Targets, ctx.Targets.SpeedFloor);
+        FlightCommandHandler.EndBoundWithTheAssignment(ctx.Targets, ctx.Targets.SpeedCeiling);
         ctx.Targets.SpeedFloor = null;
         ctx.Targets.SpeedCeiling = null;
         ctx.Targets.AltitudeFloor = null;

@@ -1,5 +1,8 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests;
 
@@ -207,6 +210,180 @@ public sealed class SpeedEnvelopeCapTests
         }
 
         Assert.True(offenders.Count == 0, string.Join("\n", offenders.Take(30)) + $"\n({offenders.Count} in all)");
+    }
+
+    // ---- An assigned speed survives a cap (YAAT-1417) ------------------------------------
+
+    /// <summary>
+    /// A speed assignment stands behind the type's Mmo through a climb: the pilot flies the cap and resumes the
+    /// assignment on the way back down without ATC saying anything again (7110.65 5-7-2.a NOTE 1, 5-7-4; AIM
+    /// 4-4-12.f.1, 4-4-12.i).
+    /// </summary>
+    [Fact]
+    public void AssignedSpeed_HeldAtTheMachCap_ResumesOnTheWayDown()
+    {
+        AircraftState ac = A320At(altitude: 20_000, ias: 300);
+        Assert.True(Send(ac, "SPD 340").Success);
+        Assert.True(Send(ac, "CM 350").Success);
+
+        FlySeconds(ac, 900, _ => { });
+        Assert.InRange(ac.Altitude, 34_990, 35_010);
+        double heldIas = WindInterpolator.MachToIas(A320Mmo, ac.Altitude);
+        Assert.InRange(ac.IndicatedAirspeed, heldIas - SpeedSnapKts, heldIas + SpeedSnapKts);
+        Assert.Equal(340, Assert.IsType<double>(ac.Targets.AssignedSpeed), 0.5);
+        Assert.Equal(340, Assert.IsType<double>(ac.Targets.TargetSpeed), 0.5);
+
+        Assert.True(Send(ac, "DM 200").Success);
+        FlySeconds(ac, 900, _ => { });
+
+        Assert.InRange(ac.Altitude, 19_990, 20_010);
+        Assert.Equal(340, ac.IndicatedAirspeed, 1.0);
+    }
+
+    /// <summary>
+    /// The same behind 14 CFR 91.117's 250 kt below 10,000 ft: the aircraft holds 250 down low and takes its assigned
+    /// 280 back up above 10,000.
+    /// </summary>
+    [Fact]
+    public void AssignedSpeed_HeldAtThe10kCap_ResumesAbove10000()
+    {
+        AircraftState ac = A320At(altitude: 12_000, ias: 280);
+        Assert.True(Send(ac, "SPD 280").Success);
+        Assert.True(Send(ac, "DM 080").Success);
+
+        FlySeconds(ac, 300, _ => { });
+        Assert.InRange(ac.Altitude, 7_990, 8_010);
+        Assert.InRange(ac.IndicatedAirspeed, 248, 252);
+        Assert.Equal(280, Assert.IsType<double>(ac.Targets.AssignedSpeed), 0.5);
+
+        Assert.True(Send(ac, "CM 150").Success);
+        FlySeconds(ac, 400, _ => { });
+
+        Assert.InRange(ac.Altitude, 14_990, 15_010);
+        Assert.Equal(280, ac.IndicatedAirspeed, SpeedSnapKts);
+    }
+
+    /// <summary>
+    /// "280 or less" is a bound, not a speed to fly: after the cap it hits below 10,000 ft, the aircraft is not dragged
+    /// back up to 280 on the climb.
+    /// </summary>
+    [Fact]
+    public void SpeedCeiling_IsNotResumedAsAnAssignment()
+    {
+        AircraftState ac = A320At(altitude: 12_000, ias: 280);
+        Assert.True(Send(ac, "SPD 280-").Success);
+        Assert.True(Send(ac, "DM 080").Success);
+
+        FlySeconds(ac, 300, _ => { });
+        Assert.InRange(ac.Altitude, 7_990, 8_010);
+        Assert.InRange(ac.IndicatedAirspeed, 248, 252);
+
+        Assert.True(Send(ac, "CM 150").Success);
+        FlySeconds(ac, 400, _ => { });
+
+        Assert.InRange(ac.Altitude, 14_990, 15_010);
+        Assert.True(ac.IndicatedAirspeed < 270, $"'280 or less' was flown back as a speed to reach: {ac.IndicatedAirspeed:F0} KIAS");
+    }
+
+    /// <summary>
+    /// "280 or greater" is a floor, and the floor is what lifts the aircraft back to 280 above 10,000 ft — not a speed
+    /// resumed as an assignment.
+    /// </summary>
+    [Fact]
+    public void SpeedFloor_LiftsBackTo280Above10000()
+    {
+        AircraftState ac = A320At(altitude: 12_000, ias: 280);
+        Assert.True(Send(ac, "SPD 280+").Success);
+        Assert.True(Send(ac, "DM 080").Success);
+
+        FlySeconds(ac, 300, _ => { });
+        Assert.InRange(ac.Altitude, 7_990, 8_010);
+        Assert.InRange(ac.IndicatedAirspeed, 248, 252);
+        Assert.Null(ac.Targets.TargetSpeed); // the bound is not resumed as a standing speed to fly
+
+        Assert.True(Send(ac, "CM 150").Success);
+        FlySeconds(ac, 400, _ => { });
+
+        Assert.InRange(ac.Altitude, 14_990, 15_010);
+        Assert.True(ac.IndicatedAirspeed >= 278, $"'280 or greater' left the aircraft at {ac.IndicatedAirspeed:F0} KIAS");
+    }
+
+    /// <summary>
+    /// A bound cleared by the phase that ends it takes its assignment with it: after the go-around, "280 or less" is no
+    /// longer a speed to reach, so a climb through 10,000 ft follows the type's own climb schedule instead of settling on
+    /// an exact 280 nothing asked for.
+    /// </summary>
+    [Fact]
+    public void GoAround_EndsABoundAndItsAssignmentTogether()
+    {
+        AircraftState ac = A320At(altitude: 12_000, ias: 280);
+        Assert.True(Send(ac, "SPD 280-").Success);
+        Assert.Equal(280, Assert.IsType<double>(ac.Targets.AssignedSpeed));
+
+        new GoAroundPhase { Status = PhaseStatus.Active }.OnStart(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
+
+        Assert.Null(ac.Targets.SpeedCeiling);
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
+
+        Assert.True(Send(ac, "DM 080").Success);
+        FlySeconds(ac, 300, _ => { });
+        Assert.InRange(ac.Altitude, 7_990, 8_010);
+
+        Assert.True(Send(ac, "CM 250").Success);
+        FlySeconds(ac, 700, _ => { });
+
+        Assert.InRange(ac.Altitude, 24_990, 25_010);
+        Assert.True(ac.IndicatedAirspeed >= 285, $"the climb settled at {ac.IndicatedAirspeed:F0} KIAS, an exact 280 restored after the bound ended");
+    }
+
+    /// <summary>
+    /// Guard, not a red-first pin: a 360 flown under an assigned speed keeps the maneuver's holding speed for its whole
+    /// length, so a design that restores the assignment every tick (rather than behind the cap, as this one does) cannot
+    /// drag the aircraft back to it mid-maneuver.
+    /// </summary>
+    [Fact]
+    public void AssignedSpeed_IsNotResumedDuringA360()
+    {
+        AircraftState ac = A320At(altitude: 6_000, ias: 240);
+        Assert.True(Send(ac, "SPD 210").Success);
+        double holding = AircraftPerformance.HoldingSpeed("A320", ac.Altitude);
+        Assert.True(holding < 208, $"premise: a 360 at 6,000 ft slows below the assigned 210 (holding speed {holding:F0})");
+
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
+        var turn = new MakeTurnPhase { Direction = TurnDirection.Right, TargetDegrees = 360 };
+        turn.OnStart(ctx);
+
+        bool done = false;
+        bool atHolding = false;
+        double iasBeforeDone = double.NaN;
+        double fastestWhileTurning = double.MinValue;
+        for (int second = 0; (second < 400) && !done; second++)
+        {
+            for (int sub = 0; sub < 4; sub++)
+            {
+                FlightPhysics.Update(ac, 0.25);
+            }
+
+            iasBeforeDone = ac.IndicatedAirspeed;
+            atHolding |= ac.IndicatedAirspeed <= holding + SpeedSnapKts;
+            if (atHolding)
+            {
+                fastestWhileTurning = Math.Max(fastestWhileTurning, ac.IndicatedAirspeed);
+            }
+
+            done = turn.OnTick(ctx);
+        }
+
+        _output.WriteLine($"360 finished at {iasBeforeDone:F0} KIAS (holding {holding:F0}, peak {fastestWhileTurning:F0})");
+        Assert.True(done, "premise: the 360 completes");
+        Assert.True(atHolding, "premise: the maneuver slows to its holding speed");
+        Assert.Equal(210, Assert.IsType<double>(ac.Targets.AssignedSpeed), 0.5);
+        Assert.InRange(iasBeforeDone, holding - SpeedSnapKts, holding + SpeedSnapKts);
+        Assert.True(
+            fastestWhileTurning <= holding + 5,
+            $"the maneuver accelerated to {fastestWhileTurning:F0} KIAS, above holding speed {holding:F0}: the assignment was restored mid-turn"
+        );
     }
 
     // ---- SPDN lifts every speed limit ----------------------------------------------------

@@ -20,6 +20,8 @@
 - CRC's ASDE-X alerts read as vNAS sends them (`RWY OCCUPIED`, `RWY CLOSED`, `RWY CLOSED, GO AROUND`), one per conflicting pair, with no `RWY INCURSION` alert.
 - CRC's ASDE-X alerts fire on vNAS's triggers: a departure from 50 kt, an arrival from about 1 NM out; a lined-up or stopped aircraft raises none.
 - A `TAXI` given on a curved fillet that ends at a runway hold bar now stops the nose at the hold line, not past it.
+- An assigned speed or `SMAX` now ends at touchdown, so a touch-and-go or stop-and-go climbs out at pattern speed.
+- An exact `SPD` held back by the 250-knot limit below 10,000 feet or the aircraft's top speed is flown again once that limit lifts.
 
 ## v0.17.2-beta [2026/10/30]
 

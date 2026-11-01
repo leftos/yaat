@@ -86,6 +86,8 @@ public sealed class AerialRefuelingAnchorPhase : Phase
 
         // An aircraft arriving off a STAR carries the procedure's published speed as a SpeedCeiling
         // (AIM 5-4-1 NOTE 2). Left in place it would silently cap the whole refueling operation.
+        FlightCommandHandler.EndBoundWithTheAssignment(ctx.Targets, ctx.Targets.SpeedFloor);
+        FlightCommandHandler.EndBoundWithTheAssignment(ctx.Targets, ctx.Targets.SpeedCeiling);
         ctx.Targets.SpeedFloor = null;
         ctx.Targets.SpeedCeiling = null;
 

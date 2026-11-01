@@ -2054,6 +2054,10 @@ public sealed class ProcedureTurnPhaseDto : PhaseDto
     public required int MinAltitudeFt { get; init; }
     public required int State { get; init; }
     public required double PtOutboundTimerSeconds { get; init; }
+
+    /// <summary>Whether the phase wrote the 200 KIAS cap itself. Optional (defaults false) so recordings made before the
+    /// field deserialize cleanly.</summary>
+    public bool CeilingImposed { get; init; }
 }
 
 public sealed class ApproachNavigationPhaseDto : PhaseDto

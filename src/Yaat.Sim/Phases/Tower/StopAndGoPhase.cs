@@ -105,19 +105,19 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
 
         // Air → ground frame flip: the field becomes wheel speed.
         GroundFrame.EnterGround(ctx.Aircraft, ctx.Aircraft.IndicatedAirspeed);
+
+        // Touchdown ends the arrival's ATC speed assignment (§5-7-1.b.4; AIM 4-4-12.g); the second takeoff flies the
+        // type's own speeds from a stop (§5-7-3.d).
+        FlightCommandHandler.CancelAssignedSpeedAtTouchdown(ctx.Aircraft);
+
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.TargetAltitude = _fieldElevation;
         ctx.Targets.DesiredVerticalRate = null;
 
-        // Decelerate to zero
+        // Decelerate to zero — the approach speed floor/ceiling and the 5nm-final gate ceiling went with the assignment.
         ctx.Targets.TargetSpeed = 0;
-
-        // Drop any approach speed floor/ceiling (including the 5nm-final gate ceiling) so
-        // the climb-out after the stop is not capped at the approach speed.
-        ctx.Targets.SpeedFloor = null;
-        ctx.Targets.SpeedCeiling = null;
 
         Log.LogDebug(
             "[StopAndGo] {Callsign}: started, pause={Pause:F1}s, rwyHdg={Hdg:F0}",

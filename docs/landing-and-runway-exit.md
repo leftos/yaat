@@ -65,6 +65,8 @@ go-around from one their own crossing caused without replaying the session.
 
 A touch-and-go on the ground is projected airborne through the rest of its rollout dwell and its re-acceleration (`SameRunwaySeparation.WillBeFlying`), so fewer arrivals go around behind one.
 
+**Touchdown ends the ATC speed assignment** (`FlightCommandHandler.CancelAssignedSpeedAtTouchdown`, called from `LandingPhase`, `TouchAndGoPhase`, `StopAndGoPhase` and `HelicopterLandingPhase`): `AssignedSpeed`, `TargetMach`, the floor/ceiling, `SpeedMaxHeld` and the explicit-command flag clear, so a touch-and-go climbs out at the type's own speed. The touchdown tick keeps the flare's own target, so the landing keeps braking. See [flight-physics.md](flight-physics.md).
+
 A stop-and-go stopped before its second roll blocks (a.2 is not met), and one still braking is a landed aircraft: past the landmark no go-around, inside it the reason reads "landing rollout, N ft down, not clear in S s".
 
 **A landed occupant is projected off the runway, not assumed to still be on it.** The authority is **§3-10-6.a** (anticipating

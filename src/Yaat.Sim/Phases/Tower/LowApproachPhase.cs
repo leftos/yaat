@@ -117,6 +117,8 @@ public sealed class LowApproachPhase : Phase
 
         // Drop any approach speed floor/ceiling (including the 5nm-final gate ceiling) so
         // the climb-out at the end of the low pass is not capped at the approach speed.
+        FlightCommandHandler.EndBoundWithTheAssignment(ctx.Targets, ctx.Targets.SpeedFloor);
+        FlightCommandHandler.EndBoundWithTheAssignment(ctx.Targets, ctx.Targets.SpeedCeiling);
         ctx.Targets.SpeedFloor = null;
         ctx.Targets.SpeedCeiling = null;
 

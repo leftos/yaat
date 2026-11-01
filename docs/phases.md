@@ -334,6 +334,8 @@ Skip any of these and old recordings will throw `InvalidOperationException` on r
 
   Any phase that transitions an inbound aircraft into a **climb-out** (`GoAroundPhase`, `TouchAndGoPhase`, `StopAndGoPhase`, `LowApproachPhase`) must clear `SpeedFloor`/`SpeedCeiling` in `OnStart`, or the missed-approach / option climb is capped at the approach speed.
 
+  A phase that clears a controller bound equal to the assigned speed also ends that assignment (`FlightCommandHandler.EndBoundWithTheAssignment`), so a `SPD n-` ceiling is not left behind as an exact speed; `ProcedureTurnPhase` clears only the 200 kt ceiling it imposed (`CeilingImposed`). `LandingPhase`, `TouchAndGoPhase`, `StopAndGoPhase` and `HelicopterLandingPhase` end the whole speed assignment at touchdown (`FlightCommandHandler.CancelAssignedSpeedAtTouchdown`); the touchdown tick keeps the flare's own target, and a go-around before touchdown keeps its assignment.
+
   Add a new climb-out phase → clear the ceiling there too. `GoAroundPhase` also clears `AltitudeFloor`/`AltitudeCeiling` (set by `AOA`/`AOB`): its completion check reads the aircraft's own altitude, so a stale restriction would level the climb somewhere the phase never notices.
 - **Tight maneuvers slow to holding speed via `ManeuverSpeedController`.** `MakeTurnPhase`, `VfrHoldPhase`, and `STurnPhase` set `ManagesSpeed = true` and delegate speed to a `ManeuverSpeedController` (`Capture` in `OnStart`, `Reduce` to decelerate to `AircraftPerformance.HoldingSpeed`, `Resume` in `OnEnd`, `CancelAutoResume` from `OnCommandAccepted` on a mid-maneuver speed command).
 
