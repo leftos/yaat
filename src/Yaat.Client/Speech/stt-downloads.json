@@ -1,0 +1,152 @@
+{
+  "baseUrl": "https://dl.leftos.dev/",
+  "natives": {
+    "commit": "804a1d0c29121a01853916698d4a9b87851bed2e",
+    "files": [
+      {
+        "rid": "linux-x64",
+        "variant": "cpu",
+        "key": "sherpa-native/804a1d0c29/linux-x64-cpu.zip",
+        "size": 10456375,
+        "sha256": "4de5c3381383ecd2c9e1c13220a0cd0374a338df2a0bd279791621ddf2c0fb5e"
+      },
+      {
+        "rid": "linux-x64",
+        "variant": "cuda",
+        "key": "sherpa-native/804a1d0c29/linux-x64-cuda.zip",
+        "size": 242201246,
+        "sha256": "dd38177cdc9504048b877fc827146f24d0e8f75713bbf91d3c7d46da8cd1cabc"
+      },
+      {
+        "rid": "osx-arm64",
+        "variant": "cpu",
+        "key": "sherpa-native/804a1d0c29/osx-arm64.zip",
+        "size": 9449201,
+        "sha256": "ee37f3e0d51d17dc83be8bfcb91bf2a2c10bde467d67b2876baa4e64768926e4"
+      },
+      {
+        "rid": "osx-x64",
+        "variant": "cpu",
+        "key": "sherpa-native/804a1d0c29/osx-x64.zip",
+        "size": 10825986,
+        "sha256": "33f3bb75a6ff9f8450065bf9d5bebda772a3d9f514263fb23a63bddecaf216d5"
+      },
+      {
+        "rid": "win-x64",
+        "variant": "cpu",
+        "key": "sherpa-native/804a1d0c29/win-x64-cpu.zip",
+        "size": 8045532,
+        "sha256": "35ebbf8ef2781671ded700a58a7e01acadb774effac856e08a6c2d4a0f86f9bc"
+      },
+      {
+        "rid": "win-x64",
+        "variant": "cuda",
+        "key": "sherpa-native/804a1d0c29/win-x64-cuda.zip",
+        "size": 234927900,
+        "sha256": "454bd8e06fb95229c149618f7614e7b0f513322303824dc084af5bbe2cfbf3cc"
+      }
+    ]
+  },
+  "models": [
+    {
+      "id": "rasr-parakeet-v2-fp32",
+      "files": [
+        {
+          "name": "LICENSE",
+          "key": "stt/rasr-parakeet-v2/fp32/LICENSE",
+          "size": 7669,
+          "sha256": "8cc15535a8a34b41888f644b339a1a9eb428af793a4f5e24df58a3e5b1487d74"
+        },
+        {
+          "name": "NOTICE",
+          "key": "stt/rasr-parakeet-v2/fp32/NOTICE",
+          "size": 469,
+          "sha256": "cd89370926797c1eb8abf68d6aeb9fe057adcf2df0358b55bcc7912524d40491"
+        },
+        {
+          "name": "bpe.vocab",
+          "key": "stt/rasr-parakeet-v2/fp32/bpe.vocab",
+          "size": 125600,
+          "sha256": "5f7869f9996291870418aa4c93bbf62957e4be7b3d842fc714328968830b5a67"
+        },
+        {
+          "name": "decoder.onnx",
+          "key": "stt/rasr-parakeet-v2/fp32/decoder.onnx",
+          "size": 47233744,
+          "sha256": "1a09055500184448be4b049b982dfa49df0881ec11fe30416840388fabb015b0"
+        },
+        {
+          "name": "encoder.onnx",
+          "key": "stt/rasr-parakeet-v2/fp32/encoder.onnx",
+          "size": 41838346,
+          "sha256": "2866a6fdd09345cebf34cd34b4e4e924e98da09583d1411a996a8328be518902"
+        },
+        {
+          "name": "encoder.weights",
+          "key": "stt/rasr-parakeet-v2/fp32/encoder.weights",
+          "size": 2435420160,
+          "sha256": "45eebd6cc1d3638823f646368878aa640c4941eced2f6dcaa98d6cdef842ea82"
+        },
+        {
+          "name": "joiner.onnx",
+          "key": "stt/rasr-parakeet-v2/fp32/joiner.onnx",
+          "size": 25286331,
+          "sha256": "9c02347fadc752953e1358301ff19ecc7e495bf3cc9774e006a1d790051ddd1c"
+        },
+        {
+          "name": "tokens.txt",
+          "key": "stt/rasr-parakeet-v2/fp32/tokens.txt",
+          "size": 102132,
+          "sha256": "ba8e4007c65f4bb4358ffe2ecc13d9ccc7a10351151065242b5c3a943e685742"
+        }
+      ]
+    },
+    {
+      "id": "rasr-parakeet-v2-int8",
+      "files": [
+        {
+          "name": "LICENSE",
+          "key": "stt/rasr-parakeet-v2/int8/LICENSE",
+          "size": 7669,
+          "sha256": "8cc15535a8a34b41888f644b339a1a9eb428af793a4f5e24df58a3e5b1487d74"
+        },
+        {
+          "name": "NOTICE",
+          "key": "stt/rasr-parakeet-v2/int8/NOTICE",
+          "size": 469,
+          "sha256": "cd89370926797c1eb8abf68d6aeb9fe057adcf2df0358b55bcc7912524d40491"
+        },
+        {
+          "name": "bpe.vocab",
+          "key": "stt/rasr-parakeet-v2/int8/bpe.vocab",
+          "size": 125600,
+          "sha256": "5f7869f9996291870418aa4c93bbf62957e4be7b3d842fc714328968830b5a67"
+        },
+        {
+          "name": "decoder.int8.onnx",
+          "key": "stt/rasr-parakeet-v2/int8/decoder.int8.onnx",
+          "size": 11845274,
+          "sha256": "d34e08f43711c2ddced0b236a18845d4fa09e80eaee5fbdd22a6f720bd43fb68"
+        },
+        {
+          "name": "encoder.int8.onnx",
+          "key": "stt/rasr-parakeet-v2/int8/encoder.int8.onnx",
+          "size": 652282295,
+          "sha256": "7f40917be488010c832bceddcccea872580010ddb59ba453153a9d4221ce8715"
+        },
+        {
+          "name": "joiner.int8.onnx",
+          "key": "stt/rasr-parakeet-v2/int8/joiner.int8.onnx",
+          "size": 6355277,
+          "sha256": "be1c9333922b22f748c31984f2701daa9c3fb52885b744ee26e61b191d537466"
+        },
+        {
+          "name": "tokens.txt",
+          "key": "stt/rasr-parakeet-v2/int8/tokens.txt",
+          "size": 102132,
+          "sha256": "ba8e4007c65f4bb4358ffe2ecc13d9ccc7a10351151065242b5c3a943e685742"
+        }
+      ]
+    }
+  ]
+}

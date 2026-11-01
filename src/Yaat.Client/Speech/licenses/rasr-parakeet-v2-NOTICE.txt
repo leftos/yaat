@@ -1,0 +1,4 @@
+rasr-parakeet-v2 (https://huggingface.co/twangodev/rasr-parakeet-v2), ONNX export for sherpa-onnx.
+Built with Llama.
+Licensed under the Llama 3.2 Community License Agreement (LLAMA-3.2-COMMUNITY-LICENSE.txt). Llama 3.2 is licensed under the Llama 3.2 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved.
+Exported from the .nemo checkpoint with sherpa-onnx's NeMo export scripts at k2-fsa/sherpa-onnx 935e5ded; int8 by onnxruntime quantize_dynamic.
