@@ -206,4 +206,4 @@ Real navdata (ModuleInit) and layouts (`new TestAirportGroundData().GetLayout("O
 
 ## Unconfirmed
 
-- Landmark files carrying their airport (YAAT-1568). Sherpa's pieces mark a word start with a leading space, which `CorpusSlotRun.ToDecoderHypothesis` maps to `▁`; the gate covered every clip of the 12-clip smoke.
+- Landmark files carrying their airport (YAAT-1568). Sherpa's pieces mark a word start with a leading space, which `SttDecoderInput.ToDecoderHypothesis` maps to `▁`; the gate covered every clip of the 12-clip smoke.

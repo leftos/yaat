@@ -1098,6 +1098,7 @@ Services/
     SherpaCudaInstaller.cs      # On-demand CUDA native set (win-x64, linux-x64) into %LOCALAPPDATA%/yaat/backends/sherpa-cuda13/native: our CUDA zip (R2, then natives.mirrors) plus pinned NVIDIA PyPI wheels (cuBLAS, cuDNN; Linux adds cudart, cuRAND), each SHA-256 checked, built in .partial/, sentinel (one line per download) written last
     SherpaNativeLoader.cs       # One native set per process: Choose(cudaInstalled, SttDevice); UseCudaSet preloads the CUDA set by absolute path in dependency order and sets the DllImport resolver for Yaat.Client and sherpa-onnx (Piper), freeing everything on a failed load; called from Program.ConfigureSherpaNatives
     SherpaResultJson.cs         # sherpa-onnx result JSON to SttHypothesis entries, and whether a native writes the n-best
+    SttDecoderInput.cs          # ToDecoderHypothesis: an SttHypothesis as ContextDecoder takes it (sherpa piece's leading space → ▁ word mark); used by SpeechRecognitionService.MapHypothesesWithTraceAsync (accurate mode) and the sandbox's CorpusSlotRun
     SttHypotheses.cs            # SttHypothesis / SttHypotheses (alternatives best first, latency, cache flag) and SherpaDecoding / SherpaDecodingMethod (greedy or beam, paths, hotword score)
   Discord/                      # Discord Rich Presence over Discord's local RPC-over-IPC channel, hand-rolled with no package dependency — see docs/discord-integration.md "Desktop client Rich Presence"
     IRichPresencePublisher.cs   # What MainViewModel sees: Publish(DiscordActivity) / Clear(), fire-and-forget, never throw

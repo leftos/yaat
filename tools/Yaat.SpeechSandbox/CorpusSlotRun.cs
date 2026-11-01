@@ -131,30 +131,9 @@ public sealed class CorpusSlotRun
             return new DecodeResult(DecodeState.NoCallsign, null, null, [], string.Empty, 0, 0, false);
         }
         DecoderInput input = resolve
-            ? new DecoderInput([.. transcript.Entries.Select(ToDecoderHypothesis)], InputSource.Spoken, MatchMode.Fuzzy)
-            : new DecoderInput([ToDecoderHypothesis(transcript.Entries[0])], InputSource.Spoken, MatchMode.ExactOnly);
+            ? new DecoderInput([.. transcript.Entries.Select(SttDecoderInput.ToDecoderHypothesis)], InputSource.Spoken, MatchMode.Fuzzy)
+            : new DecoderInput([SttDecoderInput.ToDecoderHypothesis(transcript.Entries[0])], InputSource.Spoken, MatchMode.ExactOnly);
         return ContextDecoder.Decode(input, context, settings);
-    }
-
-    /// <summary>
-    /// A recognizer hypothesis as the decoder takes it: a sherpa piece's leading space becomes the <c>▁</c> word mark, and an
-    /// entry without tokens has none.
-    /// </summary>
-    /// <exception cref="InvalidDataException">The entry's tokens and log-probabilities differ in count.</exception>
-    public static DecoderHypothesis ToDecoderHypothesis(SttHypothesis entry)
-    {
-        if (entry.Tokens.Count != entry.TokenLogProbs.Count)
-        {
-            throw new InvalidDataException(
-                $"A hypothesis has {entry.Tokens.Count} tokens but {entry.TokenLogProbs.Count} token log-probabilities: '{entry.Text}'."
-            );
-        }
-        if (entry.Tokens.Count == 0)
-        {
-            return new DecoderHypothesis(entry.Text, null, entry.Score);
-        }
-        TokenLogProb[] tokens = [.. entry.Tokens.Select((piece, i) => new TokenLogProb(WordMarked(piece), entry.TokenLogProbs[i]))];
-        return new DecoderHypothesis(entry.Text, tokens, entry.Score);
     }
 
     /// <summary>
@@ -255,8 +234,6 @@ public sealed class CorpusSlotRun
             _ => throw new ArgumentOutOfRangeException(nameof(room), room, "no such slot room"),
         };
     }
-
-    private static string WordMarked(string piece) => piece.StartsWith(' ') ? "▁" + piece[1..] : piece;
 
     private static CorpusSlotRun? Create(
         string repo,
