@@ -156,30 +156,71 @@ public static class Program
 
     /// <summary>
     /// Picks sherpa-onnx's native set before anything touches sherpa: the installed CUDA set when the user chose the GPU,
-    /// the CPU set beside the app otherwise. Any failure is logged and leaves speech recognition on the CPU.
+    /// the CPU set beside the app otherwise. A GPU pick that ends on the CPU says why in the log and in
+    /// <see cref="SherpaNativeLoader.CpuFallbackReason"/>; any failure is logged and leaves speech recognition on the CPU.
     /// </summary>
     private static void ConfigureSherpaNatives(ILogger log)
     {
+        SttDevice device = SttDevice.Cpu;
         try
         {
-            SttDevice device = new UserPreferences().SttDevice;
-            string root = SherpaCudaInstaller.InstallRootDefault;
-            IReadOnlyList<SherpaCudaDownload>? downloads = SherpaCudaInstaller.ForCurrentPlatform(
-                Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json")
+            device = new UserPreferences().SttDevice;
+            SherpaStartupChoice choice = SherpaNativeLoader.ChooseAtStartup(
+                device,
+                Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json"),
+                SherpaCudaInstaller.InstallRootDefault
             );
-            bool installed = (downloads is not null) && SherpaCudaInstaller.IsInstalledOnDisk(root, downloads);
-            if (SherpaNativeLoader.Choose(installed, device) == SherpaNativeSet.Cuda)
+            if (choice.Set == SherpaNativeSet.Cuda)
             {
-                SherpaNativeLoader.UseCudaSet(Path.Combine(root, SherpaCudaInstaller.NativeDirName));
+                LoadCudaSet(log);
             }
             else
             {
-                SherpaNativeLoader.LogCpuSet();
+                RecordCpuChoice(choice);
             }
         }
         catch (Exception ex)
         {
             log.LogError(ex, "Failed to set up the sherpa-onnx CUDA native set; speech recognition stays on the CPU");
+            if (device == SttDevice.Gpu)
+            {
+                SherpaNativeLoader.RecordCpuFallback($"Setting up the GPU runtime failed: {ex.Message}");
+            }
+        }
+    }
+
+    private static void RecordCpuChoice(SherpaStartupChoice choice)
+    {
+        if (choice.CpuReason is not null)
+        {
+            SherpaNativeLoader.RecordCpuFallback(choice.CpuReason);
+        }
+        SherpaNativeLoader.LogCpuSet();
+    }
+
+    /// <summary>
+    /// Loads the CUDA set while holding the install root's writer lock, so an install or removal cannot pull the files out
+    /// from under the load. A lock held elsewhere, or a failed load, keeps speech recognition on the CPU and says why.
+    /// </summary>
+    private static void LoadCudaSet(ILogger log)
+    {
+        using FileStream? rootLock = SherpaCudaInstaller.TryLockRoot(SherpaCudaInstaller.InstallRootDefault);
+        if (rootLock is null)
+        {
+            SherpaNativeLoader.RecordCpuFallback("The GPU runtime is being installed or removed by another YAAT.");
+            SherpaNativeLoader.LogCpuSet();
+            return;
+        }
+
+        try
+        {
+            SherpaNativeLoader.UseCudaSet(Path.Combine(SherpaCudaInstaller.InstallRootDefault, SherpaCudaInstaller.NativeDirName));
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Loading the sherpa-onnx CUDA native set failed; speech recognition stays on the CPU");
+            SherpaNativeLoader.RecordCpuFallback($"Loading the GPU runtime failed: {ex.Message}");
+            SherpaNativeLoader.LogCpuSet();
         }
     }
 
