@@ -5,6 +5,7 @@ using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Testing;
@@ -14,9 +15,9 @@ namespace Yaat.Sim.Tests.Simulation.Asdex;
 
 /// <summary>
 /// Snapshot schema 41: the taxi-onto-active-runway alert kind (stored as 2) is gone, the alert texts became vNAS's and
-/// alerts carry GoAround. A schema-40 standing alert of the retired kind restores as an occupied-runway alert and the
-/// other kinds' third lines move to the current text. A schema-40 closed-runway alert is dropped instead, since the
-/// migrator cannot tell an arrival from a departure: the next tick re-raises it, with GO AROUND for an arrival.
+/// alerts carry GoAround. Every standing alert of a schema-40 snapshot is dropped, whatever its kind, since its stored
+/// lines cannot be rebuilt from the snapshot: the next tick raises each one again from live state under the same id in
+/// the current text, at the cost of one extra aural.
 /// </summary>
 public class AsdexSnapshotSchema41Tests
 {
@@ -81,6 +82,101 @@ public class AsdexSnapshotSchema41Tests
         return engine;
     }
 
+    /// <summary>The facility the occupied-runway fixture runs at; the ARTCC config below names its runway configuration.</summary>
+    private const string Sfo = "SFO";
+
+    /// <summary>ZOA's SFO "L28D01" runway configuration, the one that lifts the LIMITED gate on open-runway alerts.</summary>
+    private const string SfoL28D01 = "01GVF4AGA8HX03NSN8QJS4WJS4";
+
+    private const string TwoAtSfo = """
+        {
+          "id": "asdex-v41-restore", "name": "ASDE-X V41 restore at SFO", "artccId": "ZOA", "primaryAirportId": "SFO",
+          "aircraft": [
+            {
+              "id": "a1", "aircraftId": "AAL1", "aircraftType": "B738", "transponderMode": "C",
+              "startingConditions": {
+                "type": "Coordinates", "coordinates": { "lat": 37.9, "lon": -122.6 }, "altitude": 5000, "heading": 280, "speed": 250
+              },
+              "flightplan": {
+                "rules": "IFR", "departure": "KSFO", "destination": "KLAX", "cruiseAltitude": 35000, "cruiseSpeed": 450,
+                "route": "", "remarks": "", "aircraftType": "B738"
+              }
+            },
+            {
+              "id": "a2", "aircraftId": "UAL2", "aircraftType": "B738", "transponderMode": "C",
+              "startingConditions": {
+                "type": "Coordinates", "coordinates": { "lat": 37.95, "lon": -122.6 }, "altitude": 6000, "heading": 280, "speed": 250
+              },
+              "flightplan": {
+                "rules": "IFR", "departure": "KSFO", "destination": "KLAX", "cruiseAltitude": 35000, "cruiseSpeed": 450,
+                "route": "", "remarks": "", "aircraftType": "B738"
+              }
+            }
+          ]
+        }
+        """;
+
+    /// <summary>
+    /// An SFO engine on the L28D01 runway configuration with 28L open and the pair the occupied-runway alert is raised
+    /// for: UAL2 stopped 3,600 ft down the runway, AAL1 an airborne arrival 300 ft past the threshold at 40 ft, inside its
+    /// arrival box. Only a configuration the ARTCC names lifts the LIMITED gate; OAK's config names none.
+    /// </summary>
+    private static SimulationEngine EngineWithAnOccupiedRunwayPair()
+    {
+        SimulationEngine engine = AiTestFixture.Load(TwoAtSfo, ZoaArtccConfig.Full, 7, []);
+        AircraftState arrival = engine.World.FindAircraft("AAL1")!;
+        AircraftState occupant = engine.World.FindAircraft("UAL2")!;
+        RunwayInfo runway =
+            NavigationDatabase.Instance.GetRunway(Sfo, "28L")
+            ?? NavigationDatabase.Instance.GetRunway("K" + Sfo, "28L")
+            ?? throw new InvalidOperationException($"{Sfo} 28L is not in navdata");
+        Place(arrival, runway, 300, airborne: true, heightFt: 40, speedKts: 135);
+        Place(occupant, runway, 3600, airborne: false, heightFt: 0, speedKts: 0);
+        arrival.Phases = new PhaseList();
+        arrival.Phases.Add(new FinalApproachPhase());
+        engine.ApplyRecordedAsdexSafetyLogic(
+            new RecordedAsdexSafetyLogicChange(
+                0,
+                Sfo,
+                new AsdexSafetyLogicConfig(
+                    [new AsdexRunwayConfig("28L", Envelope(arrival.Position, occupant.Position), IsClosed: false)],
+                    SfoL28D01,
+                    [],
+                    RunwayConfigurationChosen: false,
+                    AsdexSafetyLogicConfig.NoSeconds,
+                    AsdexSafetyLogicConfig.NoSeconds
+                )
+            )
+        );
+        return engine;
+    }
+
+    /// <summary>
+    /// Puts <paramref name="aircraft"/> on <paramref name="runway"/>'s centreline <paramref name="alongFt"/> past its
+    /// threshold, heading and tracking down the runway, <paramref name="heightFt"/> above it when airborne.
+    /// </summary>
+    private static void Place(AircraftState aircraft, RunwayInfo runway, double alongFt, bool airborne, double heightFt, double speedKts)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        aircraft.Position = GeoMath.ProjectPoint(threshold, runway.TrueHeading, alongFt / GeoMath.FeetPerNm);
+        aircraft.TrueHeading = runway.TrueHeading;
+        aircraft.TrueTrack = runway.TrueHeading;
+        aircraft.IsOnGround = !airborne;
+        aircraft.Altitude = runway.ElevationFt + (airborne ? heightFt : 0);
+        aircraft.IndicatedAirspeed = speedKts;
+    }
+
+    /// <summary>A footprint ring with a margin of slack around both positions, wide enough to hold the pair.</summary>
+    private static LatLon[] Envelope(LatLon first, LatLon second)
+    {
+        const double Margin = 0.002;
+        double minLat = Math.Min(first.Lat, second.Lat) - Margin;
+        double maxLat = Math.Max(first.Lat, second.Lat) + Margin;
+        double minLon = Math.Min(first.Lon, second.Lon) - Margin;
+        double maxLon = Math.Max(first.Lon, second.Lon) + Margin;
+        return [new(minLat, minLon), new(minLat, maxLon), new(maxLat, maxLon), new(maxLat, minLon)];
+    }
+
     /// <summary>The engine's snapshot rewritten to schema 40, its standing alerts replaced by <paramref name="alerts"/>.</summary>
     private static StateSnapshotDto AsSchema40(SimulationEngine engine, params JsonObject[] alerts)
     {
@@ -91,10 +187,10 @@ public class AsdexSnapshotSchema41Tests
     }
 
     /// <summary>A stored alert in the pre-V41 shape: no GoAround, the old texts.</summary>
-    private static JsonObject LegacyAlert(string id, int kind, string runway, string[] callsigns, string text) =>
+    private static JsonObject LegacyAlert(string facility, string id, int kind, string runway, string[] callsigns, string text) =>
         new()
         {
-            ["FacilityId"] = "OAK",
+            ["FacilityId"] = facility,
             ["Id"] = id,
             ["Kind"] = kind,
             ["RunwayIds"] = new JsonArray(runway),
@@ -103,53 +199,67 @@ public class AsdexSnapshotSchema41Tests
             ["PlayAuralAlert"] = true,
         };
 
+    /// <summary>
+    /// A pre-V41 standing occupied-runway alert carries the old lines: the runway without its "RWY " prefix, the
+    /// callsigns space-separated, the old text. Dropped on restore, the next tick — the same pair still on the runway —
+    /// raises it again in the current build's text instead of leaving the old lines standing under its id.
+    /// </summary>
     [Fact]
-    public void V40SnapshotWithTaxiOntoActiveRunwayAlert_RestoresAsOccupiedRunway()
+    public void V40SnapshotWithStandingOccupiedRunwayAlert_IsDropped_AndNextTickRaisesItInTheCurrentText()
+    {
+        SimulationEngine engine = EngineWithAnOccupiedRunwayPair();
+        StateSnapshotDto snapshot = AsSchema40(engine, LegacyAlert(Sfo, "OccupiedRunway|28L|AAL1,UAL2", 1, "28L", ["AAL1", "UAL2"], "OCCUPIED RWY"));
+
+        engine.RestoreFromSnapshot(snapshot);
+
+        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault(Sfo, SimScenarioState.NoAsdexAlerts));
+
+        engine.TickAsdexAlerts(new Helpers.SpineCapturingHost(engine));
+
+        AsdexSafetyAlert alert = Assert.Single(engine.Scenario.ActiveAsdexAlerts.GetValueOrDefault(Sfo, SimScenarioState.NoAsdexAlerts).Values);
+        Assert.Equal(AsdexAlertKind.OccupiedRunway, alert.Kind);
+        Assert.Equal(["RWY 28L", "AAL1, UAL2", "RWY OCCUPIED"], alert.MessageLines);
+    }
+
+    /// <summary>A standing pre-V41 alert of the retired taxi-onto-active-runway kind is dropped like every other kind.</summary>
+    [Fact]
+    public void V40SnapshotWithTaxiOntoActiveRunwayAlert_IsDropped()
     {
         SimulationEngine engine = EngineWithAStandingAlert(airborneArrival: false);
-        JsonObject root = JsonNode.Parse(JsonSerializer.Serialize(engine.CaptureSnapshot()))!.AsObject();
-        Assert.Equal(JsonValueKind.Number, root["Scenario"]!["ActiveAsdexAlerts"]![0]!["Kind"]!.GetValueKind());
-        StateSnapshotDto legacy = AsSchema40(engine, LegacyAlert("TaxiOntoActiveRunway|28R|AAL1,GND3", 2, "28R", ["AAL1", "GND3"], "RWY INCURSION"));
+        StateSnapshotDto legacy = AsSchema40(
+            engine,
+            LegacyAlert("OAK", "TaxiOntoActiveRunway|28R|AAL1,GND3", 2, "28R", ["AAL1", "GND3"], "RWY INCURSION")
+        );
 
         engine.RestoreFromSnapshot(legacy);
 
-        AsdexSafetyAlert restored = Assert.Single(engine.Scenario!.ActiveAsdexAlerts["OAK"].Values);
-        Assert.Equal("TaxiOntoActiveRunway|28R|AAL1,GND3", restored.Id);
-        Assert.Equal(AsdexAlertKind.OccupiedRunway, restored.Kind);
-        Assert.Equal("RWY OCCUPIED", restored.MessageLines[2]);
-        Assert.False(restored.GoAround);
+        Assert.Empty(engine.Scenario!.ActiveAsdexAlerts.GetValueOrDefault("OAK", SimScenarioState.NoAsdexAlerts));
     }
 
     /// <summary>
-    /// Kinds 1 and 3 keep their kind and id and each runway alert's old third line becomes the current text, a
-    /// taxiway-landing text is kept, a closed-runway alert (kind 0) is dropped, and migrating the result again changes
-    /// nothing.
+    /// Every standing alert of a schema-40 snapshot is dropped, whatever its kind, and migrating the dropped set again
+    /// changes nothing.
     /// </summary>
     [Fact]
-    public void V40Snapshot_DropsClosedRunwayAlerts_RewritesOldTexts_LeavesOtherKinds_AndMigratingTwiceChangesNothing()
+    public void V40Snapshot_DropsEveryStandingAlert_AndMigratingTwiceChangesNothing()
     {
         SimulationEngine engine = EngineWithAStandingAlert(airborneArrival: false);
         StateSnapshotDto snapshot = AsSchema40(
             engine,
-            LegacyAlert("ClosedRunway|28R|UAL1", 0, "28R", ["UAL1"], "CLOSED RWY"),
-            LegacyAlert("OccupiedRunway|28R|AAL1,UAL2", 1, "28R", ["AAL1", "UAL2"], "OCCUPIED RWY"),
-            LegacyAlert("TWYLAND|A|SKW3", 3, "A", ["SKW3"], "TAXIWAY LANDING")
+            LegacyAlert("OAK", "ClosedRunway|28R|UAL1", 0, "28R", ["UAL1"], "CLOSED RWY"),
+            LegacyAlert("OAK", "OccupiedRunway|28R|AAL1,UAL2", 1, "28R", ["AAL1", "UAL2"], "OCCUPIED RWY"),
+            LegacyAlert("OAK", "TWYLAND|A|SKW3", 3, "A", ["SKW3"], "TAXIWAY LANDING")
         );
 
         SnapshotSchemaMigrator.Migrate(snapshot);
 
-        List<AsdexSafetyAlertDto> alerts = snapshot.Scenario.ActiveAsdexAlerts!;
         Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
-        Assert.Equal(["OccupiedRunway|28R|AAL1,UAL2", "TWYLAND|A|SKW3"], alerts.Select(a => a.Id));
-        Assert.Equal([AsdexAlertKind.OccupiedRunway, AsdexAlertKind.TaxiwayLanding], alerts.Select(a => a.Kind));
-        Assert.Equal(["RWY OCCUPIED", "TAXIWAY LANDING"], alerts.Select(a => a.MessageLines[2]));
-        Assert.All(alerts, a => Assert.False(a.GoAround));
+        Assert.Empty(snapshot.Scenario.ActiveAsdexAlerts!);
 
         // Reset the version so the second pass runs the V40→V41 step itself again rather than skipping it.
-        string once = JsonSerializer.Serialize(snapshot.Scenario.ActiveAsdexAlerts);
         snapshot.SchemaVersion = 40;
         SnapshotSchemaMigrator.Migrate(snapshot);
-        Assert.Equal(once, JsonSerializer.Serialize(snapshot.Scenario.ActiveAsdexAlerts));
+        Assert.Empty(snapshot.Scenario.ActiveAsdexAlerts!);
     }
 
     /// <summary>
@@ -163,7 +273,7 @@ public class AsdexSnapshotSchema41Tests
         SimulationEngine engine = EngineWithAStandingAlert(airborneArrival: true);
         StateSnapshotDto snapshot = AsSchema40(
             engine,
-            LegacyAlert($"ClosedRunway|28R|{AiTestFixture.Callsign}", 0, "28R", [AiTestFixture.Callsign], "CLOSED RWY")
+            LegacyAlert("OAK", $"ClosedRunway|28R|{AiTestFixture.Callsign}", 0, "28R", [AiTestFixture.Callsign], "CLOSED RWY")
         );
 
         engine.RestoreFromSnapshot(snapshot);
@@ -188,7 +298,7 @@ public class AsdexSnapshotSchema41Tests
         SimulationEngine engine = EngineWithAStandingAlert(airborneArrival: false);
         StateSnapshotDto snapshot = AsSchema40(
             engine,
-            LegacyAlert($"ClosedRunway|28R|{AiTestFixture.Callsign}", 0, "28R", [AiTestFixture.Callsign], "CLOSED RWY")
+            LegacyAlert("OAK", $"ClosedRunway|28R|{AiTestFixture.Callsign}", 0, "28R", [AiTestFixture.Callsign], "CLOSED RWY")
         );
 
         engine.RestoreFromSnapshot(snapshot);
