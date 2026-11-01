@@ -103,12 +103,15 @@ public static partial class ContextDecoder
     private static DecodeResult ResolvedResult(HypothesisView view, CallsignDecision decision, DecodeCall call)
     {
         CallsignHit hit = decision.Hit;
+        EntityMatch callsign = view.Heard.Match(hit.Aircraft.Callsign, hit.Full, hit.Weighted, own: true);
+        (string transcript, string remainder) = Transcripts(view, hit, decision.Selection.Chosen, callsign.Span, call);
         return new DecodeResult(
             DecodeState.Resolved,
-            view.Heard.Match(hit.Aircraft.Callsign, hit.Full, hit.Weighted, own: true),
+            callsign,
             null,
             EntitiesOf(view, decision.Selection, hit, CandidateSources(hit.Aircraft, call)),
-            Transcript(view, hit, decision.Selection, call),
+            transcript,
+            remainder,
             view.Index,
             decision.Joint,
             view.Heard.ConfidenceGated
@@ -120,12 +123,14 @@ public static partial class ContextDecoder
     {
         CallsignHit? bestGuess = state == DecodeState.SayAgain ? hit : null;
         EntitySelection selection = SelectAirportEntities(view.Heard, bestGuess, call);
+        string transcript = Transcript(view, null, selection, call);
         return new DecodeResult(
             state,
             null,
             bestGuess is null ? null : view.Heard.Match(bestGuess.Aircraft.Callsign, bestGuess.Full, bestGuess.Weighted, own: true),
             EntitiesOf(view, selection, bestGuess, AirportSources(call)),
-            Transcript(view, null, selection, call),
+            transcript,
+            transcript,
             view.Index,
             0.0,
             view.Heard.ConfidenceGated
@@ -142,7 +147,7 @@ public static partial class ContextDecoder
     }
 
     private static string Transcript(HypothesisView view, CallsignHit? callsign, EntitySelection selection, DecodeCall call) =>
-        view.Typed ? view.Text : Rewrite(view.Heard, callsign, selection.Chosen, call);
+        view.Typed ? view.Text : Joined(RewrittenWords(view.Heard, callsign, selection.Chosen, call));
 
     private static DecodeState StateOf(CallsignHit? hit, DecoderSettings settings)
     {

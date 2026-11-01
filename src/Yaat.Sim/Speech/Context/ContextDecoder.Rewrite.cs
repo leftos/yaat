@@ -2,7 +2,29 @@ namespace Yaat.Sim.Speech.Context;
 
 public static partial class ContextDecoder
 {
-    private static string Rewrite(HeardText heard, CallsignHit? callsign, IReadOnlyList<AcceptedSpan> entities, DecodeCall call)
+    /// <summary>
+    /// A resolved hypothesis's rewritten transcript and its remainder: the same words, and those outside the callsign's span.
+    /// Typed input keeps its text as the transcript and drops the callsign's words for the remainder.
+    /// </summary>
+    private static (string Transcript, string Remainder) Transcripts(
+        HypothesisView view,
+        CallsignHit callsign,
+        IReadOnlyList<AcceptedSpan> entities,
+        WordSpan callsignSpan,
+        DecodeCall call
+    )
+    {
+        if (view.Typed)
+        {
+            return (view.Text, Outside(view.Heard.Words, callsignSpan));
+        }
+
+        string[] words = RewrittenWords(view.Heard, callsign, entities, call);
+        return (Joined(words), Outside(words, callsignSpan));
+    }
+
+    /// <summary>The transcript's source words, one slot each, with the accepted spans' near misses rewritten in place.</summary>
+    private static string[] RewrittenWords(HeardText heard, CallsignHit? callsign, IReadOnlyList<AcceptedSpan> entities, DecodeCall call)
     {
         string[] words = [.. heard.Words];
         if (callsign?.Form is { } callsignForm)
@@ -13,8 +35,14 @@ public static partial class ContextDecoder
         {
             RewriteMatch(heard, words, span.Place.Core, call.ShapeOf(span.Form).Tokens);
         }
-        return string.Join(' ', words.Where(word => word.Length > 0));
+        return words;
     }
+
+    private static string Joined(IEnumerable<string> words) => string.Join(' ', words.Where(word => word.Length > 0));
+
+    /// <summary>The words outside <paramref name="span"/>, emptied slots dropped and single-spaced.</summary>
+    private static string Outside(IReadOnlyList<string> words, WordSpan span) =>
+        string.Join(' ', words.Where((word, index) => (word.Length > 0) && ((index < span.Start) || (index >= span.End))));
 
     private static void RewriteMatch(HeardText heard, string[] words, TokenRange range, IReadOnlyList<SpokenToken> form)
     {

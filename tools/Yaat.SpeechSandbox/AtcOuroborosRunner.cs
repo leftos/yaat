@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Yaat.Client.Services;
 
 namespace Yaat.SpeechSandbox;
 
@@ -13,8 +14,9 @@ namespace Yaat.SpeechSandbox;
 ///
 /// Run with <c>--atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline &lt;json&gt;]
 /// [--update-baseline] [--voice &lt;dir&gt;] [--no-synth-cache] [--stt &lt;kind&gt;:&lt;source&gt;] [--device cpu|gpu]
-/// [--decoding greedy|beam] [--num-paths N]</c>. Without <c>--stt</c> the run scores the Whisper model saved in
-/// preferences; <c>--decoding beam</c> is accurate mode, which resolves the whole n-best against each case's room.
+/// [--decoding greedy|beam] [--num-paths N] [--accurate-text raw|rewritten]</c>. Without <c>--stt</c> the run scores the
+/// Whisper model saved in preferences; <c>--decoding beam</c> is accurate mode, which resolves the whole n-best against each
+/// case's room, and <c>--accurate-text</c> picks whether it maps the winner's raw text or the decoder's rewritten one.
 /// Default paths resolve against the repo root (main checkout or worktree; the working directory when none is found);
 /// paths passed as arguments are used as given. Regressions are judged per rule family and on the totals; per-template rows are
 /// information only. Writes <c>corpus/</c>, <c>eval/</c>, <c>results.json</c> and
@@ -42,6 +44,7 @@ public static class AtcOuroborosRunner
 
     /// <summary>A parsed <c>--atc-ouroboros</c> command line.</summary>
     /// <param name="Stt">The engine the flags chose; null keeps the Whisper model saved in preferences.</param>
+    /// <param name="AccurateText">Which text accurate mode hands the mappers.</param>
     public sealed record Options(
         int Cases,
         int Seed,
@@ -51,7 +54,8 @@ public static class AtcOuroborosRunner
         bool UpdateBaseline,
         string? VoiceDir,
         bool UseSynthCache,
-        SttChoice? Stt
+        SttChoice? Stt,
+        AccurateCommandText AccurateText
     );
 
     public static async Task<int> RunAsync(string[] args)
@@ -61,7 +65,7 @@ public static class AtcOuroborosRunner
         {
             Console.Error.WriteLine(
                 "Usage: Yaat.SpeechSandbox --atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline <json>] [--update-baseline] [--voice <dir>] [--no-synth-cache] "
-                    + "[--stt <kind>:<source>] [--device cpu|gpu] [--decoding greedy|beam] [--num-paths N]"
+                    + "[--stt <kind>:<source>] [--device cpu|gpu] [--decoding greedy|beam] [--num-paths N] [--accurate-text raw|rewritten]"
             );
             return AtcOuroborosAnalysis.ExitSetupError;
         }
@@ -73,7 +77,9 @@ public static class AtcOuroborosRunner
             return AtcOuroborosAnalysis.ExitSetupError;
         }
 
-        using EvalPipeline pipeline = await EvalPipeline.CreateAsync(options.Stt, noBiasingPrompt: false).ConfigureAwait(false);
+        using EvalPipeline pipeline = await EvalPipeline
+            .CreateAsync(options.Stt, noBiasingPrompt: false, accurateText: options.AccurateText)
+            .ConfigureAwait(false);
         EvalRunner.PrintModels(pipeline);
         if (pipeline.SetupError is not null)
         {
@@ -228,7 +234,7 @@ public static class AtcOuroborosRunner
             return null;
         }
         outDir ??= Path.Combine(DefaultsRoot, ".tmp", $"atc-ouroboros-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}");
-        return new Options(cases, seed, trials, outDir, baselinePath, updateBaseline, voiceDir, useSynthCache, stt);
+        return new Options(cases, seed, trials, outDir, baselinePath, updateBaseline, voiceDir, useSynthCache, stt, engine.AccurateText);
     }
 
     private static bool TryParsePositive(string text, out int value) => int.TryParse(text, CultureInfo.InvariantCulture, out value) && value > 0;

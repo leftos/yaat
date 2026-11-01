@@ -277,7 +277,7 @@ public sealed class CorpusSlotScorerTests
     private static EntityMatch Match(EntityKind kind, string value) => new(Entity(kind, value), new WordSpan(0, 0), 1.0, false, value);
 
     private static DecodeResult Result(DecodeState state, EntityMatch? callsign, EntityMatch? bestGuess, IReadOnlyList<EntityMatch> entities) =>
-        new(state, callsign, bestGuess, entities, string.Empty, 0, 0, false);
+        new(state, callsign, bestGuess, entities, string.Empty, string.Empty, 0, 0, false);
 
     private static CorpusSlotGroup Pool(IReadOnlyList<CorpusSlotGroup> groups, string label) => groups.Single(group => group.Group == label);
 

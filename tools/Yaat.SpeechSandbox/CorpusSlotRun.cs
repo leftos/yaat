@@ -128,7 +128,7 @@ public sealed class CorpusSlotRun
     {
         if ((transcript.Entries.Count == 0) || (transcript.Text is null))
         {
-            return new DecodeResult(DecodeState.NoCallsign, null, null, [], string.Empty, 0, 0, false);
+            return new DecodeResult(DecodeState.NoCallsign, null, null, [], string.Empty, string.Empty, 0, 0, false);
         }
         DecoderInput input = resolve
             ? new DecoderInput([.. transcript.Entries.Select(SttDecoderInput.ToDecoderHypothesis)], InputSource.Spoken, MatchMode.Fuzzy)

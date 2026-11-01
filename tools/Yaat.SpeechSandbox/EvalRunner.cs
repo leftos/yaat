@@ -170,6 +170,10 @@ internal sealed class EvalPipeline : IDisposable
     public bool Accurate => Choice.Decoding.Method == SherpaDecodingMethod.Beam;
 
     public string SttLabel { get; }
+
+    /// <summary>Which text accurate mode hands the mappers.</summary>
+    public AccurateCommandText AccurateText { get; }
+
     public string LlmModelPath { get; }
     public bool LlmOverridden { get; }
     public string BiasingPrompt { get; }
@@ -193,7 +197,7 @@ internal sealed class EvalPipeline : IDisposable
     /// <summary>The highest GPU memory sampled so far, starting from what the load left behind; -1 when unmeasured.</summary>
     public long PeakGpuBytes { get; private set; }
 
-    private EvalPipeline(SttChoice? stt, bool noBiasingPrompt)
+    private EvalPipeline(SttChoice? stt, bool noBiasingPrompt, AccurateCommandText accurateText)
     {
         var prefs = new UserPreferences();
 
@@ -226,7 +230,9 @@ internal sealed class EvalPipeline : IDisposable
         // --prompt none blanks the Whisper biasing prompt for the whole run — the A/B knob for
         // asking whether the static vocabulary hint still earns its keep on a given model.
         BiasingPrompt = noBiasingPrompt ? string.Empty : WhisperBiasingPrompt.Default;
-        SttLabel = CorpusSttEngines.RecordedModel(Choice) + (noBiasingPrompt ? " (no biasing prompt)" : "");
+        AccurateText = accurateText;
+        string rewrite = (accurateText == AccurateCommandText.Rewritten) ? "+rewrite" : string.Empty;
+        SttLabel = CorpusSttEngines.RecordedModel(Choice) + rewrite + (noBiasingPrompt ? " (no biasing prompt)" : "");
 
         _llm = new LocalLlmService(llmConfig);
         LlmMapper = new LocalLlmCommandMapper(_llm);
@@ -247,10 +253,11 @@ internal sealed class EvalPipeline : IDisposable
     /// </summary>
     /// <param name="stt">The STT engine; null takes the Whisper model saved in preferences.</param>
     /// <param name="noBiasingPrompt">True blanks the Whisper biasing prompt for the whole run.</param>
-    public static async Task<EvalPipeline> CreateAsync(SttChoice? stt, bool noBiasingPrompt)
+    /// <param name="accurateText">Which text accurate mode hands the mappers.</param>
+    public static async Task<EvalPipeline> CreateAsync(SttChoice? stt, bool noBiasingPrompt, AccurateCommandText accurateText)
     {
         bool navDataLoaded = SandboxNavData.TryInitialize(out string? navDataError);
-        var pipeline = new EvalPipeline(stt, noBiasingPrompt);
+        var pipeline = new EvalPipeline(stt, noBiasingPrompt, accurateText);
         if (!navDataLoaded)
         {
             pipeline.SetupError = CombineSetupErrors(navDataError, pipeline.SetupError);
@@ -406,7 +413,7 @@ public static class EvalRunner
         {
             Console.Error.WriteLine(
                 "Usage: Yaat.SpeechSandbox --eval <corpus-dir> [--out-dir <dir>] [--trials N] [--stt <kind>:<source>] [--device cpu|gpu] "
-                    + "[--decoding greedy|beam] [--num-paths N]"
+                    + "[--decoding greedy|beam] [--num-paths N] [--accurate-text raw|rewritten]"
             );
             Console.Error.WriteLine();
             Console.Error.WriteLine("Scores the production STT pipeline against labeled real-audio cases.");
@@ -418,6 +425,10 @@ public static class EvalRunner
             Console.Error.WriteLine(
                 "--device picks a local engine's device; --decoding beam (sherpa only, --num-paths 1-4, default 4) is accurate mode, "
                     + "which resolves the whole n-best against each case's room (needs \"airport\" in expected.json)."
+            );
+            Console.Error.WriteLine(
+                "--accurate-text picks what accurate mode hands the mappers: raw (the winning hypothesis's text, the default) or "
+                    + "rewritten (the decoder's transcript with its entity spans corrected)."
             );
             return 1;
         }
@@ -475,7 +486,9 @@ public static class EvalRunner
             return 2;
         }
 
-        using EvalPipeline pipeline = await EvalPipeline.CreateAsync(stt, noBiasingPrompt: promptMode == "none").ConfigureAwait(false);
+        using EvalPipeline pipeline = await EvalPipeline
+            .CreateAsync(stt, noBiasingPrompt: promptMode == "none", accurateText: engine.AccurateText)
+            .ConfigureAwait(false);
         PrintModels(pipeline);
         if (pipeline.SetupError is not null)
         {
@@ -878,7 +891,13 @@ public static class EvalRunner
 
         var watch = Stopwatch.StartNew();
         HypothesesMapResult accurate = await SpeechRecognitionService
-            .MapHypothesesWithTraceAsync(hyps, new AccurateDecodeInput(room, DecoderSettings.Default), ctx, pipeline.Mappers, CancellationToken.None)
+            .MapHypothesesWithTraceAsync(
+                hyps,
+                new AccurateDecodeInput(room, DecoderSettings.Default, pipeline.AccurateText),
+                ctx,
+                pipeline.Mappers,
+                CancellationToken.None
+            )
             .ConfigureAwait(false);
         watch.Stop();
         return new TrialMapping(accurate.Result, accurate.RuleTrace.OutputCanonical, accurate.Decode.State, watch.Elapsed.TotalMilliseconds);
