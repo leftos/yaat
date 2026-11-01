@@ -190,7 +190,9 @@ public sealed partial class SherpaCudaInstaller(
     /// Windows x64 and Linux x64).
     /// </summary>
     /// <param name="manifestPath">The <c>stt-downloads.json</c> that pins our CUDA native zips.</param>
-    /// <exception cref="InvalidDataException">The manifest lists no CUDA native for the platform.</exception>
+    /// <exception cref="InvalidDataException">The manifest is not a valid STT download manifest, or lists no CUDA native for the platform.</exception>
+    /// <exception cref="IOException">The manifest could not be read.</exception>
+    /// <exception cref="UnauthorizedAccessException">The manifest could not be read.</exception>
     public static IReadOnlyList<SherpaCudaDownload>? ForCurrentPlatform(string manifestPath)
     {
         string? rid = HostRid();
@@ -333,9 +335,13 @@ public sealed partial class SherpaCudaInstaller(
         }
     }
 
-    private static string SentinelPath(string installRoot) => Path.Combine(installRoot, InstalledSentinelFileName);
+    /// <summary>The sentinel file <paramref name="installRoot"/> holds once its set is installed.</summary>
+    /// <param name="installRoot">The install root.</param>
+    public static string SentinelPath(string installRoot) => Path.Combine(installRoot, InstalledSentinelFileName);
 
-    private static string ExpectedSentinelContent(IReadOnlyList<SherpaCudaDownload> downloads) =>
+    /// <summary>The sentinel's content for <paramref name="downloads"/>: one name and SHA-256 per archive.</summary>
+    /// <param name="downloads">The archives a set is installed from.</param>
+    public static string ExpectedSentinelContent(IReadOnlyList<SherpaCudaDownload> downloads) =>
         string.Join('\n', downloads.Select(d => $"{d.Name} {d.Sha256}"));
 
     private static string? HostRid()
@@ -351,7 +357,20 @@ public sealed partial class SherpaCudaInstaller(
         return OperatingSystem.IsLinux() ? "linux-x64" : null;
     }
 
+    /// <summary>Reads our zip's entry from the manifest, reporting anything but a read failure as the invalid manifest it is.</summary>
     private static SherpaCudaDownload ReadOurZip(string rid, string manifestPath, string[] entries)
+    {
+        try
+        {
+            return ParseOurZip(rid, manifestPath, entries);
+        }
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            throw new InvalidDataException($"{manifestPath} is not a valid STT download manifest: {ex.Message}", ex);
+        }
+    }
+
+    private static SherpaCudaDownload ParseOurZip(string rid, string manifestPath, string[] entries)
     {
         using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
         JsonElement root = manifest.RootElement;

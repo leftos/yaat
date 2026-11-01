@@ -390,6 +390,16 @@ public sealed class SherpaCudaInstallerTests : IDisposable
         Assert.Equal("dd38177cdc9504048b877fc827146f24d0e8f75713bbf91d3c7d46da8cd1cabc", downloads[0].Sha256);
     }
 
+    [Fact]
+    public void Manifest_Without_Natives_Throws_InvalidData()
+    {
+        Directory.CreateDirectory(_root);
+        string manifestPath = Path.Combine(_root, "stt-downloads.json");
+        File.WriteAllText(manifestPath, """{"baseUrl":"x"}""");
+
+        Assert.Throws<InvalidDataException>(() => SherpaCudaInstaller.ForPlatform("win-x64", manifestPath));
+    }
+
     private static string ManifestPath => Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json");
 
     private SherpaCudaInstaller NewInstaller(FakeHandler handler, IReadOnlyList<SherpaCudaDownload> downloads) =>

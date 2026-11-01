@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -15,6 +16,55 @@ public enum SherpaNativeSet
     Cuda,
 }
 
+/// <summary>The native set startup picked, and why it kept the CPU when the user asked for the GPU.</summary>
+/// <param name="Set">The set to load.</param>
+/// <param name="CpuReason">Why the CPU was kept instead of the GPU set; null when the user asked for the CPU or the GPU set is usable.</param>
+public sealed record SherpaStartupChoice(SherpaNativeSet Set, string? CpuReason);
+
+/// <summary>Registers one <see cref="DllImportResolver"/> per assembly, remembering which assemblies it already did.</summary>
+public interface IDllImportResolverRegistrar
+{
+    /// <summary>Whether this registrar already set <paramref name="assembly"/>'s resolver.</summary>
+    /// <param name="assembly">The assembly whose resolver is asked about.</param>
+    bool IsRegistered(Assembly assembly);
+
+    /// <summary>Sets <paramref name="assembly"/>'s resolver to <paramref name="resolver"/>, and records it once that returns.</summary>
+    /// <param name="assembly">The assembly whose imports the resolver takes over.</param>
+    /// <param name="resolver">The resolver.</param>
+    void Register(Assembly assembly, DllImportResolver resolver);
+}
+
+/// <summary>The process-wide registrar: one <see cref="NativeLibrary.SetDllImportResolver"/> call per assembly.</summary>
+public sealed class NativeDllImportResolverRegistrar : IDllImportResolverRegistrar
+{
+    private readonly Lock _gate = new();
+    private readonly HashSet<Assembly> _registered = [];
+
+    /// <summary>The registrar for this process.</summary>
+    public static NativeDllImportResolverRegistrar Instance { get; } = new();
+
+    private NativeDllImportResolverRegistrar() { }
+
+    /// <inheritdoc />
+    public bool IsRegistered(Assembly assembly)
+    {
+        lock (_gate)
+        {
+            return _registered.Contains(assembly);
+        }
+    }
+
+    /// <inheritdoc />
+    public void Register(Assembly assembly, DllImportResolver resolver)
+    {
+        lock (_gate)
+        {
+            NativeLibrary.SetDllImportResolver(assembly, resolver);
+            _registered.Add(assembly);
+        }
+    }
+}
+
 /// <summary>
 /// Points sherpa-onnx at its native set before anything touches it. The CPU set needs nothing: default probing finds
 /// it beside the app. The CUDA set is preloaded by absolute path, dependencies first, so a missing cuBLAS or cuDNN fails
@@ -23,6 +73,10 @@ public enum SherpaNativeSet
 /// import closure (cuBLAS, cuBLASLt) and cuDNN are preloaded here and bind to the installed copies by base name (Windows)
 /// or soname (glibc). The sherpa-onnx imports of both managed assemblies resolve to the CUDA set, and no process-wide
 /// search path is changed.
+///
+/// Both assemblies' resolvers are registered before the set loads and return nothing until it has loaded, so a failed
+/// load leaves the CPU set in place for default probing. Every failure is logged, and a GPU pick that ends on the CPU
+/// records why in <see cref="CpuFallbackReason"/>.
 /// </summary>
 public static class SherpaNativeLoader
 {
@@ -31,16 +85,62 @@ public static class SherpaNativeLoader
     private static readonly ILogger Log = AppLog.CreateLogger("SherpaNativeLoader");
 
     private static readonly Lock Gate = new();
+    private static IntPtr _cApi;
     private static bool _cudaSetUsed;
 
     /// <summary>The set this process loaded; <see cref="SherpaNativeSet.Cpu"/> until <see cref="UseCudaSet"/> runs.</summary>
     public static SherpaNativeSet LoadedSet { get; private set; } = SherpaNativeSet.Cpu;
 
-    /// <summary>The set to load: CUDA only when it is installed and the user chose the GPU.</summary>
-    /// <param name="cudaInstalled">Whether the CUDA set is installed and matches the pinned downloads.</param>
+    /// <summary>Why a GPU pick ended on the CPU, for the Settings and Speech Debug surfaces; null until one does.</summary>
+    public static string? CpuFallbackReason { get; private set; }
+
+    /// <summary>Records why a GPU pick ended on the CPU and logs it.</summary>
+    /// <param name="reason">The reason, shown to the user.</param>
+    public static void RecordCpuFallback(string reason)
+    {
+        CpuFallbackReason = reason;
+        Log.LogWarning("Speech recognition runs on the CPU: {Reason}", reason);
+    }
+
+    /// <summary>
+    /// The set startup should load, with the reason the CPU was kept when the user asked for the GPU. A CPU choice reads
+    /// no file; a GPU choice reads the download manifest and the install root's sentinel. Nothing is loaded.
+    /// </summary>
     /// <param name="device">The user's speech-recognition device.</param>
-    public static SherpaNativeSet Choose(bool cudaInstalled, SttDevice device) =>
-        (cudaInstalled && (device == SttDevice.Gpu)) ? SherpaNativeSet.Cuda : SherpaNativeSet.Cpu;
+    /// <param name="manifestPath">The <c>stt-downloads.json</c> that pins the CUDA native archives.</param>
+    /// <param name="installRoot">The folder the CUDA set is installed into.</param>
+    public static SherpaStartupChoice ChooseAtStartup(SttDevice device, string manifestPath, string installRoot)
+    {
+        if (device == SttDevice.Cpu)
+        {
+            return new SherpaStartupChoice(SherpaNativeSet.Cpu, null);
+        }
+
+        IReadOnlyList<SherpaCudaDownload>? downloads;
+        try
+        {
+            downloads = SherpaCudaInstaller.ForCurrentPlatform(manifestPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return new SherpaStartupChoice(SherpaNativeSet.Cpu, $"The download manifest {manifestPath} could not be read: {ex.Message}");
+        }
+
+        if (downloads is null)
+        {
+            return new SherpaStartupChoice(SherpaNativeSet.Cpu, "There is no GPU runtime for this platform.");
+        }
+
+        if (SherpaCudaInstaller.IsInstalledOnDisk(installRoot, downloads))
+        {
+            return new SherpaStartupChoice(SherpaNativeSet.Cuda, null);
+        }
+
+        string reason = File.Exists(SherpaCudaInstaller.SentinelPath(installRoot))
+            ? "The installed GPU runtime is out of date; reinstall it in Settings > Speech."
+            : "The GPU runtime is not installed; install it in Settings > Speech.";
+        return new SherpaStartupChoice(SherpaNativeSet.Cpu, reason);
+    }
 
     /// <summary>
     /// Loads the CUDA set from <paramref name="nativeDir"/> and routes sherpa-onnx's imports to it. Call before any
@@ -48,9 +148,18 @@ public static class SherpaNativeLoader
     /// had never been called, so the CPU set stays usable.
     /// </summary>
     /// <param name="nativeDir">The installed set's <c>native</c> folder.</param>
+    public static void UseCudaSet(string nativeDir) => UseCudaSet(nativeDir, NativeDllImportResolverRegistrar.Instance);
+
+    /// <summary>
+    /// Loads the CUDA set from <paramref name="nativeDir"/>, registering the set's resolver with <paramref name="registrar"/>
+    /// before any library is mapped. A failed call leaves no library mapped and publishes nothing, so the CPU set stays
+    /// usable and a retry fails the same way instead of reporting the set already loaded.
+    /// </summary>
+    /// <param name="nativeDir">The installed set's <c>native</c> folder.</param>
+    /// <param name="registrar">Where the resolvers go; the tests pass a fake.</param>
     /// <exception cref="InvalidOperationException">The CUDA set was already loaded in this process.</exception>
     /// <exception cref="FileNotFoundException">A library the set needs is missing from <paramref name="nativeDir"/>.</exception>
-    public static void UseCudaSet(string nativeDir)
+    public static void UseCudaSet(string nativeDir, IDllImportResolverRegistrar registrar)
     {
         lock (Gate)
         {
@@ -60,20 +169,46 @@ public static class SherpaNativeLoader
             }
 
             RequiredPath(nativeDir, OperatingSystem.IsWindows() ? "onnxruntime_providers_cuda.dll" : "libonnxruntime_providers_cuda.so");
+            RegisterResolvers(registrar);
             List<string> paths = PreloadOrder(nativeDir);
             IntPtr cApi = LoadAllOrNone(paths);
 
-            nint resolver(string libraryName, System.Reflection.Assembly _1, DllImportSearchPath? _2) =>
-                (libraryName == CApiLibraryName) ? cApi : IntPtr.Zero;
-            NativeLibrary.SetDllImportResolver(typeof(SherpaSttEngine).Assembly, resolver);
-            NativeLibrary.SetDllImportResolver(typeof(SherpaOnnx.OfflineTts).Assembly, resolver);
-
+            Volatile.Write(ref _cApi, cApi);
             _cudaSetUsed = true;
             LoadedSet = SherpaNativeSet.Cuda;
         }
 
         LogManifestHead("CUDA", [Path.Combine(nativeDir, "MANIFEST.txt")]);
     }
+
+    /// <summary>Registers the set's resolver for both sherpa-onnx assemblies, in load order, skipping any already done.</summary>
+    private static void RegisterResolvers(IDllImportResolverRegistrar registrar)
+    {
+        RegisterResolver(registrar, typeof(SherpaSttEngine).Assembly);
+        RegisterResolver(registrar, typeof(SherpaOnnx.OfflineTts).Assembly);
+    }
+
+    private static void RegisterResolver(IDllImportResolverRegistrar registrar, Assembly assembly)
+    {
+        if (registrar.IsRegistered(assembly))
+        {
+            return;
+        }
+
+        try
+        {
+            registrar.Register(assembly, Resolve);
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Failed to register the sherpa-native resolver for {Assembly}", assembly.GetName().Name);
+            throw;
+        }
+    }
+
+    /// <summary>The set's resolver: the C API comes from the CUDA set once it has loaded, every other library from default probing.</summary>
+    private static IntPtr Resolve(string libraryName, Assembly _1, DllImportSearchPath? _2) =>
+        (libraryName == CApiLibraryName) ? Volatile.Read(ref _cApi) : IntPtr.Zero;
 
     /// <summary>
     /// Loads every library in order and returns the sherpa-onnx C API's handle. When a load throws, frees the libraries

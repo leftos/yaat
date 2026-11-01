@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using SherpaOnnx;
 using Xunit;
 using Yaat.Client.Models;
@@ -12,14 +14,6 @@ namespace Yaat.Client.Tests;
 /// </summary>
 public sealed class SherpaNativeLoaderTests
 {
-    [Theory]
-    [InlineData(false, SttDevice.Cpu, SherpaNativeSet.Cpu)]
-    [InlineData(false, SttDevice.Gpu, SherpaNativeSet.Cpu)]
-    [InlineData(true, SttDevice.Cpu, SherpaNativeSet.Cpu)]
-    [InlineData(true, SttDevice.Gpu, SherpaNativeSet.Cuda)]
-    public void Choose_Picks_Cuda_Only_When_Installed_And_Gpu_Chosen(bool cudaInstalled, SttDevice device, SherpaNativeSet expected) =>
-        Assert.Equal(expected, SherpaNativeLoader.Choose(cudaInstalled, device));
-
     [Fact]
     public void Failed_Load_Leaves_The_Loader_As_If_Never_Called()
     {
@@ -69,6 +63,141 @@ public sealed class SherpaNativeLoaderTests
         }
     }
 
+    /// <summary>
+    /// The first library of the set loads and every later one fails, so the set is half loaded: the libraries already
+    /// mapped are freed, the folder is deletable, and the loader stays on the CPU.
+    /// </summary>
+    [Fact]
+    public void Partial_Load_Frees_Everything()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Freeing a partially loaded set is only proven where a module can be freed by name.");
+        string dir = NewTempDir();
+        foreach (string name in RequiredFiles())
+        {
+            string path = Path.Combine(dir, name);
+            if (name == "cublasLt64_13.dll")
+            {
+                File.Copy(Path.Combine(Environment.SystemDirectory, "version.dll"), path);
+            }
+            else
+            {
+                File.WriteAllBytes(path, []);
+            }
+        }
+
+        Assert.ThrowsAny<Exception>(() => SherpaNativeLoader.UseCudaSet(dir, new FakeRegistrar()));
+
+        Assert.DoesNotContain(LoadedModules(), module => IsUnder(module.FileName, dir));
+        Directory.Delete(dir, recursive: true);
+        Assert.Equal(SherpaNativeSet.Cpu, SherpaNativeLoader.LoadedSet);
+    }
+
+    /// <summary>
+    /// A registration that throws leaves nothing mapped and the loader unset, and the retry reports the same failure
+    /// rather than "already loaded". The fake owns the registered set, so no other test in this class sees this one's
+    /// registration.
+    /// </summary>
+    [Fact]
+    public void Resolver_Registration_Failure_Loads_Nothing()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "The registration seam is only exercised where the set can be loaded.");
+        string dir = NewTempDir();
+        foreach (string name in RequiredFiles())
+        {
+            File.Copy(Path.Combine(Environment.SystemDirectory, "version.dll"), Path.Combine(dir, name));
+        }
+
+        Assembly clientAssembly = typeof(SherpaSttEngine).Assembly;
+        Assembly sherpaAssembly = typeof(SherpaOnnx.OfflineTts).Assembly;
+        var registrar = new FakeRegistrar(sherpaAssembly);
+
+        InvalidOperationException first = Assert.Throws<InvalidOperationException>(() => SherpaNativeLoader.UseCudaSet(dir, registrar));
+
+        Assert.Equal("registrar failed", first.Message);
+        Assert.Equal([clientAssembly, sherpaAssembly], registrar.Calls);
+        Assert.Equal([clientAssembly], registrar.RegisteredAssemblies);
+        Assert.DoesNotContain(LoadedModules(), module => IsUnder(module.FileName, dir));
+        Assert.Equal(SherpaNativeSet.Cpu, SherpaNativeLoader.LoadedSet);
+
+        registrar.Calls.Clear();
+
+        InvalidOperationException second = Assert.Throws<InvalidOperationException>(() => SherpaNativeLoader.UseCudaSet(dir, registrar));
+
+        Assert.Equal("registrar failed", second.Message);
+        Assert.Equal([sherpaAssembly], registrar.Calls);
+        Assert.DoesNotContain(LoadedModules(), module => IsUnder(module.FileName, dir));
+        Assert.Equal(SherpaNativeSet.Cpu, SherpaNativeLoader.LoadedSet);
+
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
+    public void ChooseAtStartup_Cpu_Never_Reads_The_Manifest()
+    {
+        string missingManifest = Path.Combine(NewTempDir(), "stt-downloads.json");
+
+        SherpaStartupChoice choice = SherpaNativeLoader.ChooseAtStartup(SttDevice.Cpu, missingManifest, NewTempDir());
+
+        Assert.Equal(SherpaNativeSet.Cpu, choice.Set);
+        Assert.Null(choice.CpuReason);
+    }
+
+    [Fact]
+    public void ChooseAtStartup_Gpu_Not_Installed_Says_So()
+    {
+        SkipUnlessGpuRuntimeIsListed();
+        string root = NewTempDir();
+
+        SherpaStartupChoice choice = SherpaNativeLoader.ChooseAtStartup(SttDevice.Gpu, ManifestPath, root);
+
+        Assert.Equal(SherpaNativeSet.Cpu, choice.Set);
+        Assert.NotNull(choice.CpuReason);
+        Assert.Contains("not installed", choice.CpuReason);
+    }
+
+    [Fact]
+    public void ChooseAtStartup_Gpu_Out_Of_Date_Says_So()
+    {
+        SkipUnlessGpuRuntimeIsListed();
+        string root = NewTempDir();
+        File.WriteAllText(SherpaCudaInstaller.SentinelPath(root), "old");
+
+        SherpaStartupChoice choice = SherpaNativeLoader.ChooseAtStartup(SttDevice.Gpu, ManifestPath, root);
+
+        Assert.Equal(SherpaNativeSet.Cpu, choice.Set);
+        Assert.NotNull(choice.CpuReason);
+        Assert.Contains("out of date", choice.CpuReason);
+    }
+
+    [Fact]
+    public void ChooseAtStartup_Gpu_Installed_Chooses_Cuda()
+    {
+        SkipUnlessGpuRuntimeIsListed();
+        string root = NewTempDir();
+        IReadOnlyList<SherpaCudaDownload> downloads = SherpaCudaInstaller.ForCurrentPlatform(ManifestPath)!;
+        File.WriteAllText(SherpaCudaInstaller.SentinelPath(root), SherpaCudaInstaller.ExpectedSentinelContent(downloads));
+
+        SherpaStartupChoice choice = SherpaNativeLoader.ChooseAtStartup(SttDevice.Gpu, ManifestPath, root);
+
+        Assert.Equal(SherpaNativeSet.Cuda, choice.Set);
+        Assert.Null(choice.CpuReason);
+    }
+
+    [Fact]
+    public void ChooseAtStartup_Gpu_Unreadable_Manifest_Says_So()
+    {
+        SkipUnlessGpuRuntimeIsListed();
+        string root = NewTempDir();
+        string manifestPath = Path.Combine(NewTempDir(), "stt-downloads.json");
+        File.WriteAllText(manifestPath, """{"baseUrl":"x"}""");
+
+        SherpaStartupChoice choice = SherpaNativeLoader.ChooseAtStartup(SttDevice.Gpu, manifestPath, root);
+
+        Assert.Equal(SherpaNativeSet.Cpu, choice.Set);
+        Assert.NotNull(choice.CpuReason);
+        Assert.Contains("could not be read", choice.CpuReason);
+    }
+
     /// <summary>Every library file the CUDA set must hold, the CUDA provider included, so both load tests read one list.</summary>
     private static string[] RequiredFiles() =>
         OperatingSystem.IsWindows()
@@ -98,6 +227,47 @@ public sealed class SherpaNativeLoaderTests
                 "libonnxruntime_providers_cuda.so",
                 "libsherpa-onnx-c-api.so",
             ];
+
+    /// <summary>The manifest the app ships, which <c>ChooseAtStartup</c> reads for a GPU pick.</summary>
+    private static string ManifestPath => Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json");
+
+    private static void SkipUnlessGpuRuntimeIsListed() =>
+        Assert.SkipUnless(SherpaCudaInstaller.ForCurrentPlatform(ManifestPath) is not null, "No GPU runtime is listed for this host.");
+
+    private static string NewTempDir()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "yaat-sherpa-loader-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    /// <summary>
+    /// A registrar that records every assembly it is asked about and refuses the ones it was built with, keeping an
+    /// assembly registered only once its registration returns, so each test owns the registration state it sees.
+    /// </summary>
+    private sealed class FakeRegistrar(params Assembly[] refuse) : IDllImportResolverRegistrar
+    {
+        private readonly HashSet<Assembly> _refused = [.. refuse];
+        private readonly HashSet<Assembly> _registered = [];
+
+        /// <summary>Every assembly this registrar was asked to register, in the order it was asked.</summary>
+        public List<Assembly> Calls { get; } = [];
+
+        /// <summary>The assemblies whose registration returned.</summary>
+        public IReadOnlyCollection<Assembly> RegisteredAssemblies => _registered;
+
+        public bool IsRegistered(Assembly assembly) => _registered.Contains(assembly);
+
+        public void Register(Assembly assembly, DllImportResolver resolver)
+        {
+            Calls.Add(assembly);
+            if (_refused.Contains(assembly))
+            {
+                throw new InvalidOperationException("registrar failed");
+            }
+            _registered.Add(assembly);
+        }
+    }
 
     /// <summary>
     /// Installs the real CUDA set into <c>YAAT_TEST_SHERPA_CUDA_ROOT</c> when it is not there yet, loads it and decodes on
