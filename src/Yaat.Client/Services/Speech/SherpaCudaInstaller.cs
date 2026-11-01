@@ -34,19 +34,42 @@ public sealed record SherpaCudaDownload(string Name, IReadOnlyList<string> Urls,
 ///       .installed      (sentinel: one "&lt;Name&gt; &lt;Sha256&gt;" line per download)
 ///       native/         (every taken file, flat under its file name)
 /// </code>
-/// Downloads stream to <c>&lt;installRoot&gt;/.partial/</c>; the finished <c>native/</c> folder replaces the old one
-/// and the sentinel is written last, so <see cref="IsInstalledOnDisk"/> never reports a half-built set. The installer is
-/// single-flight per instance.
+/// Downloads stream to a fresh <c>&lt;installRoot&gt;/.staging-&lt;id&gt;/</c> folder, and the installed set stays in place
+/// until the new one is complete. The swap then moves the old <c>native/</c> aside to <c>.old-&lt;id&gt;/</c>, deletes the
+/// sentinel, moves the new <c>native/</c> in and writes the sentinel last, so <see cref="IsInstalledOnDisk"/> never reports
+/// a half-built set. A failed swap puts the old set and its sentinel back.
+///
+/// One writer per install root, across instances and processes: install and uninstall hold the lock file
+/// <c>&lt;installRoot&gt;.lock</c> beside the root (<see cref="TryLockRoot"/>). On Windows neither replaces nor removes a set
+/// whose libraries a process has loaded.
 /// </summary>
 /// <param name="http">The client the archives are downloaded with.</param>
 /// <param name="installRoot">The folder the set is installed into; production passes <see cref="InstallRootDefault"/>.</param>
 /// <param name="downloads">The archives the set is built from, usually <see cref="ForCurrentPlatform"/>'s list.</param>
-public sealed partial class SherpaCudaInstaller(HttpClient http, string installRoot, IReadOnlyList<SherpaCudaDownload> downloads) : ObservableObject
+/// <param name="timeProvider">The clock the body idle timeout runs on; production passes <see cref="TimeProvider.System"/>.</param>
+public sealed partial class SherpaCudaInstaller(
+    HttpClient http,
+    string installRoot,
+    IReadOnlyList<SherpaCudaDownload> downloads,
+    TimeProvider timeProvider
+) : ObservableObject
 {
+    /// <summary>How long one read of a download body may wait for bytes before that URL counts as failed.</summary>
+    public static readonly TimeSpan IdleReadTimeout = TimeSpan.FromSeconds(60);
+
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaCudaInstaller>();
 
     private const string InstalledSentinelFileName = ".installed";
-    private const string PartialDirName = ".partial";
+    private const string LegacyPartialDirName = ".partial";
+    private const string StagingDirPrefix = ".staging-";
+    private const string OldDirPrefix = ".old-";
+    private const string BusyMessage = "Another YAAT is installing or removing the GPU runtime.";
+    private const string InUseMessage = "The GPU runtime is in use. Switch Speech > Device to CPU, restart YAAT, then try again.";
+    private const string RefusalKey = "SherpaCudaInstaller.Refusal";
+    private const int ErrorSharingViolation = 32;
+    private const int ErrorLockViolation = 33;
+    private const int LinuxEWouldBlock = 11;
+    private const int MacOsEWouldBlock = 35;
 
     /// <summary>The folder under the install root that holds the native libraries.</summary>
     public const string NativeDirName = "native";
@@ -139,6 +162,7 @@ public sealed partial class SherpaCudaInstaller(HttpClient http, string installR
     private readonly HttpClient _http = http;
     private readonly string _installRoot = installRoot;
     private readonly IReadOnlyList<SherpaCudaDownload> _downloads = downloads;
+    private readonly TimeProvider _timeProvider = timeProvider;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     [ObservableProperty]
@@ -204,48 +228,92 @@ public sealed partial class SherpaCudaInstaller(HttpClient http, string installR
     }
 
     /// <summary>
-    /// Downloads and installs the set. Single-flight; a second concurrent call throws
-    /// <see cref="InvalidOperationException"/>. A failure leaves no <c>.partial</c> folder and no sentinel.
+    /// Takes the install root's writer lock: the file <c>&lt;installRoot&gt;.lock</c> beside the root, opened exclusively,
+    /// so one writer at a time installs or removes the set, across instances and processes. The lock file is never deleted.
+    /// </summary>
+    /// <param name="installRoot">The install root to lock.</param>
+    /// <returns>The open lock, which the caller disposes to release it; null when another holder has it.</returns>
+    public static FileStream? TryLockRoot(string installRoot)
+    {
+        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(installRoot));
+        string parent = Path.GetDirectoryName(root)!;
+        Directory.CreateDirectory(parent);
+        string lockPath = Path.Combine(parent, Path.GetFileName(root) + ".lock");
+        try
+        {
+            return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        }
+        catch (IOException ex) when (IsSharingViolation(ex))
+        {
+            Log.LogInformation("The sherpa CUDA install lock {Path} is held by another writer", lockPath);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Downloads and installs the set. Single-flight per instance, and one writer per install root. A failed or cancelled
+    /// install leaves no staging folder and the installed set and its sentinel as they were.
     /// </summary>
     /// <param name="ct">Cancels the install.</param>
+    /// <exception cref="InvalidOperationException">
+    /// An install is already running, another writer holds the root, or (Windows) the installed set is in use.
+    /// </exception>
     /// <exception cref="InvalidDataException">An archive failed its size or SHA-256 check at every URL, or lacks an entry.</exception>
-    /// <exception cref="HttpRequestException">Every URL of an archive failed, the last with an HTTP error.</exception>
+    /// <exception cref="HttpRequestException">Every URL of an archive failed, the last with an HTTP error or a timeout.</exception>
     public async Task InstallAsync(CancellationToken ct)
     {
         if (!_lock.Wait(0, CancellationToken.None))
         {
             throw new InvalidOperationException("Install already in progress.");
         }
+        string stagingRoot = Path.Combine(_installRoot, StagingDirPrefix + Guid.NewGuid().ToString("N"));
+        FileStream? rootLock = null;
         try
         {
             IsBusy = true;
             StatusMessage = "Preparing…";
             Progress = 0;
-            await RunInstallAsync(ct).ConfigureAwait(false);
+            rootLock = LockRootOrRefuse();
+            RefuseIfSetInUse();
+            await RunInstallAsync(stagingRoot, ct).ConfigureAwait(false);
             IsInstalled = IsInstalledOnDisk(_installRoot, _downloads);
             StatusMessage = IsInstalled ? "Installed. Restart YAAT to use the GPU." : "Install failed — see yaat-client.log.";
         }
+        catch (InvalidOperationException ex) when (ex.Data.Contains(RefusalKey))
+        {
+            DeleteDirBestEffort(stagingRoot);
+            throw;
+        }
         catch (OperationCanceledException)
         {
+            Log.LogInformation("Sherpa CUDA native install cancelled");
             StatusMessage = "Cancelled.";
-            SafeDeletePartial();
+            DeleteDirBestEffort(stagingRoot);
             throw;
         }
         catch (Exception ex)
         {
             Log.LogError(ex, "Sherpa CUDA native install failed");
             StatusMessage = $"Failed: {ex.Message}";
-            SafeDeletePartial();
+            DeleteDirBestEffort(stagingRoot);
             throw;
         }
         finally
         {
+            rootLock?.Dispose();
             IsBusy = false;
             _lock.Release();
         }
     }
 
-    /// <summary>Removes the installed set. Harmless if nothing is installed; the running process keeps what it loaded.</summary>
+    /// <summary>
+    /// Removes the installed set, sentinel first. Harmless if nothing is installed; the running process keeps what it loaded.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// An install is running, another writer holds the root, or (Windows) the installed set is in use.
+    /// </exception>
+    /// <exception cref="IOException">A file of the set could not be deleted.</exception>
+    /// <exception cref="UnauthorizedAccessException">A file of the set could not be deleted.</exception>
     public void Uninstall()
     {
         if (!_lock.Wait(0, CancellationToken.None))
@@ -254,12 +322,9 @@ public sealed partial class SherpaCudaInstaller(HttpClient http, string installR
         }
         try
         {
-            if (Directory.Exists(_installRoot))
-            {
-                Directory.Delete(_installRoot, recursive: true);
-                Log.LogInformation("Removed the sherpa CUDA native set at {Root}", _installRoot);
-            }
-            IsInstalled = false;
+            using FileStream rootLock = LockRootOrRefuse();
+            RefuseIfSetInUse();
+            RemoveSet();
             StatusMessage = "Removed. Restart YAAT to fall back to the CPU.";
         }
         finally
@@ -313,18 +378,115 @@ public sealed partial class SherpaCudaInstaller(HttpClient http, string installR
         throw new InvalidDataException($"{manifestPath} lists no cuda native for {rid}");
     }
 
-    private async Task RunInstallAsync(CancellationToken ct)
+    private static bool IsSharingViolation(IOException ex)
     {
-        SafeDeletePartial();
-        string sentinelPath = SentinelPath(_installRoot);
-        if (File.Exists(sentinelPath))
+        if (OperatingSystem.IsWindows())
         {
-            File.Delete(sentinelPath);
+            int code = ex.HResult & 0xFFFF;
+            return (code == ErrorSharingViolation) || (code == ErrorLockViolation);
         }
+        return ex.HResult == (OperatingSystem.IsMacOS() ? MacOsEWouldBlock : LinuxEWouldBlock);
+    }
 
-        string partialRoot = Path.Combine(_installRoot, PartialDirName);
-        string partialNative = Path.Combine(partialRoot, NativeDirName);
-        Directory.CreateDirectory(partialNative);
+    /// <summary>
+    /// Whether a process has the set's libraries loaded: this process loaded the CUDA set, or a <c>*.dll</c> directly in
+    /// <paramref name="nativeDir"/> refuses an exclusive write-open, as a mapped image does.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static bool NativeSetInUse(string nativeDir)
+    {
+        if (SherpaNativeLoader.LoadedSet == SherpaNativeSet.Cuda)
+        {
+            return true;
+        }
+        if (!Directory.Exists(nativeDir))
+        {
+            return false;
+        }
+        foreach (string path in Directory.EnumerateFiles(nativeDir, "*.dll"))
+        {
+            try
+            {
+                new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None).Dispose();
+            }
+            catch (IOException ex)
+            {
+                Log.LogInformation(ex, "{Path} refuses an exclusive open, so a process has it loaded", path);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static InvalidOperationException Refusal(string message)
+    {
+        var ex = new InvalidOperationException(message);
+        ex.Data[RefusalKey] = true;
+        return ex;
+    }
+
+    private FileStream LockRootOrRefuse()
+    {
+        FileStream? rootLock = TryLockRoot(_installRoot);
+        if (rootLock is not null)
+        {
+            return rootLock;
+        }
+        Log.LogWarning("Another writer holds the sherpa CUDA install root {Root}; refusing", _installRoot);
+        StatusMessage = BusyMessage;
+        throw Refusal(BusyMessage);
+    }
+
+    private void RefuseIfSetInUse()
+    {
+        if (!OperatingSystem.IsWindows() || !NativeSetInUse(Path.Combine(_installRoot, NativeDirName)))
+        {
+            return;
+        }
+        Log.LogWarning("The sherpa CUDA native set at {Root} is in use; refusing to replace or remove it", _installRoot);
+        StatusMessage = InUseMessage;
+        throw Refusal(InUseMessage);
+    }
+
+    private void RemoveSet()
+    {
+        try
+        {
+            string sentinelPath = SentinelPath(_installRoot);
+            if (File.Exists(sentinelPath))
+            {
+                File.Delete(sentinelPath);
+            }
+            IsInstalled = false;
+            if (!Directory.Exists(_installRoot))
+            {
+                return;
+            }
+            foreach (string dir in Directory.GetDirectories(_installRoot))
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+            foreach (string file in Directory.GetFiles(_installRoot))
+            {
+                File.Delete(file);
+            }
+            Directory.Delete(_installRoot);
+            Log.LogInformation("Removed the sherpa CUDA native set at {Root}", _installRoot);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogError(ex, "Failed to remove the sherpa CUDA native set at {Root}", _installRoot);
+            StatusMessage = $"Failed: {ex.Message}";
+            IsInstalled = IsInstalledOnDisk(_installRoot, _downloads);
+            throw;
+        }
+    }
+
+    private async Task RunInstallAsync(string stagingRoot, CancellationToken ct)
+    {
+        SweepLeftovers();
+        string stagingNative = Path.Combine(stagingRoot, NativeDirName);
+        Directory.CreateDirectory(stagingNative);
 
         double totalBytes = Math.Max(1, ApproxDownloadBytes);
         long doneBytes = 0;
@@ -332,36 +494,125 @@ public sealed partial class SherpaCudaInstaller(HttpClient http, string installR
         {
             SherpaCudaDownload download = _downloads[i];
             StatusMessage = $"Downloading {download.Name} ({i + 1} of {_downloads.Count})…";
-            string archivePath = Path.Combine(partialRoot, $"_{download.Name}.part");
-            double phaseStart = doneBytes / totalBytes;
-            double phaseEnd = (doneBytes + download.Size) / totalBytes;
-            string url = await DownloadFromFirstGoodUrlAsync(download, archivePath, phaseStart, phaseEnd, ct).ConfigureAwait(false);
-            ExtractEntries(download, archivePath, url, partialNative, ct);
+            string archivePath = Path.Combine(stagingRoot, $"_{download.Name}.part");
+            var phase = new ProgressPhase(doneBytes / totalBytes, (doneBytes + download.Size) / totalBytes);
+            string url = await DownloadFromFirstGoodUrlAsync(download, archivePath, phase, ct).ConfigureAwait(false);
+            ExtractEntries(download, archivePath, url, stagingNative, ct);
             File.Delete(archivePath);
             doneBytes += download.Size;
         }
 
-        string nativeDir = Path.Combine(_installRoot, NativeDirName);
-        if (Directory.Exists(nativeDir))
+        RefuseIfSetInUse();
+        SwapIn(stagingRoot);
+        SetProgress(1.0);
+    }
+
+    /// <summary>Deletes the staging, old-set and legacy partial folders an earlier run left under the root.</summary>
+    private void SweepLeftovers()
+    {
+        if (!Directory.Exists(_installRoot))
         {
-            Directory.Delete(nativeDir, recursive: true);
+            return;
         }
-        Directory.Move(partialNative, nativeDir);
-        Directory.Delete(partialRoot, recursive: true);
-        if (OperatingSystem.IsLinux())
+        List<string> leftovers =
+        [
+            .. Directory.EnumerateDirectories(_installRoot, StagingDirPrefix + "*"),
+            .. Directory.EnumerateDirectories(_installRoot, OldDirPrefix + "*"),
+            .. Directory.EnumerateDirectories(_installRoot, LegacyPartialDirName),
+        ];
+        foreach (string dir in leftovers)
         {
-            MarkSharedObjectsExecutable(nativeDir);
+            DeleteDirBestEffort(dir);
+        }
+    }
+
+    /// <summary>
+    /// Replaces <c>native/</c> with the staged set and writes the sentinel last. A failure puts the old set and its sentinel
+    /// back and rethrows; a failure to delete the replaced set afterwards only logs.
+    /// </summary>
+    private void SwapIn(string stagingRoot)
+    {
+        string nativeDir = Path.Combine(_installRoot, NativeDirName);
+        string stagingNative = Path.Combine(stagingRoot, NativeDirName);
+        string oldDir = Path.Combine(_installRoot, OldDirPrefix + Guid.NewGuid().ToString("N"));
+        string sentinelPath = SentinelPath(_installRoot);
+        string? oldSentinel = File.Exists(sentinelPath) ? File.ReadAllText(sentinelPath) : null;
+        bool oldMoved = false;
+        bool newInPlace = false;
+        try
+        {
+            if (Directory.Exists(nativeDir))
+            {
+                Directory.Move(nativeDir, oldDir);
+                oldMoved = true;
+            }
+            if (File.Exists(sentinelPath))
+            {
+                File.Delete(sentinelPath);
+            }
+            Directory.Move(stagingNative, nativeDir);
+            newInPlace = true;
+            if (OperatingSystem.IsLinux())
+            {
+                MarkSharedObjectsExecutable(nativeDir);
+            }
+            File.WriteAllText(sentinelPath, ExpectedSentinelContent(_downloads));
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Swapping in the sherpa CUDA native set at {Root} failed; restoring the old set", _installRoot);
+            RestoreAfterFailedSwap(new SwapUndo(stagingNative, oldDir, oldSentinel, oldMoved, newInPlace));
+            throw;
         }
 
-        File.WriteAllText(sentinelPath, ExpectedSentinelContent(_downloads));
-        SetProgress(1.0);
+        DeleteDirBestEffort(oldDir);
+        DeleteDirBestEffort(stagingRoot);
+    }
+
+    private void RestoreAfterFailedSwap(SwapUndo undo)
+    {
+        string nativeDir = Path.Combine(_installRoot, NativeDirName);
+        string sentinelPath = SentinelPath(_installRoot);
+        RestoreStep(
+            "delete the new sentinel",
+            () =>
+            {
+                if (File.Exists(sentinelPath))
+                {
+                    File.Delete(sentinelPath);
+                }
+            }
+        );
+        if (undo.NewInPlace)
+        {
+            RestoreStep("move the new set back to staging", () => Directory.Move(nativeDir, undo.StagingNative));
+        }
+        if (undo.OldMoved)
+        {
+            RestoreStep("move the old set back", () => Directory.Move(undo.OldDir, nativeDir));
+        }
+        if (undo.OldSentinel is string oldSentinel)
+        {
+            RestoreStep("rewrite the old sentinel", () => File.WriteAllText(sentinelPath, oldSentinel));
+        }
+    }
+
+    private static void RestoreStep(string step, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogError(ex, "Failed to restore the sherpa CUDA native set: {Step}", step);
+        }
     }
 
     private async Task<string> DownloadFromFirstGoodUrlAsync(
         SherpaCudaDownload download,
         string archivePath,
-        double phaseStart,
-        double phaseEnd,
+        ProgressPhase phase,
         CancellationToken ct
     )
     {
@@ -371,10 +622,13 @@ public sealed partial class SherpaCudaInstaller(HttpClient http, string installR
         {
             try
             {
-                await DownloadVerifiedAsync(download, url, archivePath, phaseStart, phaseEnd, ct).ConfigureAwait(false);
+                await DownloadVerifiedAsync(download, url, archivePath, phase, ct).ConfigureAwait(false);
                 return url;
             }
-            catch (Exception ex) when (ex is HttpRequestException or HttpIOException or InvalidDataException)
+            catch (Exception ex)
+                when ((ex is HttpRequestException or HttpIOException or InvalidDataException)
+                    || ((ex is OperationCanceledException) && !ct.IsCancellationRequested)
+                )
             {
                 Log.LogWarning(ex, "{Name}: download from {Url} failed", download.Name, url);
                 failures.Add($"{url}: {ex.Message}");
@@ -390,39 +644,49 @@ public sealed partial class SherpaCudaInstaller(HttpClient http, string installR
         throw (lastFailure is InvalidDataException) ? new InvalidDataException(message, lastFailure) : new HttpRequestException(message, lastFailure);
     }
 
-    private async Task DownloadVerifiedAsync(
-        SherpaCudaDownload download,
-        string url,
-        string archivePath,
-        double phaseStart,
-        double phaseEnd,
-        CancellationToken ct
-    )
+    private async Task DownloadVerifiedAsync(SherpaCudaDownload download, string url, string archivePath, ProgressPhase phase, CancellationToken ct)
     {
         Log.LogInformation("Downloading {Name} from {Url}", download.Name, url);
         using HttpResponseMessage response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
+        long? length = response.Content.Headers.ContentLength;
+        if ((length is not null) && (length != download.Size))
+        {
+            throw new InvalidDataException($"{download.Name}: {url} announces {length} bytes, expected {download.Size}");
+        }
 
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using var idle = new CancellationTokenSource(Timeout.InfiniteTimeSpan, _timeProvider);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, idle.Token);
         long bytesRead = 0;
-        await using (Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false))
+        await using (Stream stream = await response.Content.ReadAsStreamAsync(linked.Token).ConfigureAwait(false))
         await using (FileStream file = File.Create(archivePath))
         {
             byte[] buffer = new byte[64 * 1024];
             while (true)
             {
-                int read = await stream.ReadAsync(buffer, ct).ConfigureAwait(false);
+                idle.CancelAfter(IdleReadTimeout);
+                int read = await stream.ReadAsync(buffer, linked.Token).ConfigureAwait(false);
                 if (read == 0)
+                {
+                    break;
+                }
+                bytesRead += read;
+                if (bytesRead > download.Size)
                 {
                     break;
                 }
                 hash.AppendData(buffer, 0, read);
                 await file.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
-                bytesRead += read;
-                SetProgress(phaseStart + ((phaseEnd - phaseStart) * Math.Min(1.0, (double)bytesRead / Math.Max(1, download.Size))));
+                SetProgress(phase.Start + ((phase.End - phase.Start) * Math.Min(1.0, (double)bytesRead / Math.Max(1, download.Size))));
             }
         }
 
+        if (bytesRead > download.Size)
+        {
+            File.Delete(archivePath);
+            throw new InvalidDataException($"{download.Name}: {url} sent more than the expected {download.Size} bytes");
+        }
         if (bytesRead != download.Size)
         {
             File.Delete(archivePath);
@@ -500,22 +764,27 @@ public sealed partial class SherpaCudaInstaller(HttpClient http, string installR
         }
     }
 
-    private void SafeDeletePartial()
+    private static void DeleteDirBestEffort(string path)
     {
-        string partialRoot = Path.Combine(_installRoot, PartialDirName);
-        if (!Directory.Exists(partialRoot))
+        if (!Directory.Exists(path))
         {
             return;
         }
         try
         {
-            Directory.Delete(partialRoot, recursive: true);
+            Directory.Delete(path, recursive: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Log.LogWarning(ex, "Failed to clean the partial sherpa CUDA install at {Path}", partialRoot);
+            Log.LogWarning(ex, "Failed to clean the sherpa CUDA install folder {Path}; the next install sweeps it", path);
         }
     }
 
     private void SetProgress(double value) => Progress = Math.Round(Math.Clamp(value, 0.0, 1.0), 3);
+
+    /// <summary>One download's share of the overall progress, as fractions of the whole.</summary>
+    private readonly record struct ProgressPhase(double Start, double End);
+
+    /// <summary>What a failed swap had done, so the restore undoes exactly that.</summary>
+    private sealed record SwapUndo(string StagingNative, string OldDir, string? OldSentinel, bool OldMoved, bool NewInPlace);
 }

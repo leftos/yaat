@@ -136,7 +136,7 @@ public sealed class SherpaNativeLoaderTests
             if (!SherpaCudaInstaller.IsInstalledOnDisk(root!, downloads))
             {
                 using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-                await new SherpaCudaInstaller(http, root!, downloads).InstallAsync(TestContext.Current.CancellationToken);
+                await new SherpaCudaInstaller(http, root!, downloads, TimeProvider.System).InstallAsync(TestContext.Current.CancellationToken);
             }
             string nativeDir = Path.GetFullPath(Path.Combine(root!, SherpaCudaInstaller.NativeDirName));
 

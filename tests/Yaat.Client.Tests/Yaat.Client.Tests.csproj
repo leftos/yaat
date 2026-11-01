@@ -25,6 +25,7 @@
     <PackageReference Include="LLamaSharp.Backend.Cuda12" Version="0.26.0" />
     <!-- Its build target copies espeak-ng-data beside the test assembly, which EspeakPhonemizerTests phonemizes from. -->
     <PackageReference Include="com.github.csukuangfj.piper.phonemize" Version="1.5.9" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
   </ItemGroup>
 
   <ItemGroup>
