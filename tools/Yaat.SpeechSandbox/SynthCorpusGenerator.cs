@@ -10,7 +10,8 @@ namespace Yaat.SpeechSandbox;
 /// <param name="Seed">Seed for template sampling, slot values and voices.</param>
 /// <param name="VoiceDir">Piper voice-pack directory.</param>
 /// <param name="UseSynthCache">Reuse the content-addressed synth-audio cache instead of re-synthesizing every case.</param>
-internal sealed record SynthCorpusOptions(string OutDir, int Cases, int Seed, string VoiceDir, bool UseSynthCache);
+/// <param name="Speeds">The Piper speed multipliers each case's speed is drawn from.</param>
+internal sealed record SynthCorpusOptions(string OutDir, int Cases, int Seed, string VoiceDir, bool UseSynthCache, IReadOnlyList<float> Speeds);
 
 /// <summary>One case directory the generator wrote, and whether its audio came from the cache.</summary>
 internal sealed record WrittenCase(string CaseDir, string TemplateKey, bool CacheHit);
@@ -33,7 +34,8 @@ internal sealed record SynthCorpusResult(IReadOnlyList<WrittenCase> Written, IRe
 /// fails that check is a gap: it is printed as a warning and left out of the corpus, never written
 /// with a wrong label.
 ///
-/// Run with <c>--synth-corpus &lt;out-dir&gt; [--cases N] [--seed S] [--voice &lt;dir&gt;] [--no-synth-cache]</c>.
+/// Run with <c>--synth-corpus &lt;out-dir&gt; [--cases N] [--seed S] [--voice &lt;dir&gt;] [--speeds &lt;s1&gt;,&lt;s2&gt;,...]
+/// [--no-synth-cache]</c>.
 /// Deterministic for a given seed: each case's audio is cached by its synthesis inputs
 /// (<see cref="SynthAudioCache"/>) and reused, so a repeat run of one seed is byte-identical and all
 /// cache hits — Piper's own sampling differs between processes. Generated corpora are NOT meant to
@@ -50,7 +52,10 @@ internal static class SynthCorpusGenerator
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Usage: Yaat.SpeechSandbox --synth-corpus <out-dir> [--cases N] [--seed S] [--voice <dir>] [--no-synth-cache]");
+            Console.Error.WriteLine(
+                "Usage: Yaat.SpeechSandbox --synth-corpus <out-dir> [--cases N] [--seed S] [--voice <dir>] [--speeds <s1>,<s2>,...] "
+                    + "[--no-synth-cache]"
+            );
             Console.Error.WriteLine();
             Console.Error.WriteLine("Generates labeled synthetic controller-phraseology eval cases (audio.wav + expected.json).");
             Console.Error.WriteLine("Point --eval at the output directory afterwards. Deterministic per seed: synthesized audio");
@@ -63,6 +68,7 @@ internal static class SynthCorpusGenerator
         int seed = 20260730;
         string? voiceDir = null;
         bool useSynthCache = true;
+        IReadOnlyList<float> speeds = SynthTemplates.DefaultSpeeds;
         for (int i = 1; i < args.Length; i++)
         {
             if (args[i] == "--cases" && i + 1 < args.Length)
@@ -81,6 +87,15 @@ internal static class SynthCorpusGenerator
             {
                 useSynthCache = false;
             }
+            else if (args[i] == "--speeds" && i + 1 < args.Length)
+            {
+                if (!SynthTemplates.TryParseSpeeds(args[++i], out IReadOnlyList<float>? parsedSpeeds, out string? speedsError))
+                {
+                    Console.Error.WriteLine($"FATAL: {speedsError}");
+                    return 2;
+                }
+                speeds = parsedSpeeds;
+            }
         }
 
         voiceDir ??= PiperSynthesizer.ResolveDefaultVoiceDir();
@@ -96,7 +111,8 @@ internal static class SynthCorpusGenerator
             return 2;
         }
 
-        SynthCorpusResult result = await GenerateAsync(new SynthCorpusOptions(outDir, cases, seed, voiceDir, useSynthCache)).ConfigureAwait(false);
+        SynthCorpusResult result = await GenerateAsync(new SynthCorpusOptions(outDir, cases, seed, voiceDir, useSynthCache, speeds))
+            .ConfigureAwait(false);
         int fromCache = result.Written.Count(c => c.CacheHit);
         string fullOutDir = Path.GetFullPath(outDir);
         Console.WriteLine(
@@ -112,7 +128,7 @@ internal static class SynthCorpusGenerator
     /// </summary>
     public static async Task<SynthCorpusResult> GenerateAsync(SynthCorpusOptions options)
     {
-        SynthPlan plan = await SynthTemplates.PlanAsync(SynthTemplates.All, options.Cases, options.Seed).ConfigureAwait(false);
+        SynthPlan plan = await SynthTemplates.PlanAsync(SynthTemplates.All, options.Cases, options.Seed, options.Speeds).ConfigureAwait(false);
         foreach (TemplateGap gap in plan.Gaps)
         {
             Console.WriteLine(gap.Describe());

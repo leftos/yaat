@@ -13,7 +13,7 @@ namespace Yaat.SpeechSandbox;
 /// tuning change shows its improvements and regressions per family.
 ///
 /// Run with <c>--atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline &lt;json&gt;]
-/// [--update-baseline] [--voice &lt;dir&gt;] [--no-synth-cache] [--stt &lt;kind&gt;:&lt;source&gt;] [--device cpu|gpu]
+/// [--update-baseline] [--voice &lt;dir&gt;] [--speeds &lt;s1&gt;,&lt;s2&gt;,...] [--no-synth-cache] [--stt &lt;kind&gt;:&lt;source&gt;] [--device cpu|gpu]
 /// [--decoding greedy|beam] [--num-paths N] [--accurate-text raw|rewritten]</c>. Without <c>--stt</c> the run scores the
 /// Whisper model saved in preferences; <c>--decoding beam</c> is accurate mode, which resolves the whole n-best against each
 /// case's room, and <c>--accurate-text</c> picks whether it maps the winner's raw text or the decoder's rewritten one.
@@ -45,6 +45,7 @@ public static class AtcOuroborosRunner
     /// <summary>A parsed <c>--atc-ouroboros</c> command line.</summary>
     /// <param name="Stt">The engine the flags chose; null keeps the Whisper model saved in preferences.</param>
     /// <param name="AccurateText">Which text accurate mode hands the mappers.</param>
+    /// <param name="Speeds">The Piper speed multipliers each case's speed is drawn from.</param>
     public sealed record Options(
         int Cases,
         int Seed,
@@ -55,7 +56,8 @@ public static class AtcOuroborosRunner
         string? VoiceDir,
         bool UseSynthCache,
         SttChoice? Stt,
-        AccurateCommandText AccurateText
+        AccurateCommandText AccurateText,
+        IReadOnlyList<float> Speeds
     );
 
     public static async Task<int> RunAsync(string[] args)
@@ -64,8 +66,9 @@ public static class AtcOuroborosRunner
         if (options is null)
         {
             Console.Error.WriteLine(
-                "Usage: Yaat.SpeechSandbox --atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline <json>] [--update-baseline] [--voice <dir>] [--no-synth-cache] "
-                    + "[--stt <kind>:<source>] [--device cpu|gpu] [--decoding greedy|beam] [--num-paths N] [--accurate-text raw|rewritten]"
+                "Usage: Yaat.SpeechSandbox --atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline <json>] [--update-baseline] [--voice <dir>] "
+                    + "[--speeds <s1>,<s2>,...] [--no-synth-cache] [--stt <kind>:<source>] [--device cpu|gpu] [--decoding greedy|beam] [--num-paths N] "
+                    + "[--accurate-text raw|rewritten]"
             );
             return AtcOuroborosAnalysis.ExitSetupError;
         }
@@ -90,7 +93,7 @@ public static class AtcOuroborosRunner
         Directory.CreateDirectory(options.OutDir);
         string corpusDir = Path.Combine(options.OutDir, "corpus");
         SynthCorpusResult generated = await SynthCorpusGenerator
-            .GenerateAsync(new SynthCorpusOptions(corpusDir, options.Cases, options.Seed, voiceDir, options.UseSynthCache))
+            .GenerateAsync(new SynthCorpusOptions(corpusDir, options.Cases, options.Seed, voiceDir, options.UseSynthCache, options.Speeds))
             .ConfigureAwait(false);
         int fromCache = generated.Written.Count(c => c.CacheHit);
         Console.WriteLine(
@@ -117,7 +120,8 @@ public static class AtcOuroborosRunner
             generated.Gaps,
             AtcOuroborosAnalysis.Failures(scored.Cases),
             scored.Timing,
-            scored.Decode
+            scored.Decode,
+            AtcOuroborosAnalysis.RecordedSpeeds(options.Speeds)
         );
         await File.WriteAllTextAsync(Path.Combine(options.OutDir, "results.json"), AtcOuroborosAnalysis.Serialize(results)).ConfigureAwait(false);
 
@@ -160,6 +164,14 @@ public static class AtcOuroborosRunner
                 );
                 return AtcOuroborosAnalysis.ExitSetupError;
             }
+            if (AtcOuroborosAnalysis.SpeedsDiffer(results.Speeds, baseline.Speeds))
+            {
+                string speedsNote = AtcOuroborosAnalysis.SpeedsNote(results.Speeds, baseline.Speeds);
+                await WriteReportAsync(options, results, diff: null, baselineNote: speedsNote).ConfigureAwait(false);
+                Console.WriteLine(TotalsLine(results));
+                Console.WriteLine(speedsNote);
+                return AtcOuroborosAnalysis.ExitNoRegression;
+            }
             diff = AtcOuroborosAnalysis.Compare(baseline, results);
             baselineNote = $"Compared with `{options.BaselinePath}`.";
         }
@@ -181,61 +193,151 @@ public static class AtcOuroborosRunner
     /// <summary>Parses an <c>--atc-ouroboros</c> command line; null (after printing why) when it is malformed.</summary>
     public static Options? ParseArgs(string[] args)
     {
-        var engine = new EngineFlags();
-        int cases = DefaultCases;
-        int seed = DefaultSeed;
-        int trials = DefaultTrials;
-        string? outDir = null;
-        string baselinePath = DefaultBaselinePath;
-        bool updateBaseline = false;
-        string? voiceDir = null;
-        bool useSynthCache = true;
+        var parsed = new ParsedArgs();
         for (int i = 0; i < args.Length; i++)
         {
-            bool hasValue = i + 1 < args.Length;
-            switch (args[i])
+            string? error = ApplyFlag(parsed, args, ref i);
+            if (error is not null)
             {
-                case "--cases" when hasValue && TryParsePositive(args[++i], out cases):
-                case "--seed" when hasValue && int.TryParse(args[++i], CultureInfo.InvariantCulture, out seed):
-                case "--trials" when hasValue && TryParsePositive(args[++i], out trials):
-                    break;
-                case "--out-dir" when hasValue:
-                    outDir = args[++i];
-                    break;
-                case "--baseline" when hasValue:
-                    baselinePath = args[++i];
-                    break;
-                case "--voice" when hasValue:
-                    voiceDir = args[++i];
-                    break;
-                case "--update-baseline":
-                    updateBaseline = true;
-                    break;
-                case "--no-synth-cache":
-                    useSynthCache = false;
-                    break;
-                case string flag when hasValue && EngineFlags.Handles(flag):
-                    string? engineError = engine.TryApply(flag, args[++i]);
-                    if (engineError is not null)
-                    {
-                        Console.Error.WriteLine($"FATAL: {engineError}");
-                        return null;
-                    }
-                    break;
-                default:
-                    Console.Error.WriteLine($"FATAL: unrecognised or malformed argument '{args[i]}'");
-                    return null;
+                return Fail(error);
             }
         }
-        SttChoice? stt = engine.Resolve(out string? error);
-        if (error is not null)
+        SttChoice? stt = parsed.Engine.Resolve(out string? engineError);
+        if (engineError is not null)
         {
-            Console.Error.WriteLine($"FATAL: {error}");
-            return null;
+            return Fail(engineError);
         }
-        outDir ??= Path.Combine(DefaultsRoot, ".tmp", $"atc-ouroboros-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}");
-        return new Options(cases, seed, trials, outDir, baselinePath, updateBaseline, voiceDir, useSynthCache, stt, engine.AccurateText);
+        return new Options(
+            parsed.Cases,
+            parsed.Seed,
+            parsed.Trials,
+            parsed.OutDir,
+            parsed.BaselinePath,
+            parsed.UpdateBaseline,
+            parsed.VoiceDir,
+            parsed.UseSynthCache,
+            stt,
+            parsed.Engine.AccurateText,
+            parsed.Speeds
+        );
     }
+
+    /// <summary>Applies the flag at <paramref name="i"/> (advancing past its value); returns an error or null.</summary>
+    private static string? ApplyFlag(ParsedArgs parsed, string[] args, ref int i)
+    {
+        string flag = args[i];
+        switch (flag)
+        {
+            case "--update-baseline":
+                parsed.UpdateBaseline = true;
+                return null;
+            case "--no-synth-cache":
+                parsed.UseSynthCache = false;
+                return null;
+            case "--cases" or "--seed" or "--trials" or "--out-dir" or "--baseline" or "--voice" or "--speeds":
+                return (i + 1 < args.Length) ? ApplyValue(parsed, flag, args[++i]) : Malformed(flag);
+            case string engineFlag when (i + 1 < args.Length) && EngineFlags.Handles(engineFlag):
+                return parsed.Engine.TryApply(engineFlag, args[++i]);
+            default:
+                return Malformed(flag);
+        }
+    }
+
+    private static string? ApplyValue(ParsedArgs parsed, string flag, string value) =>
+        flag switch
+        {
+            "--cases" or "--trials" => ApplyCount(parsed, flag, value),
+            "--seed" => ApplySeed(parsed, value),
+            "--speeds" => ApplySpeeds(parsed, value),
+            _ => ApplyPath(parsed, flag, value),
+        };
+
+    private static string? ApplyCount(ParsedArgs parsed, string flag, string value)
+    {
+        if (!TryParsePositive(value, out int count))
+        {
+            return Malformed(flag);
+        }
+        parsed.SetCount(flag, count);
+        return null;
+    }
+
+    private static string? ApplySeed(ParsedArgs parsed, string value)
+    {
+        if (!int.TryParse(value, CultureInfo.InvariantCulture, out int seed))
+        {
+            return Malformed("--seed");
+        }
+        parsed.Seed = seed;
+        return null;
+    }
+
+    private static string? ApplySpeeds(ParsedArgs parsed, string value)
+    {
+        if (!SynthTemplates.TryParseSpeeds(value, out IReadOnlyList<float>? speeds, out string? error))
+        {
+            return error;
+        }
+        parsed.Speeds = speeds;
+        return null;
+    }
+
+    /// <summary>Applies <c>--out-dir</c>, <c>--baseline</c> or <c>--voice</c>: a free-form path.</summary>
+    private static string? ApplyPath(ParsedArgs parsed, string flag, string value)
+    {
+        switch (flag)
+        {
+            case "--out-dir":
+                parsed.OutDir = value;
+                break;
+            case "--baseline":
+                parsed.BaselinePath = value;
+                break;
+            default:
+                parsed.VoiceDir = value;
+                break;
+        }
+        return null;
+    }
+
+    private static string Malformed(string flag) => $"unrecognised or malformed argument '{flag}'";
+
+    private static Options? Fail(string error)
+    {
+        Console.Error.WriteLine($"FATAL: {error}");
+        return null;
+    }
+
+    /// <summary>Flags accumulated while <see cref="ParseArgs"/> walks the command line.</summary>
+    private sealed class ParsedArgs
+    {
+        public EngineFlags Engine { get; } = new();
+        public int Cases { get; set; } = DefaultCases;
+        public int Seed { get; set; } = DefaultSeed;
+        public int Trials { get; set; } = DefaultTrials;
+        public string OutDir { get; set; } = DefaultOutDir();
+        public string BaselinePath { get; set; } = DefaultBaselinePath;
+        public bool UpdateBaseline { get; set; }
+        public string? VoiceDir { get; set; }
+        public bool UseSynthCache { get; set; } = true;
+        public IReadOnlyList<float> Speeds { get; set; } = SynthTemplates.DefaultSpeeds;
+
+        /// <summary>Stores <paramref name="count"/> on the count flag <paramref name="flag"/> names.</summary>
+        public void SetCount(string flag, int count)
+        {
+            if (flag == "--cases")
+            {
+                Cases = count;
+            }
+            else
+            {
+                Trials = count;
+            }
+        }
+    }
+
+    private static string DefaultOutDir() =>
+        Path.Combine(DefaultsRoot, ".tmp", $"atc-ouroboros-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}");
 
     private static bool TryParsePositive(string text, out int value) => int.TryParse(text, CultureInfo.InvariantCulture, out value) && value > 0;
 
@@ -266,6 +368,10 @@ public static class AtcOuroborosRunner
         report.AppendLine("# ATC ouroboros report");
         report.AppendLine();
         report.AppendLine($"- Seed {results.Seed}, {results.Cases} cases planned, {results.Trials} trials per case");
+        if (results.Speeds is not null)
+        {
+            report.AppendLine($"- Piper speeds: {AtcOuroborosAnalysis.FormatSpeeds(results.Speeds)}");
+        }
         report.AppendLine($"- STT: `{results.SttModel}`  LLM: `{results.LlmModel}`");
         if (results.Timing is not null)
         {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -80,6 +81,7 @@ public sealed record FailingCase(string Case, string Template, string Expected, 
 /// </summary>
 /// <param name="Timing">The engine's load, STT latency and memory over every trial; null in a baseline.</param>
 /// <param name="Decode">The accurate-mode decode tallies; null in fast mode and in a baseline.</param>
+/// <param name="Speeds">The run's Piper speed pool when it is not the default one; null for the default pool.</param>
 public sealed record AtcOuroborosResults(
     int Seed,
     int Cases,
@@ -93,7 +95,8 @@ public sealed record AtcOuroborosResults(
     IReadOnlyList<TemplateGap> Gaps,
     IReadOnlyList<FailingCase> Failures,
     CorpusWerTiming? Timing,
-    AccurateDecodeStats? Decode
+    AccurateDecodeStats? Decode,
+    IReadOnlyList<float>? Speeds
 );
 
 /// <summary>
@@ -278,6 +281,22 @@ public static class AtcOuroborosAnalysis
 
     /// <summary>The baseline form of a run: identical except that it carries no generation timestamp, timing or decode tallies.</summary>
     public static AtcOuroborosResults ToBaseline(AtcOuroborosResults results) => results with { GeneratedUtc = null, Timing = null, Decode = null };
+
+    /// <summary>The run's Piper speeds as they are recorded: null when they are <see cref="SynthTemplates.DefaultSpeeds"/>, else the list itself.</summary>
+    public static IReadOnlyList<float>? RecordedSpeeds(IReadOnlyList<float> speeds) =>
+        speeds.SequenceEqual(SynthTemplates.DefaultSpeeds) ? null : speeds;
+
+    /// <summary>Whether two recorded speed pools differ; a null pool is the default one, so two nulls are equal.</summary>
+    public static bool SpeedsDiffer(IReadOnlyList<float>? left, IReadOnlyList<float>? right) =>
+        !(left ?? SynthTemplates.DefaultSpeeds).SequenceEqual(right ?? SynthTemplates.DefaultSpeeds);
+
+    /// <summary>The report note a run whose speeds differ from the baseline's carries in place of a comparison.</summary>
+    public static string SpeedsNote(IReadOnlyList<float>? run, IReadOnlyList<float>? baseline) =>
+        $"Not compared: speeds `{FormatSpeeds(run)}` differ from the baseline's `{FormatSpeeds(baseline)}`.";
+
+    /// <summary>A recorded speed pool as text (<c>1.5, 1.7</c>), or <c>default</c> for the default pool.</summary>
+    public static string FormatSpeeds(IReadOnlyList<float>? speeds) =>
+        speeds is null ? "default" : string.Join(", ", speeds.Select(speed => speed.ToString(CultureInfo.InvariantCulture)));
 
     public static string Serialize(AtcOuroborosResults results) =>
         JsonSerializer.Serialize(results, AtcOuroborosJsonContext.Default.AtcOuroborosResults);
