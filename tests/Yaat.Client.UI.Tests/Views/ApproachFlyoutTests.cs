@@ -523,7 +523,7 @@ public class ApproachFlyoutTests
     [Theory]
     [InlineData("KVNY", "Circling 3", "CAPP LDA-C")]
     [InlineData("KAVX", "Circling 2", "CAPP VDM-B")]
-    [InlineData("KAAS", "Circling 1", "CAPP VDM-A")]
+    [InlineData("KAAO", "Circling 1", "CAPP RNV-E")]
     [InlineData("KMFR", "Circling 3", "CAPP LBC-B")]
     public void CirclingApproaches_GetTheLastTab_AtOtherAirports(string airport, string label, string command)
     {

@@ -32,20 +32,25 @@ public class CifpNavaidStationDeclinationTests
     public void GetStationDeclination_UnknownNavaid_IsNull() => Assert.Null(TestVnasData.NavigationDb!.GetStationDeclination("ZZZZZ"));
 
     /// <summary>
-    /// Terminal NDBs (section PN) share the NDB record layout. In the committed TestData CIFP, FN (COLLN, KFNL) exists
-    /// only there: E0090. Pinned to that file, since the current cycle the suite resolves may not carry it.
+    /// Terminal NDBs (section PN) share the NDB record layout. In the pinned 2611 TestData CIFP, CH (ASHLY, KCHS)
+    /// exists only there:
+    /// SUSAPNKCHSK7 CH    K7003290HO W N32583477W080055084                       W0070           NARASHLY                         581292108
+    /// ident 13-17, position N32583477/W080055084, magnetic variation (W0070) at 75-79. Pinned to that file, since
+    /// the current cycle the suite resolves may not carry it.
     /// </summary>
     [Fact]
-    public void CifpNavaid_ParsesTerminalNdb_FnColln()
+    public void CifpNavaid_ParsesTerminalNdb_ChAshly()
     {
         var bundled = new CifpResolveOptions(BundledGzPath: Path.Combine(AppContext.BaseDirectory, "TestData", "FAACIFP18.gz"), AllowDownload: false);
         string bundledPath = Assert.IsType<string>(CifpPathResolver.ResolveSupplementaryBundledPath(bundled));
         IReadOnlyDictionary<string, CifpNavaid> navaids = CifpParser.ParseNavaids(bundledPath);
 
-        CifpNavaid fn = navaids["FN"];
-        Assert.Equal("COLLN", fn.Name);
-        Assert.Equal("NDB", fn.Type);
-        Assert.Equal(9.0, fn.StationDeclination);
+        CifpNavaid ch = navaids["CH"];
+        Assert.Equal("ASHLY", ch.Name);
+        Assert.Equal("NDB", ch.Type);
+        Assert.InRange(ch.Lat, 32.9762, 32.9764);
+        Assert.InRange(ch.Lon, -80.0976, -80.0974);
+        Assert.Equal(-7.0, ch.StationDeclination);
     }
 
     [Theory]

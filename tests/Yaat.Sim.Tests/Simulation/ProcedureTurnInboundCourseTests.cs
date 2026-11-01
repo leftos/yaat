@@ -27,23 +27,23 @@ public class ProcedureTurnInboundCourseTests
     }
 
     /// <summary>
-    /// KACK VOR RWY 24: the course into the PT fix sits in the PT's own transition (PI ACK, then CF ACK 239.6°M);
-    /// the common IF ACK leg carries none. 239.6°M with the ACK VOR's station declination (W015) is 224.6°T.
+    /// KANJ VOR RWY 32: the course into the PT fix sits in the PT's own transition (PI SSM, then CF SSM 336.6°M);
+    /// the common IF SSM leg carries none. 336.6°M with the SSM VOR's station declination (W0040) is 332.6°T.
     /// </summary>
     [Fact]
-    public void KackS24_InboundCourse_IsTransitionCfLegAfterPi_ConvertedWithStationDeclination()
+    public void KanjS32_InboundCourse_IsTransitionCfLegAfterPi_ConvertedWithStationDeclination()
     {
         NavigationDatabase navDb = NavDb();
-        CifpApproachProcedure procedure = Assert.IsType<CifpApproachProcedure>(navDb.GetApproach("KACK", "S24"));
+        CifpApproachProcedure procedure = Assert.IsType<CifpApproachProcedure>(navDb.GetApproach("KANJ", "S32"));
         CifpLeg piLeg = Assert.IsType<CifpLeg>(procedure.ProcedureTurnLeg);
-        Assert.Equal(-15.0, navDb.GetStationDeclination("ACK"));
+        Assert.Equal(-4.0, navDb.GetStationDeclination("SSM"));
 
         ProcedureTurnPhase pt = Assert.IsType<ProcedureTurnPhase>(
-            ApproachCommandHandler.BuildProcedureTurnPhase(piLeg, procedure, "KACK", FinalCourse(navDb, procedure, "KACK", "24"))
+            ApproachCommandHandler.BuildProcedureTurnPhase(piLeg, procedure, "KANJ", FinalCourse(navDb, procedure, "KANJ", "32"))
         );
 
-        Assert.Equal("ACK", pt.FixName);
-        Assert.InRange(pt.InboundCourseDeg, 224.5, 224.7);
+        Assert.Equal("SSM", pt.FixName);
+        Assert.InRange(pt.InboundCourseDeg, 332.5, 332.7);
     }
 
     /// <summary>

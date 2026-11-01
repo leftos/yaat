@@ -86,6 +86,8 @@ The trade-off: tests no longer warn when the bundled NavData serial is behind wh
 `python tools/refresh-navdata.py` is the signal for that — run it to move the pin (writes
 `TestData/NavData.dat` + `navdata-manifest.json`).
 
+Moving the pin is three steps, and no script does the middle one. (1) `uv run python tools/refresh-navdata.py --out tests/Yaat.Sim.Tests/TestData/NavData.dat`. (2) Copy the user cache's `FAACIFP18-<cycle>` for that cycle into `TestData/FAACIFP18.gz` (gzip with mtime 0, so the bytes are reproducible) and set `cifp-manifest.json`'s `airacCycle` to it. (3) Run `pwsh tools/test-all.ps1` and retarget every test whose fixture (a SID, STAR, approach or navaid) the new cycle deleted or renumbered, to a real procedure or navaid of the new data, never a stub.
+
 The committed airport ground layouts (`TestData/<ID>.geojson`) are pinned the same way. `python tools/refresh-test-layouts.py` re-fetches each one from the vNAS training-airport map API (the endpoint `AirportLayoutDownloader` uses) and rewrites it with LF line endings.
 
 Files whose stem is not a plain 3–4 letter airport ID (`issue172-sfo`, `sfo-b1short`) are deliberate snapshots and are skipped, and an airport the API has no map for is kept as committed. `--check` reports what would change and exits 1 if anything would.

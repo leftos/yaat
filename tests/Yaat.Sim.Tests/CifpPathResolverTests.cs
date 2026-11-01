@@ -57,7 +57,7 @@ public class CifpPathResolverTests : IDisposable
 
         Assert.Equal(outPath, result);
         Assert.Equal(full.Length, new FileInfo(result).Length);
-        Assert.Contains(File.ReadLines(result), line => line.Contains("NARCOLLN", StringComparison.Ordinal));
+        Assert.Contains(File.ReadLines(result), line => line.Contains("NARASHLY", StringComparison.Ordinal));
     }
 
     [Fact]

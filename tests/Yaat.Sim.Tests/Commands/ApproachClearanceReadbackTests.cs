@@ -522,7 +522,7 @@ public class ApproachClearanceReadbackTests
     [InlineData("KOAK", "H12-Z", "RNAV Zulu runway one two", "RNAV Z runway 12")]
     [InlineData("KOAK", "R28RY", "RNAV Yankee runway two eight right", "RNAV Y runway 28R")]
     [InlineData("KMCE", "B12", "localizer back course runway one two", "LOC BC runway 12")]
-    [InlineData("KBLH", "D26", "VOR DME runway two six", "VOR DME runway 26")]
+    [InlineData("KACT", "D32", "VOR DME runway three two", "VOR DME runway 32")]
     [InlineData("KFOT", "P11", "GPS runway one one", "GPS runway 11")]
     [InlineData("KCCR", "X19R", "LDA runway one nine right", "LDA runway 19R")]
     [InlineData("KAJO", "VOR-A", "VOR Alpha", "VOR A")]
