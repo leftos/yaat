@@ -7,7 +7,8 @@ namespace Yaat.Sim;
 /// <see cref="FlightPhysics.IsGiveWayMet"/>, which apply only while the two taxi routes do not meet across
 /// each other: while they share such a node (<see cref="GroundConflictDetector.GiveWayJunctionOf"/>), neither the
 /// safety timeout nor the stationary bypass releases the hold, which lasts until the target's tail has cleared the
-/// node. They do not affect deferred <c>BEHIND</c> conditions, which keep pure-geometry release.
+/// node. They do not apply to a deferred GIVEWAY or a queued GiveWay block, which have no safety net: the shared node
+/// decides, then a target running head-on along the route, then the pure geometry.
 /// </summary>
 internal static class GiveWayConstants
 {

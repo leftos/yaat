@@ -3696,7 +3696,7 @@ public static class GroundConflictDetector
             if (StopShortOfTrackFt(held, heldRoute, junction.NodeId, track, target, double.PositiveInfinity) is not { } toStopFt)
             {
                 throw new InvalidOperationException(
-                    $"{held.Callsign}: shared node {junction.NodeId} with {target.Callsign} is not on its route ahead"
+                    $"{held.Callsign}: shared node {junction.NodeId} with {target.Callsign} is not on what is left of its route"
                 );
             }
 
@@ -3793,26 +3793,30 @@ public static class GroundConflictDetector
     }
 
     /// <summary>
-    /// Where a GIVEWAY's two routes meet across each other: the node the traffic's route shares with what is left of the held
-    /// aircraft's (<see cref="GiveWayJunctionOf"/>), its index on the traffic's route (<see cref="RouteNodeId"/>), how far
-    /// (ft) the traffic's tail is past it along its route (negative while short of it), how far past it the tail must be to
-    /// clear the held aircraft (its half-span plus <see cref="GroundOutlineSweep.WingtipBufferFt"/>), and whether the
-    /// traffic's remaining route runs head-on along the held route toward the held aircraft
-    /// (<see cref="RunsHeadOnAlongHeldRoute"/>), which leaves a cleared node to the opposite-direction judgement of
-    /// <see cref="FlightPhysics.IsGiveWayMet"/>.
+    /// Where a GIVEWAY's two routes meet: the node the traffic's route shares with what is left of the held aircraft's
+    /// (<see cref="GiveWayJunctionOf"/>, or the node that decides a head-on pair,
+    /// <see cref="GiveWayRouteVerdictOf(AircraftState, AircraftState, TaxiRoute)"/>), its index on the traffic's route
+    /// (<see cref="RouteNodeId"/>), how far (ft) the traffic's tail is past it along its route (negative while short of it), and
+    /// how far past it the tail must be to clear the held aircraft (its half-span plus <see cref="GroundOutlineSweep.WingtipBufferFt"/>).
     /// </summary>
-    internal readonly record struct GiveWayJunction(int NodeId, int TrafficNodeIndex, double TailPastFt, double RequiredPastFt, bool TrafficHeadOn)
+    internal readonly record struct GiveWayJunction(int NodeId, int TrafficNodeIndex, double TailPastFt, double RequiredPastFt)
     {
         /// <summary>Whether the traffic's tail has cleared the node: the give-way is met.</summary>
         internal bool TrafficPast => TailPastFt >= RequiredPastFt;
     }
 
     /// <summary>
+    /// What a GIVEWAY's routes decide (<see cref="GiveWayRouteVerdictOf(AircraftState, AircraftState, TaxiRoute)"/>): whether it is
+    /// met, and the node that decides it.
+    /// </summary>
+    internal readonly record struct GiveWayRouteVerdict(bool Clear, GiveWayJunction Junction);
+
+    /// <summary>
     /// The one judgement of where <paramref name="held"/>, giving way to <paramref name="traffic"/>, waits for it: the node both
     /// driven routes pass that the traffic meets across the held aircraft's path (<see cref="CrossesHeldRoute"/>), over the
     /// whole of both routes rather than the convergence look-ahead. Traffic ahead on the held aircraft's taxiway (which
-    /// in-trail spacing handles) or head-on along it (which the pass geometry of <see cref="FlightPhysics.IsGiveWayMet"/>
-    /// handles) meets it at no such node.
+    /// in-trail spacing handles) or head-on along it (which the head-on half of
+    /// <see cref="GiveWayRouteVerdictOf(AircraftState, AircraftState, TaxiRoute)"/> decides) meets it at no such node.
     ///
     /// <para>
     /// The node returned is the first one the traffic has still to clear: the nearest it has passed, when its tail has not yet
@@ -3822,13 +3826,141 @@ public static class GroundConflictDetector
     /// such node.
     /// </para>
     /// </summary>
-    internal static GiveWayJunction? GiveWayJunctionOf(AircraftState held, AircraftState traffic)
+    internal static GiveWayJunction? GiveWayJunctionOf(AircraftState held, AircraftState traffic) =>
+        (GiveWayRoutes.Of(held, traffic) is { } routes) ? FirstJunction(routes) : null;
+
+    /// <summary>
+    /// <see cref="GiveWayJunctionOf(AircraftState, AircraftState)"/> with <paramref name="heldRoute"/> as the held aircraft's route, driven
+    /// or not: the route a deferred TAXI would build. The route is read for its nodes left; the held aircraft's position decides only
+    /// whether it still occupies the route's start node and whether it is abeam the corner of an arc it is driving
+    /// (<see cref="HeldRouteNodes"/>).
+    /// </summary>
+    internal static GiveWayJunction? GiveWayJunctionOf(AircraftState held, AircraftState traffic, TaxiRoute heldRoute) =>
+        (GiveWayRoutes.Of(held, traffic, heldRoute) is { } routes) ? FirstJunction(routes) : null;
+
+    /// <summary>
+    /// What a GIVEWAY's routes decide, final either way: false while the traffic has still to clear a node where it meets the held
+    /// route across it (<see cref="GiveWayJunctionOf(AircraftState, AircraftState, TaxiRoute)"/>); where the traffic's route runs
+    /// head-on along the held route anywhere, ahead of it or behind, whether its tail has cleared the node that decides the head-on
+    /// (<see cref="GiveWayRoutes.HeadOnJunction"/>): the from-node of the edge the held aircraft is on, where the traffic comes down
+    /// that edge toward it, else the first node along the held route, its start node included while the held aircraft occupies
+    /// it, that the traffic's route shares; else true at a cleared crossing. Null when the routes decide nothing, which
+    /// leaves the pass geometry of <see cref="FlightPhysics.IsGiveWayMet"/>.
+    /// A shared node the traffic has cleared farther along the held route releases nothing while it is short of that first one.
+    /// </summary>
+    internal static GiveWayRouteVerdict? GiveWayRouteVerdictOf(AircraftState held, AircraftState traffic, TaxiRoute heldRoute)
     {
-        if (GiveWayRoutes.Of(held, traffic) is not { } routes)
+        if (GiveWayRoutes.Of(held, traffic, heldRoute) is not { } routes)
         {
             return null;
         }
 
+        GiveWayJunction? crossing = FirstJunction(routes);
+        if (crossing is { TrafficPast: false } uncleared)
+        {
+            return new GiveWayRouteVerdict(false, uncleared);
+        }
+
+        if (routes.HeadOnJunction() is { } headOn)
+        {
+            return new GiveWayRouteVerdict(headOn.TrafficPast, headOn);
+        }
+
+        return (crossing is { } cleared) ? new GiveWayRouteVerdict(true, cleared) : null;
+    }
+
+    /// <summary>
+    /// <see cref="GiveWayRouteVerdictOf(AircraftState, AircraftState, TaxiRoute)"/> on the route <paramref name="held"/> is driving
+    /// (<see cref="FollowingPhase.DrivenRouteOf"/>); null when it drives none.
+    /// </summary>
+    internal static GiveWayRouteVerdict? GiveWayRouteVerdictOf(AircraftState held, AircraftState traffic) =>
+        (FollowingPhase.DrivenRouteOf(held) is { } heldRoute) ? GiveWayRouteVerdictOf(held, traffic, heldRoute) : null;
+
+    /// <summary>
+    /// The nodes of what is left of <paramref name="heldRoute"/>, driven by <paramref name="held"/>, each by the node it enters it
+    /// from (<see cref="HeldPath.Nodes"/>, in the order of <see cref="HeldRouteOrder"/>): the first wins where a node comes twice.
+    /// </summary>
+    internal static Dictionary<int, int> HeldRouteNodes(AircraftState held, TaxiRoute heldRoute) => HeldPath.Of(held, heldRoute).Nodes;
+
+    /// <summary>The corner node <paramref name="segment"/>'s fillet arc cuts; null for a straight edge or an arc without one.</summary>
+    private static GroundNode? CutCorner(TaxiRouteSegment segment) => (segment.Edge.Edge is GroundArc arc) ? arc.Corner()?.Node : null;
+
+    /// <summary>The node a route's first segment is entered from: none.</summary>
+    private const int NoNode = int.MinValue;
+
+    /// <summary>
+    /// The index of the segment whose from-node <paramref name="held"/> still occupies on <paramref name="route"/>: its first, while
+    /// the route has not begun and the aircraft's tail is not yet past that node (its centre less than half its length past it
+    /// along the segment, <see cref="AircraftLength.ResolveFt"/>); null otherwise, the node then behind it.
+    /// </summary>
+    private static int? StartSegmentIndex(AircraftState held, TaxiRoute route)
+    {
+        if ((route.CurrentSegmentIndex != 0) || (route.Segments.Count == 0))
+        {
+            return null;
+        }
+
+        double centrePastFt = AlongEdgeNm(held, route.Segments[0]) * FtPerNm;
+        return (centrePastFt < AircraftLength.ResolveFt(held.AircraftType) / 2.0) ? 0 : null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="held"/>, on <paramref name="segment"/>, is abeam <paramref name="corner"/>, the corner node its fillet
+    /// arc cuts, or past it: its centre at or past the corner along the arc's chord.
+    /// </summary>
+    private static bool IsAbeamCorner(AircraftState held, TaxiRouteSegment segment, GroundNode corner)
+    {
+        LatLon from = segment.Edge.FromNode.Position;
+        LatLon to = segment.Edge.ToNode.Position;
+        return GeoMath.AlongTrackDistanceNm(held.Position, corner.Position, new TrueHeading(GeoMath.BearingTo(from, to))) >= 0;
+    }
+
+    /// <summary>
+    /// The corner node cut by the fillet arc <paramref name="held"/> is driving on <paramref name="route"/>, once the aircraft is
+    /// abeam it or past (<see cref="IsAbeamCorner"/>); null short of it, on a segment that cuts no corner, or with no segment left.
+    /// </summary>
+    private static int? AbeamCornerId(AircraftState held, TaxiRoute route)
+    {
+        int current = Math.Max(route.CurrentSegmentIndex, 0);
+        if (current >= route.Segments.Count)
+        {
+            return null;
+        }
+
+        TaxiRouteSegment segment = route.Segments[current];
+        return ((CutCorner(segment) is { } corner) && IsAbeamCorner(held, segment, corner)) ? corner.Id : null;
+    }
+
+    /// <summary>
+    /// The nodes of what is left of <paramref name="heldRoute"/>, in the order the held aircraft reaches them, each with the node it
+    /// enters it from: the start node while the aircraft still occupies it (<paramref name="startIndex"/>,
+    /// <see cref="StartSegmentIndex"/>, entered from <see cref="NoNode"/>), then every node its segments run to, each fillet arc
+    /// preceded by the corner node the arc cuts (<see cref="GroundArc.Corner"/>: the intersection of the two taxiways it joins, which
+    /// traffic through that intersection passes in front of the held aircraft), entered from the arc's from-node; the arc it is
+    /// driving keeps its corner only until the aircraft is abeam it (<paramref name="droppedCornerId"/>, <see cref="AbeamCornerId"/>).
+    /// </summary>
+    private static IEnumerable<(int NodeId, int EnteredFrom)> HeldRouteOrder(TaxiRoute heldRoute, int? startIndex, int? droppedCornerId)
+    {
+        if (startIndex is { } start)
+        {
+            yield return (heldRoute.Segments[start].FromNodeId, NoNode);
+        }
+
+        int current = Math.Max(heldRoute.CurrentSegmentIndex, 0);
+        for (int i = current; i < heldRoute.Segments.Count; i++)
+        {
+            TaxiRouteSegment segment = heldRoute.Segments[i];
+            if ((CutCorner(segment) is { } corner) && ((i != current) || (corner.Id != droppedCornerId)))
+            {
+                yield return (corner.Id, segment.FromNodeId);
+            }
+
+            yield return (segment.ToNodeId, segment.FromNodeId);
+        }
+    }
+
+    private static GiveWayJunction? FirstJunction(GiveWayRoutes routes)
+    {
         GiveWayJunction? cleared = null;
         for (int k = routes.Current; k >= 0; k--)
         {
@@ -3893,13 +4025,13 @@ public static class GroundConflictDetector
     }
 
     /// <summary>
-    /// The two driven routes of a GIVEWAY as <see cref="GiveWayJunctionOf"/> judges them: the held route's nodes ahead, each by
-    /// the node it enters it from (<see cref="UpcomingNodes"/> over the whole route, walked once per judgement), the traffic's
-    /// route and its current segment, and how far past a node the traffic's tail must be to clear the held aircraft.
+    /// The two driven routes of a GIVEWAY as <see cref="GiveWayJunctionOf"/> judges them: the held route's nodes left, each by
+    /// the node it enters it from (<see cref="HeldPath"/>, walked once per judgement), the traffic's route and its current
+    /// segment, and how far past a node the traffic's tail must be to clear the held aircraft.
     /// </summary>
-    private sealed class GiveWayRoutes(AircraftState traffic, TaxiRoute heldRoute, TaxiRoute trafficRoute, double requiredPastFt)
+    private sealed class GiveWayRoutes(AircraftState held, AircraftState traffic, TaxiRoute heldRoute, TaxiRoute trafficRoute, double requiredPastFt)
     {
-        private readonly Dictionary<int, int> _heldNodes = UpcomingNodes(heldRoute, double.PositiveInfinity);
+        private readonly HeldPath _held = HeldPath.Of(held, heldRoute);
         private readonly double _halfLengthFt = AircraftLength.ResolveFt(traffic.AircraftType) / 2.0;
 
         /// <summary>The traffic's driven route.</summary>
@@ -3908,40 +4040,126 @@ public static class GroundConflictDetector
         /// <summary>The traffic's current segment, clamped to its route: node <c>Current</c> is the last it passed.</summary>
         internal int Current { get; } = Math.Clamp(trafficRoute.CurrentSegmentIndex, 0, trafficRoute.Segments.Count);
 
-        /// <summary>The pair's routes; null when either aircraft drives no route, or the traffic's has no segment.</summary>
-        internal static GiveWayRoutes? Of(AircraftState held, AircraftState traffic)
+        /// <summary>
+        /// The junction that decides a head-on, where the traffic's whole route, passed segments included, runs head-on along the
+        /// held route; else null. Where it runs the held aircraft's current segment in reverse, down the edge the aircraft is on
+        /// toward it, the junction at that segment's from-node, whether or not the aircraft still occupies it
+        /// (<see cref="DownTheHeldEdge"/>); elsewhere (<see cref="RunsHeadOnAlongHeldRoute"/>), the junction at the first node
+        /// along the held route (<see cref="HeldPath.Order"/>) that the traffic's route shares.
+        /// </summary>
+        internal GiveWayJunction? HeadOnJunction()
         {
-            if (
-                (FollowingPhase.DrivenRouteOf(held) is not { } heldRoute)
-                || (FollowingPhase.DrivenRouteOf(traffic) is not { Segments.Count: > 0 } route)
-            )
+            if (DownTheHeldEdge() is { } fromNodeIndex)
+            {
+                return JunctionOf(fromNodeIndex);
+            }
+
+            if (!RunsHeadOnAlongHeldRoute(_held, TrafficRoute))
+            {
+                return null;
+            }
+
+            foreach ((int nodeId, _) in _held.Order)
+            {
+                for (int k = 0; k <= TrafficRoute.Segments.Count; k++)
+                {
+                    if (RouteNodeId(TrafficRoute, k) == nodeId)
+                    {
+                        return JunctionOf(k);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>The pair's routes; null when either aircraft drives no route, or the traffic's has no segment.</summary>
+        internal static GiveWayRoutes? Of(AircraftState held, AircraftState traffic) =>
+            (FollowingPhase.DrivenRouteOf(held) is { } heldRoute) ? Of(held, traffic, heldRoute) : null;
+
+        /// <summary>
+        /// The pair's routes with <paramref name="heldRoute"/> as the held aircraft's; null when the traffic drives no route with a
+        /// segment.
+        /// </summary>
+        internal static GiveWayRoutes? Of(AircraftState held, AircraftState traffic, TaxiRoute heldRoute)
+        {
+            if (FollowingPhase.DrivenRouteOf(traffic) is not { Segments.Count: > 0 } route)
             {
                 return null;
             }
 
             bool faaSpans = RequiredLateralClearanceFt(held, traffic) is not null;
             double requiredPastFt = HalfSpanFt(held.AircraftType, faaSpans) + GroundOutlineSweep.WingtipBufferFt;
-            return new GiveWayRoutes(traffic, heldRoute, route, requiredPastFt);
+            return new GiveWayRoutes(held, traffic, heldRoute, route, requiredPastFt);
         }
 
         /// <summary>The junction at the traffic route's node <paramref name="nodeIndex"/>; null when the routes do not meet across each other there.</summary>
-        internal GiveWayJunction? JunctionAt(int nodeIndex) =>
-            CrossesHeldRoute(heldRoute, _heldNodes, TrafficRoute, nodeIndex)
-                ? new GiveWayJunction(
-                    RouteNodeId(TrafficRoute, nodeIndex),
-                    nodeIndex,
-                    CentrePastRouteNodeFt(traffic, TrafficRoute, nodeIndex) - _halfLengthFt,
-                    requiredPastFt,
-                    RunsHeadOnAlongHeldRoute(heldRoute, _heldNodes, TrafficRoute)
-                )
-                : null;
+        internal GiveWayJunction? JunctionAt(int nodeIndex) => CrossesHeldRoute(_held, TrafficRoute, nodeIndex) ? JunctionOf(nodeIndex) : null;
+
+        /// <summary>
+        /// The index on the traffic's route of the from-node of the held aircraft's current segment, where the traffic's route,
+        /// passed segments included, first runs that segment in reverse: down the edge the held aircraft is on, toward it. Null
+        /// where it never does, or the held route has no segment left.
+        /// </summary>
+        private int? DownTheHeldEdge()
+        {
+            int current = Math.Max(_held.Route.CurrentSegmentIndex, 0);
+            if (current >= _held.Route.Segments.Count)
+            {
+                return null;
+            }
+
+            TaxiRouteSegment heldEdge = _held.Route.Segments[current];
+            for (int k = 0; k < TrafficRoute.Segments.Count; k++)
+            {
+                TaxiRouteSegment segment = TrafficRoute.Segments[k];
+                if ((segment.FromNodeId == heldEdge.ToNodeId) && (segment.ToNodeId == heldEdge.FromNodeId))
+                {
+                    return k + 1;
+                }
+            }
+
+            return null;
+        }
+
+        private GiveWayJunction JunctionOf(int nodeIndex) =>
+            new(
+                RouteNodeId(TrafficRoute, nodeIndex),
+                nodeIndex,
+                CentrePastRouteNodeFt(traffic, TrafficRoute, nodeIndex) - _halfLengthFt,
+                requiredPastFt
+            );
+    }
+
+    /// <summary>
+    /// The held side of a GIVEWAY: the route the aircraft drives or would drive; the segment whose from-node it still occupies
+    /// (<see cref="StartSegmentIndex"/>), judged once from where it stands; and the route's nodes left, in the order it reaches
+    /// them (<see cref="HeldRouteOrder"/>, without the corner it is abeam on the arc it is driving, <see cref="AbeamCornerId"/>)
+    /// and by node, the first entry winning where a node comes twice, each with the node it enters it from.
+    /// </summary>
+    private sealed record HeldPath(TaxiRoute Route, int? StartIndex, List<(int NodeId, int EnteredFrom)> Order, Dictionary<int, int> Nodes)
+    {
+        /// <summary>The held side of <paramref name="aircraft"/> on <paramref name="route"/>.</summary>
+        internal static HeldPath Of(AircraftState aircraft, TaxiRoute route)
+        {
+            int? startIndex = StartSegmentIndex(aircraft, route);
+            List<(int NodeId, int EnteredFrom)> order = [.. HeldRouteOrder(route, startIndex, AbeamCornerId(aircraft, route))];
+            var nodes = new Dictionary<int, int>();
+            foreach ((int nodeId, int enteredFrom) in order)
+            {
+                nodes.TryAdd(nodeId, enteredFrom);
+            }
+
+            return new HeldPath(route, startIndex, order, nodes);
+        }
     }
 
     /// <summary>
     /// Whether the traffic, on <paramref name="route"/>, meets the held route across it at its node <paramref name="nodeIndex"/>:
-    /// the node is ahead on the held route (<paramref name="heldNodes"/>, each by the node the held aircraft enters it from) and
-    /// the traffic's other node there — the one it enters from, or, at the route's first node, which it starts on, the one it
-    /// leaves for — is neither that node nor the one the held route leaves it for.
+    /// the node is one of the held route's nodes left (<see cref="HeldPath.Nodes"/>: its start node while the held aircraft occupies
+    /// it, a cut corner it is not yet abeam, every node ahead) and the traffic's other node there — the one it enters from, or, at
+    /// the route's first node, which it starts on, the one it leaves for — is neither the node the held aircraft enters it from nor
+    /// the one the held route leaves it for.
     ///
     /// <para>
     /// A rejoin is no crossing (<see cref="RejoinsHeldRouteInTrail"/>): where the traffic, in trail on the held route, takes a
@@ -3949,34 +4167,33 @@ public static class GroundConflictDetector
     /// node leaving it the way the held route does, the two are still in trail there.
     /// </para>
     /// </summary>
-    private static bool CrossesHeldRoute(TaxiRoute heldRoute, Dictionary<int, int> heldNodes, TaxiRoute route, int nodeIndex)
+    private static bool CrossesHeldRoute(HeldPath held, TaxiRoute route, int nodeIndex)
     {
         int nodeId = RouteNodeId(route, nodeIndex);
-        if (!heldNodes.TryGetValue(nodeId, out int heldFrom))
+        if (!held.Nodes.TryGetValue(nodeId, out int heldFrom))
         {
             return false;
         }
 
         int trafficOther = (nodeIndex == 0) ? route.Segments[0].ToNodeId : route.Segments[nodeIndex - 1].FromNodeId;
-        if ((trafficOther == heldFrom) || (trafficOther == HeldNextNode(heldRoute, nodeId)))
+        if ((trafficOther == heldFrom) || (trafficOther == HeldNextNode(held, nodeId)))
         {
             return false;
         }
 
-        return !RejoinsHeldRouteInTrail(heldRoute, heldNodes, route, nodeIndex);
+        return !RejoinsHeldRouteInTrail(held, route, nodeIndex);
     }
 
     /// <summary>
     /// Whether the traffic, on <paramref name="route"/>, comes back onto the held route at its node <paramref name="nodeIndex"/>
     /// in trail: it leaves the node for the one the held route leaves it for, and the last node before it that it shares with
-    /// the held route (<paramref name="heldNodes"/>) is one the held route reaches first (an earlier
-    /// <see cref="TaxiRoute.SegmentIndexAhead"/>) and that the traffic enters from the node the held route enters it from. A
-    /// route that starts there has no such entry.
+    /// the held route (<see cref="HeldPath.Nodes"/>) is one the held route reaches first (an earlier <see cref="HeldIndexOf"/>)
+    /// and that the traffic enters from the node the held route enters it from. A route that starts there has no such entry.
     /// </summary>
-    private static bool RejoinsHeldRouteInTrail(TaxiRoute heldRoute, Dictionary<int, int> heldNodes, TaxiRoute route, int nodeIndex)
+    private static bool RejoinsHeldRouteInTrail(HeldPath held, TaxiRoute route, int nodeIndex)
     {
         int nodeId = RouteNodeId(route, nodeIndex);
-        bool leavesTheHeldWay = (nodeIndex < route.Segments.Count) && (route.Segments[nodeIndex].ToNodeId == HeldNextNode(heldRoute, nodeId));
+        bool leavesTheHeldWay = (nodeIndex < route.Segments.Count) && (route.Segments[nodeIndex].ToNodeId == HeldNextNode(held, nodeId));
         if (!leavesTheHeldWay)
         {
             return false;
@@ -3985,9 +4202,9 @@ public static class GroundConflictDetector
         for (int k = nodeIndex - 1; k >= 0; k--)
         {
             int previousId = RouteNodeId(route, k);
-            if (heldNodes.TryGetValue(previousId, out int heldFrom))
+            if (held.Nodes.TryGetValue(previousId, out int heldFrom))
             {
-                bool heldReachesItFirst = heldRoute.SegmentIndexAhead(previousId) < heldRoute.SegmentIndexAhead(nodeId);
+                bool heldReachesItFirst = HeldIndexOf(held, previousId) < HeldIndexOf(held, nodeId);
                 bool entersItTheHeldWay = (k > 0) && (route.Segments[k - 1].FromNodeId == heldFrom);
                 return heldReachesItFirst && entersItTheHeldWay;
             }
@@ -3997,17 +4214,16 @@ public static class GroundConflictDetector
     }
 
     /// <summary>
-    /// Whether <paramref name="route"/>, from its current segment on, runs head-on along the held route toward the held aircraft
-    /// anywhere: it enters a node ahead on the held route (<paramref name="heldNodes"/>) from the node the held route leaves it
-    /// for, or leaves such a node for the one the held aircraft enters it from.
+    /// Whether <paramref name="route"/>, passed segments included, runs head-on along the held route toward the held aircraft
+    /// anywhere: it enters a node of the held route (<see cref="HeldPath.Nodes"/>) from the node the held route leaves it for, or
+    /// leaves such a node for the one the held aircraft enters it from.
     /// </summary>
-    private static bool RunsHeadOnAlongHeldRoute(TaxiRoute heldRoute, Dictionary<int, int> heldNodes, TaxiRoute route)
+    private static bool RunsHeadOnAlongHeldRoute(HeldPath held, TaxiRoute route)
     {
-        for (int i = Math.Max(route.CurrentSegmentIndex, 0); i < route.Segments.Count; i++)
+        foreach (TaxiRouteSegment segment in route.Segments)
         {
-            TaxiRouteSegment segment = route.Segments[i];
-            bool entersFromHeldNext = heldNodes.ContainsKey(segment.ToNodeId) && (HeldNextNode(heldRoute, segment.ToNodeId) == segment.FromNodeId);
-            bool leavesTowardHeldPrevious = heldNodes.TryGetValue(segment.FromNodeId, out int heldFrom) && (heldFrom == segment.ToNodeId);
+            bool entersFromHeldNext = held.Nodes.ContainsKey(segment.ToNodeId) && (HeldNextNode(held, segment.ToNodeId) == segment.FromNodeId);
+            bool leavesTowardHeldPrevious = held.Nodes.TryGetValue(segment.FromNodeId, out int heldFrom) && (heldFrom == segment.ToNodeId);
             if (entersFromHeldNext || leavesTowardHeldPrevious)
             {
                 return true;
@@ -4017,11 +4233,48 @@ public static class GroundConflictDetector
         return false;
     }
 
-    /// <summary>The node <paramref name="heldRoute"/> goes to after <paramref name="nodeId"/>, a node ahead on it; null where it ends there.</summary>
-    private static int? HeldNextNode(TaxiRoute heldRoute, int nodeId)
+    /// <summary>The node the held route goes to after <paramref name="nodeId"/>, one of its nodes left; null where it ends there.</summary>
+    private static int? HeldNextNode(HeldPath held, int nodeId)
     {
+        int heldIndex = HeldIndexOf(held, nodeId);
+        int count = held.Route.Segments.Count;
+        return ((heldIndex != int.MaxValue) && (heldIndex < count - 1)) ? held.Route.Segments[heldIndex + 1].ToNodeId : null;
+    }
+
+    /// <summary>
+    /// Where <paramref name="nodeId"/> falls along the held route: <see cref="int.MaxValue"/> unless it is one of the route's nodes
+    /// left (<see cref="HeldPath.Nodes"/>); the index of the first segment ahead that ends there
+    /// (<see cref="TaxiRoute.SegmentIndexAhead"/>); else, for the start node the aircraft occupies or an arc's cut corner, the index
+    /// of the segment before the one leaving it.
+    /// </summary>
+    private static int HeldIndexOf(HeldPath held, int nodeId)
+    {
+        TaxiRoute heldRoute = held.Route;
+        if (!held.Nodes.ContainsKey(nodeId))
+        {
+            return int.MaxValue;
+        }
+
         int heldIndex = heldRoute.SegmentIndexAhead(nodeId);
-        return (heldIndex < heldRoute.Segments.Count - 1) ? heldRoute.Segments[heldIndex + 1].ToNodeId : null;
+        if (heldIndex != int.MaxValue)
+        {
+            return heldIndex;
+        }
+
+        if ((held.StartIndex is { } start) && (heldRoute.Segments[start].FromNodeId == nodeId))
+        {
+            return start - 1;
+        }
+
+        for (int i = Math.Max(heldRoute.CurrentSegmentIndex, 0); i < heldRoute.Segments.Count; i++)
+        {
+            if (CutCorner(heldRoute.Segments[i])?.Id == nodeId)
+            {
+                return i - 1;
+            }
+        }
+
+        return int.MaxValue;
     }
 
     /// <summary>The route's node <paramref name="nodeIndex"/>: 0 the first segment's from-node, k the k-th segment's to-node.</summary>
@@ -4109,7 +4362,8 @@ public static class GroundConflictDetector
     /// How far (ft) <paramref name="aircraft"/>'s centre taxis along <paramref name="route"/> before its centre or its nose
     /// first comes inside <paramref name="clearance"/>: the current segment from the aircraft straight to its end node, then
     /// each later edge along its pavement, searched no further than
-    /// <paramref name="nodeId"/>, where the track itself starts, nor beyond <paramref name="lookaheadFt"/> (the convergence
+    /// <paramref name="nodeId"/>, where the track itself starts (for a corner a fillet arc cuts, the end of that arc; for the
+    /// route's start node, the node itself, <see cref="ToStartNodeClearanceFt"/>), nor beyond <paramref name="lookaheadFt"/> (the convergence
     /// look-ahead for a FOLLOWG merge, infinity for a GIVEWAY). The nose points along the aircraft's heading where it stands
     /// and along each piece of the route ahead. Zero when the aircraft is already inside; null when the walk ends on the
     /// look-ahead, or the route's end, short of the node.
@@ -4129,6 +4383,11 @@ public static class GroundConflictDetector
         }
 
         int start = Math.Max(route.CurrentSegmentIndex, 0);
+        if ((start == 0) && (route.Segments.Count > 0) && (route.Segments[0].FromNodeId == nodeId))
+        {
+            return ToStartNodeClearanceFt(aircraft, route.Segments[0], clearance);
+        }
+
         double walkedFt = 0;
         for (int i = start; (i < route.Segments.Count) && (walkedFt <= lookaheadFt); i++)
         {
@@ -4145,13 +4404,31 @@ public static class GroundConflictDetector
                 previous = next;
             }
 
-            if (route.Segments[i].ToNodeId == nodeId)
+            if ((route.Segments[i].ToNodeId == nodeId) || (CutCorner(route.Segments[i])?.Id == nodeId))
             {
                 return walkedFt;
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The walk of <see cref="DistanceToTrackClearanceFt"/> to its route's start node, the from-node of <paramref name="first"/>:
+    /// zero once the aircraft's centre is at or past it, else how far it taxis straight to it before coming inside
+    /// <paramref name="clearance"/>, or the whole way to it.
+    /// </summary>
+    private static double ToStartNodeClearanceFt(AircraftState aircraft, TaxiRouteSegment first, GiveWayClearance clearance)
+    {
+        double toNodeFt = -AlongEdgeNm(aircraft, first) * FtPerNm;
+        if (toNodeFt <= 0)
+        {
+            return 0.0;
+        }
+
+        LatLon node = first.Edge.FromNode.Position;
+        double pieceFt = GeoMath.DistanceNm(aircraft.Position, node) * FtPerNm;
+        return FirstInsideClearanceFt(aircraft.Position, node, pieceFt, clearance) ?? pieceFt;
     }
 
     /// <summary>

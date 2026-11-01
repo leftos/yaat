@@ -219,7 +219,7 @@ Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific con
   ```
   GIVEWAY SWA5456 TAXI S T U
   ```
-  Wait for SWA5456 to pass, then taxi via S, T, U. Works with compound chains:
+  Wait for SWA5456 to pass, then taxi via S, T, U. The aircraft waits where it stands, without moving up; it is judged on the route the `TAXI` would build, so it also waits for SWA5456 to clear a node where the two routes cross or to leave the route it would drive head-on, whatever the headings, and moves up once released (`TAXI S T U GIVEWAY SWA5456` instead taxis up to the give-way point at once). Works with compound chains:
   ```
   BEHIND DAL423; TAXI S T U W
   ```

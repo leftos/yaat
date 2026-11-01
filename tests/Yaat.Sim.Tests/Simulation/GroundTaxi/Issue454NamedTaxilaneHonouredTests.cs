@@ -218,6 +218,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
                 AircraftLengthFt = fuselageFt,
+                PlanLogLevel = LogLevel.Information,
             }
         );
         Assert.NotNull(plan);

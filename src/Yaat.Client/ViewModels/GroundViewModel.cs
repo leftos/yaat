@@ -3448,7 +3448,7 @@ public partial class GroundViewModel : ObservableObject
         // back up T5A) with a drive across the apron that rolls in on the stand heading, so the overlay has to make the
         // same substitution or it draws a detour the aircraft is not flying.
         double aircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType);
-        improved = RampLaneReposition.TryPlanResolvedRouteCut(request.Layout, route, destination, aircraftLengthFt)?.Route ?? route;
+        improved = RampLaneReposition.TryPlanResolvedRouteCut(request.Layout, route, destination, aircraftLengthFt, LogLevel.Debug)?.Route ?? route;
         return TryClientSpotLineUp(ac, improved, destination, ParseRouteTaxiways(ac.TaxiRoute), request.Category);
     }
 
@@ -3520,6 +3520,7 @@ public partial class GroundViewModel : ObservableObject
                 Options = Options,
                 Category = Category,
                 WakeClass = WakeClass,
+                PlanLogLevel = LogLevel.Debug,
             };
 
         /// <summary>The server's destination-end cut request for <paramref name="ac"/> from <paramref name="start"/>.</summary>
@@ -3533,6 +3534,7 @@ public partial class GroundViewModel : ObservableObject
                 Category = Category,
                 WakeClass = WakeClass,
                 AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
+                PlanLogLevel = LogLevel.Debug,
             };
     }
 
@@ -3578,6 +3580,7 @@ public partial class GroundViewModel : ObservableObject
             AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
             ClearedTaxiways = clearedTaxiways,
             OtherGroundAircraft = [.. all.Where(other => !other.IsDelayed && other.IsOnGround).Select(TugCandidateOf)],
+            PlanLogLevel = LogLevel.Debug,
         };
         return RampLaneReposition.TryPlanSpotLineUp(_domainLayout, request);
     }

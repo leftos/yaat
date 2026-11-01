@@ -394,25 +394,33 @@ public class GiveWayAutoReleaseTests
     }
 
     [Fact]
-    public void GiveWay_HeadOnSameEdgeIntoSharedNode_UsesOppositeDirectionBranch()
+    public void GiveWay_HeadOnAlongTheRoute_HoldsUntilTheTailClearsTheFirstSharedNode()
     {
         // The traffic comes south on A into the shared node, along the held aircraft's own route, and turns west onto F there.
         Crossing x = MakeCrossing();
         TaxiRoute SouthOnAThenWest() => Route(0, Seg(x.ANorth, x.Shared, "A"), Seg(x.Shared, x.FWest, "F"));
 
-        // Head-on and dead ahead: the opposite-direction branch keeps the hold.
+        // Head-on and dead ahead: decided at the shared node, the first node of the held route its route shares, not yet cleared.
         AircraftState heldAhead = HeldOnA(x, "AAL1", "UAL2", x.ASouth.Position);
         AircraftState ahead = MakeGround("UAL2", From(SharedPos, 0, 900), heading: 180, gs: 15);
         ahead.Ground.AssignedTaxiRoute = SouthOnAThenWest();
         Assert.Null(GroundConflictDetector.GiveWayJunctionOf(heldAhead, ahead));
+        GroundConflictDetector.GiveWayRouteVerdict? aheadVerdict = GroundConflictDetector.GiveWayRouteVerdictOf(heldAhead, ahead);
+        Assert.True(aheadVerdict is { Clear: false }, $"head-on and dead ahead: {aheadVerdict}");
+        Assert.Equal(x.Shared.Id, aheadVerdict.Value.Junction.NodeId);
         FlightPhysics.UpdateGiveWayResume(heldAhead, Lookup(heldAhead, ahead), deltaSeconds: 1);
         Assert.NotNull(heldAhead.Ground.Hold);
 
-        // Head-on and behind the held aircraft: the opposite-direction branch releases, with no shared-node hold.
+        // Head-on and behind the held aircraft: south on A past it and on toward node 14, its route's cursor on that last
+        // segment. It meets the held route at no crossing, and its tail has cleared the node the held aircraft stands on: released.
         AircraftState heldPassed = HeldOnA(x, "AAL1", "UAL2", x.ASouth.Position);
-        AircraftState passed = MakeGround("UAL2", From(x.ASouth.Position, 135, 300), heading: 180, gs: 15);
-        passed.Ground.AssignedTaxiRoute = SouthOnAThenWest();
+        AircraftState passed = MakeGround("UAL2", From(x.ASouth.Position, 180, 300), heading: 180, gs: 15);
+        GroundNode farSouth = CrossNode(14, From(x.ASouth.Position, 180, 2000));
+        passed.Ground.AssignedTaxiRoute = Route(2, Seg(x.ANorth, x.Shared, "A"), Seg(x.Shared, x.ASouth, "A"), Seg(x.ASouth, farSouth, "A"));
         Assert.Null(GroundConflictDetector.GiveWayJunctionOf(heldPassed, passed));
+        GroundConflictDetector.GiveWayRouteVerdict? passedVerdict = GroundConflictDetector.GiveWayRouteVerdictOf(heldPassed, passed);
+        Assert.True(passedVerdict is { Clear: true }, $"head-on and behind: {passedVerdict}");
+        Assert.Equal(x.ASouth.Id, passedVerdict.Value.Junction.NodeId);
         FlightPhysics.UpdateGiveWayResume(heldPassed, Lookup(heldPassed, passed), deltaSeconds: 1);
         Assert.Null(heldPassed.Ground.Hold);
     }

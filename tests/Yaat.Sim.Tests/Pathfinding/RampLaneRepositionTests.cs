@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
@@ -179,6 +180,7 @@ public class RampLaneRepositionTests
                 Options = options,
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
+                PlanLogLevel = LogLevel.Information,
             },
             failure,
             out _
@@ -224,6 +226,7 @@ public class RampLaneRepositionTests
                 Options = options,
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
+                PlanLogLevel = LogLevel.Information,
             },
             failure,
             out _
@@ -265,6 +268,7 @@ public class RampLaneRepositionTests
                 Options = options,
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
+                PlanLogLevel = LogLevel.Information,
             },
             failure,
             out _
@@ -305,6 +309,7 @@ public class RampLaneRepositionTests
                 Options = options,
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
+                PlanLogLevel = LogLevel.Information,
             },
             failure,
             out _
@@ -358,6 +363,7 @@ public class RampLaneRepositionTests
                 Options = options,
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
+                PlanLogLevel = LogLevel.Information,
             },
             failure,
             out _
@@ -390,6 +396,7 @@ public class RampLaneRepositionTests
                 Options = options,
                 Category = AircraftCategory.Piston,
                 WakeClass = WakeTurbulenceData.WakeClass.Small,
+                PlanLogLevel = LogLevel.Information,
             },
             failure,
             out _
@@ -423,6 +430,7 @@ public class RampLaneRepositionTests
                 Options = options,
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
+                PlanLogLevel = LogLevel.Information,
             },
             failure,
             out _
@@ -457,6 +465,7 @@ public class RampLaneRepositionTests
                 Options = options,
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
+                PlanLogLevel = LogLevel.Information,
             },
             failure,
             out _
@@ -489,6 +498,7 @@ public class RampLaneRepositionTests
                 Options = options,
                 Category = AircraftCategory.Jet,
                 WakeClass = WakeTurbulenceData.WakeClass.Large,
+                PlanLogLevel = LogLevel.Information,
             },
             failure,
             out _
@@ -523,7 +533,13 @@ public class RampLaneRepositionTests
         );
         _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}-{s.ToNodeId}({s.TaxiwayName})")));
 
-        RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanResolvedRouteCut(layout, route, stand, AircraftLength.ResolveFt("B738"));
+        RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanResolvedRouteCut(
+            layout,
+            route,
+            stand,
+            AircraftLength.ResolveFt("B738"),
+            LogLevel.Information
+        );
         if (!expectCut)
         {
             Assert.Null(cut);

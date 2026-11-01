@@ -15,6 +15,7 @@
 - Under `DVIA` or `CVIA`, a controller's crossing speed ends at its fix; the aircraft then flies the procedure's published speed, not a lasting ceiling.
 - A crossed published "at or above" speed survives a re-issued `DVIA`, `CVIA`, `RNS` or `RPS`, and ends on a heading, a direct, or leaving the procedure.
 - A scenario aircraft handed to the student with no flight plan now arrives with a filed VFR plan and a discrete code, so the handoff can be taken.
+- `GIVEWAY X TAXI …` waits in place until X has passed wherever the two routes cross or meet head-on, at any angle, then moves up.
 - `LUAW` at a taxiway hold short taxis onto that taxiway and lines up at the intersection; its readback and the later `CTO` name it ("at echo").
 - `CTO` at a taxiway hold short is refused with "unable, traffic on E" while another aircraft stands on that taxiway; re-issue it once clear.
 - The taxi that `CTO` or `LUAW` starts from a taxiway hold short accounts for traffic and active runways, and pre-clears no crossing.

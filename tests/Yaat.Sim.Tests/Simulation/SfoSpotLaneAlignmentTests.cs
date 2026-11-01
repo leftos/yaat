@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
@@ -632,6 +633,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
             AircraftLengthFt = lengthFt,
             ClearedTaxiways = ["T7A"],
             OtherGroundAircraft = [],
+            PlanLogLevel = LogLevel.Information,
         };
 
     /// <summary>

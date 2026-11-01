@@ -2252,11 +2252,13 @@ public static class FlightPhysics
 
     /// <summary>
     /// Releases a direct GIVEWAY hold once the target is no longer in the way. The release is decided by where the two taxi
-    /// routes meet: while they meet across each other at a node (<see cref="GroundConflictDetector.GiveWayJunctionOf"/>, over
-    /// the whole of both routes), the hold lasts until the target's tail has cleared it (<see cref="UpdateSharedNodeGiveWay"/>).
-    /// With no such node — the target drives no route, the routes do not meet across each other, or the target has cleared the
-    /// node but its route runs on head-on along ours toward us — the release is the bearing/heading geometry in
-    /// <see cref="IsGiveWayMet"/>, with its safety nets (<see cref="JudgeGiveWay"/>).
+    /// routes meet (<see cref="GroundConflictDetector.GiveWayRouteVerdictOf(AircraftState, AircraftState)"/>, over the whole of
+    /// both routes): at a node where they meet across each other, or, for a target running head-on along ours, decided at the
+    /// from-node of the edge we are on when the traffic comes down it toward us, else at the first node of ours its route shares
+    /// (see <see cref="GroundConflictDetector.GiveWayRouteVerdictOf"/>), the hold lasts until the target's tail has cleared it
+    /// (<see cref="UpdateSharedNodeGiveWay"/>).
+    /// With no such node — the target drives no route, or the routes neither cross nor run head-on — the release is the
+    /// bearing/heading geometry in <see cref="IsGiveWayMet"/>, with its safety nets (<see cref="JudgeGiveWay"/>).
     /// </summary>
     internal static void UpdateGiveWayResume(AircraftState aircraft, Func<string, AircraftState?>? aircraftLookup, double deltaSeconds)
     {
@@ -2292,18 +2294,22 @@ public static class FlightPhysics
 
     /// <summary>
     /// The judgement of <paramref name="aircraft"/>'s GIVEWAY to <paramref name="target"/>, both on the ground. Routes that meet
-    /// across each other at a node the target has still to clear, or has cleared without then running head-on along ours, are
-    /// decided there (<see cref="UpdateSharedNodeGiveWay"/>), and nothing else releases the hold before it. Otherwise, in order:
+    /// across each other at a node the target has still to clear, or whose target runs head-on along ours (decided at the
+    /// from-node of the edge we are on when the traffic comes down it toward us, else at the first node of ours its route shares
+    /// (see <see cref="GroundConflictDetector.GiveWayRouteVerdictOf"/>)), are decided there
+    /// (<see cref="GroundConflictDetector.GiveWayRouteVerdictOf(AircraftState, AircraftState)"/>, <see cref="UpdateSharedNodeGiveWay"/>),
+    /// and nothing else releases the hold before it. Otherwise, in order:
     /// a hold past its safety timeout (<see cref="UpdateGiveWaySafetyTimeout"/>); the pass geometry of <see cref="IsGiveWayMet"/>,
     /// kept while head-on routes still share an upcoming node; and the stalemate bypass of a stationary target
-    /// (<see cref="UpdateStationaryTargetBypass"/>). The geometric judgement applies to direct holds only — deferred BEHIND
-    /// conditions keep pure geometry.
+    /// (<see cref="UpdateStationaryTargetBypass"/>). The safety timeout and the bypass are for direct holds only: a deferred GIVEWAY
+    /// and a queued GiveWay block (<see cref="IsQueuedGiveWayMet"/>) take the same shared-node judgement, wait while the target runs
+    /// head-on along the route, and otherwise keep the pure geometry.
     /// </summary>
     private static void JudgeGiveWay(AircraftState aircraft, string yieldTarget, AircraftState target, Func<string, AircraftState?> aircraftLookup)
     {
-        if ((GroundConflictDetector.GiveWayJunctionOf(aircraft, target) is { } junction) && !(junction.TrafficPast && junction.TrafficHeadOn))
+        if (GroundConflictDetector.GiveWayRouteVerdictOf(aircraft, target) is { } verdict)
         {
-            UpdateSharedNodeGiveWay(aircraft, target, junction);
+            UpdateSharedNodeGiveWay(aircraft, target, verdict.Junction, verdict.Clear);
             return;
         }
 
@@ -2411,18 +2417,23 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// The GIVEWAY of <paramref name="aircraft"/> to <paramref name="target"/> while their routes meet across each other at
-    /// <paramref name="junction"/>'s node (<see cref="GroundConflictDetector.GiveWayJunctionOf"/>): it is met once the target's
-    /// tail has cleared the node (7110.65 3-7-2.a). A merge, where both routes leave the node the same way, is no exception: the
-    /// in-trail spacing of the shared taxiway takes over only once the tail has cleared it. Before that only a mutual give-way
-    /// releases the hold, which the lower callsign leaves first while the higher callsign is itself still short of a node
-    /// where it has to clear the lower (<see cref="GroundConflictDetector.GiveWayJunctionOf"/> from its side, whose node is
-    /// always one still ahead on its route), so the pair never deadlocks. Once the higher callsign is in the junction it goes
-    /// first and the lower keeps holding.
+    /// The GIVEWAY of <paramref name="aircraft"/> to <paramref name="target"/> while their routes meet across each other, or head-on,
+    /// at <paramref name="junction"/>'s node (<see cref="GroundConflictDetector.GiveWayRouteVerdictOf(AircraftState, AircraftState)"/>):
+    /// it is met once the target's tail has cleared the node (7110.65 3-7-2.a). A merge, where both routes leave the node the same
+    /// way, is no exception: the in-trail spacing of the shared taxiway takes over only once the tail has cleared it. Before that
+    /// only a mutual give-way releases the hold, which the callsign sorting first ordinally leaves first while the other's own
+    /// routes still hold it for this one (<see cref="GroundConflictDetector.GiveWayRouteVerdictOf(AircraftState, AircraftState)"/>
+    /// from its side says not clear, across or head-on), so the pair never deadlocks. Once the other is in the junction, its
+    /// routes no longer holding it, it goes first and this one keeps holding.
     /// </summary>
-    private static void UpdateSharedNodeGiveWay(AircraftState aircraft, AircraftState target, GroundConflictDetector.GiveWayJunction junction)
+    private static void UpdateSharedNodeGiveWay(
+        AircraftState aircraft,
+        AircraftState target,
+        GroundConflictDetector.GiveWayJunction junction,
+        bool clear
+    )
     {
-        if (junction.TrafficPast)
+        if (clear)
         {
             Log.LogDebug(
                 "GIVEWAY released for {Callsign}: {Target}'s tail is {TailPast:F0} ft past shared node {Node} (needs {Required:F0} ft)",
@@ -2439,7 +2450,7 @@ public static class FlightPhysics
         if (
             IsMutualGiveWay(aircraft, target)
             && (string.CompareOrdinal(aircraft.Callsign, target.Callsign) < 0)
-            && (GroundConflictDetector.GiveWayJunctionOf(target, aircraft) is not null)
+            && (GroundConflictDetector.GiveWayRouteVerdictOf(target, aircraft) is { Clear: false })
         )
         {
             Log.LogDebug(
@@ -2480,6 +2491,35 @@ public static class FlightPhysics
 
     /// <summary>A "kept" line logged for a GIVEWAY hold: its message template and the shared node it named, if any.</summary>
     private sealed record KeptGiveWayLog(string Message, int? NodeId);
+
+    /// <summary>
+    /// The judgement last logged for each deferred GIVEWAY or queued GiveWay trigger, keyed by that object: both are judged every
+    /// tick, so a judgement is logged only when it changes (<see cref="LatchGiveWayJudgement(DeferredDispatch, bool?, int?)"/>). The
+    /// latch is for the log only, never read by a judgement; a restored deferral or trigger starts unlatched.
+    /// </summary>
+    private static readonly ConditionalWeakTable<object, GiveWayJudgementLog> LoggedGiveWayJudgements = [];
+
+    /// <summary>A judgement logged for a deferred GIVEWAY or a queued GiveWay trigger: its verdict and the shared node it named, if any.</summary>
+    private sealed record GiveWayJudgementLog(bool? Verdict, int? NodeId);
+
+    /// <summary>Whether this judgement of <paramref name="deferral"/> differs from the last one logged for it, latching it when it does.</summary>
+    internal static bool LatchGiveWayJudgement(DeferredDispatch deferral, bool? verdict, int? nodeId) =>
+        LatchGiveWayJudgementOf(deferral, verdict, nodeId);
+
+    /// <summary>Whether this judgement of <paramref name="trigger"/> differs from the last one logged for it, latching it when it does.</summary>
+    internal static bool LatchGiveWayJudgement(BlockTrigger trigger, bool? verdict, int? nodeId) => LatchGiveWayJudgementOf(trigger, verdict, nodeId);
+
+    private static bool LatchGiveWayJudgementOf(object owner, bool? verdict, int? nodeId)
+    {
+        var judgement = new GiveWayJudgementLog(verdict, nodeId);
+        if (LoggedGiveWayJudgements.TryGetValue(owner, out GiveWayJudgementLog? last) && (last == judgement))
+        {
+            return false;
+        }
+
+        LoggedGiveWayJudgements.AddOrUpdate(owner, judgement);
+        return true;
+    }
 
     /// <summary>
     /// Whether the "kept" line <paramref name="message"/> at <paramref name="nodeId"/> differs from the last one logged for
@@ -2591,7 +2631,7 @@ public static class FlightPhysics
             BlockTriggerType.ReachFrdPoint => trigger.TargetLat.HasValue
                 && trigger.TargetLon.HasValue
                 && GeoMath.DistanceNm(aircraft.Position, new LatLon(trigger.TargetLat.Value, trigger.TargetLon.Value)) < FrdArrivalNm,
-            BlockTriggerType.GiveWay => IsGiveWayMet(aircraft, trigger, aircraftLookup),
+            BlockTriggerType.GiveWay => IsQueuedGiveWayMet(aircraft, trigger, aircraftLookup),
             BlockTriggerType.DistanceFinal => IsDistanceFinalMet(aircraft, trigger),
             BlockTriggerType.OnHandoff => aircraft.Track.HandoffAccepted,
             BlockTriggerType.AtGroundEntity => IsGroundEntityReached(aircraft, trigger),
@@ -2845,6 +2885,42 @@ public static class FlightPhysics
 
         // Neither same nor opposite — no conflict
         return true;
+    }
+
+    /// <summary>
+    /// The trigger of a GiveWay block queued behind other blocks. The route the aircraft is driving decides first, as in
+    /// <see cref="JudgeGiveWay"/>: what the routes say is final, either way
+    /// (<see cref="GroundConflictDetector.GiveWayRouteVerdictOf(AircraftState, AircraftState, TaxiRoute)"/>: a crossing, or
+    /// decided at the from-node of the edge we are on when the traffic comes down it toward us, else at the first node of ours its route shares
+    /// (see <see cref="GroundConflictDetector.GiveWayRouteVerdictOf"/>)). With no node to decide, the geometry of
+    /// <see cref="IsGiveWayMet"/> stands, as it does with no route to judge.
+    /// </summary>
+    private static bool IsQueuedGiveWayMet(AircraftState aircraft, BlockTrigger trigger, Func<string, AircraftState?>? aircraftLookup)
+    {
+        if (
+            (trigger.TargetCallsign is not { } targetCallsign)
+            || (aircraftLookup?.Invoke(targetCallsign) is not { IsOnGround: true } target)
+            || (Phases.Ground.FollowingPhase.DrivenRouteOf(aircraft) is not { } route)
+        )
+        {
+            return IsGiveWayMet(aircraft, trigger, aircraftLookup);
+        }
+
+        GroundConflictDetector.GiveWayRouteVerdict? verdict = GroundConflictDetector.GiveWayRouteVerdictOf(aircraft, target, route);
+        bool met = verdict?.Clear ?? IsGiveWayMet(aircraft, trigger, aircraftLookup);
+        if (LatchGiveWayJudgement(trigger, met, verdict?.Junction.NodeId))
+        {
+            Log.LogDebug(
+                "Queued GIVEWAY for {Callsign} behind {Target}: met={Met}, deciding node {Node}, tail past {TailPast:F0} ft",
+                aircraft.Callsign,
+                targetCallsign,
+                met,
+                verdict?.Junction.NodeId,
+                verdict?.Junction.TailPastFt
+            );
+        }
+
+        return met;
     }
 
     private static bool IsDistanceFinalMet(AircraftState aircraft, BlockTrigger trigger)
