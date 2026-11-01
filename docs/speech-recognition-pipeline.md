@@ -107,6 +107,7 @@ depend on LM-Kit and PortAudio native libraries.
   **delisted from the picker** (the old default would invite
   regressions); a saved preference that still names it keeps loading
   through the curated-ID path, it just shows as a custom source.
+- **Sherpa model install:** the client reads `src/Yaat.Client/Speech/stt-downloads.json`'s `models[]` through `SttModelInstaller` (`ReadModels`/`ReadModel`), which downloads and SHA-256-verifies a model's files into `%LOCALAPPDATA%/yaat/models/stt/<id>/`. The files are built in a staging folder with the `.installed` sentinel written last, then swapped in, so a failed or cancelled install leaves an installed model as it was; one writer per root via `models/stt.lock`. Downloads go through `VerifiedFileDownloader`, shared with `SherpaCudaInstaller`, so download log lines log under that category. No UI calls the installer yet.
 - **Licensing:** every process funnels through
   `src/Yaat.Client/Services/LmKitLicense.Initialize()` exactly once
   before touching LM-Kit. Lookup order: `LMKIT_LICENSE_KEY` env var →

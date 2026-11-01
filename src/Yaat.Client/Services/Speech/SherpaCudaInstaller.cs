@@ -1,7 +1,6 @@
 using System.IO.Compression;
 using System.Net.Http;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
@@ -55,7 +54,7 @@ public sealed partial class SherpaCudaInstaller(
 ) : ObservableObject
 {
     /// <summary>How long one read of a download body may wait for bytes before that URL counts as failed.</summary>
-    public static readonly TimeSpan IdleReadTimeout = TimeSpan.FromSeconds(60);
+    public static readonly TimeSpan IdleReadTimeout = VerifiedFileDownloader.IdleReadTimeout;
 
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaCudaInstaller>();
 
@@ -159,10 +158,9 @@ public sealed partial class SherpaCudaInstaller(
         "MANIFEST.txt",
     ];
 
-    private readonly HttpClient _http = http;
+    private readonly VerifiedFileDownloader _downloader = new(http, timeProvider);
     private readonly string _installRoot = installRoot;
     private readonly IReadOnlyList<SherpaCudaDownload> _downloads = downloads;
-    private readonly TimeProvider _timeProvider = timeProvider;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     [ObservableProperty]
@@ -528,7 +526,10 @@ public sealed partial class SherpaCudaInstaller(
             StatusMessage = $"Downloading {download.Name} ({i + 1} of {_downloads.Count})…";
             string archivePath = Path.Combine(stagingRoot, $"_{download.Name}.part");
             var phase = new ProgressPhase(doneBytes / totalBytes, (doneBytes + download.Size) / totalBytes);
-            string url = await DownloadFromFirstGoodUrlAsync(download, archivePath, phase, ct).ConfigureAwait(false);
+            var file = new VerifiedFile(download.Name, download.Urls, download.Size, download.Sha256);
+            string url = await _downloader
+                .DownloadAsync(file, archivePath, bytesRead => SetPhaseProgress(phase, bytesRead, download.Size), ct)
+                .ConfigureAwait(false);
             ExtractEntries(download, archivePath, url, stagingNative, ct);
             File.Delete(archivePath);
             doneBytes += download.Size;
@@ -661,99 +662,6 @@ public sealed partial class SherpaCudaInstaller(
         }
     }
 
-    private async Task<string> DownloadFromFirstGoodUrlAsync(
-        SherpaCudaDownload download,
-        string archivePath,
-        ProgressPhase phase,
-        CancellationToken ct
-    )
-    {
-        List<string> failures = [];
-        Exception? lastFailure = null;
-        foreach (string url in download.Urls)
-        {
-            try
-            {
-                await DownloadVerifiedAsync(download, url, archivePath, phase, ct).ConfigureAwait(false);
-                return url;
-            }
-            catch (Exception ex)
-                when ((ex is HttpRequestException or HttpIOException or InvalidDataException)
-                    || ((ex is OperationCanceledException) && !ct.IsCancellationRequested)
-                )
-            {
-                Log.LogWarning(ex, "{Name}: download from {Url} failed", download.Name, url);
-                failures.Add($"{url}: {ex.Message}");
-                lastFailure = ex;
-                if (File.Exists(archivePath))
-                {
-                    File.Delete(archivePath);
-                }
-            }
-        }
-
-        string message = $"{download.Name}: every URL failed. {string.Join(" | ", failures)}";
-        throw (lastFailure is InvalidDataException) ? new InvalidDataException(message, lastFailure) : new HttpRequestException(message, lastFailure);
-    }
-
-    private async Task DownloadVerifiedAsync(SherpaCudaDownload download, string url, string archivePath, ProgressPhase phase, CancellationToken ct)
-    {
-        Log.LogInformation("Downloading {Name} from {Url}", download.Name, url);
-        using HttpResponseMessage response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        long? length = response.Content.Headers.ContentLength;
-        if ((length is not null) && (length != download.Size))
-        {
-            throw new InvalidDataException($"{download.Name}: {url} announces {length} bytes, expected {download.Size}");
-        }
-
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        using var idle = new CancellationTokenSource(Timeout.InfiniteTimeSpan, _timeProvider);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, idle.Token);
-        long bytesRead = 0;
-        await using (Stream stream = await response.Content.ReadAsStreamAsync(linked.Token).ConfigureAwait(false))
-        await using (FileStream file = File.Create(archivePath))
-        {
-            byte[] buffer = new byte[64 * 1024];
-            while (true)
-            {
-                idle.CancelAfter(IdleReadTimeout);
-                int read = await stream.ReadAsync(buffer, linked.Token).ConfigureAwait(false);
-                idle.CancelAfter(Timeout.InfiniteTimeSpan);
-                if (read == 0)
-                {
-                    break;
-                }
-                bytesRead += read;
-                if (bytesRead > download.Size)
-                {
-                    break;
-                }
-                hash.AppendData(buffer, 0, read);
-                await file.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
-                SetProgress(phase.Start + ((phase.End - phase.Start) * Math.Min(1.0, (double)bytesRead / Math.Max(1, download.Size))));
-            }
-        }
-
-        if (bytesRead > download.Size)
-        {
-            File.Delete(archivePath);
-            throw new InvalidDataException($"{download.Name}: {url} sent more than the expected {download.Size} bytes");
-        }
-        if (bytesRead != download.Size)
-        {
-            File.Delete(archivePath);
-            throw new InvalidDataException($"{download.Name}: {url} sent {bytesRead} bytes, expected {download.Size}");
-        }
-
-        string actual = Convert.ToHexStringLower(hash.GetHashAndReset());
-        if (!string.Equals(actual, download.Sha256, StringComparison.OrdinalIgnoreCase))
-        {
-            File.Delete(archivePath);
-            throw new InvalidDataException($"{download.Name}: SHA-256 of {url} is {actual}, expected {download.Sha256}");
-        }
-    }
-
     private static void ExtractEntries(SherpaCudaDownload download, string archivePath, string url, string destDir, CancellationToken ct)
     {
         using ZipArchive zip = ZipFile.OpenRead(archivePath);
@@ -834,6 +742,9 @@ public sealed partial class SherpaCudaInstaller(
     }
 
     private void SetProgress(double value) => Progress = Math.Round(Math.Clamp(value, 0.0, 1.0), 3);
+
+    private void SetPhaseProgress(ProgressPhase phase, long bytesRead, long size) =>
+        SetProgress(phase.Start + ((phase.End - phase.Start) * Math.Min(1.0, (double)bytesRead / Math.Max(1, size))));
 
     /// <summary>One download's share of the overall progress, as fractions of the whole.</summary>
     private readonly record struct ProgressPhase(double Start, double End);
