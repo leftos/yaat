@@ -6,7 +6,6 @@
 
 - [ ] YAAT-1598 Client sherpa STT in fast and accurate modes · release vNext — Urgent · STT tuning
 - [/] YAAT-1602 STT model download and Speech settings for rasr-parakeet fp32/int8, mode and device · release vNext — Urgent · STT tuning
-- [ ] YAAT-1650 Make SwappableSttEngineTests.Swap_DisposesTheOldEngineOffTheCallersThread load-proof (flaky: pool thread reuse) · release vNext — Urgent · STT tuning
 - [ ] YAAT-1603 Accurate STT mode: build the room context from live client state and resolve callsigns with ContextDecoder · release vNext — Urgent · STT tuning
 - [ ] YAAT-1604 In-app STT benchmark: per model, mode and device latency, RAM and VRAM on this machine · release vNext — Urgent · STT tuning
 - [ ] YAAT-1605 Reference STT measurements on the CI natives and client speech docs · release vNext — Urgent · STT tuning
@@ -32,7 +31,6 @@
 ## Bug reports and feature requests
 
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
-- [/] YAAT-1266 Close the 60-120 degree release hole in the deferred GIVEWAY {traffic} TAXI form · release vNext
 - [ ] YAAT-1428 Handle a CTO naming a different runway while holding short of a taxiway (intersection, crossing or query) · release vNext
 - [ ] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer
 
@@ -122,13 +120,16 @@
   - [ ] YAAT-1633 Linux: keep the CUDA provider from a re-pinned set out of a running client
   - [ ] YAAT-1634 Log the installer's in-progress refusal; NativeProblem returns native-load failures
   - [ ] YAAT-1638 Restore a CUDA set left in .old-* after a crash mid-swap, and sweep leftovers on uninstall · release vNext+1
+  - [ ] YAAT-1656 Detect at sherpa engine load that ONNX Runtime fell back from GPU to CPU, and show why · release vNext
+  - [ ] YAAT-1663 Ship (or prove unneeded) the CUDA runtime and cuRAND in the Windows sherpa GPU download set · release vNext
+  - [ ] YAAT-1665 Let the user cancel a GPU runtime removal scheduled for the next start
   - [ ] YAAT-1606 CoreML provider for macOS STT
   - [ ] YAAT-1628 Serialise the Piper prewarm against the first pilot transmission
   - [ ] YAAT-1629 LM-Kit CUDA uninstall deletes a loaded backend on Windows
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (3/45 done)
+### 1 Defects (3/46 done)
 - [ ] YAAT-56 Fail closed when CROSS runs with no cached ground layout
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
@@ -171,6 +172,7 @@
 - [ ] YAAT-1608 Refuse a KCOS TAXI C2 A2 A that leaves a larger aircraft's tail over the 35L hold line
 - [ ] YAAT-1615 Give a TAXI on ATL's M - K arc 80-120 ft from bar 710 the approach leg instead of starting at D's bar
 - [ ] YAAT-1637 Judge a crossing's tail past the far bar along the line flown into it, not the near-to-far bar bearing · release vNext+1
+- [ ] YAAT-1657 Keep the hold when a CTO at a taxiway hold short is refused after its implicit taxi installed
 
 ### 2 Refinements and rulings (0/14 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
@@ -339,7 +341,7 @@
 - [ ] YAAT-1391 Stop a follower planning a head-on merge at the end of its lead's route (OAK TAXI B R, 048° against 228°)
 - [ ] YAAT-1470 TaxiRoute.RemainingDistanceFt reads a node overshoot as distance left
 
-### 2 Refinements and rulings (0/8 done)
+### 2 Refinements and rulings (0/9 done)
 - [ ] YAAT-34 Ground-speed realism: follow stop distance by weight class, static takeoffs
 - [ ] YAAT-1311 Brake a FOLLOWG follower that turns back with its nose at an exit bar instead of stopping dead
 - [ ] YAAT-1276 Rule on the GIVEWAY rejoin rule's unbounded detour; test the bug_bundle trim tail paths
@@ -348,6 +350,7 @@
 - [ ] YAAT-1267 Say or warn when a GIVEWAY releases by the stationary bypass or the safety timeout
 - [ ] YAAT-1587 Judge a deferred GIVEWAY PUSH on the path the push would take
 - [ ] YAAT-1588 Break a mutual give-way between a deferred GIVEWAY and a hold
+- [ ] YAAT-1652 Harden GIVEWAY head-on judging: driven segments, fillet arcs, off-axis start node
 
 ### 3 Hygiene and tests (0/4 done)
 - [ ] YAAT-326 Split the over-150-character lines in GroundConflictDetector and NodeAimedEntryOntoFilletTests
@@ -609,13 +612,12 @@
 
 ## Speed control and performance limits
 
-### 1 Defects (2/26 done)
+### 1 Defects (3/28 done)
 - [ ] YAAT-188 Cap descent by angle in UpdateDescentPlanning
 - [ ] YAAT-190 Use one snap tolerance in FlightPhysics.BoundsCorrectionTarget
 - [ ] YAAT-853 Refuse a rolling takeoff to a Super or heavy that has no aircraft profile (A388, A225, IL76, KC10)
 - [ ] YAAT-1051 Gate final-approach speed refusals at the FAF or 5 nm, whichever is closer
 - [ ] YAAT-1411 Slow to 250 before crossing 10,000 ft in a descent, not a few hundred feet below it · release vNext
-- [ ] YAAT-1429 Make the relaxed lateral-intercept CAPP cancel assigned speeds like every other approach clearance · release vNext
 - [ ] YAAT-560 Give the CL60 profile real landing and takeoff distances
 - [ ] YAAT-963 Cancel an earlier assigned speed on a descend via clearance
 - [ ] YAAT-967 Stop a crossing-speed revert from overriding a later SPD
@@ -634,6 +636,8 @@
 - [ ] YAAT-1577 End a crossed published speed ceiling when the aircraft is vectored or sent direct off the procedure
 - [ ] YAAT-1586 Stop a crossing fix's revert restoring a speed RNS already ended
 - [ ] YAAT-1589 Keep the published speed under a controller crossing at shared STAR fixes, and end its target speed past the fix
+- [ ] YAAT-1653 Find why an OAKES3 arrival accelerates from 280 to 293 kt after DVIA, DSR, RPS before GRUDG's slowdown
+- [ ] YAAT-1660 Leave a later fix's at-or-below speed to the planner when the previous fix sequences
 
 ### 2 Refinements and rulings (0/11 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
@@ -657,7 +661,7 @@
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (2/18 done)
+### 1 Defects (4/21 done)
 - [ ] YAAT-1036 Reach a crossing bound by the flyby sequencing point, not the fix position · release vNext+1
 - [ ] YAAT-1037 Stop an unmet published SID/STAR altitude bound from overriding a non-via assigned altitude · release vNext+1
 - [ ] YAAT-926 Convert CR/VR departure-leg radials with the navaid's variation · release vNext+1
@@ -668,12 +672,13 @@
 - [ ] YAAT-980 Clear SID via mode when a descend via is issued · release vNext+1
 - [ ] YAAT-982 Use only the filed SID transition when finding a CVIA top altitude · release vNext+1
 - [ ] YAAT-1366 Fly a STAR's published speeds without DVIA (OAKES3 arrival crosses GRUDG..FFIST at 280 kt) · release vNext
-- [ ] YAAT-1367 Leave published-speed slowdowns to the planner: DVIA/CVIA slow at once; planner decels late from 290 kt · release vNext
 - [ ] YAAT-1401 Make CVIA in a SID's climb window supersede crossing speeds on the phase's pending route, not only the live route · release vNext
-- [ ] YAAT-1402 Find why an OAKES3 arrival climbs to 18,100 ft before GRUDG after CFIX GRUDG 110 230 and a deferred CAPP I30 · release vNext
 - [ ] YAAT-1483 Sequence a SID's heading-to-intercept leg when the next leg is a fix-less course-to-altitude leg (KSJC SUNOL1 RW12B)
 - [ ] YAAT-1484 Parse TDLS initial altitudes written as 'MAINTAIN 5000FT' (every ZLA SID's hold is off)
 - [ ] YAAT-1644 Don't climb or descend for a STAR's published altitudes after JARR without descend via · release vNext+1
+- [ ] YAAT-1654 Match the CTO's SID initial altitude across SID versions (filed NUEVO8, TDLS NUEVO9)
+- [ ] YAAT-1659 Stop the route planner flying published STAR altitudes without a via clearance (JARR climbs to 23,000; climbs after CFIX+CAPP)
+- [ ] YAAT-1662 End the non-via climb scan at a met ceiling (AtOrBelow at its altitude, Between at its top)
 
 ### 2 Refinements and rulings (0/6 done)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
@@ -778,7 +783,7 @@
 
 ## Navigation data and route geometry
 
-### 1 Defects (0/7 done)
+### 1 Defects (0/8 done)
 - [ ] YAAT-676 Make a JAWY intercept planned with no airway fix behind the aircraft fire
 - [ ] YAAT-479 Load CIFP approaches for airports whose ident is a three-character FAA LID
 - [ ] YAAT-627 Show 360, not 000, for a magnetic heading of exactly 0.5 degrees
@@ -786,6 +791,7 @@
 - [ ] YAAT-561 Put GeoMath.ProjectPoint on the same earth model as DistanceNm
 - [ ] YAAT-934 Check FRD anchors whose position and declination come from different fixes
 - [ ] YAAT-953 Make GeoMath's point projection agree with its great-circle distance
+- [ ] YAAT-1664 Find CIFP approaches at airports with a 3-character FAA id (12J, 6R1, F00: GetApproach prefixes K)
 
 ### 2 Refinements and rulings (0/4 done)
 - [ ] YAAT-133 Fly direct to the destination after the last route fix, then hold
@@ -1094,11 +1100,13 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (3/7 done)
+### 1 Defects (3/9 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-305 UI tests: AppLifetime.IsShuttingDown never resets after a MainWindow close · release vNext+1
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
+- [ ] YAAT-1655 Make test runs independent of the user cache's NavData cycle; report the CIFP cycle actually used · release vNext
+- [/] YAAT-1661 Repin test NavData/CIFP to AIRAC 2611 and fix what the OAK SID renumbering breaks · release vNext
 
 ### 2 Refinements and rulings (0/4 done)
 - [ ] YAAT-559 Add every vNAS training airport with a real ground layout to the test data
@@ -1176,7 +1184,7 @@
 - [ ] YAAT-1645 Brief rule: find and prove a red-first test's staging before dispatch
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (0/61 done)
+### 3 Hygiene and tests (0/62 done)
 - [ ] YAAT-57 Re-cite docs/ground/pathfinder.md by symbol, not line
 - [ ] YAAT-63 Fix the LAHSO section of docs/landing-and-runway-exit.md: CANCLAND → CLC
 - [ ] YAAT-75 Rewrite the Legacy Fillet Arc Generator section; rehome the collinear rule
@@ -1238,6 +1246,7 @@
 - [ ] YAAT-1617 Route the SpeechSandbox Release builds, single-step gate chains and the routing-census regen (gate census)
 - [ ] YAAT-1622 Pin GuideCapture's CRC alias folder so a capture never reads the machine's CRC install
 - [ ] YAAT-1651 Repoint issue descriptions that link retired plan files
+- [ ] YAAT-1658 Move the yaat-nextup orchestration rules into docs/agents/orchestrator.md (CC-567)
 
 ### No milestone
 - [ ] YAAT-1487 Run yaat-server's prek format hooks through the gate check-only so commits leave the heavy slot (GATE-449)
