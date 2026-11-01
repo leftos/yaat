@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Runtime.InteropServices;
@@ -42,16 +43,7 @@ public sealed record SherpaCudaDownload(string Name, IReadOnlyList<string> Urls,
 /// <c>&lt;installRoot&gt;.lock</c> beside the root (<see cref="TryLockRoot"/>). On Windows neither replaces nor removes a set
 /// whose libraries a process has loaded.
 /// </summary>
-/// <param name="http">The client the archives are downloaded with.</param>
-/// <param name="installRoot">The folder the set is installed into; production passes <see cref="InstallRootDefault"/>.</param>
-/// <param name="downloads">The archives the set is built from, usually <see cref="ForCurrentPlatform"/>'s list.</param>
-/// <param name="timeProvider">The clock the body idle timeout runs on; production passes <see cref="TimeProvider.System"/>.</param>
-public sealed partial class SherpaCudaInstaller(
-    HttpClient http,
-    string installRoot,
-    IReadOnlyList<SherpaCudaDownload> downloads,
-    TimeProvider timeProvider
-) : ObservableObject
+public sealed partial class SherpaCudaInstaller : ObservableObject
 {
     /// <summary>How long one read of a download body may wait for bytes before that URL counts as failed.</summary>
     public static readonly TimeSpan IdleReadTimeout = VerifiedFileDownloader.IdleReadTimeout;
@@ -65,6 +57,8 @@ public sealed partial class SherpaCudaInstaller(
     private const string BusyMessage = "Another YAAT is installing or removing the GPU runtime.";
     private const string InUseMessage = "The GPU runtime is in use. Switch Speech > Device to CPU, restart YAAT, then try again.";
     private const string RefusalKey = "SherpaCudaInstaller.Refusal";
+    private const string RemovalMarkerFileName = "remove-pending";
+    private const string ScheduledMessage = "Scheduled: the GPU runtime is removed the next time YAAT starts.";
     private const int ErrorSharingViolation = 32;
     private const int ErrorLockViolation = 33;
     private const int LinuxEWouldBlock = 11;
@@ -158,13 +152,35 @@ public sealed partial class SherpaCudaInstaller(
         "MANIFEST.txt",
     ];
 
-    private readonly VerifiedFileDownloader _downloader = new(http, timeProvider);
-    private readonly string _installRoot = installRoot;
-    private readonly IReadOnlyList<SherpaCudaDownload> _downloads = downloads;
+    private readonly VerifiedFileDownloader _downloader;
+    private readonly string _installRoot;
+    private readonly TimeProvider _timeProvider;
+    private readonly IReadOnlyList<SherpaCudaDownload> _downloads;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
+    /// <summary>
+    /// Builds the installer and reads the install root's state: whether the set is installed, and whether its removal is
+    /// scheduled for the next start.
+    /// </summary>
+    /// <param name="http">The client the archives are downloaded with.</param>
+    /// <param name="installRoot">The folder the set is installed into; production passes <see cref="InstallRootDefault"/>.</param>
+    /// <param name="downloads">The archives the set is built from, usually <see cref="ForCurrentPlatform"/>'s list.</param>
+    /// <param name="timeProvider">
+    /// The clock the body idle timeout and the removal marker run on; production passes <see cref="TimeProvider.System"/>.
+    /// </param>
+    public SherpaCudaInstaller(HttpClient http, string installRoot, IReadOnlyList<SherpaCudaDownload> downloads, TimeProvider timeProvider)
+    {
+        _downloader = new VerifiedFileDownloader(http, timeProvider);
+        _installRoot = installRoot;
+        _timeProvider = timeProvider;
+        _downloads = downloads;
+        _isInstalled = IsInstalledOnDisk(installRoot, downloads);
+        _isRemovalScheduled = File.Exists(RemovalMarkerPath(installRoot));
+        _statusMessage = _isRemovalScheduled ? ScheduledMessage : "";
+    }
+
     [ObservableProperty]
-    private bool _isInstalled = IsInstalledOnDisk(installRoot, downloads);
+    private bool _isInstalled;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -175,10 +191,20 @@ public sealed partial class SherpaCudaInstaller(
 
     /// <summary>Short status text for the UI. Never null after first use.</summary>
     [ObservableProperty]
-    private string _statusMessage = "";
+    private string _statusMessage;
+
+    /// <summary>Whether the install root holds the marker that removes the set the next time YAAT starts.</summary>
+    [ObservableProperty]
+    private bool _isRemovalScheduled;
 
     /// <summary>The production install root, outside the Velopack-managed app folder so upgrades keep it.</summary>
     public static string InstallRootDefault => YaatPaths.Combine("backends", "sherpa-cuda13");
+
+    /// <summary>
+    /// Whether a process has the set's libraries loaded, so <see cref="Uninstall"/> would refuse (Windows only; elsewhere a
+    /// loaded library can be deleted).
+    /// </summary>
+    public bool IsSetInUse => OperatingSystem.IsWindows() && NativeSetInUse(Path.Combine(_installRoot, NativeDirName));
 
     /// <summary>The bytes the install downloads: the sum of every archive's size.</summary>
     public long ApproxDownloadBytes => _downloads.Sum(d => d.Size);
@@ -346,6 +372,85 @@ public sealed partial class SherpaCudaInstaller(
         }
     }
 
+    /// <summary>
+    /// Schedules the set's removal for the next start, for when it cannot be removed now because this process runs on it:
+    /// writes the marker <c>remove-pending</c> (holding the UTC time) in the install root, which
+    /// <see cref="ProcessPendingRemoval"/> acts on before the natives load. Removes nothing now.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Another writer holds the install root.</exception>
+    /// <exception cref="IOException">The marker could not be written.</exception>
+    /// <exception cref="UnauthorizedAccessException">The marker could not be written.</exception>
+    public void ScheduleRemovalOnNextStart()
+    {
+        string markerPath = RemovalMarkerPath(_installRoot);
+        try
+        {
+            using FileStream rootLock = LockRootOrRefuse();
+            Directory.CreateDirectory(_installRoot);
+            File.WriteAllText(markerPath, _timeProvider.GetUtcNow().ToString("O", CultureInfo.InvariantCulture));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogError(ex, "Failed to schedule the removal of the sherpa CUDA native set at {Path}", markerPath);
+            StatusMessage = $"Failed: {ex.Message}";
+            throw;
+        }
+        Log.LogInformation("Scheduled the removal of the sherpa CUDA native set at {Root} for the next start", _installRoot);
+        IsRemovalScheduled = true;
+        StatusMessage = ScheduledMessage;
+    }
+
+    /// <summary>
+    /// Removes the set and the marker when <paramref name="installRoot"/> holds the <c>remove-pending</c> marker
+    /// <see cref="ScheduleRemovalOnNextStart"/> wrote; deletes nothing when it does not. Call at startup, before any
+    /// sherpa-onnx native loads. The delete runs under the root's writer lock, and the marker goes last, so a failed removal
+    /// is retried on the next start.
+    /// </summary>
+    /// <param name="installRoot">The install root.</param>
+    /// <returns>
+    /// False when a removal was pending and could not run: the lock was held, (Windows) a process has the set loaded, or a
+    /// file could not be deleted.
+    /// </returns>
+    public static bool ProcessPendingRemoval(string installRoot)
+    {
+        if (!File.Exists(RemovalMarkerPath(installRoot)))
+        {
+            return true;
+        }
+        try
+        {
+            using FileStream? rootLock = TryLockRoot(installRoot);
+            if (rootLock is null)
+            {
+                Log.LogWarning(
+                    "The sherpa CUDA native set at {Root} is scheduled for removal, but another writer holds it; retrying next start",
+                    installRoot
+                );
+                return false;
+            }
+            if (!File.Exists(RemovalMarkerPath(installRoot)))
+            {
+                return true;
+            }
+            if (OperatingSystem.IsWindows() && NativeSetInUse(Path.Combine(installRoot, NativeDirName)))
+            {
+                Log.LogWarning(
+                    "The sherpa CUDA native set at {Root} is scheduled for removal, but a process has it loaded; retrying next start",
+                    installRoot
+                );
+                return false;
+            }
+            DeleteRoot(installRoot);
+            Log.LogInformation("Removed the sherpa CUDA native set at {Root}, as scheduled", installRoot);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogError(ex, "Failed to remove the sherpa CUDA native set at {Root} as scheduled; retrying next start", installRoot);
+            return false;
+        }
+    }
+
     /// <summary>The sentinel file <paramref name="installRoot"/> holds once its set is installed.</summary>
     /// <param name="installRoot">The install root.</param>
     public static string SentinelPath(string installRoot) => Path.Combine(installRoot, InstalledSentinelFileName);
@@ -354,6 +459,39 @@ public sealed partial class SherpaCudaInstaller(
     /// <param name="downloads">The archives a set is installed from.</param>
     public static string ExpectedSentinelContent(IReadOnlyList<SherpaCudaDownload> downloads) =>
         string.Join('\n', downloads.Select(d => $"{d.Name} {d.Sha256}"));
+
+    private static string RemovalMarkerPath(string installRoot) => Path.Combine(installRoot, RemovalMarkerFileName);
+
+    /// <summary>
+    /// Deletes the install root: the sentinel first, so a partial delete never reads as installed, then every folder and
+    /// file, the removal marker last, then the root itself.
+    /// </summary>
+    private static void DeleteRoot(string installRoot)
+    {
+        string sentinelPath = SentinelPath(installRoot);
+        if (File.Exists(sentinelPath))
+        {
+            File.Delete(sentinelPath);
+        }
+        if (!Directory.Exists(installRoot))
+        {
+            return;
+        }
+        foreach (string dir in Directory.GetDirectories(installRoot))
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+        string markerPath = RemovalMarkerPath(installRoot);
+        foreach (string file in Directory.GetFiles(installRoot).Where(f => Path.GetFileName(f) != RemovalMarkerFileName))
+        {
+            File.Delete(file);
+        }
+        if (File.Exists(markerPath))
+        {
+            File.Delete(markerPath);
+        }
+        Directory.Delete(installRoot);
+    }
 
     private static string? HostRid()
     {
@@ -469,7 +607,7 @@ public sealed partial class SherpaCudaInstaller(
 
     private void RefuseIfSetInUse()
     {
-        if (!OperatingSystem.IsWindows() || !NativeSetInUse(Path.Combine(_installRoot, NativeDirName)))
+        if (!IsSetInUse)
         {
             return;
         }
@@ -482,25 +620,9 @@ public sealed partial class SherpaCudaInstaller(
     {
         try
         {
-            string sentinelPath = SentinelPath(_installRoot);
-            if (File.Exists(sentinelPath))
-            {
-                File.Delete(sentinelPath);
-            }
+            DeleteRoot(_installRoot);
             IsInstalled = false;
-            if (!Directory.Exists(_installRoot))
-            {
-                return;
-            }
-            foreach (string dir in Directory.GetDirectories(_installRoot))
-            {
-                Directory.Delete(dir, recursive: true);
-            }
-            foreach (string file in Directory.GetFiles(_installRoot))
-            {
-                File.Delete(file);
-            }
-            Directory.Delete(_installRoot);
+            IsRemovalScheduled = false;
             Log.LogInformation("Removed the sherpa CUDA native set at {Root}", _installRoot);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -537,7 +659,20 @@ public sealed partial class SherpaCudaInstaller(
 
         RefuseIfSetInUse();
         SwapIn(stagingRoot);
+        ClearPendingRemoval();
         SetProgress(1.0);
+    }
+
+    /// <summary>A fresh install supersedes a removal scheduled before it; runs under the root lock, after the swap.</summary>
+    private void ClearPendingRemoval()
+    {
+        string markerPath = RemovalMarkerPath(_installRoot);
+        if (File.Exists(markerPath))
+        {
+            File.Delete(markerPath);
+            Log.LogInformation("The new sherpa CUDA native set at {Root} cancels the removal scheduled for the next start", _installRoot);
+        }
+        IsRemovalScheduled = false;
     }
 
     /// <summary>
