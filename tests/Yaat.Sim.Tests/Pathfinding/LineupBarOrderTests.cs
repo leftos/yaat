@@ -5,7 +5,11 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -254,8 +258,75 @@ public class LineupBarOrderTests(ITestOutputHelper output)
     [InlineData("taxiway")]
     public void TaxiC33_Oak_StartOnCWestBeforeThreshold_EndsAtCWestBar(string startKind) => AssertTaxiC33EndsAtCWestBar(startKind);
 
-    [Fact(Skip = "YAAT-1287: TAXI C 33 from OAK's west C bar walks past the runway end (explicit-path resolver; red on the base too)")]
+    [Fact]
     public void TaxiC33_Oak_StartAtCWestBar_EndsAtCWestBar() => AssertTaxiC33EndsAtCWestBar("bar");
+
+    /// <summary>
+    /// A B738 holding at OAK's west C bar, nose at the bar and facing the runway, is given <c>TAXI C 33</c>: it holds short of
+    /// 33 where it stands, with nothing to taxi, and does not move, rather than crossing the runway's end to C's east bar.
+    /// </summary>
+    [Fact]
+    public void TaxiC33_Oak_HoldingAtCWestBar_HoldsThereAndDoesNotMove()
+    {
+        TestVnasData.EnsureInitialized();
+        var groundData = new TestAirportGroundData();
+        AirportGroundLayout? layout = groundData.GetLayout("OAK");
+        Assert.NotNull(layout);
+        GroundNode westBar = Bar(layout, "OAK", "33", "C", West);
+        GroundNode outboard = Outboard(westBar, "OAK", "33");
+        double towardRunwayDeg = GeoMath.BearingTo(outboard.Position, westBar.Position);
+        double halfLengthNm = AircraftLength.ResolveFt("B738") / 2 / GeoMath.FeetPerNm;
+        LatLon mainGear = GeoMath.ProjectPoint(westBar.Position, new TrueHeading((towardRunwayDeg + 180.0) % 360.0), halfLengthNm);
+
+        var aircraft = new AircraftState
+        {
+            Callsign = "N1287",
+            AircraftType = "B738",
+            Position = mainGear,
+            TrueHeading = new TrueHeading(towardRunwayDeg),
+            Altitude = 0,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            Phases = new PhaseList(),
+        };
+        aircraft.Phases.Add(new HoldingInPositionPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
+        aircraft.Ground.Layout = layout;
+        aircraft.Ground.CurrentTaxiway = "C";
+
+        var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "test-yaat-1287-hold-at-start-bar",
+                ScenarioName = "OAK C west bar, TAXI C 33",
+                RngSeed = 42,
+                OriginalScenarioJson = "{}",
+                PrimaryAirportId = "OAK",
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+            },
+        };
+        engine.World.AddAircraft(aircraft);
+
+        CommandResult taxi = engine.SendCommand("N1287", "TAXI C 33");
+        Assert.True(taxi.Success, taxi.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        Assert.Empty(route.Segments);
+        HoldShortPoint hold = Assert.Single(route.HoldShortPoints);
+        Assert.Equal(westBar.Id, hold.NodeId);
+        Assert.Equal(HoldShortReason.DestinationRunway, hold.Reason);
+
+        for (int second = 0; second < 30; second++)
+        {
+            engine.TickOneSecond();
+        }
+
+        double movedFt = GeoMath.DistanceNm(mainGear, aircraft.Position) * GeoMath.FeetPerNm;
+        Assert.True(movedFt < 1.0, $"moved {movedFt:F1} ft from the west C bar");
+        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases.CurrentPhase);
+        Assert.Equal(westBar.Id, holding.HoldShort.NodeId);
+    }
 
     private static void AssertTaxiC33EndsAtCWestBar(string startKind)
     {
@@ -281,7 +352,43 @@ public class LineupBarOrderTests(ITestOutputHelper output)
         );
 
         Assert.True(route is not null, failReason);
-        Assert.Equal(Bar(layout, "OAK", "33", "C", West).Id, FinalNodeId(route, start));
+        int westBar = Bar(layout, "OAK", "33", "C", West).Id;
+        Assert.Equal(westBar, FinalNodeId(route, start));
+        HoldShortPoint hold = Assert.Single(route.HoldShortPoints, h => h.NodeId == westBar);
+        Assert.Equal(HoldShortReason.DestinationRunway, hold.Reason);
+    }
+
+    /// <summary>
+    /// OAK's west C bar lies past runway 15's far end, so <c>TAXI C 15</c> from it is no hold at the bar: the route has
+    /// segments and ends elsewhere.
+    /// </summary>
+    [Fact]
+    public void TaxiC15_Oak_StartAtCWestBar_DoesNotHoldThere()
+    {
+        AirportGroundLayout layout = Layout("OAK");
+        GroundNode start = Oak33WestStart(layout, "bar");
+        var options = new ExplicitPathOptions
+        {
+            StartPose = null,
+            OccupiedTaxiway = null,
+            ImpliedLeadTaxiway = null,
+            AircraftLengthFt = B738LengthFt,
+            DestinationRunway = "15",
+        };
+
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            start.Id,
+            ["C"],
+            out string? failReason,
+            options,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
+
+        Assert.True(route is not null, failReason);
+        Assert.NotEmpty(route.Segments);
+        Assert.NotEqual(start.Id, route.Segments[^1].ToNodeId);
     }
 
     [Theory]

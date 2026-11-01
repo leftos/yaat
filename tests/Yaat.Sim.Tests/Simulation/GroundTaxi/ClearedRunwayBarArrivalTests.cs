@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -38,12 +39,18 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
     private const int HandOffBudgetSeconds = 300;
     private const int SnapshotAfterMovingSeconds = 2;
 
+    /// <summary>How near the crossing bar, either side along G, an off-node start must hand off to the crossing.</summary>
+    private const double OffNodeHandOffToleranceFt = 50.0;
+
+    /// <summary>How far past the start bar, beyond half the aircraft's length, the off-node start stands along G.</summary>
+    private const double OffNodeStartBeyondHalfLengthFt = 10.0;
+
     [Theory]
     [InlineData("C56X")]
     [InlineData("C172")]
     public void PreClearedCrossing_HandsOffAtTheBar(string aircraftType)
     {
-        if (Stage(aircraftType) is not { } staged)
+        if (Stage(aircraftType, startAheadFt: 0.0) is not { } staged)
         {
             return;
         }
@@ -51,12 +58,34 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
         AssertHandsOffAtTheBar(TickToHandOff(staged.Engine, staged.Bars, moving: false), staged.Bars);
     }
 
+    /// <summary>
+    /// YAAT-1456: an aircraft standing off the graph, half its length plus 10 ft north of 28L's north bar along G, still
+    /// hands off to the crossing near 28R's bar, with no hold inserted there.
+    /// </summary>
+    [Theory]
+    [InlineData("C56X")]
+    public void PreClearedCrossing_OffNodeStart_HandsOffNearTheBar(string aircraftType)
+    {
+        double startAheadFt = (AircraftLength.ResolveFt(aircraftType) / 2) + OffNodeStartBeyondHalfLengthFt;
+        if (Stage(aircraftType, startAheadFt) is not { } staged)
+        {
+            return;
+        }
+
+        HandOff atHandOff = Assert.IsType<HandOff>(TickToHandOff(staged.Engine, staged.Bars, moving: false));
+        Assert.False(atHandOff.HeldAtBar, $"a HoldingShortPhase was inserted at the cleared bar #{staged.Bars.Crossing.Id}");
+        Assert.True(
+            Math.Abs(atHandOff.SignedAlongFt) <= OffNodeHandOffToleranceFt,
+            $"handed off to the crossing {atHandOff.SignedAlongFt:F1} ft along G from the bar at t={atHandOff.Second}"
+        );
+    }
+
     [Theory]
     [InlineData("C56X")]
     [InlineData("C172")]
     public void PreClearedCrossing_RestoredWhileTaxiing_HandsOffAtTheBar(string aircraftType)
     {
-        if (Stage(aircraftType) is not { } staged)
+        if (Stage(aircraftType, startAheadFt: 0.0) is not { } staged)
         {
             return;
         }
@@ -103,8 +132,11 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
     /// <summary>The hand-off to the crossing: when, where along G from the bar (positive past it), and what led up to it.</summary>
     private sealed record HandOff(int Second, double SignedAlongFt, bool Stopped, bool HeldAtBar);
 
-    /// <summary>An engine whose aircraft is cleared across 28R on G with the bar pre-cleared; null when navdata or the layout is missing.</summary>
-    private Staged? Stage(string aircraftType)
+    /// <summary>
+    /// An engine whose aircraft, <paramref name="startAheadFt"/> north of 28L's north bar along G, is cleared across 28R on G
+    /// with the bar pre-cleared; null when navdata or the layout is missing.
+    /// </summary>
+    private Staged? Stage(string aircraftType, double startAheadFt)
     {
         var groundData = new TestAirportGroundData();
         TestVnasData.EnsureInitialized();
@@ -121,7 +153,7 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
                 + $"bearing {GeoMath.BearingTo(bars.Start.Position, bars.Crossing.Position):F1}° true"
         );
         SimulationEngine engine = NewEngine(groundData);
-        engine.World.AddAircraft(Spawn(layout, bars, aircraftType));
+        engine.World.AddAircraft(Spawn(layout, bars, aircraftType, startAheadFt));
         CommandResult taxi = engine.SendCommand(Callsign, TaxiClearance);
         output.WriteLine($"taxi: {taxi.Success} — {taxi.Message}");
         Assert.True(taxi.Success, taxi.Message);
@@ -134,7 +166,7 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
         return new Staged(engine, bars, groundData);
     }
 
-    private static AircraftState Spawn(AirportGroundLayout layout, GBars bars, string aircraftType)
+    private static AircraftState Spawn(AirportGroundLayout layout, GBars bars, string aircraftType, double startAheadFt)
     {
         GroundNode startBar = bars.Start;
         Assert.Equal(GroundNodeType.RunwayHoldShort, startBar.Type);
@@ -148,8 +180,11 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
         {
             Callsign = Callsign,
             AircraftType = aircraftType,
-            // On 28L's north bar node on purpose: an off-node start currently skips the crossing hand-off (booked separately).
-            Position = startBar.Position,
+            // On 28L's north bar node, or off the graph startAheadFt north of it along G.
+            Position =
+                startAheadFt == 0.0
+                    ? startBar.Position
+                    : GeoMath.ProjectPoint(startBar.Position, new TrueHeading(NorthboundOnGDeg), startAheadFt / GeoMath.FeetPerNm),
             TrueHeading = new TrueHeading(NorthboundOnGDeg),
             Altitude = 0,
             IndicatedAirspeed = 0,

@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 
@@ -9,6 +11,11 @@ namespace Yaat.Sim.Data.Airport.Pathfinding;
 /// </summary>
 public static class RouteMaterialiser
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("RouteMaterialiser");
+
+    /// <summary>The airport and runway ids <see cref="LiesInDepartureHalf"/> has already warned about.</summary>
+    private static readonly ConcurrentDictionary<(string AirportId, string RunwayId), byte> UnresolvedDepartureHalfWarned = new();
+
     /// <summary>
     /// The controller's note for a movement-area taxiway the route drives that the clearance did not name:
     /// <c>taxiing via T — not in the route issued</c>.
@@ -359,6 +366,14 @@ public static class RouteMaterialiser
             return null;
         }
 
+        // A route that starts at a bar of the destination runway holding the aircraft for departure ends there: no segment
+        // reaches that bar, so the loop below would walk the route on to a bar of the runway's far side.
+        if (DestinationLineupStartBar(segments, runwayId, ctx) is { } startNodeId)
+        {
+            EnsureDestinationHold(holdShorts, startNodeId, runwayId);
+            return (-1, startNodeId);
+        }
+
         for (int i = 0; i < segments.Count; i++)
         {
             if (SegmentEndsAtDestinationHoldShort(segments[i], runwayId, ctx))
@@ -372,23 +387,37 @@ public static class RouteMaterialiser
             }
 
             int holdShortNodeId = segments[i].FromNodeId;
-            if (!holdShorts.Any(hs => (hs.NodeId == holdShortNodeId) && (hs.Reason == HoldShortReason.DestinationRunway)))
-            {
-                holdShorts.Add(
-                    new HoldShortPoint
-                    {
-                        NodeId = holdShortNodeId,
-                        Reason = HoldShortReason.DestinationRunway,
-                        TargetName = runwayId,
-                    }
-                );
-            }
-
+            EnsureDestinationHold(holdShorts, holdShortNodeId, runwayId);
             return (i - 1, holdShortNodeId);
         }
 
         return null;
     }
+
+    /// <summary>Adds a <see cref="HoldShortReason.DestinationRunway"/> hold at <paramref name="nodeId"/> unless one is already there.</summary>
+    private static void EnsureDestinationHold(List<HoldShortPoint> holdShorts, int nodeId, string runwayId)
+    {
+        if (holdShorts.Any(hs => (hs.NodeId == nodeId) && (hs.Reason == HoldShortReason.DestinationRunway)))
+        {
+            return;
+        }
+
+        holdShorts.Add(
+            new HoldShortPoint
+            {
+                NodeId = nodeId,
+                Reason = HoldShortReason.DestinationRunway,
+                TargetName = runwayId,
+            }
+        );
+    }
+
+    /// <summary>
+    /// The route's start node when it is a bar of the destination runway that holds the aircraft for departure
+    /// (<see cref="StartsAtDestinationLineupBar"/>); null otherwise, and for a route with no segments.
+    /// </summary>
+    private static int? DestinationLineupStartBar(List<TaxiRouteSegment> segments, string runwayId, SearchContext ctx) =>
+        (segments.Count > 0) && StartsAtDestinationLineupBar(segments[0], runwayId, ctx) ? segments[0].FromNodeId : null;
 
     private static bool SegmentEndsAtDestinationHoldShort(TaxiRouteSegment segment, string runwayId, SearchContext ctx)
     {
@@ -400,6 +429,60 @@ public static class RouteMaterialiser
 
     private static bool SegmentTraversesRunwaySurface(TaxiRouteSegment segment, string runwayId) =>
         (segment.Edge.Edge.IsRunwayCenterline) && (segment.Edge.Edge.MatchesRunway(runwayId));
+
+    /// <summary>
+    /// True when the route's start node, the start of <paramref name="firstSegment"/>, is a bar of the destination runway
+    /// <paramref name="runwayId"/> in that runway's departure half, and the bar holds the aircraft: the aircraft has not
+    /// passed it along the first leg (<see cref="HoldShortAnnotator.StartBarHolds"/>, from <see cref="SearchContext.StartPose"/>),
+    /// or with no pose, the first leg leads toward the runway (<see cref="HoldShortAnnotator.FirstLegLeadsTowardRunway"/>).
+    /// A bar in the far half is the other end's, never a departure point for this one.
+    /// </summary>
+    private static bool StartsAtDestinationLineupBar(TaxiRouteSegment firstSegment, string runwayId, SearchContext ctx)
+    {
+        if (
+            !ctx.Layout.Nodes.TryGetValue(firstSegment.FromNodeId, out GroundNode? startNode)
+            || (startNode.Type != GroundNodeType.RunwayHoldShort)
+            || (startNode.RunwayId is not { } startRwyId)
+            || !startRwyId.Contains(runwayId)
+            || !LiesInDepartureHalf(ctx.Layout.AirportId, runwayId, startNode.Position)
+        )
+        {
+            return false;
+        }
+
+        GroundNode firstLegNext = firstSegment.Edge.ToNode;
+        return ctx.StartPose is { } pose
+            ? HoldShortAnnotator.StartBarHolds(ctx.Layout, startNode, firstLegNext, pose)
+            : HoldShortAnnotator.FirstLegLeadsTowardRunway(ctx.Layout, startNode, firstLegNext);
+    }
+
+    /// <summary>
+    /// True when <paramref name="position"/> lies on <paramref name="runwayId"/>'s threshold side of the midpoint between its
+    /// threshold and its far end. False, with a one-time warning per runway, when nav data cannot resolve the runway.
+    /// </summary>
+    private static bool LiesInDepartureHalf(string airportId, string runwayId, LatLon position)
+    {
+        RunwayInfo? runway = NavigationDatabase.InstanceOrNull?.GetRunway(airportId, runwayId);
+        if (runway is null)
+        {
+            if (UnresolvedDepartureHalfWarned.TryAdd((airportId, runwayId), 0))
+            {
+                Log.LogWarning(
+                    "[RouteMaterialiser] Runway {Airport} {Runway} is unknown to nav data — a start bar of it is not taken as a departure hold",
+                    airportId,
+                    runwayId
+                );
+            }
+
+            return false;
+        }
+
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var farEnd = new LatLon(runway.EndLatitude, runway.EndLongitude);
+        var heading = new TrueHeading(GeoMath.BearingTo(threshold, farEnd));
+        double midpointFt = GeoMath.DistanceNm(threshold, farEnd) * GeoMath.FeetPerNm / 2;
+        return AlongFt(position, threshold, heading) < midpointFt;
+    }
 
     /// <summary>
     /// When the route begins ON a runway hold-short bar and goes on to cross that runway, annotate
@@ -445,8 +528,8 @@ public static class RouteMaterialiser
             return;
         }
 
-        // Same precedence as the main loop, which owns both of these cases: the destination runway's
-        // bar is the route terminus, and a runway the aircraft is cleared to taxi ALONG gets no bar.
+        // The destination runway's start bar is no crossing: FindDestinationRunwaySurfaceEntry makes it the route's terminus
+        // when it holds the aircraft for departure. A runway the aircraft is cleared to taxi ALONG gets no bar, as in the main loop.
         if (ctx.Destination.Kind == DestinationKind.Runway && ctx.Destination.RunwayId is { } destRwy && startRwyId.Contains(destRwy))
         {
             return;

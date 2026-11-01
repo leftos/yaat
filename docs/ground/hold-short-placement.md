@@ -197,6 +197,8 @@ The bar also has to be still ahead of the aircraft along that first leg (`StartB
 
 `HoldShortAnnotator.StartBarHolds` is the one test, shared by `AddImplicitRunwayHoldShorts` (as a hold) and `FollowingPhase.RunwayEntries` (as a runway entry). A layout with no ground runway of the bar's name leaves the bar a hold, the safe side, with one warning per airport and node.
 
+`RouteMaterialiser.DestinationLineupStartBar` uses the same test for the destination runway: a start bar of it in its departure half that holds the aircraft is the route's `DestinationRunway` hold, with no segments ([pathfinder.md](./pathfinder.md#hold-short-handling--truncation)).
+
 The caller passes the aircraft's `StartPose` (main gear position, heading, body from the type; `StartPose.Of(aircraft)` or `Of(position, heading, type)`); a route that starts elsewhere than at the aircraft, an extension past another route's end, passes none and its start bar is never a hold. `TaxiPathfinder.FindAdjacentRunwayRoute` requires a pose.
 
 The start-node hold is taken by the phase (`TaxiingPhase.FirstRunwayBarAhead` returns it with index -1 while the route has not advanced, so a crossing clearance the aircraft already holds carries over to a new `TAXI`), and when the navigator holds an unsaid turn-about unable, the unable is said before the hold.

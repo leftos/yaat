@@ -529,7 +529,7 @@ public static class SegmentExpander
         // are validated when routed.)
         foreach (WaypointToken wp in resolvedWaypoints)
         {
-            if (wp.IsNodeRef || RouteReachesTaxiway(route, wp.Name))
+            if (wp.IsNodeRef || RouteReachesTaxiway(route, ctx.StartNodeId, wp.Name, ctx))
             {
                 continue;
             }
@@ -557,9 +557,16 @@ public static class SegmentExpander
     /// clearance without rejecting the normal case where consecutive cleared taxiways share a junction
     /// node. Operates on the final route — not the pre-materialise edge walk, which can over-run the
     /// destination hold-short and reach the taxiway only on the far side of a runway it never crosses.
+    /// A route with no segments (the aircraft already stands at its terminus) reaches the taxiway when
+    /// its start node, <paramref name="startNodeId"/>, has an edge on it.
     /// </summary>
-    private static bool RouteReachesTaxiway(TaxiRoute route, string taxiwayName)
+    private static bool RouteReachesTaxiway(TaxiRoute route, int startNodeId, string taxiwayName, SearchContext ctx)
     {
+        if (route.Segments.Count == 0)
+        {
+            return ctx.Layout.Nodes.TryGetValue(startNodeId, out GroundNode? startNode) && NodeIncidentToTaxiway(startNode, taxiwayName);
+        }
+
         foreach (TaxiRouteSegment seg in route.Segments)
         {
             DirectionalEdge e = seg.Edge;
@@ -5673,8 +5680,8 @@ public static class SegmentExpander
             guardFromTaxiway
             && (best.Route is not null)
             && (shortest.Route is not null)
-            && !RouteReachesTaxiway(best.Route, fromTaxiway)
-            && RouteReachesTaxiway(shortest.Route, fromTaxiway)
+            && !RouteReachesTaxiway(best.Route, head.HeadNodeId, fromTaxiway, ctx)
+            && RouteReachesTaxiway(shortest.Route, head.HeadNodeId, fromTaxiway, ctx)
         )
         {
             ctx.DiagnosticLog?.Invoke($"[detour] cost pick drops {fromTaxiway}; keeping the shortest bridge via #{shortest.Entry!.Id}");
