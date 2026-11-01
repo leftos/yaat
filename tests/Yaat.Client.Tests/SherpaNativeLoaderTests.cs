@@ -27,32 +27,7 @@ public sealed class SherpaNativeLoaderTests
         Directory.CreateDirectory(dir);
         try
         {
-            string[] required = OperatingSystem.IsWindows()
-                ?
-                [
-                    "cublasLt64_13.dll",
-                    "cublas64_13.dll",
-                    "cudnn_graph64_9.dll",
-                    "cudnn_ops64_9.dll",
-                    "cudnn64_9.dll",
-                    "onnxruntime_providers_shared.dll",
-                    "onnxruntime.dll",
-                    "sherpa-onnx-c-api.dll",
-                ]
-                :
-                [
-                    "libcudart.so.13",
-                    "libcublasLt.so.13",
-                    "libcublas.so.13",
-                    "libcurand.so.10",
-                    "libcudnn_graph.so.9",
-                    "libcudnn_ops.so.9",
-                    "libcudnn.so.9",
-                    "libonnxruntime_providers_shared.so",
-                    "libonnxruntime.so",
-                    "libsherpa-onnx-c-api.so",
-                ];
-            foreach (string name in required)
+            foreach (string name in RequiredFiles())
             {
                 File.WriteAllBytes(Path.Combine(dir, name), []);
             }
@@ -70,9 +45,65 @@ public sealed class SherpaNativeLoaderTests
         }
     }
 
+    [Fact]
+    public void Missing_Cuda_Provider_Fails_Before_Any_Load()
+    {
+        string provider = OperatingSystem.IsWindows() ? "onnxruntime_providers_cuda.dll" : "libonnxruntime_providers_cuda.so";
+        string dir = Path.Combine(Path.GetTempPath(), "yaat-sherpa-loader-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            foreach (string name in RequiredFiles().Where(name => !string.Equals(name, provider, StringComparison.Ordinal)))
+            {
+                File.WriteAllBytes(Path.Combine(dir, name), []);
+            }
+
+            FileNotFoundException thrown = Assert.Throws<FileNotFoundException>(() => SherpaNativeLoader.UseCudaSet(dir));
+
+            Assert.EndsWith(provider, thrown.FileName);
+            Assert.Equal(SherpaNativeSet.Cpu, SherpaNativeLoader.LoadedSet);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    /// <summary>Every library file the CUDA set must hold, the CUDA provider included, so both load tests read one list.</summary>
+    private static string[] RequiredFiles() =>
+        OperatingSystem.IsWindows()
+            ?
+            [
+                "cublasLt64_13.dll",
+                "cublas64_13.dll",
+                "cudnn_graph64_9.dll",
+                "cudnn_ops64_9.dll",
+                "cudnn64_9.dll",
+                "onnxruntime_providers_shared.dll",
+                "onnxruntime.dll",
+                "onnxruntime_providers_cuda.dll",
+                "sherpa-onnx-c-api.dll",
+            ]
+            :
+            [
+                "libcudart.so.13",
+                "libcublasLt.so.13",
+                "libcublas.so.13",
+                "libcurand.so.10",
+                "libcudnn_graph.so.9",
+                "libcudnn_ops.so.9",
+                "libcudnn.so.9",
+                "libonnxruntime_providers_shared.so",
+                "libonnxruntime.so",
+                "libonnxruntime_providers_cuda.so",
+                "libsherpa-onnx-c-api.so",
+            ];
+
     /// <summary>
     /// Installs the real CUDA set into <c>YAAT_TEST_SHERPA_CUDA_ROOT</c> when it is not there yet, loads it and decodes on
-    /// the GPU. Loading a native set is process-wide, so this runs alone: <c>--filter-method "*Installed_Cuda_Set_Decodes_On_Gpu"</c>.
+    /// the GPU. For its duration it strips every CUDA runtime directory from <c>PATH</c>, so it stands in for a machine with
+    /// only the NVIDIA driver installed. Loading a native set is process-wide, so this runs alone:
+    /// <c>--filter-method "*Installed_Cuda_Set_Decodes_On_Gpu"</c>.
     /// </summary>
     [Fact]
     public async Task Installed_Cuda_Set_Decodes_On_Gpu()
@@ -87,35 +118,89 @@ public sealed class SherpaNativeLoaderTests
             "sherpa-onnx-c-api.dll is already loaded: run this test alone with --filter-method \"*Installed_Cuda_Set_Decodes_On_Gpu\"."
         );
 
-        IReadOnlyList<SherpaCudaDownload> downloads =
-            SherpaCudaInstaller.ForCurrentPlatform(Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json"))
-            ?? throw new InvalidOperationException("No CUDA native set for this platform.");
-        if (!SherpaCudaInstaller.IsInstalledOnDisk(root!, downloads))
+        string? savedPath = Environment.GetEnvironmentVariable("PATH");
+        Environment.SetEnvironmentVariable("PATH", StripCudaRuntimeDirs(savedPath ?? string.Empty));
+        try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-            await new SherpaCudaInstaller(http, root!, downloads).InstallAsync(TestContext.Current.CancellationToken);
+            foreach (string file in new[] { "cudart64_13.dll", "nvrtc64_130_0.dll", "curand64_10.dll", "cudart_hybrid64.dll" })
+            {
+                Assert.False(
+                    File.Exists(Path.Combine(Environment.SystemDirectory, file)),
+                    $"{file} is in System32, so this PC cannot stand in for a driver-only user."
+                );
+            }
+
+            IReadOnlyList<SherpaCudaDownload> downloads =
+                SherpaCudaInstaller.ForCurrentPlatform(Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json"))
+                ?? throw new InvalidOperationException("No CUDA native set for this platform.");
+            if (!SherpaCudaInstaller.IsInstalledOnDisk(root!, downloads))
+            {
+                using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+                await new SherpaCudaInstaller(http, root!, downloads).InstallAsync(TestContext.Current.CancellationToken);
+            }
+            string nativeDir = Path.GetFullPath(Path.Combine(root!, SherpaCudaInstaller.NativeDirName));
+
+            SherpaNativeLoader.UseCudaSet(nativeDir);
+            using var engine = new SherpaSttEngine(int8Dir!, "cuda", SherpaDecoding.Greedy);
+            engine.Transcribe(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate, string.Empty);
+
+            Assert.Equal(SherpaNativeSet.Cuda, SherpaNativeLoader.LoadedSet);
+            List<ProcessModule> modules = LoadedModules();
+            foreach (string name in new[] { "onnxruntime_providers_cuda.dll", "cublasLt64_13.dll", "onnxruntime.dll" })
+            {
+                List<ProcessModule> matching = [.. modules.Where(m => string.Equals(m.ModuleName, name, StringComparison.OrdinalIgnoreCase))];
+                Assert.True(matching.Count > 0, $"{name} is not loaded.");
+                Assert.All(matching, m => Assert.True(IsUnder(m.FileName, nativeDir), $"{name} was loaded from {m.FileName}, not {nativeDir}."));
+            }
+            Assert.All(
+                modules.Where(m => IsCudaRuntimeModule(m.ModuleName)),
+                m => Assert.True(IsUnder(m.FileName, nativeDir), $"{m.ModuleName} was loaded from {m.FileName}, not {nativeDir}.")
+            );
+
+            string? voiceDir = Environment.GetEnvironmentVariable("YAAT_TEST_PIPER_VOICE_DIR");
+            if (!string.IsNullOrEmpty(voiceDir))
+            {
+                Assert.NotEmpty(GeneratePiper(voiceDir));
+            }
         }
-        string nativeDir = Path.GetFullPath(Path.Combine(root!, SherpaCudaInstaller.NativeDirName));
-
-        SherpaNativeLoader.UseCudaSet(nativeDir);
-        using var engine = new SherpaSttEngine(int8Dir!, "cuda", SherpaDecoding.Greedy);
-        engine.Transcribe(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate, string.Empty);
-
-        Assert.Equal(SherpaNativeSet.Cuda, SherpaNativeLoader.LoadedSet);
-        List<ProcessModule> modules = LoadedModules();
-        foreach (string name in new[] { "onnxruntime_providers_cuda.dll", "cublasLt64_13.dll", "onnxruntime.dll" })
+        finally
         {
-            List<ProcessModule> matching = [.. modules.Where(m => string.Equals(m.ModuleName, name, StringComparison.OrdinalIgnoreCase))];
-            Assert.True(matching.Count > 0, $"{name} is not loaded.");
-            Assert.All(matching, m => Assert.True(IsUnder(m.FileName, nativeDir), $"{name} was loaded from {m.FileName}, not {nativeDir}."));
-        }
-
-        string? voiceDir = Environment.GetEnvironmentVariable("YAAT_TEST_PIPER_VOICE_DIR");
-        if (!string.IsNullOrEmpty(voiceDir))
-        {
-            Assert.NotEmpty(GeneratePiper(voiceDir));
+            Environment.SetEnvironmentVariable("PATH", savedPath);
         }
     }
+
+    /// <summary>
+    /// <paramref name="path"/> without empty or missing entries and without every directory that holds a CUDA runtime
+    /// library, so the process looks driver-only.
+    /// </summary>
+    private static string StripCudaRuntimeDirs(string path)
+    {
+        string[] patterns =
+        [
+            "cudart64_*.dll",
+            "cudart_hybrid64*.dll",
+            "nvrtc64_*.dll",
+            "curand64_*.dll",
+            "cublas64_*.dll",
+            "cublasLt64_*.dll",
+            "cudnn*64_*.dll",
+        ];
+        List<string> kept = [];
+        foreach (string entry in path.Split(Path.PathSeparator))
+        {
+            if ((entry.Length > 0) && Directory.Exists(entry) && !patterns.Any(pattern => Directory.EnumerateFiles(entry, pattern).Any()))
+            {
+                kept.Add(entry);
+            }
+        }
+
+        return string.Join(Path.PathSeparator, kept);
+    }
+
+    private static bool IsCudaRuntimeModule(string name) =>
+        name.StartsWith("cudart64_", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("nvrtc64_", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("curand64_", StringComparison.OrdinalIgnoreCase);
 
     private static float[] GeneratePiper(string voiceDir)
     {

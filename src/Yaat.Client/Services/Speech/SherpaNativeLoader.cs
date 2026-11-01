@@ -17,9 +17,12 @@ public enum SherpaNativeSet
 
 /// <summary>
 /// Points sherpa-onnx at its native set before anything touches it. The CPU set needs nothing: default probing finds
-/// it beside the app. The CUDA set is preloaded by absolute path, so the provider and cuDNN bind to the installed copies
-/// by base name (Windows) or soname (glibc), and the sherpa-onnx imports of both managed assemblies resolve to it. No
-/// process-wide search path is changed.
+/// it beside the app. The CUDA set is preloaded by absolute path, dependencies first, so a missing cuBLAS or cuDNN fails
+/// here where the caller falls back to the CPU set. The provider's file is checked at this load, but the provider itself
+/// is loaded by ONNX Runtime when the recognizer is created, since its DllMain needs ONNX Runtime's provider host; its
+/// import closure (cuBLAS, cuBLASLt) and cuDNN are preloaded here and bind to the installed copies by base name (Windows)
+/// or soname (glibc). The sherpa-onnx imports of both managed assemblies resolve to the CUDA set, and no process-wide
+/// search path is changed.
 /// </summary>
 public static class SherpaNativeLoader
 {
@@ -56,6 +59,7 @@ public static class SherpaNativeLoader
                 throw new InvalidOperationException("The sherpa CUDA native set is already loaded in this process.");
             }
 
+            RequiredPath(nativeDir, OperatingSystem.IsWindows() ? "onnxruntime_providers_cuda.dll" : "libonnxruntime_providers_cuda.so");
             List<string> paths = PreloadOrder(nativeDir);
             IntPtr cApi = LoadAllOrNone(paths);
 
