@@ -73,5 +73,8 @@ public sealed class EvalRunnerSessionStubTests : IDisposable
         Assert.Equal("FH 270", root.GetProperty("canonical").GetString());
         Assert.Equal(rawTranscript, root.GetProperty("transcript").GetString());
         Assert.Equal(["UAL234", "SWA1943"], root.GetProperty("activeCallsigns").Deserialize<List<string>>());
+        Assert.Equal("", root.GetProperty("airport").GetString());
+        Assert.Equal(JsonValueKind.False, root.GetProperty("approachPosition").ValueKind);
+        Assert.Empty(root.GetProperty("facilityRadioNames").EnumerateArray());
     }
 }

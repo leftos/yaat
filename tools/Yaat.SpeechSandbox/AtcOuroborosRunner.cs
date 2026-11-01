@@ -12,9 +12,11 @@ namespace Yaat.SpeechSandbox;
 /// tuning change shows its improvements and regressions per family.
 ///
 /// Run with <c>--atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline &lt;json&gt;]
-/// [--update-baseline] [--voice &lt;dir&gt;] [--no-synth-cache]</c>. Default paths resolve against the repo root (main
-/// checkout or worktree; the working directory when none is found); paths passed as arguments are
-/// used as given. Regressions are judged per rule family and on the totals; per-template rows are
+/// [--update-baseline] [--voice &lt;dir&gt;] [--no-synth-cache] [--stt &lt;kind&gt;:&lt;source&gt;] [--device cpu|gpu]
+/// [--decoding greedy|beam] [--num-paths N]</c>. Without <c>--stt</c> the run scores the Whisper model saved in
+/// preferences; <c>--decoding beam</c> is accurate mode, which resolves the whole n-best against each case's room.
+/// Default paths resolve against the repo root (main checkout or worktree; the working directory when none is found);
+/// paths passed as arguments are used as given. Regressions are judged per rule family and on the totals; per-template rows are
 /// information only. Writes <c>corpus/</c>, <c>eval/</c>, <c>results.json</c> and
 /// <c>report.md</c> into the out dir. Exit codes: 0 no regression (or no baseline), 3 regression,
 /// 2 usage / setup error.
@@ -38,7 +40,9 @@ public static class AtcOuroborosRunner
         "atc-ouroboros-baseline.json"
     );
 
-    private sealed record Options(
+    /// <summary>A parsed <c>--atc-ouroboros</c> command line.</summary>
+    /// <param name="Stt">The engine the flags chose; null keeps the Whisper model saved in preferences.</param>
+    public sealed record Options(
         int Cases,
         int Seed,
         int Trials,
@@ -46,7 +50,8 @@ public static class AtcOuroborosRunner
         string BaselinePath,
         bool UpdateBaseline,
         string? VoiceDir,
-        bool UseSynthCache
+        bool UseSynthCache,
+        SttChoice? Stt
     );
 
     public static async Task<int> RunAsync(string[] args)
@@ -55,7 +60,8 @@ public static class AtcOuroborosRunner
         if (options is null)
         {
             Console.Error.WriteLine(
-                "Usage: Yaat.SpeechSandbox --atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline <json>] [--update-baseline] [--voice <dir>] [--no-synth-cache]"
+                "Usage: Yaat.SpeechSandbox --atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline <json>] [--update-baseline] [--voice <dir>] [--no-synth-cache] "
+                    + "[--stt <kind>:<source>] [--device cpu|gpu] [--decoding greedy|beam] [--num-paths N]"
             );
             return AtcOuroborosAnalysis.ExitSetupError;
         }
@@ -67,7 +73,7 @@ public static class AtcOuroborosRunner
             return AtcOuroborosAnalysis.ExitSetupError;
         }
 
-        using var pipeline = EvalPipeline.Create(null, noBiasingPrompt: false);
+        using EvalPipeline pipeline = await EvalPipeline.CreateAsync(options.Stt, noBiasingPrompt: false).ConfigureAwait(false);
         EvalRunner.PrintModels(pipeline);
         if (pipeline.SetupError is not null)
         {
@@ -103,7 +109,9 @@ public static class AtcOuroborosRunner
             aggregate.Templates,
             aggregate.Totals,
             generated.Gaps,
-            AtcOuroborosAnalysis.Failures(scored.Cases)
+            AtcOuroborosAnalysis.Failures(scored.Cases),
+            scored.Timing,
+            scored.Decode
         );
         await File.WriteAllTextAsync(Path.Combine(options.OutDir, "results.json"), AtcOuroborosAnalysis.Serialize(results)).ConfigureAwait(false);
 
@@ -164,8 +172,10 @@ public static class AtcOuroborosRunner
         return AtcOuroborosAnalysis.ExitCodeFor(diff);
     }
 
-    private static Options? ParseArgs(string[] args)
+    /// <summary>Parses an <c>--atc-ouroboros</c> command line; null (after printing why) when it is malformed.</summary>
+    public static Options? ParseArgs(string[] args)
     {
+        var engine = new EngineFlags();
         int cases = DefaultCases;
         int seed = DefaultSeed;
         int trials = DefaultTrials;
@@ -198,13 +208,27 @@ public static class AtcOuroborosRunner
                 case "--no-synth-cache":
                     useSynthCache = false;
                     break;
+                case string flag when hasValue && EngineFlags.Handles(flag):
+                    string? engineError = engine.TryApply(flag, args[++i]);
+                    if (engineError is not null)
+                    {
+                        Console.Error.WriteLine($"FATAL: {engineError}");
+                        return null;
+                    }
+                    break;
                 default:
                     Console.Error.WriteLine($"FATAL: unrecognised or malformed argument '{args[i]}'");
                     return null;
             }
         }
+        SttChoice? stt = engine.Resolve(out string? error);
+        if (error is not null)
+        {
+            Console.Error.WriteLine($"FATAL: {error}");
+            return null;
+        }
         outDir ??= Path.Combine(DefaultsRoot, ".tmp", $"atc-ouroboros-{DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}");
-        return new Options(cases, seed, trials, outDir, baselinePath, updateBaseline, voiceDir, useSynthCache);
+        return new Options(cases, seed, trials, outDir, baselinePath, updateBaseline, voiceDir, useSynthCache, stt);
     }
 
     private static bool TryParsePositive(string text, out int value) => int.TryParse(text, CultureInfo.InvariantCulture, out value) && value > 0;
@@ -237,6 +261,14 @@ public static class AtcOuroborosRunner
         report.AppendLine();
         report.AppendLine($"- Seed {results.Seed}, {results.Cases} cases planned, {results.Trials} trials per case");
         report.AppendLine($"- STT: `{results.SttModel}`  LLM: `{results.LlmModel}`");
+        if (results.Timing is not null)
+        {
+            report.AppendLine(EvalRunner.TimingLine(results.Timing));
+        }
+        if (results.Decode is not null)
+        {
+            report.AppendLine(EvalRunner.DecodeLine(results.Decode));
+        }
         report.AppendLine();
         report.AppendLine($"**{TotalsLine(results)}**");
         report.AppendLine();

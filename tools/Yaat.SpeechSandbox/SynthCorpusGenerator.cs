@@ -182,6 +182,9 @@ internal static class SynthCorpusGenerator
             ["availableRunways"] = e.AvailableRunways,
             ["taxiwayNames"] = e.TaxiwayNames,
             ["destinationNames"] = e.DestinationNames,
+            ["airport"] = e.Airport,
+            ["approachPosition"] = e.ApproachPosition,
+            ["facilityRadioNames"] = e.FacilityRadioNames,
             ["voice"] = $"piper speaker {rendered.Speaker} speed {rendered.Speed.ToString("F1", CultureInfo.InvariantCulture)}",
             ["cacheKey"] = cacheKey,
         };

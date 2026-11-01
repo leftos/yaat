@@ -5,7 +5,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Speech;
+using Yaat.Sim.Speech.Context;
 
 namespace Yaat.SpeechSandbox;
 
@@ -14,6 +17,8 @@ namespace Yaat.SpeechSandbox;
 /// <c>Canonical</c> is the only required field; the rest refine scoring and context.
 /// <c>Template</c> is the synthetic generator's template key (null for real recordings); the
 /// runway / taxiway / destination sets are the scenario context the case was labeled under.
+/// <c>Airport</c>, <c>ApproachPosition</c> and <c>FacilityRadioNames</c> describe the room accurate mode decodes the case
+/// against; a real capture's reviewer fills them in by hand.
 /// </summary>
 public sealed record EvalExpectation(
     string Canonical,
@@ -25,9 +30,37 @@ public sealed record EvalExpectation(
     string? Template,
     Dictionary<string, List<string>>? AvailableRunways,
     List<string>? TaxiwayNames,
-    List<string>? DestinationNames
+    List<string>? DestinationNames,
+    string? Airport,
+    bool ApproachPosition,
+    List<string>? FacilityRadioNames
 )
 {
+    /// <summary>
+    /// The room the case is decoded against in accurate mode: one aircraft per active callsign, in order, with no type and
+    /// no assigned runway; the case's programmed fixes belong to the aircraft the case addresses.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout, or null when none is loaded.</param>
+    /// <param name="caseName">The case directory name, for the error.</param>
+    /// <exception cref="InvalidDataException">The case names no airport.</exception>
+    public RoomContextRequest ToRoomContextRequest(AirportGroundLayout? layout, string caseName)
+    {
+        if (Airport is null)
+        {
+            throw new InvalidDataException($"{caseName}: accurate mode needs an \"airport\" in expected.json");
+        }
+        List<RoomAircraftInput> aircraft =
+        [
+            .. (ActiveCallsigns ?? []).Select(callsign => new RoomAircraftInput(
+                callsign,
+                null,
+                string.Equals(callsign, Callsign, StringComparison.OrdinalIgnoreCase) ? (ProgrammedFixes ?? []) : [],
+                null
+            )),
+        ];
+        return new RoomContextRequest(Airport, ApproachPosition, layout, aircraft, FacilityRadioNames ?? []);
+    }
+
     /// <summary>Builds the speech context the case is mapped under — the same one for label verification and scoring.</summary>
     public SpeechContext ToSpeechContext(string whisperInitialPrompt)
     {
@@ -91,12 +124,23 @@ public sealed record EvalCaseResult(
 public sealed record EvalTrial(string Transcript, string? MapperCanonical, string? FinalCanonical, bool RawTextFallback);
 
 /// <summary>Everything one scoring pass produced.</summary>
-public sealed record EvalRunResult(IReadOnlyList<EvalCaseResult> Cases, int Skipped, string Summary, string ReportPath);
+/// <param name="Timing">The engine's load, STT latency over every trial, and memory.</param>
+/// <param name="Decode">The accurate-mode decode tallies; null in fast mode.</param>
+public sealed record EvalRunResult(
+    IReadOnlyList<EvalCaseResult> Cases,
+    int Skipped,
+    string Summary,
+    string ReportPath,
+    CorpusWerTiming Timing,
+    AccurateDecodeStats? Decode
+);
 
 /// <summary>
 /// The production STT + mapping stack an eval pass scores through: the STT engine <c>--stt</c> picks
-/// (the prefs Whisper model by default), the rule mapper, and the LLM fallback.
-/// <see cref="SetupError"/> is non-null when a model is missing, in which case nothing can be scored.
+/// (the prefs Whisper model by default), loaded and timed before the first trial, the rule mapper, and the LLM fallback.
+/// A beam choice is accurate mode: the whole n-best is decoded against each case's room. The pipeline samples the
+/// process's memory around the model load and through the run. <see cref="SetupError"/> is non-null when a model is
+/// missing or the engine did not load where it was asked to, in which case nothing can be scored.
 /// </summary>
 internal sealed class EvalPipeline : IDisposable
 {
@@ -108,18 +152,46 @@ internal sealed class EvalPipeline : IDisposable
     }
 
     private const string LlmSetupError = "LLM model not configured/found — check LMKIT_TEST_MODEL and Settings → Speech.";
+    private const string AccurateNeedsRepoError = "accurate mode must run from a yaat checkout (it loads the airport layouts)";
 
     private readonly ICorpusSttEngine _stt;
     private readonly LocalLlmService _llm;
+    private readonly GpuMemoryProbe _gpu;
+    private readonly long _preLoadWorkingSetBytes;
+    private readonly long _preLoadGpuBytes;
+    private readonly string? _repoRoot;
+    private readonly RoomContextCache _roomCache = new();
+    private readonly Dictionary<string, AirportGroundLayout?> _layouts = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The engine choice the pipeline was built from.</summary>
+    public SttChoice Choice { get; }
+
+    /// <summary>True for accurate mode: beam decoding, the whole n-best resolved against the case's room.</summary>
+    public bool Accurate => Choice.Decoding.Method == SherpaDecodingMethod.Beam;
 
     public string SttLabel { get; }
     public string LlmModelPath { get; }
     public bool LlmOverridden { get; }
     public string BiasingPrompt { get; }
-    public string? SetupError { get; }
+    public string? SetupError { get; private set; }
     public PhraseologyCommandMapper RuleMapper { get; } = new();
     public LocalLlmCommandMapper LlmMapper { get; }
     public LocalLlmCallsignResolver CallsignResolver { get; }
+
+    /// <summary>The rule mapper, the LLM fallback and the callsign resolver, as accurate mode takes them.</summary>
+    public SpeechMappers Mappers { get; }
+
+    /// <summary>The device the engine runs on, as <see cref="CorpusSttEngines.DeviceText"/> records it.</summary>
+    public string Device { get; }
+
+    /// <summary>How long the model load took.</summary>
+    public double LoadSeconds { get; private set; }
+
+    /// <summary>What the GPU memory around the load said about the device, when worth reporting.</summary>
+    public string? DeviceWarning { get; private set; }
+
+    /// <summary>The highest GPU memory sampled so far, starting from what the load left behind; -1 when unmeasured.</summary>
+    public long PeakGpuBytes { get; private set; }
 
     private EvalPipeline(SttChoice? stt, bool noBiasingPrompt)
     {
@@ -138,47 +210,152 @@ internal sealed class EvalPipeline : IDisposable
         // STT stage: the --stt engine, or the prefs Whisper model. Every engine reaches the trial
         // loop through the same seam --corpus-wer scores through, so the scoring path is identical
         // regardless of engine.
-        SttChoice choice = stt ?? new SttChoice(SttKind.Whisper, prefs.WhisperModelSize, SttDevice.Default, SherpaDecoding.Greedy);
-        _stt = CorpusSttEngines.Create(choice);
+        Choice = stt ?? new SttChoice(SttKind.Whisper, prefs.WhisperModelSize, SttDevice.Default, SherpaDecoding.Greedy);
+        Device = CorpusSttEngines.DeviceText(Choice);
+        _repoRoot = OuroborosRunner.TryFindRepoRoot();
+
+        using (var self = Process.GetCurrentProcess())
+        {
+            self.Refresh();
+            _preLoadWorkingSetBytes = self.WorkingSet64;
+        }
+        _gpu = new GpuMemoryProbe();
+        _preLoadGpuBytes = _gpu.Sample();
+        PeakGpuBytes = _preLoadGpuBytes;
+        _stt = CorpusSttEngines.Create(Choice);
         // --prompt none blanks the Whisper biasing prompt for the whole run — the A/B knob for
         // asking whether the static vocabulary hint still earns its keep on a given model.
         BiasingPrompt = noBiasingPrompt ? string.Empty : WhisperBiasingPrompt.Default;
-        SttLabel = CorpusSttEngines.RecordedModel(choice) + (noBiasingPrompt ? " (no biasing prompt)" : "");
+        SttLabel = CorpusSttEngines.RecordedModel(Choice) + (noBiasingPrompt ? " (no biasing prompt)" : "");
 
         _llm = new LocalLlmService(llmConfig);
         LlmMapper = new LocalLlmCommandMapper(_llm);
         CallsignResolver = new LocalLlmCallsignResolver(_llm);
-        SetupError = CombineSetupErrors(_stt.SetupError(), _llm.IsConfigured ? null : LlmSetupError);
+        Mappers = new SpeechMappers(RuleMapper, LlmMapper, CallsignResolver);
+        SetupError = CombineSetupErrors(
+            _stt.SetupError(),
+            _llm.IsConfigured ? null : LlmSetupError,
+            (Accurate && (_repoRoot is null)) ? AccurateNeedsRepoError : null
+        );
     }
 
     /// <summary>
-    /// Loads real navdata (the mapping stage validates canonicals through CommandParser, and
-    /// PhoneticFixMatcher's full-database fallback needs it) and constructs the model stack.
+    /// Loads real navdata from the checkout (the mapping stage validates canonicals through CommandParser, and
+    /// PhoneticFixMatcher's full-database fallback needs it), constructs the model stack and, when it can be set up,
+    /// loads the STT model, timing the load and checking it reached the device the choice asked for. Outside a yaat
+    /// checkout the navdata cannot load, which is the pipeline's <see cref="SetupError"/>.
     /// </summary>
     /// <param name="stt">The STT engine; null takes the Whisper model saved in preferences.</param>
     /// <param name="noBiasingPrompt">True blanks the Whisper biasing prompt for the whole run.</param>
-    public static EvalPipeline Create(SttChoice? stt, bool noBiasingPrompt)
+    public static async Task<EvalPipeline> CreateAsync(SttChoice? stt, bool noBiasingPrompt)
     {
-        Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
-        return new EvalPipeline(stt, noBiasingPrompt);
+        bool navDataLoaded = SandboxNavData.TryInitialize(out string? navDataError);
+        var pipeline = new EvalPipeline(stt, noBiasingPrompt);
+        if (!navDataLoaded)
+        {
+            pipeline.SetupError = CombineSetupErrors(navDataError, pipeline.SetupError);
+        }
+        if (pipeline.SetupError is null)
+        {
+            await pipeline.LoadModelAsync().ConfigureAwait(false);
+        }
+        return pipeline;
     }
 
-    public async Task<string?> TranscribeAsync(float[] samples, string prompt, CancellationToken ct) =>
-        (await _stt.TranscribeAsync(samples, new SttBias(prompt, []), ct).ConfigureAwait(false)).Text;
+    public Task<SttHypotheses> TranscribeAsync(float[] samples, string prompt, CancellationToken ct) =>
+        _stt.TranscribeAsync(samples, new SttBias(prompt, []), ct);
+
+    /// <summary>The case's room for accurate mode, built against the airport's committed test layout when there is one.</summary>
+    /// <exception cref="InvalidDataException">The case names no airport.</exception>
+    public TransmissionContext RoomContext(EvalExpectation expectation, string caseName)
+    {
+        AirportGroundLayout? layout = (expectation.Airport is null) ? null : Layout(expectation.Airport);
+        return RoomContextFactory.Build(
+            _roomCache,
+            expectation.ToRoomContextRequest(layout, caseName),
+            NavigationDatabase.Instance,
+            DecoderSettings.Default
+        );
+    }
+
+    /// <summary>Samples the process's GPU memory and keeps the highest figure.</summary>
+    public void SampleGpu() => PeakGpuBytes = Math.Max(PeakGpuBytes, _gpu.Sample());
+
+    /// <summary>The run's timing: the load, the percentiles over <paramref name="latencies"/> and the memory figures now.</summary>
+    public CorpusWerTiming Timing(IReadOnlyList<(double LatencyMs, bool Cached)> latencies)
+    {
+        using var self = Process.GetCurrentProcess();
+        self.Refresh();
+        var memory = new CorpusWerMemory(_preLoadWorkingSetBytes, self.PeakWorkingSet64, _preLoadGpuBytes, PeakGpuBytes);
+        return CorpusWerLatency.Summarize(Device, LoadSeconds, latencies, memory) with { DeviceWarning = DeviceWarning };
+    }
 
     public void Dispose()
     {
         _llm.Dispose();
         _stt.Dispose();
+        _gpu.Dispose();
     }
 
-    private static string? CombineSetupErrors(string? sttError, string? llmError) =>
-        (sttError, llmError) switch
+    /// <summary>
+    /// Warms the engine up as the timed model load, then checks the load reached the device the choice asked for; a failed
+    /// check becomes <see cref="SetupError"/>, a warning is printed and kept.
+    /// </summary>
+    private async Task LoadModelAsync()
+    {
+        var watch = Stopwatch.StartNew();
+        try
         {
-            (null, _) => llmError,
-            (_, null) => sttError,
-            _ => $"{sttError}; {llmError}",
-        };
+            await _stt.WarmUpAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex)
+        {
+            SetupError = ex.Message;
+            return;
+        }
+        LoadSeconds = watch.Elapsed.TotalSeconds;
+
+        if (Choice.Kind == SttKind.Whisper)
+        {
+            string? backendVerdict = GpuUseCheck.BackendVerdict(Device, LMKit.Global.Runtime.Backend, out bool backendIsError);
+            if (backendIsError)
+            {
+                SetupError = backendVerdict;
+                return;
+            }
+        }
+
+        long afterLoadGpuBytes = _gpu.Sample();
+        PeakGpuBytes = afterLoadGpuBytes;
+        string? warning = GpuUseCheck.Verdict(Device, _preLoadGpuBytes, afterLoadGpuBytes, out bool isError);
+        if (isError)
+        {
+            SetupError = warning;
+            return;
+        }
+        if (warning is not null)
+        {
+            Console.WriteLine($"WARNING: {warning}");
+        }
+        DeviceWarning = warning;
+    }
+
+    private AirportGroundLayout? Layout(string airport)
+    {
+        if (!_layouts.TryGetValue(airport, out AirportGroundLayout? layout))
+        {
+            string repo = _repoRoot ?? throw new InvalidOperationException(AccurateNeedsRepoError);
+            layout = CorpusSlotRun.LoadLayout(repo, airport);
+            _layouts[airport] = layout;
+        }
+        return layout;
+    }
+
+    private static string? CombineSetupErrors(params string?[] errors)
+    {
+        string[] present = [.. errors.OfType<string>()];
+        return (present.Length == 0) ? null : string.Join("; ", present);
+    }
 }
 
 /// <summary>
@@ -227,7 +404,10 @@ public static class EvalRunner
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Usage: Yaat.SpeechSandbox --eval <corpus-dir> [--out-dir <dir>] [--trials N] [--stt <kind>:<source>]");
+            Console.Error.WriteLine(
+                "Usage: Yaat.SpeechSandbox --eval <corpus-dir> [--out-dir <dir>] [--trials N] [--stt <kind>:<source>] [--device cpu|gpu] "
+                    + "[--decoding greedy|beam] [--num-paths N]"
+            );
             Console.Error.WriteLine();
             Console.Error.WriteLine("Scores the production STT pipeline against labeled real-audio cases.");
             Console.Error.WriteLine("Each corpus subdirectory needs audio.wav + expected.json (see EvalRunner docs).");
@@ -235,12 +415,16 @@ public static class EvalRunner
                 "--stt picks the STT stage: whisper:<model-source>, sherpa:<model-dir>, sherpa-streaming:<model-dir>, "
                     + "gemini:<model> or openai:<model> (default: the Settings Whisper model)."
             );
+            Console.Error.WriteLine(
+                "--device picks a local engine's device; --decoding beam (sherpa only, --num-paths 1-4, default 4) is accurate mode, "
+                    + "which resolves the whole n-best against each case's room (needs \"airport\" in expected.json)."
+            );
             return 1;
         }
 
         string corpusDir = args[0];
         string? outDirOverride = null;
-        SttChoice? stt = null;
+        var engine = new EngineFlags();
         string? promptMode = null;
         int trials = 1;
         for (int i = 1; i < args.Length; i++)
@@ -249,11 +433,12 @@ public static class EvalRunner
             {
                 outDirOverride = args[++i];
             }
-            else if ((args[i] == "--stt") && (i + 1 < args.Length))
+            else if (EngineFlags.Handles(args[i]) && (i + 1 < args.Length))
             {
-                if (!CorpusSttEngines.TryParse(args[++i], out stt, out string? sttError))
+                string? flagError = engine.TryApply(args[i], args[++i]);
+                if (flagError is not null)
                 {
-                    Console.Error.WriteLine($"FATAL: {sttError}");
+                    Console.Error.WriteLine($"FATAL: {flagError}");
                     return 2;
                 }
             }
@@ -276,7 +461,8 @@ public static class EvalRunner
             }
         }
 
-        string? engineError = CheckEngineOptions(stt, promptMode, trials);
+        SttChoice? stt = engine.Resolve(out string? resolveError);
+        string? engineError = resolveError ?? CheckEngineOptions(stt, promptMode, trials);
         if (engineError is not null)
         {
             Console.Error.WriteLine($"FATAL: {engineError}");
@@ -289,7 +475,7 @@ public static class EvalRunner
             return 2;
         }
 
-        using var pipeline = EvalPipeline.Create(stt, noBiasingPrompt: promptMode == "none");
+        using EvalPipeline pipeline = await EvalPipeline.CreateAsync(stt, noBiasingPrompt: promptMode == "none").ConfigureAwait(false);
         PrintModels(pipeline);
         if (pipeline.SetupError is not null)
         {
@@ -340,18 +526,14 @@ public static class EvalRunner
     {
         Directory.CreateDirectory(outDir);
 
-        var report = new StringBuilder();
-        report.AppendLine("# Speech pipeline eval report");
-        report.AppendLine();
-        report.AppendLine($"- Corpus: `{Path.GetFullPath(corpusDir)}`");
-        report.AppendLine($"- STT: `{pipeline.SttLabel}`  LLM: `{pipeline.LlmModelPath}`  Trials per case: {trials}");
-        report.AppendLine();
-        report.AppendLine("| Case | Verdict | Canonical (expected) | Canonical (got) | WER | Callsign | STT ms/trial |");
-        report.AppendLine("|---|---|---|---|---|---|---|");
+        var table = new StringBuilder();
+        table.AppendLine("| Case | Verdict | Canonical (expected) | Canonical (got) | WER | Callsign | STT ms/trial |");
+        table.AppendLine("|---|---|---|---|---|---|---|");
         var details = new StringBuilder();
         details.AppendLine("### Per-case transcripts");
         details.AppendLine();
-        var outcomes = new CaseReporter(report, details, trials);
+        var outcomes = new CaseReporter(table, details, trials);
+        var timings = new TrialTimings();
 
         // Real-mic and synthetic (Piper-generated) cases are tallied separately: synthetic audio
         // measures the phonetic surface on clean TTS voices, and folding it into one number
@@ -379,7 +561,8 @@ public static class EvalRunner
                 continue;
             }
 
-            CaseScore score = await ScoreCaseAsync(pipeline, expectation, WavHeader.ReadPcm16(wavPath), trials).ConfigureAwait(false);
+            CaseScore score = await ScoreCaseAsync(pipeline, caseName, expectation, WavHeader.ReadPcm16(wavPath), trials).ConfigureAwait(false);
+            timings.Add(score.Timings);
             var result = new EvalCaseResult(
                 caseName,
                 expectation.Canonical,
@@ -399,17 +582,90 @@ public static class EvalRunner
             outcomes.Append(result, score, expectation);
         }
 
+        string summary = Summarize(realTally, synthTally, skipped);
+        CorpusWerTiming timing = pipeline.Timing(timings.Latencies);
+        AccurateDecodeStats? decode = pipeline.Accurate ? timings.DecodeStats() : null;
+        string[] runLines = RunLines(timing, decode);
+
+        var report = new StringBuilder();
+        report.AppendLine("# Speech pipeline eval report");
+        report.AppendLine();
+        report.AppendLine($"- Corpus: `{Path.GetFullPath(corpusDir)}`");
+        report.AppendLine($"- STT: `{pipeline.SttLabel}`  LLM: `{pipeline.LlmModelPath}`  Trials per case: {trials}");
+        foreach (string line in runLines)
+        {
+            report.AppendLine(line);
+        }
+        report.AppendLine();
+        report.Append(table);
         report.AppendLine();
         report.Append(details);
-        string summary = Summarize(realTally, synthTally, skipped);
         report.AppendLine($"**Summary:** {summary}");
         string reportPath = Path.Combine(outDir, "report.md");
         await File.WriteAllTextAsync(reportPath, report.ToString()).ConfigureAwait(false);
 
         Console.WriteLine();
         Console.WriteLine(summary);
+        foreach (string line in runLines)
+        {
+            Console.WriteLine(line);
+        }
         Console.WriteLine($"Report: {reportPath}");
-        return new EvalRunResult(results, skipped, summary, reportPath);
+        return new EvalRunResult(results, skipped, summary, reportPath, timing, decode);
+    }
+
+    /// <summary>The run's device and latency line, and its accurate-decode line in accurate mode.</summary>
+    private static string[] RunLines(CorpusWerTiming timing, AccurateDecodeStats? decode) =>
+        (decode is null) ? [TimingLine(timing)] : [TimingLine(timing), DecodeLine(decode)];
+
+    /// <summary>
+    /// The report line naming the device, the model load, the STT latency percentiles over the trials and the memory; the GPU
+    /// part is left out when the GPU memory was not measured.
+    /// </summary>
+    public static string TimingLine(CorpusWerTiming timing)
+    {
+        bool gpuMeasured = (timing.PreLoadGpuBytes >= 0) && (timing.PeakGpuBytes >= 0);
+        string gpu = gpuMeasured ? $"; GPU {Megabytes(timing.PreLoadGpuBytes)} → peak {Megabytes(timing.PeakGpuBytes)} MB" : string.Empty;
+        string load = timing.LoadSeconds.ToString("0.0", CultureInfo.InvariantCulture);
+        return $"- Device: {timing.Device}, load {load} s; "
+            + $"STT latency p50 {Milliseconds(timing.LatencyP50Ms)} / p90 {Milliseconds(timing.LatencyP90Ms)} / max {Milliseconds(timing.LatencyMaxMs)} ms "
+            + $"over {timing.TimedSegments} trials; "
+            + $"working set {Megabytes(timing.PreLoadWorkingSetBytes)} MB before load, peak {Megabytes(timing.PeakWorkingSetBytes)} MB{gpu}";
+    }
+
+    /// <summary>The report line tallying accurate mode's decode states and its decode-and-map time.</summary>
+    public static string DecodeLine(AccurateDecodeStats decode) =>
+        $"- Accurate decode: {decode.Resolved} resolved, {decode.SayAgain} say again, {decode.NoCallsign} no callsign; "
+        + $"decode+map p50 {Milliseconds(decode.DecodeMapP50Ms)} / p90 {Milliseconds(decode.DecodeMapP90Ms)} ms";
+
+    private static string Milliseconds(double ms) => ms.ToString("0", CultureInfo.InvariantCulture);
+
+    private static string Megabytes(long bytes) => (bytes / (1024.0 * 1024.0)).ToString("0", CultureInfo.InvariantCulture);
+
+    /// <summary>Every trial's STT latency and, in accurate mode, its decode state and decode-and-map time.</summary>
+    private sealed class TrialTimings
+    {
+        public List<(double LatencyMs, bool Cached)> Latencies { get; } = [];
+
+        public List<DecodeState> DecodeStates { get; } = [];
+
+        public List<double> DecodeMapMs { get; } = [];
+
+        public void Add(TrialTimings other)
+        {
+            Latencies.AddRange(other.Latencies);
+            DecodeStates.AddRange(other.DecodeStates);
+            DecodeMapMs.AddRange(other.DecodeMapMs);
+        }
+
+        public AccurateDecodeStats DecodeStats() =>
+            new(
+                DecodeStates.Count(s => s == DecodeState.Resolved),
+                DecodeStates.Count(s => s == DecodeState.SayAgain),
+                DecodeStates.Count(s => s == DecodeState.NoCallsign),
+                CorpusWerLatency.Percentile(DecodeMapMs, 50),
+                CorpusWerLatency.Percentile(DecodeMapMs, 90)
+            );
     }
 
     /// <summary>One line naming each tally that produced a verdict, plus the skipped-case count.</summary>
@@ -479,8 +735,14 @@ public static class EvalRunner
         IReadOnlyList<EvalTrial> Trials,
         ClauseScore Clauses,
         int CallsignsMatched,
-        int CallsignsExpected
+        int CallsignsExpected,
+        TrialTimings Timings
     );
+
+    /// <summary>What one trial's mapping produced: the result, the rule mapper's canonical and, in accurate mode, the decode.</summary>
+    /// <param name="DecodeState">The decoder's answer for the n-best; null in fast mode.</param>
+    /// <param name="DecodeMapMs">How long the decode and the mapping took; null in fast mode.</param>
+    private sealed record TrialMapping(TranscriptMapResult Result, string? RuleCanonical, DecodeState? DecodeState, double? DecodeMapMs);
 
     /// <summary>
     /// The command-level score of <paramref name="trials"/> against <paramref name="expectedCanonical"/>,
@@ -500,9 +762,17 @@ public static class EvalRunner
     public static (int Matched, int Expected) TallyCallsigns(IReadOnlyList<string?> trialCallsigns, string? expectedCallsign) =>
         expectedCallsign is null ? (0, 0) : (trialCallsigns.Count(c => CallsignMatches(expectedCallsign, c)), trialCallsigns.Count);
 
-    private static async Task<CaseScore> ScoreCaseAsync(EvalPipeline pipeline, EvalExpectation expectation, float[] samples, int trials)
+    private static async Task<CaseScore> ScoreCaseAsync(
+        EvalPipeline pipeline,
+        string caseName,
+        EvalExpectation expectation,
+        float[] samples,
+        int trials
+    )
     {
         var ctx = expectation.ToSpeechContext(pipeline.BiasingPrompt);
+        TransmissionContext? room = pipeline.Accurate ? pipeline.RoomContext(expectation, caseName) : null;
+        var timings = new TrialTimings();
         var got = new List<string>();
         var trialRecords = new List<EvalTrial>();
         var trialCallsigns = new List<string?>();
@@ -515,30 +785,32 @@ public static class EvalRunner
         for (int trial = 0; trial < trials; trial++)
         {
             var sttSw = Stopwatch.StartNew();
-            string? transcript = await pipeline.TranscribeAsync(samples, ctx.WhisperInitialPrompt, CancellationToken.None).ConfigureAwait(false);
+            SttHypotheses hyps = await pipeline.TranscribeAsync(samples, ctx.WhisperInitialPrompt, CancellationToken.None).ConfigureAwait(false);
             sttSw.Stop();
-            sttMsTotal += sttSw.ElapsedMilliseconds;
+            double latencyMs = hyps.LatencyMs ?? sttSw.Elapsed.TotalMilliseconds;
+            timings.Latencies.Add((latencyMs, hyps.Cached));
+            sttMsTotal += (long)latencyMs;
+            string? transcript = hyps.Text;
             lastTranscript = transcript ?? string.Empty;
             if (string.IsNullOrWhiteSpace(transcript))
             {
                 got.Add("<empty transcript>");
                 trialRecords.Add(new EvalTrial(lastTranscript, null, null, RawTextFallback: false));
                 trialCallsigns.Add(null);
+                pipeline.SampleGpu();
                 continue;
             }
 
-            (TranscriptMapResult mapped, RuleMapperTrace ruleTrace, LlmMapperTrace? _) = await SpeechRecognitionService
-                .MapTranscriptWithTraceAsync(
-                    transcript,
-                    ctx,
-                    pipeline.RuleMapper,
-                    pipeline.LlmMapper,
-                    pipeline.CallsignResolver,
-                    CancellationToken.None
-                )
-                .ConfigureAwait(false);
+            TrialMapping trialMapping = await MapTrialAsync(pipeline, hyps, transcript, ctx, room).ConfigureAwait(false);
+            pipeline.SampleGpu();
+            if (trialMapping.DecodeState is DecodeState state)
+            {
+                timings.DecodeStates.Add(state);
+                timings.DecodeMapMs.Add(trialMapping.DecodeMapMs ?? 0);
+            }
+            TranscriptMapResult mapped = trialMapping.Result;
             got.Add(mapped.Canonical ?? "<null>");
-            trialRecords.Add(new EvalTrial(transcript, ruleTrace.OutputCanonical, mapped.Canonical, mapped.IsRawTextFallback));
+            trialRecords.Add(new EvalTrial(transcript, trialMapping.RuleCanonical, mapped.Canonical, mapped.IsRawTextFallback));
             trialCallsigns.Add(mapped.Callsign);
             lastCallsign = mapped.Callsign ?? "<none>";
 
@@ -547,15 +819,10 @@ public static class EvalRunner
                 matches++;
             }
 
-            if (expectation.Transcript is not null)
+            double? trialWer = TrialWer(expectation.Transcript, transcript);
+            if (trialWer is not null)
             {
-                // Score STT in isolation. Both sides run through NormalizeDigits so "two seven
-                // zero" vs "270" scores as a match — the pipeline is insensitive to that split,
-                // and WER should measure real recognition damage, not orthography.
-                string referenceText = AtcNumberParser.NormalizeDigits(expectation.Transcript);
-                string hypothesisText = AtcNumberParser.NormalizeDigits(transcript);
-                double trialWer = WerScorer.Score(referenceText, hypothesisText).Rate;
-                wer = wer is null ? trialWer : Math.Min(wer.Value, trialWer);
+                wer = wer is null ? trialWer : Math.Min(wer.Value, trialWer.Value);
             }
         }
         sw.Stop();
@@ -577,9 +844,55 @@ public static class EvalRunner
             trialRecords,
             ScoreTrials(expectation.Canonical, trialRecords),
             callsignsMatched,
-            callsignsExpected
+            callsignsExpected,
+            timings
         );
     }
+
+    /// <summary>
+    /// Maps one trial: fast mode maps the top transcript; accurate mode (a non-null <paramref name="room"/>) decodes the
+    /// whole n-best against the room and times the decode and the mapping together.
+    /// </summary>
+    private static async Task<TrialMapping> MapTrialAsync(
+        EvalPipeline pipeline,
+        SttHypotheses hyps,
+        string transcript,
+        SpeechContext ctx,
+        TransmissionContext? room
+    )
+    {
+        if (room is null)
+        {
+            (TranscriptMapResult mapped, RuleMapperTrace ruleTrace, LlmMapperTrace? _) = await SpeechRecognitionService
+                .MapTranscriptWithTraceAsync(
+                    transcript,
+                    ctx,
+                    pipeline.RuleMapper,
+                    pipeline.LlmMapper,
+                    pipeline.CallsignResolver,
+                    CancellationToken.None
+                )
+                .ConfigureAwait(false);
+            return new TrialMapping(mapped, ruleTrace.OutputCanonical, null, null);
+        }
+
+        var watch = Stopwatch.StartNew();
+        HypothesesMapResult accurate = await SpeechRecognitionService
+            .MapHypothesesWithTraceAsync(hyps, new AccurateDecodeInput(room, DecoderSettings.Default), ctx, pipeline.Mappers, CancellationToken.None)
+            .ConfigureAwait(false);
+        watch.Stop();
+        return new TrialMapping(accurate.Result, accurate.RuleTrace.OutputCanonical, accurate.Decode.State, watch.Elapsed.TotalMilliseconds);
+    }
+
+    /// <summary>
+    /// The trial's STT word-error rate against the labeled transcript, scored in isolation; null when the case has none.
+    /// Both sides run through NormalizeDigits so "two seven zero" vs "270" scores as a match — the pipeline is insensitive
+    /// to that split, and WER should measure real recognition damage, not orthography.
+    /// </summary>
+    private static double? TrialWer(string? expectedTranscript, string transcript) =>
+        (expectedTranscript is null)
+            ? null
+            : WerScorer.Score(AtcNumberParser.NormalizeDigits(expectedTranscript), AtcNumberParser.NormalizeDigits(transcript)).Rate;
 
     /// <summary>Per-source (real vs synthetic) verdict and WER accumulator.</summary>
     private sealed class Tally
@@ -655,7 +968,10 @@ public static class EvalRunner
                     ? rw.Deserialize<Dictionary<string, List<string>>>()
                     : null,
                 TaxiwayNames: ReadStringList(root, "taxiwayNames"),
-                DestinationNames: ReadStringList(root, "destinationNames")
+                DestinationNames: ReadStringList(root, "destinationNames"),
+                Airport: ReadString(root, "airport") is { Length: > 0 } airport ? airport : null,
+                ApproachPosition: root.TryGetProperty("approachPosition", out JsonElement approach) && approach.ValueKind == JsonValueKind.True,
+                FacilityRadioNames: ReadStringList(root, "facilityRadioNames")
             );
         }
 
@@ -675,6 +991,9 @@ public static class EvalRunner
             ["callsign"] = null,
             ["activeCallsigns"] = session?.Trace?.ActiveCallsigns ?? [],
             ["programmedFixes"] = new List<string>(),
+            ["airport"] = "",
+            ["approachPosition"] = false,
+            ["facilityRadioNames"] = new List<string>(),
         };
         File.WriteAllText(expectedPath, JsonSerializer.Serialize(stub, new JsonSerializerOptions { WriteIndented = true }));
         Console.WriteLine(

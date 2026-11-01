@@ -76,7 +76,10 @@ public sealed record FailingCase(string Case, string Template, string Expected, 
 /// baseline (which omits <see cref="GeneratedUtc"/>). <see cref="Families"/> and
 /// <see cref="Templates"/> are sorted worst recognition rate first (ties: higher error rate first,
 /// then name); <see cref="Failures"/> is in case order and is information only.
+/// <see cref="Timing"/> and <see cref="Decode"/> are measured per run, never compared, and never written to the baseline.
 /// </summary>
+/// <param name="Timing">The engine's load, STT latency and memory over every trial; null in a baseline.</param>
+/// <param name="Decode">The accurate-mode decode tallies; null in fast mode and in a baseline.</param>
 public sealed record AtcOuroborosResults(
     int Seed,
     int Cases,
@@ -88,13 +91,28 @@ public sealed record AtcOuroborosResults(
     IReadOnlyList<TemplateResult> Templates,
     TotalsResult Totals,
     IReadOnlyList<TemplateGap> Gaps,
-    IReadOnlyList<FailingCase> Failures
+    IReadOnlyList<FailingCase> Failures,
+    CorpusWerTiming? Timing,
+    AccurateDecodeStats? Decode
 );
+
+/// <summary>
+/// How accurate mode's context decoder settled the trials it decoded (every trial with a transcript), and how long the
+/// decode and the mapping after it took.
+/// </summary>
+/// <param name="Resolved">Trials whose n-best resolved to a room callsign.</param>
+/// <param name="SayAgain">Trials whose best callsign guess was too weak to accept.</param>
+/// <param name="NoCallsign">Trials whose n-best named no room callsign.</param>
+/// <param name="DecodeMapP50Ms">The median decode-and-map time.</param>
+/// <param name="DecodeMapP90Ms">The 90th percentile of the decode-and-map time.</param>
+public sealed record AccurateDecodeStats(int Resolved, int SayAgain, int NoCallsign, double DecodeMapP50Ms, double DecodeMapP90Ms);
 
 /// <summary>Per-family, per-template and overall tallies of one scored corpus.</summary>
 public sealed record AtcAggregate(IReadOnlyList<FamilyResult> Families, IReadOnlyList<TemplateResult> Templates, TotalsResult Totals);
 
 [JsonSerializable(typeof(AtcOuroborosResults))]
+[JsonSerializable(typeof(CorpusWerTiming))]
+[JsonSerializable(typeof(AccurateDecodeStats))]
 [JsonSourceGenerationOptions(
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
@@ -258,8 +276,8 @@ public static class AtcOuroborosAnalysis
     /// <summary>Exit code for a finished run: no baseline (null) or no regression → 0, any regression → 3.</summary>
     public static int ExitCodeFor(BaselineDiffResult? diff) => (diff?.HasRegression ?? false) ? ExitRegression : ExitNoRegression;
 
-    /// <summary>The baseline form of a run: identical except that it carries no generation timestamp.</summary>
-    public static AtcOuroborosResults ToBaseline(AtcOuroborosResults results) => results with { GeneratedUtc = null };
+    /// <summary>The baseline form of a run: identical except that it carries no generation timestamp, timing or decode tallies.</summary>
+    public static AtcOuroborosResults ToBaseline(AtcOuroborosResults results) => results with { GeneratedUtc = null, Timing = null, Decode = null };
 
     public static string Serialize(AtcOuroborosResults results) =>
         JsonSerializer.Serialize(results, AtcOuroborosJsonContext.Default.AtcOuroborosResults);
