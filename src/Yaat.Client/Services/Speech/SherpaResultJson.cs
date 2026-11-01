@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Yaat.SpeechSandbox;
+namespace Yaat.Client.Services.Speech;
 
 /// <summary>Reads the JSON sherpa-onnx's C API returns for a decoded offline stream.</summary>
 public static class SherpaResultJson

@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Client.Services.Speech;
 using Yaat.SpeechSandbox;
 
 namespace Yaat.Client.Tests;

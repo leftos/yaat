@@ -3,15 +3,12 @@ using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using SherpaOnnx;
 using Yaat.Client.Logging;
-using Yaat.Client.Services;
 
-namespace Yaat.SpeechSandbox;
+namespace Yaat.Client.Services.Speech;
 
 /// <summary>
-/// Offline STT probe engine backed by sherpa-onnx's C API with a NeMo transducer export — built for
-/// evaluating NVIDIA Parakeet-TDT against the Whisper production path
-/// (<c>--eval --stt sherpa:&lt;dir&gt;</c> / <c>--corpus-wer --stt sherpa:&lt;dir&gt;</c>). Sandbox-only for
-/// now: promotion into Yaat.Client happens only if eval results justify a second production STT engine.
+/// Offline STT engine backed by sherpa-onnx's C API with a NeMo transducer export (NVIDIA Parakeet-TDT and
+/// its ATC fine-tunes).
 ///
 /// The model directory must contain a sherpa-onnx NeMo transducer export
 /// (e.g. <c>csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8</c>):
@@ -23,9 +20,9 @@ namespace Yaat.SpeechSandbox;
 /// JSON. A beam run also needs <c>bpe.vocab</c> in the model directory, takes per-stream hotwords and returns
 /// an n-best list. The NuGet recognizer keeps its handle private, so hotword streams go through the imports
 /// below. The stock native has no n-best and drops speech in TDT beam search, so a beam run needs the native
-/// <c>New-SherpaNativeSandbox.ps1</c> overlays.
+/// the speech sandbox's <c>New-SherpaNativeSandbox.ps1</c> overlays.
 /// </summary>
-internal sealed class SherpaSttEngine(string modelDir, string provider, SherpaDecoding decoding) : IDisposable
+public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDecoding decoding) : IDisposable
 {
     private const string NativeLibrary = "sherpa-onnx-c-api";
 
@@ -48,8 +45,8 @@ internal sealed class SherpaSttEngine(string modelDir, string provider, SherpaDe
     /// </summary>
     /// <param name="samples">The audio.</param>
     /// <param name="sampleRate">The audio's sample rate.</param>
-    /// <param name="hotwords">Phrases to bias this stream toward; empty for none.</param>
-    public IReadOnlyList<SttHypothesis> Transcribe(float[] samples, int sampleRate, IReadOnlyList<string> hotwords)
+    /// <param name="hotwords">The stream's hotword text, phrases already joined in the C API's form; empty for none.</param>
+    public IReadOnlyList<SttHypothesis> Transcribe(float[] samples, int sampleRate, string hotwords)
     {
         if (samples.Length == 0)
         {
@@ -80,7 +77,7 @@ internal sealed class SherpaSttEngine(string modelDir, string provider, SherpaDe
             return null;
         }
 
-        string? json = DecodeToJson(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate, []);
+        string? json = DecodeToJson(new float[AudioCaptureService.SampleRate / 2], AudioCaptureService.SampleRate, string.Empty);
         if (json is null)
         {
             return $"sherpa model {_modelDir} failed to load";
@@ -100,7 +97,7 @@ internal sealed class SherpaSttEngine(string modelDir, string provider, SherpaDe
     }
 
     /// <summary>Decodes one stream; null (after logging why) when the recognizer or a native object could not be made.</summary>
-    private string? DecodeToJson(float[] samples, int sampleRate, IReadOnlyList<string> hotwords)
+    private string? DecodeToJson(float[] samples, int sampleRate, string hotwords)
     {
         IntPtr recognizer = EnsureLoaded();
         if (recognizer == IntPtr.Zero)
@@ -109,9 +106,7 @@ internal sealed class SherpaSttEngine(string modelDir, string provider, SherpaDe
         }
 
         IntPtr handle =
-            (hotwords.Count > 0)
-                ? SherpaOnnxCreateOfflineStreamWithHotwords(recognizer, SherpaHotwords.Join(hotwords))
-                : SherpaOnnxCreateOfflineStream(recognizer);
+            (hotwords.Length > 0) ? SherpaOnnxCreateOfflineStreamWithHotwords(recognizer, hotwords) : SherpaOnnxCreateOfflineStream(recognizer);
         if (handle == IntPtr.Zero)
         {
             Log.LogError("sherpa-onnx could not create a stream for model dir {Dir}", _modelDir);

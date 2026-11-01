@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
+using Yaat.Client.Services.Speech;
 using Yaat.Sim.Speech;
 
 namespace Yaat.Client.Services;
@@ -137,8 +138,8 @@ public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadO
 /// Orchestrates the full push-to-talk pipeline:
 /// <list type="number">
 ///   <item><description><see cref="AudioCaptureService"/> records 16 kHz mono Float32 samples while PTT is held.</description></item>
-///   <item><description><see cref="WhisperSttEngine"/> transcribes the captured samples with a seeded
-///     <c>initial_prompt</c> (active callsigns + programmed fixes).</description></item>
+///   <item><description>The configured <see cref="ISttEngine"/> transcribes the captured samples, with a seeded
+///     biasing prompt (active callsigns + programmed fixes) for an engine that takes one.</description></item>
 ///   <item><description><see cref="PhraseologyCommandMapper"/> maps the transcript to a canonical
 ///     YAAT command via the rule-based engine.</description></item>
 ///   <item><description>If the rule engine returns null, the optional <see cref="LocalLlmCommandMapper"/>
@@ -157,7 +158,7 @@ public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadO
 public sealed class SpeechRecognitionService(
     UserPreferences preferences,
     AudioCaptureService audio,
-    WhisperSttEngine stt,
+    ISttEngine stt,
     LocalLlmService? llmService,
     ISpeechCommandMapper ruleMapper,
     ISpeechCommandMapper? llmMapper,
@@ -170,7 +171,7 @@ public sealed class SpeechRecognitionService(
 
     private readonly UserPreferences _preferences = preferences;
     private readonly AudioCaptureService _audio = audio;
-    private readonly WhisperSttEngine _stt = stt;
+    private readonly ISttEngine _stt = stt;
     private readonly LocalLlmService? _llmService = llmService;
     private readonly ISpeechCommandMapper _ruleMapper = ruleMapper;
     private readonly ISpeechCommandMapper? _llmMapper = llmMapper;
@@ -230,9 +231,9 @@ public sealed class SpeechRecognitionService(
         var sw = Stopwatch.StartNew();
         try
         {
-            Task whisperTask = _stt.PrewarmAsync(ct);
+            Task sttTask = _stt.WarmUpAsync(ct);
             Task llmTask = _llmService?.PrewarmAsync(ct) ?? Task.CompletedTask;
-            await Task.WhenAll(whisperTask, llmTask).ConfigureAwait(false);
+            await Task.WhenAll(sttTask, llmTask).ConfigureAwait(false);
             sw.Stop();
             Log.LogInformation("Speech pipeline pre-warmed in {Ms} ms", sw.ElapsedMilliseconds);
         }
@@ -354,7 +355,8 @@ public sealed class SpeechRecognitionService(
             SpeechContext ctx = _contextProvider();
 
             var transcribeSw = Stopwatch.StartNew();
-            string? raw = await _stt.TranscribeAsync(samples, ctx.WhisperInitialPrompt, ct).ConfigureAwait(false);
+            SttHypotheses hyps = await _stt.TranscribeAsync(samples, ctx.WhisperInitialPrompt, ct).ConfigureAwait(false);
+            string? raw = hyps.Text;
             transcribeSw.Stop();
             transcribeMs = transcribeSw.ElapsedMilliseconds;
 

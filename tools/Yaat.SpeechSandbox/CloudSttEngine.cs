@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Speech;
 using Yaat.Sim;
 
 namespace Yaat.SpeechSandbox;
