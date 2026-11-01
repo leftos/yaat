@@ -19,7 +19,8 @@ public enum SherpaNativeSet
 /// <summary>The native set startup picked, and why it kept the CPU when the user asked for the GPU.</summary>
 /// <param name="Set">The set to load.</param>
 /// <param name="CpuReason">Why the CPU was kept instead of the GPU set; null when the user asked for the CPU or the GPU set is usable.</param>
-public sealed record SherpaStartupChoice(SherpaNativeSet Set, string? CpuReason);
+/// <param name="Downloads">The archives the installed CUDA set was checked against; non-null exactly when <paramref name="Set"/> is CUDA.</param>
+public sealed record SherpaStartupChoice(SherpaNativeSet Set, string? CpuReason, IReadOnlyList<SherpaCudaDownload>? Downloads);
 
 /// <summary>Registers one <see cref="DllImportResolver"/> per assembly, remembering which assemblies it already did.</summary>
 public interface IDllImportResolverRegistrar
@@ -113,7 +114,7 @@ public static class SherpaNativeLoader
     {
         if (device == SttDevice.Cpu)
         {
-            return new SherpaStartupChoice(SherpaNativeSet.Cpu, null);
+            return new SherpaStartupChoice(SherpaNativeSet.Cpu, null, null);
         }
 
         IReadOnlyList<SherpaCudaDownload>? downloads;
@@ -123,23 +124,23 @@ public static class SherpaNativeLoader
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            return new SherpaStartupChoice(SherpaNativeSet.Cpu, $"The download manifest {manifestPath} could not be read: {ex.Message}");
+            return new SherpaStartupChoice(SherpaNativeSet.Cpu, $"The download manifest {manifestPath} could not be read: {ex.Message}", null);
         }
 
         if (downloads is null)
         {
-            return new SherpaStartupChoice(SherpaNativeSet.Cpu, "There is no GPU runtime for this platform.");
+            return new SherpaStartupChoice(SherpaNativeSet.Cpu, "There is no GPU runtime for this platform.", null);
         }
 
         if (SherpaCudaInstaller.IsInstalledOnDisk(installRoot, downloads))
         {
-            return new SherpaStartupChoice(SherpaNativeSet.Cuda, null);
+            return new SherpaStartupChoice(SherpaNativeSet.Cuda, null, downloads);
         }
 
         string reason = File.Exists(SherpaCudaInstaller.SentinelPath(installRoot))
             ? "The installed GPU runtime is out of date; reinstall it in Settings > Speech."
             : "The GPU runtime is not installed; install it in Settings > Speech.";
-        return new SherpaStartupChoice(SherpaNativeSet.Cpu, reason);
+        return new SherpaStartupChoice(SherpaNativeSet.Cpu, reason, null);
     }
 
     /// <summary>
@@ -304,7 +305,10 @@ public static class SherpaNativeLoader
         return File.Exists(path) ? path : throw new FileNotFoundException($"The sherpa CUDA native set lacks {path}; reinstall it.", path);
     }
 
-    private static void LogManifestHead(string setName, string[] candidates)
+    /// <summary>Logs the <c>HEAD:</c> line of the first manifest in <paramref name="candidates"/> that exists; never throws.</summary>
+    /// <param name="setName">The set's name in the log line.</param>
+    /// <param name="candidates">The manifest paths to try, in order.</param>
+    public static void LogManifestHead(string setName, string[] candidates)
     {
         foreach (string path in candidates)
         {
@@ -312,7 +316,16 @@ public static class SherpaNativeLoader
             {
                 continue;
             }
-            string? head = File.ReadLines(path).FirstOrDefault(line => line.StartsWith("HEAD:", StringComparison.Ordinal));
+            string? head;
+            try
+            {
+                head = File.ReadLines(path).FirstOrDefault(line => line.StartsWith("HEAD:", StringComparison.Ordinal));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log.LogWarning(ex, "Failed to read the sherpa-onnx {Set} native set's manifest at {Path}", setName, path);
+                return;
+            }
             Log.LogInformation("sherpa-onnx {Set} native set loaded: {Head} ({Path})", setName, head ?? "no HEAD line", path);
             return;
         }

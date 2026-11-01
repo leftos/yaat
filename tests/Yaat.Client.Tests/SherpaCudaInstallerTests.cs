@@ -236,6 +236,26 @@ public sealed class SherpaCudaInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Uninstall_Logs_And_Sets_Status_When_The_Root_Lock_Cannot_Open()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Only Windows refuses a read-write open of a read-only file to every user.");
+        string lockPath = _root + ".lock";
+        Directory.CreateDirectory(Path.GetDirectoryName(lockPath)!);
+        File.WriteAllText(lockPath, "");
+        File.SetAttributes(lockPath, FileAttributes.ReadOnly);
+        SherpaCudaInstaller installer = NewInstaller(new FakeHandler([], null), []);
+        try
+        {
+            Assert.Throws<UnauthorizedAccessException>(installer.Uninstall);
+            Assert.StartsWith("Failed: ", installer.StatusMessage, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.SetAttributes(lockPath, FileAttributes.Normal);
+        }
+    }
+
+    [Fact]
     public async Task Second_Installer_On_The_Same_Root_Is_Refused()
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
