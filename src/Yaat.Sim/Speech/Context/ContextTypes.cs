@@ -122,6 +122,11 @@ public sealed record EntityMatch(ContextEntity Entity, WordSpan Span, double Sco
 /// <param name="BestGuess">The best callsign guess when the state is <see cref="DecodeState.SayAgain"/>.</param>
 /// <param name="Entities">Every entity matched in the remainder.</param>
 /// <param name="RewrittenTranscript">The transcript with accepted spans rewritten.</param>
+/// <param name="Remainder">
+/// The rewritten transcript without the resolved callsign's source words, single-spaced; equal to
+/// <paramref name="RewrittenTranscript"/> when no callsign resolved (<see cref="DecodeState.SayAgain"/>,
+/// <see cref="DecodeState.NoCallsign"/>).
+/// </param>
 /// <param name="HypothesisIndex">The hypothesis the answer came from.</param>
 /// <param name="JointScore">The winning hypothesis's joint score.</param>
 /// <param name="ConfidenceGated">Whether the log-probability gate applied.</param>
@@ -131,6 +136,7 @@ public sealed record DecodeResult(
     EntityMatch? BestGuess,
     IReadOnlyList<EntityMatch> Entities,
     string RewrittenTranscript,
+    string Remainder,
     int HypothesisIndex,
     double JointScore,
     bool ConfidenceGated

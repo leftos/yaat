@@ -515,7 +515,7 @@ public sealed class CorpusSlotRunTests : IDisposable
     private static EntityMatch Matched(RoomAircraft aircraft) => new(aircraft.Callsign, new WordSpan(0, 1), 1.0, false, "heard");
 
     private static DecodeResult Decoded(DecodeState state, EntityMatch? callsign, EntityMatch? bestGuess) =>
-        new(state, callsign, bestGuess, [], string.Empty, 0, 0, false);
+        new(state, callsign, bestGuess, [], string.Empty, string.Empty, 0, 0, false);
 
     private static SttHypotheses Transcript() =>
         new(

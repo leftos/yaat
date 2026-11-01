@@ -30,7 +30,7 @@ public sealed class SttAccurateModeTests
             false
         );
 
-        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "UAL1"]);
+        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "UAL1"], AccurateCommandText.RawHypothesis);
 
         Assert.Equal(DecodeState.Resolved, mapped.Decode.State);
         Assert.Equal(2, mapped.Decode.HypothesisIndex);
@@ -49,7 +49,7 @@ public sealed class SttAccurateModeTests
             false
         );
 
-        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "UAL1"]);
+        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "UAL1"], AccurateCommandText.RawHypothesis);
 
         Assert.Equal(DecodeState.Resolved, mapped.Decode.State);
         Assert.Equal("SWA2495", mapped.Result.Callsign);
@@ -70,7 +70,7 @@ public sealed class SttAccurateModeTests
             false
         );
 
-        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "N346G"]);
+        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "N346G"], AccurateCommandText.RawHypothesis);
 
         Assert.NotEqual(DecodeState.Resolved, mapped.Decode.State);
         Assert.Equal("N346G", mapped.Result.Callsign);
@@ -82,11 +82,46 @@ public sealed class SttAccurateModeTests
     {
         TransmissionContext room = Context(new RoomAircraftInput("SWA2495", "B737", [], null));
 
-        HypothesesMapResult mapped = await MapAsync(new SttHypotheses([], null, false), room, ["SWA2495"]);
+        HypothesesMapResult mapped = await MapAsync(new SttHypotheses([], null, false), room, ["SWA2495"], AccurateCommandText.RawHypothesis);
 
         Assert.Equal(DecodeState.NoCallsign, mapped.Decode.State);
         Assert.Null(mapped.Result.Callsign);
         Assert.Null(mapped.Result.Canonical);
+    }
+
+    [Fact]
+    public async Task Raw_Text_Hands_The_Mapper_The_Heard_Kizer()
+    {
+        HypothesesMapResult mapped = await MapAsync(OneHypothesis(KizerHypothesis), KaiserRoom(), ["SWA2495"], AccurateCommandText.RawHypothesis);
+
+        Assert.Equal(DecodeState.Resolved, mapped.Decode.State);
+        Assert.Equal("SWA2495", mapped.Result.Callsign);
+        Assert.Equal(AtcNumberParser.NormalizeDigits("abeam kizer"), mapped.Result.CommandText);
+    }
+
+    [Fact]
+    public async Task Rewritten_Text_Hands_The_Mapper_The_Spoken_Kaiser()
+    {
+        HypothesesMapResult mapped = await MapAsync(OneHypothesis(KizerHypothesis), KaiserRoom(), ["SWA2495"], AccurateCommandText.Rewritten);
+
+        Assert.Equal(DecodeState.Resolved, mapped.Decode.State);
+        Assert.Equal("SWA2495", mapped.Result.Callsign);
+        Assert.Equal(AtcNumberParser.NormalizeDigits("abeam kaiser"), mapped.Result.CommandText);
+    }
+
+    /// <summary>The transcript whose "kizer" the KAISER landmark's spoken form corrects to "kaiser".</summary>
+    private const string KizerHypothesis = "southwest twenty four ninety five abeam kizer";
+
+    private static SttHypotheses OneHypothesis(string text) => new([new SttHypothesis(text, [], [], null)], null, false);
+
+    /// <summary>The room's aircraft beside the KAISER landmark, which gives the heard "kizer" a spoken form to be rewritten to.</summary>
+    private static TransmissionContext KaiserRoom()
+    {
+        TransmissionContext room = Context(new RoomAircraftInput("SWA2495", "B737", [], null));
+        return room with
+        {
+            AirportEntities = [.. room.AirportEntities, ContextEntityFactory.Landmark("KOAK", "kaiser", ["kaiser", "kaiser center"])],
+        };
     }
 
     private static TransmissionContext Context(params RoomAircraftInput[] aircraft) =>
@@ -97,10 +132,15 @@ public sealed class SttAccurateModeTests
             DecoderSettings.Default
         );
 
-    private static Task<HypothesesMapResult> MapAsync(SttHypotheses hypotheses, TransmissionContext room, IReadOnlyList<string> activeCallsigns) =>
+    private static Task<HypothesesMapResult> MapAsync(
+        SttHypotheses hypotheses,
+        TransmissionContext room,
+        IReadOnlyList<string> activeCallsigns,
+        AccurateCommandText commandText
+    ) =>
         SpeechRecognitionService.MapHypothesesWithTraceAsync(
             hypotheses,
-            new AccurateDecodeInput(room, DecoderSettings.Default),
+            new AccurateDecodeInput(room, DecoderSettings.Default, commandText),
             new SpeechContext(activeCallsigns, [], string.Empty),
             new SpeechMappers(new PhraseologyCommandMapper(), null, null),
             CancellationToken.None

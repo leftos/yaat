@@ -301,6 +301,38 @@ public class ContextDecoderTests
         Assert.Equal("southwest twenty four ninety five abeam kaiser", result.RewrittenTranscript);
     }
 
+    [Fact]
+    public void Remainder_DropsTheResolvedCallsignWords()
+    {
+        DecodeResult result = DecodeSpoken(KizerTranscript, Room(["SWA2495"], Airport));
+
+        AssertResolved(result, "SWA2495");
+        Assert.Equal("abeam kaiser", result.Remainder);
+    }
+
+    [Fact]
+    public void Remainder_Typed_DropsTheResolvedCallsignWord()
+    {
+        DecodeResult result = Decode(
+            [new DecoderHypothesis("swa2495 30", null, null)],
+            InputSource.Typed,
+            MatchMode.ExactOnly,
+            Room(["SWA2495"], Airport)
+        );
+
+        AssertResolved(result, "SWA2495");
+        Assert.Equal("30", result.Remainder);
+    }
+
+    [Fact]
+    public void Remainder_WithoutACallsign_IsTheRewrittenTranscript()
+    {
+        DecodeResult result = DecodeSpoken("abeam kizer", Room(["SWA2495"], Airport));
+
+        Assert.NotEqual(DecodeState.Resolved, result.State);
+        Assert.Equal(result.RewrittenTranscript, result.Remainder);
+    }
+
     [Theory]
     [InlineData("southwest twenty four ninety five turn left heading two five zero", "SWA2495", "UAL250")]
     [InlineData("southwest twenty four ninety five reduce speed to two one zero", "SWA2495", "UAL210")]
