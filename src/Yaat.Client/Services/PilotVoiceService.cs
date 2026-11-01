@@ -185,21 +185,7 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
                 return null;
             }
 
-            OfflineTts tts = await Task.Run(
-                    () =>
-                    {
-                        var config = new OfflineTtsConfig();
-                        config.Model.Vits.Model = onnxFile.FullName;
-                        config.Model.Vits.Tokens = tokensPath;
-                        config.Model.Vits.LengthScale = 1.0f;
-                        config.Model.NumThreads = 2;
-                        config.Model.Provider = "cpu";
-                        config.Model.Debug = 0;
-                        return new OfflineTts(config);
-                    },
-                    ct
-                )
-                .ConfigureAwait(false);
+            OfflineTts tts = await Task.Run(() => CreateOfflineTts(onnxFile.FullName, tokensPath), ct).ConfigureAwait(false);
 
             _espeakDataDir = dataDir;
             _loadedVoiceDir = voiceDir;
@@ -212,6 +198,19 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
         {
             _loadLock.Release();
         }
+    }
+
+    /// <summary>Loads a Piper VITS voice on the CPU with two threads.</summary>
+    internal static OfflineTts CreateOfflineTts(string onnxPath, string tokensPath)
+    {
+        var config = new OfflineTtsConfig();
+        config.Model.Vits.Model = onnxPath;
+        config.Model.Vits.Tokens = tokensPath;
+        config.Model.Vits.LengthScale = 1.0f;
+        config.Model.NumThreads = 2;
+        config.Model.Provider = "cpu";
+        config.Model.Debug = 0;
+        return new OfflineTts(config);
     }
 
     private void Prewarm(OfflineTts tts)
