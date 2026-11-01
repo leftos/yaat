@@ -196,6 +196,7 @@ public sealed partial class UserPreferences
         ["audioOutputDevice"] = "an audio device on this machine",
         ["rendererMode"] = "a graphics backend choice for this machine",
         ["llmGpuLayers"] = "depends on this machine's GPU",
+        ["sttDevice"] = "depends on this machine's GPU and its installed CUDA set",
         ["speechSampleCaptureEnabled"] = "records the user's voice; each user consents on their own machine",
         ["speechTelemetryEnabled"] = "telemetry consent",
         ["speechTelemetryPromptShown"] = "telemetry consent prompt shown",
