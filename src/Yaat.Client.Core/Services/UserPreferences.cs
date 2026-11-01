@@ -678,6 +678,9 @@ public sealed partial class UserPreferences
     /// <summary>GPU rendering backend override (macOS only). Defaults to <see cref="RendererMode.Auto"/>.</summary>
     public RendererMode RendererMode => Enum.TryParse<RendererMode>(_data.RendererMode, out RendererMode renderer) ? renderer : RendererMode.Auto;
 
+    /// <summary>Where speech recognition runs. Defaults to <see cref="SttDevice.Cpu"/>, as does an unrecognised stored value.</summary>
+    public SttDevice SttDevice => Enum.TryParse<SttDevice>(_data.SttDevice, out SttDevice device) ? device : SttDevice.Cpu;
+
     /// <summary>
     /// How far the VFR-only command set opens up for IFR aircraft. Defaults to
     /// <see cref="Sim.Commands.VfrCommandsForIfr.EnterFinalOnly"/> so <c>EF</c> works on an IFR
@@ -1484,6 +1487,12 @@ public sealed partial class UserPreferences
         Save();
     }
 
+    public void SetSttDevice(SttDevice device)
+    {
+        _data.SttDevice = device.ToString();
+        Save();
+    }
+
     public void SetVfrCommandsForIfr(VfrCommandsForIfr mode)
     {
         _data.VfrCommandsForIfr = mode.ToString();
@@ -2158,6 +2167,7 @@ public sealed partial class UserPreferences
             LiveTrafficListFilter = GetFieldOr(obj, "liveTrafficListFilter", nameof(Models.LiveTrafficListFilter.All)),
             TerminalTimestampMode = GetFieldOr(obj, "terminalTimestampMode", nameof(Models.TerminalTimestampMode.WallClock)),
             RendererMode = GetFieldOr(obj, "rendererMode", nameof(Models.RendererMode.Auto)),
+            SttDevice = GetFieldOr(obj, "sttDevice", nameof(Models.SttDevice.Cpu)),
             ShowTimelineBar = GetFieldOr(obj, "showTimelineBar", false),
             DataGridAlternatingRowColor = GetFieldOr(obj, "dataGridAlternatingRowColor", true),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
@@ -2740,6 +2750,9 @@ public sealed partial class UserPreferences
         // GPU rendering backend override, applied on macOS only. Stored as a string so enum
         // reordering can't misassign it. "Auto" lets the platform pick (Metal on macOS).
         public string RendererMode { get; set; } = nameof(Models.RendererMode.Auto);
+
+        // Where speech recognition runs: "Cpu" or "Gpu". Stored as a string so enum reordering can't misassign it.
+        public string SttDevice { get; set; } = nameof(Models.SttDevice.Cpu);
         public int InterfaceFontSize { get; set; } = 12;
         public int StripsZoomPercent { get; set; } = 80;
         public int TdlsZoomPercent { get; set; } = 100;
