@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Sim.Speech;
+using Yaat.Sim.Speech.Context;
 
 namespace Yaat.Client.Tests;
 
@@ -42,7 +43,13 @@ public sealed class SpeechSampleStoreTests : IDisposable
             ProgrammedFixes: ["KOAK"],
             AvailableRunwaysByAirport: new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R", "28L"] },
             TaxiwayNames: ["A", "B"],
-            AircraftDestinations: new Dictionary<string, string> { ["N123AB"] = "KOAK" }
+            AircraftDestinations: new Dictionary<string, string> { ["N123AB"] = "KOAK" },
+            Mode: null,
+            NBest: null,
+            DecodeState: null,
+            BestGuess: null,
+            DecodeMs: null,
+            DecodeError: null
         );
         return new SpeechSession(
             TimestampUtc: ts,
@@ -165,6 +172,81 @@ public sealed class SpeechSampleStoreTests : IDisposable
         Assert.Equal(2, second.Entries.Count);
         // Newest first.
         Assert.Equal(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc), second.Entries[0].Session.TimestampUtc);
+    }
+
+    [Fact]
+    public void SessionTrace_WithAccurateFields_RoundTrips()
+    {
+        var ts = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        SpeechSession session = MakeSession(ts);
+        SpeechSessionTrace accurateTrace = session.Trace! with
+        {
+            Mode = TranscriptionMode.Accurate,
+            NBest =
+            [
+                new SpeechTraceHypothesis("southwest two four nine five cleared to land", 0.75),
+                new SpeechTraceHypothesis("south west two four nine five cleared to land", 0.5),
+            ],
+            DecodeState = DecodeState.Resolved,
+            BestGuess = "SWA2495",
+            DecodeMs = 12.5,
+            DecodeError = null,
+        };
+
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string? id = store.Add(session with { Trace = accurateTrace }, MakeAudio(0.5), queueForUpload: false);
+        Assert.NotNull(id);
+
+        // The persisted JSON spells the enums out and keeps every accurate-mode field.
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(_root, id!, "session.json")));
+        JsonElement traceJson = doc.RootElement.GetProperty("trace");
+        Assert.Equal("Accurate", traceJson.GetProperty("mode").GetString());
+        Assert.Equal("Resolved", traceJson.GetProperty("decodeState").GetString());
+        Assert.Equal("SWA2495", traceJson.GetProperty("bestGuess").GetString());
+        Assert.Equal(12.5, traceJson.GetProperty("decodeMs").GetDouble());
+        Assert.Equal(2, traceJson.GetProperty("nBest").GetArrayLength());
+        Assert.False(traceJson.TryGetProperty("decodeError", out _), "a null decode error must not be persisted");
+
+        // A fresh store reads the sample back from disk.
+        var reloaded = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        SpeechSessionTrace loaded = reloaded.Entries.Single().Session.Trace!;
+        Assert.Equal(TranscriptionMode.Accurate, loaded.Mode);
+        Assert.Equal(DecodeState.Resolved, loaded.DecodeState);
+        Assert.Equal("SWA2495", loaded.BestGuess);
+        Assert.Equal(12.5, loaded.DecodeMs);
+        Assert.Null(loaded.DecodeError);
+        Assert.NotNull(loaded.NBest);
+        Assert.Equal(2, loaded.NBest!.Count);
+        Assert.Equal("southwest two four nine five cleared to land", loaded.NBest[0].Text);
+        Assert.Equal(0.75, loaded.NBest[0].Score);
+        Assert.Equal("south west two four nine five cleared to land", loaded.NBest[1].Text);
+        Assert.Equal(0.5, loaded.NBest[1].Score);
+    }
+
+    [Fact]
+    public void SessionTrace_SavedBeforeTheAccurateFields_LoadsThemAsNull()
+    {
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string? id = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.5), queueForUpload: false);
+        Assert.NotNull(id);
+
+        // A trace captured with no accurate-mode decode writes none of the six keys.
+        string[] accurateKeys = ["mode", "nBest", "decodeState", "bestGuess", "decodeMs", "decodeError"];
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(_root, id!, "session.json")));
+        JsonElement traceJson = doc.RootElement.GetProperty("trace");
+        foreach (string key in accurateKeys)
+        {
+            Assert.False(traceJson.TryGetProperty(key, out _), $"a trace without an accurate decode must not persist {key}");
+        }
+
+        var reloaded = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        SpeechSessionTrace loaded = reloaded.Entries.Single().Session.Trace!;
+        Assert.Null(loaded.Mode);
+        Assert.Null(loaded.NBest);
+        Assert.Null(loaded.DecodeState);
+        Assert.Null(loaded.BestGuess);
+        Assert.Null(loaded.DecodeMs);
+        Assert.Null(loaded.DecodeError);
     }
 
     [Fact]

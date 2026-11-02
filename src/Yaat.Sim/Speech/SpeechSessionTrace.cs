@@ -1,4 +1,21 @@
+using Yaat.Sim.Speech.Context;
+
 namespace Yaat.Sim.Speech;
+
+/// <summary>Which transcription path produced a session's transcript.</summary>
+public enum TranscriptionMode
+{
+    /// <summary>The single-hypothesis transcription path.</summary>
+    Fast,
+
+    /// <summary>The beam n-best path, scored by the context decoder.</summary>
+    Accurate,
+}
+
+/// <summary>One n-best entry as carried on a session trace: the hypothesis text and its score, with no tokens.</summary>
+/// <param name="Text">The hypothesis transcript.</param>
+/// <param name="Score">The hypothesis's decode score.</param>
+public sealed record SpeechTraceHypothesis(string Text, double Score);
 
 /// <summary>
 /// Per-pipeline-stage detail captured for a single push-to-talk session. Attached to
@@ -18,6 +35,12 @@ namespace Yaat.Sim.Speech;
 /// <param name="AvailableRunwaysByAirport">Per-airport runway lists fed to the mappers for {rwy} validation and LLM recovery.</param>
 /// <param name="TaxiwayNames">Taxiway-name set fed to <c>NatoLetterNormalizer</c>.</param>
 /// <param name="AircraftDestinations">Callsign→destination map fed to the LLM fallback.</param>
+/// <param name="Mode">Which transcription path produced the transcript, or null when the trace does not record it.</param>
+/// <param name="NBest">The accurate mode's beam n-best list, or null when no beam decode ran.</param>
+/// <param name="DecodeState">How the context decoder settled the callsign, or null when the decoder did not run.</param>
+/// <param name="BestGuess">The decoder's best-guess callsign when it could not settle one, or null.</param>
+/// <param name="DecodeMs">Wall-clock milliseconds the context decode took, or null when it did not run.</param>
+/// <param name="DecodeError">The exception message when the decode failed and the press fell back to the fast path, or null.</param>
 public sealed record SpeechSessionTrace(
     string WhisperBiasingPrompt,
     string RawTranscript,
@@ -29,7 +52,13 @@ public sealed record SpeechSessionTrace(
     IReadOnlyList<string> ProgrammedFixes,
     IReadOnlyDictionary<string, IReadOnlyList<string>> AvailableRunwaysByAirport,
     IReadOnlyList<string> TaxiwayNames,
-    IReadOnlyDictionary<string, string> AircraftDestinations
+    IReadOnlyDictionary<string, string> AircraftDestinations,
+    TranscriptionMode? Mode,
+    IReadOnlyList<SpeechTraceHypothesis>? NBest,
+    DecodeState? DecodeState,
+    string? BestGuess,
+    double? DecodeMs,
+    string? DecodeError
 );
 
 /// <summary>

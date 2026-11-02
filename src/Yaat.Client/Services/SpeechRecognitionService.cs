@@ -553,7 +553,13 @@ public sealed class SpeechRecognitionService(
             ProgrammedFixes: [.. ctx.ProgrammedFixes],
             AvailableRunwaysByAirport: ctx.AvailableRunways,
             TaxiwayNames: [.. ctx.TaxiwayNames],
-            AircraftDestinations: ctx.AircraftDestinations
+            AircraftDestinations: ctx.AircraftDestinations,
+            Mode: null,
+            NBest: null,
+            DecodeState: null,
+            BestGuess: null,
+            DecodeMs: null,
+            DecodeError: null
         );
     }
 

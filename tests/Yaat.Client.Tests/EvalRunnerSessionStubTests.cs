@@ -41,7 +41,13 @@ public sealed class EvalRunnerSessionStubTests : IDisposable
             ProgrammedFixes: ["SUNOL"],
             AvailableRunwaysByAirport: new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R", "28L"] },
             TaxiwayNames: ["A", "B"],
-            AircraftDestinations: new Dictionary<string, string> { ["UAL234"] = "KOAK" }
+            AircraftDestinations: new Dictionary<string, string> { ["UAL234"] = "KOAK" },
+            Mode: null,
+            NBest: null,
+            DecodeState: null,
+            BestGuess: null,
+            DecodeMs: null,
+            DecodeError: null
         );
         var session = new SpeechSession(
             TimestampUtc: DateTime.UtcNow,
