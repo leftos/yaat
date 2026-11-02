@@ -1,1 +1,11 @@
-{ "schema": 1, "corpus": null, "sttNative": null, "entries": [] }
+{
+  "schema": 1,
+  "corpus": "liveatc-us",
+  "sttNative": "804a1d0c29",
+  "entries": [
+    { "engine": "RasrV2Fp32", "mode": "Accurate", "ownerWer": 0.284, "callsignRecall": 0.362 },
+    { "engine": "RasrV2Fp32", "mode": "Fast", "ownerWer": 0.296, "callsignRecall": 0.315 },
+    { "engine": "RasrV2Int8", "mode": "Accurate", "ownerWer": 0.421, "callsignRecall": 0.252 },
+    { "engine": "RasrV2Int8", "mode": "Fast", "ownerWer": 0.429, "callsignRecall": 0.220 }
+  ]
+}

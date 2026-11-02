@@ -64,3 +64,24 @@ Before any full run, the hotword score was swept on a 30-clip smoke subset (seed
 1. **Ship greedy rasr-parakeet fp32 as the fast mode, and beam with resolution as the accurate mode.** Greedy is 92 ms on GPU and 285 ms on CPU. Beam with resolution adds 3.2 points of callsign recall and 1.0 point of owner WER for about 125-290 ms. Both fit the push-to-talk budget, and the in-app benchmark shows each mode's latency and RAM so the user picks one. Room hotwords and the two-pass decode stay in the sandbox and do not go into the client.
 2. **Raise decoder recall before client wiring, measured on Argon's transcripts and on rasr's.** Precision has headroom: no wrong addressee in any run, and room size changes nothing. The work is YAAT-1578 (openers, closing tails, prefixes), YAAT-1575 (more spoken forms), and the new patterns above (N-numbers without "november", grouped GA digits, a trailing addressee after a traffic word, GA types in the room fixture, fix recall).
 3. **Judge a fine-tune afterwards, on slot recall.** rasr trails Argon by 12.7 points of owner WER, but with today's decoder even Argon's transcripts give only 45% callsign recall. Measure the decoder gain first; then the gap between rasr and Argon on slot recall says whether a fine-tune is worth its cost.
+
+## Reference figures on the CI natives (YAAT-1605)
+
+These are the figures `src/Yaat.Client/Speech/stt-reference.json` carries, measured on the sherpa-onnx natives CI built at `804a1d0c29` (the commit `stt-downloads.json` names), overlaid by `New-SherpaNativeSandbox.ps1` and checked against each native's `MANIFEST.txt`. Both rasr-parakeet v2 exports were checked file by file against the SHA-256 in `stt-downloads.json`. Each run scored all 106 `liveatc-us` clips in the gate's alone slot (`gate.ps1 run --slot critical --alone --local`). That slot keeps other gated work off the machine but not other load: between 4.6 and 14.7 of the 16 cores were busy outside the gate at the start of several runs (the int8 Accurate runs the most), so the latencies below may run high. WER and recall do not depend on load. Fast is greedy with `--slots`; Accurate is `modified_beam_search` with 4 paths, `--slots` and `--resolve`, as the client runs them. The reference file takes each CPU run's owner WER (Accurate: the rewritten figure) and padded-room callsign recall; the GPU runs are the cross-check. Peak VRAM is the GPU memory the run added over its pre-load reading.
+
+| Model | Mode | Device | WER all | WER owner | Owner WER, rewritten | Callsign recall | p50 / p90 | Peak RAM | Peak VRAM |
+|---|---|---|---|---|---|---|---|---|---|
+| rasr v2 fp32 | Fast | CPU | 22.1% | 29.6% | - | 31.5% | 277 / 472 ms | 3.0 GB | - |
+| rasr v2 fp32 | Fast | GPU | 22.1% | 29.6% | - | 31.5% | 112 / 141 ms | 1.4 GB | 3.6 GB |
+| rasr v2 fp32 | Accurate | CPU | 21.3% | 28.6% | 28.4% | 36.2% | 401 / 679 ms | 3.0 GB | - |
+| rasr v2 fp32 | Accurate | GPU | 21.3% | 28.6% | 28.4% | 36.2% | 450 / 742 ms | 1.4 GB | 3.6 GB |
+| rasr v2 int8 | Fast | CPU | 33.9% | 42.9% | - | 22.0% | 238 / 394 ms | 1.3 GB | - |
+| rasr v2 int8 | Fast | GPU | 33.6% | 42.8% | - | 21.3% | 370 / 595 ms | 1.8 GB | 1.0 GB |
+| rasr v2 int8 | Accurate | CPU | 32.0% | 42.1% | 42.1% | 25.2% | 323 / 531 ms | 1.3 GB | - |
+| rasr v2 int8 | Accurate | GPU | 32.6% | 42.5% | 42.5% | 24.4% | 729 / 1,166 ms | 1.8 GB | 1.0 GB |
+
+The fp32 model's CPU and GPU runs give the same WER and callsign recall in both modes, to the decimal shown.
+
+The int8 export trails fp32 by 13.3 points of owner WER in Fast and 13.7 in Accurate, and by about 10 points of callsign recall, so int8 trades a large part of the accuracy for its smaller download and memory.
+
+The int8 model's CPU and GPU WER agree within a point (0.3 points on all clips in Fast, 0.6 in Accurate), but they are not identical: the GPU run recalls one callsign fewer in each mode, and in Accurate it returned no transcript for two clips against the CPU's one.

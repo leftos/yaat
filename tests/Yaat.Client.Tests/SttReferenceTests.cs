@@ -17,13 +17,26 @@ public sealed class SttReferenceTests : IDisposable
     public void Dispose() => Directory.Delete(_dir, recursive: true);
 
     [Fact]
-    public void The_Committed_File_Loads_With_No_Entries()
+    public void The_Committed_File_Holds_Every_Offered_Model_In_Both_Modes()
     {
         var reference = SttReference.Load(Path.Combine(AppContext.BaseDirectory, "Speech", "stt-reference.json"));
 
         Assert.Equal(1, reference.Schema);
-        Assert.Empty(reference.Entries);
-        Assert.Null(reference.Find(SttEngine.RasrV2Fp32, SttMode.Accurate));
+        Assert.Equal("liveatc-us", reference.Corpus);
+        Assert.Equal("804a1d0c29", reference.SttNative);
+        Assert.Equal(4, reference.Entries.Count);
+        SttEngine[] engines = [SttEngine.RasrV2Fp32, SttEngine.RasrV2Int8];
+        SttMode[] modes = [SttMode.Fast, SttMode.Accurate];
+        foreach (SttEngine engine in engines)
+        {
+            foreach (SttMode mode in modes)
+            {
+                SttReferenceEntry? entry = reference.Find(engine, mode);
+                Assert.NotNull(entry);
+                Assert.NotNull(entry.OwnerWer);
+                Assert.NotNull(entry.CallsignRecall);
+            }
+        }
     }
 
     [Fact]

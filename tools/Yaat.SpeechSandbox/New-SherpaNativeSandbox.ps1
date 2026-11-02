@@ -26,8 +26,8 @@
 
 .PARAMETER NativeId
     The commit prefix of the staged native folder to overlay, as named under
-    %LOCALAPPDATA%\yaat\cache\sherpa-native. Defaults to edad9a7fe1, the commit these natives were built
-    from.
+    %LOCALAPPDATA%\yaat\cache\sherpa-native. Defaults to 804a1d0c29, the CI-built native that
+    src/Yaat.Client/Speech/stt-downloads.json names as natives.commit.
 
 .PARAMETER BuildOutput
     The sandbox build folder to copy. Defaults to tools\Yaat.SpeechSandbox\bin\Release\net10.0 in this
@@ -50,7 +50,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][ValidateSet('cpu', 'cuda')][string] $Variant,
-    [string] $NativeId = 'edad9a7fe1',
+    [string] $NativeId = '804a1d0c29',
     [string] $BuildOutput,
     [string] $Destination
 )
