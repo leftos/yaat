@@ -9,6 +9,7 @@
 - [ ] YAAT-1603 Accurate STT mode: build the room context from live client state and resolve callsigns with ContextDecoder · release vNext — Urgent · STT tuning
 - [ ] YAAT-1604 In-app STT benchmark: per model, mode and device latency, RAM and VRAM on this machine · release vNext — Urgent · STT tuning
 - [ ] YAAT-1605 Reference STT measurements on the CI natives and client speech docs · release vNext — Urgent · STT tuning
+- [ ] YAAT-1696 DataRetentionHostedServiceTests.StartAsync_RunsAPassAtOnce flakes on a 10 s wall-clock wait · release vNext — Urgent · Test infrastructure and CI
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -670,7 +671,7 @@
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (4/21 done)
+### 1 Defects (5/21 done)
 - [ ] YAAT-1036 Reach a crossing bound by the flyby sequencing point, not the fix position · release vNext+1
 - [ ] YAAT-1037 Stop an unmet published SID/STAR altitude bound from overriding a non-via assigned altitude · release vNext+1
 - [ ] YAAT-926 Convert CR/VR departure-leg radials with the navaid's variation · release vNext+1
@@ -680,7 +681,6 @@
 - [ ] YAAT-978 Check in with 'climbing to' instead of 'climbing via' after a plain maintain · release vNext+1
 - [ ] YAAT-980 Clear SID via mode when a descend via is issued · release vNext+1
 - [ ] YAAT-982 Use only the filed SID transition when finding a CVIA top altitude · release vNext+1
-- [/] YAAT-1366 Fly a STAR's published speeds without DVIA (OAKES3 arrival crosses GRUDG..FFIST at 280 kt) · release vNext
 - [ ] YAAT-1401 Make CVIA in a SID's climb window supersede crossing speeds on the phase's pending route, not only the live route · release vNext
 - [ ] YAAT-1483 Sequence a SID's heading-to-intercept leg when the next leg is a fix-less course-to-altitude leg (KSJC SUNOL1 RW12B)
 - [ ] YAAT-1484 Parse TDLS initial altitudes written as 'MAINTAIN 5000FT' (every ZLA SID's hold is off)
@@ -1115,21 +1115,19 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (4/10 done)
+### 1 Defects (5/11 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-305 UI tests: AppLifetime.IsShuttingDown never resets after a MainWindow close · release vNext+1
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
-- [/] YAAT-1655 Make test runs independent of the user cache's NavData cycle; report the CIFP cycle actually used · release vNext
 - [ ] YAAT-1689 Make tools/tests collect: add brotli to the dev dependencies
 
-### 2 Refinements and rulings (0/4 done)
+### 2 Refinements and rulings (1/4 done)
 - [ ] YAAT-559 Add every vNAS training airport with a real ground layout to the test data
 - [ ] YAAT-985 Run the desktop-gated UI tests the routed builder skips before a landing counts as green
-- [ ] YAAT-1439 Stop AIRAC cycle changes from silently re-staging tests: pin the test CIFP cycle or guard the procedures tests rely on · release vNext+2
 - [ ] YAAT-1478 Count soak completions per episode instead of reading the debrief's 500-record removal list
 
-### 3 Hygiene and tests (1/53 done)
+### 3 Hygiene and tests (1/54 done)
 - [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
 - [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
 - [ ] YAAT-152 Test SoakRunner option parsing (move it into Yaat.Server/Soak)
@@ -1182,6 +1180,7 @@
 - [ ] YAAT-1457 Move the remaining OAK test selectors off node ids, ordinals and arc display names; add bug_bundle.py remap · release vNext+2
 - [ ] YAAT-1613 Share the client ground-route test setup and scope its navdata overrides
 - [ ] YAAT-1691 Refuse a pinned TestVnasData resolve after an unpinned one already ran
+- [ ] YAAT-1695 Delete the Yaat.Sim.Tests.TestVnasData wrapper that shadows the real class
 
 ## Docs, agent tooling and repo hygiene
 
