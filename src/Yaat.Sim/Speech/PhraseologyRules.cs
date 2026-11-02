@@ -432,12 +432,14 @@ public static class PhraseologyRules
             new(["position", "and", "hold"], "LUAW", LineUpAndWait), // legacy US phraseology
             // Cleared for takeoff. FAA 7110.65 3-9-10 leads with the runway ("RUNWAY 28R, cleared
             // for takeoff"); ICAO phraseology trails it ("cleared for takeoff runway 28R"). The
-            // {rwy} capture is intentionally not reflected in the canonical output — CTO uses the
-            // aircraft's already-assigned takeoff runway; the runway literal is in the pattern so
-            // the rule mapper consumes the whole utterance instead of silently dropping it.
-            new(["runway", "{rwy}", "cleared", "for", "takeoff"], "CTO", ClearedForTakeoff),
-            new(["runway", "{rwy}", "clear", "for", "takeoff"], "CTO", ClearedForTakeoff),
-            new(["cleared", "for", "takeoff", "runway", "{rwy}"], "CTO", ClearedForTakeoff),
+            // {rwy} capture is carried as the clearance's named runway (CTO RWY {rwy}): a runway that
+            // matches the aircraft's assigned one clears it as a bare CTO would, and one that does not
+            // is queried or refused by the pilot instead of being dropped.
+            new(["runway", "{rwy}", "cleared", "for", "takeoff"], "CTO RWY {rwy}", ClearedForTakeoff),
+            new(["runway", "{rwy}", "clear", "for", "takeoff"], "CTO RWY {rwy}", ClearedForTakeoff),
+            // 7110.65 3-9-10.b intersection departure: "RUNWAY 28R AT E, cleared for takeoff".
+            new(["runway", "{rwy}", "at", "{taxiway}", "cleared", "for", "takeoff"], "CTO RWY {rwy}", ClearedForTakeoff),
+            new(["cleared", "for", "takeoff", "runway", "{rwy}"], "CTO RWY {rwy}", ClearedForTakeoff),
             new(["cleared", "for", "takeoff"], "CTO", ClearedForTakeoff),
             new(["clear", "for", "takeoff"], "CTO", ClearedForTakeoff),
             new(["cancel", "takeoff", "clearance"], "CTOC", CancelTakeoffClearance),

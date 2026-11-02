@@ -82,6 +82,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -109,6 +110,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -138,6 +140,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -169,6 +172,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -218,6 +222,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -268,6 +273,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             5000,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -316,6 +322,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             5000,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -365,6 +372,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             5000,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -445,6 +453,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -482,6 +491,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -505,6 +515,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -536,6 +547,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             5000,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -575,6 +587,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -621,6 +634,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared, groundLayout: layout),
             TestDispatch.EmptyTaxi,
             Logger
@@ -657,6 +671,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -688,6 +703,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             departure,
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -852,6 +868,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -897,6 +914,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Left, "28L", null),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -924,6 +942,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, null, null),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -1034,6 +1053,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -1098,6 +1118,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger

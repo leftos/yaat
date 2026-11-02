@@ -153,6 +153,7 @@ public class NimiRadarVectorsSidTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             assignedAltitude: 5000,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger
@@ -194,6 +195,7 @@ public class NimiRadarVectorsSidTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             assignedAltitude: 5000,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             Logger

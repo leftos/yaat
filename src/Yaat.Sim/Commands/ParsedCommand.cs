@@ -342,6 +342,12 @@ public record ClearedForTakeoffCommand(DepartureInstruction Departure, int? Assi
     /// takeoff for eligible aircraft.
     /// </summary>
     public bool Immediate { get; init; }
+
+    /// <summary>
+    /// The runway the clearance names (<c>CTO RWY 28L</c>, 7110.65 3-9-10.d), normalised, or null when it names none and the
+    /// aircraft's assigned runway is meant.
+    /// </summary>
+    public string? Runway { get; init; }
 }
 
 public record CancelTakeoffClearanceCommand : ParsedCommand;

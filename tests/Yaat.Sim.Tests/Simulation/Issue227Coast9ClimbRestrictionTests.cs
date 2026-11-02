@@ -105,6 +105,7 @@ public class Issue227Coast9ClimbRestrictionTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             assignedAltitude: null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             NullLogger.Instance

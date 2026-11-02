@@ -787,6 +787,16 @@ public static class CommandSchemeParser
         string verb = parts[0];
         string? arg = parts.Length > 1 ? parts[1].Trim() : null;
 
+        // RWY {runway} CTO [args] → CTO RWY {runway} [args], the same takeoff clearance
+        if (
+            string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase)
+            && (arg is not null)
+            && (CommandParser.RewriteRwyCtoAliasArg(arg, GetAliases(scheme, CanonicalCommandType.ClearedForTakeoff)) is { } ctoArg)
+        )
+        {
+            return new ParsedInput(CanonicalCommandType.ClearedForTakeoff, ctoArg);
+        }
+
         // RWY {runway} [TAXI] {path} → rewrite to Taxi with RWY keyword
         if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase) && arg is not null)
         {
@@ -1196,12 +1206,24 @@ public static class CommandSchemeParser
                 return string.Join(' ', tokens);
             }
 
+            // A takeoff clearance names its runway only right after the verb (CTO RWY 28L). CTO IMM RWY 28L is not
+            // understood rather than split into a clearance for the assigned runway and a runway reassignment.
+            if (IsTakeoffClearanceFollowedByRunway(tokens, i, lastGoodEnd))
+            {
+                return string.Join(' ', tokens);
+            }
+
             parts.Add(lastGood);
             i = lastGoodEnd;
         }
 
         return parts.Count >= 2 ? string.Join(", ", parts) : string.Join(' ', tokens);
     }
+
+    private static bool IsTakeoffClearanceFollowedByRunway(string[] tokens, int partStart, int partEnd) =>
+        (partEnd < tokens.Length)
+        && CommandRegistry.IsAliasFor(CanonicalCommandType.ClearedForTakeoff, tokens[partStart])
+        && tokens[partEnd].Equals("RWY", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Heuristic splitting: strict alternating verb-arg pairs where all verbs are single-arg.

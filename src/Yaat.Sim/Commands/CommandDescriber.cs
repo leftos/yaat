@@ -1972,8 +1972,9 @@ public static class CommandDescriber
         string alt = cto.AssignedAltitude is not null ? $" {cto.AssignedAltitude}" : "";
         string cwt = cto.CautionWakeTurbulence ? " CWT" : "";
         string imm = cto.Immediate ? " IMM" : "";
+        string runway = cto.Runway is { } named ? $" RWY {named}" : "";
 
-        return $"CTO{suffix}{alt}{cwt}{imm}";
+        return $"CTO{runway}{suffix}{alt}{cwt}{imm}";
     }
 
     /// <summary>
@@ -2078,7 +2079,9 @@ public static class CommandDescriber
 
     private static string DescribeCtoNatural(ClearedForTakeoffCommand cto)
     {
-        string msg = cto.Immediate ? "Cleared for immediate takeoff" : "Cleared for takeoff";
+        string msg = cto.Runway is { } runway
+            ? $"Runway {RunwayIdentifier.ToDisplayDesignator(runway)}, {(cto.Immediate ? "cleared for immediate takeoff" : "cleared for takeoff")}"
+            : (cto.Immediate ? "Cleared for immediate takeoff" : "Cleared for takeoff");
         msg += cto.Departure switch
         {
             DefaultDeparture => "",

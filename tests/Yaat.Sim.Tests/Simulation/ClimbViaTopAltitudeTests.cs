@@ -918,6 +918,7 @@ public class ClimbViaTopAltitudeTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             assignedAltitude: ctoAltitude,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             NullLogger.Instance

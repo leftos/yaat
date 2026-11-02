@@ -23,6 +23,7 @@
 - `LUAW` at a taxiway hold short taxis onto that taxiway and lines up at the intersection; its readback and the later `CTO` name it ("at echo").
 - `CTO` at a taxiway hold short is refused with "unable, traffic on E" while another aircraft stands on that taxiway; re-issue it once clear.
 - The taxi that `CTO` or `LUAW` starts from a taxiway hold short accounts for traffic and active runways, and pre-clears no crossing.
+- `CTO RWY 33` at a taxiway or runway-crossing hold departs that runway when reachable, refuses one it must cross first, and otherwise asks to confirm.
 - CRC's ASDE-X raises vNAS's opposite-direction alerts (`OPP DIR TAXI`, `OPP DIR DEPARTURE`, `OPP DIR LANDER`) for aircraft closing head-on along a runway.
 - CRC's ASDE-X raises `CONVERGING` when a landing meets a departure, or another landing, on a converging runway, naming both runway ends.
 - CRC's ASDE-X alerts read as vNAS sends them (`RWY OCCUPIED`, `RWY CLOSED`, `RWY CLOSED, GO AROUND`), one per conflicting pair, with no `RWY INCURSION` alert.

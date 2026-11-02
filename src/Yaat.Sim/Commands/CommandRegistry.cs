@@ -457,7 +457,16 @@ public static class CommandRegistry
                     O("MR270", [L("MR270"), Opt("altitude", "alt")], "Right 270 on departure"),
                     O("ML270", [L("ML270"), Opt("altitude", "alt")], "Left 270 on departure"),
                 ],
-                [Mod("CWT", null, false), Mod("IMM", null, false), Mod("WD", null, false), Mod("ND", null, false)]
+                [
+                    Mod("RWY", "runway", false) with
+                    {
+                        LeadingTokenOnly = true,
+                    },
+                    Mod("CWT", null, false),
+                    Mod("IMM", null, false),
+                    Mod("WD", null, false),
+                    Mod("ND", null, false),
+                ]
             ),
             Bare(CancelTakeoffClearance, "Cancel Takeoff Clearance", "Tower", CommandDimension.Ground, false, ["CTOC"]),
             Cmd(

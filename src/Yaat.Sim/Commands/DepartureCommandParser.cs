@@ -7,13 +7,55 @@ namespace Yaat.Sim.Commands;
 
 internal static class DepartureCommandParser
 {
+    private const string RunwayKeyword = "RWY";
+
     /// <summary>
     /// Parses the unified CTO modifier grammar.
-    /// CTO [modifier [altitude]] | CTO [heading [altitude]] | CTO [altitude]
-    /// When no lateral modifier is present, a bare number is heading (1-360),
-    /// and the second number is altitude.
+    /// CTO [RWY runway] [modifier [altitude]] | CTO [RWY runway] [heading [altitude]] | CTO [RWY runway] [altitude]
+    /// The named runway leads every other argument; <c>RWY</c> anywhere else is not understood. When no lateral modifier is present,
+    /// a bare number is heading (1-360), and the second number is altitude.
     /// </summary>
     internal static PR ParseCtoArg(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Ok(new ClearedForTakeoffCommand(new DefaultDeparture()));
+        }
+
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (!tokens.Any(IsRunwayKeyword))
+        {
+            return ParseCtoInstruction(arg);
+        }
+
+        if (SplitLeadingRunway(tokens) is not { } split)
+        {
+            return PR.Fail($"CTO does not understand '{arg}'");
+        }
+
+        PR instruction = ParseCtoInstruction(split.Remainder);
+        return instruction.Value is ClearedForTakeoffCommand cto ? PR.Ok(cto with { Runway = split.Runway }) : instruction;
+    }
+
+    /// <summary>
+    /// The runway of a leading <c>RWY {runway}</c> and the arguments after it (null when none), or null when the tokens do not lead
+    /// with a runway-shaped <c>RWY {runway}</c> or name <c>RWY</c> again later.
+    /// </summary>
+    private static (string Runway, string? Remainder)? SplitLeadingRunway(string[] tokens)
+    {
+        string? runway = (tokens.Length >= 2) && IsRunwayKeyword(tokens[0]) ? RunwayArgument.TryParse(tokens[1]) : null;
+        if ((runway is null) || tokens.Skip(2).Any(IsRunwayKeyword))
+        {
+            return null;
+        }
+
+        return (runway, tokens.Length > 2 ? string.Join(' ', tokens[2..]) : null);
+    }
+
+    private static bool IsRunwayKeyword(string token) => token.Equals(RunwayKeyword, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The CTO grammar after any named runway: the departure instruction, the altitude and the tower modifiers.</summary>
+    private static PR ParseCtoInstruction(string? arg)
     {
         if (arg is null)
         {

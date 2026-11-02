@@ -93,6 +93,7 @@ public class KaseLindz1DepartureE2ETests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             assignedAltitude: null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             NullLogger.Instance
@@ -236,6 +237,7 @@ public class KaseLindz1DepartureE2ETests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             assignedAltitude: null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             NullLogger.Instance

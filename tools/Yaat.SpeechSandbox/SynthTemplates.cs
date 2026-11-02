@@ -95,8 +95,8 @@ public static partial class SynthTemplates
         new("cfix-spd", "NavigationRules", "cross {fix} at and maintain {alt} at {spd} knots", "CFIX {fix} AT {alt} {spd}"),
         new("depart", "NavigationRules", "depart {fix} heading {hdg}", "DEPART {fix} {hdg}"),
         // TowerRules
-        new("cto", "TowerRules", "runway {rwy} cleared for takeoff", "CTO"),
-        new("cto-icao", "TowerRules", "cleared for takeoff runway {rwy}", "CTO"),
+        new("cto", "TowerRules", "runway {rwy} cleared for takeoff", "CTO RWY {rwy}"),
+        new("cto-icao", "TowerRules", "cleared for takeoff runway {rwy}", "CTO RWY {rwy}"),
         new("cland", "TowerRules", "runway {rwy} cleared to land", "CLAND"),
         new("cland-icao", "TowerRules", "cleared to land runway {rwy}", "CLAND"),
         new("luaw", "TowerRules", "runway {rwy} line up and wait", "LUAW"),

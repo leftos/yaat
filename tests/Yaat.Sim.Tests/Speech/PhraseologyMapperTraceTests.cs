@@ -36,7 +36,7 @@ public class PhraseologyMapperTraceTests
         };
         (MapResult? result, RuleMapperTrace? trace) = PhraseologyMapper.MapWithTrace("runway 28R cleared for takeoff", ctx);
         Assert.NotNull(result);
-        Assert.Equal("CTO", result!.CanonicalCommand);
+        Assert.Equal("CTO RWY 28R", result!.CanonicalCommand);
         // The trace must show the runway-prefixed rule fired so the debug view confirms the
         // runway literal was consumed (not silently ignored).
         Assert.Contains(trace.MatchedRulePatterns, p => p.Contains("runway") && p.Contains("cleared") && p.Contains("takeoff"));

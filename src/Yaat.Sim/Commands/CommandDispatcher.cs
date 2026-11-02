@@ -2948,18 +2948,26 @@ public static class CommandDispatcher
         GroundCommandHandler.TaxiDispatch taxiDispatch
     )
     {
-        CommandResult ctoResult = currentPhase is LinedUpAndWaitingPhase luaw
-            ? DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, ctx)
-            : DepartureClearanceHandler.TryDepartureClearance(
-                aircraft,
-                currentPhase,
-                ClearanceType.ClearedForTakeoff,
-                cto.Departure,
-                cto.AssignedAltitude,
-                ctx,
-                taxiDispatch,
-                Log
-            );
+        CommandResult ctoResult = DepartureClearanceHandler.ClearNamingRunway(
+            cto.Runway,
+            aircraft,
+            currentPhase,
+            ctx.ActiveRunways,
+            () =>
+                currentPhase is LinedUpAndWaitingPhase luaw
+                    ? DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, ctx)
+                    : DepartureClearanceHandler.TryDepartureClearance(
+                        aircraft,
+                        currentPhase,
+                        ClearanceType.ClearedForTakeoff,
+                        cto.Departure,
+                        cto.AssignedAltitude,
+                        cto.Runway,
+                        ctx,
+                        taxiDispatch,
+                        Log
+                    )
+        );
         // "Cleared for immediate takeoff" — brisk lineup taxi (+ rolling takeoff via the
         // existing rolling/upgrade machinery). Latest clearance's modifier wins.
         if (ctoResult.Success)
@@ -3035,6 +3043,7 @@ public static class CommandDispatcher
                     ClearanceType.LineUpAndWait,
                     new DefaultDeparture(),
                     null,
+                    requestedRunway: null,
                     ctx,
                     taxiDispatch,
                     Log

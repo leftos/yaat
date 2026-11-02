@@ -3043,6 +3043,71 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// The refusal of a takeoff clearance naming a runway (7110.65 3-9-10.d) that the aircraft reaches only by crossing
+    /// <paramref name="crossingRunway"/>, a crossing the clearance does not include (7110.65 3-9-10.e): the pilot says unable
+    /// (P/CG "UNABLE"), names the runway to cross, and stays held short. Held short of <paramref name="taxiway"/>, the pilot says
+    /// where it holds; held short of the runway to cross itself (null), it does not.
+    /// </summary>
+    public static PilotSpeechText BuildUnableNeedToCrossRunway(AircraftState aircraft, string crossingRunway, string? taxiway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string runway = RunwayIdentifier.ToDisplayDesignator(crossingRunway);
+        string spokenRunway = PhraseologyVerbalizer.SpellRunway(crossingRunway);
+        string holding = (taxiway is null) ? "" : $", holding short of {taxiway}";
+        string spokenHolding = (taxiway is null) ? "" : $", holding short of {PhraseologyVerbalizer.SpellTaxiway(taxiway)}";
+        return new PilotSpeechText(
+            $"unable, need to cross runway {runway}{holding}",
+            $"{spoken}, unable, need to cross runway {spokenRunway}{spokenHolding}"
+        );
+    }
+
+    /// <summary>
+    /// The pilot's query of a takeoff clearance naming <paramref name="runway"/> while held short of <paramref name="taxiway"/>, which
+    /// never reaches that runway: "confirm runway 33? we're holding short of E for 28R", naming the assigned runway when there is one.
+    /// The aircraft stays held.
+    /// </summary>
+    public static PilotSpeechText BuildConfirmRunwayAtTaxiwayHold(AircraftState aircraft, string runway, string taxiway, string? assignedRunway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string named = RunwayIdentifier.ToDisplayDesignator(runway);
+        string spokenNamed = PhraseologyVerbalizer.SpellRunway(runway);
+        string spokenTaxiway = PhraseologyVerbalizer.SpellTaxiway(taxiway);
+        string forRunway = assignedRunway is null ? "" : $" for {RunwayIdentifier.ToDisplayDesignator(assignedRunway)}";
+        string forSpokenRunway = assignedRunway is null ? "" : $" for {PhraseologyVerbalizer.SpellRunway(assignedRunway)}";
+        return new PilotSpeechText(
+            $"confirm runway {named}? we're holding short of {taxiway}{forRunway}",
+            $"{spoken}, confirm runway {spokenNamed}? we're holding short of {spokenTaxiway}{forSpokenRunway}"
+        );
+    }
+
+    /// <summary>
+    /// The pilot's query of a takeoff clearance naming <paramref name="runway"/> when the aircraft is <paramref name="situation"/>
+    /// ("lined up on", "holding short of", "taxiing to") runway <paramref name="referenceRunway"/>: "confirm runway 28L? we're lined up
+    /// on runway 28R", and "for {runway}" after it when the aircraft holds short of a runway on the way to
+    /// <paramref name="forRunway"/>. Nothing changes.
+    /// </summary>
+    public static PilotSpeechText BuildConfirmRunway(
+        AircraftState aircraft,
+        string runway,
+        string situation,
+        string referenceRunway,
+        string? forRunway
+    )
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string named = RunwayIdentifier.ToDisplayDesignator(runway);
+        string spokenNamed = PhraseologyVerbalizer.SpellRunway(runway);
+        string reference = RunwayIdentifier.ToDisplayDesignator(referenceRunway);
+        string spokenReference = PhraseologyVerbalizer.SpellRunway(referenceRunway);
+        string forTail = forRunway is null ? "" : $" for {RunwayIdentifier.ToDisplayDesignator(forRunway)}";
+        string forSpokenTail = forRunway is null ? "" : $" for {PhraseologyVerbalizer.SpellRunway(forRunway)}";
+        return new PilotSpeechText(
+            $"confirm runway {named}? we're {situation} runway {reference}{forTail}",
+            $"{spoken}, confirm runway {spokenNamed}? we're {situation} runway {spokenReference}{forSpokenTail}"
+        );
+    }
+
+    /// <summary>
     /// Pilot report of an aircraft stopped on the runway with no exit ahead: it cannot turn around on the runway without
     /// ATC approval (AIM 4-3-21.a), so it asks for a back-taxi to <paramref name="exitBehind"/>, the nearest exit behind
     /// it, or says only that it cannot exit when there is none.

@@ -505,4 +505,106 @@ public class CtoParserTests : IDisposable
         Assert.Equal(PatternEntryLeg.Crosswind, ped.ExitLeg);
         Assert.Equal(1400, reparsed.AssignedAltitude);
     }
+
+    // ---- Named runway: CTO RWY {runway} ----
+
+    [Fact]
+    public void Cto_Rwy_CarriesTheRunway()
+    {
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse("CTO RWY 28L").Value);
+        Assert.Equal("28L", cto.Runway);
+        Assert.IsType<DefaultDeparture>(cto.Departure);
+        Assert.Equal("CTO RWY 28L", CommandDescriber.DescribeCommand(cto));
+        Assert.Equal("Runway 28L, cleared for takeoff", CommandDescriber.DescribeNatural(cto));
+    }
+
+    [Fact]
+    public void Cto_RwyThenImmediate_CarriesBoth()
+    {
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse("CTO RWY 33 IMM").Value);
+        Assert.Equal("33", cto.Runway);
+        Assert.True(cto.Immediate);
+        Assert.Equal("CTO RWY 33 IMM", CommandDescriber.DescribeCommand(cto));
+    }
+
+    [Fact]
+    public void Cto_RwyThenModifier_CarriesBoth()
+    {
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse("CTO RWY 28L MRD").Value);
+        Assert.Equal("28L", cto.Runway);
+        PatternExitDeparture ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        Assert.Equal(PatternEntryLeg.Downwind, ped.ExitLeg);
+        Assert.Equal(PatternDirection.Right, ped.Direction);
+        Assert.Equal("CTO RWY 28L MRD", CommandDescriber.DescribeCommand(cto));
+    }
+
+    [Fact]
+    public void Cto_RwyThenBareNumber_IsTheHeading()
+    {
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse("CTO RWY 28L 050").Value);
+        Assert.Equal("28L", cto.Runway);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        Assert.Equal(50, fh.MagneticHeading.Degrees);
+        Assert.Equal("CTO RWY 28L H050", CommandDescriber.DescribeCommand(cto));
+        Assert.Equal("Runway 28L, cleared for takeoff, fly heading 050", CommandDescriber.DescribeNatural(cto));
+    }
+
+    [Fact]
+    public void Cto_BareRunwayNumber_IsStillAHeading()
+    {
+        ClearedForTakeoffCommand cto = Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse("CTO 33").Value);
+        FlyHeadingDeparture fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        Assert.Equal(33, fh.MagneticHeading.Degrees);
+        Assert.Null(cto.Runway);
+    }
+
+    [Fact]
+    public void Cto_RunwayWithoutRwyKeyword_DoesNotUnderstand()
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("CTO 28L");
+        Assert.False(cmd.IsSuccess);
+        Assert.Contains("does not understand", cmd.Reason!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("CTO IMM RWY 28L")]
+    [InlineData("CTO MRT RWY 28L")]
+    [InlineData("CTO RWY 28L RWY 28R")]
+    [InlineData("CTO RWY")]
+    [InlineData("CTO RWY E")]
+    public void Cto_RwyNotLeadingOrWithoutARunway_IsRefused(string input)
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+        Assert.False(cmd.IsSuccess, $"{input} parsed as {cmd.Value}");
+        Assert.Contains("does not understand", cmd.Reason!, StringComparison.OrdinalIgnoreCase);
+        Assert.False(CommandParser.ParseCompound(input).IsSuccess, $"{input} parsed as a compound");
+    }
+
+    [Theory]
+    [InlineData("RWY 28R CTO", "CTO RWY 28R")]
+    [InlineData("RWY 28R CTO IMM", "CTO RWY 28R IMM")]
+    [InlineData("RWY 28R CTO 270", "CTO RWY 28R 270")]
+    public void RwyThenCto_IsTheSameCommandAsCtoRwy(string alias, string form)
+    {
+        ParsedCommand? expected = CommandParser.Parse(form).Value;
+        Assert.NotNull(expected);
+        Assert.Equal(expected, CommandParser.Parse(alias).Value);
+
+        ParseResult<CompoundCommand> compound = CommandParser.ParseCompound(alias);
+        Assert.True(compound.IsSuccess, compound.Reason);
+        ParsedBlock block = Assert.Single(compound.Value!.Blocks);
+        Assert.Equal(expected, Assert.Single(block.Commands));
+    }
+
+    [Theory]
+    [InlineData("CTO RWY 28L", "CTO RWY 28L")]
+    [InlineData("RWY 28R CTO", "CTO RWY 28R")]
+    [InlineData("RWY 28R CTO IMM", "CTO RWY 28R IMM")]
+    public void CtoRwyAndItsAlias_AreNotSplitIntoTwoCommands(string input, string canonical)
+    {
+        Assert.DoesNotContain(",", CommandSchemeParser.ExpandMultiCommand(input));
+        CompoundParseResult? scheme = CommandSchemeParser.ParseCompound(input, CommandScheme.Default());
+        Assert.NotNull(scheme);
+        Assert.Equal(canonical, scheme.CanonicalString);
+    }
 }

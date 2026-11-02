@@ -124,7 +124,7 @@
       "name": "Tower",
       "rows": [
         { "verb": "LUAW", "aliases": ["pos", "lu", "ph"], "description": "Line up and wait (+WD/ND/IMM = without delay)" },
-        { "verb": "CTO", "aliases": [], "description": "Cleared for takeoff (+IMM/WD/ND = immediate)" },
+        { "verb": "CTO", "aliases": [], "description": "Cleared for takeoff (+RWY {rwy}, +IMM/WD/ND = immediate)" },
         { "verb": "CTOC", "aliases": [], "description": "Cancel takeoff clearance" },
         { "verb": "GO", "aliases": [], "description": "Begin takeoff roll" },
         { "verb": "GA", "aliases": [], "description": "Go around [heading | RH | MLT | MRT]" },
@@ -141,6 +141,7 @@
         "CTO modes: `H270` `RH270`/`LH270` `RT270`/`LT270` `RH`/`MRH`/`MSO` (all both; `RH`/`MRH`/`MSO` = fly runway heading, suppresses SID for IFR); `MRC`/`MLC` `MRD`/`MLD` `MR270`/`ML270` `OC` `DCT fix` `TLDCT fix`/`TRDCT fix` (all both); `MRT [rwy]`/`MLT [rwy]` (VFR — for IFR, needs the \"VFR commands for IFR aircraft\" setting on All)",
         "Immediate suffix `IMM`/`WD`/`ND` (interchangeable) on any `CTO` = cleared for immediate takeoff (brisk lineup + rolling start); on `LUAW` = without delay (brisk lineup, still holds). Super/Heavy keep a standing-start takeoff.",
         "`CTO`/`LUAW` while holding short of a taxiway = implicit `TAXI <twy> RWY <assigned>` to an intersection departure (`LUAW` needs a runway assigned); traffic standing on that way = `unable, traffic on <twy>`, the aircraft stays held",
+        "`CTO RWY 28L [modifier] [alt] [CWT] [IMM]` (= `RWY 28L CTO`) names the departure runway: at a taxiway hold short it departs that runway from that taxiway if reachable without crossing another runway (else `unable, need to cross runway <rwy>` or `confirm runway <x>?`, still held); at a runway crossing hold the held runway departs, the assigned runway beyond gets `unable, need to cross runway <rwy>`; elsewhere a runway other than the aircraft's own gets `confirm runway <x>?` and nothing changes",
         "GA modes: `GA` (VFR: re-enter the pattern; instrument: published missed; else rwy hdg) `GA 270` `GA 270 50` (hdg+alt) `GA MRT [alt]`/`GA MLT [alt]` (closed traffic)"
       ]
     },

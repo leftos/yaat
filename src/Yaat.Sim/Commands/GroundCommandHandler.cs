@@ -677,15 +677,43 @@ public static partial class GroundCommandHandler
     /// the aircraft. Null when the aircraft is airborne or the clearance resolves to no route.
     /// </summary>
     internal static TaxiRoute? ResolveTaxiRoute(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout groundLayout, TaxiDispatch dispatch) =>
-        aircraft.IsOnGround
-            ? ResolveTaxiFromPosition(
-                aircraft,
-                taxi,
-                groundLayout,
-                TaxiCoreOptions.For(dispatch, isTaxiAuto: false),
-                PreviewLogLevels
-            ).Prepared?.Resolved.Route
-            : null;
+        ResolveTaxiRouteWithFailure(aircraft, taxi, groundLayout, dispatch).Route;
+
+    /// <summary>
+    /// A <c>TAXI</c> resolved as <see cref="ResolveTaxiRoute"/> resolves it, with the pathfinding failure behind a refusal.
+    /// </summary>
+    /// <param name="Route">The route, or null when the clearance resolves to none.</param>
+    /// <param name="Failure">
+    /// The pathfinding failure behind the refusal, or null for a route, for an airborne aircraft, and for a refusal no pathfinder
+    /// failure underlies (no start node on the graph, a route already taxied past, a ramp lane).
+    /// </param>
+    internal sealed record TaxiRouteResolution(TaxiRoute? Route, PathfindingFailure? Failure);
+
+    /// <summary>
+    /// The route a <c>TAXI</c> dispatched as <paramref name="dispatch"/> resolves to, with the pathfinding failure behind a refusal:
+    /// <see cref="ResolveTaxiRoute"/> for a caller that has to tell one refusal from another.
+    /// </summary>
+    internal static TaxiRouteResolution ResolveTaxiRouteWithFailure(
+        AircraftState aircraft,
+        TaxiCommand taxi,
+        AirportGroundLayout groundLayout,
+        TaxiDispatch dispatch
+    )
+    {
+        if (!aircraft.IsOnGround)
+        {
+            return new TaxiRouteResolution(null, null);
+        }
+
+        TaxiResolution? resolved = ResolveTaxiFromPosition(
+            aircraft,
+            taxi,
+            groundLayout,
+            TaxiCoreOptions.For(dispatch, isTaxiAuto: false),
+            PreviewLogLevels
+        ).Prepared?.Resolved;
+        return new TaxiRouteResolution(resolved?.Route, resolved?.Failure);
+    }
 
     /// <summary>
     /// The target of the no-destination end hold (<see cref="NoDestinationEndHold"/>) of the route just assigned, when the rolling
@@ -1257,8 +1285,9 @@ public static partial class GroundCommandHandler
         public required CommandResult? Refusal { get; init; }
 
         /// <summary>
-        /// The pathfinding failure behind a refusal the recoveries may not rewrite (<see cref="PathfindingFailure.RefusesPair"/>),
-        /// or null for a route or any other refusal.
+        /// The pathfinding failure behind a refusal: one the recoveries may not rewrite (<see cref="PathfindingFailure.RefusesPair"/>),
+        /// or the one the route resolution ended on when no recovery found a route. Null for a route, and for a refusal no
+        /// pathfinding failure underlies.
         /// </summary>
         public PathfindingFailure? Failure { get; init; }
 
@@ -1818,7 +1847,10 @@ public static partial class GroundCommandHandler
             return TaxiResolution.Refused(
                 taxi,
                 new CommandResult(false, failReason ?? RampConfinedRefusal(taxi, FindTaxiDestinationNode(groundLayout, taxi)))
-            );
+            ) with
+            {
+                Failure = failure,
+            };
         }
 
         // A parallel ramp lane the map does not connect (SFO M3 → M4): the pilot cuts across the apron onto it
@@ -1974,7 +2006,10 @@ public static partial class GroundCommandHandler
                 aircraft.Callsign,
                 failReason ?? "no matching taxiways"
             );
-            return TaxiResolution.Refused(taxi, new CommandResult(false, UnresolvedTaxiMessage(fallback.Refusal, failReason, taxi)));
+            return TaxiResolution.Refused(taxi, new CommandResult(false, UnresolvedTaxiMessage(fallback.Refusal, failReason, taxi))) with
+            {
+                Failure = failure,
+            };
         }
 
         bool endsShort = (fallback.Held is not null) || endsAtTargetHold;

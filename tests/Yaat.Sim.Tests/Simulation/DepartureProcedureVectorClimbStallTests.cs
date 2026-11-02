@@ -520,6 +520,7 @@ public class DepartureProcedureVectorClimbStallTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             assignedAltitude: null,
+            requestedRunway: null,
             TestDispatch.Context(Random.Shared),
             TestDispatch.EmptyTaxi,
             NullLogger.Instance

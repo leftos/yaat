@@ -508,7 +508,10 @@ public class PhraseologyMapperTests
 
     [Theory]
     [InlineData("cleared for takeoff", "CTO")]
-    [InlineData("cleared for takeoff runway two eight right", "CTO")]
+    [InlineData("cleared for takeoff runway two eight right", "CTO RWY 28R")]
+    [InlineData("runway two eight left cleared for takeoff", "CTO RWY 28L")]
+    [InlineData("runway two eight left clear for takeoff", "CTO RWY 28L")]
+    [InlineData("runway two eight right at echo cleared for takeoff", "CTO RWY 28R")]
     [InlineData("line up and wait", "LUAW")]
     [InlineData("cleared to land", "CLAND")]
     [InlineData("cleared to land runway two eight right", "CLAND")]

@@ -476,7 +476,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Line up and wait | `LUAW` | `POS`, `LU`, `PH` | Optional `WD`/`ND`/`IMM` suffix (without delay) |
-| Cleared for takeoff | `CTO` | — | Optional `CWT` and/or `IMM`/`WD`/`ND` (immediate) suffix |
+| Cleared for takeoff | `CTO` | `RWY {runway} CTO` | Optional `RWY {runway}` right after the verb, `CWT` and/or `IMM`/`WD`/`ND` (immediate) suffix |
 | Cancel takeoff | `CTOC` | — | — |
 | Cleared to land | `CLAND [runway]` | `CL`, `FS` | Optional runway; optional `CWT` suffix. A following aircraft can be cleared before it has a runway. During a low approach (`LA`), `CLAND <divergingRunway>` turns onto and lands the other runway ("change to runway N"). |
 | Force landing | `CLANDF` | — | RPO-only override: implies clearance + forces touchdown, suppressing automatic go-arounds — or cancelling one already underway |
@@ -1016,6 +1016,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `LUAW` / `POS` / `LU` / `PH` | Line up and wait — aircraft holds on runway |
 | `LUAW WD` / `LUAW ND` / `LUAW IMM` | Line up and wait, without delay — taxis briskly onto the runway, still stops and holds at the centerline. `WD`/`ND`/`IMM` are interchangeable. |
 | `CTO` | Cleared for takeoff (default departure) |
+| `CTO RWY 28L` / `RWY 28L CTO` | Cleared for takeoff runway 28L (see [CTO Departure Modifiers](#cto-departure-modifiers)); takes modifiers and suffixes: `CTO RWY 33 IMM`, `CTO RWY 28L MRD`, `CTO RWY 28L 050` (050 is a heading) |
 | `CTO 060` | Cleared for takeoff, fly heading 060 |
 | `CTO 060 250` | Cleared for takeoff, fly heading 060, climb and maintain 25,000 ft |
 | `CTO MRC` | Cleared for takeoff, right crosswind departure — flies upwind, turns crosswind, then departs on the crosswind heading (VFR only) |
@@ -1124,6 +1125,14 @@ The implicit taxi is judged with the room's traffic and active runways, as a typ
 All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see [Altitude Arguments](#altitude-arguments)) — except that on the closed-traffic modifiers `MLT`/`MRT` the first token competes with the runway slot: a 1–2 digit token there is a runway, so an altitude given without a runway needs three or more digits (`CTO MLT 015`); after a runway the shorthand works as usual (`CTO MLT 28R 15`).
 
 A bare number (1-360) without a modifier prefix is interpreted as a heading: `CTO 270` = fly heading 270, `CTO 270 050` = fly heading 270, climb to 5,000 ft.
+
+`CTO RWY {runway} [modifier] [altitude] [CWT] [IMM|WD|ND]` names the runway the clearance is for (7110.65 3-9-10.d/.e), e.g. `CTO RWY 28L`, `CTO RWY 33 IMM`, `CTO RWY 28L MRD`. `RWY {runway} CTO [args]` is the same single command. `RWY` is understood only right after `CTO`; anywhere else in the clearance it is refused ("CTO does not understand '…'"). Without `RWY`, `CTO 33` is still heading 033 and `CTO 28L` is still refused. Speech "runway {rwy} cleared for takeoff", "runway {rwy} clear for takeoff" and "cleared for takeoff runway {rwy}" become `CTO RWY {rwy}`.
+
+Where the aircraft is decides what the named runway does:
+
+- **Holding short of a taxiway.** If the taxiway reaches the named runway's hold line without crossing another runway, the aircraft departs that runway from that taxiway: the runway becomes the assigned runway and the pilot reads back "cleared for takeoff runway 33 at K". If it reaches the runway only by crossing another runway, the pilot says "unable, need to cross runway {rwy}, holding short of {taxiway}" and nothing changes. If the taxiway never reaches the named runway, the pilot asks "confirm runway {x}? we're holding short of {taxiway} for {assigned}" (no "for …" when no runway is assigned) and the aircraft stays held; the same question answers a taxi that cannot be worked out. A runway the airport lacks is refused with "Unknown runway {x}".
+- **Holding short of a runway crossed on the way to the assigned runway.** Naming the runway held short of (either end) departs it from there. Naming the assigned runway beyond (either end) gets "unable, need to cross runway {held}" and nothing changes. Any other runway gets "confirm runway {x}? we're holding short of runway {held} for {assigned}". The runway held short of is named by its active end, else the nearer end.
+- **Lined up, holding short of a runway, or taxiing.** A runway that is the same runway end as the assigned runway (else the one held short of, else the taxi route's destination, else the one lined up on) is a plain `CTO`. A different runway gets "confirm runway {x}? we're {lined up on|holding short of|taxiing to} runway {reference}" and nothing changes.
 
 When a CTO carries no explicit climb altitude, an IFR departure on a SID climbs to and maintains the SID's published initial ("maintain") altitude from the facility's vTDLS configuration (e.g. KIAH 4,000 ft, KHOU 5,000 ft) until you issue a climb (`CM`). A later climb command supersedes the cap; VFR departures and airports without a published initial altitude are unaffected.
 
