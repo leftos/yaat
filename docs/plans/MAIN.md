@@ -5,8 +5,7 @@
 ## Do first
 
 - [ ] YAAT-1598 Client sherpa STT in fast and accurate modes · release vNext — Urgent · STT tuning
-- [/] YAAT-1602 STT model download and Speech settings for rasr-parakeet fp32/int8, mode and device · release vNext — Urgent · STT tuning
-- [ ] YAAT-1603 Accurate STT mode: build the room context from live client state and resolve callsigns with ContextDecoder · release vNext — Urgent · STT tuning
+- [/] YAAT-1603 Accurate STT mode: build the room context from live client state and resolve callsigns with ContextDecoder · release vNext — Urgent · STT tuning
 - [ ] YAAT-1604 In-app STT benchmark: per model, mode and device latency, RAM and VRAM on this machine · release vNext — Urgent · STT tuning
 - [ ] YAAT-1605 Reference STT measurements on the CI natives and client speech docs · release vNext — Urgent · STT tuning
 
@@ -123,7 +122,6 @@
   - [ ] YAAT-1634 Log the installer's in-progress refusal; NativeProblem returns native-load failures
   - [ ] YAAT-1638 Restore a CUDA set left in .old-* after a crash mid-swap, and sweep leftovers on uninstall · release vNext+1
   - [ ] YAAT-1656 Detect at sherpa engine load that ONNX Runtime fell back from GPU to CPU, and show why · release vNext
-  - [ ] YAAT-1663 Ship (or prove unneeded) the CUDA runtime and cuRAND in the Windows sherpa GPU download set · release vNext
   - [ ] YAAT-1665 Let the user cancel a GPU runtime removal scheduled for the next start
   - [ ] YAAT-1694 Speech settings: show a failed model download and word the restart note by direction
   - [ ] YAAT-1606 CoreML provider for macOS STT
@@ -131,10 +129,13 @@
   - [ ] YAAT-1629 LM-Kit CUDA uninstall deletes a loaded backend on Windows
 - [ ] YAAT-1673 Keep a push-to-talk when speech is switched back on mid-press (PrewarmAsync enters Warming unconditionally)
 - [ ] YAAT-1674 Mic shows Idle while a second overlapping engine swap is still loading
+- [ ] YAAT-1700 Speech Debug: say nothing runs while the model is missing, and probe n-best off the UI thread
+- [ ] YAAT-1705 Make BuildSpeechContext's contextAircraft required and split the method under 100 lines
+- [ ] YAAT-1708 Accurate STT follow-ups: stamp the mode on the hypotheses, split ProcessPipelineAsync, cancel and SayAgain tests
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (5/47 done)
+### 1 Defects (6/48 done)
 - [ ] YAAT-56 Fail closed when CROSS runs with no cached ground layout
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
@@ -223,6 +224,9 @@
 - [ ] YAAT-1546 Keep a crossing whose HOLD re-plan failed restoring to the same slice as the live run
 - [ ] YAAT-1547 Keep naming a runway by the end the controller typed in the pilot's later reports on that crossing
 - [ ] YAAT-1548 Pick the nearer active end from the crossing's bar, not the aircraft, in a TAXI readback
+- [ ] YAAT-1704 No-destination TAXI ... HS J builds a second J hold 23 ft past the explicit bar (OAK)
+- [ ] YAAT-1706 Check the taxi stop when a later bar's painted stop lies before the target bar's; share the OAK hold-short test staging
+- [ ] YAAT-1707 CTO/CROSS carry follow-ups: carry only straight into the clearance, readback and refusal wording, nits
 
 ## Runway exits and landing rollout
 
@@ -616,12 +620,11 @@
 
 ## Speed control and performance limits
 
-### 1 Defects (5/31 done)
+### 1 Defects (6/31 done)
 - [ ] YAAT-188 Cap descent by angle in UpdateDescentPlanning
 - [ ] YAAT-190 Use one snap tolerance in FlightPhysics.BoundsCorrectionTarget
 - [ ] YAAT-853 Refuse a rolling takeoff to a Super or heavy that has no aircraft profile (A388, A225, IL76, KC10)
 - [ ] YAAT-1051 Gate final-approach speed refusals at the FAF or 5 nm, whichever is closer
-- [ ] YAAT-1411 Slow to 250 before crossing 10,000 ft in a descent, not a few hundred feet below it · release vNext
 - [ ] YAAT-560 Give the CL60 profile real landing and takeoff distances
 - [ ] YAAT-963 Cancel an earlier assigned speed on a descend via clearance
 - [ ] YAAT-967 Stop a crossing-speed revert from overriding a later SPD
@@ -667,10 +670,11 @@
 - [ ] YAAT-1523 Apply or refuse an SPD/MACH given beside CTO in a phase-handled block instead of dropping it silently
 - [ ] YAAT-1524 Decelerate at a descending rate, not the level-flight rate, when slowing for a fix in a descent
 - [ ] YAAT-1680 Fly the climb IAS schedule, not Vmo, while a Mach is held below the crossover
+- [ ] YAAT-1701 250 kt descent lead follow-ups: Class B shelf lead, idealised profile, missing tests, shared harness
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (5/21 done)
+### 1 Defects (6/21 done)
 - [ ] YAAT-1036 Reach a crossing bound by the flyby sequencing point, not the fix position · release vNext+1
 - [ ] YAAT-1037 Stop an unmet published SID/STAR altitude bound from overriding a non-via assigned altitude · release vNext+1
 - [ ] YAAT-926 Convert CR/VR departure-leg radials with the navaid's variation · release vNext+1
@@ -680,7 +684,6 @@
 - [ ] YAAT-978 Check in with 'climbing to' instead of 'climbing via' after a plain maintain · release vNext+1
 - [ ] YAAT-980 Clear SID via mode when a descend via is issued · release vNext+1
 - [ ] YAAT-982 Use only the filed SID transition when finding a CVIA top altitude · release vNext+1
-- [ ] YAAT-1401 Make CVIA in a SID's climb window supersede crossing speeds on the phase's pending route, not only the live route · release vNext
 - [ ] YAAT-1483 Sequence a SID's heading-to-intercept leg when the next leg is a fix-less course-to-altitude leg (KSJC SUNOL1 RW12B)
 - [ ] YAAT-1484 Parse TDLS initial altitudes written as 'MAINTAIN 5000FT' (every ZLA SID's hold is off)
 - [ ] YAAT-1644 Don't climb or descend for a STAR's published altitudes after JARR without descend via · release vNext+1
@@ -695,7 +698,7 @@
 - [ ] YAAT-979 Read back restated crossing restrictions in climb-via and descend-via check-ins
 - [ ] YAAT-981 Warn when CVIA is issued on a SID with no top altitude
 - [ ] YAAT-1479 Cancel a climb via when a SID departure is vectored off the procedure
-- [ ] YAAT-1693 IFR arrival requests lower at its top of descent when not given DVIA or DM
+- [ ] YAAT-1693 IFR arrival requests lower at its top of descent when not given DVIA or DM · release vNext+1
 
 ### 3 Hygiene and tests (0/3 done)
 - [ ] YAAT-983 Read the active op config's SID top altitude before the others
@@ -704,6 +707,7 @@
 
 ### No milestone
 - [ ] YAAT-1519 Restore a crossed published ceiling on a re-issued CVIA; lift a SID waypoint's ceiling once passed
+- [ ] YAAT-1699 Keep a CFIX given in a SID's climb window through the handover to the SID route · release vNext+1
 
 ## Approaches and holds
 
@@ -1180,6 +1184,9 @@
 - [ ] YAAT-1613 Share the client ground-route test setup and scope its navdata overrides
 - [ ] YAAT-1691 Refuse a pinned TestVnasData resolve after an unpinned one already ran
 - [ ] YAAT-1695 Delete the Yaat.Sim.Tests.TestVnasData wrapper that shadows the real class
+
+### No milestone
+- [ ] YAAT-1703 Refuse RestoreFromSnapshot with no scenario loaded instead of freezing the aircraft
 
 ## Docs, agent tooling and repo hygiene
 
