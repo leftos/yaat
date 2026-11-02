@@ -52,7 +52,7 @@ public enum DecodeState { Resolved, SayAgain, NoCallsign }
 public sealed record SpokenForm(string Text, double Prior);
 public sealed record ContextEntity(EntityKind Kind, string Value, IReadOnlyList<SpokenForm> Forms);
 public sealed record RoomAircraft(ContextEntity Callsign, IReadOnlyList<ContextEntity> OwnEntities);
-public sealed record TransmissionContext(string AirportId, IReadOnlyList<RoomAircraft> Aircraft, IReadOnlyList<ContextEntity> AirportEntities);
+public sealed record TransmissionContext(string AirportId, IReadOnlyList<RoomAircraft> Aircraft, IReadOnlyList<ContextEntity> AirportEntities, IReadOnlyList<string> FacilityNames);
 
 public sealed record TokenLogProb(string Piece, double LogProb);
 public sealed record DecoderHypothesis(string Text, IReadOnlyList<TokenLogProb>? Tokens, double? AcousticScore);

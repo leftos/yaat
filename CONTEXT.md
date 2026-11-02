@@ -1067,14 +1067,26 @@ A pushback that ends farther than the aircraft's own lead-in line, typically acr
 **West end** (SFO):
 Taxiway Z from C to Z2, past the departure ends of runways 28, which a taxi route from the north field to runways 1 follows; Local owns it when landing the 10s, departing the 28s or when given, and Ground requests it by count ("once around the west end") (SFO ATCT SOP 3-1.a.vi; `sfo-video-lessons.md` S10).
 
+**Accurate mode**:
+The `SttMode` that weighs several hypotheses (beam search over the n-best, 4 paths) against the room's callsigns, fixes and taxiways; a callsign it is not sure of is never staged ("Say again"). The default; Whisper and a native without n-best support run Fast (`SttMode`, docs/speech-recognition-pipeline.md).
+
 **Bench clip**:
 One of the short committed synthetic clips (16 kHz mono PCM16, with the words it says) every benchmark row transcribes, so rows compare on the same audio (`src/Yaat.Client/Speech/BenchClips/`, docs/speech-recognition-pipeline.md).
 
 **Benchmark row**:
 One model in one mode on one device, measured over the bench clips: load time, latency percentiles and memory, or the one line saying why it has none (`SttBenchJob` in, `SttBenchResult` out, docs/speech-recognition-pipeline.md).
 
+**Benchmark run**:
+One whole sweep of benchmark rows: each downloaded model in each mode on each device, run one child process at a time and shown in the Speech benchmark window (`SttBenchService.RunAsync`; its result is the last run, docs/speech-recognition-pipeline.md). Not a **Benchmark row**, which is one measurement of the sweep.
+
 **Corpus WER**:
 The word error rate of the STT stage alone over a set of real recordings, pooled over every reference word (total substitutions, deletions and insertions divided by total reference words), not averaged per clip (`--corpus-wer`, docs/speech-recognition-pipeline.md).
+
+**Fast mode**:
+The `SttMode` that decodes greedily and takes the best guess only, at the lowest latency (`SttMode`, docs/speech-recognition-pipeline.md).
+
+**Native set**:
+The sherpa-onnx native libraries a process loads, CPU or CUDA (`SherpaNativeLoader.LoadedSet`); a process loads one set, so a CPU and a GPU benchmark row run in separate processes, and the figures in `stt-reference.json` name the CI-built native commit they were measured on (docs/speech-recognition-pipeline.md).
 
 **Node id**:
 The pipe host's stable id for a window, popup or element, issued by its `NodeRegistry` and kept for as long as the element lives, so a driver can name the same element across calls.

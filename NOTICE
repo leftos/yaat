@@ -106,6 +106,7 @@ libraries ships with the application; the CUDA build is downloaded with the GPU
 runtime.
 
   Upstream: https://github.com/k2-fsa/sherpa-onnx
+  Fork:     https://github.com/leftos/sherpa-onnx (the native libraries YAAT ships and downloads are built from it)
   License:  Apache License 2.0
   Full text: https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -121,3 +122,16 @@ application; the CUDA provider is downloaded with the GPU runtime.
   Full text: https://github.com/microsoft/onnxruntime/blob/main/LICENSE
 
 Copyright (c) Microsoft Corporation.
+
+## NVIDIA cuBLAS, cuDNN, CUDA runtime and cuRAND (NVIDIA proprietary)
+
+On request, the GPU runtime download fetches these libraries from NVIDIA's
+packages on PyPI (the CUDA runtime and cuRAND on Linux only). They are not
+bundled with the installer and are not covered by YAAT's license.
+
+  Upstream: https://pypi.org/project/nvidia-cudnn-cu13/
+            https://pypi.org/project/nvidia-cublas/
+  License:  License Agreement for NVIDIA Software Development Kits
+            (the License.txt inside each package)
+
+Copyright (c) NVIDIA Corporation.
