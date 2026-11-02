@@ -33,7 +33,11 @@ public sealed class SherpaCudaInstallerTests : IDisposable
         {
             Directory.Delete(_root, recursive: true);
         }
-        File.Delete(_root + ".lock");
+        string lockPath = _root + ".lock";
+        if (File.Exists(lockPath))
+        {
+            File.Delete(lockPath);
+        }
     }
 
     [Fact]

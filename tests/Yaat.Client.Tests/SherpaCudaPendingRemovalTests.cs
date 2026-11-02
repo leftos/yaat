@@ -24,7 +24,28 @@ public sealed class SherpaCudaPendingRemovalTests : IDisposable
         {
             Directory.Delete(_root, recursive: true);
         }
-        File.Delete(_root + ".lock");
+        string lockPath = _root + ".lock";
+        if (File.Exists(lockPath))
+        {
+            File.Delete(lockPath);
+        }
+    }
+
+    [Fact]
+    public void LockDelete_InAMissingFolder_ThrowsUnlessGuarded()
+    {
+        string lockPath = Path.Combine(Path.GetTempPath(), "yaat-sherpa-cuda-missing-" + Guid.NewGuid().ToString("N"), "x.lock");
+
+        Assert.Throws<DirectoryNotFoundException>(() => File.Delete(lockPath));
+        Assert.Null(
+            Record.Exception(() =>
+            {
+                if (File.Exists(lockPath))
+                {
+                    File.Delete(lockPath);
+                }
+            })
+        );
     }
 
     [Fact]
