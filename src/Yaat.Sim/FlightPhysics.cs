@@ -1414,11 +1414,24 @@ public static class FlightPhysics
         }
 
         double current = aircraft.Altitude;
-        double goal = target.Value;
+        double clearedGoal = target.Value;
+        (double rate, bool profileRate) = BaseVerticalRate(aircraft, cat, climbing: clearedGoal > current);
+
+        // 14 CFR 91.117(a) backstop: an aircraft too fast to slow to 250 by 10,000 ft levels there until it has. The
+        // hold is derived every tick and changes no stored target, so the cleared descent resumes on its own.
+        bool heldForSpeed = HoldsAtTenThousandForSpeed(aircraft, cat, clearedGoal, rate);
+        LogSpeedHoldRelease(aircraft, clearedGoal, heldForSpeed);
+        double goal = heldForSpeed ? Math.Max(clearedGoal, TenThousandFt) : clearedGoal;
         double diff = goal - current;
 
         if (Math.Abs(diff) < AltitudeSnapFt)
         {
+            if (heldForSpeed)
+            {
+                LevelAtTenThousandForSpeed(aircraft, goal);
+                return;
+            }
+
             aircraft.Altitude = goal;
             aircraft.VerticalSpeed = 0;
             aircraft.Targets.TargetAltitude = null;
@@ -1428,32 +1441,6 @@ public static class FlightPhysics
         }
 
         bool climbing = diff > 0;
-
-        double rate;
-        // A phase (or the instructor) owns DesiredVerticalRate; the step climb/descent planners own
-        // PlannedVerticalRate, which is recomputed every tick and only exists while a constrained fix
-        // is still in the route. A phase's rate wins when both are set.
-        double? commanded = aircraft.Targets.DesiredVerticalRate ?? aircraft.Targets.PlannedVerticalRate;
-        bool profileRate = commanded is null;
-        if (commanded is { } desired)
-        {
-            // 7110.65 §4-5-7 NOTE 4: "'Expedite' is not to be used in lieu of appropriate
-            // restrictions." A phase-commanded rate (a glidepath) and a planner-commanded rate (a
-            // computed crossing-restriction rate) ARE the appropriate restriction — both are flown
-            // verbatim and expedite never scales either.
-            rate = Math.Abs(desired);
-        }
-        else
-        {
-            rate = climbing
-                ? AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, current)
-                : AircraftPerformance.DescentRate(aircraft.AircraftType, cat, current);
-
-            if (aircraft.Procedure.IsExpediting)
-            {
-                rate = CategoryPerformance.ExpediteVerticalRate(cat, rate, climbing);
-            }
-        }
 
         // AIM 4-4-10.4: fly the optimum rate to 1,000 ft above/below the assigned altitude,
         // "and then attempt to descend or climb at a rate of between 500 and 1,500 fpm until
@@ -1482,6 +1469,107 @@ public static class FlightPhysics
         {
             aircraft.Altitude -= change;
             aircraft.VerticalSpeed = -rate;
+        }
+    }
+
+    /// <summary>
+    /// The vertical rate (fpm, unsigned) <see cref="UpdateAltitude"/> flies before the level-off taper, and whether it is
+    /// the type's profile rate. A phase (or the instructor) owns DesiredVerticalRate; the step climb/descent planners own
+    /// PlannedVerticalRate, which is recomputed every tick and only exists while a constrained fix is still in the route.
+    /// A phase's rate wins when both are set.
+    /// </summary>
+    private static (double Rate, bool ProfileRate) BaseVerticalRate(AircraftState aircraft, AircraftCategory cat, bool climbing)
+    {
+        double? commanded = aircraft.Targets.DesiredVerticalRate ?? aircraft.Targets.PlannedVerticalRate;
+        if (commanded is { } desired)
+        {
+            // 7110.65 §4-5-7 NOTE 4: "'Expedite' is not to be used in lieu of appropriate
+            // restrictions." A phase-commanded rate (a glidepath) and a planner-commanded rate (a
+            // computed crossing-restriction rate) ARE the appropriate restriction — both are flown
+            // verbatim and expedite never scales either.
+            return (Math.Abs(desired), false);
+        }
+
+        double rate = climbing
+            ? AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, aircraft.Altitude)
+            : AircraftPerformance.DescentRate(aircraft.AircraftType, cat, aircraft.Altitude);
+
+        if (aircraft.Procedure.IsExpediting)
+        {
+            rate = CategoryPerformance.ExpediteVerticalRate(cat, rate, climbing);
+        }
+
+        return (rate, true);
+    }
+
+    /// <summary>
+    /// True when the aircraft levels at 10,000 ft this tick to slow to 250 KIAS before descending through it (14 CFR
+    /// 91.117(a)): it is at or above 10,000 ft, cleared below it, the descent band applies
+    /// (<see cref="DescentSpeedLimitBandApplies"/>), it is faster than its release speed (<see cref="SpeedHoldReleaseKts"/>),
+    /// and even full deceleration at <paramref name="rateFpm"/> cannot reach the cap by 10,000 ft. An aircraft already level
+    /// at 10,000 ft stays held until it has slowed. <paramref name="rateFpm"/> is the rate flown toward the cleared goal
+    /// before any taper (<see cref="BaseVerticalRate"/>), the same rate the cap's lead judges by, so the hold's own level-off
+    /// does not feed back into either.
+    /// </summary>
+    private static bool HoldsAtTenThousandForSpeed(AircraftState aircraft, AircraftCategory cat, double clearedGoal, double rateFpm)
+    {
+        if (
+            (aircraft.Altitude < TenThousandFt)
+            || (clearedGoal >= TenThousandFt)
+            || (aircraft.IndicatedAirspeed <= SpeedHoldReleaseKts(aircraft))
+            || !DescentSpeedLimitBandApplies(aircraft)
+        )
+        {
+            return false;
+        }
+
+        double aboveFt = aircraft.Altitude - TenThousandFt;
+        if (aboveFt <= AltitudeSnapFt)
+        {
+            return true;
+        }
+
+        double fullDecelSeconds =
+            (aircraft.IndicatedAirspeed - DescentBandCapKts(aircraft)) / AircraftPerformance.DecelRate(aircraft.AircraftType, cat);
+        return (rateFpm > 0) && (aboveFt / (rateFpm / 60.0) < fullDecelSeconds);
+    }
+
+    /// <summary>Levels the aircraft at 10,000 ft for <see cref="HoldsAtTenThousandForSpeed"/>, keeping every cleared target.</summary>
+    private static void LevelAtTenThousandForSpeed(AircraftState aircraft, double goal)
+    {
+        if (aircraft.VerticalSpeed != 0)
+        {
+            Log.LogDebug(
+                "{Callsign}: levelling at {Altitude:F0} ft until slowed to {Release} KIAS (IAS {Ias:F1}, was {Rate:F0} fpm)",
+                aircraft.Callsign,
+                goal,
+                SpeedHoldReleaseKts(aircraft),
+                aircraft.IndicatedAirspeed,
+                aircraft.VerticalSpeed
+            );
+        }
+
+        aircraft.Altitude = goal;
+        aircraft.VerticalSpeed = 0;
+    }
+
+    /// <summary>Logs the tick an aircraft level at 10,000 ft and cleared below it continues its descent.</summary>
+    private static void LogSpeedHoldRelease(AircraftState aircraft, double clearedGoal, bool heldForSpeed)
+    {
+        if (
+            !heldForSpeed
+            && (clearedGoal < TenThousandFt)
+            && (aircraft.VerticalSpeed == 0)
+            && (Math.Abs(aircraft.Altitude - TenThousandFt) < AltitudeSnapFt)
+        )
+        {
+            Log.LogDebug(
+                "{Callsign}: descending below {Altitude:F0} ft to {Goal:F0} ft at IAS {Ias:F1}",
+                aircraft.Callsign,
+                aircraft.Altitude,
+                clearedGoal,
+                aircraft.IndicatedAirspeed
+            );
         }
     }
 
@@ -1522,12 +1610,20 @@ public static class FlightPhysics
     /// military training route's confines — but 91.117(c)'s 200 kt Class B shelf cap has no military
     /// training route exception, so it survives. 91.117(d) is the opposite shape: it reaches every
     /// paragraph of the section, including (c), but only up to the aircraft's minimum safe speed.
+    ///
+    /// At or above 10,000 ft the 250 kt cap leads a descent below it, so the aircraft crosses 10,000 ft at the cap rather
+    /// than slowing after it (<see cref="DescentSpeedLimitLead"/>).
     /// </summary>
     public static double RegulatorySpeedLimit(AircraftState aircraft)
     {
-        if (aircraft.IsOnGround || (aircraft.Altitude >= 10_000))
+        if (aircraft.IsOnGround)
         {
             return double.MaxValue;
+        }
+
+        if (aircraft.Altitude >= TenThousandFt)
+        {
+            return ((DescentSpeedLimitLead(aircraft) is { } lead) && lead.Applies) ? lead.CapKts : double.MaxValue;
         }
 
         bool underShelf = Data.Airspace.AirspaceDatabase.Default.IsUnderClassBShelf(aircraft.Position, aircraft.Altitude);
@@ -1544,6 +1640,226 @@ public static class FlightPhysics
         return AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType)
             ? Math.Max(cap, AircraftPerformance.MinimumSafeSpeedKts(aircraft.AircraftType))
             : cap;
+    }
+
+    /// <summary>The altitude (ft MSL) 14 CFR 91.117(a)'s 250 kt limit begins below.</summary>
+    private const double TenThousandFt = 10_000;
+
+    /// <summary>How much earlier than full deceleration needs the descent band starts slowing the aircraft.</summary>
+    private const double SpeedLimitLeadMargin = 1.1;
+
+    /// <summary>
+    /// The sim's 2 kt airborne speed snap (<see cref="SpeedSnapKts"/>) over a speed limit: IAS within it counts as at the
+    /// limit. A rounding margin of the integration, not a pilot tolerance.
+    /// </summary>
+    public const double SpeedSnapMarginKts = SpeedSnapKts;
+
+    /// <summary>
+    /// The IAS at or below which an aircraft held at 10,000 ft for speed continues its descent: the band's cap
+    /// (<see cref="DescentBandCapKts"/>) plus the speed snap (<see cref="SpeedSnapMarginKts"/>), 252 KIAS for a type 91.117(d)
+    /// does not waive.
+    /// </summary>
+    private static double SpeedHoldReleaseKts(AircraftState aircraft) => DescentBandCapKts(aircraft) + SpeedSnapMarginKts;
+
+    /// <summary>
+    /// The descent band's state for an aircraft at or above 10,000 ft that is descending below it: the seconds left to
+    /// 10,000 ft at <paramref name="RateFpm"/>, the seconds the band leads by (1.1 times the time the type's deceleration
+    /// needs to bring the speed it is flying toward down to <paramref name="CapKts"/>), and the cap it holds.
+    /// </summary>
+    private readonly record struct DescentLead(double SecondsToTenThousand, double LeadSeconds, double RateFpm, double CapKts)
+    {
+        /// <summary>True once the aircraft is within the lead of 10,000 ft, so the cap holds it.</summary>
+        public bool Applies => SecondsToTenThousand <= LeadSeconds;
+    }
+
+    /// <summary>
+    /// The 250 kt lead above 10,000 ft (14 CFR 91.117(a)): null when the band does not apply
+    /// (<see cref="DescentSpeedLimitBandApplies"/>). The speed it slows from is the one the aircraft would fly with no cap
+    /// (<see cref="UncappedSpeedKts"/>), so once the band starts it stays on down to 10,000 ft instead of letting the
+    /// aircraft speed back up as the IAS falls.
+    /// </summary>
+    private static DescentLead? DescentSpeedLimitLead(AircraftState aircraft)
+    {
+        if (!DescentSpeedLimitBandApplies(aircraft))
+        {
+            return null;
+        }
+
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double cap = DescentBandCapKts(aircraft);
+        double fromKts = UncappedSpeedKts(aircraft, cat);
+        // The hold's rate (UpdateAltitude): toward the cleared altitude before the level-off taper, so one judges both.
+        double rateFpm = BaseVerticalRate(aircraft, cat, climbing: false).Rate;
+        double aboveFt = aircraft.Altitude - TenThousandFt;
+        double seconds = (aboveFt <= 0) ? 0 : ((rateFpm > 0) ? aboveFt / (rateFpm / 60.0) : double.PositiveInfinity);
+        double leadSeconds = SpeedLimitLeadMargin * Math.Max(0, fromKts - cap) / AircraftPerformance.DecelRate(aircraft.AircraftType, cat);
+        return new DescentLead(seconds, leadSeconds, rateFpm, cap);
+    }
+
+    /// <summary>
+    /// The speed the aircraft would fly toward with no 91.117 cap: the highest of its IAS, its target (which the cap holds
+    /// short rather than retires), a speed floor (which would lift it back once slowed) and the auto schedule's speed
+    /// (<see cref="AutoScheduleSpeed"/>, which would set a new target once one at the cap is reached).
+    /// </summary>
+    private static double UncappedSpeedKts(AircraftState aircraft, AircraftCategory cat)
+    {
+        double target = Math.Max(aircraft.Targets.TargetSpeed ?? 0, aircraft.Targets.SpeedFloor ?? 0);
+        double scheduled = AutoScheduleSpeed(aircraft, cat, EnvelopeSpeedLimit(aircraft)) ?? 0;
+        return Math.Max(aircraft.IndicatedAirspeed, Math.Max(target, scheduled));
+    }
+
+    /// <summary>
+    /// The cap the descent band holds: 250 KIAS, or the type's minimum safe speed where 91.117(d) waives it to that.
+    /// </summary>
+    private static double DescentBandCapKts(AircraftState aircraft) =>
+        AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType)
+            ? Math.Max(SpeedLimitBelow10kKts, AircraftPerformance.MinimumSafeSpeedKts(aircraft.AircraftType))
+            : SpeedLimitBelow10kKts;
+
+    /// <summary>
+    /// True when 91.117(a)'s cap leads this aircraft's descent: airborne at or above 10,000 ft, cleared below both 10,000 ft
+    /// and its altitude (<see cref="LowestClearedAltitude"/>), not exempt, and with no crossing speed above 250 still to
+    /// fly at or above 10,000 ft (<see cref="FastCrossingAtOrAboveTenThousandAhead"/>). The one test both the cap
+    /// (<see cref="RegulatorySpeedLimit"/>) and the 10,000 ft hold (<see cref="HoldsAtTenThousandForSpeed"/>) read.
+    /// </summary>
+    private static bool DescentSpeedLimitBandApplies(AircraftState aircraft)
+    {
+        if (aircraft.IsOnGround || (aircraft.Altitude < TenThousandFt) || ExemptFromDescentBand(aircraft))
+        {
+            return false;
+        }
+
+        if ((LowestClearedAltitude(aircraft) is not { } lowest) || (lowest >= TenThousandFt) || (lowest >= aircraft.Altitude))
+        {
+            return false;
+        }
+
+        return !FastCrossingAtOrAboveTenThousandAhead(aircraft);
+    }
+
+    /// <summary>
+    /// The exemptions the 250 kt limit already has: SPDN (<see cref="ControlTargets.SpeedLimitsLifted"/>), SMAX
+    /// (<see cref="ControlTargets.SpeedMaxHeld"/>) and the military training route waiver.
+    /// </summary>
+    private static bool ExemptFromDescentBand(AircraftState aircraft) =>
+        aircraft.Targets.SpeedLimitsLifted || aircraft.Targets.SpeedMaxHeld || aircraft.MilitaryRoute.SpeedLimitWaived;
+
+    /// <summary>
+    /// The lowest altitude the aircraft is cleared to now: the lower of <see cref="ControlTargets.AssignedAltitude"/> and
+    /// <see cref="ControlTargets.TargetAltitude"/>, and on a descend via also its bottom, the "except maintain" altitude
+    /// (<see cref="AircraftProcedure.StarViaFloor"/>) or else the lowest altitude bound on the route still ahead. Null when
+    /// none is set.
+    /// </summary>
+    internal static double? LowestClearedAltitude(AircraftState aircraft)
+    {
+        double? lowest = LowerOf(aircraft.Targets.AssignedAltitude, aircraft.Targets.TargetAltitude);
+        if (!aircraft.Procedure.StarViaMode)
+        {
+            return lowest;
+        }
+
+        double? viaBottom = aircraft.Procedure.StarViaFloor ?? LowestRouteAltitudeBound(aircraft.Targets.NavigationRoute);
+        return LowerOf(lowest, viaBottom);
+    }
+
+    private static double? LowerOf(double? a, double? b) => ((a is { } x) && (b is { } y)) ? Math.Min(x, y) : (a ?? b);
+
+    private static double? LowestRouteAltitudeBound(List<NavigationTarget> route)
+    {
+        double? lowest = null;
+        foreach (NavigationTarget fix in route)
+        {
+            lowest = LowerOf(lowest, LowerAltitudeBoundFt(fix.AltitudeRestriction));
+        }
+
+        return lowest;
+    }
+
+    /// <summary>
+    /// The lower altitude of a crossing restriction: the altitude of an at, at-or-above or at-or-below restriction, and
+    /// the lower bound of a between. Null for none, or any other kind.
+    /// </summary>
+    private static double? LowerAltitudeBoundFt(CifpAltitudeRestriction? restriction) =>
+        restriction?.Type switch
+        {
+            CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrAbove or CifpAltitudeRestrictionType.AtOrBelow =>
+                restriction.Altitude1Ft,
+            CifpAltitudeRestrictionType.Between => Math.Min(restriction.Altitude1Ft, restriction.Altitude2Ft ?? restriction.Altitude1Ft),
+            _ => null,
+        };
+
+    /// <summary>
+    /// True when the next speed-restricted fix ahead carries a speed above 250 KIAS that must be crossed at or above
+    /// 10,000 ft: that crossing wins until the fix is passed. Published speeds deleted by DSR
+    /// (<see cref="AircraftProcedure.SpeedRestrictionsDeleted"/>) are skipped, as the planner skips them; a controller's
+    /// crossing speed (<see cref="IsControllerSetSpeed"/>) always counts. The fix's altitude must hold the aircraft up
+    /// there (<see cref="CrossingFloorFt"/>) and be in force: under a descend via, or set by the controller's crossing
+    /// (<see cref="NavigationTarget.CrossingTransmissionId"/>). A published altitude off a via clearance, an "at or below",
+    /// or no altitude at all leaves the aircraft free to be below 10,000 ft before the fix, so it does not hold the band off.
+    /// </summary>
+    private static bool FastCrossingAtOrAboveTenThousandAhead(AircraftState aircraft)
+    {
+        if ((NextSpeedRestrictedFix(aircraft) is not { } next) || (next.SpeedRestriction!.SpeedKts <= SpeedLimitBelow10kKts))
+        {
+            return false;
+        }
+
+        bool altitudeInForce = aircraft.Procedure.StarViaMode || (next.CrossingTransmissionId is not null);
+        return altitudeInForce && (CrossingFloorFt(next.AltitudeRestriction) is { } floorFt) && (floorFt >= TenThousandFt);
+    }
+
+    /// <summary>The first route fix ahead with a speed restriction the aircraft flies, skipping published ones DSR deleted.</summary>
+    private static NavigationTarget? NextSpeedRestrictedFix(AircraftState aircraft)
+    {
+        bool publishedDeleted = aircraft.Procedure.SpeedRestrictionsDeleted;
+        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        {
+            if ((fix.SpeedRestriction is not null) && (!publishedDeleted || IsControllerSetSpeed(fix)))
+            {
+                return fix;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The lowest altitude a crossing restriction lets the aircraft be at the fix: an at or at-or-above restriction's
+    /// altitude, and the lower bound of a between. Null for an at-or-below (no floor), none, or any other kind.
+    /// </summary>
+    private static double? CrossingFloorFt(CifpAltitudeRestriction? restriction) =>
+        restriction?.Type switch
+        {
+            CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrAbove => restriction.Altitude1Ft,
+            CifpAltitudeRestrictionType.Between => Math.Min(restriction.Altitude1Ft, restriction.Altitude2Ft ?? restriction.Altitude1Ft),
+            _ => null,
+        };
+
+    /// <summary>Logs the tick the descent band starts holding the aircraft to the cap above 10,000 ft.</summary>
+    private static void LogDescentBandStart(AircraftState aircraft, double deltaSeconds)
+    {
+        if (
+            !Log.IsEnabled(LogLevel.Debug)
+            || (aircraft.Altitude < TenThousandFt)
+            || (DescentSpeedLimitLead(aircraft) is not { } lead)
+            || !lead.Applies
+        )
+        {
+            return;
+        }
+
+        // The lead does not change while the cap holds the target short, and the time to 10,000 ft falls by a tick's worth.
+        if (lead.SecondsToTenThousand + deltaSeconds > lead.LeadSeconds)
+        {
+            Log.LogDebug(
+                "{Callsign}: slowing to {Cap:F0} KIAS for 10,000 ft from {Altitude:F0} ft (IAS {Ias:F1}, {Rate:F0} fpm)",
+                aircraft.Callsign,
+                lead.CapKts,
+                aircraft.Altitude,
+                aircraft.IndicatedAirspeed,
+                lead.RateFpm
+            );
+        }
     }
 
     /// <summary>
@@ -1757,6 +2073,7 @@ public static class FlightPhysics
         bool limitsLifted = aircraft.Targets.SpeedLimitsLifted;
         double envelopeLimit = limitsLifted ? double.MaxValue : EnvelopeSpeedLimit(aircraft);
         double speedLimit = limitsLifted ? double.MaxValue : SpeedLimitWithin(aircraft, envelopeLimit);
+        LogDescentBandStart(aircraft, deltaSeconds);
 
         // Mach hold: recompute equivalent IAS each tick so the aircraft maintains constant Mach. The limit keeps a Mach
         // hold carried down a descent from running the IAS past Vmo (or 91.117) as the air thickens, unless SPDN has
@@ -1837,9 +2154,24 @@ public static class FlightPhysics
     /// </summary>
     private static void ApplyAutoSpeedSchedule(AircraftState aircraft, AircraftCategory cat, double envelopeLimit)
     {
+        if ((aircraft.Targets.TargetSpeed is null) && (AutoScheduleSpeed(aircraft, cat, envelopeLimit) is { } scheduled))
+        {
+            if (Math.Abs(aircraft.IndicatedAirspeed - scheduled) > SpeedSnapKts)
+            {
+                aircraft.Targets.TargetSpeed = scheduled;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The speed the auto schedule (<see cref="ApplyAutoSpeedSchedule"/>) flies the aircraft at here, or null when the
+    /// schedule does not run: on the ground, under an explicit SPD command, in an approach or a phase that manages speed,
+    /// or level at its target altitude.
+    /// </summary>
+    private static double? AutoScheduleSpeed(AircraftState aircraft, AircraftCategory cat, double envelopeLimit)
+    {
         if (
-            aircraft.Targets.TargetSpeed is not null
-            || aircraft.IsOnGround
+            aircraft.IsOnGround
             || aircraft.Targets.HasExplicitSpeedCommand
             || aircraft.Phases?.ActiveApproach is not null
             || aircraft.Phases?.CurrentPhase?.ManagesSpeed == true
@@ -1847,7 +2179,7 @@ public static class FlightPhysics
             || Math.Abs(aircraft.Altitude - aircraft.Targets.TargetAltitude.Value) <= AltitudeSnapFt
         )
         {
-            return;
+            return null;
         }
 
         double defaultSpeed = AircraftPerformance.DefaultSpeed(aircraft.AircraftType, cat, aircraft.Altitude, aircraft.Targets.TargetAltitude);
@@ -1860,12 +2192,7 @@ public static class FlightPhysics
         }
 
         // Nor past what the type can fly here, so the schedule never sets a target the cap would then hold short of.
-        defaultSpeed = Math.Min(defaultSpeed, envelopeLimit);
-
-        if (Math.Abs(aircraft.IndicatedAirspeed - defaultSpeed) > SpeedSnapKts)
-        {
-            aircraft.Targets.TargetSpeed = defaultSpeed;
-        }
+        return Math.Min(defaultSpeed, envelopeLimit);
     }
 
     /// <summary>

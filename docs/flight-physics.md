@@ -233,11 +233,17 @@ The climb scan walks the route in order and ends at the first restriction that f
 `UpdateSpeed(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs`, `FlightPhysics.UpdateSpeed`) is a layered cascade. The layers run in this exact order; getting the order
 wrong silently lets one layer stomp or lose to another:
 
-Layers 1, 2 and 5 all clamp against the speed limit, resolved once at the top of the method; its 91.117 half is the public `FlightPhysics.RegulatorySpeedLimit(aircraft)`. That takes the aircraft alone and has four arms: `double.MaxValue` on the ground or at or above 10,000 ft; `double.MaxValue` for an
+Layers 1, 2 and 5 all clamp against the speed limit, resolved once at the top of the method; its 91.117 half is the public `FlightPhysics.RegulatorySpeedLimit(aircraft)`. That takes the aircraft alone and has four arms: `double.MaxValue` on the ground, or at or above 10,000 ft outside the descent lead below; `double.MaxValue` for an
 aircraft whose `MilitaryRoute.SpeedLimitWaived` is set and which is **not** under a Class B shelf (the AP/1B waiver reaches 91.117(a) only);
 otherwise the cap — **200 kt** when `AirspaceDatabase.IsUnderClassBShelf` puts the aircraft laterally inside a Class B footprint but below its
 floor (91.117(c)), else **250 kt** (91.117(a)) — raised to `max(cap, AircraftPerformance.MinimumSafeSpeedKts)` for a type with
 `AircraftPerformance.IsSpeedLimitWaived` (91.117(d): a floor under the cap, never a removal of it).
+
+**Descent lead (250 before 10,000 ft).** Above 10,000 ft an aircraft descending to a cleared altitude below it (`FlightPhysics.LowestClearedAltitude`: the assigned or target altitude, or a descend-via's floor or route bottom) gets the 250 cap early, so it crosses 10,000 ft at or below 250 + `SpeedSnapMarginKts` (the 2 kt snap). `RegulatorySpeedLimit` returns 250 once the time to 10,000 ft is within 1.1× the time to slow from the speed the aircraft is flying toward (the highest of IAS, `TargetSpeed`, the floor and the auto-schedule speed) at the type's airborne decel rate. `AssignedSpeed` (`SPD 280`) stays on record behind the cap and is flown again after the descent levels above 10,000 ft or the cap otherwise lifts.
+
+`DescentSpeedLimitBandApplies` is the one judge of "this aircraft is subject to the lead", shared with the backstop, and exempts SPDN, SMAX, the military-route waiver and, as above, 91.117(d) types (cap = `max(250, MinimumSafeSpeedKts)`). A crossing speed above 250 holds the lead off only when the fix's crossing floor is at or above 10,000 ft (At, AtOrAbove, a Between's lower bound; never AtOrBelow) and that altitude is in force (descend via, or a controller `CFIX` crossing), until the fix is passed.
+
+**Backstop.** When even full deceleration cannot make it, `UpdateAltitude` levels the descent at 10,000 ft until IAS is within `SpeedSnapMarginKts` of the cap, then continues to the cleared altitude without a re-clearance. It is derived each tick and persists nothing. Lead and backstop use the same decel rate: the one toward the cleared altitude, before the level-off taper. The descent schedule's 10,000 ft breakpoint is unchanged. `FlightPhysics` logs the lead and the level-off at Debug.
 
 The speed limit the layers hold is `FlightPhysics.EffectiveSpeedLimit(aircraft)`: the lower of `RegulatorySpeedLimit` and `EnvelopeSpeedLimit`, the type's own maximum — the lower of Vmo and Mmo's IAS equivalent at the present altitude (`AircraftPerformance.MaxOperatingIasKts`), so a climb past the IAS/Mach crossover lowers it as the air thins.
 
@@ -256,7 +262,7 @@ The speed limit the layers hold is `FlightPhysics.EffectiveSpeedLimit(aircraft)`
    `AircraftPerformance.DefaultSpeed(...)`, honoring an active `SpeedCeiling` and the type's `EnvelopeSpeedLimit`. This is the layer the approach/pattern phases suppress.
 4. **Ground `SpeedLimit` clamp** — `goal = min(goal, Ground.SpeedLimit)` when on the ground; this is the ground-conflict cap from
    [tick-loop.md](tick-loop.md)'s `GroundConflictDetector`.
-5. **Speed limit** — `goal = min(goal, speedLimit)`: 250 below 10,000 ft and 200 under a Class B shelf (14 CFR 91.117), or the type's Vmo/Mmo where that is lower. The layer first
+5. **Speed limit** — `goal = min(goal, speedLimit)`: 250 below 10,000 ft (and above it within the descent lead) and 200 under a Class B shelf (14 CFR 91.117), or the type's Vmo/Mmo where that is lower. The layer first
    records `heldShortBySpeedLimit = goal > speedLimit` — the cap holding the aircraft short of the speed it was told to fly — for
    layer 7.
 6. **`SpeedCeiling` continuous clamp** — `goal = min(goal, SpeedCeiling)` again, so even a non-procedural `TargetSpeed` (auto schedule,

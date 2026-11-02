@@ -225,7 +225,7 @@ phase lifecycle, `ManagesSpeed` contagion, and the snapshot contract. The featur
 
 `AirspaceDatabase.IsUnderClassBShelf(position, altitudeFtMsl)` is true when the aircraft is laterally inside
 a Class B footprint but below its floor. `FlightPhysics.RegulatorySpeedLimit` reads it on every speed update
-and caps indicated airspeed at **200 kt** there instead of the ordinary 250 below 10,000 ft. The lookup
+and caps indicated airspeed at **200 kt** there instead of the ordinary 250 below 10,000 ft (which a descent to a lower cleared altitude reaches early, see `docs/flight-physics.md`). The lookup
 walks a Bravo-only pre-filtered list, and each volume rejects a far-away point on its bounding box first.
 `AircraftPerformance.IsSpeedLimitWaived` (14 CFR 91.117(d)) lets an aircraft whose minimum safe speed is
 higher fly that speed instead (`max(cap, MinimumSafeSpeedKts)`), and the military-route waiver of 91.117(a)
