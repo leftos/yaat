@@ -90,7 +90,13 @@ internal sealed class WhisperCorpusSttEngine(string modelSource, int? gpuLayerCo
 /// <summary>A sherpa-onnx offline transducer export (Parakeet-TDT and its ATC fine-tunes).</summary>
 public sealed class SherpaCorpusSttEngine(string modelDir, string provider, SherpaDecoding decoding) : ICorpusSttEngine
 {
-    private readonly SherpaSttEngine _engine = new(modelDir, provider, decoding, SherpaOfflineNativeApi.Instance);
+    private readonly SherpaSttEngine _engine = new(
+        modelDir,
+        provider,
+        decoding,
+        SherpaOfflineNativeApi.Instance,
+        new SherpaGpuFallbackProbes(() => -1, NativeStderrCapture.Current)
+    );
 
     public string? SetupError()
     {

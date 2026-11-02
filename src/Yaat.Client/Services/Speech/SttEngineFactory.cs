@@ -10,6 +10,9 @@ public static class SttEngineFactory
 {
     private static readonly ILogger Log = AppLog.CreateLogger("SttEngineFactory");
 
+    // One probe for the app's lifetime: its first sample takes about two seconds, later ones a few milliseconds.
+    private static readonly GpuMemoryProbe GpuProbe = new();
+
     /// <summary>Each engine's manifest entry, per manifest; null when the manifest could not be read.</summary>
     private static readonly ConcurrentDictionary<(string ManifestPath, SttEngine Engine), SttModelDownload?> ManifestEntries = new();
 
@@ -132,6 +135,7 @@ public static class SttEngineFactory
         string id =
             engine.ManifestModelId() ?? throw new ArgumentOutOfRangeException(nameof(engine), engine, "Only a rasr engine is built on sherpa-onnx");
         string provider = (SherpaNativeLoader.LoadedSet == SherpaNativeSet.Cuda) ? "cuda" : "cpu";
-        return new SherpaSttEngine(SttModelInstaller.ModelDir(installRoot, id), provider, decoding, SherpaOfflineNativeApi.Instance);
+        var probes = new SherpaGpuFallbackProbes(GpuProbe.Sample, NativeStderrCapture.Current);
+        return new SherpaSttEngine(SttModelInstaller.ModelDir(installRoot, id), provider, decoding, SherpaOfflineNativeApi.Instance, probes);
     }
 }

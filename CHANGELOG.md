@@ -8,6 +8,7 @@
 - An ARTCC's airport file can list the taxiways that raise CRC's ASDE-X taxiway-landing alert; an airport without a list alerts on any taxiway.
 - Without the speech model downloaded, the status bar links to Settings › Speech; Speech Debug shows the model, mode, device and each press's callsign decode.
 - In Accurate speech mode an unclear callsign is never staged: the status bar says "Say again" and Enter sends nothing until you edit the text.
+- Settings › Speech and Speech Debug say why speech recognition fell back from the GPU to the CPU when the model loaded.
 
 ### Changed
 

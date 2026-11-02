@@ -908,6 +908,7 @@ public partial class SettingsViewModel : ObservableObject
         _isGpuRuntimeRemovalScheduled = sttDownloads.Gpu?.IsRemovalScheduled ?? false;
         _gpuRuntimeRemovalText = _isGpuRuntimeRemovalScheduled ? GpuRuntimeRemovalScheduledText : "";
         WatchSttDownloads();
+        SherpaNativeLoader.CpuFallbackReasonChanged += OnCpuFallbackReasonChanged;
 
         _audioInputDevice = _preferences.AudioInputDevice;
         _audioOutputDevice = _preferences.AudioOutputDevice;
@@ -2416,7 +2417,6 @@ public partial class SettingsViewModel : ObservableObject
 
     private readonly SttDownloads _sttDownloads;
     private readonly bool _ownsSttDownloads;
-    private readonly string? _cpuFallbackReason = SherpaNativeLoader.CpuFallbackReason;
     private (bool Available, string? Reason)? _sttNbest;
     private GpuSupport? _gpuSupport;
     private bool _sttDownloadsReleased;
@@ -2479,7 +2479,10 @@ public partial class SettingsViewModel : ObservableObject
     /// <summary>Whether GPU speech can run now: the card and driver are supported and the GPU runtime is installed.</summary>
     public bool IsGpuAvailable => (_gpuSupport is { IsSupported: true }) && (GpuRuntime?.IsInstalled == true);
 
-    /// <summary>The Device row's text: the GPU check, why a saved GPU pick runs on the CPU, or the startup fallback reason.</summary>
+    /// <summary>
+    /// The Device row's text: the GPU check, why a saved GPU pick runs on the CPU, or why the GPU fell back to the CPU, at
+    /// startup or when the model loaded (read live, so a later load's fallback shows while the window is open).
+    /// </summary>
     public string DeviceStatusText
     {
         get
@@ -2496,7 +2499,7 @@ public partial class SettingsViewModel : ObservableObject
             {
                 return support.Reason;
             }
-            return _cpuFallbackReason ?? "";
+            return SherpaNativeLoader.CpuFallbackReason ?? "";
         }
     }
 
@@ -2517,6 +2520,7 @@ public partial class SettingsViewModel : ObservableObject
             return;
         }
         _sttDownloadsReleased = true;
+        SherpaNativeLoader.CpuFallbackReasonChanged -= OnCpuFallbackReasonChanged;
         _sttDownloads.EngineLoadingChanged -= OnSttEngineLoadingChanged;
         if (GpuRuntime is not null)
         {
@@ -2631,6 +2635,16 @@ public partial class SettingsViewModel : ObservableObject
 
     // Raised on the thread that swaps the engine; the cards are touched on the UI thread only.
     private void OnSttEngineLoadingChanged() => Dispatcher.UIThread.Post(UpdateSttCardLoading);
+
+    private void OnCpuFallbackReasonChanged(object? sender, EventArgs e) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            // A post queued before the window released still runs; a released view model raises nothing.
+            if (!_sttDownloadsReleased)
+            {
+                OnPropertyChanged(nameof(DeviceStatusText));
+            }
+        });
 
     private void UpdateSttCardLoading()
     {

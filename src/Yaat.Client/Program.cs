@@ -93,6 +93,8 @@ public static class Program
             log.LogInformation("CUDA backend directory set to {Path}", CudaBackendInstaller.InstallRoot);
         }
 
+        // Before anything touches sherpa-onnx: its statically linked C runtime binds stderr when the DLL loads.
+        NativeStderrCapture.Install();
         ConfigureSherpaNatives(log);
 
         // LM-Kit licensing must run before any LM construction so the licensing layer is
@@ -157,8 +159,9 @@ public static class Program
     /// <summary>
     /// Picks sherpa-onnx's native set before anything touches sherpa: the installed CUDA set when the user chose the GPU,
     /// the CPU set beside the app otherwise. A removal of the CUDA set scheduled in Settings runs first, so a scheduled
-    /// removal starts on the CPU, and so does one that could not run yet (it is retried on the next start). A GPU pick that ends on the CPU says why in the log and in
-    /// <see cref="SherpaNativeLoader.CpuFallbackReason"/>; any failure is logged and leaves speech recognition on the CPU.
+    /// removal starts on the CPU, and so does one that could not run yet (it is retried on the next start). A GPU pick
+    /// that ends on the CPU says why in the log and in <see cref="SherpaNativeLoader.CpuFallbackReason"/>; any failure is
+    /// logged and leaves speech recognition on the CPU.
     /// </summary>
     private static void ConfigureSherpaNatives(ILogger log)
     {

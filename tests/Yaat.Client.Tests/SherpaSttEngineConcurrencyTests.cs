@@ -15,7 +15,13 @@ public sealed class SherpaSttEngineConcurrencyTests
         string dir = CreateModelDirectory();
         try
         {
-            using SherpaSttEngine engine = new(dir, "cpu", SherpaDecoding.Greedy, api);
+            using SherpaSttEngine engine = new(
+                dir,
+                "cpu",
+                SherpaDecoding.Greedy,
+                api,
+                new SherpaGpuFallbackProbes(() => -1, NativeStderrCapture.Current)
+            );
             api.ArmCreate();
             Task<IReadOnlyList<SttHypothesis>> first = Task.Run(() => engine.Transcribe(Silence(), AudioCaptureService.SampleRate, string.Empty));
             Task<IReadOnlyList<SttHypothesis>> second = Task.Run(() => engine.Transcribe(Silence(), AudioCaptureService.SampleRate, string.Empty));
@@ -41,7 +47,7 @@ public sealed class SherpaSttEngineConcurrencyTests
         string dir = CreateModelDirectory();
         try
         {
-            SherpaSttEngine engine = new(dir, "cpu", SherpaDecoding.Greedy, api);
+            SherpaSttEngine engine = new(dir, "cpu", SherpaDecoding.Greedy, api, new SherpaGpuFallbackProbes(() => -1, NativeStderrCapture.Current));
             api.ArmDecode();
             Task<IReadOnlyList<SttHypothesis>> transcribe = Task.Run(() =>
                 engine.Transcribe(Silence(), AudioCaptureService.SampleRate, string.Empty)
@@ -79,7 +85,7 @@ public sealed class SherpaSttEngineConcurrencyTests
         string dir = CreateModelDirectory();
         try
         {
-            SherpaSttEngine engine = new(dir, "cpu", SherpaDecoding.Greedy, api);
+            SherpaSttEngine engine = new(dir, "cpu", SherpaDecoding.Greedy, api, new SherpaGpuFallbackProbes(() => -1, NativeStderrCapture.Current));
             engine.Transcribe(Silence(), AudioCaptureService.SampleRate, string.Empty);
             engine.Dispose();
             int before = api.TotalCalls;
@@ -89,7 +95,13 @@ public sealed class SherpaSttEngineConcurrencyTests
             Assert.Equal(before, api.TotalCalls);
 
             using FakeSherpaApi beamApi = new();
-            SherpaSttEngine beam = new(dir, "cpu", new SherpaDecoding(SherpaDecodingMethod.Beam, 4, 1.5f), beamApi);
+            SherpaSttEngine beam = new(
+                dir,
+                "cpu",
+                new SherpaDecoding(SherpaDecodingMethod.Beam, 4, 1.5f),
+                beamApi,
+                new SherpaGpuFallbackProbes(() => -1, NativeStderrCapture.Current)
+            );
             beam.Dispose();
             string? problem = beam.NativeProblem();
             Assert.NotNull(problem);
@@ -120,7 +132,7 @@ public sealed class SherpaSttEngineConcurrencyTests
         Assert.True(entered.Wait(TimeSpan.FromMinutes(2)), $"{what} was never entered");
 
     /// <summary>Stands in for the native, counting calls and holding the ones a test arms.</summary>
-    private sealed class FakeSherpaApi : ISherpaOfflineApi, IDisposable
+    internal sealed class FakeSherpaApi : ISherpaOfflineApi, IDisposable
     {
         private const string Json = """{"text":"x","tokens":[],"ys_log_probs":[]}""";
 

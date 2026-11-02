@@ -1,7 +1,11 @@
+using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
 using Yaat.Client.ViewModels;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Client.Tests;
 
@@ -10,6 +14,7 @@ namespace Yaat.Client.Tests;
 /// for the saved model, and the startup GPU fallback gets a line of its own. The mode rule is Settings' own, shared through
 /// <see cref="SttModelCardViewModel"/> so the two surfaces can never disagree.
 /// </summary>
+[Collection(CpuFallbackReasonCollection.Name)]
 public class SpeechDebugViewModelEngineLineTests
 {
     private const string NbestReason = "Accurate needs the n-best native; running Fast";
@@ -60,5 +65,79 @@ public class SpeechDebugViewModelEngineLineTests
             "GPU unavailable: the GPU runtime is not installed",
             SpeechDebugViewModel.CpuFallbackTextFor("the GPU runtime is not installed")
         );
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void CpuFallbackText_FollowsTheSharedReason_UntilTheWindowIsDisposed()
+    {
+        string? savedReason = SherpaNativeLoader.CpuFallbackReason;
+        string root = Directory.CreateTempSubdirectory("speech-debug-fallback-").FullName;
+        try
+        {
+            SherpaNativeLoader.ResetCpuFallbackForTests(null);
+            var preferences = new UserPreferences();
+            using var engine = new SilentEngine();
+            using var service = new SpeechRecognitionService(
+                preferences,
+                new SilentAudio(),
+                engine,
+                null,
+                new PhraseologyCommandMapper(),
+                null,
+                null,
+                () => new SpeechContext([], [], string.Empty),
+                null,
+                () => true
+            );
+            var vm = new SpeechDebugViewModel(service, new SpeechSampleStore(preferences, root, a => a()), preferences);
+            try
+            {
+                Assert.Null(vm.CpuFallbackText);
+
+                SherpaNativeLoader.RecordCpuFallback(SherpaSttEngine.NoGpuMemoryRiseReason);
+                Dispatcher.UIThread.RunJobs();
+                Assert.Equal($"GPU unavailable: {SherpaSttEngine.NoGpuMemoryRiseReason}", vm.CpuFallbackText);
+
+                SherpaNativeLoader.RecordGpuLoad();
+                Dispatcher.UIThread.RunJobs();
+                Assert.Null(vm.CpuFallbackText);
+
+                vm.Dispose();
+                SherpaNativeLoader.RecordCpuFallback("after the window closed");
+                Dispatcher.UIThread.RunJobs();
+                Assert.Null(vm.CpuFallbackText);
+            }
+            finally
+            {
+                // A failed assert above still unsubscribes the view model from the process-wide event.
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            SherpaNativeLoader.ResetCpuFallbackForTests(savedReason);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>A microphone that always opens and records nothing.</summary>
+    private sealed class SilentAudio : IAudioCapture
+    {
+        public bool StartCapture() => true;
+
+        public float[] StopCapture() => [];
+    }
+
+    /// <summary>An engine that hears nothing.</summary>
+    private sealed class SilentEngine : ISttEngine
+    {
+        public TranscriptionMode Mode => TranscriptionMode.Fast;
+
+        public Task WarmUpAsync(CancellationToken ct) => Task.CompletedTask;
+
+        public Task<SttHypotheses> TranscribeAsync(float[] samples16k, string? prompt, CancellationToken ct) =>
+            Task.FromResult(SttHypotheses.Single(null, null, false));
+
+        public void Dispose() { }
     }
 }

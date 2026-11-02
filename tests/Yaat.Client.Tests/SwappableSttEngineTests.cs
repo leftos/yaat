@@ -255,7 +255,13 @@ public sealed class SwappableSttEngineTests : IDisposable
         string emptyDir = Path.Combine(_root, "empty-model");
         Directory.CreateDirectory(emptyDir);
         var old = new FakeEngine("old");
-        var sherpa = new SherpaSttEngine(emptyDir, "cpu", SherpaDecoding.Greedy, SherpaOfflineNativeApi.Instance);
+        var sherpa = new SherpaSttEngine(
+            emptyDir,
+            "cpu",
+            SherpaDecoding.Greedy,
+            SherpaOfflineNativeApi.Instance,
+            new SherpaGpuFallbackProbes(() => -1, NativeStderrCapture.Current)
+        );
         using var swappable = new SwappableSttEngine(old);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>

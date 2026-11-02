@@ -93,8 +93,16 @@ public static class SherpaNativeLoader
     /// <summary>The set this process loaded; <see cref="SherpaNativeSet.Cpu"/> until <see cref="UseCudaSet"/> runs.</summary>
     public static SherpaNativeSet LoadedSet { get; private set; } = SherpaNativeSet.Cpu;
 
-    /// <summary>Why a GPU pick ended on the CPU, for the Settings and Speech Debug surfaces; null until one does.</summary>
-    public static string? CpuFallbackReason { get; private set; }
+    private static volatile string? _cpuFallbackReason;
+
+    /// <summary>
+    /// Why a GPU pick runs on the CPU, for the Settings and Speech Debug surfaces: the startup reason, or the reason the
+    /// last sherpa-onnx CUDA load fell back to the CPU; null while nothing fell back.
+    /// </summary>
+    public static string? CpuFallbackReason => _cpuFallbackReason;
+
+    /// <summary>Raised on the thread that changed <see cref="CpuFallbackReason"/>; a UI reader marshals to its own thread.</summary>
+    public static event EventHandler? CpuFallbackReasonChanged;
 
     /// <summary>Why Accurate mode is off while the Whisper card is selected: Whisper gives one hypothesis only.</summary>
     public const string WhisperAccurateReason = "Whisper gives one hypothesis only; running Fast";
@@ -162,9 +170,25 @@ public static class SherpaNativeLoader
     /// <param name="reason">The reason, shown to the user.</param>
     public static void RecordCpuFallback(string reason)
     {
-        CpuFallbackReason = reason;
+        _cpuFallbackReason = reason;
         Log.LogWarning("Speech recognition runs on the CPU: {Reason}", reason);
+        CpuFallbackReasonChanged?.Invoke(null, EventArgs.Empty);
     }
+
+    /// <summary>Records that a sherpa-onnx CUDA load reached the GPU, clearing an earlier load's fallback reason.</summary>
+    public static void RecordGpuLoad()
+    {
+        if (Interlocked.Exchange(ref _cpuFallbackReason, null) is null)
+        {
+            return;
+        }
+        Log.LogInformation("Speech recognition runs on the GPU again");
+        CpuFallbackReasonChanged?.Invoke(null, EventArgs.Empty);
+    }
+
+    /// <summary>Tests only: puts <see cref="CpuFallbackReason"/> back to <paramref name="reason"/> without raising the event.</summary>
+    /// <param name="reason">The value to restore.</param>
+    internal static void ResetCpuFallbackForTests(string? reason) => _cpuFallbackReason = reason;
 
     /// <summary>
     /// The set startup should load, with the reason the CPU was kept when the user asked for the GPU. A CPU choice reads

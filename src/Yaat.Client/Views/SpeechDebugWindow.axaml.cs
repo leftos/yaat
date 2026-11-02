@@ -40,7 +40,11 @@ public partial class SpeechDebugWindow : Window
 
         new WindowGeometryHelper(this, preferences, "SpeechDebug", 1120, 720).Restore();
 
-        Closed += (_, _) => DisposePlayback();
+        Closed += (_, _) =>
+        {
+            DisposePlayback();
+            _viewModel?.Dispose();
+        };
     }
 
     private void WireCommonButtons()

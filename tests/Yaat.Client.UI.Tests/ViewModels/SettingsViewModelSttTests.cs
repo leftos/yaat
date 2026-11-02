@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Net.Http;
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -89,6 +90,39 @@ public sealed class SettingsViewModelSttTests : IDisposable
         Assert.False(vm.IsGpuAvailable);
         Assert.EndsWith("Running on CPU", vm.DeviceStatusText, StringComparison.Ordinal);
         Assert.Equal(SttDevice.Gpu, vm.SelectedSttDevice);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public async Task CpuFallbackReasonChanged_RefreshesTheDeviceStatus_UntilTheWindowReleases()
+    {
+        SaveStt(SttEngine.RasrV2Fp32, SttMode.Fast, SttDevice.Cpu);
+        string? savedReason = SherpaNativeLoader.CpuFallbackReason;
+        SherpaNativeLoader.ResetCpuFallbackForTests(null);
+        try
+        {
+            SettingsViewModel vm = NewViewModel(nbestAvailable: true);
+            await UntilAsync(vm, () => !vm.IsGpuChecking);
+            // Empty only when the card can run GPU speech; a card that cannot names its own reason, which wins.
+            string before = vm.DeviceStatusText;
+            List<string?> changed = [];
+            vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+            SherpaNativeLoader.RecordCpuFallback(SherpaSttEngine.NoGpuMemoryRiseReason);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Contains(nameof(SettingsViewModel.DeviceStatusText), changed);
+            Assert.Equal((before.Length == 0) ? SherpaSttEngine.NoGpuMemoryRiseReason : before, vm.DeviceStatusText);
+
+            vm.ReleaseSttDownloads();
+            changed.Clear();
+            SherpaNativeLoader.RecordGpuLoad();
+            Dispatcher.UIThread.RunJobs();
+            Assert.DoesNotContain(nameof(SettingsViewModel.DeviceStatusText), changed);
+        }
+        finally
+        {
+            SherpaNativeLoader.ResetCpuFallbackForTests(savedReason);
+        }
     }
 
     [AvaloniaFact(Timeout = 60_000)]

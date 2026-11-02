@@ -62,7 +62,13 @@ public sealed partial class SherpaNativeOverlayTests
         string? dir = Environment.GetEnvironmentVariable("YAAT_TEST_RASR_INT8_DIR");
         Assert.SkipUnless(!string.IsNullOrEmpty(dir) && Directory.Exists(dir), "YAAT_TEST_RASR_INT8_DIR names no rasr int8 model directory.");
 
-        using var engine = new SherpaSttEngine(dir!, "cpu", new SherpaDecoding(SherpaDecodingMethod.Beam, 4, 1.5f), SherpaOfflineNativeApi.Instance);
+        using var engine = new SherpaSttEngine(
+            dir!,
+            "cpu",
+            new SherpaDecoding(SherpaDecodingMethod.Beam, 4, 1.5f),
+            SherpaOfflineNativeApi.Instance,
+            new SherpaGpuFallbackProbes(() => -1, NativeStderrCapture.Current)
+        );
 
         Assert.Null(engine.NativeProblem());
     }

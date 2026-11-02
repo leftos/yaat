@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using Avalonia.Media;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -48,7 +49,8 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
             SherpaNativeLoader.NbestAvailability(),
             SherpaNativeLoader.LoadedSet
         );
-        CpuFallbackText = CpuFallbackTextFor(SherpaNativeLoader.CpuFallbackReason);
+        _cpuFallbackText = CpuFallbackTextFor(SherpaNativeLoader.CpuFallbackReason);
+        SherpaNativeLoader.CpuFallbackReasonChanged += OnCpuFallbackReasonChanged;
 
         Rows = [];
         RebuildRows();
@@ -69,9 +71,11 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
     public string RunningEngineText { get; }
 
     /// <summary>
-    /// Why a GPU pick fell back to the CPU at startup, as this window opened; null when it did not, which hides the line.
+    /// Why a GPU pick fell back to the CPU, at startup or when the model loaded, kept live while the window is open; null
+    /// when it did not, which hides the line.
     /// </summary>
-    public string? CpuFallbackText { get; }
+    [ObservableProperty]
+    private string? _cpuFallbackText;
 
     /// <summary>The GPU-fallback line for <paramref name="reason"/>, or null when there was no fallback.</summary>
     /// <param name="reason">Why a GPU pick ended on the CPU.</param>
@@ -205,6 +209,9 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
 
     private void OnSessionHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e) => RebuildRows();
 
+    private void OnCpuFallbackReasonChanged(object? sender, EventArgs e) =>
+        Dispatcher.UIThread.Post(() => CpuFallbackText = CpuFallbackTextFor(SherpaNativeLoader.CpuFallbackReason));
+
     /// <summary>
     /// The header's engine line: the model, the mode it runs in (the effective one, so an Accurate pick that cannot run
     /// reads Fast) and the device it runs on.
@@ -284,6 +291,7 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        SherpaNativeLoader.CpuFallbackReasonChanged -= OnCpuFallbackReasonChanged;
         _service.SessionHistory.CollectionChanged -= OnSessionHistoryChanged;
         _sampleStore.Entries.CollectionChanged -= OnSampleStoreChanged;
         foreach (SpeechDebugSessionRow row in Rows)

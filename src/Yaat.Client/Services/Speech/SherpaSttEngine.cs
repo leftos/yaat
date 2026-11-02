@@ -24,23 +24,39 @@ namespace Yaat.Client.Services.Speech;
 /// Safe to call from several threads: loads, decodes and <see cref="Dispose"/> are serialised on one lock, so at
 /// most one recognizer is made and none is destroyed under a running decode. After <see cref="Dispose"/> the
 /// engine makes no native call at all.
+///
+/// A <c>cuda</c> load that ONNX Runtime silently moves to the CPU still returns a recognizer, so the load is watched
+/// through <paramref name="probes"/>: a sherpa-onnx <c>Failed to enable CUDA</c> line arriving on native stderr during
+/// the call, or this process's GPU memory rising less than <see cref="GpuUseCheck.MinRiseBytes"/>, marks it a fallback.
+/// The reason lands in <see cref="ProviderFallbackReason"/> and in <see cref="SherpaNativeLoader.CpuFallbackReason"/>.
 /// </summary>
-public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDecoding decoding, ISherpaOfflineApi api) : IDisposable
+public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDecoding decoding, ISherpaOfflineApi api, SherpaGpuFallbackProbes probes)
+    : IDisposable
 {
+    /// <summary>The fallback reason when the GPU memory rule, not a native line, caught the fallback.</summary>
+    public const string NoGpuMemoryRiseReason = "GPU memory did not rise when the model loaded";
+
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaSttEngine>();
 
     private readonly string _modelDir = modelDir;
     private readonly bool _isBeam = decoding.Method == SherpaDecodingMethod.Beam;
+    private readonly bool _watchesGpu = provider == "cuda";
     private readonly Lock _gate = new();
     private IntPtr _recognizer;
     private bool _disposed;
     private volatile string? _loadError;
+    private volatile string? _providerFallbackReason;
 
     /// <summary>The folder the model is loaded from.</summary>
     public string ModelDir => _modelDir;
 
     /// <summary>Why the last attempt to load the model failed; null before any attempt and after a successful load.</summary>
     public string? LoadError => _loadError;
+
+    /// <summary>
+    /// Why the last <c>cuda</c> load ended on the CPU; null before a load, when the load reached the GPU, and for <c>cpu</c>.
+    /// </summary>
+    public string? ProviderFallbackReason => _providerFallbackReason;
 
     /// <summary>True once <see cref="Dispose"/> has run.</summary>
     public bool IsDisposed
@@ -224,9 +240,10 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
             config.HotwordsScore = Decoding.HotwordScore;
         }
 
+        string? fallbackReason;
         try
         {
-            _recognizer = api.CreateRecognizer(ref config);
+            (_recognizer, fallbackReason) = CreateRecognizerWatched(ref config);
         }
         catch (Exception ex)
         {
@@ -242,7 +259,66 @@ public sealed class SherpaSttEngine(string modelDir, string provider, SherpaDeco
 
         _loadError = null;
         Log.LogInformation("sherpa-onnx NeMo transducer loaded from {Dir} on {Provider} ({Method})", _modelDir, provider, Decoding.Method);
+        RecordProviderOutcome(fallbackReason);
         return _recognizer;
+    }
+
+    /// <summary>
+    /// Creates the recognizer; for <c>cuda</c>, reads the native fallback line and the GPU memory right before and right
+    /// after the call, so only this call's window counts, and returns why the load fell back to the CPU.
+    /// </summary>
+    private (IntPtr Recognizer, string? FallbackReason) CreateRecognizerWatched(ref OfflineRecognizerConfig config)
+    {
+        if (!_watchesGpu)
+        {
+            return (api.CreateRecognizer(ref config), null);
+        }
+
+        // The line reads sit inside the GPU samples, so a line that lands while a sample is taken still counts.
+        long gpuBefore = probes.SampleGpuBytes();
+        NativeFallbackLine lineBefore = probes.Fallback.Latest;
+        IntPtr recognizer = api.CreateRecognizer(ref config);
+        long gpuAfter = probes.SampleGpuBytes();
+        NativeFallbackLine lineAfter = probes.Fallback.Latest;
+        return (recognizer, ProviderFallbackReasonFrom(lineBefore, lineAfter, gpuBefore, gpuAfter));
+    }
+
+    /// <summary>
+    /// Why a <c>cuda</c> load fell back to the CPU: the native line's reason when one arrived during the call, else
+    /// <see cref="NoGpuMemoryRiseReason"/> when the GPU memory rose less than <see cref="GpuUseCheck.MinRiseBytes"/>; null
+    /// when the load reached the GPU or a GPU sample could not be read (-1) and no line arrived.
+    /// </summary>
+    /// <param name="lineBefore">The latest fallback line before the call.</param>
+    /// <param name="lineAfter">The latest fallback line after the call.</param>
+    /// <param name="gpuBefore">This process's GPU bytes before the call; -1 when unreadable.</param>
+    /// <param name="gpuAfter">This process's GPU bytes after the call; -1 when unreadable.</param>
+    internal static string? ProviderFallbackReasonFrom(NativeFallbackLine lineBefore, NativeFallbackLine lineAfter, long gpuBefore, long gpuAfter)
+    {
+        if (lineAfter.Sequence > lineBefore.Sequence)
+        {
+            return lineAfter.Reason;
+        }
+        if ((gpuBefore < 0) || (gpuAfter < 0))
+        {
+            return null;
+        }
+        return ((gpuAfter - gpuBefore) < GpuUseCheck.MinRiseBytes) ? NoGpuMemoryRiseReason : null;
+    }
+
+    /// <summary>Publishes a <c>cuda</c> load's outcome: a fallback's reason, or a GPU load that clears an earlier one.</summary>
+    private void RecordProviderOutcome(string? fallbackReason)
+    {
+        if (!_watchesGpu)
+        {
+            return;
+        }
+        _providerFallbackReason = fallbackReason;
+        if (fallbackReason is null)
+        {
+            SherpaNativeLoader.RecordGpuLoad();
+            return;
+        }
+        SherpaNativeLoader.RecordCpuFallback(fallbackReason);
     }
 
     /// <summary>Prefers the int8-quantized file when both quantized and fp32 exports coexist.</summary>
