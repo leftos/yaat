@@ -2575,10 +2575,20 @@ public partial class MainViewModel : ObservableObject
 
     private void HandleSpeechServiceStatusChange(SpeechStatus status) => Avalonia.Threading.Dispatcher.UIThread.Post(() => SpeechStatus = status);
 
-    private void HandleSpeechServiceCommandReady(SpeechResult result)
+    // The raw transcript an accurate say-again press staged in the command box, and the status it set; null when none is staged.
+    private string? _sayAgainTranscript;
+    private string? _sayAgainStatus;
+
+    internal void HandleSpeechServiceCommandReady(SpeechResult result)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
+            // Accurate mode that accepted no callsign says why the box holds the transcript instead of a command.
+            if (result.SayAgainText is not null)
+            {
+                StatusText = result.SayAgainText;
+            }
+
             bool populatedCommandText = false;
             string? source = null;
             if (!string.IsNullOrEmpty(result.CanonicalCommand))
@@ -2616,6 +2626,11 @@ public partial class MainViewModel : ObservableObject
             {
                 RequestCommandInputFocus?.Invoke();
             }
+
+            // A say-again transcript is staged for the user to correct or send deliberately; remembering it, after the box
+            // write above, keeps an older press's transcript from surviving the new one's CommandText change.
+            _sayAgainTranscript = ((result.SayAgainText is null) || string.IsNullOrWhiteSpace(result.Transcript)) ? null : result.Transcript.Trim();
+            _sayAgainStatus = (_sayAgainTranscript is null) ? null : result.SayAgainText;
         });
     }
 
@@ -2629,6 +2644,12 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnCommandTextChanged(string value)
     {
+        if ((_sayAgainTranscript is not null) && !string.Equals(value.Trim(), _sayAgainTranscript, StringComparison.Ordinal))
+        {
+            _sayAgainTranscript = null;
+            _sayAgainStatus = null;
+        }
+
         // Clamp caret to new text length so the controller never sees a stale out-of-range index.
         if (CommandCaretIndex > value.Length)
         {
@@ -2824,6 +2845,14 @@ public partial class MainViewModel : ObservableObject
         string text = CommandText.Trim();
         if (string.IsNullOrEmpty(text))
         {
+            return;
+        }
+
+        // A staged say-again transcript is never sent through any command path (in solo mode the natural-command mapper
+        // would map it to an aircraft the decoder declined to name). The user may still edit it, which clears the staged text.
+        if ((_sayAgainTranscript is not null) && (_sayAgainStatus is not null) && string.Equals(text, _sayAgainTranscript, StringComparison.Ordinal))
+        {
+            StatusText = _sayAgainStatus;
             return;
         }
 

@@ -79,6 +79,22 @@ public sealed class SttAccurateModeTests
     }
 
     [Fact]
+    public async Task Recovers_An_Active_Ga_Tail_Outside_The_Room_From_Its_Unique_Letter_Extension()
+    {
+        TransmissionContext room = Context(new RoomAircraftInput("SWA2495", "B737", [], null));
+        var hypotheses = new SttHypotheses(
+            [new SttHypothesis("november nine two two five lien turn left heading three one zero", [], [], null)],
+            null,
+            false
+        );
+
+        HypothesesMapResult mapped = await MapAsync(hypotheses, room, ["SWA2495", "N9225L"]);
+
+        Assert.Equal(DecodeState.NoCallsign, mapped.Decode.State);
+        Assert.Equal("N9225L", mapped.Result.Callsign);
+    }
+
+    [Fact]
     public async Task An_Empty_N_Best_Maps_To_Nothing_Without_Throwing()
     {
         TransmissionContext room = Context(new RoomAircraftInput("SWA2495", "B737", [], null));

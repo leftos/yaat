@@ -391,7 +391,7 @@ controller-authored text rather than a fixed verb belongs on that path too.
 
 `HandleSpeechServiceCommandReady` (`MainViewModel.cs:1540`) feeds this chain: it prepends the recognized callsign onto
 the canonical command (`"SWA123 FH 270"`) so the `CallsignPrefixResolver` path auto-dispatches on Enter, then raises
-`RequestCommandInputFocus` when the user opted in.
+`RequestCommandInputFocus` when the user opted in. A result with `SpeechResult.SayAgainText` (accurate mode accepted no callsign) sets `StatusText` to it and stages the raw transcript; `SendCommandAsync` then ignores Enter on that unchanged transcript and re-shows the status, and any edit clears the staging so Enter takes the normal path.
 
 ## Tabs & pop-out windows
 

@@ -99,6 +99,58 @@ public sealed class SpeechPipelineAccurateModeTests
         AssertFastTrace(session, decodeError: true);
     }
 
+    private const string TwoAddressees = "united twelve and delta thirty four turn left heading two seven zero";
+
+    private const string TrafficRefusal = "number two follow the united twelve";
+
+    // "thirty five" keeps the second callsign a near miss for DAL34, so the decode stays SayAgain instead of switching to it.
+    private const string Correction = "united twelve correction delta thirty five descend and maintain five thousand";
+
+    [AvaloniaFact]
+    public async Task Accurate_SayAgain_AcceptsTheDecodersBestGuess()
+    {
+        var nBest = new SttHypotheses([new SttHypothesis(TwoAddressees, [], [], -1.0)], null, false);
+
+        (SpeechResult result, SpeechSession session) = await PressAsync(TranscriptionMode.Accurate, nBest, Room("KOAK", "UAL12", "DAL34"));
+
+        SpeechSessionTrace trace = Assert.IsType<SpeechSessionTrace>(session.Trace);
+        Assert.Equal(DecodeState.SayAgain, trace.DecodeState);
+        Assert.Equal("UAL12", trace.BestGuess);
+        Assert.Equal("UAL12", result.Callsign);
+        Assert.Equal("TL 270", result.CanonicalCommand);
+        Assert.Null(result.SayAgainText);
+    }
+
+    [AvaloniaFact]
+    public async Task Accurate_SayAgain_RejectsACallsignThatDiffersFromTheBestGuess()
+    {
+        var nBest = new SttHypotheses([new SttHypothesis(Correction, [], [], -1.0)], null, false);
+
+        (SpeechResult result, SpeechSession session) = await PressAsync(TranscriptionMode.Accurate, nBest, Room("KOAK", "UAL12", "DAL34"));
+
+        SpeechSessionTrace trace = Assert.IsType<SpeechSessionTrace>(session.Trace);
+        Assert.Equal(DecodeState.SayAgain, trace.DecodeState);
+        Assert.Equal("DAL34", trace.BestGuess);
+        Assert.Contains("united 12", trace.CallsignStrippedTranscript);
+        Assert.Null(result.Callsign);
+        Assert.Null(result.CanonicalCommand);
+        Assert.Equal("Say again: callsign unclear (best guess DAL34)", result.SayAgainText);
+    }
+
+    [AvaloniaFact]
+    public async Task Accurate_NoCallsign_StagesTheTranscriptWithoutACallsign()
+    {
+        var nBest = new SttHypotheses([new SttHypothesis(TrafficRefusal, [], [], -1.0)], null, false);
+
+        (SpeechResult result, SpeechSession session) = await PressAsync(TranscriptionMode.Accurate, nBest, Room("KOAK", "UAL12"));
+
+        SpeechSessionTrace trace = Assert.IsType<SpeechSessionTrace>(session.Trace);
+        Assert.Equal(DecodeState.NoCallsign, trace.DecodeState);
+        Assert.Null(result.Callsign);
+        Assert.Null(result.CanonicalCommand);
+        Assert.Equal("Say again: callsign unclear", result.SayAgainText);
+    }
+
     private static void AssertFastTrace(SpeechSession session, bool decodeError)
     {
         SpeechSessionTrace trace = Assert.IsType<SpeechSessionTrace>(session.Trace);
@@ -117,10 +169,19 @@ public sealed class SpeechPipelineAccurateModeTests
         }
     }
 
-    private static RoomSnapshot Room(string airportIcao) =>
-        new(airportIcao, false, null, [new RoomAircraftSnapshot("SWA2495", "B738", null, null, null, null, null, null, null)], []);
+    private static RoomSnapshot Room(string airportIcao) => Room(airportIcao, "SWA2495");
 
-    private static SpeechContext Context(RoomSnapshot? room) => new(["SWA2495"], [], string.Empty) { Room = room };
+    private static RoomSnapshot Room(string airportIcao, params string[] callsigns) =>
+        new(
+            airportIcao,
+            false,
+            null,
+            [.. callsigns.Select(callsign => new RoomAircraftSnapshot(callsign, "B738", null, null, null, null, null, null, null))],
+            []
+        );
+
+    private static SpeechContext Context(RoomSnapshot? room) =>
+        new(room is null ? ["SWA2495"] : [.. room.Aircraft.Select(aircraft => aircraft.Callsign)], [], string.Empty) { Room = room };
 
     private static Task<TranscriptMapResult> FastMappingAsync(string transcript) =>
         SpeechRecognitionService.MapTranscriptAsync(transcript, Context(null), new PhraseologyCommandMapper(), null, null, CancellationToken.None);

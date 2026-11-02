@@ -7,6 +7,7 @@
 - An aircraft in closed traffic tightens its pattern to stay clear of another runway's corridor, or warns once that its pattern crosses it.
 - An ARTCC's airport file can list the taxiways that raise CRC's ASDE-X taxiway-landing alert; an airport without a list alerts on any taxiway.
 - Without the speech model downloaded, the status bar links to Settings › Speech; Speech Debug shows the model, mode, device and each press's callsign decode.
+- In Accurate speech mode an unclear callsign is never staged: the status bar says "Say again" and Enter sends nothing until you edit the text.
 
 ### Changed
 

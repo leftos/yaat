@@ -498,6 +498,7 @@ public sealed class SpeechRecognitionService(
         string transcript = string.Empty;
         string? canonical = null;
         string? callsign = null;
+        string? sayAgainText = null;
         bool usedLlmFallback = false;
         SpeechSessionOutcome outcome = SpeechSessionOutcome.Error;
         string? errorMessage = null;
@@ -548,6 +549,7 @@ public sealed class SpeechRecognitionService(
                 TranscriptMapResult mapping = pressed.Result;
                 canonical = mapping.Canonical;
                 callsign = mapping.Callsign;
+                sayAgainText = CallsignUnclearStatus(pressed.Decode, mapping.Callsign);
                 usedLlmFallback = mapping.UsedLlmFallback;
                 outcome = canonical is not null ? SpeechSessionOutcome.CommandAccepted : SpeechSessionOutcome.NoMappingFound;
                 trace = BuildTrace(
@@ -586,7 +588,7 @@ public sealed class SpeechRecognitionService(
                 trace,
                 samples
             );
-            CommandReady?.Invoke(new SpeechResult(transcript, null, callsign));
+            CommandReady?.Invoke(new SpeechResult(transcript, null, callsign, sayAgainText));
             return;
         }
 
@@ -605,7 +607,7 @@ public sealed class SpeechRecognitionService(
             trace,
             samples
         );
-        CommandReady?.Invoke(new SpeechResult(transcript, canonical, callsign));
+        CommandReady?.Invoke(new SpeechResult(transcript, canonical, callsign, sayAgainText));
     }
 
     private static SpeechSessionTrace BuildTrace(
@@ -709,11 +711,34 @@ public sealed class SpeechRecognitionService(
     }
 
     /// <summary>
+    /// The status line an accurate press carries when the decoder named no callsign and the policy accepted none: the
+    /// decoder's best guess when it has one, a plain callsign-unclear line otherwise, and null on the fast path, on a
+    /// resolved decode, and when a callsign was accepted.
+    /// </summary>
+    private static string? CallsignUnclearStatus(PressDecodeTrace decode, string? acceptedCallsign)
+    {
+        if (acceptedCallsign is not null)
+        {
+            return null;
+        }
+
+        return decode.State switch
+        {
+            DecodeState.SayAgain => decode.BestGuess is { } bestGuess
+                ? $"Say again: callsign unclear (best guess {bestGuess})"
+                : "Say again: callsign unclear",
+            DecodeState.NoCallsign => "Say again: callsign unclear",
+            _ => null,
+        };
+    }
+
+    /// <summary>
     /// Runs the full transcript-to-canonical-command mapping stage of the speech pipeline:
     /// callsign extraction → rule mapper → LLM mapper fallback → LLM callsign resolver → partial-
     /// match surfacing. Returns a fully-populated <see cref="TranscriptMapResult"/> regardless of
     /// outcome — <see cref="TranscriptMapResult.Canonical"/> is null only when neither mapper
-    /// produced a result and the LLM callsign resolver didn't find a callsign either.
+    /// produced a result and the LLM callsign resolver didn't find a callsign either, on this fast
+    /// path; the accurate path also withholds it when it accepts no callsign.
     ///
     /// Exposed as an internal static method so integration tests can drive the mapping pipeline
     /// end-to-end from a literal transcript (e.g. a real Whisper output captured in a debug log)
@@ -767,7 +792,13 @@ public sealed class SpeechRecognitionService(
         // full noisy transcript plus an "Active callsigns:" line that distracted it into echoing
         // callsigns as output.
         (string commandText, string? callsign) = ExtractAndStripCallsign(transcript, ctx.ActiveCallsigns);
-        return await MapExtractedAsync(transcript, (commandText, callsign), ctx, new SpeechMappers(ruleMapper, llmMapper, callsignResolver), ct)
+        return await MapExtractedAsync(
+                transcript,
+                new ExtractedCallsign(commandText, callsign, static (candidate) => candidate),
+                ctx,
+                new SpeechMappers(ruleMapper, llmMapper, callsignResolver),
+                ct
+            )
             .ConfigureAwait(false);
     }
 
@@ -777,20 +808,21 @@ public sealed class SpeechRecognitionService(
     /// text beside an extracted callsign when both mappers miss.
     /// </summary>
     /// <param name="transcript">The transcript the LLM callsign resolver reads.</param>
-    /// <param name="extracted">The command text with its callsign stripped, and the ICAO callsign when one was found.</param>
+    /// <param name="extracted">The command text, the callsign beside it, and the gate every recovered callsign passes.</param>
     /// <param name="ctx">The speech snapshot taken at PTT press.</param>
     /// <param name="mappers">The rule mapper, the optional LLM fallback and the optional callsign resolver.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The mapping result with the rule-mapper and LLM-mapper traces.</returns>
     private static async Task<(TranscriptMapResult Result, RuleMapperTrace RuleTrace, LlmMapperTrace? LlmTrace)> MapExtractedAsync(
         string transcript,
-        (string CommandText, string? Callsign) extracted,
+        ExtractedCallsign extracted,
         SpeechContext ctx,
         SpeechMappers mappers,
         CancellationToken ct
     )
     {
-        (string commandText, string? callsign) = extracted;
+        string commandText = extracted.CommandText;
+        string? callsign = extracted.Accept(extracted.Callsign);
         ISpeechCommandMapper ruleMapper = mappers.Rule;
         ISpeechCommandMapper? llmMapper = mappers.Llm;
         LocalLlmCallsignResolver? callsignResolver = mappers.CallsignResolver;
@@ -830,7 +862,7 @@ public sealed class SpeechRecognitionService(
             // PhraseologyMapper.Map still runs its own extraction pass against the
             // (already-stripped) input; if we somehow missed a callsign at the pipeline layer
             // but the rule mapper found one on a second look, prefer its result.
-            callsign ??= ruleResult.Callsign;
+            callsign ??= extracted.Accept(ruleResult.Callsign);
             Log.LogInformation("Rule engine mapped transcript to: {Callsign} {Canonical}", callsign ?? "(no callsign)", canonical);
         }
         else if (llmMapper is not null)
@@ -874,7 +906,7 @@ public sealed class SpeechRecognitionService(
         if (canonical is not null && callsign is null && callsignResolver is not null && ctx.ActiveCallsigns.Count > 0)
         {
             Log.LogInformation("Rule-based callsign extraction failed, trying LLM resolver");
-            callsign = await callsignResolver.ResolveAsync(transcript, ctx.ActiveCallsigns, ct).ConfigureAwait(false);
+            callsign = extracted.Accept(await callsignResolver.ResolveAsync(transcript, ctx.ActiveCallsigns, ct).ConfigureAwait(false));
         }
 
         // If both mappers failed but we did extract a callsign, surface the partial result:
@@ -895,9 +927,11 @@ public sealed class SpeechRecognitionService(
     /// Maps an STT n-best the accurate way: every hypothesis is decoded against the room's transmission context, so an
     /// aircraft the transcript names is resolved from the room rather than from the active-callsign list alone. A resolved
     /// decode names the callsign itself and makes the decoder's rewritten transcript minus the callsign span the command
-    /// text, digit normalized; a <see cref="DecodeState.SayAgain"/> or <see cref="DecodeState.NoCallsign"/> decode falls back
-    /// to the callsign parser on the decoder's rewritten transcript, so accurate mode never resolves fewer callsigns than the
-    /// fast path. An n-best with no entry is mapped as an empty transcript without a decode.
+    /// text, digit normalized. A <see cref="DecodeState.SayAgain"/> or <see cref="DecodeState.NoCallsign"/> decode accepts a
+    /// callsign from the parser or the LLM resolver only under <see cref="AcceptUnresolvedCallsign"/> — the decoder's own best
+    /// guess for a say-again, a callsign outside the room otherwise — and a decode left without one carries no canonical
+    /// command, so the caller stages the transcript and a callsign-unclear status instead. An n-best with no entry is mapped
+    /// as an empty transcript without a decode.
     /// </summary>
     /// <param name="hypotheses">The engine's alternatives, best first.</param>
     /// <param name="decode">The room's transmission context and the decoder settings.</param>
@@ -917,8 +951,23 @@ public sealed class SpeechRecognitionService(
         DecodeResult decoded = DecodeHypotheses(hypotheses, decode);
         decodeSw.Stop();
         string transcript = decoded.RewrittenTranscript;
-        (string CommandText, string? Callsign) extracted =
-            (decoded.State == DecodeState.Resolved) ? ResolvedCommandText(decoded) : ExtractAndStripCallsign(transcript, ctx.ActiveCallsigns);
+        string? bestGuess = decoded.BestGuess?.Entity.Value;
+        string[] roomCallsigns = [.. decode.Context.Aircraft.Select(aircraft => aircraft.Callsign.Value)];
+        ExtractedCallsign extracted;
+        if (decoded.State == DecodeState.Resolved)
+        {
+            (string commandText, string? callsign) = ResolvedCommandText(decoded);
+            extracted = new ExtractedCallsign(commandText, callsign, static (candidate) => candidate);
+        }
+        else
+        {
+            (string commandText, string? callsign) = UnresolvedCommandText(transcript, decoded, bestGuess, ctx.ActiveCallsigns, roomCallsigns);
+            extracted = new ExtractedCallsign(
+                commandText,
+                callsign,
+                (candidate) => AcceptUnresolvedCallsign(decoded.State, bestGuess, candidate, roomCallsigns)
+            );
+        }
 
         Log.LogDebug(
             "Accurate decode of {Count} hypotheses: {State} on hypothesis {Index}, callsign {Callsign}",
@@ -936,8 +985,71 @@ public sealed class SpeechRecognitionService(
                 ct
             )
             .ConfigureAwait(false);
+
+        if ((decoded.State != DecodeState.Resolved) && (result.Callsign is null))
+        {
+            result = result with { Canonical = null };
+        }
+
         return new HypothesesMapResult(result, ruleTrace, llmTrace, decoded, decodeSw.Elapsed.TotalMilliseconds);
     }
+
+    /// <summary>
+    /// The command text and the callsign an unresolved decode leaves: the parser's callsign when
+    /// <see cref="AcceptUnresolvedCallsign"/> keeps it, and the digit-normalized transcript with its callsign words otherwise,
+    /// so a turned-down callsign is never dropped from what the user sees. The parser reads the active callsigns — an
+    /// aircraft the room leaves out (its telephony unknown) is still one it may recover — while the policy reads the room.
+    /// </summary>
+    private static (string CommandText, string? Callsign) UnresolvedCommandText(
+        string transcript,
+        DecodeResult decoded,
+        string? bestGuess,
+        IReadOnlyCollection<string> activeCallsigns,
+        IReadOnlyCollection<string> roomCallsigns
+    )
+    {
+        (string stripped, string? parsed) = ExtractAndStripCallsign(transcript, activeCallsigns);
+        string? accepted = AcceptUnresolvedCallsign(decoded.State, bestGuess, parsed, roomCallsigns);
+        return (accepted is null ? AtcNumberParser.NormalizeDigits(transcript) : stripped, accepted);
+    }
+
+    /// <summary>
+    /// The callsign an unresolved accurate decode may accept, from the callsign parser or the LLM resolver: the decoder's
+    /// best guess on a <see cref="DecodeState.SayAgain"/>, a callsign outside the room on a
+    /// <see cref="DecodeState.NoCallsign"/> (the decoder already scored and turned down every room aircraft; one whose
+    /// telephony the room does not know is not in it, and is accepted), and nothing else — a doubtful callsign must never
+    /// address a command to an aircraft that was not the one spoken.
+    /// </summary>
+    /// <param name="state">How the decoder settled the callsign.</param>
+    /// <param name="bestGuess">The decoder's best guess, non-null only for a say-again.</param>
+    /// <param name="candidate">The callsign the parser or the resolver recovered, or null.</param>
+    /// <param name="roomCallsigns">The room's aircraft callsigns, which the decoder has already scored and turned down.</param>
+    /// <returns>The candidate to accept, or null.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="state"/> is <see cref="DecodeState.Resolved"/>, whose callsign the decoder names itself.
+    /// </exception>
+    internal static string? AcceptUnresolvedCallsign(
+        DecodeState state,
+        string? bestGuess,
+        string? candidate,
+        IReadOnlyCollection<string> roomCallsigns
+    )
+    {
+        if (string.IsNullOrEmpty(candidate))
+        {
+            return null;
+        }
+
+        return state switch
+        {
+            DecodeState.SayAgain => string.Equals(candidate, bestGuess, StringComparison.OrdinalIgnoreCase) ? candidate : null,
+            DecodeState.NoCallsign => IsRoomCallsign(roomCallsigns, candidate) ? null : candidate,
+            _ => throw new ArgumentException("A resolved decode names its callsign and never filters one.", nameof(state)),
+        };
+    }
+
+    private static bool IsRoomCallsign(IReadOnlyCollection<string> roomCallsigns, string candidate) =>
+        roomCallsigns.Any(room => string.Equals(room, candidate, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The n-best decoded against the room, or a no-callsign result without a decode when there is no hypothesis to decode.</summary>
     private static DecodeResult DecodeHypotheses(SttHypotheses hypotheses, AccurateDecodeInput decode)
@@ -1100,10 +1212,14 @@ public sealed class SpeechRecognitionService(
 /// Output of <see cref="SpeechRecognitionService.MapTranscriptAsync"/>. Captures every signal
 /// the full mapping stage produces so callers (the live pipeline and integration tests) can
 /// inspect which path a transcript took and what came out. <see cref="Canonical"/> is null only
-/// when neither mapper produced output and no callsign was extracted either.
+/// when neither mapper produced output and no callsign was extracted either, and on an accurate
+/// press that accepted no callsign whatever the mappers made of the text.
 /// </summary>
 /// <param name="CommandText">Transcript with callsign tokens stripped and digits normalized — the exact string handed to the rule + LLM mappers.</param>
-/// <param name="Canonical">Final canonical command, or null on total failure. Falls back to the raw <see cref="CommandText"/> when a callsign was extracted but no mapper matched.</param>
+/// <param name="Canonical">
+/// Final canonical command, or null on total failure and on an accurate press that accepted no callsign. Falls back to the
+/// raw <see cref="CommandText"/> when a callsign was extracted but no mapper matched.
+/// </param>
 /// <param name="Callsign">Extracted ICAO callsign (rule parser or LLM callsign resolver), or null if none recovered.</param>
 /// <param name="UsedLlmFallback">True when the rule mapper returned null and the LLM command mapper produced the final canonical.</param>
 /// <param name="IsRawTextFallback">True when both mappers failed and <see cref="Canonical"/> is the raw <see cref="CommandText"/> surfaced beside the extracted callsign.</param>
@@ -1114,6 +1230,18 @@ internal sealed record TranscriptMapResult(string CommandText, string? Canonical
 /// <param name="Llm">The LLM fallback mapper, or null where the deployment has none.</param>
 /// <param name="CallsignResolver">The LLM callsign resolver, or null where the deployment has none.</param>
 internal sealed record SpeechMappers(ISpeechCommandMapper Rule, ISpeechCommandMapper? Llm, LocalLlmCallsignResolver? CallsignResolver);
+
+/// <summary>
+/// What a mapping entry extracted before it maps: the command text, the callsign beside it, and the gate every recovered
+/// callsign passes.
+/// </summary>
+/// <param name="CommandText">The command text handed to the rule and LLM mappers.</param>
+/// <param name="Callsign">The ICAO callsign the press extracted, or null when it found none.</param>
+/// <param name="Accept">
+/// The gate every recovered callsign passes: <see cref="SpeechRecognitionService.AcceptUnresolvedCallsign"/> on an unresolved
+/// accurate press, the identity on the fast path and on a resolved decode.
+/// </param>
+internal sealed record ExtractedCallsign(string CommandText, string? Callsign, Func<string?, string?> Accept);
 
 /// <summary>What an accurate-mode decode runs against.</summary>
 /// <param name="Context">The room's transmission context: its aircraft and the airport's entities.</param>
@@ -1163,11 +1291,17 @@ internal sealed record PressDecodeTrace(
 
 /// <summary>Result bundle passed to <see cref="SpeechRecognitionService.CommandReady"/>.</summary>
 /// <param name="Transcript">Raw Whisper transcript (may be empty on failure).</param>
-/// <param name="CanonicalCommand">Canonical YAAT command, or null when neither mapper produced a result.</param>
+/// <param name="CanonicalCommand">
+/// Canonical YAAT command, or null when neither mapper produced a result and on an accurate press that accepted no callsign.
+/// </param>
 /// <param name="Callsign">
 /// Extracted ICAO callsign (e.g. "SWA123") if present in the transcript and matched against the
 /// active callsigns at PTT time; null otherwise. Consumers prepend this to the canonical command
 /// so <see cref="MainViewModel.SendCommandAsync"/>'s existing <see cref="CallsignPrefixResolver"/>
 /// path auto-dispatches to the right aircraft.
 /// </param>
-public sealed record SpeechResult(string Transcript, string? CanonicalCommand, string? Callsign);
+/// <param name="SayAgainText">
+/// The status to show when accurate mode accepted no callsign — "Say again: callsign unclear", with the decoder's best guess
+/// when it has one — and null on every other press.
+/// </param>
+public sealed record SpeechResult(string Transcript, string? CanonicalCommand, string? Callsign, string? SayAgainText);
