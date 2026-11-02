@@ -32,6 +32,12 @@
       <Setter Property="FontSize" Value="12" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+    <Style Selector="TextBlock.decode-failed">
+      <Setter Property="Foreground" Value="#E0B070" />
+    </Style>
+    <Style Selector="TextBlock.decode-muted">
+      <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
+    </Style>
     <Style Selector="TextBox.mono-readonly">
       <Setter Property="FontFamily" Value="Consolas,monospace" />
       <Setter Property="FontSize" Value="12" />
@@ -260,6 +266,17 @@
                         <TextBlock Grid.Column="4" Text="Map" Classes="label" />
                         <TextBlock Grid.Column="5" Text="{Binding Session.MapElapsedMs, StringFormat='{}{0} ms'}" Classes="mono" Margin="6,0,0,0" />
                       </Grid>
+                      <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0" Text="Mode" Classes="label" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" Margin="6,0,12,0">
+                          <TextBlock Text="{Binding ModeText}" Classes="mono" />
+                          <TextBlock
+                            Text="{Binding DecodeTimeText}"
+                            Classes="mono"
+                            IsVisible="{Binding DecodeTimeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                          />
+                        </StackPanel>
+                      </Grid>
                     </StackPanel>
                   </Border>
 
@@ -314,6 +331,26 @@
                           <StackPanel Spacing="2">
                             <TextBlock Text="Raw transcript" Classes="label" />
                             <TextBox Classes="mono-readonly" Text="{Binding Session.Trace.RawTranscript, Mode=OneWay}" />
+                          </StackPanel>
+                          <StackPanel Spacing="2" IsVisible="{Binding HasNBest}">
+                            <TextBlock Text="{Binding NBestHeader}" Classes="label" />
+                            <ItemsControl ItemsSource="{Binding NBestLines}" Margin="12,0,0,0">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                  <TextBlock Text="{Binding}" Classes="mono" />
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
+                          <StackPanel Spacing="2">
+                            <TextBlock Text="Context decode" Classes="label" />
+                            <TextBlock
+                              Text="{Binding DecodeStateText}"
+                              Classes="mono"
+                              Classes.decode-failed="{Binding DecodeStateIsFailure}"
+                              Classes.decode-muted="{Binding DecodeStateIsNotRun}"
+                            />
+                            <TextBlock Text="{Binding BestGuessText}" Classes="mono" IsVisible="{Binding HasBestGuess}" />
                           </StackPanel>
                         </StackPanel>
                       </Border>

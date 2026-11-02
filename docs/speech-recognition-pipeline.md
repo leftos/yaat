@@ -437,6 +437,7 @@ Spoken forms come from the pilot-speech spelling plus the per-ARTCC pronunciatio
   fell back from the GPU, `CpuFallbackText` ("GPU unavailable: {reason}",
   from `SherpaNativeLoader.CpuFallbackReason`). Both are computed once
   when the window opens. Stage ② is titled "Transcription", engine-neutral.
+- Each session row (`SpeechDebugSessionRow`) also projects its `SpeechSessionTrace`: `ModeText` (`Fast`, `Accurate` or `unknown`, from the trace, never the header), `DecodeTimeText` (`Decode 12 ms`, whole milliseconds, only when a context decode ran), `NBestLines` (one `#1 text  (score)` line per accurate-mode hypothesis, score omitted when the engine reported none), `DecodeStateText` (`Resolved`, `Say again`, `No callsign`, `not run`, or `Fell back to fast: <message>` when the accurate decode failed) and `BestGuessText` (`Best guess: <callsign>`, say-again only). The mode and decode time sit in the detail banner; the n-best list and the context-decode block sit on the Transcription card. A session with no trace shows none of them.
 
 ### Speech telemetry (opt-in upload)
 

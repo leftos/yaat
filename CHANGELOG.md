@@ -6,7 +6,7 @@
 
 - An aircraft in closed traffic tightens its pattern to stay clear of another runway's corridor, or warns once that its pattern crosses it.
 - An ARTCC's airport file can list the taxiways that raise CRC's ASDE-X taxiway-landing alert; an airport without a list alerts on any taxiway.
-- When the speech model isn't downloaded, the status bar links to Settings › Speech; Speech Debug names the model, mode and device in use.
+- Without the speech model downloaded, the status bar links to Settings › Speech; Speech Debug shows the model, mode, device and each press's callsign decode.
 
 ### Changed
 

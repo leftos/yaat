@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Globalization;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,6 +11,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
 using Yaat.Sim.Speech;
+using Yaat.Sim.Speech.Context;
 
 namespace Yaat.Client.ViewModels;
 
@@ -22,6 +24,10 @@ namespace Yaat.Client.ViewModels;
 /// The window is read-mostly — the only state the user mutates here is "selected row". Capture-on /
 /// capture-off, MB cap, and sample deletion all happen through the Settings window or the
 /// per-row Delete/Export buttons; this VM exposes commands for those, not toggles.
+///
+/// Each row also projects its session's <see cref="SpeechSessionTrace"/>: the transcription mode that ran, the
+/// accurate mode's n-best list, the context decoder's outcome and best guess, and the decode time, so the detail
+/// pane shows which path produced the transcript and how it settled the callsign.
 /// </summary>
 public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
 {
@@ -372,6 +378,40 @@ public sealed class SpeechDebugSessionRow(SpeechSession session) : INotifyProper
 
     public string CanonicalDisplay => Session.CanonicalCommand ?? string.Empty;
 
+    /// <summary>
+    /// Which transcription path produced this session's transcript: <c>Fast</c>, <c>Accurate</c>, or <c>unknown</c> when
+    /// the trace does not record it.
+    /// </summary>
+    public string ModeText => ModeTextOf(Session.Trace?.Mode);
+
+    /// <summary>How the context decoder settled the callsign, or <c>not run</c>; a failed accurate decode reads as the fallback.</summary>
+    public string DecodeStateText => DecodeStateTextOf(Session.Trace?.DecodeState, Session.Trace?.DecodeError);
+
+    /// <summary>True when the accurate decode failed and the press fell back to the fast path.</summary>
+    public bool DecodeStateIsFailure => Session.Trace?.DecodeError is not null;
+
+    /// <summary>True when no context decode ran for this session at all (a fast press, or a trace from before accurate mode).</summary>
+    public bool DecodeStateIsNotRun => DecodeStateIsNotRunOf(Session.Trace?.DecodeState, Session.Trace?.DecodeError);
+
+    /// <summary>The decoder's best-guess callsign line for a say-again, or null when there is no guess to show.</summary>
+    public string? BestGuessText => BestGuessTextOf(Session.Trace?.DecodeState, Session.Trace?.BestGuess);
+
+    public bool HasBestGuess => BestGuessText is not null;
+
+    /// <summary>The accurate decode's wall-clock time as <c>Decode 12 ms</c>, or null when no decode ran.</summary>
+    public string? DecodeTimeText => DecodeTimeTextOf(Session.Trace?.DecodeMs);
+
+    /// <summary>
+    /// The beam hypotheses, one line each: <c>#1 cleared to land  (-3.14)</c>, with the score omitted when the engine
+    /// reported none.
+    /// </summary>
+    public IReadOnlyList<string> NBestLines =>
+        Session.Trace?.NBest is { } nBest ? [.. nBest.Select((hypothesis, index) => NBestLineOf(index + 1, hypothesis))] : [];
+
+    public bool HasNBest => Session.Trace?.NBest is { Count: > 0 };
+
+    public string NBestHeader => $"N-best ({Session.Trace?.NBest?.Count ?? 0})";
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>Re-resolve the sample link from the store. Called after the store changes or after deleting.</summary>
@@ -385,5 +425,57 @@ public sealed class SpeechDebugSessionRow(SpeechSession session) : INotifyProper
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Sample)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSavedAudio)));
         }
+    }
+
+    /// <summary>The mode label for <paramref name="mode"/>; a session whose trace records no mode reads <c>unknown</c>.</summary>
+    /// <param name="mode">The transcription mode the session's trace records, or null.</param>
+    internal static string ModeTextOf(TranscriptionMode? mode) =>
+        mode switch
+        {
+            TranscriptionMode.Fast => "Fast",
+            TranscriptionMode.Accurate => "Accurate",
+            _ => "unknown",
+        };
+
+    /// <summary>
+    /// The decode-state label. A decode error always reads as the fallback, because the service records a failed accurate
+    /// decode as a fast press with the error set; otherwise the state's own name, or <c>not run</c> when no decode ran.
+    /// </summary>
+    /// <param name="state">The state the context decoder recorded, or null when it did not run.</param>
+    /// <param name="decodeError">The exception message from a failed accurate decode, or null.</param>
+    internal static string DecodeStateTextOf(DecodeState? state, string? decodeError) =>
+        (decodeError is not null)
+            ? "Fell back to fast: " + decodeError
+            : state switch
+            {
+                DecodeState.Resolved => "Resolved",
+                DecodeState.SayAgain => "Say again",
+                DecodeState.NoCallsign => "No callsign",
+                _ => "not run",
+            };
+
+    /// <summary>True only when the decoder recorded no state and no error, so the decode genuinely did not run.</summary>
+    /// <param name="state">The state the context decoder recorded, or null when it did not run.</param>
+    /// <param name="decodeError">The exception message from a failed accurate decode, or null.</param>
+    internal static bool DecodeStateIsNotRunOf(DecodeState? state, string? decodeError) => (state is null) && (decodeError is null);
+
+    /// <summary>The say-again best guess, shown only when the decoder asked for one and produced a guess.</summary>
+    /// <param name="state">The state the context decoder recorded, or null when it did not run.</param>
+    /// <param name="bestGuess">The decoder's best-guess callsign, or null.</param>
+    internal static string? BestGuessTextOf(DecodeState? state, string? bestGuess) =>
+        ((state == DecodeState.SayAgain) && !string.IsNullOrEmpty(bestGuess)) ? "Best guess: " + bestGuess : null;
+
+    /// <summary>The decode time in whole milliseconds, invariant culture, or null when no decode ran.</summary>
+    /// <param name="decodeMs">The context decode's wall-clock milliseconds, or null when it did not run.</param>
+    internal static string? DecodeTimeTextOf(double? decodeMs) =>
+        decodeMs is { } ms ? "Decode " + ms.ToString("F0", CultureInfo.InvariantCulture) + " ms" : null;
+
+    /// <summary>One n-best line: the 1-based rank, the hypothesis text, and the score at two decimals when the engine reported one.</summary>
+    /// <param name="rank">The hypothesis's 1-based rank in the beam list.</param>
+    /// <param name="hypothesis">The hypothesis text and its decode score.</param>
+    internal static string NBestLineOf(int rank, SpeechTraceHypothesis hypothesis)
+    {
+        string line = "#" + rank.ToString(CultureInfo.InvariantCulture) + " " + hypothesis.Text;
+        return hypothesis.Score is { } score ? line + "  (" + score.ToString("F2", CultureInfo.InvariantCulture) + ")" : line;
     }
 }
