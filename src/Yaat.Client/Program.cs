@@ -8,6 +8,7 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
+using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.Views;
 using Yaat.Sim;
 
@@ -27,7 +28,7 @@ public static class Program
     private const int CloakWithoutAutomationExitCode = 2;
 
     [STAThread]
-    public static void Main(string[] args)
+    public static int Main(string[] args)
     {
         var builder = VelopackApp.Build();
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -38,6 +39,13 @@ public static class Program
         builder.Run();
 
         YaatPaths.Initialize("yaat");
+
+        // A benchmark child measures one row in its own process and log, and never starts the app.
+        if (SttBenchChild.TryParseArgs(args, out string benchJobPath))
+        {
+            return SttBenchChild.Run(benchJobPath);
+        }
+
         AppLog.Initialize("yaat-client.log");
         ILogger log = AppLog.CreateLogger("Program");
         log.LogInformation("{BuildSummary}", BuildInfo.LogSummary);
@@ -95,7 +103,7 @@ public static class Program
 
         // Before anything touches sherpa-onnx: its statically linked C runtime binds stderr when the DLL loads.
         NativeStderrCapture.Install();
-        ConfigureSherpaNatives(log);
+        ConfigureAppSherpaNatives(log);
 
         // LM-Kit licensing must run before any LM construction so the licensing layer is
         // initialized. The helper resolves the key from LMKIT_LICENSE_KEY or the solution-root
@@ -154,16 +162,16 @@ public static class Program
         SynchronizationContext.SetSynchronizationContext(null);
         AppLog.Flush();
         StartExitWatchdog(log);
+        return 0;
     }
 
     /// <summary>
-    /// Picks sherpa-onnx's native set before anything touches sherpa: the installed CUDA set when the user chose the GPU,
-    /// the CPU set beside the app otherwise. A removal of the CUDA set scheduled in Settings runs first, so a scheduled
-    /// removal starts on the CPU, and so does one that could not run yet (it is retried on the next start). A GPU pick
-    /// that ends on the CPU says why in the log and in <see cref="SherpaNativeLoader.CpuFallbackReason"/>; any failure is
-    /// logged and leaves speech recognition on the CPU.
+    /// Picks the app's sherpa-onnx native set for the device the user saved. A removal of the CUDA set scheduled in
+    /// Settings runs first, so a scheduled removal starts on the CPU, and so does one that could not run yet (it is retried
+    /// on the next start); otherwise <see cref="ConfigureSherpaNatives"/> picks the set. Any failure is logged and leaves
+    /// speech recognition on the CPU.
     /// </summary>
-    private static void ConfigureSherpaNatives(ILogger log)
+    private static void ConfigureAppSherpaNatives(ILogger log)
     {
         SttDevice device = SttDevice.Cpu;
         try
@@ -179,6 +187,27 @@ public static class Program
                 SherpaNativeLoader.LogCpuSet();
                 return;
             }
+        }
+        catch (Exception ex)
+        {
+            RecordSetupFailure(log, device, ex);
+            return;
+        }
+        ConfigureSherpaNatives(log, device);
+    }
+
+    /// <summary>
+    /// Picks sherpa-onnx's native set for <paramref name="device"/> before anything touches sherpa: the installed CUDA set
+    /// for the GPU, the CPU set beside the app otherwise. One set per process: call it once, before any sherpa-onnx code
+    /// runs. A GPU pick that ends on the CPU says why in the log and in <see cref="SherpaNativeLoader.CpuFallbackReason"/>;
+    /// any failure is logged and leaves speech recognition on the CPU.
+    /// </summary>
+    /// <param name="log">Where a failure is logged.</param>
+    /// <param name="device">The device to load the set for: the saved preference for the app, the job's for a benchmark child.</param>
+    internal static void ConfigureSherpaNatives(ILogger log, SttDevice device)
+    {
+        try
+        {
             SherpaStartupChoice choice = SherpaNativeLoader.ChooseAtStartup(
                 device,
                 Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json"),
@@ -195,12 +224,17 @@ public static class Program
         }
         catch (Exception ex)
         {
-            log.LogError(ex, "Failed to set up the sherpa-onnx CUDA native set; speech recognition stays on the CPU");
-            if (device == SttDevice.Gpu)
-            {
-                SherpaNativeLoader.RecordCpuFallback($"Setting up the GPU runtime failed: {ex.Message}");
-                SherpaNativeLoader.LogCpuSet();
-            }
+            RecordSetupFailure(log, device, ex);
+        }
+    }
+
+    private static void RecordSetupFailure(ILogger log, SttDevice device, Exception ex)
+    {
+        log.LogError(ex, "Failed to set up the sherpa-onnx CUDA native set; speech recognition stays on the CPU");
+        if (device == SttDevice.Gpu)
+        {
+            SherpaNativeLoader.RecordCpuFallback($"Setting up the GPU runtime failed: {ex.Message}");
+            SherpaNativeLoader.LogCpuSet();
         }
     }
 

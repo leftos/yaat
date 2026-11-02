@@ -62,7 +62,35 @@ public static class SttEngineFactory
         {
             return Task.FromResult(Create(engine, mode, installRoot, whisper));
         }
-        return Task.Run(() => BuildCheckedBeam(engine, installRoot, nativeProblem));
+        return Task.Run(() => BuildCheckedBeam(engine, installRoot, nativeProblem).Engine);
+    }
+
+    /// <summary>
+    /// The engine a benchmark row loads for a rasr model: greedy in the fast mode; in the accurate mode the beam engine
+    /// <see cref="CreateCheckedAsync"/> builds, or, when <paramref name="nativeProblem"/> names a problem, the greedy engine
+    /// built in its place together with that problem, so the row can fail instead of measuring Fast as Accurate. The
+    /// accurate mode's probe loads the model, so call it on the thread pool.
+    /// </summary>
+    /// <param name="engine">The rasr model to build.</param>
+    /// <param name="mode">The mode the row asks for.</param>
+    /// <param name="installRoot">The STT model install root the model's folder sits in.</param>
+    /// <param name="nativeProblem">
+    /// Why the engine cannot run its beam search, or null; production passes <see cref="SherpaSttEngine.NativeProblem"/>.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="engine"/> is Whisper.</exception>
+    /// <exception cref="InvalidOperationException">The model failed to load during the probe.</exception>
+    internal static (ISttEngine Engine, string? AccurateUnavailableReason) CreateForBench(
+        SttEngine engine,
+        SttMode mode,
+        string installRoot,
+        Func<SherpaSttEngine, string?> nativeProblem
+    )
+    {
+        if (mode != SttMode.Accurate)
+        {
+            return (new SherpaClientSttEngine(BuildSherpa(engine, installRoot, SherpaDecoding.Greedy)), null);
+        }
+        return BuildCheckedBeam(engine, installRoot, nativeProblem);
     }
 
     /// <summary>
@@ -97,12 +125,17 @@ public static class SttEngineFactory
         }
     }
 
-    private static ISttEngine BuildCheckedBeam(SttEngine engine, string installRoot, Func<SherpaSttEngine, string?> nativeProblem)
+    /// <summary>The beam engine, or the greedy one built in its place with the native problem that stood in the way.</summary>
+    private static (ISttEngine Engine, string? Problem) BuildCheckedBeam(
+        SttEngine engine,
+        string installRoot,
+        Func<SherpaSttEngine, string?> nativeProblem
+    )
     {
         SherpaSttEngine beam = BuildSherpa(engine, installRoot, AccurateDecoding);
         if (!beam.IsConfigured)
         {
-            return new SherpaClientSttEngine(beam);
+            return (new SherpaClientSttEngine(beam), null);
         }
         string? problem;
         try
@@ -123,11 +156,11 @@ public static class SttEngineFactory
         }
         if (problem is null)
         {
-            return new SherpaClientSttEngine(beam);
+            return (new SherpaClientSttEngine(beam), null);
         }
         Log.LogWarning("The accurate speech-recognition mode is unavailable, decoding greedily instead: {Problem}", problem);
         beam.Dispose();
-        return new SherpaClientSttEngine(BuildSherpa(engine, installRoot, SherpaDecoding.Greedy));
+        return (new SherpaClientSttEngine(BuildSherpa(engine, installRoot, SherpaDecoding.Greedy)), problem);
     }
 
     private static SherpaSttEngine BuildSherpa(SttEngine engine, string installRoot, SherpaDecoding decoding)
