@@ -25,8 +25,6 @@ public static class TestVnasData
     private static NavigationDatabase? _navigationDatabase;
     private static string? _cifpPath;
     private static bool _procedureDbAttempted;
-    private static bool _exitHandlerRegistered;
-    private static FileStream? _cifpSentinel;
 
     /// <summary>
     /// Sets the directory containing test data files (NavData.dat, FAACIFP18.gz, etc.).
@@ -75,7 +73,7 @@ public static class TestVnasData
                 string? supplementaryCifp = null;
                 if (File.Exists(bundledGz))
                 {
-                    supplementaryCifp = CifpPathResolver.ResolveSupplementaryBundledPath(new CifpResolveOptions(BundledGzPath: bundledGz));
+                    supplementaryCifp = CifpPathResolver.ResolveSupplementaryBundledPath(PinnedCifpOptions(_testDataDir));
                 }
 
                 // Use the default artccsBaseDir (null) so NavigationDatabase loads bundled
@@ -94,10 +92,9 @@ public static class TestVnasData
     }
 
     /// <summary>
-    /// Returns the path to a decompressed FAACIFP18 file for tests, or null if no source CIFP is available.
-    /// Decompresses the bundled <c>TestData/FAACIFP18.gz</c> on first call and caches the resulting path
-    /// for the lifetime of the test process. Falls back to the system CIFP cache if no bundled gz exists.
-    /// Thread-safe; safe to call from any test setup.
+    /// Returns the path to the decompressed committed FAACIFP18 bundle for tests. Resolves once per process and
+    /// caches the resulting path: the committed <c>TestData/FAACIFP18.gz</c> pinned through its manifest, never the
+    /// user cache and never the network. Thread-safe; safe to call from any test setup.
     /// </summary>
     public static string? GetCifpPath()
     {
@@ -119,28 +116,10 @@ public static class TestVnasData
             return alreadyResolved;
         }
 
-        // Download only when there is nothing on disk. Resolving with downloads enabled fetches the
-        // vNAS config over HTTPS first (~240 ms of TLS handshake) and makes the caller depend on
-        // VATSIM being reachable — a cost every test process would otherwise pay to learn nothing,
-        // since a local copy is what it ends up using anyway. Test assemblies without their own
-        // ModuleInitializer (yaat-server's) reach NavData through here.
-        var options = new NavDataResolveOptions(
-            BundledPath: Path.Combine(_testDataDir, "NavData.dat"),
-            BundledManifestPath: Path.Combine(_testDataDir, "navdata-manifest.json"),
-            AllowDownload: false
-        );
-        if (!NavDataPathResolver.HasLocalCopy(options) && !IsNavDataDownloadSkipped())
-        {
-            options = options with { AllowDownload = true };
-        }
-
-        return NavDataPathResolver.EnsureCurrent(options);
-    }
-
-    private static bool IsNavDataDownloadSkipped()
-    {
-        string? v = Environment.GetEnvironmentVariable("YAAT_SKIP_NAVDATA_DOWNLOAD");
-        return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
+        // Tests pin the committed copy: never the user cache, never the network. A developer whose
+        // cache holds another serial must not change what the suite runs. Test assemblies without
+        // their own ModuleInitializer (yaat-server's) reach NavData through here.
+        return NavDataPathResolver.EnsureCurrent(PinnedNavDataOptions(_testDataDir));
     }
 
     private static string? ResolveCifpPath()
@@ -152,114 +131,40 @@ public static class TestVnasData
 
         _procedureDbAttempted = true;
 
-        bool allowDownload = !IsDownloadSkipped();
-        _cifpPath =
-            CifpPathResolver.CachedPath
-            ?? CifpPathResolver.EnsureCurrentCycle(
-                new CifpResolveOptions(
-                    BundledGzPath: Path.Combine(_testDataDir, "FAACIFP18.gz"),
-                    BundledManifestPath: Path.Combine(_testDataDir, "cifp-manifest.json"),
-                    AllowDownload: allowDownload
-                )
-            );
+        _cifpPath = CifpPathResolver.CachedPath ?? CifpPathResolver.EnsureCurrentCycle(PinnedCifpOptions(_testDataDir));
 
         return _cifpPath;
     }
 
-    private static bool IsDownloadSkipped()
-    {
-        string? v = Environment.GetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD");
-        return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string DecompressGzip(string gzPath)
-    {
-        SweepStaleCifpTempFiles();
-
-        string decompressedPath = Path.Combine(Path.GetTempPath(), $"yaat-test-FAACIFP18-{Environment.ProcessId}");
-
-        if (!File.Exists(decompressedPath))
+    /// <summary>
+    /// The pinned NavData options: the committed copy and manifest under <paramref name="testDataDir"/> alone, never the
+    /// user cache and never the network.
+    /// </summary>
+    /// <param name="testDataDir">The folder holding <c>NavData.dat</c> and <c>navdata-manifest.json</c>.</param>
+    public static NavDataResolveOptions PinnedNavDataOptions(string testDataDir) =>
+        new(
+            BundledPath: Path.Combine(testDataDir, "NavData.dat"),
+            BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),
+            AllowDownload: false
+        )
         {
-            using FileStream inputStream = File.OpenRead(gzPath);
-            using var gzipStream = new System.IO.Compression.GZipStream(inputStream, System.IO.Compression.CompressionMode.Decompress);
-            using FileStream outputStream = File.Create(decompressedPath);
-            gzipStream.CopyTo(outputStream);
-        }
-
-        // Hold a read-only sentinel handle WITHOUT FileShare.Delete for the test
-        // process's lifetime. This blocks any other concurrent test process's sweep
-        // from deleting our live file (Windows refuses File.Delete on a handle that
-        // wasn't opened with FileShare.Delete). NavigationDatabase opens the file
-        // independently with FileShare.Read, which is compatible. On clean process
-        // exit we dispose the handle and delete the file. On a hard kill the OS
-        // releases the handle and the next sweep picks it up.
-        _cifpSentinel ??= new FileStream(decompressedPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        RegisterCleanupOnExit(decompressedPath);
-
-        return decompressedPath;
-    }
-
-    private static void RegisterCleanupOnExit(string decompressedPath)
-    {
-        if (_exitHandlerRegistered)
-        {
-            return;
-        }
-
-        _exitHandlerRegistered = true;
-        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-        {
-            _cifpSentinel?.Dispose();
-            _cifpSentinel = null;
-            TryDelete(decompressedPath);
+            PinToBundled = true,
         };
-    }
 
-    private static void SweepStaleCifpTempFiles()
-    {
-        // Clean up files leaked by prior test processes that crashed or were killed before
-        // ProcessExit could fire. Patterns: the current yaat-prefixed name plus four legacy
-        // patterns from sites that used to have their own DecompressGzip helpers. All
-        // exclusively yaat-owned, so this won't touch unrelated files.
-        string tempDir = Path.GetTempPath();
-        string[] patterns =
-        [
-            "yaat-test-FAACIFP18-*",
-            "FAACIFP18-test-*",
-            "FAACIFP18-fp-test-*",
-            "FAACIFP18-customfix-test",
-            "FAACIFP18-taxiroutes-test",
-        ];
-
-        foreach (string pattern in patterns)
+    /// <summary>
+    /// The pinned CIFP options: the committed bundle and manifest under <paramref name="testDataDir"/> alone, never the
+    /// user cache and never the network.
+    /// </summary>
+    /// <param name="testDataDir">The folder holding <c>FAACIFP18.gz</c> and <c>cifp-manifest.json</c>.</param>
+    public static CifpResolveOptions PinnedCifpOptions(string testDataDir) =>
+        new(
+            BundledGzPath: Path.Combine(testDataDir, "FAACIFP18.gz"),
+            BundledManifestPath: Path.Combine(testDataDir, "cifp-manifest.json"),
+            AllowDownload: false
+        )
         {
-            try
-            {
-                foreach (string file in Directory.EnumerateFiles(tempDir, pattern))
-                {
-                    TryDelete(file);
-                }
-            }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
-    }
-
-    private static void TryDelete(string path)
-    {
-        // Files held open by a concurrently-running test process will fail to delete on
-        // Windows; that's fine — the owning process will clean its own file on exit, or
-        // a later sweep will pick it up.
-        try
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-    }
+            PinToBundled = true,
+        };
 
     public static void EnsureInitialized()
     {
@@ -294,6 +199,37 @@ public static class TestVnasData
         }
 
         return navDb;
+    }
+
+    /// <summary>
+    /// Points <see cref="TestVnasData"/> at the committed pins under <paramref name="testDataDir"/>, resolves NavData and
+    /// CIFP from them (pinned: never the user cache, never a download), and registers the real database as
+    /// <see cref="NavigationDatabase"/>'s default loader. A test assembly calls this from its <c>ModuleInitializer</c>,
+    /// so a missing pin fails at load with the committed path named rather than as a null database in the first test.
+    /// </summary>
+    /// <param name="testDataDir">The checkout's <c>tests/Yaat.Sim.Tests/TestData</c> folder.</param>
+    /// <exception cref="InvalidOperationException">The pinned NavData or CIFP could not be resolved.</exception>
+    /// <exception cref="FileNotFoundException">
+    /// A pinned NavData copy, bundle or manifest is missing from <paramref name="testDataDir"/>.
+    /// </exception>
+    public static void PinCommittedData(string testDataDir)
+    {
+        SetTestDataDir(testDataDir);
+
+        string navDataPath =
+            NavDataPathResolver.EnsureCurrent(PinnedNavDataOptions(testDataDir))
+            ?? throw new InvalidOperationException($"The pinned NavData under {testDataDir} could not be resolved.");
+
+        _ =
+            CifpPathResolver.EnsureCurrentCycle(PinnedCifpOptions(testDataDir))
+            ?? throw new InvalidOperationException($"The pinned CIFP under {testDataDir} could not be resolved.");
+
+        // A class that reads NavigationDatabase.Instance without installing one gets the real database on its
+        // first read, rather than only when an earlier class happened to call EnsureInitialized().
+        NavigationDatabase.SetTestDefaultLoader(() =>
+            LoadRealDataWithoutInstalling()
+            ?? throw new InvalidOperationException($"The real navigation database could not be loaded from the resolved NavData at {navDataPath}.")
+        );
     }
 
     /// <summary>

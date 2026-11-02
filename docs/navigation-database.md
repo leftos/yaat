@@ -111,7 +111,7 @@ the real one. `EnsureInitialized()` itself is idempotent and safe for parallel e
 
 `TestVnasData.NavigationDb` (`TestVnasData.cs:45`) uses **double-check locking** and only publishes the instance after CIFP has
 also resolved. The guard exists so a concurrent test class can't observe a partially-initialized DB that has NavData but no CIFP
-path (which would make every procedure lookup silently return empty).
+path (which would make every procedure lookup silently return empty). Both resolve pinned to the committed `TestData` NavData and CIFP (`PinToBundled`), never the user cache or the network ([test-harness.md](test-harness.md), "Data resolution").
 
 Two mutation patterns, two scopes:
 
@@ -246,7 +246,7 @@ instructor advisory). The chain is the cached prior AIRAC cycles within a recenc
 auto-accumulates with no shipped data. Resolving newest-prior-only (the old single-path behavior) missed procedures retired more than
 one cycle ago even when older cached cycles still had them. Production wires `cifpService.SupplementaryCifpFilePaths` (`ServerApp.cs`);
 a bare `new NavigationDatabase(navData, cifp, artccsBaseDir: "")` in a test passes an empty chain, so a retired SID returns `null`
-there. (`IssueN513sjNimiRvSidCifpMissTests` exercises the empty-chain degradation; `IssueN513sjNimi6PriorCycleChainTests`
+there. Tests never read the user's cache of prior cycles: `TestVnasData`'s chain is the committed bundle alone, and a test that needs an older cycle builds its chain from committed files and skips when none is committed. (`IssueN513sjNimiRvSidCifpMissTests` exercises the empty-chain degradation; `IssueN513sjNimi6PriorCycleChainTests`
 exercises the chain walk recovering NIMI5's published 315° heading; `CustomProcedureResolutionTests` covers the fragment tier.)
 
 The chain is **skipped when the current cycle lists zero procedures of that kind at the airport** (and a current CIFP is actually

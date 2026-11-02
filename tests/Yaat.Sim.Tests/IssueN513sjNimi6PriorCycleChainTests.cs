@@ -27,8 +27,11 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class IssueN513sjNimi6PriorCycleChainTests
 {
-    public IssueN513sjNimi6PriorCycleChainTests()
+    private readonly ITestOutputHelper _output;
+
+    public IssueN513sjNimi6PriorCycleChainTests(ITestOutputHelper output)
     {
+        _output = output;
         TestVnasData.EnsureInitialized();
     }
 
@@ -41,6 +44,7 @@ public class IssueN513sjNimi6PriorCycleChainTests
             (string NoNimiCurrent, string NoNimiPrior, string WithNimiOlder, NavDataSet NavData)? fx = BuildChainFixture(dir);
             if (fx is null)
             {
+                _output.WriteLine("SKIP: the committed TestData NavData/CIFP is absent, or the bundled CIFP no longer carries NIMI");
                 return;
             }
 
@@ -101,6 +105,7 @@ public class IssueN513sjNimi6PriorCycleChainTests
             (string NoNimiCurrent, string NoNimiPrior, string WithNimiOlder, NavDataSet NavData)? fx = BuildChainFixture(dir);
             if (fx is null)
             {
+                _output.WriteLine("SKIP: the committed TestData NavData/CIFP is absent, or the bundled CIFP no longer carries NIMI");
                 return;
             }
 
@@ -140,6 +145,7 @@ public class IssueN513sjNimi6PriorCycleChainTests
             string bundledGz = Path.Combine(AppContext.BaseDirectory, "TestData", "FAACIFP18.gz");
             if (!File.Exists(navDataPath) || !File.Exists(bundledGz))
             {
+                _output.WriteLine("SKIP: the committed TestData NavData.dat or FAACIFP18.gz is absent");
                 return;
             }
 
@@ -156,6 +162,7 @@ public class IssueN513sjNimi6PriorCycleChainTests
 
             if (starId is null)
             {
+                _output.WriteLine("SKIP: the committed CIFP carries no KOAK STAR to build the chain from");
                 return;
             }
 

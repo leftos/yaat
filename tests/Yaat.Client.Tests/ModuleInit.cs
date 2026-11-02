@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Client.Tests;
 
@@ -33,7 +34,27 @@ internal static class ModuleInit
         File.WriteAllText(Path.Combine(testDir, PidMarker), Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
         Environment.SetEnvironmentVariable("YAAT_APPDATA_DIR", testDir);
 
+        // This project's output links the aircraft tables and the ground layouts but not the committed NavData and
+        // CIFP, so point TestVnasData at the checkout's pins; a missing one fails here, naming the committed path,
+        // rather than as a null database in the first navdata-dependent test.
+        TestVnasData.PinCommittedData(Path.Combine(FindYaatCheckout(), "tests", "Yaat.Sim.Tests", "TestData"));
+
         AppDomain.CurrentDomain.ProcessExit += (_, _) => TryDeleteDir(testDir);
+    }
+
+    /// <summary>The yaat checkout above this assembly's output, the first folder holding <c>yaat.slnx</c>.</summary>
+    /// <exception cref="InvalidOperationException">No folder above the output holds a yaat checkout.</exception>
+    private static string FindYaatCheckout()
+    {
+        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
+            {
+                return dir.FullName;
+            }
+        }
+
+        throw new InvalidOperationException($"Cannot find the yaat checkout: no yaat.slnx is above {AppContext.BaseDirectory}.");
     }
 
     private static void SweepStaleDirs()

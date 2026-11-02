@@ -40,12 +40,12 @@ public static class NavDataPathResolver
     /// rather than paying a config fetch to find out.
     /// </summary>
     public static bool HasLocalCopy(NavDataResolveOptions options) =>
-        File.Exists(GetCachePath()) || (options.BundledPath is { } bundled && File.Exists(bundled));
+        File.Exists(GetCachePath(YaatPaths.AppDataRoot)) || (options.BundledPath is { } bundled && File.Exists(bundled));
 
     /// <summary>
     /// Ensures current vNAS NavData.dat is available. Subsequent calls return immediately.
     /// </summary>
-    public static string? EnsureCurrent(NavDataResolveOptions? options = null)
+    public static string? EnsureCurrent(NavDataResolveOptions options)
     {
         if (_ensured)
         {
@@ -59,8 +59,7 @@ public static class NavDataPathResolver
                 return _cachedPath;
             }
 
-            options ??= new NavDataResolveOptions();
-            (string? path, long? serial) = ResolveCore(options);
+            (string? path, long? serial) = ResolveCore(options, YaatPaths.AppDataRoot);
             _cachedPath = path;
             _resolvedNavDataSerial = serial;
             _ensured = true;
@@ -68,8 +67,21 @@ public static class NavDataPathResolver
         }
     }
 
-    private static (string? Path, long? Serial) ResolveCore(NavDataResolveOptions options)
+    /// <summary>
+    /// Resolves NavData under <paramref name="options"/> against the user cache under <paramref name="cacheRoot"/>, and
+    /// returns the file with the vNAS serial it carries. A <see cref="NavDataResolveOptions.PinToBundled"/> resolve
+    /// reads the committed bundled file and manifest alone, never the cache or the network.
+    /// <see cref="EnsureCurrent"/> passes <see cref="YaatPaths.AppDataRoot"/>; a test calls this directly with a temp
+    /// root.
+    /// </summary>
+    public static (string? Path, long? Serial) ResolveCore(NavDataResolveOptions options, string cacheRoot)
     {
+        if (options.PinToBundled)
+        {
+            long pinnedSerial = ReadPinnedSerial(options);
+            return (PinToBundledFile(options), pinnedSerial);
+        }
+
         if (options.ExplicitPath is { } explicitPath)
         {
             if (!File.Exists(explicitPath))
@@ -102,8 +114,8 @@ public static class NavDataPathResolver
             }
         }
 
-        string cachePath = GetCachePath();
-        long? cachedSerial = ReadCacheManifestSerial();
+        string cachePath = GetCachePath(cacheRoot);
+        long? cachedSerial = ReadCacheManifestSerial(cacheRoot);
 
         if (config is not null)
         {
@@ -113,7 +125,7 @@ public static class NavDataPathResolver
                 bool downloaded = DownloadNavDataAsync(config, cachePath, CancellationToken.None).GetAwaiter().GetResult();
                 if (downloaded)
                 {
-                    UpdateCacheManifestSerial(config.NavDataSerial);
+                    UpdateCacheManifestSerial(config.NavDataSerial, cacheRoot);
                     cachedSerial = config.NavDataSerial;
                 }
             }
@@ -136,7 +148,7 @@ public static class NavDataPathResolver
             return cachedSerial ?? config?.NavDataSerial;
         }
 
-        return ReadBundledManifestSerial(options) ?? config?.NavDataSerial;
+        return ReadBundledManifestSerial(options, out _) ?? config?.NavDataSerial;
     }
 
     private static string? PickResolvedPath(NavDataResolveOptions options, VnasConfig? config, string cachePath, long? cachedSerial)
@@ -176,7 +188,7 @@ public static class NavDataPathResolver
             return null;
         }
 
-        long? bundledSerial = ReadBundledManifestSerial(options);
+        long? bundledSerial = ReadBundledManifestSerial(options, out _);
         string? bundledCycle = ReadBundledManifestCycle(options);
         string currentCycle = AiracCycle.GetCurrentCycleId();
 
@@ -204,9 +216,68 @@ public static class NavDataPathResolver
         return bundledPath;
     }
 
-    private static string GetCachePath() => Path.Combine(YaatPaths.Combine("cache"), "NavData.dat");
+    /// <summary>
+    /// The committed copy a pinned resolve reads. The pin has no fallback, so a missing one fails with the path to
+    /// restore rather than resolving null.
+    /// </summary>
+    private static string PinToBundledFile(NavDataResolveOptions options)
+    {
+        if (options.BundledPath is not { } bundledPath)
+        {
+            throw new InvalidOperationException(
+                "NavDataResolveOptions.PinToBundled needs BundledPath: the committed tests/Yaat.Sim.Tests/TestData/NavData.dat."
+            );
+        }
 
-    private static string GetCacheManifestPath() => Path.Combine(YaatPaths.Combine("cache"), "manifest.json");
+        if (!File.Exists(bundledPath))
+        {
+            throw new FileNotFoundException(
+                $"The pinned NavData copy {bundledPath} does not exist; it is committed under tests/Yaat.Sim.Tests/TestData, "
+                    + "so a missing one usually means an incomplete checkout. Restore it with "
+                    + "`git checkout -- tests/Yaat.Sim.Tests/TestData/NavData.dat`, or run `python tools/refresh-navdata.py` to repin it.",
+                bundledPath
+            );
+        }
+
+        return bundledPath;
+    }
+
+    /// <summary>The vNAS serial the committed manifest records. The pin has no other source for it.</summary>
+    private static long ReadPinnedSerial(NavDataResolveOptions options)
+    {
+        if (options.BundledManifestPath is not { } manifestPath)
+        {
+            throw new InvalidOperationException(
+                "NavDataResolveOptions.PinToBundled needs BundledManifestPath: the committed tests/Yaat.Sim.Tests/TestData/navdata-manifest.json."
+            );
+        }
+
+        if (!File.Exists(manifestPath))
+        {
+            throw new FileNotFoundException(
+                $"The pinned NavData manifest {manifestPath} does not exist; it is committed under tests/Yaat.Sim.Tests/TestData, "
+                    + "so a missing one usually means an incomplete checkout. Restore it with "
+                    + "`git checkout -- tests/Yaat.Sim.Tests/TestData/navdata-manifest.json`, or run `python tools/refresh-navdata.py` to repin it.",
+                manifestPath
+            );
+        }
+
+        long? serial = ReadBundledManifestSerial(options, out Exception? parseError);
+        if (serial is not > 0)
+        {
+            throw new InvalidOperationException(
+                parseError is null
+                    ? $"The pinned NavData manifest {manifestPath} has no navDataSerial."
+                    : $"The pinned NavData manifest {manifestPath} has no readable navDataSerial: {parseError.Message}"
+            );
+        }
+
+        return serial.Value;
+    }
+
+    private static string GetCachePath(string cacheRoot) => Path.Combine(cacheRoot, "cache", "NavData.dat");
+
+    private static string GetCacheManifestPath(string cacheRoot) => Path.Combine(cacheRoot, "cache", "manifest.json");
 
     private static bool IsDownloadSkipped()
     {
@@ -250,15 +321,15 @@ public static class NavDataPathResolver
         }
     }
 
-    private static long? ReadCacheManifestSerial()
+    private static long? ReadCacheManifestSerial(string cacheRoot)
     {
-        CacheManifest? manifest = ReadCacheManifest();
+        CacheManifest? manifest = ReadCacheManifest(cacheRoot);
         return manifest?.NavDataSerial;
     }
 
-    private static void UpdateCacheManifestSerial(long navDataSerial)
+    private static void UpdateCacheManifestSerial(long navDataSerial, string cacheRoot)
     {
-        string path = GetCacheManifestPath();
+        string path = GetCacheManifestPath(cacheRoot);
         CacheManifest manifest;
         if (File.Exists(path))
         {
@@ -285,9 +356,9 @@ public static class NavDataPathResolver
         File.WriteAllText(path, JsonSerializer.Serialize(manifest, IndentedJsonOptions));
     }
 
-    private static CacheManifest? ReadCacheManifest()
+    private static CacheManifest? ReadCacheManifest(string cacheRoot)
     {
-        string path = GetCacheManifestPath();
+        string path = GetCacheManifestPath(cacheRoot);
         if (!File.Exists(path))
         {
             return null;
@@ -305,20 +376,21 @@ public static class NavDataPathResolver
         }
     }
 
-    private static long? ReadBundledManifestSerial(NavDataResolveOptions options)
+    private static long? ReadBundledManifestSerial(NavDataResolveOptions options, out Exception? parseError)
     {
-        NavDataManifest? doc = ReadBundledManifest(options);
+        NavDataManifest? doc = ReadBundledManifest(options, out parseError);
         return doc?.NavDataSerial;
     }
 
     private static string? ReadBundledManifestCycle(NavDataResolveOptions options)
     {
-        NavDataManifest? doc = ReadBundledManifest(options);
+        NavDataManifest? doc = ReadBundledManifest(options, out _);
         return doc?.AiracCycle;
     }
 
-    private static NavDataManifest? ReadBundledManifest(NavDataResolveOptions options)
+    private static NavDataManifest? ReadBundledManifest(NavDataResolveOptions options, out Exception? parseError)
     {
+        parseError = null;
         if (options.BundledManifestPath is not { } manifestPath || !File.Exists(manifestPath))
         {
             return null;
@@ -332,6 +404,7 @@ public static class NavDataPathResolver
         catch (Exception ex)
         {
             Log.LogDebug(ex, "Could not read NavData manifest {Path}", manifestPath);
+            parseError = ex;
             return null;
         }
     }

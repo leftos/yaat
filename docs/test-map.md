@@ -105,7 +105,7 @@ Vocabulary follows the Task Index in [`architecture.md`](./architecture.md). "Sh
 
 - `TestData/*.zip` (140) — recordings and bug bundles for shape A; installed with `tools/bug_bundle.py install`, trimmed first when long. `RecordingLoader` memoises per path.
 - `TestData/*.geojson` (16 airports) — `TestAirportGroundData.GetLayout("OAK")`; runway width comes from navdata, so never hard-code node ids. Client.Tests links `oak`/`sfo` from here.
-- `TestData/NavData.dat`, `FAACIFP18.gz` + manifests — the hard preconditions; refresh NavData with `tools/refresh-navdata.py`, then repin the CIFP and retarget tests as in [test-harness.md](./test-harness.md) "Data resolution and offline fallbacks".
+- `TestData/NavData.dat`, `FAACIFP18.gz` + manifests — the hard preconditions, which tests pin (never the user cache or the network); `tools/refresh-navdata.py` repins both to the NavData's cycle, then retarget tests and commit as in [test-harness.md](./test-harness.md) "Data resolution and offline fallbacks".
 - `TestData/artcc-zoa-snapshot.json` — `TestArtccConfig.LoadZoa()`; `tools/refresh-artcc-snapshot.py`.
 - `TestData/recording-routing-census.json` — owned by `RecordingCorpusRoutingCensusTests`; every new recording fixture must be registered (`YAAT_ROUTING_CENSUS_REGENERATE=1`), and the diff must only add.
 - `docs/tick-oracle/*.baseline.json` (yaat-server) — owned by `TickOracleTests`; `YAAT_ORACLE_REBASELINE=1`; a Note in a baseline is a hypothesis until a retirement test confirms it.

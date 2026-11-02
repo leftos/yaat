@@ -32,45 +32,21 @@ internal static class ModuleInit
         // so a test that reads a category before its harness loads them would otherwise stage every type as a jet.
         Yaat.Sim.Testing.TestVnasData.EnsureAircraftDataInitialized();
 
-        // CIFP is a precondition for the same reason NavData is: procedures, approaches and SIDs
-        // come from it, and without them the tests that exercise them return early into a green run.
+        // CIFP is a precondition for the same reason NavData is: procedures, approaches and SIDs come
+        // from it, and without them the tests that exercise them return early into a green run.
         //
-        // No offline-first switch is needed here, unlike NavData: CifpPathResolver.ResolveCore
-        // already returns a current-cycle cache hit before considering the network, which is why it
-        // costs ~9 ms rather than ~240 ms. Downloads stay enabled by default deliberately — CIFP is
-        // AIRAC-cycle-specific and the committed bundle goes stale every 28 days, so fetching the
-        // current cycle when it is not cached is worth a one-off round trip.
-        bool allowCifpDownload = !IsCifpDownloadSkipped();
-        RequireCifp(
-            CifpPathResolver.EnsureCurrentCycle(
-                new CifpResolveOptions(
-                    BundledGzPath: Path.Combine(testDataDir, "FAACIFP18.gz"),
-                    BundledManifestPath: Path.Combine(testDataDir, "cifp-manifest.json"),
-                    AllowDownload: allowCifpDownload
-                )
-            )
-        );
+        // The suite pins the committed bundle, so every machine runs the AIRAC cycle recorded in
+        // TestData/cifp-manifest.json whatever its user cache holds. A new cycle reaches the tests
+        // only through `python tools/refresh-navdata.py` and a commit.
+        RequireCifp(CifpPathResolver.EnsureCurrentCycle(Yaat.Sim.Testing.TestVnasData.PinnedCifpOptions(testDataDir)));
 
         // Most of this suite asserts against real navdata, so running without it is not a degraded
         // run — it is a meaningless one. Resolve it, and make failure fatal for the assembly rather
         // than letting hundreds of tests silently `return;` into a green result.
         //
-        // Download only when there is nothing on disk to use. Resolving with downloads enabled
-        // fetches the vNAS config over HTTPS first — ~240 ms of TLS handshake on EVERY test process
-        // (~10% of the fixed cost of a filtered run) — and `TestData/NavData.dat` is committed, so
-        // the normal path never needs it. `NavDataPathResolverTests` asserts a healthy checkout
-        // makes no such call.
-        var navOptions = new NavDataResolveOptions(
-            BundledPath: Path.Combine(testDataDir, "NavData.dat"),
-            BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),
-            AllowDownload: false
-        );
-        if (!NavDataPathResolver.HasLocalCopy(navOptions))
-        {
-            navOptions = navOptions with { AllowDownload = true };
-        }
-
-        string navDataPath = RequireNavData(NavDataPathResolver.EnsureCurrent(navOptions));
+        // The pin also keeps the ~240 ms vNAS config fetch off every test process: a pinned resolve
+        // never contacts vNAS, and `NavDataPathResolverTests` asserts the process makes no such call.
+        string navDataPath = RequireNavData(NavDataPathResolver.EnsureCurrent(Yaat.Sim.Testing.TestVnasData.PinnedNavDataOptions(testDataDir)));
 
         // A class that reads NavigationDatabase.Instance without installing one gets the real database on its
         // first read, rather than only when an earlier class happened to call TestVnasData.EnsureInitialized().
@@ -106,10 +82,10 @@ internal static class ModuleInit
 
         throw new InvalidOperationException(
             "NavData.dat could not be resolved, so the Yaat.Sim test suite cannot run: most of it asserts against real navdata. "
-                + "Expected a copy at %LOCALAPPDATA%/yaat/cache/NavData.dat or tests/Yaat.Sim.Tests/TestData/NavData.dat "
-                + "(committed — a missing one usually means an incomplete checkout). "
+                + "The suite pins the committed tests/Yaat.Sim.Tests/TestData/NavData.dat "
+                + "(a missing one usually means an incomplete checkout). "
                 + "Restore it with `git checkout -- tests/Yaat.Sim.Tests/TestData/NavData.dat`, or run "
-                + "`python tools/refresh-navdata.py` to fetch a fresh pin from vNAS."
+                + "`python tools/refresh-navdata.py` to repin it."
         );
     }
 
@@ -130,16 +106,10 @@ internal static class ModuleInit
 
         throw new InvalidOperationException(
             "CIFP could not be resolved, so the Yaat.Sim test suite cannot run: procedures, approaches and SIDs come from it. "
-                + "Expected a current-cycle copy under %LOCALAPPDATA%/yaat/cache/cifp/, or the committed bundle at "
-                + "tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (a missing one usually means an incomplete checkout). "
-                + "Restore it with `git checkout -- tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz`, or allow the download by "
-                + "clearing YAAT_SKIP_CIFP_DOWNLOAD so the current AIRAC cycle can be fetched and cached."
+                + "The suite pins the committed bundle at tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz "
+                + "(a missing one usually means an incomplete checkout). "
+                + "Restore it with `git checkout -- tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz`, or run "
+                + "`python tools/refresh-navdata.py` to repin it."
         );
-    }
-
-    private static bool IsCifpDownloadSkipped()
-    {
-        string? v = Environment.GetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD");
-        return string.Equals(v, "1", StringComparison.Ordinal) || string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
     }
 }

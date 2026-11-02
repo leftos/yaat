@@ -35,7 +35,7 @@ return await PrecomputeCacheCli.RunAsync(args, services);
 static (string Path, long Serial) ResolveNavData()
 {
     string path =
-        NavDataPathResolver.EnsureCurrent(new NavDataResolveOptions(AllowDownload: true))
+        NavDataPathResolver.EnsureCurrent(new NavDataResolveOptions(AllowDownload: true) { PinToBundled = false })
         ?? throw new InvalidOperationException("No vNAS NavData.dat could be downloaded or found in the cache");
     long serial =
         NavDataPathResolver.ResolvedNavDataSerial

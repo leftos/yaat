@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Data.Vnas;
 
@@ -9,15 +11,17 @@ public class NavDataPathResolverTests
     public void EnsureCurrent_SecondCall_ReturnsSamePathWithoutReDownload()
     {
         string testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
-        // AllowDownload: false, matching ModuleInit. It is inert here either way — ModuleInit has
-        // already resolved, so EnsureCurrent short-circuits — but leaving it true would mean this
-        // test issues a vNAS config fetch the moment that stops being true, breaking
-        // TestProcess_ResolvesNavData_WithoutContactingVnas below from a sibling test.
+        // Pinned, matching ModuleInit. It is inert here either way — ModuleInit has already resolved,
+        // so EnsureCurrent short-circuits — but a test-path resolve that was not pinned would read the
+        // developer's user cache the moment that stops being true.
         var options = new NavDataResolveOptions(
             BundledPath: Path.Combine(testDataDir, "NavData.dat"),
             BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),
             AllowDownload: false
-        );
+        )
+        {
+            PinToBundled = true,
+        };
 
         string? first = NavDataPathResolver.EnsureCurrent(options);
         string? second = NavDataPathResolver.EnsureCurrent(options);
@@ -79,6 +83,20 @@ public class NavDataPathResolverTests
     }
 
     [Fact]
+    public void ModuleInit_PinsTheCommittedNavData()
+    {
+        // ModuleInit resolved at assembly load: the file is the committed TestData copy, and it reports the
+        // committed manifest's serial.
+        string testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
+
+        Assert.Equal(
+            Path.GetFullPath(Path.Combine(testDataDir, "NavData.dat")),
+            Path.GetFullPath(Assert.IsType<string>(NavDataPathResolver.CachedPath))
+        );
+        Assert.Equal(ReadManifestSerial(Path.Combine(testDataDir, "navdata-manifest.json")), NavDataPathResolver.ResolvedNavDataSerial);
+    }
+
+    [Fact]
     public void HasLocalCopy_IsTrue_ForTheCommittedBundledCopy()
     {
         // TestData/NavData.dat is committed, so a healthy checkout always resolves offline. This is
@@ -88,8 +106,53 @@ public class NavDataPathResolverTests
             BundledPath: Path.Combine(testDataDir, "NavData.dat"),
             BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),
             AllowDownload: false
-        );
+        )
+        {
+            PinToBundled = true,
+        };
 
         Assert.True(NavDataPathResolver.HasLocalCopy(options));
+    }
+
+    [Fact]
+    public void PinnedNavData_IgnoresAUserCacheOfAnotherCycle()
+    {
+        // A pinned resolve reads only the committed TestData copy. A developer whose user cache holds
+        // another serial must still get the committed file and the committed manifest's serial, or the
+        // suite runs a different AIRAC cycle on every machine.
+        string testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
+        string cacheRoot = Directory.CreateTempSubdirectory("yaat-navdata-pin-").FullName;
+        try
+        {
+            string cacheDir = Path.Combine(cacheRoot, "cache");
+            Directory.CreateDirectory(cacheDir);
+            File.WriteAllBytes(Path.Combine(cacheDir, "NavData.dat"), [0x0A, 0x00, 0x00]);
+            File.WriteAllText(Path.Combine(cacheDir, "manifest.json"), "{\"navDataSerial\": 2025010101}");
+
+            var options = new NavDataResolveOptions(
+                BundledPath: Path.Combine(testDataDir, "NavData.dat"),
+                BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),
+                AllowDownload: false
+            )
+            {
+                PinToBundled = true,
+            };
+
+            (string? path, long? serial) = NavDataPathResolver.ResolveCore(options, cacheRoot);
+
+            Assert.Equal(Path.GetFullPath(Path.Combine(testDataDir, "NavData.dat")), Path.GetFullPath(Assert.IsType<string>(path)));
+            Assert.Equal(ReadManifestSerial(Path.Combine(testDataDir, "navdata-manifest.json")), serial);
+            Assert.NotEqual<long?>(2025010101L, serial);
+        }
+        finally
+        {
+            Directory.Delete(cacheRoot, recursive: true);
+        }
+    }
+
+    private static long ReadManifestSerial(string manifestPath)
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(manifestPath));
+        return long.Parse(doc.RootElement.GetProperty("navDataSerial").GetRawText(), NumberStyles.Integer, CultureInfo.InvariantCulture);
     }
 }

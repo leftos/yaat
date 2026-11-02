@@ -31,7 +31,7 @@ public sealed class CifpDataService : IDisposable
     public async Task InitializeAsync(CifpResolveOptions? options)
     {
         options ??= CreateDefaultOptions();
-        CifpFilePath = await CifpPathResolver.EnsureCurrentCycleAsync(options).ConfigureAwait(false);
+        CifpFilePath = await CifpPathResolver.EnsureCurrentCycleAsync(options, CancellationToken.None).ConfigureAwait(false);
 
         // Supplementary CIFP chain for procedures absent from the current cycle's file (e.g. a SID dropped
         // during an amendment/rename gap, like NIMI5 → NIMI6, or retired a few cycles back). The cached
@@ -76,7 +76,7 @@ public sealed class CifpDataService : IDisposable
     /// required. Tests additionally pass an explicit <see cref="CifpResolveOptions.BundledGzPath"/> via
     /// <see cref="Testing.TestVnasData"/> so a clean environment still has a supplementary source.
     /// </summary>
-    public static CifpResolveOptions CreateDefaultOptions() => new(AllowDownload: true);
+    public static CifpResolveOptions CreateDefaultOptions() => new(AllowDownload: true) { PinToBundled = false };
 
     public void Dispose() { }
 }

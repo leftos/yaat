@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
@@ -14,6 +15,7 @@ public static class CifpPathResolver
     private const string CifpBaseUrl = "https://aeronav.faa.gov/Upload_313-d/cifp/";
 
     private static readonly ILogger Log = SimLog.CreateLogger("CifpPathResolver");
+    private static readonly JsonSerializerOptions ManifestJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly Lock EnsureLock = new();
 
     private static volatile bool _ensured;
@@ -29,7 +31,7 @@ public static class CifpPathResolver
     /// <summary>
     /// Ensures CIFP for the current AIRAC cycle is available. Subsequent calls return immediately.
     /// </summary>
-    public static string? EnsureCurrentCycle(CifpResolveOptions? options = null)
+    public static string? EnsureCurrentCycle(CifpResolveOptions options)
     {
         if (_ensured)
         {
@@ -43,22 +45,26 @@ public static class CifpPathResolver
                 return _cachedPath;
             }
 
-            options ??= new CifpResolveOptions();
-            _cachedPath = ResolveCore(options);
-            _resolvedCycleId = _cachedPath is not null ? AiracCycle.GetCurrentCycleId() : null;
+            (string? path, string? cycleId) = ResolveCore(options, YaatPaths.AppDataRoot);
+            _cachedPath = path;
+            _resolvedCycleId = cycleId;
             _ensured = true;
             return _cachedPath;
         }
     }
 
-    public static async Task<string?> EnsureCurrentCycleAsync(CifpResolveOptions? options = null, CancellationToken cancellationToken = default)
+    public static async Task<string?> EnsureCurrentCycleAsync(CifpResolveOptions options, CancellationToken cancellationToken)
     {
         if (_ensured)
         {
             return _cachedPath;
         }
 
-        options ??= new CifpResolveOptions();
+        if (options.PinToBundled)
+        {
+            return EnsureCurrentCycle(options);
+        }
+
         if (options.ExplicitPath is { } explicitPath && File.Exists(explicitPath))
         {
             lock (EnsureLock)
@@ -75,7 +81,7 @@ public static class CifpPathResolver
         }
 
         string cycleId = AiracCycle.GetCurrentCycleId();
-        string cachePath = GetCachePathForCycle(cycleId);
+        string cachePath = GetCachePathForCycle(YaatPaths.AppDataRoot, cycleId);
         if (File.Exists(cachePath))
         {
             lock (EnsureLock)
@@ -97,8 +103,7 @@ public static class CifpPathResolver
             {
                 if (!_ensured)
                 {
-                    _cachedPath = TryBundledOrStaleCache(options, cycleId);
-                    _resolvedCycleId = ReadBundledCycle(options) ?? _resolvedCycleId;
+                    (_cachedPath, _resolvedCycleId) = TryBundledOrStaleCache(options, YaatPaths.AppDataRoot, cycleId);
                     _ensured = true;
                 }
             }
@@ -111,8 +116,16 @@ public static class CifpPathResolver
         {
             if (!_ensured)
             {
-                _cachedPath = downloaded ?? TryBundledOrStaleCache(options, cycleId);
-                _resolvedCycleId = downloaded is not null ? cycleId : ReadBundledCycle(options);
+                if (downloaded is not null)
+                {
+                    _cachedPath = downloaded;
+                    _resolvedCycleId = cycleId;
+                }
+                else
+                {
+                    (_cachedPath, _resolvedCycleId) = TryBundledOrStaleCache(options, YaatPaths.AppDataRoot, cycleId);
+                }
+
                 _ensured = true;
             }
         }
@@ -120,26 +133,38 @@ public static class CifpPathResolver
         return _cachedPath;
     }
 
-    private static string? ResolveCore(CifpResolveOptions options)
+    /// <summary>
+    /// Resolves CIFP under <paramref name="options"/> against the user cache under <paramref name="cacheRoot"/>, and
+    /// returns the file with the AIRAC cycle it carries: the explicit path reports none, a cache hit or a download its
+    /// own, and the bundled fallback its manifest's. A <see cref="CifpResolveOptions.PinToBundled"/> resolve reads
+    /// the committed bundle and manifest alone. <see cref="EnsureCurrentCycle"/> passes
+    /// <see cref="YaatPaths.AppDataRoot"/>; a test calls this directly with a temp root.
+    /// </summary>
+    public static (string? Path, string? CycleId) ResolveCore(CifpResolveOptions options, string cacheRoot)
     {
+        if (options.PinToBundled)
+        {
+            string pinnedCycleId = ReadPinnedCycle(options);
+            return (PinToBundledFile(options, pinnedCycleId), pinnedCycleId);
+        }
+
         if (options.ExplicitPath is { } explicitPath)
         {
             if (!File.Exists(explicitPath))
             {
                 Log.LogWarning("Explicit CIFP path does not exist: {Path}", explicitPath);
-                return null;
+                return (null, null);
             }
 
-            return explicitPath;
+            return (explicitPath, null);
         }
 
         string cycleId = AiracCycle.GetCurrentCycleId();
-        string cachePath = GetCachePathForCycle(cycleId);
+        string cachePath = GetCachePathForCycle(cacheRoot, cycleId);
         if (File.Exists(cachePath))
         {
             Log.LogDebug("Using cached CIFP for AIRAC cycle {Cycle}: {Path}", cycleId, cachePath);
-            _resolvedCycleId = cycleId;
-            return cachePath;
+            return (cachePath, cycleId);
         }
 
         if (options.AllowDownload && !IsDownloadSkipped())
@@ -147,19 +172,90 @@ public static class CifpPathResolver
             string? downloaded = DownloadCurrentCycleAsync(cachePath, cycleId, CancellationToken.None).GetAwaiter().GetResult();
             if (downloaded is not null)
             {
-                _resolvedCycleId = cycleId;
-                return downloaded;
+                return (downloaded, cycleId);
             }
         }
 
-        return TryBundledOrStaleCache(options, cycleId);
+        return TryBundledOrStaleCache(options, cacheRoot, cycleId);
     }
 
-    private static string GetCachePathForCycle(string cycleId)
+    /// <summary>
+    /// Decompresses the committed bundle to a content-keyed file under the temp folder, never the user cache. A
+    /// missing bundle leaves the pin nothing to fall back to, so it fails with the path to restore rather than
+    /// resolving null.
+    /// </summary>
+    private static string PinToBundledFile(CifpResolveOptions options, string cycleId)
     {
-        string cacheDir = YaatPaths.Combine("cache", "cifp");
-        return Path.Combine(cacheDir, $"FAACIFP18-{cycleId}");
+        if (options.BundledGzPath is not { } bundledGz)
+        {
+            throw new InvalidOperationException(
+                "CifpResolveOptions.PinToBundled needs BundledGzPath: the committed tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz."
+            );
+        }
+
+        if (!File.Exists(bundledGz))
+        {
+            throw new FileNotFoundException(
+                $"The pinned CIFP bundle {bundledGz} does not exist; it is committed under tests/Yaat.Sim.Tests/TestData, "
+                    + "so a missing one usually means an incomplete checkout. Restore it with "
+                    + "`git checkout -- tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz`, or run `python tools/refresh-navdata.py` to repin it.",
+                bundledGz
+            );
+        }
+
+        return DecompressBundledGzip(bundledGz, PinnedDecompressedPath(bundledGz, cycleId));
     }
+
+    /// <summary>
+    /// The content-keyed file a pinned resolve decompresses to: the manifest cycle and the bundle's SHA-256 keep two
+    /// bundles apart, while identical bytes land on one name concurrent test processes share.
+    /// </summary>
+    private static string PinnedDecompressedPath(string bundledGz, string cycleId) =>
+        Path.Combine(Path.GetTempPath(), "yaat-test-cifp", $"FAACIFP18-{cycleId}-{BundleHash(bundledGz)}.dat");
+
+    /// <summary>The first 16 lowercase hex characters of the bundle's SHA-256.</summary>
+    private static string BundleHash(string bundledGz)
+    {
+        using FileStream stream = File.OpenRead(bundledGz);
+        return Convert.ToHexStringLower(SHA256.HashData(stream))[..16];
+    }
+
+    /// <summary>The AIRAC cycle the committed manifest records. The pin has no other source for it.</summary>
+    private static string ReadPinnedCycle(CifpResolveOptions options)
+    {
+        if (options.BundledManifestPath is not { } manifestPath)
+        {
+            throw new InvalidOperationException(
+                "CifpResolveOptions.PinToBundled needs BundledManifestPath: the committed tests/Yaat.Sim.Tests/TestData/cifp-manifest.json."
+            );
+        }
+
+        if (!File.Exists(manifestPath))
+        {
+            throw new FileNotFoundException(
+                $"The pinned CIFP manifest {manifestPath} does not exist; it is committed under tests/Yaat.Sim.Tests/TestData, "
+                    + "so a missing one usually means an incomplete checkout. Restore it with "
+                    + "`git checkout -- tests/Yaat.Sim.Tests/TestData/cifp-manifest.json`, or run `python tools/refresh-navdata.py` to repin it.",
+                manifestPath
+            );
+        }
+
+        string? cycleId = ReadBundledCycle(options, out Exception? parseError);
+        if (cycleId is not null)
+        {
+            return cycleId;
+        }
+
+        throw new InvalidOperationException(
+            parseError is null
+                ? $"The pinned CIFP manifest {manifestPath} has no airacCycle."
+                : $"The pinned CIFP manifest {manifestPath} has no readable airacCycle: {parseError.Message}"
+        );
+    }
+
+    private static string CacheDirectory(string cacheRoot) => Path.Combine(cacheRoot, "cache", "cifp");
+
+    private static string GetCachePathForCycle(string cacheRoot, string cycleId) => Path.Combine(CacheDirectory(cacheRoot), $"FAACIFP18-{cycleId}");
 
     private static bool IsDownloadSkipped()
     {
@@ -209,11 +305,11 @@ public static class CifpPathResolver
         }
     }
 
-    private static string? TryBundledOrStaleCache(CifpResolveOptions options, string currentCycleId)
+    private static (string? Path, string? CycleId) TryBundledOrStaleCache(CifpResolveOptions options, string cacheRoot, string currentCycleId)
     {
         if (options.BundledGzPath is { } bundledGz && File.Exists(bundledGz))
         {
-            string? bundledCycle = ReadBundledCycle(options);
+            string? bundledCycle = ReadBundledCycle(options, out _);
             if (bundledCycle is not null && bundledCycle != currentCycleId)
             {
                 Log.LogWarning(
@@ -224,25 +320,39 @@ public static class CifpPathResolver
                 Console.Error.WriteLine($"[CifpPathResolver] Warning: bundled CIFP is cycle {bundledCycle}, current AIRAC is {currentCycleId}.");
             }
 
-            return DecompressBundledGzip(bundledGz, BundledCachePath());
+            return (DecompressBundledGzip(bundledGz, BundledCachePath(cacheRoot)), bundledCycle);
         }
 
-        string cacheDir = YaatPaths.Combine("cache", "cifp");
+        string cacheDir = CacheDirectory(cacheRoot);
         if (Directory.Exists(cacheDir))
         {
             string? newest = Directory.EnumerateFiles(cacheDir, "FAACIFP18-*").OrderDescending(StringComparer.Ordinal).FirstOrDefault();
             if (newest is not null)
             {
                 Log.LogWarning("Using stale CIFP cache file {Path} (current cycle {Cycle} not cached)", newest, currentCycleId);
-                return newest;
+                return (newest, CycleFromCacheFile(newest));
             }
         }
 
-        return null;
+        return (null, null);
     }
 
-    private static string? ReadBundledCycle(CifpResolveOptions options)
+    /// <summary>The AIRAC cycle a cache file is named for (<c>FAACIFP18-2611</c>), or null for a file that names none.</summary>
+    private static string? CycleFromCacheFile(string path)
     {
+        string name = Path.GetFileName(path);
+        if (!name.StartsWith("FAACIFP18-", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        string cycle = name["FAACIFP18-".Length..];
+        return (cycle.Length == 4) && cycle.All(char.IsAsciiDigit) ? cycle : null;
+    }
+
+    private static string? ReadBundledCycle(CifpResolveOptions options, out Exception? parseError)
+    {
+        parseError = null;
         if (options.BundledManifestPath is not { } manifestPath || !File.Exists(manifestPath))
         {
             return null;
@@ -251,12 +361,13 @@ public static class CifpPathResolver
         try
         {
             string json = File.ReadAllText(manifestPath);
-            CifpManifest? doc = JsonSerializer.Deserialize<CifpManifest>(json);
+            CifpManifest? doc = JsonSerializer.Deserialize<CifpManifest>(json, ManifestJsonOptions);
             return doc?.AiracCycle;
         }
         catch (Exception ex)
         {
             Log.LogDebug(ex, "Could not read CIFP manifest {Path}", manifestPath);
+            parseError = ex;
             return null;
         }
     }
@@ -329,7 +440,8 @@ public static class CifpPathResolver
 
     /// <summary>
     /// Decompresses <see cref="CifpResolveOptions.BundledGzPath"/> for supplementary procedure lookup
-    /// (retired SIDs absent from the current FAA cycle). Returns null when no bundle is configured.
+    /// (retired SIDs absent from the current FAA cycle). Returns null when no bundle is configured. A pinned
+    /// resolve writes the same content-keyed temp file <see cref="PinToBundledFile"/> does, never the user cache.
     /// </summary>
     public static string? ResolveSupplementaryBundledPath(CifpResolveOptions options)
     {
@@ -338,7 +450,8 @@ public static class CifpPathResolver
             return null;
         }
 
-        return DecompressBundledGzip(gzPath, BundledCachePath());
+        string outPath = options.PinToBundled ? PinnedDecompressedPath(gzPath, ReadPinnedCycle(options)) : BundledCachePath(YaatPaths.AppDataRoot);
+        return DecompressBundledGzip(gzPath, outPath);
     }
 
     /// <summary>
@@ -478,7 +591,7 @@ public static class CifpPathResolver
         }
     }
 
-    private static string BundledCachePath() => Path.Combine(YaatPaths.Combine("cache", "cifp"), "FAACIFP18-bundled.dat");
+    private static string BundledCachePath(string cacheRoot) => Path.Combine(CacheDirectory(cacheRoot), "FAACIFP18-bundled.dat");
 
     private sealed class CifpManifest
     {

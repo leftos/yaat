@@ -41,7 +41,15 @@ public class CifpNavaidStationDeclinationTests
     [Fact]
     public void CifpNavaid_ParsesTerminalNdb_ChAshly()
     {
-        var bundled = new CifpResolveOptions(BundledGzPath: Path.Combine(AppContext.BaseDirectory, "TestData", "FAACIFP18.gz"), AllowDownload: false);
+        string testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
+        var bundled = new CifpResolveOptions(
+            BundledGzPath: Path.Combine(testDataDir, "FAACIFP18.gz"),
+            BundledManifestPath: Path.Combine(testDataDir, "cifp-manifest.json"),
+            AllowDownload: false
+        )
+        {
+            PinToBundled = true,
+        };
         string bundledPath = Assert.IsType<string>(CifpPathResolver.ResolveSupplementaryBundledPath(bundled));
         IReadOnlyDictionary<string, CifpNavaid> navaids = CifpParser.ParseNavaids(bundledPath);
 

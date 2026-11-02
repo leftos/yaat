@@ -826,6 +826,9 @@ public static class Program
                         BundledManifestPath: File.Exists(manifest) ? manifest : null,
                         AllowDownload: !offline
                     )
+                    {
+                        PinToBundled = false,
+                    }
                 );
             }
 

@@ -39,4 +39,4 @@ The `--final-course` command mirrors the strategies in `FinalApproachCourseExtra
 
 ## CIFP File Resolution
 
-If `--cifp` is not provided, the tool uses `CifpPathResolver` (current AIRAC cycle from `%LOCALAPPDATA%/yaat/cache/cifp/`, downloading from FAA if missing). Pass `--offline` to use only the bundled `TestData/FAACIFP18.gz` and existing cache. Set `YAAT_SKIP_CIFP_DOWNLOAD=1` in tests for the same offline behavior.
+If `--cifp` is not provided, the tool uses `CifpPathResolver` (current AIRAC cycle from `%LOCALAPPDATA%/yaat/cache/cifp/`, downloading from FAA if missing). Pass `--offline` to use only the bundled `TestData/FAACIFP18.gz` and existing cache. Tests do not use this resolution: they pin the committed `TestData/FAACIFP18.gz` through `PinToBundled`.

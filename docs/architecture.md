@@ -236,6 +236,7 @@
 | **Make a wind consumer position-aware or add a wind reader** | [`weather-and-wind.md`](./weather-and-wind.md) (Consumption, the gridded wind column) → `src/Yaat.Sim/WindInterpolator.cs` (`WindSamplePoint`, the `GetWindAt` / `GetWindComponents` overloads) + `Weather/GriddedWindField.cs` (`SampleBracket`) → the airborne consumers `FlightPhysics.cs`, `LiveTraffic/LiveTrafficKinematics.cs`, `Phases/Approach/HoldingPatternPhase.cs`, yaat-server `Hubs/CrcClientState.Eram.Weather.cs` (ERAM UR) → the layer-0 readers that stay on the surface layer: `AircraftPerformance.cs` (`WindApproachAdditive`), `ControllerAi/RunwayInUse.cs` (`RunwayInUseResolver`), `WindObservation.cs` |
 | **A test red on Linux CI but green on Windows; checking numeric code on Linux before it lands** | [`test-harness.md`](./test-harness.md) "Linux runs" (WSL and Docker recipes) and the zero-on-paper footgun → `.github/workflows/ci.yml` (CI's runner and env) |
 | **A test reads `NavigationDatabase.Instance` and fails by order** | [`test-harness.md`](test-harness.md) (the navdata section) → `src/Yaat.Sim/Data/NavigationDatabase.cs` (`Instance`, `DefaultSlot`, `SetTestDefaultLoader`) → `tests/Yaat.Sim.Tests/ModuleInit.cs`, `tests/Yaat.Client.UI.Tests/ModuleInit.cs` → `tests/Yaat.Sim.Tests/NavigationDatabaseTestDefaultLoaderTests.cs` |
+| **Repin the test NavData/CIFP to a new AIRAC cycle, or change how tests resolve navdata** | [`test-harness.md`](test-harness.md) (Data resolution) → `tests/Yaat.Sim.Tests/ModuleInit.cs`, `tests/Yaat.Client.UI.Tests/ModuleInit.cs`, `src/Yaat.Sim/Testing/TestVnasData.cs` → `src/Yaat.Sim/Data/Vnas/NavDataPathResolver.cs`, `CifpPathResolver.cs`, `AiracCycle.cs` → `tools/refresh-navdata.py` (the repin), `tools/airac-pin-status.py` + `tools/airac.py` (the newer-cycle check) → `tests/Yaat.Sim.Tests/TestData/*manifest.json` |
 | **Change test-all.ps1 (progress, stall watchdog, crash evidence)** | `tools/test-all.ps1` (`Wait-TestJobs`, `Start-TestJob`) → `tools/TestAllWatchdog.ps1` → [`test-harness.md`](test-harness.md) → the test csprojs (xunit.v3 3.2.2 / Microsoft.Testing.Platform 1.9.1 pins) → `~/.claude/docs/gate.md` |
 | **Change Sim test ordering or collections** | [`test-suite-speed.md`](test-suite-speed.md) → `tests/Yaat.Sim.Tests/xunit.runner.json` → the `CollectionDefinition` classes (`NavDbMutatorCollection.cs`, `GroundConflictDebugSinkCollection.cs`) → `tests/Yaat.Sim.Tests/CollectionWeightOrderer.cs` + `collection-weights.json` (test `CollectionWeightOrdererTests.cs`) → `tools/refresh-sim-collection-weights.py` → `tools/analyze-test-schedule.py` |
 | **Change how strips are placed or ordered in a rack (sort, move, insert), or add per-rack state like the auto-sort flag** | [`flight-strips.md`](flight-strips.md) (State model, Auto-sorted racks) → `src/Yaat.Sim/Simulation/Strips/StripMutations.cs` (`AppendStripToBay`, `MoveStripToBayRack`, `RequestDepartureStripForAircraftIntoBay`, `UpdateStripFields`, `ResortRackIfAuto`) → `StripRackSort.cs` (the order) → `StripCommandHandler.cs` (`HandleRackSort`, `FormatResolvedSlot`) → `FlightStripState.cs` (`AutoSortedRacks`) → `Simulation/Snapshots/FlightStripSnapshotMapper.cs` → yaat-server `Simulation/StripBroadcaster.cs` (`BuildState`) + `Simulation/RecordingManager.cs` (restart carry-over) → client `VStripsViewModel.cs` (`ReconcileFullState`, `OptimisticallyMove`), `Views/VStrips/VStripsView.axaml(.cs)` (menus, banners) |
@@ -665,7 +666,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
   `yaat1262-sfo-28r-exit-q-recording.yaat-bug-report-bundle.zip` (an arrival exiting SFO 28R onto Q — the 28L auto pull-up fixture for `SfoExitQParallelPullUpTests`). `recording-routing-census.json` (per-fixture routing census of every recorded command — the triage worklist for the action-router work).
 
-  Refresh pins: `tools/refresh-navdata.py`, FAA CIFP via `CifpPathResolver` at test load, airport GeoJSON via `tools/refresh-test-layouts.py`.
+  Refresh pins: `tools/refresh-navdata.py` (NavData and CIFP together, to the NavData's cycle; tests pin these committed files, never the user cache or the network), airport GeoJSON via `tools/refresh-test-layouts.py`.
 - **Shared loader**: `TestVnasData.EnsureInitialized()` — always use this, never synthetic stubs
 
 ## Root Scripts
@@ -694,6 +695,9 @@ tools/erase-user-data.ps1         # Privacy deletion request: calls the server's
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
 tools/refresh-airport-airlines.ps1 # Builds Data/airport-airlines.json.br from BTS T-100 segment ZIPs, OurAirports, and OpenFlights carrier/route crosswalks.
 tools/refresh-test-layouts.py     # Re-fetches each tests/Yaat.Sim.Tests/TestData/<ID>.geojson (plain 3-4 letter stems only; `-`/prefixed snapshots are skipped) from the vNAS training-airport map API, normalized to LF; an airport with no map is kept as committed. Also re-fetches each TestData/TowerCabMaps/<id>.geojson tower-cab videomap (the ARTCC config's tower-cab `videoMapId`, ARTCC from the script's `TOWER_CAB_ARTCC`); a response that is not a FeatureCollection keeps the fixture. `--check` reports what would change and exits 1 if anything would.
+tools/refresh-navdata.py          # One-command repin of the test pin: downloads vNAS NavData and the FAA CIFP zip for the NavData's own AIRAC cycle, writes NavData.dat, FAACIFP18.gz and both manifests under tests/Yaat.Sim.Tests/TestData together (nothing on a failed download); then commit. See docs/test-harness.md
+tools/airac-pin-status.py         # Whether the FAA has published a CIFP newer than the committed pin: one line, exit 0 in sync or declined, 10 newer cycle published, 2 check failed; `--state <json>` remembers a declined cycle, `--decline <YYNN> --state <json>` records one. Run by the yaat-nextup pre-loop hook
+tools/airac.py                    # AIRAC cycle arithmetic shared by airac-pin-status.py and refresh-navdata.py (the grid of AiracCycle.cs: YYNN ids, cycle_for_date, serial_cycle); reads no clock
 tools/refresh-airline-fleets.py   # Parses Airfleets PDFs into Data/airline-fleets.json + .meta provenance sidecar.
 tools/refresh-aircraft-display-names.py # One-shot tool that queries OpenAI for human-readable names of every ICAO type in AircraftSpecs.json and writes Data/aircraft-display-names.json + .meta sidecar. Re-run only when AircraftSpecs.json gains new types.
 tools/refresh-crc-docs.py         # Mirrors the vNAS docs site (docs.virtualnas.net, Material for MkDocs) into docs/crc/ + docs/vnas-data-admin/: fetches each page, converts HTML->Markdown, downloads images, rewrites links. See docs/crc/README.md.
@@ -720,6 +724,9 @@ tools/refresh-sim-collection-weights.py # Rebuilds tests/Yaat.Sim.Tests/collecti
 tools/gen-synthetic-suite.py      # Emits a throwaway test project matching Yaat.Sim.Tests' shape (class/test/InlineData counts) in xunit.v3 or TUnit, with trivial bodies. Measures a framework's *compile* cost at our scale without converting real files — how the TUnit source generator was shown to add ~5s per incremental build at 9,306 cases.
 tools/speech_telemetry.py         # Server-side speech telemetry triage (stdlib Python, admin password from YAAT_ADMIN_PASSWORD): pull (download + unpack bundles into .tmp/speech-telemetry/cases/), summary (worst-first triage table), eval (score cases through Yaat.SpeechSandbox --eval), reviewed (mark cases seen), promote (append a reviewed case's text-only labels to the telemetry regression corpus).
 tools/tests/test_bug_bundle_trim.py # pytest for bug_bundle.py trim: --keep-at keeps the latest snapshot at or before each time plus the first, renumbered from 000 with the manifest matching
+tools/tests/test_airac.py          # pytest for airac.py: cycle ids, indexes and dates on the 28-day grid, serial_cycle
+tools/tests/test_airac_pin_status.py # pytest for airac-pin-status.py: exit codes, the declined-cycle state file
+tools/tests/test_refresh_navdata.py # pytest for refresh-navdata.py: the cycle stamp and the all-or-nothing write
 tools/tests/test_speech_telemetry.py # pytest for speech_telemetry.py against a fake admin server: pull watermark and errors, summary ordering/JSON/width, reviewed bookkeeping, promote (text-only, sorted, duplicate/unreviewed refusal), case staging, gate-run eval command
 ```
 
@@ -2178,8 +2185,8 @@ FaaAircraftDataService.cs      # Downloads FAA ACD xlsx, parses all columns, cac
 
 # Data/Vnas/
 VnasDataService.cs             # Downloads NavData protobuf + specs; serial-based cache; `VideoMapBaseUrl` is the config's tower-cab videomap base URL ("" when the config fetch failed), handed to `TowerCabMapDownloader`
-NavDataPathResolver.cs         # Test/offline NavData.dat resolve: vNAS cache, download, TestData fallback
-CifpPathResolver.cs            # Current AIRAC CIFP: cache, FAA download, bundled gz fallback; supplementary = recency-capped chain of cached prior cycles, newest→oldest (retired/renamed procedures)
+NavDataPathResolver.cs         # NavData.dat resolve: vNAS cache, download, bundled fallback; `PinToBundled` (tests) reads the committed file and manifest alone
+CifpPathResolver.cs            # Current AIRAC CIFP: cache, FAA download, bundled gz fallback, and the cycle actually resolved; `PinToBundled` (tests) reads the committed bundle and manifest alone, decompressed to a content-keyed temp file; supplementary = recency-capped chain of cached prior cycles, newest→oldest (retired/renamed procedures)
 AiracCycle.cs                  # AIRAC cycle calculator (epoch Jan 23 2025, 28-day); CyclesBetween() for the supplementary recency cap
 VnasConfig.cs                  # Config API DTO
 CacheManifest.cs               # Cache manifest tracking serials
@@ -2737,7 +2744,7 @@ CapturedLogRecord.cs           # One captured log entry (level, category, format
 CapturingSimLogProvider.cs     # Bounded ring-buffer ILoggerProvider: Warning+ tap registered on the same factory as SimLog.Initialize; Drain() per tick, DroppedCount on overflow
 
 # Testing/
-TestVnasData.cs                # Shared test data loader: NavData, CIFP, AircraftSpecs, AircraftCwt, FaaAcd, AircraftProfiles, FacilityOpsDatabase (from Data/FacilityOps). The AircraftSpecs, AircraftCwt and FaaAcd loaders throw on a missing or empty file. EnsureAircraftDataInitialized loads just the aircraft tables once per process without touching the NavigationDatabase singleton, for a harness (e.g. yaat-server's RoomEngineTestHarness) that installs its own
+TestVnasData.cs                # Shared test data loader: NavData and CIFP pinned to the committed TestData files (`PinnedNavDataOptions`, `PinnedCifpOptions`, `PinCommittedData`), AircraftSpecs, AircraftCwt, FaaAcd, AircraftProfiles, FacilityOpsDatabase (from Data/FacilityOps). The AircraftSpecs, AircraftCwt and FaaAcd loaders throw on a missing or empty file. EnsureAircraftDataInitialized loads just the aircraft tables once per process without touching the NavigationDatabase singleton, for a harness (e.g. yaat-server's RoomEngineTestHarness) that installs its own
 
 Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
 ```

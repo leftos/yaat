@@ -64,29 +64,20 @@ still guard the CIFP-absent case; new tests need not add one for NavData.
 
 ## Data resolution and offline fallbacks
 
-`NavData.dat` and the FAA CIFP are resolved through `NavDataPathResolver` / `CifpPathResolver` with a three-tier fallback:
+`NavData.dat` and the FAA CIFP are resolved through `NavDataPathResolver` / `CifpPathResolver`, and **tests pin the committed copies**: `TestData/NavData.dat` and `TestData/FAACIFP18.gz`, with their `navdata-manifest.json` and `cifp-manifest.json`. Every test entry point (the Sim and Client.UI `ModuleInit`s, `TestVnasData`, so yaat-server's harness too) resolves with `PinToBundled` on the options (`TestVnasData.PinnedNavDataOptions` / `PinnedCifpOptions`; `TestVnasData.PinCommittedData` for an assembly that links no `TestData`). A pinned resolve reads the committed file and manifest alone:
 
-1. **Cache hit** — `NavDataPathResolver.CachedPath` / `CifpPathResolver.CachedPath` (the per-user vNAS/FAA cache, already current).
-2. **Single download** — `EnsureCurrent` / `EnsureCurrentCycle` fetch the current AIRAC cycle once.
-3. **Bundled fallback** — `TestData/NavData.dat` and `TestData/FAACIFP18.gz` (with their `*-manifest.json`), so a fresh, fully offline
-   checkout still has nav/procedure data without any network.
+- It never reads the per-user cache (`%LOCALAPPDATA%/yaat/cache`) and never touches the network, so every machine runs the AIRAC cycle the manifests record, whatever its cache holds. Production callers never set `PinToBundled`.
+- The cycle reported is the manifest's (`CifpPathResolver.ResolvedCycleId`).
+- A missing file or manifest is a hard failure naming the committed path to restore (`git checkout -- <path>`) or `python tools/refresh-navdata.py`. There is no fallback tier: see iron rule 3.
+- A pinned CIFP decompresses to `%TEMP%/yaat-test-cifp/FAACIFP18-{cycle}-{hash}.dat`, keyed by the manifest cycle and the bundle's content hash, so concurrent test processes share one file and a new bundle gets a new name.
+- It never fetches the vNAS config (~240 ms of TLS handshake per process otherwise). `NavDataPathResolverTests.TestProcess_ResolvesNavData_WithoutContactingVnas` asserts `NavDataPathResolver.ConfigFetchCount` stays zero.
+- The supplementary prior-cycle chain uses committed files only. Only the current cycle is committed, so the chain recovers nothing the primary lacks, and a test that needs an older cycle (`IssueN513sjNimi6PriorCycleChainTests`) skips, saying so in its output, when none is committed.
 
-**NavData is required, and normally resolves without touching the network.** `ModuleInit` resolves
-with `AllowDownload: false` when a local copy exists — `%LOCALAPPDATA%/yaat/cache/NavData.dat` or the
-**committed** `TestData/NavData.dat` — and only permits a download when neither is present. If the
-resolve still yields nothing, it **throws** and the assembly fails to load: see iron rule 3.
+**A renumbered procedure id resolves to its new number; a dropped one resolves to nothing.** After a repin, a SID or STAR the new cycle renumbered (NUEVO8 once NUEVO9 replaced it) still resolves: `GetSid` / `GetStar` fall back from the exact id to the procedure with the same name and any number (`NavigationDatabase.FindSidInList`), so the test silently gets the new cycle's procedure. One the cycle dropped is absent from the pinned CIFP and, with no older cycle committed, from the chain, so it returns `null` unless the ARTCC fragment tier holds it. A test that fails at the repin, or that pins a renumbered procedure's old legs, is retargeted to the new cycle's id, never to a stub ([navigation-database.md](navigation-database.md), "Procedure resolution has three tiers").
 
-Why the offline default: resolving with downloads enabled fetches the vNAS *config* over HTTPS
-first, costing ~240 ms of TLS handshake on **every** test process (~10% of the fixed cost of a
-filtered run), and makes the suite depend on VATSIM being reachable.
-`NavDataPathResolverTests.TestProcess_ResolvesNavData_WithoutContactingVnas` asserts
-`NavDataPathResolver.ConfigFetchCount` stays zero, so this cannot silently regress.
+**Moving the pin is one command, then a commit.** `uv run python tools/refresh-navdata.py` downloads NavData from vNAS, reads the AIRAC cycle its serial belongs to, downloads the FAA CIFP zip for that same cycle, and writes `NavData.dat`, `navdata-manifest.json`, `FAACIFP18.gz` (gzip with mtime 0, so the bytes are reproducible) and `cifp-manifest.json` together, each manifest stamped with the data's own cycle rather than the day the tool ran. Nothing is written until every download has succeeded, so a cycle the FAA has not published yet leaves the pin untouched. `--out`, `--manifest`, `--cifp-out` and `--cifp-manifest` redirect the four files. Then run `pwsh tools/test-all.ps1` and retarget every test whose fixture (a SID, STAR, approach or navaid) the new cycle deleted, renumbered or moved, to a real procedure or navaid of the new data, and commit the four files with the retargets.
 
-The trade-off: tests no longer warn when the bundled NavData serial is behind what vNAS publishes.
-`python tools/refresh-navdata.py` is the signal for that — run it to move the pin (writes
-`TestData/NavData.dat` + `navdata-manifest.json`).
-
-Moving the pin is three steps, and no script does the middle one. (1) `uv run python tools/refresh-navdata.py --out tests/Yaat.Sim.Tests/TestData/NavData.dat`. (2) Copy the user cache's `FAACIFP18-<cycle>` for that cycle into `TestData/FAACIFP18.gz` (gzip with mtime 0, so the bytes are reproducible) and set `cifp-manifest.json`'s `airacCycle` to it. (3) Run `pwsh tools/test-all.ps1` and retarget every test whose fixture (a SID, STAR, approach or navaid) the new cycle deleted or renumbered, to a real procedure or navaid of the new data, never a stub.
+**Knowing when to repin.** `tools/airac-pin-status.py` (shared cycle arithmetic in `tools/airac.py`, the same 28-day grid as `AiracCycle.cs`) reads the committed manifests and asks the FAA whether a CIFP zip for a later cycle exists and vNAS which NavData serial it publishes. It prints one line and exits 0 (in sync, or the published cycle was declined), 10 (a newer cycle is published) or 2 (a check failed; the reason goes to stderr). `--state <json>` names a state file that remembers a declined cycle; `--decline <YYNN> --state <json>` records one, so the next run is quiet until a still newer cycle appears. The yaat-nextup pre-loop hook runs it and asks the owner whether to repin; on a yes it adds the repin task.
 
 The committed airport ground layouts (`TestData/<ID>.geojson`) are pinned the same way. `python tools/refresh-test-layouts.py` re-fetches each one from the vNAS training-airport map API (the endpoint `AirportLayoutDownloader` uses) and rewrites it with LF line endings.
 
@@ -94,26 +85,11 @@ Files whose stem is not a plain 3–4 letter airport ID (`issue172-sfo`, `sfo-b1
 
 `TestData/TowerCabMaps/<id>.geojson` holds an airport's tower-cab videomap (`oak.geojson`, read by `TowerCabVideoMapTests`). It lives in a subfolder because several tests read every top-level `TestData/*.geojson` as a ground layout, which a videomap is not. The same script refreshes it (the ARTCC for each fixture is in its `TOWER_CAB_ARTCC`); a response that is not JSON or not a FeatureCollection prints why to stderr and keeps the fixture. `TestAirportGroundData` parses any airport that has a committed map here (OAK) on it, as the server parses it on the fetched map, so the hold-short bars sit on the painted lines (a malformed map throws rather than falling back to the unsnapped graph). `PinnedSfoGroundData` builds with `VideoMap: null`. A test that needs the raw unsnapped positions parses with a null map itself (`RunwayPaintSnapTests.ParseOak(map: null, FilletMode.Standard)`).
 
-**CIFP is required too, and downloads stay enabled on purpose.** `ModuleInit` throws if it cannot
-resolve one. Unlike NavData it needs no offline-first switch: `CifpPathResolver` already returns a
-current-cycle cache hit *before* considering the network, which is why it costs ~9 ms rather than
-~240 ms. And CIFP is AIRAC-cycle-specific — the committed `TestData/FAACIFP18.gz` goes stale every
-28 days — so fetching the current cycle when it is not cached is worth a one-off round trip.
+**NavData and CIFP are both required.** `ModuleInit` throws if the pinned copy cannot be resolved. `YAAT_SKIP_CIFP_DOWNLOAD` and `YAAT_SKIP_NAVDATA_DOWNLOAD` still govern the production resolvers, but a pinned test resolve never downloads, so they change nothing in a test run.
 
-| Variable | Effect |
-|---|---|
-| `YAAT_SKIP_CIFP_DOWNLOAD` | Skip the FAA CIFP download; current-cycle cache → stale cache → bundled `TestData/FAACIFP18.gz`. If none of those exist, `ModuleInit` throws rather than running without procedures. |
-| `YAAT_SKIP_NAVDATA_DOWNLOAD` | Still honoured for the no-local-copy case, but normally inert: NavData resolves offline whenever a local copy exists |
+### The decompressed CIFP file
 
-### The CIFP decompression temp-file dance
-
-`TestVnasData.DecompressGzip` decompresses the bundled `.gz` to a **per-process** file `yaat-test-FAACIFP18-<pid>` in the temp dir, then
-holds a read-only `FileStream` sentinel opened **without** `FileShare.Delete` for the process lifetime. On Windows this is what stops a
-*concurrently running* test process's cleanup sweep from deleting a file that is still live (Windows refuses `File.Delete` on a handle
-not opened with `FileShare.Delete`; `NavigationDatabase` opens the file independently with `FileShare.Read`, which is compatible).
-`SweepStaleCifpTempFiles` reaps files leaked by killed processes across five name patterns (the current `yaat-test-FAACIFP18-*` plus four
-legacy patterns from call sites that used to roll their own decompress helper). **Do not add a sixth `DecompressGzip` elsewhere** — route
-all CIFP decompression through `TestVnasData` so the sentinel/sweep contract holds.
+A pinned CIFP resolve decompresses the bundle once to the content-keyed `%TEMP%/yaat-test-cifp/FAACIFP18-{cycle}-{hash}.dat` (`CifpPathResolver.DecompressBundledGzip` reuses an existing file only when it is at least as new as the bundle and its length matches the gzip trailer, so a truncated file is replaced). The name is the same for every test process on the same bundle, so they share it; there is no per-process file, sentinel handle or sweep. Route all CIFP decompression through the resolver, never a helper of your own.
 
 ## The two ModuleInitializers
 
@@ -125,7 +101,7 @@ right one for a new test project.
 - Sets `GroundNavigator.ThrowOnOrbit = true`. A pure-pursuit *orbit* (the navigator circling a node it can't converge on) becomes a hard
   test failure instead of the graceful recovery the shipping app does (the app leaves `ThrowOnOrbit` false to avoid crashing a live
   session). This turns a class of silent ground-following bugs into loud test failures.
-- Calls `TestVnasData.SetTestDataDir(<BaseDirectory>/TestData)` and loads the aircraft tables (`TestVnasData.EnsureAircraftDataInitialized`), so no test reads a category, CWT or profile from an empty table. Then it warms CIFP and NavData once (`CifpPathResolver.EnsureCurrentCycle` / `NavDataPathResolver.EnsureCurrent` with the bundled fallbacks), so the first test touching `NavigationDb` doesn't pay the resolve.
+- Calls `TestVnasData.SetTestDataDir(<BaseDirectory>/TestData)` and loads the aircraft tables (`TestVnasData.EnsureAircraftDataInitialized`), so no test reads a category, CWT or profile from an empty table. Then it resolves the pinned CIFP and NavData once (`CifpPathResolver.EnsureCurrentCycle` / `NavDataPathResolver.EnsureCurrent` with `TestVnasData.PinnedCifpOptions` / `PinnedNavDataOptions`: committed files only, never the user cache or a download), so the first test touching `NavigationDb` doesn't pay the resolve.
 - Warms `AirspaceDatabase.Default` and `MilitaryRouteDatabase.Default` on a background task, as the server does at startup —
   otherwise the first test to tick physics pays the airspace GeoJSON parse inside its own timing.
 
@@ -185,7 +161,7 @@ override — see `NavigationDatabase.Instance` / `InstanceOrNull` — but `Ensur
 
 A Yaat.Sim.Tests class that never calls `EnsureInitialized()` still reads the real database: `ModuleInit` registers `NavigationDatabase.SetTestDefaultLoader` over `TestVnasData.LoadRealDataWithoutInstalling()`, so the first read that finds no default installed loads it and installs it as the default.
 
-`Yaat.Client.UI.Tests` registers the same loader. `Yaat.Client.Tests` registers none: it links no committed NavData/CIFP and resolves them online, so a loader there would only re-word a failure, and a class there that reads the database calls `EnsureInitialized()` in its constructor.
+`Yaat.Client.UI.Tests` registers the same loader. `Yaat.Client.Tests` registers none: it links no committed NavData/CIFP, so its `ModuleInit` points `TestVnasData.PinCommittedData` at the checkout's `tests/Yaat.Sim.Tests/TestData` (found by walking up to `yaat.slnx`) and a missing pin fails there, and a class there that reads the database calls `EnsureInitialized()` in its constructor.
 
 To find every test that depends on the order the database was installed in, add an untracked assembly-level `BeforeAfterTestAttribute` to the project whose `After` empties `NavigationDatabase`'s default (by reflection on `_default._installed`). Every order-dependent reader then fails with certainty in one suite run (it found the last such class in 1m22s). Delete the probe afterwards.
 
@@ -247,7 +223,7 @@ CI runs on `ubuntu-latest` (`.github/workflows/ci.yml`). A test can pass on Wind
 
   `docker run --rm -e YAAT_APPDATA_DIR=/tmp/appdata -v <bin dir>:/app:ro mcr.microsoft.com/dotnet/sdk:10.0 dotnet /app/Yaat.Sim.Tests.dll --results-directory /tmp/r --filter-method "*Name*"`
 
-Both set `YAAT_APPDATA_DIR` to a fresh directory, so NavData resolves to the committed `TestData/NavData.dat` as on CI rather than to a newer user cache (CIFP downloads, as on CI). Use either for a Linux-only CI red, and to check a change to numeric code with a zero or tie boundary (a stop distance, a sign test, a sort key that can tie) before it lands.
+Both set `YAAT_APPDATA_DIR` to a fresh directory, so NavData resolves to the committed `TestData/NavData.dat` as on CI rather than to a newer user cache (the pin ignores the cache on every machine; CIFP is the committed bundle too). Use either for a Linux-only CI red, and to check a change to numeric code with a zero or tie boundary (a stop distance, a sign test, a sort key that can tie) before it lands.
 
 Loop a Linux-only failure alone as well as inside its class: a race that is lost only on a cold code path passes once its classmates have warmed it (YAAT-662's pipe-dispose test was red 44 of 48 alone and 0 of 50 in its class).
 
@@ -644,9 +620,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 - **Silent-skip on missing data is mandatory** for everything but NavData, CIFP and the committed aircraft tables (`AircraftSpecs.json`, `AircraftCwt.json`, `FaaAcd.json`), which throw. When GeoJSON/recording/ARTCC-snapshot is absent (fresh checkout, offline),
   return early — **no `Assert.Skip`, no exception** — so CI stays green. `TestVnasData.NavigationDb`, `TestAirportGroundData.GetLayout`,
   and `TestArtccConfig.LoadZoa` all return `null` for exactly this.
-- **CIFP decompression uses a per-process sentinel-file dance.** A `yaat-test-FAACIFP18-<pid>` file held open without `FileShare.Delete`
-  blocks a concurrent process's sweep from deleting a live file on Windows; `SweepStaleCifpTempFiles` reaps leaks across five legacy name
-  patterns. **Don't add another `DecompressGzip` helper — route through `TestVnasData`.**
+- **CIFP decompression is content-keyed and shared.** A pinned resolve writes `%TEMP%/yaat-test-cifp/FAACIFP18-{cycle}-{hash}.dat` once for all test processes; there is no per-process file or sweep. **Don't add another decompress helper — route through the resolver.**
 - **Run under a 120 s ceiling** (`pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 120 -Slot heavy -- dotnet test`). A suite that the gate kills as `STALLED` or `TIMED OUT` is usually stuck on broken graph topology or an infinite pathfinder loop, not slow.
 - **Use `pwsh tools/test-all.ps1`, not bare `dotnet test`, for full-suite confidence.** Bare `dotnet test` from yaat never builds the
   sibling yaat-server, so a `Yaat.Sim` signature change that breaks the server passes locally and fails in CI. The heavy

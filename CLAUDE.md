@@ -221,15 +221,11 @@ When invoking aviation-sim-expert, always include:
 
 - **TDD for bugs and sim changes**: Write the failing test first, confirm it fails, fix, confirm it passes. Applies to bug fixes, commands, physics, phases, navdata, parsers — anything in simulation-critical code. See `docs/e2e-tdd-issue-debugging.md`.
 - **No guessing at root causes**: Reproduce with a test first. Use real airport layouts and E2E tests. Do not speculate.
-- **No synthetic data in tests**: Use `TestVnasData.EnsureInitialized()` (loads NavData.dat and CIFP via `NavDataPathResolver` / `CifpPathResolver` — one resolve per test process at assembly load in `tests/Yaat.Sim.Tests/ModuleInit.cs`, with bundled `TestData/NavData.dat` and `FAACIFP18.gz` as offline fallbacks).
+- **No synthetic data in tests**: Use `TestVnasData.EnsureInitialized()`. Tests pin the committed `tests/Yaat.Sim.Tests/TestData/NavData.dat` and `FAACIFP18.gz` (`PinToBundled` on the resolver options; `tests/Yaat.Sim.Tests/ModuleInit.cs` resolves them once per test process at assembly load), never the user cache or the network, whatever the machine holds. The supplementary prior-cycle chain uses committed files only.
 
-  Refresh pins: `python tools/refresh-navdata.py` (NavData), `python tools/refresh-test-layouts.py` (the `TestData/<ID>.geojson` airport layouts, from the vNAS map API; `--check` for a dry run); scenarios are downloaded by the yaat-server repo's `uv run python tools/validate-all-scenarios.py`.
+  A new AIRAC cycle reaches the tests only through `python tools/refresh-navdata.py` (it repins NavData and CIFP to the NavData's cycle) and a commit. Other pins: `python tools/refresh-test-layouts.py` (the `TestData/<ID>.geojson` airport layouts, from the vNAS map API; `--check` for a dry run); scenarios are downloaded by the yaat-server repo's `uv run python tools/validate-all-scenarios.py`.
 
-  **NavData and CIFP are hard preconditions: `ModuleInit` throws if it cannot resolve either** — most of the suite asserts against real navdata and procedures, so a run without them is green having proved nothing.
-
-  NavData resolves offline when a local copy exists (the committed `TestData/NavData.dat` or the user cache) and only downloads when neither is; resolving online would fetch the vNAS config over HTTPS on every test process (~240 ms of TLS handshake), and a test asserts `NavDataPathResolver.ConfigFetchCount` stays zero.
-
-  CIFP keeps downloads on (it is AIRAC-cycle-specific and already checks its cache before the network); `YAAT_SKIP_CIFP_DOWNLOAD=1` forces it offline. Synthetic stubs hide integration problems. Other missing test data (layouts, recordings, ARTCC configs) still silently skips.
+  **NavData and CIFP are hard preconditions: `ModuleInit` throws if it cannot resolve either** — most of the suite asserts against real navdata and procedures, so a run without them is green having proved nothing. Synthetic stubs hide integration problems. Other missing test data (layouts, recordings, ARTCC configs) still silently skips. Resolution order and the repin steps: `docs/test-harness.md`.
 - **Test access**: Making `internal` members `public` for tests is fine. No reflection or `InternalsVisibleTo` hacks.
 - **SimLog in tests**: `SimLog` falls back to `NullLoggerFactory` by default — all Yaat.Sim log output is silently swallowed in tests. To see logs, use `SimLogBuilder.CreateForTest(output).EnableCategory("ClassName", LogLevel.Debug).InitializeSimLog()`. `SfoGroundHarness.Build` re-initialises SimLog, so enable categories after it.
 
