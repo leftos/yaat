@@ -9,7 +9,6 @@
 - [ ] YAAT-1603 Accurate STT mode: build the room context from live client state and resolve callsigns with ContextDecoder · release vNext — Urgent · STT tuning
 - [ ] YAAT-1604 In-app STT benchmark: per model, mode and device latency, RAM and VRAM on this machine · release vNext — Urgent · STT tuning
 - [ ] YAAT-1605 Reference STT measurements on the CI natives and client speech docs · release vNext — Urgent · STT tuning
-- [ ] YAAT-1696 DataRetentionHostedServiceTests.StartAsync_RunsAPassAtOnce flakes on a 10 s wall-clock wait · release vNext — Urgent · Test infrastructure and CI
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -1115,7 +1114,7 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (5/11 done)
+### 1 Defects (7/12 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-305 UI tests: AppLifetime.IsShuttingDown never resets after a MainWindow close · release vNext+1
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
