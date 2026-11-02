@@ -5,8 +5,7 @@
 ## Do first
 
 - [ ] YAAT-1598 Client sherpa STT in fast and accurate modes · release vNext — Urgent · STT tuning
-- [/] YAAT-1603 Accurate STT mode: build the room context from live client state and resolve callsigns with ContextDecoder · release vNext — Urgent · STT tuning
-- [ ] YAAT-1604 In-app STT benchmark: per model, mode and device latency, RAM and VRAM on this machine · release vNext — Urgent · STT tuning
+- [/] YAAT-1604 In-app STT benchmark: per model, mode and device latency, RAM and VRAM on this machine · release vNext — Urgent · STT tuning
 - [ ] YAAT-1605 Reference STT measurements on the CI natives and client speech docs · release vNext — Urgent · STT tuning
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
@@ -29,9 +28,7 @@
 ## Bug reports and feature requests
 
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
-- [/] YAAT-1428 Handle a CTO naming a different runway while holding short of a taxiway (intersection, crossing or query) · release vNext
 - [ ] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer
-- [/] YAAT-1678 Speak a crossing runway by the end parallel to the aircraft's runway when none is active · release vNext
 - [ ] YAAT-1679 Read back 'at {taxiway}' when CTO RWY departs from a runway crossing hold
 - [ ] YAAT-1681 Runway-change warning says 'taxi clearance' when a CTO changed the runway
 
@@ -121,7 +118,6 @@
   - [ ] YAAT-1633 Linux: keep the CUDA provider from a re-pinned set out of a running client
   - [ ] YAAT-1634 Log the installer's in-progress refusal; NativeProblem returns native-load failures
   - [ ] YAAT-1638 Restore a CUDA set left in .old-* after a crash mid-swap, and sweep leftovers on uninstall · release vNext+1
-  - [ ] YAAT-1656 Detect at sherpa engine load that ONNX Runtime fell back from GPU to CPU, and show why · release vNext
   - [ ] YAAT-1665 Let the user cancel a GPU runtime removal scheduled for the next start
   - [ ] YAAT-1694 Speech settings: show a failed model download and word the restart note by direction
   - [ ] YAAT-1606 CoreML provider for macOS STT
@@ -132,10 +128,20 @@
 - [ ] YAAT-1700 Speech Debug: say nothing runs while the model is missing, and probe n-best off the UI thread
 - [ ] YAAT-1705 Make BuildSpeechContext's contextAircraft required and split the method under 100 lines
 - [ ] YAAT-1708 Accurate STT follow-ups: stamp the mode on the hypotheses, split ProcessPipelineAsync, cancel and SayAgain tests
+- [ ] YAAT-1709 Accurate STT: say again on a near-tie between two room callsigns, and when a lower n-best entry disagrees with hypothesis 0
+- [ ] YAAT-1710 Accurate STT in solo training: prefer aircraft on frequency as callsign candidates
+- [ ] YAAT-1711 Accurate STT: handle a restated callsign (United thirty-one United)
+- [ ] YAAT-1712 Accurate STT context: satellite-airport assigned runways and an ARTCC-sized radius
+- [ ] YAAT-1713 Accurate STT: say when a two-addressee command was staged for only one of them
+- [ ] YAAT-1715 Say what to do when Enter is blocked on a say-again transcript
+- [ ] YAAT-1716 Test that a later speech result clears a staged say-again transcript
+- [ ] YAAT-1718 Sandbox --corpus-wer peak RAM is wrong on macOS (PeakWorkingSet64 below the pre-load working set)
+- [ ] YAAT-1719 Style a speech-model GPU fallback as a warning in Settings > Speech
+- [ ] YAAT-1720 Warm the GPU memory probe at startup so the first CUDA speech load doesn't pay ~2 s
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (6/49 done)
+### 1 Defects (6/50 done)
 - [ ] YAAT-56 Fail closed when CROSS runs with no cached ground layout
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
@@ -179,8 +185,9 @@
 - [ ] YAAT-1637 Judge a crossing's tail past the far bar along the line flown into it, not the near-to-far bar bearing · release vNext+1
 - [ ] YAAT-1657 Keep the hold when a CTO at a taxiway hold short is refused after its implicit taxi installed
 - [ ] YAAT-1672 Check whether ReaimAtChangedHoldShort flags a hold short unable with no unable call
+- [ ] YAAT-1714 A TAXI ending at the far-side bar of a crossed runway assigns that runway for departure
 
-### 2 Refinements and rulings (0/14 done)
+### 2 Refinements and rulings (0/15 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
 - [ ] YAAT-1407 Key the snapped-bar escape ceiling on the same taxiway's farthest painted bar, not the runway's · release vNext+2
 - [ ] YAAT-755 Use one readback for an aircraft stopped over a runway's hold line
@@ -195,6 +202,7 @@
 - [ ] YAAT-1616 Line the arc approach leg up on the taxiway at the bar instead of a skewed chord
 - [ ] YAAT-1620 Follow-ups from the straight-over crossing reviews: OAK D nose stops short, repeated layout warning, unflyable-chord reply
 - [ ] YAAT-1649 TAXI from a destination-runway bar: decide the nose-past-the-bar case and fix two misleading refusals · release vNext+2
+- [ ] YAAT-1717 Say so when a taxi or CROSS clearance drops a stored takeoff clearance
 
 ### 3 Hygiene and tests (0/11 done)
 - [ ] YAAT-812 Test the merge-hold ready-to-taxi and route-incomplete calls through HoldingShortPhase
