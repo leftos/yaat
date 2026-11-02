@@ -1,0 +1,219 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.SpeechBenchmarkWindow"
+  x:DataType="vm:SpeechBenchmarkViewModel"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Speech benchmark"
+  Background="#1E1E1E"
+  Width="900"
+  Height="520"
+  MinWidth="760"
+  MinHeight="360"
+  CanResize="True"
+>
+  <Window.Styles>
+    <Style Selector="TextBlock.subtle">
+      <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.warning">
+      <Setter Property="Foreground" Value="Orange" />
+    </Style>
+    <Style Selector="TextBlock.message">
+      <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.message.failed">
+      <Setter Property="Foreground" Value="Orange" />
+    </Style>
+    <Style Selector="Grid.greyed">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
+    <Style Selector="Border.reference">
+      <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
+      <Setter Property="Opacity" Value="0.15" />
+    </Style>
+    <Style Selector="TextBlock.figure">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="12" IsEnabled="{Binding !IsTransitioning}">
+    <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" Spacing="4">
+      <StackPanel x:Name="Footer" Spacing="4" IsVisible="{Binding !IsAskingToCancel}">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+            <Button x:Name="ApplyButton" Content="Apply" Classes="accent" Command="{Binding ApplyCommand}" />
+            <Button x:Name="CloseButton" Content="Close" />
+          </StackPanel>
+          <TextBlock x:Name="SelectionText" Text="{Binding SelectionText}" Classes="subtle" VerticalAlignment="Center" />
+        </DockPanel>
+        <TextBlock
+          x:Name="RestartNote"
+          Text="{Binding RestartNote}"
+          Classes="warning"
+          HorizontalAlignment="Right"
+          IsVisible="{Binding RestartNote, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
+      </StackPanel>
+      <DockPanel x:Name="AskBar" IsVisible="{Binding IsAskingToCancel}">
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+          <Button x:Name="CancelRunButton" Content="Cancel the run" Classes="accent" />
+          <Button x:Name="KeepRunningButton" Content="Keep running" />
+        </StackPanel>
+        <TextBlock Text="Cancel the run?" VerticalAlignment="Center" />
+      </DockPanel>
+      <TextBlock
+        x:Name="ErrorText"
+        Text="{Binding ErrorText}"
+        Foreground="#FF8080"
+        TextWrapping="Wrap"
+        IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}"
+      />
+    </StackPanel>
+
+    <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8">
+      <TextBlock x:Name="IntroText" Text="{Binding IntroText}" TextWrapping="Wrap" IsVisible="{Binding ShowsIntro}" />
+      <TextBlock x:Name="PushToTalkNote" Text="{Binding PushToTalkNote}" Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding !IsBusy}" />
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button x:Name="RunButton" Content="{Binding RunButtonText}" Classes="accent" Command="{Binding RunCommand}" IsVisible="{Binding !IsBusy}" />
+        <Button x:Name="CancelButton" Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock x:Name="StatusText" Text="{Binding StatusText}" Classes="subtle" />
+          <TextBlock Text=", " Classes="subtle" IsVisible="{Binding FailedText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <TextBlock
+            x:Name="FailedText"
+            Text="{Binding FailedText}"
+            Classes="warning"
+            IsVisible="{Binding FailedText, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+          <TextBlock
+            x:Name="FailedDetails"
+            Text=" (details in yaat-client.log)"
+            Classes="subtle"
+            IsVisible="{Binding FailedText, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+          <TextBlock x:Name="RunsText" Text="{Binding RunsText}" Classes="subtle" IsVisible="{Binding ShowsRunsText}" />
+        </StackPanel>
+      </StackPanel>
+      <ProgressBar
+        x:Name="RunProgress"
+        Minimum="0"
+        Maximum="{Binding ProgressMaximum}"
+        Value="{Binding ProgressValue}"
+        Height="6"
+        IsVisible="{Binding IsRunning}"
+      />
+      <ProgressBar x:Name="TransitionProgress" IsIndeterminate="True" Height="6" IsVisible="{Binding IsTransitioning}" />
+      <TextBlock
+        x:Name="GpuRuntimeNote"
+        Text="{Binding GpuRuntimeNote}"
+        Classes="subtle"
+        TextWrapping="Wrap"
+        IsVisible="{Binding ShowsGpuRuntimeNote}"
+      />
+    </StackPanel>
+
+    <Panel>
+      <TextBlock
+        x:Name="EmptyText"
+        Text="No results yet."
+        Classes="subtle"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        IsVisible="{Binding ShowsEmpty}"
+      />
+      <DockPanel IsVisible="{Binding !ShowsEmpty}">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="28,190,76,60,64,70,70,80,80,64,84" RowDefinitions="Auto,Auto">
+          <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="9" Grid.ColumnSpan="2" Classes="reference" />
+          <TextBlock Grid.Row="0" Grid.Column="4" Grid.ColumnSpan="5" Text="This machine" Classes="subtle" HorizontalAlignment="Center" />
+          <TextBlock Grid.Row="0" Grid.Column="9" Grid.ColumnSpan="2" Text="Reference (CI)" Classes="subtle" HorizontalAlignment="Center" />
+          <TextBlock Grid.Row="1" Grid.Column="1" Text="Model" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Grid.Column="2" Text="Mode" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Grid.Column="3" Text="Device" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Grid.Column="4" Text="Load" Classes="figure" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Grid.Column="5" Text="p50 ms" Classes="figure" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Grid.Column="6" Text="p90 ms" Classes="figure" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Grid.Column="7" Text="Peak RAM" Classes="figure" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Grid.Column="8" Text="Peak VRAM" Classes="figure" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Grid.Column="9" Text="WER" Classes="figure" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Grid.Column="10" Text="Callsigns" Classes="figure" FontWeight="SemiBold" />
+        </Grid>
+        <ScrollViewer>
+          <ItemsControl x:Name="RowsControl" ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:SpeechBenchmarkRowViewModel">
+                <Grid ColumnDefinitions="28,190,76,60,64,70,70,80,80,64,84" MinHeight="26" Classes.greyed="{Binding IsGreyed}">
+                  <Border Grid.Column="9" Grid.ColumnSpan="2" Classes="reference" />
+                  <RadioButton
+                    Grid.Column="0"
+                    GroupName="SpeechBenchmarkRow"
+                    IsChecked="{Binding IsSelected}"
+                    IsEnabled="{Binding IsPickable}"
+                    IsVisible="{Binding !$parent[ItemsControl].((vm:SpeechBenchmarkViewModel)DataContext).IsBusy}"
+                  />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ModelText}" />
+                    <Border Background="#2E4A6E" CornerRadius="6" Padding="5,0" IsVisible="{Binding IsCurrent}">
+                      <TextBlock Text="current" FontSize="10" VerticalAlignment="Center" />
+                    </Border>
+                  </StackPanel>
+                  <TextBlock Grid.Column="2" Text="{Binding ModeText}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="{Binding DeviceText}" VerticalAlignment="Center" />
+                  <TextBlock
+                    Grid.Column="4"
+                    Grid.ColumnSpan="5"
+                    Text="{Binding MessageText}"
+                    Classes="message"
+                    Classes.failed="{Binding IsFailed}"
+                    VerticalAlignment="Center"
+                    TextTrimming="CharacterEllipsis"
+                    IsVisible="{Binding MessageText, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  />
+                  <TextBlock
+                    Grid.Column="4"
+                    Text="{Binding LoadText}"
+                    Classes="figure"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding MessageText, Converter={x:Static ObjectConverters.IsNull}}"
+                  />
+                  <TextBlock
+                    Grid.Column="5"
+                    Text="{Binding P50Text}"
+                    Classes="figure"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding MessageText, Converter={x:Static ObjectConverters.IsNull}}"
+                  />
+                  <TextBlock
+                    Grid.Column="6"
+                    Text="{Binding P90Text}"
+                    Classes="figure"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding MessageText, Converter={x:Static ObjectConverters.IsNull}}"
+                  />
+                  <TextBlock
+                    Grid.Column="7"
+                    Text="{Binding RamText}"
+                    Classes="figure"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding MessageText, Converter={x:Static ObjectConverters.IsNull}}"
+                  />
+                  <TextBlock
+                    Grid.Column="8"
+                    Text="{Binding VramText}"
+                    Classes="figure"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding MessageText, Converter={x:Static ObjectConverters.IsNull}}"
+                  />
+                  <TextBlock Grid.Column="9" Text="{Binding WerText}" Classes="figure" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="10" Text="{Binding RecallText}" Classes="figure" VerticalAlignment="Center" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Panel>
+  </DockPanel>
+</Window>

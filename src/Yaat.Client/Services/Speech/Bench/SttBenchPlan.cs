@@ -12,12 +12,13 @@ public sealed record SttBenchPlanRow(SttEngine Engine, SttMode Mode, SttDevice D
 /// <summary>Works out which rows a benchmark run holds.</summary>
 public static class SttBenchPlan
 {
-    private const string NoGpuRuntimeReason = "needs the GPU runtime (not installed)";
+    /// <summary>Why a GPU row is not run on a machine without the GPU runtime.</summary>
+    public const string NoGpuRuntimeReason = "needs the GPU runtime (not installed)";
     private const string NoAccurateReason = "Accurate mode cannot run on this machine";
 
     /// <summary>
-    /// Every downloaded rasr model, in the order given, by Accurate then Fast, by CPU then GPU. A row that cannot run stays
-    /// in the list with its reason. Whisper is never benchmarked, so it gets no row.
+    /// Every downloaded rasr model, in the order given, by CPU then GPU, and on each device by Accurate then Fast. A row that
+    /// cannot run stays in the list with its reason. Whisper is never benchmarked, so it gets no row.
     /// </summary>
     /// <param name="models">The downloaded models, in manifest order.</param>
     /// <param name="accurateUnavailableReason">Why Accurate mode cannot run; null when it can.</param>
@@ -31,9 +32,9 @@ public static class SttBenchPlan
         var rows = new List<SttBenchPlanRow>();
         foreach (SttEngine engine in models.Where(model => model.ManifestModelId() is not null))
         {
-            foreach (SttMode mode in (SttMode[])[SttMode.Accurate, SttMode.Fast])
+            foreach (SttDevice device in (SttDevice[])[SttDevice.Cpu, SttDevice.Gpu])
             {
-                foreach (SttDevice device in (SttDevice[])[SttDevice.Cpu, SttDevice.Gpu])
+                foreach (SttMode mode in (SttMode[])[SttMode.Accurate, SttMode.Fast])
                 {
                     string? modeReason = (mode == SttMode.Accurate) ? accurateUnavailableReason : null;
                     string? deviceReason = (device == SttDevice.Gpu) ? gpuUnavailableReason : null;

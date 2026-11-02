@@ -20,12 +20,12 @@ public sealed class SttBenchPlanTests
         SttBenchPlanRow[] expected =
         [
             new(SttEngine.RasrV2Fp32, SttMode.Accurate, SttDevice.Cpu, null),
-            new(SttEngine.RasrV2Fp32, SttMode.Accurate, SttDevice.Gpu, null),
             new(SttEngine.RasrV2Fp32, SttMode.Fast, SttDevice.Cpu, null),
+            new(SttEngine.RasrV2Fp32, SttMode.Accurate, SttDevice.Gpu, null),
             new(SttEngine.RasrV2Fp32, SttMode.Fast, SttDevice.Gpu, null),
             new(SttEngine.RasrV2Int8, SttMode.Accurate, SttDevice.Cpu, null),
-            new(SttEngine.RasrV2Int8, SttMode.Accurate, SttDevice.Gpu, null),
             new(SttEngine.RasrV2Int8, SttMode.Fast, SttDevice.Cpu, null),
+            new(SttEngine.RasrV2Int8, SttMode.Accurate, SttDevice.Gpu, null),
             new(SttEngine.RasrV2Int8, SttMode.Fast, SttDevice.Gpu, null),
         ];
         Assert.Equal(expected, rows);
@@ -64,7 +64,7 @@ public sealed class SttBenchPlanTests
     {
         IReadOnlyList<SttBenchPlanRow> rows = SttBenchPlan.Build([SttEngine.RasrV2Fp32], AccurateReason, GpuReason);
 
-        Assert.Equal([AccurateReason, AccurateReason, null, GpuReason], rows.Select(row => row.SkipReason));
+        Assert.Equal([AccurateReason, null, AccurateReason, GpuReason], rows.Select(row => row.SkipReason));
     }
 
     [Fact]

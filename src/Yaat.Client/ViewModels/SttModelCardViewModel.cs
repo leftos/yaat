@@ -161,7 +161,7 @@ public sealed partial class SttModelCardViewModel : ObservableObject, IDisposabl
     internal static SttMode EffectiveMode(SttMode saved, string? accurateUnavailableReason) =>
         ((saved == SttMode.Accurate) && (accurateUnavailableReason is not null)) ? SttMode.Fast : saved;
 
-    internal static string TitleOf(SttEngine engine) =>
+    public static string TitleOf(SttEngine engine) =>
         engine switch
         {
             SttEngine.RasrV2Fp32 => "rasr-parakeet v2 · fp32",
