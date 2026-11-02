@@ -468,6 +468,56 @@ public class ClimbViaTopAltitudeTests
         Assert.Null(ac.Targets.AssignedAltitude);
     }
 
+    /// <summary>
+    /// A CVIA given inside the SID's climb window cancels a speed an earlier CFIX assigned, so it does not outlive the
+    /// window (7110.65 5-7-1). The CFIX fix is not on the pending route in the window, so its crossing is appended to the
+    /// live route and dropped at handover; the via clearance cancels the assigned speed, and the fix carries its
+    /// published restriction with no speed reverts.
+    /// </summary>
+    [Fact]
+    public void ClimbVia_InTheClimbWindow_CancelsAnEarlierCrossFixSpeedPastTheWindow()
+    {
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = Assert.IsType<DepartureProcedurePhase>(Assert.IsType<PhaseList>(ac.Phases).CurrentPhase);
+
+        string fix = procedure.PostRoute[0].Name;
+        CifpSpeedRestriction? published = procedure.PostRoute[0].SpeedRestriction;
+        _output.WriteLine($"fix={fix} published={published}");
+
+        Dispatch(ac, $"CFIX {fix} A100 230");
+        Assert.Equal(230, ac.Targets.AssignedSpeed);
+
+        Dispatch(ac, "CVIA");
+
+        int elapsed = 0;
+        while ((elapsed < 600) && (ac.Phases?.CurrentPhase is DepartureProcedurePhase))
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+            FlightPhysics.Update(ac, 1.0);
+            elapsed++;
+        }
+
+        Assert.False(
+            ac.Phases?.CurrentPhase is DepartureProcedurePhase,
+            $"still under the departure procedure after {elapsed} s: alt={ac.Altitude:F0} tgtAlt={ac.Targets.TargetAltitude:F0}"
+        );
+        Assert.Null(ac.Targets.AssignedSpeed);
+
+        NavigationTarget? routed = ac.Targets.NavigationRoute.Find(f => f.Name == fix);
+        if (routed is null)
+        {
+            _output.WriteLine($"{fix} is not on the route after the procedure completed");
+        }
+        else
+        {
+            Assert.Equal(published, routed.SpeedRestriction);
+            Assert.Null(routed.SpeedTransmissionId);
+            Assert.Null(routed.RevertSpeed);
+            Assert.Null(routed.RevertAssignedSpeed);
+        }
+    }
+
     [Theory]
     [InlineData(true, "CFIX PORTE A120, CVIA")]
     [InlineData(false, "CFIX PORTE A120, CVIA")]
