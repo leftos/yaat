@@ -1169,6 +1169,10 @@ public partial class SettingsViewModel : ObservableObject
         // A manifest that could not be read leaves no rasr card to select; the saved engine then stays as it is.
         SttEngine sttEngine = SelectedSttModelCard?.Engine ?? _preferences.SttEngine;
         LastApplyChangedSttEngineOrMode = (sttEngine != _preferences.SttEngine) || (SelectedSttMode != _preferences.SttMode);
+        LastApplyChangedSpeechModels =
+            (LlmModelPath != _preferences.LlmModelPath)
+            || (LlmGpuLayers != _preferences.LlmGpuLayers)
+            || ((sttEngine == SttEngine.Whisper) && (WhisperModelSize != _preferences.WhisperModelSize));
         _preferences.SetSpeechSettings(
             SpeechEnabled,
             WhisperModelSize,
@@ -2462,6 +2466,12 @@ public partial class SettingsViewModel : ObservableObject
 
     /// <summary>Whether the last Apply changed the saved speech-recognition engine or mode, so the host swaps the engine.</summary>
     public bool LastApplyChangedSttEngineOrMode { get; private set; }
+
+    /// <summary>
+    /// Whether the last Apply changed a model the speech pipeline has to load: the LLM's path or GPU layers, or the Whisper size
+    /// while Whisper is the engine. The window warms them with no engine swap.
+    /// </summary>
+    public bool LastApplyChangedSpeechModels { get; private set; }
 
     /// <summary>Whether the Whisper size picker shows: only while the Whisper card is selected.</summary>
     public bool IsWhisperSizePickerVisible => SelectedSttModelCard?.IsWhisper == true;

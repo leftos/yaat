@@ -3386,6 +3386,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         // Pilot voice may have been switched on or its voice pack installed.
         vm.RefreshPilotVoiceWarning();
+        vm.WarmPilotVoiceIfDue();
 
         return;
 
@@ -3402,6 +3403,17 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 _ = vm.SwapSttEngineAsync()
                     .ContinueWith(
                         t => Log.LogError(t.Exception, "Swapping in the speech-recognition engine Settings applied failed"),
+                        CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnFaulted,
+                        TaskScheduler.Default
+                    );
+            }
+            else if (settingsVm.LastApplyChangedSpeechModels)
+            {
+                // Fire-and-forget: the warm loads a model for seconds while the mic shows Warming.
+                _ = vm.WarmSpeechModelsAsync()
+                    .ContinueWith(
+                        t => Log.LogError(t.Exception, "Warming the speech models Settings applied failed"),
                         CancellationToken.None,
                         TaskContinuationOptions.OnlyOnFaulted,
                         TaskScheduler.Default
@@ -3467,6 +3479,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         // Pilot voice may have been switched on or its voice pack installed.
         vm.RefreshPilotVoiceWarning();
+        vm.WarmPilotVoiceIfDue();
     }
 
     private void RestoreSettingsPreview(MainViewModel vm, SettingsPreviewSnapshot snapshot)

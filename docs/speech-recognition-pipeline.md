@@ -77,8 +77,9 @@ depend on LM-Kit and PortAudio native libraries.
   load. Fires `StatusChanged(Warming)` on entry and returns to `Idle`
   unless a user PTT raced it to another state. It first runs the caller's
   `prepareEngine` (a failure is logged and the engine in place warms up),
-  and skips the STT warm-up when the chosen model is not downloaded.
-- **Warm-up entry points:** the warm-up itself is `SpeechRecognitionService.WarmAsync`, entered with the status already `Warming`. `PrewarmAsync` sets `Warming` and calls it; `TryBeginWarming` is the other way in, moving the status to `Warming` only from `Idle`, `ModelMissing` or `Error`, atomically with the check, and returning false while the mic is busy.
+  and skips the STT warm-up when the chosen model is not downloaded. The boot prewarm runs only when `SpeechEnabled` is on.
+- **Warm after Settings Apply:** changing the LLM path, the LLM GPU layers, or the Whisper size while Whisper is the engine warms the models after Apply with no engine swap (`SettingsViewModel.LastApplyChangedSpeechModels`, `MainViewModel.WarmSpeechModelsAsync`). It goes through a second `SttEngineSwapScheduler` whose swap does nothing, so it waits for the mic to rest and runs under `Warming`; with speech off or a benchmark running it loads nothing.
+- **Warm-up entry points:** the warm-up itself is `SpeechRecognitionService.WarmAsync`, entered with the status already `Warming`. `PrewarmAsync` sets `Warming` and calls it; `TryBeginWarming` is the other way in, moving the status to `Warming` only from `Idle`, `ModelMissing` or `Error`, atomically with the check, and returning false while the mic is busy. `SttEngineSwapScheduler.RequestAsync` always runs on the thread pool, since a warm can block for a whole native load. A swap queued while the mic is busy that finds speech off when it runs does an unloaded swap (`SttEngineSwapScheduler.ChooseBySpeechSetting`).
 
 ## STT Stage
 

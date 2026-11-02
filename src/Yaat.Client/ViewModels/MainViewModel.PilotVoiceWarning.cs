@@ -1,5 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Services;
+using Yaat.Client.Services.Speech.Bench;
 
 namespace Yaat.Client.ViewModels;
 
@@ -43,6 +46,52 @@ public partial class MainViewModel
 
     /// <summary>Sets <see cref="NoPilotVoiceInSolo"/> from its two inputs.</summary>
     public void EvaluatePilotVoiceWarning(bool soloSession, bool pilotVoiceUsable) => NoPilotVoiceInSolo = soloSession && !pilotVoiceUsable;
+
+    /// <summary>
+    /// Whether a voice will speak, so the voice should be loaded now: pilot voice is on, solo training is on by the preference or
+    /// in the session, the pack is installed, and no speech benchmark is running. The load needs no audio device, so none is probed.
+    /// </summary>
+    public static bool ShouldWarmPilotVoice(bool pilotVoiceEnabled, bool soloPreference, bool sessionSolo, bool packFound, SttBenchState bench) =>
+        pilotVoiceEnabled && (soloPreference || sessionSolo) && packFound && (bench == SttBenchState.Idle);
+
+    /// <summary>
+    /// Loads the voice on the thread pool when <see cref="ShouldWarmPilotVoice"/> holds. Safe to call repeatedly: a loaded voice
+    /// loads nothing, and one already in memory stays there when the pack goes away or a benchmark starts.
+    /// </summary>
+    public void WarmPilotVoiceIfDue()
+    {
+        if (AppLifetime.IsShuttingDown)
+        {
+            return;
+        }
+
+        bool enabled = _preferences.PilotVoiceEnabled;
+        bool soloPreference = _preferences.SoloTrainingMode;
+        bool sessionSolo = SessionSoloTrainingMode;
+        SttBenchState bench = SttBench.State;
+
+        // Finding the pack walks the disk, so it runs off the UI thread and only once the other inputs allow a warm.
+        if (!ShouldWarmPilotVoice(enabled, soloPreference, sessionSolo, packFound: true, bench))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+            {
+                bool packFound = PilotVoicePack.FindInstalledDirectory() is not null;
+                // The live state: a run may have started while the pack was being found.
+                if (ShouldWarmPilotVoice(enabled, soloPreference, sessionSolo, packFound, SttBench.State))
+                {
+                    await _pilotVoice.WarmAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+            })
+            .ContinueWith(
+                t => _log.LogError(t.Exception, "Warming the pilot voice failed"),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default
+            );
+    }
 
     /// <summary>Whether a resume should stop at the dialog: the warning holds and the student has not started anyway this session.</summary>
     public bool ShouldInterceptResume() => NoPilotVoiceInSolo && !_pilotVoiceWarningAcknowledged;

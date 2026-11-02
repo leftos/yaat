@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 
@@ -23,6 +24,26 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 public class MainViewModelPilotVoiceWarningTests
 {
     private const string Sentinel = "sentinel";
+
+    /// <summary>A voice warms when it will speak: pilot voice on, solo by the preference or the session, the pack found, no benchmark run.</summary>
+    [Theory]
+    [InlineData(true, true, true, true, SttBenchState.Idle, true)]
+    [InlineData(true, true, false, true, SttBenchState.Idle, true)]
+    [InlineData(true, false, true, true, SttBenchState.Idle, true)]
+    [InlineData(false, true, true, true, SttBenchState.Idle, false)]
+    [InlineData(true, false, false, true, SttBenchState.Idle, false)]
+    [InlineData(true, true, true, false, SttBenchState.Idle, false)]
+    [InlineData(true, true, true, true, SttBenchState.Unloading, false)]
+    [InlineData(true, true, true, true, SttBenchState.Running, false)]
+    [InlineData(true, true, true, true, SttBenchState.Reloading, false)]
+    public void ShouldWarmPilotVoice_NeedsEveryInput(
+        bool pilotVoiceEnabled,
+        bool soloPreference,
+        bool sessionSolo,
+        bool packFound,
+        SttBenchState bench,
+        bool expected
+    ) => Assert.Equal(expected, MainViewModel.ShouldWarmPilotVoice(pilotVoiceEnabled, soloPreference, sessionSolo, packFound, bench));
 
     /// <summary>Counts how often the dialog is shown and answers every time with <see cref="Answer"/>.</summary>
     private sealed class PromptStub(PilotVoiceWarningChoice answer)

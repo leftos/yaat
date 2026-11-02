@@ -116,6 +116,92 @@ public sealed class SttEngineSwapSchedulerTests
         Assert.Equal(1, Volatile.Read(ref swaps));
     }
 
+    [Fact]
+    public async Task AWarmOnlyScheduler_WaitsForTheMicToRestAndWarms()
+    {
+        var engine = new WarmCountingEngine();
+        using SpeechRecognitionService service = NewService(SpeechOn(), new StartingAudio(), engine);
+        var scheduler = new SttEngineSwapScheduler(service, () => Task.CompletedTask);
+        Assert.True(service.StartPtt());
+
+        Task request = scheduler.RequestAsync();
+
+        Assert.Equal(SpeechStatus.Recording, service.Status);
+        Assert.Equal(0, Volatile.Read(ref engine.Warms));
+
+        service.StopPtt();
+        await request.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, Volatile.Read(ref engine.Warms));
+    }
+
+    [Fact]
+    public async Task SwapQueuedWhileRecording_WithSpeechSwitchedOff_LoadsNoModel()
+    {
+        UserPreferences preferences = SpeechOn();
+        using SpeechRecognitionService service = NewService(preferences, new StartingAudio(), new SilentEngine());
+        int loadingSwaps = 0;
+        int unloadedSwaps = 0;
+        var scheduler = new SttEngineSwapScheduler(
+            service,
+            SttEngineSwapScheduler.ChooseBySpeechSetting(
+                () => preferences.SpeechEnabled,
+                () => Task.FromResult(Interlocked.Increment(ref loadingSwaps)),
+                () => Task.FromResult(Interlocked.Increment(ref unloadedSwaps))
+            )
+        );
+        Assert.True(service.StartPtt());
+        Task request = scheduler.RequestAsync();
+
+        preferences.SetSpeechEnabled(false);
+        service.StopPtt();
+        await request.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, Volatile.Read(ref loadingSwaps));
+        Assert.Equal(1, Volatile.Read(ref unloadedSwaps));
+    }
+
+    [Fact]
+    public async Task RequestedWithSpeechOn_RunsTheLoadingSwap()
+    {
+        UserPreferences preferences = SpeechOn();
+        using SpeechRecognitionService service = NewService(preferences, new StartingAudio(), new SilentEngine());
+        int loadingSwaps = 0;
+        int unloadedSwaps = 0;
+        var scheduler = new SttEngineSwapScheduler(
+            service,
+            SttEngineSwapScheduler.ChooseBySpeechSetting(
+                () => preferences.SpeechEnabled,
+                () => Task.FromResult(Interlocked.Increment(ref loadingSwaps)),
+                () => Task.FromResult(Interlocked.Increment(ref unloadedSwaps))
+            )
+        );
+
+        await scheduler.RequestAsync().WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, Volatile.Read(ref loadingSwaps));
+        Assert.Equal(0, Volatile.Read(ref unloadedSwaps));
+    }
+
+    /// <summary>
+    /// The engine blocks until the test releases it, which it can only do once the request has returned, so a request that runs
+    /// the warm on the caller's thread holds its caller for the load. The pipeline logs a warm-up failure, so the engine records
+    /// the hang rather than relying on its throw reaching the test.
+    /// </summary>
+    [Fact]
+    public async Task ARequest_WithTheMicResting_ReturnsBeforeTheWarmLoads()
+    {
+        using var engine = new BlockingWarmEngine();
+        using SpeechRecognitionService service = NewService(SpeechOn(), new StartingAudio(), engine);
+        var scheduler = new SttEngineSwapScheduler(service, () => Task.CompletedTask);
+
+        Task request = scheduler.RequestAsync();
+        engine.Release();
+        await request.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+
+        Assert.False(engine.Hung);
+    }
+
     private static UserPreferences SpeechOn()
     {
         var preferences = new UserPreferences();
@@ -166,6 +252,52 @@ public sealed class SttEngineSwapSchedulerTests
 
         public Task<SttHypotheses> TranscribeAsync(float[] samples16k, string? prompt, CancellationToken ct) =>
             Task.FromException<SttHypotheses>(new InvalidOperationException("transcription failed"));
+
+        public void Dispose() { }
+    }
+
+    /// <summary>An engine whose warm-up blocks its thread synchronously, as a native model load does, until it is released.</summary>
+    private sealed class BlockingWarmEngine : ISttEngine
+    {
+        private readonly ManualResetEventSlim _released = new();
+
+        public bool Hung { get; private set; }
+
+        public TranscriptionMode Mode => TranscriptionMode.Fast;
+
+        public void Release() => _released.Set();
+
+        public Task WarmUpAsync(CancellationToken ct)
+        {
+            if (!_released.Wait(HangGuard, ct))
+            {
+                Hung = true;
+                throw new TimeoutException("hung: the warm-up was never released");
+            }
+            return Task.CompletedTask;
+        }
+
+        public Task<SttHypotheses> TranscribeAsync(float[] samples16k, string? prompt, CancellationToken ct) =>
+            Task.FromResult(SttHypotheses.Single(null, null, false));
+
+        public void Dispose() => _released.Dispose();
+    }
+
+    /// <summary>An engine that counts its warm-ups.</summary>
+    private sealed class WarmCountingEngine : ISttEngine
+    {
+        public int Warms;
+
+        public TranscriptionMode Mode => TranscriptionMode.Fast;
+
+        public Task WarmUpAsync(CancellationToken ct)
+        {
+            Interlocked.Increment(ref Warms);
+            return Task.CompletedTask;
+        }
+
+        public Task<SttHypotheses> TranscribeAsync(float[] samples16k, string? prompt, CancellationToken ct) =>
+            Task.FromResult(SttHypotheses.Single(null, null, false));
 
         public void Dispose() { }
     }

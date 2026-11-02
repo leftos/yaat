@@ -6,7 +6,8 @@ namespace Yaat.Client.Services.Speech;
 /// so the transmission is not lost. The move into Warming is checked and made atomically
 /// (<see cref="SpeechRecognitionService.TryBeginWarming"/>), so a push-to-talk that beats a deferred swap keeps recording
 /// and the swap waits again. Requests made while busy share one pending swap (the swap reads the latest preferences when
-/// it runs). With speech switched off there is no mic status to show, so a swap only swaps.
+/// it runs). With speech switched off there is no mic status to show, so the swap runs with no warm-up; a request can outlive
+/// the setting it was made under, so a swap that loads a model decides when it runs (<see cref="ChooseBySpeechSetting"/>).
 /// </summary>
 public sealed class SttEngineSwapScheduler
 {
@@ -26,6 +27,13 @@ public sealed class SttEngineSwapScheduler
         _swap = swap;
         speech.StatusChanged += OnStatusChanged;
     }
+
+    /// <summary>A swap that reads the speech setting when it runs, not when it was requested.</summary>
+    /// <param name="speechEnabled">Reads the current setting.</param>
+    /// <param name="withSpeechOn">Swaps in an engine that loads its model.</param>
+    /// <param name="withSpeechOff">Swaps in an engine that has not loaded its model.</param>
+    public static Func<Task> ChooseBySpeechSetting(Func<bool> speechEnabled, Func<Task> withSpeechOn, Func<Task> withSpeechOff) =>
+        () => speechEnabled() ? withSpeechOn() : withSpeechOff();
 
     private enum Start
     {
@@ -50,7 +58,8 @@ public sealed class SttEngineSwapScheduler
                 return _pending.Task;
             }
         }
-        return Run(start);
+        // Off the caller's thread: a warm can block for a whole native model load, and the caller may be the UI thread.
+        return Task.Run(() => Run(start));
     }
 
     /// <summary>Called under <see cref="_gate"/>; with speech on, moves the mic into Warming when it rests.</summary>

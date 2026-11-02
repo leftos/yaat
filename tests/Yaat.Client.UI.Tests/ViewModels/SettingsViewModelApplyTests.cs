@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Xunit;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
@@ -64,6 +65,78 @@ public class SettingsViewModelApplyTests
         var stored = new UserPreferences();
         Assert.Equal(150, stored.SoloParkingInitialCallupRatePercent);
         Assert.Equal(35, stored.SoloArrivalGeneratorRatePercent);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void Apply_FlagsAnLlmPathChange()
+    {
+        var vm = new SettingsViewModel();
+
+        vm.LlmModelPath += ".other.gguf";
+        vm.ApplyCommand.Execute(null);
+
+        Assert.True(vm.LastApplyChangedSpeechModels);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void Apply_FlagsAnLlmGpuLayersChange()
+    {
+        var vm = new SettingsViewModel();
+
+        vm.LlmGpuLayers += 1;
+        vm.ApplyCommand.Execute(null);
+
+        Assert.True(vm.LastApplyChangedSpeechModels);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void Apply_FlagsAWhisperSizeChangeOnlyWhileWhisperIsTheEngine()
+    {
+        SaveSttEngine(SttEngine.RasrV2Fp32);
+        var rasr = new SettingsViewModel();
+
+        rasr.WhisperModelSize += "-other";
+        rasr.ApplyCommand.Execute(null);
+
+        Assert.False(rasr.LastApplyChangedSpeechModels);
+
+        SaveSttEngine(SttEngine.Whisper);
+        var whisper = new SettingsViewModel();
+
+        whisper.WhisperModelSize += "-other";
+        whisper.ApplyCommand.Execute(null);
+
+        Assert.True(whisper.LastApplyChangedSpeechModels);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void Apply_WithNoSpeechChange_FlagsNothing()
+    {
+        var vm = new SettingsViewModel();
+
+        vm.ApplyCommand.Execute(null);
+        Assert.False(vm.LastApplyChangedSpeechModels);
+
+        vm.LlmGpuLayers += 1;
+        vm.ApplyCommand.Execute(null);
+        vm.ApplyCommand.Execute(null);
+
+        Assert.False(vm.LastApplyChangedSpeechModels);
+    }
+
+    private static void SaveSttEngine(SttEngine engine)
+    {
+        var preferences = new UserPreferences();
+        preferences.SetSpeechSettings(
+            preferences.SpeechEnabled,
+            preferences.WhisperModelSize,
+            preferences.LlmModelPath,
+            preferences.LlmGpuLayers,
+            preferences.AutoFocusInputAfterSpeech,
+            engine,
+            preferences.SttMode,
+            preferences.SttDevice
+        );
     }
 
     private static KeybindRow Row(SettingsViewModel vm, string id) => vm.KeybindRows.Single(r => r.Id == id);

@@ -1743,19 +1743,45 @@ public partial class MainViewModel : ObservableObject
     /// <see cref="SpeechStatus.ModelMissing"/>. A swap requested during a push-to-talk waits until the mic rests again (Idle,
     /// ModelMissing or Error; <see cref="SttEngineSwapScheduler"/>), and only then enters Warming
     /// (<see cref="SpeechRecognitionService.TryBeginWarming"/>). With speech off there is no mic status to show and nothing to
-    /// decode, so it swaps in an engine that has not loaded its model; turning speech on loads it.
+    /// decode, so it swaps in an engine that has not loaded its model, and a deferred swap that finds speech off by the time it
+    /// runs does the same; turning speech on loads it.
     /// </summary>
     public Task SwapSttEngineAsync() => _preferences.SpeechEnabled ? _sttSwapScheduler.RequestAsync() : SwapInUnloadedSttEngineAsync();
 
-    private Task SwapInUnloadedSttEngineAsync() =>
-        SttDownloads.TrackEngineLoadAsync(() =>
-            Task.Run(() =>
-                _sttEngine.SwapToLatestUnwarmedAsync(
-                    () => _sttSuspender.StandInWhileSuspended(() => Task.FromResult(CreateUnloadedSttEngine())),
-                    CancellationToken.None
+    /// <summary>
+    /// Warms the live engine and the LLM for the current preferences, with no engine swap, after a Settings change of a model the
+    /// engine in place reads when it warms. It waits for the mic to rest and runs under <see cref="SpeechStatus.Warming"/>
+    /// (<see cref="SttEngineSwapScheduler"/>). With speech off it loads nothing. During a benchmark run it loads nothing either:
+    /// the stand-in engine has no model and the LLM is held.
+    /// </summary>
+    public Task WarmSpeechModelsAsync() => _preferences.SpeechEnabled ? _speechModelWarmScheduler.RequestAsync() : Task.CompletedTask;
+
+    private async Task SwapInUnloadedSttEngineAsync()
+    {
+        await SttDownloads
+            .TrackEngineLoadAsync(() =>
+                Task.Run(() =>
+                    _sttEngine.SwapToLatestUnwarmedAsync(
+                        () => _sttSuspender.StandInWhileSuspended(() => Task.FromResult(CreateUnloadedSttEngine())),
+                        CancellationToken.None
+                    )
                 )
             )
-        );
+            .ConfigureAwait(false);
+
+        // Speech came on during the swap: its prewarm has already run, so nothing else replaces the unloaded engine.
+        if (_preferences.SpeechEnabled)
+        {
+            _ = _sttSwapScheduler
+                .RequestAsync()
+                .ContinueWith(
+                    t => _log.LogError(t.Exception, "Swapping in the engine after speech came on during an unloaded swap failed"),
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted,
+                    TaskScheduler.Default
+                );
+        }
+    }
 
     /// <summary>
     /// The engine the preferences name, with no native call. Probing the beam loads the model, so an accurate-mode rasr model
@@ -1773,6 +1799,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     private readonly SttEngineSwapScheduler _sttSwapScheduler;
+    private readonly SttEngineSwapScheduler _speechModelWarmScheduler;
     private readonly SttEngineSuspender _sttSuspender;
 
     /// <summary>The app-lifetime speech-recognition downloads Settings shows; a download keeps running after Settings closes.</summary>
@@ -1880,7 +1907,11 @@ public partial class MainViewModel : ObservableObject
             () => SttEngineFactory.IsModelReady(_preferences.SttEngine, SttModelInstaller.InstallRootDefault, sttManifestPath)
         );
         _speechService.StatusChanged += HandleSpeechServiceStatusChange;
-        _sttSwapScheduler = new SttEngineSwapScheduler(_speechService, ApplySttEngineAsync);
+        _sttSwapScheduler = new SttEngineSwapScheduler(
+            _speechService,
+            SttEngineSwapScheduler.ChooseBySpeechSetting(() => _preferences.SpeechEnabled, ApplySttEngineAsync, SwapInUnloadedSttEngineAsync)
+        );
+        _speechModelWarmScheduler = new SttEngineSwapScheduler(_speechService, () => Task.CompletedTask);
         _sttSuspender = new SttEngineSuspender(
             _sttEngine,
             SwapSttEngineAsync,
@@ -2061,6 +2092,10 @@ public partial class MainViewModel : ObservableObject
         _ = _vnasConfigService.InitializeAsync();
         CrcAliasLoad = LoadCrcAliasesAsync();
         _ = DelayedStartupUpdateCheckAsync();
+
+        // A warm is put off while a benchmark runs, so one is due when the run ends. Raised off the UI thread: only post.
+        SttBench.Changed += () => Dispatcher.UIThread.Post(WarmPilotVoiceIfDue);
+        WarmPilotVoiceIfDue();
     }
 
     /// <summary>
@@ -4352,6 +4387,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowSessionSoloAdvisorySettings));
         OnPropertyChanged(nameof(ShowSessionWorkedPositions));
         RefreshPilotVoiceWarning();
+        WarmPilotVoiceIfDue();
         if (!value)
         {
             CloseWorkedPositionsPrompt();

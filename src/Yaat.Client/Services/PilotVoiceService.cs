@@ -15,6 +15,10 @@ public sealed record PilotVoiceRequest(string Callsign, string Text, int Speaker
 public interface IPilotVoiceSynthesizer
 {
     bool IsAvailable { get; }
+
+    /// <summary>Loads the voice if it is not loaded; a missing pack leaves nothing cached, so a later call or a speak tries again.</summary>
+    Task WarmAsync(CancellationToken ct);
+
     Task SpeakAsync(PilotVoiceRequest request, CancellationToken ct);
 }
 
@@ -39,6 +43,25 @@ public sealed class PilotVoiceService : IAsyncDisposable
     }
 
     public bool IsAvailable => _synthesizer.IsAvailable;
+
+    /// <summary>
+    /// Loads the voice ahead of the first transmission. A failure is logged, not thrown: the first speak retries the load.
+    /// </summary>
+    public async Task WarmAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _synthesizer.WarmAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            Log.LogInformation("Pilot voice warm-up cancelled");
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Pilot voice warm-up failed; the first transmission retries the load");
+        }
+    }
 
     public void Enqueue(PilotTransmissionBroadcastDto dto, int volume, bool radioFxEnabled, double speechRate)
     {
@@ -96,21 +119,23 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
 
     private readonly SemaphoreSlim _loadLock = new(1, 1);
     private readonly PortAudioFloatPlayer _player = new(preferences);
-    private OfflineTts? _tts;
-    private string? _loadedVoiceDir;
-    private string? _espeakDataDir;
+
+    /// <summary>Written once by a load, read by speaks and warms on other threads; publishing one object keeps its two parts together.</summary>
+    private volatile LoadedVoice? _voice;
 
     public bool IsAvailable => TryFindVoiceDir() is not null && PortAudioFloatPlayer.HasDefaultOutputDevice();
 
+    public Task WarmAsync(CancellationToken ct) => EnsureLoadedAsync(ct);
+
     public async Task SpeakAsync(PilotVoiceRequest request, CancellationToken ct)
     {
-        OfflineTts? tts = await EnsureLoadedAsync(ct).ConfigureAwait(false);
-        if (tts is null)
+        LoadedVoice? voice = await EnsureLoadedAsync(ct).ConfigureAwait(false);
+        if (voice is null)
         {
             return;
         }
 
-        string espeakDataDir = _espeakDataDir!;
+        (OfflineTts tts, string espeakDataDir) = voice;
         (float[]? samples, int sampleRate) = await Task.Run(
                 () =>
                 {
@@ -153,19 +178,19 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
         await _player.PlayAsync(samples, sampleRate, ct).ConfigureAwait(false);
     }
 
-    private async Task<OfflineTts?> EnsureLoadedAsync(CancellationToken ct)
+    private async Task<LoadedVoice?> EnsureLoadedAsync(CancellationToken ct)
     {
-        if (_tts is not null)
+        if (_voice is { } loaded)
         {
-            return _tts;
+            return loaded;
         }
 
         await _loadLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (_tts is not null)
+            if (_voice is { } loadedWhileWaiting)
             {
-                return _tts;
+                return loadedWhileWaiting;
             }
 
             string? voiceDir = TryFindVoiceDir();
@@ -187,12 +212,11 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
 
             OfflineTts tts = await Task.Run(() => CreateOfflineTts(onnxFile.FullName, tokensPath), ct).ConfigureAwait(false);
 
-            _espeakDataDir = dataDir;
-            _loadedVoiceDir = voiceDir;
-            _tts = tts;
-            Log.LogInformation("Loaded pilot voice pack from {VoiceDir}; sample rate {SampleRate} Hz.", _loadedVoiceDir, _tts.SampleRate);
-            _ = Task.Run(() => Prewarm(tts), CancellationToken.None);
-            return tts;
+            var voice = new LoadedVoice(tts, dataDir);
+            _voice = voice;
+            Log.LogInformation("Loaded pilot voice pack from {VoiceDir}; sample rate {SampleRate} Hz.", voiceDir, tts.SampleRate);
+            _ = Task.Run(() => Prewarm(voice), CancellationToken.None);
+            return voice;
         }
         finally
         {
@@ -213,15 +237,16 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
         return new OfflineTts(config);
     }
 
-    private void Prewarm(OfflineTts tts)
+    private static void Prewarm(LoadedVoice voice)
     {
         try
         {
+            OfflineTts tts = voice.Tts;
             var gen = new OfflineTtsGenerationConfig
             {
                 Sid = 0,
                 Speed = 1.0f,
-                PhonemeCodepoints = EspeakPhonemizer.Phonemize("warmup", EspeakPhonemizer.VoiceFor(tts.Lang), _espeakDataDir!),
+                PhonemeCodepoints = EspeakPhonemizer.Phonemize("warmup", EspeakPhonemizer.VoiceFor(tts.Lang), voice.EspeakDataDir),
             };
             _ = tts.GenerateWithConfig("", gen, null);
         }
@@ -232,6 +257,8 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
     }
 
     private static string? TryFindVoiceDir() => PilotVoicePack.FindInstalledDirectory();
+
+    private sealed record LoadedVoice(OfflineTts Tts, string EspeakDataDir);
 }
 
 internal static class RadioAudioFx
