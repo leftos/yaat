@@ -39,7 +39,7 @@ public class MainViewModelSpeechContextThreadingTests
         }
 
         // Mirror the speech pipeline: pull the context from a Task.Run background thread.
-        Task<SpeechContext> bg = Task.Run(() => vm.BuildSpeechContext());
+        Task<SpeechContext> bg = Task.Run(() => vm.BuildSpeechContext(includeRoom: true));
 
         // This thread does not pump while it waits, so the background call either queues its build onto the UI thread
         // (Dispatcher.Invoke, Send priority) and blocks there, or, unmarshalled, runs to completion off the UI thread.

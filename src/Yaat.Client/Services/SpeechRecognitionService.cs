@@ -3,6 +3,8 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services.Speech;
+using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Speech;
 using Yaat.Sim.Speech.Context;
 
@@ -139,6 +141,80 @@ public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadO
     /// capture isn't a real procedure in scope.
     /// </summary>
     public IReadOnlyList<ProcedurePattern> Procedures { get; init; } = [];
+
+    /// <summary>
+    /// The room the accurate speech mode decodes against, captured on the UI thread at push-to-talk press; null for a typed
+    /// natural command, and when the client knows no room airport. <see cref="RoomSnapshot.ToRequest"/> turns it into the
+    /// decoder's <see cref="RoomContextRequest"/> off the UI thread.
+    /// </summary>
+    public RoomSnapshot? Room { get; init; }
+}
+
+/// <summary>One room aircraft as captured on the UI thread: plain fields, its programmed fixes not yet resolved.</summary>
+/// <param name="Callsign">The ICAO callsign ("SWA2495").</param>
+/// <param name="AircraftType">The bare ICAO type designator ("B738"), or null when unknown.</param>
+/// <param name="AssignedRunway">The runway the aircraft is assigned at the room's airport ("28R"), or null.</param>
+/// <param name="Route">The filed route.</param>
+/// <param name="ExpectedApproach">The expected approach, or null.</param>
+/// <param name="Destination">The destination airport.</param>
+/// <param name="Departure">The departure airport.</param>
+/// <param name="ActiveStarId">The active STAR.</param>
+/// <param name="DestinationRunway">The destination runway.</param>
+public sealed record RoomAircraftSnapshot(
+    string Callsign,
+    string? AircraftType,
+    string? AssignedRunway,
+    string? Route,
+    string? ExpectedApproach,
+    string? Destination,
+    string? Departure,
+    string? ActiveStarId,
+    string? DestinationRunway
+);
+
+/// <summary>The room as captured on the UI thread at push-to-talk press.</summary>
+/// <param name="AirportIcao">The room's airport ("KOAK").</param>
+/// <param name="ApproachPosition">Whether the active position is a TRACON or ARTCC position.</param>
+/// <param name="Layout">The room airport's ground layout, or null when none is loaded for it.</param>
+/// <param name="Aircraft">The room's aircraft.</param>
+/// <param name="FacilityRadioNames">The radio names of the active position and of every online controller.</param>
+public sealed record RoomSnapshot(
+    string AirportIcao,
+    bool ApproachPosition,
+    AirportGroundLayout? Layout,
+    IReadOnlyList<RoomAircraftSnapshot> Aircraft,
+    IReadOnlyList<string> FacilityRadioNames
+)
+{
+    /// <summary>
+    /// The decoder's request for <paramref name="room"/>, each aircraft's programmed fixes resolved with
+    /// <see cref="ProgrammedFixResolver.Resolve"/>. Reads the navigation database, so it runs off the UI thread.
+    /// </summary>
+    /// <param name="room">The captured room.</param>
+    /// <returns>The request <see cref="RoomContextFactory.Build"/> takes.</returns>
+    public static RoomContextRequest ToRequest(RoomSnapshot room)
+    {
+        RoomAircraftInput[] aircraft =
+        [
+            .. room.Aircraft.Select(a => new RoomAircraftInput(
+                a.Callsign,
+                a.AircraftType,
+                [
+                    .. ProgrammedFixResolver.Resolve(
+                        a.Route,
+                        a.ExpectedApproach,
+                        a.Destination,
+                        a.Departure,
+                        null,
+                        a.ActiveStarId,
+                        a.DestinationRunway
+                    ),
+                ],
+                a.AssignedRunway
+            )),
+        ];
+        return new RoomContextRequest(room.AirportIcao, room.ApproachPosition, room.Layout, aircraft, room.FacilityRadioNames);
+    }
 }
 
 /// <summary>

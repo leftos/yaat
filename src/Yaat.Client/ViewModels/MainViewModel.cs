@@ -23,6 +23,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Speech;
+using Yaat.Sim.Speech.Context;
 // An alias, not `using Yaat.Sim.Simulation;`: that namespace's TerminalEntry clashes with Yaat.Client.Models.TerminalEntry (CS0104).
 using CommandScopes = Yaat.Sim.Simulation.CommandScopes;
 
@@ -1839,7 +1840,7 @@ public partial class MainViewModel : ObservableObject
             _ruleMapper,
             _llmMapper,
             _llmCallsignResolver,
-            () => BuildSpeechContext(),
+            () => BuildSpeechContext(includeRoom: true),
             _speechSampleStore,
             () => SttEngineFactory.IsModelReady(_preferences.SttEngine, SttModelInstaller.InstallRootDefault, sttManifestPath)
         );
@@ -2268,7 +2269,11 @@ public partial class MainViewModel : ObservableObject
     /// free-text Whisper <c>initial_prompt</c> that biases recognition toward the ICAO + spoken
     /// forms of every active callsign plus the selected aircraft's fix names.
     /// </summary>
-    internal SpeechContext BuildSpeechContext(AircraftModel? contextAircraft = null)
+    /// <param name="includeRoom">
+    /// Whether to capture the <see cref="SpeechContext.Room"/> snapshot: true for push-to-talk, false for a typed natural command.
+    /// </param>
+    /// <param name="contextAircraft">The aircraft whose programmed fixes the context carries; null for the selected aircraft.</param>
+    internal SpeechContext BuildSpeechContext(bool includeRoom, AircraftModel? contextAircraft = null)
     {
         // The speech pipeline pulls this provider on a Task.Run background thread
         // (SpeechRecognitionService.ProcessPipelineAsync). Marshal onto the UI thread before
@@ -2277,7 +2282,7 @@ public partial class MainViewModel : ObservableObject
         // natural-command caller is already on the UI thread, so this is a no-op there.
         if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
         {
-            return Avalonia.Threading.Dispatcher.UIThread.Invoke(() => BuildSpeechContext(contextAircraft));
+            return Avalonia.Threading.Dispatcher.UIThread.Invoke(() => BuildSpeechContext(includeRoom, contextAircraft));
         }
 
         // Snapshot of aircraft the controller can actually talk to right now. Skip:
@@ -2417,8 +2422,69 @@ public partial class MainViewModel : ObservableObject
             TaxiwayNames = taxiwayNames,
             DestinationNames = destinationNames,
             Procedures = procedures,
+            Room = includeRoom ? BuildRoomSnapshot(snapshot) : null,
         };
     }
+
+    /// <summary>
+    /// The room the accurate speech mode decodes against: the scenario's primary airport (else the loaded ground layout's), its
+    /// layout when that is the room airport's, whether the active position works approach, the radio names of the active position
+    /// and every online controller, and one plain entry per aircraft. Null when the client knows no room airport.
+    /// </summary>
+    /// <param name="snapshot">The aircraft the controller can talk to.</param>
+    private RoomSnapshot? BuildRoomSnapshot(AircraftModel[] snapshot)
+    {
+        AirportGroundLayout? layout = Ground.DomainLayout;
+        string? airportId = !string.IsNullOrWhiteSpace(ActiveScenarioPrimaryAirportId) ? ActiveScenarioPrimaryAirportId : layout?.AirportId;
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return null;
+        }
+
+        string airportIcao = ToRoomIcao(airportId);
+        AirportGroundLayout? roomLayout = ((layout is not null) && (ToRoomIcao(layout.AirportId) == airportIcao)) ? layout : null;
+        bool approachPosition = ActivePosition?.PositionType is "Tracon" or "Artcc";
+        string[] radioNames =
+        [
+            .. new[] { ActivePosition?.RadioName }
+                .Concat(OnlineControllers.Select(c => c.RadioName))
+                .OfType<string>()
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase),
+        ];
+        RoomAircraftSnapshot[] aircraft =
+        [
+            .. snapshot.Where(a => !string.IsNullOrEmpty(a.Callsign)).Select(a => CaptureRoomAircraft(a, airportIcao)),
+        ];
+        return new RoomSnapshot(airportIcao, approachPosition, roomLayout, aircraft, radioNames);
+    }
+
+    /// <summary>
+    /// The aircraft's plain room fields. Its assigned runway is kept only when it is at the room airport: on the ground departing
+    /// it, or airborne inbound to it.
+    /// </summary>
+    private static RoomAircraftSnapshot CaptureRoomAircraft(AircraftModel aircraft, string airportIcao)
+    {
+        string roomEnd = aircraft.IsOnGround ? aircraft.Departure : aircraft.Destination;
+        bool atRoomAirport = !string.IsNullOrWhiteSpace(roomEnd) && (ToRoomIcao(roomEnd) == airportIcao);
+        string? assignedRunway = (atRoomAirport && !string.IsNullOrWhiteSpace(aircraft.AssignedRunway)) ? aircraft.AssignedRunway : null;
+        string? aircraftType = string.IsNullOrWhiteSpace(aircraft.BaseAircraftType) ? null : aircraft.BaseAircraftType;
+        return new RoomAircraftSnapshot(
+            aircraft.Callsign,
+            aircraftType,
+            assignedRunway,
+            aircraft.Route,
+            aircraft.ExpectedApproach,
+            aircraft.Destination,
+            aircraft.Departure,
+            aircraft.ActiveStarId,
+            aircraft.DestinationRunway
+        );
+    }
+
+    /// <summary>An airport id ("OAK", "koak") as the room's uppercase ICAO id ("KOAK").</summary>
+    private static string ToRoomIcao(string airportId) => RoomContextFactory.ToIcao(airportId.Trim().ToUpperInvariant());
 
     /// <summary>
     /// Parking, spot, and helipad names of the currently-loaded ground layout — the names a spoken
@@ -3040,7 +3106,7 @@ public partial class MainViewModel : ObservableObject
         bool allowLlmFallback = _preferences.SpeechEnabled && _llmService.IsConfigured;
         NaturalCommandNormalization? normalization = await NaturalCommandNormalizer.TryNormalizeAsync(
             originalInput,
-            BuildSpeechContext(currentTarget),
+            BuildSpeechContext(includeRoom: false, currentTarget),
             _ruleMapper,
             allowLlmFallback ? _llmMapper : null,
             allowLlmFallback ? _llmCallsignResolver : null,
