@@ -5,8 +5,6 @@
 ## Do first
 
 - [ ] YAAT-1598 Client sherpa STT in fast and accurate modes · release vNext — Urgent · STT tuning
-- [/] YAAT-1604 In-app STT benchmark: per model, mode and device latency, RAM and VRAM on this machine · release vNext — Urgent · STT tuning
-- [ ] YAAT-1605 Reference STT measurements on the CI natives and client speech docs · release vNext — Urgent · STT tuning
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -120,6 +118,14 @@
   - [ ] YAAT-1638 Restore a CUDA set left in .old-* after a crash mid-swap, and sweep leftovers on uninstall · release vNext+1
   - [ ] YAAT-1665 Let the user cancel a GPU runtime removal scheduled for the next start
   - [ ] YAAT-1694 Speech settings: show a failed model download and word the restart note by direction
+  - [ ] YAAT-1721 Speech benchmark says Unloading while it is still probing the GPU and n-best
+  - [ ] YAAT-1723 A speech benchmark fault after Keep running shows nowhere but the log
+  - [ ] YAAT-1724 Move the STT model display name off SttModelCardViewModel to an SttEngine extension
+  - [ ] YAAT-1728 Speech benchmark loses early rows' child logs and leaves a hard-killed row's folder
+  - [ ] YAAT-1730 Settings Speech: int8 note clipped in the dropdown; Benchmark hidden with speech off
+  - [ ] YAAT-1732 Show failed and refused speech model actions on the card; close the deferred speech-off swap
+  - [ ] YAAT-1733 Speech warm leftovers: ModelMissing cleared by an LLM warm, cleared LLM path stays loaded
+  - [ ] YAAT-1734 Repeat the real-client speech-off memory and prewarm checks before merging feat/speech · release vNext
   - [ ] YAAT-1606 CoreML provider for macOS STT
   - [ ] YAAT-1628 Serialise the Piper prewarm against the first pilot transmission
   - [ ] YAAT-1629 LM-Kit CUDA uninstall deletes a loaded backend on Windows
@@ -138,6 +144,7 @@
 - [ ] YAAT-1718 Sandbox --corpus-wer peak RAM is wrong on macOS (PeakWorkingSet64 below the pre-load working set)
 - [ ] YAAT-1719 Style a speech-model GPU fallback as a warning in Settings > Speech
 - [ ] YAAT-1720 Warm the GPU memory probe at startup so the first CUDA speech load doesn't pay ~2 s
+- [ ] YAAT-1729 Investigate one 33.5 s LLM fallback call right after a speech model reload
 
 ## Hold shorts and runway crossings
 
@@ -1008,7 +1015,7 @@
 
 ## Client UI: views, menus and windows
 
-### 1 Defects (0/25 done)
+### 1 Defects (0/26 done)
 - [ ] YAAT-100 Fix scenario-activation leftovers: Save-As JSON paths, dead assignment
 - [ ] YAAT-103 Validate the radar Squawk input as four octal digits
 - [ ] YAAT-150 Investigate the lobby ARTCC box ignoring preferences.json after relaunch
@@ -1034,6 +1041,7 @@
 - [ ] YAAT-954 Refuse or round off-hundred altitudes typed into menu altitude boxes
 - [ ] YAAT-1089 Menu fix boxes accept any text as a known fix before navigation data loads
 - [ ] YAAT-1110 All Commands may open on a separator for a live-traffic aircraft that cannot be assumed
+- [ ] YAAT-1722 WindowGeometryHelper unregisters a window whose Closing was cancelled
 
 ### 2 Refinements and rulings (0/12 done)
 - [ ] YAAT-99 Add the ATPA in-trail line to EuroScope tags; required view-model ctor params
@@ -1049,7 +1057,7 @@
 - [ ] YAAT-1368 Offer Resume published speed (RPS) in the speed context menus beside RNS
 - [ ] YAAT-1424 Offer only flyable speeds in the client's speed picker (MenuCatalog, SpeedFlyout read the Vmo/Mmo/minimum lookup) · release vNext+2
 
-### 3 Hygiene and tests (0/12 done)
+### 3 Hygiene and tests (0/14 done)
 - [ ] YAAT-98 Observe and log a throwing onSubmit in MenuPopups' text-entry popup
 - [ ] YAAT-104 Share one runway-ends helper between RunwayFlyout and Core
 - [ ] YAAT-211 Split RadarCanvas.OnPointerPressed into one helper per ladder rung
@@ -1062,6 +1070,8 @@
 - [ ] YAAT-885 Extract one shared tabbed-rows flyout content from the quick-command flyouts
 - [ ] YAAT-1087 Cache inline box readings so a Warp keystroke does not re-search fixes many times
 - [ ] YAAT-1113 Group MenuSession's solo-training fields to bring it under five parameters
+- [ ] YAAT-1725 Convert [ObservableProperty] fields to partial properties across the client projects
+- [ ] YAAT-1726 Check MainWindow's multi-line Run text for doubled spaces
 
 ## Client-driver MCP and automation pipe
 
@@ -1284,6 +1294,7 @@
 - [ ] YAAT-1690 Use tools/airac.py in stash-procedure.py instead of its own cycle math
 
 ### No milestone
+- [ ] YAAT-1735 Route Windows-only proofs and local-binary builds instead of using --local
 - [ ] YAAT-1487 Run yaat-server's prek format hooks through the gate check-only so commits leave the heavy slot (GATE-449)
 - [ ] YAAT-1531 Have bug_bundle.py install register a new fixture with the layout-coverage list and the routing census
 - [ ] YAAT-1549 Make BuildMinimalContext's ground layout argument required
