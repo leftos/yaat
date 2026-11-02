@@ -1406,11 +1406,26 @@ internal static class NavigationCommandHandler
     private static string[] FiledRouteTokens(AircraftState aircraft) =>
         (aircraft.FlightPlan.Route ?? "").Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries);
 
-    /// <summary>The active SID's filed enroute transition: the filed route's token after the SID's; null when there is none.</summary>
+    /// <summary>
+    /// The active SID's filed enroute transition: the filed route's token after the SID's; null when there is none. The SID
+    /// token is the active id itself, else the first token that ends in a digit and shares the id's base name without its
+    /// trailing version digits (a SID renumbered by a navdata cycle and still filed under the old version); a bare fix or
+    /// navaid such as OAK never matches the SID OAK7.
+    /// </summary>
     private static string? FiledSidTransition(AircraftState aircraft)
     {
         string[] tokens = FiledRouteTokens(aircraft);
-        int sid = Array.FindIndex(tokens, t => t.Equals(aircraft.Procedure.ActiveSidId, StringComparison.OrdinalIgnoreCase));
+        string? activeSidId = aircraft.Procedure.ActiveSidId;
+        int sid = Array.FindIndex(tokens, t => t.Equals(activeSidId, StringComparison.OrdinalIgnoreCase));
+        if ((sid < 0) && (activeSidId is not null))
+        {
+            string baseName = NavigationDatabase.StripTrailingDigits(activeSidId);
+            sid = Array.FindIndex(
+                tokens,
+                t => char.IsDigit(t[^1]) && NavigationDatabase.StripTrailingDigits(t).Equals(baseName, StringComparison.OrdinalIgnoreCase)
+            );
+        }
+
         return ((sid >= 0) && (sid + 1 < tokens.Length)) ? tokens[sid + 1] : null;
     }
 

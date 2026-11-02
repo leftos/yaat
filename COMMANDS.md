@@ -1762,8 +1762,8 @@ Symmetrically, `CVIA` no longer requires an active SID: when none is active — 
 **`CVIA` and the top altitude** — a `CVIA` clears the aircraft's assigned altitude (an interim altitude from before it is cancelled) and climbs to the SID's top altitude, resolved when the `CVIA` is issued, in this order:
 
 1. `CVIA nnn`'s altitude.
-2. The SID's ARTCC TDLS climb-via text "EXC MAINT n" (the TDLS `defaultClimbvia`), for the departure airport and filed transition.
-3. The SID's TDLS initial altitude (`defaultInitialAlt`).
+2. The SID's ARTCC TDLS climb-via text "EXC MAINT n" (the TDLS `defaultClimbvia`), for the departure airport and filed transition. The SID's exact name is tried first; if the TDLS config has no value under it, another version of the same SID (a renumbered `OAK7` for a filed `OAK6`) is tried, and the filed transition is found the same way.
+3. The SID's TDLS initial altitude (`defaultInitialAlt`), looked up the same way.
 4. The highest altitude the SID publishes on the legs flown, a stand-in for the charted top altitude, which CIFP does not code.
 5. The present altitude, with a warning in the log.
 

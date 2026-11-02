@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- A bare `CVIA` climbs to the facility's TDLS altitude even when a new navdata cycle renumbered the filed SID (NUEVO8 to NUEVO9).
 - `CAPP` after `JFAC` or `JLOC` cancels assigned speeds like any approach clearance, keeping and restating a standing in-trail reduction.
 - An arrival given a crossing below its altitude no longer climbs toward a higher STAR window beyond that fix.
 - After `DVIA` or `CVIA`, an aircraft keeps its speed and slows just in time to cross the next speed-restricted fix at the published speed.

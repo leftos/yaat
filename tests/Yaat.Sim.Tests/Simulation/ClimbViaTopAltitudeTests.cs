@@ -39,6 +39,7 @@ public class ClimbViaTopAltitudeTests
     private const int OakMenuInitialAltitudeFt = 2000;
 
     private static readonly LatLon KoakPosition = new(37.7212, -122.2208);
+    private static readonly LatLon KsfoPosition = new(37.6189, -122.3750);
 
     private readonly ITestOutputHelper _output;
 
@@ -174,8 +175,9 @@ public class ClimbViaTopAltitudeTests
     }
 
     /// <summary>
-    /// NUEVO8's SNS transition carries "CLB VIA SID EXC MAINT 10000FT" in each of KOAK's op configs in the ZOA snapshot,
-    /// above anything NUEVO8 publishes. A bare CVIA climbs to it, not to the 2,000 CTO stored from KOAK's menu.
+    /// The filed NUEVO8 resolves to the current version in navdata, while the ZOA snapshot's TDLS entry is still NUEVO8: its
+    /// SNS transition carries "CLB VIA SID EXC MAINT 10000FT" in each of KOAK's op configs, above anything the SID publishes.
+    /// A bare CVIA climbs to it, not to the 2,000 CTO stored from KOAK's menu.
     /// </summary>
     [Fact]
     public void ClimbVia_OakSidWithTdlsValue_ClimbsToThatValue_NotTheMenuAltitude()
@@ -259,7 +261,7 @@ public class ClimbViaTopAltitudeTests
     [InlineData("MOLEN9", 3000)]
     public void BareClimbVia_TdlsExceptMaintain_FiledTransitionElseNoTransitionEntry(string route, int expectedTop)
     {
-        LatLon ksfo = new(37.6189, -122.3750);
+        LatLon ksfo = KsfoPosition;
         var ac = new AircraftState
         {
             Callsign = "UAL1734",
@@ -279,6 +281,54 @@ public class ClimbViaTopAltitudeTests
             },
         };
         ac.Procedure.ActiveSidId = "MOLEN9";
+        ac.Procedure.SidViaMode = true;
+
+        DispatchLine(ac, "CVIA", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
+
+        Assert.Equal(expectedTop, ac.Procedure.ClimbViaTargetFt);
+    }
+
+    /// <summary>
+    /// AIRAC 2611 renumbered KOAK's NUEVO SID to NUEVO9 while the ZOA snapshot and the filed route still name NUEVO8, and
+    /// SFO's filed route still names MOLEN8 while the active SID and the snapshot name MOLEN9. A bare CVIA still climbs to the
+    /// TDLS top: the SID's entry by exact name first, else the same base name without its trailing version digits.
+    /// </summary>
+    [Theory]
+    [InlineData("KOAK", "NUEVO8 SNS", "NUEVO9", "KLAX", 10000)]
+    [InlineData("KSFO", "MOLEN8 ENI", "MOLEN9", "KRNO", 15000)]
+    public void BareClimbVia_ActiveSidVersionDiffersFromTheFiledAndTdlsName_ClimbsToTheTdlsValue(
+        string departure,
+        string route,
+        string activeSidId,
+        string destination,
+        int expectedTop
+    )
+    {
+        LatLon position = departure switch
+        {
+            "KOAK" => KoakPosition,
+            "KSFO" => KsfoPosition,
+            _ => throw new ArgumentOutOfRangeException(nameof(departure), departure, "no position for this departure airport"),
+        };
+        var ac = new AircraftState
+        {
+            Callsign = "UAL1734",
+            AircraftType = "B738",
+            Position = position,
+            TrueHeading = new TrueHeading(280),
+            TrueTrack = new TrueHeading(280),
+            Altitude = 3000,
+            IndicatedAirspeed = 200,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = departure,
+                Destination = destination,
+                Route = route,
+                Altitude = PlannedAltitude.Ifr(33000),
+                FlightRules = "IFR",
+            },
+        };
+        ac.Procedure.ActiveSidId = activeSidId;
         ac.Procedure.SidViaMode = true;
 
         DispatchLine(ac, "CVIA", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));

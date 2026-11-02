@@ -184,6 +184,8 @@ name **but preserves at least 2 characters** (`end > 2` guard); it returns the i
 - `FindSidInList` (`:942`) / the inline STAR equivalent in `GetStar` (`:965`) apply the same exact-then-base-name fallback against
   the parsed **CIFP** procedure list.
 
+The climb-via top altitude follows the same rule: `ArtccConfigResolver.GetSidTdlsTopAltitude` tries the exact SID name in the TDLS SID lists first and only when no entry of that name yields a value tries another version of the same SID (the name without its trailing version digits), and `NavigationCommandHandler.FiledSidTransition` finds the filed SID token by exact match first, else by the first token that ends in a digit and shares the base name (a bare fix or navaid such as `OAK` never matches `OAK7`).
+
 An exact-ID lookup that bypasses these resolvers will silently miss the current cycle's procedure whenever the scenario filed an
 older version.
 

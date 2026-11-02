@@ -1687,8 +1687,11 @@ public static partial class ArtccConfigResolver
     /// keep their SIDs only there); within an entry the transition is <paramref name="transitionId"/>, else the SID's
     /// "- - - -" (no-transition) entry, else the first transition carrying a value. That transition's climb-via text
     /// "EXC(EPT) MAINT(AIN) (altitude)" gives the top, an ATC-assigned one; otherwise its initial altitude does. The first
-    /// entry that yields one wins. The facility's initial-altitude menu never takes part. Null when no entry yields one
-    /// (a plain "CLIMB VIA SID" with no initial altitude, an unknown SID, or no TDLS config).
+    /// entry that yields one wins. The exact name is tried first and its result stands, null included. Only when no entry of
+    /// that name exists at all is the same SID tried under a different version (its name without the trailing version
+    /// digits), the first such entry in list order winning: a renumbered SID still filed, or still configured, under the old
+    /// version. The facility's initial-altitude menu never takes part. Null when no entry yields one (a plain "CLIMB VIA
+    /// SID" with no initial altitude, an unknown SID, or no TDLS config).
     /// </summary>
     public static TdlsSidTopAltitude? GetSidTdlsTopAltitude(
         this ArtccConfigRoot? config,
@@ -1709,7 +1712,27 @@ public static partial class ArtccConfigResolver
         }
 
         List<List<TdlsSidConfig>> sidLists = [tdls.Sids, .. tdls.OpConfigs.Select(c => c.Sids)];
-        foreach (TdlsSidConfig sid in sidLists.SelectMany(l => l).Where(s => s.Name.Equals(sidId, StringComparison.OrdinalIgnoreCase)))
+        if (sidLists.SelectMany(l => l).Any(s => s.Name.Equals(sidId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return FindSidTopAltitude(sidLists, sid => sid.Name.Equals(sidId, StringComparison.OrdinalIgnoreCase), transitionId);
+        }
+
+        string baseName = NavigationDatabase.StripTrailingDigits(sidId);
+        return FindSidTopAltitude(
+            sidLists,
+            sid => NavigationDatabase.StripTrailingDigits(sid.Name).Equals(baseName, StringComparison.OrdinalIgnoreCase),
+            transitionId
+        );
+    }
+
+    /// <summary>
+    /// The first top altitude among the SID entries matching <paramref name="matches"/>, in list order: each entry's
+    /// <paramref name="transitionId"/> transition, else its "- - - -" (no-transition) entry, else the first transition
+    /// carrying one.
+    /// </summary>
+    private static TdlsSidTopAltitude? FindSidTopAltitude(List<List<TdlsSidConfig>> sidLists, Func<TdlsSidConfig, bool> matches, string? transitionId)
+    {
+        foreach (TdlsSidConfig sid in sidLists.SelectMany(l => l).Where(matches))
         {
             if ((SidTopTransition(sid, transitionId) is { } transition) && (TransitionTopAltitude(transition) is { } top))
             {
