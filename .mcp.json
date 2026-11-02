@@ -2,8 +2,22 @@
   "mcpServers": {
     "yaat-client-driver": {
       "type": "stdio",
-      "command": "pwsh",
-      "args": ["-NoProfile", "-File", "../yaat-server/tools/Yaat.ClientDriver.Mcp/launch.ps1"]
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "${USERPROFILE}/.claude/tools/mcp-front",
+        "python",
+        "-m",
+        "mcp_front",
+        "--watch",
+        "../yaat-server/tools/Yaat.ClientDriver.Mcp/bin/Debug/net10.0-windows",
+        "--",
+        "pwsh",
+        "-NoProfile",
+        "-File",
+        "../yaat-server/tools/Yaat.ClientDriver.Mcp/launch.ps1"
+      ]
     }
   }
 }
