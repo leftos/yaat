@@ -18,6 +18,7 @@
 - An arrival given a crossing below its altitude no longer climbs toward a higher STAR window beyond that fix.
 - On a STAR or SID, with or without `DVIA` or `CVIA`, an aircraft keeps its speed and slows just in time to cross each published speed restriction.
 - A descending aircraft slows to 250 knots before crossing 10,000 ft, levelling briefly at 10,000 when it is too fast to slow in time.
+- A `TAXI … HS {taxiway}` with no destination taxis to the hold-short bar and holds there, instead of stopping short and never holding.
 - `TAXI C 33` given to an aircraft already holding at a runway 33 bar on C holds it there instead of crossing the runway's end.
 - A crossing between two taxiways that meet a runway apart goes straight over the runway, and only its sharpest corner decides whether the type can make it.
 - A speed given in the same transmission as an approach clearance, `CVIA` or `DVIA` is kept, wherever it sits in the transmission and across a rewind.

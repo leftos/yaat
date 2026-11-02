@@ -639,11 +639,13 @@ Its callers are `TaxiingPhase.AimAtPaintedBar` (at segment set-up, on a target c
 The navigator never overspeeds into a future turn. `BuildSpeedConstraints` (`GroundNavigator.cs:988`) runs at every `SetupSegment`:
 
 1. Sets `_currentNodeRequiredSpeed` from `CornerSpeed(category, SingleCornerTurnAngle(...), legIn, legOut)` (0 for stops — uncleared hold-shorts and the last segment).
-2. Forward-walks remaining segments collecting `(pathDist, requiredSpeed, nodeId)` constraints: one per sample of each future arc's **local cornering-speed profile**, one per future node's corner speed, and 0 at the first uncleared hold-short's **painted stop** (then stops).
+2. Unless the target node's own hold-short bar is uncleared (the walk is skipped and logs `target node {Node} is a stop; no constraint past it is planned`), forward-walks remaining segments collecting `(pathDist, requiredSpeed, nodeId)` constraints: one per sample of each future arc's **local cornering-speed profile**, one per future node's corner speed, and 0 at the first uncleared hold-short's **painted stop** (then stops).
 
    The arc profile is `GroundArc.SpeedProfile(category)`: 17 evenly spaced parameter samples, each `SafeSpeedForRadiusKts` at the local radius of curvature — a lateral-acceleration cap `v = √(a_lat·r)`, `a_lat ≈ 0.13 g`, additionally capped by `CornerSpeedForAngle` and the yaw-rate coupling `ω·r`, floored at `SlowTurnSpeedKts`. `MaxSafeSpeedKts` is the same formula at the tightest point.
 
    Sampling the profile rather than pinning the arc's tightest speed at its entry matters for the distorted cubics the fillet generator emits at asymmetric junctions. A long gentle sweep with one tight stretch (SFO junction J133's B bend: 107 ft, 56°, 22 ft minimum radius) is braked for only where it is tight instead of being crawled at 3 kt end to end.
+
+   The skip exists because the owning phase aims a stopping target at the bar's painted stop, which sits back from the node: a later bar's stop, measured from the node, would land behind it and brake the aircraft short of the first bar. The target's own set-back stop and the backward propagation stay.
 
    The stop's zero sits at the bar node's along-route distance minus `TaxiRoute.HoldShortSetbackNm` (the setback measured back along the route's chords) minus `SetBackStopMarginFt` = 2 ft, because a taxiway or runway stop can sit several segments before its bar node ([hold-short-placement.md](./hold-short-placement.md)).
 

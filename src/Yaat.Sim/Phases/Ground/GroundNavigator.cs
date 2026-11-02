@@ -5095,7 +5095,8 @@ public sealed class GroundNavigator
 
         DetectShortConnector(route, ctx, seg);
 
-        if (!isHoldShortCleared(TargetNodeId))
+        bool stopsAtTarget = !isHoldShortCleared(TargetNodeId);
+        if (stopsAtTarget)
         {
             _currentNodeRequiredSpeed = 0;
             _nextSegmentBearing = null;
@@ -5135,7 +5136,66 @@ public sealed class GroundNavigator
             _nextSegmentIsShort = false;
         }
 
-        // Forward walk: collect future speed constraints.
+        // Forward walk: collect future speed constraints. Nothing past a target the aircraft must stop at is planned: the
+        // owning phase aims the target at the bar's painted stop, which sits back from the node, so a later stop measured
+        // from the node lands behind it and brakes the aircraft short of the bar it must hold at. Skipping it is safe:
+        // every constraint at or past a zero at the target is dominated by that zero, so only the frame-mismatched stops
+        // this guards against could ever bind.
+        if (stopsAtTarget)
+        {
+            Log.LogDebug("[Nav] {Callsign}: target node {Node} is a stop; no constraint past it is planned", ctx.Aircraft.Callsign, TargetNodeId);
+        }
+        else
+        {
+            AddForwardConstraints(route, ctx, isHoldShortCleared);
+        }
+
+        // With a separate slowdown rate each constraint keeps its own speed: SplitRateBrakingLimit plans every one on its own
+        // curve at its own rate, which is what back-propagating at one rate would otherwise compute.
+        if (SlowdownDecelRateKts is not null)
+        {
+            return;
+        }
+
+        BackPropagateConstraints(DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category));
+    }
+
+    /// <summary>
+    /// The backward propagation of <see cref="BuildSpeedConstraints"/>: a kinematic decel curve between adjacent constraints,
+    /// then the first future constraint folded back into the current node's required speed.
+    /// </summary>
+    private void BackPropagateConstraints(double decelRate)
+    {
+        for (int i = _speedConstraints.Count - 2; i >= 0; i--)
+        {
+            (double dist, double speed, int nodeId, bool isBarStop) = _speedConstraints[i];
+            (double nextDist, double nextSpeed, int _, bool _) = _speedConstraints[i + 1];
+            double legDist = nextDist - dist;
+            double backProp = Math.Sqrt(nextSpeed * nextSpeed + 2.0 * decelRate * legDist * 3600.0);
+            if (backProp < speed)
+            {
+                _speedConstraints[i] = (dist, backProp, nodeId, isBarStop);
+            }
+        }
+
+        if (_speedConstraints.Count > 0)
+        {
+            (double firstDist, double firstSpeed, int _, bool _) = _speedConstraints[0];
+            double backProp = Math.Sqrt(firstSpeed * firstSpeed + 2.0 * decelRate * Math.Max(0.0, firstDist) * 3600.0);
+            if (backProp < _currentNodeRequiredSpeed)
+            {
+                _currentNodeRequiredSpeed = backProp;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The forward walk of <see cref="BuildSpeedConstraints"/>: one constraint per profile sample of each future arc, one per
+    /// future node's corner speed, and 0 at the first uncleared hold-short's painted stop (then the walk ends). Only run when
+    /// the target itself is not a stop (see <see cref="BuildSpeedConstraints"/>).
+    /// </summary>
+    private void AddForwardConstraints(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
+    {
         double cumulativeDistNm = 0;
         for (int i = route.CurrentSegmentIndex + 1; i < route.Segments.Count; i++)
         {
@@ -5179,38 +5239,6 @@ public sealed class GroundNavigator
             if (reqSpeed < MaxSpeedKts)
             {
                 _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId, false));
-            }
-        }
-
-        // With a separate slowdown rate each constraint keeps its own speed: SplitRateBrakingLimit plans every one on its own
-        // curve at its own rate, which is what back-propagating at one rate would otherwise compute.
-        if (SlowdownDecelRateKts is not null)
-        {
-            return;
-        }
-
-        // Backward propagation: apply kinematic decel between adjacent constraints.
-        double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
-        for (int i = _speedConstraints.Count - 2; i >= 0; i--)
-        {
-            (double dist, double speed, int nodeId, bool isBarStop) = _speedConstraints[i];
-            (double nextDist, double nextSpeed, int _, bool _) = _speedConstraints[i + 1];
-            double legDist = nextDist - dist;
-            double backProp = Math.Sqrt(nextSpeed * nextSpeed + 2.0 * decelRate * legDist * 3600.0);
-            if (backProp < speed)
-            {
-                _speedConstraints[i] = (dist, backProp, nodeId, isBarStop);
-            }
-        }
-
-        // Propagate the first future constraint back into the current node's required speed.
-        if (_speedConstraints.Count > 0)
-        {
-            (double firstDist, double firstSpeed, int _, bool _) = _speedConstraints[0];
-            double backProp = Math.Sqrt(firstSpeed * firstSpeed + 2.0 * decelRate * Math.Max(0.0, firstDist) * 3600.0);
-            if (backProp < _currentNodeRequiredSpeed)
-            {
-                _currentNodeRequiredSpeed = backProp;
             }
         }
     }
