@@ -49,9 +49,89 @@ public static class SttBenchText
         return $"Last run {when} · {counts.Ran} of {counts.Total} ran";
     }
 
+    /// <summary>
+    /// The Settings > Speech benchmark line: the run going on, or the last run's date and counts, then the saved setting's own
+    /// figures when that row succeeded in the last run.
+    /// </summary>
+    /// <param name="snapshot">The benchmark as it stands now.</param>
+    /// <param name="current">The model, mode and device the preferences save.</param>
+    /// <param name="zone">The zone the last run's date is shown in.</param>
+    public static SttBenchSummaryLine SettingsSummary(
+        SttBenchSnapshot snapshot,
+        (SttEngine Engine, SttMode Mode, SttDevice Device) current,
+        TimeZoneInfo zone
+    )
+    {
+        if (snapshot.State is SttBenchState.Unloading or SttBenchState.Reloading)
+        {
+            return new SttBenchSummaryLine(snapshot.StatusMessage ?? "", "", "");
+        }
+        if (snapshot.State == SttBenchState.Running)
+        {
+            // The service reports every row done while the state is still Running.
+            int running = Math.Min(snapshot.Progress.Done + 1, snapshot.Progress.Total);
+            return new SttBenchSummaryLine($"Running {running} of {snapshot.Progress.Total}…", "", "");
+        }
+        if (snapshot.LastRun is not { } lastRun)
+        {
+            return new SttBenchSummaryLine(NeverRunText, "", "");
+        }
+        string date = TimeZoneInfo.ConvertTime(lastRun.FinishedUtc, zone).ToString("d MMM yyyy", CultureInfo.InvariantCulture);
+        SttBenchRunCounts counts = RunCounts(lastRun.Rows);
+        SttBenchLastRow? row = RowOf(lastRun, current.Engine, current.Mode, current.Device);
+        string tail = (row?.Result is { Succeeded: true, Timing: { } timing }) ? $"· this setting {Figures(timing, current.Device)}" : "";
+        if (counts.Failed > 0)
+        {
+            return new SttBenchSummaryLine($"Last run {date}: {counts.Ran} of {counts.Total} ran,", $"{counts.Failed} failed", tail);
+        }
+        string ran = (counts.Ran == counts.Total) ? Runs(counts.Total) : $"{counts.Ran} of {counts.Total} ran";
+        return new SttBenchSummaryLine($"Last run {date}: {ran}", "", tail);
+    }
+
+    /// <summary>A model card's Measured row for the mode and device Settings has selected.</summary>
+    /// <param name="lastRun">The last finished run; null when none has.</param>
+    /// <param name="engine">The card's model.</param>
+    /// <param name="mode">The mode Settings has selected.</param>
+    /// <param name="device">The device Settings has selected.</param>
+    public static string CardMeasured(SttBenchLastRun? lastRun, SttEngine engine, SttMode mode, SttDevice device) =>
+        ((lastRun is null) ? null : RowOf(lastRun, engine, mode, device))?.Result switch
+        {
+            { Succeeded: true, Timing: { } timing } => $"{Figures(timing, device)} ({mode}, {Device(device)})",
+            { Succeeded: false } => FailedInLastRunText,
+            _ => SttModelCardViewModel.NotMeasuredText,
+        };
+
     /// <summary>Which row of how many is running, and what it runs.</summary>
     public static string RunningLine(SttBenchProgress progress) =>
         progress.Current is { } row
             ? $"Running {progress.Done + 1} of {progress.Total}: {SttModelCardViewModel.TitleOf(row.Engine)} · {row.Mode} · {Device(row.Device)}"
             : $"Running {progress.Done} of {progress.Total}";
+
+    private const string NeverRunText = "Never run on this machine";
+
+    private const string FailedInLastRunText = "Failed in the last benchmark run";
+
+    private static SttBenchLastRow? RowOf(SttBenchLastRun run, SttEngine engine, SttMode mode, SttDevice device) =>
+        run.Rows.FirstOrDefault(r => (r.Engine == engine) && (r.Mode == mode) && (r.Device == device));
+
+    // A GPU row's memory is the card's, a CPU row's the process's.
+    private static string Figures(CorpusWerTiming timing, SttDevice device) =>
+        (device == SttDevice.Gpu)
+            ? $"{Milliseconds(timing.LatencyP50Ms)} ms p50, {Bytes(timing.PeakGpuBytes)} VRAM"
+            : $"{Milliseconds(timing.LatencyP50Ms)} ms p50, {Bytes(timing.PeakWorkingSetBytes)} RAM";
+
+    private static string Runs(int count) => (count == 1) ? "1 run" : $"{count} runs";
 }
+
+/// <summary>What the Settings > Speech benchmark line reads from the benchmark.</summary>
+/// <param name="State">The benchmark's phase.</param>
+/// <param name="Progress">How far the run going on has come.</param>
+/// <param name="StatusMessage">What the benchmark says while the speech models unload or reload.</param>
+/// <param name="LastRun">The last finished run; null when none has.</param>
+public sealed record SttBenchSnapshot(SttBenchState State, SttBenchProgress Progress, string? StatusMessage, SttBenchLastRun? LastRun);
+
+/// <summary>The Settings > Speech benchmark line, in the three parts it is drawn in.</summary>
+/// <param name="Lead">The text before the failed count.</param>
+/// <param name="Failed">How many rows failed, drawn as a warning; empty when none did.</param>
+/// <param name="Tail">The saved setting's own figures; empty when that row did not succeed in the last run.</param>
+public sealed record SttBenchSummaryLine(string Lead, string Failed, string Tail);

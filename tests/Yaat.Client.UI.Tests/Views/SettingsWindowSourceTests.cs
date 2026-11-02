@@ -179,8 +179,14 @@ public partial class SettingsWindowSourceTests
         "IsVisible={Binding !IsWhisper}",
         "Text={Binding StateText}",
         "Classes.installed={Binding Install.IsInstalled, FallbackValue=False}",
-        "IsVisible={Binding IsWhisper}",
+        "IsVisible={Binding NoteText, Converter={x:Static ObjectConverters.IsNotNull}}",
         "Text={Binding NoteText}",
+        "IsVisible={Binding IsBenchmarkAvailable}",
+        "Text={Binding BenchmarkSummaryText}",
+        "Text={Binding BenchmarkFailedText}",
+        "IsVisible={Binding BenchmarkFailedText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
+        "Text={Binding BenchmarkSummaryTail}",
+        "IsVisible={Binding BenchmarkSummaryTail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
         // The selected model's row (Loading model… replaces its state while the engine swaps), its licence line and its
         // hint; the row and the hint are hidden for Whisper.
         "IsVisible={Binding !SelectedSttModelCard.IsWhisper, FallbackValue=False}",
@@ -326,6 +332,7 @@ public partial class SettingsWindowSourceTests
         "ImportExportButton",
         "MacroDataGrid",
         "BrowseLlmModelButton",
+        "BenchmarkButton",
         "PttKeyButton",
     ];
 

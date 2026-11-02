@@ -18,6 +18,8 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Discord;
+using Yaat.Client.Services.Speech;
+using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.Tdls.ViewModels;
 using Yaat.Client.Tdls.Views.VTdls;
 using Yaat.Client.ViewModels;
@@ -386,6 +388,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     }
 
     private SpeechDebugWindow? _speechDebugWindow;
+    private SpeechBenchmarkWindow? _speechBenchmarkWindow;
 
     /// <summary>The Speech Debug window while it is open, or null.</summary>
     public SpeechDebugWindow? OpenSpeechDebugWindow => _speechDebugWindow;
@@ -3353,12 +3356,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // Where keyboard focus goes back to when the window closes: the element focused in the window active now.
         IInputElement? focusedBeforeSettings = FocusedElementOfActiveWindow();
 
-        var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture, vm.SpeechSampleStore, vm.FavoriteStore, vm.SttDownloads);
+        var services = new SettingsWindowServices(vm.AudioCapture, vm.SpeechSampleStore, vm.FavoriteStore, vm.SttDownloads, vm.SttBench);
+        var dialog = new SettingsWindow(vm.Preferences, services);
         dialog.SelectSection(section ?? SettingsSectionId.General);
 
         SettingsViewModel settingsVm = dialog.ViewModel;
         settingsVm.VisualSettingsChanged += OnPreview;
         settingsVm.Applied += OnApplied;
+        dialog.BenchmarkRequested += ShowSpeechBenchmark;
 
         _settingsDialog = dialog;
         try
@@ -3373,6 +3378,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         settingsVm.VisualSettingsChanged -= OnPreview;
         settingsVm.Applied -= OnApplied;
+        dialog.BenchmarkRequested -= ShowSpeechBenchmark;
 
         // Closing (OK, Cancel or the title bar) drops any preview not yet applied.
         RestoreSettingsPreview(vm, snapshot);
@@ -3402,6 +3408,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                     );
             }
 
+            _speechBenchmarkWindow?.ViewModel.RefreshCurrent();
             snapshot = SettingsPreviewSnapshot.Take(vm);
         }
 
@@ -3612,6 +3619,71 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         );
         _activeRunwaysWindow.Closing += (_, _) => _activeRunwaysWindow = null;
         _activeRunwaysWindow.Show();
+    }
+
+    // One window at a time, with no owner: Settings, modal over the windows open before it, leaves a window opened later usable.
+    private void ShowSpeechBenchmark()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_speechBenchmarkWindow is not null)
+        {
+            _speechBenchmarkWindow.RestoreAndActivate();
+            return;
+        }
+
+        var benchmark = new SpeechBenchmarkViewModel(
+            vm.SttBench,
+            () => SttBenchPlan.FromDownloadsAsync(vm.SttDownloads),
+            e => (e.ManifestModelId() is { } id) && (vm.SttDownloads.ModelInstaller(id)?.IsInstalled == true),
+            LoadSttReference(),
+            () => (vm.Preferences.SttEngine, vm.Preferences.SttMode, vm.Preferences.SttDevice),
+            (engine, mode, device) => ApplyBenchmarkRow(vm, engine, mode, device),
+            () => (SherpaNativeLoader.LoadedSet == SherpaNativeSet.Cuda) ? SttDevice.Gpu : SttDevice.Cpu,
+            TimeZoneInfo.Local
+        );
+        _speechBenchmarkWindow = new SpeechBenchmarkWindow(benchmark, vm.Preferences);
+        _speechBenchmarkWindow.Closed += (_, _) => _speechBenchmarkWindow = null;
+        _speechBenchmarkWindow.Show();
+    }
+
+    private static SttReference? LoadSttReference()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "Speech", "stt-reference.json");
+        try
+        {
+            return SttReference.Load(path);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            Log.LogError(ex, "Reading the speech benchmark reference {Path} failed; the window shows no reference figures", path);
+            return null;
+        }
+    }
+
+    // The benchmark window's Apply: saves the row's model, mode and device, shows them in an open Settings window so its OK
+    // or Apply writes them back rather than the old ones, and swaps the engine when the model or mode changed.
+    private Task ApplyBenchmarkRow(MainViewModel vm, SttEngine engine, SttMode mode, SttDevice device)
+    {
+        UserPreferences p = vm.Preferences;
+        bool engineOrModeChanged = (engine != p.SttEngine) || (mode != p.SttMode);
+        p.SetSpeechSettings(p.SpeechEnabled, p.WhisperModelSize, p.LlmModelPath, p.LlmGpuLayers, p.AutoFocusInputAfterSpeech, engine, mode, device);
+        _settingsDialog?.ViewModel.ShowSavedSttChoice(engine, mode, device);
+        if (engineOrModeChanged)
+        {
+            // Fire-and-forget: the swap loads a model for seconds while the mic shows Warming.
+            _ = vm.SwapSttEngineAsync()
+                .ContinueWith(
+                    t => Log.LogError(t.Exception, "Swapping in the speech-recognition engine the speech benchmark applied failed"),
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted,
+                    TaskScheduler.Default
+                );
+        }
+        return Task.CompletedTask;
     }
 
     private Key _takeControlKey = Key.T;

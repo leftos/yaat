@@ -104,7 +104,7 @@
                           TextWrapping="Wrap"
                         />
                       </DockPanel>
-                      <DockPanel IsVisible="{Binding IsWhisper}">
+                      <DockPanel IsVisible="{Binding NoteText, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <TextBlock Classes="card-term" Text="Note" />
                         <TextBlock Text="{Binding NoteText}" TextWrapping="Wrap" />
                       </DockPanel>
@@ -168,6 +168,31 @@
               Foreground="{DynamicResource SubtleTextBrush}"
               IsVisible="{Binding !SelectedSttModelCard.IsWhisper, FallbackValue=False}"
             />
+            <WrapPanel Orientation="Horizontal" Margin="0,4,0,0" IsVisible="{Binding IsBenchmarkAvailable}">
+              <Button x:Name="BenchmarkButton" Content="Benchmark this machine…" Margin="0,0,8,0" />
+              <TextBlock
+                Text="{Binding BenchmarkSummaryText}"
+                FontSize="11"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                VerticalAlignment="Center"
+              />
+              <TextBlock
+                Text="{Binding BenchmarkFailedText}"
+                FontSize="11"
+                Foreground="Orange"
+                VerticalAlignment="Center"
+                Margin="4,0,0,0"
+                IsVisible="{Binding BenchmarkFailedText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+              />
+              <TextBlock
+                Text="{Binding BenchmarkSummaryTail}"
+                FontSize="11"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                VerticalAlignment="Center"
+                Margin="4,0,0,0"
+                IsVisible="{Binding BenchmarkSummaryTail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+              />
+            </WrapPanel>
           </StackPanel>
 
           <TextBlock Text="Mode" FontWeight="SemiBold" />

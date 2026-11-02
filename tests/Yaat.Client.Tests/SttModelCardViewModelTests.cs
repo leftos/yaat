@@ -70,11 +70,29 @@ public sealed class SttModelCardViewModelTests : IDisposable
     [Theory]
     [InlineData(SttEngine.RasrV2Fp32, "GPU, or a fast CPU")]
     [InlineData(SttEngine.RasrV2Int8, "CPU with little memory")]
-    public void ARasrCard_SaysWhereItRunsBest_AndHasNoNote(SttEngine engine, string bestOn)
+    public void ARasrCard_SaysWhereItRunsBest(SttEngine engine, string bestOn)
     {
         (SttModelCardViewModel card, _, _) = NewCard(engine);
 
         Assert.Equal(bestOn, card.BestOnText);
+    }
+
+    [Fact]
+    public void Int8Card_HasTheLessAccurateNote()
+    {
+        (SttModelCardViewModel card, _, _) = NewCard(SttEngine.RasrV2Int8);
+
+        Assert.Equal(
+            "Less accurate than fp32: it gets more words and callsigns wrong. Pick it when memory or download size matters more.",
+            card.NoteText
+        );
+    }
+
+    [Fact]
+    public void Fp32Card_HasNoNote()
+    {
+        (SttModelCardViewModel card, _, _) = NewCard(SttEngine.RasrV2Fp32);
+
         Assert.Null(card.NoteText);
     }
 

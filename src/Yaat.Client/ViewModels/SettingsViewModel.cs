@@ -10,6 +10,7 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
+using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.Views;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -756,39 +757,43 @@ public partial class SettingsViewModel : ObservableObject
     public ObservableCollection<MacroRow> MacroRows { get; } = [];
 
     public SettingsViewModel()
-        : this(new UserPreferences(), audioCapture: null, speechSampleStore: null, NewOwnedSttDownloads(), ownsSttDownloads: true) { }
+        : this(new UserPreferences(), audioCapture: null, speechSampleStore: null, NewOwnedSttDownloads(), ownsSttDownloads: true, sttBench: null) { }
 
     public SettingsViewModel(UserPreferences preferences)
-        : this(preferences, audioCapture: null, speechSampleStore: null, NewOwnedSttDownloads(), ownsSttDownloads: true) { }
+        : this(preferences, audioCapture: null, speechSampleStore: null, NewOwnedSttDownloads(), ownsSttDownloads: true, sttBench: null) { }
 
     public SettingsViewModel(UserPreferences preferences, AudioCaptureService? audioCapture)
-        : this(preferences, audioCapture, speechSampleStore: null, NewOwnedSttDownloads(), ownsSttDownloads: true) { }
+        : this(preferences, audioCapture, speechSampleStore: null, NewOwnedSttDownloads(), ownsSttDownloads: true, sttBench: null) { }
 
     /// <summary>Builds the view model over the preferences it edits.</summary>
     /// <param name="preferences">The preferences OK and Apply write.</param>
     /// <param name="audioCapture">The microphone capture the audio sections list devices from; null when there is none.</param>
     /// <param name="speechSampleStore">The store of saved speech samples; null when there is none.</param>
     /// <param name="sttDownloads">The app-lifetime speech-recognition downloads; the caller keeps and disposes them.</param>
+    /// <param name="sttBench">The app-lifetime speech benchmark the Speech section summarises; null hides the benchmark row.</param>
     public SettingsViewModel(
         UserPreferences preferences,
         AudioCaptureService? audioCapture,
         SpeechSampleStore? speechSampleStore,
-        SttDownloads sttDownloads
+        SttDownloads sttDownloads,
+        SttBenchService? sttBench
     )
-        : this(preferences, audioCapture, speechSampleStore, sttDownloads, ownsSttDownloads: false) { }
+        : this(preferences, audioCapture, speechSampleStore, sttDownloads, ownsSttDownloads: false, sttBench) { }
 
     private SettingsViewModel(
         UserPreferences preferences,
         AudioCaptureService? audioCapture,
         SpeechSampleStore? speechSampleStore,
         SttDownloads sttDownloads,
-        bool ownsSttDownloads
+        bool ownsSttDownloads,
+        SttBenchService? sttBench
     )
     {
         _preferences = preferences;
         _speechSampleStore = speechSampleStore;
         _sttDownloads = sttDownloads;
         _ownsSttDownloads = ownsSttDownloads;
+        _sttBench = sttBench;
 
         // Enumerate available audio input/output devices if we have an AudioCaptureService instance
         // (passed in by MainWindow when opening Settings). Always include the system-default
@@ -909,6 +914,8 @@ public partial class SettingsViewModel : ObservableObject
         _gpuRuntimeRemovalText = _isGpuRuntimeRemovalScheduled ? GpuRuntimeRemovalScheduledText : "";
         WatchSttDownloads();
         SherpaNativeLoader.CpuFallbackReasonChanged += OnCpuFallbackReasonChanged;
+        _sttBench?.Changed += OnSttBenchChanged;
+        RefreshBenchmark();
 
         _audioInputDevice = _preferences.AudioInputDevice;
         _audioOutputDevice = _preferences.AudioOutputDevice;
@@ -1172,6 +1179,8 @@ public partial class SettingsViewModel : ObservableObject
             SelectedSttMode,
             SelectedSttDevice
         );
+        // The benchmark line's own figures follow the saved setting.
+        RefreshBenchmark();
         // Before the sample settings: enabling telemetry there forces capture on, and writing capture
         // first would briefly store it off.
         if (SpeechTelemetryEnabled != _appliedSpeechTelemetryEnabled)
@@ -2417,6 +2426,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private readonly SttDownloads _sttDownloads;
     private readonly bool _ownsSttDownloads;
+    private readonly SttBenchService? _sttBench;
     private (bool Available, string? Reason)? _sttNbest;
     private GpuSupport? _gpuSupport;
     private bool _sttDownloadsReleased;
@@ -2522,6 +2532,7 @@ public partial class SettingsViewModel : ObservableObject
         _sttDownloadsReleased = true;
         SherpaNativeLoader.CpuFallbackReasonChanged -= OnCpuFallbackReasonChanged;
         _sttDownloads.EngineLoadingChanged -= OnSttEngineLoadingChanged;
+        _sttBench?.Changed -= OnSttBenchChanged;
         if (GpuRuntime is not null)
         {
             GpuRuntime.PropertyChanged -= OnGpuRuntimeChanged;
@@ -2534,6 +2545,69 @@ public partial class SettingsViewModel : ObservableObject
         if (_ownsSttDownloads)
         {
             _sttDownloads.Dispose();
+        }
+    }
+
+    /// <summary>Whether Settings > Speech shows the benchmark row: only with a benchmark service to open.</summary>
+    public bool IsBenchmarkAvailable => _sttBench is not null;
+
+    /// <summary>The benchmark line's text before the failed count; the whole line when nothing failed.</summary>
+    [ObservableProperty]
+    private string _benchmarkSummaryText = "";
+
+    /// <summary>The benchmark line's failed count, drawn as a warning; empty when no row failed.</summary>
+    [ObservableProperty]
+    private string _benchmarkFailedText = "";
+
+    /// <summary>The benchmark line's figures for the saved setting; empty when its row did not succeed in the last run.</summary>
+    [ObservableProperty]
+    private string _benchmarkSummaryTail = "";
+
+    /// <summary>
+    /// Shows a model, mode and device saved elsewhere (the benchmark window's Apply) as selected, without saving, so a later
+    /// OK or Apply here writes the same values back.
+    /// </summary>
+    /// <param name="engine">The saved model; a model with no card selects none, so Apply keeps the saved model.</param>
+    /// <param name="mode">The saved mode.</param>
+    /// <param name="device">The saved device.</param>
+    public void ShowSavedSttChoice(SttEngine engine, SttMode mode, SttDevice device)
+    {
+        SelectedSttModelCard = SttModelCards.FirstOrDefault(c => c.Engine == engine);
+        SelectedSttMode = mode;
+        SelectedSttDevice = device;
+        RefreshBenchmark();
+    }
+
+    // Raised on whichever thread the run is on.
+    private void OnSttBenchChanged() => Dispatcher.UIThread.Post(RefreshBenchmark);
+
+    private void RefreshBenchmark()
+    {
+        // A post queued before the release can still arrive after it.
+        if (_sttDownloadsReleased)
+        {
+            return;
+        }
+        if (_sttBench is { } bench)
+        {
+            SttBenchSummaryLine line = SttBenchText.SettingsSummary(
+                new SttBenchSnapshot(bench.State, bench.Progress, bench.StatusMessage, bench.LastRun),
+                (_preferences.SttEngine, _preferences.SttMode, _preferences.SttDevice),
+                TimeZoneInfo.Local
+            );
+            BenchmarkSummaryText = line.Lead;
+            BenchmarkFailedText = line.Failed;
+            BenchmarkSummaryTail = line.Tail;
+        }
+        UpdateCardMeasured();
+    }
+
+    private void UpdateCardMeasured()
+    {
+        SttBenchLastRun? lastRun = _sttBench?.LastRun;
+        foreach (SttModelCardViewModel card in SttModelCards)
+        {
+            card.MeasuredText = SttBenchText.CardMeasured(lastRun, card.Engine, SelectedSttMode, SelectedSttDevice);
         }
     }
 
@@ -2672,7 +2746,10 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(DeviceStatusText));
         OnPropertyChanged(nameof(IsDeviceStatusWarning));
         OnPropertyChanged(nameof(IsSttRestartNeeded));
+        UpdateCardMeasured();
     }
+
+    partial void OnSelectedSttModeChanged(SttMode value) => UpdateCardMeasured();
 
     [RelayCommand(CanExecute = nameof(CanDownloadGpuRuntime))]
     private async Task DownloadGpuRuntimeAsync()

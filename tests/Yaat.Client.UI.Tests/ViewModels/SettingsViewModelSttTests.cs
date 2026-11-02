@@ -2,10 +2,12 @@ using System.ComponentModel;
 using System.Net.Http;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
+using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 
@@ -223,12 +225,167 @@ public sealed class SettingsViewModelSttTests : IDisposable
         Assert.True(owning.SttDownloads.IsDisposed);
     }
 
+    [AvaloniaFact(Timeout = 60_000)]
+    public void BenchmarkRow_IsHiddenWithoutAService()
+    {
+        SettingsViewModel vm = NewViewModel(nbestAvailable: true);
+
+        Assert.False(vm.IsBenchmarkAvailable);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public async Task BenchmarkSummary_FollowsTheServiceThroughARun()
+    {
+        SaveStt(SttEngine.RasrV2Fp32, SttMode.Fast, SttDevice.Cpu);
+        var fakes = new BenchFakes { Plan = [new SttBenchPlanRow(SttEngine.RasrV2Fp32, SttMode.Fast, SttDevice.Cpu, null)] };
+        SttBenchService bench = NewBench(fakes);
+        SettingsViewModel vm = NewViewModel(BenchDownloads(), bench);
+        Assert.True(vm.IsBenchmarkAvailable);
+        Assert.Equal(("Never run on this machine", "", ""), Summary(vm));
+        // Counted rather than asserted in the handler: the service logs and drops whatever a listener throws.
+        int changesOffTheUiThread = 0;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if ((e.PropertyName == nameof(SettingsViewModel.BenchmarkSummaryText)) && (!Dispatcher.UIThread.CheckAccess()))
+            {
+                Interlocked.Increment(ref changesOffTheUiThread);
+            }
+        };
+
+        fakes.Runner.Hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fakes.Runner.RowStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task run = bench.RunAsync(CancellationToken.None);
+        await fakes.Runner.RowStarted.Task;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(("Running 1 of 1…", "", ""), Summary(vm));
+
+        fakes.Runner.Hold.TrySetResult();
+        await run;
+        Dispatcher.UIThread.RunJobs();
+        Assert.StartsWith("Last run ", vm.BenchmarkSummaryText, StringComparison.Ordinal);
+        Assert.EndsWith(": 1 run", vm.BenchmarkSummaryText, StringComparison.Ordinal);
+        Assert.Equal("", vm.BenchmarkFailedText);
+        Assert.Equal("· this setting 410 ms p50, 1.1 GB RAM", vm.BenchmarkSummaryTail);
+        Assert.Equal("410 ms p50, 1.1 GB RAM (Fast, CPU)", vm.SelectedSttModelCard!.MeasuredText);
+        Assert.Equal(0, changesOffTheUiThread);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void CardMeasured_FollowsTheSelectedModeAndDevice()
+    {
+        SaveStt(SttEngine.RasrV2Fp32, SttMode.Fast, SttDevice.Cpu);
+        SttBenchLastRunStore.Save(
+            LastRunPath,
+            new SttBenchLastRun(
+                DateTimeOffset.UnixEpoch,
+                [
+                    new SttBenchLastRow(SttEngine.RasrV2Fp32, SttMode.Fast, SttDevice.Cpu, BenchResult(SttDevice.Cpu, SttMode.Fast), null),
+                    new SttBenchLastRow(SttEngine.RasrV2Fp32, SttMode.Accurate, SttDevice.Gpu, BenchResult(SttDevice.Gpu, SttMode.Accurate), null),
+                ]
+            )
+        );
+        SettingsViewModel vm = NewViewModel(BenchDownloads(), NewBench(new BenchFakes()));
+        SttModelCardViewModel fp32 = vm.SttModelCards.Single(c => c.Engine == SttEngine.RasrV2Fp32);
+        SttModelCardViewModel int8 = vm.SttModelCards.Single(c => c.Engine == SttEngine.RasrV2Int8);
+        Assert.Equal("410 ms p50, 1.1 GB RAM (Fast, CPU)", fp32.MeasuredText);
+        Assert.Equal(SttModelCardViewModel.NotMeasuredText, int8.MeasuredText);
+
+        vm.SelectedSttMode = SttMode.Accurate;
+        Assert.Equal(SttModelCardViewModel.NotMeasuredText, fp32.MeasuredText);
+
+        vm.SelectedSttDevice = SttDevice.Gpu;
+        Assert.Equal("410 ms p50, 3.6 GB VRAM (Accurate, GPU)", fp32.MeasuredText);
+
+        vm.SelectedSttDevice = SttDevice.Cpu;
+        Assert.Equal(SttModelCardViewModel.NotMeasuredText, fp32.MeasuredText);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void ShowSavedSttChoice_SetsTheSelectionWithoutSaving()
+    {
+        SaveStt(SttEngine.RasrV2Fp32, SttMode.Accurate, SttDevice.Cpu);
+        var preferences = new UserPreferences();
+        var vm = new SettingsViewModel(preferences, audioCapture: null, speechSampleStore: null, BenchDownloads(), sttBench: null);
+        _viewModels.Add(vm);
+
+        vm.ShowSavedSttChoice(SttEngine.RasrV2Int8, SttMode.Fast, SttDevice.Gpu);
+
+        Assert.Equal(
+            (SttEngine.RasrV2Int8, SttMode.Fast, SttDevice.Gpu),
+            (vm.SelectedSttModelCard!.Engine, vm.SelectedSttMode, vm.SelectedSttDevice)
+        );
+        var stored = new UserPreferences();
+        Assert.Equal((SttEngine.RasrV2Fp32, SttMode.Accurate, SttDevice.Cpu), (stored.SttEngine, stored.SttMode, stored.SttDevice));
+
+        // The benchmark window's Apply has saved the choice before it shows here, so Settings' own Apply writes the same values.
+        SaveStt(preferences, SttEngine.RasrV2Int8, SttMode.Fast, SttDevice.Gpu);
+        vm.ApplyCommand.Execute(null);
+
+        Assert.False(vm.LastApplyChangedSttEngineOrMode);
+        stored = new UserPreferences();
+        Assert.Equal((SttEngine.RasrV2Int8, SttMode.Fast, SttDevice.Gpu), (stored.SttEngine, stored.SttMode, stored.SttDevice));
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public async Task Release_UnsubscribesFromTheService()
+    {
+        var fakes = new BenchFakes { Plan = [new SttBenchPlanRow(SttEngine.RasrV2Fp32, SttMode.Fast, SttDevice.Cpu, null)] };
+        SttBenchService bench = NewBench(fakes);
+        SettingsViewModel vm = NewViewModel(BenchDownloads(), bench);
+        List<string?> changed = [];
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        vm.ReleaseSttDownloads();
+        await bench.RunAsync(CancellationToken.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.DoesNotContain(nameof(SettingsViewModel.BenchmarkSummaryText), changed);
+        Assert.Equal("Never run on this machine", vm.BenchmarkSummaryText);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public async Task APostQueuedBeforeRelease_ChangesNothing()
+    {
+        var fakes = new BenchFakes { Plan = [new SttBenchPlanRow(SttEngine.RasrV2Fp32, SttMode.Fast, SttDevice.Cpu, null)] };
+        SttBenchService bench = NewBench(fakes);
+        SettingsViewModel vm = NewViewModel(BenchDownloads(), bench);
+        List<string?> changed = [];
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        // The service raises its first change before it first awaits, so the post is queued and nothing has drained it yet.
+        Task run = bench.RunAsync(CancellationToken.None);
+        vm.ReleaseSttDownloads();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.DoesNotContain(nameof(SettingsViewModel.BenchmarkSummaryText), changed);
+        Assert.Equal("Never run on this machine", vm.BenchmarkSummaryText);
+        await run;
+    }
+
+    private string LastRunPath => Path.Combine(_root, "bench", "last-run.json");
+
+    private static SttBenchResult BenchResult(SttDevice device, SttMode mode) => SttBenchResult.Measured(BenchFakes.Timing(device), 12, mode);
+
+    private static (string, string, string) Summary(SettingsViewModel vm) =>
+        (vm.BenchmarkSummaryText, vm.BenchmarkFailedText, vm.BenchmarkSummaryTail);
+
+    private SttDownloads BenchDownloads() => NewDownloads(SttDownloads.DefaultManifestPath, new HttpClient(), nbestAvailable: true);
+
+    private SttBenchService NewBench(BenchFakes fakes)
+    {
+        string bench = Path.Combine(_root, "bench");
+        var folders = new SttBenchFolders(Path.Combine(bench, "models"), Path.Combine(bench, "clips"), Path.Combine(bench, "runs"), LastRunPath);
+        return new SttBenchService(fakes.PlanAsync, fakes.Runner, fakes.Suspender, folders, new FakeTimeProvider());
+    }
+
     private SettingsViewModel NewViewModel(bool nbestAvailable) =>
         NewViewModel(NewDownloads(SttDownloads.DefaultManifestPath, new HttpClient(), nbestAvailable));
 
-    private SettingsViewModel NewViewModel(SttDownloads downloads)
+    private SettingsViewModel NewViewModel(SttDownloads downloads) => NewViewModel(downloads, sttBench: null);
+
+    private SettingsViewModel NewViewModel(SttDownloads downloads, SttBenchService? sttBench)
     {
-        var vm = new SettingsViewModel(new UserPreferences(), audioCapture: null, speechSampleStore: null, downloads);
+        var vm = new SettingsViewModel(new UserPreferences(), audioCapture: null, speechSampleStore: null, downloads, sttBench);
         _viewModels.Add(vm);
         return vm;
     }
@@ -288,9 +445,10 @@ public sealed class SettingsViewModelSttTests : IDisposable
         }
     }
 
-    private static void SaveStt(SttEngine engine, SttMode mode, SttDevice device)
+    private static void SaveStt(SttEngine engine, SttMode mode, SttDevice device) => SaveStt(new UserPreferences(), engine, mode, device);
+
+    private static void SaveStt(UserPreferences preferences, SttEngine engine, SttMode mode, SttDevice device)
     {
-        var preferences = new UserPreferences();
         preferences.SetSpeechSettings(
             preferences.SpeechEnabled,
             preferences.WhisperModelSize,

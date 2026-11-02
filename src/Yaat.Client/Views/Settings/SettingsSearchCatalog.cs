@@ -280,6 +280,7 @@ public static class SettingsSearchCatalog
             SettingWithin(s, "SelectedSttModelCard.CancelDownloadCommand", "Cancel", model, None),
             SettingWithin(s, "SelectedSttModelCard.DeleteCommand", "Delete", model, None),
             SettingWithin(s, "SelectedSttModelCard.ViewLicenceCommand", "View licence", model, None),
+            SettingWithin(s, "BenchmarkButton", "Benchmark this machine…", model, None),
             SettingWithin(s, "SelectedSttMode", "Accurate", "Mode", None),
             SettingWithin(s, "SelectedSttMode", "Fast", "Mode", None),
             SettingWithin(s, "SelectedSttDevice", "CPU", "Device", None),

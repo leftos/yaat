@@ -211,6 +211,9 @@ public sealed partial class SpeechBenchmarkViewModel : ObservableObject, IDispos
         _service.Cancel();
     }
 
+    /// <summary>Moves the current badge after the saved choice changed elsewhere (Settings' OK or Apply).</summary>
+    public void RefreshCurrent() => MarkCurrent();
+
     public void Dispose()
     {
         _disposed = true;

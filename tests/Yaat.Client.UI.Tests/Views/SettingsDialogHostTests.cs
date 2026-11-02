@@ -456,6 +456,32 @@ public class SettingsDialogHostTests
     }
 
     [AvaloniaFact(Timeout = 60_000)]
+    public void AnOpenBenchmarkWindow_StaysUsableUnderSettings()
+    {
+        var benchmark = new SpeechBenchmarkWindow();
+        benchmark.ShowAndRunLayout();
+        bool? pressHandled = null;
+        benchmark.AddHandler(InputElement.PointerPressedEvent, (_, e) => pressHandled = e.Handled, RoutingStrategies.Bubble, handledEventsToo: true);
+        var dialog = new SettingsWindow();
+        dialog.Show();
+        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            var blank = new Point(1, 1);
+            benchmark.MouseDown(blank, MouseButton.Left);
+            benchmark.MouseUp(blank, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(pressHandled, "the press reaches the benchmark window, unhandled by Settings' block");
+        }
+        finally
+        {
+            dialog.Close();
+            benchmark.Close();
+        }
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
     public void CloseSettings_WithFocusOnAMenu_FocusesTheCommandInput()
     {
         (MainWindow main, _) = MainWindowHost.Boot();

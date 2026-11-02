@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
+using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Settings;
 
@@ -89,18 +90,13 @@ public partial class SettingsWindow : Window
 
     /// <summary>Builds the window over the preferences it edits.</summary>
     /// <param name="preferences">The preferences OK and Apply write.</param>
-    /// <param name="audioCapture">The microphone capture the audio sections list devices from; null when there is none.</param>
-    /// <param name="speechSampleStore">The store of saved speech samples; null when there is none.</param>
-    /// <param name="favorites">The favorites store a favorites import from the Import / Export hub changes on OK or Apply.</param>
-    /// <param name="sttDownloads">The app-lifetime speech-recognition downloads, which keep running after the window closes.</param>
-    public SettingsWindow(
-        UserPreferences preferences,
-        AudioCaptureService? audioCapture,
-        SpeechSampleStore? speechSampleStore,
-        FavoriteStore favorites,
-        SttDownloads sttDownloads
-    )
-        : this(preferences, new SettingsViewModel(preferences, audioCapture, speechSampleStore, sttDownloads), favorites) { }
+    /// <param name="services">The app-lifetime services the window works with.</param>
+    public SettingsWindow(UserPreferences preferences, SettingsWindowServices services)
+        : this(
+            preferences,
+            new SettingsViewModel(preferences, services.AudioCapture, services.SpeechSampleStore, services.SttDownloads, services.SttBench),
+            services.Favorites
+        ) { }
 
     private SettingsWindow(UserPreferences preferences, SettingsViewModel vm, FavoriteStore favorites)
     {
@@ -140,6 +136,9 @@ public partial class SettingsWindow : Window
 
     /// <summary>The settings this window edits; also its DataContext and every section's.</summary>
     public SettingsViewModel ViewModel { get; }
+
+    /// <summary>Raised when "Benchmark this machine…" is pressed; the host opens the speech benchmark window.</summary>
+    public event Action? BenchmarkRequested;
 
     /// <summary>
     /// Shows <paramref name="id"/> in the content pane and selects its sidebar row. When a search has filtered the
@@ -229,6 +228,7 @@ public partial class SettingsWindow : Window
         _verbs.ImportVerbsButton.Click += (_, _) => OpenImportExport([SettingsItemType.Verbs], ImportExportTab.Import, selectedMacros: null);
         _verbs.ExportVerbsButton.Click += (_, _) => OpenImportExport([SettingsItemType.Verbs], ImportExportTab.Export, selectedMacros: null);
         _speech.BrowseLlmModelButton.Click += OnBrowseLlmModelClick;
+        _speech.BenchmarkButton.Click += (_, _) => BenchmarkRequested?.Invoke();
     }
 
     // Drops whatever an import staged and was never applied: the staged copy of the favorites goes with it. Every close
@@ -250,7 +250,8 @@ public partial class SettingsWindow : Window
     // Settings is modal over every YAAT window, pop-outs included: each window open now gets no pointer or key input while
     // it is open, and a press on one brings Settings forward. The windows are not disabled, so they keep their normal look
     // and the live preview shows the colours as they will be. The windows Settings opens itself (the hub, file dialogs,
-    // confirmations) open later, so they stay usable.
+    // confirmations) open later, so they stay usable, and so does the speech benchmark window, which Settings opens and which
+    // may still be open from an earlier Settings session.
     //
     // The tap gestures (Tapped, DoubleTapped, RightTapped, Holding) are raised once the pointer press has finished routing,
     // handled or not, as bubble-only events the tunnel handler never sees, so they are stopped by class handlers that mark
@@ -266,7 +267,7 @@ public partial class SettingsWindow : Window
 
         foreach (Window window in open)
         {
-            if (ReferenceEquals(window, this))
+            if (ReferenceEquals(window, this) || (window is SpeechBenchmarkWindow))
             {
                 continue;
             }
@@ -661,3 +662,17 @@ public partial class SettingsWindow : Window
         }
     }
 }
+
+/// <summary>The app-lifetime services the Settings window works with.</summary>
+/// <param name="AudioCapture">The microphone capture the audio sections list devices from; null when there is none.</param>
+/// <param name="SpeechSampleStore">The store of saved speech samples; null when there is none.</param>
+/// <param name="Favorites">The favorites store a favorites import from the Import / Export hub changes on OK or Apply.</param>
+/// <param name="SttDownloads">The speech-recognition downloads, which keep running after the window closes.</param>
+/// <param name="SttBench">The speech benchmark the Speech section summarises; null hides the benchmark row.</param>
+public sealed record SettingsWindowServices(
+    AudioCaptureService? AudioCapture,
+    SpeechSampleStore? SpeechSampleStore,
+    FavoriteStore Favorites,
+    SttDownloads SttDownloads,
+    SttBenchService? SttBench
+);

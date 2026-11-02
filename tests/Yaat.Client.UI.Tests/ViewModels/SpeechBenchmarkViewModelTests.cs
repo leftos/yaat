@@ -392,6 +392,19 @@ public sealed class SpeechBenchmarkViewModelTests : IDisposable
     }
 
     [AvaloniaFact(Timeout = HangGuardMs)]
+    public async Task RefreshCurrent_MovesTheBadgeWhenTheSavedChoiceChanged()
+    {
+        using SpeechBenchmarkViewModel vm = Vm(Service(Fp32AccurateCpu, Int8FastCpu));
+        await RunToTheEndAsync(vm);
+        Assert.Equal([true, false], vm.Rows.Select(r => r.IsCurrent));
+
+        _current = (SttEngine.RasrV2Int8, SttMode.Fast, SttDevice.Cpu);
+        vm.RefreshCurrent();
+
+        Assert.Equal([false, true], vm.Rows.Select(r => r.IsCurrent));
+    }
+
+    [AvaloniaFact(Timeout = HangGuardMs)]
     public async Task Apply_IsRefusedForAModelDeletedWhileTheWindowIsOpen()
     {
         using SpeechBenchmarkViewModel vm = Vm(Service(Fp32AccurateCpu, Int8FastCpu));

@@ -15,8 +15,12 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public sealed partial class SttModelCardViewModel : ObservableObject, IDisposable
 {
-    /// <summary>The measured line every card shows until the benchmark exists.</summary>
-    public const string NotMeasuredText = "Not yet: run the benchmark";
+    /// <summary>The measured line of a card whose model, in the selected mode and device, the last benchmark run did not measure.</summary>
+    public const string NotMeasuredText = "Not measured: run the benchmark";
+
+    /// <summary>The int8 card's note.</summary>
+    private const string Int8NoteText =
+        "Less accurate than fp32: it gets more words and callsigns wrong. Pick it when memory or download size matters more.";
 
     private const string LicenceFileName = "LICENSE";
 
@@ -35,6 +39,10 @@ public sealed partial class SttModelCardViewModel : ObservableObject, IDisposabl
 
     [ObservableProperty]
     private bool _isLoading;
+
+    /// <summary>The measured latency and memory line, for the mode and device Settings has selected; Settings sets it.</summary>
+    [ObservableProperty]
+    private string _measuredText = NotMeasuredText;
 
     private SttModelCardViewModel(
         SttEngine engine,
@@ -70,9 +78,6 @@ public sealed partial class SttModelCardViewModel : ObservableObject, IDisposabl
     /// <summary>The download size: <c>2.55 GB</c>.</summary>
     public string SizeText { get; }
 
-    /// <summary>The measured latency and memory line.</summary>
-    public string MeasuredText => NotMeasuredText;
-
     /// <summary>Where the model runs best: <c>GPU, or a fast CPU</c>; empty for Whisper.</summary>
     public string BestOnText =>
         Engine switch
@@ -82,8 +87,14 @@ public sealed partial class SttModelCardViewModel : ObservableObject, IDisposabl
             _ => "",
         };
 
-    /// <summary>The card's note: only the legacy Whisper card has one.</summary>
-    public string? NoteText => IsWhisper ? "One hypothesis only, so accurate mode is unavailable. Removed in a later release." : null;
+    /// <summary>The card's note: the legacy Whisper card's and the int8 card's; null for fp32.</summary>
+    public string? NoteText =>
+        Engine switch
+        {
+            SttEngine.Whisper => "One hypothesis only, so accurate mode is unavailable. Removed in a later release.",
+            SttEngine.RasrV2Int8 => Int8NoteText,
+            _ => null,
+        };
 
     /// <summary>Whether this is the legacy Whisper card, which has no Accurate mode and no download here.</summary>
     public bool IsWhisper => Engine == SttEngine.Whisper;

@@ -40,6 +40,9 @@ public partial class SpeechBenchmarkWindow : Window
         Closed += OnClosed;
     }
 
+    /// <summary>The benchmark this window shows; also its DataContext.</summary>
+    public SpeechBenchmarkViewModel ViewModel => _viewModel;
+
     private async void OnOpened(object? sender, EventArgs e)
     {
         try

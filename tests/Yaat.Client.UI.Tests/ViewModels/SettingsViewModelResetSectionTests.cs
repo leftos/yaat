@@ -295,10 +295,13 @@ public class SettingsViewModelResetSectionTests
         using var sttDownloads = new SttDownloads(SttDownloads.DefaultManifestPath, SttModelInstaller.InstallRootDefault, TimeProvider.System);
         var window = new SettingsWindow(
             new UserPreferences(),
-            audioCapture: null,
-            speechSampleStore: null,
-            new FavoriteStore(FavoriteStore.DefaultRootDir),
-            sttDownloads
+            new SettingsWindowServices(
+                AudioCapture: null,
+                SpeechSampleStore: null,
+                new FavoriteStore(FavoriteStore.DefaultRootDir),
+                sttDownloads,
+                SttBench: null
+            )
         );
         window.ShowAndRunLayout();
         var vm = (SettingsViewModel)window.DataContext!;
