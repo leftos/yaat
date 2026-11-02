@@ -55,6 +55,8 @@ public class SplitBlockPreservationTests : IDisposable
         ["TransmissionId"] = "CreateBlock",
         // The split passes the block's own fact through the ctx CreateBlock reads
         ["SpeedRestatedInTransmission"] = "CreateBlock",
+        ["CrossingsClearedInTransmission"] = "CreateBlock",
+        ["CrossFeedsFollowingClearance"] = "CreateBlock",
         // Runtime state explicitly copied by SplitBlockNonConflicting:
         ["WaitRemainingSeconds"] = "copied",
         ["WaitRemainingDistanceNm"] = "copied",

@@ -361,6 +361,24 @@ public class CommandBlock
     public bool SpeedRestatedInTransmission { get; init; }
 
     /// <summary>
+    /// The runways a <c>CROSS</c> in an earlier block of the transmission that queued this block cleared
+    /// (<see cref="Commands.DispatchContext.CrossingsClearedInTransmission"/>), which a takeoff or line-up clearance here crosses
+    /// on its implicit taxi from a taxiway hold short; null when none. Serialized and carried through a split, never
+    /// recomputed from <see cref="SourceCommandText"/>, as <see cref="SpeedRestatedInTransmission"/> is. Defaults null, so an
+    /// older snapshot restores with no crossing cleared.
+    /// </summary>
+    public IReadOnlyList<string>? CrossingsClearedInTransmission { get; init; }
+
+    /// <summary>
+    /// Whether a takeoff or line-up clearance follows this block in a later block of the transmission that queued it
+    /// (<see cref="Commands.DispatchContext.CrossFeedsFollowingClearance"/>), so a <c>CROSS</c> here at a taxiway hold short
+    /// installs nothing and leaves its runways to that clearance's implicit taxi. Serialized and carried through a split, never
+    /// recomputed from <see cref="SourceCommandText"/>, as <see cref="SpeedRestatedInTransmission"/> is. Defaults false, so an
+    /// older snapshot restores with no clearance following.
+    /// </summary>
+    public bool CrossFeedsFollowingClearance { get; init; }
+
+    /// <summary>
     /// Set while this runway-entry block waits in the queue for its departure's release (<c>FlightPhysics.WaitsForRelease</c>),
     /// so the RPO's "waits for the release" notice and the wait/resume log lines each come once per block. Not serialized:
     /// it drives notices and logging only, and a restored block that is still held recomputes the wait from
@@ -392,6 +410,8 @@ public class CommandBlock
             IsScenarioScripted = IsScenarioScripted,
             TransmissionId = TransmissionId,
             SpeedRestatedInTransmission = SpeedRestatedInTransmission,
+            CrossingsClearedInTransmission = CrossingsClearedInTransmission is { } crossings ? [.. crossings] : null,
+            CrossFeedsFollowingClearance = CrossFeedsFollowingClearance,
         };
 
     public static CommandBlock FromSnapshot(CommandBlockDto dto) =>
@@ -418,6 +438,8 @@ public class CommandBlock
             IsScenarioScripted = dto.IsScenarioScripted,
             TransmissionId = dto.TransmissionId,
             SpeedRestatedInTransmission = dto.SpeedRestatedInTransmission,
+            CrossingsClearedInTransmission = dto.CrossingsClearedInTransmission is { Count: > 0 } crossings ? [.. crossings] : null,
+            CrossFeedsFollowingClearance = dto.CrossFeedsFollowingClearance,
             // ApplyAction is NOT restored here — this is a static context with no DispatchContext.
             // SimulationEngine.RehydrateRestoredQueueBlocks rebuilds it (and ParsedCommands) from
             // SourceCommandText on the next physics tick, before the queue can fire; track commands are

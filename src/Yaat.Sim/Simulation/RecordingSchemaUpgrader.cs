@@ -69,11 +69,13 @@ public static class RecordingSchemaUpgrader
         }
 
         bool actionsPredateNullableEfc = recording.Snapshots![0].State.SchemaVersion < NullableEfcSchemaVersion;
+        bool actionsPredateCtoRunwayGrammar = DepartureGrammarCanonicalRewriter.PredatesRunwayGrammar(recording.Snapshots![0].State.SchemaVersion);
         bool changed = MigrateSnapshots(recording.Snapshots!);
         changed |= RewriteRecordedHoldEfcs(recording.Actions, actionsPredateNullableEfc);
         changed |= RewriteRecordedCanonicals(
             recording.Actions,
-            ResolveBays(recording.ArtccConfigJson, recording.StudentPositionState?.Position?.Callsign, recording.ScenarioJson)
+            ResolveBays(recording.ArtccConfigJson, recording.StudentPositionState?.Position?.Callsign, recording.ScenarioJson),
+            actionsPredateCtoRunwayGrammar
         );
         if (!changed)
         {
@@ -86,7 +88,9 @@ public static class RecordingSchemaUpgrader
 
     // --- recorded-canonical rewrites: the retired HSE verb becomes HSA's id form, and
     //     strip canonicals predating the required FACILITY/BAY bay token gain it. Both
-    //     are idempotent, so no schema gate is needed and re-running is a no-op. ---
+    //     are idempotent, so no schema gate is needed and re-running is a no-op. The
+    //     pre-runway-grammar CTO/LUAW rewrite is not safe on current text, so it is gated
+    //     on the pre-upgrade schema of the first snapshot. ---
 
     private static IReadOnlyList<AccessibleBay> ResolveBays(string? artccConfigJson, string? positionCallsign, string? scenarioJson)
     {
@@ -142,9 +146,13 @@ public static class RecordingSchemaUpgrader
         return position?.Callsign;
     }
 
-    private static bool RewriteRecordedCanonicals(List<RecordedAction> actions, IReadOnlyList<AccessibleBay> bays)
+    private static bool RewriteRecordedCanonicals(
+        List<RecordedAction> actions,
+        IReadOnlyList<AccessibleBay> bays,
+        bool actionsPredateCtoRunwayGrammar
+    )
     {
-        bool changed = false;
+        bool changed = actionsPredateCtoRunwayGrammar && DepartureGrammarCanonicalRewriter.RewriteRecordedCommands(actions);
         for (int i = 0; i < actions.Count; i++)
         {
             if (actions[i] is not RecordedCommand command)
@@ -257,6 +265,8 @@ public static class RecordingSchemaUpgrader
         StateSnapshotDto? firstSnapshot = ReadFirstArchiveSnapshot(sourceZip);
         IReadOnlyList<AccessibleBay> bays = ResolveArchiveBays(sourceZip, firstSnapshot);
         bool actionsPredateNullableEfc = (firstSnapshot is not null) && (firstSnapshot.SchemaVersion < NullableEfcSchemaVersion);
+        bool actionsPredateCtoRunwayGrammar =
+            (firstSnapshot is not null) && DepartureGrammarCanonicalRewriter.PredatesRunwayGrammar(firstSnapshot.SchemaVersion);
 
         bool changed = false;
         using var output = new MemoryStream();
@@ -272,7 +282,7 @@ public static class RecordingSchemaUpgrader
                 }
                 else if (entry.FullName == ActionsEntry)
                 {
-                    content = MigrateActionsEntry(content, bays, actionsPredateNullableEfc, out bool entryChanged);
+                    content = MigrateActionsEntry(content, bays, actionsPredateNullableEfc, actionsPredateCtoRunwayGrammar, out bool entryChanged);
                     changed |= entryChanged;
                 }
 
@@ -327,6 +337,7 @@ public static class RecordingSchemaUpgrader
         byte[] brotliContent,
         IReadOnlyList<AccessibleBay> bays,
         bool actionsPredateNullableEfc,
+        bool actionsPredateCtoRunwayGrammar,
         out bool changed
     )
     {
@@ -336,7 +347,7 @@ public static class RecordingSchemaUpgrader
             ?? throw new InvalidOperationException("Failed to deserialize actions entry.");
 
         changed = RewriteRecordedHoldEfcs(actions, actionsPredateNullableEfc);
-        changed |= RewriteRecordedCanonicals(actions, bays);
+        changed |= RewriteRecordedCanonicals(actions, bays, actionsPredateCtoRunwayGrammar);
         return changed ? RecordingCompression.Compress(JsonSerializer.SerializeToUtf8Bytes(actions, RecordingJsonOptions.Default)) : brotliContent;
     }
 

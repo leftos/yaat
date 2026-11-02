@@ -9,11 +9,11 @@ using Yaat.Sim.Commands;
 
 namespace Yaat.Client.UI.Tests.Views;
 
-// Regression for GitHub issue #229: the ground-map right-click "Cleared for takeoff"
-// menu item sent "CTO 28R", which the server rejects ("CTO does not understand '28R'")
-// because CTO has no runway argument — the runway is resolved server-side from the
-// aircraft's assigned runway. The same defect affected the sibling "Line up and wait"
-// item ("LUAW 28R"). Both must send the bare verb; the runway belongs in the label only.
+// Regression for GitHub issue #229: the ground-map right-click "Cleared for takeoff" and
+// "Line up and wait" items clear the aircraft for the runway it is assigned, which the
+// server resolves itself. Both send the bare verb (CTO, LUAW) and show the runway in the
+// label only: a runway in the sent text ("CTO 28R") names a runway for the server to
+// judge against the assignment, which these items never mean to do.
 public class Issue229TakeoffMenuRunwayTests
 {
     private const string Callsign = "EJA921";

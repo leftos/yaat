@@ -29,7 +29,8 @@
 - `LUAW` at a taxiway hold short taxis onto that taxiway and lines up at the intersection; its readback and the later `CTO` name it ("at echo").
 - `CTO` at a taxiway hold short is refused with "unable, traffic on E" while another aircraft stands on that taxiway; re-issue it once clear.
 - The taxi that `CTO` or `LUAW` starts from a taxiway hold short accounts for traffic and active runways, and pre-clears no crossing.
-- `CTO RWY 33` at a taxiway or runway-crossing hold departs that runway when reachable, refuses one it must cross first, and otherwise asks to confirm.
+- `CTO 33` or `LUAW 33` at a taxiway or runway-crossing hold departs or lines up on that runway when reachable, refuses one it must cross first, and otherwise asks to confirm.
+- `CROSS 28R` held short of a taxiway crosses along it to past the far bar, and `CROSS 28R, CTO 28L` carries the crossing into the takeoff.
 - CRC's ASDE-X raises vNAS's opposite-direction alerts (`OPP DIR TAXI`, `OPP DIR DEPARTURE`, `OPP DIR LANDER`) for aircraft closing head-on along a runway.
 - CRC's ASDE-X raises `CONVERGING` when a landing meets a departure, or another landing, on a converging runway, naming both runway ends.
 - CRC's ASDE-X alerts read as vNAS sends them (`RWY OCCUPIED`, `RWY CLOSED`, `RWY CLOSED, GO AROUND`), one per conflicting pair, with no `RWY INCURSION` alert.
@@ -50,6 +51,7 @@
 
 ### Changed
 
+- `CTO` takes its runway as the first argument with no `RWY` (`CTO 28L`, `CTO 28 330`); three digits are a heading, and older recordings replay as recorded.
 - In solo sessions, how busy the frequency sounds now follows how little dead air is left, counting your transmissions and pilots' say answers, not how many calls were made.
 - In solo sessions, a second airborne pilot now and then checks in a few seconds after the first, before you have answered it.
 - `HOLD` to a `FOLLOWG` follower (after `CROSS 1L 1R; HOLD`, once clear) ends the follow; `RES` answers "unable, request taxi instructions" until `TAXI` or `FOLLOWG`.

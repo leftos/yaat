@@ -55,6 +55,17 @@ public class CommandRegistryTests
         Assert.True(def.Overloads.Length > 5, $"CTO should have many overloads, got {def.Overloads.Length}");
     }
 
+    [Theory]
+    [InlineData(CanonicalCommandType.ClearedForTakeoff)]
+    [InlineData(CanonicalCommandType.LineUpAndWait)]
+    public void TakeoffAndLineUp_NameTheirRunwayAsTheFirstArgument(CanonicalCommandType type)
+    {
+        CommandDefinition def = CommandRegistry.Get(type)!;
+        CommandOverload runway = Assert.Single(def.Overloads, o => o.VariantLabel == "Runway");
+        Assert.Equal("runway", runway.Parameters[0].Name);
+        Assert.DoesNotContain(def.CompoundModifiers ?? [], m => m.Keyword == "RWY");
+    }
+
     [Fact]
     public void GoAround_HasSevenOverloads()
     {

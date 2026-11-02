@@ -705,7 +705,7 @@ public static class CommandDescriber
             SquawkAllCommand => "SQALL",
             SquawkNormalAllCommand => "SNALL",
             SquawkStandbyAllCommand => "SSALL",
-            LineUpAndWaitCommand luaw => luaw.WithoutDelay ? "LUAW WD" : "LUAW",
+            LineUpAndWaitCommand luaw => $"LUAW{(luaw.Runway is { } named ? $" {named}" : "")}{(luaw.WithoutDelay ? " WD" : "")}",
             ClearedForTakeoffCommand cto => FormatCtoCanonical(cto),
             CancelTakeoffClearanceCommand => "CTOC",
             ClearedToLandCommand cmd => FormatClearedToLandCanonical(cmd),
@@ -1208,7 +1208,7 @@ public static class CommandDescriber
             SquawkAllCommand => "Squawk all assigned",
             SquawkNormalAllCommand => "Squawk normal all",
             SquawkStandbyAllCommand => "Squawk standby all",
-            LineUpAndWaitCommand luaw => luaw.WithoutDelay ? "Line up and wait, without delay" : "Line up and wait",
+            LineUpAndWaitCommand luaw => DescribeLuawNatural(luaw),
             ClearedForTakeoffCommand cto => DescribeCtoNatural(cto),
             CancelTakeoffClearanceCommand => "Cancel takeoff clearance",
             ClearedToLandCommand cmd => DescribeClearedToLandNatural(cmd),
@@ -1972,7 +1972,7 @@ public static class CommandDescriber
         string alt = cto.AssignedAltitude is not null ? $" {cto.AssignedAltitude}" : "";
         string cwt = cto.CautionWakeTurbulence ? " CWT" : "";
         string imm = cto.Immediate ? " IMM" : "";
-        string runway = cto.Runway is { } named ? $" RWY {named}" : "";
+        string runway = cto.Runway is { } named ? $" {named}" : "";
 
         return $"CTO{runway}{suffix}{alt}{cwt}{imm}";
     }
@@ -2075,6 +2075,12 @@ public static class CommandDescriber
         }
 
         return string.Join(' ', parts);
+    }
+
+    private static string DescribeLuawNatural(LineUpAndWaitCommand luaw)
+    {
+        string msg = luaw.Runway is { } runway ? $"Runway {RunwayIdentifier.ToDisplayDesignator(runway)}, line up and wait" : "Line up and wait";
+        return luaw.WithoutDelay ? $"{msg}, without delay" : msg;
     }
 
     private static string DescribeCtoNatural(ClearedForTakeoffCommand cto)

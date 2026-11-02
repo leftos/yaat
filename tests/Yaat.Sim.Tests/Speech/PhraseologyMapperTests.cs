@@ -487,12 +487,12 @@ public class PhraseologyMapperTests
 
     [Theory]
     [InlineData("runway two eight right shortened cleared for takeoff", "CTO")]
-    [InlineData("runway two eight right full length cleared for takeoff", "CTO")]
+    [InlineData("runway two eight right full length cleared for takeoff", "CTO 28R")]
     [InlineData("runway two eight right wind two seven zero at one five cleared for takeoff", "CTO")]
     [InlineData("runway two eight right shortened cleared to land", "CLAND")]
     [InlineData("runway two eight right wind two seven zero at one five cleared to land", "CLAND")]
     [InlineData("runway two eight right shortened line up and wait", "LUAW")]
-    [InlineData("runway two eight right full length line up and wait", "LUAW")]
+    [InlineData("runway two eight right full length line up and wait", "LUAW 28R")]
     // §3-9-10 sub 7 — runway intersection departure + shortened modifier wedge.
     [InlineData("runway two eight right at charlie five intersection departure shortened cleared for takeoff", "CTO")]
     // §3-10 — "change to runway" preamble drops; the second runway literal anchors the verb.
@@ -508,11 +508,20 @@ public class PhraseologyMapperTests
 
     [Theory]
     [InlineData("cleared for takeoff", "CTO")]
-    [InlineData("cleared for takeoff runway two eight right", "CTO RWY 28R")]
-    [InlineData("runway two eight left cleared for takeoff", "CTO RWY 28L")]
-    [InlineData("runway two eight left clear for takeoff", "CTO RWY 28L")]
-    [InlineData("runway two eight right at echo cleared for takeoff", "CTO RWY 28R")]
+    [InlineData("cleared for takeoff runway two eight right", "CTO 28R")]
+    [InlineData("runway two eight left cleared for takeoff", "CTO 28L")]
+    [InlineData("runway two eight left clear for takeoff", "CTO 28L")]
+    [InlineData("runway two eight right at echo cleared for takeoff", "CTO 28R")]
     [InlineData("line up and wait", "LUAW")]
+    [InlineData("runway two eight left line up and wait", "LUAW 28L")]
+    [InlineData("runway two eight left position and hold", "LUAW 28L")]
+    [InlineData("line up and wait runway two eight right", "LUAW 28R")]
+    // 7110.65 3-9-4.m intersection and 3-9-4.n full-length line up and wait.
+    [InlineData("runway three three at kilo line up and wait", "LUAW 33")]
+    [InlineData("runway two eight left full length line up and wait", "LUAW 28L")]
+    // 7110.65 3-9-10.e: a crossing and the takeoff or line-up clearance beyond it in one transmission.
+    [InlineData("cross runway two eight right, runway two eight left cleared for takeoff", "CROSS 28R, CTO 28L")]
+    [InlineData("cross runway two eight right, runway two eight left line up and wait", "CROSS 28R, LUAW 28L")]
     [InlineData("cleared to land", "CLAND")]
     [InlineData("cleared to land runway two eight right", "CLAND")]
     [InlineData("go around", "GA")]

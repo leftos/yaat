@@ -63,6 +63,16 @@ public sealed class CommandBlockDto
     // standing. Additive, no schema bump: false (omitted) in older snapshots.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool SpeedRestatedInTransmission { get; init; }
+
+    // The runways a CROSS earlier in that transmission cleared, which a takeoff or line-up clearance here crosses on its
+    // implicit taxi. Additive, no schema bump: null (omitted) in older snapshots.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? CrossingsClearedInTransmission { get; init; }
+
+    // Whether a takeoff or line-up clearance follows in a later block of that transmission, so a CROSS here at a taxiway hold
+    // short installs nothing. Additive, no schema bump: false (omitted) in older snapshots.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CrossFeedsFollowingClearance { get; init; }
 }
 
 public sealed class TrackedCommandDto

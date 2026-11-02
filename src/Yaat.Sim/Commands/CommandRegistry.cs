@@ -428,7 +428,7 @@ public static class CommandRegistry
                 CommandDimension.Ground,
                 false,
                 ["LUAW", "POS", "LU", "PH"],
-                [O(null, [], "Line up and wait")],
+                [O(null, [], "Line up and wait"), O("Runway", [R("runway", "runway designator")], "Line up and wait on the named runway")],
                 [Mod("IMM", null, false), Mod("WD", null, false), Mod("ND", null, false)]
             ),
             Cmd(
@@ -442,7 +442,7 @@ public static class CommandRegistry
                     O(null, [], "Cleared for takeoff (fly runway heading)"),
                     O("RH", [L("RH"), Opt("altitude", "alt")], "Fly runway heading on departure"),
                     O("OC", [L("OC"), Opt("altitude", "alt")], "Fly on course after departure"),
-                    O("Heading", [R("heading", "0-360"), Opt("altitude", "alt")], "Fly heading on departure"),
+                    O("Heading", [R("heading", "001-360"), Opt("altitude", "alt")], "Fly heading on departure"),
                     O("LT", [L("LT"), R("heading", "0-360"), Opt("altitude", "alt")], "Turn left to heading on departure"),
                     O("RT", [L("RT"), R("heading", "0-360"), Opt("altitude", "alt")], "Turn right to heading on departure"),
                     O("MLT", [L("MLT"), Opt("runway", "runway designator")], "Make left traffic on departure"),
@@ -456,17 +456,9 @@ public static class CommandRegistry
                     O("MLD", [L("MLD"), Opt("altitude", "alt")], "Turn left downwind on departure"),
                     O("MR270", [L("MR270"), Opt("altitude", "alt")], "Right 270 on departure"),
                     O("ML270", [L("ML270"), Opt("altitude", "alt")], "Left 270 on departure"),
+                    O("Runway", [R("runway", "runway designator")], "Cleared for takeoff on the named runway, then any form above"),
                 ],
-                [
-                    Mod("RWY", "runway", false) with
-                    {
-                        LeadingTokenOnly = true,
-                    },
-                    Mod("CWT", null, false),
-                    Mod("IMM", null, false),
-                    Mod("WD", null, false),
-                    Mod("ND", null, false),
-                ]
+                [Mod("CWT", null, false), Mod("IMM", null, false), Mod("WD", null, false), Mod("ND", null, false)]
             ),
             Bare(CancelTakeoffClearance, "Cancel Takeoff Clearance", "Tower", CommandDimension.Ground, false, ["CTOC"]),
             Cmd(

@@ -19,6 +19,9 @@ public class RecordingSchemaUpgraderTests
     private const double DistinctiveAltitude = 12345.0;
     private const int CurrentVersion = SnapshotSchemaMigrator.CurrentSchemaVersion;
 
+    /// <summary>The last snapshot schema before CTO and LUAW took a runway.</summary>
+    private const int PreCtoRunwayGrammarVersion = 41;
+
     // A snapshot pinned at schema 3 with an empty filed aircraft type — the 3→4 migration seeds the
     // filed type from the top-level type, so a correct surgical upgrade produces FlightPlan.AircraftType
     // == "B738" while leaving Altitude untouched.
@@ -232,6 +235,49 @@ public class RecordingSchemaUpgraderTests
         using var archive = RecordingArchive.Open(new MemoryStream(result.Output));
         Assert.Equal([0, 1234], RecordedEfcs(archive.ReadActions()));
     }
+
+    [Fact]
+    public void Upgrade_V4ArchiveBelowV42_RewritesRecordedCtoToThePreRunwayGrammar()
+    {
+        // Before V42 a 1-2 digit CTO argument was a heading and CTO/LUAW took no runway (those commands were refused). The
+        // upgrade keeps them as recorded: the heading becomes three digits, the runway form text the parser still refuses.
+        byte[] input = BuildArchive(EmptySnapshotAt(PreCtoRunwayGrammarVersion), CtoCommands());
+
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
+
+        Assert.True(result.Changed);
+        using var archive = RecordingArchive.Open(new MemoryStream(result.Output));
+        Assert.Equal(["CTO 028", "CTO RWY 28R", "LUAW RWY 28L", "CTO 330"], RecordedCommandTexts(archive.ReadActions()));
+
+        RecordingUpgradeResult again = RecordingSchemaUpgrader.Upgrade(result.Output);
+        Assert.False(again.Changed);
+        Assert.Same(result.Output, again.Output);
+    }
+
+    [Fact]
+    public void Upgrade_V4ArchiveAtCurrentSchema_KeepsRecordedCtoRunway()
+    {
+        // From V42 on, CTO 28 names runway 28; an archive already at the current schema is left alone.
+        byte[] input = BuildArchive(EmptySnapshotAt(CurrentVersion), CtoCommands());
+
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
+
+        Assert.False(result.Changed);
+        Assert.Same(input, result.Output);
+        using var archive = RecordingArchive.Open(new MemoryStream(result.Output));
+        Assert.Equal(["CTO 28", "CTO 28R", "LUAW 28L", "CTO 330"], RecordedCommandTexts(archive.ReadActions()));
+    }
+
+    private static List<RecordedAction> CtoCommands() =>
+        [
+            new RecordedCommand(1, "N1", "CTO 28", "TS", "c1"),
+            new RecordedCommand(2, "N2", "CTO 28R", "TS", "c1"),
+            new RecordedCommand(3, "N3", "LUAW 28L", "TS", "c1"),
+            new RecordedCommand(4, "N4", "CTO 330", "TS", "c1"),
+        ];
+
+    private static List<string> RecordedCommandTexts(IEnumerable<RecordedAction> actions) =>
+        [.. actions.Cast<RecordedCommand>().Select(c => c.Command)];
 
     private static StateSnapshotDto EmptySnapshotAt(int schemaVersion) =>
         new()
