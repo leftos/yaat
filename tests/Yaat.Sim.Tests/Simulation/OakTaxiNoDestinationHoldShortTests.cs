@@ -1,6 +1,8 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -11,6 +13,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// A <c>TAXI D HS J</c> from the OAK ramp with no destination ends the route with a RouteIncomplete hold at J, backed
 /// by the explicit J bar 116 ft earlier: the navigator plans nothing past a target it must stop at, so the cut's own
 /// set-back stop cannot reach back before the explicit bar and brake the aircraft short of it.
+///
+/// A queue resumed behind that route's bar (a <c>CROSS</c>) fires at the J hold, and the CROSS then routes the aircraft
+/// along J across 28R.
 ///
 /// Recording: S1-OAK-P (A) | S1 Rating Practical Exam (shared with <see cref="OakCtoAtTaxiwayHoldShortTests"/>).
 /// </summary>
@@ -72,23 +77,29 @@ public class OakTaxiNoDestinationHoldShortTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A CROSS queued behind <c>TAXI D J HS J</c> is not applied when the clearance is issued, and fires once the aircraft
-    /// holds short of J.
+    /// A CROSS queued behind <c>TAXI D J HS J</c> is not applied when the clearance is issued, and fires at the J hold:
+    /// the CROSS then routes the aircraft along J across 28R, and leaves the aircraft's assigned runway alone.
     /// </summary>
     [Fact]
     public void DJHsJ_QueuedCross_FiresAtTheHold()
     {
         SimulationEngine engine = EngineTaxiing("TAXI D J HS J; CROSS 28R");
+        RunwayInfo? assignedRunwayBefore = engine.FindAircraft(Callsign)!.Phases?.AssignedRunway;
+        CommandBlock cross = QueuedCross(engine.FindAircraft(Callsign)!);
+        Assert.False(cross.IsApplied, "the queued CROSS was applied as the clearance was issued");
 
-        AircraftState taxiing = engine.FindAircraft(Callsign)!;
-        Assert.False(QueuedCross(taxiing).IsApplied, "the queued CROSS was applied as the clearance was issued");
+        AircraftState fired = TickUntil(engine, _ => cross.IsApplied, TaxiToHoldLimitSeconds, "fired its queued CROSS");
+        double offFt = GeoMath.DistanceNm(fired.Position, new LatLon(ExpectedStopLat, ExpectedStopLon)) * GeoMath.FeetPerNm;
+        Assert.True(offFt <= StopToleranceFt, $"the queued CROSS fired {offFt:F1} ft from the J hold");
 
-        AircraftState held = TickUntil(engine, a => IsHoldingShortOf(a, "J"), TaxiToHoldLimitSeconds, "holding short of J");
-        Assert.True(
-            IsHoldingShortOf(held, "J"),
-            $"{Callsign} is not holding short of J when its CROSS is applied: phase={held.Phases?.CurrentPhase?.Name ?? "(none)"}"
+        TaxiRoute route = Assert.IsType<TaxiRoute>(fired.Ground.AssignedTaxiRoute);
+        Assert.Equal("J", route.Segments[^1].TaxiwayName, ignoreCase: true);
+        Assert.Contains(
+            route.HoldShortPoints,
+            hs =>
+                (hs.Reason == HoldShortReason.RunwayCrossing) && hs.IsCleared && (hs.TargetName is { } n) && RunwayIdentifier.Parse(n).Contains("28R")
         );
-        Assert.True(QueuedCross(held).IsApplied, "the queued CROSS never fired once the aircraft held short of J");
+        Assert.Equal(assignedRunwayBefore, fired.Phases?.AssignedRunway);
     }
 
     /// <summary>The queued CROSS block, not the TAXI block a parked aircraft's clearance applies at once.</summary>

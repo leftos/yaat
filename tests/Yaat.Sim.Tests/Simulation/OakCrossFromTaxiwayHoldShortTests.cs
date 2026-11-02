@@ -16,7 +16,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// taxis on along the held taxiway across the runway and holds past its far-side holding position, when the taxiway crosses it
 /// first. N45912 (C172) at OAK is cleared <c>TAXI D C HS {taxiway} RWY 28R</c> and holds short of the taxiway; J (off D) crosses
 /// 28R/10L, whose two holding positions on J are a near and a far bar, before it reaches 28L/10R; E (off C) meets only 28R/10L,
-/// by a single bar, and never reaches 28L.
+/// by a single bar, and never reaches 28L. The crossing keeps the runway assignment the aircraft held short with: 28R from that
+/// clearance, none from <c>TAXI D HS J</c>.
 ///
 /// Recording: S1-OAK-P (A) | S1 Rating Practical Exam (shared with <see cref="OakCtoAtTaxiwayHoldShortTests"/>).
 /// </summary>
@@ -53,7 +54,7 @@ public class OakCrossFromTaxiwayHoldShortTests(ITestOutputHelper output)
     [Fact]
     public void HeldShortOfJ_Cross28R_CrossesOnJ_HoldsPastTheFarSideBar()
     {
-        SimulationEngine engine = EngineHoldingShortOf("J");
+        SimulationEngine engine = EngineHoldingShortOf("J", "TAXI D C HS J RWY 28R");
         AirportGroundLayout layout = engine.FindAircraft(Callsign)!.Ground.Layout!;
         (GroundNode near, GroundNode far) = BarsOn(layout, engine.FindAircraft(Callsign)!, "28R", "J");
 
@@ -90,13 +91,67 @@ public class OakCrossFromTaxiwayHoldShortTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Held short of J on D with 28R assigned, <c>CROSS 28R</c>: a crossing is not a new taxi clearance, so the aircraft keeps the
+    /// runway it was assigned, not the one the route's last bar names (10L, the crossed runway's far side), and its departure runway.
+    /// </summary>
+    [Fact]
+    public void HeldShortOfJ_Cross28R_WithAssigned28R_Keeps28R()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J", "TAXI D C HS J RWY 28R");
+        AircraftState held = engine.FindAircraft(Callsign)!;
+        Assert.Equal("28R", held.Phases?.AssignedRunway?.Designator);
+        string? departureRunwayBefore = held.Procedure.DepartureRunway;
+
+        AircraftState crossed = Cross28RFromTheJHold(engine);
+
+        Assert.Equal("28R", crossed.Phases?.AssignedRunway?.Designator);
+        Assert.Equal(departureRunwayBefore, crossed.Procedure.DepartureRunway);
+    }
+
+    /// <summary>
+    /// Held short of J on D after <c>TAXI D HS J</c>, which assigns no runway, <c>CROSS 28R</c>: the crossing assigns none either,
+    /// not the runway the route's last bar names (10L), and leaves the departure runway as it was.
+    /// </summary>
+    [Fact]
+    public void HeldShortOfJ_Cross28R_NoAssignedRunway_StaysUnassigned()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J", "TAXI D HS J");
+        AircraftState held = engine.FindAircraft(Callsign)!;
+        Assert.Null(held.Phases?.AssignedRunway);
+        string? departureRunwayBefore = held.Procedure.DepartureRunway;
+
+        AircraftState crossed = Cross28RFromTheJHold(engine);
+
+        Assert.Null(crossed.Phases?.AssignedRunway);
+        Assert.Equal(departureRunwayBefore, crossed.Procedure.DepartureRunway);
+    }
+
+    /// <summary>
+    /// Sends <c>CROSS 28R</c> to N45912 held short of J and asserts it applied as a taxi on along J with the crossing of 28R cleared.
+    /// </summary>
+    private AircraftState Cross28RFromTheJHold(SimulationEngine engine)
+    {
+        CommandResult cross = engine.SendCommand(Callsign, "CROSS 28R");
+        output.WriteLine($"[CROSS 28R] success={cross.Success} message={cross.Message}");
+        Assert.True(cross.Success, $"CROSS 28R held short of J refused: {cross.Message}");
+
+        AircraftState crossed = engine.FindAircraft(Callsign)!;
+        TaxiRoute route = Assert.IsType<TaxiRoute>(crossed.Ground.AssignedTaxiRoute);
+        LogRoute("after CROSS 28R", route);
+        Assert.Equal("J", route.Segments[^1].TaxiwayName, ignoreCase: true);
+        Assert.Contains(route.HoldShortPoints, hs => (hs.Reason == HoldShortReason.RunwayCrossing) && hs.IsCleared && IsRunway(hs, "28R"));
+        output.WriteLine($"[CROSS 28R] assigned runway={crossed.Phases?.AssignedRunway?.Designator ?? "(none)"}");
+        return crossed;
+    }
+
+    /// <summary>
     /// Held short of J on D, <c>CROSS 28L</c>: J reaches 28R before 28L, a crossing the instruction does not include, so the pilot
     /// says unable, naming it, and nothing changes.
     /// </summary>
     [Fact]
     public void HeldShortOfJ_Cross28L_NeedsToCross28R_SaysUnable_KeepsTheHold()
     {
-        SimulationEngine engine = EngineHoldingShortOf("J");
+        SimulationEngine engine = EngineHoldingShortOf("J", "TAXI D C HS J RWY 28R");
 
         CommandResult result = AssertRefusedAndStillHeld(engine, "J", "CROSS 28L");
 
@@ -112,7 +167,7 @@ public class OakCrossFromTaxiwayHoldShortTests(ITestOutputHelper output)
     [Fact]
     public void HeldShortOfE_Cross28L_TaxiwayDoesNotCrossIt_Refused()
     {
-        SimulationEngine engine = EngineHoldingShortOf("E");
+        SimulationEngine engine = EngineHoldingShortOf("E", "TAXI D C HS E RWY 28R");
 
         CommandResult result = AssertRefusedAndStillHeld(engine, "E", "CROSS 28L");
 
@@ -211,15 +266,17 @@ public class OakCrossFromTaxiwayHoldShortTests(ITestOutputHelper output)
         return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
-    /// <summary>Replays to the taxi, clears N45912 <c>TAXI D C HS {taxiway} RWY 28R</c>, ticks it to that hold short and deletes N314WN.</summary>
-    private SimulationEngine EngineHoldingShortOf(string taxiway)
+    /// <summary>
+    /// Replays to the taxi, clears N45912 with <paramref name="clearance"/> (a taxi that holds short of <paramref name="taxiway"/>),
+    /// ticks it to that hold short and deletes N314WN.
+    /// </summary>
+    private SimulationEngine EngineHoldingShortOf(string taxiway, string clearance)
     {
         SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         SimulationEngine? engine = BuildEngine();
         Assert.NotNull(recording);
         Assert.NotNull(engine);
         engine.Replay(recording, JustBeforeTaxi);
-        string clearance = $"TAXI D C HS {taxiway} RWY 28R";
         CommandResult taxi = engine.SendCommand(Callsign, clearance);
         Assert.True(taxi.Success, $"{clearance} refused: {taxi.Message}");
         TickUntil(engine, a => IsHoldingShortOf(a, taxiway), TaxiToHoldLimitSeconds, $"holding short of {taxiway}");

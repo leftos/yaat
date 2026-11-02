@@ -136,13 +136,21 @@ public static partial class GroundCommandHandler
     /// The result line reaches the controller who issued it (<see cref="TaxiDispatch.ResultReachesController"/>).
     /// </param>
     /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
+    /// <param name="KeepsRunwayAssignment">
+    /// The taxi is not a new taxi clearance but a <c>CROSS</c> at a taxiway hold short (<see cref="TryCrossFromTaxiwayHold"/>): the
+    /// aircraft keeps its assigned and departure runways (<see cref="PhaseList.AssignedRunway"/>, <see cref="PhaseList.DepartureRunway"/>)
+    /// and none is detected from the route's end, so <see cref="AircraftProcedure.DepartureRunway"/> is untouched and no runway
+    /// change is warned about. This relies on the CROSS's taxi naming no destination runway, which it never does. False for
+    /// every TAXI and TAXIAUTO.
+    /// </param>
     private sealed record TaxiCoreOptions(
         AutoCrossRunwayMode AutoCrossRunwayMode,
         ActiveRunways ActiveRunways,
         bool IsTaxiAuto,
         bool IsScenarioScripted,
         bool ResultReachesController,
-        Func<IReadOnlyList<AircraftState>>? ListAircraft
+        Func<IReadOnlyList<AircraftState>>? ListAircraft,
+        bool KeepsRunwayAssignment
     )
     {
         /// <summary>
@@ -155,7 +163,8 @@ public static partial class GroundCommandHandler
                 isTaxiAuto,
                 dispatch.IsScenarioScripted,
                 dispatch.ResultReachesController,
-                dispatch.ListAircraft
+                dispatch.ListAircraft,
+                KeepsRunwayAssignment: false
             );
 
         /// <summary>
@@ -377,9 +386,9 @@ public static partial class GroundCommandHandler
         ApplyCrossKeywords(route, taxi);
         PrefixClearOfRunwayAdvisory(route);
 
-        // Auto-detect runway from final node when no explicit destination runway
+        // Auto-detect runway from final node when no explicit destination runway; a CROSS at a taxiway hold keeps the one it has.
         RunwayInfo? detectedRunway = null;
-        if (taxi.DestinationRunway is null && route.Segments.Count > 0)
+        if ((taxi.DestinationRunway is null) && (route.Segments.Count > 0) && !options.KeepsRunwayAssignment)
         {
             detectedRunway = DetectRunwayFromRoute(route, groundLayout, aircraft);
         }
@@ -403,6 +412,8 @@ public static partial class GroundCommandHandler
         // Captured before the fresh PhaseList below drops the old clearance: both the arrival gate and the
         // runway-change warning read state this reset erases.
         DepartureRunwayAssignment priorAssignment = CaptureDepartureRunwayAssignment(aircraft);
+        RunwayInfo? keptAssignedRunway = aircraft.Phases?.AssignedRunway;
+        RunwayInfo? keptDepartureRunway = aircraft.Phases?.DepartureRunway;
 
         // Clear current phases
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, options.ActiveRunways, groundLayout);
@@ -433,6 +444,13 @@ public static partial class GroundCommandHandler
         }
 
         PhaseList taxiPhases = InstallFreshTaxiPhaseList(aircraft, detectedRunway, priorAssignment);
+        if (options.KeepsRunwayAssignment)
+        {
+            // A stored departure clearance is not carried: this route's end would consume it and depart from past the crossed
+            // runway's far-side bar (TaxiingPhase.ApplyDepartureClearanceIfPending).
+            taxiPhases.AssignedRunway = keptAssignedRunway;
+            taxiPhases.DepartureRunway = keptDepartureRunway;
+        }
 
         // Zero-segment route to parking: A* snapped the aircraft to the destination node.
         // Only skip TaxiingPhase when the aircraft is genuinely at the spot; if it's
@@ -7037,7 +7055,9 @@ public static partial class GroundCommandHandler
     /// and holds at the route's end past the runway's far-side holding position (<c>TAXI {taxiway} CROSS {runway}</c>, whose
     /// far-side anchor ends the route there). When the taxiway reaches another runway first, the pilot says unable, naming it;
     /// when the taxiway does not cross the runway at all, the controller is told. Neither refusal changes anything. The taxi
-    /// keeps a commanded taxi speed and pre-clears no other crossing, whatever the room's auto-cross mode.
+    /// keeps a commanded taxi speed and pre-clears no other crossing, whatever the room's auto-cross mode. It is not a new taxi
+    /// clearance, so the aircraft keeps its runway assignment (<see cref="TaxiCoreOptions.KeepsRunwayAssignment"/>); a stored
+    /// departure clearance is dropped, as by any taxi, since the route's end past the far-side bar would otherwise consume it.
     /// </summary>
     internal static CommandResult TryCrossFromTaxiwayHold(
         AircraftState aircraft,
@@ -7070,7 +7090,8 @@ public static partial class GroundCommandHandler
         }
 
         double? commandedTaxiSpeedKts = aircraft.Ground.CommandedTaxiSpeedKts;
-        CommandResult result = TryTaxi(aircraft, taxi, layout, crossDispatch);
+        TaxiCoreOptions options = TaxiCoreOptions.For(crossDispatch, isTaxiAuto: false) with { KeepsRunwayAssignment = true };
+        CommandResult result = TryTaxiCore(aircraft, taxi, layout, options);
         if (!result.Success)
         {
             return result;
