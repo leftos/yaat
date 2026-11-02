@@ -103,6 +103,12 @@
     <Content Include="Speech\stt-downloads.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The speech benchmark's committed clips and the reference WER and callsign recall it shows beside them. -->
+  <ItemGroup>
+    <Content Include="Speech\BenchClips\**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Speech\stt-reference.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Yaat.Client.Core\Yaat.Client.Core.csproj" />
     <ProjectReference Include="..\Yaat.Client.InputSynthesis\Yaat.Client.InputSynthesis.csproj" />

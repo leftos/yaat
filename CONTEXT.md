@@ -1067,6 +1067,12 @@ A pushback that ends farther than the aircraft's own lead-in line, typically acr
 **West end** (SFO):
 Taxiway Z from C to Z2, past the departure ends of runways 28, which a taxi route from the north field to runways 1 follows; Local owns it when landing the 10s, departing the 28s or when given, and Ground requests it by count ("once around the west end") (SFO ATCT SOP 3-1.a.vi; `sfo-video-lessons.md` S10).
 
+**Bench clip**:
+One of the short committed synthetic clips (16 kHz mono PCM16, with the words it says) every benchmark row transcribes, so rows compare on the same audio (`src/Yaat.Client/Speech/BenchClips/`, docs/speech-recognition-pipeline.md).
+
+**Benchmark row**:
+One model in one mode on one device, measured over the bench clips: load time, latency percentiles and memory, or the one line saying why it has none (`SttBenchJob` in, `SttBenchResult` out, docs/speech-recognition-pipeline.md).
+
 **Corpus WER**:
 The word error rate of the STT stage alone over a set of real recordings, pooled over every reference word (total substitutions, deletions and insertions divided by total reference words), not averaged per clip (`--corpus-wer`, docs/speech-recognition-pipeline.md).
 

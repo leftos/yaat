@@ -1,0 +1,14 @@
+[
+  {"id": "clip-01", "expected": "november five one four romeo mike squawk normal"},
+  {"id": "clip-02", "expected": "delta five twelve report traffic in sight"},
+  {"id": "clip-03", "expected": "delta five twelve turn right heading two zero zero descend and maintain eight thousand"},
+  {"id": "clip-04", "expected": "american twenty two thirty one report position"},
+  {"id": "clip-05", "expected": "november three four six golf cleared for the approach"},
+  {"id": "clip-06", "expected": "november three four six golf go around make right traffic"},
+  {"id": "clip-07", "expected": "november five one four romeo mike make right two seventy"},
+  {"id": "clip-08", "expected": "american twenty two thirty one fly direct sunol"},
+  {"id": "clip-09", "expected": "november three four six golf report field in sight"},
+  {"id": "clip-10", "expected": "november three four six golf taxi to parking cargo one via delta victor"},
+  {"id": "clip-11", "expected": "alaska three thirty one descend and maintain flight level three zero zero"},
+  {"id": "clip-12", "expected": "southwest nineteen forty three taxi via papa juliett cross runway one five hold short of runway one two"}
+]

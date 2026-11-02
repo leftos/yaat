@@ -30,6 +30,12 @@ public sealed class GpuMemoryProbeTests
         Assert.Contains("rose only 99 MB", verdict, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("/Users/someone/yaat/yaat-client.log", "(see /Users/someone/yaat/yaat-client.log)")]
+    [InlineData("", "(see the client log)")]
+    public void The_GPU_Fallback_Message_Points_At_The_Log_Or_At_The_Client_Log_Before_One_Opens(string logPath, string ending) =>
+        Assert.EndsWith(ending, GpuUseCheck.GpuFallbackMessage(99 * Megabyte, logPath), StringComparison.Ordinal);
+
     [Fact]
     public void A_GPU_Run_Whose_Memory_Rose_By_The_Minimum_Is_Not_Reported() =>
         Assert.Null(GpuUseCheck.Verdict("gpu", 512 * Megabyte, 612 * Megabyte, out bool _));

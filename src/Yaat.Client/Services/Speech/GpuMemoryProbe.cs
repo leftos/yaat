@@ -6,13 +6,20 @@ using Yaat.Client.Logging;
 
 namespace Yaat.Client.Services.Speech;
 
+/// <summary>Reads the GPU memory this process holds.</summary>
+public interface IGpuMemorySampler
+{
+    /// <summary>The process's dedicated GPU bytes now, or -1 when they cannot be read. Never throws.</summary>
+    long Sample();
+}
+
 /// <summary>
 /// The GPU memory one process holds, read from Windows' per-process <c>GPU Process Memory</c> counters
 /// (the only platform that publishes them):
 /// the dedicated bytes of every instance named <c>pid_&lt;pid&gt;_…</c> for this process. The instances
 /// come and go as the process opens GPU contexts, so every sample re-reads them.
 /// </summary>
-public sealed class GpuMemoryProbe : IDisposable
+public sealed class GpuMemoryProbe : IGpuMemorySampler, IDisposable
 {
     /// <summary>The performance counter category Windows publishes per-process GPU memory under.</summary>
     public const string CategoryName = "GPU Process Memory";
@@ -121,7 +128,7 @@ public static class GpuUseCheck
         if (device == "gpu")
         {
             isError = rise < MinRiseBytes;
-            return isError ? GpuFallbackMessage(rise) : null;
+            return isError ? GpuFallbackMessage(rise, AppLog.LogPath) : null;
         }
 
         return (rise >= MinRiseBytes) ? $"CPU mode, but the process's GPU memory rose {Megabytes(rise)} MB through model load" : null;
@@ -148,9 +155,15 @@ public static class GpuUseCheck
     private static bool IsCpuBackend(LMKit.Global.Runtime.BackendType backend) =>
         backend is LMKit.Global.Runtime.BackendType.CPU or LMKit.Global.Runtime.BackendType.Avx or LMKit.Global.Runtime.BackendType.Avx2;
 
-    private static string GpuFallbackMessage(long riseBytes) =>
+    /// <summary>
+    /// The error for a GPU run whose memory rose less than <see cref="MinRiseBytes"/>, pointing at the log the process
+    /// writes, or at "the client log" before any log is open.
+    /// </summary>
+    /// <param name="riseBytes">How much the process's GPU memory rose through the load.</param>
+    /// <param name="logPath">The process's log file, as <see cref="AppLog.LogPath"/> gives it; empty before the log opens.</param>
+    public static string GpuFallbackMessage(long riseBytes, string logPath) =>
         $"GPU mode asked, but the process's GPU memory rose only {Megabytes(riseBytes)} MB through model load: "
-        + "the native library is CPU-only or the provider fell back to the CPU (see %LOCALAPPDATA%/yaat/yaat-speech-sandbox.log)";
+        + $"the native library is CPU-only or the provider fell back to the CPU (see {(string.IsNullOrEmpty(logPath) ? "the client log" : logPath)})";
 
     private static string Megabytes(long bytes) => ((double)bytes / 1048576).ToString("0", CultureInfo.InvariantCulture);
 }

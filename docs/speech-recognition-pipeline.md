@@ -546,6 +546,15 @@ is sent to the LLM via `LocalLlmCommandMapper.MapWithPromptsAsync`,
 bypassing `BuildUserPrompt`). The Whisper prompt textbox is seeded
 at startup with `WhisperBiasingPrompt.Default` to match production.
 
+## In-App Benchmark Core
+
+`src/Yaat.Client/Services/Speech/Bench/` measures one **benchmark row** (one model in one mode on one device) in the calling process. There is no window and no child-process entry yet; the pieces are the job, the runner, the clip set and the reference file.
+
+- **A row is measured by `SttBenchRunner.RunAsync`.** It reads the bench clips, samples working set and GPU memory, creates the job's engine through `ISttBenchEngineSource`, and times the load (`WarmUpAsync`). It then checks the load reached what the job asked for: an Accurate job whose engine loaded in Fast mode fails, and so does a GPU job whose process GPU memory did not rise (`GpuUseCheck`, or an unreadable counter). The first clip is transcribed untimed, then every clip is timed, sampling memory after each; `CorpusWerLatency.Summarize` turns the figures into the same `CorpusWerTiming` `--corpus-wer` records.
+- **A failed row carries one line instead of figures** in `SttBenchResult.Failure`: `no clips found in {dir}`, `load failed: …`, `accurate mode unavailable: the model loaded in Fast mode`, `GPU not used: …` or `transcribe failed on {clipId}: …`. The GPU-fallback sentence points at the current log file (`AppLog.LogPath`), not the sandbox's.
+- **The bench clips are synthetic and committed** in `src/Yaat.Client/Speech/BenchClips/`: `clips.json` lists each clip's `id` and `expected` words, beside one 16 kHz mono PCM16 WAV per id (`BenchClips.Load`, `WavReader`). They are controller phrases the sandbox synthesizes, so every row transcribes the same audio. Regenerate them with `dotnet run --project tools/Yaat.SpeechSandbox -c Release -- --synth-corpus .tmp/benchclips --cases 12 --seed 1604`, then copy the WAVs and a `clips.json` whose `expected` is each case's `transcript` into the folder.
+- **`src/Yaat.Client/Speech/stt-reference.json` holds the figures a row is shown beside.** Its shape is `{ "schema": 1, "corpus": null, "sttNative": null, "entries": [ { "engine", "mode", "ownerWer", "callsignRecall" } ] }`; `SttReference.Load` refuses any other schema, skips an entry naming an engine this build does not know with a warning, and `Find(engine, mode)` returns a row's entry. The entries are empty until YAAT-1605 fills them from a `--corpus-wer` run on the CI natives, setting `corpus` and `sttNative` with them.
+
 ## Tests & Audio Fixtures
 
 - `tests/Yaat.Sim.Tests/Speech/PhraseologyMapperTests.cs` — unit tests
