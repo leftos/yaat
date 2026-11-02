@@ -63,6 +63,7 @@ internal static class SceneCatalog
         new WeatherEditorScene(),
         new ArrivalGeneratorsEditorScene(),
         new FileBugReportDialogScene(),
+        new SpeechBenchmarkScene(),
         // Feature showcase (docs/releases/): left out of a run without --scene
         // and captured one at a time with --scene whats-new-<topic>
         new WhatsNewActiveRunwaysScene(),
@@ -90,6 +91,7 @@ internal static class SceneCatalog
         new WhatsNewHoldShortLadderScene(),
         new WhatsNewAirTaxiFlyoutScene(),
         new WhatsNewRackSortScene(),
+        new WhatsNewSpeechBenchmarkScene(),
     ];
 
     // The scenes a run captures: the one named by --scene (case-insensitive),

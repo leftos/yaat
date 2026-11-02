@@ -3135,6 +3135,8 @@ Two collapsible groups, each toggled by its header checkbox. The model, CUDA, sa
 
 The table has a row per model, mode and device. **Load**, **p50 ms**, **p90 ms**, **Peak RAM** and **Peak VRAM** are this machine's; **WER** and **Callsigns** come from YAAT's reference run (a dash when there is none). A row that did not run says why instead of showing figures, the GPU rows need the GPU runtime, and the row for the saved setting carries a *current* badge.
 
+![The Speech benchmark window after a run of eight rows, with fp32 Accurate on CPU badged current, fp32 Fast on GPU picked, and the note to restart YAAT to change the device from CPU to GPU](docs/user-guide/img/speech-benchmark.png)
+
 Pick a row and press **Apply** to save its model, mode and device at once. An open Settings window shows the new choice, so its OK or Apply keeps it, and Cancel does not undo it. The speech engine swaps without a restart when the model or mode changed; a Device change shows *Restart YAAT to apply* in the benchmark window. The window stays usable while Settings is open.
 
 **Text-to-speech (TTS)** — enable (default **Off**) to expand:
