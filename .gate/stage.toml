@@ -1,0 +1,1 @@
+commands = [["dotnet", "restore", "yaat.slnx"]]
