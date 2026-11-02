@@ -74,6 +74,8 @@ public sealed class LocalLlmService(ILlmRuntimeConfig config) : IDisposable
     private LM? _model;
     private string? _loadedSource;
     private int _loadedGpuLayers;
+    private volatile bool _unloadHeld;
+    private bool _reloadAfterUnload;
 
     /// <summary>
     /// True when a model source is configured. For absolute file paths, also requires the file to
@@ -257,8 +259,41 @@ public sealed class LocalLlmService(ILlmRuntimeConfig config) : IDisposable
         }
     }
 
+    /// <summary>
+    /// Frees the weights and keeps them out of memory until <see cref="ReloadAsync"/>: a prewarm or an inference in the
+    /// meantime loads nothing and returns as an unloaded model does. Waits for the inference in flight.
+    /// </summary>
+    /// <param name="ct">Stops waiting for the inference in flight; the weights then stay until <see cref="ReloadAsync"/>.</param>
+    public async Task UnloadAsync(CancellationToken ct)
+    {
+        _unloadHeld = true;
+        await _inferenceLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            _reloadAfterUnload = _model is not null;
+            DisposeHandles();
+        }
+        finally
+        {
+            _inferenceLock.Release();
+        }
+    }
+
+    /// <summary>Lifts <see cref="UnloadAsync"/>'s hold and, when weights were freed, loads and primes them again.</summary>
+    /// <param name="ct">Cancels the load.</param>
+    public Task ReloadAsync(CancellationToken ct)
+    {
+        _unloadHeld = false;
+        return Interlocked.Exchange(ref _reloadAfterUnload, false) ? PrewarmAsync(ct) : Task.CompletedTask;
+    }
+
     private bool EnsureLoaded()
     {
+        if (_unloadHeld)
+        {
+            return false;
+        }
+
         string source = _config.ModelPath;
         int gpuLayers = _config.GpuLayers;
 

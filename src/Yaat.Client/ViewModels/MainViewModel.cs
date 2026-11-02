@@ -12,6 +12,7 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
+using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.Tdls.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
@@ -1722,12 +1723,14 @@ public partial class MainViewModel : ObservableObject
             Task.Run(() =>
                 _sttEngine.SwapToLatestAsync(
                     () =>
-                        SttEngineFactory.CreateCheckedAsync(
-                            _preferences.SttEngine,
-                            _preferences.SttMode,
-                            SttModelInstaller.InstallRootDefault,
-                            () => _whisperStt,
-                            engine => engine.NativeProblem()
+                        _sttSuspender.StandInWhileSuspended(() =>
+                            SttEngineFactory.CreateCheckedAsync(
+                                _preferences.SttEngine,
+                                _preferences.SttMode,
+                                SttModelInstaller.InstallRootDefault,
+                                () => _whisperStt,
+                                engine => engine.NativeProblem()
+                            )
                         ),
                     CancellationToken.None
                 )
@@ -1744,9 +1747,23 @@ public partial class MainViewModel : ObservableObject
     public Task SwapSttEngineAsync() => _preferences.SpeechEnabled ? _sttSwapScheduler.RequestAsync() : ApplySttEngineAsync();
 
     private readonly SttEngineSwapScheduler _sttSwapScheduler;
+    private readonly SttEngineSuspender _sttSuspender;
 
     /// <summary>The app-lifetime speech-recognition downloads Settings shows; a download keeps running after Settings closes.</summary>
     public SttDownloads SttDownloads { get; }
+
+    /// <summary>The app-lifetime speech benchmark; a run keeps going after its window closes.</summary>
+    public SttBenchService SttBench { get; }
+
+    // Raised on the UI thread. The pipeline records a failed transcription without showing it; during a run the controller is
+    // told why the mic refused.
+    private void ShowSpeechErrorDuringBenchmark(SpeechSession session)
+    {
+        if ((SttBench.State != SttBenchState.Idle) && (session.ErrorMessage is { } message))
+        {
+            StatusText = message;
+        }
+    }
 
     // Raised on the installer's worker thread: only post. A model that is not the saved engine's swaps nothing.
     private void OnSttModelInstalled(string modelId) =>
@@ -1846,8 +1863,23 @@ public partial class MainViewModel : ObservableObject
         );
         _speechService.StatusChanged += HandleSpeechServiceStatusChange;
         _sttSwapScheduler = new SttEngineSwapScheduler(_speechService, ApplySttEngineAsync);
+        _sttSuspender = new SttEngineSuspender(
+            _sttEngine,
+            SwapSttEngineAsync,
+            () => SttEngineFactory.Create(_preferences.SttEngine, SttMode.Fast, SttModelInstaller.InstallRootDefault, () => _whisperStt),
+            new SttBenchSuspendedModels(_whisperStt.UnloadAsync, _whisperStt.ReloadAsync, _llmService.UnloadAsync, _llmService.ReloadAsync),
+            () => AppLifetime.IsShuttingDown
+        );
+        SttBench = new SttBenchService(
+            () => SttBenchPlan.FromDownloadsAsync(SttDownloads),
+            new SttBenchProcess(new SttBenchChildLauncher(), timeProvider),
+            _sttSuspender,
+            SttBenchFolders.Default,
+            timeProvider
+        );
         _speechService.CommandReady += HandleSpeechServiceCommandReady;
         _speechService.SessionRecorded += session => _ = UploadSpeechTelemetryAsync();
+        _speechService.SessionRecorded += ShowSpeechErrorDuringBenchmark;
 
         // Fire-and-forget prewarm so the first PTT press after startup doesn't stall on
         // multi-second Whisper/LLM model load. Guard on SpeechEnabled — disabled users pay

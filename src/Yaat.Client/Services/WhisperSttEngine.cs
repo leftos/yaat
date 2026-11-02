@@ -75,6 +75,7 @@ public sealed class WhisperSttEngine(IWhisperRuntimeConfig config) : IDisposable
     private LM? _model;
     private SpeechToText? _stt;
     private string? _loadedModelSource;
+    private bool _reloadAfterUnload;
 
     /// <summary>
     /// True when the configured Whisper model identifier is non-empty. We trust LM-Kit to
@@ -254,6 +255,29 @@ public sealed class WhisperSttEngine(IWhisperRuntimeConfig config) : IDisposable
         char last = text[^1];
         return (first == '[' && last == ']') || (first == '(' && last == ')');
     }
+
+    /// <summary>
+    /// Frees the model and remembers whether it was loaded, for <see cref="ReloadAsync"/>; the next use loads it again.
+    /// Waits for the transcription in flight.
+    /// </summary>
+    /// <param name="ct">Stops waiting for the transcription in flight; the model then stays.</param>
+    public async Task UnloadAsync(CancellationToken ct)
+    {
+        await _transcribeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            _reloadAfterUnload = _stt is not null;
+            DisposeHandles();
+        }
+        finally
+        {
+            _transcribeLock.Release();
+        }
+    }
+
+    /// <summary>Loads and primes the model again when <see cref="UnloadAsync"/> freed one.</summary>
+    /// <param name="ct">Cancels the load.</param>
+    public Task ReloadAsync(CancellationToken ct) => Interlocked.Exchange(ref _reloadAfterUnload, false) ? PrewarmAsync(ct) : Task.CompletedTask;
 
     private SpeechToText? EnsureLoaded()
     {

@@ -4053,6 +4053,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         if (_isMainWindowClosing && !_sttDownloadsDisposed && DataContext is MainViewModel downloadsVm)
         {
             _sttDownloadsDisposed = true;
+            downloadsVm.SttBench.Cancel();
             downloadsVm.SttDownloads.Dispose();
         }
 
