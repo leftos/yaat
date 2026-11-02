@@ -2495,6 +2495,9 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Whether the Device row's text is a warning: a saved GPU pick that runs on the CPU, once the GPU check has returned.</summary>
+    public bool IsDeviceStatusWarning => (SelectedSttDevice == SttDevice.Gpu) && !IsGpuAvailable && !IsGpuChecking;
+
     /// <summary>Whether the selected device differs from the native set this process loaded, which only a restart changes.</summary>
     public bool IsSttRestartNeeded => SelectedSttDevice != ((SherpaNativeLoader.LoadedSet == SherpaNativeSet.Cuda) ? SttDevice.Gpu : SttDevice.Cpu);
 
@@ -2604,6 +2607,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsGpuAvailable));
         OnPropertyChanged(nameof(DeviceStatusText));
+        OnPropertyChanged(nameof(IsDeviceStatusWarning));
     }
 
     private void OnGpuRuntimeChanged(object? sender, PropertyChangedEventArgs e)
@@ -2647,6 +2651,7 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnSelectedSttDeviceChanged(SttDevice value)
     {
         OnPropertyChanged(nameof(DeviceStatusText));
+        OnPropertyChanged(nameof(IsDeviceStatusWarning));
         OnPropertyChanged(nameof(IsSttRestartNeeded));
     }
 

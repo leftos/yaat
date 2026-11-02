@@ -162,6 +162,74 @@ public partial class SettingsWindowSourceTests
         "IsExpanded={Binding SpeechEnabled, Mode=OneWay}",
         "IsChecked={Binding SpeechEnabled}",
         "IsChecked={Binding AutoFocusInputAfterSpeech}",
+        // The speech-recognition model picker: the closed box, then each drop-down card.
+        "ItemsSource={Binding SttModelCards}",
+        "SelectedItem={Binding SelectedSttModelCard}",
+        "Text={Binding Title}",
+        "Text={Binding SizeText}",
+        "IsVisible={Binding !Install.IsInstalled, FallbackValue=False}",
+        "IsVisible={Binding Install.IsInstalled, FallbackValue=False}",
+        "Text={Binding Tag}",
+        "Text={Binding Title}",
+        "Text={Binding SizeText}",
+        "IsVisible={Binding !IsWhisper}",
+        "Text={Binding BestOnText}",
+        "IsVisible={Binding !IsWhisper}",
+        "Text={Binding MeasuredText}",
+        "IsVisible={Binding !IsWhisper}",
+        "Text={Binding StateText}",
+        "Classes.installed={Binding Install.IsInstalled, FallbackValue=False}",
+        "IsVisible={Binding IsWhisper}",
+        "Text={Binding NoteText}",
+        // The selected model's row (Loading model… replaces its state while the engine swaps), its licence line and its
+        // hint; the row and the hint are hidden for Whisper.
+        "IsVisible={Binding !SelectedSttModelCard.IsWhisper, FallbackValue=False}",
+        "Command={Binding SelectedSttModelCard.DownloadCommand}",
+        "IsVisible={Binding !SelectedSttModelCard.Install.IsBusy, FallbackValue=False}",
+        "Text={Binding SelectedSttModelCard.SizeText, StringFormat='({0})'}",
+        "Command={Binding SelectedSttModelCard.CancelDownloadCommand}",
+        "IsVisible={Binding SelectedSttModelCard.Install.IsBusy, FallbackValue=False}",
+        "Command={Binding SelectedSttModelCard.DeleteCommand}",
+        "Text={Binding SelectedSttModelCard.StateText}",
+        "IsVisible={Binding !SelectedSttModelCard.IsLoading, FallbackValue=False}",
+        "IsVisible={Binding SelectedSttModelCard.IsLoading, FallbackValue=False}",
+        "Value={Binding SelectedSttModelCard.Install.Progress, FallbackValue=0}",
+        "IsVisible={Binding SelectedSttModelCard.Install.IsBusy, FallbackValue=False}",
+        "IsVisible={Binding SelectedSttModelCard.UsesLlama, FallbackValue=False}",
+        "Command={Binding SelectedSttModelCard.ViewLicenceCommand}",
+        "IsVisible={Binding !SelectedSttModelCard.IsWhisper, FallbackValue=False}",
+        // Mode and device radios; Accurate's reason shows only while it is unavailable, and the device row turns orange
+        // while a saved GPU pick runs on the CPU.
+        "IsChecked={Binding SelectedSttMode, Converter={StaticResource EnumEquals}, ConverterParameter={x:Static models:SttMode.Accurate}}",
+        "IsEnabled={Binding IsAccurateAvailable}",
+        "IsChecked={Binding SelectedSttMode, Converter={StaticResource EnumEquals}, ConverterParameter={x:Static models:SttMode.Fast}}",
+        "Text={Binding AccurateUnavailableReason}",
+        "IsVisible={Binding AccurateUnavailableReason, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
+        "IsChecked={Binding SelectedSttDevice, Converter={StaticResource EnumEquals}, ConverterParameter={x:Static models:SttDevice.Cpu}}",
+        "IsChecked={Binding SelectedSttDevice, Converter={StaticResource EnumEquals}, ConverterParameter={x:Static models:SttDevice.Gpu}}",
+        "IsEnabled={Binding IsGpuAvailable}",
+        "IsVisible={Binding !GpuRuntime.IsInstalled, FallbackValue=False}",
+        "Text={Binding DeviceStatusText}",
+        "Classes.warning={Binding IsDeviceStatusWarning}",
+        "IsVisible={Binding DeviceStatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
+        "IsVisible={Binding IsSttRestartNeeded}",
+        // The GPU runtime group, hidden on a platform without one; Download hides while a download runs.
+        "IsVisible={Binding GpuRuntime, Converter={x:Static ObjectConverters.IsNotNull}}",
+        "Text={Binding GpuRuntime.StatusMessage}",
+        "IsVisible={Binding GpuRuntime.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}",
+        "Value={Binding GpuRuntime.Progress}",
+        "IsVisible={Binding GpuRuntime.IsBusy}",
+        "IsVisible={Binding !GpuRuntime.IsBusy}",
+        "Command={Binding DownloadGpuRuntimeCommand}",
+        "IsVisible={Binding !GpuRuntime.IsInstalled}",
+        "Command={Binding CancelGpuRuntimeCommand}",
+        "IsVisible={Binding GpuRuntime.IsBusy}",
+        "Command={Binding RemoveGpuRuntimeCommand}",
+        "IsVisible={Binding GpuRuntime.IsInstalled}",
+        "Text={Binding GpuRuntimeRemovalText}",
+        "IsVisible={Binding IsGpuRuntimeRemovalScheduled}",
+        // The LM-Kit Whisper size picker shows only while the Whisper card is selected.
+        "IsVisible={Binding IsWhisperSizePickerVisible}",
         "ItemsSource={Binding WhisperLmKitModels}",
         "SelectedItem={Binding SelectedWhisperLmKitModel}",
         "Text={Binding DisplayName}",
@@ -303,8 +371,8 @@ public partial class SettingsWindowSourceTests
     {
         string speech = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "Yaat.Client", "Views", "Settings", "SpeechSection.axaml"));
 
-        // Whisper model, LLM model, CUDA runtime, saved samples, Piper voice pack.
-        Assert.Equal(5, Regex.Matches(speech, Regex.Escape("Text=\"Takes effect at once; Cancel doesn't undo it.\"")).Count);
+        // Speech-recognition model, GPU runtime, Whisper model, LLM model, CUDA runtime, saved samples, Piper voice pack.
+        Assert.Equal(7, Regex.Matches(speech, Regex.Escape("Text=\"Takes effect at once; Cancel doesn't undo it.\"")).Count);
     }
 
     /// <summary>

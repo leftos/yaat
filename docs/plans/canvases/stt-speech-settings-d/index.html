@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT-1602 part D: Settings &gt; Speech, the open on-screen decisions</title>
+<style>
+  :root {
+    --bg: #1c1c1c; --panel: #232323; --card: #1E293B; --border: #334155; --text: #e6e6e6; --subtle: #B0B0B0;
+    --link: #60A5FA; --ok: #90EE90; --warn: #FFA500; --accent: #3b82f6; --ctl: #2d2d2d; --ctl-border: #4a4a4a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #111; color: var(--text); font: 12px "Segoe UI", Inter, system-ui, sans-serif; min-width: 1520px; }
+  header.top { padding: 16px 24px 4px; }
+  header.top h1 { font-size: 18px; margin: 0 0 6px; }
+  header.top p, header.top li { color: var(--subtle); margin: 0 0 4px; max-width: 1300px; line-height: 1.5; }
+  header.top ul { margin: 4px 0 8px; padding-left: 18px; }
+  section.dec { border-top: 1px solid #2a2a2a; padding: 14px 24px 18px; }
+  section.dec > h2 { font-size: 16px; margin: 0 0 4px; }
+  section.dec > .ctx { color: var(--subtle); margin: 0 0 10px; max-width: 1300px; line-height: 1.5; }
+  .lanes { display: grid; gap: 20px; align-items: start; }
+  .lanes.n2 { grid-template-columns: repeat(2, 740px); }
+  .lanes.n2 .window { max-width: 620px; }
+  .lanes.n3 { grid-template-columns: repeat(3, 480px); }
+  .lane > h3.lh { font-size: 13px; margin: 0 0 4px; }
+  .lane > h3.lh .tag { background: #14532d; color: var(--ok); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; margin-left: 6px; vertical-align: 1px; }
+  .lane > .why { color: var(--subtle); margin: 0 0 8px; line-height: 1.45; min-height: 50px; }
+  .rec { margin: 12px 0 0; color: #d1fae5; line-height: 1.5; max-width: 1300px; }
+  .rec b { color: var(--ok); }
+  .state { color: #93C5FD; font-weight: 600; font-size: 11px; margin: 10px 0 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .state:first-of-type { margin-top: 0; }
+  .window { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .win-title { background: #202020; padding: 5px 12px; border-bottom: 1px solid var(--border); color: var(--subtle); }
+  .content { padding: 10px 14px 12px; }
+  .exp { border: 1px solid var(--ctl-border); border-radius: 4px; padding: 8px 10px; background: var(--panel); }
+  .exp > .hdr { display: flex; gap: 6px; align-items: center; font-weight: 600; margin-bottom: 4px; }
+  .elide { color: #6b7280; font-size: 10px; font-style: italic; margin: 4px 0; }
+  h4 { font-size: 12px; font-weight: 600; margin: 10px 0 4px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+  .subtle { color: var(--subtle); font-size: 11px; line-height: 1.4; }
+  .tiny { color: var(--subtle); font-size: 10px; line-height: 1.4; }
+  .combo { background: var(--ctl); border: 1px solid var(--ctl-border); border-radius: 3px; padding: 4px 8px; width: 380px; display: flex; justify-content: space-between; gap: 6px; }
+  .combo.sm { width: 400px; padding: 2px 6px; font-size: 11px; }
+  .combo.wide { width: 420px; }
+  .combo > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .combo .chev { color: var(--subtle); }
+  .btn { background: var(--ctl); border: 1px solid var(--ctl-border); border-radius: 3px; padding: 3px 10px; color: var(--text); white-space: nowrap; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); }
+  .btn.dis, .dis { opacity: .45; }
+  .cached { color: var(--ok); font-size: 10px; }
+  .warn { color: var(--warn); font-size: 11px; line-height: 1.4; }
+  .bar { height: 8px; width: 380px; background: #333; border-radius: 4px; overflow: hidden; margin: 2px 0 4px; }
+  .bar > i { display: block; height: 100%; width: 42%; background: var(--accent); }
+  .radio { display: inline-flex; gap: 5px; align-items: flex-start; margin-right: 14px; }
+  .radio .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--ctl-border); margin-top: 1px; flex: none; }
+  .radio .dot.sel { border: 4px solid var(--accent); }
+  .radio .lbl small { display: block; color: var(--subtle); font-size: 10px; }
+  .hint { color: var(--subtle); font-size: 11px; font-style: italic; }
+  .link { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+  .card.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .card .name { font-weight: 600; display: flex; justify-content: space-between; }
+  .card dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 8px; margin: 6px 0 2px; font-size: 11px; align-items: center; }
+  .card dt { color: var(--subtle); }
+  .card dd { margin: 0; }
+  .popup { position: relative; width: 380px; background: #262626; border: 1px solid var(--ctl-border); border-radius: 4px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.6); margin-top: 2px; }
+  .popup .card + .card { margin-top: 6px; }
+  .note { border-left: 3px solid var(--warn); padding: 2px 8px; margin: 4px 0; }
+  .ann { color: #fbbf24; font-size: 11px; margin: 6px 0 0; line-height: 1.45; }
+  .spin { display: inline-block; width: 10px; height: 10px; border: 2px solid #555; border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; vertical-align: -1px; margin-right: 4px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .sub { border-left: 2px solid #3a3a3a; padding-left: 8px; margin: 6px 0 2px; }
+  /* main window status bar fragment */
+  .mainwin { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .mainwin .scope { height: 34px; background: #0b0f0b; color: #335533; font-size: 10px; padding: 4px 8px; }
+  .sb { border-top: 1px solid #3F3F46; padding: 2px 8px; display: flex; gap: 8px; font-size: 11px; color: var(--subtle); }
+  .sb .left { flex: 1; white-space: nowrap; }
+  .sb .mic { white-space: nowrap; }
+  .chg { outline: 1px dashed #fbbf24; outline-offset: 2px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>YAAT-1602 part D: Settings &gt; Speech, the eight open on-screen decisions</h1>
+  <p>Each section below is one decision. Its lanes (A, B and sometimes C) draw only the part of the Speech section or the status bar that the decision changes, at real size and in the look of the approved lane C mock (<span class="subtle">docs/plans/canvases/stt-speech-settings/index.html</span>). Lane A is the recommendation, and the reason is the green line under the lanes. A dashed yellow outline marks the element that differs between lanes.</p>
+  <p>Sizes come from the shipped manifest (<span class="subtle">src/Yaat.Client/Speech/stt-downloads.json</span>): fp32 is 2,550,014,451 bytes in 8 files, which is 2.55 GB, or 2,432 MB in the installer's 1024 × 1024 units. int8 is 0.67 GB. The installer's progress text at 42% is therefore "Downloading 42% (1,021 / 2,432 MB)". The GPU figures are CUDA 13's minimums: driver 580 or newer, and compute capability 7.5 or newer (Turing).</p>
+  <p>Already ruled, so not offered here:</p>
+  <ul>
+    <li>"View licence" opens the model's LICENSE file once downloaded, and the upstream model page before that.</li>
+    <li>"Built with Llama" sits on the card of the model that uses it.</li>
+    <li>Downloads keep running when Settings closes.</li>
+    <li>Detecting a GPU fallback at engine load is out of scope.</li>
+  </ul>
+</header>
+
+<!-- ============================ 1 ============================ -->
+<section class="dec" id="d1">
+  <h2>1. Whisper size picker</h2>
+  <p class="ctx">Lane C of the approved mock draws Whisper as one card ("Whisper (LM-Kit) · legacy"). The LM-Kit size picker (today's "Whisper Model (speech-to-text)" group, with Download now / Delete cached) has to live somewhere until YAAT-1574 removes Whisper.</p>
+  <div class="lanes n3">
+    <div class="lane">
+      <h3 class="lh">A. Under the picker, only while Whisper is selected<span class="tag">Recommended</span></h3>
+      <p class="why">With the Whisper card picked, today's Whisper group appears under the model row, unchanged. With a rasr card picked, it is hidden.</p>
+      <div class="state">Whisper card selected</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>Whisper (LM-Kit) <span class="subtle">· legacy</span></span><span class="chev">▾</span></div>
+        <div class="sub chg">
+          <div class="subtle" style="font-weight:600">Whisper size</div>
+          <div class="combo sm"><span>Whisper Medium · ATC fine-tune ★ Recommended <span class="subtle">(1462 MB)</span> <span class="cached">✓ cached</span></span><span class="chev">▾</span></div>
+          <div class="row"><span class="btn dis">Download now</span><span class="btn">Delete cached</span><span class="subtle">Ready</span></div>
+          <div class="hint">Takes effect at once; Cancel doesn't undo it.</div>
+        </div>
+        <div class="elide">(Mode and Device rows)</div>
+      </div></div></div>
+      <div class="state">rasr card selected</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn dis">Download</span><span class="btn">Delete</span><span class="subtle">Ready (2.55 GB on disk)</span></div>
+        <div class="tiny">Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span></div>
+        <div class="elide">(no Whisper group; Mode and Device rows follow)</div>
+      </div></div></div>
+    </div>
+
+    <div class="lane">
+      <h3 class="lh">B. A size drop-down inside the Whisper card</h3>
+      <p class="why">The open card list gives the Whisper card its own size ComboBox. The closed picker names the size. Download / Delete in the row under it act on that size.</p>
+      <div class="state">Open card list, Whisper card selected</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo" style="border-color: var(--accent);"><span>Whisper (LM-Kit) <span class="subtle">· legacy · Medium ATC</span></span><span class="chev">▴</span></div>
+        <div class="popup">
+          <div class="card"><div class="name"><span>rasr-parakeet v2 · int8</span><span></span></div>
+            <dl><dt>Download</dt><dd>0.67 GB</dd><dt>State</dt><dd class="cached">✓ Downloaded</dd></dl></div>
+          <div class="card sel"><div class="name"><span>Whisper (LM-Kit) <span class="subtle">· legacy</span></span><span class="subtle">selected</span></div>
+            <dl><dt>Size</dt><dd><div class="combo sm chg" style="width:270px"><span>Medium · ATC fine-tune ★ <span class="subtle">(1462 MB)</span></span><span class="chev">▾</span></div></dd>
+              <dt>Note</dt><dd>One hypothesis only, so accurate mode is unavailable. Removed in a later release.</dd><dt>State</dt><dd class="cached">✓ cached</dd></dl></div>
+        </div>
+        <div class="ann">A ComboBox inside a ComboBox drop-down: its own list opens over the card list, and the existing Whisper bindings move into the card template.</div>
+      </div></div></div>
+      <div class="state">Closed</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo chg"><span>Whisper (LM-Kit) <span class="subtle">· legacy · Medium ATC</span> <span class="cached">✓ cached</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn dis">Download now</span><span class="btn">Delete cached</span><span class="subtle">Ready</span></div>
+      </div></div></div>
+    </div>
+
+    <div class="lane">
+      <h3 class="lh">C. Today's separate group, always shown</h3>
+      <p class="why">The Whisper group stays where it is today, under the new model block, whichever card is selected.</p>
+      <div class="state">rasr card selected</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn dis">Download</span><span class="btn">Delete</span><span class="subtle">Ready (2.55 GB on disk)</span></div>
+        <div class="tiny">Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span></div>
+        <div class="elide">(Mode and Device rows)</div>
+        <div class="chg" style="margin-top:6px">
+          <h4 style="margin-top:0">Whisper Model (speech-to-text)</h4>
+          <div class="combo wide"><span>Whisper Medium · ATC fine-tune ★ Recommended <span class="subtle">(1462 MB)</span> <span class="cached">✓ cached</span></span><span class="chev">▾</span></div>
+          <div class="subtle" style="width:380px">ATC-tuned Whisper medium.</div>
+          <div class="row"><span class="btn dis">Download now</span><span class="btn">Delete cached</span><span class="subtle">Ready</span></div>
+          <div class="hint">Takes effect at once; Cancel doesn't undo it.</div>
+          <div class="subtle" style="width:380px">Pre-downloading here avoids the multi-second stall on your first PTT press. LM-Kit caches models under %LOCALAPPDATA%/LM-Kit/Models/ and reuses them across runs.</div>
+        </div>
+      </div></div></div>
+    </div>
+  </div>
+  <p class="rec"><b>A:</b> the size matters only while Whisper is the model. The existing group and its bindings stay as they are, and YAAT-1574 deletes the group whole.</p>
+</section>
+
+<!-- ============================ 2 ============================ -->
+<section class="dec" id="d2">
+  <h2>2. Download progress text and units (2.55 GB fp32 download, 42% done)</h2>
+  <p class="ctx">The installer today writes "Downloading {percent}% ({read} / {total} MB)", in 1024 × 1024 MB, with no file name. The picker and the Download button show decimal GB (2.55 GB).</p>
+  <div class="lanes n3">
+    <div class="lane">
+      <h3 class="lh">A. The installer's text as is<span class="tag">Recommended</span></h3>
+      <p class="why">No installer change. The numbers are MB of 1024 × 1024, so 2,432 MB is the same download as the 2.55 GB in the picker.</p>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="subtle">2.55 GB · Downloading</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn">Cancel</span><span class="btn dis">Delete</span><span class="subtle chg">Downloading 42% (1,021 / 2,432 MB)</span></div>
+        <div class="bar"><i></i></div>
+        <div class="tiny">Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span></div>
+      </div></div></div>
+    </div>
+    <div class="lane">
+      <h3 class="lh">B. File name and index, decimal GB (the approved mock's text)</h3>
+      <p class="why">Needs the installer to report the current file. encoder.weights is 2.44 of the 2.55 GB, so the text reads "6 of 8" for about 95% of the download.</p>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="subtle">2.55 GB · Downloading</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn">Cancel</span><span class="btn dis">Delete</span><span class="subtle chg">Downloading encoder.weights (6 of 8)… 1.1 / 2.55 GB</span></div>
+        <div class="bar"><i></i></div>
+        <div class="tiny">Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span></div>
+      </div></div></div>
+    </div>
+    <div class="lane">
+      <h3 class="lh">C. The bar plus "1.1 of 2.55 GB" only</h3>
+      <p class="why">The view model works out the size from the installer's progress and the manifest size, so the installer is unchanged. The units match the picker.</p>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="subtle">2.55 GB · Downloading</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn">Cancel</span><span class="btn dis">Delete</span><span class="subtle chg">1.1 of 2.55 GB</span></div>
+        <div class="bar"><i></i></div>
+        <div class="tiny">Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span></div>
+      </div></div></div>
+    </div>
+  </div>
+  <p class="rec"><b>A:</b> it ships with no installer change and the numbers are exact. Its "MB" is a different unit from the picker's GB, which C avoids, also without an installer change.</p>
+
+  <h2 style="font-size:14px; margin:18px 0 4px">2b. The idle line once the model is on disk</h2>
+  <div class="lanes n2">
+    <div class="lane">
+      <h3 class="lh">A. "Ready (2.55 GB on disk)"<span class="tag">Recommended</span></h3>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn dis">Download</span><span class="btn">Delete</span><span class="subtle chg">Ready (2.55 GB on disk)</span></div>
+      </div></div></div>
+    </div>
+    <div class="lane">
+      <h3 class="lh">B. "Ready" (the installer's text)</h3>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn dis">Download</span><span class="btn">Delete</span><span class="subtle chg">Ready</span></div>
+      </div></div></div>
+    </div>
+  </div>
+  <p class="rec"><b>A:</b> Delete sits right beside it, and the line says how much space it frees.</p>
+</section>
+
+<!-- ============================ 3 ============================ -->
+<section class="dec" id="d3">
+  <h2>3. While the engine swaps after Apply, or after a finished download</h2>
+  <p class="ctx">Example: int8 is on disk, the owner picks it and presses Apply. The swap loads the model and takes a few seconds, and push-to-talk waits for it. Today nothing shows it: the swap does not set the mic status to Warming (only prewarm does). OK closes Settings, so after OK the Settings window shows nothing either way.</p>
+  <div class="lanes n3">
+    <div class="lane">
+      <h3 class="lh">A. "Loading model…" with a spinner, in Settings<span class="tag">Recommended</span></h3>
+      <p class="why">The status beside Delete reads "Loading model…" until the swap ends, then goes back to "Ready (0.67 GB on disk)". The status bar is not changed.</p>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · int8 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn dis">Download</span><span class="btn">Delete</span><span class="subtle chg"><span class="spin"></span>Loading model…</span></div>
+      </div></div></div>
+      <div class="state">Status bar meanwhile</div>
+      <div class="mainwin"><div class="scope">(radar scope)</div><div class="sb"><span class="left">Connected · KOAK training room</span><span class="mic">mic: Idle</span></div></div>
+    </div>
+    <div class="lane">
+      <h3 class="lh">B. Nothing in Settings; the status bar shows "mic: Warming"</h3>
+      <p class="why">Settings keeps reading "Ready". The swap sets the mic status to Warming, which the status bar already shows, then back to Idle.</p>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · int8 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn dis">Download</span><span class="btn">Delete</span><span class="subtle">Ready (0.67 GB on disk)</span></div>
+      </div></div></div>
+      <div class="state">Status bar meanwhile</div>
+      <div class="mainwin"><div class="scope">(radar scope)</div><div class="sb"><span class="left">Connected · KOAK training room</span><span class="mic chg">mic: Warming</span></div></div>
+    </div>
+    <div class="lane">
+      <h3 class="lh">C. Both</h3>
+      <p class="why">"Loading model…" in Settings while it is open, and "mic: Warming" in the status bar, which still shows it after OK.</p>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · int8 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn dis">Download</span><span class="btn">Delete</span><span class="subtle chg"><span class="spin"></span>Loading model…</span></div>
+      </div></div></div>
+      <div class="state">Status bar meanwhile</div>
+      <div class="mainwin"><div class="scope">(radar scope)</div><div class="sb"><span class="left">Connected · KOAK training room</span><span class="mic chg">mic: Warming</span></div></div>
+    </div>
+  </div>
+  <p class="rec"><b>A:</b> it shows the wait next to the button that caused it. After OK there is no window left to show it in, a case only B and C cover.</p>
+</section>
+
+<!-- ============================ 4 ============================ -->
+<section class="dec" id="d4">
+  <h2>4. While the GPU check runs on opening Settings</h2>
+  <p class="ctx">The check loads the NVIDIA driver library, then reads the driver version and the card's compute capability. It runs off the UI thread, so its result arrives a moment after the section draws. Example: the GPU runtime was installed earlier, and the card is a GTX 1070 (compute 6.1, driver 552.22), which is unsupported.</p>
+  <div class="lanes n2">
+    <div class="lane">
+      <h3 class="lh">A. "Checking your GPU…", with the GPU radio disabled until the result<span class="tag">Recommended</span></h3>
+      <div class="state">While checking</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio"><span class="dot sel"></span><span class="lbl">CPU</span></span>
+          <span class="radio dis"><span class="dot"></span><span class="lbl">GPU (NVIDIA CUDA)</span></span>
+          <span class="subtle chg"><span class="spin"></span>Checking your GPU…</span>
+        </div>
+        <div class="subtle" style="margin-top:6px">GPU runtime: <span class="chg" style="margin-left:3px">Checking your GPU…</span></div>
+        <div class="row"><span class="btn dis">Remove GPU runtime</span></div>
+      </div></div></div>
+      <div class="state">Result: unsupported card (a supported one enables the GPU radio)</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio"><span class="dot sel"></span><span class="lbl">CPU</span></span>
+          <span class="radio dis"><span class="dot"></span><span class="lbl">GPU (NVIDIA CUDA)<small>Not supported on this card</small></span></span>
+        </div>
+        <div class="subtle" style="margin-top:6px">GPU runtime · installed (1.1 GB)</div>
+        <div class="note warn">NVIDIA GeForce GTX 1070 (compute 6.1, driver 552.22): CUDA 13 needs compute ≥ 7.5 and driver ≥ 580. Speech recognition runs on the CPU.</div>
+        <div class="row"><span class="btn">Remove GPU runtime</span></div>
+      </div></div></div>
+    </div>
+    <div class="lane">
+      <h3 class="lh">B. Radios at once; the GPU radio greys out later if unsupported</h3>
+      <div class="state">First moment</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio"><span class="dot sel"></span><span class="lbl">CPU</span></span>
+          <span class="radio chg"><span class="dot"></span><span class="lbl">GPU (NVIDIA CUDA)</span></span>
+        </div>
+        <div class="subtle" style="margin-top:6px">GPU runtime · installed (1.1 GB)</div>
+        <div class="row"><span class="btn">Remove GPU runtime</span></div>
+      </div></div></div>
+      <div class="state">Result arrives: the radio greys out and the note pushes the row down</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio"><span class="dot sel"></span><span class="lbl">CPU</span></span>
+          <span class="radio dis"><span class="dot"></span><span class="lbl">GPU (NVIDIA CUDA)<small>Not supported on this card</small></span></span>
+        </div>
+        <div class="subtle" style="margin-top:6px">GPU runtime · installed (1.1 GB)</div>
+        <div class="note warn chg">NVIDIA GeForce GTX 1070 (compute 6.1, driver 552.22): CUDA 13 needs compute ≥ 7.5 and driver ≥ 580. Speech recognition runs on the CPU.</div>
+        <div class="row"><span class="btn">Remove GPU runtime</span></div>
+      </div></div></div>
+      <p class="ann">A click on GPU in the first moment is taken back when the result arrives.</p>
+    </div>
+  </div>
+  <p class="rec"><b>A:</b> no control changes under the pointer, and the check takes only a few driver calls, so the wait is short.</p>
+</section>
+
+<!-- ============================ 5 ============================ -->
+<section class="dec" id="d5">
+  <h2>5. Accurate saved, but it cannot run</h2>
+  <p class="ctx">Two causes. Either the speech native has no n-best support (a build that fell back to the stock native, flagged by its FALLBACK marker), or the Whisper card is selected. Today the engine quietly runs Fast and the preference stays Accurate.</p>
+  <div class="lanes n2">
+    <div class="lane">
+      <h3 class="lh">A. Accurate stays selected but disabled, with the reason beside it<span class="tag">Recommended</span></h3>
+      <p class="why">The preference stays Accurate. Accurate comes back by itself once the cause is gone, for example when a rasr card is picked again.</p>
+      <div class="state">No n-best native</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Mode</h4>
+        <div class="row">
+          <span class="radio dis"><span class="dot sel"></span><span class="lbl">Accurate<small>Several hypotheses, checked against the room's callsigns, fixes and taxiways</small></span></span>
+          <span class="radio"><span class="dot"></span><span class="lbl">Fast<small>Best guess only, lowest latency</small></span></span>
+        </div>
+        <div class="warn chg">Accurate needs the n-best native; running Fast</div>
+      </div></div></div>
+      <div class="state">Whisper card selected</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Mode</h4>
+        <div class="row">
+          <span class="radio dis"><span class="dot sel"></span><span class="lbl">Accurate<small>Several hypotheses, checked against the room's callsigns, fixes and taxiways</small></span></span>
+          <span class="radio"><span class="dot"></span><span class="lbl">Fast<small>Best guess only, lowest latency</small></span></span>
+        </div>
+        <div class="warn chg">Whisper gives one hypothesis only; running Fast</div>
+      </div></div></div>
+    </div>
+    <div class="lane">
+      <h3 class="lh">B. The radio flips to Fast and saves it, with a one-line note</h3>
+      <p class="why">Fast is written to preferences. Accurate stays disabled while the cause lasts, and stays off after that until it is picked again.</p>
+      <div class="state">No n-best native</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Mode</h4>
+        <div class="row">
+          <span class="radio dis"><span class="dot"></span><span class="lbl">Accurate<small>Several hypotheses, checked against the room's callsigns, fixes and taxiways</small></span></span>
+          <span class="radio chg"><span class="dot sel"></span><span class="lbl">Fast<small>Best guess only, lowest latency</small></span></span>
+        </div>
+        <div class="subtle">Mode was set to Fast: this speech native has no n-best support.</div>
+      </div></div></div>
+      <div class="state">Whisper card selected</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Mode</h4>
+        <div class="row">
+          <span class="radio dis"><span class="dot"></span><span class="lbl">Accurate<small>Several hypotheses, checked against the room's callsigns, fixes and taxiways</small></span></span>
+          <span class="radio chg"><span class="dot sel"></span><span class="lbl">Fast<small>Best guess only, lowest latency</small></span></span>
+        </div>
+        <div class="subtle">Mode was set to Fast: Whisper gives one hypothesis only.</div>
+      </div></div></div>
+    </div>
+  </div>
+  <p class="rec"><b>A:</b> a passing cause, such as a look at Whisper or a dev build on the stock native, does not lose the owner's choice, and the line says what is actually running.</p>
+</section>
+
+<!-- ============================ 6 ============================ -->
+<section class="dec" id="d6">
+  <h2>6. Device = GPU saved, but the GPU runtime is gone or the driver is now too old</h2>
+  <p class="ctx">At startup YAAT finds it cannot load the GPU set and runs on the CPU. The reason is recorded once, at startup. Two examples: the driver was rolled back to 572.16, or the runtime folder was deleted.</p>
+  <div class="lanes n2">
+    <div class="lane">
+      <h3 class="lh">A. GPU stays selected and disabled, with the reason and "running on CPU"<span class="tag">Recommended</span></h3>
+      <div class="state">Driver too old</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio"><span class="dot"></span><span class="lbl">CPU</span></span>
+          <span class="radio dis"><span class="dot sel"></span><span class="lbl">GPU (NVIDIA CUDA)</span></span>
+        </div>
+        <div class="warn chg">NVIDIA GeForce RTX 3060, driver 572.16: CUDA 13 needs driver ≥ 580. Running on CPU.</div>
+        <div class="subtle" style="margin-top:6px">GPU runtime · installed (1.1 GB)</div>
+        <div class="row"><span class="btn">Remove GPU runtime</span></div>
+      </div></div></div>
+      <div class="state">GPU runtime removed</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio"><span class="dot"></span><span class="lbl">CPU</span></span>
+          <span class="radio dis"><span class="dot sel"></span><span class="lbl">GPU (NVIDIA CUDA)</span></span>
+        </div>
+        <div class="warn chg">The GPU runtime is not installed; install it below. Running on CPU.</div>
+        <div class="subtle" style="margin-top:6px">GPU runtime: NVIDIA GeForce RTX 3060, driver 617.42, supported</div>
+        <div class="row"><span class="btn primary">Download GPU runtime (~1.1 GB)</span></div>
+      </div></div></div>
+    </div>
+    <div class="lane">
+      <h3 class="lh">B. Reset to CPU at startup, with a note</h3>
+      <div class="state">Driver too old</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio chg"><span class="dot sel"></span><span class="lbl">CPU</span></span>
+          <span class="radio dis"><span class="dot"></span><span class="lbl">GPU (NVIDIA CUDA)</span></span>
+        </div>
+        <div class="subtle">Device was reset to CPU: NVIDIA GeForce RTX 3060, driver 572.16, is below CUDA 13's driver ≥ 580.</div>
+        <div class="subtle" style="margin-top:6px">GPU runtime · installed (1.1 GB)</div>
+        <div class="row"><span class="btn">Remove GPU runtime</span></div>
+      </div></div></div>
+      <div class="state">GPU runtime removed</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio chg"><span class="dot sel"></span><span class="lbl">CPU</span></span>
+          <span class="radio dis"><span class="dot"></span><span class="lbl">GPU (NVIDIA CUDA)<small>Needs the GPU runtime below</small></span></span>
+        </div>
+        <div class="subtle">Device was reset to CPU: the GPU runtime is not installed.</div>
+        <div class="subtle" style="margin-top:6px">GPU runtime: NVIDIA GeForce RTX 3060, driver 617.42, supported</div>
+        <div class="row"><span class="btn primary">Download GPU runtime (~1.1 GB)</span></div>
+      </div></div></div>
+      <p class="ann">After reinstalling the runtime or updating the driver, GPU has to be picked again and YAAT restarted.</p>
+    </div>
+  </div>
+  <p class="rec"><b>A:</b> fixing the cause (a driver update, a reinstall) brings GPU back at the next start with nothing to pick again. It treats the saved choice the same way as decision 5 A.</p>
+</section>
+
+<!-- ============================ 7 ============================ -->
+<section class="dec" id="d7">
+  <h2>7. "Remove GPU runtime" while this session runs on the GPU</h2>
+  <p class="ctx">Windows will not delete DLLs that are loaded, so the installer refuses with "The GPU runtime is in use. Switch Speech &gt; Device to CPU, restart YAAT, then try again."</p>
+  <div class="lanes n2">
+    <div class="lane">
+      <h3 class="lh">A. Disabled, with the reason up front<span class="tag">Recommended</span></h3>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio"><span class="dot"></span><span class="lbl">CPU</span></span>
+          <span class="radio"><span class="dot sel"></span><span class="lbl">GPU (NVIDIA CUDA)</span></span>
+        </div>
+        <div class="subtle" style="margin-top:6px">GPU runtime: NVIDIA GeForce RTX 4090, driver 617.42, supported · installed (1.1 GB)</div>
+        <div class="row"><span class="btn dis chg">Remove GPU runtime</span><span class="subtle">In use; restart YAAT on CPU to remove</span></div>
+        <div class="hint">Takes effect at once; Cancel doesn't undo it.</div>
+      </div></div></div>
+    </div>
+    <div class="lane">
+      <h3 class="lh">B. Enabled; the refusal shows after a click</h3>
+      <div class="state">Before the click</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio"><span class="dot"></span><span class="lbl">CPU</span></span>
+          <span class="radio"><span class="dot sel"></span><span class="lbl">GPU (NVIDIA CUDA)</span></span>
+        </div>
+        <div class="subtle" style="margin-top:6px">GPU runtime: NVIDIA GeForce RTX 4090, driver 617.42, supported · installed (1.1 GB)</div>
+        <div class="row"><span class="btn chg">Remove GPU runtime</span></div>
+        <div class="hint">Takes effect at once; Cancel doesn't undo it.</div>
+      </div></div></div>
+      <div class="state">After the click</div>
+      <div class="window"><div class="win-title">Settings › Speech</div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Device</h4>
+        <div class="row">
+          <span class="radio"><span class="dot"></span><span class="lbl">CPU</span></span>
+          <span class="radio"><span class="dot sel"></span><span class="lbl">GPU (NVIDIA CUDA)</span></span>
+        </div>
+        <div class="subtle" style="margin-top:6px">GPU runtime: NVIDIA GeForce RTX 4090, driver 617.42, supported · installed (1.1 GB)</div>
+        <div class="row"><span class="btn">Remove GPU runtime</span></div>
+        <div class="warn chg">The GPU runtime is in use. Switch Speech &gt; Device to CPU, restart YAAT, then try again.</div>
+        <div class="hint">Takes effect at once; Cancel doesn't undo it.</div>
+      </div></div></div>
+    </div>
+  </div>
+  <p class="rec"><b>A:</b> on Windows the refusal is certain, so saying so before the click saves a click that can only fail.</p>
+</section>
+
+<!-- ============================ 8 ============================ -->
+<section class="dec" id="d8">
+  <h2>8. The status bar's "mic: ModelMissing" once the selected model finishes downloading</h2>
+  <p class="ctx">Before the download finishes, the status bar says to download the model in Settings &gt; Speech and links to that section (the ruling). Today ModelMissing clears only on the next push-to-talk, or on a prewarm, which sets Warming and then Idle.</p>
+  <div class="lanes n2">
+    <div class="lane">
+      <h3 class="lh">A. Clears at once: the swap runs and the link goes<span class="tag">Recommended</span></h3>
+      <div class="state">Downloading</div>
+      <div class="mainwin"><div class="scope">(radar scope)</div><div class="sb"><span class="left">Connected · KOAK training room</span><span class="mic">mic: ModelMissing · Download the model in <span class="link">Settings &gt; Speech</span></span></div></div>
+      <div class="state">Download finished: the model loads</div>
+      <div class="mainwin"><div class="scope">(radar scope)</div><div class="sb"><span class="left">Connected · KOAK training room</span><span class="mic chg">mic: Warming</span></div></div>
+      <div class="state">A few seconds later</div>
+      <div class="mainwin"><div class="scope">(radar scope)</div><div class="sb"><span class="left">Connected · KOAK training room</span><span class="mic chg">mic: Idle</span></div></div>
+    </div>
+    <div class="lane">
+      <h3 class="lh">B. Stays until the next push-to-talk</h3>
+      <div class="state">Downloading</div>
+      <div class="mainwin"><div class="scope">(radar scope)</div><div class="sb"><span class="left">Connected · KOAK training room</span><span class="mic">mic: ModelMissing · Download the model in <span class="link">Settings &gt; Speech</span></span></div></div>
+      <div class="state">Download finished</div>
+      <div class="mainwin"><div class="scope">(radar scope)</div><div class="sb"><span class="left">Connected · KOAK training room</span><span class="mic chg">mic: ModelMissing · Download the model in <span class="link">Settings &gt; Speech</span></span></div></div>
+      <div class="state">Next push-to-talk: the first press waits for the load</div>
+      <div class="mainwin"><div class="scope">(radar scope)</div><div class="sb"><span class="left">Connected · KOAK training room</span><span class="mic chg">mic: Warming</span></div></div>
+    </div>
+  </div>
+  <p class="rec"><b>A:</b> the bar stops asking for a download that is already done, and the model loads before the first press rather than during it.</p>
+</section>
+
+</body>
+</html>

@@ -3,9 +3,41 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:vm="using:Yaat.Client.ViewModels"
   xmlns:services="clr-namespace:Yaat.Client.Services;assembly=Yaat.Client.Core"
+  xmlns:models="clr-namespace:Yaat.Client.Models;assembly=Yaat.Client.Core"
   x:Class="Yaat.Client.Views.Settings.SpeechSection"
   x:DataType="vm:SettingsViewModel"
 >
+  <UserControl.Resources>
+    <vm:EnumEqualsConverter x:Key="EnumEquals" />
+  </UserControl.Resources>
+  <UserControl.Styles>
+    <!-- An in-section link that runs a command; section-link is reserved for the buttons that open another section -->
+    <Style Selector="Button.text-link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0,2" />
+      <Setter Property="Foreground" Value="#60A5FA" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.text-link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#93C5FD" />
+    </Style>
+    <Style Selector="TextBlock.installed">
+      <Setter Property="Foreground" Value="LightGreen" />
+    </Style>
+    <Style Selector="TextBlock.card-term">
+      <Setter Property="Width" Value="72" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.device-status">
+      <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.device-status.warning">
+      <Setter Property="Foreground" Value="Orange" />
+    </Style>
+  </UserControl.Styles>
   <ScrollViewer>
     <StackPanel Margin="12" Spacing="12">
       <Expander IsExpanded="{Binding SpeechEnabled, Mode=OneWay}">
@@ -19,62 +51,299 @@
             ToolTip.Tip="When PTT/STT produces a transcript, focus the command input box so you can press Enter to send without mousing for it."
           />
 
-          <TextBlock Text="Whisper Model (speech-to-text)" FontWeight="SemiBold" />
+          <TextBlock Text="Speech recognition model" FontWeight="SemiBold" />
           <StackPanel Spacing="4">
-            <ComboBox ItemsSource="{Binding WhisperLmKitModels}" SelectedItem="{Binding SelectedWhisperLmKitModel}" Width="420">
-              <ComboBox.ItemTemplate>
+            <ComboBox ItemsSource="{Binding SttModelCards}" SelectedItem="{Binding SelectedSttModelCard}" Width="380" MaxDropDownHeight="236">
+              <ComboBox.SelectionBoxItemTemplate>
                 <DataTemplate>
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding DisplayName}" />
-                    <TextBlock Text="{Binding ApproxSizeMb, StringFormat='({0} MB)'}" Foreground="{DynamicResource SubtleTextBrush}" />
-                    <TextBlock Text="✓ cached" FontSize="10" Foreground="LightGreen" IsVisible="{Binding IsLocallyAvailable}" />
+                    <TextBlock Text="{Binding Title}" />
+                    <TextBlock Text="{Binding SizeText}" FontSize="11" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                    <TextBlock
+                      Text="· Not downloaded"
+                      FontSize="11"
+                      Foreground="{DynamicResource SubtleTextBrush}"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding !Install.IsInstalled, FallbackValue=False}"
+                    />
+                    <TextBlock
+                      Text="✓ downloaded"
+                      FontSize="10"
+                      Foreground="LightGreen"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding Install.IsInstalled, FallbackValue=False}"
+                    />
                   </StackPanel>
+                </DataTemplate>
+              </ComboBox.SelectionBoxItemTemplate>
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <Border Classes="card" Padding="8,6" Width="340">
+                    <StackPanel Spacing="2">
+                      <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Tag}" FontSize="11" Foreground="{DynamicResource SubtleTextBrush}" />
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                      </DockPanel>
+                      <DockPanel>
+                        <TextBlock Classes="card-term" Text="Download" />
+                        <TextBlock Text="{Binding SizeText}" TextWrapping="Wrap" />
+                      </DockPanel>
+                      <DockPanel IsVisible="{Binding !IsWhisper}">
+                        <TextBlock Classes="card-term" Text="Best on" />
+                        <TextBlock Text="{Binding BestOnText}" TextWrapping="Wrap" />
+                      </DockPanel>
+                      <DockPanel IsVisible="{Binding !IsWhisper}">
+                        <TextBlock Classes="card-term" Text="Measured" />
+                        <TextBlock Text="{Binding MeasuredText}" TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" />
+                      </DockPanel>
+                      <DockPanel IsVisible="{Binding !IsWhisper}">
+                        <TextBlock Classes="card-term" Text="State" />
+                        <TextBlock
+                          Text="{Binding StateText}"
+                          Classes.installed="{Binding Install.IsInstalled, FallbackValue=False}"
+                          TextWrapping="Wrap"
+                        />
+                      </DockPanel>
+                      <DockPanel IsVisible="{Binding IsWhisper}">
+                        <TextBlock Classes="card-term" Text="Note" />
+                        <TextBlock Text="{Binding NoteText}" TextWrapping="Wrap" />
+                      </DockPanel>
+                    </StackPanel>
+                  </Border>
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
-            <TextBlock
-              Text="{Binding SelectedWhisperLmKitModel.Description}"
-              TextWrapping="Wrap"
-              FontSize="11"
-              Foreground="{DynamicResource SubtleTextBrush}"
-            />
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding !SelectedSttModelCard.IsWhisper, FallbackValue=False}">
               <Button
-                Content="Download now"
-                Command="{Binding DownloadSelectedWhisperModelCommand}"
-                IsEnabled="{Binding SelectedWhisperLmKitModel.CanDownload, FallbackValue=False}"
-              />
+                Classes="accent"
+                Command="{Binding SelectedSttModelCard.DownloadCommand}"
+                IsVisible="{Binding !SelectedSttModelCard.Install.IsBusy, FallbackValue=False}"
+              >
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <TextBlock Text="Download" />
+                  <TextBlock Text="{Binding SelectedSttModelCard.SizeText, StringFormat='({0})'}" />
+                </StackPanel>
+              </Button>
               <Button
-                Content="Delete cached"
-                Command="{Binding DeleteSelectedWhisperModelCommand}"
-                IsEnabled="{Binding SelectedWhisperLmKitModel.CanDelete, FallbackValue=False}"
+                Content="Cancel"
+                Command="{Binding SelectedSttModelCard.CancelDownloadCommand}"
+                IsVisible="{Binding SelectedSttModelCard.Install.IsBusy, FallbackValue=False}"
               />
+              <Button Content="Delete" Command="{Binding SelectedSttModelCard.DeleteCommand}" />
               <TextBlock
-                Text="{Binding SelectedWhisperLmKitModel.StatusMessage}"
+                Text="{Binding SelectedSttModelCard.StateText}"
                 Foreground="{DynamicResource SubtleTextBrush}"
                 FontSize="11"
                 VerticalAlignment="Center"
+                IsVisible="{Binding !SelectedSttModelCard.IsLoading, FallbackValue=False}"
               />
+              <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding SelectedSttModelCard.IsLoading, FallbackValue=False}">
+                <ProgressBar IsIndeterminate="True" Width="80" Height="8" VerticalAlignment="Center" />
+                <TextBlock Text="Loading model…" FontSize="11" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+              </StackPanel>
             </StackPanel>
             <ProgressBar
               Minimum="0"
               Maximum="1"
-              Value="{Binding SelectedWhisperLmKitModel.DownloadProgress}"
-              IsVisible="{Binding SelectedWhisperLmKitModel.IsDownloading}"
+              Value="{Binding SelectedSttModelCard.Install.Progress, FallbackValue=0}"
+              IsVisible="{Binding SelectedSttModelCard.Install.IsBusy, FallbackValue=False}"
+              Width="380"
               Height="8"
+              HorizontalAlignment="Left"
             />
+            <WrapPanel Orientation="Horizontal" IsVisible="{Binding SelectedSttModelCard.UsesLlama, FallbackValue=False}">
+              <TextBlock
+                Text="Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License."
+                FontSize="10"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                VerticalAlignment="Center"
+                Margin="0,0,4,0"
+              />
+              <Button Classes="text-link" Content="View licence" FontSize="10" Command="{Binding SelectedSttModelCard.ViewLicenceCommand}" />
+            </WrapPanel>
             <TextBlock
               Text="Takes effect at once; Cancel doesn't undo it."
               TextWrapping="Wrap"
               FontSize="11"
               Foreground="{DynamicResource SubtleTextBrush}"
+              IsVisible="{Binding !SelectedSttModelCard.IsWhisper, FallbackValue=False}"
             />
+          </StackPanel>
+
+          <TextBlock Text="Mode" FontWeight="SemiBold" />
+          <WrapPanel Orientation="Horizontal">
+            <RadioButton
+              GroupName="SttMode"
+              Margin="0,0,16,4"
+              IsChecked="{Binding SelectedSttMode, Converter={StaticResource EnumEquals}, ConverterParameter={x:Static models:SttMode.Accurate}}"
+              IsEnabled="{Binding IsAccurateAvailable}"
+            >
+              <StackPanel>
+                <TextBlock Text="Accurate" />
+                <TextBlock
+                  Text="Several hypotheses, checked against the room's callsigns, fixes and taxiways"
+                  FontSize="10"
+                  Foreground="{DynamicResource SubtleTextBrush}"
+                />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton
+              GroupName="SttMode"
+              Margin="0,0,16,4"
+              IsChecked="{Binding SelectedSttMode, Converter={StaticResource EnumEquals}, ConverterParameter={x:Static models:SttMode.Fast}}"
+            >
+              <StackPanel>
+                <TextBlock Text="Fast" />
+                <TextBlock Text="Best guess only, lowest latency" FontSize="10" Foreground="{DynamicResource SubtleTextBrush}" />
+              </StackPanel>
+            </RadioButton>
             <TextBlock
-              Text="Pre-downloading here avoids the multi-second stall on your first PTT press. LM-Kit caches models under %LOCALAPPDATA%/LM-Kit/Models/ and reuses them across runs."
+              Text="{Binding AccurateUnavailableReason}"
+              Foreground="Orange"
+              FontSize="11"
+              VerticalAlignment="Center"
+              IsVisible="{Binding AccurateUnavailableReason, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+            />
+          </WrapPanel>
+
+          <TextBlock Text="Device" FontWeight="SemiBold" />
+          <StackPanel Spacing="4">
+            <WrapPanel Orientation="Horizontal">
+              <RadioButton
+                GroupName="SttDevice"
+                Margin="0,0,16,4"
+                IsChecked="{Binding SelectedSttDevice, Converter={StaticResource EnumEquals}, ConverterParameter={x:Static models:SttDevice.Cpu}}"
+              >
+                <TextBlock Text="CPU" />
+              </RadioButton>
+              <RadioButton
+                GroupName="SttDevice"
+                Margin="0,0,16,4"
+                IsChecked="{Binding SelectedSttDevice, Converter={StaticResource EnumEquals}, ConverterParameter={x:Static models:SttDevice.Gpu}}"
+                IsEnabled="{Binding IsGpuAvailable}"
+              >
+                <StackPanel>
+                  <TextBlock Text="GPU (NVIDIA CUDA)" />
+                  <TextBlock
+                    Text="Needs the GPU runtime below"
+                    FontSize="10"
+                    Foreground="{DynamicResource SubtleTextBrush}"
+                    IsVisible="{Binding !GpuRuntime.IsInstalled, FallbackValue=False}"
+                  />
+                </StackPanel>
+              </RadioButton>
+            </WrapPanel>
+            <TextBlock
+              Text="{Binding DeviceStatusText}"
+              Classes="device-status"
+              Classes.warning="{Binding IsDeviceStatusWarning}"
               TextWrapping="Wrap"
               FontSize="11"
-              Foreground="{DynamicResource SubtleTextBrush}"
+              IsVisible="{Binding DeviceStatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
             />
+            <TextBlock
+              Text="Restart YAAT to switch speech recognition to the GPU."
+              TextWrapping="Wrap"
+              FontSize="11"
+              Foreground="Orange"
+              IsVisible="{Binding IsSttRestartNeeded}"
+            />
+
+            <StackPanel Spacing="4" Margin="0,6,0,0" IsVisible="{Binding GpuRuntime, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <TextBlock Text="GPU runtime" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SubtleTextBrush}" />
+              <TextBlock
+                Text="{Binding GpuRuntime.StatusMessage}"
+                TextWrapping="Wrap"
+                FontSize="11"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                IsVisible="{Binding GpuRuntime.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+              />
+              <ProgressBar Minimum="0" Maximum="1" Value="{Binding GpuRuntime.Progress}" IsVisible="{Binding GpuRuntime.IsBusy}" Height="8" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Panel IsVisible="{Binding !GpuRuntime.IsBusy}">
+                  <Button
+                    Content="Download GPU runtime (~1.1 GB)"
+                    Command="{Binding DownloadGpuRuntimeCommand}"
+                    IsVisible="{Binding !GpuRuntime.IsInstalled}"
+                  />
+                </Panel>
+                <Button Content="Cancel" Command="{Binding CancelGpuRuntimeCommand}" IsVisible="{Binding GpuRuntime.IsBusy}" />
+                <Button Content="Remove GPU runtime" Command="{Binding RemoveGpuRuntimeCommand}" IsVisible="{Binding GpuRuntime.IsInstalled}" />
+              </StackPanel>
+              <TextBlock
+                Text="{Binding GpuRuntimeRemovalText}"
+                TextWrapping="Wrap"
+                FontSize="11"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                IsVisible="{Binding IsGpuRuntimeRemovalScheduled}"
+              />
+              <TextBlock
+                Text="Takes effect at once; Cancel doesn't undo it."
+                TextWrapping="Wrap"
+                FontSize="11"
+                Foreground="{DynamicResource SubtleTextBrush}"
+              />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Spacing="12" IsVisible="{Binding IsWhisperSizePickerVisible}">
+            <TextBlock Text="Whisper Model (speech-to-text)" FontWeight="SemiBold" />
+            <StackPanel Spacing="4">
+              <ComboBox ItemsSource="{Binding WhisperLmKitModels}" SelectedItem="{Binding SelectedWhisperLmKitModel}" Width="420">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="{Binding DisplayName}" />
+                      <TextBlock Text="{Binding ApproxSizeMb, StringFormat='({0} MB)'}" Foreground="{DynamicResource SubtleTextBrush}" />
+                      <TextBlock Text="✓ cached" FontSize="10" Foreground="LightGreen" IsVisible="{Binding IsLocallyAvailable}" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock
+                Text="{Binding SelectedWhisperLmKitModel.Description}"
+                TextWrapping="Wrap"
+                FontSize="11"
+                Foreground="{DynamicResource SubtleTextBrush}"
+              />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button
+                  Content="Download now"
+                  Command="{Binding DownloadSelectedWhisperModelCommand}"
+                  IsEnabled="{Binding SelectedWhisperLmKitModel.CanDownload, FallbackValue=False}"
+                />
+                <Button
+                  Content="Delete cached"
+                  Command="{Binding DeleteSelectedWhisperModelCommand}"
+                  IsEnabled="{Binding SelectedWhisperLmKitModel.CanDelete, FallbackValue=False}"
+                />
+                <TextBlock
+                  Text="{Binding SelectedWhisperLmKitModel.StatusMessage}"
+                  Foreground="{DynamicResource SubtleTextBrush}"
+                  FontSize="11"
+                  VerticalAlignment="Center"
+                />
+              </StackPanel>
+              <ProgressBar
+                Minimum="0"
+                Maximum="1"
+                Value="{Binding SelectedWhisperLmKitModel.DownloadProgress}"
+                IsVisible="{Binding SelectedWhisperLmKitModel.IsDownloading}"
+                Height="8"
+              />
+              <TextBlock
+                Text="Takes effect at once; Cancel doesn't undo it."
+                TextWrapping="Wrap"
+                FontSize="11"
+                Foreground="{DynamicResource SubtleTextBrush}"
+              />
+              <TextBlock
+                Text="Pre-downloading here avoids the multi-second stall on your first PTT press. LM-Kit caches models under %LOCALAPPDATA%/LM-Kit/Models/ and reuses them across runs."
+                TextWrapping="Wrap"
+                FontSize="11"
+                Foreground="{DynamicResource SubtleTextBrush}"
+              />
+            </StackPanel>
           </StackPanel>
 
           <TextBlock Text="LLM Model (command interpretation)" FontWeight="SemiBold" />

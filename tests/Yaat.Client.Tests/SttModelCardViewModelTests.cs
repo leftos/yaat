@@ -67,10 +67,32 @@ public sealed class SttModelCardViewModelTests : IDisposable
         Assert.True(card.ViewLicenceCommand.CanExecute(null));
     }
 
+    [Theory]
+    [InlineData(SttEngine.RasrV2Fp32, "GPU, or a fast CPU")]
+    [InlineData(SttEngine.RasrV2Int8, "CPU with little memory")]
+    public void ARasrCard_SaysWhereItRunsBest_AndHasNoNote(SttEngine engine, string bestOn)
+    {
+        (SttModelCardViewModel card, _, _) = NewCard(engine);
+
+        Assert.Equal(bestOn, card.BestOnText);
+        Assert.Null(card.NoteText);
+    }
+
+    [Fact]
+    public void TheWhisperCard_HasNoBestOn_AndNotesItsSingleHypothesisAndRemoval()
+    {
+        var card = SttModelCardViewModel.ForWhisper();
+
+        Assert.Equal("", card.BestOnText);
+        Assert.Equal("One hypothesis only, so accurate mode is unavailable. Removed in a later release.", card.NoteText);
+    }
+
     private static (bool Download, bool Cancel, bool Delete) CanExecute(SttModelCardViewModel card) =>
         (card.DownloadCommand.CanExecute(null), card.CancelDownloadCommand.CanExecute(null), card.DeleteCommand.CanExecute(null));
 
-    private (SttModelCardViewModel Card, SttModelInstaller Installer, SttModelDownload Model) NewCard()
+    private (SttModelCardViewModel Card, SttModelInstaller Installer, SttModelDownload Model) NewCard() => NewCard(SttEngine.RasrV2Fp32);
+
+    private (SttModelCardViewModel Card, SttModelInstaller Installer, SttModelDownload Model) NewCard(SttEngine engine)
     {
         var model = new SttModelDownload(
             "rasr-parakeet-v2-fp32",
@@ -78,7 +100,7 @@ public sealed class SttModelCardViewModelTests : IDisposable
         );
         var installer = new SttModelInstaller(new HttpClient(new HeldHandler(_requested, _release)), _root, model, TimeProvider.System);
         // Callbacks run at once, so the card reads the installer's state as soon as it changes.
-        var card = SttModelCardViewModel.ForModel(SttEngine.RasrV2Fp32, model, installer, _root, true, a => a());
+        var card = SttModelCardViewModel.ForModel(engine, model, installer, _root, true, a => a());
         return (card, installer, model);
     }
 

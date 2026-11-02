@@ -269,10 +269,24 @@ public static class SettingsSearchCatalog
     {
         const SettingsSectionId s = SettingsSectionId.Speech;
         const string improve = "Help improve speech recognition";
+        const string model = "Speech recognition model";
+        const string gpuRuntime = "GPU runtime";
         return
         [
             Setting(s, "SpeechEnabled", "Speech-to-text (STT)", None),
             Setting(s, "AutoFocusInputAfterSpeech", "Auto-focus command input after PTT", None),
+            Setting(s, "SelectedSttModelCard", model, None),
+            SettingWithin(s, "SelectedSttModelCard.DownloadCommand", "Download", model, None),
+            SettingWithin(s, "SelectedSttModelCard.CancelDownloadCommand", "Cancel", model, None),
+            SettingWithin(s, "SelectedSttModelCard.DeleteCommand", "Delete", model, None),
+            SettingWithin(s, "SelectedSttModelCard.ViewLicenceCommand", "View licence", model, None),
+            SettingWithin(s, "SelectedSttMode", "Accurate", "Mode", None),
+            SettingWithin(s, "SelectedSttMode", "Fast", "Mode", None),
+            SettingWithin(s, "SelectedSttDevice", "CPU", "Device", None),
+            SettingWithin(s, "SelectedSttDevice", "GPU (NVIDIA CUDA)", "Device", None),
+            SettingWithin(s, "DownloadGpuRuntimeCommand", "Download GPU runtime (~1.1 GB)", gpuRuntime, None),
+            SettingWithin(s, "CancelGpuRuntimeCommand", "Cancel", gpuRuntime, None),
+            SettingWithin(s, "RemoveGpuRuntimeCommand", "Remove GPU runtime", gpuRuntime, None),
             Setting(s, "SelectedWhisperLmKitModel", WhisperModel, None),
             SettingWithin(s, "DownloadSelectedWhisperModelCommand", "Download now", WhisperModel, None),
             SettingWithin(s, "DeleteSelectedWhisperModelCommand", "Delete cached", WhisperModel, None),

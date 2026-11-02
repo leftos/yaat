@@ -1180,6 +1180,7 @@ ViewModels/
   GeneratorRowViewModel.cs      # Per-row VM for the IFR-arrival tab: runway/type/rate/AutoTrack/Active fields
   VfrArrivalGeneratorRowViewModel.cs # Per-row VM for the VFR-arrival tab: bearing arc/alt band/direct-to/initial V-S/Active
   OverflightGeneratorRowViewModel.cs # Per-row VM for the overflight tab: from/to arcs, exit distance, hemispheric snap, Active
+  EnumEqualsConverter.cs        # Two-way radio-button binding to one enum value (checked while the value equals the parameter; unchecking writes nothing): the Settings > Speech Mode and Device radios
   *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp, RunwayDisplay, TypeMismatchBrush for the Aircraft List's Filed column)
 
 Views/

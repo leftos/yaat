@@ -73,6 +73,18 @@ public sealed partial class SttModelCardViewModel : ObservableObject, IDisposabl
     /// <summary>The measured latency and memory line.</summary>
     public string MeasuredText => NotMeasuredText;
 
+    /// <summary>Where the model runs best: <c>GPU, or a fast CPU</c>; empty for Whisper.</summary>
+    public string BestOnText =>
+        Engine switch
+        {
+            SttEngine.RasrV2Fp32 => "GPU, or a fast CPU",
+            SttEngine.RasrV2Int8 => "CPU with little memory",
+            _ => "",
+        };
+
+    /// <summary>The card's note: only the legacy Whisper card has one.</summary>
+    public string? NoteText => IsWhisper ? "One hypothesis only, so accurate mode is unavailable. Removed in a later release." : null;
+
     /// <summary>Whether this is the legacy Whisper card, which has no Accurate mode and no download here.</summary>
     public bool IsWhisper => Engine == SttEngine.Whisper;
 
