@@ -74,8 +74,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
 ## Concurrency
 
-- Worktrees: every item gets a pair, `../yaat.wt/<slug>/yaat` and `../yaat.wt/<slug>/yaat-server`, both on branch `<slug>` from `<base>` (from the yaat main checkout: `git worktree add ../yaat.wt/<slug>/yaat -b <slug> <base> && git -C ../yaat-server worktree add "$(cd .. && pwd)/yaat.wt/<slug>/yaat-server" -b <slug> <base>`, where yaat-server uses its `main` when it has no `<base>`). Then restore both halves locally (`dotnet restore yaat.slnx` / `yaat-server.slnx` through the gate, `-Slot light`) before any commit: without a local restore the commit hook's formatter marks every `[ObservableProperty]` field readonly and the build fails (`CLAUDE.md`, "Restore a new worktree locally").
-
+- Worktrees: every item gets a pair, `../yaat.wt/<slug>/yaat` and `../yaat.wt/<slug>/yaat-server`, both on branch `<slug>` from `<base>` (from the yaat main checkout: `git worktree add ../yaat.wt/<slug>/yaat -b <slug> <base> && git -C ../yaat-server worktree add "$(cd .. && pwd)/yaat.wt/<slug>/yaat-server" -b <slug> <base>`, where yaat-server uses its `main` when it has no `<base>`).
   Then `branch.<slug>.base` / `branch.<slug>.landOn` are recorded in each half as the user-level `nextup` §3 **Base and target** says.
 
   The pair mirrors the main layout, so yaat-server's `../yaat/src/Yaat.Sim` reference, `tools/Yaat.GuideCapture`'s reference to the server and `tools/test-all.ps1`'s default `-ServerDir` all resolve inside it, and `/ship` (with `## Ship` below) lands it as a paired session. A yaat-only item still gets both halves, since its `Yaat.Sim` gate builds the server.

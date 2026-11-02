@@ -43,7 +43,7 @@ stages = ["pre-commit"]
 [[repos.hooks]]
 id = "dotnet-format-style"
 name = "dotnet format style (info)"
-entry = "bash tools/hooks/dotnet-format-wrapper.sh style info"
+entry = "pwsh -NoProfile -File tools/gate.ps1 csharp format"
 language = "system"
 types = ["c#"]
 require_serial = true
