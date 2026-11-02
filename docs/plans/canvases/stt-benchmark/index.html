@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STT benchmark layouts</title>
+<style>
+  :root {
+    --bg: #1c1c1c; --panel: #232323; --card: #1E293B; --border: #334155; --text: #e6e6e6; --subtle: #B0B0B0;
+    --link: #60A5FA; --ok: #90EE90; --warn: #FFA500; --accent: #3b82f6; --ctl: #2d2d2d; --ctl-border: #4a4a4a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #111; color: var(--text); font: 12px "Segoe UI", Inter, system-ui, sans-serif; }
+  header.top { padding: 16px 24px 4px; position: relative; }
+  header.top h1 { font-size: 18px; margin: 0 0 6px; padding-right: 300px; }
+  header.top p, header.top li { color: var(--subtle); margin: 0 0 4px; max-width: min(1180px, calc(100% - 310px)); line-height: 1.5; }
+  header.top ul { margin: 4px 0 8px; padding-left: 18px; }
+  .corner { position: absolute; top: 14px; right: 24px; width: 270px; border: 1px solid #a16207; background: #2a2110; color: #fde68a; border-radius: 4px; padding: 6px 10px; font-size: 11px; line-height: 1.45; }
+  .corner b { color: #fbbf24; }
+  section.lane { border-top: 1px solid #2a2a2a; padding: 14px 24px 18px; }
+  section.lane > h2 { font-size: 16px; margin: 0 0 4px; }
+  section.lane > .why { color: var(--subtle); margin: 0 0 10px; max-width: 1180px; line-height: 1.5; }
+  section.lane > .why b { color: var(--text); }
+  .frames { display: grid; grid-template-columns: repeat(auto-fill, minmax(680px, 1fr)); gap: 18px 20px; align-items: start; }
+  .state { color: #93C5FD; font-weight: 600; font-size: 11px; margin: 0 0 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .state + .window, .window + .state { margin-top: 0; }
+  .window + .state { margin-top: 10px; }
+  .window { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .win-title { background: #202020; padding: 5px 12px; border-bottom: 1px solid var(--border); color: var(--subtle); display: flex; justify-content: space-between; gap: 8px; }
+  .win-title .ex { color: #fbbf24; font-size: 10px; }
+  .content { padding: 10px 14px 12px; }
+  .exp { border: 1px solid var(--ctl-border); border-radius: 4px; padding: 8px 10px; background: var(--panel); }
+  .exp > .hdr { display: flex; gap: 6px; align-items: center; font-weight: 600; margin-bottom: 4px; }
+  .elide { color: #8b93a1; font-size: 10px; font-style: italic; margin: 6px 0 2px; }
+  h4 { font-size: 12px; font-weight: 600; margin: 10px 0 4px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+  .row.end { justify-content: flex-end; }
+  .grow { flex: 1; }
+  .subtle { color: var(--subtle); font-size: 11px; line-height: 1.4; }
+  .tiny { color: var(--subtle); font-size: 10px; line-height: 1.4; }
+  .combo { background: var(--ctl); border: 1px solid var(--ctl-border); border-radius: 3px; padding: 4px 8px; width: 380px; display: flex; justify-content: space-between; gap: 6px; }
+  .combo > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .combo .chev { color: var(--subtle); }
+  .btn { background: var(--ctl); border: 1px solid var(--ctl-border); border-radius: 3px; padding: 3px 10px; color: var(--text); white-space: nowrap; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); }
+  .btn.dis, .dis { opacity: .45; }
+  .cached { color: var(--ok); font-size: 10px; }
+  .warn { color: var(--warn); font-size: 11px; line-height: 1.4; }
+  .bar { height: 8px; width: 380px; background: #333; border-radius: 4px; overflow: hidden; margin: 2px 0 4px; }
+  .bar > i { display: block; height: 100%; width: 30%; background: var(--accent); }
+  .hint { color: var(--subtle); font-size: 11px; font-style: italic; }
+  .link { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+  .card.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .card .name { font-weight: 600; display: flex; justify-content: space-between; }
+  .card .name .subtle { font-weight: 400; }
+  .card dl { display: grid; grid-template-columns: 72px 1fr; gap: 1px 0; margin: 4px 0 0; font-size: 11px; }
+  .card dt { color: var(--subtle); }
+  .card dd { margin: 0; }
+  .card dd.m { color: var(--subtle); }
+  .card dd.m.has { color: var(--text); }
+  .card dd.m.fail { color: var(--warn); }
+  .popup { width: 380px; background: #262626; border: 1px solid var(--ctl-border); border-radius: 4px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.6); margin-top: 2px; }
+  .popup .card + .card { margin-top: 6px; }
+  .ann { color: #fbbf24; font-size: 11px; margin: 6px 0 0; line-height: 1.45; }
+  .spin { display: inline-block; width: 10px; height: 10px; border: 2px solid #555; border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; vertical-align: -1px; margin-right: 4px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .chg { outline: 1px dashed #fbbf24; outline-offset: 2px; border-radius: 2px; }
+  div.chg { outline-offset: 0; padding: 4px 6px; margin-left: -6px; margin-right: -6px; }
+  .card dd.chg { outline: none; border-radius: 0; box-shadow: inset 2px 0 0 #fbbf24; padding-left: 6px; }
+  .xhdr { display: flex; gap: 6px; align-items: center; font-weight: 600; margin: 8px 0 2px; }
+  .xhdr .tw { color: var(--subtle); width: 10px; }
+  .xhdr .subtle { font-weight: 400; }
+  .empty { border: 1px dashed #3a3a3a; border-radius: 4px; padding: 18px 12px; text-align: center; color: var(--subtle); font-size: 11px; margin: 6px 0; }
+  /* benchmark table: an Avalonia DataGrid in the dark theme */
+  .grid { border: 1px solid var(--ctl-border); border-radius: 3px; overflow: hidden; margin: 6px 0 4px; background: #1f1f1f; }
+  table.bm { border-collapse: collapse; width: 100%; font-size: 11px; font-variant-numeric: tabular-nums; }
+  table.bm th, table.bm td { padding: 3px 6px; text-align: left; white-space: nowrap; }
+  table.bm th { color: var(--subtle); font-weight: 600; background: #262626; border-bottom: 1px solid #3a3a3a; }
+  table.bm tr.grp th { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #8b93a1; border-bottom: none; padding-bottom: 0; }
+  table.bm td { border-bottom: 1px solid #2c2c2c; }
+  table.bm tr:last-child td { border-bottom: none; }
+  table.bm .n { text-align: right; }
+  table.bm .ref { background: rgba(30, 41, 59, .55); }
+  table.bm th.ref { background: #1E293B; color: #a9b8cf; }
+  table.bm tr.sel td { background: #1e3a5f; }
+  table.bm tr.sel td.ref { background: #23426a; }
+  table.bm tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+  table.bm tr.grey td.lead, table.bm tr.grey td.why { opacity: .5; }
+  table.bm td.fail { color: var(--warn); }
+  table.bm td.wait { color: #8b93a1; font-style: italic; }
+  table.bm td.why { color: var(--subtle); font-style: italic; }
+  table.bm td.runc { color: #93C5FD; }
+  table.bm .rd { width: 18px; padding-right: 0; }
+  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--ctl-border); vertical-align: -1px; }
+  .dot.sel { border: 4px solid var(--accent); }
+  .dot.off { opacity: .35; }
+  .pill { display: inline-block; background: #14532d; color: var(--ok); font-size: 9px; font-weight: 600; padding: 0 5px; border-radius: 3px; margin-left: 5px; vertical-align: 1px; text-transform: uppercase; letter-spacing: .03em; }
+  .footnote { color: var(--subtle); padding: 6px 24px 28px; max-width: 1180px; line-height: 1.5; border-top: 1px solid #2a2a2a; }
+  .footnote h2 { color: var(--text); font-size: 14px; margin: 8px 0 4px; }
+  .footnote li { margin-bottom: 3px; }
+  @media (max-width: 760px) {
+    .frames { grid-template-columns: minmax(0, 1fr); }
+    header.top h1 { padding-right: 0; }
+    header.top p, header.top li { max-width: none; }
+    .corner { position: static; width: auto; margin: 8px 0; }
+    .window { overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="corner"><b>(example)</b> Every latency, load time, RAM, VRAM, WER and callsign figure on this page is an example, made up to show the layout. None was measured.</div>
+  <h1>YAAT-1604: where the in-app STT benchmark lives in Settings &gt; Speech</h1>
+  <p>"Benchmark this machine" runs each installed model in each mode on each available device, one child process per run, on about 12 short committed clips. Each run records load + warm-up time, p50 and p90 latency per clip, peak RAM (working set) and peak VRAM. The results sit beside the reference WER and callsign recall from the committed <span class="subtle">stt-reference.json</span>, which were measured on the CI natives and not on this machine, so they are the same on CPU and GPU. Picking a row applies its model, mode and device. A device change needs a restart. The cards' "Measured" row shows the result for the chosen mode and device.</p>
+  <p>The example machine has rasr-parakeet v2 fp32 and int8 downloaded, Whisper not downloaded, and the GPU runtime installed on a supported card, so the run set is 8: each rasr model × Accurate/Fast × CPU/GPU, in that order. The current settings are <b>fp32 · Accurate · CPU</b>. The row picked to apply in the done frames is <b>fp32 · Accurate · GPU</b>. The failing row in the "one row failed" frames is <b>int8 · Accurate · CPU</b>. The lanes draw only the part of the Speech section that changes, in the look of the approved lane C mock (<span class="subtle">docs/plans/canvases/stt-speech-settings/index.html</span>). A dashed yellow outline marks the benchmark's own controls.</p>
+  <p>Each lane shows five states: never run, running, done, one row failed, and no GPU runtime. Each lane takes one approach to the GPU rows when the runtime is missing, and says which.</p>
+</header>
+
+<!-- ============================ LANE A ============================ -->
+<section class="lane" id="lane-a">
+  <h2>A. The table inline in Settings &gt; Speech, under the model picker, with the button above it</h2>
+  <p class="why">A "Benchmark" group sits between the model picker and the Mode row. The button and the run status come first, and the results table under them stays in the section. "Use selected row" sets the model picker and the Mode and Device radios, and Settings' own OK or Apply saves them, as with any other change in the window. The cards' Measured row fills in as well. <b>No GPU runtime: GPU rows are left out</b>, with one line saying why.</p>
+  <div class="frames">
+    <div>
+      <div class="state">A1 · Never run</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="row"><span class="btn dis">Download</span><span class="btn">Delete</span><span class="subtle">Ready (2.55 GB on disk)</span></div>
+        <div class="tiny">Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License. <span class="link">View licence</span></div>
+        <div class="chg" style="margin-top:8px">
+          <h4 style="margin-top:0">Benchmark</h4>
+          <div class="row"><span class="btn primary">Benchmark this machine</span><span class="subtle">Never run on this machine</span></div>
+          <div class="subtle" style="max-width:560px">Runs each downloaded model in each mode on each device, on 12 short clips, and measures latency and memory here. About 2 minutes.</div>
+        </div>
+        <div class="elide">(Mode and Device rows follow)</div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <div class="state">A2 · Running: rows fill in as each run ends</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span><span class="ex">(example)</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="elide">(Download row and licence line)</div>
+        <div class="chg" style="margin-top:8px">
+          <h4 style="margin-top:0">Benchmark</h4>
+          <div class="row"><span class="btn">Cancel</span><span class="subtle"><span class="spin"></span>Running 3 of 8: rasr-parakeet v2 fp32 · Accurate · GPU</span></div>
+          <div class="bar"><i></i></div>
+          <div data-table='{"run":2,"cur":0}'></div>
+        </div>
+        <div class="elide">(Mode and Device rows follow)</div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <div class="state">A3 · Done: current row marked, one row picked</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span><span class="ex">(example)</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="elide">(Download row and licence line)</div>
+        <div class="chg" style="margin-top:8px">
+          <h4 style="margin-top:0">Benchmark</h4>
+          <div class="row"><span class="btn">Run again</span><span class="subtle">Last run 1 Nov 2026, 14:02 · 8 of 8 ran</span></div>
+          <div data-table='{"cur":0,"sel":2,"radios":true}'></div>
+          <div class="row"><span class="btn primary">Use selected row</span><span class="subtle">fp32 · Accurate · GPU: sets the model, Mode and Device; OK or Apply saves them</span></div>
+          <div class="warn">Restart YAAT to apply: Device changes from CPU to GPU.</div>
+        </div>
+        <div class="elide">(Mode and Device rows follow; after "Use selected row", Device shows GPU)</div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <div class="state">A4 · One row failed; the other rows still show</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span><span class="ex">(example)</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="elide">(Download row and licence line)</div>
+        <div class="chg" style="margin-top:8px">
+          <h4 style="margin-top:0">Benchmark</h4>
+          <div class="row"><span class="btn">Run again</span><span class="subtle">Last run 1 Nov 2026, 14:02 · 7 of 8 ran, </span><span class="warn">1 failed</span><span class="subtle">(details in yaat-client.log)</span></div>
+          <div data-table='{"cur":0,"fail":4,"radios":true}'></div>
+          <div class="row"><span class="btn dis">Use selected row</span><span class="subtle">Pick a row to use it</span></div>
+        </div>
+        <div class="elide">(Mode and Device rows follow)</div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <div class="state">A5 · No GPU runtime: GPU rows left out</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span><span class="ex">(example)</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="elide">(Download row and licence line)</div>
+        <div class="chg" style="margin-top:8px">
+          <h4 style="margin-top:0">Benchmark</h4>
+          <div class="row"><span class="btn">Run again</span><span class="subtle">Last run 1 Nov 2026, 14:02 · 4 of 4 ran</span></div>
+          <div class="subtle">CPU only: the GPU runtime is not installed. Install it under Device, then run again to add the GPU rows.</div>
+          <div data-table='{"cur":0,"gpu":"absent","radios":true}'></div>
+          <div class="row"><span class="btn dis">Use selected row</span><span class="subtle">Pick a row to use it</span></div>
+        </div>
+        <div class="elide">(Mode and Device rows follow)</div>
+      </div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ LANE B ============================ -->
+<section class="lane" id="lane-b">
+  <h2>B. Results on the model cards' Measured rows, plus a "Compare all" expander with the full table</h2>
+  <p class="why">The model cards carry the result: each card's Measured row shows its figures for the Mode and Device chosen below. The section gains a button row under the picker and a "Compare all" expander, collapsed by default, which opens the full table in place. <b>No GPU runtime: GPU rows stay in the table, greyed, with the reason</b>, so it shows what the GPU would add.</p>
+  <div class="frames">
+    <div>
+      <div class="state">B1 · Never run: the card list open</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo" style="border-color: var(--accent);"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▴</span></div>
+        <div class="popup">
+          <div class="card sel"><div class="name"><span>rasr-parakeet v2 · fp32</span><span class="subtle">Default · selected</span></div>
+            <dl><dt>Download</dt><dd>2.55 GB</dd><dt>Best on</dt><dd>GPU, or a fast CPU</dd><dt>Measured</dt><dd class="m chg">Not yet: run the benchmark</dd><dt>State</dt><dd class="cached">✓ Downloaded</dd></dl></div>
+          <div class="card"><div class="name"><span>rasr-parakeet v2 · int8</span><span></span></div>
+            <dl><dt>Download</dt><dd>0.67 GB</dd><dt>Best on</dt><dd>CPU with little memory</dd><dt>Measured</dt><dd class="m chg">Not yet: run the benchmark</dd><dt>State</dt><dd class="cached">✓ Downloaded</dd></dl></div>
+        </div>
+        <div class="ann">The list overlays the rows below it (approved lane C). Closed, the rows under the picker read:</div>
+        <div class="row chg" style="margin-top:8px"><span class="btn primary">Benchmark this machine</span><span class="subtle">Never run on this machine · about 2 minutes</span></div>
+        <div class="xhdr dis"><span class="tw">▸</span>Compare all <span class="subtle">· no results yet</span></div>
+        <div class="elide">(Mode and Device rows follow)</div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <div class="state">B2 · Running</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="elide">(Download row and licence line)</div>
+        <div class="chg" style="margin-top:8px">
+          <div class="row"><span class="btn">Cancel</span><span class="subtle"><span class="spin"></span>Running 3 of 8: rasr-parakeet v2 fp32 · Accurate · GPU</span></div>
+          <div class="bar"><i></i></div>
+          <div class="xhdr"><span class="tw">▸</span>Compare all <span class="subtle">· 2 of 8 done</span></div>
+        </div>
+        <div class="elide">(Mode and Device rows follow)</div>
+      </div></div></div>
+      <p class="ann">Expanding "Compare all" while it runs shows the same filling table as lane A's running frame. A card whose runs are still waiting reads "Measuring…".</p>
+    </div>
+
+    <div>
+      <div class="state">B3 · Done: the card list open (Mode Accurate, Device CPU chosen)</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span><span class="ex">(example)</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo" style="border-color: var(--accent);"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▴</span></div>
+        <div class="popup">
+          <div class="card sel"><div class="name"><span>rasr-parakeet v2 · fp32</span><span class="subtle">Default · selected</span></div>
+            <dl><dt>Download</dt><dd>2.55 GB</dd><dt>Best on</dt><dd>GPU, or a fast CPU</dd><dt>Measured</dt><dd class="m has chg">Accurate · CPU: 410 ms p50 · 640 ms p90 · 1.1 GB RAM</dd><dt>State</dt><dd class="cached">✓ Downloaded</dd></dl></div>
+          <div class="card"><div class="name"><span>rasr-parakeet v2 · int8</span><span></span></div>
+            <dl><dt>Download</dt><dd>0.67 GB</dd><dt>Best on</dt><dd>CPU with little memory</dd><dt>Measured</dt><dd class="m has chg">Accurate · CPU: 330 ms p50 · 520 ms p90 · 0.5 GB RAM</dd><dt>State</dt><dd class="cached">✓ Downloaded</dd></dl></div>
+          <div class="card"><div class="name"><span>Whisper (LM-Kit) <span class="subtle">· legacy</span></span><span></span></div>
+            <dl><dt>Download</dt><dd>Per Whisper size, from LM-Kit</dd><dt>Note</dt><dd>One hypothesis only, so accurate mode is unavailable. Removed in a later release.</dd></dl></div>
+        </div>
+        <div class="ann">Picking GPU under Device turns both Measured rows to the GPU figures (fp32: 60 ms p50 · 3.6 GB VRAM).</div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <div class="state">B4 · Done: "Compare all" expanded, one row picked</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span><span class="ex">(example)</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="elide">(Download row and licence line)</div>
+        <div class="chg" style="margin-top:8px">
+          <div class="row"><span class="btn">Run again</span><span class="subtle">Last run 1 Nov 2026, 14:02 · 8 of 8 ran</span></div>
+          <div class="xhdr"><span class="tw">▾</span>Compare all</div>
+          <div data-table='{"cur":0,"sel":2,"radios":true}'></div>
+          <div class="row"><span class="btn primary">Use selected row</span><span class="subtle">fp32 · Accurate · GPU</span></div>
+          <div class="warn">Restart YAAT to apply: Device changes from CPU to GPU.</div>
+        </div>
+        <div class="elide">(Mode and Device rows follow)</div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <div class="state">B5 · One row failed: shown on the card and in the table</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span><span class="ex">(example)</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo" style="border-color: var(--accent);"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▴</span></div>
+        <div class="popup">
+          <div class="card sel"><div class="name"><span>rasr-parakeet v2 · fp32</span><span class="subtle">Default · selected</span></div>
+            <dl><dt>Measured</dt><dd class="m has">Accurate · CPU: 410 ms p50 · 640 ms p90 · 1.1 GB RAM</dd></dl></div>
+          <div class="card"><div class="name"><span>rasr-parakeet v2 · int8</span><span></span></div>
+            <dl><dt>Measured</dt><dd class="m fail chg">Accurate · CPU: failed: native crashed (exit −1073741819)</dd></dl></div>
+        </div>
+        <div class="tiny" style="margin-top:2px">(cards trimmed to the Measured row)</div>
+        <div class="chg" style="margin-top:8px">
+          <div class="row"><span class="btn">Run again</span><span class="subtle">Last run 1 Nov 2026, 14:02 · 7 of 8 ran, </span><span class="warn">1 failed</span><span class="subtle">(details in yaat-client.log)</span></div>
+          <div class="xhdr"><span class="tw">▾</span>Compare all</div>
+          <div data-table='{"cur":0,"fail":4,"radios":true}'></div>
+        </div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <div class="state">B6 · No GPU runtime: GPU rows greyed, with the reason</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span><span class="ex">(example)</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="elide">(Download row and licence line; the cards show the CPU figures)</div>
+        <div class="chg" style="margin-top:8px">
+          <div class="row"><span class="btn">Run again</span><span class="subtle">Last run 1 Nov 2026, 14:02 · 4 of 8 ran; GPU rows need the GPU runtime</span></div>
+          <div class="xhdr"><span class="tw">▾</span>Compare all</div>
+          <div data-table='{"cur":0,"gpu":"grey","radios":true}'></div>
+          <div class="row"><span class="btn dis">Use selected row</span><span class="subtle">Pick a row to use it</span></div>
+        </div>
+        <div class="elide">(Mode and Device rows follow; the GPU runtime sub-group offers the download)</div>
+      </div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ LANE C ============================ -->
+<section class="lane" id="lane-c">
+  <h2>C. A separate "Speech benchmark" window with the table and Apply; Settings shows a one-line summary</h2>
+  <p class="why">Settings &gt; Speech gains one line under the model picker: the last run's summary and a "Benchmark this machine…" button that opens the window. The window holds the run controls, the table and an Apply button, which saves the picked row's model, mode and device at once. The section stays as short as it is today, and the table gets the room of its own window. The cards' Measured row fills in as well. <b>No GPU runtime: GPU rows stay in the table, greyed, with the reason</b>, as in lane B.</p>
+  <div class="frames">
+    <div>
+      <div class="state">C1 · Never run: the Settings line, then the window</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="elide">(Download row and licence line)</div>
+        <div class="row chg" style="margin-top:8px"><span class="btn">Benchmark this machine…</span><span class="subtle">Never run on this machine</span></div>
+        <div class="elide">(Mode and Device rows follow)</div>
+      </div></div></div>
+      <div class="state" style="margin-top:10px">The window it opens</div>
+      <div class="window"><div class="win-title"><span>Speech benchmark</span></div><div class="content">
+        <div class="subtle">Runs each downloaded model in each mode on each device, on 12 short clips, and measures latency and memory on this machine. WER and callsign recall come from YAAT's reference run, not from this machine.</div>
+        <div class="row" style="margin-top:6px"><span class="btn primary">Run benchmark</span><span class="subtle">8 runs · about 2 minutes</span></div>
+        <div class="empty">No results yet.</div>
+        <div class="row end"><span class="btn dis">Apply</span><span class="btn">Close</span></div>
+      </div></div>
+    </div>
+
+    <div>
+      <div class="state">C2 · Running</div>
+      <div class="window"><div class="win-title"><span>Speech benchmark</span><span class="ex">(example)</span></div><div class="content">
+        <div class="row"><span class="btn">Cancel</span><span class="subtle"><span class="spin"></span>Running 3 of 8: rasr-parakeet v2 fp32 · Accurate · GPU</span></div>
+        <div class="bar"><i></i></div>
+        <div data-table='{"run":2,"cur":0}'></div>
+        <div class="row end"><span class="btn dis">Apply</span><span class="btn">Close</span></div>
+      </div></div>
+      <p class="ann">Close while it runs asks whether to cancel the run. Settings' line reads "Running 3 of 8…" meanwhile.</p>
+    </div>
+
+    <div>
+      <div class="state">C3 · Done: current row marked, one row picked</div>
+      <div class="window"><div class="win-title"><span>Speech benchmark</span><span class="ex">(example)</span></div><div class="content">
+        <div class="row"><span class="btn">Run again</span><span class="subtle">Last run 1 Nov 2026, 14:02 · 8 of 8 ran</span></div>
+        <div data-table='{"cur":0,"sel":2,"radios":true}'></div>
+        <div class="row"><span class="subtle grow">Selected: rasr-parakeet v2 fp32 · Accurate · GPU</span><span class="btn primary">Apply</span><span class="btn">Close</span></div>
+        <div class="warn" style="text-align:right">Restart YAAT to apply: Device changes from CPU to GPU.</div>
+      </div></div>
+      <div class="state" style="margin-top:10px">Settings &gt; Speech afterwards</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span><span class="ex">(example)</span></div><div class="content"><div class="exp"><div class="hdr">☑ Speech-to-text (STT)</div>
+        <h4>Speech recognition model</h4>
+        <div class="combo"><span>rasr-parakeet v2 · fp32 <span class="cached">✓ downloaded</span></span><span class="chev">▾</span></div>
+        <div class="elide">(Download row and licence line)</div>
+        <div class="row chg" style="margin-top:8px"><span class="btn">Benchmark this machine…</span><span class="subtle">Last run 1 Nov 2026: 8 runs · this setting 60 ms p50, 3.6 GB VRAM</span></div>
+        <div class="elide">(Mode and Device rows follow, Device on GPU, with "Restart YAAT to switch speech recognition to the GPU.")</div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <div class="state">C4 · One row failed; the other rows still show</div>
+      <div class="window"><div class="win-title"><span>Speech benchmark</span><span class="ex">(example)</span></div><div class="content">
+        <div class="row"><span class="btn">Run again</span><span class="subtle">Last run 1 Nov 2026, 14:02 · 7 of 8 ran, </span><span class="warn">1 failed</span><span class="subtle">(details in yaat-client.log)</span></div>
+        <div data-table='{"cur":0,"fail":4,"radios":true}'></div>
+        <div class="row"><span class="subtle grow">Pick a row to apply it</span><span class="btn dis">Apply</span><span class="btn">Close</span></div>
+      </div></div>
+      <div class="state" style="margin-top:10px">Settings line</div>
+      <div class="window"><div class="win-title"><span>Settings › Speech</span><span class="ex">(example)</span></div><div class="content">
+        <div class="row chg"><span class="btn">Benchmark this machine…</span><span class="subtle">Last run 1 Nov 2026: 7 of 8 ran, </span><span class="warn">1 failed</span><span class="subtle">· this setting 410 ms p50, 1.1 GB RAM</span></div>
+      </div></div>
+    </div>
+
+    <div>
+      <div class="state">C5 · No GPU runtime: GPU rows greyed, with the reason</div>
+      <div class="window"><div class="win-title"><span>Speech benchmark</span><span class="ex">(example)</span></div><div class="content">
+        <div class="row"><span class="btn">Run again</span><span class="subtle">Last run 1 Nov 2026, 14:02 · 4 of 8 ran</span></div>
+        <div class="subtle">The GPU rows need the GPU runtime: install it in Settings &gt; Speech &gt; Device, then run again.</div>
+        <div data-table='{"cur":0,"gpu":"grey","radios":true}'></div>
+        <div class="row"><span class="subtle grow">Pick a row to apply it</span><span class="btn dis">Apply</span><span class="btn">Close</span></div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<div class="footnote">
+  <h2>Shared by every lane, and what this mock assumes</h2>
+  <ul>
+    <li>Columns: Load is load + warm-up; p50 and p90 are per-clip latency in ms; RAM is the run's peak working set; VRAM its peak GPU memory, "—" on the CPU. The two columns on blue come from <span class="subtle">stt-reference.json</span>, measured once per model and mode on the CI natives, so a CPU row and its GPU row show the same WER and callsign recall.</li>
+    <li>The Whisper row is listed for its reference figures but not run, because Whisper is not downloaded on the example machine. With Whisper downloaded it adds Fast-only rows (Whisper has no Accurate mode).</li>
+    <li>"current" marks the row that matches today's saved model, mode and device. A failed row, a greyed GPU row and the Whisper row cannot be picked.</li>
+    <li>"Use selected row" (lanes A and B) only sets the picker and the Mode and Device radios, and Settings' OK or Apply saves them, as for any setting in that window. It is not called "Apply" there, since Settings already has an Apply button. Lane C's window saves on its own Apply.</li>
+    <li>The failure text is the child process's exit code. "details in yaat-client.log" assumes the runner logs the child's stderr there.</li>
+    <li>"About 2 minutes" is a guess from 8 runs × (load + 12 clips).</li>
+  </ul>
+</div>
+
+<script>
+  const FAIL_TEXT = "failed: native crashed (exit −1073741819)";
+  const ROWS = [
+    { m: "parakeet fp32", mode: "Accurate", dev: "CPU", load: "6.2 s", p50: "410", p90: "640", ram: "1.1 GB", vram: "—", wer: "7.8%", rec: "96%" },
+    { m: "parakeet fp32", mode: "Fast", dev: "CPU", load: "6.0 s", p50: "290", p90: "450", ram: "1.1 GB", vram: "—", wer: "9.4%", rec: "91%" },
+    { m: "parakeet fp32", mode: "Accurate", dev: "GPU", load: "9.5 s", p50: "60", p90: "85", ram: "0.7 GB", vram: "3.6 GB", wer: "7.8%", rec: "96%" },
+    { m: "parakeet fp32", mode: "Fast", dev: "GPU", load: "9.3 s", p50: "42", p90: "61", ram: "0.7 GB", vram: "3.5 GB", wer: "9.4%", rec: "91%" },
+    { m: "parakeet int8", mode: "Accurate", dev: "CPU", load: "3.1 s", p50: "330", p90: "520", ram: "0.5 GB", vram: "—", wer: "8.6%", rec: "94%" },
+    { m: "parakeet int8", mode: "Fast", dev: "CPU", load: "3.0 s", p50: "230", p90: "370", ram: "0.5 GB", vram: "—", wer: "10.3%", rec: "89%" },
+    { m: "parakeet int8", mode: "Accurate", dev: "GPU", load: "5.4 s", p50: "95", p90: "140", ram: "0.4 GB", vram: "2.2 GB", wer: "8.6%", rec: "94%" },
+    { m: "parakeet int8", mode: "Fast", dev: "GPU", load: "5.3 s", p50: "70", p90: "105", ram: "0.4 GB", vram: "2.1 GB", wer: "10.3%", rec: "89%" },
+    { m: "Whisper (LM-Kit)", mode: "Fast", dev: "—", skip: "not downloaded; not run", wer: "12.9%", rec: "84%" },
+  ];
+
+  function measureCells(r, i, o) {
+    const span = (cls, text) => `<td colspan="5" class="${cls}">${text}</td>`;
+    if (r.skip) return { html: span("wait", r.skip), pickable: false, grey: true };
+    if (o.gpu === "grey" && r.dev === "GPU") return { html: span("why", "needs the GPU runtime (not installed)"), pickable: false, grey: true };
+    if (i === o.fail) return { html: span("fail", FAIL_TEXT), pickable: false, grey: false };
+    if (o.run !== undefined && i === o.run) return { html: span("runc", '<span class="spin"></span>measuring… clip 5 of 12'), pickable: false, grey: false };
+    if (o.run !== undefined && i > o.run) return { html: span("wait", "waiting"), pickable: false, grey: false };
+    const nums = [r.load, r.p50, r.p90, r.ram, r.vram].map((v) => `<td class="n">${v}</td>`).join("");
+    return { html: nums, pickable: true, grey: false };
+  }
+
+  function rowHtml(r, i, o) {
+    if (o.gpu === "absent" && r.dev === "GPU") return "";
+    const cells = measureCells(r, i, o);
+    const classes = [];
+    if (i === o.sel) classes.push("sel");
+    if (cells.grey) classes.push("grey");
+    const dotClass = i === o.sel ? "dot sel" : cells.pickable ? "dot" : "dot off";
+    const radio = o.radios ? `<td class="rd lead"><span class="${dotClass}"></span></td>` : "";
+    const pill = i === o.cur ? '<span class="pill">current</span>' : "";
+    const lead = `<td class="lead">${r.m}${pill}</td><td class="lead">${r.mode}</td><td class="lead">${r.dev}</td>`;
+    const ref = `<td class="n ref">${r.wer}</td><td class="n ref">${r.rec}</td>`;
+    return `<tr class="${classes.join(" ")}">${radio}${lead}${cells.html}${ref}</tr>`;
+  }
+
+  function tableHtml(o) {
+    const lead = o.radios ? 4 : 3;
+    const head =
+      `<tr class="grp"><th colspan="${lead}"></th><th colspan="5">This machine</th><th colspan="2" class="ref">Reference (CI)</th></tr>` +
+      `<tr>${o.radios ? "<th></th>" : ""}<th>Model</th><th>Mode</th><th>Device</th>` +
+      '<th class="n">Load</th><th class="n">p50 ms</th><th class="n">p90 ms</th><th class="n">Peak RAM</th><th class="n">Peak VRAM</th>' +
+      '<th class="n ref">WER</th><th class="n ref">Callsigns</th></tr>';
+    const body = ROWS.map((r, i) => rowHtml(r, i, o)).join("");
+    return `<div class="grid"><table class="bm"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+  }
+
+  for (const el of document.querySelectorAll("[data-table]")) {
+    el.outerHTML = tableHtml(JSON.parse(el.dataset.table));
+  }
+</script>
+</body>
+</html>
