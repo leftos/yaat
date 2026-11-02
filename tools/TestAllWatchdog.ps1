@@ -53,6 +53,7 @@ function Get-TestAllProcessTree {
                 ParentId   = if ($null -eq $parent) { 0 } else { $parent.Id }
                 CpuSeconds = $process.TotalProcessorTime.TotalSeconds
                 StartTime  = $process.StartTime
+                Threads    = $process.Threads.Count
             }
         } catch {
             # The process exited between the snapshot and the property read: it is not a host.
@@ -112,8 +113,9 @@ function Find-TestHost {
         [Parameter(Mandatory)][string]$HostNamePattern,
         [Parameter(Mandatory)][string]$ProcessNamePattern
     )
+    # A process with no threads is a snapshot clone (ManagedStackCaptureTests), live or killed, never a host.
     return @(Get-TestAllProcessTree -RootPid $RootPid -ProcessNamePattern $ProcessNamePattern |
-            Where-Object { $_.Name -match $HostNamePattern })
+            Where-Object { ($_.Threads -gt 0) -and ($_.Name -match $HostNamePattern) })
 }
 
 # Tracks each host's CPU baseline in $State (keyed by pid and start time, one clock per host) and
