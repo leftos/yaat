@@ -32,7 +32,7 @@
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [/] YAAT-1428 Handle a CTO naming a different runway while holding short of a taxiway (intersection, crossing or query) · release vNext
 - [ ] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer
-- [ ] YAAT-1678 Speak a crossing runway by the end parallel to the aircraft's runway when none is active · release vNext
+- [/] YAAT-1678 Speak a crossing runway by the end parallel to the aircraft's runway when none is active · release vNext
 - [ ] YAAT-1679 Read back 'at {taxiway}' when CTO RWY departs from a runway crossing hold
 - [ ] YAAT-1681 Runway-change warning says 'taxi clearance' when a CTO changed the runway
 
@@ -125,6 +125,7 @@
   - [ ] YAAT-1656 Detect at sherpa engine load that ONNX Runtime fell back from GPU to CPU, and show why · release vNext
   - [ ] YAAT-1663 Ship (or prove unneeded) the CUDA runtime and cuRAND in the Windows sherpa GPU download set · release vNext
   - [ ] YAAT-1665 Let the user cancel a GPU runtime removal scheduled for the next start
+  - [ ] YAAT-1694 Speech settings: show a failed model download and word the restart note by direction
   - [ ] YAAT-1606 CoreML provider for macOS STT
   - [ ] YAAT-1628 Serialise the Piper prewarm against the first pilot transmission
   - [ ] YAAT-1629 LM-Kit CUDA uninstall deletes a loaded backend on Windows
@@ -133,7 +134,7 @@
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (3/47 done)
+### 1 Defects (5/47 done)
 - [ ] YAAT-56 Fail closed when CROSS runs with no cached ground layout
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
@@ -160,7 +161,6 @@
 - [ ] YAAT-586 Make RES/CROSS with CROSS and HS lists atomic when an HS target fails
 - [ ] YAAT-766 Refuse CROSS at a departure hold the aircraft has reached
 - [ ] YAAT-1347 Measure a shaped onward segment by its polyline in a crossing's route-own tail clearance
-- [/] YAAT-1409 Judge a taxiway hold short unable against its painted marking, not the setback stop · release vNext
 - [ ] YAAT-408 Taxiway hold short binds at a fillet tangent cut and stops ~75 ft early
 - [ ] YAAT-1458 Keep reporting the runway being left until the tail passes the exit bar, not the centre · release vNext+1
 - [ ] YAAT-1031 Keep an auto-cleared crossing the aircraft can no longer stop short of when the active runways change
@@ -168,7 +168,6 @@
 - [ ] YAAT-1292 Imply no runway crossing from an ILS critical-area or approach hold (TAXI from a non-runway bar)
 - [ ] YAAT-1394 Check LeavesRunwayAtBar does not misread a near-side bar as an exit where a taxiway wraps a threshold (OAK 33 C)
 - [ ] YAAT-1415 Keep a rolling aircraft's makeable stop ahead instead of moving the no-destination hold onto it (bare TAXI inside the setback) · release vNext+1
-- [/] YAAT-1418 Stop reporting 'holding short of X' after an unable hold-short stop (HoldingShortPhase arrival report) · release vNext
 - [ ] YAAT-1466 A commanded SPD below the crossing speed floor is ignored while crossing a runway · release vNext+1
 - [ ] YAAT-1467 Far-side gate overstates a crossing leader's stop distance from its stale route cursor · release vNext+1
 - [ ] YAAT-1468 Re-judge an unmakeable hold short at the crossing-to-taxi handoff and read back unable · release vNext+1
