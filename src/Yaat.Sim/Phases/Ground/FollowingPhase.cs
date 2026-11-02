@@ -3514,7 +3514,11 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             TargetName = bar.TargetName,
         };
 
-        var holdPhase = new HoldingShortPhase(holdShort);
+        // A follow holds at a bar it has no route point for, so where it rests is read off the nose's distance from the hold line;
+        // a follow never answers a bar unable, so a nose past the line is a hold beyond it with no unable call.
+        HoldShortArrival arrival =
+            (bar.ToStopFt < -TaxiingPhase.SetBackStopTakeFt) ? HoldShortArrival.BeyondWithoutUnableCall : HoldShortArrival.HeldShort;
+        var holdPhase = new HoldingShortPhase(holdShort, arrival);
         if (!IsClearedToCross(node) || (bar.Reason != HoldShortReason.RunwayCrossing))
         {
             // Held at a bar its clearance does not cover, the follow keeps the runways pre-cleared beyond it, never one it has used.

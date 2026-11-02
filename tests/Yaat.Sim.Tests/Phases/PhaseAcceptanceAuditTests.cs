@@ -618,7 +618,8 @@ public class PhaseAcceptanceAuditTests
                 NodeId = 1,
                 Reason = reason,
                 TargetName = targetName,
-            }
+            },
+            HoldShortArrival.HeldShort
         );
 
     /// <summary>

@@ -99,7 +99,7 @@ public class GroundCommandHandlerActiveEndTests(ITestOutputHelper output)
     private static AircraftState HeldMidRoute(SfoGround ground, GroundNode bar, HoldShortReason reason)
     {
         HoldShortPoint hold = BarHold(bar, reason);
-        return Spawn(ground, Callsign, bar.Position, [new HoldingShortPhase(hold)], RouteInto(bar, hold));
+        return Spawn(ground, Callsign, bar.Position, [new HoldingShortPhase(hold, HoldShortArrival.HeldShort)], RouteInto(bar, hold));
     }
 
     [Fact]
@@ -153,7 +153,13 @@ public class GroundCommandHandlerActiveEndTests(ITestOutputHelper output)
 
         SfoGroundHarness.SpawnAtJunction(ground, Lead, "B738", "B", "H");
         GroundNode bar = BarNear19L(ground.Layout);
-        Spawn(ground, Callsign, bar.Position, [new HoldingShortPhase(BarHold(bar, HoldShortReason.RunwayCrossing)), new FollowingPhase(Lead)], null);
+        Spawn(
+            ground,
+            Callsign,
+            bar.Position,
+            [new HoldingShortPhase(BarHold(bar, HoldShortReason.RunwayCrossing), HoldShortArrival.HeldShort), new FollowingPhase(Lead)],
+            null
+        );
 
         CommandResult result = ground.Engine.SendCommand(Callsign, "RES");
 
@@ -188,7 +194,13 @@ public class GroundCommandHandlerActiveEndTests(ITestOutputHelper output)
         }
 
         GroundNode bar = BarNear19L(ground.Layout);
-        Spawn(ground, Callsign, bar.Position, [new HoldingShortPhase(BarHold(bar, HoldShortReason.RunwayCrossing))], null);
+        Spawn(
+            ground,
+            Callsign,
+            bar.Position,
+            [new HoldingShortPhase(BarHold(bar, HoldShortReason.RunwayCrossing), HoldShortArrival.HeldShort)],
+            null
+        );
 
         CommandResult result = ground.Engine.SendCommand(Callsign, "HOLD");
 
@@ -205,7 +217,13 @@ public class GroundCommandHandlerActiveEndTests(ITestOutputHelper output)
         }
 
         GroundNode bar = BarNear19L(ground.Layout);
-        Spawn(ground, Callsign, bar.Position, [new HoldingShortPhase(BarHold(bar, HoldShortReason.RunwayCrossing))], null);
+        Spawn(
+            ground,
+            Callsign,
+            bar.Position,
+            [new HoldingShortPhase(BarHold(bar, HoldShortReason.RunwayCrossing), HoldShortArrival.HeldShort)],
+            null
+        );
 
         CommandResult result = ground.Engine.SendCommand(Callsign, "CROSS");
 
@@ -246,7 +264,7 @@ public class GroundCommandHandlerActiveEndTests(ITestOutputHelper output)
             Phases = new PhaseList(),
         };
         aircraft.Ground.Layout = layout;
-        aircraft.Phases.Add(new HoldingShortPhase(BarHold(bar, HoldShortReason.RunwayCrossing)));
+        aircraft.Phases.Add(new HoldingShortPhase(BarHold(bar, HoldShortReason.RunwayCrossing), HoldShortArrival.HeldShort));
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, active, layout));
 
         CommandResult result = GroundCommandHandler.TryCrossRunway(aircraft, new CrossRunwayCommand([], [], Expedite: false), layout, null, active);
@@ -264,7 +282,7 @@ public class GroundCommandHandlerActiveEndTests(ITestOutputHelper output)
         }
 
         GroundNode bar = BarNear19L(ground.Layout);
-        var hold = new HoldingShortPhase(BarHold(bar, HoldShortReason.RunwayCrossing));
+        var hold = new HoldingShortPhase(BarHold(bar, HoldShortReason.RunwayCrossing), HoldShortArrival.HeldShort);
         Spawn(ground, Callsign, bar.Position, [hold], null);
 
         CommandAcceptance acceptance = hold.CanAcceptCommand(CanonicalCommandType.Speed);
@@ -291,7 +309,7 @@ public class GroundCommandHandlerActiveEndTests(ITestOutputHelper output)
             TargetName = edge.TaxiwayName,
             TailOverRunwayNodeId = bar.Id,
         };
-        AircraftState aircraft = Spawn(ground, Callsign, beyond.Position, [new HoldingShortPhase(hold)], null);
+        AircraftState aircraft = Spawn(ground, Callsign, beyond.Position, [new HoldingShortPhase(hold, HoldShortArrival.HeldShort)], null);
 
         Assert.Contains(aircraft.PendingWarnings, w => w.Contains("not clear of RWY 1R —", StringComparison.Ordinal));
     }
@@ -321,7 +339,7 @@ public class GroundCommandHandlerActiveEndTests(ITestOutputHelper output)
         };
         aircraft.Ground.Layout = ground.Layout;
         aircraft.Ground.AssignedTaxiRoute = RouteInto(bar, hold);
-        aircraft.Phases.Add(new HoldingShortPhase(hold));
+        aircraft.Phases.Add(new HoldingShortPhase(hold, HoldShortArrival.HeldShort));
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Engine.Scenario!.ActiveRunways, ground.Layout));
         ground.Engine.World.AddAircraft(aircraft);
 

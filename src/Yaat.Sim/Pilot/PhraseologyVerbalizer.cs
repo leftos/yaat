@@ -1416,6 +1416,15 @@ public static class PhraseologyVerbalizer
         $"unable to hold short of {RenderHoldShortTarget(target, spoken ? Spoken : Terminal)}, stopping";
 
     /// <summary>
+    /// One hold-short target as <see cref="RenderUnableHoldShort"/> names it: spoken (<c>runway two eight right</c>, <c>alpha</c>)
+    /// or in the compact terminal form (<c>runway 28R</c>, <c>A</c>).
+    /// </summary>
+    /// <param name="target">The hold-short target.</param>
+    /// <param name="spoken">True for the spoken (TTS) form, false for the compact terminal form.</param>
+    /// <returns>The rendered target.</returns>
+    public static string RenderHoldShortTarget(HoldShortTarget target, bool spoken) => RenderHoldShortTarget(target, spoken ? Spoken : Terminal);
+
+    /// <summary>
     /// Spoken form of one hold-short target in a direct-rendered clause: <c>runway two eight right</c>
     /// for a runway target (the "runway" word is mandatory — a taxiway target read back as a runway
     /// would assert a runway hold the controller never issued), <c>charlie</c> for a taxiway target.

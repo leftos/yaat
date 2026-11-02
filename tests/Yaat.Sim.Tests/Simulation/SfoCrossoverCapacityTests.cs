@@ -497,7 +497,13 @@ public class SfoCrossoverCapacityTests(ITestOutputHelper output)
             TargetName = "28L",
         };
         (GroundNode Node, TrueHeading Heading) placement = (layout.Nodes[farBar], segment.BearingToward(farBar));
-        AircraftState spawned = SfoGroundHarness.SpawnAt(new SfoGround(engine, layout), "UAL1", type, placement, new HoldingShortPhase(holdShort));
+        AircraftState spawned = SfoGroundHarness.SpawnAt(
+            new SfoGround(engine, layout),
+            "UAL1",
+            type,
+            placement,
+            new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort)
+        );
         spawned.Position = PointAlongFromBar(segment, "28R", centreFt);
         return spawned;
     }

@@ -90,7 +90,7 @@ public sealed class HoldShortRestoreTests
         };
         aircraft.Ground.AssignedTaxiRoute = route;
         aircraft.Phases = new PhaseList();
-        aircraft.Phases.Add(new HoldingShortPhase(holdShort));
+        aircraft.Phases.Add(new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort));
 
         // Precondition: CLRWY is available before the round-trip, so this cannot pass vacuously.
         var live = (HoldingShortPhase)aircraft.Phases.CurrentPhase!;

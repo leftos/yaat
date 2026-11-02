@@ -89,7 +89,9 @@ Five fields carry the transmission id a DVIA uses to tell a crossing restated in
 
 Four `AircraftProcedureDto` fields carry the via clearances and the speed memory, omitted at the default and absent on older snapshots, with no schema bump: `ClimbViaTargetFt` (int?, the top altitude the climb via flies to; null restores no climb via), `StarViaTransmissionId` / `ClimbViaTransmissionId` (int?, the transmission whose DVIA or CVIA is in force, so a CFIX in that transmission restored mid-chain still reads the via clearance as its own), and `LastCrossedPublishedSpeedKts` (double?, the last published speed crossed on the procedure; an older snapshot restores no memory, so a resume holds no ceiling until the next published speed is crossed).
 
-`HoldShortPointDto.StopMoved` (bool?, written only when true, absent on older snapshots; no schema bump) latches that the taxi phase has moved an unable bar's stop forward, so a restored taxi does not move it again. The latch lives on the bar rather than the phase, so `TaxiingPhaseDto` carries no unable-stop node.
+`HoldShortPointDto.StopMoved` (bool?, written only when true, absent on older snapshots; no schema bump) latches that the taxi phase has moved a bar's stop forward (an unable bar's, or a taxiway bar's whose firm-rate stop fell in the wingtip-envelope window), so a restored taxi does not move it again. The latch lives on the bar rather than the phase, so `TaxiingPhaseDto` carries no unable-stop node.
+
+`HoldShortPointDto.WindowJudged` (bool?, written only when true, absent on older snapshots; no schema bump) latches that the taxi phase has judged the bar against the envelope window, whatever the verdict, so a restored taxi does not judge it again.
 
 `HoldingInPositionPhaseDto.NotClearReportPositions` (list of strings, written whenever `TailInsideRunway` is set, otherwise null; absent on older snapshots, which restore with none; no schema bump) is the student positions the hold's not-clear report goes to in solo training: Tower for a `CLRWY` hold, Ground and Tower for a hold after a break-off.
 
@@ -261,6 +263,8 @@ More fields are the same kind (nullable, written only when set, null on older sn
 `HoldingShortPhaseDto.SaidTrafficAhead` (bool?, the same call from the hold at the bar), `HoldingShortPhaseDto.WaitingForLead` (bool?, the hold, cleared across, is waiting at its bar for the lead of the follow armed behind it) with `SaidWaitForLead` (bool?, the "waiting for the traffic to pass" call made for the current wait; a restore does not repeat it), both omitted when null.
 
 `HoldingShortPhaseDto.DisplayEnd` (string, `1R`) is the end the phase's `Name` gives its runway, chosen once when the hold starts from the room's active runways and kept to the hold's end; omitted when no end was active (the name carries the combined id) and on older snapshots (no schema bump).
+
+`HoldingShortPhaseDto.Arrival` (`HoldShortArrival?`: `BeyondWithoutUnableCall` or `BeyondAfterUnableCall`) is where the aircraft came to rest against the bar's point, which decides the report; omitted for a hold taken at or short of the point and on older snapshots, both restoring as `HeldShort` (no schema bump).
 
 `HoldShortPointDto.IsExpedited` (bool?, written only when true, absent on older snapshots; no schema bump) is a `CROSS … EXP` crossing's expedite, kept on the bar; `CrossingRunwayPhaseDto.IsExpedited` (bool?, same rule) is the expedite a crossing phase flies under.
 `CrossingRunwayPhaseDto.SaidNotClear` (bool?) with `NotClearRestSeconds` (double?, the rest time counted toward the not-clear call).

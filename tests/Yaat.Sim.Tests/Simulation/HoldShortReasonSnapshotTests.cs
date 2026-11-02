@@ -29,7 +29,8 @@ public class HoldShortReasonSnapshotTests
                 NodeId = 5,
                 Reason = HoldShortReason.DestinationRunway,
                 TargetName = "28L",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
 
         var dto = (HoldingShortPhaseDto)phase.ToSnapshot();

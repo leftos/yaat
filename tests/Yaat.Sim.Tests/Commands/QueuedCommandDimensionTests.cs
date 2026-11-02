@@ -726,7 +726,8 @@ public class QueuedCommandDimensionTests
                     NodeId = 10,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28R",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));

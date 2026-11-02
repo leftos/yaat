@@ -14,11 +14,16 @@ namespace Yaat.Sim.Phases.Ground;
 /// Clearance-gated: completes when RunwayCrossing clearance is satisfied
 /// (via CROSS, LUAW, or CTO command).
 /// </summary>
-public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
+/// <param name="holdShort">The bar held at.</param>
+/// <param name="arrival">Where the aircraft came to rest against the bar's point, judged as the hold was taken.</param>
+public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival arrival) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("HoldingShortPhase");
 
     private HoldShortPoint _holdShort = holdShort;
+
+    /// <summary>Where the aircraft came to rest against the bar's point, judged as the hold was taken; it decides the report.</summary>
+    public HoldShortArrival Arrival { get; } = arrival;
     private bool _hasAnnouncedReady;
 
     // Set once the pilot has said it is holding short, cleared across, for traffic beyond the far side. Snapshotted.
@@ -81,23 +86,13 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
 
         // Generate notification
         string target = _displayEnd ?? HoldShortTarget.Describe(_holdShort.TargetName ?? "unknown");
-        string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
-        // A route-incomplete hold is short of the taxiway the route still needs, so it reads like a controller's HS.
-        bool heldAtNamedTarget = _holdShort.Reason is HoldShortReason.ExplicitHoldShort or HoldShortReason.RouteIncomplete;
-        string label = heldAtNamedTarget ? $"holding short of {target}" : $"holding short runway {target}";
-        // At the end of a route that could not reach its destination the pilot asks for the rest of the way.
-        bool requestFurtherTaxi = _holdShort.Reason == HoldShortReason.RouteIncomplete;
-        string warningText = $"{ctx.Aircraft.Callsign} {label} at {taxiway}";
-        PilotSpeechText speechText = heldAtNamedTarget
-            ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway, requestFurtherTaxi)
-            : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, ResolveSpokenCrossingRunway(ctx, target));
-        // At the stop a spawn's preset taxi ends at, the delayed "holding short of C at T41W, … ready to taxi" call replaces
-        // this report when that call can come (someone answers it and the pacing rate is above zero), so the pilot does not
-        // say it twice and never sits at the bar with neither.
-        bool replacedByInitialCall = (PresetTaxiStopLocation(ctx.Aircraft) is not null) && InitialCallupCall.CanCall(ctx);
-        if (!replacedByInitialCall)
+        if (Arrival == HoldShortArrival.HeldShort)
         {
-            PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText, warningText);
+            ReportHeldShort(ctx, target);
+        }
+        else
+        {
+            ReportHeldBeyond(ctx, target);
         }
 
         // Tail-over-runway (issue #172 W3): the aircraft holds at the taxiway line with its tail still
@@ -121,9 +116,10 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         // the aircraft holds short and awaits a controller-issued crossing clearance — runway
         // crossings are controller-initiated (AIM 4-3-18.a.5, 7110.65 3-7-2), so the pilot makes no
         // "ready" call there. The crossing hold is surfaced on the controller-facing warning lane
-        // above instead (issue #194).
+        // above instead (issue #194). A hold taken beyond its point makes its beyond report as its only arrival report.
         if (
-            !_hasAnnouncedReady
+            (Arrival == HoldShortArrival.HeldShort)
+            && !_hasAnnouncedReady
             && _holdShort.Reason == HoldShortReason.DestinationRunway
             && _holdShort.TargetName is { Length: > 0 } runwayId
             && ctx.PilotContacts.ResolveFor(ctx.Aircraft, "TWR", PilotContactRoster.SurfaceAirportOf(ctx.Aircraft), ctx.ToEligibilityContext(), false)
@@ -143,6 +139,74 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             _hasAnnouncedReady = true;
             answering.MarkInitialContact(ctx.Aircraft);
         }
+    }
+
+    /// <summary>
+    /// The report of a hold taken at or short of its point: "holding short of C at B" ("holding short runway 28R" at a runway
+    /// bar), with "request further taxi" at the end of a route that could not reach its destination, unless the spawn's preset
+    /// taxi call replaces it.
+    /// </summary>
+    private void ReportHeldShort(PhaseContext ctx, string target)
+    {
+        string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
+        // A route-incomplete hold is short of the taxiway the route still needs, so it reads like a controller's HS.
+        bool heldAtNamedTarget = _holdShort.Reason is HoldShortReason.ExplicitHoldShort or HoldShortReason.RouteIncomplete;
+        string label = heldAtNamedTarget ? $"holding short of {target}" : $"holding short runway {target}";
+        // At the end of a route that could not reach its destination the pilot asks for the rest of the way.
+        bool requestFurtherTaxi = _holdShort.Reason == HoldShortReason.RouteIncomplete;
+        string warningText = $"{ctx.Aircraft.Callsign} {label} at {taxiway}";
+        PilotSpeechText speechText = heldAtNamedTarget
+            ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway, requestFurtherTaxi)
+            : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, ResolveSpokenCrossingRunway(ctx, target));
+        // At the stop a spawn's preset taxi ends at, the delayed "holding short of C at T41W, … ready to taxi" call replaces
+        // this report when that call can come (someone answers it and the pacing rate is above zero), so the pilot does not
+        // say it twice and never sits at the bar with neither.
+        bool replacedByInitialCall = (PresetTaxiStopLocation(ctx) is not null) && InitialCallupCall.CanCall(ctx);
+        if (!replacedByInitialCall)
+        {
+            PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText, warningText);
+        }
+    }
+
+    /// <summary>
+    /// The report of a hold taken beyond its point: never "holding short". With no unable call made for the bar the pilot says it
+    /// could not hold short and holds position ("unable to hold short of A, holding position on C"); after the unable call it says
+    /// where it holds ("holding position on B"), and at a runway bar the runway it is not clear of ("holding position on B, not
+    /// clear of runway 28R", AIM 2-3-5.a.1). At the end of a route that could not reach its destination both ask for the rest of
+    /// the way (", request further taxi", AIM 4-4-1.b). The taxiway named is the movement-area taxiway the aircraft stands on
+    /// (<see cref="MovementTaxiwayLookup.At"/>); the target is named as the unable readback names it, a runway by one end.
+    /// </summary>
+    private void ReportHeldBeyond(PhaseContext ctx, string target)
+    {
+        string? onTaxiway = ctx.GroundLayout is { } layout ? MovementTaxiwayLookup.At(layout, ctx.Aircraft.Position) : null;
+        string? runwayEnd = ProtectsARunway ? HeldRunwayEnd(ctx, target) : null;
+        bool requestFurtherTaxi = _holdShort.Reason == HoldShortReason.RouteIncomplete;
+        PilotSpeechText speechText =
+            Arrival == HoldShortArrival.BeyondWithoutUnableCall
+                ? PilotResponder.BuildUnableToHoldShortHoldingPosition(ctx.Aircraft, BeyondTarget(runwayEnd), onTaxiway, requestFurtherTaxi)
+                : PilotResponder.BuildHoldingPositionOn(ctx.Aircraft, onTaxiway, runwayEnd, requestFurtherTaxi);
+        string warningText = $"{ctx.Aircraft.Callsign} {speechText.Terminal.TrimEnd('.')}";
+        PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText, warningText);
+    }
+
+    /// <summary>
+    /// The one end a runway bar's beyond report names its runway by, never the combined <c>10R/28L</c>: a crossing bar's by the end
+    /// a pilot names it by (<see cref="ResolveSpokenCrossingRunway"/>), any other runway bar's by <see cref="RunwayEndFacing"/>.
+    /// </summary>
+    private string HeldRunwayEnd(PhaseContext ctx, string target) =>
+        (_holdShort.Reason == HoldShortReason.RunwayCrossing)
+            ? ResolveSpokenCrossingRunway(ctx, target)
+            : RunwayEndFacing(ctx.Aircraft, ctx.ActiveRunways);
+
+    /// <summary>
+    /// The bar's target as the beyond report names it: a spot by its <c>$</c> name, a runway by <paramref name="runwayEnd"/>, a
+    /// taxiway by its display designator.
+    /// </summary>
+    private HoldShortTarget BeyondTarget(string? runwayEnd)
+    {
+        string name = _holdShort.TargetName ?? "unknown";
+        string token = HoldShortTarget.IsSpotTargetName(name) ? name : (runwayEnd ?? RunwayIdentifier.ToDisplayDesignator(name));
+        return HoldShortTarget.Parse(token);
     }
 
     /// <summary>
@@ -208,8 +272,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         }
 
         if (
-            (PresetTaxiStopLocation(ctx.Aircraft) is { } location)
-            && (ElapsedSeconds >= InitialCallupCall.AfterTaxiArrivalDelaySeconds(ctx.Aircraft.Callsign))
+            (ElapsedSeconds >= InitialCallupCall.AfterTaxiArrivalDelaySeconds(ctx.Aircraft.Callsign)) && (PresetTaxiStopLocation(ctx) is { } location)
         )
         {
             InitialCallupCall.TryMake(ctx, location);
@@ -336,19 +399,40 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     /// <summary>
     /// Where the after-taxi-arrival call is made from when this bar is the stop the spawn's preset taxi ends at
     /// (<see cref="AircraftGroundOps.PresetTaxiStop"/>) and the call is still owed: "holding short of C at T41W" at its
-    /// taxiway hold short, "at spot 5" at its spot hold short. Null at any other bar, and always at a runway bar.
+    /// taxiway hold short, "at spot 5" at its spot hold short — and, held beyond the bar, the taxiway the aircraft
+    /// stands on, since a beyond hold is never called "holding short". Null at any other bar, and always at a runway bar.
     /// </summary>
-    private ReadyToTaxiLocation? PresetTaxiStopLocation(AircraftState aircraft)
+    private ReadyToTaxiLocation? PresetTaxiStopLocation(PhaseContext ctx)
     {
-        AircraftGroundOps ground = aircraft.Ground;
+        AircraftGroundOps ground = ctx.Aircraft.Ground;
         if ((ground.InitialCallup != InitialCallupPlan.AfterTaxiArrival) || ground.InitialCallupDecisionProcessed || ProtectsARunway)
         {
             return null;
         }
 
         return (ground.PresetTaxiStop is { } stop) && (_holdShort.TargetName is { Length: > 0 } target)
-            ? MatchPresetTaxiStop(ground, stop, target)
+            ? MatchPresetTaxiStopAt(ctx, ground, stop, target)
             : null;
+    }
+
+    /// <summary>
+    /// The preset stop's bar as the call names it: held short, the hold-short locative; held beyond it, the movement-area
+    /// taxiway the aircraft stands on (AIM 4-3-18.a.1, d.1), never the hold short.
+    /// </summary>
+    private ReadyToTaxiLocation? MatchPresetTaxiStopAt(PhaseContext ctx, AircraftGroundOps ground, PresetTaxiStop stop, string target)
+    {
+        if (MatchPresetTaxiStop(ground, stop, target) is not { } matched)
+        {
+            return null;
+        }
+
+        if (Arrival == HoldShortArrival.HeldShort)
+        {
+            return matched;
+        }
+
+        string? onTaxiway = (ctx.GroundLayout is { } layout) ? MovementTaxiwayLookup.At(layout, ctx.Aircraft.Position) : null;
+        return ReadyToTaxiLocation.OnTaxiway(onTaxiway ?? ground.CurrentTaxiway ?? "taxiway");
     }
 
     private static ReadyToTaxiLocation? MatchPresetTaxiStop(AircraftGroundOps ground, PresetTaxiStop stop, string target)
@@ -532,6 +616,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             WaitingForLead = _waitingForLead ? true : null,
             SaidWaitForLead = _saidWaitForLead ? true : null,
             DisplayEnd = _displayEnd,
+            Arrival = Arrival == HoldShortArrival.HeldShort ? null : Arrival,
         };
 
     public static HoldingShortPhase FromSnapshot(HoldingShortPhaseDto dto)
@@ -543,7 +628,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             TargetName = string.IsNullOrEmpty(dto.RunwayId) ? null : dto.RunwayId,
         };
 
-        var phase = new HoldingShortPhase(holdShort)
+        var phase = new HoldingShortPhase(holdShort, dto.Arrival ?? HoldShortArrival.HeldShort)
         {
             _hasAnnouncedReady = dto.HasAnnouncedReady,
             _saidTrafficAhead = dto.SaidTrafficAhead ?? false,
@@ -556,4 +641,29 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }
+}
+
+/// <summary>
+/// Where an aircraft came to rest against the hold-short point it took a <see cref="HoldingShortPhase"/> at, judged as the hold
+/// is taken: it decides what the pilot reports on arrival.
+/// </summary>
+public enum HoldShortArrival
+{
+    /// <summary>
+    /// At rest short of the point, on it, or no more than <see cref="TaxiingPhase.SetBackStopTakeFt"/> past it: stopping further
+    /// back complies, so the pilot reports "holding short of {X}".
+    /// </summary>
+    HeldShort,
+
+    /// <summary>
+    /// At rest past the point with no unable call made for the bar: the pilot says it could not hold short and holds position on
+    /// the taxiway it stands on.
+    /// </summary>
+    BeyondWithoutUnableCall,
+
+    /// <summary>
+    /// The bar was answered unable when it was issued, so at rest the pilot only says it holds position on its taxiway (and, at a
+    /// runway bar, the runway it is not clear of).
+    /// </summary>
+    BeyondAfterUnableCall,
 }

@@ -76,7 +76,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
             callsign,
             type,
             (ground.Layout.Nodes[holdNode], pose.Heading),
-            new HoldingShortPhase(hold)
+            new HoldingShortPhase(hold, HoldShortArrival.HeldShort)
         );
         aircraft.Position = pose.Position;
         aircraft.Ground.CurrentTaxiway = "B";
@@ -304,7 +304,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
             callsign,
             type,
             (ground.Layout.Nodes[holdNode], pose.Heading),
-            new HoldingShortPhase(hold)
+            new HoldingShortPhase(hold, HoldShortArrival.HeldShort)
         );
         aircraft.Position = pose.Position;
         aircraft.Ground.CurrentTaxiway = "B";

@@ -1811,7 +1811,8 @@ public sealed class TaxiOnLandingRolloutRulingTests
                     NodeId = 1,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = runway.Designator,
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
         departure.Phases.CurrentPhase!.Status = PhaseStatus.Active;

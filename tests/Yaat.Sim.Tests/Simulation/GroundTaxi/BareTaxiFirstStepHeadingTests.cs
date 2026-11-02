@@ -793,7 +793,8 @@ public class BareTaxiFirstStepHeadingTests(ITestOutputHelper output)
                 NodeId = bar.Id,
                 Reason = HoldShortReason.RunwayCrossing,
                 TargetName = bar.RunwayId?.ToString(),
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         output.WriteLine($"bar {bar.Id} ({bar.RunwayId}), toward 28L {towardRunwayDeg:F1}, holding short on it, heading {heading.Degrees:F1}");
         return new BareTaxiStart(bar.Position, heading, holding);

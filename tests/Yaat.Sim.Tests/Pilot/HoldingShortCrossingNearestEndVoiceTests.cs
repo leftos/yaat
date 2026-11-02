@@ -53,7 +53,8 @@ public class HoldingShortCrossingNearestEndVoiceTests
                 NodeId = 1,
                 Reason = HoldShortReason.RunwayCrossing,
                 TargetName = "15/33",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         phase.OnStart(RpoCtx(ac));
         return ac.PendingPilotSpeech.SingleOrDefault()?.Tts;

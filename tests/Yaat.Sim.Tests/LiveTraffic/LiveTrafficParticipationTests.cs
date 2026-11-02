@@ -312,7 +312,8 @@ public class LiveTrafficParticipationTests
                     NodeId = 10,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = Runway28R.Id.ToString(),
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
         departure.Phases.Start(CommandDispatcher.BuildMinimalContext(departure, ActiveRunways.Empty));

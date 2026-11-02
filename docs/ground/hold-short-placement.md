@@ -247,6 +247,16 @@ Without it the segment in progress keeps the junction node as its target and the
 
 A bar judged makeable is one the firm rate does stop at. It applies only above `StoppedGroundSpeedKts` (2 kt): a stopped aircraft whose stop is already behind it holds where it stands.
 
+A taxiway bar is unable only when the firm-rate stop lies past the crossed taxiway's **wingtip envelope** as well: `HoldShortAnnotator.EnvelopeEntryAheadFt` is the along-route distance at which the nose first comes within `WingtipClearanceFloorFt` of the centreline the floor measures against (the floor's own nose walk-back with the setback set to the floor alone), and `TaxiingPhase.IsHoldShortUnmakeable` compares the flown stop with the further of the placed stop and that entry.
+
+A bar with no envelope keeps the placed-stop judgement: a runway, spot, crossing or destination bar, a taxiway bar with a crossed runway bar within its setback, and a taxiway that continues straight ahead with no other branch (OAK C to A).
+
+In the window (the firm-rate stop lies past the set-back stop but short of the envelope entry) the aircraft can stop before entering the taxiway, so the hold is made, never unable.
+
+The readback is the plain "hold short of T", `Unable` stays false, and `TaxiingPhase.MoveWindowBarToBrakingDistance` moves the hold-short point to the firm-rate stop (`MoveBarToBrakingDistance`, clamped at the envelope entry), latches `StopMoved`, and the aircraft brakes onto it at the firm rate like an unable bar's moved stop.
+
+The window is judged once per bar, on the tick the bar is first the first uncleared bar ahead, whatever the verdict (`HoldShortPoint.WindowJudged`, on the bar for the reason `StopMoved` is): judged again near the bar, the last feet of a routine stop would read inside the flown stop.
+
 No reaction time is added: a pilot's response time is the scenario's command-run delay, applied before the clearance reaches the aircraft, so a term here would count it twice. The in-progress leg is measured straight to its node (the navigator publishes no arc remainder), which reads short on a fillet — also conservative.
 
 **Unable.** The handler decides it once at dispatch (`MarkUnmakeableHoldShort` sets `HoldShortPoint.Unable`, the result is `Unable to hold short of T — stopping`, and the pilot answers "unable to hold short of tango, stopping" — P/CG UNABLE; the instruction refused is AIM 2-3-5.c's "the pilot MUST STOP so that no part of the aircraft extends beyond the holding position marking").
@@ -257,7 +267,20 @@ The stop is never moved backward: a painted stop at or past the flown stop is ke
 
 The taxi then brakes onto the stop at the firm rate on the sub-ticked curve (`GroundNavigator.PlansStopsOnSubTicks`, `CurveKts`), and `UnableStopCapKts` caps the published speed at that curve. `ApplyStopBrakeRate` takes the firm rate on the tick the stop moves and keeps it until the taxi rate makes the stop outright, going back to it only when the taxi rate misses by more than `TaxiCurveSlackFt`, so an aircraft slowed by a HOLD or `RES` rides the taxi curve.
 
-The clamp makes the modelled overrun a lower bound: an aircraft that cannot make a runway bar does not stop at the junction either (AIM 2-3-5.a.1 makes the marking the runway safety area boundary). `Unable` and `StopMoved` round-trip as `HoldShortPointDto.Unable` and `HoldShortPointDto.StopMoved` (false on legacy snapshots) and `HoldShortAnnotator.ComputeHoldShortPositions` skips an unable bar, so a restore keeps the moved stop instead of putting the bar back on the painted line.
+The clamp makes the modelled overrun a lower bound: an aircraft that cannot make a runway bar does not stop at the junction either (AIM 2-3-5.a.1 makes the marking the runway safety area boundary).
+
+`Unable`, `StopMoved` and `WindowJudged` round-trip as `HoldShortPointDto.Unable`, `HoldShortPointDto.StopMoved` and `HoldShortPointDto.WindowJudged` (false on legacy snapshots) and `HoldShortAnnotator.ComputeHoldShortPositions` skips an unable bar, so a restore keeps the moved stop instead of putting the bar back on the painted line.
+
+**The report at the stop.** `TaxiingPhase.ArrivalAt` judges where the aircraft rests against the bar's point as the hold is taken and passes it to `HoldingShortPhase` as a `HoldShortArrival`: at or short of the point, or no more than `SetBackStopTakeFt` past it, is `HeldShort` ("holding short of C at B"); past it with no unable call made for the bar is `BeyondWithoutUnableCall` ("unable to hold short of A, holding position on C").
+
+A bar flagged `Unable` is `BeyondAfterUnableCall` wherever the moved stop left it ("holding position on B").
+
+A follow stopped past the hold line is `BeyondWithoutUnableCall`.
+
+A bar on the route's start node, or at the end of a route already complete, has no segment ahead that ends at it, so `TaxiingPhase.PastHoldShortPointFt` measures from the bar's point along the bearing of the first segment still to fly that leaves the node (else the last that arrives at it): a rest more than `SetBackStopTakeFt` past it is beyond, never held short.
+
+The taxiway named is `MovementTaxiwayLookup.At` (the movement-area taxiway the aircraft stands on; none leaves "holding position"). After the unable call a runway bar adds ", not clear of runway {end}", and a `RouteIncomplete` bar ends either beyond line with ", request further taxi". A beyond hold makes no "ready for departure" call, and a preset-taxi spawn's delayed call-up is worded from the taxiway it stopped on ("on taxiway C … ready to taxi"), never "holding short". Wording and citations: [pilot-phraseology.md](../pilot-phraseology.md).
+
 Measured (B738 on B westbound at 30 kt): issued 584 ft out → holds 271 ft from the junction node (the bar binds a fillet split node ~111 ft east of `FindIntersectionNode("B","T")`, plus the length+30 setback); issued 178 ft out → "unable", rolls 74 ft and stops 105 ft short of the junction. The field crawl at 5 kt in the bundle was the conflict detector's cap for SWA2644 on T (a crossing pair), not the hold-short.
 
 **Inside the stopping distance without `HS`.** A bar the aircraft is already inside the taxi-rate stopping distance of without an `HS` (a `TAXI` re-route that drops a crossing clearance short of the runway's entry marking, or a `HOLD` or `GIVEWAY` given close to the bar) is never marked unable: the stop stays on the painted line, centre at the stop and nose at the marking, and `TaxiingPhase` brakes harder for it.

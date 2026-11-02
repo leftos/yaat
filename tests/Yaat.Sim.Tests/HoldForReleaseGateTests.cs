@@ -20,7 +20,8 @@ public class HoldForReleaseGateTests
                     NodeId = 1,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28R",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
         var ac = new AircraftState

@@ -239,7 +239,7 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
             "SKW3398",
             "E75L",
             (ground.Layout.Nodes[SfoKOnBJunctionNode], Skw3398HeldShortOfKPose.Heading),
-            new HoldingShortPhase(hold)
+            new HoldingShortPhase(hold, HoldShortArrival.HeldShort)
         );
         aircraft.Position = Skw3398HeldShortOfKPose.Position;
         aircraft.Ground.CurrentTaxiway = "B";

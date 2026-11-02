@@ -100,7 +100,8 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
                 NodeId = 5,
                 Reason = HoldShortReason.RouteIncomplete,
                 TargetName = "C",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
 
         var restored = HoldingShortPhase.FromSnapshot((HoldingShortPhaseDto)phase.ToSnapshot());

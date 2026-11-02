@@ -55,7 +55,7 @@ public sealed class TaxiingPhase : Phase
     // nose at or behind the marking; only its speed is snapped, never its position. A runway crossing braking onto a stop
     // just past its slice end hands the route back inside the same distance once at a crawl, so it never comes to rest
     // inside the crossing (CrossingRunwayPhase).
-    internal const double SetBackStopTakeFt = GroundNavigator.SetBackStopMarginFt + 1.0;
+    public const double SetBackStopTakeFt = GroundNavigator.SetBackStopMarginFt + 1.0;
 
     // How far (deg) the aircraft's heading may be off the route's first segment for its nose to count as past the start
     // node's bar: a start node the route turns away from projects the nose ahead of the line well short of it. It also gates
@@ -546,8 +546,10 @@ public sealed class TaxiingPhase : Phase
     /// <see cref="GroundNavigator.SetBackStopMarginFt"/> the firm braking curve onto a painted stop
     /// (<see cref="GroundStopBraking.StopCurveKts"/>) reaches zero short of it. Inside that, the painted bar cannot be made
     /// and the aircraft will come to rest past it whatever it does; the threshold is the stop that is flown, so a bar
-    /// judged makeable is one the firm rate does stop at. A stopped aircraft whose stop point is already behind it holds
-    /// where it stands.
+    /// judged makeable is one the firm rate does stop at. A taxiway bar with a wingtip envelope
+    /// (<see cref="HoldShortAnnotator.EnvelopeEntryAheadFt"/>) is judged on the farther of its placed stop and the envelope entry:
+    /// unable only when the aircraft cannot stop before entering the crossed taxiway. A stopped aircraft whose stop point is
+    /// already behind it holds where it stands.
     /// </summary>
     /// <param name="layout">Ground layout the route is resolved on.</param>
     /// <param name="route">The route being taxied.</param>
@@ -563,14 +565,48 @@ public sealed class TaxiingPhase : Phase
         double subTickSeconds
     )
     {
+        return MeasureReach(layout, route, aircraft, holdShort, subTickSeconds) is { } reach
+            && (Math.Max(reach.ToStopFt, reach.ToEnvelopeFt ?? reach.ToStopFt) < reach.FlownStopFt);
+    }
+
+    /// <summary>
+    /// What <see cref="IsHoldShortUnmakeable"/> and the envelope window (<see cref="MoveWindowBarToBrakingDistance"/>) judge a bar
+    /// on: the along-route distance (ft) to its placed stop (<see cref="AlongRouteDistanceToHoldShortFt"/>), the along-route
+    /// distance to the crossed taxiway's wingtip envelope entry (<see cref="HoldShortAnnotator.EnvelopeEntryAheadFt"/>), and the
+    /// stop flown at the firm rate (<see cref="MovedStopDistanceFt"/> plus <see cref="GroundNavigator.SetBackStopMarginFt"/>).
+    /// <c>ToEnvelopeFt</c> is null for a bar with no envelope, and is not measured when the placed stop lies at or past the flown
+    /// stop, where neither judgement depends on it.
+    /// </summary>
+    private readonly record struct HoldShortReach(double ToStopFt, double? ToEnvelopeFt, double FlownStopFt);
+
+    /// <summary>The bar's <see cref="HoldShortReach"/>, or null when the aircraft is stopped (<see cref="StoppedGroundSpeedKts"/>).</summary>
+    private static HoldShortReach? MeasureReach(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        AircraftState aircraft,
+        HoldShortPoint holdShort,
+        double subTickSeconds
+    )
+    {
         if (aircraft.GroundSpeed <= StoppedGroundSpeedKts)
         {
-            return false;
+            return null;
         }
 
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         double flownStopFt = MovedStopDistanceFt(aircraft.GroundSpeed, category, subTickSeconds) + GroundNavigator.SetBackStopMarginFt;
-        return AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, holdShort) < flownStopFt;
+        double toStopFt = AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, holdShort);
+        double? toEnvelopeFt =
+            toStopFt < flownStopFt
+                ? HoldShortAnnotator.EnvelopeEntryAheadFt(
+                    layout,
+                    route,
+                    holdShort,
+                    AircraftLength.ResolveFt(aircraft.AircraftType),
+                    aircraft.Position
+                )
+                : null;
+        return new HoldShortReach(toStopFt, toEnvelopeFt, flownStopFt);
     }
 
     /// <summary>
@@ -596,7 +632,8 @@ public sealed class TaxiingPhase : Phase
         // and nothing re-aims afterwards, so aiming first would leave the navigator flying at the painted bar while the
         // stop it has to brake onto sits further on.
         (int SegmentIndex, HoldShortPoint Bar)? unmakeableAhead = BarAheadThisTick(route);
-        bool stopMovedNow = MoveUnmakeableBarToBrakingDistance(ctx, route, unmakeableAhead);
+        bool stopMovedNow =
+            MoveWindowBarToBrakingDistance(ctx, route, unmakeableAhead) || MoveUnmakeableBarToBrakingDistance(ctx, route, unmakeableAhead);
         ApplyStopBrakeRate(ctx, route, unmakeableAhead, stopMovedNow);
         AimAtPaintedBar(ctx, route);
         _nav.RefreshSpeedConstraints(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
@@ -612,7 +649,8 @@ public sealed class TaxiingPhase : Phase
     {
         _barAheadThisTick = FirstUnclearedBarAhead(route);
         (int SegmentIndex, HoldShortPoint Bar)? unmakeableAhead = _barAheadThisTick;
-        bool stopMovedNow = MoveUnmakeableBarToBrakingDistance(ctx, route, unmakeableAhead);
+        bool stopMovedNow =
+            MoveWindowBarToBrakingDistance(ctx, route, unmakeableAhead) || MoveUnmakeableBarToBrakingDistance(ctx, route, unmakeableAhead);
         ApplyStopBrakeRate(ctx, route, unmakeableAhead, stopMovedNow);
         if (stopMovedNow && _initialized)
         {
@@ -659,8 +697,59 @@ public sealed class TaxiingPhase : Phase
             return false;
         }
 
-        MoveBarToBrakingDistance(ctx, layout, route, barSegmentIndex, unmakeable.Bar);
+        MoveBarToBrakingDistance(ctx, layout, route, new BarAhead(barSegmentIndex, unmakeable.Bar), double.PositiveInfinity);
         unmakeable.Bar.StopMoved = true;
+        return true;
+    }
+
+    /// <summary>The first uncleared bar ahead and the index of the route segment that ends at its node.</summary>
+    private readonly record struct BarAhead(int SegmentIndex, HoldShortPoint Bar);
+
+    /// <summary>
+    /// Moves the first uncleared taxiway bar ahead forward to the stop the firm rate makes when its placed (set-back) stop lies
+    /// inside that stop but the crossed taxiway's wingtip envelope does not (<see cref="HoldShortReach"/>): the aircraft can stop
+    /// before entering the taxiway, so the hold is made, never unable, and the hold-short point is where it comes to rest. The
+    /// stop is the firm-rate braking distance along the route (<see cref="MoveBarToBrakingDistance"/>), clamped at the envelope
+    /// entry. Judged once per bar, on the tick it is first the first uncleared bar ahead, whatever the verdict
+    /// (<see cref="HoldShortPoint.WindowJudged"/>): judged again as the aircraft brakes onto it, the last feet of a routine stop
+    /// would read inside the flown stop. The latch lives on the bar, not the phase, for the reason
+    /// <see cref="MoveUnmakeableBarToBrakingDistance"/>'s does. <see cref="HoldShortPoint.Unable"/> stays false, so the readback
+    /// stays a plain hold short, and <see cref="ApplyStopBrakeRate"/> flies the moved stop at the firm rate.
+    /// </summary>
+    /// <returns>True when the stop was moved on this call.</returns>
+    private static bool MoveWindowBarToBrakingDistance(PhaseContext ctx, TaxiRoute route, (int SegmentIndex, HoldShortPoint Bar)? firstAhead)
+    {
+        // Only a bar not flagged unable is latched: one flagged unable is the unable path's, and may be found makeable and
+        // cleared later, when it is judged for the window afresh.
+        if (firstAhead is not { SegmentIndex: var barSegmentIndex, Bar: { WindowJudged: false, Unable: false } bar })
+        {
+            return false;
+        }
+
+        bar.WindowJudged = true;
+        if (
+            (ctx.GroundLayout is not { } layout)
+            || bar.StopMoved
+            || (MeasureReach(layout, route, ctx.Aircraft, bar, ctx.DeltaSeconds) is not { ToEnvelopeFt: { } toEnvelopeFt } reach)
+            || (reach.ToStopFt >= reach.FlownStopFt)
+            || (reach.FlownStopFt > toEnvelopeFt)
+        )
+        {
+            return false;
+        }
+
+        Log.LogInformation(
+            "[Taxi] {Callsign}: hold short of {Target} at {Gs:F1}kt — its set-back stop {ToStop:F1}ft ahead lies inside the {Flown:F1}ft "
+                + "flown stop, the wingtip envelope {ToEnvelope:F1}ft ahead does not; moving the stop to the firm-rate stop",
+            ctx.Aircraft.Callsign,
+            bar.TargetName,
+            ctx.Aircraft.GroundSpeed,
+            reach.ToStopFt,
+            reach.FlownStopFt,
+            toEnvelopeFt
+        );
+        MoveBarToBrakingDistance(ctx, layout, route, new BarAhead(barSegmentIndex, bar), toEnvelopeFt);
+        bar.StopMoved = true;
         return true;
     }
 
@@ -731,8 +820,9 @@ public sealed class TaxiingPhase : Phase
 
     /// <summary>
     /// Sets the brake rate the navigator plans and publishes its speed profile with: the firm rate
-    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>) while the first uncleared bar ahead has been flagged
-    /// unable and the taxi rate cannot make its moved stop, and the category taxi rate otherwise. The bar is skipped by
+    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>) while the first uncleared bar ahead has been flagged unable or had
+    /// its stop moved to the envelope window's firm stop, and the taxi rate cannot make that stop; the category taxi rate
+    /// otherwise. The bar is skipped by
     /// <see cref="BrakeForUnclearedBar"/> once it is unable, so nothing else publishes a rate for it, and without this
     /// the navigator would plan a taxi-rate curve to a stop placed at the firm distance and brake through it. An unable
     /// bar's stop is planned on the sub-ticked curve (<see cref="GroundNavigator.PlansStopsOnSubTicks"/>) at either rate:
@@ -740,7 +830,8 @@ public sealed class TaxiingPhase : Phase
     /// for the sub-tick the stop moves on and brakes at the firm rate every sub-tick after, where the continuous curve would
     /// first accelerate it and then leave it braking at the firm rate behind the curve — and at the taxi rate it brings the
     /// aircraft onto the stop at a crawl, where the continuous curve, read a sub-tick behind, would reach the stop's arrival
-    /// threshold at several knots and have the hold zero them.
+    /// threshold at several knots and have the hold zero them. A makeable bar whose stop was moved to the envelope window's firm
+    /// stop (<see cref="MoveWindowBarToBrakingDistance"/>) is flown the same way, so it is flown onto, never braked through.
     ///
     /// <para>The rate is chosen as for a makeable bar (<see cref="GroundStopBraking.ChooseStopBraking"/>), against the moved
     /// stop less the half sub-tick of travel the flown stop adds (<see cref="MovedStopDistanceFt"/>), with hysteresis on the
@@ -753,12 +844,13 @@ public sealed class TaxiingPhase : Phase
     /// </summary>
     private void ApplyStopBrakeRate(PhaseContext ctx, TaxiRoute route, (int SegmentIndex, HoldShortPoint Bar)? firstAhead, bool stopMovedNow)
     {
-        bool unable = firstAhead is { Bar.Unable: true };
+        bool fliesMovedStop = firstAhead is { Bar.Unable: true } or { Bar.StopMoved: true };
         bool firm =
-            (firstAhead is { Bar: { Unable: true } bar })
+            (firstAhead is { Bar: { } bar })
+            && fliesMovedStop
             && (stopMovedNow || !TaxiRateMakesTheMovedStop(ctx, route, bar, _nav.DecelRateKts is null ? TaxiCurveSlackFt(ctx) : 0.0));
         _nav.DecelRateKts = firm ? CategoryPerformance.ExpediteExitDecelRate(ctx.Category) : null;
-        _nav.PlansStopsOnSubTicks = unable;
+        _nav.PlansStopsOnSubTicks = fliesMovedStop;
     }
 
     /// <summary>
@@ -822,20 +914,23 @@ public sealed class TaxiingPhase : Phase
     /// window <see cref="IsHoldShortUnmakeable"/> judges unable, since the firm curve onto a painted stop reaches zero that
     /// margin short — stays where it is painted, and the sub-ticked firm curve the bar is then flown on reaches it.</para>
     /// </summary>
-    private static void MoveBarToBrakingDistance(
-        PhaseContext ctx,
-        AirportGroundLayout layout,
-        TaxiRoute route,
-        int barSegmentIndex,
-        HoldShortPoint bar
-    )
+    /// <param name="ctx">The phase context.</param>
+    /// <param name="layout">Ground layout the route is resolved on.</param>
+    /// <param name="route">The route being taxied.</param>
+    /// <param name="ahead">The bar to move and the segment ending at its node.</param>
+    /// <param name="maxAheadFt">
+    /// How far along the route (ft) the stop may go besides the bar's node: the envelope entry for a window stop, unbounded for an
+    /// unable one.
+    /// </param>
+    private static void MoveBarToBrakingDistance(PhaseContext ctx, AirportGroundLayout layout, TaxiRoute route, BarAhead ahead, double maxAheadFt)
     {
-        double brakingFt = MovedStopDistanceFt(ctx.Aircraft.GroundSpeed, ctx.Category, ctx.DeltaSeconds);
+        (int barSegmentIndex, HoldShortPoint bar) = ahead;
+        double brakingFt = Math.Min(MovedStopDistanceFt(ctx.Aircraft.GroundSpeed, ctx.Category, ctx.DeltaSeconds), maxAheadFt);
         double paintedFt = AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar);
         if (paintedFt >= brakingFt)
         {
             Log.LogInformation(
-                "[Taxi] {Callsign}: hold short of {Target} unmakeable at {Gs:F1}kt — its painted stop {Painted:F1}ft ahead lies past the "
+                "[Taxi] {Callsign}: hold short of {Target} unmakeable or window at {Gs:F1}kt — its painted stop {Painted:F1}ft ahead lies past the "
                     + "{Flown:F1}ft flown stop, so it is kept",
                 ctx.Aircraft.Callsign,
                 bar.TargetName,
@@ -853,7 +948,8 @@ public sealed class TaxiingPhase : Phase
         double aheadFt = Math.Min(brakingFt, toNodeFt);
 
         Log.LogInformation(
-            "[Taxi] {Callsign}: hold short of {Target} unmakeable at {Gs:F1}kt — stopping {Ahead:F0}ft ahead, {ToNode:F0}ft short of node {NodeId}",
+            "[Taxi] {Callsign}: hold short of {Target} unmakeable or window at {Gs:F1}kt — stopping {Ahead:F0}ft ahead, "
+                + "{ToNode:F0}ft short of node {NodeId}",
             ctx.Aircraft.Callsign,
             bar.TargetName,
             ctx.Aircraft.GroundSpeed,
@@ -1031,6 +1127,53 @@ public sealed class TaxiingPhase : Phase
     }
 
     /// <summary>
+    /// Where the aircraft comes to rest against <paramref name="bar"/>'s hold-short point, judged as the hold is taken and before the
+    /// route is advanced past the bar's segment: after the unable call (<see cref="HoldShortPoint.Unable"/>) it is beyond
+    /// a bar it could not hold short of, wherever the moved stop left it; otherwise beyond when it rests more than
+    /// <see cref="SetBackStopTakeFt"/> past the point along the route (<see cref="AlongRouteDistanceToHoldShortFt"/>), and held
+    /// short when it rests at or short of it.
+    /// </summary>
+    private static HoldShortArrival ArrivalAt(PhaseContext ctx, TaxiRoute route, HoldShortPoint bar)
+    {
+        if (bar.Unable)
+        {
+            return HoldShortArrival.BeyondAfterUnableCall;
+        }
+
+        bool beyond = (ctx.GroundLayout is { } layout) && (PastHoldShortPointFt(layout, route, ctx.Aircraft.Position, bar) > SetBackStopTakeFt);
+        return beyond ? HoldShortArrival.BeyondWithoutUnableCall : HoldShortArrival.HeldShort;
+    }
+
+    /// <summary>
+    /// How far (ft) <paramref name="position"/> lies past <paramref name="bar"/>'s hold-short point, negative while short of it:
+    /// along the route (<see cref="AlongRouteDistanceToHoldShortFt"/>) where a segment ahead ends at the bar's node. A bar no segment
+    /// ahead leads to — on the route's start node, or at the end of a route already complete — is measured from its point along
+    /// the bearing of the first segment left from the one the aircraft is on that leaves its node, else of the last that arrives
+    /// at it. Negative infinity when the bar has no point or the route no such segment.
+    /// </summary>
+    public static double PastHoldShortPointFt(AirportGroundLayout layout, TaxiRoute route, LatLon position, HoldShortPoint bar)
+    {
+        double toPointFt = AlongRouteDistanceToHoldShortFt(layout, route, position, bar);
+        if (!double.IsPositiveInfinity(toPointFt))
+        {
+            return -toPointFt;
+        }
+
+        if ((bar.Latitude is not { } lat) || (bar.Longitude is not { } lon))
+        {
+            return double.NegativeInfinity;
+        }
+
+        double? bearingDeg =
+            (route.Segments.Skip(route.CurrentSegmentIndex).FirstOrDefault(s => s.FromNodeId == bar.NodeId) is { } leaving)
+                ? leaving.Edge.DepartureBearing
+                : ((route.Segments.LastOrDefault(s => s.ToNodeId == bar.NodeId) is { } arriving) ? arriving.Edge.ArrivalBearing : null);
+        return bearingDeg is { } deg
+            ? GeoMath.AlongTrackDistanceNm(position, new LatLon(lat, lon), new TrueHeading(deg)) * GeoMath.FeetPerNm
+            : double.NegativeInfinity;
+    }
+
+    /// <summary>
     /// Stop at a set-back bar's stop, short of the segments that lead on to its node, and queue the hold and what follows
     /// it. A route that ends at a runway bar is finished here, as it would be at the node: the rest of the route lies
     /// past the holding position marking, and a line-up plans from where the aircraft stands. Otherwise the release drives
@@ -1054,7 +1197,7 @@ public sealed class TaxiingPhase : Phase
         ctx.Targets.TargetSpeed = 0;
         ctx.MarkHoldShortNodeOccupied?.Invoke(bar.NodeId);
 
-        var holdPhase = new HoldingShortPhase(bar);
+        var holdPhase = new HoldingShortPhase(bar, ArrivalAt(ctx, route, bar));
         List<Phase> resumePhases;
         if ((barSegmentIndex == route.Segments.Count - 1) && holdPhase.ProtectsARunway)
         {
@@ -2082,7 +2225,7 @@ public sealed class TaxiingPhase : Phase
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
-            var holdPhase = new HoldingShortPhase(holdShort);
+            var holdPhase = new HoldingShortPhase(holdShort, ArrivalAt(ctx, route, holdShort));
             List<Phase> resumePhases = BuildResumePhases(ctx, route, holdShort, advancePastCurrentSegment: true);
 
             var insertList = new List<Phase> { holdPhase };
@@ -2159,7 +2302,7 @@ public sealed class TaxiingPhase : Phase
             && (route.GetHoldShortAt(route.Segments[^1].ToNodeId) is { IsCleared: false, Reason: HoldShortReason.RouteIncomplete } endHold)
         )
         {
-            phases.InsertAfterCurrent([new HoldingShortPhase(endHold), new HoldingInPositionPhase()]);
+            phases.InsertAfterCurrent([new HoldingShortPhase(endHold, ArrivalAt(ctx, route, endHold)), new HoldingInPositionPhase()]);
             return true;
         }
 
@@ -2455,7 +2598,7 @@ public sealed class TaxiingPhase : Phase
         ctx.Targets.TargetSpeed = 0;
         ctx.MarkHoldShortNodeOccupied?.Invoke(holdShort.NodeId);
 
-        var insertList = new List<Phase> { new HoldingShortPhase(holdShort) };
+        var insertList = new List<Phase> { new HoldingShortPhase(holdShort, ArrivalAt(ctx, route, holdShort)) };
         insertList.AddRange(BuildResumePhases(ctx, route, holdShort, advancePastCurrentSegment: false));
         ctx.Aircraft.Phases?.InsertAfterCurrent(insertList);
     }
@@ -2543,7 +2686,7 @@ public sealed class TaxiingPhase : Phase
     {
         if (route.GetHoldShortAt(exitNodeId) is { IsCleared: false } pendingHoldShort)
         {
-            return [new HoldingShortPhase(pendingHoldShort), new HoldingInPositionPhase()];
+            return [new HoldingShortPhase(pendingHoldShort, ArrivalAt(ctx, route, pendingHoldShort)), new HoldingInPositionPhase()];
         }
 
         ApplyDepartureClearanceIfPending(ctx);

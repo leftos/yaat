@@ -104,7 +104,8 @@ public class ScriptedDepartureCheckInTests
                     NodeId = 1,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28R",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
         ac.Phases = phases;

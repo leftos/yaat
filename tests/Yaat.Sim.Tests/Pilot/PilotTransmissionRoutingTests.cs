@@ -60,7 +60,7 @@ public class PilotTransmissionRoutingTests
             Reason = HoldShortReason.DestinationRunway,
             TargetName = "28R",
         };
-        return new HoldingShortPhase(hs);
+        return new HoldingShortPhase(hs, HoldShortArrival.HeldShort);
     }
 
     [Fact]

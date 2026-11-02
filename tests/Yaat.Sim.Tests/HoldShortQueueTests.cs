@@ -133,7 +133,8 @@ public class HoldShortQueueTests
                 NodeId = hsNodeId,
                 Reason = HoldShortReason.DestinationRunway,
                 TargetName = "28R",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         acA.Phases.Add(holdPhase);
         acA.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -198,7 +199,8 @@ public class HoldShortQueueTests
                     NodeId = hsNodeId,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28R",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
         acA.Phases.CurrentPhase!.Status = PhaseStatus.Active;
@@ -271,7 +273,8 @@ public class HoldShortQueueTests
                     NodeId = 99,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28R",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
         leader.Phases.CurrentPhase!.Status = PhaseStatus.Active;

@@ -228,7 +228,7 @@ public class GroundCommandHandlerTests
         ac.IsOnGround = true;
         ac.Ground.AssignedTaxiRoute = route;
         ac.Phases = new PhaseList();
-        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0], HoldShortArrival.HeldShort));
         ac.Phases.Start(
             new PhaseContext
             {
@@ -626,7 +626,8 @@ public class GroundCommandHandlerTests
                 NodeId = 3,
                 Reason = HoldShortReason.RunwayCrossing,
                 TargetName = "28R/10L",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
@@ -658,7 +659,8 @@ public class GroundCommandHandlerTests
                 NodeId = 3,
                 Reason = HoldShortReason.DestinationRunway,
                 TargetName = "28R/10L",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         ac.Phases.Add(holdPhase);
 
@@ -709,7 +711,8 @@ public class GroundCommandHandlerTests
                 NodeId = 3,
                 Reason = HoldShortReason.RunwayCrossing,
                 TargetName = "28R/10L",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
@@ -741,7 +744,8 @@ public class GroundCommandHandlerTests
                 NodeId = 3,
                 Reason = HoldShortReason.ExplicitHoldShort,
                 TargetName = "28R/10L",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
@@ -852,7 +856,8 @@ public class GroundCommandHandlerTests
                 NodeId = 3,
                 Reason = HoldShortReason.ExplicitHoldShort,
                 TargetName = "B",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
@@ -921,7 +926,8 @@ public class GroundCommandHandlerTests
                 NodeId = 3,
                 Reason = HoldShortReason.RunwayCrossing,
                 TargetName = "28R/10L",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
@@ -958,7 +964,8 @@ public class GroundCommandHandlerTests
                 NodeId = 3,
                 Reason = HoldShortReason.ExplicitHoldShort,
                 TargetName = "B",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
@@ -995,7 +1002,8 @@ public class GroundCommandHandlerTests
                 NodeId = 3,
                 Reason = HoldShortReason.DestinationRunway,
                 TargetName = "28R/10L",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         ac.Phases.Add(holdPhase);
 
@@ -1904,7 +1912,7 @@ public class GroundCommandHandlerTests
             TargetName = "E",
         };
         ac.Phases = new PhaseList();
-        ac.Phases.Add(new HoldingShortPhase(holdShort));
+        ac.Phases.Add(new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort));
         var ctx = new PhaseContext
         {
             ActiveRunways = ActiveRunways.Empty,
@@ -1937,7 +1945,7 @@ public class GroundCommandHandlerTests
             TargetName = "28R",
         };
         ac.Phases = new PhaseList();
-        ac.Phases.Add(new HoldingShortPhase(holdShort));
+        ac.Phases.Add(new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort));
         var ctx = new PhaseContext
         {
             ActiveRunways = ActiveRunways.Empty,
@@ -1968,7 +1976,7 @@ public class GroundCommandHandlerTests
             TargetName = "30",
         };
         ac.Phases = new PhaseList();
-        ac.Phases.Add(new HoldingShortPhase(holdShort));
+        ac.Phases.Add(new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort));
         var ctx = new PhaseContext
         {
             ActiveRunways = ActiveRunways.Empty,
@@ -2028,7 +2036,7 @@ public class GroundCommandHandlerTests
         ac.Ground.AssignedTaxiRoute = route;
 
         ac.Phases = new PhaseList();
-        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0], HoldShortArrival.HeldShort));
         var ctx = new PhaseContext
         {
             ActiveRunways = ActiveRunways.Empty,
@@ -2060,7 +2068,7 @@ public class GroundCommandHandlerTests
         ac.Ground.AssignedTaxiRoute = route;
 
         ac.Phases = new PhaseList();
-        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0], HoldShortArrival.HeldShort));
         var ctx = new PhaseContext
         {
             ActiveRunways = ActiveRunways.Empty,
@@ -2112,7 +2120,7 @@ public class GroundCommandHandlerTests
         ac.Ground.AssignedTaxiRoute = route;
 
         ac.Phases = new PhaseList();
-        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0], HoldShortArrival.HeldShort));
         var ctx = new PhaseContext
         {
             ActiveRunways = ActiveRunways.Empty,
@@ -2163,7 +2171,7 @@ public class GroundCommandHandlerTests
         ac.Ground.AssignedTaxiRoute = route;
 
         ac.Phases = new PhaseList();
-        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0], HoldShortArrival.HeldShort));
         var ctx = new PhaseContext
         {
             ActiveRunways = ActiveRunways.Empty,
@@ -2196,7 +2204,7 @@ public class GroundCommandHandlerTests
         ac.Ground.AssignedTaxiRoute = route;
 
         ac.Phases = new PhaseList();
-        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0], HoldShortArrival.HeldShort));
         var ctx = new PhaseContext
         {
             ActiveRunways = ActiveRunways.Empty,
@@ -2248,7 +2256,7 @@ public class GroundCommandHandlerTests
         ac.Ground.AssignedTaxiRoute = route;
 
         ac.Phases = new PhaseList();
-        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0], HoldShortArrival.HeldShort));
         var ctx = new PhaseContext
         {
             ActiveRunways = ActiveRunways.Empty,

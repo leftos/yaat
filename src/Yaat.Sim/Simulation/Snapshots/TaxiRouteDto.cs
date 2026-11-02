@@ -131,6 +131,13 @@ public sealed class HoldShortPointDto
     public bool? StopMoved { get; init; }
 
     /// <summary>
+    /// True once the taxi phase has judged this bar against the wingtip envelope window, so a restored taxi does not judge it
+    /// again. Null (absent) when it has not, and on legacy snapshots.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? WindowJudged { get; init; }
+
+    /// <summary>
     /// True for the hold ending a route cut short of a taxiway it never drives (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>).
     /// Not written while false, so every other bar — and every older snapshot — serializes as before. Additive, no schema bump.
     /// </summary>

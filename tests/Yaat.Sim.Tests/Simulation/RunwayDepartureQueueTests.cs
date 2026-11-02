@@ -57,7 +57,8 @@ public class RunwayDepartureQueueTests
                     NodeId = node.Id,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = targetName,
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
         return ac;
@@ -496,7 +497,8 @@ public class RunwayDepartureQueueTests
                     NodeId = nodes[0].Id,
                     Reason = HoldShortReason.RunwayCrossing,
                     TargetName = Runway,
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
         follower.Phases!.Add(new FollowingPhase("LEAD"));

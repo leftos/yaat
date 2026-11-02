@@ -326,7 +326,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             Reason = reason,
             TargetName = target,
         };
-        AircraftState aircraft = SpawnOffGraph(ground, "SKW3398", "E75L", Skw3398OnBPose, new HoldingShortPhase(hold));
+        AircraftState aircraft = SpawnOffGraph(ground, "SKW3398", "E75L", Skw3398OnBPose, new HoldingShortPhase(hold, HoldShortArrival.HeldShort));
 
         Assert.Equal(expected, GroundCommandHandler.HeldShortTaxiway(aircraft));
     }
@@ -428,7 +428,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             Reason = HoldShortReason.ExplicitHoldShort,
             TargetName = "A",
         };
-        AircraftState aircraft = SpawnOffGraph(ground, "UAL1", "A320", OnFShortOfAPose, new HoldingShortPhase(hold));
+        AircraftState aircraft = SpawnOffGraph(ground, "UAL1", "A320", OnFShortOfAPose, new HoldingShortPhase(hold, HoldShortArrival.HeldShort));
         aircraft.Ground.CurrentTaxiway = "F";
         Assert.Equal("A", GroundCommandHandler.HeldShortTaxiway(aircraft));
 

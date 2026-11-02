@@ -379,7 +379,7 @@ public class M101GroundSpawnCheckInTests
             Reason = HoldShortReason.DestinationRunway,
             TargetName = "28R",
         };
-        var phase = new HoldingShortPhase(holdShort);
+        var phase = new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort);
         PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
@@ -404,7 +404,7 @@ public class M101GroundSpawnCheckInTests
             Reason = HoldShortReason.RunwayCrossing,
             TargetName = "15/33",
         };
-        var phase = new HoldingShortPhase(holdShort);
+        var phase = new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort);
         PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
@@ -424,7 +424,7 @@ public class M101GroundSpawnCheckInTests
             Reason = HoldShortReason.ExplicitHoldShort,
             TargetName = "28R",
         };
-        var phase = new HoldingShortPhase(holdShort);
+        var phase = new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort);
         PhaseContext ctx = Ctx(ac);
 
         phase.OnStart(ctx);
@@ -446,7 +446,8 @@ public class M101GroundSpawnCheckInTests
                 NodeId = 1,
                 Reason = HoldShortReason.DestinationRunway,
                 TargetName = "28L",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         phase1.OnStart(Ctx(ac));
         Assert.Single(ac.PendingPilotTransmissions);
@@ -458,7 +459,8 @@ public class M101GroundSpawnCheckInTests
                 NodeId = 2,
                 Reason = HoldShortReason.DestinationRunway,
                 TargetName = "28R",
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         phase2.OnStart(Ctx(ac));
 
@@ -477,7 +479,7 @@ public class M101GroundSpawnCheckInTests
             Reason = HoldShortReason.DestinationRunway,
             TargetName = "28R",
         };
-        var phase = new HoldingShortPhase(holdShort);
+        var phase = new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort);
         PhaseContext ctx = Ctx(ac, soloMode: false);
 
         phase.OnStart(ctx);

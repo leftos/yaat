@@ -709,7 +709,8 @@ public sealed class SituationClassifierTests
                     NodeId = 10,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "30",
-                }
+                },
+                HoldShortArrival.HeldShort
             ),
             "RunwayHolding" => new RunwayHoldingPhase("28R"),
             "LinedUpAndWaiting" => new LinedUpAndWaitingPhase(),

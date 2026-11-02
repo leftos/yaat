@@ -806,7 +806,7 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
                 },
             ],
         };
-        var holding = new HoldingShortPhase(holdE);
+        var holding = new HoldingShortPhase(holdE, HoldShortArrival.HeldShort);
         ac.Phases.Add(holding);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         return (ac, holding);

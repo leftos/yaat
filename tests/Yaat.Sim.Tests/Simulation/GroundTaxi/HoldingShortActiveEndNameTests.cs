@@ -49,7 +49,8 @@ public class HoldingShortActiveEndNameTests
                 NodeId = 3,
                 Reason = reason,
                 TargetName = Runway,
-            }
+            },
+            HoldShortArrival.HeldShort
         );
         aircraft.Phases.Add(hold);
         aircraft.Phases.Start(

@@ -102,7 +102,8 @@ public class RunwayOccupancyWarningTests
                     NodeId = 10,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = runway,
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));

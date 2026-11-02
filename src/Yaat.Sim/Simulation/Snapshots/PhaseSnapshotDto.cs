@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Simulation.Snapshots;
 
@@ -413,6 +414,13 @@ public sealed class HoldingShortPhaseDto : PhaseDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisplayEnd { get; init; }
+
+    /// <summary>
+    /// Where the aircraft came to rest against the bar's point as the hold was taken, which decides the report. Null for a hold
+    /// taken at or short of its point, and in snapshots written before the field existed: both restore as held short.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HoldShortArrival? Arrival { get; init; }
 }
 
 public sealed class CrossingRunwayPhaseDto : PhaseDto

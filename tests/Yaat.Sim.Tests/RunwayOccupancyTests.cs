@@ -793,7 +793,7 @@ public class RunwayOccupancyTests
             Reason = HoldShortReason.RunwayCrossing,
             TargetName = "33",
         };
-        AircraftState holding = Placed(oak.Runway, oak.Bar, facingRunway: true, 0.0, 0, new HoldingShortPhase(holdShort));
+        AircraftState holding = Placed(oak.Runway, oak.Bar, facingRunway: true, 0.0, 0, new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort));
 
         Assert.Null(Kind(holding, oak.Runway, oak.Layout));
     }
@@ -1159,7 +1159,7 @@ public class RunwayOccupancyTests
                     type,
                     Project(bar.Position, into, -halfFt),
                     intoDeg,
-                    new HoldingShortPhase(holdShort)
+                    new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort)
                 );
                 var exitStop = new HoldingAfterExitPhase(runway.Designator, exitTaxiway: null, bar.Id, heldShortOfRunway: null);
                 AircraftState exited = StoppedAt(runway, airport, type, Project(bar.Position, into, -halfFt), into.ToReciprocal().Degrees, exitStop);

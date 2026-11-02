@@ -55,7 +55,8 @@ public class DepartureClearanceHandlerTests
                 NodeId = 10,
                 Reason = HoldShortReason.DestinationRunway,
                 TargetName = runway,
-            }
+            },
+            HoldShortArrival.HeldShort
         );
     }
 

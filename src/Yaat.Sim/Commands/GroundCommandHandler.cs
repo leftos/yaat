@@ -3035,7 +3035,7 @@ public static partial class GroundCommandHandler
     private static string? OccupiedTaxiway(AircraftState aircraft, GroundNode startNode, AirportGroundLayout groundLayout)
     {
         bool onStand = (startNode.Type is GroundNodeType.Parking) || (aircraft.Ground.ParkingSpot is not null);
-        if (!onStand && (MidEdgeMovementTaxiway(aircraft, groundLayout) is { } midEdgeTaxiway))
+        if (!onStand && (MovementTaxiwayLookup.MidEdge(groundLayout, aircraft.Position) is { } midEdgeTaxiway))
         {
             return midEdgeTaxiway;
         }
@@ -3045,40 +3045,7 @@ public static partial class GroundCommandHandler
             return currentTwy;
         }
 
-        return onStand ? null : NearestMovementTaxiway(aircraft, groundLayout);
-    }
-
-    /// <summary>
-    /// The taxiway of the straight taxi edge the aircraft stands mid-way along (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>),
-    /// whatever a stale current taxiway says: the start node is an end of the edge and can lie on the stale one too (SFO:
-    /// on F, its far end on E). Null when it stands mid-way along none, the edge is unnamed, or it is a ramp taxilane, which
-    /// is no movement-area taxiway.
-    /// </summary>
-    private static string? MidEdgeMovementTaxiway(AircraftState aircraft, AirportGroundLayout groundLayout) =>
-        (groundLayout.FindMidEdgeTaxiStart(aircraft.Position) is { TaxiwayName.Length: > 0 } midEdge)
-        && MovementAreaClassification.For(groundLayout).IsMovementArea(midEdge.TaxiwayName)
-            ? midEdge.TaxiwayName
-            : null;
-
-    /// <summary>
-    /// The movement-area taxiway whose line the aircraft's position projects onto within
-    /// <see cref="RampLaneReposition.CurrentLaneMaxFt"/> (the ground code's nearest taxi edge), or null: none is that close,
-    /// its name is blank, or it is a ramp taxilane.
-    /// </summary>
-    private static string? NearestMovementTaxiway(AircraftState aircraft, AirportGroundLayout groundLayout)
-    {
-        if (groundLayout.FindNearestTaxiEdge(aircraft.Position) is not { } nearest)
-        {
-            return null;
-        }
-
-        string name = nearest.Edge.TaxiwayName;
-        return
-            ((nearest.DistNm * GeoMath.FeetPerNm) <= RampLaneReposition.CurrentLaneMaxFt)
-            && (name.Length > 0)
-            && MovementAreaClassification.For(groundLayout).IsMovementArea(name)
-            ? name
-            : null;
+        return onStand ? null : MovementTaxiwayLookup.Nearest(groundLayout, aircraft.Position);
     }
 
     /// <summary>
@@ -8246,7 +8213,8 @@ public static partial class GroundCommandHandler
                     TargetName = runwayId,
                     Latitude = resolved.Target.Lat,
                     Longitude = resolved.Target.Lon,
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
 

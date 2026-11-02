@@ -29,7 +29,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
 
     private const string Callsign = "SKW9001";
     private const string Type = "B738";
-    private const string TaxiClearance = "TAXI B K A T7 @E2";
+    internal const string TaxiClearance = "TAXI B K A T7 @E2";
 
     /// <summary>Speed band (kts) a braking aircraft must pass straight through rather than settle in.</summary>
     private const double CreepLowKts = 3.0;
@@ -127,7 +127,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
             return;
         }
 
-        HsRun? run = RunHoldShortOfT(built.Value, issueWithinFt: PastTheSetbackStopIssueWithinFt);
+        HsRun? run = RunHoldShortOfT(built.Value, issueWithinFt: PastTheSetbackStopIssueWithinFt, Type);
         if (run is null)
         {
             return;
@@ -179,7 +179,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     /// <summary>
     /// How far <paramref name="point"/> lies ahead of <paramref name="from"/> along <paramref name="heading"/> (ft; negative behind).
     /// </summary>
-    private static double AlongHeadingFt(LatLon from, TrueHeading heading, LatLon point) =>
+    internal static double AlongHeadingFt(LatLon from, TrueHeading heading, LatLon point) =>
         DistanceFt(from, point) * Math.Cos(GeoMath.AbsBearingDifference(heading.Degrees, GeoMath.BearingTo(from, point)) * Math.PI / 180.0);
 
     /// <summary>
@@ -222,7 +222,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
             return;
         }
 
-        HsRun? run = RunHoldShortOfT(built.Value, issueWithinFt: 600.0);
+        HsRun? run = RunHoldShortOfT(built.Value, issueWithinFt: 600.0, Type);
         if (run is null)
         {
             return;
@@ -253,7 +253,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
             return;
         }
 
-        HsRun? run = RunHoldShortOfT(built.Value, issueWithinFt: 220.0);
+        HsRun? run = RunHoldShortOfT(built.Value, issueWithinFt: 220.0, Type);
         if (run is null)
         {
             return;
@@ -422,6 +422,121 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
         return 0;
     }
 
+    /// <summary>
+    /// The widebody the window cases fly: its 66 ft between the T bar's setback stop and T's wingtip envelope holds a whole second
+    /// at taxi speed.
+    /// </summary>
+    private const string Widebody = "B744";
+
+    /// <summary>
+    /// <c>HS T</c> to a B744 at taxi speed on B whose firm-rate stop lies past the T bar's setback stop (a fuselage plus 30 ft back from
+    /// the bar's node) but short of T's wingtip envelope (its nose still the wingtip floor from T's centreline): the aircraft can stop
+    /// before entering T, so the hold is accepted, never answered unable (YAAT-1409, owner ruling). The stop moves forward to where the
+    /// firm rate stops the aircraft, so the aircraft rests on the hold-short point.
+    /// </summary>
+    [Fact]
+    public void HsT_FirmStopPastTheSetbackButShortOfTheEnvelope_IsNotUnable()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
+        if (built is null)
+        {
+            return;
+        }
+
+        HsRun? run = RunHoldShortOfT(built.Value, issueWithinFt: 450.0, Widebody);
+        if (run is null)
+        {
+            return;
+        }
+
+        AirportGroundLayout layout = built.Value.Layout;
+        double floorFt = HoldShortAnnotator.WingtipClearanceFloorFt(layout.Runways.Max(r => r.WidthFt));
+        double firmStopFt = FirmStopFt(run.Trace.IssueSpeedKts);
+        double noseAtFirmStopFt = NoseToTFt(layout, run.Trace.IssuePosition, run.Trace.IssueHeading, Widebody, firmStopFt);
+        LatLon placed = Assert.NotNull(run.Trace.PlacedStop);
+        double placedAheadFt = AlongHeadingFt(run.Trace.IssuePosition, run.Trace.IssueHeading, placed);
+        output.WriteLine(
+            $"issued {run.Trace.IssueDistFt:F1} ft / {run.Trace.IssueSpeedKts:F1} kt: setback stop {placedAheadFt:F1} ft ahead, firm stop "
+                + $"{firmStopFt:F1} ft, nose at the firm stop {noseAtFirmStopFt:F1} ft from T (floor {floorFt:F0}): '{run.Result.Message}'"
+        );
+        Assert.True(
+            placedAheadFt < firmStopFt,
+            $"staging moved: the setback stop {placedAheadFt:F1} ft ahead is makeable at the firm rate ({firmStopFt:F1} ft)"
+        );
+        Assert.True(
+            noseAtFirmStopFt >= floorFt,
+            $"staging moved: the firm stop puts the nose {noseAtFirmStopFt:F1} ft from T, inside the {floorFt:F0} ft floor"
+        );
+
+        Assert.True(run.Result.Success, $"HS T refused: {run.Result.Message}");
+        Assert.Equal("Hold short of T", run.Result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(run.Aircraft.Ground.AssignedTaxiRoute);
+        HoldShortPoint bar = Assert.Single(route.HoldShortPoints, h => h.TargetName == "T");
+        Assert.False(bar.Unable, "a hold the aircraft stops short of T for was flagged unable");
+        AssertHoldingShortOfT(run);
+        double noseAtRestFt = NoseToTFt(layout, run.Aircraft.Position, run.Aircraft.TrueHeading, Widebody, 0.0);
+        Assert.True(noseAtRestFt >= floorFt - 1.0, $"held with the nose {noseAtRestFt:F1} ft from T, inside the {floorFt:F0} ft wingtip floor");
+
+        Assert.True(bar.StopMoved, "the window stop was not moved to where the firm rate stops the aircraft");
+        var movedPoint = new LatLon(Assert.NotNull(bar.Latitude), Assert.NotNull(bar.Longitude));
+        double restToPointFt = AlongHeadingFt(run.Aircraft.Position, run.Aircraft.TrueHeading, movedPoint);
+        output.WriteLine($"rest {restToPointFt:F1} ft short of the moved hold-short point (negative: past it)");
+        Assert.True(
+            Math.Abs(restToPointFt) <= TaxiingPhase.SetBackStopTakeFt,
+            $"rested {restToPointFt:F1} ft from the moved hold-short point, beyond the {TaxiingPhase.SetBackStopTakeFt:F0} ft take tolerance"
+        );
+    }
+
+    /// <summary>
+    /// The control: <c>HS T</c> one second later, when even the firm rate leaves the B744's nose inside T's wingtip envelope, stays unable.
+    /// </summary>
+    [Fact]
+    public void HsT_FirmStopInsideTheEnvelope_StaysUnable()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
+        if (built is null)
+        {
+            return;
+        }
+
+        HsRun? run = RunHoldShortOfT(built.Value, issueWithinFt: 400.0, Widebody);
+        if (run is null)
+        {
+            return;
+        }
+
+        AirportGroundLayout layout = built.Value.Layout;
+        double floorFt = HoldShortAnnotator.WingtipClearanceFloorFt(layout.Runways.Max(r => r.WidthFt));
+        double noseAtFirmStopFt = NoseToTFt(layout, run.Trace.IssuePosition, run.Trace.IssueHeading, Widebody, FirmStopFt(run.Trace.IssueSpeedKts));
+        output.WriteLine(
+            $"issued {run.Trace.IssueDistFt:F1} ft / {run.Trace.IssueSpeedKts:F1} kt: nose at the firm stop {noseAtFirmStopFt:F1} ft from T"
+        );
+        Assert.True(noseAtFirmStopFt < floorFt, $"staging moved: the firm stop keeps the nose {noseAtFirmStopFt:F1} ft from T, outside the floor");
+        Assert.Contains("Unable to hold short of T", run.Result.Message, StringComparison.Ordinal);
+        AssertHoldingShortOfT(run);
+    }
+
+    /// <summary>
+    /// The firm-rate stop (ft) the unable judgement uses: v²/2a + v·dt/2 + the 2 ft set-back margin (hold-short-placement.md,
+    /// Feasibility).
+    /// </summary>
+    private static double FirmStopFt(double speedKts)
+    {
+        double v = speedKts * GeoMath.FeetPerNm / 3600.0;
+        double a = CategoryPerformance.ExpediteExitDecelRate(AircraftCategory.Jet) * GeoMath.FeetPerNm / 3600.0;
+        return ((v * v) / (2.0 * a)) + (v / SimulationEngine.PhysicsSubTickRate / 2.0) + GroundNavigator.SetBackStopMarginFt;
+    }
+
+    /// <summary>
+    /// How far (ft) from T's straight centreline the nose is with the centre <paramref name="aheadFt"/> on along
+    /// <paramref name="heading"/> (B is straight here).
+    /// </summary>
+    internal static double NoseToTFt(AirportGroundLayout layout, LatLon centre, TrueHeading heading, string type, double aheadFt)
+    {
+        LatLon nose = GeoMath.ProjectPoint(centre, heading, (aheadFt + (AircraftLength.ResolveFt(type) / 2.0)) / GeoMath.FeetPerNm);
+        return HoldShortAnnotator.DistanceToCentrelineFt(nose, layout.Edges.Where(e => e.MatchesTaxiway("T")), nose);
+    }
+
     private static string PhaseName(AircraftState aircraft) => aircraft.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
 
     /// <summary>
@@ -429,7 +544,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     /// <c>HS T</c> the first second it is within <paramref name="issueWithinFt"/> of the B/T junction at taxi
     /// speed. Returns null when the layout cannot host the case (missing junction or run-up room).
     /// </summary>
-    private HsRun? RunHoldShortOfT(SfoGround ground, double issueWithinFt)
+    private HsRun? RunHoldShortOfT(SfoGround ground, double issueWithinFt, string type)
     {
         GroundNode? junction = ground.Layout.FindIntersectionNode("B", "T");
         Assert.True(junction is not null, "SFO layout has no B/T junction");
@@ -440,7 +555,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
         Assert.True(runUpFt > issueWithinFt + 200.0, $"only {runUpFt:F0} ft of B east of the B/T junction to roll in");
 
         var heading = new TrueHeading(GeoMath.BearingTo(spawn.Position, junction.Position));
-        AircraftState aircraft = SfoGroundHarness.SpawnAt(ground, Callsign, Type, (spawn, heading), new HoldingInPositionPhase());
+        AircraftState aircraft = SfoGroundHarness.SpawnAt(ground, Callsign, type, (spawn, heading), new HoldingInPositionPhase());
 
         CommandResult taxi = ground.Engine.SendCommand(Callsign, TaxiClearance);
         output.WriteLine($"{TaxiClearance}: {taxi.Success} — {taxi.Message}");
@@ -484,7 +599,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     /// picked by along-track projection on B's east bearing rather than by walking edges — the fillet arcs
     /// at each junction carry joined names, so an edge walk stops at the first corner.
     /// </summary>
-    private static GroundNode WalkEastAlongB(AirportGroundLayout layout, GroundNode junction, double wantFt)
+    internal static GroundNode WalkEastAlongB(AirportGroundLayout layout, GroundNode junction, double wantFt)
     {
         const double MaxCrossTrackFt = 200.0;
 

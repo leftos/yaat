@@ -621,6 +621,14 @@ public static class HoldShortAnnotator
                 existing.Reason = HoldShortReason.ExplicitHoldShort;
                 existing.IsCleared = false;
                 existing.ClearedByAutoCross = false;
+                // A re-armed bar is a fresh instruction: its envelope window is judged again, and a window stop moved for the old
+                // one is placed afresh. An unable bar keeps its moved stop, which is where the aircraft can stop.
+                existing.WindowJudged = false;
+                if (!existing.Unable)
+                {
+                    existing.StopMoved = false;
+                }
+
                 Log.LogDebug("[HoldShortAnnotator] Explicit HS {Target}: re-armed hold-short at node {NodeId}", target, existing.NodeId);
                 break;
 
@@ -733,10 +741,11 @@ public static class HoldShortAnnotator
 
         foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
-            // An unable bar's position is the stop the taxi phase moved it to, not the painted line: the
-            // aircraft was already inside its braking distance when the bar was armed, so recomputing the
-            // setback here would put the bar back somewhere nobody is going to stop.
-            if (hs.Unable || !layout.Nodes.TryGetValue(hs.NodeId, out GroundNode? hsNode))
+            // A moved bar's position is the stop the taxi phase moved it to, not the painted line: an unable bar's (the aircraft
+            // was already inside its braking distance when the bar was armed) and a window stop's (moved to where the firm rate
+            // stops the aircraft short of the crossed taxiway's wingtip envelope). Recomputing the setback here would put the bar
+            // back somewhere nobody is going to stop.
+            if (hs.Unable || hs.StopMoved || !layout.Nodes.TryGetValue(hs.NodeId, out GroundNode? hsNode))
             {
                 continue;
             }
@@ -747,6 +756,67 @@ public static class HoldShortAnnotator
             hs.Latitude = stop.Position.Lat;
             hs.Longitude = stop.Position.Lon;
         }
+    }
+
+    /// <summary>
+    /// How far along the route (ft) the aircraft's centre at <paramref name="aircraftPosition"/> is from the entry to the crossed
+    /// taxiway's wingtip envelope for the taxiway bar <paramref name="hs"/>: the centre position at which the nose (the centre plus
+    /// half <paramref name="aircraftLengthFt"/> along the route) first comes within <see cref="WingtipClearanceFloorFt"/> of the
+    /// centreline the wingtip floor measures against (<see cref="FloorCentreline"/>), found by the floor's own nose walk-back
+    /// with the setback set to the floor alone. Zero when the nose is already inside the floor.
+    ///
+    /// <para>Null when the bar has no envelope: a runway, spot, crossing or destination bar; a taxiway bar with a crossed runway
+    /// bar within its setback (the stop is then held to that runway, never to a floor); or one with no centreline to clear
+    /// (it continues straight ahead with no other branch, as OAK C→A does).</para>
+    /// </summary>
+    /// <param name="layout">Ground layout the route is resolved on.</param>
+    /// <param name="route">The route being taxied; its current segment locates the aircraft.</param>
+    /// <param name="hs">The bar to measure for.</param>
+    /// <param name="aircraftLengthFt">The aircraft's fuselage length (ft).</param>
+    /// <param name="aircraftPosition">The aircraft's current position.</param>
+    /// <returns>The along-route distance (ft) from the centre to the envelope entry, or null.</returns>
+    public static double? EnvelopeEntryAheadFt(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        HoldShortPoint hs,
+        double aircraftLengthFt,
+        LatLon aircraftPosition
+    )
+    {
+        if (!layout.Nodes.TryGetValue(hs.NodeId, out GroundNode? hsNode) || StopsWithTheNoseAtTheNode(hs, hsNode))
+        {
+            return null;
+        }
+
+        double taxiwayOffsetNm = (aircraftLengthFt + TaxiwayHoldShortBufferFt) / GeoMath.FeetPerNm;
+        var path = RoutePolyline.Build(route);
+        int barIndex = path.IndexOfFirstArrival(hs.NodeId);
+        if (
+            (hs.TargetName is not { } target)
+            || (layout.Runways.Count == 0)
+            || (barIndex < 0)
+            || (FindCrossedRunwayHoldShort(layout, route, hs.NodeId, taxiwayOffsetNm) is not null)
+        )
+        {
+            return null;
+        }
+
+        (List<(LatLon A, LatLon B)> centreline, _) = FloorCentreline(layout, route, barIndex, target, path.Vertex(barIndex).Position);
+        if (centreline.Count == 0)
+        {
+            return null;
+        }
+
+        double barFt = path.AlongFt(barIndex);
+        double aircraftFt = Math.Min(path.AircraftAlongFt(route.CurrentSegmentIndex, aircraftPosition), barFt);
+        double floorFt = WingtipClearanceFloorFt(layout.Runways.Max(r => r.WidthFt));
+        double halfFt = aircraftLengthFt / 2.0;
+        double entryCentreFt = NoseWalkBackCentreFt(
+            path,
+            centreline,
+            new NoseWalk(CentrelineMeetFt(path, centreline, barFt), floorFt, halfFt, aircraftFt)
+        );
+        return Math.Max(0.0, entryCentreFt - aircraftFt);
     }
 
     /// <summary>

@@ -209,7 +209,8 @@ public class RunwaySafetyAdvisorTests
                     NodeId = 1,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
 
@@ -236,7 +237,8 @@ public class RunwaySafetyAdvisorTests
                     NodeId = 1,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
 
@@ -256,7 +258,8 @@ public class RunwaySafetyAdvisorTests
                     NodeId = 1,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
 
@@ -279,7 +282,8 @@ public class RunwaySafetyAdvisorTests
                     NodeId = 1,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
 
@@ -300,7 +304,8 @@ public class RunwaySafetyAdvisorTests
                     NodeId = 1,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
 
@@ -327,7 +332,8 @@ public class RunwaySafetyAdvisorTests
                     NodeId = 1,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
 

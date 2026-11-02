@@ -541,7 +541,8 @@ public sealed class QuickCommandSimAcceptanceTests
                     NodeId = bar.Id,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28R",
-                }
+                },
+                HoldShortArrival.HeldShort
             ),
             _ => new ClearRunwayPhase(0, 0),
         };

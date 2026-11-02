@@ -123,7 +123,8 @@ public class ScenarioExporterTests
                     NodeId = 10,
                     Reason = HoldShortReason.DestinationRunway,
                     TargetName = "28L",
-                }
+                },
+                HoldShortArrival.HeldShort
             )
         );
 

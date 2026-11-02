@@ -353,7 +353,7 @@ public class GroundConflictRunwayRankTests
             TargetName = "33",
         };
         AircraftState holder = RunwayOccupancyTests.SquareToTheMarking(oak.Runway, oak.Bar, "B738", facingRunway: false, 20.0, 0.0);
-        Attach(holder, new HoldingShortPhase(holdShort), oak.Runway);
+        Attach(holder, new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort), oak.Runway);
         var body = AircraftBody.Of("B738");
         double tailFt = RunwayHoldBars.CentrelineFt(oak.Runway, body.PointOf(AircraftBodyPart.Tail, holder.Position, holder.TrueHeading.Degrees));
         double barFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position);

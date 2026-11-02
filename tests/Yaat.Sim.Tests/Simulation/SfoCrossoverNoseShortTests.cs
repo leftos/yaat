@@ -723,7 +723,7 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
             "UAL1",
             type,
             (placement, heading),
-            new HoldingShortPhase(holdShort)
+            new HoldingShortPhase(holdShort, HoldShortArrival.HeldShort)
         );
         Assert.NotNull(aircraft.Phases);
         aircraft.Phases.AssignedRunway = NavigationDatabase.Instance.GetRunway("SFO", "28R");

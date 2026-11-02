@@ -70,7 +70,7 @@ public class SfoGateD12LeadInFromATests(ITestOutputHelper output)
             "SKW1222",
             "E75L",
             (holdNode, HeldShortOfKOnB.Heading),
-            new HoldingShortPhase(hold)
+            new HoldingShortPhase(hold, HoldShortArrival.HeldShort)
         );
         aircraft.Position = HeldShortOfKOnB.Position;
         aircraft.Ground.CurrentTaxiway = "B";

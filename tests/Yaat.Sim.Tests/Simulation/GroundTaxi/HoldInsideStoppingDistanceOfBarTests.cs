@@ -602,8 +602,9 @@ public class HoldInsideStoppingDistanceOfBarTests
 
     /// <summary>
     /// Re-routed onto a route starting on the 33 bar's node and cleared across at once (<c>CROSS 33</c>), the B738 is told
-    /// <c>HS 33</c> a second later, its nose still over the bar's marking: the re-armed start bar stops it at the firm rate and
-    /// it holds short, the same whether the run goes on live or is rewound part-way through the stop.
+    /// <c>HS 33</c> a second later, its nose still over the bar's marking: the re-armed start bar stops it at the firm rate, at
+    /// rest past the bar's point, so it holds there judged beyond the bar, the same whether the run goes on live or is rewound
+    /// part-way through the stop.
     /// </summary>
     [Fact]
     public void StartBarReArmedByHs_HoldsTheSameLiveAndAfterRewind()
@@ -618,8 +619,25 @@ public class HoldInsideStoppingDistanceOfBarTests
         Outcome rewound = Assert.IsType<Outcome>(Run(reArmed with { RewindMidStop = true }));
         Assert.True(rewound.Rewound, $"the {Jet} was never rewound below {RewindBelowKts:F0} kt while taxiing");
         Assert.True(live.RouteStartsAtBar, $"{ReRoute} did not start the route on the runway {CrossedRunway} bar's node");
-        Assert.IsType<HoldingShortPhase>(live.Aircraft.Phases?.CurrentPhase);
-        Assert.IsType<HoldingShortPhase>(rewound.Aircraft.Phases?.CurrentPhase);
+        HoldingShortPhase liveHold = Assert.IsType<HoldingShortPhase>(live.Aircraft.Phases?.CurrentPhase);
+        HoldingShortPhase rewoundHold = Assert.IsType<HoldingShortPhase>(rewound.Aircraft.Phases?.CurrentPhase);
+        Assert.Equal(liveHold.Arrival, rewoundHold.Arrival);
+        _output.WriteLine(
+            $"start-node bar: {PastHoldShortPointAtRest(live, liveHold)}, arrival {liveHold.Arrival}; rewound "
+                + $"{PastHoldShortPointAtRest(rewound, rewoundHold)}, arrival {rewoundHold.Arrival}"
+        );
+    }
+
+    /// <summary>
+    /// What <see cref="TaxiingPhase.PastHoldShortPointFt"/> reads at rest against the phase's bar: the start-node measure the hold's
+    /// verdict came from (a bar no segment ahead leads to is measured from its point along the segment that leaves its node).
+    /// </summary>
+    private string PastHoldShortPointAtRest(Outcome outcome, HoldingShortPhase hold)
+    {
+        AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(outcome.Aircraft.Ground.Layout);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(outcome.Aircraft.Ground.AssignedTaxiRoute);
+        double pastFt = TaxiingPhase.PastHoldShortPointFt(layout, route, outcome.Aircraft.Position, hold.HoldShort);
+        return $"{pastFt:F1} ft past the bar's point";
     }
 
     /// <summary>The last-resort dead stop short of the 33 marking warns that it stopped dead short of the line, never past it.</summary>

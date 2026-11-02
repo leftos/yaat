@@ -758,6 +758,7 @@ public sealed class TaxiRoute
                     TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                     Unable = hs.Unable,
                     StopMoved = hs.StopMoved ? true : null,
+                    WindowJudged = hs.WindowJudged ? true : null,
                     EndsNoDestinationRoute = hs.EndsNoDestinationRoute,
                 }),
             ],
@@ -848,6 +849,7 @@ public sealed class TaxiRoute
                         TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                         Unable = hs.Unable,
                         StopMoved = hs.StopMoved == true,
+                        WindowJudged = hs.WindowJudged == true,
                         EndsNoDestinationRoute = hs.EndsNoDestinationRoute,
                     }
                 );
@@ -948,12 +950,21 @@ public sealed class HoldShortPoint
     public bool Unable { get; set; }
 
     /// <summary>
-    /// True once the taxi phase has moved this <see cref="Unable"/> bar's stop forward to the point the aircraft can
-    /// reach. Kept on the bar rather than the phase so the stop is moved once per bar: a later taxi phase over the same
-    /// route — a follow resuming its assigned route, a restore — would otherwise project it again from wherever the
-    /// aircraft then stands.
+    /// True once the taxi phase has moved this bar's stop forward to the point the aircraft can reach: an
+    /// <see cref="Unable"/> bar's, or a makeable taxiway bar's whose firm-rate stop lies past its set-back stop but short of the
+    /// crossed taxiway's wingtip envelope. Kept on the bar rather than the phase so the stop is moved once per bar: a later taxi
+    /// phase over the same route — a follow resuming its assigned route, a restore — would otherwise project it again from
+    /// wherever the aircraft then stands.
     /// </summary>
     public bool StopMoved { get; set; }
+
+    /// <summary>
+    /// True once the taxi phase has judged this bar against the crossed taxiway's wingtip envelope window, on the tick it was first
+    /// the first uncleared bar ahead, whatever the verdict. Kept on the bar for the reason <see cref="StopMoved"/> is: a later
+    /// taxi phase over the same route would otherwise judge it again near the bar, where the last feet of a routine stop read as
+    /// inside the flown stop.
+    /// </summary>
+    public bool WindowJudged { get; set; }
 
     /// <summary>
     /// When this taxiway hold-short sits within a fuselage length past a runway the route crosses, the

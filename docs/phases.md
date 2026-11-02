@@ -194,6 +194,8 @@ The rest are `HelicopterApproachPhase` (LAND @spot from off the airport: hold al
 
 `HoldingShortPhase` accepts `FOLLOWG` at every bar. At a bar that protects a runway (`ProtectsARunway`) the follow is **armed**: `GroundCommandHandler.ArmFollowBehindRunwayHold` keeps the hold and leaves [hold, `FollowingPhase`], because following is not a crossing clearance (7110.65 §3-7-2d requires the crossing clearance in addition).
 
+`HoldingShortPhase` takes a `HoldShortArrival` from whoever inserts it (`TaxiingPhase.ArrivalAt`, `FollowingPhase`) that picks its report: held short reads "holding short of X at T"; a hold beyond the point reads "unable to hold short of X, holding position on T" (no unable call made) or "holding position on T" (after it; a runway bar adds ", not clear of runway X", a `RouteIncomplete` bar ", request further taxi") ([ground/hold-short-placement.md](ground/hold-short-placement.md) § Unable).
+
 `CROSS` then puts a `CrossingRunwayPhase` in front of the follow — built from the route when it resumes from this bar, else over its own synthetic path (`CrossingRunwayPhase.OverOwnPath`, snapshotted as `OwnPath`), never replacing `AssignedTaxiRoute`, so the follower's departure bar still files as `DestinationRunway`; the runways that `CROSS` cleared ride on the `FollowingPhase` (`CrossingClearedRunways`), which does not stop at their bars.
 
 `RES` at an armed runway bar is refused in `CommandDispatcher`, and `FOLLOWG` at a departure bar whose route is incomplete is refused (`LUAW`/`CTO` only).

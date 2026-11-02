@@ -2713,6 +2713,55 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// Pilot report on taking a hold beyond its hold-short point with no unable call made for it: "unable to hold short of A,
+    /// holding position on C". The target is named as the unable readback names it
+    /// (<see cref="PhraseologyVerbalizer.RenderHoldShortTarget(HoldShortTarget, bool)"/>: "runway 28R", "alpha"), the taxiway the
+    /// aircraft stands on spelled (<see cref="PhraseologyVerbalizer.SpellTaxiway"/>). With no movement-area taxiway to name the
+    /// clause ends at "holding position". With <paramref name="requestFurtherTaxi"/> (the end of a route that could not reach its
+    /// destination) it ends asking for the rest of the way: ", request further taxi" (AIM 4-4-1.b).
+    /// </summary>
+    public static PilotSpeechText BuildUnableToHoldShortHoldingPosition(
+        AircraftState aircraft,
+        HoldShortTarget target,
+        string? onTaxiway,
+        bool requestFurtherTaxi
+    )
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string terminalTarget = PhraseologyVerbalizer.RenderHoldShortTarget(target, spoken: false);
+        string spokenTarget = PhraseologyVerbalizer.RenderHoldShortTarget(target, spoken: true);
+        string request = requestFurtherTaxi ? ", request further taxi" : "";
+        return new PilotSpeechText(
+            $"unable to hold short of {terminalTarget}, {HoldingPositionClause(onTaxiway, spoken: false)}{request}.",
+            $"{spoken}, unable to hold short of {spokenTarget}, {HoldingPositionClause(onTaxiway, spoken: true)}{request}."
+        );
+    }
+
+    /// <summary>
+    /// Pilot report on taking a hold after the unable call was made for it: "holding position on B". At a runway bar it names the
+    /// runway it is not clear of by <paramref name="notClearOfRunway"/>, one end: "holding position on B, not clear of runway
+    /// 28R" (AIM 2-3-5.a.1), worded as <see cref="BuildHoldingPositionNotClear(AircraftState, string)"/> words it. With no
+    /// movement-area taxiway to name it is "holding position". With <paramref name="requestFurtherTaxi"/> it ends
+    /// ", request further taxi".
+    /// </summary>
+    public static PilotSpeechText BuildHoldingPositionOn(AircraftState aircraft, string? onTaxiway, string? notClearOfRunway, bool requestFurtherTaxi)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string request = requestFurtherTaxi ? ", request further taxi" : "";
+        string notClear = notClearOfRunway is { } runway ? $", not clear of runway {PhraseologyVerbalizer.CompactRunway(runway)}" : "";
+        string notClearSpoken = notClearOfRunway is { } said ? $", not clear of runway {PhraseologyVerbalizer.SpellRunway(said)}" : "";
+        return new PilotSpeechText(
+            $"{HoldingPositionClause(onTaxiway, spoken: false)}{notClear}{request}.",
+            $"{spoken}, {HoldingPositionClause(onTaxiway, spoken: true)}{notClearSpoken}{request}."
+        );
+    }
+
+    private static string HoldingPositionClause(string? onTaxiway, bool spoken) =>
+        onTaxiway is null ? "holding position"
+        : spoken ? $"holding position on {PhraseologyVerbalizer.SpellTaxiway(onTaxiway)}"
+        : $"holding position on {onTaxiway}";
+
+    /// <summary>
     /// Pilot transmission when the aircraft is holding short of a runway prior to a runway crossing.
     /// </summary>
     public static PilotSpeechText BuildHoldingShortCrossing(AircraftState aircraft, string runwayId)
