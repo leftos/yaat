@@ -32,7 +32,7 @@
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [/] YAAT-1428 Handle a CTO naming a different runway while holding short of a taxiway (intersection, crossing or query) · release vNext
 - [ ] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer
-- [ ] YAAT-1678 Speak a crossing runway by the end parallel to the aircraft's runway when none is active
+- [ ] YAAT-1678 Speak a crossing runway by the end parallel to the aircraft's runway when none is active · release vNext
 - [ ] YAAT-1679 Read back 'at {taxiway}' when CTO RWY departs from a runway crossing hold
 - [ ] YAAT-1681 Runway-change warning says 'taxi clearance' when a CTO changed the runway
 
@@ -617,7 +617,7 @@
 
 ## Speed control and performance limits
 
-### 1 Defects (3/29 done)
+### 1 Defects (5/31 done)
 - [ ] YAAT-188 Cap descent by angle in UpdateDescentPlanning
 - [ ] YAAT-190 Use one snap tolerance in FlightPhysics.BoundsCorrectionTarget
 - [ ] YAAT-853 Refuse a rolling takeoff to a Super or heavy that has no aircraft profile (A388, A225, IL76, KC10)
@@ -628,10 +628,8 @@
 - [ ] YAAT-967 Stop a crossing-speed revert from overriding a later SPD
 - [ ] YAAT-1386 Stop a crossing restriction's speed revert overwriting a newer SPD or RNS when the fix is passed
 - [ ] YAAT-1397 Make AircraftCategorization.Categorize fail loudly on unloaded aircraft tables instead of returning Jet
-- [/] YAAT-1422 Hand a descending Mach hold over to an IAS at the crossover instead of riding Vmo (MACH .78 then DM 110) · release vNext
 - [ ] YAAT-1441 Use the profile landing speed (APD Vat) as approach speed and minimum for types with no FAA approach speed (C-5M flies final at 168) · release vNext+1
 - [ ] YAAT-1442 Keep DH8C under its TCDS Vmo and pin DH8D's Mmo at M0.60 · release vNext+1
-- [/] YAAT-1445 Clear a MACH hold when CFIX, DCTF or Warp replaces the speed · release vNext
 - [ ] YAAT-1446 Drop a crossing fix's pending speed revert when a later SPD, MACH, RNS or DSR is given · release vNext+1
 - [ ] YAAT-1448 Keep a speed assigned during a maneuver when ManeuverSpeedController restores a null prior target · release vNext+1
 - [ ] YAAT-1451 Skip a crossing fix's speed revert in a hold or inside the final gate (7110.65 5-7-1.b) · release vNext+1
@@ -644,8 +642,10 @@
 - [ ] YAAT-1653 Find why an OAKES3 arrival accelerates from 280 to 293 kt after DVIA, DSR, RPS before GRUDG's slowdown
 - [ ] YAAT-1660 Leave a later fix's at-or-below speed to the planner when the previous fix sequences
 - [ ] YAAT-1675 Keep the SMAX re-arm when DEPART rebuilds a fix that carries it
+- [ ] YAAT-1684 Plan a published-speed slowdown with a descent-aware deceleration lead
+- [ ] YAAT-1686 Decide whether a DCT or unconstrained DCTF ends a pending Mach revert
 
-### 2 Refinements and rulings (0/11 done)
+### 2 Refinements and rulings (0/12 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
 - [ ] YAAT-1430 Refine the speed-envelope unable: 5 kt rounding, Mach answers in Mach, same-block altitude · release vNext+2
@@ -657,10 +657,12 @@
 - [ ] YAAT-1584 Correct rotation speeds that stay on raw profile data when the approach speed comes from the ACD (PC12 Vr 110)
 - [ ] YAAT-1607 Advise unable when a climb puts an assigned speed above Vmo/Mmo
 - [ ] YAAT-1619 Clear the controller-issued speed flags when a phase ends a bound with its assignment; keep a controller ceiling above 200 through a procedure turn
+- [ ] YAAT-1685 Look past an already-met at-or-below speed fix when planning the next slowdown
 
-### 3 Hygiene and tests (0/2 done)
+### 3 Hygiene and tests (0/3 done)
 - [ ] YAAT-117 Split FlightPhysics.UpdateSpeed into layer helpers (complexity ≤8)
 - [ ] YAAT-1682 Split FlightPhysics.UpdateNavigation under the 100-line limit
+- [ ] YAAT-1687 Split ApplyConstrainedForceDirectTo and DispatchCrossFix under 100 lines
 
 ### No milestone
 - [ ] YAAT-1523 Apply or refuse an SPD/MACH given beside CTO in a phase-handled block instead of dropping it silently
@@ -688,13 +690,14 @@
 - [ ] YAAT-1659 Stop the route planner flying published STAR altitudes without a via clearance (JARR climbs to 23,000; climbs after CFIX+CAPP)
 - [ ] YAAT-1662 End the non-via climb scan at a met ceiling (AtOrBelow at its altitude, Between at its top)
 
-### 2 Refinements and rulings (0/6 done)
+### 2 Refinements and rulings (0/7 done)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
 - [ ] YAAT-965 Restore STAR restrictions without guessing a runway transition
 - [ ] YAAT-977 Decide what a departure does when vectored off a SID after a climb via
 - [ ] YAAT-979 Read back restated crossing restrictions in climb-via and descend-via check-ins
 - [ ] YAAT-981 Warn when CVIA is issued on a SID with no top altitude
 - [ ] YAAT-1479 Cancel a climb via when a SID departure is vectored off the procedure
+- [ ] YAAT-1693 IFR arrival requests lower at its top of descent when not given DVIA or DM
 
 ### 3 Hygiene and tests (0/3 done)
 - [ ] YAAT-983 Read the active op config's SID top altitude before the others
@@ -791,7 +794,7 @@
 
 ## Navigation data and route geometry
 
-### 1 Defects (0/8 done)
+### 1 Defects (0/9 done)
 - [ ] YAAT-676 Make a JAWY intercept planned with no airway fix behind the aircraft fire
 - [ ] YAAT-479 Load CIFP approaches for airports whose ident is a three-character FAA LID
 - [ ] YAAT-627 Show 360, not 000, for a magnetic heading of exactly 0.5 degrees
@@ -800,6 +803,7 @@
 - [ ] YAAT-934 Check FRD anchors whose position and declination come from different fixes
 - [ ] YAAT-953 Make GeoMath's point projection agree with its great-circle distance
 - [ ] YAAT-1664 Find CIFP approaches at airports with a 3-character FAA id (12J, 6R1, F00: GetApproach prefixes K)
+- [ ] YAAT-1688 Keep the offline CIFP stale-cache fallback to cycle-named files
 
 ### 2 Refinements and rulings (0/4 done)
 - [ ] YAAT-133 Fly direct to the destination after the last route fix, then hold
@@ -859,7 +863,7 @@
 
 ## Solo training: simulated controllers and call-ups
 
-### 1 Defects (1/13 done)
+### 1 Defects (1/14 done)
 - [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm
@@ -872,6 +876,7 @@
 - [ ] YAAT-1226 Solo Safety warns a ground student about two simulated-tower arrivals
 - [ ] YAAT-1492 Voice every solo SAY answer, typed or deferred (typed ones are flushed unspoken)
 - [ ] YAAT-1496 Count the controller's instruction in a contact read-back's load band; route CT, FCA and pattern-size read-backs whenever someone answers
+- [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C
 
 ### 2 Refinements and rulings (2/12 done)
 - [ ] YAAT-1545 Route each pilot report, check-in and readback to the position the pilot is tuned to, not a hardcoded Ground/Tower set · release vNext+2
@@ -1111,12 +1116,13 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (4/9 done)
+### 1 Defects (4/10 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-305 UI tests: AppLifetime.IsShuttingDown never resets after a MainWindow close · release vNext+1
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
 - [/] YAAT-1655 Make test runs independent of the user cache's NavData cycle; report the CIFP cycle actually used · release vNext
+- [ ] YAAT-1689 Make tools/tests collect: add brotli to the dev dependencies
 
 ### 2 Refinements and rulings (0/4 done)
 - [ ] YAAT-559 Add every vNAS training airport with a real ground layout to the test data
@@ -1124,7 +1130,7 @@
 - [ ] YAAT-1439 Stop AIRAC cycle changes from silently re-staging tests: pin the test CIFP cycle or guard the procedures tests rely on · release vNext+2
 - [ ] YAAT-1478 Count soak completions per episode instead of reading the debrief's 500-record removal list
 
-### 3 Hygiene and tests (1/52 done)
+### 3 Hygiene and tests (1/53 done)
 - [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
 - [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
 - [ ] YAAT-152 Test SoakRunner option parsing (move it into Yaat.Server/Soak)
@@ -1176,6 +1182,7 @@
 - [ ] YAAT-1416 Keep TaxiStartsOnOccupiedTaxiwayTests' FarSideBar walk on the stub's taxiway (OAK W2 bar 51 reaches W1 bar 41) · release vNext+2
 - [ ] YAAT-1457 Move the remaining OAK test selectors off node ids, ordinals and arc display names; add bug_bundle.py remap · release vNext+2
 - [ ] YAAT-1613 Share the client ground-route test setup and scope its navdata overrides
+- [ ] YAAT-1691 Refuse a pinned TestVnasData resolve after an unpinned one already ran
 
 ## Docs, agent tooling and repo hygiene
 
@@ -1194,7 +1201,7 @@
 - [ ] YAAT-1645 Brief rule: find and prove a red-first test's staging before dispatch
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (0/62 done)
+### 3 Hygiene and tests (0/63 done)
 - [ ] YAAT-57 Re-cite docs/ground/pathfinder.md by symbol, not line
 - [ ] YAAT-63 Fix the LAHSO section of docs/landing-and-runway-exit.md: CANCLAND → CLC
 - [ ] YAAT-75 Rewrite the Legacy Fillet Arc Generator section; rehome the collinear rule
@@ -1257,6 +1264,7 @@
 - [ ] YAAT-1622 Pin GuideCapture's CRC alias folder so a capture never reads the machine's CRC install
 - [ ] YAAT-1651 Repoint issue descriptions that link retired plan files
 - [ ] YAAT-1658 Move the yaat-nextup orchestration rules into docs/agents/orchestrator.md (CC-567)
+- [ ] YAAT-1690 Use tools/airac.py in stash-procedure.py instead of its own cycle math
 
 ### No milestone
 - [ ] YAAT-1487 Run yaat-server's prek format hooks through the gate check-only so commits leave the heavy slot (GATE-449)
