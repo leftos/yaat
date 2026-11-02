@@ -131,6 +131,36 @@ public static class RunwayTailClearance
     )
     {
         RunwayIdentifier other = bar.RunwayId ?? throw new ArgumentException($"node {bar.Id} is not a runway hold-short", nameof(bar));
+        return HeldShortRunwayEnd(layout, other, reference, aircraft, activeRunways);
+    }
+
+    /// <summary>
+    /// <see cref="HeldShortRunwayEnd(AirportGroundLayout, GroundNode, RunwayInfo?, AircraftState, ActiveRunways)"/> for a runway
+    /// named by its target (<c>28R/10L</c>, a hold short's or a route crossing's target name) rather than by a bar node: its
+    /// active end, else the end within 45° of <paramref name="reference"/>, else the end nearest the aircraft.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="targetName">The runway's id, combined or single.</param>
+    /// <param name="reference">The aircraft's own runway end, when known.</param>
+    /// <param name="aircraft">The aircraft naming the runway.</param>
+    /// <param name="activeRunways">The room's active runways.</param>
+    /// <returns>The display designator.</returns>
+    public static string HeldShortRunwayEnd(
+        AirportGroundLayout layout,
+        string targetName,
+        RunwayInfo? reference,
+        AircraftState aircraft,
+        ActiveRunways activeRunways
+    ) => HeldShortRunwayEnd(layout, RunwayIdentifier.Parse(targetName), reference, aircraft, activeRunways);
+
+    private static string HeldShortRunwayEnd(
+        AirportGroundLayout layout,
+        RunwayIdentifier other,
+        RunwayInfo? reference,
+        AircraftState aircraft,
+        ActiveRunways activeRunways
+    )
+    {
         NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
         RunwayInfo? end1 = db?.GetRunway(layout.AirportId, other.End1);
         RunwayInfo? end2 = db?.GetRunway(layout.AirportId, other.End2);

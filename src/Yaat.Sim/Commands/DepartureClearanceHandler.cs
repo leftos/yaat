@@ -65,13 +65,14 @@ internal static class DepartureClearanceHandler
     }
 
     /// <summary>
-    /// A takeoff clearance that may name a runway (<see cref="ClearedForTakeoffCommand.Runway"/>), cleared by
-    /// <paramref name="clear"/> as a bare one once the named runway is judged. At a taxiway hold short the implicit taxi there judges
-    /// it (<see cref="TakeoffFromTaxiwayHold"/>), so the clearance goes ahead. At the hold short of a runway crossed on the way to
-    /// the assigned one, <see cref="JudgeAtCrossingHold"/> judges it. Anywhere else (lined up, at a runway hold short, taxiing) it is
-    /// matched end for end against the reference runway: the assigned runway, else the runway held short of, else the runway the taxi
-    /// route departs from. A different end draws the pilot's query ("confirm runway 28L? we're lined up on runway 28R") and nothing
-    /// changes; with no reference runway the clearance goes ahead and the named runway is assigned once it succeeds.
+    /// A takeoff or line-up-and-wait clearance that may name a runway (<see cref="ClearedForTakeoffCommand.Runway"/>,
+    /// <see cref="LineUpAndWaitCommand.Runway"/>), cleared by <paramref name="clear"/> as a bare one once the named runway is judged.
+    /// At a taxiway hold short the implicit taxi there judges it (<see cref="TakeoffFromTaxiwayHold"/>), so the clearance goes ahead.
+    /// At the hold short of a runway crossed on the way to the assigned one, <see cref="JudgeAtCrossingHold"/> judges it. Anywhere
+    /// else (lined up, at a runway hold short, taxiing) it is matched end for end against the reference runway: the assigned runway,
+    /// else the runway held short of, else the runway the taxi route departs from. A different end draws the pilot's query
+    /// ("confirm runway 28L? we're lined up on runway 28R") and nothing changes; with no reference runway the clearance goes ahead
+    /// and the named runway is assigned once it succeeds.
     /// </summary>
     internal static CommandResult ClearNamingRunway(
         string? namedRunway,
@@ -105,8 +106,8 @@ internal static class DepartureClearanceHandler
         (currentPhase is HoldingShortPhase) && (GroundCommandHandler.HeldShortTaxiway(aircraft) is not null);
 
     /// <summary>
-    /// A takeoff clearance naming <paramref name="namedRunway"/> with no reference runway to match it against: cleared by
-    /// <paramref name="clear"/>, and the named runway becomes the assigned and departure runway once the clearance succeeds.
+    /// A takeoff or line-up-and-wait clearance naming <paramref name="namedRunway"/> with no reference runway to match it against:
+    /// cleared by <paramref name="clear"/>, and the named runway becomes the assigned and departure runway once the clearance succeeds.
     /// </summary>
     private static CommandResult ClearAndAssignNamedRunway(string namedRunway, AircraftState aircraft, Func<CommandResult> clear)
     {
@@ -154,10 +155,10 @@ internal static class DepartureClearanceHandler
             : null;
 
     /// <summary>
-    /// A takeoff clearance naming <paramref name="namedRunway"/> at the hold short of a runway crossed on the way to the assigned runway
-    /// (7110.65 3-9-10.d/.e): the crossed runway is the intersection departure, and the clearance goes ahead (null); the assigned
-    /// runway beyond needs the crossing the clearance does not include, so the pilot says unable; any other runway draws the pilot's
-    /// query. Nothing changes on a refusal.
+    /// A takeoff or line-up-and-wait clearance naming <paramref name="namedRunway"/> at the hold short of a runway crossed on the way
+    /// to the assigned runway (7110.65 3-9-10.d/.e): the crossed runway is the intersection departure, and the clearance goes ahead
+    /// (null); the assigned runway beyond needs the crossing the clearance does not include, so the pilot says unable; any other runway
+    /// draws the pilot's query. Nothing changes on a refusal.
     /// </summary>
     private static CommandResult? JudgeAtCrossingHold(
         AircraftState aircraft,
@@ -174,8 +175,8 @@ internal static class DepartureClearanceHandler
         }
 
         string heldTarget = holding.HoldShort.TargetName ?? crossing.Crossed.Designator;
-        string heldEnd = RunwayCrossingEnd.Spoken(aircraft, heldTarget, aircraft.Ground.Layout, activeRunways);
         RunwayInfo assigned = crossing.Assigned;
+        string heldEnd = CrossingRunwayEnd(aircraft, heldTarget, assigned, activeRunways);
         if (named.Overlaps(assigned.Id))
         {
             PilotSpeechText unable = PilotResponder.BuildUnableNeedToCrossRunway(aircraft, heldEnd, taxiway: null);
@@ -313,8 +314,9 @@ internal static class DepartureClearanceHandler
     /// (<see cref="TakeoffFromTaxiwayHold"/>): the world's aircraft and the room's active runways.
     /// </param>
     /// <param name="requestedRunway">
-    /// The runway a takeoff clearance names (<see cref="ClearedForTakeoffCommand.Runway"/>), or null. Only a clearance at a taxiway
-    /// hold short reads it (<see cref="TakeoffFromTaxiwayHold"/>); elsewhere <see cref="QueryNamedTakeoffRunway"/> has judged it.
+    /// The runway a takeoff or line-up-and-wait clearance names (<see cref="ClearedForTakeoffCommand.Runway"/>,
+    /// <see cref="LineUpAndWaitCommand.Runway"/>), or null. Only a clearance at a hold short reads it (<see cref="TakeoffFromTaxiwayHold"/>,
+    /// <see cref="LineUpFromHoldShort"/>); elsewhere <see cref="ClearNamingRunway"/> has judged it.
     /// </param>
     internal static CommandResult TryDepartureClearance(
         AircraftState aircraft,
@@ -331,7 +333,7 @@ internal static class DepartureClearanceHandler
         CommandResult result = TryDepartureClearanceCore(
             aircraft,
             currentPhase,
-            new DepartureRequest(clearanceType, departure, assignedAltitude, requestedRunway),
+            new DepartureRequest(clearanceType, departure, assignedAltitude, requestedRunway, ctx.CrossingsClearedInTransmission ?? []),
             ctx.GroundLayout,
             taxiDispatch,
             logger,
@@ -377,12 +379,17 @@ internal static class DepartureClearanceHandler
         return result;
     }
 
-    /// <summary>A departure clearance as issued: its type, departure instruction, altitude and named runway.</summary>
+    /// <summary>
+    /// A departure clearance as issued: its type, departure instruction, altitude and named runway, and the runways a CROSS earlier
+    /// in its transmission cleared (<see cref="DispatchContext.CrossingsClearedInTransmission"/>), which its implicit taxi from a
+    /// taxiway hold short crosses.
+    /// </summary>
     private sealed record DepartureRequest(
         ClearanceType ClearanceType,
         DepartureInstruction Departure,
         int? AssignedAltitude,
-        string? RequestedRunway
+        string? RequestedRunway,
+        IReadOnlyList<string> CrossingsCleared
     );
 
     private static CommandResult TryDepartureClearanceCore(
@@ -395,20 +402,10 @@ internal static class DepartureClearanceHandler
         ActiveRunways activeRunways
     )
     {
-        (ClearanceType clearanceType, DepartureInstruction departure, int? assignedAltitude, string? requestedRunway) = request;
+        (ClearanceType clearanceType, DepartureInstruction departure, int? assignedAltitude, _, _) = request;
         if (currentPhase is HoldingShortPhase holding)
         {
-            return LineUpFromHoldShort(
-                aircraft,
-                holding,
-                clearanceType,
-                departure,
-                assignedAltitude,
-                requestedRunway,
-                taxiDispatch,
-                logger,
-                activeRunways
-            );
+            return LineUpFromHoldShort(aircraft, holding, request, taxiDispatch, logger, activeRunways);
         }
 
         // A crossing on the way to the route's destination runway is the same rolling situation as
@@ -449,18 +446,16 @@ internal static class DepartureClearanceHandler
         return new CommandResult(false, "Line up and wait requires aircraft to be taxiing or holding short");
     }
 
-    internal static CommandResult LineUpFromHoldShort(
+    private static CommandResult LineUpFromHoldShort(
         AircraftState aircraft,
         HoldingShortPhase holding,
-        ClearanceType clearanceType,
-        DepartureInstruction departure,
-        int? assignedAltitude,
-        string? requestedRunway,
+        DepartureRequest request,
         GroundCommandHandler.TaxiDispatch taxiDispatch,
         ILogger logger,
         ActiveRunways activeRunways
     )
     {
+        (ClearanceType clearanceType, DepartureInstruction departure, int? assignedAltitude, string? requestedRunway, _) = request;
         string? runwayId = holding.HoldShort.TargetName;
         if (runwayId is null)
         {
@@ -470,19 +465,17 @@ internal static class DepartureClearanceHandler
         RunwayInfo? runway = CommandDispatcher.ResolveRunway(aircraft, runwayId);
         if (runway is null)
         {
-            // Target is a taxiway (e.g., "HS E"), not a runway. A CTO there, or a LUAW with a runway assigned, taxis onto it.
+            // Target is a taxiway (e.g., "HS E"), not a runway. A CTO there, or a LUAW with a runway assigned or named, taxis onto it.
             if (
                 (GroundCommandHandler.HeldShortTaxiway(aircraft) is { } heldTaxiway)
-                && ((clearanceType == ClearanceType.ClearedForTakeoff) || (aircraft.Phases?.AssignedRunway is not null))
+                && (
+                    (clearanceType == ClearanceType.ClearedForTakeoff)
+                    || (aircraft.Phases?.AssignedRunway is not null)
+                    || (requestedRunway is not null)
+                )
             )
             {
-                return TakeoffFromTaxiwayHold(
-                    aircraft,
-                    heldTaxiway,
-                    new DepartureRequest(clearanceType, departure, assignedAltitude, requestedRunway),
-                    taxiDispatch,
-                    logger
-                );
+                return TakeoffFromTaxiwayHold(aircraft, heldTaxiway, request, taxiDispatch, logger);
             }
 
             // Clear the hold-short and store the departure clearance so the
@@ -494,7 +487,7 @@ internal static class DepartureClearanceHandler
         // If the controller previously assigned a specific runway end (via RWY command) and it refers
         // to the same physical runway as the hold-short, respect that assignment. This preserves the
         // controller's explicit direction (e.g., RWY 01R at SFO when hold-short TargetName is "1R").
-        // A takeoff clearance naming this runway (judged by ClearNamingRunway: at a crossing hold, the crossed runway as an
+        // A takeoff or line-up clearance naming this runway (judged by ClearNamingRunway: at a crossing hold, the crossed runway as an
         // intersection departure) departs the end it names.
         if (
             (requestedRunway is not null)
@@ -539,7 +532,7 @@ internal static class DepartureClearanceHandler
     /// for the taxi machinery to line up (and depart) there. Traffic standing on that way to the runway's hold line refuses the
     /// clearance at once: the pilot says unable and stays held short. When the taxiway does not reach the assigned runway, or no
     /// runway is assigned, the aircraft stays held and the clearance is stored on its existing route; it moves on a <c>RES</c> or a
-    /// new <c>TAXI</c>. A takeoff clearance naming a runway other than the assigned one is judged by
+    /// new <c>TAXI</c>. A clearance naming a runway other than the assigned one is judged by
     /// <see cref="TakeoffOnNamedRunwayFromTaxiwayHold"/>.
     /// </summary>
     private static CommandResult TakeoffFromTaxiwayHold(
@@ -589,9 +582,10 @@ internal static class DepartureClearanceHandler
     )
     {
         // The implicit taxi keeps the crew's standing taxi instructions: a running expedite and a commanded taxi speed,
-        // which a fresh TAXI would otherwise reset. It pre-clears no runway crossing, whatever the room's auto-cross mode.
+        // which a fresh TAXI would otherwise reset. It pre-clears only the crossings its transmission cleared, whatever the room's
+        // auto-cross mode.
         double? commandedTaxiSpeedKts = aircraft.Ground.CommandedTaxiSpeedKts;
-        TaxiCommand taxi = ImplicitTaxi(aircraft, taxiway, runway);
+        TaxiCommand taxi = ImplicitTaxi(aircraft, taxiway, runway, request.CrossingsCleared);
         GroundCommandHandler.TaxiDispatch implicitTaxi = ImplicitTaxiDispatch(taxiDispatch);
         if (TrafficOnImplicitTaxi(aircraft, taxi, implicitTaxi) is { } blocked)
         {
@@ -626,8 +620,103 @@ internal static class DepartureClearanceHandler
         return null;
     }
 
-    private static TaxiCommand ImplicitTaxi(AircraftState aircraft, string taxiway, RunwayInfo runway) =>
-        new([taxiway], [], Expedite: aircraft.Ground.IsExpeditingTaxi, DestinationRunway: runway.Designator);
+    /// <summary>
+    /// <c>TAXI {taxiway} RWY {runway}</c>, keeping a running expedite, with the crossings <paramref name="crossingsCleared"/> the
+    /// clearance's transmission cleared (<see cref="DepartureRequest.CrossingsCleared"/>) as its <c>CROSS</c> runways.
+    /// </summary>
+    private static TaxiCommand ImplicitTaxi(AircraftState aircraft, string taxiway, RunwayInfo runway, IReadOnlyList<string> crossingsCleared) =>
+        new(
+            [taxiway],
+            [],
+            Expedite: aircraft.Ground.IsExpeditingTaxi,
+            DestinationRunway: runway.Designator,
+            CrossRunways: crossingsCleared.Count > 0 ? [.. crossingsCleared] : null
+        );
+
+    /// <summary>
+    /// The refusal, before anything applies, of a transmission whose CROSS runways (<paramref name="carried"/>) a takeoff or
+    /// line-up clearance at the hold short of <paramref name="taxiway"/> carries into its implicit taxi: a carried runway that is
+    /// the clearance's own runway (the one it names, else the assigned one) is no crossing, and one the implicit route never
+    /// crosses is the route's own "not applied" warning. With no runway to the clearance, or no implicit taxi resolving to it, nothing
+    /// carries the crossings and the transmission is refused too. Null when nothing is refused.
+    /// </summary>
+    /// <param name="aircraft">The aircraft held short of <paramref name="taxiway"/>.</param>
+    /// <param name="taxiway">The taxiway held short of.</param>
+    /// <param name="namedRunway">The runway the clearance names, or null.</param>
+    /// <param name="clearanceType">Takeoff or line-up and wait.</param>
+    /// <param name="carried">The runways the transmission's CROSS commands named before the clearance.</param>
+    /// <param name="taxiDispatch">How the transmission was dispatched.</param>
+    /// <returns>The refusal, or null.</returns>
+    internal static CommandResult? RefuseCarriedCrossings(
+        AircraftState aircraft,
+        string taxiway,
+        string? namedRunway,
+        ClearanceType clearanceType,
+        IReadOnlyList<string> carried,
+        GroundCommandHandler.TaxiDispatch taxiDispatch
+    )
+    {
+        RunwayInfo? runway = namedRunway is null ? aircraft.Phases?.AssignedRunway : CommandDispatcher.ResolveRunway(aircraft, namedRunway);
+        if ((runway is null) || (aircraft.Ground.Layout is not { } layout))
+        {
+            return NoRouteToCarry(carried);
+        }
+
+        string clearance = clearanceType == ClearanceType.LineUpAndWait ? "line-up" : "takeoff";
+        foreach (string crossed in carried)
+        {
+            if (RunwayIdentifier.Parse(crossed).Overlaps(runway.Id))
+            {
+                string display = RunwayIdentifier.ToDisplayDesignator(crossed);
+                return new CommandResult(false, $"CROSS {display}: {display} is the runway of the {clearance} clearance");
+            }
+        }
+
+        if (PreviewImplicitTaxi(aircraft, ImplicitTaxi(aircraft, taxiway, runway, carried), layout, taxiDispatch).Route is not { } route)
+        {
+            return NoRouteToCarry(carried);
+        }
+
+        string? notApplied = route.Warnings.Find(w =>
+            w.StartsWith("CROSS ", StringComparison.Ordinal) && w.Contains(" not applied", StringComparison.Ordinal)
+        );
+        return notApplied is null ? null : new CommandResult(false, notApplied);
+    }
+
+    /// <summary>
+    /// The refusal of carried crossings no implicit taxi can carry: the clearance has no runway, or its implicit taxi does not resolve.
+    /// Names the first carried runway.
+    /// </summary>
+    private static CommandResult NoRouteToCarry(IReadOnlyList<string> carried) =>
+        new(false, $"CROSS {RunwayIdentifier.ToDisplayDesignator(carried[0])}: no departure route to carry the crossing");
+
+    /// <summary>
+    /// The implicit taxi <paramref name="taxi"/> resolved with nothing installed and no traffic in view, its <c>CROSS</c> runways
+    /// cleared on the route as the install clears them (<see cref="GroundCommandHandler.ApplyCrossKeywords"/>).
+    /// </summary>
+    private static GroundCommandHandler.TaxiRouteResolution PreviewImplicitTaxi(
+        AircraftState aircraft,
+        TaxiCommand taxi,
+        AirportGroundLayout layout,
+        GroundCommandHandler.TaxiDispatch taxiDispatch
+    )
+    {
+        GroundCommandHandler.TaxiRouteResolution resolution = GroundCommandHandler.ResolveTaxiRouteWithFailure(
+            aircraft,
+            taxi,
+            layout,
+            ImplicitTaxiDispatch(taxiDispatch) with
+            {
+                ListAircraft = null,
+            }
+        );
+        if (resolution.Route is { } route)
+        {
+            GroundCommandHandler.ApplyCrossKeywords(route, taxi);
+        }
+
+        return resolution;
+    }
 
     private static GroundCommandHandler.TaxiDispatch ImplicitTaxiDispatch(GroundCommandHandler.TaxiDispatch taxiDispatch) =>
         taxiDispatch with
@@ -636,11 +725,11 @@ internal static class DepartureClearanceHandler
         };
 
     /// <summary>
-    /// A takeoff clearance naming runway <paramref name="named"/>, not the assigned one, given while held short of
-    /// <paramref name="taxiway"/> (7110.65 3-9-10.d/.e). The implicit taxi onto the taxiway to that runway decides it: a taxiway that
-    /// never reaches the runway's hold line draws the pilot's query; one that reaches it only across another runway, a crossing the
-    /// clearance does not include, draws the pilot's unable; one that reaches it is the intersection departure on that runway, which
-    /// becomes the assigned runway once the clearance is stored. A taxi that cannot be judged (no layout, or a refusal of another
+    /// A takeoff or line-up-and-wait clearance naming runway <paramref name="named"/>, not the assigned one, given while held short of
+    /// <paramref name="taxiway"/> (7110.65 3-9-4, 3-9-10.d/.e). The implicit taxi onto the taxiway to that runway decides it: a taxiway
+    /// that never reaches the runway's hold line draws the pilot's query; one that reaches it only across another runway, a crossing the
+    /// clearance does not include, draws the pilot's unable; one that reaches it is the intersection departure or line-up on that
+    /// runway, which becomes the assigned runway once the clearance is stored. A taxi that cannot be judged (no layout, or a refusal of another
     /// kind) or does not resolve also draws the query. A refusal or a query changes nothing.
     /// </summary>
     private static CommandResult TakeoffOnNamedRunwayFromTaxiwayHold(
@@ -658,10 +747,11 @@ internal static class DepartureClearanceHandler
         }
 
         RunwayInfo? assigned = aircraft.Phases?.AssignedRunway;
-        NamedRunwayReach reach = ClassifyNamedRunwayReach(aircraft, taxiway, runway, taxiDispatch);
+        NamedRunwayReach reach = ClassifyNamedRunwayReach(aircraft, taxiway, runway, request.CrossingsCleared, taxiDispatch);
         logger.LogDebug(
-            "{Callsign}: CTO RWY {Runway} at the hold short of {Taxiway} (assigned {Assigned}) — {Reach}",
+            "{Callsign}: {Clearance} naming {Runway} at the hold short of {Taxiway} (assigned {Assigned}) — {Reach}",
             aircraft.Callsign,
+            request.ClearanceType,
             runway.Designator,
             taxiway,
             assigned?.Designator ?? "none",
@@ -669,7 +759,7 @@ internal static class DepartureClearanceHandler
         );
         if ((reach.Kind == NamedRunwayReachKind.NeedsCrossing) && (reach.CrossingTarget is { } crossingTarget))
         {
-            string crossing = SpokenCrossingRunway(aircraft, crossingTarget, assigned, taxiDispatch.ActiveRunways);
+            string crossing = SpokenCrossingRunway(aircraft, crossingTarget, assigned, runway, taxiDispatch.ActiveRunways);
             PilotSpeechText unable = PilotResponder.BuildUnableNeedToCrossRunway(aircraft, crossing, taxiway);
             return new CommandResult(false, unable.Terminal) { PilotUnable = unable };
         }
@@ -753,6 +843,7 @@ internal static class DepartureClearanceHandler
         AircraftState aircraft,
         string taxiway,
         RunwayInfo runway,
+        IReadOnlyList<string> crossingsCleared,
         GroundCommandHandler.TaxiDispatch taxiDispatch
     )
     {
@@ -761,14 +852,11 @@ internal static class DepartureClearanceHandler
             return new NamedRunwayReach(NamedRunwayReachKind.Unjudged, null);
         }
 
-        GroundCommandHandler.TaxiRouteResolution resolution = GroundCommandHandler.ResolveTaxiRouteWithFailure(
+        GroundCommandHandler.TaxiRouteResolution resolution = PreviewImplicitTaxi(
             aircraft,
-            ImplicitTaxi(aircraft, taxiway, runway),
+            ImplicitTaxi(aircraft, taxiway, runway, crossingsCleared),
             layout,
-            ImplicitTaxiDispatch(taxiDispatch) with
-            {
-                ListAircraft = null,
-            }
+            taxiDispatch
         );
         if (resolution.Route is not { } route)
         {
@@ -796,12 +884,29 @@ internal static class DepartureClearanceHandler
 
     /// <summary>
     /// The end of the crossing's runway pair (<c>28R/10L</c>) the pilot names: the assigned runway's end when the assigned runway is
-    /// that runway, else its active end, else the end nearer the aircraft (<see cref="RunwayCrossingEnd.Spoken"/>).
+    /// that runway, else by <see cref="CrossingRunwayEnd"/> against the assigned runway, or the named one when none is assigned.
     /// </summary>
-    private static string SpokenCrossingRunway(AircraftState aircraft, string crossingTarget, RunwayInfo? assigned, ActiveRunways activeRunways) =>
+    private static string SpokenCrossingRunway(
+        AircraftState aircraft,
+        string crossingTarget,
+        RunwayInfo? assigned,
+        RunwayInfo named,
+        ActiveRunways activeRunways
+    ) =>
         (assigned is not null) && RunwayIdentifier.Parse(crossingTarget).Contains(assigned.Designator)
             ? assigned.Designator
-            : RunwayCrossingEnd.Spoken(aircraft, crossingTarget, aircraft.Ground.Layout, activeRunways);
+            : CrossingRunwayEnd(aircraft, crossingTarget, assigned ?? named, activeRunways);
+
+    /// <summary>
+    /// The end of the runway <paramref name="crossingTarget"/> the pilot names on the way to <paramref name="reference"/>: its active
+    /// end, else the end parallel to the reference runway, else the end nearer the aircraft
+    /// (<see cref="RunwayTailClearance.HeldShortRunwayEnd(AirportGroundLayout, string, RunwayInfo?, AircraftState, ActiveRunways)"/>).
+    /// With no layout, <see cref="RunwayCrossingEnd.Spoken"/>'s first end.
+    /// </summary>
+    private static string CrossingRunwayEnd(AircraftState aircraft, string crossingTarget, RunwayInfo reference, ActiveRunways activeRunways) =>
+        aircraft.Ground.Layout is { } layout
+            ? RunwayTailClearance.HeldShortRunwayEnd(layout, crossingTarget, reference, aircraft, activeRunways)
+            : RunwayCrossingEnd.Spoken(aircraft, crossingTarget, null, activeRunways);
 
     /// <summary>
     /// The nearest aircraft at rest on the ground standing on the implicit taxi's route, from where <paramref name="aircraft"/> stands

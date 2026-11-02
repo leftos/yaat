@@ -118,11 +118,27 @@ public sealed class RecordingArchive : IDisposable
         return JsonSerializer.Deserialize<Yaat.Sim.Data.Vnas.ArtccConfigRoot>(json, RecordingJsonOptions.Default);
     }
 
+    /// <summary>
+    /// Reads the recorded actions. A recording whose first snapshot predates the CTO/LUAW runway grammar
+    /// (<see cref="DepartureGrammarCanonicalRewriter.PredatesRunwayGrammar"/>) has its CTO/LUAW text rewritten by
+    /// <see cref="DepartureGrammarCanonicalRewriter"/>, so it replays as it was recorded.
+    /// </summary>
     public List<RecordedAction> ReadActions()
     {
-        return DeserializeBrotliEntry<List<RecordedAction>>("actions.json.br")
+        List<RecordedAction> actions =
+            DeserializeBrotliEntry<List<RecordedAction>>("actions.json.br")
             ?? throw new InvalidOperationException("Failed to deserialize actions from recording archive.");
+        if (ActionsPredateCtoRunwayGrammar)
+        {
+            _ = DepartureGrammarCanonicalRewriter.RewriteRecordedCommands(actions);
+        }
+
+        return actions;
     }
+
+    /// <summary>Whether the first snapshot, as written, predates the CTO/LUAW runway grammar; false when there are no snapshots.</summary>
+    private bool ActionsPredateCtoRunwayGrammar =>
+        (Manifest.Snapshots.Count > 0) && DepartureGrammarCanonicalRewriter.PredatesRunwayGrammar(FirstSnapshot.State.SchemaVersion);
 
     /// <summary>
     /// Reads the room's broadcast terminal log (<c>terminal-log.json.br</c>) — commands, responses,

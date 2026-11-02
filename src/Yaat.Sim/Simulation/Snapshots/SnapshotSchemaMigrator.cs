@@ -28,7 +28,7 @@ public static class SnapshotSchemaMigrator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("SnapshotSchemaMigrator");
 
-    public const int CurrentSchemaVersion = 41;
+    public const int CurrentSchemaVersion = 42;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -332,6 +332,10 @@ public static class SnapshotSchemaMigrator
         {
             snapshot.Scenario.ActiveAsdexAlerts?.Clear();
         }
+
+        // V41→V42: CTO/LUAW runway grammar; no snapshot data changes, the version stamps recordings so their actions are
+        //   rewritten on load (DepartureGrammarCanonicalRewriter, gated in RecordingArchive.ReadActions and
+        //   RecordingSchemaUpgrader on the first snapshot's schema).
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

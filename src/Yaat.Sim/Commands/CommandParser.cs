@@ -759,12 +759,6 @@ public static class CommandParser
                 return ParseTurnWithDirection(arg);
         }
 
-        // RWY {runway} CTO [args] → the takeoff clearance naming that runway, CTO RWY {runway} [args]
-        if ((verb == "RWY") && (arg is not null) && (RewriteRwyCtoAliasArg(arg, CommandRegistry.AliasesFor(ClearedForTakeoff)) is { } ctoArg))
-        {
-            return Parse($"CTO {ctoArg}", aircraftRoute);
-        }
-
         // RWY {runway} [TAXI] {path} → rewrite to Taxi command
         if (verb == "RWY" && arg is not null)
         {
@@ -1254,23 +1248,6 @@ public static class CommandParser
         }
 
         return int.TryParse(arg[(plusIndex + 1)..], out _);
-    }
-
-    /// <summary>
-    /// The CTO argument of the alias <c>RWY {runway} CTO [args]</c>, given the argument after <c>RWY</c>: <c>RWY {runway} [args]</c>,
-    /// so the alias is the very command <c>CTO RWY {runway} [args]</c> is. Null when the second token is not one of
-    /// <paramref name="ctoAliases"/>.
-    /// </summary>
-    internal static string? RewriteRwyCtoAliasArg(string arg, IEnumerable<string> ctoAliases)
-    {
-        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if ((tokens.Length < 2) || !ctoAliases.Contains(tokens[1], StringComparer.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        string rest = tokens.Length > 2 ? " " + string.Join(' ', tokens[2..]) : "";
-        return $"RWY {tokens[0]}{rest}";
     }
 
     /// <summary>

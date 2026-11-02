@@ -787,16 +787,6 @@ public static class CommandSchemeParser
         string verb = parts[0];
         string? arg = parts.Length > 1 ? parts[1].Trim() : null;
 
-        // RWY {runway} CTO [args] → CTO RWY {runway} [args], the same takeoff clearance
-        if (
-            string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase)
-            && (arg is not null)
-            && (CommandParser.RewriteRwyCtoAliasArg(arg, GetAliases(scheme, CanonicalCommandType.ClearedForTakeoff)) is { } ctoArg)
-        )
-        {
-            return new ParsedInput(CanonicalCommandType.ClearedForTakeoff, ctoArg);
-        }
-
         // RWY {runway} [TAXI] {path} → rewrite to Taxi with RWY keyword
         if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase) && arg is not null)
         {
@@ -1187,6 +1177,7 @@ public static class CommandSchemeParser
         {
             // Current token should be a verb — try parsing with increasing arg counts
             string? lastGood = null;
+            ParsedCommand? lastGoodCommand = null;
             int lastGoodEnd = i;
 
             for (int end = i + 1; end <= tokens.Length; end++)
@@ -1196,6 +1187,7 @@ public static class CommandSchemeParser
                 if (result.IsSuccess)
                 {
                     lastGood = candidate;
+                    lastGoodCommand = result.Value;
                     lastGoodEnd = end;
                 }
             }
@@ -1206,9 +1198,9 @@ public static class CommandSchemeParser
                 return string.Join(' ', tokens);
             }
 
-            // A takeoff clearance names its runway only right after the verb (CTO RWY 28L). CTO IMM RWY 28L is not
-            // understood rather than split into a clearance for the assigned runway and a runway reassignment.
-            if (IsTakeoffClearanceFollowedByRunway(tokens, i, lastGoodEnd))
+            // A takeoff or line-up clearance names its runway without RWY: "CTO RWY 28L" stays whole for the single-command
+            // refusal rather than splitting into a clearance on the assigned runway plus a runway reassignment.
+            if (IsTakeoffOrLineUpFollowedByRwy(lastGoodCommand, tokens, lastGoodEnd))
             {
                 return string.Join(' ', tokens);
             }
@@ -1220,10 +1212,11 @@ public static class CommandSchemeParser
         return parts.Count >= 2 ? string.Join(", ", parts) : string.Join(' ', tokens);
     }
 
-    private static bool IsTakeoffClearanceFollowedByRunway(string[] tokens, int partStart, int partEnd) =>
-        (partEnd < tokens.Length)
-        && CommandRegistry.IsAliasFor(CanonicalCommandType.ClearedForTakeoff, tokens[partStart])
-        && tokens[partEnd].Equals("RWY", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Whether <paramref name="command"/> is a takeoff or line-up clearance followed by a <c>RWY</c> token.</summary>
+    private static bool IsTakeoffOrLineUpFollowedByRwy(ParsedCommand? command, string[] tokens, int next) =>
+        (command is ClearedForTakeoffCommand or LineUpAndWaitCommand)
+        && (next < tokens.Length)
+        && string.Equals(tokens[next], "RWY", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Heuristic splitting: strict alternating verb-arg pairs where all verbs are single-arg.

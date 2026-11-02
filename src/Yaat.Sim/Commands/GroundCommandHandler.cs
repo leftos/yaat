@@ -1152,8 +1152,12 @@ public static partial class GroundCommandHandler
         return aircraft.Phases;
     }
 
-    /// <summary>Pre-clears the route's runway crossings the TAXI's <c>CROSS</c> keywords name, warning about any that crosses nothing.</summary>
-    private static void ApplyCrossKeywords(TaxiRoute route, TaxiCommand taxi)
+    /// <summary>
+    /// Pre-clears the route's runway crossings the TAXI's <c>CROSS</c> keywords name, warning about any that crosses nothing. The
+    /// install runs it on every route; a caller judging a resolved route before installing it
+    /// (<see cref="ResolveTaxiRoute"/>, which does not) runs it to read the route as the install would.
+    /// </summary>
+    internal static void ApplyCrossKeywords(TaxiRoute route, TaxiCommand taxi)
     {
         if (taxi.CrossRunways is { Count: > 0 })
         {
@@ -7013,6 +7017,84 @@ public static partial class GroundCommandHandler
                 : CrossContinuationReadback(aircraft, aircraft.Ground.AssignedTaxiRoute, ahead, CrossClearance(cross, activeRunways), layout),
         };
     }
+
+    /// <summary>
+    /// True when <paramref name="cross"/> names one runway, with no hold-short modifier, while the aircraft holds short of a
+    /// taxiway (<see cref="HeldShortTaxiway"/>) on a route that holds no hold short of that runway: the case the route's own
+    /// pre-clearance cannot serve, which <see cref="TryCrossFromTaxiwayHold"/> answers by taxiing on along the held taxiway.
+    /// </summary>
+    internal static bool CrossesFromTaxiwayHold(AircraftState aircraft, CrossRunwayCommand cross) =>
+        (cross.RunwayIds.Count == 1)
+        && (cross.HoldShorts.Count == 0)
+        && IsRunwayName(cross.RunwayIds[0])
+        && (HeldShortTaxiway(aircraft) is not null)
+        && (aircraft.ActiveOrStoredTaxiRoute is { } route)
+        && !route.HoldShortPoints.Exists(hs => HoldShortAnnotator.TargetMatches(hs.TargetName, cross.RunwayIds[0]));
+
+    /// <summary>
+    /// <c>CROSS {runway}</c> while held short of a taxiway whose route never reaches that runway
+    /// (<see cref="CrossesFromTaxiwayHold"/>): the aircraft taxis on along the held taxiway across the runway, the crossing cleared,
+    /// and holds at the route's end past the runway's far-side holding position (<c>TAXI {taxiway} CROSS {runway}</c>, whose
+    /// far-side anchor ends the route there). When the taxiway reaches another runway first, the pilot says unable, naming it;
+    /// when the taxiway does not cross the runway at all, the controller is told. Neither refusal changes anything. The taxi
+    /// keeps a commanded taxi speed and pre-clears no other crossing, whatever the room's auto-cross mode.
+    /// </summary>
+    internal static CommandResult TryCrossFromTaxiwayHold(
+        AircraftState aircraft,
+        CrossRunwayCommand cross,
+        AirportGroundLayout layout,
+        TaxiDispatch dispatch
+    )
+    {
+        string taxiway = HeldShortTaxiway(aircraft) ?? throw new InvalidOperationException($"{aircraft.Callsign} is not held short of a taxiway");
+        string target = cross.RunwayIds[0];
+        string display = RunwayIdentifier.ToDisplayDesignator(target);
+        var taxi = new TaxiCommand([taxiway], [], Expedite: cross.Expedite, CrossRunways: [target]);
+        TaxiDispatch crossDispatch = dispatch with { AutoCrossRunwayMode = AutoCrossRunwayMode.Off };
+        TaxiRoute? route = ResolveTaxiRoute(aircraft, taxi, layout, crossDispatch with { ListAircraft = null });
+        HoldShortPoint? crossing = route?.HoldShortPoints.Find(hs =>
+            (hs.Reason == HoldShortReason.RunwayCrossing) && (hs.TargetName is { } name) && RunwayIdentifier.Parse(name).Contains(target)
+        );
+        if ((route is null) || (crossing is null))
+        {
+            Log.LogDebug("{Callsign}: CROSS {Runway} held short of {Taxiway} — the taxiway does not cross it", aircraft.Callsign, display, taxiway);
+            return new CommandResult(false, $"CROSS {display}: taxiway {taxiway} does not cross runway {display}");
+        }
+
+        if (route.HoldShortPoints.TakeWhile(hs => !ReferenceEquals(hs, crossing)).FirstOrDefault(IsUnclearedRunwayCrossing) is { } first)
+        {
+            RunwayInfo? reference = aircraft.Phases?.AssignedRunway ?? CommandDispatcher.ResolveRunway(aircraft, target);
+            string firstEnd = RunwayTailClearance.HeldShortRunwayEnd(layout, first.TargetName!, reference, aircraft, dispatch.ActiveRunways);
+            PilotSpeechText unable = PilotResponder.BuildUnableNeedToCrossRunway(aircraft, firstEnd, taxiway);
+            return new CommandResult(false, unable.Terminal) { PilotUnable = unable };
+        }
+
+        double? commandedTaxiSpeedKts = aircraft.Ground.CommandedTaxiSpeedKts;
+        CommandResult result = TryTaxi(aircraft, taxi, layout, crossDispatch);
+        if (!result.Success)
+        {
+            return result;
+        }
+
+        aircraft.Ground.CommandedTaxiSpeedKts = commandedTaxiSpeedKts;
+        return result with { PilotReadback = CrossAtTaxiwayReadback(cross, taxiway), TaxiRouteReadback = null };
+    }
+
+    /// <summary>
+    /// The pilot's readback of <paramref name="cross"/> given at the hold short of <paramref name="taxiway"/>: the crossing as the
+    /// rule speaks it, and where it crosses ("cross runway 28R at J"; AIM 4-3-18.a.9.b, 4-3-18.b.1). No taxi route is read back,
+    /// since none was issued.
+    /// </summary>
+    private static HandlerReadback? CrossAtTaxiwayReadback(CrossRunwayCommand cross, string taxiway) =>
+        (PhraseologyVerbalizer.VerbalizeTerminal(cross) is { } terminal) && (PhraseologyVerbalizer.Verbalize(cross) is { } spoken)
+            ? new HandlerReadback(
+                CanonicalCommandType.CrossRunway,
+                new PilotSpeechText($"{terminal} at {taxiway}", $"{spoken} at {PhraseologyVerbalizer.SpellTaxiway(taxiway)}")
+            )
+            : null;
+
+    private static bool IsUnclearedRunwayCrossing(HoldShortPoint hs) =>
+        (hs.Reason == HoldShortReason.RunwayCrossing) && !hs.IsCleared && (hs.TargetName is not null);
 
     /// <summary>
     /// True when the aircraft is standing AT its hold short rather than still taxiing to it: the route completed

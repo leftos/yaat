@@ -327,6 +327,12 @@ public record PatternExitDeparture(PatternEntryLeg ExitLeg, PatternDirection Dir
 public record LineUpAndWaitCommand : ParsedCommand
 {
     public bool WithoutDelay { get; init; }
+
+    /// <summary>
+    /// The runway the clearance names (<c>LUAW 28L</c>, 7110.65 3-9-4), normalised, or null when it names none and the aircraft's
+    /// assigned runway is meant.
+    /// </summary>
+    public string? Runway { get; init; }
 }
 
 /// <summary>
@@ -344,7 +350,7 @@ public record ClearedForTakeoffCommand(DepartureInstruction Departure, int? Assi
     public bool Immediate { get; init; }
 
     /// <summary>
-    /// The runway the clearance names (<c>CTO RWY 28L</c>, 7110.65 3-9-10.d), normalised, or null when it names none and the
+    /// The runway the clearance names (<c>CTO 28L</c>, 7110.65 3-9-10.d), normalised, or null when it names none and the
     /// aircraft's assigned runway is meant.
     /// </summary>
     public string? Runway { get; init; }

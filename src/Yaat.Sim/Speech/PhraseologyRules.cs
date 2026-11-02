@@ -422,24 +422,29 @@ public static class PhraseologyRules
 
     private static PhraseologyRule[] TowerRules() =>
         [
-            // Line up and wait. FAA 7110.65 3-7-1 leads with the runway ("RUNWAY 28R, LINE UP AND
-            // WAIT"); the runway-suffix form mirrors ICAO. Runway capture is intentionally not
-            // reflected in the canonical — LUAW uses the aircraft's assigned takeoff runway.
-            new(["runway", "{rwy}", "line", "up", "and", "wait"], "LUAW", LineUpAndWait),
-            new(["runway", "{rwy}", "position", "and", "hold"], "LUAW", LineUpAndWait),
-            new(["line", "up", "and", "wait", "runway", "{rwy}"], "LUAW", LineUpAndWait),
+            // Line up and wait. FAA 7110.65 3-9-4 leads with the runway ("RUNWAY 28R, LINE UP AND
+            // WAIT"); the runway-suffix form mirrors ICAO. The {rwy} capture is carried as the
+            // clearance's named runway (LUAW {rwy}), judged as CTO's below.
+            new(["runway", "{rwy}", "line", "up", "and", "wait"], "LUAW {rwy}", LineUpAndWait),
+            new(["runway", "{rwy}", "position", "and", "hold"], "LUAW {rwy}", LineUpAndWait),
+            // 7110.65 3-9-4.m intersection: "RUNWAY 33 AT K, LINE UP AND WAIT"; 3-9-4.n: "RUNWAY 28L FULL LENGTH, LINE UP AND WAIT".
+            new(["runway", "{rwy}", "at", "{taxiway}", "line", "up", "and", "wait"], "LUAW {rwy}", LineUpAndWait),
+            new(["runway", "{rwy}", "full", "length", "line", "up", "and", "wait"], "LUAW {rwy}", LineUpAndWait),
+            new(["line", "up", "and", "wait", "runway", "{rwy}"], "LUAW {rwy}", LineUpAndWait),
             new(["line", "up", "and", "wait"], "LUAW", LineUpAndWait),
             new(["position", "and", "hold"], "LUAW", LineUpAndWait), // legacy US phraseology
             // Cleared for takeoff. FAA 7110.65 3-9-10 leads with the runway ("RUNWAY 28R, cleared
             // for takeoff"); ICAO phraseology trails it ("cleared for takeoff runway 28R"). The
-            // {rwy} capture is carried as the clearance's named runway (CTO RWY {rwy}): a runway that
+            // {rwy} capture is carried as the clearance's named runway (CTO {rwy}): a runway that
             // matches the aircraft's assigned one clears it as a bare CTO would, and one that does not
             // is queried or refused by the pilot instead of being dropped.
-            new(["runway", "{rwy}", "cleared", "for", "takeoff"], "CTO RWY {rwy}", ClearedForTakeoff),
-            new(["runway", "{rwy}", "clear", "for", "takeoff"], "CTO RWY {rwy}", ClearedForTakeoff),
+            new(["runway", "{rwy}", "cleared", "for", "takeoff"], "CTO {rwy}", ClearedForTakeoff),
+            new(["runway", "{rwy}", "clear", "for", "takeoff"], "CTO {rwy}", ClearedForTakeoff),
             // 7110.65 3-9-10.b intersection departure: "RUNWAY 28R AT E, cleared for takeoff".
-            new(["runway", "{rwy}", "at", "{taxiway}", "cleared", "for", "takeoff"], "CTO RWY {rwy}", ClearedForTakeoff),
-            new(["cleared", "for", "takeoff", "runway", "{rwy}"], "CTO RWY {rwy}", ClearedForTakeoff),
+            new(["runway", "{rwy}", "at", "{taxiway}", "cleared", "for", "takeoff"], "CTO {rwy}", ClearedForTakeoff),
+            // 7110.65 3-9-10 full-length departure: "RUNWAY 28R FULL LENGTH, cleared for takeoff".
+            new(["runway", "{rwy}", "full", "length", "cleared", "for", "takeoff"], "CTO {rwy}", ClearedForTakeoff),
+            new(["cleared", "for", "takeoff", "runway", "{rwy}"], "CTO {rwy}", ClearedForTakeoff),
             new(["cleared", "for", "takeoff"], "CTO", ClearedForTakeoff),
             new(["clear", "for", "takeoff"], "CTO", ClearedForTakeoff),
             new(["cancel", "takeoff", "clearance"], "CTOC", CancelTakeoffClearance),

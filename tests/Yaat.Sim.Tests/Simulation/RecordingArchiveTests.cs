@@ -1245,6 +1245,33 @@ public class RecordingArchiveTests
         Assert.Equal([hash], WindGridHashes.Referenced(json, [], []));
     }
 
+    [Theory]
+    [InlineData(41, "CTO 028", "CTO RWY 28R", "LUAW RWY 28L")]
+    [InlineData(SnapshotSchemaMigrator.CurrentSchemaVersion, "CTO 28", "CTO 28R", "LUAW 28L")]
+    public void ReadActionsForReplay_RewritesCtoTextOnlyForAPreRunwayGrammarRecording(
+        int firstSnapshotSchema,
+        string expectedHeading,
+        string expectedCtoRunway,
+        string expectedLuawRunway
+    )
+    {
+        // Snapshot schema 42 gave CTO and LUAW a runway argument; a recording made before it reads its 1-2 digit CTO
+        // argument as the heading it was, and its runway forms as text the parser still refuses, as they were then.
+        SessionRecording recording = CreateTestRecording(1);
+        recording.Actions.Clear();
+        recording.Actions.AddRange([
+            new RecordedCommand(1, "N1", "CTO 28", "LF", "conn1"),
+            new RecordedCommand(2, "N2", "CTO 28R", "LF", "conn1"),
+            new RecordedCommand(3, "N3", "LUAW 28L", "LF", "conn1"),
+        ]);
+        recording.Snapshots![0].State.SchemaVersion = firstSnapshotSchema;
+
+        using var archive = RecordingArchive.Open(new MemoryStream(RecordingArchiveWriter.WriteToBytes(recording)));
+
+        List<string> commands = [.. archive.ReadActionsForReplay().OfType<RecordedCommand>().Select(c => c.Command)];
+        Assert.Equal([expectedHeading, expectedCtoRunway, expectedLuawRunway], commands);
+    }
+
     [Fact]
     public void SchemaUpgrader_KeepsWindGridEntries()
     {

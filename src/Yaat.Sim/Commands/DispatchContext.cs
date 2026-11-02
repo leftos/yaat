@@ -153,6 +153,24 @@ public sealed record DispatchContext
     public bool SpeedRestatedInTransmission { get; internal init; }
 
     /// <summary>
+    /// The runways a <c>CROSS</c> (runways named, no hold short) cleared earlier in the transmission than the command being
+    /// applied, or null when none did. Its sources mirror <see cref="SpeedRestatedInTransmission"/>: a CROSS earlier in the same
+    /// block (set per command as the block applies) or in an earlier block (set when the block is built and carried on it,
+    /// <see cref="CommandBlock.CrossingsClearedInTransmission"/>, through a snapshot, a split or a wait for the release). A takeoff
+    /// or line-up clearance at a taxiway hold short crosses exactly these on its implicit taxi; any other crossing still needs
+    /// clearing.
+    /// </summary>
+    public IReadOnlyList<string>? CrossingsClearedInTransmission { get; internal init; }
+
+    /// <summary>
+    /// True when a takeoff or line-up clearance follows the command being applied in its transmission, later in its block or in
+    /// a later block. A <c>CROSS</c> at a taxiway hold short then installs nothing: that clearance carries its runways
+    /// (<see cref="CrossingsClearedInTransmission"/>). A later block's clearance is set when the block is built and carried on it
+    /// (<see cref="CommandBlock.CrossFeedsFollowingClearance"/>), through a snapshot or a split.
+    /// </summary>
+    public bool CrossFeedsFollowingClearance { get; internal init; }
+
+    /// <summary>
     /// The session clock at this dispatch: the record's mirror of <see cref="Simulation.SimScenarioState.SimTimeUtc"/>,
     /// for the verbs whose answer carries a time of day.
     /// </summary>

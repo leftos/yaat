@@ -537,6 +537,15 @@ public static class CommandDispatcher
         // tell "this CROSS armed the crossing" from "a crossing was already pending".
         bool hadPendingCrossingBeforeDispatch = HasPendingRunwayCrossing(aircraft, ctx);
 
+        compound = NormalizeCrossThenClearanceAtCrossingHold(compound, aircraft, currentPhaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx);
+
+        // The first block's view of its transmission: a takeoff or line-up clearance after its CROSS carries that crossing.
+        ctx = ForTransmissionBlock(ctx, compound.Blocks, 0);
+        if (RefuseCarriedCrossings(compound, aircraft, ctx) is { } carriedRefusal)
+        {
+            return carriedRefusal;
+        }
+
         // Phase interaction: check if aircraft has active phases
         bool shouldClearPhases = false;
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
@@ -607,11 +616,15 @@ public static class CommandDispatcher
                     List<string> remainingMessages = [];
                     if (remainingBlocks.Count > 0)
                     {
+                        int firstRemainingBlock = compound.Blocks.IndexOf(remainingBlocks[0]);
                         DispatchContext remainingCtx = ctx with
                         {
                             SpeedRestatedInTransmission =
-                                ctx.SpeedRestatedInTransmission
-                                || SpeedAssignedBeforeBlock(compound.Blocks, compound.Blocks.IndexOf(remainingBlocks[0])),
+                                ctx.SpeedRestatedInTransmission || SpeedAssignedBeforeBlock(compound.Blocks, firstRemainingBlock),
+                            CrossingsClearedInTransmission = WithCrossings(
+                                ctx.CrossingsClearedInTransmission,
+                                compound.Blocks.Take(firstRemainingBlock).SelectMany(b => b.Commands)
+                            ),
                         };
                         var remaining = new CompoundCommand(remainingBlocks) { SourceText = compound.SourceText };
                         remainingMessages = EnqueueBlocks(remaining, 0, aircraft, remainingCtx);
@@ -1907,9 +1920,10 @@ public static class CommandDispatcher
         clone.Queue.Blocks.AddRange(clonePreserved);
 
         ParsedBlock firstBlock = compound.Blocks[0];
-        foreach (ParsedCommand cmd in firstBlock.Commands)
+        for (int index = 0; index < firstBlock.Commands.Count; index++)
         {
-            CommandResult result = DryRunApplyCommand(cmd, clone, dryCtx);
+            ParsedCommand cmd = firstBlock.Commands[index];
+            CommandResult result = DryRunApplyCommand(cmd, clone, ForBlockCommand(dryCtx, firstBlock.Commands, index));
             if (!result.Success)
             {
                 return WithRejectedCommand(result, cmd);
@@ -2204,6 +2218,43 @@ public static class CommandDispatcher
         }
 
         return !hadPendingCrossingBeforeDispatch && HasPendingRunwayCrossing(aircraft, ctx);
+    }
+
+    /// <summary>
+    /// <paramref name="compound"/> with a first block of <c>CROSS x, CTO|LUAW y, …</c> split into <c>CROSS x; CTO|LUAW y, …</c> when
+    /// the aircraft holds short of a runway that CROSS crosses (<see cref="WillProduceRunwayCrossing"/>), so the one-block 7110.65
+    /// 3-9-10.e transmission runs the sequenced form's path: the clearance waits for the crossing
+    /// (<see cref="AttachAfterRunwayCrossingTrigger"/>) instead of being judged against the hold short the CROSS releases. The
+    /// CROSS half keeps the block's condition. Unchanged anywhere else, a taxiway hold short included, where the one-block form
+    /// carries the crossing into the clearance's own taxi.
+    /// </summary>
+    private static CompoundCommand NormalizeCrossThenClearanceAtCrossingHold(
+        CompoundCommand compound,
+        AircraftState aircraft,
+        Phase? phaseBeforeDispatch,
+        bool hadPendingCrossingBeforeDispatch,
+        DispatchContext ctx
+    )
+    {
+        if (phaseBeforeDispatch is not HoldingShortPhase || compound.Blocks.Count == 0)
+        {
+            return compound;
+        }
+
+        ParsedBlock first = compound.Blocks[0];
+        if ((first.Commands.Count < 2) || first.Commands[0] is not CrossRunwayCommand cross || !IsTakeoffOrLineUp(first.Commands[1]))
+        {
+            return compound;
+        }
+
+        if (!WillProduceRunwayCrossing(cross, aircraft, phaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx))
+        {
+            return compound;
+        }
+
+        ParsedBlock crossHalf = first with { Commands = [cross] };
+        var clearanceHalf = new ParsedBlock(null, [.. first.Commands.Skip(1)]);
+        return compound with { Blocks = [crossHalf, clearanceHalf, .. compound.Blocks.Skip(1)] };
     }
 
     /// <summary>
@@ -2539,7 +2590,13 @@ public static class CommandDispatcher
         }
 
         // Try tower/ground-specific handling first (phase-interactive commands)
-        CommandResult? towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, ctx, firedFromQueue: false);
+        CommandResult? towerResult = TryApplyTowerCommand(
+            firstCmd,
+            aircraft,
+            currentPhase,
+            ForBlockCommand(ctx, gateBlock.Commands, driverIdx),
+            firedFromQueue: false
+        );
         if (towerResult is not null)
         {
             return towerResult.Success
@@ -2601,7 +2658,7 @@ public static class CommandDispatcher
             }
 
             ParsedCommand sibling = gateBlock.Commands[i];
-            CommandResult? subResult = ApplyParallelSibling(sibling, aircraft, currentPhase, ctx);
+            CommandResult? subResult = ApplyParallelSibling(sibling, aircraft, currentPhase, ForBlockCommand(ctx, gateBlock.Commands, i));
             if (subResult is null)
             {
                 continue;
@@ -2940,6 +2997,113 @@ public static class CommandDispatcher
         return result;
     }
 
+    /// <summary>
+    /// <c>CROSS</c>. At a taxiway hold short with a takeoff or line-up clearance later in the transmission
+    /// (<see cref="DispatchContext.CrossFeedsFollowingClearance"/>), the crossing belongs to that clearance's implicit taxi, which
+    /// carries it (<see cref="DispatchContext.CrossingsClearedInTransmission"/>): the CROSS itself installs nothing. A single
+    /// runway the held taxiway's route never reaches taxis on along that taxiway across it
+    /// (<see cref="GroundCommandHandler.TryCrossFromTaxiwayHold"/>); anything else is the ordinary crossing clearance.
+    /// </summary>
+    private static CommandResult ApplyCross(
+        CrossRunwayCommand cross,
+        AircraftState aircraft,
+        AirportGroundLayout? groundLayout,
+        DispatchContext ctx,
+        GroundCommandHandler.TaxiDispatch taxiDispatch
+    )
+    {
+        if (ctx.CrossFeedsFollowingClearance && CarriesIntoClearance(cross) && (GroundCommandHandler.HeldShortTaxiway(aircraft) is not null))
+        {
+            return Ok(CommandDescriber.DescribeNatural(cross));
+        }
+
+        return (groundLayout is not null) && GroundCommandHandler.CrossesFromTaxiwayHold(aircraft, cross)
+            ? GroundCommandHandler.TryCrossFromTaxiwayHold(aircraft, cross, groundLayout, taxiDispatch)
+            : GroundCommandHandler.TryCrossRunway(aircraft, cross, groundLayout, ctx.FindAircraft, ctx.ActiveRunways);
+    }
+
+    /// <summary>
+    /// At a taxiway hold short, the refusal of a transmission whose first takeoff or line-up clearance carries crossings from a
+    /// CROSS before it that it cannot make (<see cref="DepartureClearanceHandler.RefuseCarriedCrossings"/>), so nothing applies.
+    /// Null anywhere else, or when nothing is refused.
+    /// </summary>
+    private static CommandResult? RefuseCarriedCrossings(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
+    {
+        if (GroundCommandHandler.HeldShortTaxiway(aircraft) is not { } taxiway)
+        {
+            return null;
+        }
+
+        var taxiDispatch = new GroundCommandHandler.TaxiDispatch(
+            ctx.AutoCrossRunwayMode,
+            ctx.ActiveRunways,
+            ctx.IsScenarioScripted,
+            ResultReachesController: true,
+            ListAircraft: null
+        );
+        IReadOnlyList<string>? carried = ctx.CrossingsClearedInTransmission;
+        foreach (ParsedCommand cmd in compound.Blocks.SelectMany(static b => b.Commands))
+        {
+            (string? runway, ClearanceType type)? clearance = cmd switch
+            {
+                ClearedForTakeoffCommand cto => (cto.Runway, ClearanceType.ClearedForTakeoff),
+                LineUpAndWaitCommand luaw => (luaw.Runway, ClearanceType.LineUpAndWait),
+                _ => null,
+            };
+            if (clearance is { } found)
+            {
+                return carried is null
+                    ? null
+                    : DepartureClearanceHandler.RefuseCarriedCrossings(aircraft, taxiway, found.runway, found.type, carried, taxiDispatch);
+            }
+
+            carried = WithCrossings(carried, [cmd]);
+        }
+
+        return null;
+    }
+
+    /// <summary>A CROSS whose runways a later takeoff or line-up clearance in its transmission carries: runways named, no hold short.</summary>
+    private static bool CarriesIntoClearance(CrossRunwayCommand cross) =>
+        (cross.RunwayIds.Count > 0) && (cross.HoldShorts.Count == 0) && cross.RunwayIds.All(static r => (r.Length > 0) && char.IsAsciiDigit(r[0]));
+
+    /// <summary>Whether <paramref name="cmd"/> is a takeoff or line-up clearance, which carries the transmission's earlier crossings.</summary>
+    private static bool IsTakeoffOrLineUp(ParsedCommand cmd) => cmd is ClearedForTakeoffCommand or LineUpAndWaitCommand;
+
+    /// <summary>
+    /// The runways the CROSS commands in <paramref name="commands"/> name that a later takeoff or line-up clearance carries
+    /// (<see cref="CarriesIntoClearance"/>), appended to <paramref name="carried"/>; null when there are none.
+    /// </summary>
+    private static IReadOnlyList<string>? WithCrossings(IReadOnlyList<string>? carried, IEnumerable<ParsedCommand> commands)
+    {
+        List<string> runways = [.. carried ?? [], .. commands.OfType<CrossRunwayCommand>().Where(CarriesIntoClearance).SelectMany(c => c.RunwayIds)];
+        return runways.Count > 0 ? runways : null;
+    }
+
+    /// <summary>
+    /// <paramref name="ctx"/> for block <paramref name="blockIndex"/> of a transmission's <paramref name="blocks"/>: the
+    /// crossings cleared in its earlier blocks carried in (<see cref="DispatchContext.CrossingsClearedInTransmission"/>), and
+    /// whether a takeoff or line-up clearance follows in a later block (<see cref="DispatchContext.CrossFeedsFollowingClearance"/>).
+    /// </summary>
+    private static DispatchContext ForTransmissionBlock(DispatchContext ctx, List<ParsedBlock> blocks, int blockIndex) =>
+        ctx with
+        {
+            SpeedRestatedInTransmission = ctx.SpeedRestatedInTransmission || SpeedAssignedBeforeBlock(blocks, blockIndex),
+            CrossingsClearedInTransmission = WithCrossings(ctx.CrossingsClearedInTransmission, blocks.Take(blockIndex).SelectMany(b => b.Commands)),
+            CrossFeedsFollowingClearance = blocks.Skip(blockIndex + 1).Any(b => b.Commands.Exists(IsTakeoffOrLineUp)),
+        };
+
+    /// <summary>
+    /// <paramref name="blockCtx"/> for command <paramref name="index"/> of a block's <paramref name="commands"/>: a CROSS earlier
+    /// in the block adds its crossings, and a takeoff or line-up clearance later in the block counts as following.
+    /// </summary>
+    private static DispatchContext ForBlockCommand(DispatchContext blockCtx, List<ParsedCommand> commands, int index) =>
+        blockCtx with
+        {
+            CrossingsClearedInTransmission = WithCrossings(blockCtx.CrossingsClearedInTransmission, commands.Take(index)),
+            CrossFeedsFollowingClearance = blockCtx.CrossFeedsFollowingClearance || commands.Skip(index + 1).Any(IsTakeoffOrLineUp),
+        };
+
     private static CommandResult ApplyClearedForTakeoff(
         ClearedForTakeoffCommand cto,
         AircraftState aircraft,
@@ -3037,16 +3201,23 @@ public static class CommandDispatcher
 
             case LineUpAndWaitCommand luawCmd:
             {
-                CommandResult luawResult = DepartureClearanceHandler.TryDepartureClearance(
+                CommandResult luawResult = DepartureClearanceHandler.ClearNamingRunway(
+                    luawCmd.Runway,
                     aircraft,
                     currentPhase,
-                    ClearanceType.LineUpAndWait,
-                    new DefaultDeparture(),
-                    null,
-                    requestedRunway: null,
-                    ctx,
-                    taxiDispatch,
-                    Log
+                    ctx.ActiveRunways,
+                    () =>
+                        DepartureClearanceHandler.TryDepartureClearance(
+                            aircraft,
+                            currentPhase,
+                            ClearanceType.LineUpAndWait,
+                            new DefaultDeparture(),
+                            null,
+                            luawCmd.Runway,
+                            ctx,
+                            taxiDispatch,
+                            Log
+                        )
                 );
                 // "Line up and wait, without delay" — brisk lineup taxi; still stops at the centerline.
                 if (luawResult.Success)
@@ -3389,7 +3560,7 @@ public static class CommandDispatcher
                 return Ok(CommandDescriber.DescribeNatural(groundResume));
             }
             case CrossRunwayCommand cross:
-                return GroundCommandHandler.TryCrossRunway(aircraft, cross, groundLayout, ctx.FindAircraft, ctx.ActiveRunways);
+                return ApplyCross(cross, aircraft, groundLayout, ctx, taxiDispatch);
             case HoldShortCommand hs:
                 return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout, ctx.ActiveRunways);
             case AssignRunwayCommand assignRwy:
@@ -4135,6 +4306,8 @@ public static class CommandDispatcher
             IsScenarioScripted = ctx.IsScenarioScripted,
             TransmissionId = ctx.TransmissionId,
             SpeedRestatedInTransmission = ctx.SpeedRestatedInTransmission,
+            CrossingsClearedInTransmission = ctx.CrossingsClearedInTransmission,
+            CrossFeedsFollowingClearance = ctx.CrossFeedsFollowingClearance,
         };
         block.ApplyAction = BuildApplyAction(applyCommands, ctx, block);
         return block;
@@ -4191,7 +4364,12 @@ public static class CommandDispatcher
         // The speed restated in the transmission is the block's own serialized fact, as CreateBlock wrote it.
         var applyCommands = matched.Where(c => !TrackEngine.IsTrackCommand(c)).ToList();
         block.ParsedCommands = matched;
-        DispatchContext blockCtx = ctx with { SpeedRestatedInTransmission = block.SpeedRestatedInTransmission };
+        DispatchContext blockCtx = ctx with
+        {
+            SpeedRestatedInTransmission = block.SpeedRestatedInTransmission,
+            CrossingsClearedInTransmission = block.CrossingsClearedInTransmission,
+            CrossFeedsFollowingClearance = block.CrossFeedsFollowingClearance,
+        };
         block.ApplyAction = BuildApplyAction(applyCommands, blockCtx, block);
 
         // Dimensions is a coarse pre-filter derived from the commands, not durable state, so the live table
@@ -4387,6 +4565,8 @@ public static class CommandDispatcher
             {
                 TransmissionId = block.TransmissionId,
                 SpeedRestatedInTransmission = block.SpeedRestatedInTransmission,
+                CrossingsClearedInTransmission = block.CrossingsClearedInTransmission,
+                CrossFeedsFollowingClearance = block.CrossFeedsFollowingClearance,
             }
         );
 
@@ -4428,10 +4608,7 @@ public static class CommandDispatcher
             }
 
             BlockLabels labels = BuildConditionLabels(parsedBlock.Condition);
-            DispatchContext blockCtx = ctx with
-            {
-                SpeedRestatedInTransmission = ctx.SpeedRestatedInTransmission || SpeedAssignedBeforeBlock(compound.Blocks, i),
-            };
+            DispatchContext blockCtx = ForTransmissionBlock(ctx, compound.Blocks, i);
             CommandBlock commandBlock = CreateBlock([.. parsedBlock.Commands], trigger, labels, compound.SourceText, blockCtx);
 
             aircraft.Queue.Blocks.Add(commandBlock);
@@ -4510,9 +4687,10 @@ public static class CommandDispatcher
             HandlerReadback? readback = null;
             var taxiReadback = new BlockTaxiReadback();
 
-            foreach (ParsedCommand? cmd in captured)
+            for (int index = 0; index < captured.Count; index++)
             {
-                CommandResult result = ApplyBlockCommand(cmd, ac, current, firedFromQueue);
+                ParsedCommand cmd = captured[index];
+                CommandResult result = ApplyBlockCommand(cmd, ac, ForBlockCommand(current, captured, index), firedFromQueue);
 
                 if (!result.Success)
                 {

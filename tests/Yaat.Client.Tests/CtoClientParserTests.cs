@@ -253,4 +253,24 @@ public class CtoClientParserTests
         Assert.NotNull(result);
         Assert.Equal("DEL", result.CanonicalString);
     }
+
+    /// <summary>
+    /// A takeoff or line-up clearance takes its runway without the RWY keyword, so "RWY 28L" after it is refused whole
+    /// rather than split off as a runway reassignment beside a clearance on the assigned runway: the scheme keeps the text as one
+    /// command, and the dispatch parse refuses it.
+    /// </summary>
+    [Theory]
+    [InlineData("CTO RWY 28L")]
+    [InlineData("CTO IMM RWY 28L")]
+    [InlineData("LUAW RWY 28L")]
+    public void TakeoffOrLineUpWithRwyKeyword_IsRefusedWhole(string input)
+    {
+        CompoundParseResult? scheme = CommandSchemeParser.ParseCompound(input, _scheme);
+        Assert.NotNull(scheme);
+        Assert.Equal(input, scheme.CanonicalString);
+
+        ParseResult<CompoundCommand> dispatched = CommandParser.ParseCompound(scheme.CanonicalString);
+        Assert.False(dispatched.IsSuccess, $"{input} parsed as {dispatched.Value}");
+        Assert.Contains("does not understand", dispatched.Reason!, StringComparison.OrdinalIgnoreCase);
+    }
 }

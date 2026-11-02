@@ -934,11 +934,11 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Held short of E with no ground layout, <c>CTO RWY 33</c> names a runway whose implicit taxi cannot be judged: the pilot queries
+    /// Held short of E with no ground layout, <c>CTO 33</c> names a runway whose implicit taxi cannot be judged: the pilot queries
     /// the runway, and nothing changes: no clearance is stored, the assigned runway stays 28R and the aircraft stays held.
     /// </summary>
     [Fact]
-    public void HeldShortOfE_NoLayout_CtoRwy33_ConfirmsRunway()
+    public void HeldShortOfE_NoLayout_Cto33_ConfirmsRunway()
     {
         TestVnasData.EnsureInitialized();
         Assert.NotNull(NavigationDatabase.Instance.GetRunway("OAK", "33"));
@@ -951,9 +951,9 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
             ac,
             TestDispatch.Context(Random.Shared)
         );
-        output.WriteLine($"[CTO RWY 33] success={result.Success} message={result.Message} spoken={result.PilotUnable?.Tts}");
+        output.WriteLine($"[CTO 33] success={result.Success} message={result.Message} spoken={result.PilotUnable?.Tts}");
 
-        Assert.False(result.Success, $"CTO RWY 33 without a layout was accepted: {result.Message}");
+        Assert.False(result.Success, $"CTO 33 without a layout was accepted: {result.Message}");
         Assert.Equal("confirm runway 33? we're holding short of E for 28R", result.PilotUnable?.Terminal);
         Assert.Null(ac.Phases!.DepartureClearance);
         Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
@@ -961,7 +961,7 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         AssertStillHeldAfterTenSeconds(ac, holding, rwy28R);
     }
 
-    // ---- CTO RWY {runway}: a takeoff clearance naming a runway (7110.65 3-9-10.d/.e) ----
+    // ---- CTO {runway}: a takeoff clearance naming a runway (7110.65 3-9-10.d/.e) ----
 
     /// <summary>Hang guard for a CTO naming another runway to reach its takeoff roll, in simulated seconds.</summary>
     private const int NamedRunwayTakeoffLimitSeconds = 300;
@@ -970,15 +970,15 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
     private const double StillStandingFt = 1.0;
 
     /// <summary>
-    /// Held short of K on D, 33's hold line is reached along K without crossing another runway: <c>CTO RWY 33</c> is an intersection
+    /// Held short of K on D, 33's hold line is reached along K without crossing another runway: <c>CTO 33</c> is an intersection
     /// departure from 33 at K. The runway becomes the assigned and departure runway, and the pilot reads it back in full.
     /// </summary>
     [Fact]
-    public void HeldShortOfK_CtoRwy33_DepartsRunway33AtK()
+    public void HeldShortOfK_Cto33_DepartsRunway33AtK()
     {
         SimulationEngine engine = EngineHoldingShortOf("K");
 
-        CommandResult cto = SendCto(engine, "CTO RWY 33");
+        CommandResult cto = SendCto(engine, "CTO 33");
 
         Assert.StartsWith("cleared for takeoff runway 33 at K", cto.PilotReadback?.Speech.Terminal ?? "");
         Assert.Contains("cleared for takeoff runway three three at kilo", cto.PilotReadback?.Speech.Tts ?? "");
@@ -990,11 +990,11 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Held short of K on D with a takeoff clearance for 28R stored on its route, <c>CTO RWY 33</c> departs 33 at K, a runway
+    /// Held short of K on D with a takeoff clearance for 28R stored on its route, <c>CTO 33</c> departs 33 at K, a runway
     /// change: the controller is warned that the takeoff clearance issued for 28R is void.
     /// </summary>
     [Fact]
-    public void HeldShortOfK_TakeoffClearanceStoredFor28R_CtoRwy33_WarnsOfTheRunwayChange()
+    public void HeldShortOfK_TakeoffClearanceStoredFor28R_Cto33_WarnsOfTheRunwayChange()
     {
         SimulationEngine engine = EngineHoldingShortOf("K");
         AircraftState aircraft = engine.FindAircraft(Callsign)!;
@@ -1006,10 +1006,10 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         };
         aircraft.PendingWarnings.Clear();
 
-        SendCto(engine, "CTO RWY 33");
+        SendCto(engine, "CTO 33");
 
         AircraftState after = engine.FindAircraft(Callsign)!;
-        output.WriteLine($"[CTO RWY 33] warnings=[{string.Join(" | ", after.PendingWarnings)}]");
+        output.WriteLine($"[CTO 33] warnings=[{string.Join(" | ", after.PendingWarnings)}]");
         Assert.Equal("33", after.Procedure.DepartureRunway);
         Assert.Contains(
             after.PendingWarnings,
@@ -1024,40 +1024,40 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
     /// unable, naming the runway to cross, and stays held short of J with the assigned runway and route unchanged.
     /// </summary>
     [Fact]
-    public void HeldShortOfJ_CtoRwy28L_NeedsToCross28R_SaysUnable_KeepsTheHold()
+    public void HeldShortOfJ_Cto28L_NeedsToCross28R_SaysUnable_KeepsTheHold()
     {
         SimulationEngine engine = EngineHoldingShortOf("J");
 
-        CommandResult result = AssertRefusedAndStillHeld(engine, "J", "CTO RWY 28L");
+        CommandResult result = AssertRefusedAndStillHeld(engine, "J", "CTO 28L");
 
         Assert.Equal("unable, need to cross runway 28R, holding short of J", result.PilotUnable!.Terminal);
         Assert.Contains("unable, need to cross runway two eight right, holding short of juliett", result.PilotUnable.Tts);
     }
 
     /// <summary>
-    /// Held short of E on C, E reaches no runway but 28R/10L: <c>CTO RWY 33</c> draws the pilot's query instead of a takeoff, and
+    /// Held short of E on C, E reaches no runway but 28R/10L: <c>CTO 33</c> draws the pilot's query instead of a takeoff, and
     /// nothing changes.
     /// </summary>
     [Fact]
-    public void HeldShortOfE_CtoRwy33_NeverReaches_ConfirmsRunway()
+    public void HeldShortOfE_Cto33_NeverReaches_ConfirmsRunway()
     {
         SimulationEngine engine = EngineHoldingShortOf("E");
         Assert.Null(ImplicitRoute(engine, "E", "33"));
 
-        CommandResult result = AssertRefusedAndStillHeld(engine, "E", "CTO RWY 33");
+        CommandResult result = AssertRefusedAndStillHeld(engine, "E", "CTO 33");
 
         Assert.Equal("confirm runway 33? we're holding short of E for 28R", result.PilotUnable!.Terminal);
         Assert.Contains("confirm runway three three? we're holding short of echo for two eight right", result.PilotUnable.Tts);
     }
 
-    /// <summary>Held short of E on C, <c>CTO RWY 28L</c> draws the same query: E does not reach 28L.</summary>
+    /// <summary>Held short of E on C, <c>CTO 28L</c> draws the same query: E does not reach 28L.</summary>
     [Fact]
-    public void HeldShortOfE_CtoRwy28L_NeverReaches_ConfirmsRunway()
+    public void HeldShortOfE_Cto28L_NeverReaches_ConfirmsRunway()
     {
         SimulationEngine engine = EngineHoldingShortOf("E");
         Assert.Null(ImplicitRoute(engine, "E", "28L"));
 
-        CommandResult result = AssertRefusedAndStillHeld(engine, "E", "CTO RWY 28L");
+        CommandResult result = AssertRefusedAndStillHeld(engine, "E", "CTO 28L");
 
         Assert.Contains("confirm runway two eight left? we're holding short of echo for two eight right", result.PilotUnable!.Tts);
     }
@@ -1067,7 +1067,7 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
     /// pilot queries the runway and the aircraft does not leave the hold.
     /// </summary>
     [Fact]
-    public void HeldShortOfJ_CtoRwy33_RouteNeverReaches_ConfirmsRunway()
+    public void HeldShortOfJ_Cto33_RouteNeverReaches_ConfirmsRunway()
     {
         SimulationEngine engine = EngineHoldingShortOf("J");
         TaxiRoute? route = ImplicitRoute(engine, "J", "33");
@@ -1075,25 +1075,25 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         Assert.NotNull(route);
         Assert.DoesNotContain(route.HoldShortPoints, hs => hs.Reason == HoldShortReason.DestinationRunway);
 
-        CommandResult result = AssertRefusedAndStillHeld(engine, "J", "CTO RWY 33");
+        CommandResult result = AssertRefusedAndStillHeld(engine, "J", "CTO 33");
 
         Assert.Contains("confirm runway three three? we're holding short of juliett for two eight right", result.PilotUnable!.Tts);
     }
 
     /// <summary>
-    /// Lined up on 28R at E, <c>CTO RWY 28L</c> names a runway the aircraft is not on: the pilot queries it and no clearance is
+    /// Lined up on 28R at E, <c>CTO 28L</c> names a runway the aircraft is not on: the pilot queries it and no clearance is
     /// stored, so the aircraft stays lined up and waiting.
     /// </summary>
     [Fact]
-    public void LinedUpOn28R_CtoRwy28L_ConfirmsRunway_StoresNothing()
+    public void LinedUpOn28R_Cto28L_ConfirmsRunway_StoresNothing()
     {
         SimulationEngine engine = EngineHoldingShortOf("E");
         LineUpAtE(engine);
 
-        CommandResult result = engine.SendCommand(Callsign, "CTO RWY 28L");
-        output.WriteLine($"[CTO RWY 28L] success={result.Success} message={result.Message} spoken={result.PilotUnable?.Tts}");
+        CommandResult result = engine.SendCommand(Callsign, "CTO 28L");
+        output.WriteLine($"[CTO 28L] success={result.Success} message={result.Message} spoken={result.PilotUnable?.Tts}");
 
-        Assert.False(result.Success, $"CTO RWY 28L lined up on 28R was accepted: {result.Message}");
+        Assert.False(result.Success, $"CTO 28L lined up on 28R was accepted: {result.Message}");
         Assert.Equal("confirm runway 28L? we're lined up on runway 28R", result.PilotUnable?.Terminal);
         Assert.Contains("confirm runway two eight left? we're lined up on runway two eight right", result.PilotUnable?.Tts ?? "");
         for (int t = 0; t < UnableHoldCheckSeconds; t++)
@@ -1106,33 +1106,33 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         Assert.Equal("28R", after.Phases?.AssignedRunway?.Designator);
     }
 
-    /// <summary>Lined up on 28R at E, <c>CTO RWY 28R</c> names the runway it is on: the clearance a bare CTO there is.</summary>
+    /// <summary>Lined up on 28R at E, <c>CTO 28R</c> names the runway it is on: the clearance a bare CTO there is.</summary>
     [Fact]
-    public void LinedUpOn28R_CtoRwy28R_IsABareCto()
+    public void LinedUpOn28R_Cto28R_IsABareCto()
     {
         SimulationEngine engine = EngineHoldingShortOf("E");
         LineUpAtE(engine);
 
-        CommandResult cto = SendCto(engine, "CTO RWY 28R");
+        CommandResult cto = SendCto(engine, "CTO 28R");
 
         Assert.Contains("cleared for takeoff runway two eight right at echo", AppliedCtoReadback(engine, cto).Tts);
         TickUntil(engine, a => a.Phases?.CurrentPhase is TakeoffPhase, CtoToTakeoffLimitSeconds, "in TakeoffPhase");
     }
 
     /// <summary>
-    /// Held short of 28R at the end of <c>TAXI D C E RWY 28R</c>, <c>CTO RWY 28L</c> draws the pilot's query naming the runway it
+    /// Held short of 28R at the end of <c>TAXI D C E RWY 28R</c>, <c>CTO 28L</c> draws the pilot's query naming the runway it
     /// holds short of, and the aircraft stays held.
     /// </summary>
     [Fact]
-    public void HoldingShortOf28R_CtoRwy28L_ConfirmsRunway_KeepsTheHold()
+    public void HoldingShortOf28R_Cto28L_ConfirmsRunway_KeepsTheHold()
     {
         SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D C E RWY 28R");
         HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(engine.FindAircraft(Callsign)!.Phases?.CurrentPhase);
 
-        CommandResult result = engine.SendCommand(Callsign, "CTO RWY 28L");
-        output.WriteLine($"[CTO RWY 28L] success={result.Success} message={result.Message} spoken={result.PilotUnable?.Tts}");
+        CommandResult result = engine.SendCommand(Callsign, "CTO 28L");
+        output.WriteLine($"[CTO 28L] success={result.Success} message={result.Message} spoken={result.PilotUnable?.Tts}");
 
-        Assert.False(result.Success, $"CTO RWY 28L held short of 28R was accepted: {result.Message}");
+        Assert.False(result.Success, $"CTO 28L held short of 28R was accepted: {result.Message}");
         Assert.Contains("confirm runway two eight left? we're holding short of runway two eight right", result.PilotUnable?.Tts ?? "");
         for (int t = 0; t < UnableHoldCheckSeconds; t++)
         {
@@ -1144,13 +1144,13 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         Assert.Null(after.Phases?.DepartureClearance);
     }
 
-    /// <summary>Held short of 28R, <c>CTO RWY 28R</c> is the clearance a bare CTO there is.</summary>
+    /// <summary>Held short of 28R, <c>CTO 28R</c> is the clearance a bare CTO there is.</summary>
     [Fact]
-    public void HoldingShortOf28R_CtoRwy28R_IsABareCto()
+    public void HoldingShortOf28R_Cto28R_IsABareCto()
     {
         SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D C E RWY 28R");
 
-        SendCto(engine, "CTO RWY 28R");
+        SendCto(engine, "CTO 28R");
 
         Assert.Equal("28R", engine.FindAircraft(Callsign)!.Phases?.AssignedRunway?.Designator);
         TickUntil(engine, a => a.Phases?.CurrentPhase is TakeoffPhase, CtoToTakeoffLimitSeconds, "in TakeoffPhase");
@@ -1255,14 +1255,6 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         return result;
     }
 
-    /// <summary>The end of the runway held short of that the pilot names (<see cref="RunwayCrossingEnd.Spoken"/>; no active list here).</summary>
-    private static string HeldEndSpoken(SimulationEngine engine)
-    {
-        AircraftState aircraft = engine.FindAircraft(Callsign)!;
-        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
-        return RunwayCrossingEnd.Spoken(aircraft, holding.HoldShort.TargetName!, aircraft.Ground.Layout, ActiveRunways.Empty);
-    }
-
     private void TickUnableHoldCheck(SimulationEngine engine)
     {
         for (int t = 0; t < UnableHoldCheckSeconds; t++)
@@ -1273,13 +1265,13 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
 
     // ---- At the hold short of 28R on J, crossed on the way to 28L (TAXI D J RWY 28L) ----
 
-    /// <summary>Held short of 28R on the way to 28L, <c>CTO RWY 28R</c> departs 28R from J, which becomes the assigned runway.</summary>
+    /// <summary>Held short of 28R on the way to 28L, <c>CTO 28R</c> departs 28R from J, which becomes the assigned runway.</summary>
     [Fact]
-    public void CrossingHoldOf28R_CtoRwy28R_Departs28R()
+    public void CrossingHoldOf28R_Cto28R_Departs28R()
     {
         SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D J RWY 28L", HoldShortReason.RunwayCrossing);
 
-        SendCto(engine, "CTO RWY 28R");
+        SendCto(engine, "CTO 28R");
 
         AircraftState aircraft = engine.FindAircraft(Callsign)!;
         Assert.Equal("28R", aircraft.Phases?.AssignedRunway?.Designator);
@@ -1288,21 +1280,16 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         Assert.Equal("28R", rolling.Phases?.AssignedRunway?.Designator);
     }
 
-    /// <summary>Held short of 28R on the way to 28L, <c>CTO RWY 28L</c> needs the crossing of 28R: the pilot says unable, nothing changes.</summary>
+    /// <summary>Held short of 28R on the way to 28L, <c>CTO 28L</c> needs the crossing of 28R: the pilot says unable, nothing changes.</summary>
     [Fact]
-    public void CrossingHoldOf28R_CtoRwy28L_SaysUnableNeedToCross28R()
+    public void CrossingHoldOf28R_Cto28L_SaysUnableNeedToCross28R()
     {
         SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D J RWY 28L", HoldShortReason.RunwayCrossing);
         HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(engine.FindAircraft(Callsign)!.Phases?.CurrentPhase);
 
-        string heldEnd = HeldEndSpoken(engine);
-        CommandResult result = AssertRefusedSaying(
-            engine,
-            "CTO RWY 28L",
-            $", unable, need to cross runway {PhraseologyVerbalizer.SpellRunway(heldEnd)}"
-        );
+        CommandResult result = AssertRefusedSaying(engine, "CTO 28L", ", unable, need to cross runway two eight right");
 
-        Assert.Equal($"unable, need to cross runway {heldEnd}", result.PilotUnable?.Terminal);
+        Assert.Equal("unable, need to cross runway 28R", result.PilotUnable?.Terminal);
         TickUnableHoldCheck(engine);
         AircraftState after = engine.FindAircraft(Callsign)!;
         Assert.Same(holding, after.Phases?.CurrentPhase);
@@ -1310,15 +1297,14 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         Assert.Null(after.Phases?.DepartureClearance);
     }
 
-    /// <summary>Held short of 28R on the way to 28L, <c>CTO RWY 33</c> names neither: the pilot queries it, nothing changes.</summary>
+    /// <summary>Held short of 28R on the way to 28L, <c>CTO 33</c> names neither: the pilot queries it, nothing changes.</summary>
     [Fact]
-    public void CrossingHoldOf28R_CtoRwy33_ConfirmsRunway()
+    public void CrossingHoldOf28R_Cto33_ConfirmsRunway()
     {
         SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D J RWY 28L", HoldShortReason.RunwayCrossing);
         HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(engine.FindAircraft(Callsign)!.Phases?.CurrentPhase);
 
-        string heldEnd = PhraseologyVerbalizer.SpellRunway(HeldEndSpoken(engine));
-        AssertRefusedSaying(engine, "CTO RWY 33", $", confirm runway three three? we're holding short of runway {heldEnd} for two eight left");
+        AssertRefusedSaying(engine, "CTO 33", ", confirm runway three three? we're holding short of runway two eight right for two eight left");
 
         TickUnableHoldCheck(engine);
         AircraftState after = engine.FindAircraft(Callsign)!;
@@ -1329,23 +1315,18 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
     // ---- At the hold short of 28R on J re-armed by the controller (TAXI D J HS 28R RWY 28L) ----
 
     /// <summary>
-    /// Held short of 28R on J, a crossing on the way to 28L that the controller re-armed with <c>HS 28R</c>: <c>CTO RWY 28L</c> needs
+    /// Held short of 28R on J, a crossing on the way to 28L that the controller re-armed with <c>HS 28R</c>: <c>CTO 28L</c> needs
     /// that crossing, so the pilot says unable and nothing changes.
     /// </summary>
     [Fact]
-    public void ExplicitHsCrossingHoldOf28R_CtoRwy28L_SaysUnableNeedToCross28R()
+    public void ExplicitHsCrossingHoldOf28R_Cto28L_SaysUnableNeedToCross28R()
     {
         SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D J HS 28R RWY 28L", HoldShortReason.ExplicitHoldShort);
         HoldingShortPhase holding = AssertHeldShortOfExplicitRunwayHold(engine);
 
-        string heldEnd = HeldEndSpoken(engine);
-        CommandResult result = AssertRefusedSaying(
-            engine,
-            "CTO RWY 28L",
-            $", unable, need to cross runway {PhraseologyVerbalizer.SpellRunway(heldEnd)}"
-        );
+        CommandResult result = AssertRefusedSaying(engine, "CTO 28L", ", unable, need to cross runway two eight right");
 
-        Assert.Equal($"unable, need to cross runway {heldEnd}", result.PilotUnable?.Terminal);
+        Assert.Equal("unable, need to cross runway 28R", result.PilotUnable?.Terminal);
         TickUnableHoldCheck(engine);
         AircraftState after = engine.FindAircraft(Callsign)!;
         Assert.Same(holding, after.Phases?.CurrentPhase);
@@ -1354,16 +1335,16 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Held short of 28R on J, a crossing on the way to 28L that the controller re-armed with <c>HS 28R</c>: <c>CTO RWY 28R</c> departs
+    /// Held short of 28R on J, a crossing on the way to 28L that the controller re-armed with <c>HS 28R</c>: <c>CTO 28R</c> departs
     /// 28R from J, which becomes the assigned runway.
     /// </summary>
     [Fact]
-    public void ExplicitHsCrossingHoldOf28R_CtoRwy28R_Departs28R()
+    public void ExplicitHsCrossingHoldOf28R_Cto28R_Departs28R()
     {
         SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D J HS 28R RWY 28L", HoldShortReason.ExplicitHoldShort);
         AssertHeldShortOfExplicitRunwayHold(engine);
 
-        SendCto(engine, "CTO RWY 28R");
+        SendCto(engine, "CTO 28R");
 
         AircraftState aircraft = engine.FindAircraft(Callsign)!;
         Assert.Equal("28R", aircraft.Phases?.AssignedRunway?.Designator);
@@ -1383,14 +1364,14 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         return holding;
     }
 
-    /// <summary>Lined up on 28R at E, <c>CTO RWY 10L</c> names the other end: a different runway, so the pilot queries it.</summary>
+    /// <summary>Lined up on 28R at E, <c>CTO 10L</c> names the other end: a different runway, so the pilot queries it.</summary>
     [Fact]
-    public void LinedUpOn28R_CtoRwy10L_ConfirmsRunway_StoresNothing()
+    public void LinedUpOn28R_Cto10L_ConfirmsRunway_StoresNothing()
     {
         SimulationEngine engine = EngineHoldingShortOf("E");
         LineUpAtE(engine);
 
-        AssertRefusedSaying(engine, "CTO RWY 10L", "confirm runway one zero left? we're lined up on runway two eight right");
+        AssertRefusedSaying(engine, "CTO 10L", "confirm runway one zero left? we're lined up on runway two eight right");
 
         TickUnableHoldCheck(engine);
         AircraftState after = engine.FindAircraft(Callsign)!;
@@ -1399,34 +1380,30 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Held short of J with no runway assigned, <c>CTO RWY 28L</c> needs the crossing of 28R/10L on J: the pilot names its end by
-    /// the active-end rule (no active list here, so the end nearer the aircraft) and nothing is assigned.
+    /// Held short of J with no runway assigned, <c>CTO 28L</c> needs the crossing of 28R/10L on J: with no active end listed the
+    /// pilot names the end parallel to the runway named (28R, within 45° of 28L), not the end nearer the aircraft, and nothing
+    /// is assigned.
     /// </summary>
     [Fact]
-    public void HeldShortOfJ_NoAssignedRunway_CtoRwy28L_NamesTheNearerEndToCross()
+    public void HeldShortOfJ_NoAssignedRunway_Cto28L_NamesTheParallelEndToCross()
     {
         SimulationEngine engine = EngineHoldingShortOf("J");
         AircraftState aircraft = engine.FindAircraft(Callsign)!;
         aircraft.Phases!.AssignedRunway = null;
-        string expected = RunwayCrossingEnd.Spoken(aircraft, "28R/10L", aircraft.Ground.Layout, ActiveRunways.Empty);
-        Assert.NotEqual("28R", expected);
+        Assert.NotEqual("28R", RunwayCrossingEnd.Spoken(aircraft, "28R/10L", aircraft.Ground.Layout, ActiveRunways.Empty));
 
-        AssertRefusedSaying(
-            engine,
-            "CTO RWY 28L",
-            $"unable, need to cross runway {PhraseologyVerbalizer.SpellRunway(expected)}, holding short of juliett"
-        );
+        AssertRefusedSaying(engine, "CTO 28L", "unable, need to cross runway two eight right, holding short of juliett");
 
         Assert.Null(engine.FindAircraft(Callsign)!.Phases?.AssignedRunway);
     }
 
     /// <summary>
     /// Held short of K on D, the implicit taxi to 33 reaches its bar along K with no runway to cross (the reach path), and traffic
-    /// stands at rest on K between the aircraft and that bar: <c>CTO RWY 33</c> draws the pilot's unable, and the runway the reach path
+    /// stands at rest on K between the aircraft and that bar: <c>CTO 33</c> draws the pilot's unable, and the runway the reach path
     /// assigned for the taxi is restored to 28R.
     /// </summary>
     [Fact]
-    public void HeldShortOfK_TrafficOnK_CtoRwy33_SaysUnable_RestoresTheRunway()
+    public void HeldShortOfK_TrafficOnK_Cto33_SaysUnable_RestoresTheRunway()
     {
         SimulationEngine engine = EngineHoldingShortOf("K");
         AircraftState aircraft = engine.FindAircraft(Callsign)!;
@@ -1441,7 +1418,7 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         double alongK = GeoMath.BearingTo(from, to);
         AddTraffic(engine, GeoMath.ProjectPoint(from, new TrueHeading(alongK), GeoMath.DistanceNm(from, to) / 2.0), alongK, TrafficState.AtRest);
 
-        CommandResult result = AssertRefusedSaying(engine, "CTO RWY 33", ", unable, traffic on kilo");
+        CommandResult result = AssertRefusedSaying(engine, "CTO 33", ", unable, traffic on kilo");
 
         Assert.Equal("unable, traffic on K", result.PilotUnable?.Terminal);
         AircraftState after = engine.FindAircraft(Callsign)!;
@@ -1451,14 +1428,14 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
         Assert.True(IsHoldingShortOf(after, "K"));
     }
 
-    /// <summary>Taxiing to 28R, <c>CTO RWY 28L</c> draws the pilot's query naming the runway it taxis to, and nothing is stored.</summary>
+    /// <summary>Taxiing to 28R, <c>CTO 28L</c> draws the pilot's query naming the runway it taxis to, and nothing is stored.</summary>
     [Fact]
-    public void TaxiingTo28R_CtoRwy28L_ConfirmsRunway()
+    public void TaxiingTo28R_Cto28L_ConfirmsRunway()
     {
         SimulationEngine engine = EngineTaxiing("TAXI D C HS E RWY 28R");
         TickUntil(engine, a => a.Phases?.CurrentPhase is TaxiingPhase, TaxiToHoldLimitSeconds, "taxiing");
 
-        AssertRefusedSaying(engine, "CTO RWY 28L", "confirm runway two eight left? we're taxiing to runway two eight right");
+        AssertRefusedSaying(engine, "CTO 28L", "confirm runway two eight left? we're taxiing to runway two eight right");
 
         Assert.Null(engine.FindAircraft(Callsign)!.Phases?.DepartureClearance);
     }
@@ -1475,5 +1452,503 @@ public class OakCtoAtTaxiwayHoldShortTests(ITestOutputHelper output)
                 AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             }
         );
+    }
+
+    // ---- LUAW {runway}: a line-up clearance naming a runway (7110.65 3-9-4) ----
+
+    /// <summary>
+    /// Held short of J on D, <c>LUAW 28L</c> needs the crossing of 28R the clearance does not include: the pilot says unable, naming
+    /// the runway to cross, and nothing changes.
+    /// </summary>
+    [Fact]
+    public void HeldShortOfJ_Luaw28L_NeedsToCross28R_SaysUnable_KeepsTheHold()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J");
+
+        CommandResult result = AssertRefusedAndStillHeld(engine, "J", "LUAW 28L");
+
+        Assert.Equal("unable, need to cross runway 28R, holding short of J", result.PilotUnable!.Terminal);
+        Assert.Contains("unable, need to cross runway two eight right, holding short of juliett", result.PilotUnable.Tts);
+    }
+
+    /// <summary>
+    /// Held short of J with no runway assigned, <c>LUAW 28L</c> is judged at the taxiway hold as a named runway is: the pilot says
+    /// unable for the crossing on J, and nothing is assigned.
+    /// </summary>
+    [Fact]
+    public void HeldShortOfJ_NoAssignedRunway_Luaw28L_SaysUnable()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J");
+        AircraftState aircraft = engine.FindAircraft(Callsign)!;
+        aircraft.Phases!.AssignedRunway = null;
+
+        AssertRefusedSaying(engine, "LUAW 28L", "unable, need to cross runway two eight right, holding short of juliett");
+
+        AircraftState after = engine.FindAircraft(Callsign)!;
+        Assert.Null(after.Phases?.AssignedRunway);
+        Assert.Null(after.Phases?.DepartureClearance);
+        Assert.True(IsHoldingShortOf(after, "J"));
+    }
+
+    /// <summary>
+    /// Held short of E on C, <c>LUAW 28R</c> names the assigned runway: the intersection line-up a bare LUAW there is, read back
+    /// "line up and wait runway 28R at E", lined up on 28R at E.
+    /// </summary>
+    [Fact]
+    public void HeldShortOfE_Luaw28R_LinesUpOn28RAtE()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("E");
+
+        CommandResult luaw = SendCto(engine, "LUAW 28R");
+
+        Assert.StartsWith("line up and wait runway 28R at E", luaw.PilotReadback?.Speech.Terminal ?? "");
+        Assert.Contains("line up and wait runway two eight right at echo", luaw.PilotReadback?.Speech.Tts ?? "");
+        AircraftState aircraft = TickUntil(engine, a => a.Phases?.CurrentPhase is LinedUpAndWaitingPhase, CtoToTakeoffLimitSeconds, "lined up");
+        Assert.Equal("E", aircraft.Phases?.LineUpIntersectionTaxiway);
+        Assert.Equal("28R", aircraft.Phases?.AssignedRunway?.Designator);
+    }
+
+    /// <summary>
+    /// Held short of K on D with a takeoff clearance for 28R stored on its route, <c>LUAW 33</c> reaches 33's hold line along K: the
+    /// line-up is on 33 at K, which becomes the assigned and departure runway, and the controller is warned of the runway change.
+    /// </summary>
+    [Fact]
+    public void HeldShortOfK_Luaw33_LinesUpOn33AtK_WarnsOfTheRunwayChange()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("K");
+        AircraftState aircraft = engine.FindAircraft(Callsign)!;
+        aircraft.Phases!.DepartureClearance = new DepartureClearanceInfo
+        {
+            Type = ClearanceType.ClearedForTakeoff,
+            Departure = new DefaultDeparture(),
+        };
+        aircraft.PendingWarnings.Clear();
+
+        CommandResult luaw = SendCto(engine, "LUAW 33");
+
+        Assert.StartsWith("line up and wait runway 33 at K", luaw.PilotReadback?.Speech.Terminal ?? "");
+        AircraftState after = engine.FindAircraft(Callsign)!;
+        output.WriteLine($"[LUAW 33] warnings=[{string.Join(" | ", after.PendingWarnings)}]");
+        Assert.Equal("33", after.Phases?.AssignedRunway?.Designator);
+        Assert.Equal("33", after.Procedure.DepartureRunway);
+        Assert.Contains(after.PendingWarnings, w => w.Contains("names runway 33 but the departure runway assigned is 28R", StringComparison.Ordinal));
+        AircraftState linedUp = TickUntil(engine, a => a.Phases?.CurrentPhase is LinedUpAndWaitingPhase, CtoToTakeoffLimitSeconds, "lined up");
+        Assert.Equal("33", linedUp.Phases?.AssignedRunway?.Designator);
+    }
+
+    /// <summary>Held short of E on C, <c>LUAW 33</c> names a runway E never reaches: the pilot queries it, and nothing changes.</summary>
+    [Fact]
+    public void HeldShortOfE_Luaw33_NeverReaches_ConfirmsRunway()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("E");
+
+        CommandResult result = AssertRefusedAndStillHeld(engine, "E", "LUAW 33");
+
+        Assert.Equal("confirm runway 33? we're holding short of E for 28R", result.PilotUnable!.Terminal);
+    }
+
+    /// <summary>Lined up on 28R at E, <c>LUAW 28R</c> is refused as a bare LUAW there is: the aircraft is already lined up.</summary>
+    [Fact]
+    public void LinedUpOn28R_Luaw28R_IsRefusedAsABareLuaw()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("E");
+        LineUpAtE(engine);
+
+        CommandResult named = engine.SendCommand(Callsign, "LUAW 28R");
+        CommandResult bare = engine.SendCommand(Callsign, "LUAW");
+        output.WriteLine($"[LUAW 28R] success={named.Success} message={named.Message}");
+
+        Assert.False(named.Success, $"LUAW 28R lined up on 28R was accepted: {named.Message}");
+        Assert.Equal("Line up and wait requires aircraft to be taxiing or holding short", named.Message);
+        Assert.Equal(bare.Message, named.Message);
+        Assert.IsType<LinedUpAndWaitingPhase>(engine.FindAircraft(Callsign)!.Phases?.CurrentPhase);
+    }
+
+    /// <summary>Lined up on 28R at E, <c>LUAW 28L</c> names a runway the aircraft is not on: the pilot queries it.</summary>
+    [Fact]
+    public void LinedUpOn28R_Luaw28L_ConfirmsRunway()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("E");
+        LineUpAtE(engine);
+
+        CommandResult result = AssertRefusedSaying(engine, "LUAW 28L", "confirm runway two eight left? we're lined up on runway two eight right");
+
+        Assert.Equal("confirm runway 28L? we're lined up on runway 28R", result.PilotUnable?.Terminal);
+        TickUnableHoldCheck(engine);
+        AircraftState after = engine.FindAircraft(Callsign)!;
+        Assert.IsType<LinedUpAndWaitingPhase>(after.Phases?.CurrentPhase);
+        Assert.Equal("28R", after.Phases?.AssignedRunway?.Designator);
+    }
+
+    /// <summary>Held short of 28R, <c>LUAW 28L</c> draws the pilot's query naming the runway it holds short of, and it stays held.</summary>
+    [Fact]
+    public void HoldingShortOf28R_Luaw28L_ConfirmsRunway_KeepsTheHold()
+    {
+        SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D C E RWY 28R");
+        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(engine.FindAircraft(Callsign)!.Phases?.CurrentPhase);
+
+        AssertRefusedSaying(engine, "LUAW 28L", "confirm runway two eight left? we're holding short of runway two eight right");
+
+        TickUnableHoldCheck(engine);
+        AircraftState after = engine.FindAircraft(Callsign)!;
+        Assert.Same(holding, after.Phases?.CurrentPhase);
+        Assert.Null(after.Phases?.DepartureClearance);
+    }
+
+    /// <summary>Held short of 28R, <c>LUAW 28R</c> is the line-up a bare LUAW there is.</summary>
+    [Fact]
+    public void HoldingShortOf28R_Luaw28R_LinesUp()
+    {
+        SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D C E RWY 28R");
+
+        SendCto(engine, "LUAW 28R");
+
+        AircraftState linedUp = TickUntil(engine, a => a.Phases?.CurrentPhase is LinedUpAndWaitingPhase, CtoToTakeoffLimitSeconds, "lined up");
+        Assert.Equal("28R", linedUp.Phases?.AssignedRunway?.Designator);
+    }
+
+    /// <summary>Taxiing to 28R, <c>LUAW 28L</c> draws the pilot's query naming the runway it taxis to, and nothing is stored.</summary>
+    [Fact]
+    public void TaxiingTo28R_Luaw28L_ConfirmsRunway()
+    {
+        SimulationEngine engine = EngineTaxiing("TAXI D C HS E RWY 28R");
+        TickUntil(engine, a => a.Phases?.CurrentPhase is TaxiingPhase, TaxiToHoldLimitSeconds, "taxiing");
+
+        AssertRefusedSaying(engine, "LUAW 28L", "confirm runway two eight left? we're taxiing to runway two eight right");
+
+        Assert.Null(engine.FindAircraft(Callsign)!.Phases?.DepartureClearance);
+    }
+
+    /// <summary>Taxiing to 28R's hold short on E, <c>LUAW 28R</c> is stored on the route as a bare LUAW is.</summary>
+    [Fact]
+    public void TaxiingTo28R_Luaw28R_StoresTheLineUp()
+    {
+        SimulationEngine engine = EngineTaxiing("TAXI D C E RWY 28R");
+        TickUntil(engine, a => a.Phases?.CurrentPhase is TaxiingPhase, TaxiToHoldLimitSeconds, "taxiing");
+
+        SendCto(engine, "LUAW 28R");
+
+        Assert.Equal(ClearanceType.LineUpAndWait, engine.FindAircraft(Callsign)!.Phases?.DepartureClearance?.Type);
+    }
+
+    // ---- CROSS {runway} with a takeoff or line-up clearance in the same transmission, at a taxiway hold short ----
+
+    /// <summary>
+    /// Held short of J on D, <c>CROSS 28R; CTO 28L</c>: the CROSS installs nothing and the CTO, fired from the queue on the next
+    /// tick, carries the crossing into its implicit taxi along J, which crosses 28R cleared and departs 28L from J.
+    /// </summary>
+    [Fact]
+    public void HeldShortOfJ_Cross28RThenCto28L_Departs28LViaJ()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J");
+        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(engine.FindAircraft(Callsign)!.Phases?.CurrentPhase);
+
+        SendCto(engine, "CROSS 28R; CTO 28L");
+
+        AircraftState sent = engine.FindAircraft(Callsign)!;
+        Assert.Same(holding, sent.Phases?.CurrentPhase);
+        Assert.Null(sent.Phases?.DepartureClearance);
+        engine.TickOneSecond();
+        AssertImplicitRouteTo28LCrosses28RCleared(engine);
+        AircraftState airborne = TickUntil(engine, a => !a.IsOnGround, CtoToTakeoffLimitSeconds, "airborne");
+        Assert.Equal("28L", airborne.Phases?.AssignedRunway?.Designator);
+    }
+
+    /// <summary>Held short of J on D, <c>CROSS 28R, CTO 28L</c> in one block departs 28L via J as the sequenced form does.</summary>
+    [Fact]
+    public void HeldShortOfJ_Cross28RWithCto28L_Departs28LViaJ()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J");
+
+        SendCto(engine, "CROSS 28R, CTO 28L");
+
+        AssertImplicitRouteTo28LCrosses28RCleared(engine);
+        AircraftState airborne = TickUntil(engine, a => !a.IsOnGround, CtoToTakeoffLimitSeconds, "airborne");
+        Assert.Equal("28L", airborne.Phases?.AssignedRunway?.Designator);
+    }
+
+    /// <summary>Held short of J on D, <c>CROSS 28R; LUAW 28L</c> crosses 28R on J and lines up on 28L at J.</summary>
+    [Fact]
+    public void HeldShortOfJ_Cross28RThenLuaw28L_LinesUpOn28LAtJ()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J");
+
+        SendCto(engine, "CROSS 28R; LUAW 28L");
+
+        engine.TickOneSecond();
+        AssertImplicitRouteTo28LCrosses28RCleared(engine);
+        AircraftState linedUp = TickUntil(engine, a => a.Phases?.CurrentPhase is LinedUpAndWaitingPhase, CtoToTakeoffLimitSeconds, "lined up");
+        Assert.Equal("28L", linedUp.Phases?.AssignedRunway?.Designator);
+        Assert.Equal("J", linedUp.Phases?.LineUpIntersectionTaxiway);
+    }
+
+    /// <summary>Held short of J on D, <c>CROSS 28L; CTO 28L</c> names the takeoff runway as a crossing: refused whole, nothing applied.</summary>
+    [Fact]
+    public void HeldShortOfJ_Cross28LThenCto28L_RefusedWhole()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J");
+
+        CommandResult result = AssertTransmissionRefusedAndStillHeld(engine, "J", "CROSS 28L; CTO 28L");
+
+        Assert.Equal("CROSS 28L: 28L is the runway of the takeoff clearance", result.Message);
+    }
+
+    /// <summary>Held short of J on D, <c>CROSS 33; CTO 28L</c> names a runway the route to 28L never crosses: refused whole.</summary>
+    [Fact]
+    public void HeldShortOfJ_Cross33ThenCto28L_RefusedWhole()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J");
+
+        CommandResult result = AssertTransmissionRefusedAndStillHeld(engine, "J", "CROSS 33; CTO 28L");
+
+        Assert.Equal("CROSS 33 not applied — the route crosses no runway 33", result.Message);
+    }
+
+    /// <summary>
+    /// Held short of J on D with no runway assigned (the assignment its taxi made removed), <c>CROSS 33; CTO</c>: the clearance has no
+    /// runway, so no implicit taxi carries the crossing, and the transmission is refused whole, nothing applied.
+    /// </summary>
+    [Fact]
+    public void HeldShortOfJ_NoRunway_Cross33ThenCto_RefusedWhole()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J");
+        AircraftState aircraft = engine.FindAircraft(Callsign)!;
+        aircraft.Phases!.AssignedRunway = null;
+        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
+        int queuedBefore = aircraft.Queue.Blocks.Count;
+
+        CommandResult result = engine.SendCommand(Callsign, "CROSS 33; CTO");
+        output.WriteLine($"[CROSS 33; CTO] success={result.Success} message={result.Message}");
+        Assert.False(result.Success, $"CROSS 33; CTO with no runway was accepted: {result.Message}");
+        Assert.Equal("CROSS 33: no departure route to carry the crossing", result.Message);
+        TickUnableHoldCheck(engine);
+
+        AircraftState after = engine.FindAircraft(Callsign)!;
+        Assert.Same(holding, after.Phases?.CurrentPhase);
+        Assert.Equal(queuedBefore, after.Queue.Blocks.Count);
+        Assert.Null(after.Phases?.DepartureClearance);
+    }
+
+    /// <summary>
+    /// Held short of E on C, <c>CROSS 28R; CTO 28L</c>: E never reaches 28L, so the implicit taxi to it does not resolve and nothing
+    /// carries the crossing; the transmission is refused whole, nothing applied.
+    /// </summary>
+    [Fact]
+    public void HeldShortOfE_Cross28RThenCto28L_NoImplicitTaxi_RefusedWhole()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("E");
+
+        CommandResult result = AssertTransmissionRefusedAndStillHeld(engine, "E", "CROSS 28R; CTO 28L");
+
+        Assert.Equal("CROSS 28R: no departure route to carry the crossing", result.Message);
+    }
+
+    /// <summary>
+    /// Held short of J on D and held for release, <c>CROSS 28R; CTO 28L</c>: the CTO waits in the queue for the release, carrying
+    /// the crossing through a snapshot of its block, and once released departs 28L via J across 28R.
+    /// </summary>
+    [Fact]
+    public void HeldForRelease_HeldShortOfJ_Cross28RThenCto28L_WaitsThenDepartsAcross28R()
+    {
+        SimulationEngine engine = EngineHoldingShortOf("J");
+        AircraftState aircraft = engine.FindAircraft(Callsign)!;
+        aircraft.Ground.HeldForRelease = true;
+
+        SendCto(engine, "CROSS 28R; CTO 28L");
+        TickUnableHoldCheck(engine);
+
+        AircraftState waiting = engine.FindAircraft(Callsign)!;
+        Assert.True(IsHoldingShortOf(waiting, "J"), $"{Callsign} left the hold short of J while held for release");
+        CommandBlock queued = Assert.Single(waiting.Queue.Blocks, b => !b.IsApplied);
+        Assert.True(queued.WaitingForRelease);
+        Assert.Equal("28R", Assert.Single(queued.CrossingsClearedInTransmission ?? []));
+        var restored = CommandBlock.FromSnapshot(JsonSerializer.Deserialize<CommandBlockDto>(JsonSerializer.Serialize(queued.ToSnapshot()))!);
+        Assert.Equal("28R", Assert.Single(restored.CrossingsClearedInTransmission ?? []));
+
+        Assert.True(engine.SendCommand(Callsign, $"REL {Callsign}").Success);
+        TickUntil(
+            engine,
+            a => a.Ground.AssignedTaxiRoute?.HoldShortPoints.Exists(Is28LDestination) == true,
+            CtoToTakeoffLimitSeconds,
+            "taxiing for 28L"
+        );
+        AssertImplicitRouteTo28LCrosses28RCleared(engine);
+        AircraftState airborne = TickUntil(engine, a => !a.IsOnGround, CtoToTakeoffLimitSeconds, "airborne");
+        Assert.Equal("28L", airborne.Phases?.AssignedRunway?.Designator);
+    }
+
+    /// <summary>
+    /// At the crossing hold of 28R on the way to 28L (<c>TAXI D J RWY 28L</c>), <c>CROSS 28R; CTO 28L</c> crosses 28R and departs
+    /// 28L: the CTO fires after the crossing, as part A's crossing hold already did.
+    /// </summary>
+    [Fact]
+    public void CrossingHoldOf28R_Cross28RThenCto28L_Departs28L()
+    {
+        SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D J RWY 28L", HoldShortReason.RunwayCrossing);
+
+        SendCto(engine, "CROSS 28R; CTO 28L");
+
+        AircraftState airborne = TickUntil(engine, a => !a.IsOnGround, CtoToTakeoffLimitSeconds, "airborne");
+        Assert.Equal("28L", airborne.Phases?.AssignedRunway?.Designator);
+    }
+
+    /// <summary>
+    /// At the crossing hold of 28R on the way to 28L (<c>TAXI D J RWY 28L</c>), <c>CROSS 28R, CTO 28L</c> in one block, the 7110.65
+    /// 3-9-10.e transmission, crosses 28R and departs 28L as the sequenced form does.
+    /// </summary>
+    [Fact]
+    public void CrossingHoldOf28R_Cross28RWithCto28L_Departs28L()
+    {
+        SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D J RWY 28L", HoldShortReason.RunwayCrossing);
+
+        CommandResult cto = SendCto(engine, "CROSS 28R, CTO 28L");
+
+        Assert.Contains("28L", cto.PilotReadback?.Speech.Terminal ?? "");
+        Assert.DoesNotContain("cleared for takeoff runway 28R", cto.PilotReadback?.Speech.Terminal ?? "");
+        AircraftState airborne = TickUntil(engine, a => !a.IsOnGround, CtoToTakeoffLimitSeconds, "airborne");
+        Assert.Equal("28L", airborne.Phases?.AssignedRunway?.Designator);
+    }
+
+    /// <summary>
+    /// At the crossing hold of 28R on the way to 28L (<c>TAXI D J RWY 28L</c>), <c>CROSS 28R, LUAW 28L</c> in one block crosses 28R
+    /// and lines up on 28L as the sequenced form does.
+    /// </summary>
+    [Fact]
+    public void CrossingHoldOf28R_Cross28RWithLuaw28L_LinesUpOn28L()
+    {
+        SimulationEngine engine = EngineHoldingShortOfRunway("TAXI D J RWY 28L", HoldShortReason.RunwayCrossing);
+
+        SendCto(engine, "CROSS 28R, LUAW 28L");
+
+        AircraftState linedUp = TickUntil(engine, a => a.Phases?.CurrentPhase is LinedUpAndWaitingPhase, CtoToTakeoffLimitSeconds, "lined up");
+        Assert.Equal("28L", linedUp.Phases?.AssignedRunway?.Designator);
+    }
+
+    /// <summary>
+    /// From the ramp, <c>TAXI D C HS J RWY 28R; CROSS 28R; CTO 28L</c> in two identical runs, one of which restores its queued blocks
+    /// from their snapshot during the taxi: the restored CROSS, fired at the hold short of J, carries into the CTO as the live one
+    /// does, so both runs install the same routes up to the CTO's route to 28L (no J-across-28R route of the CROSS's own before it).
+    /// </summary>
+    [Fact]
+    public void FromTheRamp_TaxiHsJThenCross28RThenCto28L_QueueRestoredDuringTheTaxi_InstallsTheLiveRoute()
+    {
+        const string Transmission = "TAXI D C HS J RWY 28R; CROSS 28R; CTO 28L";
+        SimulationEngine live = EngineTaxiing(Transmission);
+        SimulationEngine restored = EngineTaxiing(Transmission);
+        TickUnableHoldCheck(live);
+        TickUnableHoldCheck(restored);
+        RestoreQueuedBlocksFromTheirSnapshot(restored.FindAircraft(Callsign)!);
+
+        List<string> liveRoutes = RoutesUntilTaxiingFor28L(live, "live");
+        List<string> restoredRoutes = RoutesUntilTaxiingFor28L(restored, "restored");
+
+        Assert.Equal(liveRoutes, restoredRoutes);
+    }
+
+    /// <summary>
+    /// Ticks <paramref name="engine"/> until N45912's route holds short of 28L as its destination, and returns each distinct route it
+    /// held on the way (<see cref="RouteSignature"/>), the last being the route to 28L.
+    /// </summary>
+    private List<string> RoutesUntilTaxiingFor28L(SimulationEngine engine, string run)
+    {
+        List<string> routes = [];
+        for (int t = 0; t <= TaxiToHoldLimitSeconds + CtoToTakeoffLimitSeconds; t++)
+        {
+            AircraftState aircraft = engine.FindAircraft(Callsign)!;
+            TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+            string signature = RouteSignature(route);
+            if ((routes.Count == 0) || (routes[^1] != signature))
+            {
+                output.WriteLine($"[{run} {t}s] phase={aircraft.Phases?.CurrentPhase?.Name} queue=[{DescribeQueue(aircraft)}]");
+                LogRoute($"{run} route at {t}s", route);
+                routes.Add(signature);
+            }
+
+            if (route?.HoldShortPoints.Exists(Is28LDestination) == true)
+            {
+                return routes;
+            }
+
+            engine.TickOneSecond();
+        }
+
+        AircraftState last = engine.FindAircraft(Callsign)!;
+        Assert.Fail(
+            $"hung: the {run} run never installed the route to 28L: phase={last.Phases?.CurrentPhase?.Name} ias={last.IndicatedAirspeed:F1} "
+                + $"pos=({last.Position.Lat:F6}, {last.Position.Lon:F6}) segment={last.Ground.AssignedTaxiRoute?.CurrentSegmentIndex} "
+                + $"queue=[{DescribeQueue(last)}]"
+        );
+        return routes;
+    }
+
+    /// <summary>
+    /// Replaces each of <paramref name="aircraft"/>'s queued blocks, none yet applied, by its snapshot round-tripped through JSON, as a
+    /// snapshot restore leaves it: the engine rebuilds each one from its serialized facts on the next tick.
+    /// </summary>
+    private static void RestoreQueuedBlocksFromTheirSnapshot(AircraftState aircraft)
+    {
+        List<CommandBlock> blocks = aircraft.Queue.Blocks;
+        Assert.Equal(2, blocks.Count);
+        Assert.All(blocks, b => Assert.False(b.IsApplied, $"{b.Description} already applied before the restore"));
+        for (int i = 0; i < blocks.Count; i++)
+        {
+            string json = JsonSerializer.Serialize(blocks[i].ToSnapshot(), RecordingJsonOptions.Default);
+            blocks[i] = CommandBlock.FromSnapshot(JsonSerializer.Deserialize<CommandBlockDto>(json, RecordingJsonOptions.Default)!);
+        }
+    }
+
+    private static string DescribeQueue(AircraftState aircraft) =>
+        string.Join(" | ", aircraft.Queue.Blocks.Select(b => $"{b.Description} applied={b.IsApplied}"));
+
+    /// <summary>The route's taxiways and hold shorts (target, reason, cleared), or "(none)".</summary>
+    private static string RouteSignature(TaxiRoute? route) =>
+        route is null
+            ? "(none)"
+            : string.Join(" ", route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase))
+                + " | "
+                + string.Join(" ", route.HoldShortPoints.Select(hs => $"{hs.TargetName}:{hs.Reason}:{hs.IsCleared}"));
+
+    private static bool Is28LDestination(HoldShortPoint hs) =>
+        (hs.Reason == HoldShortReason.DestinationRunway) && (hs.TargetName is { } target) && RunwayIdentifier.Parse(target).Contains("28L");
+
+    /// <summary>The installed route runs along J to 28L's bar, its crossing of 28R cleared and no other crossing cleared.</summary>
+    private void AssertImplicitRouteTo28LCrosses28RCleared(SimulationEngine engine)
+    {
+        TaxiRoute? route = engine.FindAircraft(Callsign)!.Ground.AssignedTaxiRoute;
+        LogRoute("implicit taxi to 28L", route);
+        Assert.NotNull(route);
+        Assert.Contains(route.HoldShortPoints, Is28LDestination);
+        Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "J", StringComparison.OrdinalIgnoreCase));
+        List<HoldShortPoint> crossings = route.HoldShortPoints.FindAll(hs => hs.Reason == HoldShortReason.RunwayCrossing);
+        HoldShortPoint crossing28R = Assert.Single(crossings);
+        Assert.Contains("28R", crossing28R.TargetName ?? "");
+        Assert.True(crossing28R.IsCleared, "the crossing of 28R on the way to 28L is not cleared");
+    }
+
+    /// <summary>
+    /// Sends <paramref name="command"/> and asserts it was refused to the controller with no pilot transmission, then that the
+    /// aircraft stays held short of <paramref name="taxiway"/> with its queue, route, runway and (absent) clearance unchanged.
+    /// </summary>
+    private CommandResult AssertTransmissionRefusedAndStillHeld(SimulationEngine engine, string taxiway, string command)
+    {
+        AircraftState aircraft = engine.FindAircraft(Callsign)!;
+        TaxiRoute? routeBefore = aircraft.Ground.AssignedTaxiRoute;
+        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
+        int queuedBefore = aircraft.Queue.Blocks.Count;
+
+        CommandResult result = engine.SendCommand(Callsign, command);
+        output.WriteLine($"[{command}] success={result.Success} message={result.Message}");
+        Assert.False(result.Success, $"{command} held short of {taxiway} was accepted: {result.Message}");
+        Assert.Null(result.PilotUnable);
+        TickUnableHoldCheck(engine);
+
+        AircraftState after = engine.FindAircraft(Callsign)!;
+        Assert.Same(holding, after.Phases?.CurrentPhase);
+        Assert.True(IsHoldingShortOf(after, taxiway), $"{Callsign} is no longer holding short of {taxiway}");
+        Assert.Same(routeBefore, after.Ground.AssignedTaxiRoute);
+        Assert.Equal(queuedBefore, after.Queue.Blocks.Count);
+        Assert.Null(after.Phases?.DepartureClearance);
+        Assert.Equal("28R", after.Phases?.AssignedRunway?.Designator);
+        return result;
     }
 }
