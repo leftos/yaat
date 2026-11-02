@@ -569,6 +569,11 @@ public static class ScenarioLoader
         {
             ArrivalRouteResolver.ApplyAltitudeProfile(state, navigationPath, warnings);
         }
+        else
+        {
+            // A STAR clearance authorizes its published speeds but not its altitudes (7110.65 5-7-1.d NOTE).
+            ArrivalRouteResolver.ApplyStarSpeedRestrictions(state, navigationPath, warnings);
+        }
 
         // Snap "Coordinates" / "FixOrFrd" ground spawns onto the nearest taxi
         // edge and rotate the heading to match. Coord spawns are how

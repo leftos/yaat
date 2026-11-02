@@ -196,13 +196,14 @@ public class DescendViaSpeedResumeTests
 
         AircraftState aircraft = harness.Aircraft;
         Assert.True(aircraft.IndicatedAirspeed > GrudgPublishedKts + SnapKts, $"The harness starts at {aircraft.IndicatedAirspeed:F0} kt");
-        double? targetBefore = aircraft.Targets.TargetSpeed;
+        _output.WriteLine($"TargetSpeed before DVIA: {aircraft.Targets.TargetSpeed}");
 
         SendOk(harness, "DVIA");
 
+        // A level STAR spawn carries GRUDG's published 260 with the slowdown left to the planner (null this far out, the
+        // line logged above), and the clearance itself targets nothing either, so the planner owns the slowdown.
         Assert.Equal(GrudgPublishedKts, RouteFix(aircraft, "GRUDG").SpeedRestriction?.SpeedKts);
-        Assert.NotEqual(GrudgPublishedKts, aircraft.Targets.TargetSpeed);
-        Assert.Equal(targetBefore, aircraft.Targets.TargetSpeed);
+        Assert.Null(aircraft.Targets.TargetSpeed);
         AssertCrossesGrudgAtThePublishedSpeed(harness);
     }
 
@@ -240,6 +241,180 @@ public class DescendViaSpeedResumeTests
             maxIas <= crossedSpeed.SpeedKts + SnapKts,
             $"After RPS the aircraft reached {maxIas:F0} kt before {next.Name}, above the {crossedSpeed.SpeedKts} kt it crossed {crossed.Name} at"
         );
+    }
+
+    // --- A STAR clearance carries its published speeds with no "descend via" (YAAT-1366; 7110.65 5-7-1.d NOTE) ---
+
+    /// <summary>
+    /// A STAR clearance authorizes its published speeds with or without "descend via" (7110.65 5-7-1.d NOTE; AIM
+    /// 5-4-1.a.2(a) NOTE 1): the route carries GRUDG's 260 and the aircraft crosses it there, while the STAR's published
+    /// altitudes stay unauthorized and it holds its level 16,000.
+    /// </summary>
+    [Fact]
+    public void NoDescendVia_OakesStar_CrossesGrudgAtThePublishedSpeed()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+
+        NavigationTarget grudg = RouteFix(aircraft, "GRUDG");
+        Assert.NotNull(grudg.SpeedRestriction);
+        Assert.Equal(GrudgPublishedKts, grudg.SpeedRestriction.SpeedKts);
+        Assert.Null(grudg.AltitudeRestriction);
+        Assert.False(aircraft.Procedure.StarViaMode);
+
+        (double crossingIas, _) = TickUntilPassed(harness, "GRUDG");
+        Assert.True(
+            crossingIas <= GrudgPublishedKts + CrossingToleranceKts,
+            $"GRUDG sequenced at {crossingIas:F1} kt, above its published {GrudgPublishedKts}"
+        );
+        Assert.InRange(aircraft.Altitude, 16000 - 100, 16000 + 100);
+    }
+
+    /// <summary>
+    /// A level STAR spawn keeps its present speed toward GRUDG and the planner slows it just in time to cross at the
+    /// published 260, as on a descend via (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2): sequencing OAKES with GRUDG
+    /// 24 nm ahead does not target 260.
+    /// </summary>
+    [Fact]
+    public void NoDescendVia_OakesStar_KeepsItsSpeedUntilThePlannerSlowsForGrudg()
+    {
+        const double PlannerWindowNm = 5.0;
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+
+        for (int t = 0; t <= 1800; t++)
+        {
+            if (!aircraft.Targets.NavigationRoute.Exists(f => f.Name.Equals("GRUDG", StringComparison.OrdinalIgnoreCase)))
+            {
+                Assert.True(
+                    aircraft.IndicatedAirspeed <= GrudgPublishedKts + SnapKts,
+                    $"GRUDG sequenced at {aircraft.IndicatedAirspeed:F1} kt, above its published {GrudgPublishedKts}"
+                );
+                return;
+            }
+
+            double grudgNm = RouteDistanceNm(aircraft, "GRUDG");
+            if (grudgNm > PlannerWindowNm)
+            {
+                Assert.True(
+                    ((aircraft.Targets.TargetSpeed ?? double.MaxValue) > GrudgPublishedKts + SnapKts)
+                        && (aircraft.IndicatedAirspeed > GrudgPublishedKts + SnapKts),
+                    $"{grudgNm:F1} nm before GRUDG ({t} s past OAKES): target {aircraft.Targets.TargetSpeed}, IAS {aircraft.IndicatedAirspeed:F1} kt;"
+                        + $" the slowdown for its {GrudgPublishedKts} belongs to the planner's last few miles"
+                );
+            }
+
+            harness.Engine.TickOneSecond();
+        }
+
+        Assert.Fail("The aircraft did not pass GRUDG within 1800 s");
+    }
+
+    /// <summary>
+    /// The same for the TOOOL-to-FFIST pair: sequencing TOOOL with FFIST 18 nm ahead does not target FFIST's published
+    /// speed, and the planner slows the aircraft to cross it there (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2).
+    /// </summary>
+    [Fact]
+    public void NoDescendVia_OakesStar_KeepsItsSpeedUntilThePlannerSlowsForFfist()
+    {
+        const double PlannerWindowNm = 5.0;
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        CifpSpeedRestriction? ffist = RouteFix(aircraft, "FFIST").SpeedRestriction;
+        Assert.NotNull(ffist);
+        int ffistKts = ffist.SpeedKts;
+        bool toolSequenced = false;
+
+        for (int t = 0; t <= 1800; t++)
+        {
+            if (!aircraft.Targets.NavigationRoute.Exists(f => f.Name.Equals("FFIST", StringComparison.OrdinalIgnoreCase)))
+            {
+                Assert.True(
+                    aircraft.IndicatedAirspeed <= ffistKts + SnapKts,
+                    $"FFIST sequenced at {aircraft.IndicatedAirspeed:F1} kt, above its published {ffistKts}"
+                );
+                return;
+            }
+
+            double ffistNm = RouteDistanceNm(aircraft, "FFIST");
+            if (toolSequenced && (ffistNm > PlannerWindowNm))
+            {
+                Assert.True(
+                    ((aircraft.Targets.TargetSpeed ?? double.MaxValue) > ffistKts + SnapKts) && (aircraft.IndicatedAirspeed > ffistKts + SnapKts),
+                    $"{ffistNm:F1} nm before FFIST ({t} s): target {aircraft.Targets.TargetSpeed}, IAS {aircraft.IndicatedAirspeed:F1} kt; "
+                        + $"the slowdown for its {ffistKts} belongs to the planner's last few miles"
+                );
+            }
+
+            if (!aircraft.Targets.NavigationRoute.Exists(f => f.Name.Equals("TOOOL", StringComparison.OrdinalIgnoreCase)))
+            {
+                toolSequenced = true;
+            }
+
+            harness.Engine.TickOneSecond();
+        }
+
+        Assert.Fail("The aircraft did not pass FFIST within 1800 s");
+    }
+
+    /// <summary>
+    /// A deleted speed restriction stays honoured through a published fix (7110.65 5-7-1.e NOTE): after DSR the aircraft
+    /// crosses GRUDG above its published 260.
+    /// </summary>
+    [Fact]
+    public void NoDescendVia_OakesStar_Dsr_KeepsItsSpeedThroughGrudg()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+
+        Assert.Equal(GrudgPublishedKts, RouteFix(aircraft, "GRUDG").SpeedRestriction!.SpeedKts);
+        SendOk(harness, "DSR");
+
+        (double crossingIas, _) = TickUntilPassed(harness, "GRUDG");
+        Assert.True(
+            crossingIas >= GrudgPublishedKts + CrossingToleranceKts,
+            $"After DSR GRUDG sequenced at {crossingIas:F1} kt, below {GrudgPublishedKts + CrossingToleranceKts:F0}"
+        );
+    }
+
+    /// <summary>
+    /// Joining a STAR by "JARR" with no descend via keeps its published speeds on the route (7110.65 5-7-1.d NOTE), so the
+    /// clearance loads GRUDG's 260 without enabling descend-via mode.
+    /// </summary>
+    [Fact]
+    public void Jarr_NoDescendVia_RouteCarriesThePublishedSpeeds()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+
+        SendOk(harness, "JARR OAKES3");
+
+        NavigationTarget grudg = RouteFix(aircraft, "GRUDG");
+        Assert.NotNull(grudg.SpeedRestriction);
+        Assert.Equal(GrudgPublishedKts, grudg.SpeedRestriction.SpeedKts);
+        Assert.False(aircraft.Procedure.StarViaMode);
+    }
+
+    /// <summary>
+    /// A level STAR spawn has the STAR active, so a direct still truncates the STAR's own route and keeps its published
+    /// speeds (7110.65 5-7-1.d NOTE): GRUDG carries its 260 through a direct. A plain DCT refuses a fix that is not on
+    /// the filed route, so the test forces it with DCTF, which reaches the same route-preserving branch.
+    /// </summary>
+    [Fact]
+    public void NoDescendVia_DirectToAPublishedFix_KeepsItsSpeed()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+
+        SendOk(harness, "DCTF GRUDG");
+
+        NavigationTarget grudg = RouteFix(aircraft, "GRUDG");
+        Assert.NotNull(grudg.SpeedRestriction);
+        Assert.Equal(GrudgPublishedKts, grudg.SpeedRestriction.SpeedKts);
     }
 
     // --- DVIA / CVIA cancel an earlier speed (7110.65 5-7-1) ---
@@ -1471,7 +1646,8 @@ public class DescendViaSpeedResumeTests
     /// An approach clearance cancels every speed assigned before it (7110.65 5-7-1.d), the speed an earlier CFIX would
     /// revert to past its fix included: after "SPD 250", "CFIX X 110 230" and then "CAPP I30", each its own transmission,
     /// passing X does not put the 250 back. The clearance cancels the earlier transmission's 230 at X too, and X takes its
-    /// published speed back: none here, with no STAR active and no speed the approach publishes at X.
+    /// published speed back — the STAR's 260 at GRUDG — since the level spawn leaves the STAR active and the approach
+    /// publishes none at X.
     /// </summary>
     [Fact]
     public void EarlierSpeed_ThenCfixWithSpeed_ThenApproachClearance_DoesNotRevertToTheEarlierSpeed()
@@ -1490,7 +1666,7 @@ public class DescendViaSpeedResumeTests
         SendOk(harness, "CAPP I30");
 
         Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
-        Assert.Null(fix.SpeedRestriction);
+        Assert.Equal(new CifpSpeedRestriction(GrudgPublishedKts, CifpSpeedRestrictionType.Mandatory), fix.SpeedRestriction);
         Assert.Null(fix.RevertSpeed);
         Assert.Null(fix.RevertAssignedSpeed);
 
@@ -1597,11 +1773,12 @@ public class DescendViaSpeedResumeTests
     }
 
     /// <summary>
-    /// With no STAR active, "CFIX X 110, DVIA" activates the filed STAR: X keeps the crossing altitude restated with the
-    /// descend via and takes the STAR's published speed, which the CFIX did not restate.
+    /// A level spawn leaves the STAR active without descend via, so "CFIX X 110, DVIA" overlays the STAR's published
+    /// restrictions on the route the clearance hands to via mode: X keeps the crossing altitude restated with the descend
+    /// via and takes the STAR's published speed, which the CFIX did not restate.
     /// </summary>
     [Fact]
-    public void AltitudeOnlyCfixAndDvia_ActivatingTheStar_TakesThePublishedSpeedAndKeepsTheCrossingAltitude()
+    public void AltitudeOnlyCfixAndDvia_WithTheStarActive_TakesThePublishedSpeedAndKeepsTheCrossingAltitude()
     {
         if ((BuildHarness() is not { } harness) || (BuildHarness() is not { } reference))
         {
@@ -1609,7 +1786,7 @@ public class DescendViaSpeedResumeTests
         }
 
         AircraftState aircraft = harness.Aircraft;
-        Assert.Null(aircraft.Procedure.ActiveStarId);
+        Assert.Equal("OAKES3", aircraft.Procedure.ActiveStarId);
         string fixName = aircraft.Targets.NavigationRoute[0].Name;
         SendOk(reference, "DVIA");
         CifpSpeedRestriction published = Assert.IsType<CifpSpeedRestriction>(RouteFix(reference.Aircraft, fixName).SpeedRestriction);

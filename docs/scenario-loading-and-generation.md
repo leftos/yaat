@@ -273,7 +273,7 @@ files via `DA`/`VP`.
 unresolvable fixes with a warning, collapsing adjacent duplicates), appends CIFP STAR runway-transition fixes
 (`AppendStarRunwayTransition`), then chains the remaining filed route via `RouteChainer.AppendRouteRemainder`.
 
-> **`ArrivalRouteResolver` is shared.** `PopulateNavigationRoute` and `ApplyAltitudeProfile` (below) were extracted from
+> **`ArrivalRouteResolver` is shared.** `PopulateNavigationRoute`, `ApplyAltitudeProfile` and `ApplyStarSpeedRestrictions` (below) were extracted from
 > `ScenarioLoader` into this helper so the `ADD … {wpt}.{star}[.{rwy}]` on-STAR spawn variant (`AircraftGenerator.GenerateOnStar`)
 > builds its arrival route and descend-via overlay through the exact same code as a scenario-defined `onAltitudeProfile` arrival.
 
@@ -315,6 +315,10 @@ already in `Targets.NavigationRoute` (matching by name). It sets `Procedure.Acti
 immediately applies the first constrained fix's restrictions via `FlightPhysics.ApplyFixConstraints` so the aircraft starts
 descending toward the first constraint at spawn rather than after coasting through unconstrained fixes. If the path names a
 procedure-shaped token that NavData doesn't know, it warns and applies nothing.
+
+A level STAR spawn (`ScenarioAircraft.OnAltitudeProfile` false, or `ADD … LVL`) calls `ArrivalRouteResolver.ApplyStarSpeedRestrictions` instead: a STAR clearance authorizes its published speeds with or without "descend via", but not its altitudes (7110.65 5-7-1.d NOTE; AIM 5-4-1.a.2(a) NOTE 1). Both entry points share `ResolveStarConstraints` (`FindStarToken`, then the CIFP legs by fix name). The speed-only path copies each published speed restriction onto the matching route fix and sets `Procedure.ActiveStarId`, leaving `StarViaMode` off and the altitudes off the route, so the aircraft holds altitude and flies the published speeds. A later `DVIA` overlays the altitudes in place (`NavigationCommandHandler.OverlayActiveStarRestrictions`) every time it is issued.
+
+The warning "STAR {token} not found in NavData — published speeds not applied" (or "— descend-via constraints not applied") fires only for a token with trailing digits that resolves as nothing a route may name: not a STAR, SID, airway, military route, fix, navaid, airport or fix/radial/distance point (`WarnUnknownStarToken`, `IsKnownNonStarToken`).
 
 ## `GroundSpawnSnap` for coordinate ground spawns
 
@@ -365,7 +369,7 @@ Position variants, dispatched from the position tokens at `SpawnParser.cs:66`:
 The `OnStar` dispatch is the one exception to the index-4 slot-skip: because its position token (index 3) contains a `.` and is
 unambiguous, `Parse` routes it to `ParseOnStarVariant` *before* the generic right-to-left type/`*airline` scan, so that variant
 owns its full order-independent trailing parse (`SP###` speed, bare-number altitude, `LVL`, airport, type, `*airline`).
-`GenerateOnStar` builds the route + descend-via overlay via `ArrivalRouteResolver`, and computes a default establishment altitude
+`GenerateOnStar` builds the route via `ArrivalRouteResolver` — plus the descend-via overlay, or with `LVL` only the STAR's published speeds — and computes a default establishment altitude
 from the STAR's published crossings (3:1 gradient, AIM 5-4-2.b) when none is given.
 
 The `@`-prefix disambiguation (`:71`) switches on token **count**, not on whether the second token parses as a number: `@GATE3`

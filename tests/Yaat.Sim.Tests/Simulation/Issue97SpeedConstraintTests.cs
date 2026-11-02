@@ -25,6 +25,9 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
     /// <summary>Tolerance for IAS at a max-speed fix (kt). Look-ahead should keep IAS within this band.</summary>
     private const double SpeedToleranceKts = 20.0;
 
+    /// <summary>How far under a published speed still counts as flying that speed rather than an assigned one.</summary>
+    private const double SnapKts = 2.0;
+
     private static SessionRecording? LoadRecording()
     {
         if (!File.Exists(RecordingPath))
@@ -131,13 +134,14 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Speed look-ahead should start decelerating the aircraft before reaching a STAR fix
-    /// with a speed constraint. Replay from t=50 to t=70 and verify IAS strictly decreases
-    /// as the aircraft approaches CHIME (the first speed-restricted fix on SCOLA1).
+    /// SWA11's STAR publishes a max speed on the fix ahead: the aircraft holds its present speed while that fix is more
+    /// than 5 nm ahead and the planner slows it to cross at the published speed (7110.65 5-7-1.g NOTE 3; AIM
+    /// 5-4-1.a.2(a) NOTE 2). Sequencing onto the fix does not target the published speed at once.
     /// </summary>
     [Fact]
-    public void SWA11_StarSpeedConstraintDeceleratesBeforeFix()
+    public void SWA11_StarSpeedConstraintIsLeftToThePlannerBeforeItsFix()
     {
+        const double PlannerWindowNm = 5.0;
         SessionRecording? recording = LoadRecording();
         SimulationEngine? engine = BuildEngine();
         if (recording is null || engine is null)
@@ -154,28 +158,51 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
         output.WriteLine($"At t=50: IAS={aircraft.IndicatedAirspeed:F0} alt={aircraft.Altitude:F0}");
         output.WriteLine($"NavRoute: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(n => n.Name))}");
 
-        bool routeHasSpeedConstraint = aircraft.Targets.NavigationRoute.Any(n =>
-            n.SpeedRestriction is { Type: not CifpSpeedRestrictionType.AtOrAbove }
+        NavigationTarget constrained = aircraft.Targets.NavigationRoute.First(n =>
+            (n.SpeedRestriction is { Type: not CifpSpeedRestrictionType.AtOrAbove }) && (RouteDistanceNm(aircraft, n.Name) > PlannerWindowNm)
         );
-        Assert.True(routeHasSpeedConstraint, "Test precondition: at least one nav-route fix must have a max speed constraint at t=50");
+        string fixName = constrained.Name;
+        int publishedKts = constrained.SpeedRestriction!.SpeedKts;
+        output.WriteLine($"{fixName} publishes {publishedKts} kt, {RouteDistanceNm(aircraft, fixName):F1} nm ahead");
 
-        double initialIas = aircraft.IndicatedAirspeed;
-        bool sawDeceleration = false;
-
-        for (int t = 51; t <= 70; t++)
+        for (int t = 51; t <= 400; t++)
         {
             engine.ReplayOneSecond();
-            output.WriteLine($"  t={t}: IAS={aircraft.IndicatedAirspeed:F0} alt={aircraft.Altitude:F0} targetSpd={aircraft.Targets.TargetSpeed}");
-            if (aircraft.IndicatedAirspeed < initialIas - 5)
+            if (!aircraft.Targets.NavigationRoute.Exists(f => f.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
             {
-                sawDeceleration = true;
+                Assert.True(
+                    aircraft.IndicatedAirspeed <= publishedKts + SnapKts,
+                    $"{fixName} sequenced at {aircraft.IndicatedAirspeed:F1} kt, above its published {publishedKts}"
+                );
+                return;
+            }
+
+            double fixNm = RouteDistanceNm(aircraft, fixName);
+            if (fixNm > PlannerWindowNm)
+            {
+                Assert.True(
+                    ((aircraft.Targets.TargetSpeed ?? double.MaxValue) > publishedKts + SnapKts)
+                        && (aircraft.IndicatedAirspeed > publishedKts + SnapKts),
+                    $"{fixNm:F1} nm before {fixName} (t={t}): target {aircraft.Targets.TargetSpeed}, IAS {aircraft.IndicatedAirspeed:F1} kt; "
+                        + $"the slowdown for its {publishedKts} belongs to the planner's last few miles"
+                );
             }
         }
 
-        Assert.True(
-            sawDeceleration,
-            $"Aircraft did not decelerate at all between t=51 and t=70 despite a downstream max-speed restriction (initial IAS {initialIas:F0})"
-        );
+        Assert.Fail($"The aircraft did not pass {fixName} within 400 s");
+    }
+
+    /// <summary>Along-route distance (nm) to <paramref name="fixName"/>, measured as the speed planner measures it.</summary>
+    private static double RouteDistanceNm(AircraftState aircraft, string fixName)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        double distanceNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
+        for (int i = 0; !route[i].Name.Equals(fixName, StringComparison.OrdinalIgnoreCase); i++)
+        {
+            distanceNm += GeoMath.DistanceNm(route[i].Position, route[i + 1].Position);
+        }
+
+        return distanceNm;
     }
 
     /// <summary>

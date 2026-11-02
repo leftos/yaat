@@ -1502,10 +1502,23 @@ internal static class NavigationCommandHandler
             }
         }
 
-        // "Descend via the [STAR]" only requires the STAR to be in the cleared route (AIM 5-4-1.a.2);
-        // no separate join step is needed. If no STAR is active yet, activate the one in the filed
-        // route and overlay its published crossing restrictions onto the live lateral route.
-        if ((aircraft.Procedure.ActiveStarId is null) && !TryActivateFiledStar(aircraft, transmissionId))
+        // "Descend via the [STAR]" only requires the STAR to be in the cleared route (AIM 5-4-1.a.2); no separate join
+        // step is needed. With no STAR active, activate the one in the filed route and overlay its published crossing
+        // restrictions onto the live lateral route. With one active, overlay them again every time: on a route a "JARR"
+        // join or an earlier descend via already constrained that rewrites the same published values, while the values
+        // this transmission set are kept by the overlay's stamp checks and earlier ones by the supersede pass below.
+        bool starReady;
+        if (aircraft.Procedure.ActiveStarId is null)
+        {
+            starReady = TryActivateFiledStar(aircraft, transmissionId);
+        }
+        else
+        {
+            OverlayActiveStarRestrictions(aircraft, transmissionId);
+            starReady = true;
+        }
+
+        if (!starReady)
         {
             return new CommandResult(false, "No active STAR — descend via requires a STAR in the filed route");
         }
@@ -1545,6 +1558,27 @@ internal static class NavigationCommandHandler
         }
 
         return CommandDispatcher.Ok("Descend via STAR");
+    }
+
+    /// <summary>
+    /// Overlays the active STAR's published crossing restrictions onto the live route, by fix name: a level STAR spawn
+    /// puts the published speeds on it and no altitudes, and the descend via is what authorizes the altitudes (7110.65
+    /// 5-7-1.d NOTE; AIM 5-4-1.a.2(a) NOTE 1). An active STAR NavData cannot resolve is logged and left un-overlaid.
+    /// </summary>
+    private static void OverlayActiveStarRestrictions(AircraftState aircraft, int transmissionId)
+    {
+        if (ResolveActiveStar(aircraft) is not { } star)
+        {
+            Log.LogWarning(
+                "{Callsign}: DVIA could not resolve active STAR {Star} at {Dest}; published altitudes not overlaid",
+                aircraft.Callsign,
+                aircraft.Procedure.ActiveStarId,
+                aircraft.FlightPlan.Destination
+            );
+            return;
+        }
+
+        OverlayStarRestrictions(aircraft, star, transmissionId);
     }
 
     /// <summary>
@@ -1984,8 +2018,8 @@ internal static class NavigationCommandHandler
     {
         if (ResolveActiveStar(aircraft) is not { } star)
         {
-            Log.LogWarning(
-                "{Callsign}: DVIA could not resolve STAR {Star} at {Dest}; crossing restrictions it supersedes are cleared, not restored",
+            Log.LogDebug(
+                "{Callsign}: STAR {Star} at {Dest} unresolved; superseded crossing restrictions are cleared, not restored",
                 aircraft.Callsign,
                 aircraft.Procedure.ActiveStarId,
                 aircraft.FlightPlan.Destination

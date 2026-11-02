@@ -174,6 +174,50 @@ public class NavigationRoutePopulationTests
         Assert.DoesNotContain(result.Warnings, w => w.Contains("C83"));
     }
 
+    /// <summary>
+    /// A procedure-shaped token that resolves as nothing at all is reported as an unknown STAR whose published speeds
+    /// were not applied (7110.65 5-7-1.d NOTE). Airway and airport-code tokens are not, as
+    /// <see cref="Airway_NoWarning"/> and <see cref="AirportCode_WithTrailingDigits_ResolvedExactly"/> pin.
+    /// </summary>
+    [Fact]
+    public void MisspeltStar_WarnsThatPublishedSpeedsWereNotApplied()
+    {
+        ScenarioLoadResult result = LoadWithNavPath("ANJLLL9");
+
+        Assert.Single(result.ImmediateAircraft);
+        Assert.Contains(
+            result.Warnings,
+            w =>
+                w.Contains("STAR ANJLLL9 not found in NavData", StringComparison.Ordinal)
+                && w.Contains("published speeds not applied", StringComparison.Ordinal)
+        );
+    }
+
+    /// <summary>
+    /// A path names things that are no STAR and still resolve — an airway, a fix/radial/distance point, a SID and a
+    /// military route: none of them is reported as an unknown STAR whose published speeds were not applied. The negative
+    /// cases are <see cref="Airway_NoWarning"/> and <see cref="AirportCode_WithTrailingDigits_ResolvedExactly"/>.
+    /// </summary>
+    [Fact]
+    public void NonStarTokens_AreNotReportedAsUnknownStars()
+    {
+        const string Airway = "V27";
+        const string Frd = "SAT263043";
+        const string Sid = "WESLA5";
+        const string MilitaryRoute = "IR149";
+
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        Assert.True(navDb.IsAirway(Airway), $"{Airway} is no airway in this navdata");
+        Assert.NotNull(navDb.ResolveFixOrFrd(Frd));
+        Assert.Equal(Sid, navDb.ResolveSidId(Sid));
+        Assert.True(navDb.IsMilitaryRoute(MilitaryRoute), $"{MilitaryRoute} is no military route in this navdata");
+
+        ScenarioLoadResult result = LoadWithNavPath($"{Airway} {Frd} {Sid} {MilitaryRoute}");
+
+        Assert.Single(result.ImmediateAircraft);
+        Assert.DoesNotContain(result.Warnings, w => w.Contains("not found in NavData", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void FixName_AllDigitSuffix_TriesExactFirst()
     {

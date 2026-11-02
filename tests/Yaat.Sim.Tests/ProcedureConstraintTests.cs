@@ -307,30 +307,42 @@ public class ProcedureConstraintTests
     [Fact]
     public void ConstraintsApplied_WhenAdvancingToNextFix()
     {
-        AircraftState aircraft = CreateAircraft(altitude: 3000);
-        aircraft.Procedure.SidViaMode = true;
-        aircraft.Procedure.ActiveSidId = "PORTE3";
-
-        // Place aircraft near the first fix
-        aircraft.Position = new LatLon(37.1, -122.0);
-
-        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX1", Position = new LatLon(37.1, -122.0) });
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "FIX2",
-                Position = new LatLon(38.0, -122.0),
-                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 7000),
-                SpeedRestriction = new CifpSpeedRestriction(230, CifpSpeedRestrictionType.AtOrBelow),
-            }
-        );
+        AircraftState aircraft = BuildAircraftNearFix1(new CifpSpeedRestriction(230, CifpSpeedRestrictionType.AtOrBelow));
+        AircraftState control = BuildAircraftNearFix1(fix2Speed: null);
 
         // Run physics — aircraft reaches FIX1, advances to FIX2, applies constraints
         FlightPhysics.Update(aircraft, 1.0);
+        FlightPhysics.Update(control, 1.0);
 
         Assert.Equal(7000, aircraft.Targets.TargetAltitude);
-        Assert.Equal(230, aircraft.Targets.TargetSpeed);
+        // FIX2's published 230 is a slowdown below the present speed, so sequencing onto it leaves the slowdown to the
+        // planner's deceleration window rather than targeting it at once (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2).
+        // The control is the same aircraft without FIX2's restriction.
+        Assert.Equal(control.Targets.TargetSpeed, aircraft.Targets.TargetSpeed);
+        Assert.Equal(230, aircraft.Targets.NavigationRoute[0].SpeedRestriction?.SpeedKts);
         Assert.Single(aircraft.Targets.NavigationRoute);
         Assert.Equal("FIX2", aircraft.Targets.NavigationRoute[0].Name);
+
+        static AircraftState BuildAircraftNearFix1(CifpSpeedRestriction? fix2Speed)
+        {
+            AircraftState built = CreateAircraft(altitude: 3000);
+            built.Procedure.SidViaMode = true;
+            built.Procedure.ActiveSidId = "PORTE3";
+
+            // Place aircraft near the first fix
+            built.Position = new LatLon(37.1, -122.0);
+
+            built.Targets.NavigationRoute.Add(new NavigationTarget { Name = "FIX1", Position = new LatLon(37.1, -122.0) });
+            built.Targets.NavigationRoute.Add(
+                new NavigationTarget
+                {
+                    Name = "FIX2",
+                    Position = new LatLon(38.0, -122.0),
+                    AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 7000),
+                    SpeedRestriction = fix2Speed,
+                }
+            );
+            return built;
+        }
     }
 }

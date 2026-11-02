@@ -194,6 +194,85 @@ public class DescendViaSupersedesEarlierAltitudeTests
         Assert.True(highestTarget <= 11000, $"Before GRUDG the target rose to {highestTarget:F0} ft, {highestTargetSecond} s after the CFIX");
     }
 
+    /// <summary>
+    /// "JARR" puts both the STAR's published altitudes and speeds on the route; the later descend via overlays the same
+    /// published values again, so the route it hands to via mode is the one JARR built.
+    /// </summary>
+    [Fact]
+    public void Jarr_ThenDescendVia_LeavesTheRestrictionsJarrPutOnTheRoute()
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        TickUntilPassed(harness, aircraft.Targets.NavigationRoute[0].Name, _ => { });
+        SendOk(harness, "JARR OAKES3");
+        string before = RouteRestrictions(aircraft);
+
+        SendOk(harness, "DVIA");
+
+        Assert.Equal(before, RouteRestrictions(aircraft));
+    }
+
+    /// <summary>
+    /// A level STAR spawn carries the STAR's published speeds only, so "CFIX X A110, DVIA" must still load its other
+    /// published altitudes: the crossing this transmission restates at X keeps 11,000, and the next published fix takes
+    /// the altitude the STAR publishes.
+    /// </summary>
+    [Fact]
+    public void LevelSpawn_SameTransmissionCfixThenDvia_LoadsTheOtherPublishedAltitudes()
+    {
+        if ((BuildOakesHarness() is not { } harness) || (BuildOakesHarness() is not { } reference))
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        SendOk(reference, "DVIA");
+        (string first, string second) = FirstTwoPublishedAltitudeFixes(reference.Aircraft);
+
+        SendOk(harness, $"CFIX {first} A110, DVIA");
+
+        Assert.Equal(11000, FixNamed(harness.Aircraft, first).AltitudeRestriction?.Altitude1Ft);
+        Assert.Equal(FixNamed(reference.Aircraft, second).AltitudeRestriction, FixNamed(harness.Aircraft, second).AltitudeRestriction);
+    }
+
+    /// <summary>
+    /// The same crossing and clearance in separate transmissions: the clearance supersedes the earlier crossing at X and
+    /// still loads the STAR's other published altitudes, so the next published fix carries the altitude the STAR publishes.
+    /// </summary>
+    [Fact]
+    public void LevelSpawn_CfixThenLaterDvia_LoadsTheOtherPublishedAltitudes()
+    {
+        if ((BuildOakesHarness() is not { } harness) || (BuildOakesHarness() is not { } reference))
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        SendOk(reference, "DVIA");
+        (string first, string second) = FirstTwoPublishedAltitudeFixes(reference.Aircraft);
+
+        SendOk(harness, $"CFIX {first} A110");
+        SendOk(harness, "DVIA");
+
+        Assert.Equal(FixNamed(reference.Aircraft, second).AltitudeRestriction, FixNamed(harness.Aircraft, second).AltitudeRestriction);
+    }
+
+    /// <summary>Each route fix with the restrictions in force, in order, for comparing a route across a clearance.</summary>
+    private static string RouteRestrictions(AircraftState aircraft) => string.Join(" ", aircraft.Targets.NavigationRoute.Select(DescribeFix));
+
+    private static string DescribeFix(NavigationTarget fix)
+    {
+        CifpAltitudeRestriction? altitude = fix.AltitudeRestriction;
+        return $"{fix.Name}({altitude?.Type} {altitude?.Altitude1Ft}/{altitude?.Altitude2Ft},{fix.SpeedRestriction?.SpeedKts})";
+    }
+
+    private static NavigationTarget FixNamed(AircraftState aircraft, string name) => aircraft.Targets.NavigationRoute.First(t => t.Name == name);
+
     /// <summary>"DM 110" from the harness's 16,000, ticked until level at 11,000.</summary>
     private void LevelAt11000(Harness harness)
     {
@@ -242,13 +321,14 @@ public class DescendViaSupersedesEarlierAltitudeTests
     }
 
     /// <summary>
-    /// "CFIX X 110, DVIA" restates the crossing with the via clearance, whether the STAR was already active (the DVIA
-    /// supersede pass keeps it) or the DVIA activates it (the published overlay skips it).
+    /// "CFIX X 110, DVIA" restates the crossing with the via clearance. The overlay runs either way — with an earlier
+    /// descend via it rewrites the STAR's published values, without one it is what puts them there — and the crossing this
+    /// transmission restated survives both the overlay's and the supersede pass's stamp checks.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void DescendVia_SameTransmissionCrossFix_KeepsTheRestriction_NoRevert(bool starAlreadyActive)
+    public void DescendVia_SameTransmissionCrossFix_KeepsTheRestriction_NoRevert(bool earlierDescendVia)
     {
         if (BuildOakesHarness() is not { } harness)
         {
@@ -257,7 +337,7 @@ public class DescendViaSupersedesEarlierAltitudeTests
         }
 
         AircraftState aircraft = harness.Aircraft;
-        if (starAlreadyActive)
+        if (earlierDescendVia)
         {
             SendOk(harness, "DVIA");
             SendOk(harness, "DM 150");
@@ -759,8 +839,8 @@ public class DescendViaSupersedesEarlierAltitudeTests
         Assert.Null(fix.RevertAssignedSpeed);
     }
 
-    /// <summary>The first route fix OAKES3 publishes an altitude restriction for, read from the CIFP legs.</summary>
-    private static string FirstFixWithPublishedAltitude(AircraftState aircraft)
+    /// <summary>The OAKES3 fixes that publish an altitude restriction, read from the CIFP legs.</summary>
+    private static HashSet<string> PublishedAltitudeFixNames()
     {
         CifpStarProcedure star = Assert.IsType<CifpStarProcedure>(NavigationDatabase.Instance.GetStar("KOAK", "OAKES3"));
         List<CifpLeg> legs =
@@ -769,12 +849,27 @@ public class DescendViaSupersedesEarlierAltitudeTests
             .. star.CommonLegs,
             .. star.RunwayTransitions.Values.SelectMany(t => t.Legs),
         ];
-        var published = DepartureClearanceHandler
+        return DepartureClearanceHandler
             .ResolveLegsToTargets(legs)
             .Where(t => t.AltitudeRestriction is not null)
             .Select(t => t.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The first route fix OAKES3 publishes an altitude restriction for.</summary>
+    private static string FirstFixWithPublishedAltitude(AircraftState aircraft)
+    {
+        HashSet<string> published = PublishedAltitudeFixNames();
         return aircraft.Targets.NavigationRoute.First(t => published.Contains(t.Name)).Name;
+    }
+
+    /// <summary>The first two route fixes OAKES3 publishes an altitude restriction for, in route order.</summary>
+    private static (string First, string Second) FirstTwoPublishedAltitudeFixes(AircraftState aircraft)
+    {
+        HashSet<string> published = PublishedAltitudeFixNames();
+        List<string> names = [.. aircraft.Targets.NavigationRoute.Select(t => t.Name).Where(published.Contains).Take(2)];
+        Assert.Equal(2, names.Count);
+        return (names[0], names[1]);
     }
 
     /// <summary>The first OAKES3 fix, in CIFP leg order, on which no leg publishes an altitude restriction.</summary>

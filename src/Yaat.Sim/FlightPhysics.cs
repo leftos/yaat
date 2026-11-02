@@ -282,7 +282,7 @@ public static class FlightPhysics
             }
 
             nav = route[0];
-            ApplyFixConstraints(aircraft, nav);
+            ApplySequencedFixConstraints(aircraft, nav);
         }
 
         // Compute steering heading
@@ -937,6 +937,17 @@ public static class FlightPhysics
     /// </summary>
     internal static void ApplyViaClearanceFixConstraints(AircraftState aircraft, NavigationTarget target) =>
         ApplyFixConstraints(aircraft, target, slowdownLeftToPlanner: true);
+
+    /// <summary>
+    /// As <see cref="ApplyFixConstraints(AircraftState, NavigationTarget)"/>, for the fix the aircraft has just sequenced
+    /// onto: a published speed below the present one is left to the speed planner's deceleration window, in every mode
+    /// (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2). A controller-set crossing speed and a Mach hold still apply at
+    /// once, the Mach hold's at once being a fallback while the planner is off under a Mach target, not the intended
+    /// descent profile (AIM 5-4-1.a.1), and an altitude, an acceleration and an "at or above" floor are left immediate by
+    /// the flag itself.
+    /// </summary>
+    internal static void ApplySequencedFixConstraints(AircraftState aircraft, NavigationTarget target) =>
+        ApplyFixConstraints(aircraft, target, slowdownLeftToPlanner: !IsControllerSetSpeed(target) && (aircraft.Targets.TargetMach is null));
 
     private static void ApplyFixConstraints(AircraftState aircraft, NavigationTarget target, bool slowdownLeftToPlanner)
     {

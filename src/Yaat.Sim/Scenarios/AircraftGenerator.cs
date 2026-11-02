@@ -543,12 +543,16 @@ public static class AircraftGenerator
         state.IndicatedAirspeed =
             request.StarSpeedKts ?? joinFixSpeed ?? AircraftPerformance.DefaultSpeed(aircraftType, category, state.Altitude, null);
 
-        // Descend-via overlays CIFP crossing restrictions and enables StarViaMode (auto-DVIA at spawn).
-        // Level spawns keep a constraint-free lateral route so the aircraft holds altitude until DVIA;
-        // the STAR stays in the filed route so a later DVIA reactivates the descent profile.
+        // A STAR clearance authorizes its published speeds with or without descend-via, but not its altitudes
+        // (7110.65 5-7-1.d NOTE; AIM 5-4-1.a.2(a) NOTE 1). A level spawn keeps the STAR's published speeds and no
+        // altitude restrictions until a later DVIA overlays the descent profile; the STAR stays in the filed route.
         if (request.DescendVia)
         {
             ArrivalRouteResolver.ApplyAltitudeProfile(state, navPath, warnings);
+        }
+        else
+        {
+            ArrivalRouteResolver.ApplyStarSpeedRestrictions(state, navPath, warnings);
         }
 
         TrueHeading heading = ComputeOnStarHeading(state, entryPos.Value, airport, navDb);

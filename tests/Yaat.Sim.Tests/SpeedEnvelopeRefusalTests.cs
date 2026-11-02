@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
 
@@ -370,6 +371,7 @@ public sealed class SpeedEnvelopeRefusalTests
     {
         AircraftState ac = Dal334AtFl350();
         string fix = ac.Targets.NavigationRoute[^1].Name;
+        CifpSpeedRestriction published = ac.Targets.NavigationRoute[^1].SpeedRestriction!;
         double? targetBefore = ac.Targets.TargetSpeed;
         double? assignedBefore = ac.Targets.AssignedSpeed;
 
@@ -377,7 +379,7 @@ public sealed class SpeedEnvelopeRefusalTests
 
         AssertRefusedKeepingSpeed(ac, result, targetBefore, assignedBefore);
         Assert.Contains("Mach .82", result.Message);
-        Assert.Null(ac.Targets.NavigationRoute[^1].SpeedRestriction);
+        Assert.Equal(published, ac.Targets.NavigationRoute[^1].SpeedRestriction);
     }
 
     [Fact]
@@ -398,7 +400,9 @@ public sealed class SpeedEnvelopeRefusalTests
         ac.Altitude = 35_000;
         ac.Targets.TargetAltitude = 35_000;
         Assert.NotEmpty(ac.Targets.NavigationRoute);
-        Assert.Null(ac.Targets.NavigationRoute[^1].SpeedRestriction);
+        // A STAR clearance authorizes its published speeds with no descend via (7110.65 5-7-1.d NOTE), so ANJLL4's
+        // last fix carries its published 270.
+        Assert.Equal(new CifpSpeedRestriction(270, CifpSpeedRestrictionType.Mandatory), ac.Targets.NavigationRoute[^1].SpeedRestriction);
         return ac;
     }
 }

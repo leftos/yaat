@@ -1762,7 +1762,7 @@ A later `DVIA` supersedes a `CFIX` or constrained `DCTF` crossing (see **`DVIA` 
 | SID (after CTO) | **ON** — aircraft follows published climb restrictions | `CVIA` (re-enable after `CM`, `CTO RH`, or vectors) | `CM` or `DM` (any altitude command) |
 | STAR (after JARR) | **OFF** — aircraft maintains altitude, follows lateral path only | `DVIA` (enable descent restrictions) | `DM` or `CM` (any altitude command) |
 
-`DVIA` no longer requires a prior `JARR`: when no STAR is active, it activates the STAR filed in the flight-plan route and applies that STAR's published crossing restrictions before descending.
+`DVIA` no longer requires a prior `JARR`: when no STAR is active, it activates the STAR filed in the flight-plan route and applies that STAR's published crossing restrictions before descending. When a STAR is already active, `DVIA` always overlays the STAR's published crossing restrictions onto the route in place (a `LVL` STAR spawn included); crossing values this transmission set are kept, and earlier `CFIX` crossings are superseded. The STAR's published speeds apply without `DVIA` (AIM 5-4-1.a.2(a)(3) NOTE 1; 7110.65 4-5-7 NOTE).
 
 Symmetrically, `CVIA` no longer requires an active SID: when none is active — for example after `CTO RH` or being vectored off the SID — it activates the SID filed in the route and overlays its published crossing restrictions onto the current route. Issue `DCT <SID fix>` first to reload the lateral path, then `CVIA` to climb via.
 
@@ -2319,7 +2319,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 - **At parking/helipad**: `@{spot}` is a parking or helipad name (e.g., `@H1`, `@B12`). Aircraft spawns at ground level with no departure or destination filed (so no departure strip or PDC is printed for it — amend the flight plan first if you want one). Useful for helicopters and ground operations — use the `H` engine token (`ADD VFR S H @H1`) to spawn a helicopter.
 **Altitude argument (`{alt}`):** same shorthand as every other altitude in YAAT. A number below 1000 is hundreds of feet (`035` = 3500 ft, `005` = 500 ft, `230` = FL230); a number at or above 1000 is literal feet (`3500` = 3500 ft). `{airport}+{hundreds}` is AGL above field elevation (`KOAK+010` = 1000 ft AGL). Zero and negative values are rejected.
 
-- **Arrival on STAR**: a dotted `{waypoint}.{star}[.{runway}]` token (e.g. `TBARR.TBARR4.34R`) spawns an IFR aircraft already established on the arrival at the named waypoint, heading down the route. By default it **descends via** the STAR's published crossing restrictions from its current altitude; add `LVL` to hold the altitude until you issue `DVIA`.
+- **Arrival on STAR**: a dotted `{waypoint}.{star}[.{runway}]` token (e.g. `TBARR.TBARR4.34R`) spawns an IFR aircraft already established on the arrival at the named waypoint, heading down the route. By default it **descends via** the STAR's published crossing restrictions from its current altitude; add `LVL` to hold the altitude until you issue `DVIA`. A `LVL` spawn still flies the STAR's published speeds, since a STAR clearance authorizes them without "descend via", but not its altitudes; `DVIA` then adds the published crossing altitudes.
 
   Optional trailing tokens, any order: a bare number = current altitude in hundreds (e.g. `230` = FL230; omit to auto-compute a realistic establishment altitude from the STAR profile); `SP{kts}` = speed override (e.g. `SP250`); `{airport}` = ICAO/FAA destination for multi-airport STARs (defaults to the primary scenario airport).
 

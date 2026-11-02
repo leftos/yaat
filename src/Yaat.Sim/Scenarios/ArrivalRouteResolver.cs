@@ -6,9 +6,9 @@ using Yaat.Sim.Data.Vnas;
 namespace Yaat.Sim.Scenarios;
 
 /// <summary>
-/// Builds an aircraft's lateral navigation route from a navigation-path string and, optionally,
-/// overlays a STAR's CIFP altitude/speed crossing restrictions and enables descend-via mode.
-/// Shared by <see cref="ScenarioLoader"/> (scenario-defined arrivals) and
+/// Builds an aircraft's lateral navigation route from a navigation-path string and overlays a STAR's published CIFP
+/// crossing restrictions: the speeds alone for a clearance with no descend via, both the altitudes and the speeds with
+/// one. Shared by <see cref="ScenarioLoader"/> (scenario-defined arrivals) and
 /// <see cref="AircraftGenerator"/> (the ADD-command arrival-on-STAR spawn variant).
 /// </summary>
 internal static class ArrivalRouteResolver
@@ -123,79 +123,13 @@ internal static class ArrivalRouteResolver
     /// </summary>
     internal static void ApplyAltitudeProfile(AircraftState state, string? navigationPath, List<string> warnings)
     {
-        if (string.IsNullOrWhiteSpace(navigationPath) || string.IsNullOrEmpty(state.FlightPlan.Destination))
+        if (ResolveStarConstraints(state, navigationPath, warnings, "descend-via constraints not applied") is not { } resolved)
         {
             return;
-        }
-
-        NavigationDatabase navDb = NavigationDatabase.Instance;
-
-        // Find the STAR token in the navigation path
-        string[] tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        string? starId = null;
-        string? runwayDesignator = null;
-
-        foreach (string token in tokens)
-        {
-            string[] parts = token.Split('.');
-            string rawName = parts[0];
-            string? resolvedId = navDb.ResolveStarId(rawName);
-            if (resolvedId is not null)
-            {
-                starId = resolvedId;
-                runwayDesignator = parts.Length > 1 ? parts[1] : null;
-                break;
-            }
-        }
-
-        if (starId is null)
-        {
-            // Check if any token looks like a procedure name (has trailing digits) but wasn't found
-            foreach (string token in tokens)
-            {
-                string rawName = token.Split('.')[0];
-                string baseName = NavigationDatabase.StripTrailingDigits(rawName);
-                if (baseName != rawName)
-                {
-                    warnings.Add($"{state.Callsign}: STAR {rawName} not found in NavData — descend-via constraints not applied");
-                    break;
-                }
-            }
-
-            return;
-        }
-
-        CifpStarProcedure? star = navDb.GetStar(state.FlightPlan.Destination, starId);
-        if (star is null)
-        {
-            return;
-        }
-
-        // Build CIFP-constrained targets: common legs + runway transition
-        var orderedLegs = new List<CifpLeg>();
-        orderedLegs.AddRange(star.CommonLegs);
-
-        IReadOnlyList<CifpLeg>? rwTransitionLegs = FindRunwayTransition(star, runwayDesignator, state.Procedure.DestinationRunway);
-        if (rwTransitionLegs is not null)
-        {
-            orderedLegs.AddRange(rwTransitionLegs);
-        }
-
-        if (orderedLegs.Count == 0)
-        {
-            return;
-        }
-
-        List<NavigationTarget> constrainedTargets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
-
-        // Build a lookup of constraints by fix name
-        var constraintsByFix = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
-        foreach (NavigationTarget target in constrainedTargets)
-        {
-            constraintsByFix[target.Name] = target;
         }
 
         // Overlay constraints onto existing route targets
+        Dictionary<string, NavigationTarget> constraintsByFix = resolved.ConstraintsByFix;
         List<NavigationTarget> route = state.Targets.NavigationRoute;
         for (int i = 0; i < route.Count; i++)
         {
@@ -212,7 +146,7 @@ internal static class ArrivalRouteResolver
             }
         }
 
-        state.Procedure.ActiveStarId = starId;
+        state.Procedure.ActiveStarId = resolved.StarId;
         state.Procedure.StarViaMode = true;
 
         // Apply the first constrained fix's restrictions immediately so the aircraft
@@ -220,13 +154,145 @@ internal static class ArrivalRouteResolver
         // sequencing through unconstrained fixes.
         foreach (NavigationTarget target in route)
         {
-            if (target.AltitudeRestriction is not null || target.SpeedRestriction is not null)
+            if ((target.AltitudeRestriction is not null) || (target.SpeedRestriction is not null))
             {
                 FlightPhysics.ApplyFixConstraints(state, target);
                 break;
             }
         }
     }
+
+    /// <summary>
+    /// Puts a STAR's published speed restrictions on the route without descend-via: a STAR clearance authorizes its
+    /// published speeds with or without "descend via", while its published altitudes are not authorized until a later
+    /// descend-via overlays them (7110.65 5-7-1.d NOTE; AIM 5-4-1.a.2(a) NOTE 1). An "at or above" published floor goes
+    /// on the route the same way and holds until ATC deletes it, assigns a speed, vectors, clears direct or clears the
+    /// approach (7110.65 5-7-1.e NOTE). The planner flies the route's speeds, so no via mode is set here.
+    /// </summary>
+    internal static void ApplyStarSpeedRestrictions(AircraftState state, string? navigationPath, List<string> warnings)
+    {
+        if (ResolveStarConstraints(state, navigationPath, warnings, "published speeds not applied") is not { } resolved)
+        {
+            return;
+        }
+
+        // The STAR is active without descend via, as "JARR" leaves it: a direct then truncates this route and keeps its
+        // speeds, and RPS can restore a speed already crossed. Via mode stays off, so the altitudes are not authorized.
+        Dictionary<string, NavigationTarget> constraintsByFix = resolved.ConstraintsByFix;
+        state.Procedure.ActiveStarId = resolved.StarId;
+
+        List<NavigationTarget> route = state.Targets.NavigationRoute;
+        for (int i = 0; i < route.Count; i++)
+        {
+            if (constraintsByFix.TryGetValue(route[i].Name, out NavigationTarget? constrained) && (constrained.SpeedRestriction is not null))
+            {
+                route[i].SpeedRestriction = constrained.SpeedRestriction;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Finds the STAR named in the navigation path and resolves its published crossing restrictions (common legs + runway
+    /// transition) by fix name. Returns null when the path is empty or names no STAR, when the destination is unknown,
+    /// when the STAR is not in NavData, or when it resolves no legs — and warns about a procedure-shaped token that
+    /// resolves as nothing else either (<see cref="WarnUnknownStarToken"/>).
+    /// </summary>
+    private static (string StarId, Dictionary<string, NavigationTarget> ConstraintsByFix)? ResolveStarConstraints(
+        AircraftState state,
+        string? navigationPath,
+        List<string> warnings,
+        string notApplied
+    )
+    {
+        if (string.IsNullOrWhiteSpace(navigationPath) || string.IsNullOrEmpty(state.FlightPlan.Destination))
+        {
+            return null;
+        }
+
+        NavigationDatabase navDb = NavigationDatabase.Instance;
+        string[] tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (FindStarToken(navDb, tokens) is not { } starToken)
+        {
+            WarnUnknownStarToken(navDb, tokens, state.Callsign, warnings, notApplied);
+            return null;
+        }
+
+        CifpStarProcedure? star = navDb.GetStar(state.FlightPlan.Destination, starToken.StarId);
+        if (star is null)
+        {
+            return null;
+        }
+
+        // Build CIFP-constrained targets: common legs + runway transition
+        var orderedLegs = new List<CifpLeg>();
+        orderedLegs.AddRange(star.CommonLegs);
+
+        IReadOnlyList<CifpLeg>? rwTransitionLegs = FindRunwayTransition(star, starToken.RunwayDesignator, state.Procedure.DestinationRunway);
+        if (rwTransitionLegs is not null)
+        {
+            orderedLegs.AddRange(rwTransitionLegs);
+        }
+
+        if (orderedLegs.Count == 0)
+        {
+            return null;
+        }
+
+        List<NavigationTarget> constrainedTargets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
+
+        // Build a lookup of constraints by fix name
+        var constraintsByFix = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
+        foreach (NavigationTarget target in constrainedTargets)
+        {
+            constraintsByFix[target.Name] = target;
+        }
+
+        return (starToken.StarId, constraintsByFix);
+    }
+
+    /// <summary>The STAR token of a navigation path: its resolved id and runway designator, or null when it names none.</summary>
+    private static (string StarId, string? RunwayDesignator)? FindStarToken(NavigationDatabase navDb, string[] tokens)
+    {
+        foreach (string token in tokens)
+        {
+            string[] parts = token.Split('.');
+            string? resolvedId = navDb.ResolveStarId(parts[0]);
+            if (resolvedId is not null)
+            {
+                return (resolvedId, parts.Length > 1 ? parts[1] : null);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Warns about the first procedure-shaped token — one with trailing version digits — that resolves as nothing a route
+    /// may legitimately name: no STAR, old-version SID, airway, military route, or fix, navaid, airport or fix/radial/
+    /// distance point.
+    /// </summary>
+    private static void WarnUnknownStarToken(NavigationDatabase navDb, string[] tokens, string callsign, List<string> warnings, string notApplied)
+    {
+        foreach (string token in tokens)
+        {
+            string rawName = token.Split('.')[0];
+            if (IsKnownNonStarToken(navDb, rawName))
+            {
+                continue;
+            }
+
+            warnings.Add($"{callsign}: STAR {rawName} not found in NavData — {notApplied}");
+            break;
+        }
+    }
+
+    private static bool IsKnownNonStarToken(NavigationDatabase navDb, string rawName) =>
+        (NavigationDatabase.StripTrailingDigits(rawName) == rawName)
+        || (navDb.ResolveStarId(rawName) is not null)
+        || (navDb.ResolveSidId(rawName) is not null)
+        || navDb.IsAirway(rawName)
+        || navDb.IsMilitaryRoute(rawName)
+        || (navDb.ResolveFixOrFrd(rawName) is not null);
 
     /// <summary>
     /// Finds the best runway transition for a STAR procedure. Tries explicit designator first,

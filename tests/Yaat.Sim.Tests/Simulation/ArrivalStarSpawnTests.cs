@@ -103,7 +103,7 @@ public class ArrivalStarSpawnTests
     }
 
     [Fact]
-    public void Level_BuildsLateralRouteOnly_NoConstraints_NoStarViaMode()
+    public void Level_BuildsSpeedOnlyRoute_NoAltitudes_NoStarViaMode()
     {
         Fixture? f = TryBuildFixture();
         if (f is null)
@@ -116,9 +116,12 @@ public class ArrivalStarSpawnTests
         Assert.Null(error);
         Assert.NotNull(state);
         Assert.False(state.Procedure.StarViaMode, "level spawn must NOT enable StarViaMode");
-        Assert.Null(state.Procedure.ActiveStarId);
+        // The STAR is active without descend via, so a direct keeps its route and RNS/RPS can restore a published speed.
+        Assert.Equal(StarId, state.Procedure.ActiveStarId);
         Assert.NotEmpty(state.Targets.NavigationRoute);
-        // No altitude constraints overlaid → descent planning stays inert and the aircraft holds level.
+        // The published speeds are on the route (7110.65 5-7-1.d NOTE); no altitude constraints are → descent planning
+        // stays inert and the aircraft holds level.
+        Assert.Contains(state.Targets.NavigationRoute, t => t.SpeedRestriction is not null);
         Assert.DoesNotContain(state.Targets.NavigationRoute, t => t.AltitudeRestriction is not null);
         // STAR is in the filed route so a later DVIA can reactivate the descent profile.
         Assert.Contains(StarId, state.FlightPlan.Route);
