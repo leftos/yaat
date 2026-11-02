@@ -81,35 +81,55 @@ public sealed class SttBenchProcess(ISttBenchLauncher launcher, TimeProvider tim
             File.WriteAllText(jobPath, JsonSerializer.Serialize(job, SttBenchJsonContext.Default.SttBenchJob));
             string exePath = Environment.ProcessPath ?? throw new InvalidOperationException("This process has no path to start the benchmark from");
 
-            using ISttBenchChildProcess child = launcher.Start(exePath, jobPath);
             using var pastDeadline = new CancellationTokenSource(deadline, timeProvider);
-            using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct, pastDeadline.Token);
-            using var killWait = new CancellationTokenSource(Timeout.InfiniteTimeSpan, timeProvider);
-            using CancellationTokenRegistration kill = stop.Token.Register(() =>
+            var killer = new RowKiller(launcher.Start(exePath, jobPath), timeProvider);
+            // Unregister, never Dispose: a dispose waits for a kill that is still running, so a kill that blocks would hang the row.
+            CancellationTokenRegistration onCancel = default;
+            CancellationTokenRegistration onDeadline = default;
+            try
             {
-                TryKill(child);
-                killWait.CancelAfter(KillWait);
-            });
-            bool exited = await WaitForExitAsync(child, killWait.Token).ConfigureAwait(false);
-
-            ct.ThrowIfCancellationRequested();
-            if (!exited)
-            {
-                LogStderr(child, StuckFailure);
-                return SttBenchRowOutcome.Ran(SttBenchResult.Failed(StuckFailure, 0, null));
+                onCancel = ct.Register(killer.Fire);
+                onDeadline = pastDeadline.Token.Register(killer.Fire);
+                return await AwaitRowAsync(job, deadline, killer, pastDeadline, ct).ConfigureAwait(false);
             }
-            if (pastDeadline.IsCancellationRequested)
+            finally
             {
-                string failure = $"timed out after {deadline.TotalSeconds.ToString("F0", CultureInfo.InvariantCulture)} s";
-                LogStderr(child, failure);
-                return SttBenchRowOutcome.Ran(SttBenchResult.Failed(failure, 0, null));
+                onCancel.Unregister();
+                onDeadline.Unregister();
+                killer.Release();
             }
-            return SttBenchRowOutcome.Ran(ReadResult(job.ResultPath) ?? FailedRow(child));
         }
         finally
         {
             DeleteRunFolder(runFolder);
         }
+    }
+
+    private static async Task<SttBenchRowOutcome> AwaitRowAsync(
+        SttBenchJob job,
+        TimeSpan deadline,
+        RowKiller killer,
+        CancellationTokenSource pastDeadline,
+        CancellationToken ct
+    )
+    {
+        ISttBenchChildProcess child = killer.Child;
+        bool exited = await WaitForExitAsync(child, killer.KillWait).ConfigureAwait(false);
+
+        if (!exited)
+        {
+            LogStderr(child, StuckFailure);
+            ct.ThrowIfCancellationRequested();
+            return SttBenchRowOutcome.Ran(SttBenchResult.Failed(StuckFailure, 0, null));
+        }
+        ct.ThrowIfCancellationRequested();
+        if (pastDeadline.IsCancellationRequested)
+        {
+            string failure = $"timed out after {deadline.TotalSeconds.ToString("F0", CultureInfo.InvariantCulture)} s";
+            LogStderr(child, failure);
+            return SttBenchRowOutcome.Ran(SttBenchResult.Failed(failure, 0, null));
+        }
+        return SttBenchRowOutcome.Ran(ReadResult(job.ResultPath) ?? FailedRow(child));
     }
 
     // Runs inside a token's cancel, on the thread that fired it: an exception here would surface in whoever called Cancel.
@@ -171,6 +191,69 @@ public sealed class SttBenchProcess(ISttBenchLauncher launcher, TimeProvider tim
             Environment.NewLine,
             string.Join(Environment.NewLine, child.StderrLines)
         );
+
+    /// <summary>
+    /// Kills a row's child once, from whichever cancel fires first, and owns the child and the kill wait. The kill wait
+    /// starts before the kill, so a kill that blocks is bounded too. Neither is disposed while a kill runs: when the row
+    /// ends first, the kill disposes them as it returns.
+    /// </summary>
+    private sealed class RowKiller(ISttBenchChildProcess child, TimeProvider timeProvider)
+    {
+        private readonly Lock _gate = new();
+        private readonly CancellationTokenSource _killWait = new(Timeout.InfiniteTimeSpan, timeProvider);
+        private bool _fired;
+        private bool _killing;
+        private bool _released;
+
+        public ISttBenchChildProcess Child => child;
+
+        public CancellationToken KillWait => _killWait.Token;
+
+        public void Fire()
+        {
+            lock (_gate)
+            {
+                if (_fired || _released)
+                {
+                    return;
+                }
+                _fired = true;
+                _killing = true;
+                _killWait.CancelAfter(SttBenchProcess.KillWait);
+            }
+            TryKill(child);
+            bool dispose;
+            lock (_gate)
+            {
+                _killing = false;
+                dispose = _released;
+            }
+            if (dispose)
+            {
+                DisposeAll();
+            }
+        }
+
+        /// <summary>The row is over; disposes now, or leaves it to the kill still running.</summary>
+        public void Release()
+        {
+            lock (_gate)
+            {
+                _released = true;
+                if (_killing)
+                {
+                    return;
+                }
+            }
+            DisposeAll();
+        }
+
+        private void DisposeAll()
+        {
+            _killWait.Dispose();
+            child.Dispose();
+        }
+    }
 
     private static void DeleteRunFolder(string runFolder)
     {

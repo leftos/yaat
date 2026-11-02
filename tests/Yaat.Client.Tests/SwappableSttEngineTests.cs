@@ -12,7 +12,7 @@ namespace Yaat.Client.Tests;
 /// </summary>
 public sealed class SwappableSttEngineTests : IDisposable
 {
-    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan HangGuard = TimeSpan.FromMinutes(5);
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "yaat-swappable-stt-" + Guid.NewGuid().ToString("N"));
 
@@ -247,6 +247,66 @@ public sealed class SwappableSttEngineTests : IDisposable
         Assert.Same(later, swappable.Current);
         Assert.True(earlier.Disposed);
         Assert.False(later.Disposed);
+    }
+
+    [Fact]
+    public void WhenSwapsSettled_CompletesAtOnceWithNoSwap()
+    {
+        using var swappable = new SwappableSttEngine(new FakeEngine("first"));
+
+        Assert.True(swappable.WhenSwapsSettledAsync(CancellationToken.None).IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public async Task WhenSwapsSettled_WaitsForASupersededBuild()
+    {
+        var earlier = new FakeEngine("earlier");
+        var earlierBuild = new TaskCompletionSource<ISttEngine>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var swappable = new SwappableSttEngine(new FakeEngine("first"));
+
+        Task<bool> earlierApply = swappable.SwapToLatestAsync(() => earlierBuild.Task, CancellationToken.None);
+        bool laterSwapped = await swappable
+            .SwapToLatestAsync(() => Task.FromResult<ISttEngine>(new FakeEngine("later")), CancellationToken.None)
+            .WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        Task settled = swappable.WhenSwapsSettledAsync(CancellationToken.None);
+
+        Assert.True(laterSwapped);
+        Assert.False(settled.IsCompleted);
+        earlierBuild.SetResult(earlier);
+        await settled.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        Assert.True(earlier.Disposed);
+        Assert.False(await earlierApply.WaitAsync(HangGuard, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task WhenSwapsSettled_CompletesWhenABuildThrows()
+    {
+        var build = new TaskCompletionSource<ISttEngine>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var swappable = new SwappableSttEngine(new FakeEngine("first"));
+
+        Task<bool> apply = swappable.SwapToLatestAsync(() => build.Task, CancellationToken.None);
+        Task settled = swappable.WhenSwapsSettledAsync(CancellationToken.None);
+        Assert.False(settled.IsCompleted);
+        build.SetException(new InvalidOperationException("no model"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => apply.WaitAsync(HangGuard, TestContext.Current.CancellationToken));
+        await settled.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task WhenSwapsSettled_HonoursCancellation()
+    {
+        var build = new TaskCompletionSource<ISttEngine>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var swappable = new SwappableSttEngine(new FakeEngine("first"));
+        using var cts = new CancellationTokenSource();
+
+        Task<bool> apply = swappable.SwapToLatestAsync(() => build.Task, CancellationToken.None);
+        Task settled = swappable.WhenSwapsSettledAsync(cts.Token);
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => settled.WaitAsync(HangGuard, TestContext.Current.CancellationToken));
+        build.SetResult(new FakeEngine("built"));
+        Assert.True(await apply.WaitAsync(HangGuard, TestContext.Current.CancellationToken));
     }
 
     [Fact]

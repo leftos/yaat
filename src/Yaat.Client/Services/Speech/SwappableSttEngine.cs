@@ -21,6 +21,9 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
     private volatile ISttEngine _current = first;
     private volatile bool _disposed;
     private long _latestRequest;
+    private readonly Lock _swapsGate = new();
+    private int _swapsInFlight;
+    private TaskCompletionSource _swapsSettled = CompletedSource();
 
     /// <summary>The engine transcriptions run on now.</summary>
     public ISttEngine Current => _current;
@@ -110,24 +113,47 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
     public async Task<bool> SwapToLatestAsync(Func<Task<ISttEngine>> build, CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        long request = Interlocked.Increment(ref _latestRequest);
-        ISttEngine next = await build().ConfigureAwait(false);
-        await _applyGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        SwapStarted();
         try
         {
-            if (request != Interlocked.Read(ref _latestRequest))
+            long request = Interlocked.Increment(ref _latestRequest);
+            ISttEngine next = await build().ConfigureAwait(false);
+            await _applyGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
             {
-                Log.LogInformation("A later speech-recognition engine request superseded {Engine}; discarding it", next.GetType().Name);
-                await DisposeOffThreadAsync(next).ConfigureAwait(false);
-                return false;
+                if (request != Interlocked.Read(ref _latestRequest))
+                {
+                    Log.LogInformation("A later speech-recognition engine request superseded {Engine}; discarding it", next.GetType().Name);
+                    await DisposeOffThreadAsync(next).ConfigureAwait(false);
+                    return false;
+                }
+                await SwapAsync(next, ct).ConfigureAwait(false);
+                return true;
             }
-            await SwapAsync(next, ct).ConfigureAwait(false);
-            return true;
+            finally
+            {
+                _applyGate.Release();
+            }
         }
         finally
         {
-            _applyGate.Release();
+            SwapEnded();
         }
+    }
+
+    /// <summary>
+    /// Completes when no <see cref="SwapToLatestAsync"/> call is in progress, a superseded build still loading its model
+    /// included; at once when none is.
+    /// </summary>
+    /// <param name="ct">Stops waiting; the swaps go on.</param>
+    public Task WhenSwapsSettledAsync(CancellationToken ct)
+    {
+        Task settled;
+        lock (_swapsGate)
+        {
+            settled = _swapsSettled.Task;
+        }
+        return settled.WaitAsync(ct);
     }
 
     /// <summary>Waits for the call in flight, then disposes the current engine.</summary>
@@ -163,6 +189,38 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
             _gate.Release();
             throw new ObjectDisposedException(nameof(SwappableSttEngine));
         }
+    }
+
+    // The first call in a quiet spell replaces the completed source, so a waiter taken now waits for every call in progress.
+    private void SwapStarted()
+    {
+        lock (_swapsGate)
+        {
+            if (_swapsInFlight++ == 0)
+            {
+                _swapsSettled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+        }
+    }
+
+    private void SwapEnded()
+    {
+        TaskCompletionSource? settled = null;
+        lock (_swapsGate)
+        {
+            if (--_swapsInFlight == 0)
+            {
+                settled = _swapsSettled;
+            }
+        }
+        settled?.SetResult();
+    }
+
+    private static TaskCompletionSource CompletedSource()
+    {
+        var source = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        source.SetResult();
+        return source;
     }
 
     private static Task DisposeOffThreadAsync(ISttEngine engine) =>

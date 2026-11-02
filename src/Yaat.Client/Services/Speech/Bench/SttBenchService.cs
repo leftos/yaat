@@ -58,7 +58,7 @@ public interface ISttEngineSuspender
     Task SuspendAsync(CancellationToken ct);
 
     /// <summary>Loads the engine the preferences name.</summary>
-    /// <param name="ct">Stops waiting for the load, which goes on.</param>
+    /// <param name="ct">Cancels the Whisper and LLM reloads; the engine rebuild, when one is due, ignores it.</param>
     Task ResumeAsync(CancellationToken ct);
 }
 
@@ -85,7 +85,7 @@ public sealed class SttBenchStandInEngine : ISttEngine
     public Task WarmUpAsync(CancellationToken ct) => Task.CompletedTask;
 
     public Task<SttHypotheses> TranscribeAsync(float[] samples16k, string? prompt, CancellationToken ct) =>
-        throw new InvalidOperationException(RefusalMessage);
+        Task.FromException<SttHypotheses>(new InvalidOperationException(RefusalMessage));
 
     public void Dispose() { }
 }
@@ -115,33 +115,62 @@ public sealed class SttEngineSuspender(
 
     private volatile bool _suspended;
 
+    // What the last SuspendAsync got as far as, so ResumeAsync restores only that. An unload counts once it was asked for,
+    // since a cancelled or failed one may already hold its model out.
+    private volatile bool _engineSwapped;
+    private volatile bool _whisperUnloadAsked;
+    private volatile bool _llmUnloadAsked;
+
     /// <summary>Whether engine builds give a stand-in.</summary>
     public bool IsSuspended => _suspended;
 
     // The flag goes up before the swap's request number is taken: a build that started earlier is superseded by this swap,
-    // and one that starts later sees the flag.
+    // and one that starts later sees the flag and builds a stand-in. The superseded build may still be loading its model, so
+    // no model is unloaded until every swap in progress has settled.
     public async Task SuspendAsync(CancellationToken ct)
     {
         _suspended = true;
         await engine.SwapToLatestAsync(() => Task.FromResult<ISttEngine>(new SttBenchStandInEngine()), ct).ConfigureAwait(false);
+        _engineSwapped = true;
+        await engine.WhenSwapsSettledAsync(ct).ConfigureAwait(false);
+        _whisperUnloadAsked = true;
         await Task.Run(() => models.UnloadWhisper(ct), ct).ConfigureAwait(false);
+        _llmUnloadAsked = true;
         await Task.Run(() => models.UnloadLlm(ct), ct).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Loads everything back and returns when it is all loaded. A failure is logged, never thrown: this runs on the run's
-    /// way out, where it must not replace a row's exception or a cancel.
+    /// Loads back what <see cref="SuspendAsync"/> took out, and only that, and returns when it is all loaded. A failure is
+    /// logged, never thrown: this runs on the run's way out, where it must not replace a row's exception or a cancel.
     /// </summary>
     public async Task ResumeAsync(CancellationToken ct)
     {
+        bool engineSwapped = _engineSwapped;
+        bool whisperUnloadAsked = _whisperUnloadAsked;
+        bool llmUnloadAsked = _llmUnloadAsked;
+        _engineSwapped = false;
+        _whisperUnloadAsked = false;
+        _llmUnloadAsked = false;
         _suspended = false;
         if (isShuttingDown())
         {
             return;
         }
-        await RestoreEngineAsync().ConfigureAwait(false);
-        await ReloadAsync("Whisper", models.ReloadWhisper, ct).ConfigureAwait(false);
-        await ReloadAsync("LLM", models.ReloadLlm, ct).ConfigureAwait(false);
+        // A build that started during the suspend can install a stand-in even when the suspend's own swap was cancelled;
+        // let it land, then rebuild whenever a stand-in is in place, so push-to-talk is never left refused.
+        await engine.WhenSwapsSettledAsync(CancellationToken.None).ConfigureAwait(false);
+        if (engineSwapped || (engine.Current is SttBenchStandInEngine))
+        {
+            await RestoreEngineAsync().ConfigureAwait(false);
+        }
+        if (whisperUnloadAsked)
+        {
+            await ReloadAsync("Whisper", models.ReloadWhisper, ct).ConfigureAwait(false);
+        }
+        if (llmUnloadAsked)
+        {
+            await ReloadAsync("LLM", models.ReloadLlm, ct).ConfigureAwait(false);
+        }
     }
 
     private static async Task ReloadAsync(string model, Func<CancellationToken, Task> reload, CancellationToken ct)
@@ -166,6 +195,9 @@ public sealed class SttEngineSuspender(
         {
             Log.LogError(ex, "Rebuilding the speech-recognition engine after the speech benchmark failed");
         }
+
+        // A swap that arrived during the rebuild (a finished download's) may still be loading; the fallback must not replace it.
+        await engine.WhenSwapsSettledAsync(CancellationToken.None).ConfigureAwait(false);
         if (engine.Current is not SttBenchStandInEngine)
         {
             return;
@@ -252,7 +284,9 @@ public sealed class SttBenchService(
     /// </summary>
     /// <param name="ct">Stops the run, as <see cref="Cancel"/> does.</param>
     /// <exception cref="InvalidOperationException">A run is already going on.</exception>
-    /// <exception cref="OperationCanceledException">The run was cancelled; the child is dead by then.</exception>
+    /// <exception cref="OperationCanceledException">
+    /// The run was cancelled; the kill has been issued; a child that survives it is logged and left.
+    /// </exception>
     public async Task RunAsync(CancellationToken ct)
     {
         using var run = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -272,7 +306,7 @@ public sealed class SttBenchService(
             int total = planned.Count(row => row.SkipReason is null);
             _rows = [.. rows];
             _progress = new SttBenchProgress(0, total, null);
-            Changed?.Invoke();
+            RaiseChanged();
             if (total > 0)
             {
                 await RunRowsAsync(rows, total, run.Token).ConfigureAwait(false);
@@ -320,7 +354,7 @@ public sealed class SttBenchService(
                 }
                 ct.ThrowIfCancellationRequested();
                 _progress = new SttBenchProgress(done, total, row);
-                Changed?.Invoke();
+                RaiseChanged();
 
                 SttBenchRowOutcome outcome = await runner.RunRowAsync(JobFor(row), RowDeadline, ct).ConfigureAwait(false);
 
@@ -328,7 +362,7 @@ public sealed class SttBenchService(
                 done++;
                 _rows = [.. rows];
                 _progress = new SttBenchProgress(done, total, null);
-                Changed?.Invoke();
+                RaiseChanged();
             }
             SaveLastRun(rows);
         }
@@ -342,7 +376,24 @@ public sealed class SttBenchService(
     private void SetState(SttBenchState state)
     {
         _state = state;
-        Changed?.Invoke();
+        RaiseChanged();
+    }
+
+    // Each listener in turn, each one's exception logged and dropped: a broken view must not skip the reload or a row.
+    private void RaiseChanged()
+    {
+        Delegate[] listeners = Changed?.GetInvocationList() ?? [];
+        foreach (Action listener in listeners.Cast<Action>())
+        {
+            try
+            {
+                listener();
+            }
+            catch (Exception ex)
+            {
+                Log.LogError(ex, "A speech benchmark listener failed");
+            }
+        }
     }
 
     private SttBenchJob JobFor(SttBenchPlanRow row)
@@ -374,6 +425,6 @@ public sealed class SttBenchService(
         var lastRun = new SttBenchLastRun(timeProvider.GetUtcNow(), lastRows);
         SttBenchLastRunStore.Save(folders.LastRunPath, lastRun);
         _lastRun = lastRun;
-        Changed?.Invoke();
+        RaiseChanged();
     }
 }

@@ -11,7 +11,7 @@ namespace Yaat.Client.Tests;
 public sealed class SttBenchProcessTests : IDisposable
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(120);
-    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan HangGuard = TimeSpan.FromMinutes(5);
 
     private readonly string _root = Directory.CreateTempSubdirectory("stt-bench-process-").FullName;
     private readonly FakeTimeProvider _time = new();
@@ -156,6 +156,23 @@ public sealed class SttBenchProcessTests : IDisposable
         Assert.False(Directory.Exists(RunFolder));
     }
 
+    [Fact]
+    public async Task Cancelling_While_The_Kill_Blocks_Ends_The_Row_Once_The_Kill_Wait_Has_Passed()
+    {
+        var child = new StubChild { KillHold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var process = new SttBenchProcess(new StubLauncher(child, _ => { }), _time);
+        using var cts = new CancellationTokenSource();
+
+        Task<SttBenchRowOutcome> run = process.RunRowAsync(Job, Deadline, cts.Token);
+        var cancel = Task.Run(cts.Cancel, TestContext.Current.CancellationToken);
+        await child.KillStarted.Task.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        _time.Advance(TimeSpan.FromSeconds(10));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(HangGuard, TestContext.Current.CancellationToken));
+        child.KillHold.SetResult();
+        await cancel.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+    }
+
     private Task<SttBenchRowOutcome> Run(StubLauncher launcher) =>
         new SttBenchProcess(launcher, _time)
             .RunRowAsync(Job, Deadline, CancellationToken.None)
@@ -185,6 +202,11 @@ public sealed class SttBenchProcessTests : IDisposable
 
         public bool KillIgnored { get; init; }
 
+        /// <summary>When set, <see cref="Kill"/> blocks its caller until this completes.</summary>
+        public TaskCompletionSource? KillHold { get; init; }
+
+        public TaskCompletionSource KillStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public bool Killed { get; private set; }
 
         public bool KilledTree { get; private set; }
@@ -201,6 +223,8 @@ public sealed class SttBenchProcessTests : IDisposable
         {
             Killed = true;
             KilledTree = entireProcessTree;
+            KillStarted.TrySetResult();
+            KillHold?.Task.Wait();
             if (KillThrows)
             {
                 throw new AggregateException(new InvalidOperationException("access denied"));

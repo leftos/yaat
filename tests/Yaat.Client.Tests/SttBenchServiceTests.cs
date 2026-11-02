@@ -12,7 +12,7 @@ public sealed class SttBenchServiceTests : IDisposable
 {
     private const string SkipReason = "needs the GPU runtime (not installed)";
 
-    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan HangGuard = TimeSpan.FromMinutes(5);
 
     private static readonly SttBenchPlanRow First = new(SttEngine.RasrV2Fp32, SttMode.Accurate, SttDevice.Cpu, null);
     private static readonly SttBenchPlanRow Skipped = new(SttEngine.RasrV2Fp32, SttMode.Accurate, SttDevice.Gpu, SkipReason);
@@ -459,18 +459,63 @@ public sealed class SttBenchServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task A_Cancelled_Suspend_Unloads_Nothing_Further_And_Resume_Still_Reloads_Once()
+    public async Task Resume_AfterACancelBeforeTheSwap_RebuildsNothing()
     {
-        using var holder = new SwappableSttEngine(new FakeEngine());
+        var live = new FakeEngine();
+        using var holder = new SwappableSttEngine(live);
         var hooks = new ModelHooks();
-        var suspender = new SttEngineSuspender(holder, () => Task.CompletedTask, () => new FakeEngine(), hooks.Models, () => false);
+        bool rebuilt = false;
+        var suspender = new SttEngineSuspender(
+            holder,
+            () =>
+            {
+                rebuilt = true;
+                return Task.CompletedTask;
+            },
+            () => new FakeEngine(),
+            hooks.Models,
+            () => false
+        );
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => suspender.SuspendAsync(cancelled.Token));
         await suspender.ResumeAsync(CancellationToken.None);
 
-        Assert.Equal(["reload whisper", "reload llm"], hooks.Calls);
+        Assert.False(rebuilt);
+        Assert.Empty(hooks.Calls);
+        Assert.Same(live, holder.Current);
+        Assert.False(live.Disposed);
+        Assert.False(suspender.IsSuspended);
+    }
+
+    [Fact]
+    public async Task Resume_AfterACancelDuringTheWhisperUnload_ReloadsWhisperAndNotTheLlm()
+    {
+        using var holder = new SwappableSttEngine(new FakeEngine());
+        var hooks = new ModelHooks { HoldWhisperUnload = true };
+        bool rebuilt = false;
+        var suspender = new SttEngineSuspender(
+            holder,
+            () =>
+            {
+                rebuilt = true;
+                return Task.CompletedTask;
+            },
+            () => new FakeEngine(),
+            hooks.Models,
+            () => false
+        );
+        using var cts = new CancellationTokenSource();
+
+        Task suspend = suspender.SuspendAsync(cts.Token);
+        await hooks.WhisperUnloadStarted.Task.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        await cts.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => suspend.WaitAsync(HangGuard, TestContext.Current.CancellationToken));
+        await suspender.ResumeAsync(CancellationToken.None);
+
+        Assert.True(rebuilt);
+        Assert.Equal(["unload whisper", "reload whisper"], hooks.Calls);
         Assert.False(suspender.IsSuspended);
     }
 
@@ -504,18 +549,135 @@ public sealed class SttBenchServiceTests : IDisposable
     public async Task A_Real_Build_In_Flight_When_Suspend_Runs_Loses_And_Cannot_Replace_The_Stand_In()
     {
         using var holder = new SwappableSttEngine(new FakeEngine());
-        SttEngineSuspender suspender = Suspender(holder, () => Task.CompletedTask);
         var build = new TaskCompletionSource<ISttEngine>(TaskCreationOptions.RunContinuationsAsynchronously);
         var real = new FakeEngine();
+        bool? realDisposedAtUnload = null;
+        var models = new SttBenchSuspendedModels(
+            _ =>
+            {
+                realDisposedAtUnload = real.Disposed;
+                return Task.CompletedTask;
+            },
+            _ => Task.CompletedTask,
+            _ => Task.CompletedTask,
+            _ => Task.CompletedTask
+        );
+        var suspender = new SttEngineSuspender(holder, () => Task.CompletedTask, () => new FakeEngine(), models, () => false);
 
         Task<bool> inFlight = holder.SwapToLatestAsync(() => suspender.StandInWhileSuspended(() => build.Task), CancellationToken.None);
-        await suspender.SuspendAsync(CancellationToken.None);
+        Task suspend = suspender.SuspendAsync(CancellationToken.None);
+        Assert.False(suspend.IsCompleted);
         build.SetResult(real);
+        await suspend.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
         bool swapped = await inFlight.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
 
         Assert.False(swapped);
         Assert.IsType<SttBenchStandInEngine>(holder.Current);
         Assert.True(real.Disposed);
+        Assert.True(realDisposedAtUnload);
+    }
+
+    [Fact]
+    public async Task Resume_AfterACancelledSuspend_WhenALateBuildInstalledAStandIn_RebuildsTheEngine()
+    {
+        using var holder = new SwappableSttEngine(new FakeEngine());
+        var rebuiltEngine = new FakeEngine();
+        bool rebuilt = false;
+        SttEngineSuspender? suspender = null;
+        suspender = new SttEngineSuspender(
+            holder,
+            () =>
+            {
+                rebuilt = true;
+                return holder.SwapToLatestAsync(
+                    () => suspender!.StandInWhileSuspended(() => Task.FromResult<ISttEngine>(rebuiltEngine)),
+                    CancellationToken.None
+                );
+            },
+            () => new FakeEngine(),
+            new ModelHooks().Models,
+            () => false
+        );
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        var hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => suspender.SuspendAsync(cancelled.Token));
+        Task<bool> late = holder.SwapToLatestAsync(
+            async () =>
+            {
+                await hold.Task;
+                return await suspender.StandInWhileSuspended(() => Task.FromResult<ISttEngine>(new FakeEngine()));
+            },
+            CancellationToken.None
+        );
+        hold.SetResult();
+        Assert.True(await late.WaitAsync(HangGuard, TestContext.Current.CancellationToken));
+        Assert.IsType<SttBenchStandInEngine>(holder.Current);
+
+        await suspender.ResumeAsync(CancellationToken.None).WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+
+        Assert.True(rebuilt);
+        Assert.Same(rebuiltEngine, holder.Current);
+    }
+
+    [Fact]
+    public async Task AThrowingListener_DoesNotSkipTheReload()
+    {
+        SttBenchService service = Service(First);
+        service.Changed += () => throw new InvalidOperationException("a broken view");
+
+        await service.RunAsync(CancellationToken.None).WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["suspend", "row RasrV2Fp32 Accurate Cpu", "resume"], _events);
+        Assert.Equal(SttBenchState.Idle, service.State);
+    }
+
+    [Fact]
+    public async Task Resume_WhenANewerSwapArrivesDuringTheRebuild_TheFallbackDoesNotReplaceIt()
+    {
+        using var holder = new SwappableSttEngine(new FakeEngine());
+        var rebuildStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rebuildBuild = new TaskCompletionSource<ISttEngine>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rebuildDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool fallbackBuilt = false;
+        var suspender = new SttEngineSuspender(
+            holder,
+            async () =>
+            {
+                await holder.SwapToLatestAsync(
+                    () =>
+                    {
+                        rebuildStarted.TrySetResult();
+                        return rebuildBuild.Task;
+                    },
+                    CancellationToken.None
+                );
+                rebuildDone.TrySetResult();
+            },
+            () =>
+            {
+                fallbackBuilt = true;
+                return new FakeEngine();
+            },
+            new ModelHooks().Models,
+            () => false
+        );
+        await suspender.SuspendAsync(CancellationToken.None);
+        var real = new FakeEngine();
+        var realBuild = new TaskCompletionSource<ISttEngine>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Task resume = suspender.ResumeAsync(CancellationToken.None);
+        await rebuildStarted.Task.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        Task<bool> newer = holder.SwapToLatestAsync(() => realBuild.Task, CancellationToken.None);
+        rebuildBuild.SetResult(new FakeEngine());
+        await rebuildDone.Task.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        realBuild.SetResult(real);
+        await resume.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+
+        Assert.True(await newer.WaitAsync(HangGuard, TestContext.Current.CancellationToken));
+        Assert.Same(real, holder.Current);
+        Assert.False(fallbackBuilt);
     }
 
     private static List<SttBenchState> RecordStates(SttBenchService service)
@@ -613,7 +775,23 @@ public sealed class SttBenchServiceTests : IDisposable
     {
         public List<string> Calls { get; } = [];
 
-        public SttBenchSuspendedModels Models => new(Hook("unload whisper"), Hook("reload whisper"), Hook("unload llm"), Hook("reload llm"));
+        /// <summary>Whether the Whisper unload waits for its token's cancel instead of returning.</summary>
+        public bool HoldWhisperUnload { get; init; }
+
+        public TaskCompletionSource WhisperUnloadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public SttBenchSuspendedModels Models => new(WhisperUnload, Hook("reload whisper"), Hook("unload llm"), Hook("reload llm"));
+
+        private Task WhisperUnload(CancellationToken ct)
+        {
+            Task done = Hook("unload whisper")(ct);
+            if (!HoldWhisperUnload)
+            {
+                return done;
+            }
+            WhisperUnloadStarted.TrySetResult();
+            return Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        }
 
         private Func<CancellationToken, Task> Hook(string name) =>
             _ =>

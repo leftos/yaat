@@ -123,7 +123,7 @@ cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the gr
    engine decodes greedily (building it makes no native call) and the first prewarm runs `ApplySttEngineAsync` under `Warming`, which
    probes the beam and swaps it in. `ApplySttEngineAsync()` rebuilds the engine from the current preferences and swaps it in live (the
    latest request wins); it is the call Settings' Apply makes. `SttBench` (`SttBenchService`, with its `SttEngineSuspender`) is built right after
-   the swap scheduler; a benchmark run swaps a stand-in engine in and rebuilds the real one after, and `MainWindow` cancels a run on close. See
+   the swap scheduler; a benchmark run swaps a stand-in engine in and rebuilds the real one after only if it was swapped out, and `MainWindow` cancels a run on close. See
    [speech-recognition-pipeline.md](speech-recognition-pipeline.md).
 3. **Aircraft view filter** — `AircraftView = new DataGridCollectionView(Aircraft)` with the active/text filter.
 4. **Sub-VM construction** — `Ground` and `Radar` built with the `SendCommandForViewAsync` callback and an aircraft
