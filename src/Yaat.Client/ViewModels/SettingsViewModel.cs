@@ -1,12 +1,15 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using Avalonia.Collections;
 using Avalonia.Input;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Speech;
 using Yaat.Client.Views;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -753,18 +756,39 @@ public partial class SettingsViewModel : ObservableObject
     public ObservableCollection<MacroRow> MacroRows { get; } = [];
 
     public SettingsViewModel()
-        : this(new UserPreferences(), audioCapture: null, speechSampleStore: null) { }
+        : this(new UserPreferences(), audioCapture: null, speechSampleStore: null, NewOwnedSttDownloads(), ownsSttDownloads: true) { }
 
     public SettingsViewModel(UserPreferences preferences)
-        : this(preferences, audioCapture: null, speechSampleStore: null) { }
+        : this(preferences, audioCapture: null, speechSampleStore: null, NewOwnedSttDownloads(), ownsSttDownloads: true) { }
 
     public SettingsViewModel(UserPreferences preferences, AudioCaptureService? audioCapture)
-        : this(preferences, audioCapture, speechSampleStore: null) { }
+        : this(preferences, audioCapture, speechSampleStore: null, NewOwnedSttDownloads(), ownsSttDownloads: true) { }
 
-    public SettingsViewModel(UserPreferences preferences, AudioCaptureService? audioCapture, SpeechSampleStore? speechSampleStore)
+    /// <summary>Builds the view model over the preferences it edits.</summary>
+    /// <param name="preferences">The preferences OK and Apply write.</param>
+    /// <param name="audioCapture">The microphone capture the audio sections list devices from; null when there is none.</param>
+    /// <param name="speechSampleStore">The store of saved speech samples; null when there is none.</param>
+    /// <param name="sttDownloads">The app-lifetime speech-recognition downloads; the caller keeps and disposes them.</param>
+    public SettingsViewModel(
+        UserPreferences preferences,
+        AudioCaptureService? audioCapture,
+        SpeechSampleStore? speechSampleStore,
+        SttDownloads sttDownloads
+    )
+        : this(preferences, audioCapture, speechSampleStore, sttDownloads, ownsSttDownloads: false) { }
+
+    private SettingsViewModel(
+        UserPreferences preferences,
+        AudioCaptureService? audioCapture,
+        SpeechSampleStore? speechSampleStore,
+        SttDownloads sttDownloads,
+        bool ownsSttDownloads
+    )
     {
         _preferences = preferences;
         _speechSampleStore = speechSampleStore;
+        _sttDownloads = sttDownloads;
+        _ownsSttDownloads = ownsSttDownloads;
 
         // Enumerate available audio input/output devices if we have an AudioCaptureService instance
         // (passed in by MainWindow when opening Settings). Always include the system-default
@@ -876,6 +900,14 @@ public partial class SettingsViewModel : ObservableObject
         _speechSampleCacheMaxMb = _preferences.SpeechSampleCacheMaxMb;
         _speechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
         _appliedSpeechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
+        SttModelCards = BuildSttModelCards(sttDownloads, keyDefaults.SttEngine);
+        _selectedSttModelCard = SttModelCards.FirstOrDefault(c => c.Engine == _preferences.SttEngine);
+        _selectedSttMode = _preferences.SttMode;
+        _selectedSttDevice = _preferences.SttDevice;
+        GpuRuntime = (sttDownloads.Gpu is { } gpu) ? UiThreadMirror.Of(gpu, a => Dispatcher.UIThread.Post(a)) : null;
+        _isGpuRuntimeRemovalScheduled = sttDownloads.Gpu?.IsRemovalScheduled ?? false;
+        _gpuRuntimeRemovalText = _isGpuRuntimeRemovalScheduled ? GpuRuntimeRemovalScheduledText : "";
+        WatchSttDownloads();
 
         _audioInputDevice = _preferences.AudioInputDevice;
         _audioOutputDevice = _preferences.AudioOutputDevice;
@@ -1126,15 +1158,18 @@ public partial class SettingsViewModel : ObservableObject
 
     private void ApplySpeechAndWindows()
     {
+        // A manifest that could not be read leaves no rasr card to select; the saved engine then stays as it is.
+        SttEngine sttEngine = SelectedSttModelCard?.Engine ?? _preferences.SttEngine;
+        LastApplyChangedSttEngineOrMode = (sttEngine != _preferences.SttEngine) || (SelectedSttMode != _preferences.SttMode);
         _preferences.SetSpeechSettings(
             SpeechEnabled,
             WhisperModelSize,
             LlmModelPath,
             LlmGpuLayers,
             AutoFocusInputAfterSpeech,
-            _preferences.SttEngine,
-            _preferences.SttMode,
-            _preferences.SttDevice
+            sttEngine,
+            SelectedSttMode,
+            SelectedSttDevice
         );
         // Before the sample settings: enabling telemetry there forces capture on, and writing capture
         // first would briefly store it off.
@@ -2123,6 +2158,9 @@ public partial class SettingsViewModel : ObservableObject
         LlmModelPath = defaults.LlmModelPath;
         SelectedLlmLmKitModel = LmKitModelCatalog.FindById(LlmLmKitModels, LlmModelPath);
         LlmGpuLayers = defaults.LlmGpuLayers;
+        SelectedSttModelCard = SttModelCards.FirstOrDefault(c => c.Engine == defaults.SttEngine);
+        SelectedSttMode = defaults.SttMode;
+        SelectedSttDevice = defaults.SttDevice;
         PttRow.SetCombo(defaults.PttKey);
         RecomputeKeybindClashes();
         // Before capture: turning telemetry on would tick capture with it.
@@ -2365,4 +2403,304 @@ public partial class SettingsViewModel : ObservableObject
     /// </summary>
     [RelayCommand]
     private void DeleteAllSpeechSamples() => _speechSampleStore?.DeleteAll();
+
+    // ---------- Speech recognition model, mode, device and GPU runtime ----------
+
+    /// <summary>The Device row's reason when the card can run GPU speech but the GPU runtime is not installed.</summary>
+    public const string GpuRuntimeMissingReason = "The GPU runtime is not installed.";
+
+    /// <summary>The note Remove shows when this session runs on the GPU runtime, so it is removed at the next start instead.</summary>
+    public const string GpuRuntimeRemovalScheduledText = "The GPU runtime will be removed when YAAT next starts.";
+
+    private const string RunningOnCpuSuffix = " Running on CPU";
+
+    private readonly SttDownloads _sttDownloads;
+    private readonly bool _ownsSttDownloads;
+    private readonly string? _cpuFallbackReason = SherpaNativeLoader.CpuFallbackReason;
+    private (bool Available, string? Reason)? _sttNbest;
+    private GpuSupport? _gpuSupport;
+    private bool _sttDownloadsReleased;
+
+    /// <summary>The app-lifetime downloads this view model shows.</summary>
+    public SttDownloads SttDownloads => _sttDownloads;
+
+    /// <summary>The model picker's cards: one per manifest model in manifest order, then the legacy Whisper card.</summary>
+    public IReadOnlyList<SttModelCardViewModel> SttModelCards { get; }
+
+    /// <summary>The selected model card; null only when the saved engine's model is missing from an unreadable manifest.</summary>
+    [ObservableProperty]
+    private SttModelCardViewModel? _selectedSttModelCard;
+
+    /// <summary>The selected decoding mode; kept as saved while Accurate is unavailable.</summary>
+    [ObservableProperty]
+    private SttMode _selectedSttMode;
+
+    /// <summary>The selected device; kept as saved while the GPU is unavailable.</summary>
+    [ObservableProperty]
+    private SttDevice _selectedSttDevice;
+
+    /// <summary>The note under Remove GPU runtime once a removal was scheduled for the next start; empty otherwise.</summary>
+    [ObservableProperty]
+    private string _gpuRuntimeRemovalText = "";
+
+    /// <summary>Whether the GPU runtime's removal is scheduled for the next start; re-read after each Remove.</summary>
+    [ObservableProperty]
+    private bool _isGpuRuntimeRemovalScheduled;
+
+    /// <summary>The GPU runtime installer's state on the UI thread; null on a platform without a GPU runtime.</summary>
+    public UiThreadMirror? GpuRuntime { get; }
+
+    /// <summary>Whether the last Apply changed the saved speech-recognition engine or mode, so the host swaps the engine.</summary>
+    public bool LastApplyChangedSttEngineOrMode { get; private set; }
+
+    /// <summary>Whether the Whisper size picker shows: only while the Whisper card is selected.</summary>
+    public bool IsWhisperSizePickerVisible => SelectedSttModelCard?.IsWhisper == true;
+
+    /// <summary>
+    /// Whether the Accurate radio is enabled: not for Whisper, nor for a native without n-best (available until that check
+    /// returns).
+    /// </summary>
+    public bool IsAccurateAvailable => (SelectedSttModelCard?.IsWhisper != true) && (_sttNbest?.Available ?? true);
+
+    /// <summary>Why Accurate is disabled, shown beside it; null while it is available.</summary>
+    public string? AccurateUnavailableReason =>
+        (SelectedSttModelCard?.IsWhisper == true) ? SherpaNativeLoader.WhisperAccurateReason
+        : (_sttNbest is { Available: false } nbest) ? nbest.Reason
+        : null;
+
+    /// <summary>Whether the GPU check is still running; the GPU radio is disabled meanwhile.</summary>
+    public bool IsGpuChecking => _gpuSupport is null;
+
+    /// <summary>Whether GPU speech can run now: the card and driver are supported and the GPU runtime is installed.</summary>
+    public bool IsGpuAvailable => (_gpuSupport is { IsSupported: true }) && (GpuRuntime?.IsInstalled == true);
+
+    /// <summary>The Device row's text: the GPU check, why a saved GPU pick runs on the CPU, or the startup fallback reason.</summary>
+    public string DeviceStatusText
+    {
+        get
+        {
+            if (_gpuSupport is not { } support)
+            {
+                return CudaDriverProbe.CheckingText;
+            }
+            if ((SelectedSttDevice == SttDevice.Gpu) && !IsGpuAvailable)
+            {
+                return (support.IsSupported ? GpuRuntimeMissingReason : support.Reason) + RunningOnCpuSuffix;
+            }
+            if (!support.IsSupported)
+            {
+                return support.Reason;
+            }
+            return _cpuFallbackReason ?? "";
+        }
+    }
+
+    /// <summary>Whether the selected device differs from the native set this process loaded, which only a restart changes.</summary>
+    public bool IsSttRestartNeeded => SelectedSttDevice != ((SherpaNativeLoader.LoadedSet == SherpaNativeSet.Cuda) ? SttDevice.Gpu : SttDevice.Cpu);
+
+    /// <summary>
+    /// Stops mirroring the app-lifetime downloads, which keep running; disposes them too when this view model built its own.
+    /// The Settings window calls it when it closes. Harmless when called again.
+    /// </summary>
+    public void ReleaseSttDownloads()
+    {
+        if (_sttDownloadsReleased)
+        {
+            return;
+        }
+        _sttDownloadsReleased = true;
+        _sttDownloads.EngineLoadingChanged -= OnSttEngineLoadingChanged;
+        if (GpuRuntime is not null)
+        {
+            GpuRuntime.PropertyChanged -= OnGpuRuntimeChanged;
+            GpuRuntime.Dispose();
+        }
+        foreach (SttModelCardViewModel card in SttModelCards)
+        {
+            card.Dispose();
+        }
+        if (_ownsSttDownloads)
+        {
+            _sttDownloads.Dispose();
+        }
+    }
+
+    private static SttDownloads NewOwnedSttDownloads() =>
+        new(SttDownloads.DefaultManifestPath, SttModelInstaller.InstallRootDefault, TimeProvider.System);
+
+    private static List<SttModelCardViewModel> BuildSttModelCards(SttDownloads downloads, SttEngine defaultEngine)
+    {
+        List<SttModelCardViewModel> cards = [];
+        foreach (SttModelDownload model in downloads.Models)
+        {
+            SttEngine? engine = Enum.GetValues<SttEngine>().Where(e => e.ManifestModelId() == model.Id).Select(e => (SttEngine?)e).FirstOrDefault();
+            SttModelInstaller? installer = downloads.ModelInstaller(model.Id);
+            if ((engine is not { } modelEngine) || (installer is null))
+            {
+                Log.LogWarning("The STT download manifest lists model {Id}, which no speech-recognition engine runs; it gets no card", model.Id);
+                continue;
+            }
+            cards.Add(
+                SttModelCardViewModel.ForModel(
+                    modelEngine,
+                    model,
+                    installer,
+                    downloads.ModelRoot,
+                    modelEngine == defaultEngine,
+                    a => Dispatcher.UIThread.Post(a)
+                )
+            );
+        }
+        cards.Add(SttModelCardViewModel.ForWhisper());
+        return cards;
+    }
+
+    private void WatchSttDownloads()
+    {
+        _sttDownloads.EngineLoadingChanged += OnSttEngineLoadingChanged;
+        GpuRuntime?.PropertyChanged += OnGpuRuntimeChanged;
+        _ = ApplyNbestAvailabilityWhenReadyAsync();
+        _ = ApplyGpuSupportWhenReadyAsync();
+        UpdateSttCardLoading();
+    }
+
+    private async Task ApplyNbestAvailabilityWhenReadyAsync()
+    {
+        try
+        {
+            (bool Available, string? Reason) nbest = await _sttDownloads.NbestAvailability.ConfigureAwait(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                _sttNbest = nbest;
+                OnPropertyChanged(nameof(IsAccurateAvailable));
+                OnPropertyChanged(nameof(AccurateUnavailableReason));
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The n-best check of the sherpa-onnx native failed; Accurate stays available in Settings");
+        }
+    }
+
+    private async Task ApplyGpuSupportWhenReadyAsync()
+    {
+        try
+        {
+            GpuSupport support = await _sttDownloads.GpuSupport.ConfigureAwait(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                _gpuSupport = support;
+                OnPropertyChanged(nameof(IsGpuChecking));
+                NotifyGpuState();
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The GPU check failed; Settings keeps showing it as running");
+        }
+    }
+
+    private void NotifyGpuState()
+    {
+        OnPropertyChanged(nameof(IsGpuAvailable));
+        OnPropertyChanged(nameof(DeviceStatusText));
+    }
+
+    private void OnGpuRuntimeChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        NotifyGpuState();
+        DownloadGpuRuntimeCommand.NotifyCanExecuteChanged();
+        CancelGpuRuntimeCommand.NotifyCanExecuteChanged();
+        RemoveGpuRuntimeCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanDownloadGpuRuntime() => GpuRuntime is { IsBusy: false, IsInstalled: false };
+
+    private bool CanCancelGpuRuntime() => GpuRuntime is { IsBusy: true };
+
+    private bool CanRemoveGpuRuntime() => GpuRuntime is { IsBusy: false, IsInstalled: true };
+
+    // Raised on the thread that swaps the engine; the cards are touched on the UI thread only.
+    private void OnSttEngineLoadingChanged() => Dispatcher.UIThread.Post(UpdateSttCardLoading);
+
+    private void UpdateSttCardLoading()
+    {
+        if (_sttDownloadsReleased)
+        {
+            return;
+        }
+        bool loading = _sttDownloads.IsEngineLoading;
+        foreach (SttModelCardViewModel card in SttModelCards)
+        {
+            card.IsLoading = loading && ReferenceEquals(card, SelectedSttModelCard);
+        }
+    }
+
+    partial void OnSelectedSttModelCardChanged(SttModelCardViewModel? value)
+    {
+        OnPropertyChanged(nameof(IsWhisperSizePickerVisible));
+        OnPropertyChanged(nameof(IsAccurateAvailable));
+        OnPropertyChanged(nameof(AccurateUnavailableReason));
+        UpdateSttCardLoading();
+    }
+
+    partial void OnSelectedSttDeviceChanged(SttDevice value)
+    {
+        OnPropertyChanged(nameof(DeviceStatusText));
+        OnPropertyChanged(nameof(IsSttRestartNeeded));
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDownloadGpuRuntime))]
+    private async Task DownloadGpuRuntimeAsync()
+    {
+        if (_sttDownloads.Gpu is not { } gpu)
+        {
+            return;
+        }
+        // No token of this window's: the installer's own Cancel stops the download from any later Settings window too.
+        try
+        {
+            await gpu.InstallAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            Log.LogInformation("The GPU runtime download was cancelled");
+        }
+        catch (Exception ex)
+        {
+            // The installer logged the failure (or the refusal) and set its StatusMessage, which the group shows.
+            Log.LogWarning(ex, "The GPU runtime download did not complete");
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCancelGpuRuntime))]
+    private void CancelGpuRuntime() => _sttDownloads.Gpu?.Cancel();
+
+    [RelayCommand(CanExecute = nameof(CanRemoveGpuRuntime))]
+    private async Task RemoveGpuRuntimeAsync()
+    {
+        if (_sttDownloads.Gpu is not { } gpu)
+        {
+            return;
+        }
+        try
+        {
+            if (SherpaNativeLoader.LoadedSet == SherpaNativeSet.Cuda)
+            {
+                gpu.ScheduleRemovalOnNextStart();
+                GpuRuntimeRemovalText = GpuRuntimeRemovalScheduledText;
+            }
+            else
+            {
+                // Uninstall deletes about a gigabyte synchronously, so it runs off the UI thread.
+                await Task.Run(gpu.Uninstall).ConfigureAwait(true);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            // The installer set its StatusMessage (a refusal or the failure), which the group shows.
+            Log.LogWarning(ex, "Removing the GPU runtime failed");
+        }
+        IsGpuRuntimeRemovalScheduled = gpu.IsRemovalScheduled;
+    }
 }

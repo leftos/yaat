@@ -4,7 +4,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Speech;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
@@ -217,9 +219,20 @@ public class SettingsViewModelResetSectionTests
                 vm.PilotVoiceVolume = 30;
                 vm.LlmGpuLayers = 10;
                 vm.AutoFocusInputAfterSpeech = false;
+                vm.SelectedSttModelCard = vm.SttModelCards.Single(c => c.IsWhisper);
+                vm.SelectedSttMode = SttMode.Fast;
+                vm.SelectedSttDevice = SttDevice.Gpu;
             },
-            vm => (vm.PilotVoiceVolume, vm.LlmGpuLayers, vm.AutoFocusInputAfterSpeech),
-            p => (p.PilotVoiceVolume, p.LlmGpuLayers, p.AutoFocusInputAfterSpeech)
+            vm =>
+                (
+                    vm.PilotVoiceVolume,
+                    vm.LlmGpuLayers,
+                    vm.AutoFocusInputAfterSpeech,
+                    vm.SelectedSttModelCard?.Engine,
+                    vm.SelectedSttMode,
+                    vm.SelectedSttDevice
+                ),
+            p => (p.PilotVoiceVolume, p.LlmGpuLayers, p.AutoFocusInputAfterSpeech, (SttEngine?)p.SttEngine, p.SttMode, p.SttDevice)
         );
 
     [AvaloniaFact(Timeout = 60_000)]
@@ -279,11 +292,13 @@ public class SettingsViewModelResetSectionTests
     public void CancelAfterReset_LeavesThePreferencesUnchanged()
     {
         new UserPreferences().SetPilotVoiceSettings(enabled: true, volume: 30, radioFxEnabled: false, speechRate: 1.3);
+        using var sttDownloads = new SttDownloads(SttDownloads.DefaultManifestPath, SttModelInstaller.InstallRootDefault, TimeProvider.System);
         var window = new SettingsWindow(
             new UserPreferences(),
             audioCapture: null,
             speechSampleStore: null,
-            new FavoriteStore(FavoriteStore.DefaultRootDir)
+            new FavoriteStore(FavoriteStore.DefaultRootDir),
+            sttDownloads
         );
         window.ShowAndRunLayout();
         var vm = (SettingsViewModel)window.DataContext!;

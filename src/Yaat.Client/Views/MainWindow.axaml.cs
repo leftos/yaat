@@ -59,6 +59,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private bool _restoringGrid;
     private bool _isConfirmedClose;
     private bool _isMainWindowClosing;
+
+    // The speech downloads live as long as the app; OnClosing can run twice on the confirmed-exit path, so dispose once.
+    private bool _sttDownloadsDisposed;
     private string? _sortColumnKey;
     private ListSortDirection? _sortDirection;
     private CancellationTokenSource? _autoConnectCts;
@@ -3347,7 +3350,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // Where keyboard focus goes back to when the window closes: the element focused in the window active now.
         IInputElement? focusedBeforeSettings = FocusedElementOfActiveWindow();
 
-        var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture, vm.SpeechSampleStore, vm.FavoriteStore);
+        var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture, vm.SpeechSampleStore, vm.FavoriteStore, vm.SttDownloads);
         dialog.SelectSection(section ?? SettingsSectionId.General);
 
         SettingsViewModel settingsVm = dialog.ViewModel;
@@ -3383,6 +3386,17 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             if (settingsVm.LastApplyCommittedGridLayout)
             {
                 ApplyGridLayoutToLiveGrids(vm);
+            }
+            if (settingsVm.LastApplyChangedSttEngineOrMode)
+            {
+                // Fire-and-forget: the swap loads a model for seconds while the mic shows Warming.
+                _ = vm.SwapSttEngineAsync()
+                    .ContinueWith(
+                        t => Log.LogError(t.Exception, "Swapping in the speech-recognition engine Settings applied failed"),
+                        CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnFaulted,
+                        TaskScheduler.Default
+                    );
             }
 
             snapshot = SettingsPreviewSnapshot.Take(vm);
@@ -4031,6 +4045,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             cts.Cancel();
             cts.Dispose();
             _autoConnectCts = null;
+        }
+
+        if (_isMainWindowClosing && !_sttDownloadsDisposed && DataContext is MainViewModel downloadsVm)
+        {
+            _sttDownloadsDisposed = true;
+            downloadsVm.SttDownloads.Dispose();
         }
 
         if (_isMainWindowClosing)

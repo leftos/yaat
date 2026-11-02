@@ -358,6 +358,25 @@ public sealed class SherpaCudaInstallerTests : IDisposable
     }
 
     [Fact]
+    public async Task Cancel_Stops_An_Install_Started_Without_A_Token()
+    {
+        (SherpaCudaDownload zip, byte[] zipBytes) = Download("ours", [ZipUrl, MirrorUrl], ["x.dll"], ("x.dll", "x"));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new FakeHandler(new() { [MirrorUrl] = zipBytes }, null);
+        handler.Responders[ZipUrl] = (_, _) => Task.FromResult(Ok(new StreamContent(new StallStream(entered))));
+        SherpaCudaInstaller installer = NewInstaller(handler, [zip]);
+
+        Task install = installer.InstallAsync(CancellationToken.None);
+        await entered.Task.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        installer.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => install.WaitAsync(HangGuard, TestContext.Current.CancellationToken));
+        Assert.Equal("Cancelled.", installer.StatusMessage);
+        Assert.False(installer.IsBusy);
+        Assert.False(installer.IsInstalled);
+    }
+
+    [Fact]
     public void ForCurrentPlatform_Lists_The_Measured_Closure()
     {
         Assert.SkipUnless(

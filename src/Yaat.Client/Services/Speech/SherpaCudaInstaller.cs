@@ -157,6 +157,8 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
     private readonly TimeProvider _timeProvider;
     private readonly IReadOnlyList<SherpaCudaDownload> _downloads;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly Lock _cancelGate = new();
+    private CancellationTokenSource? _installCts;
 
     /// <summary>
     /// Builds the installer and reads the install root's state: whether the set is installed, and whether its removal is
@@ -296,14 +298,17 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
         }
         string stagingRoot = Path.Combine(_installRoot, StagingDirPrefix + Guid.NewGuid().ToString("N"));
         FileStream? rootLock = null;
+        CancellationTokenSource? cts = null;
         try
         {
+            cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            SetInstallCts(cts);
             IsBusy = true;
             StatusMessage = "Preparing…";
             Progress = 0;
             rootLock = LockRootOrRefuse();
             RefuseIfSetInUse();
-            await RunInstallAsync(stagingRoot, ct).ConfigureAwait(false);
+            await RunInstallAsync(stagingRoot, cts.Token).ConfigureAwait(false);
             IsInstalled = IsInstalledOnDisk(_installRoot, _downloads);
             StatusMessage = IsInstalled ? "Installed. Restart YAAT to use the GPU." : "Install failed — see yaat-client.log.";
         }
@@ -328,9 +333,28 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
         }
         finally
         {
+            SetInstallCts(null);
+            cts?.Dispose();
             rootLock?.Dispose();
             IsBusy = false;
             _lock.Release();
+        }
+    }
+
+    /// <summary>Cancels a running install from any caller; harmless when none is running.</summary>
+    public void Cancel()
+    {
+        lock (_cancelGate)
+        {
+            _installCts?.Cancel();
+        }
+    }
+
+    private void SetInstallCts(CancellationTokenSource? cts)
+    {
+        lock (_cancelGate)
+        {
+            _installCts = cts;
         }
     }
 

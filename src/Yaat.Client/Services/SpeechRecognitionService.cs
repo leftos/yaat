@@ -242,6 +242,44 @@ public sealed class SpeechRecognitionService(
         }
 
         SetStatus(SpeechStatus.Warming);
+        await WarmAsync(prepareEngine, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Whether speech recognition is switched on in the preferences; with it off nothing warms or records.</summary>
+    public bool IsSpeechEnabled => _preferences.SpeechEnabled;
+
+    /// <summary>
+    /// Moves the status to <see cref="SpeechStatus.Warming"/> only from a resting status (<see cref="SpeechStatus.Idle"/>,
+    /// <see cref="SpeechStatus.ModelMissing"/> or <see cref="SpeechStatus.Error"/>), atomically with the check, so a
+    /// push-to-talk that reached <see cref="SpeechStatus.Recording"/> first is never overwritten. Raises
+    /// <see cref="StatusChanged"/> after leaving the status lock.
+    /// </summary>
+    /// <returns>True when the status is now Warming and the caller must run <see cref="WarmAsync"/>; false when the mic is busy.</returns>
+    public bool TryBeginWarming()
+    {
+        lock (_statusLock)
+        {
+            if (_status is not (SpeechStatus.Idle or SpeechStatus.ModelMissing or SpeechStatus.Error))
+            {
+                return false;
+            }
+
+            _status = SpeechStatus.Warming;
+        }
+
+        StatusChanged?.Invoke(SpeechStatus.Warming);
+        return true;
+    }
+
+    /// <summary>
+    /// The warm-up of <see cref="PrewarmAsync"/>, entered with the status already <see cref="SpeechStatus.Warming"/> (by
+    /// <see cref="PrewarmAsync"/> or <see cref="TryBeginWarming"/>); moves it back to <see cref="SpeechStatus.Idle"/> unless
+    /// another transition raced it.
+    /// </summary>
+    /// <param name="prepareEngine">Runs first, before the engine warms up; a failure is logged and the warm-up goes on.</param>
+    /// <param name="ct">Cancels the warm-up.</param>
+    public async Task WarmAsync(Func<Task> prepareEngine, CancellationToken ct)
+    {
         var sw = Stopwatch.StartNew();
         try
         {

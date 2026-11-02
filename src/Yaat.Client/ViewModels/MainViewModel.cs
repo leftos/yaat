@@ -1703,21 +1703,56 @@ public partial class MainViewModel : ObservableObject
     /// the thread pool. An accurate-mode rasr model is probed for beam support and falls back to greedy decoding when this
     /// native cannot run it. A push-to-talk transcription started mid-swap waits for the swap.
     /// </summary>
-    /// <remarks>When requests overlap, the latest one wins, whichever build finishes first.</remarks>
+    /// <remarks>
+    /// When requests overlap, the latest one wins, whichever build finishes first. <see cref="SttDownloads.IsEngineLoading"/>
+    /// is true from the start until the returned task completes.
+    /// </remarks>
     public Task ApplySttEngineAsync() =>
-        Task.Run(() =>
-            _sttEngine.SwapToLatestAsync(
-                () =>
-                    SttEngineFactory.CreateCheckedAsync(
-                        _preferences.SttEngine,
-                        _preferences.SttMode,
-                        SttModelInstaller.InstallRootDefault,
-                        () => _whisperStt,
-                        engine => engine.NativeProblem()
-                    ),
-                CancellationToken.None
+        SttDownloads.TrackEngineLoadAsync(() =>
+            Task.Run(() =>
+                _sttEngine.SwapToLatestAsync(
+                    () =>
+                        SttEngineFactory.CreateCheckedAsync(
+                            _preferences.SttEngine,
+                            _preferences.SttMode,
+                            SttModelInstaller.InstallRootDefault,
+                            () => _whisperStt,
+                            engine => engine.NativeProblem()
+                        ),
+                    CancellationToken.None
+                )
             )
         );
+
+    /// <summary>
+    /// Swaps in the engine the preferences name, as <see cref="ApplySttEngineAsync"/> does, with the mic showing
+    /// <see cref="SpeechStatus.Warming"/> and then <see cref="SpeechStatus.Idle"/>, which also clears
+    /// <see cref="SpeechStatus.ModelMissing"/>. A swap requested during a push-to-talk waits until the mic rests again (Idle,
+    /// ModelMissing or Error; <see cref="SttEngineSwapScheduler"/>), and only then enters Warming
+    /// (<see cref="SpeechRecognitionService.TryBeginWarming"/>). With speech off there is no mic status to show, so it only swaps.
+    /// </summary>
+    public Task SwapSttEngineAsync() => _preferences.SpeechEnabled ? _sttSwapScheduler.RequestAsync() : ApplySttEngineAsync();
+
+    private readonly SttEngineSwapScheduler _sttSwapScheduler;
+
+    /// <summary>The app-lifetime speech-recognition downloads Settings shows; a download keeps running after Settings closes.</summary>
+    public SttDownloads SttDownloads { get; }
+
+    // Raised on the installer's worker thread: only post. A model that is not the saved engine's swaps nothing.
+    private void OnSttModelInstalled(string modelId) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (string.Equals(modelId, _preferences.SttEngine.ManifestModelId(), StringComparison.Ordinal))
+            {
+                _ = SwapSttEngineAsync()
+                    .ContinueWith(
+                        t => _log.LogError(t.Exception, "Swapping in the downloaded speech-recognition model failed"),
+                        CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnFaulted,
+                        TaskScheduler.Default
+                    );
+            }
+        });
 
     /// <summary>
     /// Pre-loads the speech pipeline. When the preferences asked for an accurate-mode rasr model that was downloaded at
@@ -1775,7 +1810,9 @@ public partial class MainViewModel : ObservableObject
             _speechSampleStore,
             _preferences
         );
-        string sttManifestPath = Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json");
+        string sttManifestPath = SttDownloads.DefaultManifestPath;
+        SttDownloads = new SttDownloads(sttManifestPath, SttModelInstaller.InstallRootDefault, timeProvider);
+        SttDownloads.ModelInstalled += OnSttModelInstalled;
         bool probeBeamOnPrewarm =
             (_preferences.SttMode == SttMode.Accurate)
             && (_preferences.SttEngine.ManifestModelId() is not null)
@@ -1798,6 +1835,7 @@ public partial class MainViewModel : ObservableObject
             () => SttEngineFactory.IsModelReady(_preferences.SttEngine, SttModelInstaller.InstallRootDefault, sttManifestPath)
         );
         _speechService.StatusChanged += HandleSpeechServiceStatusChange;
+        _sttSwapScheduler = new SttEngineSwapScheduler(_speechService, ApplySttEngineAsync);
         _speechService.CommandReady += HandleSpeechServiceCommandReady;
         _speechService.SessionRecorded += session => _ = UploadSpeechTelemetryAsync();
 

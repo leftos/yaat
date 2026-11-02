@@ -12,6 +12,8 @@ The order lives in `Views/Settings/SettingsNavigation.cs` and the ids in `ViewMo
 
 The Speech section's download, delete, CUDA, voice-pack and delete-samples buttons act at once, so each says Cancel does not undo it (`SettingsWindowSourceTests.EverySpeechActionThatRunsAtOnce_SaysCancelDoesNotUndoIt`).
 
+The Speech model downloads belong to the app, not the window: `MainViewModel.SttDownloads` owns the installers, so a download keeps running after Settings closes and a reopened window shows its progress. `SettingsViewModel` exposes the model cards (`SttModelCards`, `SttModelCardViewModel`), the selected mode and device, and `LastApplyChangedSttEngineOrMode`, which tells the host to swap the engine after an Apply; the window calls `ReleaseSttDownloads` on close, which stops mirroring and leaves the downloads running.
+
 **Modal over every YAAT window.** Settings blocks input to every open client window without disabling them (`Views/OpenWindows.cs` tracks them, so it also works headless), and focus is restored on close (to the command input when the element that had it is gone or was a menu item).
 
 **Opened at a section.** Every entry point goes through `MainViewModel.RequestSettings` with a section: Tools › Settings and the Open Settings key (Ctrl+, by default) open General; "Settings for this view…" at the end of the radar, ground, aircraft list and terminal right-click menus (`Views/ViewSettingsMenu.cs`) opens that view's section.

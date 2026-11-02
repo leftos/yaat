@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Speech;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Settings;
 
@@ -79,28 +80,35 @@ public partial class SettingsWindow : Window
     private readonly List<IDisposable> _gestureBlocks = [];
 
     // The standalone window (the designer, XamlLoader, the guide's screenshots): it has no caller to hand it preferences or
-    // a favorites store, so it builds its own.
+    // a favorites store, so it builds its own, and its view model builds its own speech downloads, released when it closes.
     public SettingsWindow()
-        : this(new UserPreferences(), audioCapture: null, speechSampleStore: null, new FavoriteStore(FavoriteStore.DefaultRootDir)) { }
+        : this(new UserPreferences()) { }
+
+    private SettingsWindow(UserPreferences preferences)
+        : this(preferences, new SettingsViewModel(preferences), new FavoriteStore(FavoriteStore.DefaultRootDir)) { }
 
     /// <summary>Builds the window over the preferences it edits.</summary>
     /// <param name="preferences">The preferences OK and Apply write.</param>
     /// <param name="audioCapture">The microphone capture the audio sections list devices from; null when there is none.</param>
     /// <param name="speechSampleStore">The store of saved speech samples; null when there is none.</param>
     /// <param name="favorites">The favorites store a favorites import from the Import / Export hub changes on OK or Apply.</param>
+    /// <param name="sttDownloads">The app-lifetime speech-recognition downloads, which keep running after the window closes.</param>
     public SettingsWindow(
         UserPreferences preferences,
         AudioCaptureService? audioCapture,
         SpeechSampleStore? speechSampleStore,
-        FavoriteStore favorites
+        FavoriteStore favorites,
+        SttDownloads sttDownloads
     )
+        : this(preferences, new SettingsViewModel(preferences, audioCapture, speechSampleStore, sttDownloads), favorites) { }
+
+    private SettingsWindow(UserPreferences preferences, SettingsViewModel vm, FavoriteStore favorites)
     {
         InitializeComponent();
         _filePicker = FilePickerFactory.Create(this);
         _preferences = preferences;
         _blockInput = OnBlockedInput;
 
-        var vm = new SettingsViewModel(preferences, audioCapture, speechSampleStore);
         ViewModel = vm;
         DataContext = vm;
         _importTarget = new SettingsViewModelImportTarget(vm, favorites);
@@ -231,6 +239,7 @@ public partial class SettingsWindow : Window
         {
             UnblockOtherWindows();
             _importTarget.Dispose();
+            ViewModel.ReleaseSttDownloads();
         }
         finally
         {
