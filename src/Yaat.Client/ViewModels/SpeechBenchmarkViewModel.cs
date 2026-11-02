@@ -293,7 +293,7 @@ public sealed partial class SpeechBenchmarkViewModel : ObservableObject, IDispos
         }
 
         SttBenchProgress progress = _service.Progress;
-        ReplaceRows(lastRun, progress);
+        ReplaceRows(state, lastRun, progress);
         RefreshTexts(state, progress, lastRun);
 
         if ((state == SttBenchState.Idle) && ClosesWhenIdle)
@@ -325,14 +325,14 @@ public sealed partial class SpeechBenchmarkViewModel : ObservableObject, IDispos
             _ => (lastRun is null) ? "" : SttBenchText.LastRunLine(lastRun, _zone),
         };
 
-    private void ReplaceRows(SttBenchLastRun? lastRun, SttBenchProgress progress)
+    private void ReplaceRows(SttBenchState runState, SttBenchLastRun? lastRun, SttBenchProgress progress)
     {
         DetachRows();
         Rows.Clear();
         SelectedRow = null;
         IReadOnlyList<SttBenchRowState> running = _service.Rows;
         IEnumerable<SpeechBenchmarkRowViewModel> rows =
-            (IsBusy && (running.Count > 0)) ? running.Select(state => RowOf(state, progress))
+            (IsBusy && (running.Count > 0)) ? running.Select(state => RowOf(state, runState, progress))
             : lastRun is not null ? lastRun.Rows.Select(RowOf)
             : [];
         foreach (SpeechBenchmarkRowViewModel row in rows)
@@ -343,7 +343,8 @@ public sealed partial class SpeechBenchmarkViewModel : ObservableObject, IDispos
         MarkCurrent();
     }
 
-    private SpeechBenchmarkRowViewModel RowOf(SttBenchRowState state, SttBenchProgress progress)
+    // A row still current during the reload never finished: the run was stopped under it.
+    private SpeechBenchmarkRowViewModel RowOf(SttBenchRowState state, SttBenchState runState, SttBenchProgress progress)
     {
         var key = new SpeechBenchmarkRowKey(state.Row.Engine, state.Row.Mode, state.Row.Device);
         SttReferenceEntry? reference = _reference?.Find(key.Engine, key.Mode);
@@ -351,7 +352,12 @@ public sealed partial class SpeechBenchmarkViewModel : ObservableObject, IDispos
         {
             { Result: { } result } => SpeechBenchmarkRowViewModel.FromResult(key, result, reference, _isInstalled(key.Engine)),
             { SkipReason: { } reason } => SpeechBenchmarkRowViewModel.FromSkip(key, reason, reference),
-            _ when state.Row == progress.Current => SpeechBenchmarkRowViewModel.Measuring(key, reference),
+            _ when (state.Row == progress.Current) && (runState == SttBenchState.Running) => SpeechBenchmarkRowViewModel.Measuring(key, reference),
+            _ when (state.Row == progress.Current) && (runState == SttBenchState.Reloading) => SpeechBenchmarkRowViewModel.FromSkip(
+                key,
+                "cancelled",
+                reference
+            ),
             _ => SpeechBenchmarkRowViewModel.Waiting(key, reference),
         };
     }

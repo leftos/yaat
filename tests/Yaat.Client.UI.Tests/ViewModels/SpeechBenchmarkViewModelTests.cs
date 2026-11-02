@@ -261,6 +261,26 @@ public sealed class SpeechBenchmarkViewModelTests : IDisposable
     }
 
     [AvaloniaFact(Timeout = HangGuardMs)]
+    public async Task ACancelledRow_ShowsCancelledDuringTheReload()
+    {
+        using SpeechBenchmarkViewModel vm = Vm(Service(Fp32AccurateCpu, Int8FastCpu));
+        Task run = await StartAndHoldTheFirstRowAsync(vm);
+        _fakes.Suspender.HoldResume = Gate();
+
+        vm.CancelCommand.Execute(null);
+        await _fakes.Suspender.ResumeStarted.Task;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(vm.IsTransitioning);
+        Assert.False(vm.Rows[0].IsMeasuring);
+        Assert.Equal("cancelled", vm.Rows[0].MessageText);
+        Assert.Equal("waiting", vm.Rows[1].MessageText);
+
+        _fakes.Suspender.HoldResume.SetResult();
+        await FinishAsync(run);
+    }
+
+    [AvaloniaFact(Timeout = HangGuardMs)]
     public async Task Reloading_DisablesAndShowsTheMessage()
     {
         _fakes.Suspender.HoldResume = Gate();

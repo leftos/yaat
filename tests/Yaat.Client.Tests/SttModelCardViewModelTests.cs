@@ -67,6 +67,19 @@ public sealed class SttModelCardViewModelTests : IDisposable
         Assert.True(card.ViewLicenceCommand.CanExecute(null));
     }
 
+    [Fact]
+    public async Task A_Refused_Download_Says_Why_On_The_Card()
+    {
+        (SttModelCardViewModel card, _, SttModelDownload model) = NewCard();
+        Directory.CreateDirectory(_root);
+        using FileStream? heldByTheOtherDownload = SttModelInstaller.TryLockRoot(_root);
+        Assert.NotNull(heldByTheOtherDownload);
+
+        await card.DownloadCommand.ExecuteAsync(null);
+
+        Assert.NotEqual(SttSizeText.Total(model.TotalBytes), card.StateText);
+    }
+
     [Theory]
     [InlineData(SttEngine.RasrV2Fp32, "GPU, or a fast CPU")]
     [InlineData(SttEngine.RasrV2Int8, "CPU with little memory")]

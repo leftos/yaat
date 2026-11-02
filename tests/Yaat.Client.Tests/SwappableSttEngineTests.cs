@@ -258,6 +258,24 @@ public sealed class SwappableSttEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task SwapToLatestUnwarmed_SkipsTheWarmUp_AndCountsUntilSettled()
+    {
+        var next = new FakeEngine("new");
+        var build = new TaskCompletionSource<ISttEngine>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var swappable = new SwappableSttEngine(new FakeEngine("first"));
+
+        Task<bool> swap = swappable.SwapToLatestUnwarmedAsync(() => build.Task, CancellationToken.None);
+        Task settled = swappable.WhenSwapsSettledAsync(CancellationToken.None);
+
+        Assert.False(settled.IsCompleted);
+        build.SetResult(next);
+        Assert.True(await swap.WaitAsync(HangGuard, TestContext.Current.CancellationToken));
+        await settled.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        Assert.Same(next, swappable.Current);
+        Assert.False(next.WarmUpStarted.Task.IsCompleted);
+    }
+
+    [Fact]
     public async Task WhenSwapsSettled_WaitsForASupersededBuild()
     {
         var earlier = new FakeEngine("earlier");

@@ -58,8 +58,8 @@ public partial class MainViewModel : ObservableObject
     private readonly WhisperSttEngine _whisperStt;
     private readonly SwappableSttEngine _sttEngine;
 
-    // 1 while the startup engine decodes greedily in place of the accurate-mode beam the preferences ask for, until the
-    // first prewarm probes the beam (PrewarmSpeechAsync).
+    // 1 while an engine built without loading its model decodes greedily in place of the accurate-mode beam the preferences
+    // ask for, until the next prewarm probes the beam (PrewarmSpeechAsync).
     private int _sttBeamProbePending;
     private readonly LocalLlmService _llmService;
     private readonly LocalLlmCommandMapper _llmMapper;
@@ -1742,9 +1742,35 @@ public partial class MainViewModel : ObservableObject
     /// <see cref="SpeechStatus.Warming"/> and then <see cref="SpeechStatus.Idle"/>, which also clears
     /// <see cref="SpeechStatus.ModelMissing"/>. A swap requested during a push-to-talk waits until the mic rests again (Idle,
     /// ModelMissing or Error; <see cref="SttEngineSwapScheduler"/>), and only then enters Warming
-    /// (<see cref="SpeechRecognitionService.TryBeginWarming"/>). With speech off there is no mic status to show, so it only swaps.
+    /// (<see cref="SpeechRecognitionService.TryBeginWarming"/>). With speech off there is no mic status to show and nothing to
+    /// decode, so it swaps in an engine that has not loaded its model; turning speech on loads it.
     /// </summary>
-    public Task SwapSttEngineAsync() => _preferences.SpeechEnabled ? _sttSwapScheduler.RequestAsync() : ApplySttEngineAsync();
+    public Task SwapSttEngineAsync() => _preferences.SpeechEnabled ? _sttSwapScheduler.RequestAsync() : SwapInUnloadedSttEngineAsync();
+
+    private Task SwapInUnloadedSttEngineAsync() =>
+        SttDownloads.TrackEngineLoadAsync(() =>
+            Task.Run(() =>
+                _sttEngine.SwapToLatestUnwarmedAsync(
+                    () => _sttSuspender.StandInWhileSuspended(() => Task.FromResult(CreateUnloadedSttEngine())),
+                    CancellationToken.None
+                )
+            )
+        );
+
+    /// <summary>
+    /// The engine the preferences name, with no native call. Probing the beam loads the model, so an accurate-mode rasr model
+    /// that is downloaded decodes greedily until the next prewarm probes the beam (<see cref="PrewarmSpeechAsync"/>).
+    /// </summary>
+    private ISttEngine CreateUnloadedSttEngine()
+    {
+        bool probeBeamOnPrewarm =
+            (_preferences.SttMode == SttMode.Accurate)
+            && (_preferences.SttEngine.ManifestModelId() is not null)
+            && SttEngineFactory.IsModelReady(_preferences.SttEngine, SttModelInstaller.InstallRootDefault, SttDownloads.DefaultManifestPath);
+        Interlocked.Exchange(ref _sttBeamProbePending, probeBeamOnPrewarm ? 1 : 0);
+        SttMode mode = probeBeamOnPrewarm ? SttMode.Fast : _preferences.SttMode;
+        return SttEngineFactory.Create(_preferences.SttEngine, mode, SttModelInstaller.InstallRootDefault, () => _whisperStt);
+    }
 
     private readonly SttEngineSwapScheduler _sttSwapScheduler;
     private readonly SttEngineSuspender _sttSuspender;
@@ -1782,9 +1808,9 @@ public partial class MainViewModel : ObservableObject
         });
 
     /// <summary>
-    /// Pre-loads the speech pipeline. When the preferences asked for an accurate-mode rasr model that was downloaded at
-    /// startup, the startup engine decodes greedily (it was built without a native call), so the first prewarm runs
-    /// <see cref="ApplySttEngineAsync"/> under <see cref="SpeechStatus.Warming"/>: its beam-support probe loads the model and
+    /// Pre-loads the speech pipeline. When the preferences asked for an accurate-mode rasr model that was downloaded when the
+    /// engine was built without a native call (<see cref="CreateUnloadedSttEngine"/>), that engine decodes greedily, so the next
+    /// prewarm runs <see cref="ApplySttEngineAsync"/> under <see cref="SpeechStatus.Warming"/>: its beam-support probe loads the model and
     /// swaps the beam engine in, or a greedy one when this native cannot run the beam.
     /// </summary>
     private Task PrewarmSpeechAsync() =>
@@ -1840,15 +1866,7 @@ public partial class MainViewModel : ObservableObject
         string sttManifestPath = SttDownloads.DefaultManifestPath;
         SttDownloads = new SttDownloads(sttManifestPath, SttModelInstaller.InstallRootDefault, timeProvider);
         SttDownloads.ModelInstalled += OnSttModelInstalled;
-        bool probeBeamOnPrewarm =
-            (_preferences.SttMode == SttMode.Accurate)
-            && (_preferences.SttEngine.ManifestModelId() is not null)
-            && SttEngineFactory.IsModelReady(_preferences.SttEngine, SttModelInstaller.InstallRootDefault, sttManifestPath);
-        _sttBeamProbePending = probeBeamOnPrewarm ? 1 : 0;
-        SttMode startupMode = probeBeamOnPrewarm ? SttMode.Fast : _preferences.SttMode;
-        _sttEngine = new SwappableSttEngine(
-            SttEngineFactory.Create(_preferences.SttEngine, startupMode, SttModelInstaller.InstallRootDefault, () => _whisperStt)
-        );
+        _sttEngine = new SwappableSttEngine(CreateUnloadedSttEngine());
         _speechService = new SpeechRecognitionService(
             _preferences,
             _audioCapture,

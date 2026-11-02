@@ -58,7 +58,7 @@ public sealed partial class SttModelInstaller(HttpClient http, string installRoo
     private const string VerifyingMessage = "Verifying...";
     private const string CancelledMessage = "Cancelled.";
     private const string RemovedMessage = "Removed.";
-    private const string BusyMessage = "Another YAAT is downloading or removing this model.";
+    private const string BusyMessage = "Another model is downloading; try again when it finishes.";
     private const string RefusalKey = "SttModelInstaller.Refusal";
     private const double BytesPerMb = 1024 * 1024;
     private const int ErrorSharingViolation = 32;
@@ -98,6 +98,10 @@ public sealed partial class SttModelInstaller(HttpClient http, string installRoo
 
     /// <summary>The production install root, outside the Velopack-managed app folder so upgrades keep it.</summary>
     public static string InstallRootDefault => YaatPaths.Combine("models", "stt");
+
+    /// <summary>True when <paramref name="statusMessage"/> says another writer held the install root, so nothing started.</summary>
+    /// <param name="statusMessage">An installer's <see cref="StatusMessage"/>.</param>
+    public static bool IsRefusal(string statusMessage) => string.Equals(statusMessage, BusyMessage, StringComparison.Ordinal);
 
     /// <summary>The folder model <paramref name="id"/> is installed in under <paramref name="installRoot"/>.</summary>
     /// <param name="installRoot">The install root.</param>

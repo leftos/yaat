@@ -15,7 +15,7 @@ public sealed class SttModelInstallerTests : IDisposable
 {
     private const string ModelId = "test-model";
     private const string BaseUrl = "https://r2.example/stt/test-model/";
-    private const string RefusalMessage = "Another YAAT is downloading or removing this model.";
+    private const string RefusalMessage = "Another model is downloading; try again when it finishes.";
 
     /// <summary>A backstop for a hung install; a passing run never waits it out.</summary>
     private static readonly TimeSpan HangGuard = TimeSpan.FromMinutes(2);

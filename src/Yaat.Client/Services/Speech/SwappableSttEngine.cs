@@ -65,7 +65,9 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
     /// <param name="next">The engine to switch to; this wrapper owns it from now on.</param>
     /// <param name="ct">Cancels waiting for the gate and the warm-up.</param>
     /// <exception cref="ObjectDisposedException">This wrapper was disposed.</exception>
-    public async Task SwapAsync(ISttEngine next, CancellationToken ct)
+    public Task SwapAsync(ISttEngine next, CancellationToken ct) => SwapCoreAsync(next, warmUp: true, ct);
+
+    private async Task SwapCoreAsync(ISttEngine next, bool warmUp, CancellationToken ct)
     {
         ISttEngine replaced;
         try
@@ -79,15 +81,9 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
         }
         try
         {
-            try
+            if (warmUp)
             {
-                await next.WarmUpAsync(ct).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                Log.LogWarning(ex, "The new speech-recognition engine failed to warm up; keeping the current one");
-                await DisposeOffThreadAsync(next).ConfigureAwait(false);
-                throw;
+                await WarmUpOrDisposeAsync(next, ct).ConfigureAwait(false);
             }
             replaced = _current;
             _current = next;
@@ -110,7 +106,34 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
     /// <param name="ct">Cancels the swap.</param>
     /// <returns>True when this request's engine was swapped in; false when a later request superseded it.</returns>
     /// <exception cref="ObjectDisposedException">This wrapper was disposed.</exception>
-    public async Task<bool> SwapToLatestAsync(Func<Task<ISttEngine>> build, CancellationToken ct)
+    public Task<bool> SwapToLatestAsync(Func<Task<ISttEngine>> build, CancellationToken ct) => SwapToLatestCoreAsync(build, warmUp: true, ct);
+
+    /// <summary>
+    /// <see cref="SwapToLatestAsync"/> without warming the new engine up, so its model stays unloaded until the next warm-up or
+    /// transcription. It counts as in progress for <see cref="WhenSwapsSettledAsync"/> like any other swap.
+    /// </summary>
+    /// <param name="build">Builds the engine to switch to.</param>
+    /// <param name="ct">Cancels the swap.</param>
+    /// <returns>True when this request's engine was swapped in; false when a later request superseded it.</returns>
+    /// <exception cref="ObjectDisposedException">This wrapper was disposed.</exception>
+    public Task<bool> SwapToLatestUnwarmedAsync(Func<Task<ISttEngine>> build, CancellationToken ct) =>
+        SwapToLatestCoreAsync(build, warmUp: false, ct);
+
+    private async Task WarmUpOrDisposeAsync(ISttEngine next, CancellationToken ct)
+    {
+        try
+        {
+            await next.WarmUpAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "The new speech-recognition engine failed to warm up; keeping the current one");
+            await DisposeOffThreadAsync(next).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task<bool> SwapToLatestCoreAsync(Func<Task<ISttEngine>> build, bool warmUp, CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         SwapStarted();
@@ -127,7 +150,7 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
                     await DisposeOffThreadAsync(next).ConfigureAwait(false);
                     return false;
                 }
-                await SwapAsync(next, ct).ConfigureAwait(false);
+                await SwapCoreAsync(next, warmUp, ct).ConfigureAwait(false);
                 return true;
             }
             finally

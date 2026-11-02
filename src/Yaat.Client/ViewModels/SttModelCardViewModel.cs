@@ -105,11 +105,15 @@ public sealed partial class SttModelCardViewModel : ObservableObject, IDisposabl
     /// <summary>The model installer's state on the UI thread; null for Whisper.</summary>
     public UiThreadMirror? Install { get; }
 
-    /// <summary>The state line: <c>Ready (2.55 GB on disk)</c>, <c>1.1 of 2.55 GB</c> while downloading, else the size; empty for Whisper.</summary>
+    /// <summary>
+    /// The state line: <c>Ready (2.55 GB on disk)</c>, <c>1.1 of 2.55 GB</c> while downloading, why a download was refused, else
+    /// the size; empty for Whisper.
+    /// </summary>
     public string StateText =>
         ((Install is null) || (_model is null)) ? ""
         : Install.IsInstalled ? SttSizeText.Ready(_model.TotalBytes)
         : Install.IsBusy ? SttSizeText.Progress(Install.Progress, _model.TotalBytes)
+        : SttModelInstaller.IsRefusal(Install.StatusMessage) ? Install.StatusMessage
         : SizeText;
 
     /// <summary>A card for a manifest model, its installer mirrored with <paramref name="post"/>.</summary>
@@ -207,7 +211,7 @@ public sealed partial class SttModelCardViewModel : ObservableObject, IDisposabl
         }
         catch (Exception ex)
         {
-            // The installer logged the failure (or the refusal) and set its StatusMessage, which the card shows.
+            // The installer logged the failure (or the refusal) and set its StatusMessage; StateText shows a refusal.
             Log.LogWarning(ex, "The {Model} download did not complete", Title);
         }
     }
