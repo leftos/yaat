@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -10,7 +11,9 @@ namespace Yaat.Client.Tests;
 /// drive state synchronously by calling <see cref="VStripsViewModel.ApplyBayConfig"/>,
 /// <see cref="VStripsViewModel.ReconcileItems"/>, and
 /// <see cref="VStripsViewModel.ReconcileFullState"/> directly, avoiding the Avalonia
-/// dispatcher. Command-emitting helpers use a capture delegate to assert the exact
+/// dispatcher; the tests that reach <see cref="VStripsViewModel.SetConnected"/> (whose
+/// disconnect path checks UI-thread access) run on the headless UI thread as
+/// <c>[AvaloniaFact]</c>. Command-emitting helpers use a capture delegate to assert the exact
 /// canonical strings the VM would send to the server.
 /// </summary>
 public class VStripsViewModelTests
@@ -300,7 +303,7 @@ public class VStripsViewModelTests
         Assert.Equal("S1", vm.Printer.Queue[0].Id);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ConnectionLost_ClearsPrinterCarousels()
     {
         // The reset paths used to clear only the aggregate Printer.Queue,
@@ -917,7 +920,7 @@ public class VStripsViewModelTests
         Assert.Equal(["KSJC"], vm.Metars.Select(m => m.StationId));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ApplyMetars_NoWeather_ShowsDefaultMetar()
     {
         // No weather loaded → the bar shows the calm/standard default the sim applies for the
@@ -935,7 +938,7 @@ public class VStripsViewModelTests
         Assert.Contains("AUTO 00000KT 10SM CLR A2992", vm.PrimaryMetar!.Raw);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ApplyMetars_NoWeather_Disconnected_EmptiesBar()
     {
         // Disconnected clients show no live data — the default must not be fabricated.
@@ -952,7 +955,7 @@ public class VStripsViewModelTests
         Assert.Null(vm.PrimaryMetar);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ApplyMetars_NoWeather_EmptyFacilityAirports_StaysEmpty()
     {
         // A facility with no resolvable airports has nothing to synthesize a default for.
