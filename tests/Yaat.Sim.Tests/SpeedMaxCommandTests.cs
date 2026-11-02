@@ -214,6 +214,260 @@ public sealed class SpeedMaxCommandTests
         Assert.Null(ac.Targets.AssignedSpeed);
     }
 
+    /// <summary>The IAS the profile's service is flown at in the descent, as <c>DescentSpeedFl100</c> resolves it.</summary>
+    private static double ProfileDescentSpeedKts(string type) =>
+        AircraftPerformance.ResolveSpeed(Assert.IsType<AircraftProfile>(AircraftProfileDatabase.Get(type)).DescentSpeedFl100, 10_000);
+
+    /// <summary>
+    /// YAAT-1422: a Mach hold carried down a descent is handed over to an IAS once the Mach's IAS equivalent reaches the
+    /// speed the descent should be flown at, so the A320 settles on its FL100 descent speed rather than riding Vmo.
+    /// </summary>
+    [Fact]
+    public void MachHold_A320DescendingFromFl350_HandsOverAt290()
+    {
+        AircraftState ac = Airborne("A320", altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "DM 110").Success);
+
+        double? iasAtFl250 = null;
+        double? iasAtFl150 = null;
+        double worstIas = 0;
+        for (int second = 0; (second < 1_800) && (iasAtFl150 is null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+            worstIas = Math.Max(worstIas, ac.IndicatedAirspeed);
+            if ((iasAtFl250 is null) && (ac.Altitude <= 25_000))
+            {
+                iasAtFl250 = ac.IndicatedAirspeed;
+                Assert.True(iasAtFl250 <= 292, $"descending through FL250 the aircraft flew {iasAtFl250:F0} KIAS");
+                Assert.Null(ac.Targets.TargetMach);
+                Assert.Equal((double?)290, ac.Targets.AssignedSpeed);
+            }
+
+            if (ac.Altitude <= 15_000)
+            {
+                iasAtFl150 = ac.IndicatedAirspeed;
+            }
+        }
+
+        _output.WriteLine($"FL250: {iasAtFl250:F0} KIAS, FL150: {iasAtFl150:F0} KIAS, worst {worstIas:F0} KIAS");
+        double vmoLess10 = Math.Round(Assert.IsType<double>(AircraftPerformance.MaxOperatingSpeedKts("A320")) - 10);
+        Assert.NotNull(iasAtFl250);
+        Assert.NotNull(iasAtFl150);
+        Assert.InRange(iasAtFl150.Value, 288, 292);
+        Assert.True(worstIas <= vmoLess10, $"the Mach hold flew {worstIas:F0} KIAS, past Vmo less the SMAX margin");
+    }
+
+    /// <summary>
+    /// YAAT-1422: a Mach whose IAS is already at the handover speed hands over on the first tick of the descent, holding
+    /// its own IAS rather than waiting for the profile's descent speed.
+    /// </summary>
+    [Fact]
+    public void MachHold_B738DescendingFromFl280_HandsOverAtDescentStart()
+    {
+        double descentKts = ProfileDescentSpeedKts("B738");
+        double machIasAtStart = WindInterpolator.MachToIas(0.80, 28_000);
+        double vmoLess10 = Math.Round(Assert.IsType<double>(AircraftPerformance.MaxOperatingSpeedKts("B738")) - 10);
+        double expectedH = Math.Round(Math.Min(vmoLess10, machIasAtStart));
+        Assert.Equal(317, expectedH);
+
+        AircraftState ac = Airborne("B738", altitude: 28_000, ias: machIasAtStart);
+        Assert.True(Send(ac, "MACH .80").Success);
+        Assert.True(Send(ac, "DM 110").Success);
+
+        int handOverSecond = -1;
+        double worstIas = 0;
+        int second = 0;
+        while ((second < 1_800) && (Math.Abs(ac.Altitude - 11_000) > 10))
+        {
+            second++;
+            FlySeconds(ac, 1, _ => { });
+            worstIas = Math.Max(worstIas, ac.IndicatedAirspeed);
+            if ((handOverSecond < 0) && (ac.Targets.AssignedSpeed == expectedH))
+            {
+                handOverSecond = second;
+            }
+
+            Assert.InRange(ac.IndicatedAirspeed, 315, 319);
+        }
+
+        _output.WriteLine($"Handed over at second {handOverSecond}, level at {ac.Altitude:F0} ft, worst IAS {worstIas:F1} kt");
+        Assert.InRange(ac.Altitude, 10_990, 11_010);
+        Assert.InRange(handOverSecond, 1, 5);
+        Assert.True(worstIas < vmoLess10, $"the Mach hold flew {worstIas:F1} KIAS, past Vmo less the SMAX margin");
+    }
+
+    [Fact]
+    public void MachHold_Level_NeverHandsOver()
+    {
+        AircraftState ac = Airborne("A320", altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+
+        FlySeconds(ac, 300, _ => { });
+
+        Assert.InRange(ac.Altitude, 34_990, 35_010);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>YAAT-1422: a descent that ends at or above FL240 keeps the Mach, however high its IAS equivalent rises.</summary>
+    [Fact]
+    public void MachHold_A320DescendingToFl260_KeepsTheMach()
+    {
+        AircraftState ac = Airborne("A320", altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "DM 260").Success);
+
+        double worstIas = 0;
+        FlySeconds(ac, 900, a => worstIas = Math.Max(worstIas, a.IndicatedAirspeed));
+
+        double vmoLess10 = Math.Round(Assert.IsType<double>(AircraftPerformance.MaxOperatingSpeedKts("A320")) - 10);
+        _output.WriteLine($"Level at {ac.Altitude:F0} ft, worst IAS {worstIas:F0} kt");
+        Assert.InRange(ac.Altitude, 25_990, 26_010);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.True(worstIas <= vmoLess10, $"the Mach hold flew {worstIas:F0} KIAS, past Vmo less the SMAX margin");
+    }
+
+    /// <summary>YAAT-1422: a B738 stepped down to FL260 keeps its Mach, its IAS equivalent there sitting on Vmo less the margin.</summary>
+    [Fact]
+    public void MachHold_B738StepDownToFl260_KeepsTheMach()
+    {
+        AircraftState ac = Airborne("B738", altitude: 28_000, ias: WindInterpolator.MachToIas(0.80, 28_000));
+        Assert.True(Send(ac, "MACH .80").Success);
+        Assert.True(Send(ac, "DM 260").Success);
+
+        double worstIas = 0;
+        FlySeconds(ac, 900, a => worstIas = Math.Max(worstIas, a.IndicatedAirspeed));
+
+        double vmoLess10 = Math.Round(Assert.IsType<double>(AircraftPerformance.MaxOperatingSpeedKts("B738")) - 10);
+        _output.WriteLine($"Level at {ac.Altitude:F0} ft, worst IAS {worstIas:F0} kt");
+        Assert.InRange(ac.Altitude, 25_990, 26_010);
+        Assert.Equal(0.80, ac.Targets.TargetMach);
+        Assert.True(worstIas <= vmoLess10 + SpeedSnapKts, $"the Mach hold flew {worstIas:F0} KIAS, past Vmo less the SMAX margin");
+    }
+
+    /// <summary>
+    /// YAAT-1422: live traffic seeds <see cref="ControlTargets.TargetMach"/> from its cruise speed with no explicit speed
+    /// command, so the handover gives such an aircraft a target speed only, never an assigned speed.
+    /// </summary>
+    [Fact]
+    public void MachHold_UnassignedMach_HandsOverToTargetSpeedOnly()
+    {
+        AircraftState ac = Airborne("A320", altitude: 23_000, ias: 260);
+        Assert.True(Send(ac, "DM 110").Success);
+        ac.Targets.TargetMach = 0.70;
+        ac.Targets.HasExplicitSpeedCommand = false;
+        ac.Targets.SpeedCommandIsControllerIssued = false;
+
+        FlightPhysics.Update(ac, 0.25);
+
+        double vmoLess10 = Math.Round(Assert.IsType<double>(AircraftPerformance.MaxOperatingSpeedKts("A320")) - 10);
+        double expectedH = Math.Round(Math.Min(vmoLess10, WindInterpolator.MachToIas(0.70, ac.Altitude)));
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.Equal((double?)expectedH, ac.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// YAAT-1422: a MACH issued while already below FL240 in a descent hands over on the next tick at its own IAS
+    /// equivalent — the pilot's response to a controller's mistake, not a state the aircraft can stay in.
+    /// </summary>
+    [Fact]
+    public void Mach_IssuedBelowFl240WhileDescending_FliesItsIasEquivalent()
+    {
+        AircraftState ac = Airborne("A320", altitude: 23_000, ias: 300);
+        Assert.True(Send(ac, "DM 110").Success);
+        Assert.True(Send(ac, "MACH .70").Success);
+        Assert.Null(ac.Targets.AssignedSpeed);
+
+        FlightPhysics.Update(ac, 0.25);
+
+        double vmoLess10 = Math.Round(Assert.IsType<double>(AircraftPerformance.MaxOperatingSpeedKts("A320")) - 10);
+        double expectedH = Math.Round(Math.Min(vmoLess10, WindInterpolator.MachToIas(0.70, ac.Altitude)));
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)expectedH, ac.Targets.AssignedSpeed);
+    }
+
+    [Fact]
+    public void MachHold_Climbing_NeverHandsOver()
+    {
+        AircraftState ac = Airborne("A320", altitude: 30_000, ias: WindInterpolator.MachToIas(0.78, 30_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "CM 370").Success);
+
+        FlySeconds(ac, 300, _ => { });
+
+        Assert.True(ac.Altitude > 30_500, $"premise: the aircraft climbed, ended at {ac.Altitude:F0} ft");
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+    }
+
+    /// <summary>
+    /// YAAT-1422: at or below FL240 a Mach hold hands over even level — the handover altitude is the floor of it, and the
+    /// pilot flies the Mach's own IAS equivalent there, never above Vmo less the margin.
+    /// </summary>
+    [Fact]
+    public void MachHold_LevelAtFl200_HandsOver()
+    {
+        AircraftState ac = Airborne("A320", altitude: 20_000, ias: WindInterpolator.MachToIas(0.70, 20_000));
+        Assert.True(Send(ac, "MACH .70").Success);
+        Assert.Equal(0.70, ac.Targets.TargetMach);
+
+        double vmoLess10 = Math.Round(Assert.IsType<double>(AircraftPerformance.MaxOperatingSpeedKts("A320")) - 10);
+        double expectedH = Math.Round(Math.Min(vmoLess10, WindInterpolator.MachToIas(0.70, 20_000)));
+
+        FlySeconds(ac, 5, _ => { });
+
+        Assert.InRange(ac.Altitude, 19_990, 20_010);
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)expectedH, ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>YAAT-1422: DEPART rebuilds the fix it departs from and keeps the Mach revert the earlier CFIX put on it.</summary>
+    [Fact]
+    public void Mach_CfixThenDepart_KeepsTheMachRevert()
+    {
+        AircraftState ac = Airborne("A320", altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "CFIX SUNOL 350 250").Success);
+        Assert.True(Send(ac, "DEPART SUNOL 270").Success);
+
+        NavigationTarget fix = Assert.Single(ac.Targets.NavigationRoute);
+        Assert.Equal("SUNOL", fix.Name);
+        Assert.Equal((double?)0.78, fix.RevertMach);
+    }
+
+    /// <summary>
+    /// YAAT-1422: a Mach slow enough that its IAS is still under the profile's descent speed at FL240 is handed over when
+    /// the descent passes FL240, at that descent speed.
+    /// </summary>
+    [Fact]
+    public void MachHold_SlowMachDescending_HandsOverAtFl240()
+    {
+        double descentKts = ProfileDescentSpeedKts("A320");
+        double machIasAtFl240 = WindInterpolator.MachToIas(0.65, 24_000);
+        Assert.True(machIasAtFl240 < descentKts, $"premise: MACH .65's IAS at FL240 is {machIasAtFl240:F0} kt, under {descentKts:F0} kt");
+
+        AircraftState ac = Airborne("A320", altitude: 35_000, ias: WindInterpolator.MachToIas(0.65, 35_000));
+        Assert.True(Send(ac, "MACH .65").Success);
+        Assert.True(Send(ac, "DM 110").Success);
+
+        for (int second = 0; (second < 1_800) && (ac.Altitude > 24_000); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+            if (ac.Altitude > 24_050)
+            {
+                Assert.NotNull(ac.Targets.TargetMach);
+            }
+        }
+
+        Assert.True(ac.Altitude <= 24_000, $"the descent never reached FL240, ended at {ac.Altitude:F0} ft");
+        Assert.Null(ac.Targets.TargetMach);
+        double handedOverAt = Assert.IsType<double>(ac.Targets.AssignedSpeed);
+        Assert.Equal(Math.Round(WindInterpolator.MachToIas(0.65, ac.Altitude)), handedOverAt);
+        Assert.True(handedOverAt < descentKts, $"the handover sped the aircraft up to {handedOverAt:F0} kt from its {machIasAtFl240:F0} KIAS");
+    }
+
     private const string RfasRow = "RFAS";
     private const string ConstrainedDirectRow = "DCTF PMD/300 S250";
 
@@ -409,6 +663,23 @@ public sealed class SpeedMaxCommandTests
         var restored = NavigationTarget.FromSnapshot(JsonSerializer.Deserialize<NavigationTargetDto>(json, RecordingJsonOptions.Default)!);
 
         Assert.True(restored.RevertSpeedMax);
+    }
+
+    [Fact]
+    public void Mach_RevertOnAFix_SurvivesSnapshotRoundTrip()
+    {
+        var fix = new NavigationTarget
+        {
+            Name = "PMD",
+            Position = new LatLon(34.632, -118.064),
+            RevertMach = 0.78,
+            RevertMachExplicit = false,
+        };
+        string json = JsonSerializer.Serialize(fix.ToSnapshot(), RecordingJsonOptions.Default);
+        var restored = NavigationTarget.FromSnapshot(JsonSerializer.Deserialize<NavigationTargetDto>(json, RecordingJsonOptions.Default)!);
+
+        Assert.Equal((double?)0.78, restored.RevertMach);
+        Assert.False(restored.RevertMachExplicit);
     }
 
     [Fact]

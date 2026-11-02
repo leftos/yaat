@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
@@ -198,19 +199,7 @@ public static class FlightPhysics
                 aircraft.Targets.DesiredVerticalRate = null;
             }
 
-            if (sequenced.RevertSpeedMax)
-            {
-                // A later crossing speed the controller set is flown first: SMAX comes back past the last one.
-                if (!Commands.NavigationCommandHandler.PlaceSpeedMaxRevert(route))
-                {
-                    Commands.FlightCommandHandler.ArmSpeedMax(aircraft, aircraft.Targets.SpeedCommandIsControllerIssued);
-                }
-            }
-            else if (sequenced.RevertSpeed is not null)
-            {
-                aircraft.Targets.TargetSpeed = sequenced.RevertSpeed;
-                aircraft.Targets.AssignedSpeed = sequenced.RevertAssignedSpeed;
-            }
+            RestoreSpeedPastFix(aircraft, sequenced, route);
 
             // Under a via clearance a crossing speed the controller set ends at its fix (7110.65 5-7-2.e), and a speed the
             // procedure publishes there is still the speed crossed (5-7-1.e NOTE, 5-7-1.g NOTE 3). With no via clearance
@@ -232,8 +221,9 @@ public static class FlightPhysics
             // pilot maintains it until ATC reassigns or the approach speed takes over.
             // Publish the crossed restriction as a ceiling so the auto altitude-band schedule
             // cannot accelerate the aircraft back to default cruise while flying the remaining
-            // (often unrestricted) fixes. An explicit ATC speed wins and is left untouched.
-            if ((crossedRestriction is { } crossedSpeed) && !aircraft.Targets.HasExplicitSpeedCommand)
+            // (often unrestricted) fixes. An explicit ATC speed wins and is left untouched, and so does a Mach the fix
+            // restores (RestoreMachPastFix), which decides the speed past it as an explicit one does.
+            if ((crossedRestriction is { } crossedSpeed) && !aircraft.Targets.HasExplicitSpeedCommand && (sequenced.RevertMach is null))
             {
                 if (crossedSpeed.Type == CifpSpeedRestrictionType.AtOrAbove)
                 {
@@ -327,6 +317,106 @@ public static class FlightPhysics
         // is reached (UpdateHeading snap) or when the route is exhausted. Clearing it
         // every tick would stomp on direction preferences set by departure phases
         // (e.g., TRDCT/TLDCT) before the initial turn completes.
+    }
+
+    /// <summary>
+    /// Restores what a fix's crossing speed replaced, once the aircraft sequences past it: SMAX's re-arm past the last
+    /// crossing the controller set (<see cref="Commands.NavigationCommandHandler.PlaceSpeedMaxRevert"/>), else the Mach
+    /// hold, else the plain speed and its assignment.
+    /// </summary>
+    private static void RestoreSpeedPastFix(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
+    {
+        if (sequenced.RevertSpeedMax)
+        {
+            // A later crossing speed the controller set is flown first: SMAX comes back past the last one.
+            if (!Commands.NavigationCommandHandler.PlaceSpeedMaxRevert(route))
+            {
+                Commands.FlightCommandHandler.ArmSpeedMax(aircraft, aircraft.Targets.SpeedCommandIsControllerIssued);
+            }
+
+            return;
+        }
+
+        if (sequenced.RevertMach is { } revertMach)
+        {
+            // The Mach hold the fix's speed replaced comes back past the fix, as SMAX's re-arm does.
+            RestoreMachPastFix(aircraft, sequenced, revertMach);
+            return;
+        }
+
+        if (sequenced.RevertSpeed is not null)
+        {
+            aircraft.Targets.TargetSpeed = sequenced.RevertSpeed;
+            aircraft.Targets.AssignedSpeed = sequenced.RevertAssignedSpeed;
+        }
+    }
+
+    /// <summary>
+    /// Restores the Mach hold a fix's speed replaced once the aircraft sequences past it, as SMAX's re-arm restores SMAX.
+    /// At or below <see cref="MachHandOverAltitudeFt"/>, or on a descent below it whose Mach already reaches
+    /// <see cref="MachHandOverThresholdKts"/>, <see cref="HandOverMachHold"/> would hand the Mach over on the very
+    /// next tick, so the pilot resumes it there as an IAS instead: an assignment when the Mach was an explicit speed
+    /// command, a target speed only when nobody assigned it. Otherwise the Mach comes back as a Mach. Either way it carries
+    /// the explicit-speed flag it held when the fix's speed replaced it.
+    /// </summary>
+    private static void RestoreMachPastFix(AircraftState aircraft, NavigationTarget sequenced, double mach)
+    {
+        aircraft.Targets.SpeedFloor = null;
+        aircraft.Targets.SpeedCeiling = null;
+        aircraft.Targets.HasExplicitSpeedCommand = sequenced.RevertMachExplicit ?? true;
+        if (RestoredMachHandsOver(aircraft, mach))
+        {
+            double ias = RestoredMachIas(aircraft.AircraftType, mach, aircraft.Altitude);
+            Log.LogDebug(
+                "{Callsign}: Mach {Mach:F2} restored past {Fix} as {Speed:F0} kt at {Altitude:F0} ft",
+                aircraft.Callsign,
+                mach,
+                sequenced.Name,
+                ias,
+                aircraft.Altitude
+            );
+            // A Mach nobody assigned (live traffic) resumes as a target speed only, as the handover gives it.
+            aircraft.Targets.TargetMach = null;
+            aircraft.Targets.AssignedSpeed = aircraft.Targets.HasExplicitSpeedCommand ? ias : null;
+            aircraft.Targets.TargetSpeed = ias;
+            return;
+        }
+
+        aircraft.Targets.TargetMach = mach;
+        aircraft.Targets.TargetSpeed = null;
+        aircraft.Targets.AssignedSpeed = null;
+    }
+
+    /// <summary>
+    /// True when the Mach restored past a fix is handed over as an IAS on the restore tick: at or below
+    /// <see cref="MachHandOverAltitudeFt"/>, or on a descent below it whose Mach's IAS equivalent already reaches
+    /// <see cref="MachHandOverThresholdKts"/>. SMAX keeps its own Mach hold and a helicopter its envelope, as
+    /// <see cref="HandOverMachHold"/> does.
+    /// </summary>
+    private static bool RestoredMachHandsOver(AircraftState aircraft, double mach)
+    {
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        if ((cat == AircraftCategory.Helicopter) || aircraft.IsOnGround || aircraft.Targets.SpeedMaxHeld)
+        {
+            return false;
+        }
+
+        return AtOrBelowHandOverAltitude(aircraft)
+            || (
+                DescendingBelowHandOverAltitude(aircraft)
+                && (WindInterpolator.MachToIas(mach, aircraft.Altitude) >= MachHandOverThresholdKts(aircraft.AircraftType, cat))
+            );
+    }
+
+    /// <summary>
+    /// The IAS a Mach restored past a fix resumes as where the handover would fire: none higher than the profile's FL100
+    /// descent speed or Vmo less <see cref="SpeedMaxMarginKts"/>, and none higher than the Mach's own IAS equivalent.
+    /// </summary>
+    private static double RestoredMachIas(string aircraftType, double mach, double altitudeFt)
+    {
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraftType);
+        double capped = Math.Min(SpeedMaxKts(aircraftType) ?? double.MaxValue, WindInterpolator.MachToIas(mach, altitudeFt));
+        return Math.Round(Math.Min(capped, DescentSpeedKts(aircraftType, cat)));
     }
 
     /// <summary>
@@ -894,7 +984,7 @@ public static class FlightPhysics
     /// procedure's.
     /// </summary>
     internal static bool IsControllerSetSpeed(NavigationTarget fix) =>
-        (fix.SpeedTransmissionId is not null) || (fix.RevertSpeed is not null) || fix.RevertSpeedMax;
+        (fix.SpeedTransmissionId is not null) || (fix.RevertSpeed is not null) || (fix.RevertMach is not null) || fix.RevertSpeedMax;
 
     /// <summary>
     /// Applies <paramref name="target"/>'s speed restriction: an "at or above" minimum as the floor, any other as the
@@ -1537,6 +1627,102 @@ public static class FlightPhysics
         }
     }
 
+    /// <summary>Feet below the cleared altitude at which a Mach hold counts as a descent.</summary>
+    private const double MachHandOverDescendingMarginFt = 100;
+
+    /// <summary>
+    /// The altitude at and below which a Mach hold is handed over to an IAS whatever its Mach's IAS equivalent is: a descent
+    /// cleared to end at or above it keeps the Mach.
+    /// </summary>
+    private const double MachHandOverAltitudeFt = 24_000;
+
+    /// <summary>
+    /// Hands a Mach hold over to an IAS (<see cref="IsHandOverMachHold"/>): level at or below FL240
+    /// (<see cref="MachHandOverAltitudeFt"/>) at once, and on a descent below it once the descent reaches FL240 or the
+    /// Mach's IAS equivalent reaches <see cref="MachHandOverThresholdKts"/>, whichever comes first. The IAS it hands over to
+    /// is the Mach's own at that tick, no higher than Vmo less <see cref="SpeedMaxMarginKts"/> (<see cref="MachHandOverKts"/>),
+    /// so a high Mach keeps its IAS and a slow one is never sped up. SMAX keeps its own Mach hold
+    /// (<see cref="HoldMaximumForwardSpeed"/>), a helicopter is left to the envelope, and a Mach no speed command set (live
+    /// traffic) gets a target speed only, never an assigned one.
+    /// </summary>
+    private static void HandOverMachHold(AircraftState aircraft, AircraftCategory cat)
+    {
+        if (!IsHandOverMachHold(aircraft, cat) || (aircraft.Targets.TargetMach is not { } mach))
+        {
+            return;
+        }
+
+        double machIas = WindInterpolator.MachToIas(mach, aircraft.Altitude);
+        if ((machIas < MachHandOverThresholdKts(aircraft.AircraftType, cat)) && (aircraft.Altitude > MachHandOverAltitudeFt))
+        {
+            return;
+        }
+
+        double handOverKts = MachHandOverKts(aircraft.AircraftType, mach, aircraft.Altitude);
+        Log.LogDebug(
+            "{Callsign}: Mach {Mach:F2} handed over to {Speed:F0} kt at {Altitude:F0} ft",
+            aircraft.Callsign,
+            mach,
+            handOverKts,
+            aircraft.Altitude
+        );
+        aircraft.Targets.TargetMach = null;
+        aircraft.Targets.TargetSpeed = handOverKts;
+        if (aircraft.Targets.HasExplicitSpeedCommand)
+        {
+            aircraft.Targets.AssignedSpeed = handOverKts;
+        }
+    }
+
+    /// <summary>
+    /// True when <paramref name="aircraft"/> holds a Mach that ATC or live traffic set, on an altitude a handover can end:
+    /// airborne, not a helicopter, and either descending toward a cleared altitude below
+    /// <see cref="MachHandOverAltitudeFt"/> or at or below it without climbing out of it, a level hold there included.
+    /// </summary>
+    private static bool IsHandOverMachHold(AircraftState aircraft, AircraftCategory cat) =>
+        (aircraft.Targets.TargetMach is not null)
+        && !aircraft.Targets.SpeedMaxHeld
+        && !aircraft.IsOnGround
+        && (cat != AircraftCategory.Helicopter)
+        && (AtOrBelowHandOverAltitude(aircraft) || DescendingBelowHandOverAltitude(aircraft));
+
+    /// <summary>
+    /// True when <paramref name="aircraft"/> is at or below <see cref="MachHandOverAltitudeFt"/> without climbing out of
+    /// it: the Mach is handed over there even level, so the thick air cannot carry it past where the descent ends.
+    /// </summary>
+    private static bool AtOrBelowHandOverAltitude(AircraftState aircraft) =>
+        (aircraft.Altitude <= MachHandOverAltitudeFt)
+        && ((aircraft.Targets.TargetAltitude is not { } cleared) || (cleared <= aircraft.Altitude + MachHandOverDescendingMarginFt));
+
+    /// <summary>
+    /// True when <paramref name="aircraft"/> descends toward a cleared altitude below
+    /// <see cref="MachHandOverAltitudeFt"/>, more than <see cref="MachHandOverDescendingMarginFt"/> below it.
+    /// </summary>
+    private static bool DescendingBelowHandOverAltitude(AircraftState aircraft) =>
+        (aircraft.Targets.TargetAltitude is { } cleared)
+        && (cleared < MachHandOverAltitudeFt)
+        && (cleared < aircraft.Altitude - MachHandOverDescendingMarginFt);
+
+    /// <summary>
+    /// The IAS equivalent a Mach's descent triggers the handover at: Vmo less <see cref="SpeedMaxMarginKts"/> or the
+    /// profile's FL100 descent speed, whichever is lower.
+    /// </summary>
+    private static double MachHandOverThresholdKts(string aircraftType, AircraftCategory cat) =>
+        Math.Min(SpeedMaxKts(aircraftType) ?? double.MaxValue, DescentSpeedKts(aircraftType, cat));
+
+    /// <summary>The speed the type's profile is flown at in the descent (its FL100 descent speed), as <c>DescentSpeed</c> reads it.</summary>
+    private static double DescentSpeedKts(string aircraftType, AircraftCategory cat) =>
+        AircraftProfileDatabase.Get(aircraftType) is { } profile
+            ? AircraftPerformance.ResolveSpeed(profile.DescentSpeedFl100, 10_000)
+            : CategoryPerformance.DefaultSpeed(cat, 10_000);
+
+    /// <summary>
+    /// The IAS a Mach hold is handed over to at <paramref name="altitudeFt"/>: the Mach's own IAS equivalent, no higher than
+    /// Vmo less <see cref="SpeedMaxMarginKts"/>.
+    /// </summary>
+    private static double MachHandOverKts(string aircraftType, double mach, double altitudeFt) =>
+        Math.Round(Math.Min(SpeedMaxKts(aircraftType) ?? double.MaxValue, WindInterpolator.MachToIas(mach, altitudeFt)));
+
     /// <summary>
     /// The IAS SMAX holds <paramref name="aircraftType"/> to below its IAS/Mach crossover: Vmo less
     /// <see cref="SpeedMaxMarginKts"/>, or <see cref="HelicopterSpeedMaxFractionOfVne"/> of Vne for a helicopter, rounded to
@@ -1556,13 +1742,15 @@ public static class FlightPhysics
     private static void UpdateSpeed(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
         HoldMaximumForwardSpeed(aircraft);
+        HandOverMachHold(aircraft, cat);
         bool limitsLifted = aircraft.Targets.SpeedLimitsLifted;
         double envelopeLimit = limitsLifted ? double.MaxValue : EnvelopeSpeedLimit(aircraft);
         double speedLimit = limitsLifted ? double.MaxValue : SpeedLimitWithin(aircraft, envelopeLimit);
 
         // Mach hold: recompute equivalent IAS each tick so the aircraft maintains constant Mach. The limit keeps a Mach
         // hold carried down a descent from running the IAS past Vmo (or 91.117) as the air thickens, unless SPDN has
-        // lifted the limits.
+        // lifted the limits. A descending Mach hold is handed over to an IAS first (HandOverMachHold), so this block
+        // holds the Mach only until that handover.
         if (aircraft.Targets.TargetMach is { } targetMach && !aircraft.IsOnGround)
         {
             double machIas = Math.Min(WindInterpolator.MachToIas(targetMach, aircraft.Altitude), speedLimit);

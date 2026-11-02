@@ -291,6 +291,19 @@ public class NavigationTarget
     public bool RevertSpeedMax { get; set; }
 
     /// <summary>
+    /// The Mach a fix's speed reverts to past it, when the CFIX speed replaced a Mach hold: past the fix the Mach is held
+    /// again in place of <see cref="RevertSpeed"/> and <see cref="RevertAssignedSpeed"/>, which stay null.
+    /// </summary>
+    public double? RevertMach { get; set; }
+
+    /// <summary>
+    /// Whether the Mach hold <see cref="RevertMach"/> restores was an explicit speed command when the fix's speed replaced
+    /// it: a Mach nobody assigned (live traffic seeds one) restores with no assigned speed. Null beside a null
+    /// <see cref="RevertMach"/>, and a snapshot that predates the flag restores as explicit.
+    /// </summary>
+    public bool? RevertMachExplicit { get; set; }
+
+    /// <summary>
     /// The transmission (<see cref="Commands.DispatchContext.TransmissionId"/>) whose CFIX or constrained DCTF stamped a
     /// crossing restriction on this fix, or null when neither did. It answers for the crossing altitude: a DVIA or CVIA in
     /// the same transmission keeps the fix's altitude restriction, a later one gives it the published restriction back.
@@ -329,6 +342,8 @@ public class NavigationTarget
             RevertSpeed = RevertSpeed,
             RevertAssignedSpeed = RevertAssignedSpeed,
             RevertSpeedMax = RevertSpeedMax,
+            RevertMach = RevertMach,
+            RevertMachExplicit = RevertMachExplicit,
             TerminalCourseMagnetic = TerminalCourseMagnetic,
             CrossingTransmissionId = CrossingTransmissionId,
             SpeedTransmissionId = SpeedTransmissionId,
@@ -355,6 +370,8 @@ public class NavigationTarget
             RevertSpeed = dto.RevertSpeed,
             RevertAssignedSpeed = dto.RevertAssignedSpeed,
             RevertSpeedMax = dto.RevertSpeedMax,
+            RevertMach = dto.RevertMach,
+            RevertMachExplicit = dto.RevertMachExplicit,
             TerminalCourseMagnetic = dto.TerminalCourseMagnetic,
             CrossingTransmissionId = dto.CrossingTransmissionId,
             SpeedTransmissionId = dto.SpeedTransmissionId,

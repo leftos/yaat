@@ -124,6 +124,404 @@ public sealed class SpeedEnvelopeCapTests
     }
 
     [Fact]
+    public void Mach_ThenCfixWithSpeed_ClearsTheMachHold()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+
+        CommandResult fix = Send(ac, "CFIX SUNOL 200 250");
+
+        Assert.True(fix.Success, fix.Message);
+        Assert.Null(ac.Targets.TargetMach);
+
+        FlySeconds(ac, 120, _ => { });
+
+        // The crossing speed is planned to the fix, not flown at once, so the aircraft holds its issue IAS while the Mach
+        // it replaced would have carried it faster down the long leg to SUNOL.
+        Assert.True(
+            ac.IndicatedAirspeed < WindInterpolator.MachToIas(0.78, ac.Altitude) - 2,
+            $"the CFIX speed did not replace the Mach hold: {ac.IndicatedAirspeed:F0} KIAS at {ac.Altitude:F0} ft"
+        );
+    }
+
+    /// <summary>
+    /// YAAT-1445/YAAT-1422: the speed a CFIX carries reverts past its fix, so a Mach hold that speed replaced comes back
+    /// there.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenCfixWithSpeed_RestoresTheMachPastTheFix()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "CFIX SUNOL 350 250").Success);
+
+        FlySeconds(ac, 120, _ => { });
+
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)250, ac.Targets.AssignedSpeed);
+
+        for (int second = 0; (second < 9_000) && ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+        }
+
+        Assert.False(ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"), "the aircraft never sequenced SUNOL");
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.True(ac.Targets.HasExplicitSpeedCommand);
+    }
+
+    /// <summary>
+    /// YAAT-1422: a CFIX at or below FL240 restores the Mach its speed replaced as the IAS the handover would give it
+    /// there — the profile's descent speed, never the Mach's higher IAS equivalent at that altitude.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenCfixSunol200At250_ResumesTheCappedIasPastTheFix()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "CFIX SUNOL 200 250").Success);
+
+        for (int second = 0; (second < 9_000) && ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+        }
+
+        _output.WriteLine($"Sequenced SUNOL at {ac.Altitude:F0} ft, assigned {ac.Targets.AssignedSpeed}");
+        Assert.False(ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"), "the aircraft never sequenced SUNOL");
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)290, ac.Targets.AssignedSpeed);
+
+        double peakIas = ac.IndicatedAirspeed;
+        FlySeconds(ac, 600, a => peakIas = Math.Max(peakIas, a.IndicatedAirspeed));
+
+        Assert.True(peakIas <= 292, $"past the fix the aircraft flew {peakIas:F0} KIAS");
+    }
+
+    /// <summary>
+    /// YAAT-1422: a Mach nobody assigned (live traffic seeds one with no explicit speed command) comes back with no
+    /// assigned speed, as it had none before the CFIX speed replaced it.
+    /// </summary>
+    [Fact]
+    public void UnassignedMach_RestoredPastCfix_SetsNoAssignedSpeed()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: 260);
+        ac.Targets.TargetMach = WindInterpolator.IasToMach(ac.IndicatedAirspeed, ac.Altitude);
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
+
+        Assert.True(Send(ac, "CFIX SUNOL 350 250").Success);
+
+        for (int second = 0; (second < 9_000) && ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+        }
+
+        _output.WriteLine($"Sequenced SUNOL at {ac.Altitude:F0} ft, Mach {ac.Targets.TargetMach}");
+        Assert.False(ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"), "the aircraft never sequenced SUNOL");
+        Assert.NotNull(ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
+        Assert.Null(ac.Targets.SpeedCeiling);
+    }
+
+    [Fact]
+    public void Mach_ThenCfixAltitudeOnly_KeepsTheMachHold()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+
+        CommandResult fix = Send(ac, "CFIX SUNOL 200");
+
+        Assert.True(fix.Success, fix.Message);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+    }
+
+    [Fact]
+    public void Mach_ThenConstrainedDctf_ClearsTheMachHold()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+
+        CommandResult dct = CommandDispatcher.Dispatch(
+            SpeedEnvelopeRefusalTests.ConstrainedDirectToSunol(20_000, 250),
+            ac,
+            TestDispatch.Context(new SerializableRandom(1))
+        );
+
+        Assert.True(dct.Success, dct.Message);
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.False(ac.Targets.SpeedMaxHeld);
+    }
+
+    /// <summary>
+    /// YAAT-1445/YAAT-1422: a constrained DCTF's speed reverts past its fix, and at or below FL240 the restored Mach
+    /// resumes as the IAS the handover would give it there, as a CFIX's does.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenConstrainedDctf_RestoresTheMachPastTheFix()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+
+        CommandResult dct = CommandDispatcher.Dispatch(
+            SpeedEnvelopeRefusalTests.ConstrainedDirectToSunol(20_000, 250),
+            ac,
+            TestDispatch.Context(new SerializableRandom(1))
+        );
+
+        Assert.True(dct.Success, dct.Message);
+        Assert.Null(ac.Targets.TargetMach);
+
+        FlySeconds(ac, 120, _ => { });
+
+        Assert.Null(ac.Targets.TargetMach);
+
+        for (int second = 0; (second < 9_000) && ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+        }
+
+        _output.WriteLine($"Sequenced SUNOL at {ac.Altitude:F0} ft, assigned {ac.Targets.AssignedSpeed}");
+        Assert.False(ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"), "the aircraft never sequenced SUNOL");
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)290, ac.Targets.AssignedSpeed);
+
+        double peakIas = ac.IndicatedAirspeed;
+        FlySeconds(ac, 600, a => peakIas = Math.Max(peakIas, a.IndicatedAirspeed));
+
+        Assert.True(peakIas <= 292, $"past the fix the aircraft flew {peakIas:F0} KIAS");
+    }
+
+    /// <summary>
+    /// YAAT-1422: a second crossing speed issued before the fix holding the Mach revert takes it over, so the Mach does not
+    /// come back at the first fix and override the later crossing, and it comes back past the last one. The speed each
+    /// crossing is flown at is the crossing-speed planner's business: with an explicit Mach issued the deceleration to the
+    /// first crossing is not planned, so only the later one is pinned within the 2 kt snap.
+    /// </summary>
+    [Fact]
+    public void Mach_TwoChainedCrossings_FliesTheSecondCrossingSpeed()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "DCT HEC PMD").Success);
+        Assert.True(Send(ac, "CFIX HEC 300 250").Success);
+        Assert.True(Send(ac, "CFIX PMD 280 240").Success);
+
+        List<NavigationTarget> route = ac.Targets.NavigationRoute;
+        Assert.True(route.FindIndex(fix => fix.Name == "HEC") < route.FindIndex(fix => fix.Name == "PMD"), "premise: HEC comes before PMD");
+        Assert.Null(route.Single(fix => fix.Name == "HEC").RevertMach);
+        Assert.Equal((double?)0.78, route.Single(fix => fix.Name == "PMD").RevertMach);
+
+        for (int second = 0; (second < 3_600) && ac.Targets.NavigationRoute.Exists(fix => fix.Name == "HEC"); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+        }
+
+        Assert.False(ac.Targets.NavigationRoute.Exists(fix => fix.Name == "HEC"), "the aircraft never sequenced HEC");
+        _output.WriteLine($"Crossed HEC at {ac.IndicatedAirspeed:F0} KIAS, {ac.Altitude:F0} ft");
+
+        double? crossedPmd = null;
+        for (int second = 0; (second < 3_600) && (crossedPmd is null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+            if (!ac.Targets.NavigationRoute.Exists(fix => fix.Name == "PMD"))
+            {
+                crossedPmd = ac.IndicatedAirspeed;
+                break;
+            }
+
+            Assert.Null(ac.Targets.TargetMach);
+        }
+
+        _output.WriteLine($"Crossed PMD at {crossedPmd:F0} KIAS, {ac.Altitude:F0} ft, Mach {ac.Targets.TargetMach}");
+        Assert.NotNull(crossedPmd);
+        Assert.InRange(crossedPmd.Value, 238, 242);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// YAAT-1422: a crossing speed restated on the fix that already holds the Mach revert replaces the first crossing
+    /// speed, not the Mach the first one replaced: past the fix the Mach still comes back, as the capped IAS below FL240.
+    /// </summary>
+    [Fact]
+    public void Mach_CrossingSpeedRestatedOnTheSameFix_KeepsTheMachRevert()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "CFIX SUNOL 200 250").Success);
+        Assert.True(Send(ac, "CFIX SUNOL 200 240").Success);
+
+        NavigationTarget sunol = Assert.Single(ac.Targets.NavigationRoute);
+        Assert.Equal("SUNOL", sunol.Name);
+        Assert.Equal(240, sunol.SpeedRestriction?.SpeedKts);
+        Assert.Equal((double?)0.78, sunol.RevertMach);
+
+        FlyUntilSequenced(ac, "SUNOL");
+
+        _output.WriteLine($"Sequenced SUNOL at {ac.Altitude:F0} ft, assigned {ac.Targets.AssignedSpeed}");
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)290, ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// YAAT-1422: a crossing speed issued on a fix before the one that holds the Mach revert leaves the revert where it is,
+    /// on the route-order-last fix whose speed the controller set.
+    /// </summary>
+    [Fact]
+    public void Mach_EarlierCrossingAfterALaterOne_LeavesTheRevertOnTheLater()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "DCT HEC PMD").Success);
+        Assert.True(Send(ac, "CFIX PMD 280 240").Success);
+        Assert.True(Send(ac, "CFIX HEC 300 250").Success);
+
+        List<NavigationTarget> route = ac.Targets.NavigationRoute;
+        Assert.Equal(["HEC", "PMD"], route.Select(fix => fix.Name));
+        Assert.Equal(250, route[0].SpeedRestriction?.SpeedKts);
+        Assert.Equal(240, route[1].SpeedRestriction?.SpeedKts);
+        Assert.Null(route[0].RevertMach);
+        Assert.Equal((double?)0.78, route[1].RevertMach);
+        Assert.Equal((bool?)true, route[1].RevertMachExplicit);
+    }
+
+    /// <summary>
+    /// YAAT-1422: a constrained DCTF whose speed is on a fix with no crossing altitude puts the Mach revert on that speed
+    /// fix, not on the altitude-constrained one, and the Mach comes back past it.
+    /// </summary>
+    [Fact]
+    public void Mach_ConstrainedDctfSpeedOnAFixWithoutAltitude_RestoresTheMachPastIt()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+
+        var direct = new ConstrainedForceDirectToCommand(
+            [RouteFix("HEC"), RouteFix("PMD")],
+            new Dictionary<int, ConstrainedFixAltitude> { [0] = new(30_000, CrossFixAltitudeType.At) },
+            new Dictionary<int, int> { [1] = 240 },
+            null
+        );
+        CommandResult dct = CommandDispatcher.Dispatch(direct, ac, TestDispatch.Context(new SerializableRandom(1)));
+        Assert.True(dct.Success, dct.Message);
+
+        List<NavigationTarget> route = ac.Targets.NavigationRoute;
+        Assert.Equal(["HEC", "PMD"], route.Select(fix => fix.Name));
+        Assert.NotNull(route[0].AltitudeRestriction);
+        Assert.Null(route[0].SpeedRestriction);
+        Assert.Null(route[1].AltitudeRestriction);
+        Assert.Equal(240, route[1].SpeedRestriction?.SpeedKts);
+        Assert.Null(route[0].RevertMach);
+        Assert.Equal((double?)0.78, route[1].RevertMach);
+
+        FlyUntilSequenced(ac, "PMD");
+
+        _output.WriteLine($"Sequenced PMD at {ac.Altitude:F0} ft, Mach {ac.Targets.TargetMach}");
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// YAAT-1422: a Mach revert pending from an earlier CFIX moves to the last fix whose speed a later constrained DCTF
+    /// sets, so the direct-to's crossing speeds are flown first.
+    /// </summary>
+    [Fact]
+    public void Mach_PendingRevertThenConstrainedDctf_MovesTheRevertToTheDctfSpeedFix()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "DCT HEC PMD").Success);
+        Assert.True(Send(ac, "CFIX HEC 300 250").Success);
+        Assert.Equal((double?)0.78, ac.Targets.NavigationRoute.Single(fix => fix.Name == "HEC").RevertMach);
+
+        var direct = new ConstrainedForceDirectToCommand(
+            [RouteFix("HEC"), RouteFix("PMD")],
+            new Dictionary<int, ConstrainedFixAltitude> { [0] = new(30_000, CrossFixAltitudeType.At) },
+            new Dictionary<int, int> { [0] = 250, [1] = 240 },
+            null
+        );
+        CommandResult dct = CommandDispatcher.Dispatch(direct, ac, TestDispatch.Context(new SerializableRandom(1)));
+        Assert.True(dct.Success, dct.Message);
+
+        List<NavigationTarget> route = ac.Targets.NavigationRoute;
+        Assert.Equal(["HEC", "PMD"], route.Select(fix => fix.Name));
+        Assert.NotNull(route[0].AltitudeRestriction);
+        Assert.Equal(250, route[0].SpeedRestriction?.SpeedKts);
+        Assert.Null(route[1].AltitudeRestriction);
+        Assert.Equal(240, route[1].SpeedRestriction?.SpeedKts);
+        Assert.Null(route[0].RevertMach);
+        Assert.Null(route[0].RevertSpeed);
+        Assert.Null(route[0].RevertAssignedSpeed);
+        Assert.Equal((double?)0.78, route[1].RevertMach);
+        Assert.Equal((bool?)true, route[1].RevertMachExplicit);
+    }
+
+    /// <summary>
+    /// YAAT-1422: a Mach nobody assigned, restored past a CFIX below FL240 as the capped IAS, becomes a target speed only:
+    /// it assigns nothing, as the Mach assigned nothing before the CFIX speed replaced it.
+    /// </summary>
+    [Fact]
+    public void UnassignedMach_RestoredBelowFl240_TargetsTheIasWithNoAssignment()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        ac.Targets.TargetMach = 0.78;
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
+
+        Assert.True(Send(ac, "CFIX SUNOL 200 250").Success);
+        NavigationTarget sunol = Assert.Single(ac.Targets.NavigationRoute);
+        Assert.Equal((double?)0.78, sunol.RevertMach);
+        Assert.Equal((bool?)false, sunol.RevertMachExplicit);
+
+        // Tick by tick, so the restore is read on the tick that sequences SUNOL: past it no ATC speed is in force, and the
+        // aircraft's own speed schedule may retarget it later.
+        for (int tick = 0; (tick < 36_000) && ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"); tick++)
+        {
+            FlightPhysics.Update(ac, 0.25);
+        }
+
+        _output.WriteLine(
+            $"SUNOL at {ac.Altitude:F0} ft, {ac.IndicatedAirspeed:F1} kt, target {ac.Targets.TargetSpeed}, assigned {ac.Targets.AssignedSpeed}"
+        );
+        Assert.False(ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"), "the aircraft never sequenced SUNOL");
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)290, ac.Targets.TargetSpeed);
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
+        Assert.Null(ac.Targets.SpeedCeiling);
+    }
+
+    /// <summary>A route fix named <paramref name="name"/>, at its position in the real navdata.</summary>
+    private static ResolvedFix RouteFix(string name)
+    {
+        CrossFixCommand cfix = Assert.IsType<CrossFixCommand>(CommandParser.Parse($"CFIX {name} 200").Value);
+        return new ResolvedFix(name, cfix.FixLat, cfix.FixLon);
+    }
+
+    /// <summary>Flies <paramref name="aircraft"/> a second at a time until it sequences <paramref name="fixName"/>.</summary>
+    private static void FlyUntilSequenced(AircraftState aircraft, string fixName)
+    {
+        for (int second = 0; (second < 9_000) && aircraft.Targets.NavigationRoute.Exists(fix => fix.Name == fixName); second++)
+        {
+            FlySeconds(aircraft, 1, _ => { });
+        }
+
+        Assert.False(aircraft.Targets.NavigationRoute.Exists(fix => fix.Name == fixName), $"the aircraft never sequenced {fixName}");
+    }
+
+    [Fact]
+    public void Mach_ThenWarp_ClearsTheMachHold()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+
+        CommandResult warp = Send(ac, "WARP SUNOL 270 200 280");
+
+        Assert.True(warp.Success, warp.Message);
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal(280, ac.Targets.AssignedSpeed);
+    }
+
+    [Fact]
     public void ChainedSpeedHeldAtCap_Completes()
     {
         AircraftState ac = A320At(altitude: 20_000, ias: 300);

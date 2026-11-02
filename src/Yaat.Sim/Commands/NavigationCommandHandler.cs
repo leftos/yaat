@@ -157,6 +157,8 @@ internal static class NavigationCommandHandler
                 RevertAssignedAltitude = existing?.RevertAssignedAltitude,
                 RevertSpeed = existing?.RevertSpeed,
                 RevertAssignedSpeed = existing?.RevertAssignedSpeed,
+                RevertMach = existing?.RevertMach,
+                RevertMachExplicit = existing?.RevertMachExplicit,
                 CrossingTransmissionId = existing?.CrossingTransmissionId,
                 SpeedTransmissionId = existing?.SpeedTransmissionId,
             }
@@ -245,14 +247,25 @@ internal static class NavigationCommandHandler
         // SMAX past the last crossing (PlaceSpeedMaxRevert), not to a figure it flew.
         bool revertsSpeed = (cmd.Speed is not null) && !restatedWithVia;
         bool previousSpeedMax = revertsSpeed && SpeedMaxPending(aircraft);
-        double? previousSpeed = (revertsSpeed && !previousSpeedMax) ? aircraft.Targets.TargetSpeed : null;
-        double? previousAssignedSpeed = (revertsSpeed && !previousSpeedMax) ? aircraft.Targets.AssignedSpeed : null;
+        // A Mach hold the CFIX speed replaces goes too, and is restored past the fix in place of a plain speed revert.
+        double? previousMach = (revertsSpeed && !previousSpeedMax) ? aircraft.Targets.TargetMach : null;
+        // A Mach nobody assigned (live traffic) restores with no assigned speed, as it had none before the CFIX.
+        bool? previousMachExplicit = (previousMach is not null) ? aircraft.Targets.HasExplicitSpeedCommand : null;
+        bool revertsPlainSpeed = (revertsSpeed && !previousSpeedMax) && (previousMach is null);
+        double? previousSpeed = revertsPlainSpeed ? aircraft.Targets.TargetSpeed : null;
+        double? previousAssignedSpeed = revertsPlainSpeed ? aircraft.Targets.AssignedSpeed : null;
 
         CifpAltitudeRestriction altRestriction = FlightCommandHandler.ToAltitudeRestriction(cmd.Altitude, cmd.AltType);
         CifpSpeedRestriction? speedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null;
 
         // Id 0 is no transmission (a queued block restored from a snapshot written before blocks carried one).
         int? crossingTransmissionId = StampedTransmission(transmissionId);
+
+        // The Mach revert already on the route is read before the stamp below, which clears it when this CFIX restates the
+        // speed on the fix that holds it.
+        NavigationTarget? machHolder = aircraft.Targets.NavigationRoute.Find(fix => fix.RevertMach is not null);
+        double? pendingMach = machHolder?.RevertMach;
+        bool? pendingMachExplicit = machHolder?.RevertMachExplicit;
 
         // CFIX names a fix that is already on the route. Stamp the restriction on that fix in
         // place, preserving the rest of the route (fixes before and after) and any restriction
@@ -274,6 +287,8 @@ internal static class NavigationCommandHandler
                 existing.SpeedTransmissionId = crossingTransmissionId;
                 existing.RevertSpeed = previousSpeed;
                 existing.RevertAssignedSpeed = previousAssignedSpeed;
+                existing.RevertMach = previousMach;
+                existing.RevertMachExplicit = previousMachExplicit;
                 existing.RevertSpeedMax = previousSpeedMax;
             }
         }
@@ -290,6 +305,8 @@ internal static class NavigationCommandHandler
                     RevertAssignedAltitude = previousAssignedAlt,
                     RevertSpeed = previousSpeed,
                     RevertAssignedSpeed = previousAssignedSpeed,
+                    RevertMach = previousMach,
+                    RevertMachExplicit = previousMachExplicit,
                     RevertSpeedMax = previousSpeedMax,
                     CrossingTransmissionId = crossingTransmissionId,
                     SpeedTransmissionId = (speedRestriction is not null) ? crossingTransmissionId : null,
@@ -300,6 +317,13 @@ internal static class NavigationCommandHandler
         if (previousSpeedMax)
         {
             PlaceSpeedMaxRevert(aircraft.Targets.NavigationRoute);
+        }
+
+        // A Mach revert already on the route moves to the last crossing speed the controller set: a later crossing is
+        // flown first and the Mach comes back past it, as SMAX's re-arm moves (PlaceSpeedMaxRevert).
+        if ((speedRestriction is not null) && (previousMach is null) && !previousSpeedMax && (pendingMach is { } mach))
+        {
+            PlaceMachRevert(aircraft.Targets.NavigationRoute, mach, pendingMachExplicit);
         }
 
         // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
@@ -315,7 +339,7 @@ internal static class NavigationCommandHandler
         {
             aircraft.Targets.AssignedSpeed = spdVal;
             aircraft.Targets.SpeedLimitsLifted = false;
-            FlightCommandHandler.EndSpeedMax(aircraft);
+            FlightCommandHandler.EndMachHoldAndSpeedMax(aircraft);
 
             // For acceleration, set TargetSpeed immediately so the aircraft starts
             // accelerating toward the CFIX speed right away. For deceleration,
@@ -1640,6 +1664,8 @@ internal static class NavigationCommandHandler
             fix.RevertAssignedAltitude = null;
             fix.RevertSpeed = null;
             fix.RevertAssignedSpeed = null;
+            fix.RevertMach = null;
+            fix.RevertMachExplicit = null;
             fix.RevertSpeedMax = false;
         }
     }
@@ -1662,6 +1688,7 @@ internal static class NavigationCommandHandler
             (fix.SpeedTransmissionId is not null)
             || (fix.RevertSpeed is not null)
             || (fix.RevertAssignedSpeed is not null)
+            || (fix.RevertMach is not null)
             || fix.RevertSpeedMax
             || published.Value.ContainsKey(fix.Name)
         );
@@ -1697,19 +1724,23 @@ internal static class NavigationCommandHandler
         {
             fix.RevertSpeed = null;
             fix.RevertAssignedSpeed = null;
+            fix.RevertMach = null;
+            fix.RevertMachExplicit = null;
             fix.RevertSpeedMax = false;
         }
     }
 
     /// <summary>
     /// A controller speed instruction given after a crossing restriction stands past its fix (7110.65 5-7-1; AIM
-    /// 4-4-12.f.1), so SMAX is armed again on no route fix (<see cref="NavigationTarget.RevertSpeedMax"/>). Plain speed
-    /// reverts are left as they are.
+    /// 4-4-12.f.1), so SMAX is armed again on no route fix (<see cref="NavigationTarget.RevertSpeedMax"/>) and no fix
+    /// holds a Mach to restore (<see cref="NavigationTarget.RevertMach"/>). Plain speed reverts are left as they are.
     /// </summary>
     internal static void DropSpeedMaxReverts(AircraftState aircraft)
     {
         foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
         {
+            fix.RevertMach = null;
+            fix.RevertMachExplicit = null;
             fix.RevertSpeedMax = false;
         }
     }
@@ -1739,9 +1770,37 @@ internal static class NavigationCommandHandler
         {
             route[last].RevertSpeed = null;
             route[last].RevertAssignedSpeed = null;
+            route[last].RevertMach = null;
+            route[last].RevertMachExplicit = null;
         }
 
         return last >= 0;
+    }
+
+    /// <summary>
+    /// The counterpart of <see cref="PlaceSpeedMaxRevert"/> for <see cref="NavigationTarget.RevertMach"/>: the Mach revert
+    /// already pending on the route (<paramref name="mach"/>) moves to the route-order-last fix whose speed the controller
+    /// set (<see cref="FlightPhysics.IsControllerSetSpeed"/>), so every crossing speed before it is flown first and the
+    /// Mach comes back past the last one. The fix that holds it keeps no plain speed revert.
+    /// </summary>
+    internal static void PlaceMachRevert(List<NavigationTarget> route, double mach, bool? explicitFlag)
+    {
+        int last = route.FindLastIndex(FlightPhysics.IsControllerSetSpeed);
+        if (last < 0)
+        {
+            return;
+        }
+
+        foreach (NavigationTarget fix in route)
+        {
+            fix.RevertMach = null;
+            fix.RevertMachExplicit = null;
+        }
+
+        route[last].RevertMach = mach;
+        route[last].RevertMachExplicit = explicitFlag;
+        route[last].RevertSpeed = null;
+        route[last].RevertAssignedSpeed = null;
     }
 
     /// <summary>
@@ -1850,6 +1909,8 @@ internal static class NavigationCommandHandler
 
             fix.RevertSpeed = null;
             fix.RevertAssignedSpeed = null;
+            fix.RevertMach = null;
+            fix.RevertMachExplicit = null;
             fix.RevertSpeedMax = false;
             first ??= fix;
         }
@@ -1871,6 +1932,7 @@ internal static class NavigationCommandHandler
         || (fix.RevertAssignedAltitude is not null)
         || (fix.RevertSpeed is not null)
         || (fix.RevertAssignedSpeed is not null)
+        || (fix.RevertMach is not null)
         || fix.RevertSpeedMax;
 
     /// <summary>

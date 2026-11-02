@@ -52,6 +52,14 @@ public sealed class NavigationTargetDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool RevertSpeedMax { get; init; }
 
+    // Additive, no schema bump: absent in older snapshots, which restore as "no Mach revert".
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? RevertMach { get; init; }
+
+    // Additive, no schema bump: absent in older snapshots, which restore as an explicit Mach hold.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? RevertMachExplicit { get; init; }
+
     public double? TerminalCourseMagnetic { get; init; }
 
     // Additive, no schema bump: absent in older snapshots, which restore as "no CFIX stamp".

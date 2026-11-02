@@ -910,16 +910,13 @@ internal static class FlightCommandHandler
     }
 
     /// <summary>
-    /// Ends SMAX for a speed act that does not itself clear the Mach hold (a crossing speed, WARP): SMAX's own Mach hold
-    /// goes with it, so the new speed is flown. A Mach hold a MACH command set is left as it was.
+    /// Ends any Mach hold and SMAX for an act that replaces the speed (a crossing speed, a constrained direct, WARP):
+    /// both a Mach hold SMAX set and one a MACH command set go, so the new speed is flown rather than rewritten each tick
+    /// from the old Mach.
     /// </summary>
-    internal static void EndSpeedMax(AircraftState aircraft)
+    internal static void EndMachHoldAndSpeedMax(AircraftState aircraft)
     {
-        if (aircraft.Targets.SpeedMaxHeld)
-        {
-            aircraft.Targets.TargetMach = null;
-        }
-
+        aircraft.Targets.TargetMach = null;
         aircraft.Targets.SpeedMaxHeld = false;
     }
 
@@ -1212,6 +1209,9 @@ internal static class FlightCommandHandler
 
         int transmissionId = ctx.TransmissionId;
         bool speedMaxPending = NavigationCommandHandler.SpeedMaxPending(aircraft);
+        // A Mach revert already pending on the route moves to the last crossing speed this direct-to sets, so a later
+        // crossing is flown first and the Mach comes back past it, as CFIX's does (PlaceMachRevert).
+        NavigationTarget? pendingMachFix = aircraft.Targets.NavigationRoute.Find(fix => fix.RevertMach is not null);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -1229,6 +1229,14 @@ internal static class FlightCommandHandler
                 lastConstrainedIdx = idx;
             }
         }
+
+        // A Mach the crossing speeds replace, held now or pending from an earlier crossing, is restored past the last fix
+        // whose speed this direct-to sets, altitude-constrained or not, and then no fix carries a plain speed revert. While
+        // SMAX is pending, PlaceSpeedMaxRevert arms it again past the last crossing speed instead.
+        int lastSpeedIdx = (cmd.SpeedConstraints is { Count: > 0 } speeds) ? speeds.Keys.Max() : -1;
+        bool holdingMach = aircraft.Targets.TargetMach is not null;
+        double? machToRestore = speedMaxPending ? null : (aircraft.Targets.TargetMach ?? pendingMachFix?.RevertMach);
+        bool? machToRestoreExplicit = holdingMach ? aircraft.Targets.HasExplicitSpeedCommand : pendingMachFix?.RevertMachExplicit;
 
         // Capture current altitude/speed for revert on the last constrained fix, unless reverting would reverse the
         // direction flown into it (NavigationCommandHandler.AltitudeRevertReversesTravel)
@@ -1263,6 +1271,8 @@ internal static class FlightCommandHandler
             CifpSpeedRestriction? speedRestriction = null;
             double? revertAlt = null;
             double? revertAssignedAlt = null;
+            double? revertMach = null;
+            bool? revertMachExplicit = null;
             double? revertSpeed = null;
             double? revertAssignedSpeed = null;
 
@@ -1281,8 +1291,13 @@ internal static class FlightCommandHandler
             if (cmd.SpeedConstraints is not null && cmd.SpeedConstraints.TryGetValue(i, out int spd))
             {
                 speedRestriction = new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow);
-                // While SMAX is pending, PlaceSpeedMaxRevert arms it again past the last crossing speed instead.
-                if ((i == lastConstrainedIdx) && !speedMaxPending)
+                if ((i == lastSpeedIdx) && (machToRestore is not null))
+                {
+                    revertMach = machToRestore;
+                    revertMachExplicit = machToRestoreExplicit;
+                }
+
+                if ((i == lastConstrainedIdx) && !speedMaxPending && (machToRestore is null))
                 {
                     revertSpeed = aircraft.Targets.TargetSpeed;
                     revertAssignedSpeed = aircraft.Targets.AssignedSpeed;
@@ -1300,6 +1315,8 @@ internal static class FlightCommandHandler
                     RevertAssignedAltitude = revertAssignedAlt,
                     RevertSpeed = revertSpeed,
                     RevertAssignedSpeed = revertAssignedSpeed,
+                    RevertMach = revertMach,
+                    RevertMachExplicit = revertMachExplicit,
                     // Id 0 is no transmission (a queued block restored from a snapshot written before blocks carried one).
                     CrossingTransmissionId =
                         (((altRestriction is not null) || (speedRestriction is not null)) && (transmissionId != 0)) ? transmissionId : null,
@@ -1316,7 +1333,7 @@ internal static class FlightCommandHandler
             }
 
             aircraft.Targets.SpeedLimitsLifted = false;
-            EndSpeedMax(aircraft);
+            EndMachHoldAndSpeedMax(aircraft);
         }
 
         string fixNames = FixListSpaced(cmd.Fixes);
@@ -1483,7 +1500,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.SpeedLimitsLifted = false;
-        EndSpeedMax(aircraft);
+        EndMachHoldAndSpeedMax(aircraft);
         aircraft.Procedure.LastProcedureSpeedKts = null;
         aircraft.IsOnGround = false;
         aircraft.Situation.WasOnGround = false;

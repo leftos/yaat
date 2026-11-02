@@ -67,6 +67,8 @@ No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. 
 
 `ControlTargetsDto.SpeedLimitsLifted` (`bool`, `WhenWritingDefault`) carries `ControlTargets.SpeedLimitsLifted`, the SPDN lift of 91.117 and Vmo/Mmo ([flight-physics.md](flight-physics.md)). It is written only when true, so every older snapshot and its hash are unchanged and restore false; no schema bump.
 
+`NavigationTargetDto.RevertMach` (double?) and `RevertMachExplicit` (bool?) carry `NavigationTarget.RevertMach` / `RevertMachExplicit`, the Mach hold a crossing speed replaced and the fix past which it is held again ([flight-physics.md](flight-physics.md)). Both are nullable and written only when set, so every older snapshot and its hash are unchanged; no schema bump. A snapshot with `RevertMach` and no `RevertMachExplicit` restores the Mach as explicit.
+
 `StateSnapshotDto.FrequencyTransmissions` (`List<FrequencyTransmissionDto>?` of `{Start, Duration}`, `WhenWritingNull`) carries the active frequency's `FrequencyActivityMeter` intervals in recorded order, so a rewind or restore resumes in the load band the run was in ([solo-training-pilot-speech.md](solo-training-pilot-speech.md) § the activity meter).
 
 `CaptureSnapshot` writes it only when the meter holds a transmission, so a snapshot of a silent frequency omits the field and the pinned snapshot-zero hash stays put.

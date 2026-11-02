@@ -9,6 +9,8 @@
 
 ### Fixed
 
+- A `CFIX` or constrained `DCTF` speed replaces a `MACH` hold until its fix, and the Mach resumes past it; `WARP` ends the hold.
+- A `MACH` hold hands over to an indicated airspeed at or below FL240 instead of riding the type's maximum speed down the descent.
 - A bare `CVIA` climbs to the facility's TDLS altitude even when a new navdata cycle renumbered the filed SID (NUEVO8 to NUEVO9).
 - `CAPP` after `JFAC` or `JLOC` cancels assigned speeds like any approach clearance, keeping and restating a standing in-trail reduction.
 - An arrival given a crossing below its altitude no longer climbs toward a higher STAR window beyond that fix.
