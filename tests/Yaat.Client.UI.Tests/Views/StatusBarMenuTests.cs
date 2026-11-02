@@ -4,6 +4,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
@@ -173,6 +174,149 @@ public class StatusBarMenuTests
             Dispatcher.UIThread.RunJobs();
             MainWindowHost.CloseAll(main);
         }
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public async Task SpeechModelMissingLink_ShowsOnlyWhileTheModelIsMissing()
+    {
+        using var guard = new SpeechPrefsGuard();
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+
+        try
+        {
+            await EnableSpeechAsync(vm);
+            Button link = main.FindControl<Button>("SpeechModelMissingLink")!;
+
+            Assert.False(link.IsVisible, "hidden at Idle");
+
+            vm.SpeechStatus = SpeechStatus.ModelMissing;
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(link.IsVisible, "shown after a push-to-talk that was refused for the missing model");
+
+            vm.IsSpeechEnabled = false;
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(link.IsVisible, "hidden while speech recognition is off");
+
+            await EnableSpeechAsync(vm);
+            vm.SpeechStatus = SpeechStatus.ModelMissing;
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(link.IsVisible, "shown again once speech recognition is back on");
+
+            vm.SpeechStatus = SpeechStatus.Warming;
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(link.IsVisible, "hidden once the download lets the model load");
+
+            vm.SpeechStatus = SpeechStatus.Idle;
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(link.IsVisible, "hidden again at rest");
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public async Task SpeechModelMissingLink_RequestsTheSpeechSection()
+    {
+        using var guard = new SpeechPrefsGuard();
+        (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();
+        List<SettingsSectionId?> requests = [];
+        vm.SettingsRequested += requests.Add;
+
+        try
+        {
+            await EnableSpeechAsync(vm);
+            vm.SpeechStatus = SpeechStatus.ModelMissing;
+            Dispatcher.UIThread.RunJobs();
+            Button link = main.FindControl<Button>("SpeechModelMissingLink")!;
+            Assert.True(link.IsVisible, "the link is shown while the model is missing");
+
+            link.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal([SettingsSectionId.Speech], requests);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    /// <summary>
+    /// Turns speech recognition on and waits for the background prewarm the toggle starts to finish, rather than for a
+    /// duration: the warm-up drives the status through Warming and back, and a status a test writes while it is still
+    /// running is overwritten by its last post.
+    /// </summary>
+    private static async Task EnableSpeechAsync(MainViewModel vm)
+    {
+        var settled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int transitions = 0;
+
+        void OnStatusChanged(SpeechStatus status)
+        {
+            if (Interlocked.Increment(ref transitions) >= 2)
+            {
+                settled.TrySetResult();
+            }
+        }
+
+        vm.SpeechService.StatusChanged += OnStatusChanged;
+        try
+        {
+            vm.IsSpeechEnabled = true;
+            // Warming first, then the status the warm-up ends on; the guard only keeps a broken pipeline from hanging.
+            await settled.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            vm.SpeechService.StatusChanged -= OnStatusChanged;
+        }
+
+        MainWindowHost.Pump();
+    }
+
+    /// <summary>
+    /// Puts the speech preferences into the state one test starts from, and restores them afterwards. Turning speech on
+    /// kicks a background prewarm, and a configured LLM model source makes that warm-up load a model (over the network)
+    /// before it ends, so the sources are blanked while the guard is alive.
+    /// </summary>
+    private sealed class SpeechPrefsGuard : IDisposable
+    {
+        private readonly bool _speechEnabled;
+        private readonly string _whisperModelSize;
+        private readonly string _llmModelPath;
+        private readonly int _llmGpuLayers;
+        private readonly bool _autoFocusInputAfterSpeech;
+        private readonly SttEngine _engine;
+        private readonly SttMode _mode;
+        private readonly SttDevice _device;
+
+        public SpeechPrefsGuard()
+        {
+            var prefs = new UserPreferences();
+            _speechEnabled = prefs.SpeechEnabled;
+            _whisperModelSize = prefs.WhisperModelSize;
+            _llmModelPath = prefs.LlmModelPath;
+            _llmGpuLayers = prefs.LlmGpuLayers;
+            _autoFocusInputAfterSpeech = prefs.AutoFocusInputAfterSpeech;
+            _engine = prefs.SttEngine;
+            _mode = prefs.SttMode;
+            _device = prefs.SttDevice;
+            prefs.SetSpeechSettings(false, "", "", _llmGpuLayers, _autoFocusInputAfterSpeech, _engine, _mode, _device);
+        }
+
+        public void Dispose() =>
+            new UserPreferences().SetSpeechSettings(
+                _speechEnabled,
+                _whisperModelSize,
+                _llmModelPath,
+                _llmGpuLayers,
+                _autoFocusInputAfterSpeech,
+                _engine,
+                _mode,
+                _device
+            );
     }
 
     private static void LoadScenario(MainWindow main, MainViewModel vm)

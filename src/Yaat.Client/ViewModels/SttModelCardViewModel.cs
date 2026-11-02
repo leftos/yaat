@@ -141,7 +141,27 @@ public sealed partial class SttModelCardViewModel : ObservableObject, IDisposabl
         }
     }
 
-    private static string TitleOf(SttEngine engine) =>
+    /// <summary>
+    /// Why Accurate mode cannot run for <paramref name="engine"/>, or null when it can. The one copy of the rule: Settings
+    /// shows it beside the Accurate radio, and Speech Debug reads it to name the mode speech recognition runs in.
+    /// </summary>
+    /// <param name="engine">The model the preferences save.</param>
+    /// <param name="nbest">Whether the sherpa-onnx native can run Accurate mode, and why not when it cannot.</param>
+    internal static string? AccurateUnavailableReason(SttEngine engine, (bool Available, string? Reason) nbest) =>
+        (engine == SttEngine.Whisper) ? SherpaNativeLoader.WhisperAccurateReason
+        : nbest.Available ? null
+        : nbest.Reason;
+
+    /// <summary>
+    /// The mode speech recognition runs in: the saved mode, or Fast when Accurate cannot run for
+    /// <paramref name="accurateUnavailableReason"/>.
+    /// </summary>
+    /// <param name="saved">The mode the preferences save.</param>
+    /// <param name="accurateUnavailableReason">Why Accurate cannot run, or null when it can.</param>
+    internal static SttMode EffectiveMode(SttMode saved, string? accurateUnavailableReason) =>
+        ((saved == SttMode.Accurate) && (accurateUnavailableReason is not null)) ? SttMode.Fast : saved;
+
+    internal static string TitleOf(SttEngine engine) =>
         engine switch
         {
             SttEngine.RasrV2Fp32 => "rasr-parakeet v2 · fp32",

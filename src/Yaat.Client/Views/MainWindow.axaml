@@ -561,7 +561,7 @@
 
       <!-- Status bar -->
       <Border DockPanel.Dock="Bottom" BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Padding="8,2">
-        <Grid ColumnDefinitions="*,Auto,Auto">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto">
           <TextBlock Grid.Column="0" Text="{Binding StatusText}" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
           <!-- Mic status indicator. When speech recognition is disabled the label shows
                      "mic: off" so users can still right-click to re-enable without having to
@@ -608,11 +608,24 @@
             </TextBlock.ContextFlyout>
           </TextBlock>
 
+          <!-- Shown while a push-to-talk was refused because the saved speech model is not downloaded; it opens
+                     Settings at Speech, whose model card downloads the model. -->
+          <Button
+            Grid.Column="2"
+            x:Name="SpeechModelMissingLink"
+            Classes="section-link"
+            Content="Download the speech model in Settings > Speech"
+            FontSize="11"
+            Margin="8,0,0,0"
+            VerticalAlignment="Center"
+            IsVisible="{Binding IsSpeechModelMissing}"
+          />
+
           <!-- Live-traffic feed health for the room, shown only while the session toggle is on. Right-click
                      carries the toggle, the aircraft-list filter (all / hide live / only live) and a link to the
                      session flyout's live-traffic settings. -->
           <TextBlock
-            Grid.Column="2"
+            Grid.Column="3"
             x:Name="LiveTrafficStatusText"
             Text="{Binding LiveTrafficStatusText}"
             FontSize="11"

@@ -20,7 +20,7 @@ The Speech model downloads belong to the app, not the window: `MainViewModel.Stt
 
 "Speech settings…" on the mic status menus, the Speech Debug window and the pilot-voice banner open Speech. A request while the window is open moves the open window to that section rather than opening a second one.
 
-**One home per setting, links elsewhere.** A setting that spans surfaces has one home and shows as a `section-link` button in every other section it concerns: font sizes and the strips/vTDLS zoom live in Appearance, always-on-top in General, and the push-to-talk key in Speech. Colours live with their view (ground colours in Ground, radar tint in Radar, terminal channel colours in Terminal).
+**One home per setting, links elsewhere.** A setting that spans surfaces has one home and shows as a `section-link` button (the style lives in `App.axaml`, since the main window's status bar uses it too) in every other section it concerns: font sizes and the strips/vTDLS zoom live in Appearance, always-on-top in General, and the push-to-talk key in Speech. Colours live with their view (ground colours in Ground, radar tint in Radar, terminal channel colours in Terminal).
 
 The Aircraft list and Strips and vTDLS sections are links only; aircraft-list columns stay in the column chooser.
 

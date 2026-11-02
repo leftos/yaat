@@ -70,3 +70,54 @@ YAAT's MIT license governs the source code; ODbL governs only the
 `airlines.tsv` file. ODbL § 4.5a exempts compiled binaries (Produced
 Works) from the share-alike requirement, so `Yaat.Sim.dll` and the
 YAAT installer are distributed under YAAT's MIT terms.
+
+================================================================================
+Third-party models and libraries shipped or downloaded on request
+================================================================================
+
+## rasr-parakeet-v2 speech model (Llama 3.2 Community License)
+
+YAAT downloads this speech-recognition model when the user selects it in
+Settings > Speech; it is not bundled with the installer. Built with Llama.
+
+  Upstream: https://huggingface.co/twangodev/rasr-parakeet-v2
+  License:  Llama 3.2 Community License Agreement
+  Full text: https://www.llama.com/llama3_2/license/
+
+Llama 3.2 is licensed under the Llama 3.2 Community License, Copyright (c) Meta
+Platforms, Inc. All Rights Reserved.
+
+## NVIDIA Parakeet TDT 0.6B v2 (CC-BY-4.0)
+
+The base model the ATC fine-tune rasr-parakeet-v2 derives from. It is exported to
+sherpa-onnx from NVIDIA's NeMo checkpoint, is downloaded with the model above, and
+is not bundled with the installer.
+
+  Upstream: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2
+  License:  Creative Commons Attribution 4.0 International (CC-BY-4.0)
+  Full text: https://creativecommons.org/licenses/by/4.0/
+
+Copyright (c) NVIDIA Corporation.
+
+## sherpa-onnx (Apache-2.0)
+
+YAAT runs speech recognition on sherpa-onnx. The CPU build of its native
+libraries ships with the application; the CUDA build is downloaded with the GPU
+runtime.
+
+  Upstream: https://github.com/k2-fsa/sherpa-onnx
+  License:  Apache License 2.0
+  Full text: https://www.apache.org/licenses/LICENSE-2.0.txt
+
+Copyright (c) the sherpa-onnx contributors.
+
+## ONNX Runtime (MIT)
+
+sherpa-onnx runs the speech model on ONNX Runtime. The CPU build ships with the
+application; the CUDA provider is downloaded with the GPU runtime.
+
+  Upstream: https://github.com/microsoft/onnxruntime
+  License:  MIT License
+  Full text: https://github.com/microsoft/onnxruntime/blob/main/LICENSE
+
+Copyright (c) Microsoft Corporation.

@@ -2833,7 +2833,7 @@ Open **Settings** (via **Tools > Settings**, or **Ctrl+,** from any YAAT window)
 
 **Tools > Settings** and **Ctrl+,** open on General. The last item of every Radar, Ground, Aircraft list and Terminal right-click menu, aircraft menus included, **Settings for this view…**, opens on that view's section.
 
-**Speech settings…** in the mic status menu, the **Voice settings** button on the pilot-voice banner and the **Settings…** button in the Speech Debug window open on Speech. **Live traffic…** in the live-traffic status menu opens the session-settings (⚙) flyout, since live traffic is set per room.
+**Speech settings…** in the mic status menu, the blue **Download the speech model in Settings > Speech** link in the status bar (shown only while speech is on and a push-to-talk was refused because the model is not downloaded), the **Voice settings** button on the pilot-voice banner and the **Settings…** button in the Speech Debug window open on Speech. **Live traffic…** in the live-traffic status menu opens the session-settings (⚙) flyout, since live traffic is set per room.
 
 Settings is modal over every YAAT window, pop-outs included. While it is open the other windows keep their normal look, so the live preview shows true colours, but they ignore clicks, keys and gestures, and clicking one brings Settings to the front. The windows Settings opens itself (Import / Export, file pickers, confirmations) work as usual. When Settings closes, keyboard focus goes back to where it was before Settings opened, or to the command input when that place is gone or was a menu.
 
@@ -2852,7 +2852,7 @@ The buttons along the bottom:
 
   Aircraft list and Strips and vTDLS have no settings of their own, so the button is greyed out there.
 
-A few Speech actions happen the moment you click them and are not undone by Cancel: downloading or deleting a Whisper or LLM model, downloading or uninstalling the CUDA runtime, **Delete all saved samples**, and downloading or deleting the Piper voice pack. Each is labelled *Takes effect at once; Cancel doesn't undo it.* An import made from inside Settings, by contrast, waits for Apply or OK like any other change (see [Importing and exporting settings](#importing-and-exporting-settings)).
+A few Speech actions happen the moment you click them and are not undone by Cancel: downloading or deleting a speech or LLM model, downloading or uninstalling the CUDA runtime, **Delete all saved samples**, and downloading or deleting the Piper voice pack. Each is labelled *Takes effect at once; Cancel doesn't undo it.* An import made from inside Settings, by contrast, waits for Apply or OK like any other change (see [Importing and exporting settings](#importing-and-exporting-settings)).
 
 Blue links such as **Font sizes → Appearance** or **Always on top → General** jump to the section that holds a related setting. Each view section links to its font size or zoom and to its Always on top checkbox; Ground also links to the speech bubbles and scroll sensitivity on Radar, Keys links to the push-to-talk key on Speech, and Speech links to the microphone on Audio devices.
 
@@ -3114,14 +3114,16 @@ Click a button, then press the key or combo to rebind it. While a button is wait
 
 #### Speech
 
-Two collapsible groups, each toggled by its header checkbox. The model, CUDA, saved-sample and voice-pack buttons act at once, and Cancel does not undo them (see above). Speech recognition and language-model inference are powered by LM-Kit.NET (Community Edition); airline telephony data is derived from OpenFlights (ODbL 1.0).
+Two collapsible groups, each toggled by its header checkbox. The model, CUDA, saved-sample and voice-pack buttons act at once, and Cancel does not undo them (see above). Speech-to-text runs the rasr-parakeet v2 model on sherpa-onnx by default, or Whisper on LM-Kit.NET (Community Edition); language-model inference is powered by LM-Kit.NET too. The rasr-parakeet model is built with Llama and used under the Llama 3.2 Community License (**Help › About** says so, and the NOTICE file lists every third-party model and library). Airline telephony data is derived from OpenFlights (ODbL 1.0).
 
 **Speech-to-text (STT)** — enable (default **Off**) to expand:
 
 | Setting | What it does | Default |
 |---------|--------------|---------|
 | **Auto-focus command input after PTT** | Focuses the command input after a PTT transcript so you can press Enter to send without mousing. | On |
-| **Whisper Model** | Speech-to-text model picker with **Download now** / **Delete cached** and a size/cached indicator. Pre-downloading avoids the first-PTT stall. | Whisper Medium · ATC fine-tune |
+| **Speech model** | Speech-to-text model picker (rasr-parakeet v2 · fp32 or Whisper), with **Download** / **Cancel** / **Delete** buttons, a size and downloaded indicator and a **View licence** link. A rasr model must be downloaded before push-to-talk works; while it is missing, a push-to-talk is refused and the status bar offers a link here. | rasr-parakeet v2 · fp32 |
+| **Mode** | **Accurate** weighs several hypotheses against the room's callsigns, fixes and taxiways; **Fast** takes the best guess only, at the lowest latency. Accurate is disabled, with the reason beside it, for Whisper or when the speech native cannot run it; speech then runs Fast. | Accurate |
+| **Device** | **CPU** or **GPU** for the speech model, with the GPU check's result beside it. | CPU |
 | **LLM Model** | Command-interpretation model picker (download/delete), or **Browse…** for a custom GGUF. | Qwen 3.5 4B |
 | **Acceleration** | GPU backend summary (reads *Detecting GPUs…* for a moment after Settings opens); on supported Windows GPUs, install/uninstall the optional NVIDIA CUDA 13 runtime. **LLM GPU layers** offloads N layers (−1 = auto, 0 = CPU only). | GPU layers: −1 (auto) |
 | **PTT key** | Hold-to-record key; click to capture a new one. The microphone is set in Audio devices (the **Microphone → Audio devices** link under the key). | Right Ctrl |
@@ -3275,7 +3277,7 @@ Recordings made while you're offline or connected to another server are sent the
 
 **Enable capture.** In **Settings › Speech**, tick **"Save my push-to-talk samples locally for review"** and pick a retention cap (10–500 MB; oldest samples drop when full). Unless automatic sharing is on, nothing leaves your machine until you explicitly export, as described below. Use **Open samples folder** to browse the on-disk store, or **Delete all saved samples** to wipe everything.
 
-**Speech Debug window.** Click the mic-status indicator (top-right of the main window) and pick **"Show speech recognition debugging…"**. The window shows recent push-to-talk sessions as a flowchart — mic → Whisper → callsign extract → rule mapper → LLM fallback → final command — with playback for any session whose audio is still on disk. Sessions appear here even with capture off (in-memory trace only); audio playback and export require capture on.
+**Speech Debug window.** Click the mic-status indicator (top-right of the main window) and pick **"Show speech recognition debugging…"**. The header names the engine speech recognition is running, for example `Running: rasr-parakeet v2 · fp32 · Accurate · CPU` (the model, the mode in effect and the device, read when the window opens; Whisper always reads CPU), and shows an orange `GPU unavailable: …` line when startup fell back from the GPU. The window shows recent push-to-talk sessions as a flowchart — mic → transcription → callsign extract → rule mapper → LLM fallback → final command — with playback for any session whose audio is still on disk. Sessions appear here even with capture off (in-memory trace only); audio playback and export require capture on.
 
 **Export a bundle for the devs.** Tick the rows you want to share (only rows with saved audio are checkable), then click **Export selected…** to save a `.yaat-speech-sample.zip` bundle. The bundle includes the WAV recordings, per-stage transcripts, and active scenario context (callsigns, fixes, runways) — no other YAAT state is included. Attach the bundle to a GitHub issue and we'll feed it back into the pipeline.
 

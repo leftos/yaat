@@ -115,7 +115,7 @@ cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the gr
 `MainViewModel(IFilePickerService)` (in `MainViewModel.cs`) wires things in a deliberate order:
 
 1. **Preferences mirror** — `_isSpeechEnabled`, `_sessionSoloTrainingMode`, etc. seeded from `_preferences`.
-2. **Speech pipeline** — order matters: `AudioCaptureService` → `WhisperSttEngine` → `LocalLlmService` → the two LLM
+2. **Speech pipeline** — order matters: `AudioCaptureService` → `LocalLlmService` → the two LLM
    consumers (`LocalLlmCommandMapper`, `LocalLlmCallsignResolver`) → `SwappableSttEngine` (wrapping `SttEngineFactory.Create` for the
    preferences' `SttEngine` and `SttMode`) → `SpeechRecognitionService` (needs all of them, plus an `isModelReady` check).
    `_speechService.StatusChanged`/`CommandReady` are hooked here, and a fire-and-forget `PrewarmSpeechAsync` runs when

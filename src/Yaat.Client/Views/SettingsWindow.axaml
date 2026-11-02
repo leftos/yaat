@@ -18,18 +18,6 @@
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="Padding" Value="12" />
     </Style>
-    <Style Selector="Button.section-link">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Padding" Value="0,2" />
-      <Setter Property="Margin" Value="0,0,20,0" />
-      <Setter Property="Foreground" Value="#60A5FA" />
-      <Setter Property="Cursor" Value="Hand" />
-    </Style>
-    <Style Selector="Button.section-link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="#93C5FD" />
-    </Style>
     <Style Selector="ListBox#SectionNav ListBoxItem">
       <Setter Property="Padding" Value="12,6" />
     </Style>

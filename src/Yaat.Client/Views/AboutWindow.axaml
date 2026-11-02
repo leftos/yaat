@@ -51,6 +51,14 @@
         Text="Instructor / RPO desktop client for ATC training. Connects to a yaat-server instance and feeds CRC clients via the standard CRC protocol."
       />
 
+      <TextBlock
+        TextWrapping="Wrap"
+        FontSize="11"
+        Foreground="{DynamicResource SubtleTextBrush}"
+        Margin="0,8,0,0"
+        Text="Speech recognition: Built with Llama. Model from twangodev/rasr-parakeet-v2 under the Llama 3.2 Community License."
+      />
+
       <Border CornerRadius="6" Background="{DynamicResource DataGridAlternateRowBrush}" Padding="12,10" Margin="0,14,0,0">
         <StackPanel Spacing="8">
           <TextBlock

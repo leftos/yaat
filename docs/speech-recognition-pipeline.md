@@ -30,11 +30,12 @@ reviews it and presses Enter to dispatch. Nothing auto-sends.
 ```
 PTT key down
   └─ AudioCaptureService (16 kHz mono float32)
-      └─ WhisperSttEngine.TranscribeAsync(samples, initialPrompt)
-          ├─ LMKit.Speech.SpeechToText + LM.LoadFromModelID(...)
-          └─ Prompt = WhisperBiasingPrompt.Default
-                      + SpeechContext.WhisperInitialPrompt
-                        (scenario callsigns + programmed fixes)
+      └─ ISttEngine.TranscribeAsync (SwappableSttEngine → the engine SttEngineFactory built)
+          ├─ rasr model: sherpa-onnx, greedy (Fast) or beam search (Accurate)
+          └─ Whisper: LMKit.Speech.SpeechToText + LM.LoadFromModelID(...)
+              └─ Prompt = WhisperBiasingPrompt.Default
+                          + SpeechContext.WhisperInitialPrompt
+                            (scenario callsigns + programmed fixes)
       └─ raw transcript
           └─ AtcNumberParser.NormalizeDigits
               (spoken → digit form + zero-pad single-digit runways
@@ -115,11 +116,11 @@ depend on LM-Kit and PortAudio native libraries.
 - **The swap:** `MainViewModel` wraps the engine in `SwappableSttEngine`, so a model or mode change takes effect without a restart (`MainViewModel.ApplySttEngineAsync`). One gate serializes warm-up, transcribe and swap; a PTT mid-swap waits and then runs on the new engine. The new engine is warmed before it replaces the old one, so a rasr model that fails to load fails the swap and the old engine stays. When requests overlap the latest wins, and the replaced engine is disposed off the caller's thread.
 - **A swap never interrupts a push-to-talk:** `SttEngineSwapScheduler` (`MainViewModel.SwapSttEngineAsync`) runs a swap under `Warming` only while the mic rests (`Idle`, `ModelMissing` or `Error`) and enters `Warming` through `SpeechRecognitionService.TryBeginWarming`. A swap requested while the mic records, transcribes or maps waits for the next resting status, and requests made meanwhile share one pending swap that reads the latest preferences when it runs. With speech off it only swaps. A model that finishes downloading swaps in at once when it is the saved engine's.
 - **Startup in Accurate mode:** with the model downloaded, the startup engine decodes greedily and the first prewarm runs the beam probe and swap under `Warming` (the `prepareEngine` argument of `PrewarmAsync`), so startup stays free of native calls.
-- **Model not downloaded:** a PTT whose chosen rasr model is not on disk is refused with `SpeechStatus.ModelMissing` (the mic indicator shows "mic: ModelMissing"); prewarm skips the STT warm-up then. `ModelMissing` is start-legal, so a press after the download records.
+- **Model not downloaded:** a PTT whose chosen rasr model is not on disk is refused with `SpeechStatus.ModelMissing` (the mic indicator shows "mic: ModelMissing"); prewarm skips the STT warm-up then. `ModelMissing` is start-legal, so a press after the download records. While speech is on and the status is `ModelMissing`, `MainViewModel.IsSpeechModelMissing` shows the status bar's `SpeechModelMissingLink` ("Download the speech model in Settings > Speech"), which opens Settings at Speech; any other status or speech off hides it.
 - **Sherpa model install:** the client reads `src/Yaat.Client/Speech/stt-downloads.json`'s `models[]` through `SttModelInstaller` (`ReadModels`/`ReadModel`), which downloads and SHA-256-verifies a model's files into `%LOCALAPPDATA%/yaat/models/stt/<id>/`. The files are built in a staging folder with the `.installed` sentinel written last, then swapped in, so a failed or cancelled install leaves an installed model as it was; one writer per root via `models/stt.lock`. Downloads go through `VerifiedFileDownloader`, shared with `SherpaCudaInstaller`, so download log lines log under that category. `SttDownloads` (`MainViewModel.SttDownloads`) owns one installer per model, the CUDA installer, the GPU and n-best checks and whether an engine swap is loading for the life of the app, so a download keeps running after Settings closes; Settings' model cards (`SttModelCardViewModel`) read it through `UiThreadMirror`.
 - **GPU runtime support, removal and Accurate availability (services behind Settings > Speech):** `CudaDriverProbe.ProbeAsync` decides whether GPU speech can run, through the CUDA driver API only (`nvcuda.dll` / `libcuda.so.1` loaded by name, so no toolkit download): `cuInit`, then `cuDriverGetVersion` must report 13000 or more (driver R580), then CUDA device 0 (the one ONNX Runtime's CUDA provider uses) must be compute capability 7.5 or newer. It returns a `GpuSupport` (device name, compute, driver CUDA version, `IsSupported`, and the `Reason` sentence the Device row shows); macOS and non-x64 never touch the driver, a missing library or export reads as no driver, and the probe never faults. `ICudaDriverApi` is the seam tests fake.
 - **Scheduled CUDA-set removal:** the CUDA set cannot be deleted while this process has it loaded, so `SherpaCudaInstaller.ScheduleRemovalOnNextStart` writes a `remove-pending` marker (the UTC time) in the install root under the root's lock and removes nothing; the installer's `IsRemovalScheduled` and status text show it. `Program.ConfigureSherpaNatives` calls `SherpaCudaInstaller.ProcessPendingRemoval` first, before any sherpa native loads: it deletes the set and then the marker under the writer lock, and returns false when it could not run (the lock is held, on Windows a process has the set loaded, or a file would not delete), leaving the marker so the next start retries. While a removal is pending the process stays on the CPU set, and a GPU preference records a `CpuFallbackReason` saying so.
-- **Accurate availability:** `SherpaNativeLoader.NbestAvailability()` says whether the loaded native can run Accurate (n-best) mode without loading a model: false, with the reason "Accurate needs the n-best native; running Fast", when the C API folder (`CApiDirectory`, the CUDA set's folder once loaded) is missing or holds the `sherpa-native-FALLBACK.txt` marker the build copies when it kept NuGet's stock native. The CUDA set is always our own build. `WhisperAccurateReason` is the matching text for the Whisper card.
+- **Accurate availability:** `SherpaNativeLoader.NbestAvailability()` says whether the loaded native can run Accurate (n-best) mode without loading a model: false, with the reason "Accurate needs the n-best native; running Fast", when the C API folder (`CApiDirectory`, the CUDA set's folder once loaded) is missing or holds the `sherpa-native-FALLBACK.txt` marker the build copies when it kept NuGet's stock native. The CUDA set is always our own build. `WhisperAccurateReason` is the matching text for the Whisper card. `SttModelCardViewModel.AccurateUnavailableReason(engine, nbest)` is the one rule for "Accurate cannot run" (Whisper, else the n-best check), and `EffectiveMode(saved, reason)` is the mode that runs: Settings disables the Accurate radio on the reason, and Speech Debug names the effective mode with it.
 - **UI-thread mirror and size text:** the installers raise `PropertyChanged` on their worker thread, so Settings binds to a `UiThreadMirror` (`UiThreadMirror.Of(installer, post)` for `SttModelInstaller` or `SherpaCudaInstaller`) instead: each change only posts a callback that re-reads the installer into the mirror's `IsInstalled`, `IsBusy`, `Progress` and `StatusMessage`, so the view's values change only on the UI thread; a disposed mirror writes nothing. `SttSizeText` formats sizes for the same page in decimal gigabytes with the invariant culture: `Total` (`2.55 GB`), `Progress` (`1.1 of 2.55 GB`, never showing the total before the download is done) and `Ready` (`Ready (2.55 GB on disk)`).
 - **Licensing:** every process funnels through
   `src/Yaat.Client/Services/LmKitLicense.Initialize()` exactly once
@@ -429,7 +430,13 @@ Spoken forms come from the pilot-speech spelling plus the per-ARTCC pronunciatio
   user always reviews and presses Enter.
 - `src/Yaat.Client/Views/SpeechDebugWindow.axaml.cs` — post-mortem UI
   listing recent PTT sessions with transcript, canonical command,
-  elapsed times, and outcome. Updated via `SessionRecorded`.
+  elapsed times, and outcome. Updated via `SessionRecorded`. Its header
+  carries `SpeechDebugViewModel.RunningEngineText` (built by
+  `RunningEngineTextFor`: model title, effective mode, CPU or GPU from
+  the loaded sherpa native set; Whisper always CPU) and, when startup
+  fell back from the GPU, `CpuFallbackText` ("GPU unavailable: {reason}",
+  from `SherpaNativeLoader.CpuFallbackReason`). Both are computed once
+  when the window opens. Stage ② is titled "Transcription", engine-neutral.
 
 ### Speech telemetry (opt-in upload)
 

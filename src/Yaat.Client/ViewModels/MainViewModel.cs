@@ -1658,7 +1658,15 @@ public partial class MainViewModel : ObservableObject
     private bool _isNonMentor;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSpeechModelMissing))]
     private SpeechStatus _speechStatus = SpeechStatus.Idle;
+
+    /// <summary>
+    /// True while speech recognition is on and a push-to-talk was refused because the saved speech model is not
+    /// downloaded: the status bar then offers a link to Settings &gt; Speech, where the model's card downloads it. Speech
+    /// off hides it too, since neither the mic column nor the link means anything then.
+    /// </summary>
+    public bool IsSpeechModelMissing => (IsSpeechEnabled) && (SpeechStatus == SpeechStatus.ModelMissing);
 
     /// <summary>
     /// Live mirror of <see cref="UserPreferences.SpeechEnabled"/> so the mic status-bar visibility
@@ -1667,6 +1675,7 @@ public partial class MainViewModel : ObservableObject
     /// persists to prefs on write.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSpeechModelMissing))]
     private bool _isSpeechEnabled;
 
     partial void OnIsSpeechEnabledChanged(bool value)

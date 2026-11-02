@@ -97,6 +97,14 @@
           <StackPanel Grid.Column="0" Spacing="2">
             <TextBlock Text="Speech recognition debugger" FontSize="16" FontWeight="SemiBold" />
             <TextBlock x:Name="CaptureStatusText" Text="{Binding CaptureStatus}" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" />
+            <TextBlock Text="{Binding RunningEngineText}" FontSize="11" Foreground="{DynamicResource SubtleTextBrush}" />
+            <TextBlock
+              Text="{Binding CpuFallbackText}"
+              FontSize="11"
+              Foreground="Orange"
+              TextWrapping="Wrap"
+              IsVisible="{Binding CpuFallbackText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+            />
           </StackPanel>
           <Button
             Grid.Column="1"
@@ -297,7 +305,7 @@
                         <StackPanel Spacing="6">
                           <Grid ColumnDefinitions="Auto,*,Auto">
                             <TextBlock Grid.Column="0" Text="②" Classes="stage-number" />
-                            <TextBlock Grid.Column="1" Text="Whisper transcription" Classes="stage-title" />
+                            <TextBlock Grid.Column="1" Text="Transcription" Classes="stage-title" />
                             <TextBlock Grid.Column="2" Text="{Binding Session.TranscribeElapsedMs, StringFormat='{}{0} ms'}" Classes="stage-status" />
                           </Grid>
                           <Expander Header="Biasing prompt (static ATC vocabulary)">

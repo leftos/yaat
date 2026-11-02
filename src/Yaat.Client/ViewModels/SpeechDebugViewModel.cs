@@ -6,7 +6,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Speech;
 using Yaat.Sim.Speech;
 
 namespace Yaat.Client.ViewModels;
@@ -34,6 +36,13 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
         _service = service;
         _sampleStore = sampleStore;
         _preferences = preferences;
+        RunningEngineText = RunningEngineTextFor(
+            _preferences.SttEngine,
+            _preferences.SttMode,
+            SherpaNativeLoader.NbestAvailability(),
+            SherpaNativeLoader.LoadedSet
+        );
+        CpuFallbackText = CpuFallbackTextFor(SherpaNativeLoader.CpuFallbackReason);
 
         Rows = [];
         RebuildRows();
@@ -46,6 +55,21 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
     }
 
     public ObservableCollection<SpeechDebugSessionRow> Rows { get; }
+
+    /// <summary>
+    /// The header's engine line, as this window opened: the model, the mode it runs in and the device it runs on. The mode
+    /// is the effective one, so an Accurate pick that cannot run reads Fast, exactly as Settings disables it.
+    /// </summary>
+    public string RunningEngineText { get; }
+
+    /// <summary>
+    /// Why a GPU pick fell back to the CPU at startup, as this window opened; null when it did not, which hides the line.
+    /// </summary>
+    public string? CpuFallbackText { get; }
+
+    /// <summary>The GPU-fallback line for <paramref name="reason"/>, or null when there was no fallback.</summary>
+    /// <param name="reason">Why a GPU pick ended on the CPU.</param>
+    internal static string? CpuFallbackTextFor(string? reason) => (reason is null) ? null : $"GPU unavailable: {reason}";
 
     [ObservableProperty]
     private SpeechDebugSessionRow? _selectedRow;
@@ -174,6 +198,31 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
     }
 
     private void OnSessionHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e) => RebuildRows();
+
+    /// <summary>
+    /// The header's engine line: the model, the mode it runs in (the effective one, so an Accurate pick that cannot run
+    /// reads Fast) and the device it runs on.
+    /// </summary>
+    /// <param name="engine">The model the preferences save.</param>
+    /// <param name="savedMode">The mode the preferences save.</param>
+    /// <param name="nbest">Whether the sherpa-onnx native can run Accurate mode, and why not when it cannot.</param>
+    /// <param name="loadedSet">The sherpa-onnx native set this process loaded.</param>
+    internal static string RunningEngineTextFor(
+        SttEngine engine,
+        SttMode savedMode,
+        (bool Available, string? Reason) nbest,
+        SherpaNativeSet loadedSet
+    )
+    {
+        SttMode mode = SttModelCardViewModel.EffectiveMode(savedMode, SttModelCardViewModel.AccurateUnavailableReason(engine, nbest));
+        string modeText = (mode == SttMode.Accurate) ? "Accurate" : "Fast";
+        return $"Running: {SttModelCardViewModel.TitleOf(engine)} · {modeText} · {DeviceTextOf(engine, loadedSet)}";
+    }
+
+    // Whisper transcribes through LM-Kit, not the sherpa-onnx native set this process loads, so the set says nothing about
+    // where it runs.
+    private static string DeviceTextOf(SttEngine engine, SherpaNativeSet loadedSet) =>
+        ((engine != SttEngine.Whisper) && (loadedSet == SherpaNativeSet.Cuda)) ? "GPU" : "CPU";
 
     private void OnSampleStoreChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {

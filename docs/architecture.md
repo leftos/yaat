@@ -1226,7 +1226,7 @@ Views/
   FileBugReportDialog.axaml(.cs) # Scenario → File Bug Report form (title, what happened, expected, callsigns); returns a BugReportForm to MainViewModel.BugReportPrompt
   LoadWeatherWindow.axaml.cs    # Weather profile picker modal (folder scan, name + layer count)
   WeatherEditorControl.axaml.cs # Per-period weather editing UserControl (precipitation, wind layers grid, METARs)
-  AboutWindow.axaml.cs          # Help → About dialog: version, build kind, .NET runtime, log path, GitHub link, optional Ko-fi support link
+  AboutWindow.axaml.cs          # Help → About dialog: version, build kind, .NET runtime, log path, GitHub link, optional Ko-fi support link, and the speech model's Llama attribution (the NOTICE file's "Third-party models and libraries" block carries the full list)
   WeatherTimelineEditorWindow.axaml.cs  # Timeline editor: period list (left) + WeatherEditorControl (right); v1/v2 auto-format on save
   ArrivalGeneratorsEditorWindow.axaml.cs # Live arrival-generator editor: row grid + Apply (push to sim) / Save As (new scenario JSON)
   ActiveRunwaysWindow.axaml(.cs) # Scenario › Active Runways…: one row per airport of the room's active runways, Apply (one ARWY per changed row, sent through the connection) / Close; a public parameterless ctor for the loader, geometry key "ActiveRunways"

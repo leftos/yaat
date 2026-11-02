@@ -373,6 +373,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             item?.Click += (_, _) => vm.RequestSettings(SettingsSectionId.Speech);
         }
 
+        // The status bar's "Download the speech model in Settings > Speech" link opens the section that downloads it.
+        this.FindControl<Button>("SpeechModelMissingLink")?.Click += (_, _) => vm.RequestSettings(SettingsSectionId.Speech);
+
         LiveTrafficSessionMenuItem.Click += OnLiveTrafficSessionClick;
 
         if (App.AutoConnectTarget is { } target)

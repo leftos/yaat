@@ -2457,16 +2457,21 @@ public partial class SettingsViewModel : ObservableObject
     public bool IsWhisperSizePickerVisible => SelectedSttModelCard?.IsWhisper == true;
 
     /// <summary>
-    /// Whether the Accurate radio is enabled: not for Whisper, nor for a native without n-best (available until that check
-    /// returns).
+    /// Whether the Accurate radio is enabled: exactly when nothing rules it out, so the radio and the reason beside it
+    /// can never disagree.
     /// </summary>
-    public bool IsAccurateAvailable => (SelectedSttModelCard?.IsWhisper != true) && (_sttNbest?.Available ?? true);
+    public bool IsAccurateAvailable => AccurateUnavailableReason is null;
 
-    /// <summary>Why Accurate is disabled, shown beside it; null while it is available.</summary>
+    /// <summary>
+    /// Why Accurate is disabled, shown beside it; null while it is available. The rule itself lives in
+    /// <see cref="SttModelCardViewModel.AccurateUnavailableReason"/> so Speech Debug names the same mode. With no card (an
+    /// unreadable manifest) no engine is Whisper, so the n-best check alone decides it.
+    /// </summary>
     public string? AccurateUnavailableReason =>
-        (SelectedSttModelCard?.IsWhisper == true) ? SherpaNativeLoader.WhisperAccurateReason
-        : (_sttNbest is { Available: false } nbest) ? nbest.Reason
-        : null;
+        SttModelCardViewModel.AccurateUnavailableReason(
+            SelectedSttModelCard?.Engine ?? SttEngine.RasrV2Fp32,
+            _sttNbest ?? (Available: true, Reason: null)
+        );
 
     /// <summary>Whether the GPU check is still running; the GPU radio is disabled meanwhile.</summary>
     public bool IsGpuChecking => _gpuSupport is null;
