@@ -57,6 +57,8 @@
          the UI thread hard-freezes (GitHub #347): a snapshot self-attach is the only way to read the
          wedged dispatcher thread's stack from inside the process. Windows-only at runtime. -->
     <PackageReference Include="Microsoft.Diagnostics.Runtime" Version="4.0.732401" />
+    <!-- The per-process GPU memory counters GpuMemoryProbe reads; Windows-only, so the probe returns -1 elsewhere. -->
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="10.0.14" />
     <PackageReference Include="MetadataExtractor" Version="2.9.2" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
     <PackageReference Include="org.k2fsa.sherpa.onnx" Version="2.0.1" />

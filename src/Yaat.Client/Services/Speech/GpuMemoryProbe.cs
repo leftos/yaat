@@ -4,7 +4,7 @@ using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 
-namespace Yaat.SpeechSandbox;
+namespace Yaat.Client.Services.Speech;
 
 /// <summary>
 /// The GPU memory one process holds, read from Windows' per-process <c>GPU Process Memory</c> counters
