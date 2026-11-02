@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Speech;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Client.Tests;
 
@@ -351,6 +352,8 @@ public sealed class SwappableSttEngineTests : IDisposable
         public Action? OnDispose { get; init; }
 
         public int TranscribeCount { get; private set; }
+
+        public TranscriptionMode Mode => TranscriptionMode.Fast;
 
         public bool Disposed { get; private set; }
 

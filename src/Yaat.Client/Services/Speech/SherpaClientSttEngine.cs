@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Client.Services.Speech;
 
@@ -9,6 +10,9 @@ public sealed class SherpaClientSttEngine(SherpaSttEngine engine) : ISttEngine
 
     /// <summary>The engine this adapter decodes with.</summary>
     public SherpaSttEngine Engine => _engine;
+
+    /// <summary>Accurate when the engine decodes with beam search, else Fast.</summary>
+    public TranscriptionMode Mode => (_engine.Decoding.Method == SherpaDecodingMethod.Beam) ? TranscriptionMode.Accurate : TranscriptionMode.Fast;
 
     /// <summary>Decodes half a second of silence, which loads the model.</summary>
     /// <exception cref="InvalidOperationException">The model failed to load.</exception>

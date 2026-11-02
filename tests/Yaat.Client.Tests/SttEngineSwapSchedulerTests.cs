@@ -160,6 +160,8 @@ public sealed class SttEngineSwapSchedulerTests
     /// <summary>An engine whose every transcription fails, which ends the pipeline in Error.</summary>
     private sealed class FailingEngine : ISttEngine
     {
+        public TranscriptionMode Mode => TranscriptionMode.Fast;
+
         public Task WarmUpAsync(CancellationToken ct) => Task.CompletedTask;
 
         public Task<SttHypotheses> TranscribeAsync(float[] samples16k, string? prompt, CancellationToken ct) =>
@@ -170,6 +172,8 @@ public sealed class SttEngineSwapSchedulerTests
 
     private sealed class SilentEngine : ISttEngine
     {
+        public TranscriptionMode Mode => TranscriptionMode.Fast;
+
         public Task WarmUpAsync(CancellationToken ct) => Task.CompletedTask;
 
         public Task<SttHypotheses> TranscribeAsync(float[] samples16k, string? prompt, CancellationToken ct) =>

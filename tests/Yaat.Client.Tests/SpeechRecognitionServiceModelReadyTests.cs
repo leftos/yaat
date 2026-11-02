@@ -95,6 +95,8 @@ public sealed class SpeechRecognitionServiceModelReadyTests
     {
         public int WarmUpCount { get; private set; }
 
+        public TranscriptionMode Mode => TranscriptionMode.Fast;
+
         public Task WarmUpAsync(CancellationToken ct)
         {
             WarmUpCount++;

@@ -42,6 +42,8 @@ public sealed class SttEngineSeamTests
 
     private sealed class FixedSttEngine(SttHypotheses hypotheses) : ISttEngine
     {
+        public TranscriptionMode Mode => TranscriptionMode.Fast;
+
         public Task WarmUpAsync(CancellationToken ct) => Task.CompletedTask;
 
         public Task<SttHypotheses> TranscribeAsync(float[] samples16k, string? prompt, CancellationToken ct) => Task.FromResult(hypotheses);

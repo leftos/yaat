@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services.Speech;
 using Yaat.Sim;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Speech;
 using Yaat.Sim.Speech.Context;
@@ -263,6 +264,9 @@ public sealed class SpeechRecognitionService(
     private readonly Func<SpeechContext> _contextProvider = contextProvider;
     private readonly SpeechSampleStore? _sampleStore = sampleStore;
     private readonly Func<bool> _isModelReady = isModelReady;
+
+    // One for the service's life, so an airport's entities are built once and reused across presses.
+    private readonly RoomContextCache _roomCache = new();
 
     private SpeechStatus _status = SpeechStatus.Idle;
     private CancellationTokenSource? _pendingCts;
@@ -526,7 +530,8 @@ public sealed class SpeechRecognitionService(
                     callsignStripped: string.Empty,
                     callsign: null,
                     RuleMapperTrace.Empty,
-                    null
+                    null,
+                    PressDecodeTrace.Fast(null)
                 );
             }
             else
@@ -536,18 +541,11 @@ public sealed class SpeechRecognitionService(
 
                 SetStatus(SpeechStatus.Mapping);
                 var mapSw = Stopwatch.StartNew();
-                (TranscriptMapResult? mapping, RuleMapperTrace? ruleTrace, LlmMapperTrace? llmTrace) = await MapTranscriptWithTraceAsync(
-                        transcript,
-                        ctx,
-                        _ruleMapper,
-                        _llmMapper,
-                        _callsignResolver,
-                        ct
-                    )
-                    .ConfigureAwait(false);
+                PressMapping pressed = await MapPressAsync(hyps, transcript, ctx, ct).ConfigureAwait(false);
                 mapSw.Stop();
                 mapMs = mapSw.ElapsedMilliseconds;
 
+                TranscriptMapResult mapping = pressed.Result;
                 canonical = mapping.Canonical;
                 callsign = mapping.Callsign;
                 usedLlmFallback = mapping.UsedLlmFallback;
@@ -557,8 +555,9 @@ public sealed class SpeechRecognitionService(
                     rawTranscript: transcript,
                     callsignStripped: mapping.CommandText,
                     callsign: mapping.Callsign,
-                    ruleTrace,
-                    llmTrace
+                    pressed.RuleTrace,
+                    pressed.LlmTrace,
+                    pressed.Decode
                 );
             }
         }
@@ -615,7 +614,8 @@ public sealed class SpeechRecognitionService(
         string callsignStripped,
         string? callsign,
         RuleMapperTrace ruleTrace,
-        LlmMapperTrace? llmTrace
+        LlmMapperTrace? llmTrace,
+        PressDecodeTrace decode
     )
     {
         return new SpeechSessionTrace(
@@ -630,13 +630,82 @@ public sealed class SpeechRecognitionService(
             AvailableRunwaysByAirport: ctx.AvailableRunways,
             TaxiwayNames: [.. ctx.TaxiwayNames],
             AircraftDestinations: ctx.AircraftDestinations,
-            Mode: null,
-            NBest: null,
-            DecodeState: null,
-            BestGuess: null,
-            DecodeMs: null,
-            DecodeError: null
+            Mode: decode.Mode,
+            NBest: decode.NBest,
+            DecodeState: decode.State,
+            BestGuess: decode.BestGuess,
+            DecodeMs: decode.DecodeMs,
+            DecodeError: decode.DecodeError
         );
+    }
+
+    /// <summary>
+    /// Maps one press's transcription. An accurate engine with a room and a non-empty n-best decodes the n-best against the
+    /// room; every other press, and an accurate press whose room build or decode throws, maps hypothesis 0 on the fast path.
+    /// </summary>
+    private async Task<PressMapping> MapPressAsync(SttHypotheses hyps, string transcript, SpeechContext ctx, CancellationToken ct)
+    {
+        if ((_stt.Mode == TranscriptionMode.Accurate) && (ctx.Room is { } room) && (hyps.Entries.Count > 0))
+        {
+            try
+            {
+                return await MapAccurateAsync(hyps, room, ctx, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log.LogWarning(ex, "Accurate decode failed for room airport {Airport}; mapping the press on the fast path", room.AirportIcao);
+                return await MapFastAsync(transcript, ctx, ex.Message, ct).ConfigureAwait(false);
+            }
+        }
+
+        return await MapFastAsync(transcript, ctx, null, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Builds the room's transmission context on this (pool) thread and decodes the n-best against it.</summary>
+    private async Task<PressMapping> MapAccurateAsync(SttHypotheses hyps, RoomSnapshot room, SpeechContext ctx, CancellationToken ct)
+    {
+        var buildSw = Stopwatch.StartNew();
+        TransmissionContext context = RoomContextFactory.Build(
+            _roomCache,
+            RoomSnapshot.ToRequest(room),
+            NavigationDatabase.Instance,
+            DecoderSettings.Default
+        );
+        buildSw.Stop();
+
+        HypothesesMapResult mapped = await MapHypothesesWithTraceAsync(
+                hyps,
+                new AccurateDecodeInput(context, DecoderSettings.Default),
+                ctx,
+                new SpeechMappers(_ruleMapper, _llmMapper, _callsignResolver),
+                ct
+            )
+            .ConfigureAwait(false);
+
+        var decode = new PressDecodeTrace(
+            TranscriptionMode.Accurate,
+            [.. hyps.Entries.Select(e => new SpeechTraceHypothesis(e.Text, e.Score))],
+            mapped.Decode.State,
+            mapped.Decode.BestGuess?.Entity.Value,
+            buildSw.Elapsed.TotalMilliseconds + mapped.DecodeMs,
+            null
+        );
+        return new PressMapping(mapped.Result, mapped.RuleTrace, mapped.LlmTrace, decode);
+    }
+
+    /// <summary>Maps hypothesis 0's transcript on the fast path; <paramref name="decodeError"/> marks an accurate decode that failed.</summary>
+    private async Task<PressMapping> MapFastAsync(string transcript, SpeechContext ctx, string? decodeError, CancellationToken ct)
+    {
+        (TranscriptMapResult result, RuleMapperTrace ruleTrace, LlmMapperTrace? llmTrace) = await MapTranscriptWithTraceAsync(
+                transcript,
+                ctx,
+                _ruleMapper,
+                _llmMapper,
+                _callsignResolver,
+                ct
+            )
+            .ConfigureAwait(false);
+        return new PressMapping(result, ruleTrace, llmTrace, PressDecodeTrace.Fast(decodeError));
     }
 
     /// <summary>
@@ -844,7 +913,9 @@ public sealed class SpeechRecognitionService(
         CancellationToken ct
     )
     {
+        var decodeSw = Stopwatch.StartNew();
         DecodeResult decoded = DecodeHypotheses(hypotheses, decode);
+        decodeSw.Stop();
         string transcript = decoded.RewrittenTranscript;
         (string CommandText, string? Callsign) extracted =
             (decoded.State == DecodeState.Resolved) ? ResolvedCommandText(decoded) : ExtractAndStripCallsign(transcript, ctx.ActiveCallsigns);
@@ -865,7 +936,7 @@ public sealed class SpeechRecognitionService(
                 ct
             )
             .ConfigureAwait(false);
-        return new HypothesesMapResult(result, ruleTrace, llmTrace, decoded);
+        return new HypothesesMapResult(result, ruleTrace, llmTrace, decoded, decodeSw.Elapsed.TotalMilliseconds);
     }
 
     /// <summary>The n-best decoded against the room, or a no-callsign result without a decode when there is no hypothesis to decode.</summary>
@@ -1054,7 +1125,41 @@ internal sealed record AccurateDecodeInput(TransmissionContext Context, DecoderS
 /// <param name="RuleTrace">The rule mapper's trace; it carries the failure reason on a miss.</param>
 /// <param name="LlmTrace">The LLM mapper's trace, or null when the rule mapper succeeded.</param>
 /// <param name="Decode">The decoder's answer for the n-best.</param>
-internal sealed record HypothesesMapResult(TranscriptMapResult Result, RuleMapperTrace RuleTrace, LlmMapperTrace? LlmTrace, DecodeResult Decode);
+/// <param name="DecodeMs">Wall-clock milliseconds the decode took, mapping excluded.</param>
+internal sealed record HypothesesMapResult(
+    TranscriptMapResult Result,
+    RuleMapperTrace RuleTrace,
+    LlmMapperTrace? LlmTrace,
+    DecodeResult Decode,
+    double DecodeMs
+);
+
+/// <summary>One press's mapping in the live pipeline, with what its trace records of the path it took.</summary>
+/// <param name="Result">The mapped transcript.</param>
+/// <param name="RuleTrace">The rule mapper's trace.</param>
+/// <param name="LlmTrace">The LLM mapper's trace, or null when the rule mapper succeeded.</param>
+/// <param name="Decode">The transcription path and, on the accurate path, the decode.</param>
+internal sealed record PressMapping(TranscriptMapResult Result, RuleMapperTrace RuleTrace, LlmMapperTrace? LlmTrace, PressDecodeTrace Decode);
+
+/// <summary>The trace fields a press's transcription path fills.</summary>
+/// <param name="Mode">The path the press was mapped on.</param>
+/// <param name="NBest">The n-best the decoder read, or null on the fast path.</param>
+/// <param name="State">How the decoder settled the callsign, or null on the fast path.</param>
+/// <param name="BestGuess">The decoder's best-guess callsign, or null when it has none or did not run.</param>
+/// <param name="DecodeMs">Milliseconds the room context build and the decode took, or null on the fast path.</param>
+/// <param name="DecodeError">The exception message of an accurate decode that failed over to the fast path, or null.</param>
+internal sealed record PressDecodeTrace(
+    TranscriptionMode Mode,
+    IReadOnlyList<SpeechTraceHypothesis>? NBest,
+    DecodeState? State,
+    string? BestGuess,
+    double? DecodeMs,
+    string? DecodeError
+)
+{
+    /// <summary>A fast-path press: no decode fields, and the failure message when an accurate decode fell back.</summary>
+    public static PressDecodeTrace Fast(string? decodeError) => new(TranscriptionMode.Fast, null, null, null, null, decodeError);
+}
 
 /// <summary>Result bundle passed to <see cref="SpeechRecognitionService.CommandReady"/>.</summary>
 /// <param name="Transcript">Raw Whisper transcript (may be empty on failure).</param>

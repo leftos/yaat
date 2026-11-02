@@ -14,8 +14,8 @@ public enum TranscriptionMode
 
 /// <summary>One n-best entry as carried on a session trace: the hypothesis text and its score, with no tokens.</summary>
 /// <param name="Text">The hypothesis transcript.</param>
-/// <param name="Score">The hypothesis's decode score.</param>
-public sealed record SpeechTraceHypothesis(string Text, double Score);
+/// <param name="Score">The hypothesis's decode score, or null when the engine reported none.</param>
+public sealed record SpeechTraceHypothesis(string Text, double? Score);
 
 /// <summary>
 /// Per-pipeline-stage detail captured for a single push-to-talk session. Attached to

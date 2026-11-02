@@ -1,3 +1,5 @@
+using Yaat.Sim.Speech;
+
 namespace Yaat.Client.Services.Speech;
 
 /// <summary>
@@ -7,6 +9,9 @@ namespace Yaat.Client.Services.Speech;
 public sealed class WhisperClientSttEngine(WhisperSttEngine engine) : ISttEngine
 {
     private readonly WhisperSttEngine _engine = engine;
+
+    /// <summary>Always Fast: Whisper returns one transcript.</summary>
+    public TranscriptionMode Mode => TranscriptionMode.Fast;
 
     public Task WarmUpAsync(CancellationToken ct) => _engine.PrewarmAsync(ct);
 

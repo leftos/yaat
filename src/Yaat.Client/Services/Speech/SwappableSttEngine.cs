@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Client.Services.Speech;
 
@@ -23,6 +24,9 @@ public sealed class SwappableSttEngine(ISttEngine first) : ISttEngine
 
     /// <summary>The engine transcriptions run on now.</summary>
     public ISttEngine Current => _current;
+
+    /// <summary>The mode of the engine transcriptions run on now.</summary>
+    public TranscriptionMode Mode => _current.Mode;
 
     public async Task WarmUpAsync(CancellationToken ct)
     {
