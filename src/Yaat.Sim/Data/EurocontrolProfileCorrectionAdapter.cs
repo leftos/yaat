@@ -104,7 +104,9 @@ public sealed class EurocontrolProfileCorrectionAdapter : IProfileCorrectionAdap
 
     /// <summary>
     /// Returns a corrected final approach speed using the FAA ACD as ground truth.
-    /// If no ACD data is available, returns the profile value unchanged.
+    /// With no ACD approach speed, a fixed-wing type flies its profile landing speed (the Eurocontrol APD Vat, the same
+    /// speed as the ACD's Vref); a helicopter or a ground vehicle, or a profile with no landing speed, keeps the raw
+    /// profile value.
     /// </summary>
     public double FinalApproachSpeed(AircraftProfile profile, FaaAircraftRecord? acd)
     {
@@ -115,8 +117,19 @@ public sealed class EurocontrolProfileCorrectionAdapter : IProfileCorrectionAdap
             return vref;
         }
 
+        if ((profile.LandingSpeed > 0) && IsFixedWing(profile))
+        {
+            return profile.LandingSpeed;
+        }
+
         return profile.FinalApproachSpeed;
     }
+
+    /// <summary>
+    /// False for a helicopter (whose profile landing speed is no approach speed) and for the VEH ground vehicles.
+    /// </summary>
+    internal static bool IsFixedWing(AircraftProfile profile) =>
+        !profile.IsHelo && !profile.TypeCode.StartsWith("VEH", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Returns a corrected pattern/downwind speed.

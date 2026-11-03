@@ -297,9 +297,19 @@
     "mmo": 0.925
   },
   {
+    "typeCode": "DH8C",
+    "note": "Vmo 243 KIAS from FAA TCDS A13NM (DHC-8-300): the 0-17,000 ft band maximum (232 kt at 20,000 ft, 214 kt at 25,000 ft, the ceiling). TCDS gives no Mmo; the class M0.55 stands. The descent speeds fly 10 kt under the TCDS Vmo bands: descentSpeedFl100 233 (243 - 10) replaces the profile's 250, which flew past Vmo, and descentSpeedInitial 204 (214 - 10, the Vmo at the 25,000 ft ceiling, M0.497 there) replaces the profile's 0, which skipped the breakpoint and held 250 to the ceiling. The straight line between stays at least 10 kt under every band (219.5 at 17,000 ft, 213.7 at 20,000 ft).",
+    "vmo": 243,
+    "descentSpeedInitial": 204,
+    "descentSpeedFl100": 233
+  },
+  {
     "typeCode": "DH8D",
-    "note": "Vmo 286 KIAS from FAA TCDS A13NM (DHC-8-400): the band maximum, at 18,000 ft. The TCDS gives no Mmo.",
-    "vmo": 286
+    "note": "Vmo 286 KIAS and Mmo 0.60 from FAA TCDS A13NM (DHC-8-400): 286 kt is the band maximum, at 18,000 ft; the bands give 275 kt at 20,000 ft and 248 kt at 25,000 ft, each about M0.599 (286/18,000, 275/20,000, 248/25,000), so Mmo 0.60. The Q400 flies DH8C's profile through the sibling map, and an override with profile fields merges onto that profile, so it carries its own descent speeds: descentSpeedFl100 250 (DH8C's profile figure, under the 286 kt band) and descentSpeedInitial 238 (248 - 10 at the 25,000 ft ceiling, M0.576), not DH8C's 233/204.",
+    "vmo": 286,
+    "mmo": 0.60,
+    "descentSpeedInitial": 238,
+    "descentSpeedFl100": 250
   },
   {
     "typeCode": "JS20",

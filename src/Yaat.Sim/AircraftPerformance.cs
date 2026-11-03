@@ -509,14 +509,16 @@ public static class AircraftPerformance
 
     /// <summary>
     /// How far a raw profile final approach speed sits above the type's Vref: the "~20% too high" recorded at
-    /// <see cref="EurocontrolProfileCorrectionAdapter.FinalApproachSpeed"/>.
+    /// <see cref="EurocontrolProfileCorrectionAdapter.FinalApproachSpeed"/>. Applied only to the helicopters and ground
+    /// vehicles that keep their raw profile figure; a fixed-wing type flies its profile landing speed instead.
     /// </summary>
     private const double ProfileFinalApproachSpeedHighFactor = 1.2;
 
     /// <summary>
-    /// The slowest speed the type is flown at, at every altitude: its final approach speed. A type whose figure is the raw
-    /// profile one (no FAA ACD approach speed, no final approach speed override) takes that figure over
-    /// <see cref="ProfileFinalApproachSpeedHighFactor"/>, since the raw profile figure sits about 20% above Vref.
+    /// The slowest speed the type is flown at, at every altitude: its final approach speed (<see cref="ApproachSpeed"/>),
+    /// which for a fixed-wing type with no FAA ACD approach speed and no override is its profile landing speed. A
+    /// helicopter or ground vehicle whose figure is the raw profile one takes that figure over
+    /// <see cref="ProfileFinalApproachSpeedHighFactor"/>.
     /// </summary>
     public static double MinOperatingIasKts(string aircraftType, AircraftCategory cat)
     {
@@ -526,6 +528,7 @@ public static class AircraftPerformance
             (p is not null)
             && (p.FinalApproachSpeed > 0)
             && !hasFaaFigure
+            && !EurocontrolProfileCorrectionAdapter.IsFixedWing(p)
             && !AircraftProfileDatabase.IsOverridden(p.TypeCode, nameof(AircraftProfile.FinalApproachSpeed))
         )
         {

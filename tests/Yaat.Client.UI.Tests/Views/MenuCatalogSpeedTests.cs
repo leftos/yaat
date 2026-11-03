@@ -120,8 +120,9 @@ public class MenuCatalogSpeedTests
     public void C172_At3000Ft_FloorAndPistonMargin() =>
         Assert.Equal([.. Leading("Final approach speed (62)"), .. Tens(70, 130)], SpeedItems("C172", 3_000));
 
-    /// <summary>DH8D resolves to its DH8C sibling's profile, which carries no Mach value, so FL250 gives knots only: ACD
-    /// Vref 125 floors them at 130, and the highest value in play is its FL100 descent knot 250 + 20.</summary>
+    /// <summary>DH8D flies its DH8C sibling's profile with its own descent speeds merged on, which carries no Mach value, so
+    /// FL250 gives knots only: ACD Vref 125 floors them at 130, and the highest value in play is the DH8D override's FL100
+    /// descent knot 250 (DH8D keeps it; DH8C's own is 233) + 20. Its ceiling descent 238 sits under that.</summary>
     [AvaloniaFact]
     public void Turboprop_AtFl250_ListsKnotsOnly() =>
         Assert.Equal([.. Leading("Final approach speed (125)"), .. Tens(130, 270)], SpeedItems("DH8D", 25_000));

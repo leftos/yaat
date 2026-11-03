@@ -8,8 +8,8 @@ namespace Yaat.Sim.Tests;
 /// <summary>
 /// YAAT-1423: the sourced per-type speed limits in AircraftProfileOverrides.json. Each type flies its own type
 /// certificate's Vmo/Mmo (the band maximum where the TCDS bands Vmo by altitude), each helicopter its own Vne, and a
-/// type with neither an FAA approach speed nor an override takes its profile final approach speed over 1.2 as its
-/// minimum. Figures: FAA TCDS via OpenAirDocs, Eurocontrol APD for the approach speeds.
+/// fixed-wing type with neither an FAA approach speed nor an override flies its profile landing speed as its approach
+/// speed and minimum. Figures: FAA TCDS via OpenAirDocs, Eurocontrol APD for the approach speeds.
 /// </summary>
 public sealed class SpeedEnvelopeDataCorrectionTests
 {
@@ -51,6 +51,8 @@ public sealed class SpeedEnvelopeDataCorrectionTests
             { "F70", 320, 0.77 },
             { "B463", 295, 0.73 },
             { "D228", 199, null },
+            { "DH8C", 243, null },
+            { "DH8D", 286, 0.60 },
         };
 
     [Theory]
@@ -65,18 +67,6 @@ public sealed class SpeedEnvelopeDataCorrectionTests
 
         double expectedIas = Math.Min(vmoKts, WindInterpolator.MachToIas(expectedMach, CheckAltitudeFt));
         Assert.Equal(expectedIas, AircraftPerformance.MaxOperatingIasKts(type, CheckAltitudeFt)!.Value, 1);
-    }
-
-    [Fact]
-    public void Dh8d_FliesItsTcdsVmo()
-    {
-        // TCDS A13NM gives the Q400 no Mmo. Its TP2M class Mmo is lifted by the floor of the DH8C profile it flies, so
-        // only the floor's direction is pinned here.
-        double mach = AircraftPerformance.MaxOperatingMach("DH8D")!.Value;
-        Assert.True(mach >= TurbopropClassMmo, $"DH8D Mmo {mach} is below its class figure");
-
-        double expectedIas = Math.Min(286, WindInterpolator.MachToIas(mach, CheckAltitudeFt));
-        Assert.Equal(expectedIas, AircraftPerformance.MaxOperatingIasKts("DH8D", CheckAltitudeFt)!.Value, 1);
     }
 
     [Theory]
@@ -110,17 +100,45 @@ public sealed class SpeedEnvelopeDataCorrectionTests
     public void TypeWithFaaFigure_MinimumIsItsFaaApproachSpeed() =>
         Assert.Equal(144, AircraftPerformance.MinOperatingIasKts("B738", AircraftCategory.Jet), 1);
 
-    [Fact]
-    public void TypeWithoutFaaOrOverride_MinimumIsProfileFasOverOnePointTwo()
+    [Theory]
+    [InlineData("C5M", 135)]
+    [InlineData("F18", 140)]
+    public void TypeWithoutFaaOrOverride_ApproachAndMinimumAreTheLandingSpeed(string type, double landingSpeedKts)
     {
-        // The C-5M has a profile, no FAA ACD record and no approach-speed override (Eurocontrol APD has no C5M page).
-        const string type = "C5M";
+        // A fixed-wing type with a profile, no FAA ACD approach speed and no approach-speed override flies its
+        // profile landing speed (the Eurocontrol APD Vat) as its approach speed and its minimum.
         AircraftProfile? profile = AircraftProfileDatabase.Get(type);
         Assert.NotNull(profile);
         Assert.Null(FaaAircraftDatabase.Get(type)?.ApproachSpeedKnot);
         Assert.False(AircraftProfileDatabase.IsOverridden(type, nameof(AircraftProfile.FinalApproachSpeed)));
+        Assert.Equal(landingSpeedKts, profile.LandingSpeed, 1);
 
-        Assert.Equal(profile.FinalApproachSpeed / 1.2, AircraftPerformance.MinOperatingIasKts(type, AircraftCategory.Jet), 3);
+        Assert.Equal(landingSpeedKts, AircraftPerformance.ApproachSpeed(type, AircraftCategory.Jet), 1);
+        Assert.Equal(landingSpeedKts, AircraftPerformance.MinOperatingIasKts(type, AircraftCategory.Jet), 1);
+    }
+
+    [Fact]
+    public void Helicopter_KeepsItsProfileApproachSpeed() =>
+        // The H-60's profile landing speed 50 is no approach speed; it keeps its profile final approach speed.
+        Assert.Equal(80, AircraftPerformance.ApproachSpeed("H60", AircraftCategory.Helicopter), 1);
+
+    [Theory]
+    [InlineData("H60", AircraftCategory.Helicopter)]
+    [InlineData("VEH1", AircraftCategory.Jet)]
+    public void HelicopterAndVehicle_KeepTheirProfileFasOverOnePointTwoMinimum(string type, AircraftCategory cat)
+    {
+        // Helicopters and ground vehicles are left out: each keeps its raw profile approach speed (80) and its
+        // minimum of that figure over 1.2.
+        Assert.Equal(80, AircraftPerformance.ApproachSpeed(type, cat), 1);
+        Assert.Equal(80 / 1.2, AircraftPerformance.MinOperatingIasKts(type, cat), 1);
+    }
+
+    [Fact]
+    public void Pa28_TakesP28aFaaApproachSpeed()
+    {
+        // PA28 has no FAA ACD record of its own; it resolves to P28A's record through the sibling map.
+        Assert.False(FaaAircraftDatabase.Records.ContainsKey("PA28"));
+        Assert.Equal(70, AircraftPerformance.ApproachSpeed("PA28", AircraftCategory.Piston), 1);
     }
 
     [Fact]
@@ -142,6 +160,15 @@ public sealed class SpeedEnvelopeDataCorrectionTests
         double atCeiling = AircraftPerformance.DescentSpeed("JS20", AircraftCategory.Turboprop, profile.Ceiling);
 
         Assert.Equal(180, atCeiling, 1);
+    }
+
+    [Fact]
+    public void Dh8c_DescentSchedule_StaysUnderItsTcdsBands()
+    {
+        // TCDS A13NM (DHC-8-300): Vmo 243 kt to 17,000 ft and 214 kt at 25,000 ft, the ceiling; the descent flies 10 kt
+        // under each.
+        Assert.Equal(233, AircraftPerformance.DescentSpeed("DH8C", AircraftCategory.Turboprop, 10_000), 1);
+        Assert.Equal(204, AircraftPerformance.DescentSpeed("DH8C", AircraftCategory.Turboprop, 25_000), 1);
     }
 
     private static AircraftState Airborne(string type, double altitude, double ias)

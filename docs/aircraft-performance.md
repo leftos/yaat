@@ -18,7 +18,8 @@ accel/decel, turn rate, ceiling). It resolves each value through four layers, in
 3. **`EurocontrolProfileCorrectionAdapter`** — corrects six profile fields at runtime using the ACD
    Vref as ground truth, because the BADA approach speeds run ~20% high. Corrected fields:
    `FinalApproachSpeed`, `PatternSpeed`, `BaseSpeed`, `InitialApproachSpeed`, `ClimbSpeedInitial`,
-   `ClimbRateInitial`.
+   `ClimbRateInitial`. `FinalApproachSpeed` for a fixed-wing type with no ACD Vref is the profile
+   landing speed (APD Vat); helicopters and vehicles keep the raw profile figure.
 4. **`CategoryPerformance`** — generic per-category (Jet / Turboprop / Piston / Helicopter) constants,
    used when a type has no profile and no sibling.
 
@@ -115,7 +116,7 @@ ladder) inverts both tails of every jet baseline.
 
 ## Speed limits (Vmo and Mmo)
 
-`AircraftPerformance.MaxOperatingIasKts(type, altitude)` is the fastest the type may be flown: the lower of Vmo and Mmo's IAS equivalent at that altitude, or Vmo alone where the type has no Mmo (a helicopter). It is null for a type with neither figure, and then nothing is refused or capped for it. `MaxOperatingSpeedKts(type)` is Vmo alone (Vne for a helicopter), the redline, not lowered by Mmo; `MaxOperatingMach(type)` is Mmo alone (SMAX derives the figure it holds a margin under these two, `FlightPhysics.SpeedMaxKts` and `HoldMaximumForwardSpeed`: Vmo - 10 kt, Mmo - 0.02, 0.9 × Vne for a helicopter), and `MinOperatingIasKts(type, category)` is the type's minimum speed at every altitude (a helicopter has no minimum). It resolves as the FAA approach speed (ACD) when the record has one, else a `finalApproachSpeed` override, else the profile's final approach speed divided by 1.2 (`ProfileFinalApproachSpeedHighFactor`, since the raw Eurocontrol figure sits about 20% above Vref), else the category default.
+`AircraftPerformance.MaxOperatingIasKts(type, altitude)` is the fastest the type may be flown: the lower of Vmo and Mmo's IAS equivalent at that altitude, or Vmo alone where the type has no Mmo (a helicopter). It is null for a type with neither figure, and then nothing is refused or capped for it. `MaxOperatingSpeedKts(type)` is Vmo alone (Vne for a helicopter), the redline, not lowered by Mmo; `MaxOperatingMach(type)` is Mmo alone (SMAX derives the figure it holds a margin under these two, `FlightPhysics.SpeedMaxKts` and `HoldMaximumForwardSpeed`: Vmo - 10 kt, Mmo - 0.02, 0.9 × Vne for a helicopter), and `MinOperatingIasKts(type, category)` is the type's minimum speed at every altitude (a helicopter has no minimum). It resolves as the FAA approach speed (ACD) when the record has one, else a `finalApproachSpeed` override, else for a fixed-wing type the profile's landing speed (Eurocontrol APD Vat, the same figure `ApproachSpeed` returns), else for a helicopter or ground vehicle the profile's final approach speed divided by 1.2 (`ProfileFinalApproachSpeedHighFactor`, since the raw Eurocontrol figure sits about 20% above Vref), else the category default.
 
 The physics cap and the unable refusal both read these ([flight-physics.md](flight-physics.md), COMMANDS.md).
 

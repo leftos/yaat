@@ -1489,7 +1489,7 @@ RunwayDepartureQueue.cs        # Static per-hold-short departure-queue ranker (o
                                # follower that cannot inherit (leader lined up, different bar) falls back to its own route like a taxier.
 AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support; MaxOperatingIasKts/MaxOperatingSpeedKts/MaxOperatingMach/
-                               # MinOperatingIasKts (Vmo/Mmo raised to the profile schedule; the minimum is the FAA approach speed, else a finalApproachSpeed override, else profile FAS / 1.2)
+                               # MinOperatingIasKts (Vmo/Mmo raised to the profile schedule; the minimum is the FAA approach speed, else a finalApproachSpeed override, else a fixed-wing type's profile landing speed, else a helicopter's or vehicle's profile FAS / 1.2)
 AircraftSpeedEnvelope.cs       # Vmo/Mmo per category class (pybada dummy OPF figures) and the per-type class lookup (ClassFor, sibling fallback)
 GroundRollProfile.cs           # GroundRollProfile: the takeoff-roll spool ramp (idle → steady accel over the category's spool time) with
                                # closed forms SpeedAt/DistanceKtSecondsAt/TimeAtSpeed/TimeToCoverKtSeconds; the roll phases integrate it

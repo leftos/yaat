@@ -95,12 +95,13 @@ public sealed class EurocontrolProfileCorrectionTests
         Assert.InRange(ias, 82, 86);
     }
 
-    // --- No ACD data: all values pass through unchanged ---
+    // --- No ACD data: a fixed-wing type flies its landing speed; every other value passes through unchanged ---
 
     [Fact]
-    public void NoAcd_AllValuesPassThrough()
+    public void NoAcd_FixedWingFliesLandingSpeed_OtherValuesPassThrough()
     {
-        Assert.Equal(81, _adapter.FinalApproachSpeed(C172Profile, null));
+        // A fixed-wing profile with no ACD approach speed flies its profile landing speed (65), not its raw 81.
+        Assert.Equal(65, _adapter.FinalApproachSpeed(C172Profile, null));
         Assert.Equal(74, _adapter.PatternSpeed(C172Profile, null));
         Assert.Equal(90, _adapter.ClimbSpeedInitial(C172Profile, null));
         Assert.Equal(400, _adapter.ClimbRateInitial(C172Profile, null));
