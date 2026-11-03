@@ -82,23 +82,6 @@ public class PatternCompressionTests
         }
     }
 
-    internal static void AssertOffRunway30Pavement(IEnumerable<LatLon> track)
-    {
-        RunwayInfo r30 = Runway("KOAK", "30");
-        var origin = new LatLon(r30.ThresholdLatitude, r30.ThresholdLongitude);
-        double lengthNm = GeoMath.DistanceNm(r30.ThresholdLatitude, r30.ThresholdLongitude, r30.EndLatitude, r30.EndLongitude);
-        double halfWidthNm = r30.WidthFt / 2.0 / GeoMath.FeetPerNm;
-        foreach (LatLon point in track)
-        {
-            double along = GeoMath.AlongTrackDistanceNm(point, origin, r30.TrueHeading);
-            double cross = GeoMath.SignedCrossTrackDistanceNm(point, origin, r30.TrueHeading);
-            Assert.False(
-                (along >= 0) && (along <= lengthNm) && (Math.Abs(cross) <= halfWidthNm),
-                $"on runway 30's pavement at {point}: {cross:F3} nm off its centerline"
-            );
-        }
-    }
-
     internal static void AssertClearOfRunway30(IEnumerable<LatLon> track)
     {
         RunwayInfo r30 = Runway("KOAK", "30");

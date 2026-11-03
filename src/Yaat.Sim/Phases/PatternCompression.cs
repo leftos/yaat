@@ -82,7 +82,7 @@ public static class PatternCompression
     private const double RadiusDivisor = 62.832;
 
     /// <summary>The crosswind turn point the clearing test assumes, past the departure end (AIM 4-3-2.c.1).</summary>
-    private const double TurnPointPastDepartureEndNm = 0.5;
+    public const double TurnPointPastDepartureEndNm = 0.5;
 
     /// <summary>How far past each end the other runway's centerline is protected (7110.65 3-9-9.b).</summary>
     private const double ProtectedCenterlineNm = 1.0;
@@ -302,6 +302,30 @@ public static class PatternCompression
         return offEnd1 <= offEnd2 ? end1 : end2;
     }
 
+    /// <summary>
+    /// True when a flown <paramref name="track"/> touches <paramref name="other"/>'s protected corridor, the one compression
+    /// clears against: its pavement, or its centerline extended <see cref="ProtectedCenterlineNm"/> past each end.
+    /// </summary>
+    public static bool TouchesProtectedRunway(RunwayInfo patternRunway, LatLon landingThreshold, RunwayInfo other, IReadOnlyList<LatLon> track)
+    {
+        var frame = new TrackFrame(landingThreshold, patternRunway.TrueHeading, 1.0, 0.0);
+        var runway = new ProtectedRunway(
+            other.Designator,
+            frame.Project(other.Lat1, other.Lon1),
+            frame.Project(other.Lat2, other.Lon2),
+            other.WidthFt
+        );
+        for (int i = 1; i < track.Count; i++)
+        {
+            if (runway.TouchesLeg(frame.Project(track[i - 1].Lat, track[i - 1].Lon), frame.Project(track[i].Lat, track[i].Lon)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>A position along the pattern runway from the landing threshold, and off it toward the pattern side (nm).</summary>
     private readonly record struct Point(double AlongNm, double OffsetNm);
 
@@ -341,6 +365,9 @@ public static class PatternCompression
 
         /// <summary>True when any leg of <paramref name="track"/> touches the pavement or the protected extended centerline.</summary>
         public bool Touches(PlannedTrack track) => AnyLeg(track, OnPavement) || AnyLeg(track, OnExtendedCenterline);
+
+        /// <summary>True when the segment <paramref name="from"/>-<paramref name="to"/> touches the pavement or the protected extended centerline.</summary>
+        public bool TouchesLeg(Point from, Point to) => OnPavement(from, to) || OnExtendedCenterline(from, to);
 
         private static bool AnyLeg(PlannedTrack track, Func<Point, Point, bool> touches) =>
             touches(track.Turn, track.DownwindStart) || touches(track.DownwindStart, track.BaseTurn) || touches(track.BaseTurn, track.BaseEnd);

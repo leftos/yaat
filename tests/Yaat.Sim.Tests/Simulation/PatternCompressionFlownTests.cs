@@ -348,17 +348,78 @@ public class PatternCompressionFlownTests
     }
 
     /// <summary>
-    /// The SF50 is held at its compressed floor and turns crosswind late, at the 300-ft gate below pattern altitude, so its
-    /// arc grazes runway 30's extended centerline 0.13-0.30 nm past the end at about 1,500 ft AGL. That contact is airborne
-    /// over the protected centerline, not the runway, so this asserts pavement clearance rather than the centerline check.
+    /// The SF50 climbs slowly at its compressed speed and turns crosswind late, at the 300-ft gate below pattern altitude. Only
+    /// a clean circuit stays silent: it either compresses with a flown track clear of runway 30's corridor, or flies its normal
+    /// circuit and warns once of the crossing.
     /// </summary>
     [Fact]
-    public void Oak28LMlt_SF50_FlownTrackStaysOffRunway30Pavement()
-    {
-        Flight flight = FlyClosedTraffic("SF50");
+    public void Oak28LMlt_SF50_FlownTrackStaysClearOfRunway30CorridorOrWarns() => AssertCompressedAndClearOrUncompressedAndWarned("SF50", null);
 
-        Assert.NotNull(flight.Waypoints.CompressedDownwindSpeedKts);
-        PatternCompressionTests.AssertOffRunway30Pavement(flight.Track);
+    /// <summary>
+    /// The planner judges a compressed circuit with its crosswind leg at the departure end plus
+    /// <see cref="PatternCompression.TurnPointPastDepartureEndNm"/>, while the upwind turns at the 300-ft gate below pattern
+    /// altitude. A type whose flown turn starts later than the planner assumed (beyond 0.05 nm) flies a circuit it never judged.
+    /// </summary>
+    [Theory]
+    [InlineData("PC12")]
+    [InlineData("C208")]
+    [InlineData("DHC6")]
+    public void Oak28LMlt_EachCompressedType_FlownTurnAtOrBeforePlannedTurn(string type)
+    {
+        (AircraftState ac, RunwayInfo rwy, AirportGroundLayout layout) = ClearedForClosedTraffic(type);
+        PatternWaypoints circuit = PatternCompression.UpcomingCircuit(ac.Phases)!;
+        Assert.NotNull(circuit.CompressedDownwindSpeedKts);
+        var threshold = new LatLon(circuit.ThresholdLat, circuit.ThresholdLon);
+        double departureEndAlongNm = GeoMath.AlongTrackDistanceNm(
+            new LatLon(circuit.DepartureEndLat, circuit.DepartureEndLon),
+            threshold,
+            circuit.UpwindHeading
+        );
+        double plannedNm = departureEndAlongNm + PatternCompression.TurnPointPastDepartureEndNm;
+
+        FlyUntil(ac, (rwy, layout), Conditions.Calm, [], phase => phase is CrosswindPhase);
+
+        double flownNm = GeoMath.AlongTrackDistanceNm(ac.Position, threshold, circuit.UpwindHeading);
+        Assert.True(flownNm <= plannedNm + 0.05, $"{type} turned crosswind at {flownNm:F3} nm along, planned {plannedNm:F3} nm");
+    }
+
+    [Theory]
+    [InlineData("SF50")]
+    [InlineData("PC12")]
+    public void Oak28LMlt_SF50AndPC12_TailwindUpwind_CompressedAndClearOrOneWarning(string type) =>
+        AssertCompressedAndClearOrUncompressedAndWarned(type, new WeatherProfile { WindLayers = [new WindLayer { Direction = 100, Speed = 10 }] });
+
+    [Fact]
+    public void Oak28LMlt_PC12_HeadwindUpwind_CompressedAndClear() =>
+        AssertCompressedAndClearOrUncompressedAndWarned("PC12", new WeatherProfile { WindLayers = [new WindLayer { Direction = 280, Speed = 15 }] });
+
+    /// <summary>
+    /// Flies one circuit of <paramref name="type"/> to its final under <paramref name="weather"/>: a compressed circuit warns of
+    /// nothing and its flown track stays clear of runway 30's protected corridor (the planner's own predicate); a normal one
+    /// warns exactly once. Never silent contact.
+    /// </summary>
+    private static void AssertCompressedAndClearOrUncompressedAndWarned(string type, WeatherProfile? weather)
+    {
+        (AircraftState ac, RunwayInfo rwy, AirportGroundLayout layout) = ClearedForClosedTraffic(type, weather);
+        PatternWaypoints circuit = PatternCompression.UpcomingCircuit(ac.Phases)!;
+        var track = new List<LatLon>();
+
+        FlyUntil(ac, (rwy, layout), new Conditions(ActiveRunways.Empty, weather), track, phase => phase is FinalApproachPhase);
+
+        if (circuit.CompressedDownwindSpeedKts is null)
+        {
+            Assert.Equal("30", circuit.RunwayCrossing?.CrossedRunway);
+            Assert.Equal(1, CrossingWarnings(ac));
+            return;
+        }
+
+        RunwayInfo? r30 = TestVnasData.NavigationDb!.GetRunway("KOAK", "30");
+        Assert.NotNull(r30);
+        Assert.Equal(0, CrossingWarnings(ac));
+        Assert.False(
+            PatternCompression.TouchesProtectedRunway(rwy, new LatLon(circuit.ThresholdLat, circuit.ThresholdLon), r30, track),
+            $"{type} flew a compressed circuit ({circuit.PatternSizeNm:F3} nm) into runway 30's protected corridor without a warning"
+        );
     }
 
     [Fact]
