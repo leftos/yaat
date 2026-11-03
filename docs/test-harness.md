@@ -206,11 +206,13 @@ parallelism settings; `showLiveOutput` there is the config-file equivalent of `-
 
 A probe compiles into a test project without touching tracked files via `-p:CustomAfterMicrosoftCommonTargets=<file>`: the MSBuild file adds the probe source to `Compile`, so nothing in the project or its sources is edited. Delete the file when done.
 
-The same targets file can swap a source file for a variant with `<Compile Remove>` / `<Compile Include>`, building the variant without touching tracked files. A probe run goes through the gate with `--local --reason "<why>"` (the gate refuses `--local` without a reason).
+The same targets file can swap a source file for a variant with `<Compile Remove>` / `<Compile Include>`, building the variant without touching tracked files.
 
-A routed gate snapshot omits the gitignored `.tmp`, so a probe compiled from `.tmp` needs `--local --reason`. Afterwards rebuild the test project so the probe types leave `bin/obj`.
+The property applies to every project in the build, so the probe's item group carries `Condition="'$(MSBuildProjectName)' == 'Your.Test.Project'"`; without it a referenced library compiles the probe too.
 
-Two `--local` builds, one of a yaat test project and one of a yaat-server test project, cannot run at once: both write `Yaat.Sim.dll` and collide with CS2012. Run them in sequence.
+A probe run routes like any other: the gate sends a gitignored `.targets` or `.props` named by a `-p:` value to the builder with the files it names, followed through imports. Three things keep the run on this machine: a wildcard in the targets file (`Include="*.cs"`, so name each file), a project reference to an ignored project, and more than 64 MiB of files in all. A probe that fails routed is a report to gate's inbox. If a later run shows probe types, rebuild the test project so they leave `bin/obj`.
+
+Two local builds, one of a yaat test project and one of a yaat-server test project, cannot run at once: both write `Yaat.Sim.dll` and collide with CS2012. Run them in sequence.
 
 ### Linux runs: CI investigation and cross-platform verification
 
