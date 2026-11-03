@@ -281,7 +281,7 @@ public sealed class SttBenchChildLauncher : ISttBenchLauncher
         };
         if (Path.GetFileNameWithoutExtension(exePath).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
         {
-            startInfo.ArgumentList.Add(typeof(SttBenchChild).Assembly.Location);
+            startInfo.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, typeof(SttBenchChild).Assembly.GetName().Name + ".dll"));
         }
         startInfo.ArgumentList.Add(SttBenchChild.Flag);
         startInfo.ArgumentList.Add(jobPath);
