@@ -157,6 +157,32 @@ public static class ForcedLandingProfile
     }
 
     /// <summary>
+    /// Lifts a CLANDF override. An airborne forced landing also drops the firm deceleration it was flying
+    /// (<see cref="AirborneDecelKtsPerSec"/>) so the next speed change uses the type's own rate; on the ground the
+    /// rollout rewrites the braking rate every tick, so it is left alone.
+    /// </summary>
+    public static void EndForcedLanding(AircraftState aircraft)
+    {
+        if (aircraft.Phases is not { ForceLanding: true } phases)
+        {
+            return;
+        }
+
+        phases.ForceLanding = false;
+        if (!aircraft.IsOnGround)
+        {
+            aircraft.Targets.DesiredDecelRate = null;
+        }
+    }
+
+    /// <summary>
+    /// The aircraft's along-track distance (ft past the landing threshold; negative before it) on
+    /// <paramref name="runwayHeading"/>.
+    /// </summary>
+    public static double AlongTrackFt(LatLon position, LatLon landingThreshold, TrueHeading runwayHeading) =>
+        GeoMath.AlongTrackDistanceNm(position, landingThreshold, runwayHeading) * GeoMath.FeetPerNm;
+
+    /// <summary>
     /// The aircraft's AGL and along-track position, and the runway length the guidance plans on: the landing distance
     /// less one sub-tick of travel. The landing phase sees the wheels on the runway one sub-tick after physics puts
     /// them there, and the aircraft rolls on through that sub-tick, so the ground has to be met one sub-tick of travel
@@ -170,7 +196,7 @@ public static class ForcedLandingProfile
     )
     {
         double aglFt = ctx.Aircraft.Altitude - thresholdElevationFt;
-        double alongFt = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, landingThreshold, runwayHeading) * GeoMath.FeetPerNm;
+        double alongFt = AlongTrackFt(ctx.Aircraft.Position, landingThreshold, runwayHeading);
         double subTickTravelFt = ctx.Aircraft.GroundSpeed * GeoMath.FeetPerNm / 3600.0 * ctx.DeltaSeconds;
         double runwayLengthFt = ctx.Runway is { } runway ? LandingDistanceFt(runway, ctx.GroundLayout) - subTickTravelFt : double.PositiveInfinity;
         return (aglFt, alongFt, runwayLengthFt);

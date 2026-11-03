@@ -4262,7 +4262,7 @@ internal static class PatternCommandHandler
 
         // A controller-commanded go-around always overrides a CLANDF forced landing, and with it the forced
         // landing's firm airborne deceleration.
-        EndForcedLanding(aircraft);
+        ForcedLandingProfile.EndForcedLanding(aircraft);
 
         if (ga.TrafficPattern is { } patDir)
         {
@@ -4729,9 +4729,11 @@ internal static class PatternCommandHandler
     /// CLANDF — instructor/RPO forced landing. Grants landing clearance, commits a full-stop
     /// landing, and raises <see cref="PhaseList.ForceLanding"/> so FinalApproachPhase and
     /// LandingPhase suppress every automatic go-around and drive the aircraft to a touchdown
-    /// regardless of energy state. RPO-only (rejected in solo training unless the scenario's
-    /// SoloRpoCommandsAllowed development flag is set). Canceled by GA, by cancelling the landing
-    /// clearance (CLC/CTLC), or by touchdown.
+    /// regardless of energy state. Refused ("unable, past the end of runway") for an aircraft that
+    /// has already overflown its runway on the approach. The override is lifted by a go-around, by
+    /// cancelling the landing clearance (CLC/CTLC), by touchdown, and by the approach ending without
+    /// completing — vectored off it, or its phase chain cleared. RPO-only (rejected in solo training
+    /// unless the scenario's SoloRpoCommandsAllowed development flag is set).
     /// </summary>
     internal static CommandResult TryForceLanding(AircraftState aircraft, DispatchContext ctx)
     {
@@ -4753,6 +4755,19 @@ internal static class PatternCommandHandler
         if (aircraft.Phases.AssignedRunway is not { } assignedRunway)
         {
             return new CommandResult(false, "Cannot force landing — no runway assigned");
+        }
+
+        // Past the runway's far end there is no pavement left to aim at: the forced profile would aim behind the
+        // aircraft and roll it off the end. Only an aircraft that has overflown the runway on its approach reads that
+        // way — its final approach, landing or go-around phase actually under way (the go-around branch below puts a
+        // reversed aircraft straight onto a final behind it). An aircraft elsewhere — a pattern leg, vectors — is not
+        // refused. HelicopterLandingPhase is deliberately outside this gate. Refuse before anything changes.
+        bool onApproach =
+            (aircraft.Phases.CurrentPhase is { Status: PhaseStatus.Active } approachPhase)
+            && ((approachPhase is FinalApproachPhase) || (approachPhase is LandingPhase) || (approachPhase is GoAroundPhase));
+        if (onApproach && IsPastRunwayEnd(aircraft, assignedRunway, ctx.GroundLayout))
+        {
+            return new CommandResult(false, $"Unable, past the end of runway {RunwayIdentifier.ToDisplayDesignator(assignedRunway.Designator)}");
         }
 
         // Commit a full-stop LandingPhase ending (replacing any pending TG/SAG/low-approach so
@@ -4792,22 +4807,14 @@ internal static class PatternCommandHandler
     }
 
     /// <summary>
-    /// Lifts a CLANDF override. An airborne forced landing also drops the firm deceleration it was flying
-    /// (<see cref="Phases.Tower.ForcedLandingProfile.AirborneDecelKtsPerSec"/>) so the next speed change uses the
-    /// type's own rate; on the ground the rollout rewrites the braking rate every tick, so it is left alone.
+    /// True when <paramref name="aircraft"/> is at or past the landing runway's far end: its along-track distance from
+    /// the landing threshold has reached the runway's landing distance.
     /// </summary>
-    private static void EndForcedLanding(AircraftState aircraft)
+    private static bool IsPastRunwayEnd(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? groundLayout)
     {
-        if (aircraft.Phases is not { ForceLanding: true } phases)
-        {
-            return;
-        }
-
-        phases.ForceLanding = false;
-        if (!aircraft.IsOnGround)
-        {
-            aircraft.Targets.DesiredDecelRate = null;
-        }
+        LatLon landingThreshold = LandingThreshold.Resolve(runway, groundLayout);
+        return ForcedLandingProfile.AlongTrackFt(aircraft.Position, landingThreshold, runway.TrueHeading)
+            >= ForcedLandingProfile.LandingDistanceFt(runway, groundLayout);
     }
 
     internal static CommandResult TryLandAndHoldShort(
@@ -4923,7 +4930,7 @@ internal static class PatternCommandHandler
         aircraft.Phases.LandingClearance = null;
         aircraft.Phases.ClearedRunwayId = null;
         // Cancelling the (CLANDF-granted) landing clearance also lifts the forced-landing override.
-        EndForcedLanding(aircraft);
+        ForcedLandingProfile.EndForcedLanding(aircraft);
         // The hold-short instruction is part of the landing clearance LAHSO grants (7110.65 §3-10-5.b), so it
         // is cancelled with it — the amended-clearance case of AIM 4-3-11.b.5. Otherwise the aircraft would
         // still brake to a point it no longer holds a clearance for.

@@ -686,13 +686,23 @@ public sealed class FinalApproachPhase : Phase
         _lateralGateGraceSec = LateralGateRetargetGraceSec;
     }
 
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) =>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
         // The NoLndgClnc datablock flash means "on final approach without a landing clearance".
         // Once final approach ends — for any reason (go-around, vectored off the approach, landing) —
         // the warning is moot. FinalApproachPhase is the only writer of this flag, so it owns
         // clearing it here, on the single exit hook that fires for every termination path
         // (AdvanceToNext / SkipTo / Clear). Without this, a manual GA leaves the flash stuck on.
         ctx.Aircraft.NoLandingClearanceWarningActive = false;
+
+        // A CLANDF forced landing belongs to the approach it was cleared for. Vectored off the approach, or with the
+        // chain cleared, the override — and the firm airborne deceleration it flies — goes with the phase; ending
+        // Completed hands the aircraft to its landing phase, which keeps flying it.
+        if (endStatus != PhaseStatus.Completed)
+        {
+            ForcedLandingProfile.EndForcedLanding(ctx.Aircraft);
+        }
+    }
 
     public override bool OnTick(PhaseContext ctx)
     {

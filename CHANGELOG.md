@@ -7,6 +7,7 @@
 - Pilot voices say approach names as charted ("ILS runway two eight right", "VOR Alpha") instead of spelling them letter by letter.
 - `CROSS` at a hold short is refused when the aircraft has no airport ground layout, instead of releasing the hold with no crossing planned.
 - An aircraft cleared for takeoff while lining up behind `LUAW` rolls into its takeoff without slowing, and `CTOC` during that line-up stops it on the centerline.
+- `CLANDF` is cancelled when the aircraft is vectored off the final approach, and refused once it has flown past the runway's far end.
 
 ## v0.18.0-beta [2026/11/02]
 
