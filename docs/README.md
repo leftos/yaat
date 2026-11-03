@@ -33,7 +33,7 @@
 | Client Settings window, Import / Export hub, View menu, hotkeys, layouts | [`client-settings-and-menus.md`](./client-settings-and-menus.md) |
 | Radar / map rendering | [`radar-rendering.md`](./radar-rendering.md) |
 | Ground view rendering | [`ground-rendering.md`](./ground-rendering.md) |
-| Speech (STT) / pilot speech (TTS) | [`speech-recognition-pipeline.md`](./speech-recognition-pipeline.md), [`solo-training-pilot-speech.md`](./solo-training-pilot-speech.md); measurements in [`research/`](./research/) (e.g. the controller-voice ouroboros baseline) |
+| Speech (STT) / pilot speech (TTS) | [`speech-recognition-pipeline.md`](./speech-recognition-pipeline.md), [`speech-context-decoder.md`](./speech-context-decoder.md), [`solo-training-pilot-speech.md`](./solo-training-pilot-speech.md); measurements in [`research/`](./research/) (e.g. the controller-voice ouroboros baseline) |
 | Pilot phraseology (wording / AIM) | [`pilot-phraseology.md`](./pilot-phraseology.md) |
 | Driving the real client / CRC from an agent | yaat-server `docs/client-driver-mcp.md` (the MCP lives in the private yaat-server repo) |
 | Writing a deterministic screenshot scene (GuideCapture) | [`guide-capture.md`](./guide-capture.md) |

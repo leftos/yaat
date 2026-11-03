@@ -1,25 +1,24 @@
-# Context-layer decoder design (YAAT-343 step 3)
+# Speech context decoder
 
-The design for the joint callsign and entity decoder (YAAT-1569) and the sandbox measurement it feeds (YAAT-1567). Linked from YAAT-343; delete this file once YAAT-1569 and YAAT-1567 are done (the measured result goes into the research note and `docs/speech-recognition-pipeline.md`).
+`src/Yaat.Sim/Speech/Context/` reads one transcript (or the recognizer's n-best) against the closed set of the transmission it was spoken in: the room's aircraft and the airport's entities, each with its spoken forms.
 
-Rulings in force: YAAT-343 comments 4e31176f (step 3 interview) and 95710882 (own sherpa native); YAAT-1569 comment with the three decoder rulings below. VICE is GPL-3.0: design reference only, no code.
+`ContextDecoder.Decode` returns the addressed callsign, the entities around it (runways, taxiways, gates, fixes, landmarks, procedures) and a rewritten transcript with mishearings snapped to the context's names, or a say-again with its best guess. The speech sandbox builds rooms from a corpus's gold and scores the decoder's output slot by slot.
+
+The pipeline wiring is in [`speech-recognition-pipeline.md`](./speech-recognition-pipeline.md); measurements are in [`research/2026-10-31-stt-context-layer.md`](./research/2026-10-31-stt-context-layer.md). VICE is GPL-3.0: a design reference only, no code.
 
 ## Rulings and decisions
 
-Owner rulings (2026-10-30, decoder interview):
+Owner rulings:
 
 - **Airline flight number alone resolves the callsign**, at prior 0.90, and only when no other room aircraft has those digits. (7110.65 2-4-9.b.2 says not to abbreviate; controllers do, as the LiveATC set shows.)
 - **GA last three characters alone resolve the callsign** ("two six foxtrot"), at prior 0.90, when unique in the room. Forms with "november" or the type name keep priority.
 - **The say-again band produces SayAgain with its best guess.** The eval counts it as a rejection, not an error.
-
-Owner rulings (2026-10-30, decoder rework after the brief C reviews):
-
-- **Second callsign:** after "correction", the following callsign becomes the addressee. After "break" or "and", the result is SayAgain with the first aircraft as best guess. Splitting one transmission into two commands stays out of scope.
+- **Second callsign:** after "correction", the following callsign becomes the addressee. After "break" or "and", the result is SayAgain with the first aircraft as best guess. Splitting one transmission into two commands is out of scope.
 - **Prefixless callsigns** (flight number alone, GA last three alone) match only as the first token or directly after an opener word.
 - **Bare runway, taxiway and gate forms require context.**
 - **A callsign directly followed by a number resolves**, under the guard in "Spans".
 
-Orchestrator decisions (flagged, reversible):
+Design decisions:
 
 - Numbers match as one digit token per digit, so grouped and digit-by-digit forms are identical ("twenty four ninety five" = "two four nine five" = `2 4 9 5`; "thirty" = `3 0`).
 - Callsign score is name × code, so a strong telephony match cannot hide a wrong number.
@@ -72,7 +71,7 @@ No optional parameters (repo rule): every caller passes `Prior`, `Tokens`, `Acou
 
 One normaliser for transcripts and spoken forms: `SpokenTokenizer.Tokenize(string)` → `IReadOnlyList<SpokenToken>`, `SpokenToken(string Text, TokenKind Kind /* Word | Digit | Nato */, int SourceWord, int SourceWordEnd)`. `SourceWord` is the whitespace-word index the token came from, and `SourceWordEnd` the exclusive end, which is past `SourceWord + 1` for a joined letter run; spans, the log-prob gate and the rewrite all use them.
 
-- `AtcNumberParser.NormalizeDigits` (`AtcNumberParser.cs:105`) does not fit (unaligned string; it also collapses `28R`, rewrites "heading to", merges runs). The tokenizer expands numbers word by word, reading the word tables through a new `internal static bool TryGetNumberWord(string, out NumberWordKind, out int)` on `AtcNumberParser` (tables at `:36-77`):
+- `AtcNumberParser.NormalizeDigits` (`AtcNumberParser.cs:105`) does not fit (unaligned string; it also collapses `28R`, rewrites "heading to", merges runs). The tokenizer expands numbers word by word, reading the word tables through `internal static bool TryGetNumberWord(string, out NumberWordKind, out int)` on `AtcNumberParser` (tables at `:36-77`):
   - digit word → 1 digit; teen → 2 digits; tens + ones → 2 digits over both source words; tens alone → `t0`;
   - "oh"/"o" between number words → `0`;
   - "hundred" → `00`, or nothing when a pair follows, or `0` when a single digit follows;
@@ -80,7 +79,7 @@ One normaliser for transcripts and spoken forms: `SpokenTokenizer.Tokenize(strin
 - Lowercase, fold accents, drop apostrophes, split letter-digit boundaries (as `tools/Yaat.SpeechSandbox/WerTextNormalizer.cs:54-58`). Digit strings split to single digits; `\d{1,2}[lrc]` → digits + `left|right|center`; any other letter in a mixed token → its NATO word ("n4926f" → `november 4 9 2 6 foxtrot`).
 - NATO words → `NatoPhoneticAlphabet.WordToLetter` (`NatoPhoneticAlphabet.cs:56`) → canonical `LetterToWord` word, Kind Nato. `x ray`/`x-ray` → `xray`; niner/tree/fife → digits.
 - Runs of two or more single letters join (`i l s` → `ils`, as `WerTextNormalizer.cs:112`).
-- Hesitation fillers `uh um ah er erm hmm` drop. The set moves to `SpokenTokenizer.HesitationFillers`; `WerTextNormalizer.Fillers` (`:39`) points at it, unchanged in content.
+- Hesitation fillers `uh um ah er erm hmm` drop. The set lives in `SpokenTokenizer.HesitationFillers`, and `WerTextNormalizer.Fillers` points at it.
 - "heavy"/"super" stay Words; the callsign matcher absorbs one directly after the code part. Never required.
 
 | Transcript | Tokens (name \| code) |
@@ -99,26 +98,40 @@ One normaliser for transcripts and spoken forms: `SpokenTokenizer.Tokenize(strin
 
 Forms are deduplicated after normalisation; each keeps its raw `Text` for recognizer hotwords (YAAT-1570).
 
-- **Airline callsign:** telephony from the caller's override map (ICAO → telephony), else `AirlineTelephony.TryGetTelephony` (`AirlineTelephony.cs:29`). Forms: telephony + `FlightNumberToPairedWords` and telephony + `FlightNumberToWords` (`AtcNumberParser.cs:333`, `:310`), prior 1.0 (a leading-zero or letter-suffixed flight number is spelled character by character only); telephony minus a trailing `AIR`/`AIRLINES` word, 0.95; a per-ICAO short telephony (FFT "frontier", NKS "spirit") and a split one (JBU "jet blue"), 0.95; flight number alone, 0.90, only when it has three or more digits (a two-digit one tokenizes like a bare runway) and no other room callsign's digits equal the flight digits. No telephony known: no entity. `CallsignParser.GetSpokenVariants` takes no override, so it is not used for airlines.
-- **GA callsign:** `CallsignParser.GetSpokenVariants(icao, type, activeCallsigns)` (`CallsignParser.cs:247-307`: "november" + full tail, type names, and the prefixed last three when no other N-number ends in them): full-tail forms 1.0, prefixed short forms 0.95 (`ShortenedNNumberSpoken` is the same form and is not called), plus the last three characters alone at 0.90 when no other room callsign ends in them. Type names add the hand-kept `aircraft-type-aliases.tsv` (PA30 twin comanche/comanche, P28A archer/warrior, C206 stationair) after the generated family and manufacturer. A tail of four or more characters also stands alone without "november" (0.90, prefixless), when no other room callsign ends in it; a four-digit tail with no zero also gets its grouped reading ("archer twenty eight sixty six"). 7110.65 2-4-20.a.1, 2-4-9.a, 2-4-20.a.2, 2-4-14.b/c ("heavy"/"super").
+- **Airline callsign:** telephony from the caller's override map (ICAO → telephony), else `AirlineTelephony.TryGetTelephony` (`AirlineTelephony.cs:29`).
+
+  Forms: telephony + `FlightNumberToPairedWords` and telephony + `FlightNumberToWords` (`AtcNumberParser.cs:333`, `:310`), prior 1.0 (a leading-zero or letter-suffixed flight number is spelled character by character only); telephony minus a trailing `AIR`/`AIRLINES` word, 0.95; a per-ICAO short telephony (FFT "frontier", NKS "spirit") and a split one (JBU "jet blue"), 0.95.
+
+  Flight number alone, 0.90, only when it has three or more digits (a two-digit one tokenizes like a bare runway) and no other room callsign's digits equal the flight digits.
+
+  No telephony known: no entity. `CallsignParser.GetSpokenVariants` takes no override, so it is not used for airlines.
+- **GA callsign:** `CallsignParser.GetSpokenVariants(icao, type, activeCallsigns)` (`CallsignParser.cs:247-307`: "november" + full tail, type names, and the prefixed last three when no other N-number ends in them): full-tail forms 1.0, prefixed short forms 0.95 (`ShortenedNNumberSpoken` is the same form and is not called), plus the last three characters alone at 0.90 when no other room callsign ends in them.
+
+  Type names add the hand-kept `aircraft-type-aliases.tsv` (PA30 twin comanche/comanche, P28A archer/warrior, C206 stationair) after the generated family and manufacturer. A tail of four or more characters also stands alone without "november" (0.90, prefixless), when no other room callsign ends in it; a four-digit tail with no zero also gets its grouped reading ("archer twenty eight sixty six"). 7110.65 2-4-20.a.1, 2-4-9.a, 2-4-20.a.2, 2-4-14.b/c ("heavy"/"super").
 - **Runway:** "runway " + `PhraseologyVerbalizer.SpellRunway` (`PhraseologyVerbalizer.cs:2001`), 1.0; bare, 0.90. Source `NavigationDatabase.GetRunways` (`NavigationDatabase.cs:1191`), which indexes both the FAA and the ICAO id and returns one `RunwayInfo` per runway pair, so both `Id.End1` and `Id.End2` are emitted.
 - **Taxiway:** "taxiway " + `SpellTaxiway` (`:2186`), and bare. Names from a new `GroundLayoutSpeechNames.TaxiwayNames(layout)` in Yaat.Sim, lifting the filter at `src/Yaat.Client/ViewModels/MainViewModel.cs:2411-2421`.
 - **Gate:** parking and helipad nodes → value `<name>`, forms "gate "/"parking " + `SpellDestinationName(name, noun)` (`:2214`) and bare; spot nodes → `SPOT <name>`, "spot " + the same and bare. The bare form is kept only when the name has a letter and does not tokenize like a taxiway's bare form (an all-digit spot such as SFO "7" would match any number). From `layout.Nodes` by `GroundNodeType` (`MainViewModel.cs:2342`). YAAT-1568's gate pronunciations add forms later.
 - **Fix:** `GetFixPronunciations` (`NavigationDatabase.cs:857`), `GetFixDisplayName` (`:883`), `SpellFix` (`PhraseologyVerbalizer.cs:1841`), and the lowercase id, all lowercased (the first three can be mixed case). Sources: `FixesWithin(LatLon, radiusNm)` (`NavigationDatabase.cs:591`) at the airport's `GetAirportPosition` (`:798`), plus the aircraft's own route fixes. MITOE is 7.11 nm from KOAK.
-- **Landmark:** from YAAT-1568's `<apt>-landmarks.json` (name + `spokenPatterns`), value `KOAK/<alias>`; passed to the builder with its airport explicitly (`CustomFixSpeechPatterns`, `:743`, is not airport-scoped). Tests build Kaiser in code until that data exists.
+- **Landmark:** from YAAT-1568's `<apt>-landmarks.json` (name + `spokenPatterns`), value `KOAK/<alias>`; passed to the builder with its airport explicitly (`CustomFixSpeechPatterns`, `:743`, is not airport-scoped). Tests build Kaiser in code.
 - **SID/STAR:** `GetSids`/`GetStars` (`NavigationDatabase.cs:1552`, `:1663`), forms `ProcedureName(id).Tts` (`:1922`) alone and with "departure"/"arrival", value `<apt>/<ProcedureId>`. Navaid-type words (vor, vortac, vordme, tacan, ndb, dme) that `SpellFix`'s navaid fallback appends are dropped, so OAK7 is "oakland seven". Names the CIFP truncates (NIMI5 "Nimitz Five") need YAAT-1568's lexicon.
-- **Approach:** `GetApproaches` (`NavigationDatabase.cs:1785`) and `ApproachReadbackName.TypeAndRunway` (`src/Yaat.Sim/Pilot/ApproachReadbackName.cs:43`), which returns `(Terminal, Spoken, Runway)?`; the builder composes "<spoken> runway <rwy> approach", "<spoken> runway <rwy>" (1.0) and "<spoken> <rwy>" (0.90). `Spoken` says "RNAV", so each RNAV form also gets an "r nav" copy. An approach with a variant letter that is the only one of its spoken type on its runway (RNAV (GPS) and RNAV (RNP) share one letter sequence, 7110.65 4-8-1 NOTE 5) also gets its forms without the letter, at 0.90. Circling approaches (no runway) are skipped. A single-digit runway also gets "runway zero three" and "zero three" at 0.90. Not `SpellApproach` (`PhraseologyVerbalizer.cs:2289-2325`), whose `L` branch speaks "ILS" as "india left sierra" (booked separately).
+- **Approach:** `GetApproaches` (`NavigationDatabase.cs:1785`) and `ApproachReadbackName.TypeAndRunway` (`src/Yaat.Sim/Pilot/ApproachReadbackName.cs:43`), which returns `(Terminal, Spoken, Runway)?`; the builder composes "<spoken> runway <rwy> approach", "<spoken> runway <rwy>" (1.0) and "<spoken> <rwy>" (0.90). `Spoken` says "RNAV", so each RNAV form also gets an "r nav" copy.
+
+  An approach with a variant letter that is the only one of its spoken type on its runway (RNAV (GPS) and RNAV (RNP) share one letter sequence, 7110.65 4-8-1 NOTE 5) also gets its forms without the letter, at 0.90. Circling approaches (no runway) are skipped. A single-digit runway also gets "runway zero three" and "zero three" at 0.90. It does not use `SpellApproach`.
 - **Airport entities:** a new `AirportContextBuilder.Build(airportIcao, layout, radiusNm, landmarks, nav, settings)` in Yaat.Sim collects runways, approaches, SIDs, STARs, taxiways, gates, spots, fixes and landmarks, deduplicated by (kind, value). Taxiway, gate and spot names come from `GroundLayoutSpeechNames` (`src/Yaat.Sim/Data/Airport/`), which `MainViewModel.CollectLoadedTaxiwayNames` also calls.
 
 ## Scoring and decoding
 
 **Similarity** (`SpokenFormScore.cs`). `WordScore(a, b)`: 1 if equal; 0 if either is a digit, or two NATO tokens differ, or `max(|a|,|b|) < MinFuzzyChars`; else `WRaw·(1 − Lev/maxLen) + (1 − WRaw)·(1 − LevP/maxPLen)`, Lev = `PhoneticFixMatcher.Levenshtein` (`PhoneticFixMatcher.cs:149`), P = `Phonetize` (`:194`) + the voicing fold. ("kizer"/"kaiser" 0.83 with the fold; "skywest"/"southwest" 0.68.)
 
-A span against a form splits into a name part (words) and a code part (digits, NATO): `S_name = WordScore(concat(heard name), concat(form name))` (joined without spaces, so a split word still matches); `S_code` = token-level Levenshtein alignment, Σ aligned similarities / max length (a heard Word against a form NATO token counts at WordScore ≥ `NatoCodeAccept`); `S = S_name × S_code × Prior`, a missing part counting 1. In `ExactOnly`, WordScore is 1 or 0. Heard Words beyond the form's name count join the code part when the form has NATO tokens, so "november 8 2 9 8 leema" aligns `leema` with `lima`.
+A span against a form splits into a name part (words) and a code part (digits, NATO): `S_name = WordScore(concat(heard name), concat(form name))` (joined without spaces, so a split word still matches); `S_code` = token-level Levenshtein alignment, Σ aligned similarities / max length (a heard Word against a form NATO token counts at WordScore ≥ `NatoCodeAccept`); `S = S_name × S_code × Prior`, a missing part counting 1.
+
+In `ExactOnly`, WordScore is 1 or 0. Heard Words beyond the form's name count join the code part when the form has NATO tokens, so "november 8 2 9 8 leema" aligns `leema` with `lima`.
 
 **Spans.** Name part within ±1 word of the form's name length, code within ±1 token; never starting or ending inside a digit run; at most 8 tokens for callsigns, 6 for entities. The digit-run rule applies inside a remainder run, so a callsign's edge is a run boundary.
 
-One exception: a prefixed callsign form may end inside a digit run when it ends on a source-word boundary, its raw score is 1.0, and the digit tail has 3 or more digits, or is followed by mile, miles, thousand, hundred, knots, degrees, left, right or center, or equals a runway entity's bare form. The form must have at least 3 flight digits, the boundary must not fall inside a spoken pair ("ninety | five"), and a form under 4 flight digits must not end and be followed by single-digit words ("two four nine | five seven"). "southwest 2495 seven miles" resolves; "united 2495" does not resolve UAL24, with or without a value after it.
+One exception: a prefixed callsign form may end inside a digit run when it ends on a source-word boundary, its raw score is 1.0, and the digit tail has 3 or more digits, or is followed by mile, miles, thousand, hundred, knots, degrees, left, right or center, or equals a runway entity's bare form.
+
+The form must have at least 3 flight digits, the boundary must not fall inside a spoken pair ("ninety | five"), and a form under 4 flight digits must not end and be followed by single-digit words ("two four nine | five seven"). "southwest 2495 seven miles" resolves; "united 2495" does not resolve UAL24, with or without a value after it.
 
 **Callsign stage.** An opener run at token 0 does not count toward the offset: a lead word (and, okay, ok, alright, roger) at token 0 only, a facility (one of the context's `FacilityNames`, then up to two of tower, ground, approach, departure, center, clearance, delivery, ramp, radio, unicom; or one of those alone), a greeting (good morning/afternoon/evening/day; morning, afternoon, evening, hello, hi, hey), each at most once, in any order, at most 6 tokens, stopping at the first other token.
 
@@ -130,7 +143,9 @@ The prefixes are `medevac` before any form unless an article stands before it ("
 
 One prefix per span; a prefix word is never scored as part of a form that does not open with it ("tango twenty four ninety five" names no aircraft).
 
-Spans starting at offset 0-2, or ending at the last token (readbacks end with the callsign), past a weight class and a closing tail: one or two of good day/night, gday, have a good one/day/night/evening, have a nice/great day, thanks, thank you, thanks a lot, thanks much, cheers, appreciate it, so long, see ya/you, take care, bye, later, roger, wilco, affirmative, over, at most 5 words, running to the end; each scored against every form of every room aircraft; best per aircraft, a leading span before any other; leading candidates only, when any lead; top K = 5, ordered by weighted score, then span length, then room order.
+Spans starting at offset 0-2, or ending at the last token (readbacks end with the callsign), past a weight class and a closing tail: one or two of good day/night, gday, have a good one/day/night/evening, have a nice/great day, thanks, thank you, thanks a lot, thanks much, cheers, appreciate it, so long, see ya/you, take care, bye, later, roger, wilco, affirmative, over, at most 5 words, running to the end.
+
+Each is scored against every form of every room aircraft; best per aircraft, a leading span before any other; leading candidates only, when any lead; top K = 5, ordered by weighted score, then span length, then room order.
 
 Any candidate not at token 0 is refused after a traffic lead-in, skipping an article (follow, following, behind, traffic, to, for, from, with, is, after, sight, turbulence, mile, miles, oclock, report), because the aircraft it names is traffic.
 
@@ -144,13 +159,23 @@ A prefixed form with no Word tokens scores 0 unless its first token is heard exa
 
 **Entity stage**, per candidate, over the remainder (tokens outside the callsign span): the aircraft's own entities (prior 1.0), then airport entities (`AirportEntityPrior`, own wins on duplicates), then the other room callsigns' prefixed forms (traffic). Accept on the score before the prior; choose non-overlapping spans by weighted-interval DP maximising Σ S·prior·tokens.
 
-After the winner, each `correction`, `break` or `and` in the remainder, in order, starts a callsign scan at the next token, under the callsign-stage rules; the first with an outcome decides. After `correction`: a Resolved hit switches the addressee and the entity stage reruns over the tokens after it; a SayAgain hit gives SayAgain with that guess; no hit but an unknown word and digits gives SayAgain with the first aircraft as guess; anything else changes nothing. A prefixless hit counts only when the separator directly follows the winner's span, so a corrected value never takes the address. A correction directly after a traffic span amends the traffic, not the addressee. With follow, following, behind or traffic between the winner and `correction`, a hit gives SayAgain with the first aircraft as guess. After `break` or `and`: a hit at the say-again floor gives SayAgain with the first aircraft as `BestGuess`.
+After the winner, each `correction`, `break` or `and` in the remainder, in order, starts a callsign scan at the next token, under the callsign-stage rules; the first with an outcome decides. After `correction`: a Resolved hit switches the addressee and the entity stage reruns over the tokens after it; a SayAgain hit gives SayAgain with that guess; no hit but an unknown word and digits gives SayAgain with the first aircraft as guess; anything else changes nothing.
 
-**Bare forms** (a runway, taxiway or gate form that does not start with its noun: runway, taxiway, gate, parking, spot; spoken input only). A bare runway needs one of land, takeoff, cross, crossing, short, of, taxi, for, exit, wait, depart, departure directly before it. A bare taxiway or gate walks back over Nato and Digit tokens to the first Word, which must be via, taxi, at, on, cross, short, of, then, passing, off, left, right, behind, join, ahead, to or gate; the walk also carries a chain ("via alfa bravo charlie"), stops and refuses at `november`, and crosses a digit run only of one or two tokens directly after a NATO letter. A bare single-NATO taxiway directly before a digit run is refused ("via victor one eight seven"). A bare runway is refused before mile, miles, minute, minutes, second, seconds, feet, nautical, dme, knots, degrees or oclock, and before a side it does not have; `of` counts only after `short`. A bare runway span starting exactly where the addressee's callsign ends also counts as having context, so "southwest 2495 three zero" reads the runway the callsign rule already accepted. So "whiskey four" alone resolves nothing and "taxi via whiskey four" resolves `KOAK/W4`.
+A prefixless hit counts only when the separator directly follows the winner's span, so a corrected value never takes the address. A correction directly after a traffic span amends the traffic, not the addressee. With follow, following, behind or traffic between the winner and `correction`, a hit gives SayAgain with the first aircraft as guess. After `break` or `and`: a hit at the say-again floor gives SayAgain with the first aircraft as `BestGuess`.
 
-**Joint score.** `M` = mean of chosen spans' S·prior (1 with none). Content tokens = remainder digits, NATO words and words outside the rule literals (`NatoNearMissResolver.RuleLiterals`, `NatoNearMissResolver.cs:61`, exposed as `internal RuleLiteralWords`). Coverage `C` = explained / (explained + unexplained content). `J = S_cs × M × max(C, CoverageFloor)^CoverageExponent`. Candidates within `CallsignJointMargin` of the best `S_cs` are eligible; highest `J` wins. State: Resolved at `S_cs ≥ CallsignAccept`, SayAgain at ≥ `CallsignSayAgainFloor` (with `BestGuess`), else NoCallsign. With no callsign, entities still resolve against airport entities at `EntityAcceptNoCallsign`.
+**Bare forms** (a runway, taxiway or gate form that does not start with its noun: runway, taxiway, gate, parking, spot; spoken input only). A bare runway needs one of land, takeoff, cross, crossing, short, of, taxi, for, exit, wait, depart, departure directly before it.
 
-**Log-prob gate.** Pieces group into words (a piece starting `▁` opens a word); word confidence = exp(Σ piece log-prob). If the word count differs from the hypothesis's whitespace word count, the gate is off (`ConfidenceGated = false`). A span holding a Word at confidence ≥ `ConfidentWordProb` is scored `ExactOnly`.
+A bare taxiway or gate walks back over Nato and Digit tokens to the first Word, which must be via, taxi, at, on, cross, short, of, then, passing, off, left, right, behind, join, ahead, to or gate; the walk also carries a chain ("via alfa bravo charlie"), stops and refuses at `november`, and crosses a digit run only of one or two tokens directly after a NATO letter.
+
+A bare single-NATO taxiway directly before a digit run is refused ("via victor one eight seven"). A bare runway is refused before mile, miles, minute, minutes, second, seconds, feet, nautical, dme, knots, degrees or oclock, and before a side it does not have; `of` counts only after `short`.
+
+A bare runway span starting exactly where the addressee's callsign ends also counts as having context, so "southwest 2495 three zero" reads the runway the callsign rule already accepted. So "whiskey four" alone resolves nothing and "taxi via whiskey four" resolves `KOAK/W4`.
+
+**Joint score.** `M` = mean of chosen spans' S·prior (1 with none). Content tokens = remainder digits, NATO words and words outside the rule literals (`NatoNearMissResolver.RuleLiterals`, `NatoNearMissResolver.cs:61`, exposed as `internal RuleLiteralWords`). Coverage `C` = explained / (explained + unexplained content).
+
+`J = S_cs × M × max(C, CoverageFloor)^CoverageExponent`. Candidates within `CallsignJointMargin` of the best `S_cs` are eligible; highest `J` wins. State: Resolved at `S_cs ≥ CallsignAccept`, SayAgain at ≥ `CallsignSayAgainFloor` (with `BestGuess`), else NoCallsign. With no callsign, entities still resolve against airport entities at `EntityAcceptNoCallsign`.
+
+**Log-prob gate.** Pieces group into words (a piece starting `▁` opens a word; sherpa marks a word start with a leading space, which `SttDecoderInput.ToDecoderHypothesis` maps to `▁`); word confidence = exp(Σ piece log-prob). If the word count differs from the hypothesis's whitespace word count, the gate is off (`ConfidenceGated = false`). A span holding a Word at confidence ≥ `ConfidentWordProb` is scored `ExactOnly`.
 
 **Rewrite.** Accepted spans' name words and NATO near-misses are replaced by the form's words. Digits, confident words and typed input are never rewritten.
 
@@ -187,23 +212,29 @@ Real navdata (ModuleInit) and layouts (`new TestAirportGroundData().GetLayout("O
 
 - `SpokenTokenizerTests`: one per worked example (tokens and SourceWord); `DigitRunsMatchNormalizeDigits` (oracle: concatenated digits equal `NormalizeDigits` for single-number runs); `ThirtyEqualsThreeZero`, `OneHundredIsOneZeroZero`, `OhBetweenDigitsIsZero`, `IcaoTokenSplits`.
 - `SpokenFormScoreTests`: `Exact_IsOne`, `KizerKaiser_AboveEntityAccept`, `SkywestSouthwest_BelowCallsignAccept`, `DigitMismatch_Zero`, `ShortWord_NoFuzzy`, `ExactOnly_RejectsNearMiss`.
-- `ContextEntityFactoryTests`: `Swa2495_GroupedAndDigitFormsDedupe`, `NumberOnly_OmittedWhenDigitsShared`, `Qxe2101_HasHorizonForm`, `Pcm772_PacValley`, `UnknownAirline_ReturnsNull`, `N4926F_FullShortAndLastThree`, `N4926F_LastThreeAbsentWhenShared`, `Runway30_RunwayAndBareForms`, `OakI30_IlsRunwayThreeZero`, `OakRnav_HasRNavForm`, `OakTaxiwayW4_FromLayout`, `SfoSpot6B_ValueSpot6B`, `SfoC11_GateForms`, `KoakFixesWithin_IncludeMitoe`, `Build_DedupesAndIncludesLandmark`, `GroundLayoutSpeechNames_TaxiwayNamesMatchClientFilter`.
-- `ContextDecoderTests`: the nine transcripts resolve to their gold values; `FedexHeavy_SpanIncludesHeavy`; `TrailingCallsign_Resolves`; `CloseCall_RemainderDecides` (room QXE2101 with own `KOAK/30`, and HOR2101: "horizon twenty one oh one runway three zero" → QXE2101). Non-examples: `PaddedRoom_SkywestDoesNotSnap` (35-aircraft seeded room, no SKW: NoCallsign); `SkywestWithSameDigitsSwa_IsSayAgainNotResolved`; `Kizer_NoKaiserInContext_NotResolved`; `Kizer_WithKaiser_Resolves`; `Typed_Swa249_StaysUnresolved_TextUnchanged`; `Typed_ExactIcao_Resolves`; `ExactOnly_NearMissNotRecovered`; `HeadingDigits_NotRunway30` ("heading three zero zero"); `ConfidentWord_NotSnapped` (−0.01); `LowConfidence_Snapped` (−1.5); `PieceCountMismatch_GateOff`; `NBest_PrefersResolvedHypothesis`; `NBest_LargeAcousticGapWins`; `Rewrite_ReplacesNameKeepsDigits`.
+- `ContextEntityFactoryTests`: `Swa2495_GroupedAndDigitFormsDedupe`, `NumberOnly_OmittedWhenDigitsShared`, `Qxe2101_HasHorizonForm`, `Pcm772_PacValley`, `UnknownAirline_ReturnsNull`,
+  `N4926F_FullShortAndLastThree`, `N4926F_LastThreeAbsentWhenShared`, `Runway30_RunwayAndBareForms`, `OakI30_IlsRunwayThreeZero`, `OakRnav_HasRNavForm`, `OakTaxiwayW4_FromLayout`, `SfoSpot6B_ValueSpot6B`, `SfoC11_GateForms`, `KoakFixesWithin_IncludeMitoe`, `Build_DedupesAndIncludesLandmark`, `GroundLayoutSpeechNames_TaxiwayNamesMatchClientFilter`.
+- `ContextDecoderTests`: the nine transcripts resolve to their gold values; `FedexHeavy_SpanIncludesHeavy`; `TrailingCallsign_Resolves`; `CloseCall_RemainderDecides` (room QXE2101 with own `KOAK/30`, and HOR2101: "horizon twenty one oh one runway three zero" → QXE2101).
 
-## Sandbox rooms and slot scoring (YAAT-1567)
+  Non-examples: `PaddedRoom_SkywestDoesNotSnap` (35-aircraft seeded room, no SKW: NoCallsign); `SkywestWithSameDigitsSwa_IsSayAgainNotResolved`; `Kizer_NoKaiserInContext_NotResolved`; `Kizer_WithKaiser_Resolves`.
 
-- **Gold:** `slots.json` (private corpus folder), `{ "<clip id>": [ { "kind", "value", "spoken", "note"? } ] }`, read by `CorpusSlots.Read`.
-- **Rooms:** `rooms.json` (private corpus folder) holds a `telephony` override map (ICAO-like prefix → telephony) and `feeds` (`airport`, `facility` gnd|twr|app, `seed`). `RoomContextBuilder`: aircraft = every distinct callsign in the feed's gold; for scored clip k, an aircraft's own entities are the non-callsign gold values of the feed's other clips (j ≠ k) naming that callsign (leave-one-out; cached per feed and k). Airport entities from `AirportContextBuilder` at 10 nm (gnd, twr) or 40 nm (app); app rooms add every airport within 40 nm's runways and approaches (`FindAirportsWithin`, `NavigationDatabase.cs:1023`).
-- **Padding** to 35 aircraft: `Random(seed)`; airlines weighted by `AirportAirlines.TryGetAirlinesForAirport` arrivals (`AirportAirlines.cs:32`); numbers from `AircraftGenerator.GenerateAirlineCallsign` (`AircraftGenerator.cs:1048`), GA in the feed's real N-number share from `GenerateNNumber` (`:1064`), both made `public static`; a distractor never equals a real callsign nor shares its digits; each distractor gets 0-3 seeded airport entities as its own. Runs report padded, unpadded and oracle (the clip's own gold only).
-- **Scoring** (`CorpusSlotScorer`): gold G and output O as (kind, value) multisets, O = the Resolved callsign plus entities (traffic callsigns included). Recall per kind |G∩O|/|G|; false insertions |O∖G| per kind and per 100 clips; SayAgain/NoCallsign with a gold callsign counts as a rejection, reported apart. Raw transcripts run the decoder in `ExactOnly`. A form-coverage row reports the share of gold `spoken` values equal (after tokenising) to one of the entity's generated forms. Rows per provenance and per feed; never in `ForBaseline`.
+  Also: `Typed_Swa249_StaysUnresolved_TextUnchanged`; `Typed_ExactIcao_Resolves`; `ExactOnly_NearMissNotRecovered`; `HeadingDigits_NotRunway30` ("heading three zero zero"); `ConfidentWord_NotSnapped` (−0.01); `LowConfidence_Snapped` (−1.5); `PieceCountMismatch_GateOff`; `NBest_PrefersResolvedHypothesis`; `NBest_LargeAcousticGapWins`; `Rewrite_ReplacesNameKeepsDigits`.
 
-## Briefs
+## Sandbox rooms and slot scoring
 
-- **A. Core primitives:** `ContextTypes.cs`, `DecoderSettings.cs`, `SpokenTokenizer.cs`, `SpokenFormScore.cs`; `AtcNumberParser.TryGetNumberWord`; `WerTextNormalizer` filler pointer; `NatoNearMissResolver.RuleLiteralWords`. Proven by `SpokenTokenizerTests`, `SpokenFormScoreTests`, existing `AtcNumberParser*` and `CorpusWer*` green.
-- **B. Spoken forms and airport context:** `ContextEntityFactory.cs`, `GroundLayoutSpeechNames.cs`, `AirportContextBuilder.cs`. Proven by `ContextEntityFactoryTests`; then the aviation-sim-expert review of the form rules.
-- **C. Decoder:** `ContextDecoder.cs`. Proven by `ContextDecoderTests`.
-- **D. Sandbox:** `CorpusSlots.cs`, `RoomContextBuilder.cs`, `CorpusSlotScorer.cs`, generator methods public, `CorpusWerRunner` flags. Proven by `RoomContextBuilderTests`, `CorpusSlotScorerTests` (`tests/Yaat.Client.Tests`).
+- **Gold:** `slots.json` (private corpus folder), `{ "<clip id>": [ { "kind", "value", "spoken", "note"? } ] }`, read by `CorpusSlots.Read`. The gold is Claude-drafted and not owner-reviewed.
+- **Rooms:** `rooms.json` (private corpus folder) holds a `telephony` override map (ICAO-like prefix → telephony) and `feeds` (`airport`, `facility` gnd|twr|app, `seed`). `RoomContextBuilder`: aircraft = every distinct callsign in the feed's gold; for scored clip k, an aircraft's own entities are the non-callsign gold values of the feed's other clips (j ≠ k) naming that callsign (leave-one-out; cached per feed and k).
 
-## Unconfirmed
+  Airport entities from `AirportContextBuilder` at 10 nm (gnd, twr) or 40 nm (app); app rooms add every airport within 40 nm's runways and approaches (`FindAirportsWithin`, `NavigationDatabase.cs:1023`).
+- **Padding** to 35 aircraft: `Random(seed)`; airlines weighted by `AirportAirlines.TryGetAirlinesForAirport` arrivals (`AirportAirlines.cs:32`); numbers from `AircraftGenerator.GenerateAirlineCallsign` (`AircraftGenerator.cs:1048`), GA in the feed's real N-number share from `GenerateNNumber` (`:1064`), both made `public static`; a distractor never equals a real callsign nor shares its digits; each distractor gets 0-3 seeded airport entities as its own.
 
-- Landmark files carrying their airport (YAAT-1568). Sherpa's pieces mark a word start with a leading space, which `SttDecoderInput.ToDecoderHypothesis` maps to `▁`; the gate covered every clip of the 12-clip smoke.
+  Runs report padded, unpadded and oracle (the clip's own gold only).
+- **Scoring** (`CorpusSlotScorer`): gold G and output O as (kind, value) multisets, O = the Resolved callsign plus entities (traffic callsigns included). Recall per kind |G∩O|/|G|; false insertions |O∖G| per kind and per 100 clips; SayAgain/NoCallsign with a gold callsign counts as a rejection, reported apart.
+
+  Raw transcripts run the decoder in `ExactOnly`. A form-coverage row reports the share of gold `spoken` values equal (after tokenising) to one of the entity's generated forms. Rows per provenance and per feed; never in `ForBaseline`.
+
+Sandbox tests: `RoomContextBuilderTests` and `CorpusSlotScorerTests` in `tests/Yaat.Client.Tests`.
+
+## Open questions
+
+- Landmark files carrying their airport (YAAT-1568).

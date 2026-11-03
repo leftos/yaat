@@ -36,7 +36,7 @@ Flight strips are also available in any browser at [yaat1.leftos.dev/vstrips/](h
 
 Installers keep themselves up to date automatically. Portable archives unzip to a folder containing the executable and its native dependencies — drop the folder on a USB stick or locked-down machine and run it from there. They don't auto-update; grab the next release when you want it. On Linux the AppImage runs without install, so it doubles as the portable form. Either one connects to YAAT1, which is selected on first launch.
 
-**NVIDIA GPU acceleration** (Windows): the installer ships with Vulkan/CPU support out of the box. Users with an NVIDIA card can opt in to CUDA 13 from Settings › Speech › Acceleration — YAAT downloads the runtime on demand (~534 MB) so the base installer stays small.
+**NVIDIA GPU acceleration** (optional): speech runs on the CPU out of the box. With an NVIDIA card (driver 580 or newer, Windows or Linux x64), Settings › Speech › Device downloads a GPU runtime (~1.1 GB) for the default speech model, and Settings › Speech › Acceleration downloads a CUDA 13 runtime (~534 MB) that speeds up the language model and Whisper. Both download on demand so the installer stays small; see [INSTALL.md](INSTALL.md#speech-model-and-nvidia-gpu-acceleration-optional).
 
 See the [Installation Guide](INSTALL.md) for step-by-step instructions. Contributors and anyone hosting their own server: the same guide covers [Building from source](INSTALL.md#building-from-source).
 
@@ -82,16 +82,19 @@ tests/              Unit tests for both projects
 ## Tech Stack
 
 - [.NET 10](https://dotnet.microsoft.com/) / C# with nullable reference types
-- [Avalonia UI 11](https://avaloniaui.net/) — cross-platform desktop framework (Fluent dark theme)
+- [Avalonia UI 12](https://avaloniaui.net/) — cross-platform desktop framework (Fluent dark theme)
 - [SkiaSharp](https://github.com/mono/SkiaSharp) — 2D rendering for ground and radar views
 - [CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/) — MVVM source generators
 - [ASP.NET SignalR Client](https://learn.microsoft.com/en-us/aspnet/core/signalr/) — real-time server communication
 - [Google.Protobuf](https://protobuf.dev/) — VNAS nav data deserialization
-- [LM-Kit.NET](https://lm-kit.com/products/lm-kit-net/) — on-device LLM inference and Whisper speech recognition (single engine for both)
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) — on-device speech recognition; runs rasr-parakeet v2, the default speech model
+- [LM-Kit.NET](https://lm-kit.com/products/lm-kit-net/) — on-device language-model inference and the optional Whisper speech engine
 
 ## Acknowledgements
 
-YAAT's speech recognition and command interpretation pipelines are powered by [LM-Kit.NET](https://lm-kit.com/products/lm-kit-net/) (Community Edition). LM-Kit handles GGUF model loading, GPU backend selection (CUDA / Vulkan / Metal), and grammar-constrained text generation — letting YAAT use a single inference engine for both Whisper STT and the canonical-command LLM mapper.
+YAAT's default speech recognition runs the rasr-parakeet v2 model on [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache-2.0). rasr-parakeet v2 is built with Llama and used under the Llama 3.2 Community License; it derives from NVIDIA's Parakeet TDT 0.6B v2 (CC-BY-4.0).
+
+Command interpretation and the optional Whisper speech engine are powered by [LM-Kit.NET](https://lm-kit.com/products/lm-kit-net/) (Community Edition). LM-Kit handles GGUF model loading, GPU backend selection (CUDA / Vulkan / Metal), and grammar-constrained text generation. See `NOTICE` for every third-party library and model.
 
 Airline telephony data is derived from [OpenFlights](https://openflights.org/data.html), licensed under ODbL 1.0. See `NOTICE` and `src/Yaat.Sim/Speech/Data/LICENSE-OPENFLIGHTS.txt`.
 

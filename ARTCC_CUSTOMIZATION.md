@@ -23,7 +23,7 @@ Facility data reaches YAAT by two routes, and which one applies decides how long
 | ARTCC config (positions, STARS, ERAM, ASDE-X, strips, TDLS, video maps) | vNAS data admin | Live. The server re-reads it every 30 minutes; the desktop client caches the parts it reads for up to 6 hours |
 | Training scenarios and weather | vNAS data admin | Live. A scenario is fetched in full each time it is loaded; the scenario list is cached for 5 minutes |
 | Video maps and tower cab imagery | vNAS data admin | Live. The client re-checks video maps every 30 minutes |
-| Airport sidecars, custom fixes, fix pronunciations, initial-contact transfers, wake directives, CIFP fragments, surface temp data | Files in this repository under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` | Needs a YAAT release (the client installer) and a yaat-server deploy. Both read the files once at startup |
+| Airport sidecars, custom fixes, fix, gate and procedure pronunciations, initial-contact transfers, wake directives, CIFP fragments, surface temp data | Files in this repository under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` | Needs a YAAT release (the client installer) and a yaat-server deploy. Both read the files once at startup |
 
 If a behaviour looks wrong, first decide which route owns it. A taxiway that is missing from the map is a vNAS fix. A taxiway the auto-router should avoid is a sidecar entry.
 
@@ -198,7 +198,9 @@ Each folder sits under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` and is read at startu
 | Folder | What it is | Effect |
 |--------|------------|--------|
 | `CustomFixes/` | Facility landmarks and training waypoints, each at a latitude and longitude or an FRD, with aliases and optional spoken phrases | The alias works in `DCT`, routes and fix autocomplete, and spoken phrases map to it in speech recognition. An alias that clashes with a real fix is skipped |
-| `FixPronunciations/` | Phonetic hints for fixes that are easy to mishear, and optional display names | Helps speech recognition; a `displayName` also appears in operator text and pilot readbacks |
+| `FixPronunciations/` | Phonetic hints for fixes that are easy to mishear, and optional display names | Helps speech recognition; pilot voices speak a fix by its first pronunciation; a `displayName` also appears in operator text and pilot readbacks |
+| `GatePronunciations/` | How controllers say an airport's gate and spot names, and named ground places (FBOs, ramps, bays) | Helps speech recognition. Schema: [GatePronunciations](src/Yaat.Sim/Data/ARTCCs/README.md#gatepronunciations) |
+| `ProcedurePronunciations/` | How controllers say a SID, STAR or approach name | Helps speech recognition. Schema: [ProcedurePronunciations](src/Yaat.Sim/Data/ARTCCs/README.md#procedurepronunciations) |
 | `InitialContactTransfers/` | When a solo-training pilot may make initial contact with the student: at handoff initiated, at handoff accepted, or with no handoff | Overrides the built-in defaults for the ARTCC, by position type or exact callsign |
 | `WakeDirectives/` | Local wake waivers and advisory rules | Changes Session Report scoring only; aircraft behaviour is unchanged. Add a rule only from an approved SOP or LOA |
 | `Procedures/` | Verbatim CIFP records for a SID, STAR or approach the FAA dropped from the current cycle | Keeps the procedure available. Generated with `tools/stash-procedure.py`, never hand-written. It does not expire, so re-check it against the chart |

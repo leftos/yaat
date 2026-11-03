@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.18.0-beta [2026/11/02]
+
+### Highlights
+
+- Speech recognition runs a new, more accurate model by default (rasr-parakeet), with Fast and Accurate modes on CPU or GPU.
+- Settings › Speech benchmarks each speech model on your machine and applies the one you pick.
+- Aircraft in closed traffic tighten their pattern to stay clear of another runway's corridor, or warn that they cross it.
+- CRC's ASDE-X raises vNAS's opposite-direction and converging alerts, and its alert texts and triggers now match vNAS.
 
 ### Added
 
@@ -11,11 +18,16 @@
 - In Accurate speech mode an unclear callsign is never staged: the status bar says "Say again" and Enter sends nothing until you edit the text.
 - Settings › Speech and Speech Debug say why speech recognition fell back from the GPU to the CPU when the model loaded.
 - Settings › Speech can benchmark each downloaded speech model on this machine, beside reference accuracy figures, and apply the row you pick.
+- `CROSS 28R` held short of a taxiway crosses along it past the far bar; `CROSS 28R, CTO 28L` carries the crossing into the takeoff.
+- CRC's ASDE-X raises vNAS's opposite-direction alerts (`OPP DIR TAXI`, `OPP DIR DEPARTURE`, `OPP DIR LANDER`) for aircraft closing head-on along a runway.
+- CRC's ASDE-X raises `CONVERGING` when a landing meets a departure, or another landing, on a converging runway, naming both runway ends.
 
 ### Changed
 
-- Pilots say Bay Area fixes, SIDs and STARs by their radio names ("Nimitz Five", SERFR "surfer"), from a generated list open to community corrections.
+- `CTO` and `LUAW` take the runway as their first argument (`CTO 28L`, `CTO 28 330`); `RWY` is refused, and older recordings replay as recorded.
+- In solo training, pilot voices say Bay Area fixes, SIDs and STARs by their radio names ("Nimitz Five", SERFR "surfer"), and Accurate speech mode hears them.
 - Speech recognition expects GA callsigns by the type names controllers use: Twin Comanche, Archer, Warrior and Stationair.
+- The solo pilot voice loads at startup, and a speech model changed in Settings loads after Apply, both in the background without freezing the window.
 
 ### Fixed
 
@@ -27,31 +39,28 @@
 - A bare `CVIA` climbs to the facility's TDLS altitude even when a new navdata cycle renumbered the filed SID (NUEVO8 to NUEVO9).
 - `CAPP` after `JFAC` or `JLOC` cancels assigned speeds like any approach clearance, keeping and restating a standing in-trail reduction.
 - An arrival given a crossing below its altitude no longer climbs toward a higher STAR window beyond that fix.
-- On a STAR or SID, with or without `DVIA` or `CVIA`, an aircraft keeps its speed and slows just in time to cross each published speed restriction.
+- On a STAR or SID, with or without `DVIA`/`CVIA`, an aircraft holds its speed and slows just in time for each published speed restriction.
 - A descending aircraft slows to 250 knots before crossing 10,000 ft, levelling briefly at 10,000 when it is too fast to slow in time.
 - A `TAXI … HS {taxiway}` with no destination taxis to the hold-short bar and holds there, instead of stopping short and never holding.
 - `TAXI C 33` given to an aircraft already holding at a runway 33 bar on C holds it there instead of crossing the runway's end.
-- A crossing between two taxiways that meet a runway apart goes straight over the runway, and only its sharpest corner decides whether the type can make it.
-- A speed given in the same transmission as an approach clearance, `CVIA` or `DVIA` is kept, wherever it sits in the transmission and across a rewind.
+- A crossing between taxiways that meet a runway at offset points goes straight over, and only its sharpest corner decides whether the type fits.
+- A speed given with an approach clearance, `CVIA` or `DVIA` in one transmission is kept, in any order and across a rewind.
 - Under `DVIA` or `CVIA`, a controller's crossing speed ends at its fix; the aircraft then flies the procedure's published speed, not a lasting ceiling.
-- A crossed published "at or above" speed survives a re-issued `DVIA`, `CVIA`, `RNS` or `RPS`, and ends on a heading, a direct, or leaving the procedure.
-- A scenario aircraft handed to the student with no flight plan now arrives with a filed VFR plan and a discrete code, so the handoff can be taken.
+- A crossed published "at or above" speed survives a re-issued `DVIA`, `CVIA`, `RNS` or `RPS`, ending on a heading, a direct or leaving the procedure.
+- An aircraft handed to the student without a flight plan now arrives with a filed VFR plan and discrete code, so its handoff works.
 - `GIVEWAY X TAXI …` waits in place until X has passed wherever the two routes cross or meet head-on, at any angle, then moves up.
-- `LUAW` at a taxiway hold short taxis onto that taxiway and lines up at the intersection; its readback and the later `CTO` name it ("at echo").
+- `LUAW` at a taxiway hold short taxis onto it and lines up at the intersection, named in the readback and the later `CTO` ("at echo").
 - `CTO` at a taxiway hold short is refused with "unable, traffic on E" while another aircraft stands on that taxiway; re-issue it once clear.
 - The taxi that `CTO` or `LUAW` starts from a taxiway hold short accounts for traffic and active runways, and pre-clears no crossing.
-- `CTO 33` or `LUAW 33` at a taxiway or runway-crossing hold departs or lines up on that runway when reachable, refuses one it must cross first, and otherwise asks to confirm.
-- `CROSS 28R` held short of a taxiway crosses along it to past the far bar, and `CROSS 28R, CTO 28L` carries the crossing into the takeoff.
-- CRC's ASDE-X raises vNAS's opposite-direction alerts (`OPP DIR TAXI`, `OPP DIR DEPARTURE`, `OPP DIR LANDER`) for aircraft closing head-on along a runway.
-- CRC's ASDE-X raises `CONVERGING` when a landing meets a departure, or another landing, on a converging runway, naming both runway ends.
+- `CTO 33` or `LUAW 33` at a taxiway or crossing hold uses 33 when reachable; one needing a crossing first is refused, anything else queried.
 - CRC's ASDE-X alerts read as vNAS sends them (`RWY OCCUPIED`, `RWY CLOSED`, `RWY CLOSED, GO AROUND`), one per conflicting pair, with no `RWY INCURSION` alert.
-- CRC's ASDE-X alerts fire on vNAS's triggers: a departure from 50 kt, an arrival from about 1 NM out; a lined-up or stopped aircraft raises none.
+- CRC's ASDE-X alerts fire as vNAS's do: departures from 50 kt, arrivals from about 1 NM out, never a lined-up or stopped aircraft.
 - A `TAXI` given on a curved fillet that ends at a runway hold bar now stops the nose at the hold line, not past it.
 - An assigned speed or `SMAX` now ends at touchdown, so a touch-and-go or stop-and-go climbs out at pattern speed.
 - An exact `SPD` held back by the 250-knot limit below 10,000 feet or the aircraft's top speed is flown again once that limit lifts.
-- A jet or turboprop flying base very slowly (after `SPDN` or a scenario speed) no longer stops the simulation; it descends as steeply as drag allows.
+- A jet or turboprop flying base very slowly (after `SPDN` or a scenario speed) no longer halts the simulation, descending as steeply as drag allows.
 - Clicking a runway's threshold marker in the Ground view taxis to that end's full-length hold short, not the one nearest the aircraft.
-- Clicking a taxiway point between a runway and its hold line offers that exit's hold short, for departure, instead of a taxi that stops past the line.
+- Clicking a taxiway point between a runway and its hold line offers that exit's hold short for departure, not a taxi stopping past the line.
 
 ## v0.17.2-beta [2026/10/30]
 
@@ -64,7 +73,6 @@
 
 ### Changed
 
-- `CTO` takes its runway as the first argument with no `RWY` (`CTO 28L`, `CTO 28 330`); three digits are a heading, and older recordings replay as recorded.
 - In solo sessions, how busy the frequency sounds now follows how little dead air is left, counting your transmissions and pilots' say answers, not how many calls were made.
 - In solo sessions, a second airborne pilot now and then checks in a few seconds after the first, before you have answered it.
 - `HOLD` to a `FOLLOWG` follower (after `CROSS 1L 1R; HOLD`, once clear) ends the follow; `RES` answers "unable, request taxi instructions" until `TAXI` or `FOLLOWG`.

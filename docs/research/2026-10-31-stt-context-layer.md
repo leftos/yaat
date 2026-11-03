@@ -1,10 +1,10 @@
 # STT context layer measured on US ATC radio (YAAT-1571)
 
-Date: 2026-10-31. Question: does the per-transmission context layer (YAAT-343 step 3), meaning room hotwords at the recognizer and the context decoder's resolution over the n-best, make rasr-parakeet's transcripts and the slots read from them better, and at what latency and memory? Design: [`plans/yaat-343-context-layer.md`](../plans/yaat-343-context-layer.md). The model choice is in the [bake-off](2026-10-30-stt-model-bakeoff.md).
+Date: 2026-10-31. Question: does the per-transmission context layer (YAAT-343 step 3), meaning room hotwords at the recognizer and the context decoder's resolution over the n-best, make rasr-parakeet's transcripts and the slots read from them better, and at what latency and memory? Design: [`speech-context-decoder.md`](../speech-context-decoder.md). The model choice is in the [bake-off](2026-10-30-stt-model-bakeoff.md).
 
 ## Set and method
 
-- **Clips:** the 106 `liveatc-us` clips of the bake-off (KSFO ground, KOAK ground, tower and approach), with gold slots in `slots.json` (127 callsigns, 44 runways, 76 taxiways, 8 gates, 6 procedures, 3 landmarks, 2 fixes) and per-feed rooms in `rooms.json`. Both live in the owner's private config folder; only aggregates are committed.
+- **Clips:** the 106 `liveatc-us` clips of the bake-off (KSFO ground, KOAK ground, tower and approach), with gold slots in `slots.json` (127 callsigns, 44 runways, 76 taxiways, 8 gates, 6 procedures, 3 landmarks, 2 fixes) and per-feed rooms in `rooms.json`. Both live in the owner's private config folder; only aggregates are committed. The slot gold is Claude-drafted and was not owner-reviewed.
 - **Rooms:** each clip is decoded under three rooms (`RoomContextBuilder`). The unpadded room holds the feed's real aircraft. The padded room adds seeded distractors up to 35 aircraft. The oracle room holds only the clip's own gold.
 - **Lexicon:** the generated KOAK/KSFO spoken forms (YAAT-1568), including gate and spot forms, named places, procedure names and the generated fix forms.
 - **Model:** rasr-parakeet v2 fp32 on sherpa-onnx 2.0.1 with YAAT's own native (`edad9a7fe1`), on CPU and on GPU (CUDA 13).

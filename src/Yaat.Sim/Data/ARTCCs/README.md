@@ -112,9 +112,9 @@ When matched, the spoken phrase is replaced with the canonical alias as a single
 
 ## FixPronunciations
 
-Phonetic pronunciation hints for fixes whose spelling invites mispronunciation. At PTT time, any hint whose fix name matches a programmed fix on the selected aircraft is injected into Whisper's `initial_prompt` alongside the canonical spelling, giving the decoder bias tokens for both forms. `PhoneticFixMatcher` already normalizes either spelling back to the canonical fix, so downstream code sees the same `MapResult` regardless of which form Whisper produced.
+Phonetic pronunciation hints for fixes whose spelling invites mispronunciation. With the Whisper engine, at PTT time any hint whose fix name matches a programmed fix on the selected aircraft is injected into Whisper's `initial_prompt` alongside the canonical spelling, giving the decoder bias tokens for both forms. `PhoneticFixMatcher` already normalizes either spelling back to the canonical fix, so downstream code sees the same `MapResult` regardless of which form Whisper produced.
 
-The same forms are read by pilot speech, which says a fix by its first pronunciation (`PhraseologyVerbalizer.SpellFix`), and by the speech-to-text context layer, which hears a fix by every pronunciation.
+The same forms feed the default speech model's context layer, which hears a fix by every pronunciation, and solo pilot speech, which says a fix by its first pronunciation (`PhraseologyVerbalizer.SpellFix`).
 
 Each file is a JSON array of pronunciation entries. Use lowercase space-separated phonetic spellings — Whisper's decoder biases on sub-word tokens, so "see rah" is more effective than "SEE-RAH" or "seerah".
 
@@ -138,13 +138,13 @@ Each file is a JSON array of pronunciation entries. Use lowercase space-separate
 
 ### When to add a hint
 
-Add a hint only when Whisper is likely to misrecognize the fix name:
+Add a hint only when the recognizer (the default speech model's context layer, or Whisper) is likely to misrecognize the fix name:
 
 - The spelling is non-obvious (`SYRAH` → "sigh-rah" vs "see-rah").
 - The canonical spelling looks like an unrelated common word (`NIKLZ` → "nickels").
 - The fix is made-up letters that Whisper tokenizes character-by-character.
 
-Don't add hints for fixes whose spelling already decodes naturally — unnecessary prompt tokens dilute Whisper's bias.
+Don't add hints for fixes whose spelling already decodes naturally — with Whisper, unnecessary prompt tokens dilute its bias.
 
 ---
 

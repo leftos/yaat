@@ -49,11 +49,15 @@ On some distros you'll also need `libfontconfig1` and `libfreetype6` for text re
 
 YAAT opens to an empty main window. Head to **[Getting Started](GETTING_STARTED.md)** to sign in, connect to YAAT1, create a room, and load your first scenario.
 
-### NVIDIA GPU acceleration (Windows, optional)
+### Speech model and NVIDIA GPU acceleration (optional)
 
-The installer ships with CPU and Vulkan backends out of the box — that's enough for YAAT's speech recognition and LLM features. If you have an NVIDIA card and want CUDA 13 acceleration, open **Settings › Speech › Acceleration** and click **Download CUDA 13 runtime**. YAAT fetches ~534 MB of CUDA libraries into `%LOCALAPPDATA%\yaat\backends\cuda13\` and activates them on the next launch. You can uninstall them from the same screen to reclaim the disk space.
+Speech recognition is optional and needs a one-time download, and an NVIDIA GPU is optional on top of that: everything runs on the CPU out of the box.
 
-This is opt-in because the CUDA runtime would have added ~1.5 GB to the base installer; most users don't need it.
+**The speech model.** Push-to-talk is refused until the speech model is downloaded. Open **Settings › Speech** and, under **Speech model**, download the default **rasr-parakeet v2 · fp32** (~2.55 GB), or **rasr-parakeet v2 · int8** (~0.67 GB) if your CPU has little memory. The status bar also links to this section while a push-to-talk is refused.
+
+**GPU for the speech model.** With an NVIDIA card, **Settings › Speech › Device** offers **Download GPU runtime** (~1.1 GB). It needs NVIDIA driver 580 or newer on Windows or Linux x64; until it is installed, the GPU option reads "Needs the GPU runtime below". Restart YAAT after choosing GPU. **Remove GPU runtime** from the same screen reclaims the disk space.
+
+**CUDA 13 for the language model and Whisper.** **Settings › Speech › Acceleration** has **Download CUDA 13 runtime** (~534 MB). It speeds up only the language model and the optional Whisper engine, not the default speech model. YAAT fetches the libraries into `%LOCALAPPDATA%\yaat\backends\cuda13\` and activates them on the next launch; uninstall them from the same screen to reclaim the disk space. This is Windows-only here and opt-in because the CUDA runtime would have added ~1.5 GB to the base installer.
 
 ### Linux prerequisites
 

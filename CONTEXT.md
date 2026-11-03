@@ -663,7 +663,7 @@ One alternative spoken wording of a rule's readback, a template over the rule pa
 ## Speech decoding
 
 **Bare form**:
-A runway, taxiway or gate spoken form that does not start with its noun ("three zero", "whiskey four"); the context decoder accepts one only after a lead-in word, since a bare number or NATO word usually means something else (docs/plans/yaat-343-context-layer.md).
+A runway, taxiway or gate spoken form that does not start with its noun ("three zero", "whiskey four"); the context decoder accepts one only after a lead-in word, since a bare number or NATO word usually means something else (docs/speech-context-decoder.md).
 
 **Leading candidate**:
 A callsign candidate whose span starts within the first tokens of a transmission and scores at least the say-again floor; when any candidate leads, no trailing one can be the addressee (`ContextDecoder`).
