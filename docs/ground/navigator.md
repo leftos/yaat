@@ -138,7 +138,9 @@ A route always ends with a virtual straight rollout segment past the arc exit. U
 
 Under a **rolling** clearance the phase completes at the fillet exit instead and never flies it: in a real rolling takeoff the throttle comes up as the aircraft straightens out of the turn, so that 80 ft of centerline alignment is the first 80 ft of the takeoff roll, not taxi preceding it.
 
-The segment stays in the route regardless, so a `CTOC` reverting the aircraft out of rolling mode still has somewhere to brake.
+The segment stays in the route regardless, so a `CTOC` reverting the aircraft out of rolling mode still has somewhere to brake. That `CTOC` (with a LUAW ahead) also drops the navigator's rolling speed floor (`LineUpPhase.ClearRollingSpeedFloor`), so the aircraft brakes onto the centerline rather than flowing the route at the floor.
+
+A rolling line-up passing a LUAW whose takeoff clearance is already given does not brake at the hand-off: `LinedUpAndWaitingPhase` publishes its 0 kt target in `OnStart`/`OnTick` only while it is still waiting on the clearance.
 
 When no departure-aligned onto-runway arc route resolves — a parallel-taxiway or shallow-angle hold-short with no clean junction arc (issues #142, #193) — it falls back to the synthetic geometric pivot: `LineUpGeometry` produces a `LineUpPathPlan` consuming `PathPrimitiveSlowTurn` **geometry**, played back with its own `LineUpArcPlayback` integrator, not via `GroundNavigator`.
 

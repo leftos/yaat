@@ -2576,9 +2576,17 @@ internal static class DepartureClearanceHandler
                 upcomingLuaw.Departure = null;
                 upcomingLuaw.AssignedAltitude = null;
                 aircraft.Targets.AssignedAltitude = null;
-                // Hold position immediately — do not continue rolling onto the
-                // runway (7110.65 §3-9-11). The upcoming LUAW (now unsatisfied)
+                // 7110.65 §3-9-11 lets the controller cancel a takeoff clearance at
+                // any time. The aircraft stops where it is — it does not continue
+                // rolling onto the runway — and the upcoming LUAW (now unsatisfied)
                 // makes the aircraft hold if a fresh CTO later resumes the line-up.
+                // When a mid-line-up CTO upgraded the line-up to rolling, revert
+                // that upgrade: left in rolling mode with the navigator's floor up,
+                // a line-up later released by LUAW instead of a fresh CTO flows the
+                // graph route at the floor to the end of its rollout and hard-snaps
+                // to zero there instead of braking onto the centerline.
+                lineup.RollingMode = false;
+                lineup.ClearRollingSpeedFloor();
                 lineup.HoldPosition = true;
                 return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold in position{CommandDispatcher.RunwayLabel(aircraft)}");
             }

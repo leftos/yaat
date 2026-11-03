@@ -1030,6 +1030,13 @@ public sealed class LineUpPhase : Phase
     internal void ClearRollingSpeedFloor() => _navigator?.MinSpeedKts = 0;
 
     /// <summary>
+    /// The graph navigator's current speed floor (kts): the rolling floor <see cref="TryUpgradeToRolling"/> and a
+    /// rolling <see cref="StartGraphRoute"/> raise, and <see cref="ClearRollingSpeedFloor"/> drops. 0 in the
+    /// synthetic states and before a graph route is planned.
+    /// </summary>
+    internal double NavigatorSpeedFloorKts => _navigator?.MinSpeedKts ?? 0.0;
+
+    /// <summary>
     /// First tick after a snapshot restore, keeping the <see cref="RollingMode"/> the snapshot carried (a mid-phase CTO
     /// upgrade or a CTOC revert may have moved it away from what the phase list alone implies).
     ///

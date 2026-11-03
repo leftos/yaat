@@ -66,7 +66,15 @@ public sealed class LinedUpAndWaitingPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Aircraft.IsOnGround = true;
-        ctx.Targets.TargetSpeed = 0;
+        // A phase that starts with its clearance already in hand completes on its first tick: a rolling
+        // line-up passes through it for one sub-tick, and publishing the stop would brake the hand-off
+        // speed TakeoffPhase seeds its roll clock from (a jet's taxi brake costs 1.25 kt in 0.25 s). A
+        // phase actually waiting on the controller still stops the aircraft.
+        if (!HasTakeoffClearance)
+        {
+            ctx.Targets.TargetSpeed = 0;
+        }
+
         // Cross-runway closed traffic holds aligned with the DEPARTURE runway.
         RunwayInfo? rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
         if (rwy is not null)
@@ -85,8 +93,13 @@ public sealed class LinedUpAndWaitingPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        // Hold position until ClearedForTakeoff is satisfied
-        ctx.Targets.TargetSpeed = 0;
+        // Hold position until ClearedForTakeoff is satisfied. A phase that is already satisfied completes on
+        // this tick, so the stop is skipped for the same reason as OnStart: it would only brake the rolling
+        // hand-off by the sub-tick it takes to leave.
+        if (!HasTakeoffClearance)
+        {
+            ctx.Targets.TargetSpeed = 0;
+        }
 
         if (
             !ctx.Aircraft.HasAnnouncedLinedUpReady
