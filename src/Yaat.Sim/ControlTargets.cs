@@ -238,6 +238,22 @@ public class ControlTargets
     }
 }
 
+/// <summary>
+/// The speed instruction a crossing's fix resumes past it (<see cref="NavigationTarget.RevertResume"/>), when one that
+/// leaves no speed to fly was given in the crossing's own transmission: "cross X at 250, then resume normal speed".
+/// </summary>
+public enum SpeedResumeKind
+{
+    /// <summary>RNS: the assignment ends and the default schedule, with the procedure's published speeds, takes over.</summary>
+    Normal,
+
+    /// <summary>RPS: as <see cref="Normal"/>, and a DSR in force is undone.</summary>
+    Published,
+
+    /// <summary>DSR: the assignment ends and the procedure's published speeds are deleted.</summary>
+    Deleted,
+}
+
 public class NavigationTarget
 {
     public required string Name { get; init; }
@@ -291,6 +307,24 @@ public class NavigationTarget
     public bool RevertSpeedMax { get; set; }
 
     /// <summary>
+    /// The "maintain n knots or greater" floor restored with <see cref="RevertSpeed"/> past this fix, from the same
+    /// capture; null when none was in force.
+    /// </summary>
+    public double? RevertSpeedFloor { get; set; }
+
+    /// <summary>
+    /// The "do not exceed n knots" ceiling restored with <see cref="RevertSpeed"/> past this fix, from the same capture;
+    /// null when none was in force.
+    /// </summary>
+    public double? RevertSpeedCeiling { get; set; }
+
+    /// <summary>
+    /// The RNS, RPS or DSR given in this fix's crossing transmission after the crossing speed: past the fix the aircraft
+    /// does what that instruction does, in place of a speed revert. Null when none was.
+    /// </summary>
+    public SpeedResumeKind? RevertResume { get; set; }
+
+    /// <summary>
     /// The Mach a fix's speed reverts to past it, when the CFIX speed replaced a Mach hold: past the fix the Mach is held
     /// again in place of <see cref="RevertSpeed"/> and <see cref="RevertAssignedSpeed"/>, which stay null.
     /// </summary>
@@ -342,6 +376,9 @@ public class NavigationTarget
             RevertSpeed = RevertSpeed,
             RevertAssignedSpeed = RevertAssignedSpeed,
             RevertSpeedMax = RevertSpeedMax,
+            RevertSpeedFloor = RevertSpeedFloor,
+            RevertSpeedCeiling = RevertSpeedCeiling,
+            RevertResume = (int?)RevertResume,
             RevertMach = RevertMach,
             RevertMachExplicit = RevertMachExplicit,
             TerminalCourseMagnetic = TerminalCourseMagnetic,
@@ -370,6 +407,9 @@ public class NavigationTarget
             RevertSpeed = dto.RevertSpeed,
             RevertAssignedSpeed = dto.RevertAssignedSpeed,
             RevertSpeedMax = dto.RevertSpeedMax,
+            RevertSpeedFloor = dto.RevertSpeedFloor,
+            RevertSpeedCeiling = dto.RevertSpeedCeiling,
+            RevertResume = (SpeedResumeKind?)dto.RevertResume,
             RevertMach = dto.RevertMach,
             RevertMachExplicit = dto.RevertMachExplicit,
             TerminalCourseMagnetic = dto.TerminalCourseMagnetic,

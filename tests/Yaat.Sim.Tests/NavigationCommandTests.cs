@@ -1429,6 +1429,43 @@ public class NavigationCommandTests : IDisposable
         Assert.Equal(300, sunolTarget.RevertAssignedSpeed);
     }
 
+    /// <summary>
+    /// YAAT-1452: a crossing speed restated on the same fix changes the crossing figure, not what the aircraft goes back to
+    /// past the fix: the first crossing's revert stays.
+    /// </summary>
+    [Fact]
+    public void Cfix_Restated_KeepsTheFirstRevert()
+    {
+        NavigationDatabase realDb = Assert.IsType<NavigationDatabase>(TestVnasData.NavigationDb);
+        using IDisposable realScope = NavigationDatabase.ScopedOverride(realDb);
+        (double pmdLat, double pmdLon) = Assert.IsType<(double Lat, double Lon)>(realDb.GetFixPosition("PMD"));
+        AircraftState aircraft = MakeAircraft(heading: 270, altitude: 15_000, lat: pmdLat, lon: pmdLon + 0.3);
+        aircraft.IndicatedAirspeed = 300;
+        aircraft.Targets.TargetAltitude = 15_000;
+
+        string[] transmissions = ["SPD 300", "CFIX PMD 110 280", "CFIX PMD 110 250"];
+        foreach (string text in transmissions)
+        {
+            ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
+            Assert.True(parsed.IsSuccess, $"'{text}' should parse: {parsed.Reason}");
+            CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
+            Assert.True(result.Success, $"'{text}': {result.Message}");
+        }
+
+        NavigationTarget pmd = Assert.Single(aircraft.Targets.NavigationRoute, t => t.Name == "PMD");
+        Assert.Equal(250, Assert.IsType<CifpSpeedRestriction>(pmd.SpeedRestriction).SpeedKts);
+        Assert.Equal(300, pmd.RevertSpeed);
+        Assert.Equal(300, pmd.RevertAssignedSpeed);
+
+        for (int tick = 0; (tick < 4 * 3_600) && aircraft.Targets.NavigationRoute.Exists(t => t.Name == "PMD"); tick++)
+        {
+            FlightPhysics.Update(aircraft, 0.25);
+        }
+
+        Assert.DoesNotContain(aircraft.Targets.NavigationRoute, t => t.Name == "PMD");
+        Assert.Equal(300, aircraft.Targets.AssignedSpeed);
+    }
+
     // --- ApplyFixConstraints works without via mode ---
 
     [Fact]

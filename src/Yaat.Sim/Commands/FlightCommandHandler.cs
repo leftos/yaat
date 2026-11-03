@@ -260,7 +260,6 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedOverridesFinalGate = cmd.Force;
         aircraft.Targets.SpeedLimitsLifted = false;
         aircraft.Targets.SpeedMaxHeld = false;
-        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
 
         // ATC speed supersedes the procedural last-published-speed memory.
         aircraft.Procedure.LastProcedureSpeedKts = null;
@@ -285,6 +284,8 @@ internal static class FlightCommandHandler
                 aircraft.Targets.SpeedCeiling = null;
                 break;
         }
+
+        NavigationCommandHandler.CancelEarlierCrossingSpeeds(aircraft, ctx.TransmissionId, null);
 
         if (flooredForHeli)
         {
@@ -585,19 +586,41 @@ internal static class FlightCommandHandler
         FlightPhysics.ApplyNextPublishedSpeed(aircraft);
     }
 
-    internal static CommandResult ApplyResumeNormalSpeed(AircraftState aircraft) => ResumeSpeed(aircraft, "Resume normal speed");
+    internal static CommandResult ApplyResumeNormalSpeed(AircraftState aircraft, DispatchContext ctx) =>
+        ResumeSpeed(aircraft, ctx, SpeedResumeKind.Normal, "Resume normal speed");
 
     /// <summary>
     /// RPS, "resume published speed": everything "resume normal speed" does, and it also undoes a DSR, so the
     /// procedure's published speeds apply again and the last crossed one is held as the ceiling.
     /// </summary>
-    internal static CommandResult ApplyResumePublishedSpeed(AircraftState aircraft)
+    internal static CommandResult ApplyResumePublishedSpeed(AircraftState aircraft, DispatchContext ctx) =>
+        ResumeSpeed(aircraft, ctx, SpeedResumeKind.Published, "Resume published speed");
+
+    /// <summary>
+    /// The end state of RNS, RPS or DSR (<paramref name="kind"/>), written by the command and, for one given in a
+    /// crossing's own transmission, past the crossing's fix (<see cref="NavigationTarget.RevertResume"/>). RNS ends the
+    /// ATC assignment, keeping a floor the procedure set, and on a STAR resumes its published speeds; RPS also undoes a
+    /// DSR first; DSR ends the assignment and deletes the published speeds.
+    /// </summary>
+    internal static void ApplySpeedResume(AircraftState aircraft, SpeedResumeKind kind)
     {
-        aircraft.Procedure.SpeedRestrictionsDeleted = false;
-        return ResumeSpeed(aircraft, "Resume published speed");
+        if (kind == SpeedResumeKind.Deleted)
+        {
+            CancelAssignedSpeed(aircraft);
+            aircraft.Procedure.SpeedRestrictionsDeleted = true;
+            return;
+        }
+
+        if (kind == SpeedResumeKind.Published)
+        {
+            aircraft.Procedure.SpeedRestrictionsDeleted = false;
+        }
+
+        CancelAssignedSpeedKeepingProcedureFloor(aircraft);
+        ResumePublishedStarSpeeds(aircraft);
     }
 
-    private static CommandResult ResumeSpeed(AircraftState aircraft, string readback)
+    private static CommandResult ResumeSpeed(AircraftState aircraft, DispatchContext ctx, SpeedResumeKind kind, string readback)
     {
         // On a taxiing aircraft, resume the category-default taxi speed (clear the cap/expedite);
         // the airborne speed targets below are navigator-owned on the ground and left untouched.
@@ -608,9 +631,7 @@ internal static class FlightCommandHandler
             return CommandDispatcher.Ok("Resume normal taxi speed");
         }
 
-        CancelAssignedSpeedKeepingProcedureFloor(aircraft);
-        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
-        ResumePublishedStarSpeeds(aircraft);
+        NavigationCommandHandler.CancelEarlierCrossingSpeeds(aircraft, ctx.TransmissionId, kind);
 
         // Clearing the fields above is the whole command in most cases, but on a final approach it can leave the
         // arrival flying exactly what it already was — and an answer of "Resume normal speed" then reads as a speed
@@ -688,7 +709,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Targets.SpeedLimitsLifted = false;
         aircraft.Targets.SpeedMaxHeld = false;
-        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
+        NavigationCommandHandler.CancelEarlierCrossingSpeeds(aircraft, ctx.TransmissionId, null);
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Reduce to final approach speed ({approachSpeed:F0} kts)");
     }
@@ -697,21 +718,9 @@ internal static class FlightCommandHandler
     private static double FinalApproachSpeed(AircraftState aircraft) =>
         AircraftPerformance.ApproachSpeed(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
 
-    internal static CommandResult ApplyDeleteSpeedRestrictions(AircraftState aircraft)
+    internal static CommandResult ApplyDeleteSpeedRestrictions(AircraftState aircraft, DispatchContext ctx)
     {
-        aircraft.Targets.TargetSpeed = null;
-        aircraft.Targets.AssignedSpeed = null;
-        aircraft.Targets.SpeedFloor = null;
-        aircraft.Targets.SpeedCeiling = null;
-        aircraft.Targets.TargetMach = null;
-        aircraft.Targets.HasExplicitSpeedCommand = false;
-        aircraft.Targets.SpeedCommandIsControllerIssued = false;
-        aircraft.Targets.SpeedOverridesFinalGate = false;
-        aircraft.Targets.SpeedLimitsLifted = false;
-        aircraft.Targets.SpeedMaxHeld = false;
-        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
-        aircraft.Procedure.SpeedRestrictionsDeleted = true;
-        aircraft.Procedure.LastProcedureSpeedKts = null;
+        NavigationCommandHandler.CancelEarlierCrossingSpeeds(aircraft, ctx.TransmissionId, SpeedResumeKind.Deleted);
         return CommandDispatcher.Ok("Speed restrictions deleted");
     }
 
@@ -853,7 +862,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Targets.SpeedLimitsLifted = false;
         aircraft.Targets.SpeedMaxHeld = false;
-        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
+        NavigationCommandHandler.CancelEarlierCrossingSpeeds(aircraft, ctx.TransmissionId, null);
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Maintain Mach {cmd.MachNumber:F2}");
     }
@@ -885,6 +894,7 @@ internal static class FlightCommandHandler
         }
 
         ArmSpeedMax(aircraft, controllerIssued: !ctx.IsScenarioScripted);
+        NavigationCommandHandler.CancelEarlierCrossingSpeeds(aircraft, ctx.TransmissionId, null);
         return CommandDispatcher.Ok("Maintain maximum forward speed");
     }
 
@@ -968,7 +978,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedOverridesFinalGate = true;
         aircraft.Targets.SpeedLimitsLifted = true;
         aircraft.Targets.SpeedMaxHeld = false;
-        NavigationCommandHandler.DropSpeedMaxReverts(aircraft);
+        NavigationCommandHandler.CancelEarlierCrossingSpeeds(aircraft, ctx.TransmissionId, null);
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
     }

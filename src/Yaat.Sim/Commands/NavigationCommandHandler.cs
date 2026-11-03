@@ -157,6 +157,9 @@ internal static class NavigationCommandHandler
                 RevertAssignedAltitude = existing?.RevertAssignedAltitude,
                 RevertSpeed = existing?.RevertSpeed,
                 RevertAssignedSpeed = existing?.RevertAssignedSpeed,
+                RevertSpeedFloor = existing?.RevertSpeedFloor,
+                RevertSpeedCeiling = existing?.RevertSpeedCeiling,
+                RevertResume = existing?.RevertResume,
                 RevertMach = existing?.RevertMach,
                 RevertMachExplicit = existing?.RevertMachExplicit,
                 CrossingTransmissionId = existing?.CrossingTransmissionId,
@@ -226,6 +229,150 @@ internal static class NavigationCommandHandler
     /// transmission that set it, as they were. A crossing speed the type can fly neither at its present altitude nor at the
     /// crossing altitude is refused before anything changes, as SPD is (<see cref="FlightCommandHandler.RefuseUnflyableSpeed"/>).
     /// </summary>
+    /// <summary>
+    /// The speed state a CFIX speed replaces, captured when the CFIX is issued and restored past its fix: SMAX's re-arm
+    /// when SMAX is in force or waits to be armed again (<see cref="SpeedMaxPending"/>), else the Mach hold, else the
+    /// plain target speed with its assignment and its bounds. <see cref="Plain"/> says the last applies.
+    /// </summary>
+    private readonly record struct SpeedRevertCapture(
+        bool SpeedMax,
+        double? Mach,
+        bool? MachExplicit,
+        bool Plain,
+        double? Speed,
+        double? AssignedSpeed,
+        double? Floor,
+        double? Ceiling
+    )
+    {
+        internal void WriteTo(NavigationTarget fix)
+        {
+            fix.RevertSpeed = Speed;
+            fix.RevertAssignedSpeed = AssignedSpeed;
+            fix.RevertSpeedFloor = Floor;
+            fix.RevertSpeedCeiling = Ceiling;
+            fix.RevertMach = Mach;
+            fix.RevertMachExplicit = MachExplicit;
+            fix.RevertSpeedMax = SpeedMax;
+            fix.RevertResume = null;
+        }
+    }
+
+    /// <summary>
+    /// What a crossing speed issued now replaces (<see cref="SpeedRevertCapture"/>); nothing when it reverts no speed. A
+    /// speed restated while SMAX is in force, or while it waits to be armed again past another crossing, reverts to SMAX
+    /// past the last crossing (<see cref="PlaceSpeedMaxRevert"/>), not to a figure it flew. A Mach hold the speed replaces
+    /// is restored past the fix in place of a plain speed, and one nobody assigned (live traffic) restores with no
+    /// assigned speed, as it had none before.
+    /// </summary>
+    private static SpeedRevertCapture CaptureSpeedRevert(AircraftState aircraft, bool revertsSpeed)
+    {
+        ControlTargets targets = aircraft.Targets;
+        bool speedMax = revertsSpeed && SpeedMaxPending(aircraft);
+        double? mach = (revertsSpeed && !speedMax) ? targets.TargetMach : null;
+        if (revertsSpeed && !speedMax && (mach is null))
+        {
+            return new SpeedRevertCapture(
+                false,
+                null,
+                null,
+                true,
+                targets.TargetSpeed,
+                targets.AssignedSpeed,
+                targets.SpeedFloor,
+                targets.SpeedCeiling
+            );
+        }
+
+        bool? machExplicit = (mach is not null) ? targets.HasExplicitSpeedCommand : null;
+        return new SpeedRevertCapture(speedMax, mach, machExplicit, false, null, null, null, null);
+    }
+
+    /// <summary>The speed reverts already on a route before a CFIX stamps its fix: the Mach revert, the plain one and a resume.</summary>
+    private readonly record struct PendingSpeedReverts(
+        double? Mach,
+        bool? MachExplicit,
+        NavigationTarget? PlainHolder,
+        double? Speed,
+        double? AssignedSpeed,
+        double? Floor,
+        double? Ceiling,
+        SpeedResumeKind? Resume
+    )
+    {
+        internal static PendingSpeedReverts Read(List<NavigationTarget> route)
+        {
+            NavigationTarget? machHolder = route.Find(fix => fix.RevertMach is not null);
+            NavigationTarget? plainHolder = route.Find(HasPlainRevert);
+            return new PendingSpeedReverts(
+                machHolder?.RevertMach,
+                machHolder?.RevertMachExplicit,
+                plainHolder,
+                plainHolder?.RevertSpeed,
+                plainHolder?.RevertAssignedSpeed,
+                plainHolder?.RevertSpeedFloor,
+                plainHolder?.RevertSpeedCeiling,
+                route.Find(fix => fix.RevertResume is not null)?.RevertResume
+            );
+        }
+    }
+
+    private static bool HasPlainRevert(NavigationTarget fix) =>
+        (fix.RevertSpeed is not null)
+        || (fix.RevertAssignedSpeed is not null)
+        || (fix.RevertSpeedFloor is not null)
+        || (fix.RevertSpeedCeiling is not null);
+
+    /// <summary>
+    /// After a CFIX stamps a crossing speed, leaves one speed revert on the route, on the route-order-last fix whose speed
+    /// the controller set, so every crossing speed before it is flown first: SMAX's re-arm (<see cref="PlaceSpeedMaxRevert"/>);
+    /// else the Mach revert already pending (<see cref="PlaceMachRevert"/>); else, for a plain capture, the resume or the
+    /// plain revert already pending, from the one capture that made it, or the one captured now unless this CFIX restates
+    /// a crossing speed (<paramref name="speedRestated"/>) and so captures none.
+    /// </summary>
+    private static void PlaceCrossingSpeedReverts(
+        List<NavigationTarget> route,
+        SpeedRevertCapture capture,
+        PendingSpeedReverts pending,
+        bool speedRestated
+    )
+    {
+        if (capture.SpeedMax)
+        {
+            PlaceSpeedMaxRevert(route);
+            return;
+        }
+
+        if (capture.Mach is not null)
+        {
+            return;
+        }
+
+        if (pending.Mach is { } mach)
+        {
+            PlaceMachRevert(route, mach, pending.MachExplicit);
+            return;
+        }
+
+        if (!capture.Plain)
+        {
+            return;
+        }
+
+        if (pending.Resume is { } resume)
+        {
+            PlaceResumeRevert(route, resume);
+        }
+        else if (pending.PlainHolder is not null)
+        {
+            PlacePlainRevert(route, pending.Speed, pending.AssignedSpeed, pending.Floor, pending.Ceiling);
+        }
+        else if (!speedRestated)
+        {
+            PlacePlainRevert(route, capture.Speed, capture.AssignedSpeed, capture.Floor, capture.Ceiling);
+        }
+    }
+
     internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
         if (
@@ -245,15 +392,7 @@ internal static class NavigationCommandHandler
         double? previousAssignedAlt = revertsAltitude ? aircraft.Targets.AssignedAltitude : null;
         // A speed restated while SMAX is in force, or while it waits to be armed again past another crossing, reverts to
         // SMAX past the last crossing (PlaceSpeedMaxRevert), not to a figure it flew.
-        bool revertsSpeed = (cmd.Speed is not null) && !restatedWithVia;
-        bool previousSpeedMax = revertsSpeed && SpeedMaxPending(aircraft);
-        // A Mach hold the CFIX speed replaces goes too, and is restored past the fix in place of a plain speed revert.
-        double? previousMach = (revertsSpeed && !previousSpeedMax) ? aircraft.Targets.TargetMach : null;
-        // A Mach nobody assigned (live traffic) restores with no assigned speed, as it had none before the CFIX.
-        bool? previousMachExplicit = (previousMach is not null) ? aircraft.Targets.HasExplicitSpeedCommand : null;
-        bool revertsPlainSpeed = (revertsSpeed && !previousSpeedMax) && (previousMach is null);
-        double? previousSpeed = revertsPlainSpeed ? aircraft.Targets.TargetSpeed : null;
-        double? previousAssignedSpeed = revertsPlainSpeed ? aircraft.Targets.AssignedSpeed : null;
+        SpeedRevertCapture capture = CaptureSpeedRevert(aircraft, revertsSpeed: (cmd.Speed is not null) && !restatedWithVia);
 
         CifpAltitudeRestriction altRestriction = FlightCommandHandler.ToAltitudeRestriction(cmd.Altitude, cmd.AltType);
         CifpSpeedRestriction? speedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null;
@@ -261,11 +400,10 @@ internal static class NavigationCommandHandler
         // Id 0 is no transmission (a queued block restored from a snapshot written before blocks carried one).
         int? crossingTransmissionId = StampedTransmission(transmissionId);
 
-        // The Mach revert already on the route is read before the stamp below, which clears it when this CFIX restates the
-        // speed on the fix that holds it.
-        NavigationTarget? machHolder = aircraft.Targets.NavigationRoute.Find(fix => fix.RevertMach is not null);
-        double? pendingMach = machHolder?.RevertMach;
-        bool? pendingMachExplicit = machHolder?.RevertMachExplicit;
+        // The reverts already on the route are read before the stamp below, which clears them when this CFIX restates the
+        // speed on the fix that holds them.
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        var pending = PendingSpeedReverts.Read(route);
 
         // CFIX names a fix that is already on the route. Stamp the restriction on that fix in
         // place, preserving the rest of the route (fixes before and after) and any restriction
@@ -274,56 +412,31 @@ internal static class NavigationCommandHandler
         // the end of the route rather than wiping the route — so a chain of CFIX on a vectored
         // aircraft builds a crossing profile in issue order. An empty route therefore becomes a
         // single-fix direct route.
-        NavigationTarget? existing = aircraft.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
-        if (existing is not null)
+        NavigationTarget? existing = route.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
+        // A crossing speed restated on a fix whose speed a controller already set, in any transmission, changes the
+        // crossing figure only: what the aircraft goes back to past the fix is still what the first crossing replaced
+        // (YAAT-1452). A later speed instruction in between has already cleared the stamp (CancelEarlierCrossingSpeeds).
+        bool speedRestated = (speedRestriction is not null) && (existing?.SpeedTransmissionId is not null);
+        NavigationTarget fix = existing ?? new NavigationTarget { Name = cmd.FixName, Position = new LatLon(cmd.FixLat, cmd.FixLon) };
+        if (existing is null)
         {
-            existing.AltitudeRestriction = altRestriction;
-            existing.RevertAltitude = previousAlt;
-            existing.RevertAssignedAltitude = previousAssignedAlt;
-            existing.CrossingTransmissionId = crossingTransmissionId;
-            if (speedRestriction is not null)
+            route.Add(fix);
+        }
+
+        fix.AltitudeRestriction = altRestriction;
+        fix.RevertAltitude = previousAlt;
+        fix.RevertAssignedAltitude = previousAssignedAlt;
+        fix.CrossingTransmissionId = crossingTransmissionId;
+        if (speedRestriction is not null)
+        {
+            fix.SpeedRestriction = speedRestriction;
+            fix.SpeedTransmissionId = crossingTransmissionId;
+            if (!speedRestated)
             {
-                existing.SpeedRestriction = speedRestriction;
-                existing.SpeedTransmissionId = crossingTransmissionId;
-                existing.RevertSpeed = previousSpeed;
-                existing.RevertAssignedSpeed = previousAssignedSpeed;
-                existing.RevertMach = previousMach;
-                existing.RevertMachExplicit = previousMachExplicit;
-                existing.RevertSpeedMax = previousSpeedMax;
+                capture.WriteTo(fix);
             }
-        }
-        else
-        {
-            aircraft.Targets.NavigationRoute.Add(
-                new NavigationTarget
-                {
-                    Name = cmd.FixName,
-                    Position = new LatLon(cmd.FixLat, cmd.FixLon),
-                    AltitudeRestriction = altRestriction,
-                    SpeedRestriction = speedRestriction,
-                    RevertAltitude = previousAlt,
-                    RevertAssignedAltitude = previousAssignedAlt,
-                    RevertSpeed = previousSpeed,
-                    RevertAssignedSpeed = previousAssignedSpeed,
-                    RevertMach = previousMach,
-                    RevertMachExplicit = previousMachExplicit,
-                    RevertSpeedMax = previousSpeedMax,
-                    CrossingTransmissionId = crossingTransmissionId,
-                    SpeedTransmissionId = (speedRestriction is not null) ? crossingTransmissionId : null,
-                }
-            );
-        }
 
-        if (previousSpeedMax)
-        {
-            PlaceSpeedMaxRevert(aircraft.Targets.NavigationRoute);
-        }
-
-        // A Mach revert already on the route moves to the last crossing speed the controller set: a later crossing is
-        // flown first and the Mach comes back past it, as SMAX's re-arm moves (PlaceSpeedMaxRevert).
-        if ((speedRestriction is not null) && (previousMach is null) && !previousSpeedMax && (pendingMach is { } mach))
-        {
-            PlaceMachRevert(aircraft.Targets.NavigationRoute, mach, pendingMachExplicit);
+            PlaceCrossingSpeedReverts(route, capture, pending, speedRestated);
         }
 
         // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
@@ -1696,11 +1809,7 @@ internal static class NavigationCommandHandler
 
             fix.RevertAltitude = null;
             fix.RevertAssignedAltitude = null;
-            fix.RevertSpeed = null;
-            fix.RevertAssignedSpeed = null;
-            fix.RevertMach = null;
-            fix.RevertMachExplicit = null;
-            fix.RevertSpeedMax = false;
+            ClearSpeedReverts(fix);
         }
     }
 
@@ -1722,8 +1831,10 @@ internal static class NavigationCommandHandler
             (fix.SpeedTransmissionId is not null)
             || (fix.RevertSpeed is not null)
             || (fix.RevertAssignedSpeed is not null)
+            || HasPlainRevert(fix)
             || (fix.RevertMach is not null)
             || fix.RevertSpeedMax
+            || (fix.RevertResume is not null)
             || published.Value.ContainsKey(fix.Name)
         );
 
@@ -1750,32 +1861,138 @@ internal static class NavigationCommandHandler
     /// An approach clearance cancels every speed assigned before it (7110.65 5-7-1.d), so no crossing restriction on the
     /// route may restore one past its fix: every fix drops its speed reverts, as a via clearance's
     /// <see cref="SupersedeEarlierCrossingRestrictions"/> drops them. The crossing restrictions stay; an earlier
-    /// transmission's crossing speed goes back to the published one in <see cref="RestorePublishedSpeedsForApproach"/>.
+    /// transmission's crossing speed goes back to the published one in <see cref="RestorePublishedSpeedsOfEarlierCrossings"/>.
     /// </summary>
     internal static void DropSpeedReverts(AircraftState aircraft)
     {
         foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
         {
-            fix.RevertSpeed = null;
-            fix.RevertAssignedSpeed = null;
-            fix.RevertMach = null;
-            fix.RevertMachExplicit = null;
-            fix.RevertSpeedMax = false;
+            ClearSpeedReverts(fix);
+        }
+    }
+
+    /// <summary>Clears every speed revert on <paramref name="fix"/>: plain (with its bounds), Mach, SMAX's re-arm and resume.</summary>
+    private static void ClearSpeedReverts(NavigationTarget fix)
+    {
+        fix.RevertSpeed = null;
+        fix.RevertAssignedSpeed = null;
+        fix.RevertSpeedFloor = null;
+        fix.RevertSpeedCeiling = null;
+        fix.RevertMach = null;
+        fix.RevertMachExplicit = null;
+        fix.RevertSpeedMax = false;
+        fix.RevertResume = null;
+    }
+
+    /// <summary>
+    /// A speed instruction (SPD, SPEEDF, SPDN, MACH, SMAX, RNS, RPS, DSR, RFAS) from a later transmission than a crossing
+    /// restriction's cancels the crossing's speed, as an approach clearance does (7110.65 5-7-1; AIM 4-4-12.f.1): each
+    /// fix whose speed an earlier transmission set gets its published speed back and loses its speed stamp
+    /// (<see cref="RestorePublishedSpeedsOfEarlierCrossings"/>), every speed revert on the route goes
+    /// (<see cref="DropSpeedReverts"/>), and the crossing altitudes stay. The aircraft flies the new instruction now, at
+    /// the fix and past it. Called once the instruction has set the aircraft's speed state; an RNS, RPS or DSR passes its
+    /// <paramref name="resume"/>, and its end state (<see cref="FlightCommandHandler.ApplySpeedResume"/>) is written here,
+    /// after the published speeds are back.
+    /// <para>A crossing speed the same transmission (<paramref name="transmissionId"/>) set before the instruction
+    /// ("CFIX PMD 110 250, SPD 280") stands: the instruction becomes what the aircraft goes back to past the last
+    /// controller-set crossing (the resume, SMAX's re-arm, the Mach hold, or the plain speed with its assignment and
+    /// bounds), and the first such crossing's speed is the assigned speed again, as
+    /// <see cref="KeepTransmissionCrossingSpeed"/> leaves it. A speed bound and a DSR's deletion wait for the fix, so
+    /// neither overrides the crossing before it. Under an explicit speed the look-ahead planner stands aside, so the
+    /// crossing speed is the target speed too.</para>
+    /// </summary>
+    internal static void CancelEarlierCrossingSpeeds(AircraftState aircraft, int transmissionId, SpeedResumeKind? resume)
+    {
+        RestorePublishedSpeedsOfEarlierCrossings(aircraft, transmissionId);
+        DropSpeedReverts(aircraft);
+        if (resume is { } resumed)
+        {
+            FlightCommandHandler.ApplySpeedResume(aircraft, resumed);
+        }
+
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        NavigationTarget? firstCrossing = route.Find(fix => IsSpeedStampedBy(fix, transmissionId) && (fix.SpeedRestriction is not null));
+        if (firstCrossing?.SpeedRestriction is not { } crossing)
+        {
+            return;
+        }
+
+        ControlTargets targets = aircraft.Targets;
+        if (resume is { } kind)
+        {
+            PlaceResumeRevert(route, kind);
+            if (kind == SpeedResumeKind.Deleted)
+            {
+                // DSR stops the planner and the published speeds; the crossing is flown first and the deletion applies at it.
+                aircraft.Procedure.SpeedRestrictionsDeleted = false;
+            }
+        }
+        else if (targets.SpeedMaxHeld)
+        {
+            PlaceSpeedMaxRevert(route);
+        }
+        else if (targets.TargetMach is { } mach)
+        {
+            PlaceMachRevert(route, mach, targets.HasExplicitSpeedCommand);
+        }
+        else
+        {
+            PlacePlainRevert(route, targets.TargetSpeed, targets.AssignedSpeed, targets.SpeedFloor, targets.SpeedCeiling);
+            targets.SpeedFloor = null;
+            targets.SpeedCeiling = null;
+        }
+
+        FlightCommandHandler.EndMachHoldAndSpeedMax(aircraft);
+        targets.AssignedSpeed = crossing.SpeedKts;
+        if (targets.HasExplicitSpeedCommand)
+        {
+            targets.TargetSpeed = crossing.SpeedKts;
         }
     }
 
     /// <summary>
-    /// A controller speed instruction given after a crossing restriction stands past its fix (7110.65 5-7-1; AIM
-    /// 4-4-12.f.1), so SMAX is armed again on no route fix (<see cref="NavigationTarget.RevertSpeedMax"/>) and no fix
-    /// holds a Mach to restore (<see cref="NavigationTarget.RevertMach"/>). Plain speed reverts are left as they are.
+    /// The plain counterpart of <see cref="PlaceMachRevert"/>: the speed, assignment and bounds a crossing goes back to
+    /// (<see cref="NavigationTarget.RevertSpeed"/>, <see cref="NavigationTarget.RevertAssignedSpeed"/>,
+    /// <see cref="NavigationTarget.RevertSpeedFloor"/>, <see cref="NavigationTarget.RevertSpeedCeiling"/>), from one
+    /// capture, sit on the route-order-last fix whose speed the controller set
+    /// (<see cref="FlightPhysics.IsControllerSetSpeed"/>) and on no other, so every crossing speed before it is flown
+    /// first. The fix that holds them keeps no resume.
     /// </summary>
-    internal static void DropSpeedMaxReverts(AircraftState aircraft)
+    internal static void PlacePlainRevert(List<NavigationTarget> route, double? speed, double? assignedSpeed, double? floor, double? ceiling)
     {
-        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        int last = route.FindLastIndex(FlightPhysics.IsControllerSetSpeed);
+        for (int i = 0; i < route.Count; i++)
         {
-            fix.RevertMach = null;
-            fix.RevertMachExplicit = null;
-            fix.RevertSpeedMax = false;
+            bool holds = i == last;
+            route[i].RevertSpeed = holds ? speed : null;
+            route[i].RevertAssignedSpeed = holds ? assignedSpeed : null;
+            route[i].RevertSpeedFloor = holds ? floor : null;
+            route[i].RevertSpeedCeiling = holds ? ceiling : null;
+        }
+
+        if (last >= 0)
+        {
+            route[last].RevertResume = null;
+        }
+    }
+
+    /// <summary>
+    /// Puts an RNS, RPS or DSR given in a crossing's own transmission (<see cref="NavigationTarget.RevertResume"/>) on the
+    /// route-order-last fix whose speed the controller set, as <see cref="PlacePlainRevert"/> places a speed, and clears it
+    /// on every other fix. The fix that holds it keeps no other speed revert.
+    /// </summary>
+    internal static void PlaceResumeRevert(List<NavigationTarget> route, SpeedResumeKind resume)
+    {
+        int last = route.FindLastIndex(FlightPhysics.IsControllerSetSpeed);
+        foreach (NavigationTarget fix in route)
+        {
+            fix.RevertResume = null;
+        }
+
+        if (last >= 0)
+        {
+            ClearSpeedReverts(route[last]);
+            route[last].RevertResume = resume;
         }
     }
 
@@ -1804,8 +2021,11 @@ internal static class NavigationCommandHandler
         {
             route[last].RevertSpeed = null;
             route[last].RevertAssignedSpeed = null;
+            route[last].RevertSpeedFloor = null;
+            route[last].RevertSpeedCeiling = null;
             route[last].RevertMach = null;
             route[last].RevertMachExplicit = null;
+            route[last].RevertResume = null;
         }
 
         return last >= 0;
@@ -1835,17 +2055,21 @@ internal static class NavigationCommandHandler
         route[last].RevertMachExplicit = explicitFlag;
         route[last].RevertSpeed = null;
         route[last].RevertAssignedSpeed = null;
+        route[last].RevertSpeedFloor = null;
+        route[last].RevertSpeedCeiling = null;
+        route[last].RevertResume = null;
     }
 
     /// <summary>
-    /// An approach clearance cancels a crossing speed issued in an earlier transmission, as it cancels every speed assigned
-    /// before it (7110.65 5-7-1.d): each route fix whose speed an earlier transmission set
-    /// (<see cref="NavigationTarget.SpeedTransmissionId"/>) gets its published speed back, the cleared approach's for that
-    /// fix, else the active STAR's, else none, as a via clearance's <see cref="SupersedeEarlierCrossingRestrictions"/> does.
-    /// A speed the clearance's own transmission (<paramref name="transmissionId"/>) set stays. The fix's altitude restriction
-    /// and altitude reverts stay; its speed reverts go with <see cref="DropSpeedReverts"/>.
+    /// An approach clearance or a later speed instruction (<see cref="CancelEarlierCrossingSpeeds"/>) cancels a crossing
+    /// speed issued in an earlier transmission, as either cancels the speed assigned before it (7110.65 5-7-1.d; AIM
+    /// 4-4-12.f): each route fix whose speed an earlier transmission set (<see cref="NavigationTarget.SpeedTransmissionId"/>)
+    /// gets its published speed back, the pending or active approach clearance's for that fix, else the active STAR's,
+    /// else none, as a via clearance's <see cref="SupersedeEarlierCrossingRestrictions"/> does. A speed set by the
+    /// cancelling transmission itself (<paramref name="transmissionId"/>) stays. The fix's altitude restriction and
+    /// altitude reverts stay; its speed reverts go with <see cref="DropSpeedReverts"/>.
     /// </summary>
-    internal static void RestorePublishedSpeedsForApproach(AircraftState aircraft, int transmissionId)
+    internal static void RestorePublishedSpeedsOfEarlierCrossings(AircraftState aircraft, int transmissionId)
     {
         Dictionary<string, CifpSpeedRestriction>? approachSpeeds = null;
         Dictionary<string, NavigationTarget>? starRestrictions = null;
@@ -1857,7 +2081,7 @@ internal static class NavigationCommandHandler
             }
 
             approachSpeeds ??= ClearedApproachSpeeds(aircraft);
-            starRestrictions ??= StarRestrictionsForApproach(aircraft);
+            starRestrictions ??= StarRestrictionsForSpeedRestore(aircraft);
             fix.SpeedRestriction = approachSpeeds.GetValueOrDefault(fix.Name) ?? starRestrictions.GetValueOrDefault(fix.Name)?.SpeedRestriction;
             fix.SpeedTransmissionId = null;
         }
@@ -1898,10 +2122,11 @@ internal static class NavigationCommandHandler
         ((clearance.TransitionName is { } name) && (procedure.Transitions.TryGetValue(name, out CifpTransition? transition))) ? transition.Legs : [];
 
     /// <summary>
-    /// The active STAR's published restrictions by fix name, for an approach clearance's restore; empty, and without a
-    /// warning, when no STAR is active (an aircraft vectored to the approach, or one the clearance took off its STAR).
+    /// The active STAR's published restrictions by fix name, for <see cref="RestorePublishedSpeedsOfEarlierCrossings"/>;
+    /// empty, and without a warning, when no STAR is active (a vectored aircraft, or one an approach clearance took off its
+    /// STAR).
     /// </summary>
-    private static Dictionary<string, NavigationTarget> StarRestrictionsForApproach(AircraftState aircraft)
+    private static Dictionary<string, NavigationTarget> StarRestrictionsForSpeedRestore(AircraftState aircraft)
     {
         if (aircraft.Procedure.ActiveStarId is not { } starId)
         {
@@ -1912,7 +2137,7 @@ internal static class NavigationCommandHandler
         if (star is null)
         {
             Log.LogWarning(
-                "{Callsign}: approach clearance could not resolve STAR {Star} at {Dest}; the earlier crossing speeds it cancels are cleared",
+                "{Callsign}: could not resolve STAR {Star} at {Dest}; the earlier crossing speeds being cancelled are cleared with no published speed",
                 aircraft.Callsign,
                 starId,
                 aircraft.FlightPlan.Destination
@@ -1941,11 +2166,7 @@ internal static class NavigationCommandHandler
                 continue;
             }
 
-            fix.RevertSpeed = null;
-            fix.RevertAssignedSpeed = null;
-            fix.RevertMach = null;
-            fix.RevertMachExplicit = null;
-            fix.RevertSpeedMax = false;
+            ClearSpeedReverts(fix);
             first ??= fix;
         }
 
@@ -1964,10 +2185,10 @@ internal static class NavigationCommandHandler
     private static bool HasPendingRevert(NavigationTarget fix) =>
         (fix.RevertAltitude is not null)
         || (fix.RevertAssignedAltitude is not null)
-        || (fix.RevertSpeed is not null)
-        || (fix.RevertAssignedSpeed is not null)
+        || HasPlainRevert(fix)
         || (fix.RevertMach is not null)
-        || fix.RevertSpeedMax;
+        || fix.RevertSpeedMax
+        || (fix.RevertResume is not null);
 
     /// <summary>
     /// The speed the procedure of the via clearance in force publishes at <paramref name="fixName"/>, whatever a controller

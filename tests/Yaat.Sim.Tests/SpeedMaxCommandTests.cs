@@ -608,6 +608,22 @@ public sealed class SpeedMaxCommandTests
         Assert.Equal("PMD", flagged.Name);
     }
 
+    /// <summary>YAAT-1452: a crossing speed restated on the same fix keeps SMAX's one re-arm past it.</summary>
+    [Fact]
+    public void Smax_Cfix_Restated_KeepsOneReArm()
+    {
+        AircraftState ac = Airborne("B738", altitude: 15_000, ias: 280);
+        Assert.True(Send(ac, "SMAX").Success);
+        Assert.True(Send(ac, "CFIX PMD 110 280").Success);
+        Assert.True(Send(ac, "CFIX PMD 110 250").Success);
+
+        NavigationTarget flagged = Assert.Single(ac.Targets.NavigationRoute, fix => fix.RevertSpeedMax);
+        Assert.Equal("PMD", flagged.Name);
+
+        Assert.NotNull(FlyUntilSequenced(ac, "PMD"));
+        Assert.True(ac.Targets.SpeedMaxHeld);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

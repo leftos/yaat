@@ -222,8 +222,14 @@ public static class FlightPhysics
             // Publish the crossed restriction as a ceiling so the auto altitude-band schedule
             // cannot accelerate the aircraft back to default cruise while flying the remaining
             // (often unrestricted) fixes. An explicit ATC speed wins and is left untouched, and so does a Mach the fix
-            // restores (RestoreMachPastFix), which decides the speed past it as an explicit one does.
-            if ((crossedRestriction is { } crossedSpeed) && !aircraft.Targets.HasExplicitSpeedCommand && (sequenced.RevertMach is null))
+            // restores (RestoreMachPastFix), which decides the speed past it as an explicit one does, and an RNS, RPS or
+            // DSR given with the crossing (RevertResume), which ends the crossing speed at the fix.
+            if (
+                (crossedRestriction is { } crossedSpeed)
+                && !aircraft.Targets.HasExplicitSpeedCommand
+                && (sequenced.RevertMach is null)
+                && (sequenced.RevertResume is null)
+            )
             {
                 if (crossedSpeed.Type == CifpSpeedRestrictionType.AtOrAbove)
                 {
@@ -344,10 +350,19 @@ public static class FlightPhysics
             return;
         }
 
-        if (sequenced.RevertSpeed is not null)
+        if (sequenced.RevertResume is { } resume)
+        {
+            // An RNS, RPS or DSR given with the crossing applies once the crossing is flown.
+            Commands.FlightCommandHandler.ApplySpeedResume(aircraft, resume);
+            return;
+        }
+
+        if ((sequenced.RevertSpeed is not null) || (sequenced.RevertSpeedFloor is not null) || (sequenced.RevertSpeedCeiling is not null))
         {
             aircraft.Targets.TargetSpeed = sequenced.RevertSpeed;
             aircraft.Targets.AssignedSpeed = sequenced.RevertAssignedSpeed;
+            aircraft.Targets.SpeedFloor = sequenced.RevertSpeedFloor;
+            aircraft.Targets.SpeedCeiling = sequenced.RevertSpeedCeiling;
         }
     }
 
@@ -995,7 +1010,11 @@ public static class FlightPhysics
     /// procedure's.
     /// </summary>
     internal static bool IsControllerSetSpeed(NavigationTarget fix) =>
-        (fix.SpeedTransmissionId is not null) || (fix.RevertSpeed is not null) || (fix.RevertMach is not null) || fix.RevertSpeedMax;
+        (fix.SpeedTransmissionId is not null)
+        || (fix.RevertSpeed is not null)
+        || (fix.RevertMach is not null)
+        || fix.RevertSpeedMax
+        || (fix.RevertResume is not null);
 
     /// <summary>
     /// Applies <paramref name="target"/>'s speed restriction: an "at or above" minimum as the floor, any other as the
