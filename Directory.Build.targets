@@ -1,4 +1,7 @@
 <Project>
   <!-- The Exists guard is for yaat-server's Docker build, which copies parts of this repo under extern/yaat/. -->
-  <Import Project="$(MSBuildThisFileDirectory)build/sherpa/SherpaNativeOverlay.targets" Condition="Exists('$(MSBuildThisFileDirectory)build/sherpa/SherpaNativeOverlay.targets')" />
+  <Import
+    Project="$(MSBuildThisFileDirectory)build/sherpa/SherpaNativeOverlay.targets"
+    Condition="Exists('$(MSBuildThisFileDirectory)build/sherpa/SherpaNativeOverlay.targets')"
+  />
 </Project>

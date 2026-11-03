@@ -10,7 +10,8 @@
   -->
   <PropertyGroup>
     <!-- Lets a build point at another manifest (a test's manifest with unreachable sources); not a user setting. -->
-    <YaatSherpaManifest Condition="'$(YaatSherpaManifest)' == ''">$(MSBuildThisFileDirectory)../../src/Yaat.Client/Speech/stt-downloads.json</YaatSherpaManifest>
+    <YaatSherpaManifest Condition="'$(YaatSherpaManifest)' == ''"
+      >$(MSBuildThisFileDirectory)../../src/Yaat.Client/Speech/stt-downloads.json</YaatSherpaManifest>
     <!-- A fallback must not fail a /warnaserror build (CI); a publish refuses to fall back instead. -->
     <MSBuildWarningsNotAsErrors>$(MSBuildWarningsNotAsErrors);YAATSHERPA001</MSBuildWarningsNotAsErrors>
   </PropertyGroup>
@@ -38,8 +39,16 @@
       <_YaatSherpaNative Remove="@(_YaatSherpaNative)" />
       <_YaatSherpaOverlay Remove="@(_YaatSherpaOverlay)" />
       <_YaatSherpaFallback Remove="@(_YaatSherpaFallback)" />
-      <_YaatSherpaNative Include="@(RuntimeTargetsCopyLocalItems)" YaatItemType="RuntimeTargets" Condition="$([System.String]::Copy('%(RuntimeTargetsCopyLocalItems.NuGetPackageId)').StartsWith('org.k2fsa.sherpa.onnx.runtime.'))" />
-      <_YaatSherpaNative Include="@(NativeCopyLocalItems)" YaatItemType="Native" Condition="$([System.String]::Copy('%(NativeCopyLocalItems.NuGetPackageId)').StartsWith('org.k2fsa.sherpa.onnx.runtime.'))" />
+      <_YaatSherpaNative
+        Include="@(RuntimeTargetsCopyLocalItems)"
+        YaatItemType="RuntimeTargets"
+        Condition="$([System.String]::Copy('%(RuntimeTargetsCopyLocalItems.NuGetPackageId)').StartsWith('org.k2fsa.sherpa.onnx.runtime.'))"
+      />
+      <_YaatSherpaNative
+        Include="@(NativeCopyLocalItems)"
+        YaatItemType="Native"
+        Condition="$([System.String]::Copy('%(NativeCopyLocalItems.NuGetPackageId)').StartsWith('org.k2fsa.sherpa.onnx.runtime.'))"
+      />
       <!-- The RID is the package id's suffix: NativeCopyLocalItems need not carry RuntimeIdentifier. -->
       <_YaatSherpaNative>
         <YaatRid>$([System.String]::Copy('%(NuGetPackageId)').Substring(30))</YaatRid>
@@ -50,7 +59,8 @@
       Condition="'@(_YaatSherpaNative)' != ''"
       ManifestPath="$(YaatSherpaManifest)"
       Rids="@(_YaatSherpaNative->'%(YaatRid)'->Distinct())"
-      Required="$(_YaatSherpaRequired)">
+      Required="$(_YaatSherpaRequired)"
+    >
       <Output TaskParameter="Overlays" ItemName="_YaatSherpaOverlay" />
       <Output TaskParameter="Fallbacks" ItemName="_YaatSherpaFallback" />
     </EnsureSherpaNatives>
@@ -60,7 +70,12 @@
     Batched once per RID that kept NuGet's native: writes the warning text to obj/sherpa-native-fallback/<rid>/ and copies it as
     sherpa-native-FALLBACK.txt wherever that RID's c-api library goes, as the overlay does with its MANIFEST.
   -->
-  <Target Name="_YaatSherpaFallbackForRid" AfterTargets="YaatOverlaySherpaNatives" Condition="'@(_YaatSherpaFallback)' != ''" Outputs="%(_YaatSherpaFallback.Identity)">
+  <Target
+    Name="_YaatSherpaFallbackForRid"
+    AfterTargets="YaatOverlaySherpaNatives"
+    Condition="'@(_YaatSherpaFallback)' != ''"
+    Outputs="%(_YaatSherpaFallback.Identity)"
+  >
     <PropertyGroup>
       <_YaatSherpaFallbackRid>%(_YaatSherpaFallback.Identity)</_YaatSherpaFallbackRid>
       <!-- Copy-local items land under their source file name, so the obj copy already carries the output name. -->
@@ -72,27 +87,40 @@
     <ItemGroup>
       <_YaatSherpaFallbackRuntimeTargets Remove="@(_YaatSherpaFallbackRuntimeTargets)" />
       <_YaatSherpaFallbackNatives Remove="@(_YaatSherpaFallbackNatives)" />
-      <_YaatSherpaFallbackRuntimeTargets Include="@(_YaatSherpaNative)" Condition="('%(YaatRid)' == '$(_YaatSherpaFallbackRid)') and ('%(YaatItemType)' == 'RuntimeTargets')" />
-      <_YaatSherpaFallbackNatives Include="@(_YaatSherpaNative)" Condition="('%(YaatRid)' == '$(_YaatSherpaFallbackRid)') and ('%(YaatItemType)' == 'Native')" />
+      <_YaatSherpaFallbackRuntimeTargets
+        Include="@(_YaatSherpaNative)"
+        Condition="('%(YaatRid)' == '$(_YaatSherpaFallbackRid)') and ('%(YaatItemType)' == 'RuntimeTargets')"
+      />
+      <_YaatSherpaFallbackNatives
+        Include="@(_YaatSherpaNative)"
+        Condition="('%(YaatRid)' == '$(_YaatSherpaFallbackRid)') and ('%(YaatItemType)' == 'Native')"
+      />
 
       <RuntimeTargetsCopyLocalItems
         Include="@(_YaatSherpaFallbackRuntimeTargets->'$(_YaatSherpaFallbackFile)')"
         Condition="$([System.String]::Copy('%(Filename)').EndsWith('sherpa-onnx-c-api'))"
         DestinationSubPath="%(_YaatSherpaFallbackRuntimeTargets.DestinationSubDirectory)sherpa-native-FALLBACK.txt"
         PathInPackage=""
-        RemoveMetadata="YaatRid;YaatItemType" />
+        RemoveMetadata="YaatRid;YaatItemType"
+      />
       <NativeCopyLocalItems
         Include="@(_YaatSherpaFallbackNatives->'$(_YaatSherpaFallbackFile)')"
         Condition="$([System.String]::Copy('%(Filename)').EndsWith('sherpa-onnx-c-api'))"
         DestinationSubPath="%(_YaatSherpaFallbackNatives.DestinationSubDirectory)sherpa-native-FALLBACK.txt"
         PathInPackage=""
-        RemoveMetadata="YaatRid;YaatItemType" />
+        RemoveMetadata="YaatRid;YaatItemType"
+      />
       <FileWrites Include="$(_YaatSherpaFallbackFile)" />
     </ItemGroup>
   </Target>
 
   <!-- Batched once per overlaid RID; Outputs without Inputs only drives the batching. -->
-  <Target Name="_YaatOverlaySherpaNativesForRid" AfterTargets="YaatOverlaySherpaNatives" Condition="'@(_YaatSherpaOverlay)' != ''" Outputs="%(_YaatSherpaOverlay.Identity)">
+  <Target
+    Name="_YaatOverlaySherpaNativesForRid"
+    AfterTargets="YaatOverlaySherpaNatives"
+    Condition="'@(_YaatSherpaOverlay)' != ''"
+    Outputs="%(_YaatSherpaOverlay.Identity)"
+  >
     <PropertyGroup>
       <_YaatSherpaRid>%(_YaatSherpaOverlay.Identity)</_YaatSherpaRid>
       <_YaatSherpaDir>%(_YaatSherpaOverlay.ExtractDir)</_YaatSherpaDir>
@@ -107,7 +135,8 @@
 
     <Error
       Condition="!Exists('$(_YaatSherpaDirSlash)%(_YaatSherpaRidItems.Filename)%(_YaatSherpaRidItems.Extension)')"
-      Text="Sherpa native $(_YaatSherpaRid)-cpu: $(_YaatSherpaDir) has no %(_YaatSherpaRidItems.Filename)%(_YaatSherpaRidItems.Extension), which NuGet package %(_YaatSherpaRidItems.NuGetPackageId) ships." />
+      Text="Sherpa native $(_YaatSherpaRid)-cpu: $(_YaatSherpaDir) has no %(_YaatSherpaRidItems.Filename)%(_YaatSherpaRidItems.Extension), which NuGet package %(_YaatSherpaRidItems.NuGetPackageId) ships."
+    />
 
     <ItemGroup>
       <_YaatSherpaRidRuntimeTargets Remove="@(_YaatSherpaRidRuntimeTargets)" />
@@ -116,22 +145,30 @@
       <_YaatSherpaRidNatives Include="@(_YaatSherpaRidItems)" Condition="'%(YaatItemType)' == 'Native'" />
 
       <RuntimeTargetsCopyLocalItems Remove="@(_YaatSherpaRidRuntimeTargets)" />
-      <RuntimeTargetsCopyLocalItems Include="@(_YaatSherpaRidRuntimeTargets->'$(_YaatSherpaDirSlash)%(Filename)%(Extension)')" RemoveMetadata="YaatRid;YaatItemType" />
+      <RuntimeTargetsCopyLocalItems
+        Include="@(_YaatSherpaRidRuntimeTargets->'$(_YaatSherpaDirSlash)%(Filename)%(Extension)')"
+        RemoveMetadata="YaatRid;YaatItemType"
+      />
       <RuntimeTargetsCopyLocalItems
         Include="@(_YaatSherpaRidRuntimeTargets->'$(_YaatSherpaDirSlash)sherpa-native-MANIFEST.txt')"
         Condition="$([System.String]::Copy('%(Filename)').EndsWith('sherpa-onnx-c-api'))"
         DestinationSubPath="%(_YaatSherpaRidRuntimeTargets.DestinationSubDirectory)sherpa-native-MANIFEST.txt"
         PathInPackage=""
-        RemoveMetadata="YaatRid;YaatItemType" />
+        RemoveMetadata="YaatRid;YaatItemType"
+      />
 
       <NativeCopyLocalItems Remove="@(_YaatSherpaRidNatives)" />
-      <NativeCopyLocalItems Include="@(_YaatSherpaRidNatives->'$(_YaatSherpaDirSlash)%(Filename)%(Extension)')" RemoveMetadata="YaatRid;YaatItemType" />
+      <NativeCopyLocalItems
+        Include="@(_YaatSherpaRidNatives->'$(_YaatSherpaDirSlash)%(Filename)%(Extension)')"
+        RemoveMetadata="YaatRid;YaatItemType"
+      />
       <NativeCopyLocalItems
         Include="@(_YaatSherpaRidNatives->'$(_YaatSherpaDirSlash)sherpa-native-MANIFEST.txt')"
         Condition="$([System.String]::Copy('%(Filename)').EndsWith('sherpa-onnx-c-api'))"
         DestinationSubPath="%(_YaatSherpaRidNatives.DestinationSubDirectory)sherpa-native-MANIFEST.txt"
         PathInPackage=""
-        RemoveMetadata="YaatRid;YaatItemType" />
+        RemoveMetadata="YaatRid;YaatItemType"
+      />
     </ItemGroup>
 
     <Message Importance="high" Text="Sherpa native $(_YaatSherpaRid)-cpu overlaid from $(_YaatSherpaDir) (fork $(_YaatSherpaCommit))" />
