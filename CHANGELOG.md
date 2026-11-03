@@ -13,6 +13,8 @@
 - Aircraft with no FAA approach speed, such as the C-5M and F/A-18, fly their real approach speed instead of one about 20% too fast.
 - An aircraft leaving a runway still counts as on it until its tail, not its nose, has passed the exit's hold-short marking.
 - A hold short handed over too late to stop for after a runway crossing gets an immediate "unable to hold short, stopping" from the pilot.
+- A crossing pilot no longer reports clear of the runway on an offset crossing while its tail is still inside the far hold-short marking.
+- `SPD` below the runway-crossing speed caps the crossing, even with `CROSS … EXP`.
 
 ## v0.18.0-beta [2026/11/02]
 

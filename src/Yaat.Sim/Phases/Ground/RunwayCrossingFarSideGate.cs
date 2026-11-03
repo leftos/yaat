@@ -106,7 +106,8 @@ internal static class RunwayCrossingFarSideGate
         double ownLengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
         double crossFt = GeoMath.DistanceNm(near.Position, far.Position) * GeoMath.FeetPerNm;
         double lookAheadSeconds =
-            (crossFt + ownLengthFt) / (CategoryPerformance.RunwayCrossingSpeed(ctx.Category) * GroundStopBraking.FeetPerSecondPerKt);
+            (crossFt + ownLengthFt)
+            / (CrossingRunwayPhase.CrossingFloorKts(ctx.Category, ctx.Aircraft.Ground.CommandedTaxiSpeedKts) * GroundStopBraking.FeetPerSecondPerKt);
         double extentFt =
             ownLengthFt + GroundConflictDetector.DefaultStopDistanceFt + RunwayTailClearance.MarginFt + ResumeMarginFt + LongestHalfLengthFt;
         List<LatLon> path = FarSidePath(layout, near.Position, far.Position, beyond, extentFt);

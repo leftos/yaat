@@ -798,6 +798,297 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A B738 cleared TAXI A2 C2 at KCOS, held at A2's 35L bar with a <c>FOLLOWG</c> armed behind it, crosses 35L straight over
+    /// (<see cref="StageCosFollowgCrossing"/>); a HOLD 40 ft past P on C2's line breaks the follow off and a RES lets the crossing
+    /// end at rest past C2's bar. Every second after the break-off the test records the tail's distance past C2's bar along the leg
+    /// flown (C2's line from P) and along the near-bar → far-bar bearing, and the crossing's not-clear reading
+    /// (<see cref="CrossingRunwayPhase.IsNotClearOfFarMarking"/>); at rest the answer is the break-off hold's
+    /// <see cref="HoldingInPositionPhase.TailInsideRunway"/>. With the tail short of the bar along the leg flown the crossing reads
+    /// not clear; once past it, both read clear: the crossing judges its tail against C2's own marking (YAAT-1637). Measured red
+    /// with the bar bearing: not clear for 2 s with the tail 5.15 ft past the bar on the leg (−4.89 ft on the bearing, 10.05 ft
+    /// apart), and at rest 9.28 ft past it, the tail inside 17R.
+    /// </summary>
+    [Fact]
+    public void StraightOverCrossing_AfterFollowgBreakOff_ClearOfFarMarkingOnceTailPassesTheBar()
+    {
+        if ((Layout("COS") is not { } layout) || (TestVnasData.NavigationDb is not { } navDb))
+        {
+            return;
+        }
+
+        InitLog();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(Issue899DetourConnectorTests.CosDeclaring(navDb, "A2", "C2", "17R/35L"));
+        const string follower = Issue1334OakDToFAcross33Tests.Callsign;
+        CosFollowgCrossing stage = StageCosFollowgCrossing(layout, null);
+        SimulationEngine engine = stage.Engine;
+        AircraftState aircraft = stage.Aircraft;
+        GroundNode a2Bar = stage.A2Bar;
+        GroundNode c2Bar = stage.C2Bar;
+        double barAlongFt = stage.BarAlongFt;
+        double AlongFt(AircraftState ac) => stage.AlongFt(ac);
+        Assert.NotNull(
+            Issue1334OakDToFAcross33Tests.TickUntil(
+                output,
+                engine,
+                ac => (ac.Phases?.CurrentPhase is CrossingRunwayPhase) && (AlongFt(ac) > 40.0),
+                300
+            )
+        );
+        Assert.Contains(aircraft.Phases!.Phases.Skip(aircraft.Phases.CurrentIndex + 1), p => p is FollowingPhase);
+
+        CommandResult hold = engine.SendCommand(follower, "HOLD");
+        Assert.True(hold.Success, hold.Message);
+        CrossingRunwayPhase crossing = Assert.IsType<CrossingRunwayPhase>(aircraft.Phases.CurrentPhase);
+        Assert.DoesNotContain(aircraft.Phases.Phases.Skip(aircraft.Phases.CurrentIndex + 1), p => p is FollowingPhase);
+        Assert.Equal(a2Bar.Id, crossing.ApproachNodeId);
+        Assert.Equal(c2Bar.Id, crossing.TargetNodeId);
+        output.WriteLine($"HOLD at {AlongFt(aircraft):F1} ft past P on C2's line; C2's bar is {barAlongFt:F1} ft past P");
+        output.WriteLine($"crossing slice: {SliceText(crossing)}");
+
+        double halfLengthFt = AircraftLength.ResolveFt("B738") / 2.0;
+        var acrossHeading = new TrueHeading(GeoMath.BearingTo(a2Bar.Position, c2Bar.Position));
+        output.WriteLine($"leg flown {stage.C2Bearing:F1}°, near→far bar bearing {acrossHeading.Degrees:F1}°");
+        var samples = new List<(int Second, double FlownFt, double BearingFt, bool NotClear)>();
+        int second = 0;
+
+        // Always true, so a tick predicate can record and then judge.
+        bool Record(AircraftState ac)
+        {
+            second++;
+            if (ac.Phases?.CurrentPhase != crossing)
+            {
+                return true;
+            }
+
+            double flownFt = AlongFt(ac) - barAlongFt - halfLengthFt;
+            double bearingFt = (GeoMath.AlongTrackDistanceNm(ac.Position, c2Bar.Position, acrossHeading) * GeoMath.FeetPerNm) - halfLengthFt;
+            bool notClear = crossing.IsNotClearOfFarMarking(ac, layout);
+            samples.Add((second, flownFt, bearingFt, notClear));
+            output.WriteLine(
+                $"t+{second}s: tail past C2's bar {flownFt:F2} ft flown, {bearingFt:F2} ft on the bar bearing, gap {flownFt - bearingFt:F2} ft, "
+                    + $"{(notClear ? "NOT clear" : "clear")}, short of clearing the bar (tail and wingtips) "
+                    + $"{FollowingPhase.ShortOfBarFt(layout, c2Bar.Id, ac):F2} ft, {ac.GroundSpeed:F1} kt"
+            );
+            return true;
+        }
+
+        AircraftState? TickRecording(Func<AircraftState, bool> until, int budgetSeconds) =>
+            Issue1334OakDToFAcross33Tests.TickUntil(output, engine, ac => Record(ac) && until(ac), budgetSeconds);
+
+        Assert.NotNull(TickRecording(ac => ac.GroundSpeed < 0.5, 60));
+        CommandResult res = engine.SendCommand(follower, "RES");
+        Assert.True(res.Success, res.Message);
+        AircraftState rest = Assert.IsType<AircraftState>(
+            TickRecording(ac => (ac.Phases?.CurrentPhase is HoldingInPositionPhase) && (ac.GroundSpeed < 0.5), 300)
+        );
+
+        HoldingInPositionPhase held = Assert.IsType<HoldingInPositionPhase>(rest.Phases?.CurrentPhase);
+        Assert.True(held.EndsBrokenOffFollow);
+        double restFlownFt = AlongFt(rest) - barAlongFt - halfLengthFt;
+        output.WriteLine(
+            $"at rest: tail {restFlownFt:F2} ft past C2's bar flown, tail inside {held.TailInsideRunway ?? "no runway"}; largest gap "
+                + $"{(samples.Count == 0 ? 0.0 : samples.Max(s => s.FlownFt - s.BearingFt)):F2} ft"
+        );
+
+        Assert.True(samples.Exists(s => (s.FlownFt < 0.0) && s.NotClear), "no sample with the tail short of C2's bar read not clear");
+        List<(int Second, double FlownFt, double BearingFt, bool NotClear)> wrong = [.. samples.Where(s => (s.FlownFt >= 0.0) && s.NotClear)];
+        Assert.True(
+            wrong.Count == 0,
+            $"not clear with the tail past C2's bar on {wrong.Count} ticks; first t+{wrong.FirstOrDefault().Second}s, "
+                + $"{wrong.FirstOrDefault().FlownFt:F2} ft flown, {wrong.FirstOrDefault().BearingFt:F2} ft on the bar bearing"
+        );
+        Assert.True(
+            (restFlownFt < 0.0) || (held.TailInsideRunway is null),
+            $"at rest with the tail {restFlownFt:F2} ft past C2's bar along the leg, the hold says the tail is inside {held.TailInsideRunway}"
+        );
+    }
+
+    /// <summary>
+    /// The KCOS A2 → C2 crossing (<see cref="StageCosFollowgCrossing"/>) held by a HOLD as soon as the nose passes A2's 35L marking:
+    /// it stops with its tail still behind A2's marking, on the near side of the centreline and off C2's paint. Part of it is still
+    /// inside the runway's markings, so the crossing reads not clear of its far marking
+    /// (<see cref="CrossingRunwayPhase.IsNotClearOfFarMarking"/>), though C2's marking judged off its paint alone reads the tail far
+    /// outside.
+    /// </summary>
+    [Fact]
+    public void StraightOverCrossing_HeldWithTheTailBehindTheNearMarking_IsNotClearOfTheFarMarking()
+    {
+        if ((Layout("COS") is not { } layout) || (TestVnasData.NavigationDb is not { } navDb))
+        {
+            return;
+        }
+
+        InitLog();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(Issue899DetourConnectorTests.CosDeclaring(navDb, "A2", "C2", "17R/35L"));
+        CosFollowgCrossing stage = StageCosFollowgCrossing(layout, null);
+        AircraftState aircraft = stage.Aircraft;
+        Assert.NotNull(
+            Issue1334OakDToFAcross33Tests.TickUntil(
+                output,
+                stage.Engine,
+                ac => (ac.Phases?.CurrentPhase is CrossingRunwayPhase crossing) && (crossing.NosePastNearMarkingFt(ac, layout) > 0.0),
+                300
+            )
+        );
+        CommandResult hold = stage.Engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "HOLD");
+        Assert.True(hold.Success, hold.Message);
+        Assert.NotNull(Issue1334OakDToFAcross33Tests.TickUntil(output, stage.Engine, ac => ac.GroundSpeed < 0.5, 60));
+
+        CrossingRunwayPhase held = Assert.IsType<CrossingRunwayPhase>(aircraft.Phases?.CurrentPhase);
+        double nosePastFt = held.NosePastNearMarkingFt(aircraft, layout) ?? double.NaN;
+        double tailPastFt = nosePastFt - AircraftLength.ResolveFt("B738");
+        output.WriteLine($"at rest: nose {nosePastFt:F1} ft past A2's marking, tail {tailPastFt:F1} ft; slice {SliceText(held)}");
+        Assert.True(nosePastFt > 0.0, $"the nose stopped {nosePastFt:F1} ft past A2's marking");
+        Assert.True(tailPastFt < 0.0, $"the tail stopped {tailPastFt:F1} ft past A2's marking");
+        Assert.True(held.IsNotClearOfFarMarking(aircraft, layout), "a crossing held with its tail behind the near marking read clear");
+    }
+
+    /// <summary>
+    /// YAAT-1466: under a commanded <c>SPD</c> below the crossing floor a stop cap below the SPD still wins. The KCOS A2 → C2 crossing
+    /// (<see cref="StageCosFollowgCrossing"/>) at SPD 8, its FOLLOWG broken off by a HOLD and resumed by a RES, ends at rest and
+    /// brakes onto its slice end: the floor is never above the SPD, and the curve onto the slice end lowers it below the SPD.
+    /// </summary>
+    [Fact]
+    public void StraightOverCrossing_EndingAtRestUnderASlowSpd_StopCapStillWins()
+    {
+        if ((Layout("COS") is not { } layout) || (TestVnasData.NavigationDb is not { } navDb))
+        {
+            return;
+        }
+
+        InitLog();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(Issue899DetourConnectorTests.CosDeclaring(navDb, "A2", "C2", "17R/35L"));
+        const string follower = Issue1334OakDToFAcross33Tests.Callsign;
+        CosFollowgCrossing stage = StageCosFollowgCrossing(layout, "SPD 8");
+        AircraftState aircraft = stage.Aircraft;
+        foreach (string command in new[] { "HOLD", "RES" })
+        {
+            Assert.NotNull(
+                Issue1334OakDToFAcross33Tests.TickUntil(
+                    output,
+                    stage.Engine,
+                    ac => (ac.Phases?.CurrentPhase is CrossingRunwayPhase) && ((command != "RES") || (ac.GroundSpeed < 0.5)),
+                    300
+                )
+            );
+            CommandResult result = stage.Engine.SendCommand(follower, command);
+            Assert.True(result.Success, $"{command}: {result.Message}");
+        }
+
+        CrossingRunwayPhase crossing = Assert.IsType<CrossingRunwayPhase>(aircraft.Phases?.CurrentPhase);
+        int capped = 0;
+        for (int second = 0; (second < 300) && ReferenceEquals(aircraft.Phases?.CurrentPhase, crossing); second++)
+        {
+            stage.Engine.TickOneSecond();
+            double floorKts = crossing.NavMinSpeedKts ?? double.MaxValue;
+            output.WriteLine($"t+{second}s: {aircraft.GroundSpeed:F2} kt, floor {floorKts:F2} kt, SPD {aircraft.Ground.CommandedTaxiSpeedKts}");
+            Assert.Equal(8.0, aircraft.Ground.CommandedTaxiSpeedKts);
+            Assert.True(floorKts <= 8.0, $"t+{second}s: floor {floorKts:F2} kt above SPD 8");
+            Assert.True(aircraft.GroundSpeed <= 8.5, $"t+{second}s: {aircraft.GroundSpeed:F2} kt under SPD 8");
+            capped += (floorKts < 8.0) ? 1 : 0;
+        }
+
+        Assert.True(capped > 0, "the curve onto the slice end never lowered the floor below the SPD");
+    }
+
+    /// <summary>
+    /// The KCOS A2 → C2 straight-over crossing of 35L with a FOLLOWG armed on it: a B738 cleared TAXI A2 C2 held at A2's 35L bar,
+    /// a B738 leader on C2 more than 300 ft past C2's bar, then FOLLOWG and CROSS 35L given. The caller holds the navigation
+    /// database override that declares the pair (<see cref="Issue899DetourConnectorTests.CosDeclaring"/>). A
+    /// <paramref name="taxiCommand"/> (a <c>SPD</c>) is given right after the TAXI, while the aircraft still taxis.
+    /// </summary>
+    private CosFollowgCrossing StageCosFollowgCrossing(AirportGroundLayout layout, string? taxiCommand)
+    {
+        const string follower = Issue1334OakDToFAcross33Tests.Callsign;
+        const string leader = "SWA943";
+        GroundNode a2Bar = GroundNodeLookup.HoldShortBar(layout, "35L", "A2");
+        GroundNode c2Bar = GroundNodeLookup.HoldShortBar(layout, "35L", "C2");
+        GroundNode start = FarthestOn(layout, "A2", a2Bar);
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        double startHeading = GeoMath.BearingTo(start.Position, a2Bar.Position);
+        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(layout, "COS", start, startHeading);
+        aircraft.AircraftType = "B738";
+        engine.World.AddAircraft(aircraft);
+        engine.Scenario = new SimScenarioState
+        {
+            ScenarioId = "test-yaat-943-cos-followg-break-off",
+            ScenarioName = "COS A2/C2 straight over 17R/35L, FOLLOWG broken off on the leg",
+            RngSeed = 42,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = "COS",
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+        };
+
+        CommandResult taxi = engine.SendCommand(follower, "TAXI A2 C2");
+        Assert.True(taxi.Success, taxi.Message);
+        if (taxiCommand is not null)
+        {
+            CommandResult then = engine.SendCommand(follower, taxiCommand);
+            Assert.True(then.Success, $"{taxiCommand}: {then.Message}");
+        }
+
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        int stretch = route.Segments.FindIndex(s => (s.FromNodeId < 0) && (s.ToNodeId == c2Bar.Id));
+        Assert.True(stretch >= 0, "the route has no P→C2 bar stretch");
+        GroundNode meet = route.Segments[stretch].Edge.FromNode;
+        var stage = new CosFollowgCrossing(engine, aircraft, a2Bar, c2Bar, meet, GeoMath.BearingTo(meet.Position, c2Bar.Position));
+
+        GroundNode leadAt = Assert.IsType<GroundNode>(
+            layout
+                .GetNodesOnTaxiway("C2")
+                .Select(n => (Node: n, Past: stage.AlongFt(n.Position) - stage.BarAlongFt))
+                .Where(c => c.Past > 300.0)
+                .OrderBy(c => c.Past)
+                .Select(c => c.Node)
+                .FirstOrDefault()
+        );
+        AircraftState lead = Issue1334OakDToFAcross33Tests.MakeAircraftAt(layout, "COS", leadAt, stage.C2Bearing);
+        lead.Callsign = leader;
+        lead.AircraftType = "B738";
+        engine.World.AddAircraft(lead);
+
+        Assert.IsType<HoldingShortPhase>(
+            Issue1334OakDToFAcross33Tests.TickUntil(output, engine, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900)?.Phases?.CurrentPhase
+        );
+        CommandResult follow = engine.SendCommand(follower, $"FOLLOWG {leader}");
+        Assert.True(follow.Success, follow.Message);
+        CommandResult cross = engine.SendCommand(follower, "CROSS 35L");
+        Assert.True(cross.Success, cross.Message);
+        return stage;
+    }
+
+    /// <summary>
+    /// The staged KCOS A2 → C2 crossing (<see cref="StageCosFollowgCrossing"/>): <paramref name="Meet"/> is P, where the virtual
+    /// stretch to C2's bar starts, and <paramref name="C2Bearing"/> that stretch's bearing, the leg flown.
+    /// </summary>
+    private sealed record CosFollowgCrossing(
+        SimulationEngine Engine,
+        AircraftState Aircraft,
+        GroundNode A2Bar,
+        GroundNode C2Bar,
+        GroundNode Meet,
+        double C2Bearing
+    )
+    {
+        /// <summary>How far (ft) C2's bar lies past P along the leg flown.</summary>
+        public double BarAlongFt => AlongFt(C2Bar.Position);
+
+        /// <summary>How far (ft) <paramref name="point"/> lies past P along the leg flown.</summary>
+        public double AlongFt(LatLon point) => GeoMath.AlongTrackDistanceNmRaw(point, Meet.Position, C2Bearing) * GeoMath.FeetPerNm;
+
+        /// <summary>How far (ft) <paramref name="aircraft"/>'s centre lies past P along the leg flown.</summary>
+        public double AlongFt(AircraftState aircraft) => AlongFt(aircraft.Position);
+    }
+
+    /// <summary>The crossing's slice as node ids, a virtual edge marked "(v)".</summary>
+    private static string SliceText(CrossingRunwayPhase crossing) =>
+        string.Join(
+            " ",
+            crossing.CrossingRoute?.Segments.Select(s => $"#{s.FromNodeId}→#{s.ToNodeId}{(VirtualNode.IsVirtualEdge(s.Edge.Edge) ? "(v)" : "")}")
+                ?? []
+        );
+
+    /// <summary>
     /// OAK D→F from the leg's entry, already on the runway side of D's bar: the chord touches no centreline node and the leg passes
     /// no bar with a hold, so the held-short leg's scan has only the chord itself to find the crossing by.
     /// </summary>

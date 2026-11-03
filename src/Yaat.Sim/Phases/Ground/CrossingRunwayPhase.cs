@@ -131,6 +131,9 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// <summary>The navigator's straight-segment speed cap (kts), or null before the crossing slice is built.</summary>
     public double? NavMaxSpeedKts => _navigator?.MaxSpeedKts;
 
+    /// <summary>The navigator's speed floor (kts), or null before the crossing slice is built.</summary>
+    public double? NavMinSpeedKts => _navigator?.MinSpeedKts;
+
     /// <summary>
     /// True when this crossing was released or pre-cleared "without delay" (<c>CROSS … EXP</c>, 7110.65 §3-7-2.j). Set at
     /// construction from the crossing's hold-short (<see cref="HoldShortPoint.IsExpedited"/>), and again when the phase starts,
@@ -325,10 +328,15 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
     /// <summary>
     /// Whether <paramref name="aircraft"/> is on the runway side of the crossing with part of it still inside the far
-    /// holding-position marking: its nose past the near marking (<see cref="NosePastNearMarkingFt"/>) and its tail short of the line
-    /// through the exit-side bar node square to the way across.
+    /// holding-position marking: its nose past the near marking (<see cref="NosePastNearMarkingFt"/>) and its tail any distance
+    /// inside the marking painted at the exit-side bar (<see cref="RunwayHoldBars.DepthPastMarkingFt"/>, the measure
+    /// <see cref="RunwayOccupancy"/> judges a crosser's tail by), the pilot's own not-clear report. A tail not yet across the
+    /// centreline to the far bar's side is inside, whatever that marking reads off its paint (the side test
+    /// <see cref="RunwayOccupancy"/> applies before it judges a crosser against its far bar). Before the slice is built, when the
+    /// slice ends short of the far bar, when the far node is not one of the crossed runway's bars, or when that runway cannot be
+    /// resolved, the tail is judged against the line through the far bar square to the near-bar → far-bar bearing instead.
     /// </summary>
-    private bool IsNotClearOfFarMarking(AircraftState aircraft, AirportGroundLayout? layout)
+    internal bool IsNotClearOfFarMarking(AircraftState aircraft, AirportGroundLayout? layout)
     {
         if (
             (layout is null)
@@ -340,9 +348,66 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             return false;
         }
 
+        if (TailInsideFarMarking(aircraft, layout, far) is { } inside)
+        {
+            return inside;
+        }
+
         var acrossHeading = new TrueHeading(GeoMath.BearingTo(near.Position, far.Position));
         double centrePastFarFt = GeoMath.AlongTrackDistanceNm(aircraft.Position, far.Position, acrossHeading) * GeoMath.FeetPerNm;
         return centrePastFarFt - (AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0) < 0.0;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="aircraft"/>'s tail is inside the marking painted at <paramref name="far"/>, the crossed runway's far
+    /// holding-position bar: inside when it is not yet across the centreline to the bar's side, else when its depth past the bar is
+    /// positive (<see cref="RunwayHoldBars.DepthPastMarkingFt"/>). Null before the slice is built, when the slice ends short of that
+    /// bar, when the crossed runway cannot be resolved, or when the bar is not one of its bars: the caller then judges the tail
+    /// against the line through the bar square to the near-bar → far-bar bearing.
+    /// </summary>
+    private bool? TailInsideFarMarking(AircraftState aircraft, AirportGroundLayout layout, GroundNode far)
+    {
+        if (
+            (_crossingRoute is not { } slice)
+            || !slice.Segments.Exists(s => s.ToNodeId == _targetNodeId)
+            || (CrossedRunway(aircraft, layout) is not { } runway)
+            || !RunwayOccupancy.IsBarOf(layout, _targetNodeId, runway)
+        )
+        {
+            return null;
+        }
+
+        LatLon tail = AircraftBody.Of(aircraft.AircraftType).PointOf(AircraftBodyPart.Tail, aircraft.Position, aircraft.TrueHeading.Degrees);
+        return (RunwayHoldBars.IsRightOfCentreline(runway, tail) != RunwayHoldBars.IsRightOfCentreline(runway, far.Position))
+            || (RunwayHoldBars.DepthPastMarkingFt(layout, runway, far, tail, aircraft.Position) > 0.0);
+    }
+
+    /// <summary>
+    /// The runway this crossing crosses, as the navigation database has it at <paramref name="layout"/>'s airport by either end.
+    /// Null with no runway named, no navigation database, or no such runway there; the last two are logged, since the far-marking
+    /// test then falls back to the near-bar → far-bar bearing.
+    /// </summary>
+    private RunwayInfo? CrossedRunway(AircraftState aircraft, AirportGroundLayout layout)
+    {
+        if (_runwayId is not { } runwayId)
+        {
+            return null;
+        }
+
+        var id = RunwayIdentifier.Parse(runwayId);
+        NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
+        RunwayInfo? runway = db?.GetRunway(layout.AirportId, id.End1) ?? db?.GetRunway(layout.AirportId, id.End2);
+        if (runway is null)
+        {
+            Log.LogDebug(
+                "[Crossing] {Callsign}: runway {Rwy} not found at {Airport}; judging the far marking square to the near-to-far bearing",
+                aircraft.Callsign,
+                runwayId,
+                layout.AirportId
+            );
+        }
+
+        return runway;
     }
 
     /// <summary>
@@ -658,6 +723,16 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     }
 
     /// <summary>
+    /// The crossing's speed floor (kt): <see cref="CategoryPerformance.RunwayCrossingSpeed"/>, lowered to a commanded <c>SPD</c>
+    /// below it (<paramref name="commandedKts"/>, the cap <see cref="ApplySpeedCap"/> sets), so a commanded speed caps the crossing.
+    /// The far-side gate sizes its look-ahead by the same floor (<see cref="RunwayCrossingFarSideGate"/>).
+    /// </summary>
+    internal static double CrossingFloorKts(AircraftCategory cat, double? commandedKts) =>
+        commandedKts is { } commanded
+            ? Math.Min(CategoryPerformance.RunwayCrossingSpeed(cat), commanded)
+            : CategoryPerformance.RunwayCrossingSpeed(cat);
+
+    /// <summary>
     /// The first binding stop past the crossing's near bar on the route it crosses: an uncleared hold short's placed stop
     /// (<paramref name="Bar"/>, whose node route segment <paramref name="BarSegmentIndex"/> ends at), or with no such bar the
     /// route's end. <paramref name="StopRouteFt"/> is how far along the route that stop lies from the route's start.
@@ -706,7 +781,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// searched every tick on the live assigned route (<see cref="FindOnwardStop"/>), so a hold cleared mid-crossing (scenario
     /// auto-cross, a takeoff clearance's pre-clear) stops binding on the next tick and a restored run sees the same stop as
     /// the original; only the slice end is kept from the slice build. Every tick the floor is
-    /// <see cref="CategoryPerformance.RunwayCrossingSpeed"/>, lowered to the curve onto the stop's aim
+    /// <see cref="CrossingFloorKts"/>, lowered to the curve onto the stop's aim
     /// (<see cref="GroundStopBraking.StopCurveKts"/> at <see cref="StopAimFt"/>) wherever that curve is below it; and wherever
     /// the curve is below the published target, a target above the floor included (a taxi or commanded speed),
     /// <see cref="ClampToStopCap"/> clamps the target to it. A destination-runway bar the aircraft will go through on a stored
@@ -719,7 +794,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// </summary>
     private StopCapState? ApplyStopCap(PhaseContext ctx, GroundNavigator navigator)
     {
-        double floorKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
+        double floorKts = CrossingFloorKts(ctx.Category, ctx.Aircraft.Ground.CommandedTaxiSpeedKts);
         navigator.MinSpeedKts = floorKts;
         if (_endsAtRest)
         {
@@ -771,13 +846,13 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// <summary>
     /// The cap onto a stop at <paramref name="distances"/>: the taxi-rate curve onto its aim, lifted by <paramref name="aimKts"/>
     /// when the stop is flown through at that speed; a cap below the crossing floor
-    /// (<see cref="CategoryPerformance.RunwayCrossingSpeed"/>) lowers the navigator's floor to it.
+    /// (<see cref="CrossingFloorKts"/>) lowers the navigator's floor to it.
     /// </summary>
     private static StopCapState CapOntoStop(PhaseContext ctx, GroundNavigator navigator, double aimKts, bool aimsAtSliceEnd, StopDistances distances)
     {
         double curveKts = GroundStopBraking.StopCurveKts(ctx, distances.ToAimFt, CategoryPerformance.TaxiDecelRate(ctx.Category));
         double capKts = (aimKts > 0.0) ? Math.Sqrt((aimKts * aimKts) + (curveKts * curveKts)) : curveKts;
-        bool belowFloor = capKts < CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
+        bool belowFloor = capKts < CrossingFloorKts(ctx.Category, ctx.Aircraft.Ground.CommandedTaxiSpeedKts);
         if (belowFloor)
         {
             navigator.MinSpeedKts = capKts;
@@ -837,7 +912,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             ctx.Aircraft.Callsign,
             cap.Distances.GapFt,
             cap.Distances.ToStopFt,
-            CategoryPerformance.RunwayCrossingSpeed(ctx.Category),
+            CrossingFloorKts(ctx.Category, ctx.Aircraft.Ground.CommandedTaxiSpeedKts),
             cap.CapKts,
             ctx.Targets.TargetSpeed
         );
@@ -1115,7 +1190,8 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         // (taxiway) WITHOUT DELAY"; AIM 4-3-21.a): a crossing is just taxiing across, so the cap is the
         // category taxi speed — not a slower "crossing speed". RunwayCrossingSpeed is kept only as a navigator
         // FLOOR so the aircraft never brakes toward a stop on the runway or at the (artificial) slice end, and
-        // the off-centerline re-acquire gate can't cap it mid-crossing. Both the arc/turn-speed cap for a curve
+        // the off-centerline re-acquire gate can't cap it mid-crossing; a commanded SPD below it lowers the floor to
+        // the SPD (CrossingFloorKts). Both the arc/turn-speed cap for a curve
         // in the painted line and a conflict/airport speed-limit ceiling still outrank that floor (see
         // GroundNavigator.ClampBySpeedLimit). The aircraft hands off to the onward TaxiingPhase moving; that
         // phase owns the real deceleration for the destination, except that a binding stop within braking distance
@@ -1130,7 +1206,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         };
         _navigator = navigator;
         ApplySpeedCap(ctx, navigator);
-        navigator.MinSpeedKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
+        navigator.MinSpeedKts = CrossingFloorKts(ctx.Category, ctx.Aircraft.Ground.CommandedTaxiSpeedKts);
         _restoredNavigator = null;
 
         // A crossing that ends at rest restored past its driven slice has no segment left to set up; it only brakes

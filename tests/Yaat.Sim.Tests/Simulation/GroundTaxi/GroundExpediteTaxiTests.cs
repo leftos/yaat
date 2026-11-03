@@ -245,6 +245,93 @@ public sealed class GroundExpediteTaxiTests
         Assert.Equal(35.0, crossing.NavMaxSpeedKts!.Value, 3);
     }
 
+    /// <summary>
+    /// YAAT-1466: a commanded <c>SPD</c> below the crossing floor (<see cref="CategoryPerformance.RunwayCrossingSpeed"/>: 15 kt for a
+    /// jet, 12 for a piston) caps the crossing: the floor is the lower of the two, so the aircraft crosses at the commanded speed.
+    /// </summary>
+    [Theory]
+    [InlineData("B738", 8)]
+    [InlineData("C172", 6)]
+    public void Crossing_CommandedSpeedBelowTheFloor_CapsTheCrossing(string type, int commandedKts)
+    {
+        if (Taxiing(type, Route) is not { } taxiing)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState aircraft, CommandResult _) = taxiing;
+        AssertAccepted(ground.Engine.SendCommand(Callsign, $"SPD {commandedKts}"), $"SPD {commandedKts}");
+        string command = $"CROSS {EndOf(Crossings(aircraft)[0])}";
+        AssertAccepted(ground.Engine.SendCommand(Callsign, command), command);
+
+        CrossingRunwayPhase crossing = TickIntoCrossing(ground, aircraft);
+        Assert.Equal(commandedKts, crossing.NavMaxSpeedKts!.Value, 3);
+        for (int second = 0; second < 3; second++)
+        {
+            ground.Engine.TickOneSecond();
+        }
+
+        int ticksInCrossing = 0;
+        for (int second = 0; second < 15; second++)
+        {
+            ground.Engine.TickOneSecond();
+            if (!ReferenceEquals(aircraft.Phases?.CurrentPhase, crossing))
+            {
+                break;
+            }
+
+            ticksInCrossing++;
+            _output.WriteLine($"t+{second}s: {aircraft.GroundSpeed:F2} kt, target {aircraft.Targets.TargetSpeed?.ToString("F2") ?? "none"}");
+            Assert.True(aircraft.GroundSpeed <= commandedKts + 0.5, $"t+{second}s: {aircraft.GroundSpeed:F2} kt crossing under SPD {commandedKts}");
+            Assert.True(
+                (crossing.NavMinSpeedKts ?? double.MaxValue) <= commandedKts,
+                $"t+{second}s: floor {crossing.NavMinSpeedKts?.ToString("F2") ?? "none"} kt on a crossing under SPD {commandedKts}"
+            );
+        }
+
+        Assert.True(ticksInCrossing >= 5, $"left the crossing after {ticksInCrossing} s");
+    }
+
+    /// <summary>
+    /// YAAT-1466: <c>CROSS … EXP</c> under a commanded <c>SPD</c> below the crossing floor keeps the SPD as the ceiling, whether the
+    /// expedite comes with the crossing clearance or mid-crossing: the cap stays at the SPD, the aircraft never runs above it, and
+    /// no expedite acceleration is published.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Crossing_SpdBelowTheFloorThenCrossExp_KeepsTheSpd(bool expediteMidCrossing)
+    {
+        if (Taxiing("B738", Route) is not { } taxiing)
+        {
+            return;
+        }
+
+        (SfoGround ground, AircraftState aircraft, CommandResult _) = taxiing;
+        AssertAccepted(ground.Engine.SendCommand(Callsign, "SPD 8"), "SPD 8");
+        string end = EndOf(Crossings(aircraft)[0]);
+        string command = expediteMidCrossing ? $"CROSS {end}" : $"CROSS {end} EXP";
+        AssertAccepted(ground.Engine.SendCommand(Callsign, command), command);
+        CrossingRunwayPhase crossing = TickIntoCrossing(ground, aircraft);
+        if (expediteMidCrossing)
+        {
+            AssertAccepted(ground.Engine.SendCommand(Callsign, $"CROSS {end} EXP"), $"CROSS {end} EXP");
+        }
+
+        int ticksInCrossing = 0;
+        for (int second = 0; (second < 15) && ReferenceEquals(aircraft.Phases?.CurrentPhase, crossing); second++)
+        {
+            ground.Engine.TickOneSecond();
+            ticksInCrossing++;
+            Assert.True(expediteMidCrossing || crossing.IsExpedited, "CROSS … EXP did not expedite the crossing");
+            Assert.Equal(8.0, crossing.NavMaxSpeedKts!.Value, 3);
+            Assert.Null(aircraft.Targets.DesiredAccelRate);
+            Assert.True(aircraft.GroundSpeed <= 8.5, $"t+{second}s: {aircraft.GroundSpeed:F2} kt crossing under SPD 8 with EXP");
+        }
+
+        Assert.True(ticksInCrossing >= 5, $"left the crossing after {ticksInCrossing} s");
+    }
+
     [Fact]
     public void CrossExp_UnderACommandedSpeed_KeepsTheSpeedAndTheNormalAcceleration()
     {
