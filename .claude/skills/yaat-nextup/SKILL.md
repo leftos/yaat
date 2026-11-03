@@ -55,7 +55,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 - Reviewers: `csharp-reviewer` for anything beyond a one-file change; `aviation-sim-expert` for aviation behaviour.
 - Brief shape: `test-fix` (red test first, real navdata, never synthetic). Every `dotnet` command wrapped as `pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <seconds> -Slot heavy -- <command…>` (heavy for every yaat call, a filtered test run included since it builds first), 30 on filtered test runs (a ceiling on the gate's load-adjusted clock; `~/.claude/docs/gate.md` says how to read a `STALLED`, `TIMED OUT` or `BACKSTOP` kill).
 
-  A `Yaat.Sim` change is proved by `pwsh tools/test-all.ps1` (both repos) before it lands. `dotnet format style … --include` takes paths relative to the working directory: absolute paths match nothing and the check passes on an empty set.
+  A `Yaat.Sim` change is proved by a bare `pwsh tools/test-all.ps1` (both repos; it gates itself, never wrapped in `tools/gate.ps1`) before it lands. `dotnet format style … --include` takes paths relative to the working directory: absolute paths match nothing and the check passes on an empty set.
 
   **A brief that changes sim behaviour names its at-risk tests, with a ruling for each.** Sim behaviour is a phase, a pass, a detector, a planner rule or a navdata refresh. At-risk tests are the tests outside the brief's own file list that pin the behaviour being changed: the class or method names it touches, the scenario or recording it affects, the numbers it produces. Find them by searching the base for those names; where the search cannot bound the set, run the affected test project on the base branch.
 

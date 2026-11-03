@@ -379,7 +379,7 @@ if (Should-Run 'full-gate') {
                 & pwsh (Join-Path $PSScriptRoot 'test-all.ps1') -Config $Config -YaatDir $yaatDir -ServerDir $serverDir | Out-Null
             }
         }
-        Add-Result -Metric 'full-gate' -Walls $walls -Note 'both repos, default filter'
+        Add-Result -Metric 'full-gate' -Walls $walls -Note 'both repos, default filter, self-gated'
     }
 }
 

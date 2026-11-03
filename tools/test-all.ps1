@@ -19,11 +19,19 @@
 # sweep — a single ~55 s proof). Pass -Full to run them too (CI/nightly do).
 #
 # Worktrees: this script defaults `-ServerDir` to a sibling `yaat-server` directory
-# (the standard layout). When yaat is checked out in a worktree like
-# `X:\dev\yaat.wt\bug-xxx\`, the sibling default doesn't exist. Pass the real
-# yaat-server path with `-ServerDir`, or set `YAAT_SERVER_DIR` once for the shell.
-# `-YaatDir` has the same shape if you ever need to point at a non-default yaat
-# checkout (rarely needed since the script lives inside one).
+# (the standard layout), which the `X:\dev\yaat.wt\<name>\yaat` and
+# `X:\dev\yaat.wt\<name>\yaat-server` pair has. When the server checkout sits elsewhere,
+# pass it with `-ServerDir`, or set `YAAT_SERVER_DIR` once for the shell. `-YaatDir` must
+# name this same checkout: a bare run refuses another one, since the gate it starts is this
+# script's own.
+#
+# A `YAAT_DIR` or `YAAT_SERVER_DIR` from the shell is resolved and forwarded to the gated run as a
+# `-YaatDir`/`-ServerDir` word, because a routed run does not carry the caller's environment.
+#
+# Call this script bare: a run that is not already inside a gate re-invokes itself once under one
+# heavy `tools/gate.ps1` run (ceiling 900 s, 2700 s with -Full), so the builds and both suites route
+# to the gate builder as one run and the stall watchdog sees the hosts it is watching. A run already
+# inside a gate runs directly.
 #
 # The yaat-server build and test steps are given this yaat checkout's Yaat.Sim
 # (`-p:YaatSimProject=...`). Without it, yaat-server's Directory.Build.props picks the
@@ -58,6 +66,11 @@ if ($BuildOnly -and $NoBuild) {
     exit 2
 }
 
+# Whether the caller named a checkout, before the defaults below fill it in: the self-wrap forwards
+# the checkout it resolved and lets the inner run resolve its own default otherwise.
+$yaatDirGiven = (-not [string]::IsNullOrEmpty($YaatDir)) -or (-not [string]::IsNullOrEmpty($env:YAAT_DIR))
+$serverDirGiven = (-not [string]::IsNullOrEmpty($ServerDir)) -or (-not [string]::IsNullOrEmpty($env:YAAT_SERVER_DIR))
+
 if (-not $YaatDir) {
     $YaatDir = $env:YAAT_DIR
 }
@@ -85,6 +98,47 @@ if (-not (Test-Path $ServerDir)) {
 
 $yaatDir = (Resolve-Path $YaatDir).Path
 $serverDir = (Resolve-Path $ServerDir).Path
+
+# One script, one gate. A bare run re-invokes itself once under tools/gate.ps1, which routes the
+# whole run -- both builds, both suites, the stall watchdog, and the dumps the watchdog copies into
+# .tmp/dumps -- to a builder where one is configured, and takes a local heavy slot where none is.
+# The inner run sees a gate marker and goes straight on, so this happens once. Nothing else of this
+# script runs in the outer process: its status is the gate's.
+. (Join-Path $PSScriptRoot 'TestAllSelfGate.ps1')
+$heldMarker = Test-InsideGate
+if ($heldMarker) {
+    Write-Host "test-all: inside a gate ($heldMarker); running directly" -ForegroundColor Yellow
+} else {
+    # The gate this run starts is this checkout's own, so a run pointed at another checkout would
+    # carry that checkout's build and tests under this tree's log: refuse it rather than guess.
+    $ownRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    if ($yaatDir -ne $ownRoot) {
+        Write-Host "test-all: -YaatDir names another checkout ($yaatDir); run that checkout's tools/test-all.ps1 instead" -ForegroundColor Red
+        exit 2
+    }
+    Write-Host "test-all: not inside a gate; re-running under tools/gate.ps1 (heavy, routed from $yaatDir)" -ForegroundColor Yellow
+    # Only what the caller bound reaches the inner run, worded as the caller spells it, so the
+    # repo's routing patterns match; the checkouts travel as resolved words because a routed run
+    # does not carry the caller's environment and the router rewrites words, not `--env` values.
+    $selfGate = @{}
+    foreach ($name in 'Config', 'Full', 'BuildOnly', 'NoBuild') {
+        if ($PSBoundParameters.ContainsKey($name)) {
+            $selfGate[$name] = $PSBoundParameters[$name]
+        }
+    }
+    $selfGate.YaatDir = $yaatDir
+    if ($yaatDirGiven) {
+        $selfGate.ForwardYaatDir = $true
+    }
+    if ($serverDirGiven) {
+        $selfGate.ServerDir = $serverDir
+    }
+    $selfGateArguments = Get-SelfGateArguments @selfGate
+    $gateScript = Join-Path (Join-Path $yaatDir 'tools') 'gate.ps1'
+    & ([Environment]::ProcessPath) -NoProfile -File $gateScript @selfGateArguments
+    exit $LASTEXITCODE
+}
+
 $yaatSimProject = Join-Path $yaatDir 'src\Yaat.Sim\Yaat.Sim.csproj'
 $serverSimArg = "`"-p:YaatSimProject=$yaatSimProject`""
 

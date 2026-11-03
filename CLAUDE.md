@@ -10,9 +10,9 @@
 - **Aviation accuracy**: every change touching aviation logic is reviewed by `aviation-sim-expert` against FAA 7110.65 / AIM, read from the local references — never web search
 - **TDD covers sim changes too**: commands, physics, phases, navdata and parsers get a failing test first like a bug fix (the `test-fix` skill; worked examples in `docs/e2e-tdd-issue-debugging.md`), on real navdata, never synthetic stubs
 - **Determinism**: recordings must replay exactly; AI brains never run in replay, and the same seed reproduces byte-for-byte
-- **Cross-repo verification**: `pwsh tools/test-all.ps1` builds and tests both repos; a `Yaat.Sim` signature change that breaks the sibling is invisible to a bare `dotnet test`. Run it where you'd otherwise run the whole suite. Before renaming or re-signing a public `Yaat.Sim` member, `rg` its name under `../yaat-server` and make the server edits by hand.
+- **Cross-repo verification**: `pwsh tools/test-all.ps1` builds and tests both repos; a `Yaat.Sim` signature change that breaks the sibling is invisible to a bare `dotnet test`. Run it bare where you'd otherwise run the whole suite: it re-runs itself once under one heavy gate (900 s, 2700 s with `-Full`; log `.tmp/test-all.log`), so never wrap it in `tools/gate.ps1` yourself. Before renaming or re-signing a public `Yaat.Sim` member, `rg` its name under `../yaat-server` and make the server edits by hand.
 
-Gate: run every dotnet build/test/run as pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <n> -Slot heavy -- <cmd> (30 filtered test, 120 full test, 300 build, 900 test-all.ps1); verdicts in ~/.claude/docs/gate.md.
+Gate: run every dotnet build/test/run as pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <n> -Slot heavy -- <cmd> (30 filtered test, 120 full test, 300 build; test-all.ps1 is called bare and gates itself); verdicts in ~/.claude/docs/gate.md.
 
 A gated command for a worktree runs with `--cd <worktree root>` and paths relative to it (`pwsh tools/gate.ps1 run --cd X:/dev/yaat.wt/<name>/yaat --log .tmp/<log>.log --timeout <n> --slot heavy -- <command>`), never from the main checkout naming the worktree's paths, or it is not routed and runs on this PC.
 
@@ -23,7 +23,7 @@ dotnet workload restore                                 # Once per clone: instal
 dotnet build                                            # Build entire solution
 dotnet run --project src/Yaat.Client                    # Run client (needs yaat-server; see the port note below)
 dotnet run --project tools/Yaat.GuideCapture            # Regenerate USER_GUIDE.md screenshots into docs/user-guide/img/ (or `-- --scene <name>`)
-pwsh tools/test-all.ps1                                 # Build + test both yaat and yaat-server (excludes Nightly + PathfinderGrid sweeps for speed)
+pwsh tools/test-all.ps1                                 # Build + test both yaat and yaat-server, self-gated (excludes Nightly + PathfinderGrid sweeps for speed)
 pwsh tools/test-all.ps1 -Full                           # ...including the heavy Nightly + PathfinderGrid sweeps (CI/nightly run these)
 qodana scan --results-dir .tmp/qodana-results           # Static analysis (local only)
 ```

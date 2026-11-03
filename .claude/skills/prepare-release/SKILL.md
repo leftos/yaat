@@ -139,7 +139,7 @@ Needs Phase 1. Run 2.0's build first and wait for it. Then launch 2.1 to 2.4 in 
 2.1's suite, 2.2's precompute tool and 2.4's captures all run from the same Release build. Launched together, each compiles the same `obj\Release` trees at once, and one of them fails on a file another holds (`error CS2012: Cannot open … for writing`). Build both repos once, before anything else in this phase:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/build-prerelease.log -TimeoutSeconds 600 -Slot heavy -- pwsh tools/test-all.ps1 -BuildOnly
+pwsh tools/test-all.ps1 -BuildOnly
 ```
 
 A red build stops the release here. Every later Phase 2 command runs with `--no-build` (or `-NoBuild`), so none of them builds again.
@@ -148,10 +148,10 @@ A red build stops the release here. Every later Phase 2 command runs with `--no-
 
 ### 2.1 Run the full cross-repo test suite
 
-The suite tests yaat + yaat-server in Release configuration, on 2.0's build; failures here would ship to users. Run it in the background:
+The suite tests yaat + yaat-server in Release configuration, on 2.0's build; failures here would ship to users. Run it in the background (it gates itself, log `.tmp/test-all.log`):
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/test-all-prerelease.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1 -NoBuild
+pwsh tools/test-all.ps1 -NoBuild
 ```
 
 If anything fails, stop and surface it. Do not proceed to the version-bump commit (Phase 5) on a red suite — fix forward (or abort the release), then re-run.

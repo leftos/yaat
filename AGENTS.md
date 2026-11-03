@@ -23,7 +23,7 @@ Do not move or fork those sources casually. When a Claude-only feature has no Co
 - Do not run bare `dotnet format`; use the configured hooks or project-approved formatting commands from `CLAUDE.md`.
 - Never pass `-q`, `-v q`, `--nologo`, or extra quieting flags to `dotnet format`.
 - Build after edits (`Directory.Build.props` treats warnings as errors): `pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build`.
-- For broad verification, prefer `pwsh tools/test-all.ps1` because it covers both YAAT and `yaat-server`.
+- For broad verification, prefer `pwsh tools/test-all.ps1` because it covers both YAAT and `yaat-server`; call it bare, it re-runs itself under one heavy gate.
 - Keep `docs/architecture.md` current before commits.
 
 ## Claude Concepts In Codex
