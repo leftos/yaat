@@ -11,5 +11,5 @@ Read by the user-level `changelog-and-commit`; each rule names the step it adds 
 - Reach vocabulary (Step 2): all rooms, solo sessions only, headless/soak only, replay only.
 - Audience (Step 4): instructors and students. No framework names (Velopack, Avalonia, SignalR, MessagePack); command names and UI vocabulary stay (`CTOC`, the "Update Now" button, Help → About).
 - Issue references (Step 7): a commit in either repo that resolves a yaat issue writes `Refs https://github.com/leftos/yaat/issues/N`, never a closing keyword (`## Plan and tracker`).
-- Partial commits (Step 8): the build hook is cross-repo (`CLAUDE.md`, "prek's build hook is cross-repo"), so a partial commit in yaat stashes yaat-server too: `git -C <yaat-server> stash push -u`, commit, `git -C <yaat-server> stash pop`.
+- Partial commits (Step 8): the build hook is cross-repo ([`ship.md`](ship.md), "prek's build hook is cross-repo"), so a partial commit in yaat stashes yaat-server too: `git -C <yaat-server> stash push -u`, commit, `git -C <yaat-server> stash pop`.
 - Commit call (Step 8): never chain `git commit` after a `dotnet` command in one shell call; a guard reads the whole command text and rejects it. Implicated tests run through the gate as `## Agents and gates` says.

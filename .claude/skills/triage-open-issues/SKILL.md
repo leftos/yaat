@@ -68,6 +68,7 @@ Placement rules, first match wins:
    docs → distinct items, even when the labels match.
 4. **Otherwise** → one Backlog line. An `open-issues/<N>-<slug>.md` file exists only for an issue
    that needs a design document of its own (a feature, a cross-repo programme); a bug gets a line.
+   Such a plan file is linked from the issue's Linear description and deleted once the issue is implemented.
 
 The MAIN.md Backlog line is one line, in the index's own voice, and carries exactly two things:
 the symptom and the fix site. The mechanism, the repro test and the fix model stay in the issue,

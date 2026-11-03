@@ -349,7 +349,7 @@ So **editing the `CategoryPerformance` switch alone does not change behavior for
 `AircraftCategorization.Categorize(aircraftType)` (`AircraftCategory.cs`, `AircraftCategorization.Categorize`): strips the `H/J/S` wake prefix (`AircraftState.StripTypePrefix`),
 looks up the type, then tries `AircraftSiblingMap.TryResolve`, and finally **falls back to `AircraftCategory.Jet`** for unknown types.
 
-### The validated category table (supersedes CLAUDE.md's 3-category summary)
+### The validated category table
 
 There are **four** categories — Jet, Turboprop, Piston, **Helicopter** (`AircraftCategory.cs`, `AircraftCategory`). All values are
 aviation-sim-expert-validated against the AIM / FAA 7110.65. Airborne kinematics constants from `CategoryPerformance`:
@@ -470,7 +470,7 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
   Re-accelerating it a few miles before the phase slows it again is what §5-7-1's lead ("Avoid adjustments requiring alternate decreases and increases") and §5-7-1.a.3(e) rule out, and AIM 4-4-12.f scopes "resume normal speed" to before an approach clearance.
 
   Both restores are one-shot writes, and one write is enough under a lower regulatory cap (a Class B shelf's 200 kt, 91.117(c)): the restored target stays standing at the cap and the aircraft takes it up once the cap lifts (the 91.117 bullet above).
-- **There are FOUR aircraft categories — Jet, Turboprop, Piston, Helicopter.** CLAUDE.md's summary lists only the first three; the Helicopter
+- **There are FOUR aircraft categories — Jet, Turboprop, Piston, Helicopter.** A summary that lists only the first three is incomplete; the Helicopter
   column is real and aviation-reviewed. Unknown ICAO types fall back to **Jet** (after the sibling-map attempt).
 - **Constants are NOT read from `CategoryPerformance` directly in production.** `AircraftPerformance.*` is the entry point: per-type profile with
   altitude-breakpoint interpolation + `IProfileCorrectionAdapter`, falling back to `CategoryPerformance` only when no profile exists. Editing the

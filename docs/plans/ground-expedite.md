@@ -80,7 +80,7 @@ Use "without delay" everywhere, matching the existing exit (`CommandDescriber.cs
 
 ## 5. What the sim should refuse
 
-- **PUSH / PUSHM / PUSHF EXP**: refuse as an unknown modifier, i.e. do not add EXP to their registry entries. §3-7-2.j does not cover tug moves (CLAUDE.md: the tug holds 5 kt). Standalone `EXP` during a pushback already refuses without a taxi route.
+- **PUSH / PUSHM / PUSHF EXP**: refuse as an unknown modifier, i.e. do not add EXP to their registry entries. §3-7-2.j does not cover tug moves (docs/ground/pushback.md: the tug holds 5 kt). Standalone `EXP` during a pushback already refuses without a taxi route.
 - **TAXIALL EXP**: do not offer it. It is an instructor bulk tool, and a blanket expedite of every parked aircraft is not an ATC instruction.
 - **ATXI EXP**: do not offer it. AIM 4-3-17 makes air-taxi speed the pilot's choice ("The pilot is solely responsible for selecting a safe airspeed").
 - **Heavy in a tight turn**: **no refusal.** The geometry caps already slow every type through corners and fillets. EXP raises only the straight-line ceiling, so there is nothing for the pilot to be unable to do.
@@ -105,7 +105,7 @@ Use "without delay" everywhere, matching the existing exit (`CommandDescriber.cs
 ## Questions settled by the owner (each recommendation adopted)
 
 1. **One expedite with a scope, or separate flags per command?** Recommend one route/crossing scope (an enum) beside the existing `IsExpeditingExit` and `IsExpeditingLineup`, which keep their own lifetimes. The taxi side then has a single knob.
-2. **Acceleration bump under EXP?** Recommend yes: 1.5 kt/s for jet, turboprop and piston; 1.0 for Super/Heavy and helicopters. This adds one new constant to CLAUDE.md's validated list. The alternative is a speed-only expedite, which barely helps a crossing that starts from the bar.
+2. **Acceleration bump under EXP?** Recommend yes: 1.5 kt/s for jet, turboprop and piston; 1.0 for Super/Heavy and helicopters. This adds one new constant to the validated ground rates (docs/ground/navigator.md). The alternative is a speed-only expedite, which barely helps a crossing that starts from the bar.
 3. **Heavies under EXP?** Recommend accepting it with no speed or acceleration bump (cap 30 kt, accel 1.0), per §3-7-3.a. The trainee sees an accepted clearance that buys little. Alternative: the full 1.3× for everyone.
 4. **Does a release without EXP (RES, or a CROSS from a stop) end a route expedite?** Recommend yes, for consistency with RES today and the §2-1-5.b restatement rule. A CROSS pre-clearance issued while rolling leaves it running.
 5. **Aliases `WD` / `ND` (as on LUAW/CTO) on the ground commands?** Recommend no: `EXP` only. Taxiway names are free text, and two-letter tokens risk colliding with real designators. `EXP` already matches EXIT/EL/ER.

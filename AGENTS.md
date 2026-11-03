@@ -7,7 +7,6 @@
 - Project rules: `CLAUDE.md`
 - Project skills: `.claude/skills/`
 - Claude agent source prompts: `.claude/agents/`
-- Claude command source prompts: `.claude/commands/`
 - Local reference material: `.claude/reference/`
 
 Do not move or fork those sources casually. When a Claude-only feature has no Codex-native entrypoint, read the canonical Claude file directly and follow it.
@@ -23,7 +22,7 @@ Do not move or fork those sources casually. When a Claude-only feature has no Co
 - The gate's `-TimeoutSeconds` catches hangs: 30 for a filtered `dotnet test`, 120 for an unfiltered one, 300 for a build. Never add a `timeout` wrapper of your own.
 - Do not run bare `dotnet format`; use the configured hooks or project-approved formatting commands from `CLAUDE.md`.
 - Never pass `-q`, `-v q`, `--nologo`, or extra quieting flags to `dotnet format`.
-- Build after edits with warnings as errors: `pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true`.
+- Build after edits (`Directory.Build.props` treats warnings as errors): `pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build`.
 - For broad verification, prefer `pwsh tools/test-all.ps1` because it covers both YAAT and `yaat-server`.
 - Keep `docs/architecture.md` current before commits.
 
@@ -57,7 +56,7 @@ Both repos live under `/agent/repos/` as siblings:
 Both repos use `.slnx` solution format and target `net10.0`. The `wasm-tools` workload is required for the `Yaat.VStrips.Web` project — run `dotnet workload restore` from the yaat repo root if the workload is missing.
 
 Standard build/test commands from `CLAUDE.md` apply. Key commands:
-- `pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true`
+- `pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build`
 - `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 120 -Slot heavy -- dotnet test`
 - `pwsh tools/test-all.ps1` for cross-repo verification
 

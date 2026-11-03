@@ -52,6 +52,8 @@ pwsh -NoProfile -Command 'Get-ChildItem "$env:LOCALAPPDATA\CRC\Application\*.dll
 
 ## Step 4: Wire snapshot
 
+Every CRC update regenerates the CRC wire-contract snapshot in yaat-server: `tools/CrcWireDump` reads the installed CRC's `Vatsim.Nas.Messaging.dll`/`Vatsim.Nas.Common.dll` metadata into `docs/crc-wire/messaging-contract.json`, and `CrcWireContractTests` diffs every `Yaat.Server.Dtos` MessagePack layout against it.
+
 ```bash
 pwsh ../yaat/tools/gate.ps1 -Log .tmp/crcwiredump.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/CrcWireDump
 git diff --stat docs/crc-wire/

@@ -210,3 +210,9 @@ python tools/bug_bundle.py validate <bundle.zip>
 - `install` upgrades the archive in place via `../yaat-server/tools/Yaat.RecordingUpgrader` (needs the sibling checkout + dotnet; prints `upgraded: … MIGRATED/up-to-date`), then validates it; a post-install validation warning usually means the bundle is truncated. A missing-upgrader warning means the bundle keeps its recorded schema and any retired canonicals — run the upgrader by hand before relying on strip-command replay.
 - Output goes to stdout by default (pipeable). Use `--out <path>` to write a file; `logs` always writes files and prints paths.
 - `scenario`, `weather`, `artcc-config`, and `layouts` always pretty-print the JSON they emit (indent=2). Falls back to raw text if the payload isn't valid JSON.
+
+### Extend the tool when you find yourself doing repeat custom work
+
+If you write more than two ad-hoc Python/C# snippets that pull the same kind of data from a bundle, layout, or snapshot — coordinate vs runway centerline, all exits with current occupancy, two-aircraft positional comparison over a range — turn that snippet into a subcommand of `tools/bug_bundle.py` or `tools/Yaat.LayoutInspector/` first, then use it.
+
+The next agent will have the same investigation; bake the lookup into the tool. Keep custom snippets only for genuinely one-off questions.

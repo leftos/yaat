@@ -8,10 +8,13 @@
 
 - **Tech stack**: .NET 10, C# (nullable, implicit usings), Avalonia UI 12.1.0, CommunityToolkit.Mvvm, SignalR, MessagePack for CRC — `Yaat.Sim` has no UI dependencies; SkiaSharp arrives transitively via `Avalonia.Skia`, never as a direct package reference
 - **Aviation accuracy**: every change touching aviation logic is reviewed by `aviation-sim-expert` against FAA 7110.65 / AIM, read from the local references — never web search
-- **TDD**: failing test first for bug fixes and sim changes; real navdata in tests, never synthetic stubs
+- **TDD covers sim changes too**: commands, physics, phases, navdata and parsers get a failing test first like a bug fix (the `test-fix` skill; worked examples in `docs/e2e-tdd-issue-debugging.md`), on real navdata, never synthetic stubs
 - **Determinism**: recordings must replay exactly; AI brains never run in replay, and the same seed reproduces byte-for-byte
-- **Cross-repo verification**: `pwsh tools/test-all.ps1` builds and tests both repos; a `Yaat.Sim` signature change that breaks the sibling is invisible to a bare `dotnet test`
-- **Zero warnings**: build with `-p:TreatWarningsAsErrors=true`; run every `dotnet build`/`dotnet test`/`dotnet run` through `pwsh tools/gate.ps1 -Log <log> -TimeoutSeconds <seconds> -Slot heavy -- <command...>`, which keeps the full output in the log, prints only the tail, and exits with the command's own status
+- **Cross-repo verification**: `pwsh tools/test-all.ps1` builds and tests both repos; a `Yaat.Sim` signature change that breaks the sibling is invisible to a bare `dotnet test`. Run it where you'd otherwise run the whole suite. Before renaming or re-signing a public `Yaat.Sim` member, `rg` its name under `../yaat-server` and make the server edits by hand.
+
+Gate: run every dotnet build/test/run as pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <n> -Slot heavy -- <cmd> (30 filtered test, 120 full test, 300 build, 900 test-all.ps1); verdicts in ~/.claude/docs/gate.md.
+
+A gated command for a worktree runs with `--cd <worktree root>` and paths relative to it (`pwsh tools/gate.ps1 run --cd X:/dev/yaat.wt/<name>/yaat --log .tmp/<log>.log --timeout <n> --slot heavy -- <command>`), never from the main checkout naming the worktree's paths, or it is not routed and runs on this PC.
 
 ## Build & Run
 
@@ -19,12 +22,7 @@
 dotnet workload restore                                 # Once per clone: installs wasm-tools (the .Web projects need it)
 dotnet build                                            # Build entire solution
 dotnet run --project src/Yaat.Client                    # Run client (needs yaat-server; see the port note below)
-dotnet run --project tools/Yaat.Scratch                 # Ad-hoc throwaway scratchpad (intentionally empty placeholder)
-dotnet run --project tools/Yaat.SpeechSandbox           # Speech sandbox GUI (or `-- --pipeline <wav>`, `--lmkit-stt`, `--lmkit-models`, `--lmkit-gpus`, `--yaat-catalog`, `--llm-probe`, `--ouroboros`, `--eval`, `--synth-corpus`, `--atc-ouroboros`, `--corpus-wer`, `--lexicon-inputs`, `--tts-bench`)
 dotnet run --project tools/Yaat.GuideCapture            # Regenerate USER_GUIDE.md screenshots into docs/user-guide/img/ (or `-- --scene <name>`)
-dotnet build ../yaat-server/tools/Yaat.ClientDriver.Mcp # Once per yaat-server checkout: the client-driver MCP lives in the private yaat-server repo (see yaat-server docs/client-driver-mcp.md); `.mcp.json` runs a shadow copy of this build output and never builds
-dotnet run -c Release --project tools/Yaat.PrecomputeCache # Maintainer: compute the committed precompute-cache entries (`-- --check` lists stale ones, `-- --refresh-airports` rebuilds airports.txt; src/Yaat.Sim/Data/PrecomputeCache/README.md)
-dotnet run --project tools/Yaat.RecordingConsolidator    # Dedupe recording .zip fixtures in tests/Yaat.Sim.Tests/TestData (see the `consolidate-recordings` skill)
 pwsh tools/test-all.ps1                                 # Build + test both yaat and yaat-server (excludes Nightly + PathfinderGrid sweeps for speed)
 pwsh tools/test-all.ps1 -Full                           # ...including the heavy Nightly + PathfinderGrid sweeps (CI/nightly run these)
 qodana scan --results-dir .tmp/qodana-results           # Static analysis (local only)
@@ -36,20 +34,6 @@ qodana scan --results-dir .tmp/qodana-results           # Static analysis (local
 
 **Server port: `dotnet run --project src/Yaat.Server` binds `http://localhost:5130`,** not 5000. 5130 comes from the first `launchSettings.json` profile (which also sets `ASPNETCORE_ENVIRONMENT=Development`); 5000 is only the Docker/production bind. The client's auto-connect default is still `http://localhost:5000`, so point it at 5130 when running the server from source.
 
-## Layout Inspector Tool
-
-`tools/Yaat.LayoutInspector/` queries an airport's ground graph, renders interactive HTML maps, and analyzes per-tick JSON recordings from `TickRecorder` — the tool for ground/exit/taxi topology questions and for inspecting a failing test's trajectory.
-
-**Invoke the `layout-inspect` skill instead of composing CLI invocations by hand** — it carries the current flag reference. Flag-level docs: [`tools/Yaat.LayoutInspector/CLAUDE.md`](tools/Yaat.LayoutInspector/CLAUDE.md); worked examples: [`docs/e2e-tdd-issue-debugging.md`](docs/e2e-tdd-issue-debugging.md).
-
-## Bug Bundle Tool
-
-`tools/bug_bundle.py` inspects, extracts, installs, and validates v4 bug bundles (`*.yaat-bug-report-bundle.zip`, `*-recording.zip`). When a bundle-shaped filename appears in user input, **invoke the `bug-bundle` skill before running any subcommand** — it carries the full reference (start with `info`, then `history --callsign X` for single-aircraft triage).
-
-**Extend the tools when you find yourself doing repeat custom work.** If you write more than two ad-hoc Python/C# snippets that pull the same kind of data from a bundle, layout, or snapshot — coordinate vs runway centerline, all exits with current occupancy, two-aircraft positional comparison over a range — turn that snippet into a subcommand of `tools/bug_bundle.py` or `tools/Yaat.LayoutInspector/` first, then use it.
-
-The next agent will have the same investigation; bake the lookup into the tool. Keep custom snippets only for genuinely one-off questions.
-
 ## Logs
 
 Read log files first before speculating about runtime errors:
@@ -59,9 +43,11 @@ Read log files first before speculating about runtime errors:
 
 ## Architecture
 
-> **Full annotated file tree: [`docs/architecture.md`](docs/architecture.md).** Read it when you need to locate files or understand project structure. Keep it up-to-date before each commit.
+> **Full annotated file tree: [`docs/architecture.md`](docs/architecture.md).** Read it when you need to locate files or understand project structure. Keep it up-to-date before each commit (the `architecture-updater` agent checks it).
 >
 > **Exploring the codebase?** Start from the docs map ([`docs/README.md`](docs/README.md) → `architecture.md` Task Index → the matching subsystem doc), not source from scratch. When delegating exploration to a subagent, use the user-level `Explore` agent (it follows this docs-first protocol automatically); otherwise put "read `docs/architecture.md` + the relevant `docs/*.md` first" in the agent's prompt.
+
+Subsystem docs: before exploring or editing a subsystem, open its doc from [docs/README.md](docs/README.md) (Subsystem docs, Reference material, Reference repos), then the docs/architecture.md Task Index.
 
 **Yaat.Sim** is shared by every client project and by yaat-server.
 
@@ -84,110 +70,15 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 - **No DI**: `MainWindow` creates `MainViewModel` directly
 - **Snapshots**: `SimulationWorld.GetSnapshot()` → shallow copy; treat as read-only
 
-### Command Rules
-
-- Match ATCTrainer/VICE names where applicable. Canonical reference is `COMMANDS.md`; alias data lives in `docs/command-aliases/*.json`.
-- **Completeness (MANDATORY):** Every `CanonicalCommandType` must exist in `CommandScheme.Default()` and `CommandRegistry.All`. Tests enforce this.
-- **Altitude arguments:** Always use `AltitudeResolver.Resolve()` for parsing altitude arguments in commands. It handles both shorthand (`15` → 1500ft) and full (`1500` → 1500ft) formats, plus AGL notation (`KOAK+010`).
-
-## Related Repositories
-
-| Repo | Path | Purpose |
-|------|------|---------|
-| yaat-server | `..\yaat-server` | ASP.NET Core server, simulation engine, CRC protocol |
-| vzoa | `..\_ext\vzoa` | vZOA training files (auxiliary). Airport ground GeoJSONs are fetched from the vNAS data-api by `AirportLayoutDownloader`; do not read the sibling repo. |
-| vatsim-server-rs | `..\_ext\csko\vatsim-server-rs` | CRC protocol reference (wire format, DTO ordering) — **read-only emulation**, use vNAS messaging-master for mutation-capable methods |
-| vatsim-vnas | `..\_ext\vatsim-vnas` | vNAS source: common (GeoCalc), data (nav/scenarios), messaging (CRC DTOs — definitive reference) |
-| vedst | `..\_ext\vFlightDataSystems\VATSIM_EDST_frontend` | vEDST web client (`vFlightDataSystems/VATSIM_EDST_frontend`) — **read-only reference** for the hub methods, callbacks, DTO shapes and `/vnas` endpoints yaat-server serves it ([`docs/vedst.md`](docs/vedst.md)) |
-| vatsim.dev | `..\_ext\vatsimnetwork\vatsim.dev` | VATSIM developer docs (`vatsimnetwork/vatsim.dev`) — **read-only reference** for VATSIM Connect (OAuth2, `/api/user`, `openapi/connect.yaml`) and its sandbox (`auth-dev.vatsim.net`, test accounts: `docs/services/connect/sandbox.md`) |
-
-**vNAS APIs:** Config: `https://configuration.vnas.vatsim.net/` | Data: `https://data-api.vnas.vatsim.net/api/artccs/{id}` | Airport ground map: `https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map` (used by `AirportLayoutDownloader`, cached at `%LOCALAPPDATA%/yaat/cache/airports/`)
-
-**RV-SID synthetic transitions:** `NavData.dat` encodes radar-vectors SIDs (e.g. NIMI5/OAK6) with synthetic `[OAK, X]` "transitions" that are not published CIFP transitions.
-
-Flight-plan callers must pass `RouteExpander.Expand(..., includeAllTransitionsOnMismatch: false)` so the emit-all fallback doesn't fabricate a turn-back through every X fix; only autocomplete/UI paths pass `true`. See [`docs/navigation-database.md`](docs/navigation-database.md) for the full caller table and route-expansion internals.
-
-## Reference Docs
-
-- `docs/atctrainer-scenario-examples/` — Real ATCTrainer scenario JSONs (reference for scenario format)
-- `docs/crc/` — CRC controller manual (STARS, Tower Cab, vStrips)
-- [`docs/eram/`](docs/eram/README.md) — ERAM command reference extracted from the FAA ERAM EDSM SRS: per-command formats, field checks, descriptors and our error texts, as YAML that yaat-server's `EramReferenceConformanceTests` enforces. Read it before touching `CrcClientState.Eram*.cs`
-- `docs/vnas-artcc-config-examples/` — Real ARTCC config JSONs (facility hierarchy, positions, coordination channels)
-- `..\_ext\vatsim-vnas\crc-decompiled\CRC\` (sibling of the yaat repo root) — private git repo of the ILSpy-decompiled CRC (2.15 baseline + 2.17; re-decompile + commit on each CRC update). Key: `Vatsim.Nas.Crc.Ui.Displays.Stars.Elements/DisplayElementTracks.cs`, `…Stars.Consolidation/ConsolidationManager.cs`, `…Stars.Tracks/Track.cs`, `TrackOwnerExtensions.cs`
-- On each CRC update, also regenerate the CRC wire-contract snapshot in yaat-server: `dotnet run --project tools/CrcWireDump` (reads the installed CRC's `Vatsim.Nas.Messaging.dll`/`Vatsim.Nas.Common.dll` metadata into `docs/crc-wire/messaging-contract.json`; `CrcWireContractTests` diffs every `Yaat.Server.Dtos` MessagePack layout against it). The end-to-end procedure — changelog source, decompiler pin, what to diff — is the `crc-update-check` skill (reference: yaat-server `docs/crc-update.md`).
-- [`scenario-validation.md`](docs/scenario-validation.md) — validating scenario preset commands (`VnasScenarioParseTests`); [`scenario-validation-known-failures.md`](docs/scenario-validation-known-failures.md) lists the failures that are *not* parser bugs (scenario typos, features we won't implement) — check it before chasing one
-- [`discord-integration.md`](docs/discord-integration.md) — Discord bot and GitHub Actions workflows; the desktop client's Rich Presence (`src/Yaat.Client/Services/Discord/`)
-
-Subsystem references — open the matching doc *before* exploring, searching, or editing the listed code; each carries its own overview, contracts, and footguns:
-
-- [`landing-and-runway-exit.md`](docs/landing-and-runway-exit.md) — `LandingPhase`, `RunwayExitPhase`, `GroundNavigator` (analog rollout)
-- [`ground/`](docs/ground/README.md) — ground/taxi stack index → [`fillet-generator`](docs/ground/fillet-generator.md), [`pathfinder`](docs/ground/pathfinder.md), [`navigator`](docs/ground/navigator.md), [`hold-short-placement`](docs/ground/hold-short-placement.md), [`pushback`](docs/ground/pushback.md)
-- [`ground-layout-generation.md`](docs/ground-layout-generation.md) — `GeoJsonParser` → fillet arcs → ground-graph construction (the full import pipeline behind `AirportGroundLayout`)
-- [`speech-recognition-pipeline.md`](docs/speech-recognition-pipeline.md) — `src/Yaat.Sim/Speech/`, `WhisperSttEngine`, `LocalLlm*`, `SpeechRecognitionService`, `tools/Yaat.SpeechSandbox` (STT input)
-- [`solo-training-pilot-speech.md`](docs/solo-training-pilot-speech.md) — `src/Yaat.Sim/Pilot/`, `PendingPilotTransmissions`, `ActiveFrequency`, `PilotVoiceService` (TTS output)
-- [`pilot-phraseology.md`](docs/pilot-phraseology.md) — `PilotResponder.Build*`, `PhraseologyVerbalizer`, `PilotSpeechText` (Terminal/Tts/RpoTerminal): what pilots say + AIM/7110.65 grounding (read before changing any pilot wording) → source corpus for `PhraseologyRule.PilotVariants`: [`pilot-phraseology-examples.md`](docs/pilot-phraseology-examples.md)
-- [`flight-strips.md`](docs/flight-strips.md) — `FlightStripState`, `StripItemDto`, `CrcClientState.Strips.cs`, strip commands
-- [`vtdls.md`](docs/vtdls.md) — Tower Data Link Services (PDC) emulation: `src/Yaat.Client.Tdls/`, `tools/Yaat.VTdls.Web`, server vTDLS state
-- [`phases.md`](docs/phases.md) — anything under `src/Yaat.Sim/Phases/` (base contract, `CommandAcceptance`, `PhaseRunner`)
-- [`snapshots-and-replay.md`](docs/snapshots-and-replay.md) — `Simulation/Snapshots/`, `Simulation/Replay/`, `RecordingArchive`, `SnapshotSchemaMigrator`, bug bundles
-- [`tick-loop.md`](docs/tick-loop.md) — per-tick execution order (PrePhysics → Physics×4 → PostPhysics) + broadcast cadence
-- [`command-pipeline.md`](docs/command-pipeline.md) — `SendCommandAsync`, `CommandSchemeParser`, `CommandDispatcher`, `RoomEngine`, `*CommandHandler.cs` (input→queue)
-- [`command-chaining.md`](docs/command-chaining.md) — the `;`/`,` chaining contract: per-category completion, the three advancement regimes, fire-time abort, non-compoundable rejection (read before touching `UpdateCommandQueue`/`CommandBlock`)
-- [`command-handlers.md`](docs/command-handlers.md) — `CommandDispatcher.cs` + `*CommandHandler.cs` internals
-- [`aircraft-data-model.md`](docs/aircraft-data-model.md) — `AircraftState`, `ControlTargets`, `Aircraft*.cs` satellites, `SimulationWorld`; adding a per-aircraft field
-- [`training-hub-contract.md`](docs/training-hub-contract.md) — `/hubs/training` JSON wire contract; adding a hub method or `AircraftUpdated` field
-- [`server-rooms-and-hub.md`](docs/server-rooms-and-hub.md) — hosted tick loop, `RoomEngine`, `TickProcessor`, `AircraftChangeTracker`, `TrainingRoom*`, the scenario load's prepare/commit and resource pin
-- [`vatsim-auth.md`](docs/vatsim-auth.md) — VATSIM Connect (OAuth2) identity, access control, token flow; the server is the identity authority
-- [`session-persistence.md`](docs/session-persistence.md) — preserving rooms across a *planned* server restart (admin prepare/shutdown flow; no crash recovery)
-- [`crc-display-state.md`](docs/crc-display-state.md) — `CrcClientState`, `CrcBroadcastService`, `CrcVisibilityTracker`, `DtoConverter`, `CrcDtos*.cs`
-- [`logging.md`](docs/logging.md) — adding a logger / debugging missing log lines (SimLog & AppLog)
-- [`navigation-database.md`](docs/navigation-database.md) — `NavigationDatabase`, `RouteExpander`, `FrdResolver`, `CustomFixLoader`, `ApproachGateDatabase` (+ RV-SID footgun)
-- [`military-training-routes.md`](docs/military-training-routes.md) — `src/Yaat.Sim/Data/MilitaryRoutes/`, `MilitaryRoutePhase`, `AerialRefuelingAnchorPhase`, `MilitaryRouteCommandHandler`, `tools/build-mtr-data.py` (AP/1B IR/VR/SR + AR)
-- [`flight-physics.md`](docs/flight-physics.md) — `FlightPhysics`, `ControlTargets`, `AircraftPerformance`, `CategoryPerformance`, `WindInterpolator`, kinematics
-- [`live-traffic.md`](docs/live-traffic.md) — `src/Yaat.Sim/LiveTraffic/` (shadow aircraft from an external feed: `AircraftLiveTraffic`, `LiveTrafficKinematics`, `IsShadow` tick bypass + command gate, `RecordedLiveTrafficSample`)
-- [`aircraft-performance.md`](docs/aircraft-performance.md) — per-type performance resolution + the contributor `AircraftProfileOverrides.json` correction layer (`AircraftProfileOverride`, `OverrideAwareProfileCorrectionAdapter`, `CategoryPerformance.BaselineProfile`)
-- [`client-settings-and-menus.md`](docs/client-settings-and-menus.md) — the Settings window (`SettingsNavigation`, sections, search, OK/Apply/Cancel), Scenario defaults vs the session flyout, the Import / Export hub, the View menu and hotkeys, layouts
-- The client-driver MCP (drives the real desktop client and CRC: reproducing UI-path bugs end to end, comparing CRC's display with YAAT's) lives in the private yaat-server repo; read yaat-server `docs/client-driver-mcp.md`
-- [`test-harness.md`](docs/test-harness.md) — writing any Yaat.Sim test / "passes alone but flakes in the suite"
-- [`tick-animator.md`](docs/tick-animator.md) — recording tick-by-tick aircraft state with `TickRecorder` and animating it over a ground layout (LayoutInspector `--ticks --html`) to eyeball test behavior
-- [`approach-and-pattern-geometry.md`](docs/approach-and-pattern-geometry.md) — `Phases/Approach/`, `Phases/Pattern/`, `PatternGeometry`, `AirborneFollowHelper`, `HoldingEntryCalculator`, `ApproachEvaluator`
-- [`conflict-and-visual-detection.md`](docs/conflict-and-visual-detection.md) — `ConflictAlertDetector`, `GroundConflictDetector`, `AtpaProcessor`, `VisualDetection`, `WakeTurbulenceData`
-- [`scenario-loading-and-generation.md`](docs/scenario-loading-and-generation.md) — `ScenarioLoader`, `AircraftInitializer`/`AircraftGenerator`/`SpawnParser`, `GroundSpawnSnap`
-- [`airline-fleets.md`](docs/airline-fleets.md) / [`airport-airlines.md`](docs/airport-airlines.md) — the generator's callsign realism data (`airline-fleets.json`, `airport-airlines.json.br`) and the Python tools that rebuild them
-- [`hold-for-release.md`](docs/hold-for-release.md) — `HeldReleaseService`, `DepartureSpawnClassifier`, the HFR/REL gates + rundown broadcast (departure-release control)
-- [`solo-training-evaluation.md`](docs/solo-training-evaluation.md) — `SoloTrainingEvaluator`, `AircraftCompletion`, scoring findings
-- [`runway-fouling.md`](docs/runway-fouling.md) — which "clear of the runway" definition each consumer uses (`RunwayOccupancy`, `OccupiedRunwayGoAround`, `RunwaySafetyAdvisor`, solo runway-user scoring), from P/CG, AIM 4-3-21 / 2-3-5 and 7110.65 3-9 / 3-10
-- [`track-sharing-and-consolidation.md`](docs/track-sharing-and-consolidation.md) — `ConsolidationEngine`/`ConsolidationState`, `AircraftStarsState.SharedState`, `AircraftEramState`, `StarsConsolidation`
-- [`client-mainviewmodel.md`](docs/client-mainviewmodel.md) — any `MainViewModel` partial, `MainWindow.axaml.cs`, SignalR-driven client features
-- [`radar-rendering.md`](docs/radar-rendering.md) — `Views/Radar/`, `Views/Map/` (SkiaSharp two-thread snapshot split)
-- [`ground-rendering.md`](docs/ground-rendering.md) — `Views/Ground/` (`GroundCanvas`, `GroundRenderer`, `GroundViewModel` taxi-route overlays + the client-side route-reconstruction contract)
-- [`command-input-ux.md`](docs/command-input-ux.md) — `CommandInputController`, `ArgumentSuggester`/`FixSuggester`, `SignatureHelpState`, `CommandInputParseResult` (pre-send)
-- [`weather-and-wind.md`](docs/weather-and-wind.md) — `WeatherProfile`/`WeatherTimeline`, `MetarParser`, `WindsAloftParser`, `WindInterpolator`, `MagneticDeclination`, `LiveWeatherService`
-- [`airspace-database.md`](docs/airspace-database.md) — `src/Yaat.Sim/Data/Airspace/`, `AirspaceBoundaryHoldPhase`, `PilotProactive.TickAirspaceBoundaryRespect`, Class B/C separation
-- [`minimum-vectoring-altitude.md`](docs/minimum-vectoring-altitude.md) — `src/Yaat.Sim/Data/Mva/`, `tools/build-mva-data.py`, the radar MVA display surfaces
-- [`installer-release.md`](docs/installer-release.md) — Velopack packaging, auto-update, `release.yml`, versioning (and [`macos-code-signing.md`](docs/macos-code-signing.md) for the notarized macOS `.pkg`/`.app`)
-
 ## Aviation Realism — MANDATORY
 
-**Every feature touching aviation must be reviewed by `aviation-sim-expert`** (via `Agent` with `subagent_type: "aviation-sim-expert"`). This is not optional.
+**Every feature touching aviation must be reviewed by `aviation-sim-expert`** (via `Agent` with `subagent_type: "aviation-sim-expert"`, through the `aviation-review-gate` skill, which carries the standard local-references preamble). This is not optional.
 
 **Scope:** flight physics, pilot AI, ATC logic, radio comms, aircraft performance, airspace rules, phase transitions, command dispatch, ground ops, conflict detection, trigger conditions, any automatic aircraft behavior.
 
 **Do not guess aviation details.** Use FAA 7110.65, AIM, ICAO Doc 4444 as authorities.
 
-**Validated performance constants** (in `AircraftCategory.cs` / `CategoryPerformance`, validated by `aviation-sim-expert`):
-
-- Default speed (kts by altitude): Jet `<10k=250 / <18k=280 / <28k=290 / >=28k=280`; Turboprop `<10k=200 / <24k=250 / >=24k=270`; Piston `<10k=110 / >=10k=120`.
-- Turn rate (deg/s): Jet 2.5, Turboprop/Piston 3.0. Climb fpm (below/above 10k): Jet 2500/1800, TP 1500/1200, Piston 700/500. Descent fpm: Jet 1800, TP 1200, Piston 500.
-- Accel/decel (kts/s): Jet 2.5/3.5, TP 1.5/2.5, Piston 1.0/2.0. Snap thresholds: heading 0.5°, altitude 10 ft, speed 2 kt.
-- Taxi (kts/s, physics is the only ground-speed integrator): accel 1.0 for every category — the breakaway rate, not the sustained idle rate (a light single's breakaway blip gives it *better* ground thrust-to-weight than a loaded transport, so it cannot be slower); brake Jet/TP 5.0, Piston/Heli 2.0. Ground snap window = one sub-tick of change.
-
-  Ground expedite ("without delay": `TAXI`/`TAXIAUTO`/`CROSS … EXP`): taxi speed cap ×1.3 and `ExpediteTaxiAccelRate` 1.5 kt/s for Jet, Turboprop and Piston, 1.0 for Super/Heavy and Helicopter. A Super/Heavy gets no taxi speed increase on any ground expedite (7110.65 §3-7-3.a; an explicit `SPD` is still allowed).
-
-  Tug moves (`PUSH`/`PUSHM`, every category): accel 0.3, brake 1.0 — towbar rates published by `PushbackPhase` as `DesiredAccelRate`/`DesiredDecelRate`; judgement calls under AC 00-65A §11.17, which gives no figure. The tug holds 5 kt (`PushbackSpeed`) through turns, the main gear commanded at 5·cos(steer) (B738 routine radius 3.5 kt, tight 1.9 kt); the 3 kt align creep covers only the last 30 ft of a creep move (`PushbackPhase.AlignCreepFt`).
-
-  Turn about on a taxiway: the type's radius R = max(MGW/2, 0.466 × wheelbase) from the FAA record (`TurnAboutFit`, the main-gear axle-midpoint path radius), speed ω·R; a type without those figures uses `TightTurnFloorRadiusFt` (8/12/15/8 ft piston/turboprop/jet/helicopter, ≈1.65/2.0/1.86/2.5 kt). A controller's turn about is refused unless the type's gear fits its TDG taxiway's half-width.
-- Takeoff roll (`GroundRollProfile`, kts/s idle → steady over the spool): Jet 1.0 → 5.0 over 5 s, TP 0.8 → 4.0 over 4 s, Piston 0.5 → 2.7 over 3 s. The jet steady rate matches a full-rated B738 (145 kt in ~31 s / ~3,560 ft); a C172 rolls ~1,120 ft to Vr 60 (POH 960).
+Aviation constants: validated category values live in docs/flight-physics.md (CategoryPerformance); a change to one goes through the aviation-review-gate skill.
 
 **Local FAA references — DO NOT web-search:**
 
@@ -195,133 +86,55 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - **AIM**: `.claude/reference/faa/aim/` (index: `INDEX.md`)
 - **Semantic search**: the main checkout's `.claude/reference/faa/` is indexed by ck (`mcp__ck__semantic_search` / `mcp__ck__hybrid_search` with `path` set to that folder in the main checkout, not a worktree copy, which would start a fresh index); a hit is a pointer, confirmed by reading the paragraph before it is cited.
 
-When invoking aviation-sim-expert, always include:
-> "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files in the repo. Read them directly via Read/Grep/Glob at `.claude/reference/faa/7110.65/` and `.claude/reference/faa/aim/`, and find a paragraph by meaning with ck semantic search over the main checkout's `.claude/reference/faa/` (see your agent file). Do NOT use web search tools to look up 7110.65 or AIM content."
-
 ## Project Skills
 
-`.claude/skills/` carries this repo's workflows; their descriptions are already in context, so this is only about *when to prefer one over doing it by hand*:
+**Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`, before running any `tools/bug_bundle.py` subcommand), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match"), `guide-capture` (any GuideCapture screenshot scene).
 
-- **Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match"), `guide-capture` (any GuideCapture screenshot scene).
-- **Bug fixes and sim changes**: `test-fix` implements the mandatory TDD loop below.
-- **Review gates**: invoke the `aviation-sim-expert` and `csharp-reviewer` agents directly (via `Agent`); the `architecture-updater` agent covers the pre-commit `docs/architecture.md` obligation.
-- **Starting a session from the plan**: the user-level `nextup` ("next up", "what's next", "clear the bug list") runs the loop — plan hygiene first, then explorations fan out, independent items run in their own worktrees, each ships as it lands; `yaat-nextup` is only its profile (plan convention, agents, gates, docs map, landing) and is never invoked on its own.
-- **Landing work**: `/changelog-and-commit` and `/ship` (user-level), reading `yaat-nextup`'s `## Changelog` and `## Ship` (`/ship` commits, lands both repos, pushes and closes issues — invoking it *is* the approval).
-- **Release**: `prepare-release`. Maintenance: `consolidate-recordings`, `crc-update-check` (any time CRC ships a new version — decides whether the server or client must follow), `triage-open-issues` (folding the open GitHub issues into `docs/plans/` — verdicts, placement, grouping; never closes an issue).
+Landing (cross-repo cherry-pick, hooks exception, push, issue refs): /ship with the yaat-nextup profile.
 
 ## Problem Solving
 
 - **Revert what made things worse, keep what is correct**: When a fix attempt breaks tests or degrades behavior, revert it and try a different approach; never iterate on a broken approach more than twice without stepping back to reassess. Do not revert a fix that is correct just because an unrelated test is red, a replay recording desynced, or the user sounds unsure — verify first, then keep it and fix the actual cause.
-- **Verify before implementing**: Before implementing a fix, verify the approach against actual code and official docs. Never rely on unverified claims from sub-agents or assumptions about schemas/APIs. When in doubt, read the source.
-- **Follow plans sequentially**: When the user provides a plan or ordered list of tasks, follow it top-down sequentially. Do not skip items, reorder, or take shortcuts through the list.
 
 ## Rules
 
 ### Testing
 
-- **TDD for bugs and sim changes**: Write the failing test first, confirm it fails, fix, confirm it passes. Applies to bug fixes, commands, physics, phases, navdata, parsers — anything in simulation-critical code. See `docs/e2e-tdd-issue-debugging.md`.
-- **No guessing at root causes**: Reproduce with a test first. Use real airport layouts and E2E tests. Do not speculate.
+Tests: writing or debugging one, read tests/CLAUDE.md and docs/test-harness.md first.
+
 - **No synthetic data in tests**: Use `TestVnasData.EnsureInitialized()`. Tests pin the committed `tests/Yaat.Sim.Tests/TestData/NavData.dat` and `FAACIFP18.gz` (`PinToBundled` on the resolver options; `tests/Yaat.Sim.Tests/ModuleInit.cs` resolves them once per test process at assembly load), never the user cache or the network, whatever the machine holds. The supplementary prior-cycle chain uses committed files only.
 
-  A new AIRAC cycle reaches the tests only through `python tools/refresh-navdata.py` (it repins NavData and CIFP to the NavData's cycle) and a commit. Other pins: `python tools/refresh-test-layouts.py` (the `TestData/<ID>.geojson` airport layouts, from the vNAS map API; `--check` for a dry run); scenarios are downloaded by the yaat-server repo's `uv run python tools/validate-all-scenarios.py`.
-
-  **NavData and CIFP are hard preconditions: `ModuleInit` throws if it cannot resolve either** — most of the suite asserts against real navdata and procedures, so a run without them is green having proved nothing. Synthetic stubs hide integration problems. Other missing test data (layouts, recordings, ARTCC configs) still silently skips. Resolution order and the repin steps: `docs/test-harness.md`.
-- **Test access**: Making `internal` members `public` for tests is fine. No reflection or `InternalsVisibleTo` hacks.
-- **SimLog in tests**: `SimLog` falls back to `NullLoggerFactory` by default — all Yaat.Sim log output is silently swallowed in tests. To see logs, use `SimLogBuilder.CreateForTest(output).EnableCategory("ClassName", LogLevel.Debug).InitializeSimLog()`. `SfoGroundHarness.Build` re-initialises SimLog, so enable categories after it.
-
-  Live test output only reaches the console when the test project runs as a process: `pwsh tools/gate.ps1 -Log .tmp/test-output.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*<TestName>*" --show-live-output on`, then read the log (`dotnet test` reports only summaries and failures).
+  **NavData and CIFP are hard preconditions: `ModuleInit` throws if it cannot resolve either** — most of the suite asserts against real navdata and procedures, so a run without them is green having proved nothing. Synthetic stubs hide integration problems. Other missing test data (layouts, recordings, ARTCC configs) still silently skips. Resolution order and the repin steps: `docs/test-harness.md` and `tests/CLAUDE.md`.
 - **Test runner CLI (Microsoft.Testing.Platform)**: `global.json` selects the MTP runner, so `dotnet test` runs the test assemblies concurrently and takes runner options after a `--` separator: `dotnet test -- --filter-method "*Name*"` (substring of `Namespace.Class.Method`), `--filter-class "*.ClassName"`, `--filter-trait "Category=Nightly"` / `--filter-not-trait ...`, `--report-xunit-trx`.
 
-  The VSTest forms (`--filter "FullyQualifiedName~X"`, `--logger trx`) are rejected with `Unknown option`. Test output: see **SimLog in tests** below.
-- **Test ceilings**: Every `dotnet test` runs through the gate with a ceiling, which catches soft hangs from broken graph topology or infinite pathfinder loops; never add a `timeout` of your own inside it. Use **`-TimeoutSeconds 30`** for a filtered/targeted run (`-- --filter-method "*Name*"`) — a targeted YAAT sim run that hasn't finished in 30s is stuck, not slow.
-
-  Use **`-TimeoutSeconds 120`** for a bare full-suite run, which legitimately needs longer. Use **`-TimeoutSeconds 900`** for `pwsh tools/test-all.ps1` (both repos; the gate's history puts a run at about 11 minutes, p90 12, and a routed run on a loaded machine at about 8 minutes of load-adjusted time); every skill that runs it uses this ceiling.
+  The VSTest forms (`--filter "FullyQualifiedName~X"`, `--logger trx`) are rejected with `Unknown option`. Test output: **SimLog in tests** in `tests/CLAUDE.md`.
 
 ### Code Style
 
-- **Robust over expedient**: Always choose the most robust solution, not the simplest shortcut. When multiple approaches exist, prefer correctness and maintainability over expedience.
-- **Line width**: 150 chars (CSharpier configured accordingly; CSharpier formats `.cs` and `.axaml`)
-- **Style is a build gate**: `.editorconfig` is the language-conventions skill's canonical C# file plus this repo's ReSharper block.
-
-  `Directory.Build.props` sets `EnforceCodeStyleInBuild` + `TreatWarningsAsErrors`, so a `warning`-level rule breaks the build: braces, file-scoped namespace matching the folder (IDE0130 skips types with a source-generated partial half — match the folder anyway), `var` only when the right-hand side names the type (`new T()`, a cast) and the explicit type everywhere else, expression bodies for single-line methods, primary constructors, collection expressions.
-
-  CI additionally fails on any info-level style finding (`dotnet format style yaat.slnx --verify-no-changes --severity info`) and on `dotnet csharpier check .`. Tuple deconstruction (IDE0042) is off: a named tuple local keeps its name.
+- **Style is a build gate**: `Directory.Build.props` sets `EnforceCodeStyleInBuild` + `TreatWarningsAsErrors`, so a `warning`-level `.editorconfig` rule breaks the build; CI also fails on info-level style findings and on `dotnet csharpier check .`. CSharpier formats `.cs` and `.axaml`.
 - **Boolean expressions**: Parenthesize to disambiguate — `(a.X) || (b.Y >= c + d)` not `a.X || b.Y >= c + d`
-- **No newlines in text strings**: Never split `Text="..."`, `Content="..."`, or interpolated strings across lines in `.axaml`/`.cs` — indentation whitespace shows at runtime.
-- **No optional parameters**: Make params required so the compiler enforces wiring. Optional params hide missing integration.
 - **No repurposing DTO fields**: Add new fields with clear names. Remove dead fields entirely.
 - **Per-user paths via `YaatPaths`**: every `%LOCALAPPDATA%/yaat` path routes through `YaatPaths.AppDataRoot` / `YaatPaths.Combine(...)` (in `Yaat.Sim`), never raw `Environment.GetFolderPath`. Test-project consequences are in `tests/CLAUDE.md`.
 
 ### Debugging
 
-- **Add logging freely**: When investigating a bug, always add `Log.LogDebug` statements to trace execution rather than guessing from the code. This is always allowed and encouraged — logging is the primary debugging tool for graph/geometry issues. Use `--debug-fillets` in LayoutInspector to enable debug output.
+- **Add logging freely**: When investigating a bug, always add `Log.LogDebug` statements to trace execution rather than guessing from the code. This is always allowed and encouraged — logging is the primary debugging tool for graph/geometry issues.
 
 ### Error Handling
 
-- Never swallow exceptions. Log with `AppLog` (client) or `ILogger` (Sim).
 - Yaat.Sim static classes: `private static readonly ILogger Log = SimLog.CreateLogger("ClassName");` — never optional.
 
 ### Build & Format
 
-- **Capture all output, print only the tail**: run every `dotnet build`/`dotnet test`/`dotnet run` through `pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <seconds> -Slot heavy -- <command...>` (it runs from Bash as well as PowerShell). The full output lives in the log; the screen gets the last 20 lines (`-Tail <n>` for more), the failure lines on red, and the command's own exit status.
-
-  For more of the output, read or `rg` the log; never re-run the command. Use a generic name (e.g. `.tmp/build.log`) unless you need to compare multiple runs, then use a unique name. Every printed line is re-read on every later turn of the session, which is why the whole log stays out of context and why the guard denies `| tee`.
-- **Build after edits, test after fixes**: Run `pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true` after edits and `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 120 -Slot heavy -- dotnet test` after fixes (a ceiling of 30 when filtering to a few tests; a filtered `dotnet test` still builds first, so it stays heavy).
-
-  Ensure zero warnings and all tests pass before committing. The log, the ceiling, the slot kind and the command are all required: the gate names each one a call is missing, prints its usage and exits 2 before anything runs.
-
-  `tools/gate.ps1` is the gate wrapper: it hands every call to the installed `gate.exe` (install it from the gate repo with `pwsh tools/install.ps1`), and on a machine without one runs the command directly, with no log, slot or watchdog.
-
-  The ceiling is not a wall clock: `gate.exe` counts it on a load-adjusted clock, which keeps wall time on an idle machine and slows while other agents load it. The kill line says why a run died, always exit 124.
-
-  `STALLED` (no output and no CPU for 120 s, `-StallSeconds <s>` to change it) has hung; read the log. `TIMED OUT` kept working past the ceiling even allowing for load: a busy loop, or a ceiling set too tight, so read the log before raising it.
-
-  `BACKSTOP` (5 times the ceiling in wall time) with a low "machine free" figure means the machine was busy; re-run it once alone.
-
-  Each gate holds one slot of the kind `-Slot` names, from two machine-wide pools that never wait on each other. One pool has `(logical processors - 1) / 4` heavy slots (`heavy` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides it, live) for a command that keeps many threads busy (a build, a `dotnet test` or `dotnet run` that builds first, `test-all.ps1`: every yaat gate call).
-
-  The other has `(logical processors - 1) / 2` light slots (`light` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides it, live) for one that keeps one or two threads busy (a `dotnet test --no-build` filtered to one class, a small script).
-
-  A waiting gate logs `gate: waiting for a heavy slot` (or `... light slot`). The gate runs the command at below-normal priority with every process it starts and lowers any MSBuild or compiler server still at normal priority, so a gated command needs no `nice`. Builds under the gate start their own MSBuild worker nodes (`MSBUILDDISABLENODEREUSE=1`), which die with the gate; the compiler server stays shared (a fresh compiler per build measured 2.9 times slower on a one-file Yaat.Sim change).
-- **Cross-repo verification**: When you'd otherwise run "the whole test suite" (after confirming targeted tests pass), run `pwsh tools/test-all.ps1` instead of bare `dotnet test`. It builds and tests both yaat and yaat-server.
-
-  Catches signature changes in `Yaat.Sim` that break the sibling repo — bare `dotnet test` only sees yaat. By default it excludes the heavy `Nightly` (per-spot taxi-coverage grid) and `PathfinderGrid` (state-aware-pruning necessity oracle sweep) categories to stay fast; pass `-Full` to include them (CI/nightly run the full set).
-- **Warnings are errors**: Build with `dotnet build -p:TreatWarningsAsErrors=true` before committing.
 - **No `-q` flag**: Never pass `-q` to any dotnet command — causes spurious errors.
-- **Pre-commit**: Automated via `prek` (`prek.toml`). Runs: trailing-whitespace + EOF-newline fix (auto-staged), merge conflict check, private key detection, large file check, `ruff check --fix` + `ruff format` (Python), `dotnet format style --severity info`, `dotnet csharpier format` (C# + `.axaml`), the command-cheatsheet sync check. A commit runs only checks scoped to its staged files.
-
-  The pre-push stage runs `dotnet build -p:TreatWarningsAsErrors=true` (run through the gate wrapper, `tools/gate.ps1`, with its log at `.tmp/prek-dotnet-build.log`), whose warnings-as-errors cover the analyzers, so a `git push` runs bare and the build takes its own heavy slot.
-
-  Run bare `prek run` manually to check; hooks fire automatically on `git commit` and `git push`. Do NOT run bare `dotnet format`. Do NOT pass `-v q`, `--nologo`, or extra flags to `dotnet format`.
-- **Python tooling**: `pyproject.toml` at the repo root configures ruff (150-char lines, py313, complexity ≤8) for the scripts in `tools/` and `docs/`. Lint with `uvx ruff check tools`, format with `uvx ruff format tools`. Pre-config complexity debt is grandfathered via per-file ignores in `pyproject.toml` — new scripts must meet the limits.
-- **Never `prek run --all-files`**: it operates on the whole tree rather than the staged set, and its stash/reapply can drop unstaged work. Use bare `prek run` (staged files only) or let the commit hook fire.
-- **The commit hook restores for itself**: the `dotnet-format-style` hook is `gate csharp format`, which runs `dotnet restore` when a project's `obj/project.assets.json` is missing or stale, so a fresh worktree needs no restore by hand before its first commit.
-- **prek's build hook is cross-repo**: `prek.toml`'s pre-push `dotnet build` compiles `yaat.slnx`, which names no `yaat-server` project but pulls `Yaat.Server` in through `tools/Yaat.GuideCapture`'s conditional `ProjectReference` to the sibling checkout. It builds both working trees as they stand, uncommitted edits included, not the commits being pushed.
-
-  So a push from a tree with half-done work proves nothing about the pushed commits, and a yaat-server tree whose on-disk code depends on a `Yaat.Sim` change missing from the yaat tree fails the build with `CS0246`/signature errors from `yaat-server`. Push from clean trees in both repos.
-- **A public `Yaat.Sim` change reaches the server**: before renaming or re-signing a public `Yaat.Sim` member, `rg` its name under `../yaat-server`, make the server edits by hand, and gate with `pwsh tools/test-all.ps1`.
+- **prek**: commit hooks run only the checks scoped to the staged files; the pre-push stage runs the gated `dotnet build` itself, so a `git push` runs bare. Run bare `prek run` to check; never `prek run --all-files`, whose stash/reapply can drop unstaged work. Do NOT run bare `dotnet format`, and do NOT pass `-v q`, `--nologo`, or extra flags to it.
 
 ### Documentation
 
 - Update `USER_GUIDE.md` before committing user-facing changes.
-- Update `COMMANDS.md` whenever a command is added, removed, aliased, or changes behavior/arguments. This is the canonical user-facing command reference — both the **Quick Reference** tables and the **Detailed Command Documentation** section must stay in sync with the code (`CommandRegistry.All`, `CanonicalCommandType`, handler behavior).
-- Update `docs/architecture.md` before each commit.
-- Update the in-app command cheatsheet when a command's quick-reference changes: edit the row data in `docs/command-cheatsheet.json`, then run `node tools/build-cheatsheet.mjs` to regenerate `docs/command-cheatsheet.html`. Never hand-edit the HTML — `prek` + CI run `--check` and fail the build if JSON and HTML drift.
 
 ### Git & Issues
 
-- **Commit directly to `main`, feature branches by marker**: the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Work under a feature marker (`branch: feat/<name>` in a Linear project's content) lives on `feat/<name>` in both repos with a feature PR into `main` each, by the user-level route (`nextup` §3 "Feature branches", `/ship` Phase 2F). Branches and PRs outside a marker only when the user asks. (Still ask before committing — auto-commit is never OK.)
-- **Hooks bypass, one standing exception**: the user's standing approval covers exactly one case: an intermediate cherry-pick of a cross-repo landing that cannot pass its hooks until the sibling repo lands, and is never pushed on its own, may be finished with `git -c core.hooksPath=<empty dir> cherry-pick --continue --no-edit` (`yaat-nextup`, `## Ship`). The end gate over both repos passes before any push. Every other commit runs its hooks.
-- **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
-- **Cross-repo issues**: GitHub issues tracked on **yaat** repo. Commits and PR bodies in both repos cite them as `Refs https://github.com/leftos/yaat/issues/N`, never with a closing keyword (`Closes`, `Fixes`, `Resolves`): an issue stays open until the release that ships it (`yaat-nextup`, `## Ship`).
+- **Commit directly to `main`, feature branches by marker**: the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Work under a feature marker (`branch: feat/<name>` in a Linear project's content) lives on `feat/<name>` in both repos with a feature PR into `main` each, by the user-level route (`nextup` §3 "Feature branches", `/ship` Phase 2F). Branches and PRs outside a marker only when the user asks.
 - **Cross-repo completeness**: Features spanning both repos must be implemented together — no half-done features.
-- **Issue plans**: Write plans to `docs/plans/open-issues/`, linked from the issue's Linear description. Delete plan file after implementing. Folding the open tracker into the plan is the `triage-open-issues` skill.
-- **Plans**: every task is a Linear issue in team YAAT (which also plans yaat-server), grouped into projects worked in the order the `yaat-nextup` profile gives; the operations (**add**, **land**, **triage** and the rest) are in `~/.claude/docs/plan-operations.md`. [`docs/plans/MAIN.md`](docs/plans/MAIN.md) is a generated snapshot of it, never edited by hand: change Linear, then regenerate it. A steer or finding mid-task gets an **add** first, before any reply in prose.
-
-  Design files stay in `docs/plans/` while an open issue links them ([`docs/plans/README.md`](docs/plans/README.md)). The active programme is YAAT Scope ([`docs/plans/yaat-scope/README.md`](docs/plans/yaat-scope/README.md)), then controller AI ([`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md)). Finished plans are deleted — git history is the archive.
-
-### Misc
-
-- **Unreleased software**: No backwards-compat shims, migration paths, or deprecated aliases. Delete and replace freely.
-- **Window geometry**: Every window uses `WindowGeometryHelper(window, preferences, "Name", defaultW, defaultH).Restore()`.
-- **Memory Updates**: Distill findings into the auto-memory directory the session prompt names (`~/.claude/projects/<project-slug>/memory/`).
+- **Plans**: Linear team YAAT, which also plans yaat-server; the active programme is YAAT Scope ([`docs/plans/yaat-scope/README.md`](docs/plans/yaat-scope/README.md)), then controller AI ([`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md)).

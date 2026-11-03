@@ -476,7 +476,7 @@ It filters by `--callsign` / `--kind` / `--from` / `--to`, dumps the filtered en
 
 An archive with no terminal log (`HasTerminalLog` false, or the entry absent) prints `no terminal log in <path> (recorded before the feature)` and exits 1.
 
-For single-aircraft triage, `history --callsign X` is one chronological view that replaces 5+ targeted `snapshot --at` calls. See `.claude/skills/bug-bundle/SKILL.md` for the full reference and CLAUDE.md for examples.
+For single-aircraft triage, `history --callsign X` is one chronological view that replaces 5+ targeted `snapshot --at` calls. See `.claude/skills/bug-bundle/SKILL.md` for the full reference and examples.
 
 A bug bundle's outer root also carries `server.json`, `{"url": ...}`: the scheme, host and port the client dialled (`MainViewModel.Timeline.cs`, `WriteBugReportBundleAsync`), with a host other than the official server or loopback written as `{server}`. It is absent when the client was not connected. `bug_bundle.py info` prints `Server:` from the manifest's `ServerName`, else the host of `server.json`'s URL, else `(unknown)` (`(unreadable server.json)` when malformed).
 

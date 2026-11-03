@@ -146,3 +146,10 @@ For a gate TAXI, always run the parking-node form with `--pf-dest-rwy` + `--pf-h
 - Combine flags: `--exits 28R --json` gives structured exit data.
 - For repeatable flags, prefer the inline CSV form for short lists (`--node 619,621,1222`) and repeated `--node` for long ones (cleaner shell history).
 - For KOAK: `--airport OAK` (fetches and caches) or `tests/Yaat.Sim.Tests/TestData/oak.geojson` (committed test data).
+- Flag-level docs: `tools/Yaat.LayoutInspector/CLAUDE.md`; worked examples: `docs/e2e-tdd-issue-debugging.md`.
+
+### Extend the tool when you find yourself doing repeat custom work
+
+If you write more than two ad-hoc Python/C# snippets that pull the same kind of data from a bundle, layout, or snapshot — coordinate vs runway centerline, all exits with current occupancy, two-aircraft positional comparison over a range — turn that snippet into a subcommand of `tools/bug_bundle.py` or `tools/Yaat.LayoutInspector/` first, then use it.
+
+The next agent will have the same investigation; bake the lookup into the tool. Keep custom snippets only for genuinely one-off questions.

@@ -30,18 +30,21 @@ editing it corrupts their state.
 
 ### Project rules — read them, do not recall them
 
-The project's C# conventions are owned by two files. Read the sections named
-below at the start of every review and cite the rule by its heading; do not
+The project's C# conventions are owned by the files below. Read the sections
+named at the start of every review and cite the rule by its heading; do not
 work from memory of them, because this file used to carry a copy and it drifted.
 
-- `$ROOT/CLAUDE.md` → **Rules → Code Style**, **Rules → Error Handling**,
-  **Rules → Misc** (no optional parameters, 150-char lines, parenthesized
-  booleans, no split text strings, no repurposed DTO fields, `SimLog`/`AppLog`
-  logging, `YaatPaths`, no backwards-compat shims).
-- `C:\Users\Leftos\.claude\CLAUDE.md` → **Code Quality → Hard limits**,
-  **Comments**, **Error handling** (function length and complexity caps,
-  positional-parameter cap, absolute imports, no commented-out code, no
-  milestone references in source comments, no swallowed exceptions).
+- `$ROOT/CLAUDE.md` → **Rules → Code Style**, **Rules → Error Handling**
+  (parenthesized booleans, no repurposed DTO fields, `YaatPaths`, the
+  `SimLog.CreateLogger` logger in Yaat.Sim static classes).
+- `$ROOT/.claude/rules/client-ui.md` (no split text strings, `WindowGeometryHelper`)
+  for a change under `src/Yaat.Client*/`, `tools/Yaat.*.Web/` or an `.axaml` file.
+- `~/.claude/skills/agent-standards/SKILL.md` → **Code Quality → Hard limits**,
+  **Comments**, **Error handling**, and **Philosophy** "Scrutinize optional
+  arguments" and "Replace, don't deprecate" (function length and complexity
+  caps, positional-parameter cap, 150-char lines, absolute imports, no
+  commented-out code, no milestone references in source comments, no swallowed
+  exceptions, no optional parameters, no backwards-compat shims).
 
 ### General C# Quality
 
@@ -58,7 +61,7 @@ work from memory of them, because this file used to carry a copy and it drifted.
 1. Read the files provided or diff provided.
 2. For each issue found, report:
    - **File and line number** (e.g., `src/Yaat.Sim/Foo.cs:42`)
-   - **Rule violated** (a CLAUDE.md heading for a project rule, or the number above for a general one)
+   - **Rule violated** (a CLAUDE.md or `.claude/rules/` heading for a project rule, or the number above for a general one)
    - **What's wrong** (concrete description)
    - **Suggested fix** (specific code change)
 3. Rate confidence: HIGH (clear violation) or MEDIUM (judgment call).

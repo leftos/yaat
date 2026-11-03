@@ -532,7 +532,7 @@ The defaults buy nothing: `DtoConverter.ToTrainingDto` has many callers but ther
 6. **Register the type for source-gen** if you introduced a *new* DTO (not just a field on an existing one): add a
    `[JsonSerializable]` entry to the matching context (Core / Strips / Tdls) or the WASM client throws
    `JsonSerializerIsReflectionDisabled` at runtime.
-7. **Docs** — update `COMMANDS.md` / `docs/architecture.md` per the CLAUDE.md conventions if the field is user-visible.
+7. **Docs** — update `COMMANDS.md` / `docs/architecture.md` per `.claude/rules/commands.md` and CLAUDE.md if the field is user-visible.
 
 **Documented exception to step 4 — `AsdexFix`.** The `AsdexFix` field (the ASDE-style Ground View / Aircraft List
 fix, resolved server-side by `DtoConverter.ResolveGroundFix` from the airport's ASDE-X/SAID config) is deliberately

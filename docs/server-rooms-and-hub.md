@@ -339,7 +339,7 @@ Implements `ITrainingBroadcast` (`Simulation/ITrainingBroadcast.cs`). `Broadcast
 - **Admin connections** — `BroadcastAdminUpdates` (`:200`) / `BroadcastToAdmins` (`:157`) send directly to admin
   connection ids (which join no room group), respecting each admin's single-room filter. **An aircraft event that fans
   out to the room group must also reach admins** or admin displays desync; deletes additionally hit CRC (see the
-  three-layer delete rule in the yaat-server CLAUDE.md). The event-driven broadcast methods (`BroadcastAircraftSpawned`,
+  three-layer delete rule in yaat-server's `.claude/rules/crc-wire.md`). The event-driven broadcast methods (`BroadcastAircraftSpawned`,
   `BroadcastAircraftDeleted`, `BroadcastSimState`, `BroadcastWeatherChanged`, the terminal/pilot-transmission broadcasts)
   early-return on `room.IsBroadcastSuppressed`; the per-tick `BroadcastTrainingUpdates` guards each room the same way, and so does the admin path (`BroadcastRoomToAdmin`): its per-aircraft loop would already send nothing for a suppressed room (`RoomTickLoopService.DetectChangesAsync` leaves its `TickChanges` empty), but its delayed-spawn loop reads `scenario.DelayedQueue` directly, which a rewind or recording load repopulates from the full initial scenario mid-rebuild.
 - **CRC connections** — `CrcBroadcastService.BroadcastUpdatesAsync` runs in the same after-the-loop, *un-gated* phase as
@@ -445,7 +445,7 @@ or early-return rather than throw when the engine resolves to null. The CID auto
 (`:257`/`:281`) notifies a registered SignalR connection when a same-CID sibling makes a room available. The full
 method-string → hub-method catalog and the server→client event catalog are in
 [training-hub-contract.md](training-hub-contract.md) — that doc owns the wire shape; treat the code as source of truth
-over the hand-written list in the yaat-server CLAUDE.md, which is already stale (e.g. `CreateRoom` now takes `kind`,
+over the hand-written lists in yaat-server's `.claude/rules/rooms-commands.md`, which go stale (e.g. `CreateRoom` now takes `kind`,
 `SendCommand` takes `initials`, and `SpawnAircraft`/`DeleteAircraft` are `SendCommand`-routed verbs, not hub methods).
 
 ## Adding an `AircraftUpdated` field

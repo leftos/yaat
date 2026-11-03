@@ -42,7 +42,7 @@ either way. A skipped review the user wanted is as bad as a review they did not.
 ## Step 2: Invoke it with the standard preamble
 
 `Agent` with `subagent_type: "aviation-sim-expert"`. Paste this into every
-invocation, verbatim — it is in CLAUDE.md so it is never retyped from memory,
+invocation, verbatim — this skill is its one home, so it is never retyped from memory,
 and without it the reviewer burns the turn web-searching documents that are
 already on disk:
 

@@ -153,7 +153,7 @@ The exact data-api endpoint + payload shape is settled in Phase 1.0 by probing t
 
 ## Implementation phases
 
-Each phase is one or more small commits, each independently green-build / green-test. Commit prefixes per CLAUDE.md (`add:` / `docs:` / `fix:`). Tests added TDD-first per phase.
+Each phase is one or more small commits, each independently green-build / green-test. Commit prefixes per the user-level CLAUDE.md (`add:` / `docs:` / `fix:`). Tests added TDD-first per phase.
 
 ### ~~Phase 0 — Cache vTDLS reference docs~~ ✅ done
 

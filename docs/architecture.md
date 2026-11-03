@@ -256,7 +256,7 @@
 
 ## Subsystem deep-dive docs
 
-The Task Index above tells you *which files*; these docs explain *how each subsystem works* — read the relevant one before a non-trivial change. (Full annotated list with summaries in [CLAUDE.md](../CLAUDE.md) → Reference Docs.)
+The Task Index above tells you *which files*; these docs explain *how each subsystem works* — read the relevant one before a non-trivial change. (Full annotated list with summaries in [README.md](README.md) → Subsystem docs.)
 
 | Area | Deep-dive doc(s) |
 |------|------------------|
@@ -322,7 +322,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 - **Aircraft performance** → sync `AircraftProfiles.json` + `AircraftProfileDatabase` + `AircraftPerformance.cs` fallback logic; per-type corrections go in `AircraftProfileOverrides.json` (see `docs/aircraft-performance.md`)
 - **New hub call that replaces or clears a room's scenario** → refuse it while `TrainingRoom.LoadingBy` is set, before the tick gate and again inside it (`TrainingHub.ThrowIfLoadingScenario` / `UnlessLoadingScenario`), and gate its client command on `MainViewModel.IsRoomLoading` (see `docs/server-rooms-and-hub.md` § Scenario load)
 - **New reload or reconstruction path** → read the room's `ResourcePin` (ARTCC configs and layouts), never `ArtccConfigService` / `AirportGroundDataService` directly, or a rewind stops reproducing the live run after vNAS changes a map or config
-- **The one compile edge from yaat to yaat-server** is `tools/Yaat.GuideCapture`'s conditional `ProjectReference` to `../yaat-server/src/Yaat.Server` (`HAS_YAAT_SERVER`), which CI never sees but which gives prek's pre-push `yaat.slnx` build hook its cross-repo reach (CLAUDE.md, "prek's build hook is cross-repo").
+- **The one compile edge from yaat to yaat-server** is `tools/Yaat.GuideCapture`'s conditional `ProjectReference` to `../yaat-server/src/Yaat.Server` (`HAS_YAAT_SERVER`), which CI never sees but which gives prek's pre-push `yaat.slnx` build hook its cross-repo reach (`.claude/skills/yaat-nextup/ship.md`, "prek's build hook is cross-repo").
 
   Decided route to break it: move GuideCapture's in-process server host into a yaat-server tool, which then builds against yaat through the existing server → Sim reference; driving a server process over HTTP/SignalR was rejected. The two WASM projects' post-publish `wwwroot` copy is a file copy, not a compile edge. Once the edge is gone, the deadlock and stash rules go with it.
 - **New scenario-JSON field that names an airport or ARTCC** → add it to `ScenarioResourceManifest` as well as the loader, or the server's load never prefetches it (`ScenarioResourceManifestTests.Corpus_LoaderAsksForNoAirportOutsideTheManifest` catches the airport half)

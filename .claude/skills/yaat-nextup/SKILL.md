@@ -51,9 +51,9 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
 ## Agents and gates
 
-- Explore: the user-level `Explore` (docs-first). Domain ruling: `aviation-sim-expert` with the local-FAA-references preamble from CLAUDE.md — `aviation-review-gate` decides when it is owed. Attachments: `multimodal-looker` (a Discord "*[empty message]*" is a forward; files sit under `message_snapshots`).
+- Explore: the user-level `Explore` (docs-first). Domain ruling: `aviation-sim-expert` with the local-FAA-references preamble from `aviation-review-gate`, which also decides when it is owed. Attachments: `multimodal-looker` (a Discord "*[empty message]*" is a forward; files sit under `message_snapshots`).
 - Reviewers: `csharp-reviewer` for anything beyond a one-file change; `aviation-sim-expert` for aviation behaviour.
-- Brief shape: `test-fix` (red test first, real navdata, never synthetic). Every `dotnet` command wrapped as `pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <seconds> -Slot heavy -- <command…>` (heavy for every yaat call, a filtered test run included since it builds first), 30 on filtered test runs (a ceiling on the gate's load-adjusted clock; `CLAUDE.md` "Build after edits" says how to read a `STALLED`, `TIMED OUT` or `BACKSTOP` kill), `-p:TreatWarningsAsErrors=true` on builds.
+- Brief shape: `test-fix` (red test first, real navdata, never synthetic). Every `dotnet` command wrapped as `pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <seconds> -Slot heavy -- <command…>` (heavy for every yaat call, a filtered test run included since it builds first), 30 on filtered test runs (a ceiling on the gate's load-adjusted clock; `~/.claude/docs/gate.md` says how to read a `STALLED`, `TIMED OUT` or `BACKSTOP` kill).
 
   A `Yaat.Sim` change is proved by `pwsh tools/test-all.ps1` (both repos) before it lands. `dotnet format style … --include` takes paths relative to the working directory: absolute paths match nothing and the check passes on an empty set.
 
@@ -69,8 +69,9 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 - **The precompute cache is never regenerated in an item.** Iterative work keeps touching its hashed source sets, so entries go stale within minutes and a refresh (about 12 minutes of heavy CPU) is wasted; stale entries only make the runtime compute, and CI merely warns. It is regenerated at an AIRAC cycle and by `prepare-release` (`src/Yaat.Sim/Data/PrecomputeCache/README.md`). No brief carries a refresh or `--check` step, and a tree whose `src/Yaat.Sim/Data/PrecomputeCache/` changed is restored before it lands.
 
 - `git -C ../yaat-server` from a lone yaat worktree (no pair beside it) walks up to the nearest `.git` and silently operates on yaat; resolve `$SERVER` from the main checkout first (the recipe is in `prepare-release`).
-- A partial commit stashes the rest of yaat; if yaat-server's on-disk code depends on a stashed `Yaat.Sim` change, prek's build hook fails with `CS0246` from the sibling — stash yaat-server first (CLAUDE.md, "prek's build hook is cross-repo").
+- A partial commit stashes the rest of yaat; if yaat-server's on-disk code depends on a stashed `Yaat.Sim` change, prek's build hook fails with `CS0246` from the sibling — stash yaat-server first ([`ship.md`](ship.md), "prek's build hook is cross-repo").
 - `dotnet format`: never bare, never `-v q`; CSharpier formats nothing under a dot-directory worktree, so format in the main checkout after the patch is applied.
+- **The commit hook restores for itself**: the `dotnet-format-style` hook is `gate csharp format`, which runs `dotnet restore` when a project's `obj/project.assets.json` is missing or stale, so a fresh worktree needs no restore by hand before its first commit.
 
 ## Concurrency
 
@@ -88,7 +89,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 |---|---|
 | Any command added, renamed, aliased or changed | `COMMANDS.md`, `docs/command-cheatsheet.json` → `node tools/build-cheatsheet.mjs` |
 | Anything an instructor or RPO sees or does | `USER_GUIDE.md` (screenshots via `tools/Yaat.GuideCapture`, run separately); `SOLO_TRAINING.md` for solo mode |
-| A file added, moved or removed; a subsystem's shape | `docs/architecture.md` (the `architecture-updater` agent), the subsystem doc CLAUDE.md lists for it |
+| A file added, moved or removed; a subsystem's shape | `docs/architecture.md` (the `architecture-updater` agent), the subsystem doc `docs/README.md` "Subsystem docs" lists for it |
 | A hub method or `AircraftUpdated` field | `docs/training-hub-contract.md` |
 | A client-driver lesson (the MCP server, the automation pipe, how agents drive the client) | yaat-server `docs/client-driver-mcp.md`, and the rule in yaat-server `docs/DRIVING_CONVENTIONS.md` |
 | A yaat-server file added, moved or removed; a server subsystem's shape | yaat-server `docs/architecture.md` |

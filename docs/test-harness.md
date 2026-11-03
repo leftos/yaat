@@ -529,7 +529,7 @@ The default run passes `--filter-not-trait` for each of the three (untagged test
 
 Always run suites under a ceiling: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test ...`.
 
-The gate counts the 30 s on a load-adjusted clock (wall time on an idle machine, slower while other agents load it; `CLAUDE.md` "Build after edits"), so a YAAT sim suite that passes it is almost always **stuck**, not merely slow: a broken graph topology or an infinite pathfinder loop, not a heavy computation (the heavy grid sweeps are gated behind the `Nightly`/`PathfinderGrid` traits and excluded by default).
+The gate counts the 30 s on a load-adjusted clock (wall time on an idle machine, slower while other agents load it; `~/.claude/docs/gate.md`), so a YAAT sim suite that passes it is almost always **stuck**, not merely slow: a broken graph topology or an infinite pathfinder loop, not a heavy computation (the heavy grid sweeps are gated behind the `Nightly`/`PathfinderGrid` traits and excluded by default).
 
 Treat a `STALLED` or `TIMED OUT` kill as a hung-test failure to diagnose, not a budget to raise; a `BACKSTOP` kill with a low "machine free" figure was a busy machine, so re-run it once alone. `pwsh tools/test-all.ps1` names the hung host itself before the gate's 120 s stall kill (see the `test-all.ps1` bullet below).
 
