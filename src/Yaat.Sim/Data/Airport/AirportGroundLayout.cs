@@ -1806,12 +1806,15 @@ public sealed class AirportGroundLayout
         Defer,
     }
 
+    /// <summary>The number of centerline candidates a lookahead walk visits before it commits to a deferred off-side exit.</summary>
+    public const int DefaultMaxIterations = 30;
+
     /// <summary>
     /// Walk centerlines ahead of the aircraft and pick the next exit that
     /// satisfies the side preference. Off-side candidates (relative to
     /// <paramref name="sidePref"/>) are deferred — the search continues, and
     /// the deferred candidate is only committed if no on-side option is found.
-    /// The optional <paramref name="filter"/> lets the caller veto candidates
+    /// The caller-supplied <paramref name="filter"/> lets it veto candidates
     /// (e.g. comfort-braking checks); a returned <see cref="CandidateVerdict.Skip"/>
     /// excludes the candidate's taxiway from subsequent iterations in this call.
     /// Returns <see langword="null"/> when no exit (on-side or off-side fallback)
@@ -1824,10 +1827,10 @@ public sealed class AirportGroundLayout
         string runwayDesignator,
         ExitPreference? preference,
         ExitSide? sidePref,
-        HashSet<int>? excludeBranchPoints = null,
-        HashSet<int>? excludeHoldShortNodes = null,
-        Func<CenterlineExitResult, CandidateVerdict>? filter = null,
-        int maxIterations = 30
+        HashSet<int>? excludeBranchPoints,
+        HashSet<int>? excludeHoldShortNodes,
+        Func<CenterlineExitResult, CandidateVerdict>? filter,
+        int maxIterations
     )
     {
         var localTaxiwayExclusion = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1913,9 +1916,9 @@ public sealed class AirportGroundLayout
         TrueHeading runwayHeading,
         string runwayDesignator,
         ExitPreference? preference,
-        HashSet<int>? excludeBranchPoints = null,
-        HashSet<int>? excludeHoldShortNodes = null,
-        HashSet<string>? excludeTaxiways = null
+        HashSet<int>? excludeBranchPoints,
+        HashSet<int>? excludeHoldShortNodes,
+        HashSet<string>? excludeTaxiways
     )
     {
         // Authored noTurnoff: forbid named taxiways for this landing direction. Applied only
@@ -4579,6 +4582,9 @@ public sealed class AirportGroundLayout
         return null;
     }
 
+    /// <summary>The straight-line exit search's radius, in nautical miles.</summary>
+    public const double DefaultExitSearchNm = 1.5;
+
     /// <summary>
     /// Find a runway exit that is ahead of the aircraft along the runway heading.
     /// Applies the given exit preference (taxiway name, side, or nearest).
@@ -4593,7 +4599,7 @@ public sealed class AirportGroundLayout
         ExitPreference? preference,
         string? runwayDesignator,
         IReadOnlySet<string>? excludeTaxiways,
-        double maxSearchNm = 1.5
+        double maxSearchNm
     )
     {
         GroundNode? best = null;

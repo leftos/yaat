@@ -262,7 +262,16 @@ public class FilletPathfindingTests(ITestOutputHelper output)
         Assert.NotNull(centerlineNode);
 
         (GroundNode HoldShort, string Taxiway, List<GroundNode> Path, double ExitAngle, ExitSide Side, GroundNode WalkCenterline)? exit =
-            layout.FindExitFromCenterline(centerlineNode.Position.Lat, centerlineNode.Position.Lon, rwy30Heading, "30", null);
+            layout.FindExitFromCenterline(
+                centerlineNode.Position.Lat,
+                centerlineNode.Position.Lon,
+                rwy30Heading,
+                "30",
+                null,
+                excludeBranchPoints: null,
+                excludeHoldShortNodes: null,
+                excludeTaxiways: null
+            );
 
         Assert.NotNull(exit);
         _output.WriteLine($"Exit found: taxiway={exit.Value.Taxiway}, holdShort={exit.Value.HoldShort.Id}, path length={exit.Value.Path.Count}");

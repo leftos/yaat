@@ -602,7 +602,10 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
             runway.Designator,
             new ExitPreference { Taxiway = taxiway, Side = side },
             side,
-            filter: candidate => (candidate.Side == side) ? AirportGroundLayout.CandidateVerdict.Accept : AirportGroundLayout.CandidateVerdict.Skip
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
+            filter: candidate => (candidate.Side == side) ? AirportGroundLayout.CandidateVerdict.Accept : AirportGroundLayout.CandidateVerdict.Skip,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
         Assert.NotNull(found);
         return found.Value;
@@ -897,6 +900,8 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
             runway.Designator,
             preference: null,
             sidePref: null,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
             filter: candidate =>
             {
                 taxiways.Add(candidate.Taxiway);
@@ -916,10 +921,13 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
                     runway.Designator,
                     new ExitPreference { Side = side, Taxiway = taxiway },
                     side,
+                    excludeBranchPoints: null,
+                    excludeHoldShortNodes: null,
                     filter: candidate =>
                         (candidate.Side == side) && (GeoMath.AlongTrackDistanceNm(candidate.Path[0].Position, from, runway.TrueHeading) > 0)
                             ? AirportGroundLayout.CandidateVerdict.Accept
-                            : AirportGroundLayout.CandidateVerdict.Skip
+                            : AirportGroundLayout.CandidateVerdict.Skip,
+                    maxIterations: AirportGroundLayout.DefaultMaxIterations
                 );
                 output.WriteLine($"first {taxiway} {side}: {first?.ExitAngle:F1}°");
                 if (first is { ExitAngle: > 100 } reverse)

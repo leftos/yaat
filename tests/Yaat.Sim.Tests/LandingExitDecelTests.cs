@@ -297,7 +297,8 @@ public class LandingExitDecelTests
             new TrueHeading(280.0),
             new ExitPreference { Taxiway = "H" },
             "28R",
-            excludeTaxiways: null
+            excludeTaxiways: null,
+            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
         );
         Assert.NotNull(result);
     }
@@ -317,7 +318,8 @@ public class LandingExitDecelTests
             new TrueHeading(280.0),
             null,
             "28R",
-            excludeTaxiways: null
+            excludeTaxiways: null,
+            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
         );
         Assert.NotNull(result);
     }
@@ -337,7 +339,8 @@ public class LandingExitDecelTests
             new TrueHeading(280.0),
             new ExitPreference { Side = ExitSide.Right },
             "28R",
-            excludeTaxiways: null
+            excludeTaxiways: null,
+            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
         );
         Assert.NotNull(rightResult);
     }
@@ -1304,10 +1307,13 @@ public class LandingExitDecelTests
                 arrival.Runway.Designator,
                 preference: null,
                 sidePref: null,
+                excludeBranchPoints: null,
+                excludeHoldShortNodes: null,
                 filter: exit =>
                     (exit.Taxiway != exceptTaxiway) && NeedsMoreThanFirm(arrival.Aircraft, arrival.Runway, exit)
                         ? AirportGroundLayout.CandidateVerdict.Accept
-                        : AirportGroundLayout.CandidateVerdict.Skip
+                        : AirportGroundLayout.CandidateVerdict.Skip,
+                maxIterations: AirportGroundLayout.DefaultMaxIterations
             )
             : null;
 
@@ -1442,7 +1448,11 @@ public class LandingExitDecelTests
             arrival.Runway.TrueHeading,
             arrival.Runway.Designator,
             new ExitPreference { Taxiway = taxiway },
-            sidePref: null
+            sidePref: null,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
+            filter: null,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
 
     /// <summary>
@@ -1927,7 +1937,11 @@ public class LandingExitDecelTests
             runway.TrueHeading,
             runway.Designator,
             new ExitPreference { Taxiway = "W6" },
-            sidePref: null
+            sidePref: null,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
+            filter: null,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
         Assert.NotNull(w6);
         LatLon start = GeoMath.ProjectPoint(w6.Value.Path[0].Position, runway.TrueHeading.ToReciprocal(), 500.0 / GeoMath.FeetPerNm);
@@ -1963,7 +1977,11 @@ public class LandingExitDecelTests
             runway.TrueHeading,
             runway.Designator,
             new ExitPreference { Taxiway = "W6" },
-            sidePref: null
+            sidePref: null,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
+            filter: null,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
         Assert.NotNull(w6);
         LatLon start = GeoMath.ProjectPoint(w6.Value.Path[0].Position, runway.TrueHeading.ToReciprocal(), 500.0 / GeoMath.FeetPerNm);
@@ -2059,7 +2077,11 @@ public class LandingExitDecelTests
             runway.TrueHeading,
             runway.Designator,
             new ExitPreference { Taxiway = "W4" },
-            sidePref: null
+            sidePref: null,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
+            filter: null,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
         Assert.NotNull(w4);
         LatLon stop = GeoMath.ProjectPoint(w4.Value.Path[0].Position, runway.TrueHeading.ToReciprocal(), 1000.0 / GeoMath.FeetPerNm);
@@ -2160,10 +2182,13 @@ public class LandingExitDecelTests
             runway.Designator,
             preference: null,
             sidePref: null,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
             filter: exit =>
                 string.Equals(exit.Taxiway, "W7", StringComparison.OrdinalIgnoreCase)
                     ? AirportGroundLayout.CandidateVerdict.Skip
-                    : AirportGroundLayout.CandidateVerdict.Accept
+                    : AirportGroundLayout.CandidateVerdict.Accept,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
         Assert.True(
             otherAhead is null,
@@ -2196,7 +2221,11 @@ public class LandingExitDecelTests
             runway.TrueHeading,
             runway.Designator,
             new ExitPreference { Taxiway = taxiway },
-            sidePref: null
+            sidePref: null,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
+            filter: null,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
 
     /// <summary>
@@ -2594,7 +2623,10 @@ public class LandingExitDecelTests
                 arrival.Runway.Designator,
                 preference: null,
                 sidePref: null,
-                filter: exit => pick(exit) ? AirportGroundLayout.CandidateVerdict.Accept : AirportGroundLayout.CandidateVerdict.Skip
+                excludeBranchPoints: null,
+                excludeHoldShortNodes: null,
+                filter: exit => pick(exit) ? AirportGroundLayout.CandidateVerdict.Accept : AirportGroundLayout.CandidateVerdict.Skip,
+                maxIterations: AirportGroundLayout.DefaultMaxIterations
             )
             : null;
 
@@ -2697,7 +2729,10 @@ public class LandingExitDecelTests
                 arrival.Runway.Designator,
                 new ExitPreference { Taxiway = exit.Taxiway },
                 sidePref: null,
-                excludeHoldShortNodes: [exit.HoldShort.Id]
+                excludeBranchPoints: null,
+                excludeHoldShortNodes: [exit.HoldShort.Id],
+                filter: null,
+                maxIterations: AirportGroundLayout.DefaultMaxIterations
             )
                 is null;
 

@@ -163,7 +163,8 @@ public class FilletLandingExitTests
             new TrueHeading(280.0),
             new ExitPreference { Taxiway = "H" },
             "28R",
-            excludeTaxiways: null
+            excludeTaxiways: null,
+            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
         );
         Assert.NotNull(result);
     }

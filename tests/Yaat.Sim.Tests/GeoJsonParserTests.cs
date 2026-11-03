@@ -652,7 +652,16 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         LatLon ac = centerline28R.Position;
 
         (GroundNode HoldShort, string Taxiway, List<GroundNode> Path, double ExitAngle, ExitSide Side, GroundNode WalkCenterline)? result =
-            layout.FindExitFromCenterline(ac.Lat, ac.Lon, heading, "28R", preference: null);
+            layout.FindExitFromCenterline(
+                ac.Lat,
+                ac.Lon,
+                heading,
+                "28R",
+                preference: null,
+                excludeBranchPoints: null,
+                excludeHoldShortNodes: null,
+                excludeTaxiways: null
+            );
         if (result is not null)
         {
             Assert.NotEqual("L", result.Value.Taxiway);
@@ -675,7 +684,16 @@ public class GeoJsonParserTests(ITestOutputHelper output)
 
         var pref = new ExitPreference { Taxiway = "P" };
         (GroundNode HoldShort, string Taxiway, List<GroundNode> Path, double ExitAngle, ExitSide Side, GroundNode WalkCenterline)? result =
-            layout.FindExitFromCenterline(ac.Lat, ac.Lon, heading, "28R", pref);
+            layout.FindExitFromCenterline(
+                ac.Lat,
+                ac.Lon,
+                heading,
+                "28R",
+                pref,
+                excludeBranchPoints: null,
+                excludeHoldShortNodes: null,
+                excludeTaxiways: null
+            );
 
         // P should be findable when explicitly requested (forbidden list is for default search only).
         if (result is not null)

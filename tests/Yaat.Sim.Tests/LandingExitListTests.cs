@@ -231,6 +231,8 @@ public class LandingExitListTests
             runway.Designator,
             preference: null,
             sidePref: null,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
             filter: candidate =>
             {
                 if (GeoMath.AlongTrackDistanceNm(candidate.Path[0].Position, from, runway.TrueHeading) > 0)
@@ -239,7 +241,8 @@ public class LandingExitListTests
                 }
 
                 return AirportGroundLayout.CandidateVerdict.Skip;
-            }
+            },
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
         return found;
     }
@@ -258,10 +261,13 @@ public class LandingExitListTests
             runway.Designator,
             new ExitPreference { Side = exit.Side, Taxiway = exit.Taxiway },
             exit.Side,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
             filter: candidate =>
                 (candidate.Side == exit.Side) && (GeoMath.AlongTrackDistanceNm(candidate.Path[0].Position, from, runway.TrueHeading) > 0)
                     ? AirportGroundLayout.CandidateVerdict.Accept
-                    : AirportGroundLayout.CandidateVerdict.Skip
+                    : AirportGroundLayout.CandidateVerdict.Skip,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
 
     // --- Rollout ---

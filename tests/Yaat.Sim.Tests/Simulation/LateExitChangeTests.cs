@@ -97,6 +97,8 @@ public class LateExitChangeTests(ITestOutputHelper output)
             "28R",
             new ExitPreference { Side = ExitSide.Left },
             ExitSide.Left,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
             filter: candidate =>
             {
                 walked.Add(candidate);
@@ -127,6 +129,8 @@ public class LateExitChangeTests(ITestOutputHelper output)
             runway.Designator,
             new ExitPreference { Side = ExitSide.Left },
             ExitSide.Left,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
             filter: candidate =>
             {
                 if (

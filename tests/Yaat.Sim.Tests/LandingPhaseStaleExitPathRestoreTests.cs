@@ -61,7 +61,11 @@ public class LandingPhaseStaleExitPathRestoreTests
             new TrueHeading(Oak28rHeadingDeg),
             "28R",
             new ExitPreference { Taxiway = "J" },
-            sidePref: null
+            sidePref: null,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: null,
+            filter: null,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
 
         Assert.NotNull(exit);

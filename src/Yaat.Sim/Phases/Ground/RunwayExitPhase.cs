@@ -752,7 +752,8 @@ public sealed class RunwayExitPhase : Phase
                     filter: candidate =>
                         (skipTooShort && RunwayTailClearance.IsTooShortForAutomaticExit(candidate, ctx.Aircraft))
                             ? AirportGroundLayout.CandidateVerdict.Skip
-                            : AirportGroundLayout.CandidateVerdict.Accept
+                            : AirportGroundLayout.CandidateVerdict.Accept,
+                    maxIterations: AirportGroundLayout.DefaultMaxIterations
                 );
                 if (found is { } exit)
                 {
@@ -852,7 +853,8 @@ public sealed class RunwayExitPhase : Phase
                 }
 
                 return AirportGroundLayout.CandidateVerdict.Accept;
-            }
+            },
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
     }
 
@@ -1073,7 +1075,8 @@ public sealed class RunwayExitPhase : Phase
                 }
 
                 return AirportGroundLayout.CandidateVerdict.Accept;
-            }
+            },
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         );
     }
 
@@ -1115,7 +1118,8 @@ public sealed class RunwayExitPhase : Phase
             searchPref.Side ?? _inferredSide,
             excludeBranchPoints: null,
             excludeHoldShortNodes: null,
-            filter: null
+            filter: null,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
         )
             is not null;
     }

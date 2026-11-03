@@ -115,7 +115,8 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             new TrueHeading(280.0),
             null,
             "28L",
-            excludeTaxiways: null
+            excludeTaxiways: null,
+            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
         );
         Assert.NotNull(result);
 

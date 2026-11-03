@@ -1682,7 +1682,8 @@ public sealed class LandingPhase : Phase
 
                     // Skip every candidate so the walk goes on to the end of the runway; the last usable one is kept above.
                     return AirportGroundLayout.CandidateVerdict.Skip;
-                }
+                },
+                maxIterations: AirportGroundLayout.DefaultMaxIterations
             );
         }
 
@@ -2146,10 +2147,13 @@ public sealed class LandingPhase : Phase
                 runway.Designator,
                 new ExitPreference { Side = side, Taxiway = taxiway },
                 side,
+                excludeBranchPoints: null,
+                excludeHoldShortNodes: null,
                 filter: candidate =>
                     ((candidate.Side == side) && (RoundToHundredFt(AlongNm(candidate)) > 0))
                         ? AirportGroundLayout.CandidateVerdict.Accept
-                        : AirportGroundLayout.CandidateVerdict.Skip
+                        : AirportGroundLayout.CandidateVerdict.Skip,
+                maxIterations: AirportGroundLayout.DefaultMaxIterations
             );
             if ((found is { } exit) && layout.IsAtRunwayHoldingDistance(exit.HoldShort, runway.Designator))
             {
@@ -2354,7 +2358,8 @@ public sealed class LandingPhase : Phase
             plan.RunwayHeading,
             _activePreference,
             rwyDesignator,
-            excludeTaxiways: ctx.Aircraft.Phases?.GivenUpExitTaxiways
+            excludeTaxiways: ctx.Aircraft.Phases?.GivenUpExitTaxiways,
+            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
         );
 
         if (result is null)
@@ -2658,7 +2663,8 @@ public sealed class LandingPhase : Phase
                 query.SidePref,
                 excludeBranchPoints: query.ExcludeBranchPoints,
                 excludeHoldShortNodes: excludeHoldShortNodes,
-                filter: candidate => JudgeCandidate(query, candidate, passedHoldShorts)
+                filter: candidate => JudgeCandidate(query, candidate, passedHoldShorts),
+                maxIterations: AirportGroundLayout.DefaultMaxIterations
             );
             if (passedHoldShorts.Count == 0)
             {
