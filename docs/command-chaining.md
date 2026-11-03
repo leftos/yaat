@@ -79,6 +79,8 @@ the onward clearance to fire at an unspecified future moment.
 
 Blocks chained after it then fire by the normal rules. A taxi `CROSS`'s trigger still waits for the `CrossingRunwayPhase`.
 
+A `CROSS` that releases a hold with no ground layout (the aircraft's and the dispatch context's both absent) is refused `No ground layout available`, so a block chained behind it never gets an `AfterRunwayCrossing` trigger to wait on.
+
 **A `CROSS` before a `CTO`/`LUAW` in one transmission.** Held short of a *taxiway*, `CROSS 28R; CTO 28L` and the one-block `CROSS 28R, CTO 28L` (7110.65 3-9-10.e) are the same thing: the CROSS installs nothing (`DispatchContext.CrossFeedsFollowingClearance`) and the clearance's implicit taxi crosses its runways (`CommandBlock.CrossingsClearedInTransmission`); a crossing that taxi cannot make refuses the whole transmission up front.
 
 Held short of a *runway*, `CommandDispatcher.NormalizeCrossThenClearanceAtCrossingHold` splits the one-block form into the `;` form first, so the clearance waits behind the crossing like any chained block.

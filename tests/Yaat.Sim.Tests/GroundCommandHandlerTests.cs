@@ -615,8 +615,33 @@ public class GroundCommandHandlerTests
     // TryCrossRunway
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// A ground aircraft held at <paramref name="hold"/>'s bar, its taxi route <paramref name="route"/> still running (null for
+    /// none) and its own ground layout unset, so a crossing must be planned on the layout the call passes.
+    /// </summary>
+    private static (AircraftState Aircraft, HoldingShortPhase HoldPhase) HeldAt(HoldShortPoint hold, TaxiRoute? route)
+    {
+        AircraftState ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = route;
+        ac.Phases = new PhaseList();
+        var holdPhase = new HoldingShortPhase(hold, HoldShortArrival.HeldShort);
+        ac.Phases.Add(holdPhase);
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                ActiveRunways = ActiveRunways.Empty,
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = NullLogger.Instance,
+            }
+        );
+        return (ac, holdPhase);
+    }
+
     [Fact]
-    public void TryCrossRunway_FromHoldingShort_SatisfiesClearance()
+    public void TryCrossRunway_FromHoldingShort_NoGroundLayout_IsRefused()
     {
         AircraftState ac = MakeGroundAircraft();
         ac.Phases = new PhaseList();
@@ -644,8 +669,26 @@ public class GroundCommandHandlerTests
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null, ActiveRunways.Empty);
 
-        Assert.True(result.Success);
-        Assert.Contains("Cross 28R", result.Message!);
+        Assert.False(result.Success);
+        Assert.Equal("No ground layout available", result.Message);
+    }
+
+    /// <summary>
+    /// Success twin of the refusal above: a layout the call passes plans the crossing, while the route's own crossing is
+    /// still ahead (the in-progress route queues it, so no synthetic crossing is planned here).
+    /// </summary>
+    [Fact]
+    public void TryCrossRunway_FromHoldingShort_SatisfiesClearance()
+    {
+        (AirportGroundLayout layout, TaxiRoute route) = MakeCrossingRoute(autoCleared: false);
+        (AircraftState ac, HoldingShortPhase holdPhase) = HeldAt(route.HoldShortPoints[1], route);
+
+        var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, layout, null, ActiveRunways.Empty);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("Cross 28R", result.Message);
+        Assert.Contains(holdPhase.Requirements, static r => r.IsSatisfied);
     }
 
     [Fact]
@@ -734,7 +777,7 @@ public class GroundCommandHandlerTests
     }
 
     [Fact]
-    public void TryCrossRunway_FromHoldingShort_ExplicitHoldShort_Succeeds()
+    public void TryCrossRunway_FromHoldingShort_ExplicitHoldShort_NoGroundLayout_IsRefused()
     {
         AircraftState ac = MakeGroundAircraft();
         ac.Phases = new PhaseList();
@@ -762,8 +805,28 @@ public class GroundCommandHandlerTests
         var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
         CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, ac.Ground.Layout, null, ActiveRunways.Empty);
 
-        Assert.True(result.Success);
-        Assert.Contains("Cross 28R", result.Message!);
+        Assert.False(result.Success);
+        Assert.Equal("No ground layout available", result.Message);
+    }
+
+    [Fact]
+    public void TryCrossRunway_FromHoldingShort_ExplicitHoldShort_Succeeds()
+    {
+        (AirportGroundLayout layout, TaxiRoute route) = MakeCrossingRoute(autoCleared: false);
+        var hold = new HoldShortPoint
+        {
+            NodeId = 2,
+            Reason = HoldShortReason.ExplicitHoldShort,
+            TargetName = "28R/10L",
+        };
+        (AircraftState ac, HoldingShortPhase holdPhase) = HeldAt(hold, route);
+
+        var cmd = new CrossRunwayCommand(["28R"], [], Expedite: false);
+        CommandResult result = GroundCommandHandler.TryCrossRunway(ac, cmd, layout, null, ActiveRunways.Empty);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("Cross 28R", result.Message);
+        Assert.Contains(holdPhase.Requirements, static r => r.IsSatisfied);
     }
 
     [Fact]
@@ -846,7 +909,7 @@ public class GroundCommandHandlerTests
     // --- Named CROSS for taxiway/intersection holds ---
 
     [Fact]
-    public void TryCrossRunway_NamedTaxiway_FromHoldingShort_Succeeds()
+    public void TryCrossRunway_NamedTaxiway_FromHoldingShort_NoGroundLayout_IsRefused()
     {
         AircraftState ac = MakeGroundAircraft();
         ac.Phases = new PhaseList();
@@ -879,8 +942,34 @@ public class GroundCommandHandlerTests
             ActiveRunways.Empty
         );
 
-        Assert.True(result.Success);
-        Assert.Contains("B", result.Message!);
+        Assert.False(result.Success);
+        Assert.Equal("No ground layout available", result.Message);
+    }
+
+    /// <summary>The crossing fixture's node 3 is a plain taxiway node, so the named taxiway hold releases with no crossing.</summary>
+    [Fact]
+    public void TryCrossRunway_NamedTaxiway_FromHoldingShort_Succeeds()
+    {
+        (AirportGroundLayout layout, _) = MakeCrossingRoute(autoCleared: false);
+        var hold = new HoldShortPoint
+        {
+            NodeId = 3,
+            Reason = HoldShortReason.ExplicitHoldShort,
+            TargetName = "B",
+        };
+        (AircraftState ac, HoldingShortPhase holdPhase) = HeldAt(hold, route: null);
+
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand(["B"], [], Expedite: false),
+            layout,
+            null,
+            ActiveRunways.Empty
+        );
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("Cross B", result.Message);
+        Assert.Contains(holdPhase.Requirements, static r => r.IsSatisfied);
     }
 
     [Fact]
@@ -916,7 +1005,7 @@ public class GroundCommandHandlerTests
     // --- Bare CROSS (no runway argument) ---
 
     [Fact]
-    public void TryCrossRunway_Bare_FromHoldingShort_RunwayCrossing_Succeeds()
+    public void TryCrossRunway_Bare_FromHoldingShort_RunwayCrossing_NoGroundLayout_IsRefused()
     {
         AircraftState ac = MakeGroundAircraft();
         ac.Phases = new PhaseList();
@@ -949,12 +1038,31 @@ public class GroundCommandHandlerTests
             ActiveRunways.Empty
         );
 
-        Assert.True(result.Success);
-        Assert.Contains("28R/10L", result.Message!);
+        Assert.False(result.Success);
+        Assert.Equal("No ground layout available", result.Message);
     }
 
     [Fact]
-    public void TryCrossRunway_Bare_FromHoldingShort_TaxiwayExplicit_Succeeds()
+    public void TryCrossRunway_Bare_FromHoldingShort_RunwayCrossing_Succeeds()
+    {
+        (AirportGroundLayout layout, TaxiRoute route) = MakeCrossingRoute(autoCleared: false);
+        (AircraftState ac, HoldingShortPhase holdPhase) = HeldAt(route.HoldShortPoints[1], route);
+
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand([], [], Expedite: false),
+            layout,
+            null,
+            ActiveRunways.Empty
+        );
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("Cross 28R/10L", result.Message);
+        Assert.Contains(holdPhase.Requirements, static r => r.IsSatisfied);
+    }
+
+    [Fact]
+    public void TryCrossRunway_Bare_FromHoldingShort_TaxiwayExplicit_NoGroundLayout_IsRefused()
     {
         AircraftState ac = MakeGroundAircraft();
         ac.Phases = new PhaseList();
@@ -987,8 +1095,33 @@ public class GroundCommandHandlerTests
             ActiveRunways.Empty
         );
 
-        Assert.True(result.Success);
-        Assert.Contains("B", result.Message!);
+        Assert.False(result.Success);
+        Assert.Equal("No ground layout available", result.Message);
+    }
+
+    [Fact]
+    public void TryCrossRunway_Bare_FromHoldingShort_TaxiwayExplicit_Succeeds()
+    {
+        (AirportGroundLayout layout, _) = MakeCrossingRoute(autoCleared: false);
+        var hold = new HoldShortPoint
+        {
+            NodeId = 3,
+            Reason = HoldShortReason.ExplicitHoldShort,
+            TargetName = "B",
+        };
+        (AircraftState ac, HoldingShortPhase holdPhase) = HeldAt(hold, route: null);
+
+        CommandResult result = GroundCommandHandler.TryCrossRunway(
+            ac,
+            new CrossRunwayCommand([], [], Expedite: false),
+            layout,
+            null,
+            ActiveRunways.Empty
+        );
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("Cross B", result.Message);
+        Assert.Contains(holdPhase.Requirements, static r => r.IsSatisfied);
     }
 
     [Fact]
@@ -1099,7 +1232,7 @@ public class GroundCommandHandlerTests
         CommandResult result = GroundCommandHandler.TryCrossRunway(
             ac,
             new CrossRunwayCommand([], [], Expedite: false),
-            ac.Ground.Layout,
+            MakeSimpleLayout(),
             null,
             ActiveRunways.Empty
         );

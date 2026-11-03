@@ -5,6 +5,7 @@
 ### Fixed
 
 - Pilot voices say approach names as charted ("ILS runway two eight right", "VOR Alpha") instead of spelling them letter by letter.
+- `CROSS` at a hold short is refused when the aircraft has no airport ground layout, instead of releasing the hold with no crossing planned.
 
 ## v0.18.0-beta [2026/11/02]
 

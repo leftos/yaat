@@ -2214,6 +2214,13 @@ public static class CommandDispatcher
                 return false;
             }
 
+            // Backstop: the dispatch's dry run already refuses a CROSS that can plan no crossing, so no trigger is
+            // attached ahead of it. Kept so a chained block never waits on a crossing that will not happen.
+            if ((aircraft.Ground.Layout ?? ctx.GroundLayout) is null)
+            {
+                return false;
+            }
+
             return (hp.HoldShort.Reason != HoldShortReason.DestinationRunway) || GroundCommandHandler.HasArrivedAtHoldShort(aircraft);
         }
 
