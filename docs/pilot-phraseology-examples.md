@@ -263,7 +263,7 @@ Assumes ATIS information Alpha is current at all fields for landing/departing ai
 
 The IFR-with-approach branch derives the spoken approach name from `ApproachClearance.ApproachId`:
 - `I28R` → "ILS two eight right"
-- `R28R-Y` → "RNAV two eight right yankee"
+- `R28R-Y` → "RNAV Yankee two eight right"
 - `VIS28R` → "visual approach runway two eight right"
 - `V28R` → "VOR two eight right" / `L28R` → "localizer two eight right" / `N28R` → "NDB two eight right"
 - Unrecognized prefix → NATO-spelled fallback

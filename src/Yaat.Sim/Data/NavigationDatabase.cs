@@ -3542,6 +3542,8 @@ public sealed class NavigationDatabase
         return null;
     }
 
+    // The same prefixes ApproachReadbackName.TypeCodeOfPrefix names for a circling approach id, where no runway digits follow
+    // the prefix; keep the two lists in step.
     private static (char? Code, string Remainder) TryStripTypePrefix(string s)
     {
         ReadOnlySpan<(string Prefix, char Code)> prefixes =

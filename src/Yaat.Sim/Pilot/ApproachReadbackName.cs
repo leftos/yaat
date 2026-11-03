@@ -61,6 +61,29 @@ public static class ApproachReadbackName
     public static PilotSpeechText? ForShorthand(string? approachId) =>
         TypeAndRunway(approachId) is { } named ? WithRunway(new PilotSpeechText(named.Terminal, named.Spoken), named.Runway) : null;
 
+    /// <summary>
+    /// The readback name of a circling approach id ("VOR-A", "RNV-B"): its type and the letter after the dash as a phonetic
+    /// word, with no runway. Null when the id ends in no dashed letter or names a type no readback names.
+    /// </summary>
+    /// <param name="approachId">The approach id.</param>
+    /// <returns>The terminal and spoken name, or null.</returns>
+    public static PilotSpeechText? ForCirclingId(string? approachId)
+    {
+        if (string.IsNullOrWhiteSpace(approachId))
+        {
+            return null;
+        }
+
+        string id = approachId.Trim();
+        int dash = id.LastIndexOf('-');
+        if ((dash <= 0) || (dash != id.Length - 2) || !char.IsLetter(id[dash + 1]))
+        {
+            return null;
+        }
+
+        return TypeCodeOfPrefix(id[..dash]) is { } typeCode ? WithVariant(typeCode, char.ToUpperInvariant(id[dash + 1])) : null;
+    }
+
     /// <summary>The readback name of a resolved approach procedure; null when its type is one no readback names.</summary>
     /// <param name="procedure">The resolved CIFP approach procedure.</param>
     /// <returns>The terminal and spoken name, or null.</returns>
@@ -118,6 +141,28 @@ public static class ApproachReadbackName
         !string.IsNullOrWhiteSpace(approachId)
         && (NavigationDatabase.ParseShorthand(approachId.Trim()) is { Runway: not null })
         && (TypeAndRunway(approachId) is null);
+
+    /// <summary>
+    /// The CIFP type code of an approach type's typed prefix ("VOR" → V, "VDM" → D, "RNV" → R); null for one no readback
+    /// names. Names the same prefixes as <c>NavigationDatabase.TryStripTypePrefix</c>, which reads a code only where runway
+    /// digits follow it and so never sees a circling id; keep the two lists in step.
+    /// </summary>
+    private static char? TypeCodeOfPrefix(string prefix) =>
+        prefix.ToUpperInvariant() switch
+        {
+            "ILS" => 'I',
+            "LOC" => 'L',
+            "RNAV" or "RNV" => 'R',
+            "GPS" => 'P',
+            "VOR" => 'V',
+            "VDM" => 'D',
+            "NDB" => 'N',
+            "LDA" => 'X',
+            "LBC" => 'B',
+            "TACAN" => 'T',
+            "SDF" => 'U',
+            _ => null,
+        };
 
     private static PilotSpeechText WithRunway(PilotSpeechText type, string runway) =>
         new(

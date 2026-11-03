@@ -206,9 +206,27 @@ public static class PhraseologyVerbalizer
             return $"expect visual approach runway {fmt.Runway(visualRunway)}";
         }
 
+        // An expected approach whose id names a runway but no type reads "expect approach runway two eight right", as the
+        // clearance path reads "cleared approach" for the same id: no type was issued, so no rule may supply one.
+        if (
+            (cmd is ExpectApproachCommand bareExpect)
+            && ApproachReadbackName.NamesRunwayButNoType(bareExpect.ApproachId)
+            && (ApproachRunwayDesignator(bareExpect.ApproachId) is { } bareRunway)
+        )
+        {
+            return $"expect approach runway {fmt.Runway(bareRunway)}";
+        }
+
         // An expected instrument approach names its own type and variant ("expect localizer runway two eight right
-        // approach"), which the rule path cannot: every ExpectApproach rule ties on one capture.
-        if ((cmd is ExpectApproachCommand expected) && (ApproachReadbackName.ForShorthand(expected.ApproachId) is { } expectedName))
+        // approach"), which the rule path cannot: every ExpectApproach rule ties on one capture. A circling approach has no
+        // runway and names its own type and letter instead ("expect VOR Alpha approach").
+        if (
+            (cmd is ExpectApproachCommand expected)
+            && (
+                (ApproachReadbackName.ForShorthand(expected.ApproachId) ?? ApproachReadbackName.ForCirclingId(expected.ApproachId)) is
+                { } expectedName
+            )
+        )
         {
             return RenderExpectApproach(expected, expectedName, request, fmt, out offeredQuietRows);
         }
@@ -432,6 +450,11 @@ public static class PhraseologyVerbalizer
             return SetCandidates(expected, expect.Set.Variants, canonical, expect.Captures, filter);
         }
 
+        if ((cmd is ExpectApproachCommand circling) && (ApproachReadbackName.ForCirclingId(circling.ApproachId) is { } circlingName))
+        {
+            return [ExpectApproachReadback(circlingName, Spoken)];
+        }
+
         if (PilotResponder.VariedBuilderClause(cmd, aircraft) is { } clause)
         {
             return (clause.Captures is not null)
@@ -477,9 +500,13 @@ public static class PhraseologyVerbalizer
             ? ApproachCommandHandler.ClauseVariants(CanonicalCommandType.ExpectApproach, parts.Approach, parts.Runway)
             : null;
 
+    /// <summary>An expect-approach's readback when the rule path cannot name it: "expect {name} approach" in <paramref name="fmt"/>'s form.</summary>
+    private static string ExpectApproachReadback(PilotSpeechText name, CaptureFormatter fmt) => $"expect {fmt.Form(name)} approach";
+
     /// <summary>
-    /// An expected instrument approach, "expect ILS runway two eight right approach", which names its own type and variant (the
-    /// rule path cannot: every ExpectApproach rule ties on one capture); a varied pilot picks among it and its set's rows.
+    /// An expected instrument approach, "expect ILS runway two eight right approach" (a circling one "expect VOR Alpha
+    /// approach"), which names its own type and variant (the rule path cannot: every ExpectApproach rule ties on one capture);
+    /// a varied pilot picks among it and its set's rows, and a circling approach, which has no set, speaks the canonical alone.
     /// </summary>
     private static string RenderExpectApproach(
         ExpectApproachCommand cmd,
@@ -490,7 +517,7 @@ public static class PhraseologyVerbalizer
     )
     {
         offeredQuietRows = false;
-        string canonical = $"expect {fmt.Form(name)} approach";
+        string canonical = ExpectApproachReadback(name, fmt);
         if (ExpectApproachVariants(cmd) is not { } expect)
         {
             return canonical;
@@ -691,9 +718,8 @@ public static class PhraseologyVerbalizer
             AppendForceDirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
             TurnLeftDirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
             TurnRightDirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
-            ExpectApproachCommand e => Map("rwy", fmt.Approach(e.ApproachId)),
+            ExpectApproachCommand e => Map("rwy", fmt.ApproachRunway(e.ApproachId)),
             ClearedVisualApproachCommand v when v.RunwayId is { } visualRunway => Map("rwy", fmt.Runway(visualRunway)),
-            JoinFinalApproachCourseCommand jfac when jfac.ApproachId is { } id => Map("rwy", fmt.Approach(id)),
             CrossFixCommand cf => CrossFixArgs(cf, fmt),
             ClimbViaCommand cv when cv.Altitude is int alt => AltitudeArgs(alt, fmt),
 
@@ -2315,7 +2341,13 @@ public static class PhraseologyVerbalizer
         return false;
     }
 
-    /// <summary>Approach name like "ILS28R" → "I L S two eight right". Letters via NATO; L/R/C as words.</summary>
+    /// <summary>
+    /// An approach id as the pilot names it (7110.65 4-8-1, 2-4-16, 2-4-17; AIM 5-4-5): the chart's type, its variant letter as
+    /// its ICAO word, then "runway" and the runway with its side ("ILS runway two eight right", "RNAV Zulu runway two eight
+    /// right", a circling "VOR Alpha", a bare runway "runway two eight right"), through <see cref="ApproachReadbackName"/>. An
+    /// id no type there names is spelled: only a trailing side letter after its runway digits is a word ("left", "right",
+    /// "center"), every other character its NATO word or its digit word.
+    /// </summary>
     public static string SpellApproach(string approachId)
     {
         if (string.IsNullOrEmpty(approachId))
@@ -2323,35 +2355,50 @@ public static class PhraseologyVerbalizer
             return "";
         }
 
-        var sb = new StringBuilder();
-        foreach (char c in approachId)
+        string id = approachId.Trim().ToUpperInvariant();
+        if (ApproachReadbackName.ForCirclingId(id) is { } circling)
         {
-            if (sb.Length > 0)
-            {
-                sb.Append(' ');
-            }
-
-            switch (c)
-            {
-                case 'L':
-                case 'l':
-                    sb.Append("left");
-                    break;
-                case 'R':
-                case 'r':
-                    sb.Append("right");
-                    break;
-                case 'C':
-                case 'c':
-                    sb.Append("center");
-                    break;
-                default:
-                    sb.Append(char.IsDigit(c) ? SpellDigit(c) : NatoPhoneticAlphabet.SpellChar(c));
-                    break;
-            }
+            return circling.Tts;
         }
 
-        return sb.ToString();
+        if (ApproachReadbackName.ForShorthand(id) is { } named)
+        {
+            return named.Tts;
+        }
+
+        if (NavigationDatabase.ParseShorthand(id) is { TypeCode: null, Runway: { } bareRunway })
+        {
+            return $"runway {SpellRunway(bareRunway)}";
+        }
+
+        return SpellApproachLetters(id);
+    }
+
+    /// <summary>
+    /// The spoken runway of an approach id where its rule pattern already says the approach's type and "runway" ("expect ils
+    /// runway {rwy} approach"): "two eight right". An id naming no runway keeps its whole approach name.
+    /// </summary>
+    private static string SpellApproachRunway(string approachId) =>
+        ApproachRunwayDesignator(approachId) is { } runway ? SpellRunway(runway) : SpellApproach(approachId);
+
+    /// <summary>The runway designator a typed or CIFP approach id names ("28R", "12"), or null when it names none.</summary>
+    private static string? ApproachRunwayDesignator(string approachId) =>
+        string.IsNullOrWhiteSpace(approachId) ? null : NavigationDatabase.ParseShorthand(approachId.Trim().ToUpperInvariant())?.Runway;
+
+    /// <summary>
+    /// An id no readback name fits, character by character: a trailing side letter after the runway digits is a word, every
+    /// other character its NATO word or its digit word.
+    /// </summary>
+    private static string SpellApproachLetters(string id)
+    {
+        int side = ((id.Length > 1) && (id[^1] is 'L' or 'R' or 'C') && char.IsDigit(id[^2])) ? id.Length - 1 : -1;
+        var words = new List<string>(id.Length);
+        for (int i = 0; i < id.Length; i++)
+        {
+            words.Add(i == side ? SpellRunway(id[i].ToString()) : NatoPhoneticAlphabet.SpellChar(id[i]));
+        }
+
+        return string.Join(' ', words);
     }
 
     // --- Compact terminal-form formatters (public: reused by PilotResponder's dual-output clauses) ---
@@ -2401,7 +2448,12 @@ public static class PhraseologyVerbalizer
     private abstract class CaptureFormatter
     {
         public abstract string Runway(string id);
-        public abstract string Approach(string id);
+
+        /// <summary>
+        /// The runway a capture supplies where its rule pattern already says the approach's type and "runway" ("expect ils
+        /// runway {rwy} approach"): the runway alone, spelled or as its designator.
+        /// </summary>
+        public abstract string ApproachRunway(string id);
 
         /// <summary>This formatter's form of a text built in both forms: the spoken or the terminal one.</summary>
         public abstract string Form(PilotSpeechText text);
@@ -2437,7 +2489,7 @@ public static class PhraseologyVerbalizer
     {
         public override string Runway(string id) => SpellRunway(id);
 
-        public override string Approach(string id) => SpellApproach(id);
+        public override string ApproachRunway(string id) => SpellApproachRunway(id);
 
         public override string Form(PilotSpeechText text) => text.Tts;
 
@@ -2488,7 +2540,8 @@ public static class PhraseologyVerbalizer
     {
         public override string Runway(string id) => CompactRunway(id);
 
-        public override string Approach(string id) => id.Trim().ToUpperInvariant();
+        public override string ApproachRunway(string id) =>
+            ApproachRunwayDesignator(id) is { } runway ? CompactRunway(runway) : id.Trim().ToUpperInvariant();
 
         public override string Form(PilotSpeechText text) => text.Terminal;
 
