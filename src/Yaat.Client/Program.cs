@@ -168,8 +168,9 @@ public static class Program
     /// <summary>
     /// Picks the app's sherpa-onnx native set for the device the user saved. A removal of the CUDA set scheduled in
     /// Settings runs first, so a scheduled removal starts on the CPU, and so does one that could not run yet (it is retried
-    /// on the next start); otherwise <see cref="ConfigureSherpaNatives"/> picks the set. Any failure is logged and leaves
-    /// speech recognition on the CPU.
+    /// on the next start). An old set a swap left orphaned is then put back, so the first start after a crash mid-install
+    /// still loads the GPU set; otherwise <see cref="ConfigureSherpaNatives"/> picks the set. Any failure is logged and
+    /// leaves speech recognition on the CPU.
     /// </summary>
     private static void ConfigureAppSherpaNatives(ILogger log)
     {
@@ -187,6 +188,7 @@ public static class Program
                 SherpaNativeLoader.LogCpuSet();
                 return;
             }
+            SherpaCudaInstaller.RecoverOrphanedSet(SherpaCudaInstaller.InstallRootDefault);
         }
         catch (Exception ex)
         {

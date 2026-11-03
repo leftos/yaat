@@ -33,11 +33,15 @@ public sealed record SherpaCudaDownload(string Name, IReadOnlyList<string> Urls,
 ///   &lt;installRoot&gt;/
 ///       .installed      (sentinel: one "&lt;Name&gt; &lt;Sha256&gt;" line per download)
 ///       native/         (every taken file, flat under its file name)
+///           .installed  (the set's own copy of the sentinel, so an orphaned old set can be recognised)
 /// </code>
 /// Downloads stream to a fresh <c>&lt;installRoot&gt;/.staging-&lt;id&gt;/</c> folder, and the installed set stays in place
-/// until the new one is complete. The swap then moves the old <c>native/</c> aside to <c>.old-&lt;id&gt;/</c>, deletes the
-/// sentinel, moves the new <c>native/</c> in and writes the sentinel last, so <see cref="IsInstalledOnDisk"/> never reports
-/// a half-built set. A failed swap puts the old set and its sentinel back.
+/// until the new one is complete. The swap then deletes the root sentinel, moves the old <c>native/</c> aside to
+/// <c>.old-&lt;id&gt;/</c>, writes the staged set's own sentinel inside it, moves the new <c>native/</c> in and writes the root
+/// sentinel last, so <see cref="IsInstalledOnDisk"/> never reports a half-built set. A failed swap puts the old set and its
+/// sentinel back. A swap that died between the move aside and the move in leaves the only complete copy in
+/// <c>.old-&lt;id&gt;/</c>, which the next start, and the next install, moves back as <c>native/</c> when exactly one old set
+/// carries its own sentinel.
 ///
 /// One writer per install root, across instances and processes: install and uninstall hold the lock file
 /// <c>&lt;installRoot&gt;.lock</c> beside the root (<see cref="TryLockRoot"/>). On Windows neither replaces nor removes a set
@@ -51,6 +55,7 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaCudaInstaller>();
 
     private const string InstalledSentinelFileName = ".installed";
+    private const string SetSentinelFileName = ".installed";
     private const string LegacyPartialDirName = ".partial";
     private const string StagingDirPrefix = ".staging-";
     private const string OldDirPrefix = ".old-";
@@ -176,7 +181,7 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
         _installRoot = installRoot;
         _timeProvider = timeProvider;
         _downloads = downloads;
-        _isInstalled = IsInstalledOnDisk(installRoot, downloads);
+        _isInstalled = RecoverAndCheckInstalled(installRoot, downloads);
         _isRemovalScheduled = File.Exists(RemovalMarkerPath(installRoot));
         _statusMessage = _isRemovalScheduled ? ScheduledMessage : "";
     }
@@ -281,6 +286,32 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
     }
 
     /// <summary>
+    /// Puts back an old set a swap left orphaned (see <see cref="RestoreOrphanedOldSet"/>) when the root is present without a
+    /// <c>native/</c> and the root lock is free. Call at startup, before anything reads the sentinel or loads the natives, and
+    /// at the start of an install. Safe from any thread; a lost lock and a failed move only log.
+    /// </summary>
+    /// <param name="installRoot">The install root.</param>
+    public static void RecoverOrphanedSet(string installRoot)
+    {
+        if (!Directory.Exists(installRoot) || Directory.Exists(Path.Combine(installRoot, NativeDirName)))
+        {
+            return;
+        }
+        try
+        {
+            using FileStream? rootLock = TryLockRoot(installRoot);
+            if (rootLock is not null)
+            {
+                RestoreOrphanedOldSet(installRoot);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogWarning(ex, "Failed to lock the sherpa CUDA root {Root} to recover an orphaned old set", installRoot);
+        }
+    }
+
+    /// <summary>
     /// Downloads and installs the set. Single-flight per instance, and one writer per install root. A failed or cancelled
     /// install leaves no staging folder and the installed set and its sentinel as they were.
     /// </summary>
@@ -315,6 +346,7 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
         catch (InvalidOperationException ex) when (ex.Data.Contains(RefusalKey))
         {
             DeleteDirBestEffort(stagingRoot);
+            IsInstalled = IsInstalledOnDisk(_installRoot, _downloads);
             throw;
         }
         catch (OperationCanceledException)
@@ -322,6 +354,7 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
             Log.LogInformation("Sherpa CUDA native install cancelled");
             StatusMessage = "Cancelled.";
             DeleteDirBestEffort(stagingRoot);
+            IsInstalled = IsInstalledOnDisk(_installRoot, _downloads);
             throw;
         }
         catch (Exception ex)
@@ -329,6 +362,7 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
             Log.LogError(ex, "Sherpa CUDA native install failed");
             StatusMessage = $"Failed: {ex.Message}";
             DeleteDirBestEffort(stagingRoot);
+            IsInstalled = IsInstalledOnDisk(_installRoot, _downloads);
             throw;
         }
         finally
@@ -497,6 +531,7 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
         {
             File.Delete(sentinelPath);
         }
+        DeleteSetSentinels(installRoot);
         if (!Directory.Exists(installRoot))
         {
             return;
@@ -515,6 +550,46 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
             File.Delete(markerPath);
         }
         Directory.Delete(installRoot);
+    }
+
+    /// <summary>
+    /// Gives a set installed before the set sentinel existed its own copy, taken from the root sentinel, so a swap that dies
+    /// after moving it aside can still restore it.
+    /// </summary>
+    private static void BackfillSetSentinel(string nativeDir, string? oldSentinel)
+    {
+        string setSentinel = Path.Combine(nativeDir, SetSentinelFileName);
+        if (oldSentinel is not null && Directory.Exists(nativeDir) && !File.Exists(setSentinel))
+        {
+            File.WriteAllText(setSentinel, oldSentinel);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the set sentinels inside <c>native/</c> and every old-set folder, before any folder goes: a folder delete
+    /// that fails must not leave one for a later recovery to restore.
+    /// </summary>
+    private static void DeleteSetSentinels(string installRoot)
+    {
+        if (!Directory.Exists(installRoot))
+        {
+            return;
+        }
+        DeleteSetSentinel(Path.Combine(installRoot, NativeDirName));
+        foreach (string oldDir in Directory.EnumerateDirectories(installRoot, OldDirPrefix + "*"))
+        {
+            DeleteSetSentinel(oldDir);
+        }
+    }
+
+    /// <summary>Deletes the set sentinel inside <paramref name="dir"/>, when it holds one.</summary>
+    private static void DeleteSetSentinel(string dir)
+    {
+        string setSentinel = Path.Combine(dir, SetSentinelFileName);
+        if (File.Exists(setSentinel))
+        {
+            File.Delete(setSentinel);
+        }
     }
 
     private static string? HostRid()
@@ -660,6 +735,7 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
 
     private async Task RunInstallAsync(string stagingRoot, CancellationToken ct)
     {
+        RestoreOrphanedOldSet(_installRoot);
         SweepLeftovers();
         string stagingNative = Path.Combine(stagingRoot, NativeDirName);
         Directory.CreateDirectory(stagingNative);
@@ -684,6 +760,7 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
         RefuseIfSetInUse();
         SwapIn(stagingRoot);
         ClearPendingRemoval();
+        SweepLeftovers();
         SetProgress(1.0);
     }
 
@@ -697,6 +774,57 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
             Log.LogInformation("The new sherpa CUDA native set at {Root} cancels the removal scheduled for the next start", _installRoot);
         }
         IsRemovalScheduled = false;
+    }
+
+    /// <summary>
+    /// Puts an orphaned old set back (see <see cref="RestoreOrphanedOldSet"/>) when the root is present without a
+    /// <c>native/</c> and its lock is free, then reports whether the set is installed.
+    /// </summary>
+    private static bool RecoverAndCheckInstalled(string installRoot, IReadOnlyList<SherpaCudaDownload> downloads)
+    {
+        RecoverOrphanedSet(installRoot);
+        return IsInstalledOnDisk(installRoot, downloads);
+    }
+
+    /// <summary>
+    /// When <c>native/</c> is missing and exactly one <c>.old-*</c> folder under the root carries its own sentinel (a swap
+    /// that died between moving the set aside and moving the new one in left it there), moves that folder back as
+    /// <c>native/</c> and writes its sentinel content to the root sentinel last. The caller holds the root lock.
+    /// </summary>
+    private static void RestoreOrphanedOldSet(string installRoot)
+    {
+        try
+        {
+            string nativeDir = Path.Combine(installRoot, NativeDirName);
+            if (!Directory.Exists(installRoot) || Directory.Exists(nativeDir))
+            {
+                return;
+            }
+            List<string> complete =
+            [
+                .. Directory.EnumerateDirectories(installRoot, OldDirPrefix + "*").Where(d => File.Exists(Path.Combine(d, SetSentinelFileName))),
+            ];
+            if (complete.Count != 1)
+            {
+                if (complete.Count > 1)
+                {
+                    Log.LogWarning(
+                        "Not restoring the sherpa CUDA native set: {Count} old-set folders under {Root} carry a sentinel",
+                        complete.Count,
+                        installRoot
+                    );
+                }
+                return;
+            }
+            string content = File.ReadAllText(Path.Combine(complete[0], SetSentinelFileName));
+            Directory.Move(complete[0], nativeDir);
+            File.WriteAllText(SentinelPath(installRoot), content);
+            Log.LogInformation("Restored the sherpa CUDA native set from the orphaned {OldDir}", complete[0]);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogWarning(ex, "Failed to restore an orphaned old sherpa CUDA native set under {Root}", installRoot);
+        }
     }
 
     /// <summary>
@@ -733,9 +861,10 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
     }
 
     /// <summary>
-    /// Deletes the sentinel first, replaces <c>native/</c> with the staged set and writes the sentinel last. A failure puts
-    /// the old set back, and its sentinel only once the set is back, and rethrows; a failure to delete the replaced set
-    /// afterwards only logs.
+    /// Gives the set already installed its own sentinel, deletes the root sentinel, writes the staged set's own sentinel
+    /// (setting Linux permissions first), replaces <c>native/</c> with the staged set and writes the root sentinel last. A
+    /// failure puts the old set back, and its sentinel only once the set is back, and rethrows; a failure to delete the
+    /// replaced set afterwards only logs.
     /// </summary>
     private void SwapIn(string stagingRoot)
     {
@@ -748,6 +877,7 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
         bool newInPlace = false;
         try
         {
+            BackfillSetSentinel(nativeDir, oldSentinel);
             if (File.Exists(sentinelPath))
             {
                 File.Delete(sentinelPath);
@@ -757,12 +887,13 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
                 Directory.Move(nativeDir, oldDir);
                 oldMoved = true;
             }
-            Directory.Move(stagingNative, nativeDir);
-            newInPlace = true;
             if (OperatingSystem.IsLinux())
             {
-                MarkSharedObjectsExecutable(nativeDir);
+                MarkSharedObjectsExecutable(stagingNative);
             }
+            File.WriteAllText(Path.Combine(stagingNative, SetSentinelFileName), ExpectedSentinelContent(_downloads));
+            Directory.Move(stagingNative, nativeDir);
+            newInPlace = true;
             File.WriteAllText(sentinelPath, ExpectedSentinelContent(_downloads));
         }
         catch (Exception ex)
@@ -772,6 +903,14 @@ public sealed partial class SherpaCudaInstaller : ObservableObject
             throw;
         }
 
+        try
+        {
+            DeleteSetSentinel(oldDir);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogWarning(ex, "Failed to delete the old sherpa CUDA set sentinel under {Dir}; the next install sweeps it", oldDir);
+        }
         DeleteDirBestEffort(oldDir);
         DeleteDirBestEffort(stagingRoot);
     }

@@ -57,7 +57,7 @@ public sealed class SherpaCudaInstallerTests : IDisposable
         await NewInstaller(handler, downloads).InstallAsync(TestContext.Current.CancellationToken);
 
         string[] native = [.. Directory.GetFiles(Path.Combine(_root, "native")).Select(path => Path.GetFileName(path)).Order(StringComparer.Ordinal)];
-        Assert.Equal(["MANIFEST.txt", "cudnn64_9.dll", "cudnn_ops64_9.dll", "x.dll"], native);
+        Assert.Equal([".installed", "MANIFEST.txt", "cudnn64_9.dll", "cudnn_ops64_9.dll", "x.dll"], native);
         Assert.Empty(LeftoverDirs());
         Assert.True(SherpaCudaInstaller.IsInstalledOnDisk(_root, downloads));
         Assert.Equal([ZipUrl, WheelUrl], handler.Requests);
@@ -441,6 +441,190 @@ public sealed class SherpaCudaInstallerTests : IDisposable
         File.WriteAllText(manifestPath, """{"baseUrl":"x"}""");
 
         Assert.Throws<InvalidDataException>(() => SherpaCudaInstaller.ForPlatform("win-x64", manifestPath));
+    }
+
+    [Fact]
+    public void Constructor_Restores_An_Orphaned_Old_Set_That_Carries_Its_Sentinel()
+    {
+        (SherpaCudaDownload zip, _) = Download("ours", [ZipUrl], ["x.dll"], ("x.dll", "x"));
+        SherpaCudaDownload[] downloads = [zip];
+        string oldDir = OrphanedOldSet(downloads, ".old-abc");
+
+        SherpaCudaInstaller installer = NewInstaller(new FakeHandler([], null), downloads);
+
+        Assert.True(installer.IsInstalled);
+        Assert.Equal("x", File.ReadAllText(Path.Combine(_root, "native", "x.dll")));
+        Assert.False(Directory.Exists(oldDir));
+        Assert.Equal(SherpaCudaInstaller.ExpectedSentinelContent(downloads), File.ReadAllText(SherpaCudaInstaller.SentinelPath(_root)));
+    }
+
+    [Fact]
+    public void Constructor_Leaves_Two_Orphaned_Old_Sets_Alone()
+    {
+        (SherpaCudaDownload zip, _) = Download("ours", [ZipUrl], ["x.dll"], ("x.dll", "x"));
+        SherpaCudaDownload[] downloads = [zip];
+        string first = OrphanedOldSet(downloads, ".old-a");
+        string second = OrphanedOldSet(downloads, ".old-b");
+
+        SherpaCudaInstaller installer = NewInstaller(new FakeHandler([], null), downloads);
+
+        Assert.False(installer.IsInstalled);
+        Assert.True(Directory.Exists(first));
+        Assert.True(Directory.Exists(second));
+        Assert.False(Directory.Exists(Path.Combine(_root, "native")));
+    }
+
+    [Fact]
+    public void Constructor_Keeps_An_Old_Set_Without_Its_Sentinel()
+    {
+        (SherpaCudaDownload zip, _) = Download("ours", [ZipUrl], ["x.dll"], ("x.dll", "x"));
+        SherpaCudaDownload[] downloads = [zip];
+        string oldDir = Path.Combine(_root, ".old-abc");
+        Directory.CreateDirectory(oldDir);
+        File.WriteAllText(Path.Combine(oldDir, "x.dll"), "x");
+
+        SherpaCudaInstaller installer = NewInstaller(new FakeHandler([], null), downloads);
+
+        Assert.False(installer.IsInstalled);
+        Assert.True(Directory.Exists(oldDir));
+        Assert.False(Directory.Exists(Path.Combine(_root, "native")));
+    }
+
+    [Fact]
+    public async Task Uninstall_Deletes_Old_And_Staging_Leftovers()
+    {
+        (SherpaCudaDownload zip, byte[] zipBytes) = Download("ours", [ZipUrl], ["x.dll"], ("x.dll", "x"));
+        SherpaCudaInstaller installer = NewInstaller(new FakeHandler(new() { [ZipUrl] = zipBytes }, null), [zip]);
+        await installer.InstallAsync(TestContext.Current.CancellationToken);
+        Directory.CreateDirectory(Path.Combine(_root, ".old-x"));
+        File.WriteAllText(Path.Combine(_root, ".old-x", ".installed"), SherpaCudaInstaller.ExpectedSentinelContent([zip]));
+        Directory.CreateDirectory(Path.Combine(_root, ".staging-y"));
+
+        installer.Uninstall();
+
+        Assert.False(Directory.Exists(_root));
+    }
+
+    [Fact]
+    public async Task Install_Writes_The_Set_Sentinel_Inside_Native()
+    {
+        (SherpaCudaDownload zip, byte[] zipBytes) = Download("ours", [ZipUrl], ["x.dll"], ("x.dll", "x"));
+        SherpaCudaDownload[] downloads = [zip];
+
+        await NewInstaller(new FakeHandler(new() { [ZipUrl] = zipBytes }, null), downloads).InstallAsync(TestContext.Current.CancellationToken);
+
+        string setSentinel = Path.Combine(_root, "native", ".installed");
+        Assert.True(File.Exists(setSentinel));
+        Assert.Equal(SherpaCudaInstaller.ExpectedSentinelContent(downloads), File.ReadAllText(setSentinel));
+    }
+
+    [Fact]
+    public void RecoverOrphanedSet_RestoresBeforeAnyInstallerExists()
+    {
+        (SherpaCudaDownload zip, _) = Download("ours", [ZipUrl], ["x.dll"], ("x.dll", "x"));
+        SherpaCudaDownload[] downloads = [zip];
+        OrphanedOldSet(downloads, ".old-abc");
+
+        SherpaCudaInstaller.RecoverOrphanedSet(_root);
+
+        Assert.True(SherpaCudaInstaller.IsInstalledOnDisk(_root, downloads));
+        Assert.Equal("x", File.ReadAllText(Path.Combine(_root, "native", "x.dll")));
+    }
+
+    [Fact]
+    public async Task Install_Restores_An_Orphan_Left_After_Construction_Then_Replaces_It()
+    {
+        (SherpaCudaDownload zip, byte[] zipBytes) = Download("ours", [ZipUrl], ["x.dll"], ("x.dll", "x"));
+        SherpaCudaDownload[] downloads = [zip];
+        var restoredBeforeDownload = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new FakeHandler([], null);
+        handler.Responders[ZipUrl] = (_, _) =>
+        {
+            restoredBeforeDownload.TrySetResult(File.Exists(Path.Combine(_root, "native", "x.dll")));
+            return Task.FromResult(Ok(new ByteArrayContent(zipBytes)));
+        };
+        SherpaCudaInstaller installer = NewInstaller(handler, downloads);
+        OrphanedOldSet(downloads, ".old-abc");
+
+        await installer.InstallAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(
+            await restoredBeforeDownload.Task.WaitAsync(HangGuard, TestContext.Current.CancellationToken),
+            "The orphaned set was not restored before the download began."
+        );
+        Assert.True(installer.IsInstalled);
+        Assert.Empty(LeftoverDirs());
+    }
+
+    [Fact]
+    public async Task Failed_Install_Keeps_A_Restored_Orphan_Installed()
+    {
+        (SherpaCudaDownload zip, _) = Download("ours", [ZipUrl], ["x.dll"], ("x.dll", "x"));
+        SherpaCudaDownload[] downloads = [zip];
+        SherpaCudaInstaller installer = NewInstaller(new FakeHandler([], null), downloads);
+        OrphanedOldSet(downloads, ".old-abc");
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => installer.InstallAsync(TestContext.Current.CancellationToken));
+
+        Assert.True(Directory.Exists(Path.Combine(_root, "native")));
+        Assert.True(SherpaCudaInstaller.IsInstalledOnDisk(_root, downloads));
+        Assert.True(installer.IsInstalled);
+    }
+
+    [Fact]
+    public void Constructor_Does_Not_Restore_While_The_Root_Lock_Is_Held()
+    {
+        (SherpaCudaDownload zip, _) = Download("ours", [ZipUrl], ["x.dll"], ("x.dll", "x"));
+        SherpaCudaDownload[] downloads = [zip];
+        string oldDir = OrphanedOldSet(downloads, ".old-abc");
+
+        using FileStream held = SherpaCudaInstaller.TryLockRoot(_root)!;
+        SherpaCudaInstaller installer = NewInstaller(new FakeHandler([], null), downloads);
+
+        Assert.False(installer.IsInstalled);
+        Assert.True(Directory.Exists(oldDir));
+        Assert.False(Directory.Exists(Path.Combine(_root, "native")));
+    }
+
+    [Fact]
+    public async Task Swap_Gives_A_Pre_Existing_Set_Its_Sentinel_Before_Moving_It_Aside()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Only Windows refuses to move a folder with an open file.");
+        (SherpaCudaDownload zip, byte[] zipBytes) = Download(
+            "ours",
+            [ZipUrl],
+            ["x.dll", "MANIFEST.txt"],
+            ("x.dll", "x"),
+            ("MANIFEST.txt", "HEAD: abc")
+        );
+        SherpaCudaDownload[] downloads = [zip];
+        SherpaCudaInstaller installer = NewInstaller(new FakeHandler(new() { [ZipUrl] = zipBytes }, null), downloads);
+        await installer.InstallAsync(TestContext.Current.CancellationToken);
+
+        File.Delete(Path.Combine(_root, "native", ".installed"));
+        FileStream held = new(Path.Combine(_root, "native", "MANIFEST.txt"), FileMode.Open, FileAccess.Read, FileShare.None);
+        try
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() => installer.InstallAsync(TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            held.Dispose();
+        }
+
+        string setSentinel = Path.Combine(_root, "native", ".installed");
+        Assert.True(File.Exists(setSentinel), "The swap did not give the pre-existing set its own sentinel.");
+        Assert.Equal(SherpaCudaInstaller.ExpectedSentinelContent(downloads), File.ReadAllText(setSentinel));
+    }
+
+    /// <summary>Creates an <c>.old-*</c> folder holding <c>x.dll</c> and the set's own sentinel for <paramref name="downloads"/>.</summary>
+    private string OrphanedOldSet(IReadOnlyList<SherpaCudaDownload> downloads, string name)
+    {
+        string dir = Path.Combine(_root, name);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "x.dll"), "x");
+        File.WriteAllText(Path.Combine(dir, ".installed"), SherpaCudaInstaller.ExpectedSentinelContent(downloads));
+        return dir;
     }
 
     private static string ManifestPath => Path.Combine(AppContext.BaseDirectory, "Speech", "stt-downloads.json");
