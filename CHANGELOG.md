@@ -11,6 +11,8 @@
 - If YAAT stops while updating the GPU speech runtime, the next start puts the previous copy back instead of leaving GPU speech uninstalled.
 - The DH8C and Q400 (DH8D) are held to their certified maximum speeds.
 - Aircraft with no FAA approach speed, such as the C-5M and F/A-18, fly their real approach speed instead of one about 20% too fast.
+- An aircraft leaving a runway still counts as on it until its tail, not its nose, has passed the exit's hold-short marking.
+- A hold short handed over too late to stop for after a runway crossing gets an immediate "unable to hold short, stopping" from the pilot.
 
 ## v0.18.0-beta [2026/11/02]
 

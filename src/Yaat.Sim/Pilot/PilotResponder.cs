@@ -879,6 +879,21 @@ public static partial class PilotResponder
         );
 
     /// <summary>
+    /// The unable call a taxiing aircraft makes unprompted when a hold short it was told earlier turns out to lie inside its
+    /// stopping distance (judged again as a runway crossing hands the route back), worded as the dispatch-time clause
+    /// (<see cref="BuildUnableHoldShortClause"/>): "unable to hold short of D, stopping", spoken with the callsign first
+    /// ("November four six two November X-ray, unable to hold short of delta, stopping").
+    /// </summary>
+    /// <param name="aircraft">The aircraft making the call.</param>
+    /// <param name="target">The hold-short target it cannot make.</param>
+    /// <returns>The terminal and spoken forms of the call.</returns>
+    public static PilotSpeechText BuildUnableHoldShortOnTheMove(AircraftState aircraft, HoldShortTarget target) =>
+        new(
+            PhraseologyVerbalizer.RenderUnableHoldShort(target, spoken: false),
+            $"{SpokenOwnCallsign(aircraft)}, {PhraseologyVerbalizer.RenderUnableHoldShort(target, spoken: true)}"
+        );
+
+    /// <summary>
     /// FAA JO 7110.65 §9-2-6.a "CLEARED INTO IR (designator)", with the published-altitudes,
     /// assigned-altitude, or at-or-below clause.
     ///

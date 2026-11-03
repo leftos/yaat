@@ -178,6 +178,7 @@ public sealed class TaxiingPhase : Phase
             return CompleteRoute(ctx, route);
         }
 
+        JudgeHoldShortAtCrossingHandoff(ctx, route);
         PrepareUnableStop(ctx, route);
 
         if (!_initialized)
@@ -637,6 +638,113 @@ public sealed class TaxiingPhase : Phase
         ApplyStopBrakeRate(ctx, route, unmakeableAhead, stopMovedNow);
         AimAtPaintedBar(ctx, route);
         _nav.RefreshSpeedConstraints(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
+    }
+
+    /// <summary>
+    /// On this phase's first tick after a runway crossing handed the route back (the phase before it in the aircraft's
+    /// phase list is a <see cref="CrossingRunwayPhase"/>), the first uncleared bar ahead is judged again with
+    /// <see cref="IsHoldShortUnmakeable"/>, the test the dispatcher judged it with: a hold short given during the crossing was
+    /// judged against the crossing's route cursor, and the crossing may hand over with its stop already inside the firm stopping
+    /// distance. Judged only above <see cref="StoppedGroundSpeedKts"/> (the measure answers makeable at or below it), and only a
+    /// bar not already flagged unable, so the call is made once per bar. An unmakeable bar — one whose crossed taxiway's wingtip
+    /// envelope is inside the flown stop too, so the envelope window (<see cref="MoveWindowBarToBrakingDistance"/>) cannot take it
+    /// — is flagged <see cref="HoldShortPoint.Unable"/> and the pilot says so at once
+    /// (<see cref="PilotResponder.BuildUnableHoldShortOnTheMove"/>); <see cref="PrepareUnableStop"/> then moves its stop on this
+    /// same tick. A bar the unable call cannot name — no target from <see cref="UnableCallTarget"/> and a blank target name — is
+    /// left unflagged and silent, so no held-beyond report refers to a call the pilot never made. The first tick is read from
+    /// <see cref="Phase.ElapsedSeconds"/> and the phase list, both snapshotted, so a restored phase judges on the same tick it did
+    /// live and never again.
+    /// </summary>
+    private void JudgeHoldShortAtCrossingHandoff(PhaseContext ctx, TaxiRoute route)
+    {
+        if (
+            !IsFirstTickAfterCrossing(ctx)
+            || (ctx.GroundLayout is not { } layout)
+            || (FirstUnclearedBarAhead(route) is not { Bar: { Unable: false, StopMoved: false } bar })
+            || !IsHoldShortUnmakeable(layout, route, ctx.Aircraft, bar, ctx.DeltaSeconds)
+        )
+        {
+            return;
+        }
+
+        HoldShortTarget? target =
+            UnableCallTarget(ctx.Aircraft, bar, layout, ctx.ActiveRunways)
+            ?? (string.IsNullOrWhiteSpace(bar.TargetName) ? (HoldShortTarget?)null : new HoldShortTarget(bar.TargetName.Trim(), null, false));
+        if (target is not { } named)
+        {
+            Log.LogWarning(
+                "[Taxi] {Callsign}: no nameable target for hold short {Target}; unable call not made",
+                ctx.Aircraft.Callsign,
+                bar.TargetName
+            );
+            return;
+        }
+
+        bar.Unable = true;
+        Log.LogInformation(
+            "[Taxi] {Callsign}: hold short of {Target} is inside the firm stopping distance at {Gs:F1} kt as the crossing hands over — unable",
+            ctx.Aircraft.Callsign,
+            bar.TargetName,
+            ctx.Aircraft.GroundSpeed
+        );
+        PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            PilotResponder.BuildUnableHoldShortOnTheMove(ctx.Aircraft, named),
+            PilotResponder.SoloPositionsGround
+        );
+    }
+
+    /// <summary>
+    /// Whether this phase is on its first tick after a runway crossing handed the route back: it follows a
+    /// <see cref="CrossingRunwayPhase"/> in the aircraft's phase list, is the phase list's current phase, and has not ticked past
+    /// <see cref="FirstTickSlackSeconds"/> beyond its first sub-tick.
+    /// </summary>
+    private bool IsFirstTickAfterCrossing(PhaseContext ctx) =>
+        (ElapsedSeconds <= (ctx.DeltaSeconds + FirstTickSlackSeconds))
+        && (ctx.Aircraft.Phases is { } phases)
+        && (phases.Phases.ElementAtOrDefault(phases.CurrentIndex - 1) is CrossingRunwayPhase)
+        && ReferenceEquals(phases.CurrentPhase, this);
+
+    /// <summary>
+    /// The target the unable call names for <paramref name="bar"/>, as the held-beyond report names it
+    /// (<see cref="HoldingShortPhase"/>): a spot by its <c>$</c> name; a runway carried as a combined centreline id
+    /// (<c>28R/10L</c>) by one end, a crossing bar's by the end a pilot names it by (<see cref="RunwayCrossingEnd.Spoken"/>) and
+    /// any other runway bar's by the end facing the aircraft (<see cref="RunwayCrossingEnd.EndFacing"/>); anything else by its
+    /// display designator. Null when the name does not parse as a hold-short target.
+    /// </summary>
+    internal static HoldShortTarget? UnableCallTarget(
+        AircraftState aircraft,
+        HoldShortPoint bar,
+        AirportGroundLayout? layout,
+        ActiveRunways activeRunways
+    )
+    {
+        if (bar.TargetName is not { Length: > 0 } name)
+        {
+            return null;
+        }
+
+        string token;
+        if (HoldShortTarget.IsSpotTargetName(name))
+        {
+            token = name;
+        }
+        else if (HoldingShortPhase.ProtectsRunway(bar) && name.Contains('/'))
+        {
+            token =
+                (bar.Reason == HoldShortReason.RunwayCrossing)
+                    ? RunwayCrossingEnd.Spoken(aircraft, name, layout, activeRunways)
+                    : RunwayCrossingEnd.EndFacing(aircraft.Position, name, layout, activeRunways, aircraft.Phases?.AssignedRunway);
+        }
+        else
+        {
+            token = RunwayIdentifier.ToDisplayDesignator(name);
+        }
+
+        return HoldShortTarget.TryParse(token, out HoldShortTarget target, out _) ? target : null;
     }
 
     /// <summary>
@@ -1498,8 +1606,8 @@ public sealed class TaxiingPhase : Phase
 
     /// <summary>
     /// The runway end a HOLD given now is read back as holding on — the end a pilot names it by
-    /// (<see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest) — in the stretch before a crossing starts (<see cref="HoldAtCrossingAhead"/>),
-    /// when the HOLD stops some part of the aircraft past the near holding-position marking
+    /// (<see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest) — in the stretch before a crossing starts
+    /// (<see cref="HoldAtCrossingAhead"/>), when the HOLD stops some part of the aircraft past the near holding-position marking
     /// (<see cref="CrossingRunwayPhase.HoldStopsOnRunway"/>). Null otherwise, or when the bar names no runway.
     /// </summary>
     public string? HeldOnRunwayEnd(AircraftState aircraft, ActiveRunways activeRunways) =>
@@ -1561,11 +1669,17 @@ public sealed class TaxiingPhase : Phase
     /// ahead is cleared and has no far bar after it on the route (<see cref="FarBarAfter"/>), and the aircraft is not yet clear of
     /// the runway — the route's start node, its nose or its tail on the runway's pavement
     /// (<see cref="RunwayOccupancy.IsWithinPavement"/>), or its centre past the runway edge with its tail short of that bar's
-    /// marking (<see cref="IsPastEdgeShortOfMarking"/>). Null otherwise, when an uncleared bar comes first, or the bar names no
-    /// runway the airport has.
+    /// marking (<see cref="IsPastEdgeShortOfMarking"/>). A cleared exit bar just passed (<see cref="RunwayJustLeft"/>) is judged
+    /// first, whatever lies ahead on the route, and keeps the runway reported until the tail is out. Null otherwise, when an
+    /// uncleared bar comes first, or the bar names no runway the airport has.
     /// </summary>
     private static string? RunwayBeingLeft(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout)
     {
+        if (RunwayJustLeft(aircraft, route, layout) is { } justLeft)
+        {
+            return justLeft;
+        }
+
         if (
             (FirstRunwayBarAhead(route, layout) is not { } exit)
             || !exit.Bar.IsCleared
@@ -1579,6 +1693,57 @@ public sealed class TaxiingPhase : Phase
 
         GroundNode start = route.Segments[0].Edge.FromNode;
 
+        if (RunwayAndTail(aircraft, layout, runwayId) is not { } leaving)
+        {
+            return null;
+        }
+
+        double halfLengthNm = AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
+        LatLon nose = GeoMath.ProjectPoint(aircraft.Position, aircraft.TrueHeading, halfLengthNm);
+        bool onPavement =
+            RunwayOccupancy.IsWithinPavement(start.Position, leaving.Runway)
+            || RunwayOccupancy.IsWithinPavement(nose, leaving.Runway)
+            || RunwayOccupancy.IsWithinPavement(leaving.Tail, leaving.Runway);
+        return (onPavement || IsPastEdgeShortOfMarking(aircraft.Position, leaving.Tail, exitBar.Position, leaving.Runway)) ? runwayId : null;
+    }
+
+    /// <summary>
+    /// The runway <paramref name="aircraft"/> has just passed the cleared exit bar of and is not yet clear of (AIM 2-3-5.a.1.a): the
+    /// nearest runway bar (<see cref="NeedsRunwayCrossing"/>) behind the route's cursor, at the end of a passed segment whose end
+    /// node lies within one aircraft length of the aircraft (<see cref="PassedRunwayBar"/>), is cleared with no far bar after it
+    /// (<see cref="FarBarAfter"/>), and the tail is on the runway's pavement (<see cref="RunwayOccupancy.IsWithinPavement"/>) or
+    /// still inside that bar's holding position marking (<see cref="RunwayHoldBars.DepthPastMarkingFt"/> above zero, no tolerance).
+    /// Null otherwise, or when the bar names no runway the airport has.
+    /// </summary>
+    private static string? RunwayJustLeft(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout)
+    {
+        if (
+            (PassedRunwayBar(aircraft, route, layout) is not { } passedBar)
+            || (passedBar.Bar is not { IsCleared: true, TargetName: { Length: > 0 } runwayId } passed)
+            || (FarBarAfter(route, passedBar.SegmentIndex, passed, layout) is not null)
+            || !layout.Nodes.TryGetValue(passed.NodeId, out GroundNode? exitBar)
+        )
+        {
+            return null;
+        }
+
+        if (RunwayAndTail(aircraft, layout, runwayId) is not { } leaving)
+        {
+            return null;
+        }
+
+        bool tailInside =
+            RunwayOccupancy.IsWithinPavement(leaving.Tail, leaving.Runway)
+            || (RunwayHoldBars.DepthPastMarkingFt(layout, leaving.Runway, exitBar, leaving.Tail, aircraft.Position) > 0.0);
+        return tailInside ? runwayId : null;
+    }
+
+    /// <summary>
+    /// The runway <paramref name="runwayId"/> names on <paramref name="layout"/>'s airport, with the point half an aircraft
+    /// length behind <paramref name="aircraft"/>'s centre (its tail). Null when the airport has no runway that id overlaps.
+    /// </summary>
+    private static (RunwayInfo Runway, LatLon Tail)? RunwayAndTail(AircraftState aircraft, AirportGroundLayout layout, string runwayId)
+    {
         var barRunway = RunwayIdentifier.Parse(runwayId);
         if (RunwayOccupancy.AirportRunways(layout.AirportId).FirstOrDefault(r => r.Id.Overlaps(barRunway)) is not { } runway)
         {
@@ -1586,13 +1751,37 @@ public sealed class TaxiingPhase : Phase
         }
 
         double halfLengthNm = AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
-        LatLon nose = GeoMath.ProjectPoint(aircraft.Position, aircraft.TrueHeading, halfLengthNm);
         LatLon tail = GeoMath.ProjectPoint(aircraft.Position, new TrueHeading((aircraft.TrueHeading.Degrees + 180.0) % 360.0), halfLengthNm);
-        bool onPavement =
-            RunwayOccupancy.IsWithinPavement(start.Position, runway)
-            || RunwayOccupancy.IsWithinPavement(nose, runway)
-            || RunwayOccupancy.IsWithinPavement(tail, runway);
-        return (onPavement || IsPastEdgeShortOfMarking(aircraft.Position, tail, exitBar.Position, runway)) ? runwayId : null;
+        return (runway, tail);
+    }
+
+    /// <summary>
+    /// The nearest runway bar (<see cref="NeedsRunwayCrossing"/>) the aircraft has passed on <paramref name="route"/>, with the index
+    /// of the segment ending at it: the passed segments are walked back from the one before the cursor while their end node lies
+    /// within one aircraft length of the aircraft, so a short segment after the bar (a fillet tangent) does not hide it. Null when
+    /// none lies that close.
+    /// </summary>
+    private static (int SegmentIndex, HoldShortPoint Bar)? PassedRunwayBar(AircraftState aircraft, TaxiRoute route, AirportGroundLayout layout)
+    {
+        double lengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
+        for (int i = Math.Min(route.CurrentSegmentIndex, route.Segments.Count) - 1; i >= 0; i--)
+        {
+            int nodeId = route.Segments[i].ToNodeId;
+            if (
+                !layout.Nodes.TryGetValue(nodeId, out GroundNode? node)
+                || ((GeoMath.DistanceNm(aircraft.Position, node.Position) * GeoMath.FeetPerNm) > lengthFt)
+            )
+            {
+                return null;
+            }
+
+            if ((route.GetHoldShortAt(nodeId) is { } bar) && NeedsRunwayCrossing(bar, layout))
+            {
+                return (i, bar);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

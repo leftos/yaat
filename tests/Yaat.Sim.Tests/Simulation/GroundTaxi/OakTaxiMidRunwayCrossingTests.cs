@@ -112,6 +112,127 @@ public sealed class OakTaxiMidRunwayCrossingTests
     }
 
     /// <summary>
+    /// YAAT-1458: the second TAXI given once the C56X's centre is 5-10 ft past the north 28R bar node — the route's cursor past
+    /// the segment ending at the bar, so no runway bar is left ahead — with its tail still inside the bar's holding position
+    /// marking (AIM 2-3-5.a.1.a: not yet clear of the runway). The runway is still reported as being left, and the second route
+    /// keeps 28R cleared: the aircraft parks at SIG7 without holding at that bar.
+    /// </summary>
+    [Fact]
+    public void SecondTaxiGivenWithTheCentrePastThe28RExitBarAndTheTailInside_KeepsTheRunwayCleared()
+    {
+        if (
+            StagePastTheNorthBar(pose => (pose.CentrePastFt >= 5.0) && (pose.CentrePastFt <= 10.0) && (pose.TailDepthFt > 0.0), TaxiToSig7)
+            is not { } staged
+        )
+        {
+            return;
+        }
+
+        // The bar's target as the route carries it: the combined centreline id (28R/10L).
+        string? underway = TaxiingPhase.CrossingUnderwayRunway(staged.Rig.Aircraft, staged.Rig.Layout);
+        Assert.NotNull(underway);
+        Assert.Contains("28R", underway);
+        CommandResult second = staged.Rig.Engine.SendCommand(Callsign, TaxiToSig7);
+        Assert.True(second.Success, second.Message);
+
+        AssertParksAtSig7WithoutHoldingAt28R(staged.Rig);
+    }
+
+    /// <summary>
+    /// YAAT-1458: the same staging ticked on until the C56X's tail is a foot past the north 28R bar's holding position marking:
+    /// clear of the runway, so no runway is reported as being left.
+    /// </summary>
+    [Fact]
+    public void CrossingUnderwayRunway_TailOneFootPastTheMarking_IsNull()
+    {
+        if (StagePastTheNorthBar(pose => pose.TailDepthFt <= -1.0, TaxiToSig7) is not { } staged)
+        {
+            return;
+        }
+
+        Assert.Null(TaxiingPhase.CrossingUnderwayRunway(staged.Rig.Aircraft, staged.Rig.Layout));
+    }
+
+    /// <summary>
+    /// The same pose — centre 5-10 ft past the north 28R bar node, tail still inside its marking — on a route that holds short of D
+    /// further on: the uncleared bar ahead does not hide the exit bar just passed, and 28R is still reported as being left.
+    /// </summary>
+    [Fact]
+    public void CrossingUnderwayRunway_CentrePastThe28RExitBarWithALaterHoldShort_IsStill28R()
+    {
+        if (
+            StagePastTheNorthBar(pose => (pose.CentrePastFt >= 5.0) && (pose.CentrePastFt <= 10.0) && (pose.TailDepthFt > 0.0), $"{TaxiToSig7} HS D")
+            is not { } staged
+        )
+        {
+            return;
+        }
+
+        Assert.Contains(staged.Route.HoldShortPoints, h => (h.TargetName == "D") && !h.IsCleared);
+        string? underway = TaxiingPhase.CrossingUnderwayRunway(staged.Rig.Aircraft, staged.Rig.Layout);
+        Assert.NotNull(underway);
+        Assert.Contains("28R", underway);
+    }
+
+    /// <summary>
+    /// Where the C56X stands against the north 28R bar's holding position marking (<see cref="RunwayHoldBars.DepthPastMarkingFt"/>):
+    /// how far its centre is past the marking away from the runway, and how far its tail lies inside it toward the runway (negative
+    /// once past it).
+    /// </summary>
+    private readonly record struct BarPose(double CentrePastFt, double TailDepthFt);
+
+    /// <summary>The rig and the route the first TAXI gave, ticked to a pose against the north 28R bar.</summary>
+    private sealed record PastBarStaging(Rig Rig, TaxiRoute Route);
+
+    /// <summary>
+    /// The first TAXI given while the C56X is on 28R between its bars, so its route carries the north 28R bar as a cleared
+    /// hold-short point, then the aircraft ticked a twentieth of a second at a time, the route's cursor past the segment ending at
+    /// that bar, until <paramref name="ready"/> holds for its pose against the bar's marking. Null when the KOAK layout is
+    /// unavailable.
+    /// </summary>
+    private static PastBarStaging? StagePastTheNorthBar(Func<BarPose, bool> ready, string firstTaxi)
+    {
+        if (StartCrossing28R(OnThe28R) is not { } rig)
+        {
+            return null;
+        }
+
+        CommandResult first = rig.Engine.SendCommand(Callsign, firstTaxi);
+        Assert.True(first.Success, first.Message);
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R") ?? throw new InvalidOperationException("no OAK 28R in navdata");
+        TaxiRoute route = Assert.IsType<TaxiRoute>(rig.Aircraft.Ground.AssignedTaxiRoute);
+        int barSegment = route.Segments.FindIndex(s =>
+            rig.Layout.Nodes.TryGetValue(s.ToNodeId, out GroundNode? n)
+            && (n.Type == GroundNodeType.RunwayHoldShort)
+            && (n.RunwayId is { } id)
+            && id.Contains("28R")
+        );
+        Assert.True(barSegment >= 0, $"the first TAXI's route has no segment ending at a 28R bar: {route.ToSummary()}");
+        GroundNode northBar = rig.Layout.Nodes[route.Segments[barSegment].ToNodeId];
+        Assert.True(route.GetHoldShortAt(northBar.Id) is { IsCleared: true }, $"the north 28R bar #{northBar.Id} is no cleared hold short");
+
+        const double step = 0.05;
+        bool reached = false;
+        for (int tick = 0; (tick < 60 * 20) && !reached; tick++)
+        {
+            rig.Engine.TickPhysics(step);
+            AircraftState aircraft = rig.Aircraft;
+            double halfLengthNm = AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
+            LatLon tail = GeoMath.ProjectPoint(aircraft.Position, new TrueHeading((aircraft.TrueHeading.Degrees + 180.0) % 360.0), halfLengthNm);
+            var pose = new BarPose(
+                -RunwayHoldBars.DepthPastMarkingFt(rig.Layout, runway, northBar, aircraft.Position, aircraft.Position),
+                RunwayHoldBars.DepthPastMarkingFt(rig.Layout, runway, northBar, tail, aircraft.Position)
+            );
+            reached = (route.CurrentSegmentIndex > barSegment) && ready(pose);
+        }
+
+        Assert.True(reached, $"{Callsign} never reached the staged pose past the north 28R bar #{northBar.Id}");
+        Assert.IsType<TaxiingPhase>(rig.Aircraft.Phases?.CurrentPhase);
+        Assert.Same(route, rig.Aircraft.Ground.AssignedTaxiRoute);
+        return new PastBarStaging(rig, route);
+    }
+
+    /// <summary>
     /// An aircraft that holds no clearance for 28R — stopped on B between the runways, its nose at the south 28R bar, not taxiing,
     /// holding or crossing — given <c>TAXI B C D @SIG7</c>: the route holds that bar, still ahead of the aircraft (the B shape
     /// point beside the paint became the bar), and the hold-short point there stays uncleared, so the aircraft holds short of 28R.
