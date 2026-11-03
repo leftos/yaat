@@ -14,6 +14,9 @@ using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -1344,6 +1347,104 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
         Assert.All(commands, c => Assert.DoesNotContain("CROSS 28L", c, StringComparison.Ordinal));
     }
 
+    // A 28R threshold click for a C172 parked at NEW5 on the north ramp: the marker is at the runway's east end, so the
+    // taxi goes to the full-length bar on B and not to the J bar mid-field, the one nearest the aircraft.
+    [AvaloniaFact]
+    public void TaxiChoices_ThresholdClickOn28R_FromTheNorthRamp_TaxisToTheFullLengthBarOnB()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = C172AtNew5();
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        int holdShortId = main.Ground.FindThresholdHoldShortNode(target, "28R")!.Value;
+        GroundNodeDto holdShort = Oak.Nodes.Single(n => n.Id == holdShortId);
+
+        List<string> commands = LeafCommands(host.GetTaxiChoices(Callsign, holdShort, "28R"));
+
+        Assert.Equal("B", main.Ground.GetHoldShortTaxiwayName(holdShortId));
+        Assert.Contains("TAXI D C B 28R", commands);
+    }
+
+    // Every OAK taxiway node between a hold line and its runway stands for a hold short of that exit, so the taxi it
+    // offers stops at the line: no pinned stop past it.
+    [AvaloniaFact]
+    public void NodeInsideHoldLine_EveryOakExit_TaxisToAHoldShortAndNeverStopsPastTheLine()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = C172AtNew5();
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        List<GroundNode> inside = [.. OakNodesInsideAHoldLine(null)];
+        Assert.NotEmpty(inside);
+
+        foreach (GroundNode node in inside)
+        {
+            int? holdShortId = main.Ground.FindHoldShortForNodeInsideHoldLine(target, node.Id);
+
+            Assert.True(holdShortId is not null, $"Node {node.Id} resolves to no hold short");
+            GroundNodeDto holdShort = Oak.Nodes.Single(n => n.Id == holdShortId);
+            Assert.Equal("RunwayHoldShort", holdShort.Type);
+            Assert.All(LeafCommands(host.GetTaxiChoices(Callsign, holdShort, null)), c => Assert.DoesNotContain("#", c));
+        }
+    }
+
+    // A C172 north of 28R, clicking inside the hold line of each 28R exit: the taxi is to that exit's own hold short, for
+    // departure, and the same way at every exit, not only B.
+    [AvaloniaFact]
+    public void NodeInsideHoldLine_Each28RExit_OffersDepartureFromThatExit()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = C172AtNew5();
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+
+        foreach (string taxiway in new[] { "B", "C1", "E", "G", "H", "J" })
+        {
+            GroundNode node = OakNodesInsideAHoldLine("28R").First(n => n.Edges.Any(e => e.TaxiwayName == taxiway));
+
+            int holdShortId = main.Ground.FindHoldShortForNodeInsideHoldLine(target, node.Id)!.Value;
+
+            Assert.Equal(taxiway, main.Ground.GetHoldShortTaxiwayName(holdShortId));
+            GroundNodeDto holdShort = Oak.Nodes.Single(n => n.Id == holdShortId);
+            // For departure from that exit: "... C1 28R", with any crossing on the way after it ("..., CROSS 15").
+            Assert.Contains(
+                LeafCommands(host.GetTaxiChoices(Callsign, holdShort, null)),
+                c => System.Text.RegularExpressions.Regex.IsMatch(c, $" {taxiway} 28R(,|$)")
+            );
+        }
+    }
+
+    // From south of the runway the nearer hold short of B is the south one, even for a click north of the centerline.
+    [AvaloniaFact]
+    public void NodeInsideHoldLine_AircraftOnTheFarSide_TaxisToItsOwnSidesHoldShort()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto southBar = Oak.Nodes.Single(n => n.Id == BarsOfBOn28R.MinBy(b => b.Position.Lat)!.Id);
+        GroundNodeDto south = Oak.Nodes.First(n =>
+            LinkNamesOf(n.Id).Contains("B") && (n.Latitude < southBar.Latitude) && (n.Type != "RunwayHoldShort")
+        );
+        AircraftModel target = GroundAircraft(Callsign, "Taxiing", PositionOf(south));
+        target.AircraftType = "C172";
+        MainViewModel main = OakMain(target, []);
+        GroundNode northOfCenterline = OakNodesInsideAHoldLine("28R").Where(n => n.Edges.Any(e => e.TaxiwayName == "B")).MaxBy(n => n.Position.Lat)!;
+
+        Assert.Equal(southBar.Id, main.Ground.FindHoldShortForNodeInsideHoldLine(target, northOfCenterline.Id));
+    }
+
+    // An aircraft already at the line has no hold short to be sent to, so the click keeps the node's own menu.
+    [AvaloniaFact]
+    public void NodeInsideHoldLine_AircraftAtThatExitsHoldShort_ResolvesToNone()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNode northBar = BarsOfBOn28R.MaxBy(b => b.Position.Lat)!;
+        AircraftModel target = GroundAircraft(Callsign, "Holding Short", northBar.Position);
+        target.AircraftType = "C172";
+        MainViewModel main = OakMain(target, []);
+        GroundNode inside = OakNodesInsideAHoldLine("28R").Where(n => n.Edges.Any(e => e.TaxiwayName == "B")).MaxBy(n => n.Position.Lat)!;
+
+        Assert.Null(main.Ground.FindHoldShortForNodeInsideHoldLine(target, inside.Id));
+    }
+
     [AvaloniaFact]
     public void TaxiChoices_TwoOrMoreRoutes_NestUnderTaxiHere()
     {
@@ -1595,6 +1696,37 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
             CurrentPhase = phase,
             Position = position,
         };
+
+    /// <summary>A C172 parked at NEW5 on the north ramp, as N45912 is in the report that found the threshold bug.</summary>
+    private static AircraftModel C172AtNew5()
+    {
+        GroundNodeDto stand = Oak.Nodes.Single(n => (n.Type == "Parking") && (n.Name == "NEW5"));
+        AircraftModel ac = GroundAircraft(Callsign, "At Parking", PositionOf(stand));
+        ac.AircraftType = "C172";
+        return ac;
+    }
+
+    /// <summary>
+    /// OAK's taxiway nodes off every centerline that are inside the hold line of the runway naming <paramref name="runwayEnd"/>,
+    /// or of any runway when it is null.
+    /// </summary>
+    private static IEnumerable<GroundNode> OakNodesInsideAHoldLine(string? runwayEnd)
+    {
+        AirportGroundLayout layout = MenuGoldenFixtures.OakLayoutForSim;
+        List<RunwayInfo> runways = [.. RunwayOccupancy.AirportRunways(layout.AirportId).Where(r => (runwayEnd is null) || r.Id.Contains(runwayEnd))];
+        return layout
+            .Nodes.Values.Where(n => (n.Type == GroundNodeType.TaxiwayIntersection) && !n.Edges.Any(e => e.IsRunwayCenterline))
+            .Where(n => runways.Any(r => FollowingPhase.IsInsideHoldLine(layout, r, n.Position)))
+            .OrderBy(n => n.Id);
+    }
+
+    /// <summary>Runway 28R's two hold shorts on B, either side of the runway.</summary>
+    private static List<GroundNode> BarsOfBOn28R =>
+        [
+            .. MenuGoldenFixtures.OakLayoutForSim.Nodes.Values.Where(n =>
+                (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && id.Contains("28R") && n.Edges.Any(e => e.TaxiwayName == "B")
+            ),
+        ];
 
     /// <summary>A taxiing aircraft on the W3 node behind runway 30's hold-short, routed along W3 to runway 30.</summary>
     private static AircraftModel TaxiingOnW3()

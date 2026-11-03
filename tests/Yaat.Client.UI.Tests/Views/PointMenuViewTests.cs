@@ -17,6 +17,9 @@ using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Mva;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Situation;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -46,6 +49,27 @@ public class PointMenuViewTests
         Assert.Equal([$"{Callsign} · B738 → spot 1", Separator], labels[..2]);
         Assert.StartsWith("Fly heading ", labels[2]);
         Assert.DoesNotContain("Draw taxi route…", labels);
+    }
+
+    // A click inside 28R's hold line on B opens the hold short's menu, and Warp here still goes where the click landed.
+    [AvaloniaFact]
+    public void GroundNode_InsideAHoldLine_OpensTheHoldShortsMenuAndWarpsToTheClickedNode()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto start = OakNode("Spot", "I30");
+        (GroundView view, MainViewModel main) = GroundHarness(GroundAircraft(new LatLon(start.Latitude, start.Longitude)));
+        Show(Parent(view));
+        AirportGroundLayout layout = MenuGoldenFixtures.OakLayoutForSim;
+        RunwayInfo runway = RunwayOccupancy.AirportRunways(layout.AirportId).First(r => r.Id.Contains("28R"));
+        GroundNode inside = layout
+            .Nodes.Values.Where(n => (n.Type == GroundNodeType.TaxiwayIntersection) && n.Edges.Any(e => e.TaxiwayName == "B"))
+            .First(n => !n.Edges.Any(e => e.IsRunwayCenterline) && FollowingPhase.IsInsideHoldLine(layout, runway, n.Position));
+
+        ContextMenu? menu = view.BuildNodePointMenu(main.Ground, inside.Id, default);
+
+        Assert.NotNull(menu);
+        Assert.Matches("→ HS 28R at B$", Labels(menu.Items)[0]);
+        Assert.Equal($"WARPG #{inside.Id}", MenuCommandText.GetCommand(Item(menu.Items, "Warp here")));
     }
 
     // --- Push route gate --------------------------------------------------------------------
@@ -444,8 +468,8 @@ public class PointMenuViewTests
     private static void Show(Control content) => new Window { Content = content }.ShowAndRunLayout();
 
     /// <summary>
-    /// A runway end whose nearest reachable hold-short node, as the ground view model resolves it for the selected
-    /// aircraft, names it as its runway's End2.
+    /// A runway end whose threshold hold-short node, as the ground view model resolves it for the selected aircraft, names
+    /// it as its runway's End2.
     /// </summary>
     private static string ResolvedEnd2(MainViewModel main)
     {
@@ -457,7 +481,7 @@ public class PointMenuViewTests
         foreach (string end in ends)
         {
             if (
-                (main.Ground.FindNearestHoldShortNodeForRunwayEnd(ac, end) is { } id)
+                (main.Ground.FindThresholdHoldShortNode(ac, end) is { } id)
                 && (main.Ground.GetNode(id) is { RunwayId: { } runwayId })
                 && (RunwayIdentifier.Parse(runwayId).End2 == end)
             )

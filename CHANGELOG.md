@@ -50,6 +50,8 @@
 - An assigned speed or `SMAX` now ends at touchdown, so a touch-and-go or stop-and-go climbs out at pattern speed.
 - An exact `SPD` held back by the 250-knot limit below 10,000 feet or the aircraft's top speed is flown again once that limit lifts.
 - A jet or turboprop flying base very slowly (after `SPDN` or a scenario speed) no longer stops the simulation; it descends as steeply as drag allows.
+- Clicking a runway's threshold marker in the Ground view taxis to that end's full-length hold short, not the one nearest the aircraft.
+- Clicking a taxiway point between a runway and its hold line offers that exit's hold short, for departure, instead of a taxi that stops past the line.
 
 ## v0.17.2-beta [2026/10/30]
 

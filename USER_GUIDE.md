@@ -665,6 +665,8 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
   With no route found the strip button is faded and reads "Taxi here — No route found". The taxi ends at the node you clicked: a spot or parking node by name, any other node by its node number (`TAXI W B #1234`).
 
+  A node between a runway's hold line and the runway opens that exit's hold short menu instead, so the taxi stops at the line. When the exit has a hold short on each side of the runway, it uses the one nearer the aircraft by taxi route. The title names the hold short, such as `N45912 · C172 → HS 28R at B`, and "Warp here" still warps to the node you clicked.
+
   Then come "Push to {spot}" (on a parking or spot node, when the selected aircraft is at a stand or resting after a push and a tug can move it there), "Custom taxi…" (a taxi command box pre-filled from the node) and "Warp here". Below them come "Measure from here", "Draw taxi route…" (from that node) and "Push route…" (start a multi-point tug move at that node), offered only when the aircraft can push back and a tug can move it from where it stands to that node.
 
   **"Warp here" on a gate or helipad parks the aircraft at that stand** — it comes to rest on the stand's heading, the Aircraft List names the stand, and the aircraft's menu switches to the *At Parking* items below, so you can push it back straight away. Warping anywhere else leaves it holding in position.
@@ -922,7 +924,7 @@ Once the front aircraft is told to line up and wait it leaves the line and the n
 
 **Runway-end click target:** When an aircraft is selected and the YAAT layout (GND) is shown, a small amber dot appears at every runway threshold; with the layout hidden there is no dot, and a click there is not a runway-end click.
 
-Left-click (or right-click) a dot, or the threshold marker that shows the `RWY 28L` hover label, to open the point menu, with the same icon strip, of the hold short nearest that runway end that the selected aircraft can reach, so you don't have to hunt for the right hold-short node; its title names it, such as `UAL238 · B738 → HS 30 at W3`.
+Left-click (or right-click) a dot, or the threshold marker that shows the `RWY 28L` hover label, to open the point menu, with the same icon strip, of that runway end's full-length hold short, so you don't have to hunt for the right hold-short node. If the selected aircraft can't reach a full-length hold short, the menu opens at the nearest hold short of the runway it can reach. The title names the hold short, such as `UAL238 · B738 → HS 30 at W3`.
 
 In that menu, "Taxi here" routes to that runway end and offers the RWY (taxi onto the runway end), HS (hold short), and progressive crossing variants; "Custom taxi…" is pre-filled with `RWY {end} TAXI`; then "Warp here" and "Draw taxi route…" from that hold short.
 

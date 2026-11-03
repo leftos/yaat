@@ -1225,13 +1225,13 @@ public static class MenuCatalog
         && (((point.Node ?? point.WarpNode) is not null) ? AircraftCommandApplicability.IsControllable(aircraft) : CanWarp(aircraft));
 
     /// <summary>
-    /// Warp here: to a clicked taxi node, <c>WARPG #node</c>; to a map point, the Warp flyout with the point's
+    /// Warp here: to the point's warp node, else its taxi node, <c>WARPG #node</c>; to a map point, the Warp flyout with the point's
     /// fix-radial-distance in its FRD box (<see cref="WarpFlyout.Build"/>); null at a map point the host cannot name, or for an
     /// aircraft Warp… is not offered for. Each records the alias of the one verb it sends.
     /// </summary>
     private static MenuItem? BuildPointWarp(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
     {
-        if ((point.Node ?? point.WarpNode) is { } node)
+        if ((point.WarpNode ?? point.Node) is { } node)
         {
             return WithOwnAlias(BuildSend("Warp here", $"WARPG #{node.Id}", context, host), "WARPG", context);
         }

@@ -428,7 +428,9 @@ public partial class GroundView : UserControl
     /// selected, the shared point menu at the node (<see cref="BuildPointMenu"/>) carries the aircraft's point items, then
     /// the ground's node section: the measuring items, then Draw taxi route… from the node and Push route… when the tug
     /// planner finds a move there (<see cref="GroundViewModel.CanPushRouteTo"/>); with nothing selected, the measuring
-    /// items alone. Null when the node is not in the layout or there is nothing to show.
+    /// items alone. A node inside a runway's hold line opens the menu of the exit's hold short the aircraft would taxi to
+    /// (<see cref="GroundViewModel.FindHoldShortForNodeInsideHoldLine"/>), so no taxi stops past the line, while Warp here
+    /// still warps to the clicked node. Null when the node is not in the layout or there is nothing to show.
     /// </summary>
     internal ContextMenu? BuildNodePointMenu(GroundViewModel vm, int nodeId, Point screenPos)
     {
@@ -461,6 +463,15 @@ public partial class GroundView : UserControl
                     }
                 )
             );
+        }
+
+        if (
+            (vm.FindHoldShortForNodeInsideHoldLine(selected, nodeId) is { } holdShortId)
+            && (vm.GetNode(holdShortId) is { RunwayId: { } runwayId } holdShort)
+        )
+        {
+            var at = new LatLon(holdShort.Latitude, holdShort.Longitude);
+            return BuildPointMenu(selected, new MenuPoint(at, holdShort, RunwayIdentifier.Parse(runwayId).End1, [], node), section);
         }
 
         return BuildPointMenu(selected, new MenuPoint(new LatLon(node.Latitude, node.Longitude), node, null, [], null), section);
@@ -682,7 +693,8 @@ public partial class GroundView : UserControl
 
     /// <summary>
     /// The menu a click on the <paramref name="runwayEnd"/> threshold shows, built without opening it: the point menu at
-    /// the end's nearest hold-short node reachable by the selected aircraft (<see cref="BuildThresholdPointMenu"/>).
+    /// the end's full-length hold-short node (<see cref="GroundViewModel.FindThresholdHoldShortNode"/>,
+    /// <see cref="BuildThresholdPointMenu"/>).
     /// Null with nothing selected, or when the aircraft has no node to start from or the end has no hold-short node.
     /// </summary>
     internal ContextMenu? BuildRunwayThresholdMenu(GroundViewModel vm, string runwayEnd)
@@ -697,7 +709,7 @@ public partial class GroundView : UserControl
             return null;
         }
 
-        return (vm.FindNearestHoldShortNodeForRunwayEnd(selected, runwayEnd) is { } holdShortNodeId)
+        return (vm.FindThresholdHoldShortNode(selected, runwayEnd) is { } holdShortNodeId)
             ? BuildThresholdPointMenu(vm, selected, runwayEnd, holdShortNodeId)
             : null;
     }

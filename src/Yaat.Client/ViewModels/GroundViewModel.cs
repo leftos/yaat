@@ -19,6 +19,7 @@ using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 
@@ -3130,6 +3131,94 @@ public partial class GroundViewModel : ObservableObject
         return bestNodeId;
     }
 
+    /// <summary>
+    /// The hold short a click on <paramref name="runwayEnd"/>'s threshold taxis to: the full-length one
+    /// (<see cref="FindFullLengthHoldShortNode"/>), else the route-nearest bar of the runway when no full-length one is
+    /// reachable (<see cref="FindNearestHoldShortNodeForRunwayEnd"/>). Null when the aircraft can reach no bar of the runway.
+    /// </summary>
+    public int? FindThresholdHoldShortNode(AircraftModel ac, string runwayEnd)
+    {
+        string? runwayName = Layout?.Runways?.Find(r => RunwayIdentifier.Parse(r.Name).Contains(runwayEnd))?.Name;
+        int? fullLength = (runwayName is not null) ? FindFullLengthHoldShortNode(ac, runwayName, runwayEnd) : null;
+        return fullLength ?? FindNearestHoldShortNodeForRunwayEnd(ac, runwayEnd);
+    }
+
+    /// <summary>The most nodes the walk from a node inside a hold line out to that exit's hold shorts visits.</summary>
+    private const int ExitWalkNodeLimit = 64;
+
+    /// <summary>
+    /// The hold short a click on taxi node <paramref name="nodeId"/> stands for when the node lies inside a runway's hold line
+    /// (<see cref="FollowingPhase.IsInsideHoldLine(AirportGroundLayout, RunwayInfo, LatLon)"/>) off its centreline: of that
+    /// exit's hold shorts (<see cref="ExitHoldShorts"/>, either side of the runway), the one with the lowest-cost route from
+    /// <paramref name="ac"/>. A taxi there stops at the line, never past it. Null for a node outside every hold line, a hold
+    /// short or centreline node, an aircraft already at one of the exit's hold shorts, or no reachable hold short.
+    /// </summary>
+    public int? FindHoldShortForNodeInsideHoldLine(AircraftModel ac, int nodeId)
+    {
+        if (
+            (_domainLayout is not { } layout)
+            || !layout.Nodes.TryGetValue(nodeId, out GroundNode? node)
+            || (node.Type == GroundNodeType.RunwayHoldShort)
+            || node.Edges.Any(e => e.IsRunwayCenterline)
+            || (GetAircraftNearestNodeId(ac) is not { } fromNodeId)
+        )
+        {
+            return null;
+        }
+
+        List<RunwayInfo> runways =
+        [
+            .. RunwayOccupancy.AirportRunways(layout.AirportId).Where(r => FollowingPhase.IsInsideHoldLine(layout, r, node.Position)),
+        ];
+        List<GroundNode> holdShorts = ExitHoldShorts(node, runways);
+        if ((runways.Count == 0) || holdShorts.Any(h => h.Id == fromNodeId))
+        {
+            return null;
+        }
+
+        return holdShorts
+            .Select(h => (h.Id, CostNm: RouteCostNm(ac, fromNodeId, h.Id)))
+            .Where(c => c.CostNm is not null)
+            .OrderBy(c => c.CostNm)
+            .Select(c => (int?)c.Id)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// The hold shorts of <paramref name="runways"/> that bound the exit <paramref name="node"/> stands on: those met walking
+    /// out from it along taxiway edges, never along a runway centreline and never on past a hold short, either side of the
+    /// runway. The walk stops after <see cref="ExitWalkNodeLimit"/> nodes.
+    /// </summary>
+    private static List<GroundNode> ExitHoldShorts(GroundNode node, List<RunwayInfo> runways)
+    {
+        var holdShorts = new List<GroundNode>();
+        var seen = new HashSet<int> { node.Id };
+        var queue = new Queue<GroundNode>([node]);
+        while ((queue.Count > 0) && (seen.Count <= ExitWalkNodeLimit))
+        {
+            GroundNode at = queue.Dequeue();
+            foreach (IGroundEdge edge in at.Edges.Where(e => !e.IsRunwayCenterline))
+            {
+                GroundNode next = edge.OtherNode(at);
+                if (!seen.Add(next.Id))
+                {
+                    continue;
+                }
+
+                if (next.Type != GroundNodeType.RunwayHoldShort)
+                {
+                    queue.Enqueue(next);
+                }
+                else if ((next.RunwayId is { } barRunway) && runways.Any(r => barRunway.Overlaps(r.Id)))
+                {
+                    holdShorts.Add(next);
+                }
+            }
+        }
+
+        return holdShorts;
+    }
+
     /// <summary>The layout's <c>RunwayHoldShort</c> nodes for <paramref name="runway"/> (either end); none when no layout is loaded.</summary>
     private IEnumerable<GroundNodeDto> HoldShortNodesOf(RunwayIdentifier runway) =>
         Layout?.Nodes.Where(n => (n.Type == "RunwayHoldShort") && (n.RunwayId is { } id) && (RunwayIdentifier.Parse(id) == runway)) ?? [];
@@ -3227,9 +3316,8 @@ public partial class GroundViewModel : ObservableObject
     /// Finds the lowest-cost <c>RunwayHoldShort</c> node for <paramref name="runwayEnd"/>
     /// (e.g. <c>"28L"</c>) reachable from <paramref name="ac"/>'s current nearest node.
     /// Returns null if no route exists or the runway has no hold-short nodes.
-    /// Used by the runway-end click target to pick a representative HS node for the
-    /// existing taxi-to-runway submenu — equivalent to what the trainer would have
-    /// picked manually if they right-clicked the closest HS on that end.
+    /// The Taxi to runway flyout's <c>nearest</c> target, and a threshold click's fallback
+    /// (<see cref="FindThresholdHoldShortNode"/>).
     /// </summary>
     public int? FindNearestHoldShortNodeForRunwayEnd(AircraftModel ac, string runwayEnd)
     {
