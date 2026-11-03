@@ -423,6 +423,18 @@ public class AircraftState
     /// </summary>
     public PilotPendingRequest? PendingPilotRequest { get; set; }
 
+    /// <summary>
+    /// The latest line this aircraft spoke, recorded when the frequency dequeued it. Null until the aircraft transmits.
+    /// Snapshot-serialized so a restored aircraft can still repeat it.
+    /// </summary>
+    public AircraftLastPilotTransmission? LastPilotTransmission { get; set; }
+
+    /// <summary>
+    /// A "say again" is waiting for <see cref="LastPilotTransmission"/> to be repeated. Cleared when the repeat is
+    /// dequeued or the frequency is emptied with nobody answering. Snapshot-serialized so a rewind still owes the repeat.
+    /// </summary>
+    public bool PendingRepeat { get; set; }
+
     public NavTickDiag? LastNavDiag { get; set; }
 
     public AircraftTrack Track { get; set; } = new();
@@ -532,6 +544,10 @@ public class AircraftState
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
             PendingPilotRequest = dto.PendingPilotRequest is not null ? PilotPendingRequest.FromSnapshot(dto.PendingPilotRequest) : null,
+            LastPilotTransmission = dto.LastPilotTransmission is not null
+                ? AircraftLastPilotTransmission.FromSnapshot(dto.LastPilotTransmission)
+                : null,
+            PendingRepeat = dto.PendingRepeat,
             Track = AircraftTrack.FromSnapshot(dto.Track),
             Stars = AircraftStarsState.FromSnapshot(dto.Stars),
             Approach = AircraftApproachState.FromSnapshot(dto.Approach),
@@ -643,6 +659,8 @@ public class AircraftState
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = NoLandingClearanceWarningActive,
             PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),
+            LastPilotTransmission = LastPilotTransmission?.ToSnapshot(),
+            PendingRepeat = PendingRepeat,
             Track = Track.ToSnapshot(),
             Stars = Stars.ToSnapshot(),
             Approach = Approach.ToSnapshot(),

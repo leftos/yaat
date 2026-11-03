@@ -515,11 +515,41 @@ public sealed class SimulationWorld
 
             while (ActiveFrequency.TryDequeueReady(elapsedSeconds, rngSeed) is { } transmission)
             {
+                RecordLastPilotTransmission(transmission, elapsedSeconds);
                 result.Add(transmission);
             }
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Records a dequeued line as the speaking aircraft's last transmission, or clears its pending repeat when the line
+    /// is that repeat itself. A line whose aircraft is gone is broadcast but recorded nowhere.
+    /// </summary>
+    private void RecordLastPilotTransmission(PilotTransmission transmission, double elapsedSeconds)
+    {
+        AircraftState? aircraft = FindAircraft(transmission.Callsign);
+        if (aircraft is null)
+        {
+            return;
+        }
+
+        if (transmission.IsRepeat)
+        {
+            aircraft.PendingRepeat = false;
+            return;
+        }
+
+        aircraft.LastPilotTransmission = new AircraftLastPilotTransmission
+        {
+            Text = transmission.Text,
+            SpeechText = transmission.SpeechText,
+            Kind = transmission.Kind,
+            SourceKind = transmission.SourceKind,
+            CanonicalAirtimeSeconds = transmission.CanonicalAirtimeSeconds,
+            AtSeconds = elapsedSeconds,
+        };
     }
 
     public void DiscardAllPilotTransmissions()
@@ -529,6 +559,7 @@ public sealed class SimulationWorld
             foreach (AircraftState ac in _aircraft)
             {
                 ac.PendingPilotTransmissions.Clear();
+                ac.PendingRepeat = false;
             }
 
             ActiveFrequency.Clear();

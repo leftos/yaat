@@ -40,4 +40,10 @@ public sealed record PilotTransmission(
     /// purpose: the flag marks airborne and pattern check-ins only.
     /// </summary>
     public bool IsInitialContact { get; init; }
+
+    /// <summary>
+    /// Whether this line is the repeat of the aircraft's last transmission, re-queued for a "say again". The frequency
+    /// dequeues it like any other line, but it does not replace what the aircraft last said.
+    /// </summary>
+    public bool IsRepeat { get; init; }
 }

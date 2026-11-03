@@ -142,6 +142,20 @@ public sealed class AircraftSnapshotDto
     /// </summary>
     public PilotPendingRequestDto? PendingPilotRequest { get; init; }
 
+    /// <summary>
+    /// The latest line this aircraft spoke. Non-required so older snapshots deserialize with none, and left out of the
+    /// JSON when there is none.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AircraftLastPilotTransmissionDto? LastPilotTransmission { get; init; }
+
+    /// <summary>
+    /// A "say again" is waiting for the aircraft's last line to be repeated. Left out of the JSON when false, so an
+    /// aircraft with no pending repeat serializes exactly as it did before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PendingRepeat { get; init; }
+
     public required AircraftTrackDto Track { get; init; }
     public required AircraftStarsStateDto Stars { get; init; }
 
@@ -251,6 +265,16 @@ public sealed class PositionDto
 {
     public required double Lat { get; init; }
     public required double Lon { get; init; }
+}
+
+public sealed class AircraftLastPilotTransmissionDto
+{
+    public required string Text { get; init; }
+    public required string SpeechText { get; init; }
+    public required int Kind { get; init; }
+    public required string SourceKind { get; init; }
+    public required double CanonicalAirtimeSeconds { get; init; }
+    public required double AtSeconds { get; init; }
 }
 
 public sealed class PilotPendingRequestDto

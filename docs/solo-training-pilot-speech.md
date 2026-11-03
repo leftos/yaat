@@ -54,6 +54,8 @@ Builders push entries via `PilotResponder.QueueSoloPilotTransmission` (Readback/
 
    The recorded intervals are snapshotted (`StateSnapshotDto.FrequencyTransmissions`, restored by `Restore`), so a rewind or restore resumes in the load band the run was in: see [snapshots-and-replay.md](snapshots-and-replay.md). `SimulationEngine.LoadScenario` clears the whole active frequency (queue, gates and meter), so a reload replayed from zero never keeps lines, gates or intervals from later in the run.
 
+**Last line spoken.** `SimulationWorld.DrainReadyPilotTransmissions` calls `RecordLastPilotTransmission` for every line it dequeues: the speaking aircraft's `LastPilotTransmission` becomes that line (text, spoken text, kind, source kind, canonical airtime, and the dequeue second). A line with `PilotTransmission.IsRepeat` set is a re-queued copy of that content: dequeuing it clears the aircraft's `PendingRepeat` and keeps `LastPilotTransmission` as it was. A line whose aircraft is gone is broadcast but recorded nowhere. `DiscardAllPilotTransmissions` also clears `PendingRepeat`. Both members are snapshot-serialized, unlike the transient queue; see [snapshots-and-replay.md](snapshots-and-replay.md).
+
 Drained transmissions become terminal entries with kind `SayReadback` (for readbacks) or `SayPilot` (for proactive/reports). The client renders both as green SAY lines and routes them to `PilotVoiceService` if Piper is installed.
 
 When solo mode is OFF, `World.DiscardAllPilotTransmissions()` runs each tick to keep RPO/test state clean.
