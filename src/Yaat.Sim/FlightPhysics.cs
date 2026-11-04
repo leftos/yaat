@@ -38,6 +38,9 @@ public static class FlightPhysics
     /// <summary>Vertical rate (fpm) entering the level-off band — the top of the AIM's 500–1,500 fpm guidance.</summary>
     private const double LevelOffMaxFpm = 1500.0;
 
+    /// <summary>Within this many feet of its top altitude, a climb via counts as reached and ends.</summary>
+    private const double ClimbViaTopReachedToleranceFt = 20.0;
+
     private const double SpeedSnapKts = 2.0;
     private const double NavArrivalNm = 0.5;
     private const double FrdArrivalNm = 1.5;
@@ -1300,7 +1303,8 @@ public static class FlightPhysics
     /// <summary>
     /// Under a climb via, targets <see cref="ClimbViaAltitude"/> and returns true; while
     /// <see cref="Phases.Tower.DepartureProcedurePhase"/> flies its coded legs it caps each leg itself, so the target is
-    /// left to it. False when no climb via is in force.
+    /// left to it. Reaching the top clears the climb via, keeping the top as the assigned altitude. False when no climb via
+    /// is in force.
     /// </summary>
     private static bool ApplyClimbViaAltitude(AircraftState aircraft)
     {
@@ -1314,8 +1318,36 @@ public static class FlightPhysics
             aircraft.Targets.TargetAltitude = climbVia;
         }
 
+        // Reaching the top with nothing left to fly ends the climb via, keeping the top target so the aircraft levels there
+        // (7110.65 4-5-7.h.10; AIM 5-2-9.h.8). While the SID's coded legs fly the aircraft they hold their own route off the
+        // live one and keep the interim CTO altitude behind the via, so the top is theirs to hold until they hand over.
+        bool legsOwnAltitude = aircraft.Phases?.CurrentPhase is not Phases.Tower.DepartureProcedurePhase;
+        if (
+            legsOwnAltitude
+            && (aircraft.Targets.NavigationRoute.Count == 0)
+            && (Math.Abs(aircraft.Altitude - climbVia) <= ClimbViaTopReachedToleranceFt)
+        )
+        {
+            aircraft.Procedure.ClimbViaTargetFt = null;
+            aircraft.Procedure.ClimbViaTransmissionId = null;
+            aircraft.Procedure.SidViaMode = false;
+            aircraft.Procedure.SidViaCeiling = null;
+            aircraft.Procedure.ActiveSidId = null;
+            aircraft.Procedure.DepartureRunway = null;
+            // The top is where the aircraft stays: the assigned altitude keeps it there for anything that rebuilds the
+            // target from it after the via is gone.
+            aircraft.Targets.AssignedAltitude = climbVia;
+        }
+
         return true;
     }
+
+    /// <summary>
+    /// Whether a climb via is still in force below its top altitude: the route ending does not end it, since the top may lie
+    /// above a ceiling on the route's last fix.
+    /// </summary>
+    private static bool ClimbViaInForceBelowTop(AircraftState aircraft) =>
+        (aircraft.Procedure.ClimbViaTargetFt is { } top) && (aircraft.Altitude < top - ClimbViaTopReachedToleranceFt);
 
     /// <summary>
     /// Remembers the "at" or "at or below" speed published on a procedure fix the aircraft just crossed, whatever speed
@@ -1349,16 +1381,25 @@ public static class FlightPhysics
 
     private static void ClearProcedureState(AircraftState aircraft)
     {
-        aircraft.Procedure.ActiveSidId = null;
         aircraft.Procedure.ActiveStarId = null;
-        aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.StarViaMode = false;
         aircraft.Procedure.StarViaTransmissionId = null;
-        aircraft.Procedure.SidViaCeiling = null;
-        aircraft.Procedure.ClimbViaTargetFt = null;
-        aircraft.Procedure.ClimbViaTransmissionId = null;
         aircraft.Procedure.StarViaFloor = null;
-        aircraft.Procedure.DepartureRunway = null;
+        // A climb via still below its top stays in force when the route ends at the SID's last constrained fix: that fix's
+        // ceiling applied only up to the fix, and the climb goes on to the top altitude (AIM 5-2-9.h.8; P/CG TOP ALTITUDE;
+        // 7110.65 4-5-7.h). The SID stays named with it, so a vector without an altitude still takes the 5-6-2 handling
+        // (CommandDispatcher.CheckVectoringWarning) and a check-in still names the departure. Reaching the top ends it
+        // (ApplyClimbViaAltitude); a new altitude assignment ends it through CancelViaClearances, and a vector through
+        // FlightCommandHandler.ClearActiveProcedure.
+        if (!ClimbViaInForceBelowTop(aircraft))
+        {
+            aircraft.Procedure.ActiveSidId = null;
+            aircraft.Procedure.DepartureRunway = null;
+            aircraft.Procedure.SidViaMode = false;
+            aircraft.Procedure.SidViaCeiling = null;
+            aircraft.Procedure.ClimbViaTargetFt = null;
+            aircraft.Procedure.ClimbViaTransmissionId = null;
+        }
         // Keep the destination-runway datablock when the aircraft is still committed to a runway
         // (e.g. a pattern-entry route draining onto final): nulling it here blanked the runway during
         // the final approach after an EF/CLAND-to-runway entry (#292). Only clear it once the aircraft

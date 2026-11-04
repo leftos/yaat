@@ -71,9 +71,10 @@ public class AircraftProcedure
     /// the charted top, which CIFP does not code); else present altitude. A TDLS value is never raised by a published
     /// altitude; the TDLS initial-altitude menu and <see cref="SidInitialAltitudeFt"/> never take part. Never below present
     /// altitude rounded up to 100 ft. In flight a ceiling still ahead lowers it; a floor never raises it. While set it
-    /// outranks every other departure climb target (the CTO altitude, the procedure phase's ceiling, filed cruise). Cleared
-    /// with <see cref="SidViaCeiling"/> by any later altitude clearance, a DVIA or a procedure reset. Null when no CVIA is
-    /// in force.
+    /// outranks every other departure climb target (the CTO altitude, the procedure phase's ceiling, filed cruise). A route
+    /// that ends at the SID's last constrained fix keeps it in force, the fix's ceiling applying only up to the fix; reaching
+    /// the top clears it, with the top left as the assigned altitude. Cleared with <see cref="SidViaCeiling"/> by any later
+    /// altitude clearance, a DVIA or a procedure reset. Null when no CVIA is in force.
     /// </summary>
     public int? ClimbViaTargetFt { get; set; }
 

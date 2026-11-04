@@ -32,6 +32,12 @@ public class ClimbViaTopAltitudeTests
     private const double LevelToleranceFt = 50.0;
     private const double WindowCeilingFt = 2000.0;
 
+    /// <summary>Mirrors <c>FlightPhysics.ClimbViaTopReachedToleranceFt</c>: the band in which the climb via counts as reached.</summary>
+    private const double ViaTopToleranceFt = 20.0;
+
+    /// <summary>CNDEL5's last published ceiling is PORTE at or below 10,000; the fixture's climb via tops out at 12,000.</summary>
+    private const int Cndel5ViaTopFt = 12000;
+
     /// <summary>COAST9's top altitude: every COAST9 transition's TDLS climb-via text at KOAK is "CLB VIA SID EXC MAINT 10000FT".</summary>
     private const int Coast9TopAltitudeFt = 10000;
 
@@ -352,6 +358,198 @@ public class ClimbViaTopAltitudeTests
 
         Assert.True(atPorte <= 10000 + LevelToleranceFt, $"crossed PORTE above its at-or-below 10,000: {atPorte:F0}");
         Assert.InRange(ac.Altitude, 12000 - LevelToleranceFt, 12000 + LevelToleranceFt);
+    }
+
+    /// <summary>
+    /// A climb via whose route ends at the SID's last at-or-below ceiling stays in force past that fix: the ceiling applied
+    /// only up to the fix, and the aircraft climbs on to the via's top altitude (AIM 5-2-9.h.8; P/CG TOP ALTITUDE;
+    /// 7110.65 4-5-7.h). CNDEL5 publishes PORTE at or below 10,000 on its last constrained fix; the via tops out at 12,000.
+    /// </summary>
+    [Fact]
+    public void ClimbVia_RouteEndsAtCeilingFix_ClimbsOnToTheViaTop()
+    {
+        AircraftState ac = Cndel5RouteEndingAtCeilingFix(out string ceilingFix, out int ceilingFt);
+        DispatchLine(ac, "CVIA 120", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
+        int viaTop = Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(Cndel5ViaTopFt, viaTop);
+        Assert.True(viaTop > ceilingFt, $"setup: the via top {viaTop:N0} must sit above {ceilingFix}'s {ceilingFt:N0} ceiling");
+        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, ceilingFt), RouteFix(ac, ceilingFix).AltitudeRestriction);
+
+        double atFix = FlyPastFix(ac, ceilingFix, 900);
+        _output.WriteLine($"at {ceilingFix}={atFix:F0} viaTop={viaTop}");
+        Assert.True(atFix <= ceilingFt + LevelToleranceFt, $"crossed {ceilingFix} at {atFix:F0}, above its {ceilingFt:N0} ceiling");
+        Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(Cndel5ProcedureId(), ac.Procedure.ActiveSidId);
+
+        FlyPhysics(ac, 900);
+        _output.WriteLine($"finalAlt={ac.Altitude:F0} via={ac.Procedure.ClimbViaTargetFt}");
+
+        Assert.InRange(ac.Altitude, viaTop - ViaTopToleranceFt, viaTop + ViaTopToleranceFt);
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        Assert.False(ac.Procedure.SidViaMode);
+        Assert.Null(ac.Procedure.SidViaCeiling);
+        Assert.Null(ac.Procedure.ActiveSidId);
+        Assert.Equal(Cndel5ViaTopFt, ac.Targets.AssignedAltitude);
+
+        FlyPhysics(ac, 300);
+        _output.WriteLine($"held={ac.Altitude:F0}");
+        Assert.InRange(ac.Altitude, viaTop - ViaTopToleranceFt, viaTop + ViaTopToleranceFt);
+    }
+
+    /// <summary>A "maintain" after the route's end replaces the climb via, so the aircraft levels at the assigned 8,000.</summary>
+    [Fact]
+    public void ClimbVia_RouteEndsAtCeilingFix_CmAfterTheFixHoldsIt()
+    {
+        AircraftState ac = Cndel5RouteEndingAtCeilingFix(out string ceilingFix, out _);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, artccConfig: LoadZoa());
+        DispatchLine(ac, "CVIA 120", ctx);
+        Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+
+        FlyPastFix(ac, ceilingFix, 900);
+        Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+
+        DispatchLine(ac, "CM 080", ctx);
+        FlyPhysics(ac, 900);
+        _output.WriteLine($"finalAlt={ac.Altitude:F0} assigned={ac.Targets.AssignedAltitude} via={ac.Procedure.ClimbViaTargetFt}");
+
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        Assert.False(ac.Procedure.SidViaMode);
+        Assert.Equal(8000, ac.Targets.AssignedAltitude);
+        Assert.InRange(ac.Altitude, 8000 - ViaTopToleranceFt, 8000 + ViaTopToleranceFt);
+    }
+
+    /// <summary>
+    /// A "maintain" with no climb via on the same route: with no climb via in force nothing is kept at the route's end —
+    /// the no-via branch owns that, pinned by <c>ProcedureConstraintTests.ProcedureState_ClearedOnRouteCompletion</c> — and
+    /// the aircraft levels at its assigned 5,000 rather than at the 10,000 ceiling.
+    /// </summary>
+    [Fact]
+    public void CmWithoutClimbVia_RouteEndsAtCeilingFix_LevelsAtTheAssignedAltitude()
+    {
+        AircraftState ac = Cndel5RouteEndingAtCeilingFix(out string ceilingFix, out int ceilingFt);
+        DispatchLine(ac, "CM 050", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+
+        double atFix = FlyPastFix(ac, ceilingFix, 1800);
+        FlyPhysics(ac, 300);
+        _output.WriteLine($"at {ceilingFix}={atFix:F0} finalAlt={ac.Altitude:F0}");
+
+        Assert.True(atFix <= ceilingFt + LevelToleranceFt, $"crossed {ceilingFix} at {atFix:F0}, above its {ceilingFt:N0} ceiling");
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(5000, ac.Targets.AssignedAltitude);
+        Assert.InRange(ac.Altitude, 5000 - ViaTopToleranceFt, 5000 + ViaTopToleranceFt);
+    }
+
+    /// <summary>A snapshot taken mid-climb after the route's end keeps the climb via, and the restored aircraft levels at the top too.</summary>
+    [Fact]
+    public void ClimbVia_RouteEndsAtCeilingFix_SnapshotMidClimb_StillLevelsAtTheViaTop()
+    {
+        AircraftState ac = Cndel5RouteEndingAtCeilingFix(out string ceilingFix, out _);
+        DispatchLine(ac, "CVIA 120", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
+        int viaTop = Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+
+        FlyPastFix(ac, ceilingFix, 900);
+        FlyPhysics(ac, 15);
+        Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+        Assert.True(ac.Altitude < viaTop - 500, $"setup: the snapshot must be taken mid-climb, at {ac.Altitude:F0} of {viaTop:N0}");
+
+        AircraftSnapshotDto snapshot = ac.ToSnapshot();
+        var restored = AircraftState.FromSnapshot(snapshot, groundLayout: null);
+        Assert.Equal(Cndel5ViaTopFt, restored.Procedure.ClimbViaTargetFt);
+        Assert.Equal(Cndel5ViaTopFt, restored.Procedure.SidViaCeiling);
+        Assert.True(restored.Procedure.SidViaMode);
+
+        FlyPhysics(ac, 900);
+        FlyPhysics(restored, 900);
+        _output.WriteLine($"live={ac.Altitude:F0} restored={restored.Altitude:F0} viaTop={viaTop}");
+
+        Assert.InRange(ac.Altitude, viaTop - ViaTopToleranceFt, viaTop + ViaTopToleranceFt);
+        Assert.InRange(restored.Altitude, viaTop - ViaTopToleranceFt, viaTop + ViaTopToleranceFt);
+        Assert.Equal(ac.Altitude, restored.Altitude, 1.0);
+        Assert.Null(restored.Procedure.ClimbViaTargetFt);
+    }
+
+    /// <summary>
+    /// A vector without an altitude while the climb via is in force past the route's end takes the 7110.65 5-6-2 handling:
+    /// "FH 270" levels the aircraft off where it is and raises the "vectored off procedure without an altitude assignment"
+    /// warning, the climb via still being the aircraft's procedure.
+    /// </summary>
+    [Fact]
+    public void ClimbVia_RouteEndsAtCeilingFix_VectorWithoutAltitude_LevelsOffAndWarns()
+    {
+        AircraftState ac = Cndel5RouteEndingAtCeilingFix(out string ceilingFix, out _);
+        DispatchLine(ac, "CVIA 120", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
+        FlyPastFix(ac, ceilingFix, 900);
+        Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(Cndel5ProcedureId(), ac.Procedure.ActiveSidId);
+
+        double atVector = ac.Altitude;
+        DispatchLine(ac, "FH 270", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
+        _output.WriteLine($"atVector={atVector:F0} warnings={string.Join("; ", ac.PendingWarnings)}");
+
+        Assert.Contains("Vectored off procedure without an altitude assignment", ac.PendingWarnings);
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        Assert.Null(ac.Targets.TargetAltitude);
+
+        FlyPhysics(ac, 120);
+        _output.WriteLine($"level={ac.Altitude:F0}");
+        Assert.InRange(ac.Altitude, atVector - LevelToleranceFt, atVector + LevelToleranceFt);
+    }
+
+    /// <summary>
+    /// A check-in after the route's end and before the top still names the SID and the via's except-maintain altitude:
+    /// "leaving X for 12,000, climbing via the CNDEL5 departure" (AIM 5-2-9.h.9 and initial-contact Example 2).
+    /// </summary>
+    [Fact]
+    public void ClimbVia_RouteEndsAtCeilingFix_CheckIn_NamesTheSidAndTop()
+    {
+        AircraftState ac = Cndel5RouteEndingAtCeilingFix(out string ceilingFix, out _);
+        DispatchLine(ac, "CVIA 120", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
+        FlyPastFix(ac, ceilingFix, 900);
+        FlyPhysics(ac, 30);
+        Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+        Assert.True(ac.Altitude < Cndel5ViaTopFt, $"setup: the check-in must come before the top, at {ac.Altitude:F0}");
+
+        PilotSpeechText line = Assert.IsType<PilotSpeechText>(PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition));
+        _output.WriteLine(line.Terminal);
+
+        string sidId = Assert.IsType<string>(ac.Procedure.ActiveSidId);
+        (string procTerm, string procTts) = PhraseologyVerbalizer.ProcedureName(sidId);
+        Assert.Contains($" for {PhraseologyVerbalizer.CompactAltitude(Cndel5ViaTopFt)}", line.Terminal);
+        Assert.Contains($"climbing via the {procTerm} departure", line.Terminal);
+        Assert.Contains($" for {AtcNumberParser.AltitudeToWords(Cndel5ViaTopFt)}", line.Tts);
+        Assert.Contains($"climbing via the {procTts} departure", line.Tts);
+    }
+
+    /// <summary>
+    /// The route's end keeps the climb via only while the aircraft is still below its top: inside the 20 ft top-reached band
+    /// everything clears at once, and a little further below the via stays in force.
+    /// </summary>
+    [Theory]
+    [InlineData(15.0, false)]
+    [InlineData(25.0, true)]
+    public void ClimbVia_RouteEndsWithinTheTopBand_ClearsAtOnce(double belowTopFt, bool kept)
+    {
+        AircraftState ac = Cndel5RouteEndingAtCeilingFix(out string ceilingFix, out _);
+        DispatchLine(ac, "CVIA 120", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
+        ac.Altitude = Cndel5ViaTopFt - belowTopFt;
+        double atFix = FlyPastFix(ac, ceilingFix, 600);
+        _output.WriteLine($"belowTop={belowTopFt:F0} atFix={atFix:F0} alt={ac.Altitude:F0} via={ac.Procedure.ClimbViaTargetFt}");
+
+        if (kept)
+        {
+            Assert.Equal(Cndel5ViaTopFt, ac.Procedure.ClimbViaTargetFt);
+            Assert.Equal(Cndel5ViaTopFt, ac.Procedure.SidViaCeiling);
+            Assert.True(ac.Procedure.SidViaMode);
+            Assert.Equal(Cndel5ProcedureId(), ac.Procedure.ActiveSidId);
+        }
+        else
+        {
+            Assert.Null(ac.Procedure.ClimbViaTargetFt);
+            Assert.Null(ac.Procedure.SidViaCeiling);
+            Assert.False(ac.Procedure.SidViaMode);
+            Assert.Null(ac.Procedure.ActiveSidId);
+        }
     }
 
     /// <summary>A CTO with an altitude, then a bare CVIA: the CTO altitude held on the climb phases is an interim altitude too.</summary>
@@ -826,6 +1024,36 @@ public class ClimbViaTopAltitudeTests
         List<NavigationTarget> resolved = DepartureClearanceHandler.ResolveLegsToTargets(FlownLegs("KOAK", "CNDEL5", "RW30", "SUSEY"));
         published = Assert.IsType<CifpAltitudeRestriction>(resolved.First(t => t.Name == "PORTE").AltitudeRestriction);
         return SidDeparture("KOAK", "CNDEL5", "RW30", "SUSEY", "LEJAY", 3000, sidAlreadyActive);
+    }
+
+    /// <summary>
+    /// A CNDEL5 SUSEY departure at LEJAY at 3,000, its route cut at the SID's last at or at-or-below fix: the climb via's
+    /// ceiling is the route's last fix, as on a filed route that ends at the SID.
+    /// </summary>
+    private static AircraftState Cndel5RouteEndingAtCeilingFix(out string ceilingFix, out int ceilingFt)
+    {
+        AircraftState ac = SidDeparture("KOAK", "CNDEL5", "RW30", "SUSEY", "LEJAY", 3000, sidAlreadyActive: false);
+        (ceilingFix, ceilingFt) = CutRouteAtLastCeilingFix(ac);
+        return ac;
+    }
+
+    /// <summary>The filed CNDEL5's active id: the current cycle's revision of that procedure (CNDEL6 in the pinned data).</summary>
+    private static string Cndel5ProcedureId() => Assert.IsType<CifpSidProcedure>(NavigationDatabase.Instance.GetSid("KOAK", "CNDEL5")).ProcedureId;
+
+    /// <summary>
+    /// The flown CNDEL5 legs' last fix carrying an at or at-or-below restriction (PORTE, at or below 10,000), and the
+    /// aircraft's route cut to end there.
+    /// </summary>
+    private static (string Fix, int CeilingFt) CutRouteAtLastCeilingFix(AircraftState aircraft)
+    {
+        CifpLeg last = FlownLegs("KOAK", "CNDEL5", "RW30", "SUSEY")
+            .Last(l =>
+                (l.Altitude is { } restriction) && (restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow)
+            );
+        int cut = aircraft.Targets.NavigationRoute.FindIndex(f => f.Name == last.FixIdentifier);
+        Assert.True(cut >= 0, $"setup: the route must pass {last.FixIdentifier}");
+        aircraft.Targets.NavigationRoute.RemoveRange(cut + 1, aircraft.Targets.NavigationRoute.Count - cut - 1);
+        return (last.FixIdentifier, Assert.IsType<CifpAltitudeRestriction>(last.Altitude).Altitude1Ft);
     }
 
     /// <summary>Flies physics alone until <paramref name="fixName"/> leaves the route; returns the altitude there.</summary>
