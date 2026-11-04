@@ -1750,7 +1750,9 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TrySetupLowApproach(
                     aircraft,
                     new OptionPatternModifier(la.TrafficPattern, la.PatternRunwayId, la.PatternAltitude),
-                    ctx
+                    ctx,
+                    la.AtOrAboveAltitude,
+                    la.AtOrAboveAltitudeText
                 );
             case ClearedForOptionCommand opt:
                 return PatternCommandHandler.TrySetupClearedForOption(
@@ -3439,7 +3441,9 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TrySetupLowApproach(
                     aircraft,
                     new OptionPatternModifier(la.TrafficPattern, la.PatternRunwayId, la.PatternAltitude),
-                    ctx
+                    ctx,
+                    la.AtOrAboveAltitude,
+                    la.AtOrAboveAltitudeText
                 );
             case ClearedForOptionCommand opt:
                 return PatternCommandHandler.TrySetupClearedForOption(
@@ -6377,13 +6381,24 @@ public static class CommandDispatcher
     {
         ClearanceType? standingClearance = aircraft.Phases?.LandingClearance;
         string? standingClearedRunwayId = aircraft.Phases?.ClearedRunwayId;
+
+        // A restricted low approach (LA 600) keeps its altitude through the pursuit: the join rebuilds the terminal from the
+        // clearance type alone, so the restriction rides on the pursuit phase.
+        int? standingLowApproachAtOrAboveFt = aircraft
+            .Phases?.Phases.OfType<LowApproachPhase>()
+            .FirstOrDefault(p => p.Status is PhaseStatus.Pending or PhaseStatus.Active)
+            ?.AtOrAboveFt;
         if (aircraft.Phases is { } existing)
         {
             // No route to the room's active runways: this handler is not given the dispatch context.
             existing.Clear(BuildMinimalContext(aircraft, ActiveRunways.Empty, groundLayout: null));
         }
 
-        var pursuit = new VfrFollowPhase(target, patternReturn) { ClimbOutGate = climbOutGate };
+        var pursuit = new VfrFollowPhase(target, patternReturn)
+        {
+            ClimbOutGate = climbOutGate,
+            LowApproachAtOrAboveFt = standingLowApproachAtOrAboveFt,
+        };
         aircraft.Phases = new PhaseList { LandingClearance = standingClearance, ClearedRunwayId = standingClearedRunwayId };
         aircraft.Phases.Phases.Add(pursuit);
         // No route to the room's active runways: this handler is not given the dispatch context.

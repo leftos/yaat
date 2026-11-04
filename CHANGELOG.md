@@ -21,6 +21,9 @@
 - A speed instruction given after a `CFIX` crossing speed now replaces that speed, instead of the crossing restoring the old speed past the fix.
 - A speed instruction sent with a `CFIX` (`CFIX PMD 110 250, RNS`) takes effect past the fix, after the crossing speed.
 - Restating a crossing speed on the same fix keeps the speed to resume past it.
+### Added
+
+- `LA 600` clears an altitude-restricted low approach ("at or above 600"). The aircraft never goes below it, and the clearance is refused under 500 ft above the airport.
 
 ## v0.18.0-beta [2026/11/02]
 

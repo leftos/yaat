@@ -108,6 +108,8 @@ Four `AircraftProcedureDto` fields carry the via clearances and the speed memory
 
 `LowApproachPhaseDto` carries no `GoAroundAgl`, `ThresholdLat` or `ThresholdLon`: the level-off height is derived from the category and field elevation and the phase no longer measures to the threshold. Older snapshots that still hold those members load, the extra properties being ignored.
 
+`LowApproachPhaseDto.AtOrAboveFt`, `VfrFollowPhaseDto.LowApproachAtOrAboveFt` and `AircraftPatternDto.PendingLandingClearanceAtOrAboveFt` (nullable ints, written only when set, absent on older snapshots, which restore as unrestricted; no schema bump) carry a restricted low approach's at-or-above altitude (`LA 600`, feet MSL) on the live phase, through a FOLLOW join, and on a pre-issued clearance behind a queued pattern entry.
+
 `HoldShortPointDto.EndsNoDestinationRoute` (bool, written only when true, absent on older snapshots; no schema bump) carries `HoldShortPoint.EndsNoDestinationRoute`, the flag on the hold that ends a clearance with no destination short of its last taxiway, so a restored aircraft still refuses `RES`/`CROSS` there.
 
 `ScenarioSnapshotDto.ActiveRunways` (the room's active runway ends per airport, as `ActiveRunwayListParser` tokens: `28L` both, `D28L` departures, `A28R` arrivals) is the one nullable member of that DTO left out while empty; its other nullable members are written as null.

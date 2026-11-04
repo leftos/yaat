@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -2489,12 +2490,13 @@ internal static class PatternCommandHandler
     /// </summary>
     private static CommandResult? TryArmPendingLandingClearance(
         AircraftState aircraft,
-        ClearanceType clearance,
+        ArmedClearance armed,
         string? requestedRunwayId,
         OptionPatternModifier modifier,
         DispatchContext ctx
     )
     {
+        ClearanceType clearance = armed.Clearance;
         ParsedCommand? entry = FindQueuedPatternEntry(aircraft);
         if (entry is null)
         {
@@ -2518,13 +2520,30 @@ internal static class PatternCommandHandler
             return new CommandResult(false, $"Cannot clear {aircraft.Callsign} — neither the clearance nor the queued pattern entry names a runway");
         }
 
+        // A restricted low approach is judged against the airport of the runway the clearance resolves to; a runway the
+        // airport does not have leaves nothing to judge it against, so it is refused rather than armed unchecked.
+        if (armed.AtOrAboveFt is not null)
+        {
+            string airportId = ResolveAirportContext(aircraft);
+            if (NavigationDatabase.Instance.GetRunway(airportId, resolvedRunwayId) is not { } restrictedRunway)
+            {
+                return new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(resolvedRunwayId)} not found at {airportId}");
+            }
+
+            if (LowApproachRestrictionTooLow(restrictedRunway, armed) is { } tooLow)
+            {
+                return tooLow;
+            }
+        }
+
         // The pattern modifier's runway and altitude ride in the record: with no PhaseList there is
         // nothing to stamp them on yet, so they are applied to the circuit the queued entry builds.
         aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(
             clearance,
             resolvedRunwayId,
             modifier.RunwayId is { } armedRunwayId ? RunwayIdentifier.NormalizeDesignator(armedRunwayId) : null,
-            modifier.AltitudeFt
+            modifier.AltitudeFt,
+            armed.AtOrAboveFt
         );
 
         // Side effects that live outside the PhaseList are applied now rather than carried in the record:
@@ -2648,7 +2667,7 @@ internal static class PatternCommandHandler
         Phase? exactTerminal = pending.Clearance switch
         {
             ClearanceType.ClearedStopAndGo => new StopAndGoPhase(),
-            ClearanceType.ClearedLowApproach => new LowApproachPhase(),
+            ClearanceType.ClearedLowApproach => new LowApproachPhase { AtOrAboveFt = pending.AtOrAboveFt },
             _ => null,
         };
         if ((exactTerminal is not null) && (aircraft.Phases is not null))
@@ -3264,16 +3283,26 @@ internal static class PatternCommandHandler
             : "";
 
     internal static CommandResult TrySetupTouchAndGo(AircraftState aircraft, OptionPatternModifier modifier, DispatchContext ctx) =>
-        TrySetupOptionClearance(aircraft, ClearanceType.ClearedTouchAndGo, modifier, ctx);
+        TrySetupOptionClearance(aircraft, new ArmedClearance(ClearanceType.ClearedTouchAndGo, null, null), modifier, ctx);
 
     internal static CommandResult TrySetupStopAndGo(AircraftState aircraft, OptionPatternModifier modifier, DispatchContext ctx) =>
-        TrySetupOptionClearance(aircraft, ClearanceType.ClearedStopAndGo, modifier, ctx);
+        TrySetupOptionClearance(aircraft, new ArmedClearance(ClearanceType.ClearedStopAndGo, null, null), modifier, ctx);
 
-    internal static CommandResult TrySetupLowApproach(AircraftState aircraft, OptionPatternModifier modifier, DispatchContext ctx) =>
-        TrySetupOptionClearance(aircraft, ClearanceType.ClearedLowApproach, modifier, ctx);
+    /// <summary>
+    /// <c>LA [alt] [MLT|MRT [rwy] [alt]]</c>: <paramref name="atOrAboveFt"/> is the altitude (feet MSL) a restricted low
+    /// approach is flown at or above (7110.65 3-10-10) and <paramref name="atOrAboveText"/> the token as typed, both null
+    /// for an unrestricted one.
+    /// </summary>
+    internal static CommandResult TrySetupLowApproach(
+        AircraftState aircraft,
+        OptionPatternModifier modifier,
+        DispatchContext ctx,
+        int? atOrAboveFt,
+        string? atOrAboveText
+    ) => TrySetupOptionClearance(aircraft, new ArmedClearance(ClearanceType.ClearedLowApproach, atOrAboveFt, atOrAboveText), modifier, ctx);
 
     internal static CommandResult TrySetupClearedForOption(AircraftState aircraft, OptionPatternModifier modifier, DispatchContext ctx) =>
-        TrySetupOptionClearance(aircraft, ClearanceType.ClearedForOption, modifier, ctx);
+        TrySetupOptionClearance(aircraft, new ArmedClearance(ClearanceType.ClearedForOption, null, null), modifier, ctx);
 
     /// <summary>
     /// Issues one of the four option clearances (TG / SG / LA / COPT). They differ only in the terminal
@@ -3284,7 +3313,7 @@ internal static class PatternCommandHandler
     /// </summary>
     private static CommandResult TrySetupOptionClearance(
         AircraftState aircraft,
-        ClearanceType clearance,
+        ArmedClearance armed,
         OptionPatternModifier modifier,
         DispatchContext ctx
     )
@@ -3294,11 +3323,17 @@ internal static class PatternCommandHandler
             return rejection;
         }
 
+        ClearanceType clearance = armed.Clearance;
         string verb = ClearanceVerb(clearance);
         if (aircraft.Phases is null)
         {
-            return TryArmPendingLandingClearance(aircraft, clearance, requestedRunwayId: null, modifier, ctx)
+            return TryArmPendingLandingClearance(aircraft, armed, requestedRunwayId: null, modifier, ctx)
                 ?? new CommandResult(false, "Aircraft has no active phase sequence");
+        }
+
+        if ((aircraft.Phases.AssignedRunway is { } restrictedRunway) && (LowApproachRestrictionTooLow(restrictedRunway, armed) is { } tooLow))
+        {
+            return tooLow;
         }
 
         // TG, SG and COPT can end in a touchdown, which a low approach level near the threshold cannot fly.
@@ -3311,7 +3346,7 @@ internal static class PatternCommandHandler
             return TooHighToLandFromLowApproach(aircraft);
         }
 
-        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, OptionClearanceTerminal(clearance)))
+        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, OptionClearanceTerminal(clearance, armed.AtOrAboveFt)))
         {
             return new CommandResult(false, $"{verb} requires a pending approach (no landing phase to replace)");
         }
@@ -3339,16 +3374,39 @@ internal static class PatternCommandHandler
     /// The phase an option clearance ends its approach with. A touch-and-go and the option both roll and
     /// go (the option's other outcomes — full stop, stop-and-go, low approach — are the pilot's choice
     /// per P/CG OPTION APPROACH, and the sim flies the touch-and-go); stop-and-go and low approach each
-    /// have their own terminal.
+    /// have their own terminal. A low approach carries <paramref name="atOrAboveFt"/>, its restriction (7110.65 3-10-10); every
+    /// other clearance ignores it.
     /// </summary>
-    internal static Phase OptionClearanceTerminal(ClearanceType clearance) =>
+    internal static Phase OptionClearanceTerminal(ClearanceType clearance, int? atOrAboveFt) =>
         clearance switch
         {
             ClearanceType.ClearedTouchAndGo or ClearanceType.ClearedForOption => new TouchAndGoPhase(),
             ClearanceType.ClearedStopAndGo => new StopAndGoPhase(),
-            ClearanceType.ClearedLowApproach => new LowApproachPhase(),
+            ClearanceType.ClearedLowApproach => new LowApproachPhase { AtOrAboveFt = atOrAboveFt },
             _ => throw new ArgumentOutOfRangeException(nameof(clearance), clearance, "Not an option clearance"),
         };
+
+    /// <summary>
+    /// The refusal of a restricted low approach (<c>LA {alt}</c>) below 500 ft above <paramref name="runway"/>'s airport
+    /// (7110.65 3-10-10: "above the airport", so the airport elevation, not the runway's), naming the lowest restriction
+    /// exactly (the airport elevation plus 500 ft, as whole feet) and quoting the altitude as typed; null when there is no
+    /// restriction or it is high enough.
+    /// </summary>
+    private static CommandResult? LowApproachRestrictionTooLow(RunwayInfo runway, ArmedClearance armed)
+    {
+        if ((armed.AtOrAboveFt is not { } restriction) || (restriction >= runway.AirportElevationFt + 500.0))
+        {
+            return null;
+        }
+
+        // The lowest whole-foot restriction the check above accepts: 509 at OAK (field 9 ft).
+        int min = (int)Math.Ceiling(runway.AirportElevationFt + 500.0);
+        string typed = armed.AtOrAboveText ?? restriction.ToString(CultureInfo.InvariantCulture);
+        return new CommandResult(
+            false,
+            $"LA {typed}: a restricted low approach must be at least 500 ft above the airport ({min} or higher) — 7110.65 3-10-10"
+        );
+    }
 
     /// <summary>Controller-facing verb for a landing/option clearance, shared by the live and pre-issued messages.</summary>
     private static string ClearanceVerb(ClearanceType clearance) =>
@@ -4369,7 +4427,16 @@ internal static class PatternCommandHandler
         {
             // No phase sequence at all, but the entry that will build one may be queued behind another
             // instruction (CLAND while ERD 28R sits behind DCT VPCOL). Pre-issue against that entry.
-            if (TryArmPendingLandingClearance(aircraft, ClearanceType.ClearedToLand, ctl.RunwayId, OptionPatternModifier.None, ctx) is { } armed)
+            if (
+                TryArmPendingLandingClearance(
+                    aircraft,
+                    new ArmedClearance(ClearanceType.ClearedToLand, null, null),
+                    ctl.RunwayId,
+                    OptionPatternModifier.None,
+                    ctx
+                ) is
+                { } armed
+            )
             {
                 if (armed.Success && ctl.NoDelete)
                 {
@@ -4519,7 +4586,8 @@ internal static class PatternCommandHandler
     /// <summary>
     /// True when the low-approach floor is holding the aircraft level (its <see cref="LowApproachPhase"/> is
     /// current, or it is on <see cref="FinalApproachPhase"/> at or below
-    /// <see cref="LowApproachPhase.FloorMslFt"/>) and it is past the runway aim point (the landing threshold plus
+    /// its pending low approach's <see cref="LowApproachPhase.FloorMsl"/>, restriction included) and it is past the
+    /// runway aim point (the landing threshold plus
     /// <see cref="LandingAimPointFt"/>) or above a <see cref="MaxLandingFromLowApproachPathDeg"/> path to it, so
     /// a landing (CLAND, TG, SG, COPT, LAHSO) is no longer flyable. False anywhere else: with no low approach in
     /// progress, on any pattern leg, and on final above the floor, where the aircraft flies the same glidepath a
@@ -4534,12 +4602,14 @@ internal static class PatternCommandHandler
 
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         Phase? current = aircraft.Phases?.CurrentPhase;
+
+        // The floor of the low approach on final (FinalApproachPhase's pending one), restriction included.
+        double finalFloor =
+            (current is FinalApproachPhase) && (FinalApproachPhase.PendingLowApproach(aircraft.Phases) is { } pendingLowApproach)
+                ? pendingLowApproach.FloorMsl(runway.ElevationFt, category)
+                : LowApproachPhase.FloorMslFt(runway.ElevationFt, category);
         bool heldAtTheFloor =
-            (current is LowApproachPhase)
-            || (
-                (current is FinalApproachPhase)
-                && (aircraft.Altitude <= LowApproachPhase.FloorMslFt(runway.ElevationFt, category) + FlightPhysics.AltitudeSnapFt)
-            );
+            (current is LowApproachPhase) || ((current is FinalApproachPhase) && (aircraft.Altitude <= finalFloor + FlightPhysics.AltitudeSnapFt));
         if (!heldAtTheFloor)
         {
             return false;

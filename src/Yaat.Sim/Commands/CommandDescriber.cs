@@ -757,7 +757,9 @@ public static class CommandDescriber
                 sg.PatternAltitudeText
             ),
             LowApproachCommand la => FormatOptionClearanceCanonical(
-                "LA",
+                (la.AtOrAboveAltitudeText ?? la.AtOrAboveAltitude?.ToString(CultureInfo.InvariantCulture)) is { } atOrAbove
+                    ? $"LA {atOrAbove}"
+                    : "LA",
                 null,
                 la.TrafficPattern,
                 la.PatternRunwayId,
@@ -1253,6 +1255,7 @@ public static class CommandDescriber
             CircleAirportCommand => "Circle airport",
             TouchAndGoCommand => "Cleared touch-and-go",
             StopAndGoCommand => "Cleared stop-and-go",
+            LowApproachCommand { AtOrAboveAltitude: { } atOrAbove } => $"Cleared low approach at or above {atOrAbove:N0}",
             LowApproachCommand => "Cleared low approach",
             ClearedForOptionCommand => "Cleared for the option",
             HoldPresentPosition360Command cmd => cmd.Direction == TurnDirection.Left

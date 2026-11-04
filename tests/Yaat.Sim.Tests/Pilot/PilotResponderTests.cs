@@ -1483,6 +1483,21 @@ public class PilotResponderTests
     }
 
     /// <summary>
+    /// A restricted low approach (<c>LA 600</c>, 7110.65 3-10-10) reads back its altitude ahead of the runway, spoken the
+    /// way the responder speaks every altitude.
+    /// </summary>
+    [Fact]
+    public void BuildReadback_RestrictedLowApproach_ReadsTheAltitudeBeforeTheRunway()
+    {
+        AircraftState ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
+        CompoundCommand compound = Compound(new LowApproachCommand(null, null, null) { AtOrAboveAltitude = 600 });
+
+        string? result = PilotResponder.BuildReadback(compound, ac, ActiveRunways.Empty)?.Tts;
+
+        Assert.Equal("cleared low approach at or above six hundred, runway two eight right, november four three six mike sierra.", result);
+    }
+
+    /// <summary>
     /// The three output forms are built independently, so a clause added to the spoken readback can
     /// silently miss the compact terminal (solo student) and RPO forms. The pattern runway an option
     /// clearance names has to reach all three.

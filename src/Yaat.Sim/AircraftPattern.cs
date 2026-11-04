@@ -33,8 +33,25 @@ public sealed record PendingEntryModifier(PendingEntryModifierKind Kind, Pattern
 /// or altitude. The modifier's <em>direction</em> is not here — it is stamped on
 /// <see cref="AircraftPattern.TrafficDirection"/> when the clearance is armed, like every other
 /// side effect that lives outside the PhaseList.</para>
+///
+/// <para><see cref="AtOrAboveFt"/> is a restricted low approach's altitude (<c>LA 600</c>, 7110.65 3-10-10), installed on the
+/// low approach the queued entry builds; null for every other clearance and for an unrestricted low approach.</para>
 /// </summary>
-public sealed record PendingLandingClearance(ClearanceType Clearance, string RunwayId, string? PatternRunwayId, int? PatternAltitudeFt);
+public sealed record PendingLandingClearance(
+    ClearanceType Clearance,
+    string RunwayId,
+    string? PatternRunwayId,
+    int? PatternAltitudeFt,
+    int? AtOrAboveFt
+);
+
+/// <summary>
+/// A landing-family clearance as issued, before it is armed or installed: its type, and for a restricted low approach
+/// (<c>LA 600</c>, 7110.65 3-10-10) the at-or-above altitude (feet MSL) and the altitude token as typed, which a refusal
+/// quotes. <see cref="AtOrAboveFt"/> and <see cref="AtOrAboveText"/> are null for every other clearance and for an
+/// unrestricted low approach.
+/// </summary>
+public sealed record ArmedClearance(ClearanceType Clearance, int? AtOrAboveFt, string? AtOrAboveText);
 
 /// <summary>
 /// Per-aircraft pattern overrides. Null fields fall back to category defaults
@@ -153,6 +170,7 @@ public class AircraftPattern
             PendingLandingClearanceRunwayId = PendingLandingClearance?.RunwayId,
             PendingLandingClearancePatternRunwayId = PendingLandingClearance?.PatternRunwayId,
             PendingLandingClearancePatternAltitudeFt = PendingLandingClearance?.PatternAltitudeFt,
+            PendingLandingClearanceAtOrAboveFt = PendingLandingClearance?.AtOrAboveFt,
             PendingCrossingPatternRunway = PendingRunwayCrossing?.PatternRunway,
             PendingCrossingCrossedRunway = PendingRunwayCrossing?.CrossedRunway,
             PendingCrossingTightestFlyableNm = PendingRunwayCrossing?.TightestFlyableNm,
@@ -177,7 +195,8 @@ public class AircraftPattern
                         (ClearanceType)clearance,
                         dto.PendingLandingClearanceRunwayId,
                         dto.PendingLandingClearancePatternRunwayId,
-                        dto.PendingLandingClearancePatternAltitudeFt
+                        dto.PendingLandingClearancePatternAltitudeFt,
+                        dto.PendingLandingClearanceAtOrAboveFt
                     )
                     : null,
             PendingRunwayCrossing =

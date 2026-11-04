@@ -878,7 +878,7 @@ public sealed class FinalApproachPhase : Phase
         // down the ramp. The ramp then reads the glidepath height at this distance instead, so it still
         // completes by the threshold. Every other reader below keeps the aircraft's own height.
         double rampAgl = agl;
-        if (!forceLanding && IsLowApproachNext(ctx.Aircraft.Phases))
+        if (!forceLanding && (PendingLowApproach(ctx.Aircraft.Phases) is not null))
         {
             double glidepathAgl =
                 GlideSlopeGeometry.AltitudeAtDistance(
@@ -976,15 +976,19 @@ public sealed class FinalApproachPhase : Phase
 
         // A controller's altitude given outside the final approach fix is held until the glideslope is captured, climb included.
         double? heldAltitude = ApproachAltitudeHold.IsHeld(ctx.Aircraft) ? ctx.Targets.AssignedAltitude : null;
+        bool climbingToRestriction = false;
         if (_gsCaptured)
         {
             // A pending low approach levels off at its floor before the threshold instead of following the
             // path down. Re-read every tick: a mid-final terminal swap (CLAND) lifts the clamp on the next tick.
-            // An aircraft already below the floor holds its own altitude and never climbs back up to it.
-            if (!forceLanding && IsLowApproachNext(ctx.Aircraft.Phases))
+            // An aircraft already below the category floor holds its own altitude and never climbs back up to it;
+            // a restriction (LA 600, 7110.65 3-10-10) is a clearance limit, so an aircraft below it climbs to it.
+            LowApproachPhase? lowApproach = forceLanding ? null : PendingLowApproach(ctx.Aircraft.Phases);
+            if (lowApproach is not null)
             {
-                double floor = LowApproachPhase.FloorMslFt(_thresholdElevation, ctx.Category);
-                ctx.Targets.TargetAltitude = (gsAltitude >= floor) ? gsAltitude : Math.Min(floor, ctx.Aircraft.Altitude);
+                double target = lowApproach.HoldAltitudeMsl(_thresholdElevation, ctx.Category, gsAltitude, ctx.Aircraft.Altitude);
+                climbingToRestriction = (lowApproach.AtOrAboveFt is not null) && (ctx.Aircraft.Altitude < target - FlightPhysics.AltitudeSnapFt);
+                ctx.Targets.TargetAltitude = target;
             }
             else
             {
@@ -1047,7 +1051,8 @@ public sealed class FinalApproachPhase : Phase
 
         if (_gsCaptured)
         {
-            ctx.Targets.DesiredVerticalRate = -Math.Clamp(fpm, 200, maxFpm);
+            // Climbing up to a low approach restriction flies the type's normal climb rate, not a descent rate.
+            ctx.Targets.DesiredVerticalRate = climbingToRestriction ? null : -Math.Clamp(fpm, 200, maxFpm);
         }
 
         // CLANDF: override the vertical and speed guidance with the forced-landing profile so the
@@ -1175,8 +1180,15 @@ public sealed class FinalApproachPhase : Phase
         // qualifying clearance is granted.
         ctx.Aircraft.NoLandingClearanceWarningActive = _noClearanceFlashIssued && !hasLandingClearance;
 
-        // Go-around if too high at the MAP to make it down safely
-        if ((distNm <= _mapDistNm) && !_tooHighGoAroundChecked && hasLandingClearance && !forceLanding)
+        // Go-around if too high at the MAP to make it down safely. A restricted low approach (LA 600) is cleared to stay
+        // high and never comes down, so the check does not apply to it.
+        if (
+            (distNm <= _mapDistNm)
+            && !_tooHighGoAroundChecked
+            && hasLandingClearance
+            && !forceLanding
+            && (PendingLowApproach(ctx.Aircraft.Phases) is not { AtOrAboveFt: not null })
+        )
         {
             _tooHighGoAroundChecked = true;
             int mapAlt = ctx.Aircraft.Phases?.ActiveApproach?.MapAltitudeFt ?? (int)(_thresholdElevation + 200);
@@ -1223,9 +1235,14 @@ public sealed class FinalApproachPhase : Phase
         return complete;
     }
 
-    /// <summary>A low approach is next: the phase after the current one is a <see cref="LowApproachPhase"/> that has not started.</summary>
-    private static bool IsLowApproachNext(PhaseList? phases) =>
-        (phases is { } list) && (list.Phases.ElementAtOrDefault(list.CurrentIndex + 1) is LowApproachPhase { Status: PhaseStatus.Pending });
+    /// <summary>
+    /// The low approach that is next, or null: the phase after the current one when it is a <see cref="LowApproachPhase"/>
+    /// that has not started.
+    /// </summary>
+    internal static LowApproachPhase? PendingLowApproach(PhaseList? phases) =>
+        (phases is { } list) && (list.Phases.ElementAtOrDefault(list.CurrentIndex + 1) is LowApproachPhase { Status: PhaseStatus.Pending } next)
+            ? next
+            : null;
 
     /// <summary>
     /// The two uncontrolled stages ahead of the FAS bleed, in order: clean → approach-flap speed

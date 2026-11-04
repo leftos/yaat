@@ -668,6 +668,11 @@ public static partial class PilotResponder
                 sg.TrafficPattern,
                 sg.PatternRunwayId
             ),
+            LowApproachCommand { AtOrAboveAltitude: { } atOrAbove } la => AppendTrafficPatternClause(
+                BuildRestrictedLowApproachClause(aircraft, atOrAbove),
+                la.TrafficPattern,
+                la.PatternRunwayId
+            ),
             LowApproachCommand la => AppendTrafficPatternClause(
                 BuildRunwayInstructionClause(aircraft, "cleared low approach") ?? VerbalizeDual(la, aircraft.Callsign, speechContext, trace),
                 la.TrafficPattern,
@@ -1604,6 +1609,27 @@ public static partial class PilotResponder
         return new PilotSpeechText(
             $"{lead} runway {PhraseologyVerbalizer.CompactRunway(runwayId)}",
             $"{lead} runway {PhraseologyVerbalizer.SpellRunway(runwayId)}"
+        );
+    }
+
+    /// <summary>
+    /// "cleared low approach at or above six hundred, runway two eight right" (<c>LA 600</c>, 7110.65 3-10-10): the
+    /// restriction ahead of the runway, spoken as every altitude readback speaks it; without a runway the clause ends at the
+    /// altitude.
+    /// </summary>
+    private static PilotSpeechText BuildRestrictedLowApproachClause(AircraftState aircraft, int atOrAboveFt)
+    {
+        string terminal = $"cleared low approach at or above {PhraseologyVerbalizer.CompactAltitude(atOrAboveFt)}";
+        string tts = $"cleared low approach at or above {PhraseologyVerbalizer.AltitudeWords(atOrAboveFt)}";
+        string runwayId = ResolveRunwayId(aircraft, null);
+        if (string.IsNullOrWhiteSpace(runwayId))
+        {
+            return new PilotSpeechText(terminal, tts);
+        }
+
+        return new PilotSpeechText(
+            $"{terminal}, runway {PhraseologyVerbalizer.CompactRunway(runwayId)}",
+            $"{tts}, runway {PhraseologyVerbalizer.SpellRunway(runwayId)}"
         );
     }
 

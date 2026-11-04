@@ -66,6 +66,36 @@ public sealed class LowApproachPhase : Phase
     public static double FloorMslFt(double runwayElevationFt, AircraftCategory category) =>
         runwayElevationFt + CategoryPerformance.LowApproachLevelOffAgl(category);
 
+    /// <summary>
+    /// The altitude (feet MSL) a restricted low approach (<c>LA 600</c>, 7110.65 3-10-10) is flown at or above, or null for
+    /// an unrestricted one. "At or above" is a clearance limit: an aircraft below it climbs to it, where the category floor
+    /// alone never climbs an aircraft up to it.
+    /// </summary>
+    public int? AtOrAboveFt { get; init; }
+
+    /// <summary>
+    /// This low approach's floor (feet MSL): the category floor (<see cref="FloorMslFt"/>), raised to
+    /// <see cref="AtOrAboveFt"/> when restricted. The one floor <see cref="FinalApproachPhase"/>, this phase and the landing
+    /// gate (<see cref="Commands.PatternCommandHandler.IsTooHighToLandFromLowApproach"/>) read.
+    /// </summary>
+    public double FloorMsl(double runwayElevationFt, AircraftCategory category) =>
+        Math.Max(FloorMslFt(runwayElevationFt, category), AtOrAboveFt ?? double.MinValue);
+
+    /// <summary>
+    /// The altitude (feet MSL) to fly while this low approach holds the aircraft level, the one rule
+    /// <see cref="FinalApproachPhase"/>'s glidepath clamp and this phase's level hold share. A
+    /// <paramref name="pathAltitudeFt"/> (the glidepath height on final; null in the level hold) at or above the floor
+    /// (<see cref="FloorMsl"/>) is followed; below it the aircraft levels at the floor, and one already below the category
+    /// floor holds its own <paramref name="aircraftAltitudeFt"/> and never climbs back up to it. A restriction
+    /// (<see cref="AtOrAboveFt"/>) is a clearance limit, so the result is never below it: an aircraft under it climbs to it.
+    /// </summary>
+    public double HoldAltitudeMsl(double runwayElevationFt, AircraftCategory category, double? pathAltitudeFt, double aircraftAltitudeFt)
+    {
+        double floor = FloorMsl(runwayElevationFt, category);
+        double level = ((pathAltitudeFt is { } path) && (path >= floor)) ? path : Math.Min(floor, aircraftAltitudeFt);
+        return Math.Max(level, AtOrAboveFt ?? double.MinValue);
+    }
+
     public override PhaseDto ToSnapshot() =>
         new LowApproachPhaseDto
         {
@@ -75,6 +105,7 @@ public sealed class LowApproachPhase : Phase
             FieldElevation = _fieldElevation,
             RunwayHeadingDeg = _runwayHeading.Degrees,
             ClimbingOut = _climbingOut,
+            AtOrAboveFt = AtOrAboveFt,
             RetargetToDifferentRunway = _retargetToDifferentRunway,
             RetargetGateLat = _retargetGateLat,
             RetargetGateLon = _retargetGateLon,
@@ -84,7 +115,12 @@ public sealed class LowApproachPhase : Phase
 
     public static LowApproachPhase FromSnapshot(LowApproachPhaseDto dto)
     {
-        var phase = new LowApproachPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
+        var phase = new LowApproachPhase
+        {
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            AtOrAboveFt = dto.AtOrAboveFt,
+        };
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
         phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
@@ -132,8 +168,9 @@ public sealed class LowApproachPhase : Phase
         if (!_climbingOut)
         {
             // Level at the floor: a high aircraft settles down to it without diving; one at or below it
-            // holds its own altitude and never climbs up to the floor during the hold.
-            double floor = FloorMslFt(_fieldElevation, ctx.Category);
+            // holds its own altitude and never climbs up to the category floor during the hold. A restriction
+            // (AtOrAboveFt) is a clearance limit, so an aircraft below it climbs to it at its normal rate.
+            double floor = FloorMsl(_fieldElevation, ctx.Category);
             if (ctx.Aircraft.Altitude > floor + FlightPhysics.AltitudeSnapFt)
             {
                 ctx.Targets.TargetAltitude = floor;
@@ -141,7 +178,7 @@ public sealed class LowApproachPhase : Phase
             }
             else
             {
-                ctx.Targets.TargetAltitude = Math.Min(floor, ctx.Aircraft.Altitude);
+                ctx.Targets.TargetAltitude = HoldAltitudeMsl(_fieldElevation, ctx.Category, pathAltitudeFt: null, ctx.Aircraft.Altitude);
                 ctx.Targets.DesiredVerticalRate = null;
             }
 

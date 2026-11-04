@@ -71,4 +71,11 @@ public sealed class AircraftPatternDto
     /// independently nullable, like <see cref="PendingLandingClearancePatternRunwayId"/>.
     /// </summary>
     public int? PendingLandingClearancePatternAltitudeFt { get; init; }
+
+    /// <summary>
+    /// At-or-above altitude (ft MSL) of a pre-issued restricted low approach (<c>LA 600</c>). Additive and independently
+    /// nullable: absent means no restriction.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PendingLandingClearanceAtOrAboveFt { get; init; }
 }

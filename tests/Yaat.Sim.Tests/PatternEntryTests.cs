@@ -2334,7 +2334,7 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
-        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", null, 1500);
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", null, 1500, null);
 
         PatternCommandHandler.TryEnterPattern(
             aircraft,
@@ -2372,7 +2372,7 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
-        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", null, 1500);
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", null, 1500, null);
 
         PatternCommandHandler.TryEnterPattern(
             aircraft,
@@ -2409,7 +2409,7 @@ public class PatternEntryTests : IDisposable
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
         aircraft.Pattern.SetAltitudeOverride(1500, null, AircraftCategorization.Categorize(aircraft.AircraftType));
-        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "28L", null);
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "28L", null, null);
 
         PatternCommandHandler.TryEnterPattern(
             aircraft,
@@ -2520,7 +2520,7 @@ public class PatternEntryTests : IDisposable
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
-        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", "28R", 1500);
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28R", "28R", 1500, null);
 
         PatternCommandHandler.TryEnterPattern(
             aircraft,
@@ -2702,7 +2702,7 @@ public class PatternEntryTests : IDisposable
         aircraft.Phases.PatternRunway = MakeOak28L();
         aircraft.Phases.TransitionPatternAltitude = new DeferredPatternAltitude(2000);
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
-        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28L", null, 1500);
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedTouchAndGo, "28L", null, 1500, null);
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
@@ -2893,7 +2893,7 @@ public class PatternEntryTests : IDisposable
         aircraft.Phases!.AssignedRunway = MakeOak28R();
         aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
         aircraft.Pattern.SetAltitudeOverride(standingOverrideFt, null, AircraftCategorization.Categorize(aircraft.AircraftType));
-        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "28L", pendingAltitudeFt);
+        aircraft.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "28L", pendingAltitudeFt, null);
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,

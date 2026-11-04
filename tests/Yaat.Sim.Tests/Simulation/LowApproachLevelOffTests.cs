@@ -50,13 +50,16 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
     /// <summary>Minimum climb, feet, from the low approach's first tick to <see cref="ClimbedByTick"/>.</summary>
     private const double MinimumClimbFt = 30.0;
 
+    /// <summary>The restriction of <c>LA 600</c>, feet MSL.</summary>
+    private const double RestrictionFt = 600.0;
+
     private sealed record Sample(int Tick, Phase? Phase, double Altitude, bool ClimbingOut, bool OnGround);
 
     [Fact]
     public void La_OnShortFinal28R_LevelsAtTheFloorBeforeTheThreshold()
     {
         RunwayInfo? runway = TestVnasData.NavigationDb?.GetRunway("KOAK", "28R");
-        List<Sample>? samples = RunLowApproach();
+        List<Sample>? samples = RunLowApproach("LA");
         if ((samples is null) || (runway is null))
         {
             return;
@@ -84,7 +87,7 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
     public void La_OnShortFinal28R_HoldsLevelTenSecondsThenClimbs()
     {
         RunwayInfo? runway = TestVnasData.NavigationDb?.GetRunway("KOAK", "28R");
-        List<Sample>? samples = RunLowApproach();
+        List<Sample>? samples = RunLowApproach("LA");
         if ((samples is null) || (runway is null))
         {
             return;
@@ -196,7 +199,7 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
     [Fact]
     public void La_LevelAtTheFloorOverTheThreshold_ClandIsRefusedAndTheLowApproachContinues()
     {
-        if (RestoreAndFlyToTheThreshold() is not { } run)
+        if (RestoreAndFlyToTheThreshold("LA") is not { } run)
         {
             return;
         }
@@ -213,7 +216,7 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
     [Fact]
     public void La_LevelAtTheFloorOverTheThreshold_TouchAndGoIsRefused()
     {
-        if (RestoreAndFlyToTheThreshold() is not { } run)
+        if (RestoreAndFlyToTheThreshold("LA") is not { } run)
         {
             return;
         }
@@ -421,7 +424,7 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
         );
         Assert.True(entry.Success, entry.Message);
 
-        CommandResult la = PatternCommandHandler.TrySetupLowApproach(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared));
+        CommandResult la = PatternCommandHandler.TrySetupLowApproach(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared), null, null);
         Assert.True(la.Success, la.Message);
 
         CommandResult cland = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, TestDispatch.Context(Random.Shared));
@@ -453,7 +456,13 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
     /// An aircraft <paramref name="alongNm"/> short of the runway aim point (the threshold plus 1000 ft), on the
     /// extended centerline, with a low approach or a plain landing as its pending terminal.
     /// </summary>
-    private static AircraftState MakeAircraftNearAimPoint(RunwayInfo runway, double alongNm, double altitude, bool onLowApproach)
+    private static AircraftState MakeAircraftNearAimPoint(
+        RunwayInfo runway,
+        double alongNm,
+        double altitude,
+        bool onLowApproach,
+        int? atOrAboveFt = null
+    )
     {
         LatLon aimPoint = GeoMath.ProjectPoint(
             LandingThreshold.Resolve(runway, (AirportGroundLayout?)null),
@@ -473,7 +482,7 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
             Phases = new PhaseList { AssignedRunway = runway },
         };
         ac.Phases.Add(new FinalApproachPhase());
-        ac.Phases.Add(onLowApproach ? new LowApproachPhase() : new LandingPhase());
+        ac.Phases.Add(onLowApproach ? new LowApproachPhase { AtOrAboveFt = atOrAboveFt } : new LandingPhase());
         return ac;
     }
 
@@ -496,8 +505,353 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
         Assert.True(restored.ClimbingOut);
     }
 
-    /// <summary>Restores t=1705, issues <c>LA</c> and ticks until the low approach is the current phase.</summary>
-    private (SimulationEngine Engine, AircraftState Aircraft)? RestoreAndFlyToTheThreshold()
+    /// <summary>
+    /// <c>LA 600</c> (7110.65 3-10-10) on short final at about 272 ft: "at or above" is a clearance limit, so the aircraft
+    /// climbs to 600, holds it across the threshold for the level hold and only then climbs out.
+    /// </summary>
+    [Fact]
+    public void La600_FromBelowOnShortFinal_ClimbsToSixHundredAndHolds()
+    {
+        List<Sample>? samples = RunLowApproach("LA 600");
+        if (samples is null)
+        {
+            return;
+        }
+
+        Assert.DoesNotContain(samples, s => s.OnGround);
+
+        int reached = samples.FindIndex(s => Math.Abs(s.Altitude - RestrictionFt) <= ToleranceFt);
+        Assert.True(reached >= 0, $"the aircraft never reached the {RestrictionFt:F0} ft restriction");
+        for (int k = 1; k <= reached; k++)
+        {
+            Assert.True(
+                samples[k].Altitude >= samples[k - 1].Altitude - LevelChangeFt,
+                $"t+{samples[k].Tick}s: altitude fell from {samples[k - 1].Altitude:F0} to {samples[k].Altitude:F0} ft "
+                    + $"on the way up to {RestrictionFt:F0}"
+            );
+        }
+
+        int climbOut = samples.FindIndex(s => s.ClimbingOut);
+        Assert.True(climbOut >= 0, "the low approach never began its climb-out");
+        for (int k = reached; k < climbOut; k++)
+        {
+            Assert.True(
+                samples[k].Altitude >= RestrictionFt - ToleranceFt,
+                $"t+{samples[k].Tick}s in {samples[k].Phase?.Name}: altitude {samples[k].Altitude:F0} ft "
+                    + $"is below the restriction {RestrictionFt:F0} ft"
+            );
+        }
+
+        int start = FirstLowApproachIndex(samples);
+        Assert.True(start >= 0, "the low approach never became the current phase");
+        Assert.True(climbOut - start >= LevelTicks, $"climbed out {climbOut - start} ticks after the threshold, before the level hold ended");
+    }
+
+    /// <summary>
+    /// <c>LA 600</c> on a 3 nm final above 600 ft (real KOAK 28R): the aircraft follows the glidepath down to 600, never
+    /// below it, holds it across the threshold and then climbs out.
+    /// </summary>
+    [Fact]
+    public void La600_FromAbove_SettlesToSixHundredAndHolds()
+    {
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            SimulationEngine? engine = BuildEngine();
+            RunwayInfo? runway = TestVnasData.NavigationDb?.GetRunway("KOAK", "28R");
+            if ((engine is null) || (runway is null) || (RestoreAt(engine, archive, RestoreTime) is null))
+            {
+                return;
+            }
+
+            // The engine ticks only with a scenario loaded, so the OAK fixture supplies one; its traffic is removed so this
+            // aircraft has the final and the runway to itself (a busy 28R otherwise sends it around for an occupied runway).
+            foreach (AircraftState other in engine.World.GetSnapshot())
+            {
+                engine.World.RemoveAircraft(other.Callsign);
+            }
+            FlyLa600FromAbove(engine, runway);
+        }
+    }
+
+    /// <summary>The body of <see cref="La600_FromAbove_SettlesToSixHundredAndHolds"/>, on an engine with a scenario loaded.</summary>
+    private void FlyLa600FromAbove(SimulationEngine engine, RunwayInfo runway)
+    {
+        const string AboveCallsign = "N600LA";
+        LatLon start = GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading.ToReciprocal(), 3.0);
+        var ac = new AircraftState
+        {
+            Callsign = AboveCallsign,
+            AircraftType = "C172",
+            Position = start,
+            TrueHeading = runway.TrueHeading,
+            TrueTrack = runway.TrueHeading,
+            Altitude = 1100,
+            IndicatedAirspeed = 80,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KOAK",
+                Destination = "KOAK",
+                FlightRules = "VFR",
+                Altitude = PlannedAltitude.Vfr(2000),
+                CruiseSpeed = 110,
+            },
+            Phases = new PhaseList { AssignedRunway = runway },
+        };
+        engine.World.AddAircraft(ac);
+
+        CommandResult entry = PatternCommandHandler.TryEnterPattern(
+            ac,
+            PatternDirection.Right,
+            PatternEntryLeg.Final,
+            runwayId: "28R",
+            finalDistanceNm: null,
+            activeRunways: ActiveRunways.Empty,
+            warnRunwayCrossing: true,
+            groundLayout: null
+        );
+        Assert.True(entry.Success, entry.Message);
+
+        CommandResult la = engine.SendCommand(AboveCallsign, "LA 600");
+        Assert.True(la.Success, $"LA 600 was refused: {la.Message}");
+
+        List<Sample> samples = SampleUntilClimbed(engine, AboveCallsign, 300);
+        Assert.DoesNotContain(samples, s => s.OnGround);
+
+        int climbOut = samples.FindIndex(s => s.ClimbingOut);
+        Assert.True(climbOut >= 0, "the low approach never began its climb-out");
+        foreach (Sample s in samples.Take(climbOut))
+        {
+            Assert.True(
+                s.Altitude >= RestrictionFt - ToleranceFt,
+                $"t+{s.Tick}s in {s.Phase?.Name}: altitude {s.Altitude:F0} ft is below the restriction {RestrictionFt:F0} ft"
+            );
+        }
+
+        int lowApproachStart = FirstLowApproachIndex(samples);
+        Assert.True(lowApproachStart >= 0, "the low approach never became the current phase");
+        Assert.True(samples.Count > lowApproachStart + LevelTicks, "the run ended before the level hold");
+        for (int k = 0; k < LevelTicks; k++)
+        {
+            Sample s = samples[lowApproachStart + k];
+            Assert.True(
+                Math.Abs(s.Altitude - RestrictionFt) <= ToleranceFt,
+                $"low approach tick {k}: altitude {s.Altitude:F0} ft is not level at the restriction {RestrictionFt:F0} ft"
+            );
+        }
+    }
+
+    /// <summary>
+    /// <c>LA 500</c> at OAK (field 9 ft): below the airport plus 500 ft, so it is refused (7110.65 3-10-10), naming the
+    /// lowest restriction exactly (509) and the altitude as typed, and the aircraft keeps its approach.
+    /// </summary>
+    [Theory]
+    [InlineData("500")]
+    [InlineData("5")]
+    public void La500_BelowTheAirportPlusFiveHundred_IsRefused(string typedAltitude)
+    {
+        string command = $"LA {typedAltitude}";
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            SimulationEngine? engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            AircraftState? ac = RestoreAt(engine, archive, RestoreTime);
+            if (ac is null)
+            {
+                return;
+            }
+
+            CommandResult la = engine.SendCommand(Callsign, command);
+            Assert.False(la.Success, $"{command} was accepted: {la.Message}");
+            Assert.Equal(
+                $"{command}: a restricted low approach must be at least 500 ft above the airport (509 or higher) — 7110.65 3-10-10",
+                la.Message
+            );
+
+            double before = ac.Altitude;
+            for (int t = 1; t <= 5; t++)
+            {
+                engine.TickOneSecond();
+            }
+
+            AircraftState? live = engine.FindAircraft(Callsign);
+            Assert.NotNull(live);
+            Assert.DoesNotContain(live.Phases?.Phases ?? [], p => p is LowApproachPhase);
+            Assert.True(live.Altitude < before, $"the aircraft stopped descending after the refusal ({before:F0} → {live.Altitude:F0} ft)");
+        }
+    }
+
+    /// <summary>
+    /// <c>LA KOAK+005</c> at OAK (field 9 ft) resolves to 509, exactly the airport plus 500 ft the refusal names, so it is
+    /// accepted (7110.65 3-10-10).
+    /// </summary>
+    [Fact]
+    public void LaKoakPlus005_AtTheAirportPlusFiveHundred_IsAccepted()
+    {
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            SimulationEngine? engine = BuildEngine();
+            if ((engine is null) || (RestoreAt(engine, archive, RestoreTime) is null))
+            {
+                return;
+            }
+
+            CommandResult la = engine.SendCommand(Callsign, "LA KOAK+005");
+            Assert.True(la.Success, $"LA KOAK+005 (509 ft) was refused: {la.Message}");
+            LowApproachPhase pending = Assert.Single(engine.FindAircraft(Callsign)?.Phases?.Phases.OfType<LowApproachPhase>() ?? []);
+            Assert.Equal(509, pending.AtOrAboveFt);
+        }
+    }
+
+    /// <summary>
+    /// The landing gate holds at the restricted floor: over the threshold at 600 after <c>LA 600</c>, CLAND is refused; and an
+    /// aircraft on final held level at 600 a mile from the aim point is too high to land, where the default floor would not
+    /// count it as held.
+    /// </summary>
+    [Fact]
+    public void La600_LevelOverTheThreshold_ClandIsRefused()
+    {
+        RunwayInfo? runway = TestVnasData.NavigationDb?.GetRunway("KOAK", "28R");
+        if ((runway is null) || (RestoreAndFlyToTheThreshold("LA 600") is not { } run))
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AircraftState ac) = run;
+        Assert.True(ac.Altitude >= RestrictionFt - ToleranceFt, $"over the threshold at {ac.Altitude:F0} ft, below the restriction");
+        CommandResult cland = engine.SendCommand(Callsign, "CLAND 28R");
+        Assert.False(cland.Success, $"CLAND 28R over the threshold was accepted: {cland.Message}");
+        Assert.StartsWith("Unable, too high to land", cland.Message);
+        Assert.IsType<LowApproachPhase>(ac.Phases?.CurrentPhase);
+
+        AircraftState onFinal = MakeAircraftNearAimPoint(runway, 1.0, RestrictionFt, onLowApproach: true, atOrAboveFt: 600);
+        Assert.True(PatternCommandHandler.IsTooHighToLandFromLowApproach(onFinal, runway, null));
+    }
+
+    /// <summary>A restricted low approach's altitude survives a snapshot round trip, on the phase and on a pre-issued clearance.</summary>
+    [Fact]
+    public void La600_Snapshot_RoundTripsTheRestriction()
+    {
+        var phase = new LowApproachPhase { AtOrAboveFt = 600 };
+        string phaseJson = JsonSerializer.Serialize((LowApproachPhaseDto)phase.ToSnapshot(), RecordingJsonOptions.Default);
+        LowApproachPhaseDto? phaseDto = JsonSerializer.Deserialize<LowApproachPhaseDto>(phaseJson, RecordingJsonOptions.Default);
+        Assert.NotNull(phaseDto);
+        Assert.Equal(600, LowApproachPhase.FromSnapshot(phaseDto).AtOrAboveFt);
+
+        var pattern = new AircraftPattern
+        {
+            PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedLowApproach, "28R", null, null, 600),
+        };
+        string patternJson = JsonSerializer.Serialize(pattern.ToSnapshot(), RecordingJsonOptions.Default);
+        AircraftPatternDto? patternDto = JsonSerializer.Deserialize<AircraftPatternDto>(patternJson, RecordingJsonOptions.Default);
+        Assert.NotNull(patternDto);
+        Assert.Equal(600, AircraftPattern.FromSnapshot(patternDto).PendingLandingClearance?.AtOrAboveFt);
+    }
+
+    /// <summary>
+    /// <c>LA 600</c> issued while a pattern entry is queued (copied from <c>QueuedLandingClearanceTests</c>) is pre-issued with
+    /// its restriction, and the low approach the entry builds carries it.
+    /// </summary>
+    [Fact]
+    public void La600_BehindAQueuedEntry_BuildsARestrictedLowApproach()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            return;
+        }
+
+        const string QueuedCallsign = "TSC600";
+        SpawnAirborneOverOak(engine, QueuedCallsign);
+        Assert.True(engine.SendCommand(QueuedCallsign, "DCT VPCOL; ERD 28R").Success);
+
+        CommandResult la = engine.SendCommand(QueuedCallsign, "LA 600");
+        Assert.True(la.Success, $"LA 600 behind a queued ERD was refused: {la.Message}");
+        Assert.Equal(600, engine.FindAircraft(QueuedCallsign)?.Pattern.PendingLandingClearance?.AtOrAboveFt);
+
+        Assert.True(engine.SendCommand(QueuedCallsign, "ERD 28R").Success);
+
+        AircraftState? ac = engine.FindAircraft(QueuedCallsign);
+        Assert.NotNull(ac?.Phases);
+        LowApproachPhase terminal = Assert.Single(ac.Phases.Phases.OfType<LowApproachPhase>());
+        Assert.Equal(600, terminal.AtOrAboveFt);
+    }
+
+    /// <summary>
+    /// <c>LA 600</c> pre-issued against a queued entry whose runway the aircraft's airport does not have (destination KSQL,
+    /// which has no 28R): the restriction cannot be judged against an airport, so it is refused rather than armed unchecked.
+    /// </summary>
+    [Fact]
+    public void La600_BehindAQueuedEntryForAnUnknownRunway_IsRefused()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            return;
+        }
+
+        const string QueuedCallsign = "TSC601";
+        SpawnAirborneOverOak(engine, QueuedCallsign);
+        AircraftState? ac = engine.FindAircraft(QueuedCallsign);
+        Assert.NotNull(ac);
+        ac.FlightPlan.Destination = "KSQL";
+        Assert.True(engine.SendCommand(QueuedCallsign, "DCT VPCOL; ERD 28R").Success);
+
+        CommandResult la = engine.SendCommand(QueuedCallsign, "LA 600");
+        Assert.False(la.Success, $"LA 600 behind a queued ERD for an unknown runway was accepted: {la.Message}");
+        Assert.Equal("Runway 28R not found at KSQL", la.Message);
+        Assert.Null(ac.Pattern.PendingLandingClearance);
+    }
+
+    /// <summary>A slow VFR piston a few miles east of OAK 28R on the right downwind side (from <c>QueuedLandingClearanceTests</c>).</summary>
+    private static void SpawnAirborneOverOak(SimulationEngine engine, string callsign)
+    {
+        var ac = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = "DA62",
+            Position = new LatLon(37.66, -122.16),
+            TrueHeading = new TrueHeading(280),
+            TrueTrack = new TrueHeading(280),
+            Altitude = 2000,
+            IndicatedAirspeed = 110,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KOAK",
+                Destination = "KOAK",
+                FlightRules = "VFR",
+                Altitude = PlannedAltitude.Vfr(2000),
+                CruiseSpeed = 150,
+            },
+        };
+        engine.World.AddAircraft(ac);
+    }
+
+    /// <summary>Restores t=1705, issues <paramref name="command"/> and ticks until the low approach is the current phase.</summary>
+    private (SimulationEngine Engine, AircraftState Aircraft)? RestoreAndFlyToTheThreshold(string command)
     {
         RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
@@ -513,8 +867,8 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
                 return null;
             }
 
-            CommandResult la = engine.SendCommand(Callsign, "LA");
-            Assert.True(la.Success, $"LA was refused: {la.Message}");
+            CommandResult la = engine.SendCommand(Callsign, command);
+            Assert.True(la.Success, $"{command} was refused: {la.Message}");
 
             for (int t = 1; t <= MaxTicks; t++)
             {
@@ -558,7 +912,7 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
     /// Restores t=1705, issues <c>LA</c> and ticks until <see cref="ClimbedByTick"/> ticks after the low approach
     /// became current, or <see cref="MaxTicks"/>. Returns null when the fixture is unavailable.
     /// </summary>
-    private List<Sample>? RunLowApproach()
+    private List<Sample>? RunLowApproach(string command)
     {
         RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
         if (archive is null)
@@ -580,35 +934,44 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
                 return null;
             }
 
-            CommandResult result = engine.SendCommand(Callsign, "LA");
-            Assert.True(result.Success, $"LA was refused: {result.Message}");
+            CommandResult result = engine.SendCommand(Callsign, command);
+            Assert.True(result.Success, $"{command} was refused: {result.Message}");
 
-            var samples = new List<Sample>();
-            int lowApproachStart = -1;
-            for (int t = 1; t <= MaxTicks; t++)
+            return SampleUntilClimbed(engine, Callsign, MaxTicks);
+        }
+    }
+
+    /// <summary>
+    /// Ticks <paramref name="engine"/> until <see cref="ClimbedByTick"/> ticks after <paramref name="callsign"/>'s low
+    /// approach became current, or <paramref name="maxTicks"/>, sampling every tick.
+    /// </summary>
+    private List<Sample> SampleUntilClimbed(SimulationEngine engine, string callsign, int maxTicks)
+    {
+        var samples = new List<Sample>();
+        int lowApproachStart = -1;
+        for (int t = 1; t <= maxTicks; t++)
+        {
+            engine.TickOneSecond();
+            AircraftState? live = engine.FindAircraft(callsign);
+            Assert.NotNull(live);
+
+            Phase? phase = live.Phases?.CurrentPhase;
+            bool climbingOut = phase is LowApproachPhase lowApproach && ((LowApproachPhaseDto)lowApproach.ToSnapshot()).ClimbingOut;
+            samples.Add(new Sample(t, phase, live.Altitude, climbingOut, live.IsOnGround));
+            output.WriteLine($"t+{t}s {phase?.Name} alt={live.Altitude:F0} climbing={climbingOut} onGround={live.IsOnGround}");
+
+            if ((lowApproachStart < 0) && (phase is LowApproachPhase))
             {
-                engine.TickOneSecond();
-                AircraftState? live = engine.FindAircraft(Callsign);
-                Assert.NotNull(live);
-
-                Phase? phase = live.Phases?.CurrentPhase;
-                bool climbingOut = phase is LowApproachPhase lowApproach && ((LowApproachPhaseDto)lowApproach.ToSnapshot()).ClimbingOut;
-                samples.Add(new Sample(t, phase, live.Altitude, climbingOut, live.IsOnGround));
-                output.WriteLine($"t+{t}s {phase?.Name} alt={live.Altitude:F0} climbing={climbingOut} onGround={live.IsOnGround}");
-
-                if ((lowApproachStart < 0) && (phase is LowApproachPhase))
-                {
-                    lowApproachStart = samples.Count - 1;
-                }
-
-                if ((lowApproachStart >= 0) && (samples.Count > lowApproachStart + ClimbedByTick))
-                {
-                    break;
-                }
+                lowApproachStart = samples.Count - 1;
             }
 
-            return samples;
+            if ((lowApproachStart >= 0) && (samples.Count > lowApproachStart + ClimbedByTick))
+            {
+                break;
+            }
         }
+
+        return samples;
     }
 
     private SimulationEngine? BuildEngine()

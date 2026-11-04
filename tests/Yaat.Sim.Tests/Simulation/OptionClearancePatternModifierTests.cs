@@ -63,6 +63,10 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
     [InlineData("SG MRT 28R 15")]
     [InlineData("LA MLT")]
     [InlineData("LA MRT")]
+    [InlineData("LA 6")]
+    [InlineData("LA 600")]
+    [InlineData("LA 600 MRT")]
+    [InlineData("LA 600 MLT 28L 15")]
     [InlineData("MLT")]
     [InlineData("MRT")]
     [InlineData("MLT 28R")]
@@ -110,6 +114,37 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
         Assert.Equal(PatternDirection.Right, opt.TrafficPattern);
         Assert.Equal("28R", opt.PatternRunwayId);
         Assert.Equal(2000, opt.PatternAltitude);
+    }
+
+    /// <summary>
+    /// <c>LA {alt} [MLT|MRT [rwy] [alt]]</c> (7110.65 3-10-10): the leading altitude is the restriction the low
+    /// approach is flown at or above, and the trailing modifier keeps its own pattern altitude.
+    /// </summary>
+    [Fact]
+    public void ParseLowApproach_RestrictionThenModifier_KeepsBothAltitudes()
+    {
+        TestVnasData.EnsureInitialized();
+
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("LA 600 MRT 28R 15");
+
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        LowApproachCommand la = Assert.IsType<LowApproachCommand>(parsed.Value);
+        Assert.Equal(600, la.AtOrAboveAltitude);
+        Assert.Equal(PatternDirection.Right, la.TrafficPattern);
+        Assert.Equal("28R", la.PatternRunwayId);
+        Assert.Equal(1500, la.PatternAltitude);
+    }
+
+    /// <summary>A leading token that is neither an altitude nor MLT/MRT is rejected.</summary>
+    [Fact]
+    public void ParseLowApproach_LeadingTokenNotAnAltitude_Fails()
+    {
+        TestVnasData.EnsureInitialized();
+
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse("LA ZZZ");
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains("ZZZ", parsed.Reason ?? "", StringComparison.Ordinal);
     }
 
     /// <summary>A token the modifier cannot read is rejected, not silently dropped — it names a runway
@@ -539,7 +574,7 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
             },
             Phases = new PhaseList { AssignedRunway = runway28R },
         };
-        ac.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "01L", null);
+        ac.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "01L", null, null);
         ac.Pattern.TrafficDirection = PatternDirection.Left;
 
         CommandResult entry = PatternCommandHandler.TryEnterPattern(

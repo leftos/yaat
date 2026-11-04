@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -6,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
 
@@ -442,6 +444,48 @@ public class FollowArmedPatternRunwayTests
         Assert.Null(joined.Pattern.AltitudeOverrideFt);
         Assert.Null(joined.Phases!.TransitionPatternAltitude);
         Assert.Equal(arranged.LeadWaypoints.PatternAltitude, joined.Phases.Phases.OfType<DownwindPhase>().First().Waypoints!.PatternAltitude);
+    }
+
+    /// <summary>
+    /// A follower cleared <c>LA 600</c> (7110.65 3-10-10) before <c>FOLLOW</c> keeps the restriction: the pursuit carries
+    /// it, and the low approach the join rebuilds is flown at or above 600 again.
+    /// </summary>
+    [Fact]
+    public void PatternJoin_FollowAfterRestrictedLowApproach_KeepsTheRestriction()
+    {
+        RunwayInfo? runway = TestVnasData.NavigationDb?.GetRunway("KOAK", "28R");
+        if (runway is null)
+        {
+            return;
+        }
+
+        LeadPatternJoin arranged = ArrangeLeadPattern(runway, runway, runway, PatternDirection.Right, transitionAltitude: null);
+        AircraftState follower = arranged.Follower;
+        follower.Phases = new PhaseList
+        {
+            AssignedRunway = runway,
+            LandingClearance = ClearanceType.ClearedLowApproach,
+            ClearedRunwayId = runway.Designator,
+        };
+        follower.Phases.Add(new LowApproachPhase { AtOrAboveFt = 600 });
+
+        VfrFollowPhase pursuit = CommandDispatcher.InstallVfrFollowPhase(follower, Lead, patternReturn: null, climbOutGate: null);
+        pursuit.OnTick(arranged.Context);
+
+        Assert.False(follower.Phases.CurrentPhase is VfrFollowPhase, "the follower never joined the lead's pattern");
+        LowApproachPhase rebuilt = Assert.Single(follower.Phases.Phases.OfType<LowApproachPhase>());
+        Assert.Equal(600, rebuilt.AtOrAboveFt);
+    }
+
+    /// <summary>The restriction a pursuit carries to the join survives a snapshot round trip (ToSnapshot → JSON → FromSnapshot).</summary>
+    [Fact]
+    public void VfrFollowPhaseDto_LowApproachAtOrAboveFt_RoundTrips()
+    {
+        var pursuit = new VfrFollowPhase(Lead, patternReturn: null) { LowApproachAtOrAboveFt = 600 };
+        string json = JsonSerializer.Serialize((VfrFollowPhaseDto)pursuit.ToSnapshot(), RecordingJsonOptions.Default);
+        VfrFollowPhaseDto? dto = JsonSerializer.Deserialize<VfrFollowPhaseDto>(json, RecordingJsonOptions.Default);
+        Assert.NotNull(dto);
+        Assert.Equal(600, VfrFollowPhase.FromSnapshot(dto).LowApproachAtOrAboveFt);
     }
 
     // ---------------------------------------------------------------------------------------------

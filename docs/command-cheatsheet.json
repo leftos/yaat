@@ -134,7 +134,7 @@
         { "verb": "CLC", "aliases": ["ctlc"], "description": "Cancel landing clearance" },
         { "verb": "TG", "aliases": [], "description": "Touch and go [rwy] [MLT/MRT [rwy] [alt]] — e.g. `TG MLT 28L`: then left traffic 28L" },
         { "verb": "SG", "aliases": [], "description": "Stop and go [MLT/MRT [rwy] [alt]]" },
-        { "verb": "LA", "aliases": [], "description": "Low approach [MLT/MRT [rwy] [alt]]" },
+        { "verb": "LA", "aliases": [], "description": "Low approach [alt] [MLT/MRT [rwy] [alt]]" },
         { "verb": "COPT", "aliases": [], "description": "Cleared for option [MLT/MRT [rwy] [alt]] — e.g. `COPT MLT 28L`" }
       ],
       "notes": [

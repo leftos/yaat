@@ -188,6 +188,13 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     public FollowPatternReturn? PatternReturn { get; } = patternReturn;
 
     /// <summary>
+    /// The at-or-above altitude (feet MSL) of a restricted low approach (<c>LA 600</c>, 7110.65 3-10-10) standing when the
+    /// pursuit was installed (<see cref="Commands.CommandDispatcher.InstallVfrFollowPhase"/>), carried onto the low approach
+    /// the join rebuilds; null when none was. A pass-through: nothing else reads it.
+    /// </summary>
+    internal int? LowApproachAtOrAboveFt { get; init; }
+
+    /// <summary>
     /// The departure leg this pursuit owes before it may steer at its lead: the gate the install handed it
     /// (<see cref="Commands.CommandDispatcher.InstallVfrFollowPhase"/>), else null. Read-only outside this phase: only the hold
     /// itself clears it, on the first tick the crosswind turn is legal, after which this is an ordinary free pursuit.
@@ -1812,7 +1819,11 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// </summary>
     internal void ApplyArmedLandingClearance(AircraftState aircraft, ClearanceType? armedClearance, string? armedRunwayId, RunwayInfo runway)
     {
-        if ((armedClearance is not { } clearance) || !ArmedClearanceTerminal(clearance, out Phase? terminal) || (aircraft.Phases is null))
+        if (
+            (armedClearance is not { } clearance)
+            || !ArmedClearanceTerminal(clearance, LowApproachAtOrAboveFt, out Phase? terminal)
+            || (aircraft.Phases is null)
+        )
         {
             return;
         }
@@ -1858,9 +1869,10 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// <summary>
     /// True when <paramref name="clearance"/> is a landing-family clearance a join carries over, with the phase it
     /// ends the approach with in <paramref name="terminal"/> — the terminal issuing the clearance installs (a
-    /// touch-and-go for the option) — or null for a landing clearance, whose chain already ends in the landing.
+    /// touch-and-go for the option) — or null for a landing clearance, whose chain already ends in the landing. A low approach
+    /// keeps the <paramref name="lowApproachAtOrAboveFt"/> restriction it was cleared with.
     /// </summary>
-    private static bool ArmedClearanceTerminal(ClearanceType clearance, out Phase? terminal)
+    private static bool ArmedClearanceTerminal(ClearanceType clearance, int? lowApproachAtOrAboveFt, out Phase? terminal)
     {
         bool optionFamily =
             clearance
@@ -1868,7 +1880,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
                 or ClearanceType.ClearedForOption
                 or ClearanceType.ClearedStopAndGo
                 or ClearanceType.ClearedLowApproach;
-        terminal = optionFamily ? Commands.PatternCommandHandler.OptionClearanceTerminal(clearance) : null;
+        terminal = optionFamily ? Commands.PatternCommandHandler.OptionClearanceTerminal(clearance, lowApproachAtOrAboveFt) : null;
         return optionFamily || (clearance == ClearanceType.ClearedToLand);
     }
 
@@ -2493,6 +2505,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
                     CompressedDownwindSpeedKts = climbOutGate.CompressedDownwindSpeedKts,
                 }
                 : null,
+            LowApproachAtOrAboveFt = LowApproachAtOrAboveFt,
             StallWindowStartGapNm = _parallelHold?.StartGapNm,
             StallWindowSeconds = _parallelHold?.Seconds,
             LeadBase = _leadBase is { } leadBase
@@ -2551,6 +2564,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
                     climbOutGate.CompressedDownwindSpeedKts
                 )
                 : null,
+            LowApproachAtOrAboveFt = dto.LowApproachAtOrAboveFt,
         };
         phase.RestoreRequirements(dto.Requirements);
         if (dto.LeadLandingRunway is not null)

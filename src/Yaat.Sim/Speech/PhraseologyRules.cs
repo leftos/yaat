@@ -478,6 +478,10 @@ public static class PhraseologyRules
             new(["cleared", "for", "stop", "and", "go"], "SG", StopAndGo),
             new(["cleared", "stop", "and", "go"], "SG", StopAndGo),
             new(["stop", "and", "go"], "SG", StopAndGo),
+            // 7110.65 3-10-10 restricted low approach. Ahead of the bare rules so the longer phrase wins. SttOnly: the
+            // pilot's readback is built by PilotResponder, which places the altitude ahead of the runway.
+            new(["cleared", "for", "low", "approach", "at", "or", "above", "{alt}"], "LA {alt}", LowApproach, SttOnly: true),
+            new(["cleared", "low", "approach", "at", "or", "above", "{alt}"], "LA {alt}", LowApproach, SttOnly: true),
             new(["cleared", "for", "low", "approach"], "LA", LowApproach),
             new(["cleared", "low", "approach"], "LA", LowApproach),
             new(["cleared", "for", "the", "option"], "COPT", ClearedForOption),

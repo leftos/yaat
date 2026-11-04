@@ -1502,6 +1502,9 @@ public class PhraseologyMapperTests
     [InlineData("cleared touch and go runway two eight right", "TG")]
     [InlineData("cleared for stop and go", "SG")]
     [InlineData("cleared for low approach", "LA")]
+    [InlineData("cleared low approach", "LA")]
+    [InlineData("cleared low approach at or above six hundred", "LA 600")]
+    [InlineData("cleared for low approach at or above six hundred", "LA 600")]
     [InlineData("cleared for the option", "COPT")]
     [InlineData("cleared for option", "COPT")]
     public void Tower_ExpandedRules(string transcript, string expected)

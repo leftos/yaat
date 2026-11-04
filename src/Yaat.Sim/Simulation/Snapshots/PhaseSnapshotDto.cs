@@ -1303,6 +1303,11 @@ public sealed class LowApproachPhaseDto : PhaseDto
     public required double RunwayHeadingDeg { get; init; }
     public required bool ClimbingOut { get; init; }
 
+    /// <summary>The restricted low approach's at-or-above altitude, feet MSL (<c>LA 600</c>, 7110.65 3-10-10). Absent on
+    /// unrestricted low approaches and older snapshots (no restriction).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? AtOrAboveFt { get; init; }
+
     /// <summary>Low approach is the lead-in to a landing on a diverging runway (#292); turn onto that
     /// runway's final at the gate below instead of the straight climb-out. Absent on pre-#292 snapshots
     /// (defaults false).</summary>
@@ -1980,6 +1985,11 @@ public sealed class VfrFollowPhaseDto : PhaseDto
     /// <summary>The departure-leg hold this pursuit flies before it may steer at its lead
     /// (<see cref="Phases.Pattern.VfrFollowPhase.ClimbOutGate"/>); written only while it holds, and absent reads as no hold.</summary>
     public FollowClimbOutGateDto? ClimbOutGate { get; init; }
+
+    /// <summary>The restricted low approach's at-or-above altitude the pursuit carries to the join
+    /// (<see cref="Phases.Pattern.VfrFollowPhase.LowApproachAtOrAboveFt"/>); absent reads as no restriction.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LowApproachAtOrAboveFt { get; init; }
 }
 
 /// <summary>

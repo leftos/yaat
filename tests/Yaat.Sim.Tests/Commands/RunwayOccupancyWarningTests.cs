@@ -507,7 +507,7 @@ public class RunwayOccupancyWarningTests
         AircraftState arrival = MakeArrival("N200AR", TestRunwayFactory.Make(designator: "30", airportId: "OAK", heading: 310, elevationFt: 6));
         arrival.Phases!.LandingClearance = ClearanceType.ClearedToLand;
         arrival.Phases.ClearedRunwayId = "30";
-        arrival.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedToLand, "30", null, null);
+        arrival.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedToLand, "30", null, null, null);
 
         GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(arrival, ActiveRunways.Empty), new GoAroundPhase(), []);
 

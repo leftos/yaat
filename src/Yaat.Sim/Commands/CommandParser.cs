@@ -898,11 +898,7 @@ public static class CommandParser
                 "SG",
                 (dir, rwy, alt, altText) => new StopAndGoCommand(dir, rwy, alt) { PatternAltitudeText = altText }
             ),
-            LowApproach => ParseOptionWithDirection(
-                arg,
-                "LA",
-                (dir, rwy, alt, altText) => new LowApproachCommand(dir, rwy, alt) { PatternAltitudeText = altText }
-            ),
+            LowApproach => ParseLowApproach(arg),
             ClearedForOption => ParseOptionWithDirection(
                 arg,
                 "COPT",
@@ -1771,6 +1767,47 @@ public static class CommandParser
     {
         string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
         return ParseOptionModifier(tokens, 0, verb, factory);
+    }
+
+    /// <summary>
+    /// Parses <c>LA [alt] [MLT|MRT [patternRwy] [alt]]</c>. A leading token that is not MLT/MRT is the altitude the low
+    /// approach is flown at or above (7110.65 3-10-10), resolved MSL by <see cref="AltitudeResolver.Resolve"/>
+    /// (<c>LA 6</c>, <c>LA 600</c>, <c>LA KOAK+005</c>); the trailing modifier keeps its own pattern altitude.
+    /// </summary>
+    private static PR ParseLowApproach(string? arg)
+    {
+        string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        int? atOrAbove = null;
+        string? atOrAboveText = null;
+        int start = 0;
+        if ((tokens.Length > 0) && (ParsePatternDir(tokens[0]) is null))
+        {
+            // A three-digit token without a leading zero is feet as typed (LA 600 is 600 ft, not 60,000); every other form
+            // reads as AltitudeResolver reads it (LA 6 and LA 006 are 600 ft, LA KOAK+005 is 500 ft above KOAK).
+            string token = tokens[0];
+            bool literalFeet = (token.Length == 3) && (token[0] != '0') && token.All(char.IsAsciiDigit);
+            atOrAbove = literalFeet ? int.Parse(token, CultureInfo.InvariantCulture) : AltitudeResolver.Resolve(token);
+            if (atOrAbove is null)
+            {
+                return PR.Fail($"unexpected argument '{tokens[0]}' (expected an altitude, MLT or MRT)");
+            }
+
+            atOrAboveText = tokens[0];
+            start = 1;
+        }
+
+        return ParseOptionModifier(
+            tokens,
+            start,
+            "LA",
+            (dir, rwy, alt, altText) =>
+                new LowApproachCommand(dir, rwy, alt)
+                {
+                    PatternAltitudeText = altText,
+                    AtOrAboveAltitude = atOrAbove,
+                    AtOrAboveAltitudeText = atOrAboveText,
+                }
+        );
     }
 
     /// <summary>

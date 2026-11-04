@@ -2286,7 +2286,7 @@ public class PatternCommandHandlerTests
         {
             "TG" => PatternCommandHandler.TrySetupTouchAndGo(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
             "SG" => PatternCommandHandler.TrySetupStopAndGo(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
-            "LA" => PatternCommandHandler.TrySetupLowApproach(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
+            "LA" => PatternCommandHandler.TrySetupLowApproach(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared), null, null),
             "COPT" => PatternCommandHandler.TrySetupClearedForOption(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
             _ => throw new Xunit.Sdk.XunitException($"Unknown verb: {verb}"),
         };
@@ -2310,7 +2310,7 @@ public class PatternCommandHandlerTests
         {
             "TG" => PatternCommandHandler.TrySetupTouchAndGo(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
             "SG" => PatternCommandHandler.TrySetupStopAndGo(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
-            "LA" => PatternCommandHandler.TrySetupLowApproach(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
+            "LA" => PatternCommandHandler.TrySetupLowApproach(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared), null, null),
             "COPT" => PatternCommandHandler.TrySetupClearedForOption(ac, OptionPatternModifier.None, TestDispatch.Context(Random.Shared)),
             _ => throw new Xunit.Sdk.XunitException($"Unknown verb: {verb}"),
         };

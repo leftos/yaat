@@ -487,11 +487,20 @@ public record StopAndGoCommand(PatternDirection? TrafficPattern, string? Pattern
     public string? PatternAltitudeText { get; init; }
 }
 
-/// <summary><c>LA [MLT|MRT [patternRwy] [alt]]</c>.</summary>
+/// <summary><c>LA [alt] [MLT|MRT [patternRwy] [alt]]</c>.</summary>
 public record LowApproachCommand(PatternDirection? TrafficPattern, string? PatternRunwayId, int? PatternAltitude) : ParsedCommand
 {
     /// <summary>The pattern-altitude token as typed, rendered verbatim in canonical text (see <see cref="ClosedTrafficDeparture.PatternAltitudeText"/>).</summary>
     public string? PatternAltitudeText { get; init; }
+
+    /// <summary>
+    /// The altitude (feet MSL) the low approach is restricted to at or above (<c>LA 600</c>, 7110.65 3-10-10), or null for an
+    /// unrestricted low approach. Separate from <see cref="PatternAltitude"/>, which belongs to the trailing pattern modifier.
+    /// </summary>
+    public int? AtOrAboveAltitude { get; init; }
+
+    /// <summary>The restriction token as typed, rendered verbatim in canonical text, like <see cref="PatternAltitudeText"/>.</summary>
+    public string? AtOrAboveAltitudeText { get; init; }
 }
 
 /// <summary><c>COPT [MLT|MRT [patternRwy] [alt]]</c>.</summary>
