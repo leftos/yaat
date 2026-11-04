@@ -4,7 +4,7 @@
 
 ## Do first
 
-- [ ] YAAT-1828 Plan the slowdown for a controller crossing speed on the first route fix under an explicit SPD · release vNext — High · Speed control and performance limits
+- [/] YAAT-1828 Plan the slowdown for a controller crossing speed on the first route fix under an explicit SPD · release vNext — High · Speed control and performance limits
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -641,7 +641,7 @@
 
 ## Speed control and performance limits
 
-### 1 Defects (15/45 done)
+### 1 Defects (15/49 done)
 - [ ] YAAT-188 Cap descent by angle in UpdateDescentPlanning
 - [ ] YAAT-190 Use one snap tolerance in FlightPhysics.BoundsCorrectionTarget
 - [ ] YAAT-853 Refuse a rolling takeoff to a Super or heavy that has no aircraft profile (A388, A225, IL76, KC10)
@@ -670,9 +670,13 @@
 - [ ] YAAT-1803 Final-gate crossing cancel: skip missed-approach fixes; treat id-0 controller crossings as controller speeds
 - [ ] YAAT-1813 Keep or apply a crossing speed revert held by another fix when DEPART replaces the route
 - [ ] YAAT-1819 End the last crossed STAR speed when a direct-to skips ahead on the STAR
+- [ ] YAAT-1839 Plan a controller crossing speed under a Mach hold or SMAX above the crossover (sub-issue of YAAT-1828) · release vNext
 - [ ] YAAT-1830 Find why an aircraft holds its present speed after RNS takes effect in a phases-plus-physics run
+- [ ] YAAT-1846 Leave one speed revert when a Mach revert is pending, and restore speed bounds past a direct-to's crossing
+- [ ] YAAT-1848 Fly a controller crossing speed issued after a delete-speed-restrictions
+- [ ] YAAT-1849 Restore the earlier SPD past a crossing when the SPD target was already reached
 
-### 2 Refinements and rulings (0/15 done)
+### 2 Refinements and rulings (0/18 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
 - [ ] YAAT-1430 Refine the speed-envelope unable: 5 kt rounding, Mach answers in Mach, same-block altitude · release vNext+1
@@ -688,6 +692,9 @@
 - [ ] YAAT-1764 Decide whether a deferred speed cancels crossing speeds by issue time or fire time
 - [ ] YAAT-1810 Maneuver speed follow-ups: C208 Vmo class; or-greater/less bounds through a maneuver
 - [ ] YAAT-1832 Rule whether a STAR-keeping constrained DCTF should keep an earlier crossing's speed reverts on the STAR tail
+- [ ] YAAT-1837 Hold a crossing speed past its fix instead of reverting to an earlier-transmission SPD
+- [ ] YAAT-1838 End an SPD floor or ceiling when a later controller crossing speed is outside it
+- [ ] YAAT-1851 Make a same-transmission crossing and SPD agree under a follow, and rule on speeding up to slow down
 
 ### 3 Hygiene and tests (0/5 done)
 - [ ] YAAT-117 Split FlightPhysics.UpdateSpeed into layer helpers (complexity ≤8)
@@ -704,13 +711,14 @@
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (13/31 done)
+### 1 Defects (14/36 done)
 - [ ] YAAT-1666 Find a SID's TDLS initial altitude by version and in the op configs, as the climb-via top does
 - [/] YAAT-1037 Stop an unmet published SID/STAR altitude bound from overriding a non-via assigned altitude · release vNext
-- [/] YAAT-964 Keep the STAR when a constrained direct shares a transmission with DVIA · release vNext
+  - [ ] YAAT-1841 Gate approach altitudes on the pending approach's connecting fix (schema V45) · release vNext
+  - [ ] YAAT-1842 Put SID departure readers and live-traffic departures on the altitude in-force terms · release vNext
 - [ ] YAAT-1483 Sequence a SID's heading-to-intercept leg when the next leg is a fix-less course-to-altitude leg (KSJC SUNOL1 RW12B)
 - [ ] YAAT-1484 Parse TDLS initial altitudes written as 'MAINTAIN 5000FT' (every ZLA SID's hold is off)
-- [ ] YAAT-1644 Don't climb or descend for a STAR's published altitudes after JARR without descend via · release vNext
+- [/] YAAT-1644 Don't climb or descend for a STAR's published altitudes after JARR without descend via · release vNext
 - [ ] YAAT-1654 Match the CTO's SID initial altitude across SID versions (filed NUEVO8, TDLS NUEVO9)
 - [ ] YAAT-1659 Stop the route planner flying published STAR altitudes without a via clearance (JARR climbs to 23,000; climbs after CFIX+CAPP)
 - [ ] YAAT-1662 End the non-via climb scan at a met ceiling (AtOrBelow at its altitude, Between at its top)
@@ -723,8 +731,11 @@
 - [ ] YAAT-1824 Decide what a HOLD does to a climb via still in force after the route ends
 - [ ] YAAT-1826 Use only the identified runway transition when finding a SID's published altitudes
 - [ ] YAAT-1834 Hold the crossing altitude past a constrained DCTF that leaves the procedure after DVIA or CVIA
+- [ ] YAAT-1836 Fly a SID's published coded-leg speeds in the departure phase
+- [ ] YAAT-1843 Clear the speed stamp when the published overlay replaces a crossing speed
+- [ ] YAAT-1845 Plan a controller descent crossing on a SID departure
 
-### 2 Refinements and rulings (0/10 done)
+### 2 Refinements and rulings (0/13 done)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
 - [ ] YAAT-965 Restore STAR restrictions without guessing a runway transition
 - [ ] YAAT-977 Decide what a departure does when vectored off a SID after a climb via
@@ -735,6 +746,9 @@
 - [ ] YAAT-1825 Warn that a maintain is the expected clearance when CVIA names a SID with no published altitudes
 - [ ] YAAT-1827 Decide whether CTO reads a sent PDC's edited altitude before the TDLS defaults
 - [ ] YAAT-1829 Decide whether a vector off an EXC MAINT climb via keeps climbing to the except-maintain altitude
+- [ ] YAAT-1835 Refuse a CFIX speed over 250 kt below 10,000 and a crossing above the cleared altitude
+- [ ] YAAT-1847 End a climb via's published altitudes on a later-transmission CFIX (AIM 5-2-9.h.10)
+- [ ] YAAT-1850 Keep a graphic ODP's published altitudes in force under a maintain
 
 ### 3 Hygiene and tests (0/3 done)
 - [ ] YAAT-983 Read the active op config's SID top altitude before the others
@@ -744,6 +758,7 @@
 ### No milestone
 - [ ] YAAT-1519 Restore a crossed published ceiling on a re-issued CVIA; lift a SID waypoint's ceiling once passed
 - [ ] YAAT-1699 Keep a CFIX given in a SID's climb window through the handover to the SID route · release vNext
+  - [ ] YAAT-1840 Enforce a CFIX on a SID's coded-leg fix on that leg, with its revert at the fix · release vNext
 
 ## Approaches and holds
 
@@ -779,7 +794,7 @@
 
 ## Traffic pattern and airborne FOLLOW
 
-### 1 Defects (6/33 done)
+### 1 Defects (6/34 done)
 - [ ] YAAT-138 FOLLOW brief B leftovers: downwind return entry, S-turn call, re-clearance
 - [ ] YAAT-139 FOLLOW brief E leftovers: COPT at install, spacing, split VfrFollowPhase
 - [ ] YAAT-142 Clear the follow in GoAroundHelper.Trigger
@@ -807,6 +822,7 @@
 - [ ] YAAT-1817 Cap a follower's crosswind widening at the pattern width and extend the downwind instead
 - [ ] YAAT-1818 Count an early crosswind's remaining path from the aircraft, not the runway end
 - [ ] YAAT-1821 Reach pattern altitude well before the entry when a VFR follower hands over to pattern entry
+- [ ] YAAT-1844 Take the pattern fixes off the route when a CM or DM ends pattern entry
 
 ### 2 Refinements and rulings (0/14 done)
 - [ ] YAAT-140 Warn when a FOLLOW re-sequence from a pattern leg voids the landing clearance
