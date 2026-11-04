@@ -1228,12 +1228,16 @@ internal static class FlightCommandHandler
     }
 
     /// <summary>
-    /// Flies direct to <paramref name="cmd"/>'s fixes with its crossing restrictions. Every constrained fix is stamped
-    /// with <paramref name="transmissionId"/>, so a DVIA in the same transmission keeps the crossing and a later one
-    /// supersedes it. A crossing speed the type can fly neither at its present altitude nor at that fix's crossing altitude
+    /// Flies direct to <paramref name="cmd"/>'s fixes with its crossing restrictions. A fix whose altitude the command
+    /// sets takes the transmission's crossing stamp, and one whose speed it sets the speed stamp, so a DVIA in the same
+    /// transmission keeps the crossing and a later one supersedes it; a restriction it does not set keeps its stamp and its
+    /// reverts. A crossing speed the type can fly neither at its present altitude nor at that fix's crossing altitude
     /// (or, with none, its assigned altitude) is refused before anything changes, as CFIX's is
     /// (<see cref="RefuseUnflyableSpeed"/>); an accepted crossing speed is a controller speed act and ends an SPDN's lift
     /// (<see cref="ControlTargets.SpeedLimitsLifted"/>).
+    /// <para>Fixes all on the active STAR's route, in order, keep the STAR from the first of them, with the crossings on
+    /// its fixes (<see cref="KeepStarForConstrainedDirect"/>), so "descend via, proceed direct X, cross X at or above …"
+    /// in one transmission, either order, flies the rest of the STAR (7110.65 4-5-7.h; AIM 5-4-1.a.2).</para>
     /// </summary>
     internal static CommandResult ApplyConstrainedForceDirectTo(ConstrainedForceDirectToCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
@@ -1250,7 +1254,6 @@ internal static class FlightCommandHandler
         }
 
         int transmissionId = ctx.TransmissionId;
-        ClearActiveProcedure(aircraft);
 
         // The pending revert of every dropped crossing applies now, as other route changes apply it, before anything
         // below reads the speed state. With no crossing speed here that is the end of it; with one, the speed it restored
@@ -1258,9 +1261,30 @@ internal static class FlightCommandHandler
         // dropped crossing's revert moves past the new crossing rather than being lost. A Mach restored as an IAS below
         // the handover altitude and an RNS, RPS or DSR leave no live state that says so, so they are read from the fixes
         // taken: each is what the dropped fix restored when neither SMAX nor (for the resume) a Mach came first there.
-        List<NavigationTarget> taken = NavigationCommandHandler.TakePendingSpeedReverts(aircraft.Targets.NavigationRoute);
-        aircraft.Targets.NavigationRoute.Clear();
-        NavigationCommandHandler.ApplyTakenSpeedReverts(aircraft, taken);
+        List<NavigationTarget> taken;
+        bool endsVia = false;
+        bool restatedWithVia = false;
+        List<NavigationTarget> speedStamped = [];
+        StarCrossingFixes? starFixes = StarFixesForConstrainedDirect(cmd, aircraft);
+        if (starFixes is not null)
+        {
+            // Fixes consecutive on the active STAR's route, in order, keep the STAR from the first of them (7110.65
+            // 4-5-7.h; AIM 5-4-1.a.2): the fixes before it are dropped, and the crossings go onto the STAR's own fixes.
+            speedStamped = SpeedStampedStarFixes(cmd, starFixes);
+            taken = KeepStarForConstrainedDirect(aircraft, starFixes, speedStamped, transmissionId, out endsVia);
+            // After a DVIA of this same transmission has applied, the crossing is restated with it, as a CFIX is: no reverts,
+            // and the assigned altitude the via cleared is left alone. Read once every other via has ended (a CVIA too).
+            restatedWithVia = NavigationCommandHandler.ViaAppliedInTransmission(aircraft, transmissionId);
+        }
+        else
+        {
+            // Any other fixes replace the route, and the procedure ends.
+            ClearActiveProcedure(aircraft);
+            taken = NavigationCommandHandler.TakePendingSpeedReverts(aircraft.Targets.NavigationRoute);
+            aircraft.Targets.NavigationRoute.Clear();
+            NavigationCommandHandler.ApplyTakenSpeedReverts(aircraft, taken);
+        }
+
         bool speedMaxPending = NavigationCommandHandler.SpeedMaxPending(aircraft);
         NavigationTarget? takenMachHolder = taken.FindLast(fix => !fix.RevertSpeedMax && (fix.RevertMach is not null));
         SpeedResumeKind? takenResume = taken
@@ -1268,46 +1292,92 @@ internal static class FlightCommandHandler
             ?.RevertResume;
 
         aircraft.Targets.AssignedMagneticHeading = null;
-
         // Clear any forced turn direction left over from a preceding relative turn so a
         // plain direct-to turns the shortest way to the fix (see ApplyDirectTo).
         aircraft.Targets.PreferredTurnDirection = null;
 
-        // Find the last index that has an altitude constraint (for revert)
-        int lastConstrainedIdx = -1;
-        foreach ((int idx, ConstrainedFixAltitude _) in cmd.AltitudeConstraints)
-        {
-            if (idx > lastConstrainedIdx)
-            {
-                lastConstrainedIdx = idx;
-            }
-        }
+        // The last index that has an altitude constraint carries the altitude revert.
+        int lastConstrainedIdx = (cmd.AltitudeConstraints.Count > 0) ? cmd.AltitudeConstraints.Keys.Max() : -1;
 
         // A Mach the crossing speeds replace, held now or restored above from a dropped crossing, is restored past the last
         // fix whose speed this direct-to sets, altitude-constrained or not, and then no fix carries a plain speed revert.
         // While SMAX is in force, PlaceSpeedMaxRevert arms it again past the last crossing speed instead.
         int lastSpeedIdx = (cmd.SpeedConstraints is { Count: > 0 } speeds) ? speeds.Keys.Max() : -1;
         bool holdingMach = aircraft.Targets.TargetMach is not null;
-        double? machToRestore = speedMaxPending ? null : (aircraft.Targets.TargetMach ?? takenMachHolder?.RevertMach);
+        double? machToRestore = (speedMaxPending || restatedWithVia) ? null : (aircraft.Targets.TargetMach ?? takenMachHolder?.RevertMach);
         bool? machToRestoreExplicit = holdingMach ? aircraft.Targets.HasExplicitSpeedCommand : takenMachHolder?.RevertMachExplicit;
 
-        // Capture current altitude/speed for revert on the last constrained fix, unless reverting would reverse the
-        // direction flown into it (NavigationCommandHandler.AltitudeRevertReversesTravel)
+        (double? revertAlt, double? revertAssignedAlt) = CaptureConstrainedDirectAltitude(
+            cmd,
+            aircraft,
+            lastConstrainedIdx,
+            endsVia,
+            restatedWithVia
+        );
+
+        var crossing = new ConstrainedDirectCrossing(
+            cmd,
+            transmissionId,
+            lastConstrainedIdx,
+            lastSpeedIdx,
+            revertAlt,
+            revertAssignedAlt,
+            machToRestore,
+            machToRestoreExplicit,
+            restatedWithVia ? null : aircraft.Targets.TargetSpeed,
+            restatedWithVia ? null : aircraft.Targets.AssignedSpeed,
+            speedMaxPending
+        );
+
+        NavigationCommandHandler.PendingSpeedReverts pending = ClearTakenAndReadPendingSpeedReverts(aircraft, speedStamped, takenResume);
+        StampConstrainedDirectFixes(aircraft, starFixes, crossing);
+        if (cmd.SpeedConstraints is { Count: > 0 })
+        {
+            PlaceConstrainedDirectSpeedReverts(aircraft, crossing, starFixes is not null, restatedWithVia, pending);
+        }
+
+        string fixNames = FixListSpaced(cmd.Fixes);
+        return CommandDispatcher.Ok($"Proceed direct {fixNames}");
+    }
+
+    /// <summary>
+    /// Captures the altitude a constrained direct-to reverts to past its last altitude-constrained fix
+    /// (<paramref name="lastConstrainedIdx"/>), or assigns that fix's crossing altitude when it reverts to none.
+    /// Nothing is captured when reverting would reverse the direction flown into the fix
+    /// (<see cref="NavigationCommandHandler.AltitudeRevertReversesTravel"/>) or the crossing is restated with this
+    /// transmission's via (<paramref name="restatedWithVia"/>). When this direct ended a via (<paramref name="endsVia"/>),
+    /// the via's computed target is no clearance (7110.65 4-5-7.h.4) and the crossing authorizes the descent only to the
+    /// fix (AIM 4-4-10.e), so only an assigned altitude is gone back to; with none, the crossing altitude stays assigned
+    /// past the fix (AIM 5-4-1.a.2; 4-4-10.e, 4-4-10.g).
+    /// </summary>
+    private static (double? PreviousAltitude, double? PreviousAssignedAltitude) CaptureConstrainedDirectAltitude(
+        ConstrainedForceDirectToCommand cmd,
+        AircraftState aircraft,
+        int lastConstrainedIdx,
+        bool endsVia,
+        bool restatedWithVia
+    )
+    {
+        double? revertTarget = endsVia ? aircraft.Targets.AssignedAltitude : aircraft.Targets.TargetAltitude;
         bool revertsAltitude =
             (lastConstrainedIdx >= 0)
+            && !restatedWithVia
+            && (!endsVia || (revertTarget is not null))
             && !NavigationCommandHandler.AltitudeRevertReversesTravel(
                 aircraft.Altitude,
                 cmd.AltitudeConstraints[lastConstrainedIdx].AltitudeFt,
-                aircraft.Targets.TargetAltitude
+                revertTarget
             );
-        double? previousAlt = revertsAltitude ? aircraft.Targets.TargetAltitude : null;
+        double? previousAlt = revertsAltitude ? revertTarget : null;
         double? previousAssignedAlt = revertsAltitude ? aircraft.Targets.AssignedAltitude : null;
 
         // Without a revert the last crossing altitude stays assigned past its fix (AIM 4-4-10.g), as with CFIX, unless the
-        // cleared altitude already meets its bound (NavigationCommandHandler.CrossingBoundMetByClearance)
+        // cleared altitude already meets its bound (NavigationCommandHandler.CrossingBoundMetByClearance) or the crossing is
+        // restated with this transmission's via, which cleared the assigned altitude
         if (
             (lastConstrainedIdx >= 0)
             && !revertsAltitude
+            && !restatedWithVia
             && !NavigationCommandHandler.CrossingBoundMetByClearance(
                 aircraft,
                 ToAltitudeRestriction(cmd.AltitudeConstraints[lastConstrainedIdx].AltitudeFt, cmd.AltitudeConstraints[lastConstrainedIdx].AltType)
@@ -1317,91 +1387,308 @@ internal static class FlightCommandHandler
             aircraft.Targets.AssignedAltitude = cmd.AltitudeConstraints[lastConstrainedIdx].AltitudeFt;
         }
 
+        return (previousAlt, previousAssignedAlt);
+    }
+
+    /// <summary>
+    /// Clears the speed reverts of the kept fixes whose speed a constrained direct-to sets (<paramref name="speedStamped"/>):
+    /// they were taken and applied already and must not restore again when crossed. Called only once the reads of what
+    /// was taken (the Mach, the resume) are done. Returns the reverts still pending on the route, read after the clear:
+    /// those, on kept fixes whose speed the direct-to leaves alone, move past its last crossing speed as a CFIX moves
+    /// them, and a resume taken from a dropped or restated crossing (<paramref name="takenResume"/>) is carried the same way.
+    /// </summary>
+    private static NavigationCommandHandler.PendingSpeedReverts ClearTakenAndReadPendingSpeedReverts(
+        AircraftState aircraft,
+        List<NavigationTarget> speedStamped,
+        SpeedResumeKind? takenResume
+    )
+    {
+        foreach (NavigationTarget holder in speedStamped)
+        {
+            NavigationCommandHandler.ClearSpeedReverts(holder);
+        }
+
+        var pending = NavigationCommandHandler.PendingSpeedReverts.Read(aircraft.Targets.NavigationRoute);
+        return pending with { Resume = takenResume ?? pending.Resume };
+    }
+
+    /// <summary>
+    /// Writes a constrained direct-to's crossings (<see cref="StampConstrainedDirectFix"/>): onto new fixes appended to the
+    /// emptied route when it replaces the route (<paramref name="starFixes"/> null), else onto the kept STAR fixes it
+    /// constrains.
+    /// </summary>
+    private static void StampConstrainedDirectFixes(AircraftState aircraft, StarCrossingFixes? starFixes, ConstrainedDirectCrossing crossing)
+    {
+        ConstrainedForceDirectToCommand cmd = crossing.Command;
         for (int i = 0; i < cmd.Fixes.Count; i++)
         {
-            ResolvedFix fix = cmd.Fixes[i];
-            CifpAltitudeRestriction? altRestriction = null;
-            CifpSpeedRestriction? speedRestriction = null;
-            double? revertAlt = null;
-            double? revertAssignedAlt = null;
-            double? revertMach = null;
-            bool? revertMachExplicit = null;
-            double? revertSpeed = null;
-            double? revertAssignedSpeed = null;
-
-            if (cmd.AltitudeConstraints.TryGetValue(i, out ConstrainedFixAltitude? alt))
+            if (starFixes is null)
             {
-                altRestriction = ToAltitudeRestriction(alt.AltitudeFt, alt.AltType);
-
-                // Only the last constrained fix gets the altitude revert
-                if (i == lastConstrainedIdx)
-                {
-                    revertAlt = previousAlt;
-                    revertAssignedAlt = previousAssignedAlt;
-                }
+                ResolvedFix fix = cmd.Fixes[i];
+                var target = new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) };
+                StampConstrainedDirectFix(target, i, crossing);
+                aircraft.Targets.NavigationRoute.Add(target);
             }
-
-            if (cmd.SpeedConstraints is not null && cmd.SpeedConstraints.TryGetValue(i, out int spd))
+            else if (starFixes.Stamped[i] is { } starFix)
             {
-                speedRestriction = new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow);
-                if ((i == lastSpeedIdx) && (machToRestore is not null))
-                {
-                    revertMach = machToRestore;
-                    revertMachExplicit = machToRestoreExplicit;
-                }
-
-                // A plain speed revert sits on the last fix whose speed this direct-to sets, altitude-constrained or
-                // not, as the Mach revert does; the altitude revert alone sits on the last constrained fix.
-                if ((i == lastSpeedIdx) && !speedMaxPending && (machToRestore is null))
-                {
-                    revertSpeed = aircraft.Targets.TargetSpeed;
-                    revertAssignedSpeed = aircraft.Targets.AssignedSpeed;
-                }
+                StampConstrainedDirectFix(starFix, i, crossing);
             }
-
-            aircraft.Targets.NavigationRoute.Add(
-                new NavigationTarget
-                {
-                    Name = fix.Name,
-                    Position = new LatLon(fix.Lat, fix.Lon),
-                    AltitudeRestriction = altRestriction,
-                    SpeedRestriction = speedRestriction,
-                    RevertAltitude = revertAlt,
-                    RevertAssignedAltitude = revertAssignedAlt,
-                    RevertSpeed = revertSpeed,
-                    RevertAssignedSpeed = revertAssignedSpeed,
-                    RevertMach = revertMach,
-                    RevertMachExplicit = revertMachExplicit,
-                    // Id 0 is no transmission (a queued block restored from a snapshot written before blocks carried one).
-                    CrossingTransmissionId =
-                        (((altRestriction is not null) || (speedRestriction is not null)) && (transmissionId != 0)) ? transmissionId : null,
-                    SpeedTransmissionId = ((speedRestriction is not null) && (transmissionId != 0)) ? transmissionId : null,
-                }
-            );
         }
-
-        if (cmd.SpeedConstraints is { Count: > 0 })
-        {
-            if (speedMaxPending)
-            {
-                NavigationCommandHandler.PlaceSpeedMaxRevert(aircraft.Targets.NavigationRoute);
-            }
-            else if ((machToRestore is null) && (takenResume is { } resume))
-            {
-                // The RNS, RPS or DSR given with a dropped crossing is done past this direct-to's last crossing speed,
-                // as a CFIX carries it, so that crossing's ceiling does not hold for good.
-                NavigationCommandHandler.PlaceResumeRevert(aircraft.Targets.NavigationRoute, resume);
-            }
-
-            aircraft.Targets.SpeedLimitsLifted = false;
-            // A crossing speed is an ATC speed act like SPD, so it ends a forced speed's override of the final gate.
-            aircraft.Targets.SpeedOverridesFinalGate = false;
-            EndMachHoldAndSpeedMax(aircraft);
-        }
-
-        string fixNames = FixListSpaced(cmd.Fixes);
-        return CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
+
+    /// <summary>
+    /// After a constrained direct-to with crossing speeds has stamped its fixes, leaves the one speed revert on the route
+    /// and ends what a speed act ends. Restated with this transmission's via (<paramref name="restatedWithVia"/>), the
+    /// crossing speed stays in force and is the assigned speed; under SMAX its re-arm sits past the last crossing speed;
+    /// kept on the STAR (<paramref name="keepsStar"/>) the revert is placed as a CFIX places it
+    /// (<see cref="NavigationCommandHandler.PlaceCrossingSpeedReverts"/>); on a replaced route a resume taken from a
+    /// dropped crossing, carried in <paramref name="pending"/>, is carried past the last crossing speed.
+    /// </summary>
+    private static void PlaceConstrainedDirectSpeedReverts(
+        AircraftState aircraft,
+        ConstrainedDirectCrossing crossing,
+        bool keepsStar,
+        bool restatedWithVia,
+        NavigationCommandHandler.PendingSpeedReverts pending
+    )
+    {
+        if (restatedWithVia)
+        {
+            // Restated with this transmission's via, the crossing speed stays in force and is the assigned speed, as
+            // when the via comes second and cancels the speeds before it.
+            NavigationCommandHandler.KeepTransmissionCrossingSpeed(aircraft, crossing.TransmissionId);
+        }
+        else if (crossing.SpeedMaxPending)
+        {
+            NavigationCommandHandler.PlaceSpeedMaxRevert(aircraft.Targets.NavigationRoute);
+        }
+        else if (keepsStar)
+        {
+            // Kept on the STAR, the one speed revert sits past the last controller-set crossing speed on the route,
+            // as a CFIX places it (NavigationCommandHandler.PlaceCrossingSpeedReverts).
+            var capture = new NavigationCommandHandler.SpeedRevertCapture(
+                SpeedMax: false,
+                Mach: crossing.MachToRestore,
+                MachExplicit: crossing.MachToRestoreExplicit,
+                Plain: crossing.MachToRestore is null,
+                Speed: crossing.TargetSpeed,
+                AssignedSpeed: crossing.AssignedSpeed,
+                Floor: null,
+                Ceiling: null
+            );
+            NavigationCommandHandler.PlaceCrossingSpeedReverts(aircraft.Targets.NavigationRoute, capture, pending, speedRestated: false);
+        }
+        else if ((crossing.MachToRestore is null) && (pending.Resume is { } resume))
+        {
+            // The RNS, RPS or DSR given with a dropped crossing is done past this direct-to's last crossing speed,
+            // as a CFIX carries it, so that crossing's ceiling does not hold for good.
+            NavigationCommandHandler.PlaceResumeRevert(aircraft.Targets.NavigationRoute, resume);
+        }
+
+        aircraft.Targets.SpeedLimitsLifted = false;
+        // A crossing speed is an ATC speed act like SPD, so it ends a forced speed's override of the final gate.
+        aircraft.Targets.SpeedOverridesFinalGate = false;
+        EndMachHoldAndSpeedMax(aircraft);
+    }
+
+    /// <summary>
+    /// What a constrained direct-to writes on its fixes, read once before the first: the command, its transmission, the
+    /// last altitude- and speed-constrained indexes, the altitude revert, the Mach to restore, the plain speed to revert
+    /// to and whether SMAX is pending.
+    /// </summary>
+    private sealed record ConstrainedDirectCrossing(
+        ConstrainedForceDirectToCommand Command,
+        int TransmissionId,
+        int LastAltitudeIdx,
+        int LastSpeedIdx,
+        double? PreviousAltitude,
+        double? PreviousAssignedAltitude,
+        double? MachToRestore,
+        bool? MachToRestoreExplicit,
+        double? TargetSpeed,
+        double? AssignedSpeed,
+        bool SpeedMaxPending
+    );
+
+    /// <summary>
+    /// Writes fix <paramref name="index"/>'s crossing of a constrained direct-to onto <paramref name="target"/>: the
+    /// altitude and speed restrictions the command sets, each with its transmission stamp, the altitude revert on the
+    /// last altitude-constrained fix, and the Mach or plain speed revert on the last speed fix. A restriction the command
+    /// does not set stays as the fix has it: none on a new fix of the replacement route, the published one on a fix kept
+    /// on the active STAR, whose remainder is flown as published (7110.65 4-5-7.h.9 NOTE; AIM 5-4-1.a.2(a) NOTE 1).
+    /// </summary>
+    private static void StampConstrainedDirectFix(NavigationTarget target, int index, ConstrainedDirectCrossing crossing)
+    {
+        ConstrainedForceDirectToCommand cmd = crossing.Command;
+        CifpAltitudeRestriction? altRestriction = target.AltitudeRestriction;
+        CifpSpeedRestriction? speedRestriction = target.SpeedRestriction;
+        bool setsAltitude = false;
+        bool setsSpeed = false;
+        double? revertAlt = null;
+        double? revertAssignedAlt = null;
+        double? revertMach = null;
+        bool? revertMachExplicit = null;
+        double? revertSpeed = null;
+        double? revertAssignedSpeed = null;
+
+        if (cmd.AltitudeConstraints.TryGetValue(index, out ConstrainedFixAltitude? alt))
+        {
+            altRestriction = ToAltitudeRestriction(alt.AltitudeFt, alt.AltType);
+            setsAltitude = true;
+
+            // Only the last constrained fix gets the altitude revert
+            if (index == crossing.LastAltitudeIdx)
+            {
+                revertAlt = crossing.PreviousAltitude;
+                revertAssignedAlt = crossing.PreviousAssignedAltitude;
+            }
+        }
+
+        if ((cmd.SpeedConstraints is not null) && cmd.SpeedConstraints.TryGetValue(index, out int spd))
+        {
+            speedRestriction = new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow);
+            setsSpeed = true;
+            if ((index == crossing.LastSpeedIdx) && (crossing.MachToRestore is not null))
+            {
+                revertMach = crossing.MachToRestore;
+                revertMachExplicit = crossing.MachToRestoreExplicit;
+            }
+
+            // A plain speed revert sits on the last fix whose speed this direct-to sets, altitude-constrained or
+            // not, as the Mach revert does; the altitude revert alone sits on the last constrained fix.
+            if ((index == crossing.LastSpeedIdx) && !crossing.SpeedMaxPending && (crossing.MachToRestore is null))
+            {
+                revertSpeed = crossing.TargetSpeed;
+                revertAssignedSpeed = crossing.AssignedSpeed;
+            }
+        }
+
+        target.AltitudeRestriction = altRestriction;
+        target.SpeedRestriction = speedRestriction;
+        // Each stamp marks what this transmission set: the crossing stamp the altitude, the speed stamp the speed. A
+        // restriction the command leaves alone keeps its stamp and the reverts an earlier crossing left with it, so an
+        // altitude-only direct keeps the fix's speed reverts and a speed-only one its altitude reverts. Id 0 is no
+        // transmission (a queued block restored from a snapshot written before blocks carried one).
+        int? stamp = (crossing.TransmissionId != 0) ? crossing.TransmissionId : null;
+        if (setsAltitude)
+        {
+            target.RevertAltitude = revertAlt;
+            target.RevertAssignedAltitude = revertAssignedAlt;
+            target.CrossingTransmissionId = stamp;
+        }
+
+        if (setsSpeed)
+        {
+            target.RevertSpeed = revertSpeed;
+            target.RevertAssignedSpeed = revertAssignedSpeed;
+            target.RevertMach = revertMach;
+            target.RevertMachExplicit = revertMachExplicit;
+            target.SpeedTransmissionId = stamp;
+        }
+    }
+
+    /// <summary>
+    /// Where a constrained direct-to keeps the active STAR (<see cref="StarCrossingFixes"/>), or null when the route is
+    /// replaced instead: no STAR is active, or the command fixes are not consecutive route fixes in order (names compared
+    /// case-insensitively), as a plain direct keeps the procedure only for the one fix it names.
+    /// </summary>
+    private static StarCrossingFixes? StarFixesForConstrainedDirect(ConstrainedForceDirectToCommand cmd, AircraftState aircraft)
+    {
+        if ((aircraft.Procedure.ActiveStarId is null) || (cmd.Fixes.Count == 0))
+        {
+            return null;
+        }
+
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        string firstName = cmd.Fixes[0].Name;
+        int firstIndex = route.FindIndex(f => string.Equals(f.Name, firstName, StringComparison.OrdinalIgnoreCase));
+        if ((firstIndex < 0) || (firstIndex + cmd.Fixes.Count > route.Count))
+        {
+            return null;
+        }
+
+        var fixes = new NavigationTarget?[cmd.Fixes.Count];
+        for (int i = 0; i < cmd.Fixes.Count; i++)
+        {
+            NavigationTarget routeFix = route[firstIndex + i];
+            if (!string.Equals(routeFix.Name, cmd.Fixes[i].Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            bool constrained = cmd.AltitudeConstraints.ContainsKey(i) || (cmd.SpeedConstraints?.ContainsKey(i) == true);
+            fixes[i] = constrained ? routeFix : null;
+        }
+
+        return new StarCrossingFixes(firstIndex, fixes);
+    }
+
+    /// <summary>
+    /// Keeps the active STAR for a constrained direct-to onto its fixes: the route fixes before the first command fix go,
+    /// and the speed reverts they held, with those held by the fixes whose speed the command is about to set
+    /// (<paramref name="speedStamped"/>), apply now with the STAR still active (<see cref="ApplySkippedSpeedReverts"/>);
+    /// the STAR, its runway and the route from the first command fix on stay. A descend via earlier in this transmission
+    /// (<paramref name="transmissionId"/>) stays in force; any other via ends, as a direct onto the procedure ends it
+    /// (<see cref="TryPreserveProcedure"/>). Returns the fixes whose speed reverts were taken, the speed-stamped ones still
+    /// holding them, so the caller reads what they restored before it clears them; <paramref name="endsVia"/> is whether
+    /// a via was in force and this direct ended it.
+    /// </summary>
+    private static List<NavigationTarget> KeepStarForConstrainedDirect(
+        AircraftState aircraft,
+        StarCrossingFixes starFixes,
+        List<NavigationTarget> speedStamped,
+        int transmissionId,
+        out bool endsVia
+    )
+    {
+        endsVia = false;
+        if ((transmissionId == 0) || (aircraft.Procedure.StarViaTransmissionId != transmissionId))
+        {
+            endsVia = aircraft.Procedure.StarViaMode || aircraft.Procedure.SidViaMode;
+            EndViaModes(aircraft);
+        }
+
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> taken = NavigationCommandHandler.TakePendingSpeedReverts(route.GetRange(0, starFixes.FirstIndex));
+        route.RemoveRange(0, starFixes.FirstIndex);
+        List<NavigationTarget> stampedHolders = NavigationCommandHandler.TakePendingSpeedReverts(speedStamped);
+        taken.AddRange(stampedHolders);
+        ApplySkippedSpeedReverts(aircraft, taken);
+        return taken;
+    }
+
+    /// <summary>The kept STAR fixes whose speed <paramref name="cmd"/> sets, in command order.</summary>
+    private static List<NavigationTarget> SpeedStampedStarFixes(ConstrainedForceDirectToCommand cmd, StarCrossingFixes starFixes)
+    {
+        List<NavigationTarget> fixes = [];
+        for (int i = 0; i < starFixes.Stamped.Length; i++)
+        {
+            if ((starFixes.Stamped[i] is { } fix) && (cmd.SpeedConstraints?.ContainsKey(i) == true))
+            {
+                fixes.Add(fix);
+            }
+        }
+
+        return fixes;
+    }
+
+    /// <summary>Ends every via clearance in force, keeping the procedure ids (a direct-to onto the active procedure).</summary>
+    private static void EndViaModes(AircraftState aircraft)
+    {
+        aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.StarViaMode = false;
+        aircraft.Procedure.StarViaTransmissionId = null;
+        aircraft.Procedure.SidViaCeiling = null;
+        aircraft.Procedure.ClimbViaTargetFt = null;
+        aircraft.Procedure.ClimbViaTransmissionId = null;
+        aircraft.Procedure.StarViaFloor = null;
+    }
+
+    /// <summary>
+    /// Where a constrained direct-to that keeps the active STAR meets it: the route index of its first fix, and the route
+    /// fix each command fix stamps (null where the command constrains that fix neither in altitude nor in speed).
+    /// </summary>
+    private sealed record StarCrossingFixes(int FirstIndex, NavigationTarget?[] Stamped);
 
     /// <summary>
     /// The unable for the first crossing speed in <paramref name="cmd"/> the type can fly neither here nor at the fix's
@@ -1712,13 +1999,7 @@ internal static class FlightCommandHandler
         }
 
         // Disable via-mode but keep procedure ID
-        aircraft.Procedure.SidViaMode = false;
-        aircraft.Procedure.StarViaMode = false;
-        aircraft.Procedure.StarViaTransmissionId = null;
-        aircraft.Procedure.SidViaCeiling = null;
-        aircraft.Procedure.ClimbViaTargetFt = null;
-        aircraft.Procedure.ClimbViaTransmissionId = null;
-        aircraft.Procedure.StarViaFloor = null;
+        EndViaModes(aircraft);
 
         if (
             aircraft.Procedure.ActiveStarId is { } starId

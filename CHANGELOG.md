@@ -17,6 +17,7 @@
 - A departure leg that ends on a VOR radial turns where the chart puts that radial, measured with the VOR's published variation.
 - A hold-short stop that falls on a curved taxiway fillet sits on the painted curve, not up to 15 feet off the pavement.
 - A direct-to with crossing speeds returns the aircraft to its earlier speed after the last fix that carries a speed.
+- A direct-to with crossings onto the active STAR's fixes keeps the STAR from there, and the descend via too when `DVIA` shares the transmission.
 - In a hold or inside 5 miles on final, passing a crossing fix keeps the holding or approach speed instead of returning to an earlier speed.
 - A controller crossing speed on a fix inside 5 miles final ends at the 5-mile point, and the aircraft never speeds up afterwards.
 - A direct-to with crossing speeds is refused inside 5 miles final, as `SPD` is; one with altitudes only is accepted.

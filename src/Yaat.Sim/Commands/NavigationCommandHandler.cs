@@ -225,7 +225,7 @@ internal static class NavigationCommandHandler
     /// when SMAX is in force or waits to be armed again (<see cref="SpeedMaxPending"/>), else the Mach hold, else the
     /// plain target speed with its assignment and its bounds. <see cref="Plain"/> says the last applies.
     /// </summary>
-    private readonly record struct SpeedRevertCapture(
+    internal readonly record struct SpeedRevertCapture(
         bool SpeedMax,
         double? Mach,
         bool? MachExplicit,
@@ -288,8 +288,11 @@ internal static class NavigationCommandHandler
         );
     }
 
-    /// <summary>The speed reverts already on a route before a CFIX stamps its fix: the Mach revert, the plain one and a resume.</summary>
-    private readonly record struct PendingSpeedReverts(
+    /// <summary>
+    /// The speed reverts already on a route before a CFIX, or a constrained direct-to that keeps the active STAR, stamps
+    /// its fixes: the Mach revert, the plain one and a resume.
+    /// </summary>
+    internal readonly record struct PendingSpeedReverts(
         double? Mach,
         bool? MachExplicit,
         NavigationTarget? PlainHolder,
@@ -325,13 +328,14 @@ internal static class NavigationCommandHandler
         || (fix.RevertSpeedCeiling is not null);
 
     /// <summary>
-    /// After a CFIX stamps a crossing speed, leaves one speed revert on the route, on the route-order-last fix whose speed
-    /// the controller set, so every crossing speed before it is flown first: SMAX's re-arm (<see cref="PlaceSpeedMaxRevert"/>);
-    /// else the Mach revert already pending (<see cref="PlaceMachRevert"/>); else, for a plain capture, the resume or the
-    /// plain revert already pending, from the one capture that made it, or the one captured now unless this CFIX restates
-    /// a crossing speed (<paramref name="speedRestated"/>) and so captures none.
+    /// After a CFIX, or a constrained direct-to that keeps the active STAR, stamps a crossing speed, leaves one speed
+    /// revert on the route, on the route-order-last fix whose speed the controller set, so every crossing speed before it
+    /// is flown first: SMAX's re-arm (<see cref="PlaceSpeedMaxRevert"/>); else the Mach revert already pending
+    /// (<see cref="PlaceMachRevert"/>); else, for a plain capture, the resume or the plain revert already pending, from the
+    /// one capture that made it, or the one captured now unless this CFIX restates a crossing speed
+    /// (<paramref name="speedRestated"/>) and so captures none (the constrained direct-to never restates).
     /// </summary>
-    private static void PlaceCrossingSpeedReverts(
+    internal static void PlaceCrossingSpeedReverts(
         List<NavigationTarget> route,
         SpeedRevertCapture capture,
         PendingSpeedReverts pending,
@@ -1488,7 +1492,7 @@ internal static class NavigationCommandHandler
     /// Whether a DVIA or CVIA of <paramref name="transmissionId"/> has applied and is still in force. Never true for id
     /// 0, which is no transmission.
     /// </summary>
-    private static bool ViaAppliedInTransmission(AircraftState aircraft, int transmissionId) =>
+    internal static bool ViaAppliedInTransmission(AircraftState aircraft, int transmissionId) =>
         (transmissionId != 0)
         && ((aircraft.Procedure.StarViaTransmissionId == transmissionId) || (aircraft.Procedure.ClimbViaTransmissionId == transmissionId));
 
@@ -1982,9 +1986,10 @@ internal static class NavigationCommandHandler
     /// if each fix were crossed (<see cref="FlightPhysics.RestoreSpeedPastFix"/>), so the speed a crossing replaced comes
     /// back rather than the crossing speed holding for good (AIM 4-4-10.g; 7110.65 §5-7-1.b-d). Most route changes call it
     /// once their new route and procedure are in place, so an RNS or RPS resumes against them; a constrained direct-to
-    /// calls it on the emptied route, before it builds its fixes, and with crossing speeds carries what it restored past
-    /// its own last crossing speed. In a hold or inside the final gate the reverts go instead. An SMAX re-arm is armed
-    /// now: no crossing on a dropped fix can carry it further.
+    /// that replaces the route calls it on the emptied route, before it builds its fixes, and with crossing speeds carries
+    /// what it restored past its own last crossing speed (one that keeps the active STAR applies, with the STAR still
+    /// active, the reverts of the fixes it drops and of the fixes whose speed it sets). In a hold or inside the final gate
+    /// the reverts go instead. An SMAX re-arm is armed now: no crossing on a dropped fix can carry it further.
     /// </summary>
     internal static void ApplyTakenSpeedReverts(AircraftState aircraft, List<NavigationTarget> holders)
     {
