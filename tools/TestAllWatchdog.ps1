@@ -6,15 +6,22 @@
 # show it is still there and nothing naming the process or the stack it is stuck on (YAAT-177).
 #
 # The tree is walked with PowerShell 7's Get-Process (.Parent, .StartTime, .TotalProcessorTime)
-# rather than WMI, so it also works on the macOS gate builder. Only processes that can sit between the
-# test-all process and a test host are examined (pwsh, dotnet, testhost, *.Tests): reading `.Parent`
-# for every process on the machine costs about a second per walk. A child is kept only when it started
-# at or after its apparent parent, so a reused parent PID cannot pull another session's processes in.
+# rather than WMI, so it also works on the macOS gate builder. Parent links are built from every live
+# process that could be in the tree, whatever its name: a `cmd` between a test host and the process
+# doing its work would otherwise hide that work. Reading `.Parent` for every process on the machine
+# costs about a second per walk, so the walk reads the root's start time first and asks only for the
+# processes that started at or after it, since nothing else can be its descendant. Only the names
+# that can be hosts (pwsh, dotnet, testhost, *.Tests) are reported, and a child is kept only when it
+# started at or after its apparent parent, so a reused parent PID cannot pull another session's
+# processes in.
 #
-# Idle is judged against a CPU baseline, not against the last reading: a hung host often still has a
-# timer thread ticking (yaat-server's room tick runs every second), which moves the CPU figure but by
-# far less than work. The clock is reset only when a host has used more than the tolerance since the
-# baseline; a host under that tolerance for the idle threshold is stalled.
+# Idle is judged against the host's whole tree, not against its own CPU: a hung host often still has
+# a timer thread ticking (yaat-server's room tick runs every second), which moves the CPU figure but
+# by far less than work, while a host waiting on child processes that do the work, or whose threads
+# the machine is holding, looks idle without being hung. The clock is reset when the tree's CPU rises
+# past the tolerance over its baseline, when the set of live processes under the host changes, or
+# while the host has a thread the machine is holding; a host that shows none of those for the idle
+# threshold is stalled.
 #
 # On a stall it prints the host, the tree and each suite log's tail, dumps the host with dotnet-dump
 # (Heap, its own timeout, and the partial dump deleted when the attach is cut short), prints the
@@ -23,62 +30,99 @@
     Justification = 'The stall report is the run''s console output, in test-all.ps1''s own style.')]
 param()
 
-# Every process under $RootPid that started after its parent and whose name matches
-# $ProcessNamePattern, as records carrying what the watchdog reports: name, pid, parent pid, CPU
-# seconds and start time. Throws when the root itself is missing, so a failed walk is never mistaken
-# for a tree with no hosts in it.
+# Every live process under $RootPid whose name matches $ProcessNamePattern, as records carrying what
+# the watchdog reports: name, pid, parent pid, CPU seconds, start time and thread count. Each record
+# also carries TreeCpuSeconds (its own CPU plus that of every live descendant, whatever its name) and
+# TreeKeys (the descendants' pid|startTicks keys, sorted and joined), so a host whose children keep
+# working is told apart from one that is hung. Throws when the root itself is missing, so a failed
+# walk is never mistaken for a tree with no hosts in it.
 function Get-TestAllProcessTree {
     param(
         [Parameter(Mandatory)][int]$RootPid,
         [Parameter(Mandatory)][string]$ProcessNamePattern
     )
 
-    $known = @{}
-    $byParent = @{}
+    # The root's start time bounds the walk: nothing that started before the root can be its
+    # descendant, so reading it first keeps the expensive `.Parent` query to the processes that could
+    # be in the tree.
+    try {
+        $root = Get-Process -Id $RootPid -ErrorAction Stop
+    } catch {
+        throw "the process tree walk found no process $RootPid"
+    }
+    try {
+        $rootStartTime = $root.StartTime
+    } finally {
+        $root.Dispose()
+    }
+    if ($null -eq $rootStartTime) {
+        throw "the process tree walk could not read the start time of process $RootPid"
+    }
+
+    $all = @{}
     foreach ($process in @(Get-Process -ErrorAction SilentlyContinue)) {
         try {
-            if ($process.Name -notmatch $ProcessNamePattern) {
+            # A dead process another holder keeps open (a ClrMD snapshot clone the gate's job still holds)
+            # reads as an idle child with no CPU: it is not part of the tree.
+            if ($process.HasExited) {
                 continue
             }
-            # A dead process another holder keeps open (a ClrMD snapshot clone the gate's job still holds)
-            # reads as an idle child with no CPU: it is not a host.
-            if ($process.HasExited) {
+            $cpu = $process.TotalProcessorTime
+            $start = $process.StartTime
+            if (($null -eq $cpu) -or ($null -eq $start)) {
+                # The process is unreadable (no access) or gone since the snapshot: it is not in the tree.
+                continue
+            }
+            if ($start -lt $rootStartTime) {
                 continue
             }
             # Read once: each read of .Parent costs a native query.
             $parent = $process.Parent
             $entry = [pscustomobject]@{
-                Name       = $process.Name
-                Id         = $process.Id
-                ParentId   = if ($null -eq $parent) { 0 } else { $parent.Id }
-                CpuSeconds = $process.TotalProcessorTime.TotalSeconds
-                StartTime  = $process.StartTime
-                Threads    = $process.Threads.Count
+                Name           = $process.Name
+                Id             = $process.Id
+                ParentId       = if ($null -eq $parent) { 0 } else { $parent.Id }
+                CpuSeconds     = $cpu.TotalSeconds
+                StartTime      = $start
+                Threads        = 0
+                HeldThreads    = 0
+                NameMatches    = ($process.Name -match $ProcessNamePattern)
+                TreeCpuSeconds = 0
+                TreeKeys       = ''
+            }
+            # Threads are read only for the hosts the walk reports, not for every process.
+            if ($entry.NameMatches) {
+                $entry.Threads = $process.Threads.Count
             }
         } catch {
-            # The process exited between the snapshot and the property read: it is not a host.
+            # The process exited or cannot be read: it is not in the tree.
             continue
         } finally {
             $process.Dispose()
         }
-        $known[$entry.Id] = $entry
-        if ($entry.ParentId -ne 0) {
-            if (-not $byParent.ContainsKey($entry.ParentId)) {
-                $byParent[$entry.ParentId] = [System.Collections.Generic.List[object]]::new()
-            }
-            $byParent[$entry.ParentId].Add($entry)
-        }
+        $all[$entry.Id] = $entry
     }
 
-    if (-not $known.ContainsKey($RootPid)) {
+    if (-not $all.ContainsKey($RootPid)) {
         throw "the process tree walk found no process $RootPid"
+    }
+
+    $byParent = @{}
+    foreach ($entry in $all.Values) {
+        if ($entry.ParentId -eq 0) {
+            continue
+        }
+        if (-not $byParent.ContainsKey($entry.ParentId)) {
+            $byParent[$entry.ParentId] = [System.Collections.Generic.List[object]]::new()
+        }
+        $byParent[$entry.ParentId].Add($entry)
     }
 
     $tree = [System.Collections.Generic.List[object]]::new()
     $seen = @{}
     $seen[$RootPid] = $true
     $queue = [System.Collections.Generic.Queue[object]]::new()
-    $queue.Enqueue($known[$RootPid])
+    $queue.Enqueue($all[$RootPid])
     while ($queue.Count -gt 0) {
         $parent = $queue.Dequeue()
         if (-not $byParent.ContainsKey($parent.Id)) {
@@ -92,11 +136,116 @@ function Get-TestAllProcessTree {
                 continue
             }
             $seen[$child.Id] = $true
-            $tree.Add($child)
+            # A name that cannot be a host stays in the walk, so its own children are still reached.
+            if ($child.NameMatches) {
+                $tree.Add($child)
+            }
             $queue.Enqueue($child)
         }
     }
+
+    foreach ($entry in $tree) {
+        $treeCpuSeconds = $entry.CpuSeconds
+        $keys = [System.Collections.Generic.List[string]]::new()
+        foreach ($descendant in @(Get-TestAllSubtree -ByParent $byParent -Root $entry)) {
+            $treeCpuSeconds += $descendant.CpuSeconds
+            $keys.Add((Get-TestHostKey -HostProcess $descendant))
+        }
+        $keys.Sort([System.StringComparer]::Ordinal)
+        $entry.TreeCpuSeconds = $treeCpuSeconds
+        $entry.TreeKeys = $keys -join ','
+    }
     return @($tree)
+}
+
+# Every live process under $Root, whatever its name, by the same parent-start guard the tree walk
+# uses: a child counts only when it started at or after its parent.
+function Get-TestAllSubtree {
+    param(
+        [Parameter(Mandatory)][hashtable]$ByParent,
+        [Parameter(Mandatory)][object]$Root
+    )
+
+    $descendants = [System.Collections.Generic.List[object]]::new()
+    $seen = @{}
+    $seen[$Root.Id] = $true
+    $queue = [System.Collections.Generic.Queue[object]]::new()
+    $queue.Enqueue($Root)
+    while ($queue.Count -gt 0) {
+        $parent = $queue.Dequeue()
+        if (-not $ByParent.ContainsKey($parent.Id)) {
+            continue
+        }
+        foreach ($child in $ByParent[$parent.Id]) {
+            if ($seen.ContainsKey($child.Id)) {
+                continue
+            }
+            if ($child.StartTime -lt $parent.StartTime) {
+                continue
+            }
+            $seen[$child.Id] = $true
+            $descendants.Add($child)
+            $queue.Enqueue($child)
+        }
+    }
+    return @($descendants)
+}
+
+# How many of a process's threads the machine is holding rather than the process waiting on its own:
+# ready or about to run with no processor free, in transition, or waiting on a page, a suspension or
+# a scheduling delay. A host whose threads are held that way is starved, not hung.
+function Get-TestAllHeldThreadCount {
+    param(
+        [Parameter(Mandatory)][int]$ProcessId,
+        [Parameter(Mandatory)][long]$StartTimeTicks
+    )
+
+    $heldStates = @(
+        [System.Diagnostics.ThreadState]::Ready
+        [System.Diagnostics.ThreadState]::Standby
+        [System.Diagnostics.ThreadState]::Transition
+    )
+    $heldWaitReasons = @(
+        [System.Diagnostics.ThreadWaitReason]::Suspended
+        [System.Diagnostics.ThreadWaitReason]::PageIn
+        [System.Diagnostics.ThreadWaitReason]::PageOut
+        [System.Diagnostics.ThreadWaitReason]::FreePage
+        [System.Diagnostics.ThreadWaitReason]::VirtualMemory
+    )
+
+    try {
+        $process = Get-Process -Id $ProcessId -ErrorAction Stop
+    } catch {
+        # The host ended since the walk: it has no held threads.
+        return 0
+    }
+    $held = 0
+    try {
+        # The pid may have been reused since the walk: only the process the walk saw has its threads read.
+        if ($process.StartTime.Ticks -ne $StartTimeTicks) {
+            return 0
+        }
+        foreach ($thread in $process.Threads) {
+            try {
+                # WaitReason is only valid while the thread is in Wait.
+                if ($thread.ThreadState -in $heldStates) {
+                    $held++
+                } elseif (($thread.ThreadState -eq [System.Diagnostics.ThreadState]::Wait) -and
+                        ($thread.WaitReason -in $heldWaitReasons)) {
+                    $held++
+                }
+            } catch {
+                # The thread exited between the snapshot and the property read: it is not held.
+                continue
+            }
+        }
+    } catch {
+        # The host ended or cannot be read: it has no held threads.
+        return 0
+    } finally {
+        $process.Dispose()
+    }
+    return $held
 }
 
 # A host's identity across two walks: a pid alone can be reused by a different process.
@@ -106,7 +255,8 @@ function Get-TestHostKey {
 }
 
 # The test hosts under the test-all process: the leaf processes that run the tests, selected by name.
-# The `dotnet test` driver and the suite jobs idle on purpose, so they are not hosts.
+# The `dotnet test` driver and the suite jobs idle on purpose, so they are not hosts. Each host also
+# carries its tree figures and the count of its threads the machine is holding, for Test-StalledHost.
 function Find-TestHost {
     param(
         [Parameter(Mandatory)][int]$RootPid,
@@ -114,36 +264,64 @@ function Find-TestHost {
         [Parameter(Mandatory)][string]$ProcessNamePattern
     )
     # A process with no threads is a snapshot clone (ManagedStackCaptureTests), live or killed, never a host.
-    return @(Get-TestAllProcessTree -RootPid $RootPid -ProcessNamePattern $ProcessNamePattern |
+    $hosts = @(Get-TestAllProcessTree -RootPid $RootPid -ProcessNamePattern $ProcessNamePattern |
             Where-Object { ($_.Threads -gt 0) -and ($_.Name -match $HostNamePattern) })
+    foreach ($hostProcess in $hosts) {
+        $startTicks = $hostProcess.StartTime.Ticks
+        $hostProcess.HeldThreads = Get-TestAllHeldThreadCount -ProcessId $hostProcess.Id -StartTimeTicks $startTicks
+    }
+    return $hosts
 }
 
-# Tracks each host's CPU baseline in $State (keyed by pid and start time, one clock per host) and
-# returns the first host that has stayed within $CpuToleranceSeconds of its baseline for
-# $IdleSeconds. A host that exits is dropped from the state.
+# Tracks each host's progress in $State (keyed by pid and start time, one clock per host) and returns
+# the first host that has shown no progress for $IdleSeconds. Progress is the tree's CPU rising past
+# $CpuToleranceSeconds over its baseline, or a set of live processes under the host that changed since
+# the last walk; either resets the clock. A poll that finds a thread the machine is holding pauses the
+# clock for the interval since the last poll instead of resetting it, since the host has yet to show
+# what it does once the machine lets it run. A host that shows no progress and no held thread for the
+# idle threshold is stalled; one that exits is dropped from the state. The clock is injectable for
+# the case table, and test-all.ps1 never passes it.
 function Test-StalledHost {
     param(
         [Parameter(Mandatory)][hashtable]$State,
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Hosts,
         [Parameter(Mandatory)][int]$IdleSeconds,
-        [Parameter(Mandatory)][double]$CpuToleranceSeconds
+        [Parameter(Mandatory)][double]$CpuToleranceSeconds,
+        [scriptblock]$Clock = { [datetime]::UtcNow }
     )
 
-    $now = [datetime]::UtcNow
+    $now = & $Clock
     $present = @{}
     foreach ($hostProcess in $Hosts) {
         $key = Get-TestHostKey -HostProcess $hostProcess
         $present[$key] = $true
         if (-not $State.ContainsKey($key)) {
-            $State[$key] = @{ BaselineCpuSeconds = $hostProcess.CpuSeconds; Since = $now }
+            $State[$key] = @{
+                BaselineTreeCpuSeconds = $hostProcess.TreeCpuSeconds
+                TreeKeys               = $hostProcess.TreeKeys
+                Since                  = $now
+                LastPoll               = $now
+            }
             continue
         }
         $tracked = $State[$key]
-        if (($hostProcess.CpuSeconds - $tracked.BaselineCpuSeconds) -gt $CpuToleranceSeconds) {
-            $tracked.BaselineCpuSeconds = $hostProcess.CpuSeconds
+        $treeGrew = (($hostProcess.TreeCpuSeconds - $tracked.BaselineTreeCpuSeconds) -gt $CpuToleranceSeconds)
+        $treeChanged = ($hostProcess.TreeKeys -ne $tracked.TreeKeys)
+        if ($treeGrew -or $treeChanged) {
+            $tracked.BaselineTreeCpuSeconds = $hostProcess.TreeCpuSeconds
+            $tracked.TreeKeys = $hostProcess.TreeKeys
             $tracked.Since = $now
+            $tracked.LastPoll = $now
             continue
         }
+        if ($hostProcess.HeldThreads -gt 0) {
+            # The machine held this host for the interval since the last poll: the idle clock moves on
+            # by that interval, and the baseline and keys stay as they were.
+            $tracked.Since = $tracked.Since.Add($now - $tracked.LastPoll)
+            $tracked.LastPoll = $now
+            continue
+        }
+        $tracked.LastPoll = $now
         if (($now - $tracked.Since).TotalSeconds -ge $IdleSeconds) {
             return $hostProcess
         }
