@@ -417,6 +417,7 @@ public static class RecordedCommandClassifier
                 or ResumePublishedSpeedCommand
                 or RightTurnCommand
                 or SafetyAlertCommand
+                or SayAgainCommand
                 or SayExitFixEstimateCommand
                 or SetTurnRateCommand
                 or SpeedCommand

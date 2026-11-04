@@ -1247,6 +1247,18 @@ public static class CommandRegistry
                 ["STBY", "STANDBY", "ROGER", "RGR"]
             ),
             Cmd(
+                SayAgain,
+                "Say Again",
+                "Track Operations",
+                CommandDimension.None,
+                false,
+                ["AGAIN"],
+                [
+                    O(null, [], "Ask the pilot to repeat its last transmission (solo training)"),
+                    O("Callsign", [L("CS")], "Ask the pilot to say again its callsign only (solo training)"),
+                ]
+            ),
+            Cmd(
                 InitiateHandoff,
                 "Handoff",
                 "Track Operations",

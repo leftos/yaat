@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- In solo training, `AGAIN` asks a pilot to repeat its last transmission word for word, and `AGAIN CS` asks for its callsign only.
+
 ### Fixed
 
 - An aircraft held short of a runway behind traffic crossing it is no longer released early because the crossing aircraft's stop was misjudged.

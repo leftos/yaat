@@ -112,6 +112,28 @@ public sealed class FrequencyState
     public void Enqueue(PilotTransmission transmission) => _pending.Enqueue(transmission);
 
     /// <summary>
+    /// Drops the say-again repeats (<see cref="PilotTransmission.IsRepeat"/>) <paramref name="callsign"/> still has waiting
+    /// on the frequency, leaving every other line queued in order: an aircraft that has left the frequency no longer owes them.
+    /// </summary>
+    public void RemoveRepeatsFrom(string callsign)
+    {
+        PilotTransmission[] keep = [.. _pending.Where(t => !(t.IsRepeat && string.Equals(t.Callsign, callsign, StringComparison.OrdinalIgnoreCase)))];
+        if (keep.Length == _pending.Count)
+        {
+            return;
+        }
+
+        _pending.Clear();
+        foreach (PilotTransmission transmission in keep)
+        {
+            _pending.Enqueue(transmission);
+        }
+    }
+
+    /// <summary>Whether a line from <paramref name="callsign"/> is still waiting on the frequency to be spoken.</summary>
+    public bool HasPendingFrom(string callsign) => _pending.Any(t => string.Equals(t.Callsign, callsign, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
     /// The next transmission allowed on the air at <paramref name="elapsedSeconds"/>, or null while none is.
     /// <paramref name="rngSeed"/> is the scenario seed of every seeded draw a held call makes, so a replay reproduces the
     /// same check-in butt-in.

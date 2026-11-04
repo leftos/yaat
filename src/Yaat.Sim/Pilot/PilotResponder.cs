@@ -296,9 +296,28 @@ public static partial class PilotResponder
 
     /// <summary>
     /// Whether <paramref name="cmd"/> is read back with no clause at all (acknowledging a pilot's contact, a say-exit-fix
-    /// estimate, which the pilot answers with a report of its own), so it chains nothing.
+    /// estimate, which the pilot answers with a report of its own, a say again, which the pilot answers by repeating
+    /// itself once its own line has gone out), so it chains nothing.
     /// </summary>
-    private static bool HasNoReadbackClause(ParsedCommand cmd) => cmd is AcknowledgePilotContactCommand or SayExitFixEstimateCommand;
+    private static bool HasNoReadbackClause(ParsedCommand cmd) =>
+        cmd is AcknowledgePilotContactCommand or SayExitFixEstimateCommand or SayAgainCommand;
+
+    /// <summary>The terminal form of the pilot's answer to a say again when it has said nothing (the SAY column carries the callsign).</summary>
+    public const string NothingToRepeatTerminal = "I didn't say anything";
+
+    /// <summary>
+    /// The pilot's answer to a say again (<c>AGAIN</c> or <c>AGAIN CS</c>) when it has not transmitted: "I didn't say
+    /// anything" on the terminal, "{callsign}, I didn't say anything" spoken, with the full callsign.
+    /// </summary>
+    public static PilotSpeechText BuildNothingToRepeat(AircraftState aircraft) =>
+        new(NothingToRepeatTerminal, NormalizeForTts($"{SpokenOwnCallsign(aircraft)}, {NothingToRepeatTerminal}"));
+
+    /// <summary>
+    /// The pilot's answer to <c>AGAIN CS</c>: its callsign alone, in full (no abbreviation draw), with the wake-class word
+    /// a heavy or super adds (AIM 4-2-4.a.5).
+    /// </summary>
+    public static PilotSpeechText BuildCallsignOnlyRepeat(AircraftState aircraft) =>
+        new(TerminalOwnCallsign(aircraft), NormalizeForTts(SpokenOwnCallsign(aircraft)));
 
     /// <summary>
     /// The context a clause of a chained readback picks its variant in: a chained readback is never chatty, so a quiet

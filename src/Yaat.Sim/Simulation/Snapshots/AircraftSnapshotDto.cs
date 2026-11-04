@@ -156,6 +156,13 @@ public sealed class AircraftSnapshotDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PendingRepeat { get; init; }
 
+    /// <summary>
+    /// A "say again callsign" is waiting for the aircraft to say its callsign. Left out of the JSON when false, so an
+    /// aircraft with no pending callsign repeat serializes exactly as it did before the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PendingRepeatCallsignOnly { get; init; }
+
     public required AircraftTrackDto Track { get; init; }
     public required AircraftStarsStateDto Stars { get; init; }
 

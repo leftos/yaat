@@ -987,6 +987,11 @@ public static class CommandParser
             CanonicalCommandType.FrequencyChangeApproved when arg is null => PR.Ok(new FrequencyChangeApprovedCommand()),
             CanonicalCommandType.ClearedBravoAirspace when arg is null => PR.Ok(new ClearedBravoAirspaceCommand()),
             CanonicalCommandType.AcknowledgePilotContact when arg is null => PR.Ok(new AcknowledgePilotContactCommand()),
+            CanonicalCommandType.SayAgain when arg is null => PR.Ok(new SayAgainCommand(false)),
+            CanonicalCommandType.SayAgain when string.Equals(arg.Trim(), "CS", StringComparison.OrdinalIgnoreCase) => PR.Ok(
+                new SayAgainCommand(true)
+            ),
+            CanonicalCommandType.SayAgain => PR.Fail("AGAIN takes no argument, or CS for the callsign only"),
             AcceptAllHandoffs when arg is null => PR.Ok(new AcceptAllHandoffsCommand()),
             InitiateHandoffAll => ParseTcpArg(arg, tcp => new InitiateHandoffAllCommand(tcp)),
             PointOut => PR.Ok(new PointOutCommand(arg?.Trim().ToUpperInvariant())),

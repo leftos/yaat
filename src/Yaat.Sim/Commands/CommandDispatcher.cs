@@ -1454,6 +1454,8 @@ public static class CommandDispatcher
             case AcknowledgePilotContactCommand:
                 aircraft.HasControllerAcknowledgedInitialContact = true;
                 return Ok("Radio contact acknowledged");
+            case SayAgainCommand sayAgain:
+                return PilotRepeat.HandleSayAgain(sayAgain, aircraft, ctx);
 
             // --- Navigation commands ---
             case JoinRadialOutboundCommand cmd:

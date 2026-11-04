@@ -268,6 +268,7 @@ public static class CommandDescriber
             FrequencyChangeApprovedCommand => CanonicalCommandType.FrequencyChangeApproved,
             ClearedBravoAirspaceCommand => CanonicalCommandType.ClearedBravoAirspace,
             AcknowledgePilotContactCommand => CanonicalCommandType.AcknowledgePilotContact,
+            SayAgainCommand => CanonicalCommandType.SayAgain,
             AcceptAllHandoffsCommand => CanonicalCommandType.AcceptAllHandoffs,
             InitiateHandoffAllCommand => CanonicalCommandType.InitiateHandoffAll,
             PointOutCommand => CanonicalCommandType.PointOut,
@@ -813,6 +814,7 @@ public static class CommandDescriber
             FrequencyChangeApprovedCommand => "FCA",
             ClearedBravoAirspaceCommand => "CLBRV",
             AcknowledgePilotContactCommand => "STBY",
+            SayAgainCommand cmd => cmd.CallsignOnly ? "AGAIN CS" : "AGAIN",
             ClearedApproachCommand cmd => FormatCappCanonical(cmd),
             JoinApproachCommand cmd => $"JAPP {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
             ClearedApproachStraightInCommand cmd => $"CAPPSI {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
@@ -1301,6 +1303,7 @@ public static class CommandDescriber
             FrequencyChangeApprovedCommand => "Frequency change approved",
             ClearedBravoAirspaceCommand => "Cleared into Bravo airspace",
             AcknowledgePilotContactCommand => "Standby",
+            SayAgainCommand cmd => cmd.CallsignOnly ? "Say again callsign" : "Say again",
             UnsupportedCommand cmd => cmd.RawText,
             ClearedApproachCommand cmd => FormatCappNatural(cmd),
             JoinApproachCommand cmd => $"Join {cmd.ApproachId} approach{(cmd.AirportCode is not null ? $" at {cmd.AirportCode}" : "")}",
@@ -1741,6 +1744,7 @@ public static class CommandDescriber
                 or CanonicalCommandType.FrequencyChangeApproved
                 or CanonicalCommandType.ClearedBravoAirspace
                 or CanonicalCommandType.AcknowledgePilotContact
+                or CanonicalCommandType.SayAgain
                 // CIFR only flips the flight rules; it does not change the path flown, so it may not cancel the phase
                 // it arrives in.
                 or CanonicalCommandType.CancelIfr;

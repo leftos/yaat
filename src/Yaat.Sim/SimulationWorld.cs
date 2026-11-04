@@ -513,6 +513,8 @@ public sealed class SimulationWorld
                 }
             }
 
+            MaterializePendingRepeats();
+
             while (ActiveFrequency.TryDequeueReady(elapsedSeconds, rngSeed) is { } transmission)
             {
                 RecordLastPilotTransmission(transmission, elapsedSeconds);
@@ -521,6 +523,39 @@ public sealed class SimulationWorld
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Turns each pending say again into one queued line, behind the pilot's own: an aircraft with a line of its own
+    /// still on the frequency waits, and one whose repeat is already queued is skipped, so the flag yields exactly one copy.
+    /// An aircraft that has left the student's frequency drops the request. Runs on every host as part of the drain, so a
+    /// flag restored by a rewind re-materialises on the next drain.
+    /// </summary>
+    private void MaterializePendingRepeats()
+    {
+        foreach (AircraftState ac in _aircraft)
+        {
+            if (!ac.PendingRepeat && !ac.PendingRepeatCallsignOnly)
+            {
+                continue;
+            }
+
+            if (ac.HasLeftStudentFrequency)
+            {
+                // A copy already waiting for airtime goes with the request.
+                ActiveFrequency.RemoveRepeatsFrom(ac.Callsign);
+                ac.PendingRepeat = false;
+                ac.PendingRepeatCallsignOnly = false;
+                continue;
+            }
+
+            if (ActiveFrequency.HasPendingFrom(ac.Callsign))
+            {
+                continue;
+            }
+
+            ActiveFrequency.Enqueue(PilotRepeat.BuildPendingRepeat(ac));
+        }
     }
 
     /// <summary>
@@ -538,6 +573,7 @@ public sealed class SimulationWorld
         if (transmission.IsRepeat)
         {
             aircraft.PendingRepeat = false;
+            aircraft.PendingRepeatCallsignOnly = false;
             return;
         }
 
@@ -560,6 +596,7 @@ public sealed class SimulationWorld
             {
                 ac.PendingPilotTransmissions.Clear();
                 ac.PendingRepeat = false;
+                ac.PendingRepeatCallsignOnly = false;
             }
 
             ActiveFrequency.Clear();

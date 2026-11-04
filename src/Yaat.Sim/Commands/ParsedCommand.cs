@@ -944,6 +944,13 @@ public record ClearedBravoAirspaceCommand : ParsedCommand;
 /// </summary>
 public record AcknowledgePilotContactCommand : ParsedCommand;
 
+/// <summary>
+/// AGAIN / AGAIN CS — the controller asks the pilot to say again: its last transmission, or with
+/// <paramref name="CallsignOnly"/> only its callsign. Solo training only; the pilot repeats on the frequency once its own
+/// queued line is gone, and the request neither acknowledges the pilot's call nor counts as a response to it.
+/// </summary>
+public record SayAgainCommand(bool CallsignOnly) : ParsedCommand;
+
 public record AcceptAllHandoffsCommand : ParsedCommand;
 
 public record InitiateHandoffAllCommand(string TcpCode) : ParsedCommand;

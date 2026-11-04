@@ -43,9 +43,9 @@ These live directly on the record, not in a satellite:
 
 A handful of cross-phase one-shot booleans and debrief timestamps also live at top level and **are** snapshot-serialized:
 `HasMadeInitialContact`, `HasControllerAcknowledgedInitialContact`, `HasLeftStudentFrequency`, `IsClearedIntoBravo`, `HasAnnouncedLinedUpReady`,
-`NoLandingClearanceWarningActive`, `SpawnedAtSeconds`, `CompletedAtSeconds`, `CompletionReason`, `CompletionDetail`, `PendingPilotRequest`, `LastPilotTransmission`, `PendingRepeat`.
+`NoLandingClearanceWarningActive`, `SpawnedAtSeconds`, `CompletedAtSeconds`, `CompletionReason`, `CompletionDetail`, `PendingPilotRequest`, `LastPilotTransmission`, `PendingRepeat`, `PendingRepeatCallsignOnly`.
 
-`LastPilotTransmission` (an `AircraftLastPilotTransmission`: text, spoken text, kind, source kind, canonical airtime, the second it went on air) is the latest line the aircraft spoke, null until it transmits; it is separate from `PilotPendingRequest.LastPilotLine`, which belongs to an open request. `PendingRepeat` marks a repeat of that line as owed. See [solo-training-pilot-speech.md](solo-training-pilot-speech.md) for where each is written.
+`LastPilotTransmission` (an `AircraftLastPilotTransmission`: text, spoken text, kind, source kind, canonical airtime, the second it went on air) is the latest line the aircraft spoke, null until it transmits; it is separate from `PilotPendingRequest.LastPilotLine`, which belongs to an open request. `PendingRepeat` marks a repeat of that line as owed, `PendingRepeatCallsignOnly` the callsign alone (at most one of the two is set). See [solo-training-pilot-speech.md](solo-training-pilot-speech.md) for where each is written.
 
 ### The sixteen satellites + `ControlTargets`
 

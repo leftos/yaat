@@ -231,17 +231,7 @@ public sealed partial class SimulationEngine
 
             if (answering)
             {
-                PilotRequestTracker.ApplyControllerResponse(aircraft, compound, elapsedSeconds);
-                // The controller has just spoken to this aircraft, so the
-                // awaiting-controller-response gate (if it was set after this pilot's
-                // last proactive call) clears. Commands that produce a readback also
-                // arm the readback gate just below; both gates are independent.
-                World.AcknowledgeControllerResponse(aircraft.Callsign);
-                // One controller transmission per successful dispatch, however many commands it chained, recorded
-                // before the read-back below reads the load band, so the read-back's band counts the controller's
-                // transmission.
-                World.RecordControllerTransmission(elapsedSeconds, ControllerAirtimeSeconds(compound, aircraft));
-                QueueAppliedReadback(aircraft, compound, result, acknowledgedBefore, bravoGrant);
+                AnswerAcceptedCommand(aircraft, compound, result, elapsedSeconds, acknowledgedBefore, bravoGrant);
             }
         }
         else if (answering)
@@ -266,11 +256,49 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// The pilot-voice side of a successful dispatch while someone answers pilots: the pending request's resolution, the
+    /// controller-response gate, the controller's airtime and the applied read-back. A compound of nothing but say-again
+    /// requests answers nothing, so the pilot's call stays unanswered: it resolves no pending request and keeps the
+    /// response gate armed, though the controller's transmission still counts on the frequency.
+    /// </summary>
+    private void AnswerAcceptedCommand(
+        AircraftState aircraft,
+        CompoundCommand compound,
+        CommandResult result,
+        double elapsedSeconds,
+        bool acknowledgedBefore,
+        BravoClearanceWording? bravoGrant
+    )
+    {
+        if (!PilotRepeat.IsSayAgainOnly(compound))
+        {
+            PilotRequestTracker.ApplyControllerResponse(aircraft, compound, elapsedSeconds);
+            // The controller has just spoken to this aircraft, so the
+            // awaiting-controller-response gate (if it was set after this pilot's
+            // last proactive call) clears. Commands that produce a readback also
+            // arm the readback gate in ApplyPostDispatch; both gates are independent.
+            World.AcknowledgeControllerResponse(aircraft.Callsign);
+        }
+
+        // One controller transmission per successful dispatch, however many commands it chained, recorded
+        // before the read-back below reads the load band, so the read-back's band counts the controller's
+        // transmission.
+        World.RecordControllerTransmission(elapsedSeconds, ControllerAirtimeSeconds(compound, aircraft));
+        QueueAppliedReadback(aircraft, compound, result, acknowledgedBefore, bravoGrant);
+    }
+
+    /// <summary>
     /// The student-only bookkeeping of a successful human dispatch: two-way-comms registration and, in solo training, the
-    /// evaluator's record of the command.
+    /// evaluator's record of the command. A say-again-only compound is neither.
     /// </summary>
     private void RecordStudentCommand(AircraftState aircraft, CompoundCommand compound, double elapsedSeconds, bool soloTrainingMode)
     {
+        // A say again answers nothing, so it neither establishes two-way comms nor counts for scoring.
+        if (PilotRepeat.IsSayAgainOnly(compound))
+        {
+            return;
+        }
+
         Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, compound);
         if (soloTrainingMode)
         {

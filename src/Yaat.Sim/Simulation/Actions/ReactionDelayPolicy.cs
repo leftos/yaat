@@ -138,7 +138,7 @@ public static class ReactionDelayPolicy
             foreach (ParsedCommand cmd in block.Commands)
             {
                 hasAny = true;
-                if (cmd is not (ContactCommand or FrequencyChangeApprovedCommand or AcknowledgePilotContactCommand))
+                if (cmd is not (ContactCommand or FrequencyChangeApprovedCommand or AcknowledgePilotContactCommand or SayAgainCommand))
                 {
                     return false;
                 }

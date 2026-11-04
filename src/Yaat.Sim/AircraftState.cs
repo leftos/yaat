@@ -431,9 +431,17 @@ public class AircraftState
 
     /// <summary>
     /// A "say again" is waiting for <see cref="LastPilotTransmission"/> to be repeated. Cleared when the repeat is
-    /// dequeued or the frequency is emptied with nobody answering. Snapshot-serialized so a rewind still owes the repeat.
+    /// dequeued, when the frequency is emptied with nobody answering, or when the aircraft has left the student's
+    /// frequency (<see cref="HasLeftStudentFrequency"/>), which also drops a repeat already queued. Snapshot-serialized so
+    /// a rewind still owes the repeat.
     /// </summary>
     public bool PendingRepeat { get; set; }
+
+    /// <summary>
+    /// A "say again callsign" is waiting for the aircraft to say its callsign alone. Cleared with
+    /// <see cref="PendingRepeat"/>; at most one of the two is set. Snapshot-serialized so a rewind still owes the reply.
+    /// </summary>
+    public bool PendingRepeatCallsignOnly { get; set; }
 
     public NavTickDiag? LastNavDiag { get; set; }
 
@@ -548,6 +556,7 @@ public class AircraftState
                 ? AircraftLastPilotTransmission.FromSnapshot(dto.LastPilotTransmission)
                 : null,
             PendingRepeat = dto.PendingRepeat,
+            PendingRepeatCallsignOnly = dto.PendingRepeatCallsignOnly,
             Track = AircraftTrack.FromSnapshot(dto.Track),
             Stars = AircraftStarsState.FromSnapshot(dto.Stars),
             Approach = AircraftApproachState.FromSnapshot(dto.Approach),
@@ -661,6 +670,7 @@ public class AircraftState
             PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),
             LastPilotTransmission = LastPilotTransmission?.ToSnapshot(),
             PendingRepeat = PendingRepeat,
+            PendingRepeatCallsignOnly = PendingRepeatCallsignOnly,
             Track = Track.ToSnapshot(),
             Stars = Stars.ToSnapshot(),
             Approach = Approach.ToSnapshot(),

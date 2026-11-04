@@ -167,6 +167,7 @@ public enum CanonicalCommandType
     FrequencyChangeApproved,
     ClearedBravoAirspace,
     AcknowledgePilotContact,
+    SayAgain,
 
     // Coordination
     CoordinationRelease,
