@@ -145,7 +145,7 @@
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (13/58 done)
+### 1 Defects (14/59 done)
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-1669 Refuse a bare CTO at a runway-crossing hold short instead of departing the crossing runway
@@ -177,7 +177,6 @@
 - [ ] YAAT-1292 Imply no runway crossing from an ILS critical-area or approach hold (TAXI from a non-runway bar)
 - [ ] YAAT-1394 Check LeavesRunwayAtBar does not misread a near-side bar as an exit where a taxiway wraps a threshold (OAK 33 C)
 - [ ] YAAT-1415 Keep a rolling aircraft's makeable stop ahead instead of moving the no-destination hold onto it (bare TAXI inside the setback) · release vNext
-- [ ] YAAT-1467 Far-side gate overstates a crossing leader's stop distance from its stale route cursor · release vNext
 - [ ] YAAT-1608 Refuse a KCOS TAXI C2 A2 A that leaves a larger aircraft's tail over the 35L hold line
 - [ ] YAAT-1615 Give a TAXI on ATL's M - K arc 80-120 ft from bar 710 the approach leg instead of starting at D's bar
 - [ ] YAAT-1657 Keep the hold when a CTO at a taxiway hold short is refused after its implicit taxi installed
@@ -191,6 +190,7 @@
 - [ ] YAAT-1792 Project a stop past a fillet arc along the arc's tangent, not its chord bearing
 - [ ] YAAT-1805 OAK 33: judge the layout's runway pavement past the navdata end (165-288 ft stretch on C reads clear)
 - [ ] YAAT-1809 Make the two G8 fouling judges (FollowingPhase, RunwayOccupancy) judge against the same bar
+- [ ] YAAT-1811 Far-side gate: a tail clearance spanning a cleared next-runway near bar hides it from the onward scan
 
 ### 2 Refinements and rulings (0/17 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
@@ -1173,7 +1173,7 @@
 - [ ] YAAT-985 Run the desktop-gated UI tests the routed builder skips before a landing counts as green
 - [ ] YAAT-1478 Count soak completions per episode instead of reading the debrief's 500-record removal list
 
-### 3 Hygiene and tests (1/55 done)
+### 3 Hygiene and tests (1/56 done)
 - [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
 - [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
 - [ ] YAAT-152 Test SoakRunner option parsing (move it into Yaat.Server/Soak)
@@ -1228,13 +1228,14 @@
 - [ ] YAAT-1691 Refuse a pinned TestVnasData resolve after an unpinned one already ran
 - [ ] YAAT-1695 Delete the Yaat.Sim.Tests.TestVnasData wrapper that shadows the real class
 - [ ] YAAT-1779 test-all watchdog: ticking descendants, a stall report that shows its signals, run the case scripts
+- [ ] YAAT-1812 Radar re-centre follow-ups: RestoreSettings fallback marker, scenario unload, LiveTrafficClock forwarding
 
 ### No milestone
 - [ ] YAAT-1703 Refuse RestoreFromSnapshot with no scenario loaded instead of freezing the aircraft
 
 ## Docs, agent tooling and repo hygiene
 
-### 1 Defects (0/10 done)
+### 1 Defects (1/10 done)
 - [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
 - [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 - [ ] YAAT-1550 Make GuideCapture's load-weather and connected-empty scenes wait for their shown state before capturing
@@ -1244,13 +1245,12 @@
 - [ ] YAAT-1207 Keep a resolved Discord thread name within 100 characters when the emoji is added
 - [ ] YAAT-1210 Retry refused Discord archive and close-rename writes instead of dropping them
 - [ ] YAAT-1211 Close the cron-versus-webhook races in the Discord thread rename
-- [/] YAAT-1744 GuideCapture radar scenes render without the video map, and live-traffic draws no shadows · release vNext
 
 ### 2 Refinements and rulings (0/2 done)
 - [ ] YAAT-1645 Brief rule: find and prove a red-first test's staging before dispatch
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (1/66 done)
+### 3 Hygiene and tests (2/66 done)
 - [ ] YAAT-57 Re-cite docs/ground/pathfinder.md by symbol, not line
 - [ ] YAAT-63 Fix the LAHSO section of docs/landing-and-runway-exit.md: CANCLAND → CLC
 - [ ] YAAT-75 Rewrite the Legacy Fillet Arc Generator section; rehome the collinear rule
@@ -1310,7 +1310,6 @@
 - [ ] YAAT-1419 Give the menu golden regeneration command its routed gate --env form in tests/CLAUDE.md, CONTEXT.md and the context-menu plans
 - [ ] YAAT-1491 Fix the dead links and heading anchors docs-lint reports in docs/crc, euroscope and three subsystem docs
 - [ ] YAAT-1617 Route the SpeechSandbox Release builds, single-step gate chains and the routing-census regen (gate census)
-- [/] YAAT-1622 Pin GuideCapture's CRC alias folder so a capture never reads the machine's CRC install · release vNext
 - [ ] YAAT-1651 Repoint issue descriptions that link retired plan files
 - [ ] YAAT-1658 Move the yaat-nextup orchestration rules into docs/agents/orchestrator.md (CC-567)
 - [ ] YAAT-1690 Use tools/airac.py in stash-procedure.py instead of its own cycle math
