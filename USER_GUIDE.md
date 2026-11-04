@@ -2239,7 +2239,7 @@ SPD 180 AXMUL
 
 Both forms mean maintain 180 knots until AXMUL, then resume normal speed. The second form is the ATCTrainer-style alias.
 
-YAAT automatically cancels ATC speed assignments at 5 NM final, and new speed assignments inside that boundary are rejected. Use `RNS` when you want to cancel a speed assignment earlier; on a STAR the aircraft then holds the last published speed it crossed until the next published restriction, and `RPS` does the same and also undoes `DSR`. A `DVIA`, `CVIA` or approach clearance cancels a speed you assigned before it too, unless you give a speed anywhere in the same transmission (`SPD 250, DVIA`). While a SID or STAR is active, a minimum the aircraft crossed at a published "at or above" speed survives those and `RNS`/`RPS`; a heading or direct command ends it.
+YAAT automatically cancels ATC speed assignments at 5 NM final, and new speed assignments inside that boundary are rejected, including a `CFIX` or constrained `DCTF` that carries a speed. A crossing speed you gave on a fix inside the boundary is cancelled there too, and a crossing speed's return to the earlier speed is not applied in a hold or inside the boundary. Use `RNS` when you want to cancel a speed assignment earlier; on a STAR the aircraft then holds the last published speed it crossed until the next published restriction, and `RPS` does the same and also undoes `DSR`. A `DVIA`, `CVIA` or approach clearance cancels a speed you assigned before it too, unless you give a speed anywhere in the same transmission (`SPD 250, DVIA`). While a SID or STAR is active, a minimum the aircraft crossed at a published "at or above" speed survives those and `RNS`/`RPS`; a heading or direct command ends it.
 
 #### Queue and phase clearing
 

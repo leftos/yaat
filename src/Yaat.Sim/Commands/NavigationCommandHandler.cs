@@ -381,10 +381,18 @@ internal static class NavigationCommandHandler
     /// altitude past the fix (<see cref="AltitudeRevertReversesTravel"/>). Every CFIX takes the transmission's crossing stamp;
     /// only one carrying a speed takes its speed stamp, so an altitude-only CFIX leaves the fix's speed, and the
     /// transmission that set it, as they were. A crossing speed the type can fly neither at its present altitude nor at the
-    /// crossing altitude is refused before anything changes, as SPD is (<see cref="FlightCommandHandler.RefuseUnflyableSpeed"/>).
+    /// crossing altitude is refused before anything changes, as SPD is (<see cref="FlightCommandHandler.RefuseUnflyableSpeed"/>),
+    /// and so is any crossing speed for an arrival on final inside 5 nm (7110.65 §5-7-1.b.4).
     /// </summary>
     internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
+        // A crossing speed is a speed assignment, refused for an arrival on final inside 5 nm exactly as a plain SPD is
+        // (7110.65 §5-7-1.b.4); a crossing with no speed is an altitude instruction and is accepted.
+        if ((cmd.Speed is not null) && (FlightCommandHandler.RefuseInsideFinalGate(aircraft) is { } insideFinal))
+        {
+            return insideFinal;
+        }
+
         if (
             (cmd.Speed is { } crossingSpeed)
             && (FlightCommandHandler.RefuseUnflyableSpeed(aircraft, ctx, crossingSpeed, SpeedModifier.None, cmd.Altitude) is { } unflyable)
@@ -460,6 +468,8 @@ internal static class NavigationCommandHandler
         {
             aircraft.Targets.AssignedSpeed = spdVal;
             aircraft.Targets.SpeedLimitsLifted = false;
+            // A crossing speed is an ATC speed act like SPD, so it ends a forced speed's override of the final gate.
+            aircraft.Targets.SpeedOverridesFinalGate = false;
             FlightCommandHandler.EndMachHoldAndSpeedMax(aircraft);
 
             // For acceleration, set TargetSpeed immediately so the aircraft starts
@@ -1885,7 +1895,7 @@ internal static class NavigationCommandHandler
     }
 
     /// <summary>Clears every speed revert on <paramref name="fix"/>: plain (with its bounds), Mach, SMAX's re-arm and resume.</summary>
-    private static void ClearSpeedReverts(NavigationTarget fix)
+    internal static void ClearSpeedReverts(NavigationTarget fix)
     {
         fix.RevertSpeed = null;
         fix.RevertAssignedSpeed = null;

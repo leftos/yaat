@@ -3,6 +3,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
@@ -302,11 +303,14 @@ internal static class FlightCommandHandler
         };
     }
 
+    /// <summary>The §5-7-1.b.4 final gate: the 5 nm from the landing threshold where ATC speed control ends.</summary>
+    internal const double FinalGateNm = 5.0;
+
     /// <summary>
-    /// The refusal of a speed assignment to an airborne arrival on final inside 5 nm of its landing threshold
-    /// (7110.65 §5-7-1.b.4), or null when the gate does not apply.
+    /// The §5-7-1.b.4 final gate (7110.65): an airborne arrival inbound to land, on final, within <see cref="FinalGateNm"/>
+    /// of the landing threshold of the runway it is assigned — its runway when the gate applies, null when it does not.
     /// </summary>
-    private static CommandResult? RefuseInsideFinalGate(AircraftState aircraft)
+    internal static RunwayInfo? FinalGateRunway(AircraftState aircraft)
     {
         if (aircraft.IsOnGround || !ApproachCommandHandler.IsInboundToLand(aircraft) || (aircraft.Phases?.AssignedRunway is not { } runway))
         {
@@ -316,10 +320,31 @@ internal static class FlightCommandHandler
         // Measured to the landing threshold, the same datum the physics auto-cancel uses, so the command and the
         // gate that releases it never disagree about where the five miles start.
         double distanceNm = GeoMath.DistanceNm(aircraft.Position, LandingThreshold.Resolve(runway, aircraft.Ground.Layout));
-        return ((distanceNm <= 5.0) && ApproachCommandHandler.IsOnFinal(aircraft, runway, aircraft.Ground.Layout))
-            ? new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.b.4]")
-            : null;
+        return ((distanceNm <= FinalGateNm) && ApproachCommandHandler.IsOnFinal(aircraft, runway, aircraft.Ground.Layout)) ? runway : null;
     }
+
+    /// <summary>
+    /// Whether a speed revert may not be applied where the aircraft is: in a hold, whose phase flies the holding speed (a
+    /// plain SPD is still accepted there, though a CFIX ends the hold), or inside the 5 nm final gate (7110.65
+    /// §5-7-1.b.4), unless a forced speed (<see cref="ControlTargets.SpeedOverridesFinalGate"/>) holds the aircraft past
+    /// the gate.
+    /// </summary>
+    internal static bool SpeedRevertForbidden(AircraftState aircraft) =>
+        IsHoldingPhase(aircraft.Phases?.CurrentPhase) || ((FinalGateRunway(aircraft) is not null) && !aircraft.Targets.SpeedOverridesFinalGate);
+
+    /// <summary>
+    /// Whether <paramref name="phase"/> keeps the aircraft in a holding orbit, flying the hold's own speed. A level-off
+    /// beneath an airspace shelf is not one: the pilot keeps the aircraft at its assigned speed there.
+    /// </summary>
+    private static bool IsHoldingPhase(Phase? phase) =>
+        phase is HoldingPatternPhase or VfrHoldPhase or AirspaceBoundaryHoldPhase { Mode: AirspaceHoldMode.Orbit };
+
+    /// <summary>
+    /// The refusal of a speed assignment to an airborne arrival on final inside 5 nm of its landing threshold
+    /// (7110.65 §5-7-1.b.4), or null when the gate does not apply.
+    /// </summary>
+    internal static CommandResult? RefuseInsideFinalGate(AircraftState aircraft) =>
+        (FinalGateRunway(aircraft) is not null) ? new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.b.4]") : null;
 
     /// <summary>
     /// The unable for a controller speed (IAS, knots) the type can fly neither at its present altitude nor at
@@ -1212,6 +1237,13 @@ internal static class FlightCommandHandler
     /// </summary>
     internal static CommandResult ApplyConstrainedForceDirectTo(ConstrainedForceDirectToCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
+        // Crossing speeds are speed assignments, refused for an arrival on final inside 5 nm as a plain SPD is
+        // (7110.65 §5-7-1.b.4); altitudes alone are an altitude instruction and are accepted.
+        if ((cmd.SpeedConstraints is { Count: > 0 }) && (RefuseInsideFinalGate(aircraft) is { } insideFinal))
+        {
+            return insideFinal;
+        }
+
         if (RefuseUnflyableCrossingSpeed(cmd, aircraft, ctx) is { } unflyable)
         {
             return unflyable;
@@ -1290,7 +1322,7 @@ internal static class FlightCommandHandler
             {
                 altRestriction = ToAltitudeRestriction(alt.AltitudeFt, alt.AltType);
 
-                // Only the last constrained fix gets revert
+                // Only the last constrained fix gets the altitude revert
                 if (i == lastConstrainedIdx)
                 {
                     revertAlt = previousAlt;
@@ -1307,7 +1339,9 @@ internal static class FlightCommandHandler
                     revertMachExplicit = machToRestoreExplicit;
                 }
 
-                if ((i == lastConstrainedIdx) && !speedMaxPending && (machToRestore is null))
+                // A plain speed revert sits on the last fix whose speed this direct-to sets, altitude-constrained or
+                // not, as the Mach revert does; the altitude revert alone sits on the last constrained fix.
+                if ((i == lastSpeedIdx) && !speedMaxPending && (machToRestore is null))
                 {
                     revertSpeed = aircraft.Targets.TargetSpeed;
                     revertAssignedSpeed = aircraft.Targets.AssignedSpeed;
@@ -1343,6 +1377,8 @@ internal static class FlightCommandHandler
             }
 
             aircraft.Targets.SpeedLimitsLifted = false;
+            // A crossing speed is an ATC speed act like SPD, so it ends a forced speed's override of the final gate.
+            aircraft.Targets.SpeedOverridesFinalGate = false;
             EndMachHoldAndSpeedMax(aircraft);
         }
 

@@ -199,6 +199,9 @@ public static class FlightPhysics
                 aircraft.Targets.DesiredVerticalRate = null;
             }
 
+            // Read while the fix still carries it: a resume written with the crossing ends its speed at the fix, so the
+            // crossing must not leave that speed as a ceiling — not even where the reverts are cleared instead of applied.
+            bool resumesAtFix = sequenced.RevertResume is not null;
             RestoreSpeedPastFix(aircraft, sequenced, route);
 
             // Under a via clearance a crossing speed the controller set ends at its fix (7110.65 5-7-2.e), and a speed the
@@ -228,7 +231,7 @@ public static class FlightPhysics
                 (crossedRestriction is { } crossedSpeed)
                 && !aircraft.Targets.HasExplicitSpeedCommand
                 && (sequenced.RevertMach is null)
-                && (sequenced.RevertResume is null)
+                && !resumesAtFix
             )
             {
                 if (crossedSpeed.Type == CifpSpeedRestrictionType.AtOrAbove)
@@ -332,6 +335,16 @@ public static class FlightPhysics
     /// </summary>
     private static void RestoreSpeedPastFix(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
     {
+        // A hold flies the holding phase's speed and an arrival inside 5 nm final its approach speed (7110.65 §5-7-1.b.4):
+        // no revert is applied there, and every revert on the route goes rather than waiting for a fix past the gate.
+        if (Commands.FlightCommandHandler.SpeedRevertForbidden(aircraft))
+        {
+            // The fix just passed is already off the route, so its own reverts go here and the rest with the route.
+            Commands.NavigationCommandHandler.ClearSpeedReverts(sequenced);
+            Commands.NavigationCommandHandler.DropSpeedReverts(aircraft);
+            return;
+        }
+
         if (sequenced.RevertSpeedMax)
         {
             // A later crossing speed the controller set is flown first: SMAX comes back past the last one.
@@ -3544,93 +3557,106 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Release ATC speed restrictions at 5nm final per 7110.65 §5-7-1.b.4. The controller
-    /// can no longer adjust the speed, so the explicit assignment is dropped and the pilot
-    /// owns the approach speed — but the aircraft must never accelerate with the runway in
-    /// sight. The last-assigned speed is therefore retained as a ceiling: the aircraft holds
-    /// it or eases down to its natural approach speed (continuing any in-progress reduction
-    /// to a lower assigned speed), but the auto speed schedule can never push it back up.
-    /// Only phase-unmanaged explicit speeds are converted — phase-managed speeds (FAS set by
-    /// FinalApproachPhase) are untouched. Applies only to aircraft inbound on an arrival
-    /// approach — departures and go-arounds keep their speed — and a forced assignment
-    /// (SPEEDF / SPEEDN) is exempt so the controller's override persists.
-    /// Called from Update() after UpdateSpeed(); the stale ceiling is cleared on go-around
-    /// (GoAroundPhase.OnStart) so the missed-approach climb is not capped.
+    /// Releases ATC speed restrictions at 5 nm final (7110.65 §5-7-1.b.4): the controller can no longer adjust the
+    /// speed, so the explicit assignment is dropped, and with it the controller crossing speeds still on the route, and
+    /// the pilot owns the approach speed — but the aircraft must never accelerate with the runway in sight, so the
+    /// last-assigned speed is retained as a ceiling (<see cref="ReleaseSpeedAssignmentAtGate"/>). A phase that owns
+    /// speed (an active instrument approach, final) clears the ceiling instead of holding it. An aircraft inbound to land
+    /// with neither an explicit speed nor a route, and a departure or a go-around, are untouched, and a forced assignment
+    /// (SPEEDF / SPEEDN) is exempt so the controller's override persists. Called from Update() after UpdateSpeed(); the
+    /// stale ceiling is cleared on go-around (GoAroundPhase.OnStart) so the missed-approach climb is not capped.
     /// </summary>
     private static void AutoCancelSpeedAtFinal(AircraftState aircraft)
     {
-        if (aircraft.IsOnGround)
+        ControlTargets targets = aircraft.Targets;
+
+        // Nothing to release without an explicit speed and with no route a crossing speed could sit on, and a forced
+        // assignment is exempt from the gate altogether.
+        if (targets.SpeedOverridesFinalGate || (!targets.HasExplicitSpeedCommand && (targets.NavigationRoute.Count == 0)))
         {
             return;
         }
 
-        // Only convert explicit ATC speed restrictions, not phase-managed approach speeds
-        if (!aircraft.Targets.HasExplicitSpeedCommand)
+        if (Commands.FlightCommandHandler.FinalGateRunway(aircraft) is not { } runway)
         {
             return;
         }
 
-        // A forced speed (SPEEDF / SPEEDN) deliberately overrides the gate.
-        if (aircraft.Targets.SpeedOverridesFinalGate)
+        // A controller crossing speed on a fix still ahead inside the gate ends here: the pilot flies the approach speed
+        // from the gate, and nothing rides on a crossing the controller may no longer adjust.
+        bool crossingEnded = CancelControllerCrossingSpeedsInsideFinalGate(aircraft, runway);
+        if (!crossingEnded && !targets.HasExplicitSpeedCommand)
         {
             return;
         }
 
-        // Only an aircraft inbound to land is "on final" for §5-7-1.b.4. Departures
-        // (AssignedRunway set but no landing clearance) and go-arounds keep their speed.
-        if (!Commands.ApproachCommandHandler.IsInboundToLand(aircraft))
+        if (crossingEnded)
         {
-            return;
+            targets.AssignedSpeed = null;
         }
 
-        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
-        if (runway is null)
-        {
-            return;
-        }
+        ReleaseSpeedAssignmentAtGate(aircraft);
+    }
 
-        // The five miles are measured to the threshold the aircraft may land on, not to the pavement end: behind a
-        // displaced threshold the two are hundreds of feet apart and the rule's window opens at the landing one.
-        double dist = GeoMath.DistanceNm(aircraft.Position, LandingThreshold.Resolve(runway, aircraft.Ground.Layout));
-        if (dist > 5.0)
-        {
-            return;
-        }
-
-        // Distance alone is not the rule — §5-7-1.b.4 applies on final. Pattern traffic flies its whole
-        // circuit inside 5 nm, so auto-cancelling there stripped an assigned speed the moment it was
-        // issued.
-        if (!Commands.ApproachCommandHandler.IsOnFinal(aircraft, runway, aircraft.Ground.Layout))
-        {
-            return;
-        }
-
-        // Capture the speed the controller last commanded before releasing the restriction.
+    /// <summary>
+    /// Drops the ATC speed assignment at the gate so the pilot owns the approach speed, and leaves the aircraft unable to
+    /// accelerate: the target goes, and either the phase that owns speed keeps the ceiling cleared or the last-assigned
+    /// speed stays as a ceiling at the lower of the existing ceiling, the speed the controller last commanded and the
+    /// present IAS.
+    /// </summary>
+    private static void ReleaseSpeedAssignmentAtGate(AircraftState aircraft)
+    {
+        // The speed the controller last commanded, read before the assignment is released.
         double reference = aircraft.Targets.TargetSpeed ?? aircraft.Targets.SpeedCeiling ?? aircraft.IndicatedAirspeed;
 
-        // Release the explicit ATC restriction so the pilot owns the approach speed.
         aircraft.Targets.TargetSpeed = null;
         aircraft.Targets.HasExplicitSpeedCommand = false;
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedMaxHeld = false;
         aircraft.Targets.SpeedFloor = null;
 
-        // A phase that owns speed (pattern legs, an active instrument approach, final) keeps
-        // the aircraft from accelerating on its own — clear the assignment outright as before.
-        // Otherwise the auto speed schedule would re-accelerate a hand-vectored inbound toward
-        // the descent default, so retain the last-assigned speed as a ceiling: the aircraft
+        // A phase that owns speed (pattern legs, an active instrument approach, final) keeps the aircraft from
+        // accelerating on its own — clear the ceiling outright. Otherwise the auto speed schedule would re-accelerate a
+        // hand-vectored inbound toward the descent default, so retain the last-assigned speed as a ceiling: the aircraft
         // holds it or eases down to its approach speed but can never speed back up.
-        bool phaseOwnsSpeed = aircraft.Phases?.ActiveApproach is not null || aircraft.Phases?.CurrentPhase?.ManagesSpeed == true;
-        if (phaseOwnsSpeed)
+        if ((aircraft.Phases?.ActiveApproach is not null) || (aircraft.Phases?.CurrentPhase?.ManagesSpeed == true))
         {
             aircraft.Targets.SpeedCeiling = null;
             return;
         }
 
-        // Cap at the lower of the last-assigned speed and the current IAS so the aircraft
-        // never accelerates: a converged assignment holds, an in-progress reduction continues
-        // toward the lower target, and an overshoot below the assignment is not nudged up.
-        aircraft.Targets.SpeedCeiling = Math.Min(reference, aircraft.IndicatedAirspeed);
+        double ceiling = aircraft.Targets.SpeedCeiling is { } existing ? Math.Min(existing, aircraft.IndicatedAirspeed) : aircraft.IndicatedAirspeed;
+        aircraft.Targets.SpeedCeiling = Math.Min(reference, ceiling);
+    }
+
+    /// <summary>
+    /// Ends the controller speeds on the fixes still ahead inside the 5 nm gate: a fix whose crossing speed a controller
+    /// set loses the restriction and its stamp, and every controller-marked fix inside the gate loses its speed reverts,
+    /// so nothing crosses at a speed the controller may no longer assign and nothing is restored past the gate. A speed
+    /// the procedure publishes stays. Returns whether a crossing speed was ended.
+    /// </summary>
+    private static bool CancelControllerCrossingSpeedsInsideFinalGate(AircraftState aircraft, RunwayInfo runway)
+    {
+        LatLon threshold = LandingThreshold.Resolve(runway, aircraft.Ground.Layout);
+        bool crossingEnded = false;
+        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        {
+            if (!IsControllerSetSpeed(fix) || (GeoMath.DistanceNm(fix.Position, threshold) > Commands.FlightCommandHandler.FinalGateNm))
+            {
+                continue;
+            }
+
+            if (fix.SpeedTransmissionId is not null)
+            {
+                fix.SpeedRestriction = null;
+                fix.SpeedTransmissionId = null;
+                crossingEnded = true;
+            }
+
+            Commands.NavigationCommandHandler.ClearSpeedReverts(fix);
+        }
+
+        return crossingEnded;
     }
 
     private static bool IsRadialIntercepted(AircraftState aircraft, BlockTrigger trigger)

@@ -6,6 +6,10 @@
 
 - A departure leg that ends on a VOR radial turns where the chart puts that radial, measured with the VOR's published variation.
 - A hold-short stop that falls on a curved taxiway fillet sits on the painted curve, not up to 15 feet off the pavement.
+- A direct-to with crossing speeds returns the aircraft to its earlier speed after the last fix that carries a speed.
+- In a hold or inside 5 miles on final, passing a crossing fix keeps the holding or approach speed instead of returning to an earlier speed.
+- A controller crossing speed on a fix inside 5 miles final ends at the 5-mile point, and the aircraft never speeds up afterwards.
+- A direct-to with crossing speeds is refused inside 5 miles final, as `SPD` is; one with altitudes only is accepted.
 - Pilot voices say approach names as charted ("ILS runway two eight right", "VOR Alpha") instead of spelling them letter by letter.
 - `CROSS` at a hold short is refused when the aircraft has no airport ground layout, instead of releasing the hold with no crossing planned.
 - An aircraft cleared for takeoff while lining up behind `LUAW` rolls into its takeoff without slowing, and `CTOC` during that line-up stops it on the centerline.

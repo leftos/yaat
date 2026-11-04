@@ -180,6 +180,10 @@ _Avoid_: global command (`CommandDefinition.IsGlobal` is a different question: t
 The fact (`CommandBlock.SpeedRestatedInTransmission`, `DispatchContext.SpeedRestatedInTransmission`) that a speed was assigned in the block or in an earlier block of the same transmission as a DVIA, CVIA or approach clearance, which then leaves that speed standing instead of cancelling it (7110.65 5-7-1.c). A crossing speed does not count.
 _Avoid_: speed in block
 
+**Speed revert**:
+The speed a `CFIX` or constrained `DCTF` with a speed restores once the aircraft passes its crossing fix (`NavigationTarget.RevertSpeed` and kin). Not applied in a hold or inside the final gate (`FlightCommandHandler.SpeedRevertForbidden`).
+_Avoid_: speed restore
+
 **Speed stamp**:
 The transmission id (`NavigationTarget.SpeedTransmissionId`) of the transmission that set a fix's crossing speed: a CFIX carrying a speed, a constrained DCTF's speed constraint, or a `DVIA SPD n FIX`. Null when the speed is the procedure's or there is none, so an altitude-only CFIX leaves it alone. A DVIA, CVIA or approach clearance in the same transmission keeps the speed; a later one gives the fix its published speed back, and crossing a stamped fix is never remembered as a published speed. The fix's crossing altitude has its own stamp, `CrossingTransmissionId`.
 _Avoid_: crossing stamp (that one answers for the altitude only)
@@ -578,6 +582,10 @@ The runway an option clearance's pattern modifier names (`COPT MLT 28L` flown on
 
 **Deferred pattern altitude**:
 The altitude of that modifier (`COPT MLT 28L 20`), or the runway change's clear when it has none, held on `PhaseList.TransitionPatternAltitude` for the armed runway's circuit rather than the one being flown. A later altitude assignment replaces it.
+
+**Final gate**:
+The 7110.65 §5-7-1.b.4 limit (`FlightCommandHandler.FinalGateNm`, 5 nm from the landing threshold) inside which an arrival on final takes no ATC speed assignment: `SPD`, a `CFIX` or constrained `DCTF` speed are refused, controller speeds are released and no speed revert is applied. A forced speed (`SPEEDF`/`SPEEDN`) overrides it.
+_Avoid_: 5 nm gate
 
 **Held until established**:
 A controller's altitude (CM, DM, forced altitude, `EXP <alt>`) given outside the published final approach fix to an aircraft cleared for an approach: the approach stays and the altitude is flown in place of the published altitudes until glideslope capture, until approach navigation sequences its next fix, or, when held above the glideslope, until the aircraft crosses the published FAF

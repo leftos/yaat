@@ -653,6 +653,70 @@ public sealed class SpeedMaxCommandTests
         AssertCrossesPmdAt250ThenSmaxIsArmedAgain(ac);
     }
 
+    /// <summary>
+    /// YAAT-1453: a constrained direct-to whose crossings are speeds only restores the speed it replaced past its last
+    /// speed crossing, as the Mach revert already does, rather than past the last altitude constraint (here, none).
+    /// </summary>
+    [Fact]
+    public void ConstrainedDirect_SpeedOnlyConstraint_RevertsToTheEarlierSpeedPastTheFix()
+    {
+        AircraftState ac = Airborne("B738", altitude: 15_000, ias: 250);
+        Assert.True(Send(ac, "SPD 280").Success);
+        List<ResolvedFix> fixes = ResolveFixes("HEC", "PMD");
+        var cmd = new ConstrainedForceDirectToCommand(fixes, [], new Dictionary<int, int> { [1] = 250 }, null);
+        CommandResult result = CommandDispatcher.Dispatch(cmd, ac, TestDispatch.Context(new SerializableRandom(1)));
+        Assert.True(result.Success, result.Message);
+
+        NavigationTarget pmd = Assert.Single(ac.Targets.NavigationRoute, fix => fix.Name == "PMD");
+        Assert.Equal((double?)280, pmd.RevertSpeed);
+        Assert.Equal((double?)280, pmd.RevertAssignedSpeed);
+
+        Assert.NotNull(FlyUntilSequenced(ac, "HEC"));
+        Assert.NotNull(FlyUntilSequenced(ac, "PMD"));
+        Assert.Equal((double?)280, ac.Targets.TargetSpeed);
+        Assert.Equal((double?)280, ac.Targets.AssignedSpeed);
+
+        FlySeconds(ac, 60, _ => { });
+        Assert.InRange(ac.IndicatedAirspeed, 280 - SpeedSnapKts, 280 + SpeedSnapKts);
+    }
+
+    /// <summary>
+    /// YAAT-1453: a speed on one fix and an altitude on a later one leaves the speed revert on the fix that sets the
+    /// speed, and none on the altitude-only fix.
+    /// </summary>
+    [Fact]
+    public void ConstrainedDirect_SpeedOnFixZeroAltitudeOnFixOne_RevertSitsOnFixZero()
+    {
+        AircraftState ac = Airborne("B738", altitude: 15_000, ias: 250);
+        Assert.True(Send(ac, "SPD 280").Success);
+        var cmd = new ConstrainedForceDirectToCommand(
+            ResolveFixes("HEC", "PMD"),
+            new Dictionary<int, ConstrainedFixAltitude> { [1] = new(11_000, CrossFixAltitudeType.At) },
+            new Dictionary<int, int> { [0] = 250 },
+            null
+        );
+        CommandResult result = CommandDispatcher.Dispatch(cmd, ac, TestDispatch.Context(new SerializableRandom(1)));
+        Assert.True(result.Success, result.Message);
+
+        NavigationTarget hec = Assert.Single(ac.Targets.NavigationRoute, fix => fix.Name == "HEC");
+        NavigationTarget pmd = Assert.Single(ac.Targets.NavigationRoute, fix => fix.Name == "PMD");
+        Assert.Equal((double?)280, hec.RevertSpeed);
+        Assert.Equal((double?)280, hec.RevertAssignedSpeed);
+        Assert.Null(pmd.RevertSpeed);
+
+        Assert.NotNull(FlyUntilSequenced(ac, "HEC"));
+        Assert.Equal((double?)280, ac.Targets.AssignedSpeed);
+    }
+
+    private static List<ResolvedFix> ResolveFixes(params string[] names) =>
+        [
+            .. names.Select(name =>
+            {
+                (double lat, double lon) = Assert.IsType<(double Lat, double Lon)>(NavigationDatabase.Instance.GetFixPosition(name));
+                return new ResolvedFix(name, lat, lon);
+            }),
+        ];
+
     private void AssertCrossesPmdAt250ThenSmaxIsArmedAgain(AircraftState ac)
     {
         Assert.NotNull(FlyUntilSequenced(ac, "HEC"));
