@@ -139,6 +139,7 @@ public sealed class ProcedureLeg
                     Type = (int)AltitudeRestriction.Type,
                     Altitude1 = AltitudeRestriction.Altitude1Ft,
                     Altitude2 = AltitudeRestriction.Altitude2Ft,
+                    Source = (int)AltitudeRestriction.Source,
                 }
                 : null,
             SpeedRestriction = SpeedRestriction is not null
@@ -172,6 +173,9 @@ public sealed class ProcedureLeg
                     dto.AltitudeRestriction.Altitude1,
                     dto.AltitudeRestriction.Altitude2
                 )
+                {
+                    Source = (CifpAltitudeRestrictionSource)dto.AltitudeRestriction.Source,
+                }
                 : null,
             SpeedRestriction = dto.SpeedRestriction is not null
                 ? new CifpSpeedRestriction(dto.SpeedRestriction.Speed, SpeedRestrictionDto.FromTypeCode(dto.SpeedRestriction.Type))

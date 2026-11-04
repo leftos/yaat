@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Simulation.Snapshots;
 
@@ -28,7 +29,7 @@ public static class SnapshotSchemaMigrator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("SnapshotSchemaMigrator");
 
-    public const int CurrentSchemaVersion = 43;
+    public const int CurrentSchemaVersion = 44;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -344,6 +345,22 @@ public static class SnapshotSchemaMigrator
         //   the older recording clears after that snapshot resolves its legs under V43, and so flies the corrected
         //   radial.
 
+        // V43→V44: AltitudeRestrictionDto.Source added, recording who wrote a route altitude restriction: the published
+        //   procedure, a published approach segment, a controller's crossing, or a phase inserting the pilot's own plan.
+        //   Through V43 only a controller's crossing left a record — NavigationTargetDto.CrossingTransmissionId, stamped by a
+        //   CFIX or a constrained DCTF — so every route fix carrying both it and an altitude restriction migrates as Atc
+        //   and every other restriction stays the published procedure's. A pattern-phase or approach-inserted restriction
+        //   therefore migrates as Procedure, and stays so in a snapshot taken mid-pattern-entry, mid-teardrop or after an
+        //   approach clearance: those phases write their route in OnStart and their FromSnapshot rebuilds nothing. Only a
+        //   replay that runs the phase or the clearance again writes System or Approach onto the regenerated route.
+        if (snapshot.SchemaVersion < 44)
+        {
+            foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
+            {
+                MigrateLegacyAltitudeRestrictionSources(ac);
+            }
+        }
+
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }
 
@@ -380,6 +397,18 @@ public static class SnapshotSchemaMigrator
             if ((fix.CrossingTransmissionId is { } stamp) && (fix.SpeedRestriction is not null))
             {
                 fix.SpeedTransmissionId = stamp;
+            }
+        }
+    }
+
+    /// <summary>Marks a pre-V44 fix's altitude restriction Atc when the crossing stamp says a controller wrote it.</summary>
+    private static void MigrateLegacyAltitudeRestrictionSources(AircraftSnapshotDto ac)
+    {
+        foreach (NavigationTargetDto fix in LegacyRoutes(ac).SelectMany(route => route))
+        {
+            if ((fix.AltitudeRestriction is { } restriction) && (fix.CrossingTransmissionId is not null))
+            {
+                restriction.Source = (int)CifpAltitudeRestrictionSource.Atc;
             }
         }
     }

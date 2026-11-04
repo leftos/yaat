@@ -1437,7 +1437,7 @@ internal static class FlightCommandHandler
             CrossFixAltitudeType.AtOrBelow => CifpAltitudeRestrictionType.AtOrBelow,
             _ => CifpAltitudeRestrictionType.At,
         };
-        return new CifpAltitudeRestriction(restrictionType, altitudeFt);
+        return new CifpAltitudeRestriction(restrictionType, altitudeFt) { Source = CifpAltitudeRestrictionSource.Atc };
     }
 
     internal static CommandResult ApplyAppendDirectTo(AppendDirectToCommand cmd, AircraftState aircraft, bool validateDctFixes)

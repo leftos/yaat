@@ -400,6 +400,7 @@ public sealed record ApproachFix(
                     Type = (int)Altitude.Type,
                     Altitude1 = Altitude.Altitude1Ft,
                     Altitude2 = Altitude.Altitude2Ft,
+                    Source = (int)Altitude.Source,
                 }
                 : null,
             SpeedRestriction = SpeedKts is { } kts ? new SpeedRestrictionDto { Type = 1, Speed = kts } : null,
@@ -420,6 +421,9 @@ public sealed record ApproachFix(
                     dto.AltitudeRestriction.Altitude1,
                     dto.AltitudeRestriction.Altitude2
                 )
+                {
+                    Source = (CifpAltitudeRestrictionSource)dto.AltitudeRestriction.Source,
+                }
                 : null,
             dto.SpeedRestriction?.Speed,
             dto.IsFaf ? CifpFixRole.FAF : CifpFixRole.None,

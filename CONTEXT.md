@@ -176,6 +176,10 @@ _Avoid_: target, addressee
 A typed verb the desktop client sends with an empty callsign whatever aircraft is selected, because the room or the issuing position (or, for GHOST and TIMER, its own argument) addresses it: `CommandScopes.SendsWithoutSelection`. A malformed one is refused with the parser's reason, never as a missing aircraft.
 _Avoid_: global command (`CommandDefinition.IsGlobal` is a different question: the pilot never answers Unable)
 
+**Restriction source**:
+Who wrote a route altitude restriction (`CifpAltitudeRestriction.Source`, a `CifpAltitudeRestrictionSource`): Procedure (a SID's or STAR's published restriction, the default), Approach (a published approach-segment altitude inserted with an approach clearance), Atc (a controller's crossing, from a CFIX or constrained DCTF), or System (a point a phase inserts as the pilot's own plan: pattern entry, teardrop re-entry). Recorded only; nothing reads it yet.
+_Avoid_: crossing stamp (that one is the transmission id `CrossingTransmissionId`, which names the transmission, not the writer)
+
 **Speed restated in transmission**:
 The fact (`CommandBlock.SpeedRestatedInTransmission`, `DispatchContext.SpeedRestatedInTransmission`) that a speed was assigned in the block or in an earlier block of the same transmission as a DVIA, CVIA or approach clearance, which then leaves that speed standing instead of cancelling it (7110.65 5-7-1.c). A crossing speed does not count.
 _Avoid_: speed in block

@@ -101,7 +101,10 @@ public sealed class PatternEntryPhase : Phase
             {
                 Position = new LatLon(EntryLat, EntryLon),
                 Name = "PTN-ENTRY",
-                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, (int)PatternAltitude),
+                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, (int)PatternAltitude)
+                {
+                    Source = CifpAltitudeRestrictionSource.System,
+                },
             }
         );
         ctx.Targets.TargetTrueHeading = null;

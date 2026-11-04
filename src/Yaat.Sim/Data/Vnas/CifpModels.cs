@@ -11,7 +11,24 @@ public enum CifpAltitudeRestrictionType
     GlideSlopeIntercept,
 }
 
-public sealed record CifpAltitudeRestriction(CifpAltitudeRestrictionType Type, int Altitude1Ft, int? Altitude2Ft = null);
+/// <summary>
+/// Who wrote a route altitude restriction: the procedure that published it (<see cref="Procedure"/>), a published
+/// approach segment inserted with an approach clearance (<see cref="Approach"/>), a controller's crossing
+/// (<see cref="Atc"/>), or a point a phase inserts as the pilot's own plan (<see cref="System"/>).
+/// </summary>
+public enum CifpAltitudeRestrictionSource
+{
+    Procedure,
+    Approach,
+    Atc,
+    System,
+}
+
+public sealed record CifpAltitudeRestriction(CifpAltitudeRestrictionType Type, int Altitude1Ft, int? Altitude2Ft = null)
+{
+    /// <summary>Who wrote the restriction: a published procedure's unless the writer stamps it.</summary>
+    public CifpAltitudeRestrictionSource Source { get; init; }
+}
 
 /// <summary>
 /// ARINC 424 §5.261 "Speed Limit Description". Determines how a procedure speed limit is

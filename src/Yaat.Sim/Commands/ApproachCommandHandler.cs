@@ -2831,7 +2831,7 @@ public static class ApproachCommandHandler
                 {
                     Name = fix.Name,
                     Position = new LatLon(fix.Latitude, fix.Longitude),
-                    AltitudeRestriction = fix.Altitude,
+                    AltitudeRestriction = fix.Altitude is { } altitude ? altitude with { Source = CifpAltitudeRestrictionSource.Approach } : null,
                     SpeedRestriction = fix.SpeedKts is { } kts ? new CifpSpeedRestriction(kts, CifpSpeedRestrictionType.AtOrBelow) : null,
                     IsFlyOver = fix.IsFlyOver,
                 }

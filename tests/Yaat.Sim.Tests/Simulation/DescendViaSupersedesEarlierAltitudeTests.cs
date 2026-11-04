@@ -49,7 +49,10 @@ public class DescendViaSupersedesEarlierAltitudeTests
 
         SendOk(harness, "DM 080");
         SendOk(harness, $"CFIX {fix.Name} A110");
-        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 11000), fix.AltitudeRestriction);
+        Assert.Equal(
+            new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 11000) { Source = CifpAltitudeRestrictionSource.Atc },
+            fix.AltitudeRestriction
+        );
         Assert.Equal(8000, fix.RevertAssignedAltitude);
 
         SendOk(harness, "DVIA");
@@ -347,7 +350,10 @@ public class DescendViaSupersedesEarlierAltitudeTests
         SendOk(harness, $"CFIX {fixName} 110, DVIA");
 
         NavigationTarget fix = aircraft.Targets.NavigationRoute.First(t => t.Name == fixName);
-        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 11000), fix.AltitudeRestriction);
+        Assert.Equal(
+            new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 11000) { Source = CifpAltitudeRestrictionSource.Atc },
+            fix.AltitudeRestriction
+        );
         AssertNoReverts(fix);
         Assert.True(aircraft.Procedure.StarViaMode);
     }
@@ -378,7 +384,10 @@ public class DescendViaSupersedesEarlierAltitudeTests
         SendOk(harness, $"DVIA, CFIX {fixName} A160");
 
         NavigationTarget fix = aircraft.Targets.NavigationRoute.First(t => t.Name == fixName);
-        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 16000), fix.AltitudeRestriction);
+        Assert.Equal(
+            new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 16000) { Source = CifpAltitudeRestrictionSource.Atc },
+            fix.AltitudeRestriction
+        );
         AssertNoReverts(fix);
         Assert.True(aircraft.Procedure.StarViaMode);
         Assert.Null(aircraft.Targets.AssignedAltitude);
@@ -404,7 +413,10 @@ public class DescendViaSupersedesEarlierAltitudeTests
         SendOk(harness, $"DCTF {fixName}/A200, DVIA");
 
         NavigationTarget fix = aircraft.Targets.NavigationRoute.First(t => t.Name == fixName);
-        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 20000), fix.AltitudeRestriction);
+        Assert.Equal(
+            new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 20000) { Source = CifpAltitudeRestrictionSource.Atc },
+            fix.AltitudeRestriction
+        );
         AssertNoReverts(fix);
         Assert.True(aircraft.Procedure.StarViaMode);
     }
@@ -439,7 +451,10 @@ public class DescendViaSupersedesEarlierAltitudeTests
 
         Assert.True(aircraft.Procedure.StarViaMode, $"The queued block at {triggerFix} never fired");
         NavigationTarget fix = aircraft.Targets.NavigationRoute.First(t => t.Name == fixName);
-        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 11000), fix.AltitudeRestriction);
+        Assert.Equal(
+            new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 11000) { Source = CifpAltitudeRestrictionSource.Atc },
+            fix.AltitudeRestriction
+        );
         AssertNoReverts(fix);
     }
 
@@ -876,7 +891,7 @@ public class DescendViaSupersedesEarlierAltitudeTests
     /// <summary>Ticks until a queued CFIX stamps At <paramref name="altitudeFt"/> on <paramref name="fixName"/> and returns that fix.</summary>
     private static NavigationTarget TickUntilCrossingSet(SimulationEngine engine, AircraftState aircraft, string fixName, int altitudeFt)
     {
-        var crossing = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, altitudeFt);
+        var crossing = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, altitudeFt) { Source = CifpAltitudeRestrictionSource.Atc };
         for (int t = 0; t < 1800; t++)
         {
             if (aircraft.Targets.NavigationRoute.Find(f => f.Name == fixName) is { } fix && (fix.AltitudeRestriction == crossing))

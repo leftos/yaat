@@ -88,6 +88,11 @@ public sealed class AltitudeRestrictionDto
     public required int Type { get; init; }
     public required int Altitude1 { get; init; }
     public int? Altitude2 { get; init; }
+
+    // Schema 44: who wrote the restriction, a CifpAltitudeRestrictionSource code; written only when not Procedure. Settable
+    // for SnapshotSchemaMigrator, which stamps a pre-V44 fix's crossing restriction Atc from its CrossingTransmissionId.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Source { get; set; }
 }
 
 public sealed class SpeedRestrictionDto

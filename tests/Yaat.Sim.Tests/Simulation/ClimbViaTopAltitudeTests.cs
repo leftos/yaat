@@ -761,7 +761,10 @@ public class ClimbViaTopAltitudeTests
         DispatchLine(ac, line, ctx);
 
         NavigationTarget porte = RouteFix(ac, "PORTE");
-        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 12000), porte.AltitudeRestriction);
+        Assert.Equal(
+            new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 12000) { Source = CifpAltitudeRestrictionSource.Atc },
+            porte.AltitudeRestriction
+        );
         AssertNoReverts(porte);
         Assert.True(ac.Procedure.SidViaMode);
         Assert.Null(ac.Targets.AssignedAltitude);
@@ -790,7 +793,10 @@ public class ClimbViaTopAltitudeTests
 
         Assert.NotNull(aircraft.Procedure.ClimbViaTargetFt);
         NavigationTarget tipre = RouteFix(aircraft, "TIPRE");
-        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 11000), tipre.AltitudeRestriction);
+        Assert.Equal(
+            new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 11000) { Source = CifpAltitudeRestrictionSource.Atc },
+            tipre.AltitudeRestriction
+        );
         AssertNoReverts(tipre);
     }
 
@@ -1120,7 +1126,7 @@ public class ClimbViaTopAltitudeTests
     /// <summary>Ticks until a queued CFIX stamps At <paramref name="altitudeFt"/> on <paramref name="fixName"/> and returns that fix.</summary>
     private static NavigationTarget TickUntilCrossingSet(SimulationEngine engine, AircraftState aircraft, string fixName, int altitudeFt)
     {
-        var crossing = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, altitudeFt);
+        var crossing = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, altitudeFt) { Source = CifpAltitudeRestrictionSource.Atc };
         for (int t = 0; t < 1800; t++)
         {
             if ((aircraft.Targets.NavigationRoute.Find(f => f.Name == fixName) is { } fix) && (fix.AltitudeRestriction == crossing))
