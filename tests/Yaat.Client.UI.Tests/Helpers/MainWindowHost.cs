@@ -1,5 +1,6 @@
 using Avalonia.Headless;
 using Avalonia.Threading;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Settings;
@@ -9,7 +10,8 @@ namespace Yaat.Client.UI.Tests.Helpers;
 /// <summary>
 /// Boots the main window for a UI test and tears it down afterwards. Tests that drive the window's menus need a shown,
 /// laid-out <see cref="MainWindow"/> whose nested views have run their <c>OnLoaded</c> handlers, and every one of them has
-/// to close the Settings window a click opens and hide rather than close the main window.
+/// to close the Settings window a click opens and close the main window itself, then clear the shutdown flag the close
+/// latched.
 /// </summary>
 internal static class MainWindowHost
 {
@@ -36,9 +38,9 @@ internal static class MainWindowHost
     }
 
     /// <summary>
-    /// Closes the Settings and speech-debug windows a click opened and hides the main window. The main window is never
-    /// closed: a close that goes through latches the process-wide AppLifetime.IsShuttingDown flag, after which every later
-    /// test's pop-out windows treat their own close as an app shutdown.
+    /// Closes the Settings and speech-debug windows a click opened, then the main window itself, and clears the
+    /// process-wide <see cref="AppLifetime.IsShuttingDown"/> flag the close latched: the running app never clears it, so
+    /// without this every later test's pop-out windows would treat their own close as an app shutdown.
     /// </summary>
     public static void CloseAll(MainWindow main)
     {
@@ -49,7 +51,15 @@ internal static class MainWindowHost
         }
 
         main.OpenSpeechDebugWindow?.Close();
-        main.Hide();
-        Dispatcher.UIThread.RunJobs();
+        main.Close();
+        Pump();
+        if (main.IsVisible)
+        {
+            throw new InvalidOperationException(
+                "MainWindowHost.CloseAll: the main window's close was cancelled (an active scenario session?); clear it before teardown."
+            );
+        }
+
+        AppLifetime.ResetForTests();
     }
 }

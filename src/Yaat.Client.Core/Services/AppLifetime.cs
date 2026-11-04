@@ -12,4 +12,10 @@ public static class AppLifetime
     public static bool IsShuttingDown { get; private set; }
 
     public static void MarkShuttingDown() => IsShuttingDown = true;
+
+    /// <summary>
+    /// Test-only: clears the flag so a later test in the same process starts from a live app. The running app never
+    /// calls this — its lifetime is one process, so the flag stays latched from the first committed shutdown.
+    /// </summary>
+    internal static void ResetForTests() => IsShuttingDown = false;
 }

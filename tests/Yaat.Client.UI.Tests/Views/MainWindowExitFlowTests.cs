@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 
@@ -41,19 +42,30 @@ public class MainWindowExitFlowTests
         Dispatcher.UIThread.RunJobs();
         var vm = (MainViewModel)main.DataContext!;
 
-        // Fake an in-room scenario session so OnClosing wants confirmation.
-        vm.IsConnected = true;
-        vm.ActiveRoomId = "room-1";
-        vm.ActiveScenarioId = "scenario-1";
-        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            // Fake an in-room scenario session so OnClosing wants confirmation.
+            vm.IsConnected = true;
+            vm.ActiveRoomId = "room-1";
+            vm.ActiveScenarioId = "scenario-1";
+            Dispatcher.UIThread.RunJobs();
 
-        // Close() raises OnClosing with WindowCloseReason.WindowClosing; the confirm-exit path
-        // must cancel the close (the dialog is now pending) and leave the window open. The test
-        // deliberately never confirms — letting the close proceed would latch the process-wide
-        // AppLifetime.IsShuttingDown flag and poison every later test in this process.
-        main.Close();
-        Dispatcher.UIThread.RunJobs();
+            // Close() raises OnClosing with WindowCloseReason.WindowClosing; the confirm-exit path
+            // must cancel the close (the dialog is now pending) and leave the window open.
+            main.Close();
+            Dispatcher.UIThread.RunJobs();
 
-        Assert.True(main.IsVisible);
+            Assert.True(main.IsVisible);
+        }
+        finally
+        {
+            // Clearing the fake session lets the close proceed, so the main window really closes and the process-wide
+            // flag that close latches is cleared for the tests that follow.
+            vm.IsConnected = false;
+            Dispatcher.UIThread.RunJobs();
+            main.Close();
+            Dispatcher.UIThread.RunJobs();
+            AppLifetime.ResetForTests();
+        }
     }
 }
