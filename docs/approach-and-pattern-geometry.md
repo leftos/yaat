@@ -1351,13 +1351,15 @@ writes nothing to the aircraft. It is silent when nothing stands, and when the l
   approach has cached A's threshold/heading (so the low pass still flies runway A), and *appends*
   `PatternEntryPhase(B) → FinalApproachPhase(B) → LandingPhase(B)`. In retarget mode the `LowApproachPhase`
   completes at the last feasible turn point — a **gate** a short distance (`RetargetFinalGateNm`) out on B's
-  final — or the low-pass floor, whichever comes first. The gate is deliberately *short* (0.5 nm): for a
+  final — or 10 s (`LowApproachPhase.LevelHoldSeconds`) into the low approach, whichever comes first. The gate is deliberately *short* (0.5 nm): for a
   diverging pair that shares a corner (KOAK 28R/33) the aircraft on A's final is always well left of B's final
   (cross-track ≥ 0.5 nm even at A's threshold), so B is only ever reachable as a tight, curved, short-final
   intercept — never a 1 nm straight-in. A short gate lets the aircraft fly the low approach down A and turn late
   and low. `EvaluateLowApproachRetargetFeasibility` gates it (piston/helicopter only, divergence 15–90°, no
   intersection, not past B's final, turn completable at the 3°/s execution rate) and runs **before any state
   mutation** so a reject leaves the low approach intact.
+- **A low approach levels off; it does not descend like a landing (AIM 4-3-12.a).** While a `LowApproachPhase` is next, `FinalApproachPhase` clamps its glidepath target at `LowApproachPhase.FloorMslFt` (runway elevation + `CategoryPerformance.LowApproachLevelOffAgl`; an aircraft already below the floor holds its altitude), and the final-course alignment ramp reads the glidepath height (`rampAgl`) so it still completes by the threshold. `LowApproachPhase` crosses the threshold level, holds `LevelHoldSeconds` (10 s), then climbs straight ahead on runway heading to 1500 ft AGL. The clamp is re-read every tick, so a mid-final `CLAND` lifts it.
+- **Landing from a low approach is refused when too high.** `PatternCommandHandler.IsTooHighToLandFromLowApproach` backs a same-runway `CLAND`, `TG`, `SG`, `COPT` and `LAHSO`: while the floor holds the aircraft (low approach current, or on final at or below the floor) it is refused ("Unable, too high to land, continuing low approach, Runway 28R") when the aircraft is at or past the aim point 1000 ft down the runway or above `MaxLandingFromLowApproachPathDeg` (4°, a judgement call) to it. Pattern legs and heights above the floor are unaffected; `CLANDF` is not checked.
 - **`JFAC`/`JLOC` is lateral-only — `FinalApproachPhase` must not descend until `CAPP`.** `DispatchJfac` sets
   `ApproachClearance.LateralInterceptOnly = true` and keeps the assigned altitude/speed. `FinalApproachPhase` checks
   that flag (`OnStart` skips the approach decel; `OnTick` holds the assigned altitude and skips the glideslope /

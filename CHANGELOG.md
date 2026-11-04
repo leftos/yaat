@@ -9,6 +9,8 @@
 - An aircraft cleared for takeoff while lining up behind `LUAW` rolls into its takeoff without slowing, and `CTOC` during that line-up stops it on the centerline.
 - `CLANDF` is cancelled when the aircraft is vectored off the final approach, and refused once it has flown past the runway's far end.
 - In solo sessions, rewinding restores the frequency as it was. Pilots no longer speak lines from the abandoned timeline, and a pilot still awaiting a reply keeps its turn.
+- On a low approach (`LA`), the aircraft levels off before the threshold, at 100 ft (150 ft for a jet). It holds that height for about 10 seconds before climbing out, instead of descending as if to land.
+- An aircraft held level over the runway on a low approach answers "unable, too high to land" to `CLAND`, `TG`, `SG`, `COPT` or `LAHSO`, and continues its low approach.
 - If YAAT stops while updating the GPU speech runtime, the next start puts the previous copy back instead of leaving GPU speech uninstalled.
 - The DH8C and Q400 (DH8D) are held to their certified maximum speeds.
 - Aircraft with no FAA approach speed, such as the C-5M and F/A-18, fly their real approach speed instead of one about 20% too fast.

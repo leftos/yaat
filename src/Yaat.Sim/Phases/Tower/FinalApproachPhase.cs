@@ -874,6 +874,22 @@ public sealed class FinalApproachPhase : Phase
         double agl = ctx.Aircraft.Altitude - _thresholdElevation;
         double facVsRunwayDeg = _finalApproachCourse.AbsAngleTo(_runwayHeading);
 
+        // A pending low approach holds the aircraft level at its floor, so its height stops falling partway
+        // down the ramp. The ramp then reads the glidepath height at this distance instead, so it still
+        // completes by the threshold. Every other reader below keeps the aircraft's own height.
+        double rampAgl = agl;
+        if (!forceLanding && IsLowApproachNext(ctx.Aircraft.Phases))
+        {
+            double glidepathAgl =
+                GlideSlopeGeometry.AltitudeAtDistance(
+                    distNm,
+                    _thresholdElevation,
+                    CategoryPerformance.WheelCrossingHeightFt(ctx.Category),
+                    _gsAngleDeg
+                ) - _thresholdElevation;
+            rampAgl = Math.Min(agl, glidepathAgl);
+        }
+
         TrueHeading lateralCourse = _finalApproachCourse;
         LatLon lateralAnchor = new(_anchorLat, _anchorLon);
 
@@ -884,17 +900,17 @@ public sealed class FinalApproachPhase : Phase
             double rampEnd = genuineOffset ? OffsetRampEndAgl : MagVarRampEndAgl;
 
             double linearT;
-            if (agl >= rampStart)
+            if (rampAgl >= rampStart)
             {
                 linearT = 0.0;
             }
-            else if (agl <= rampEnd)
+            else if (rampAgl <= rampEnd)
             {
                 linearT = 1.0;
             }
             else
             {
-                linearT = (rampStart - agl) / (rampStart - rampEnd);
+                linearT = (rampStart - rampAgl) / (rampStart - rampEnd);
             }
 
             double rampT = (linearT * linearT) * (3.0 - (2.0 * linearT));
@@ -962,7 +978,18 @@ public sealed class FinalApproachPhase : Phase
         double? heldAltitude = ApproachAltitudeHold.IsHeld(ctx.Aircraft) ? ctx.Targets.AssignedAltitude : null;
         if (_gsCaptured)
         {
-            ctx.Targets.TargetAltitude = gsAltitude;
+            // A pending low approach levels off at its floor before the threshold instead of following the
+            // path down. Re-read every tick: a mid-final terminal swap (CLAND) lifts the clamp on the next tick.
+            // An aircraft already below the floor holds its own altitude and never climbs back up to it.
+            if (!forceLanding && IsLowApproachNext(ctx.Aircraft.Phases))
+            {
+                double floor = LowApproachPhase.FloorMslFt(_thresholdElevation, ctx.Category);
+                ctx.Targets.TargetAltitude = (gsAltitude >= floor) ? gsAltitude : Math.Min(floor, ctx.Aircraft.Altitude);
+            }
+            else
+            {
+                ctx.Targets.TargetAltitude = gsAltitude;
+            }
         }
         else if (heldAltitude is { } held)
         {
@@ -1195,6 +1222,10 @@ public sealed class FinalApproachPhase : Phase
 
         return complete;
     }
+
+    /// <summary>A low approach is next: the phase after the current one is a <see cref="LowApproachPhase"/> that has not started.</summary>
+    private static bool IsLowApproachNext(PhaseList? phases) =>
+        (phases is { } list) && (list.Phases.ElementAtOrDefault(list.CurrentIndex + 1) is LowApproachPhase { Status: PhaseStatus.Pending });
 
     /// <summary>
     /// The two uncontrolled stages ahead of the FAS bleed, in order: clean → approach-flap speed

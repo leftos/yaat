@@ -458,29 +458,66 @@ public class TowerPhaseTests
     }
 
     [Fact]
-    public void LowApproach_ClimbsOutAndCompletesAt1500AGL()
+    public void LowApproach_HoldsLevelAtTheFloorThenClimbsAndCompletesAt1500AGL()
     {
+        // Jet level-off floor: 150 ft AGL over a 100 ft runway = 250 ft MSL.
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 250, onGround: false, ias: 140);
+        var phase = new LowApproachPhase();
+        PhaseContext ctx = Ctx(ac, rwy);
+
+        phase.OnStart(ctx);
+
+        // Inside the hold: level at the floor, not climbing.
+        phase.ElapsedSeconds = 5;
+        Assert.False(phase.OnTick(ctx));
+        Assert.Equal(250, ac.Targets.TargetAltitude);
+        Assert.Null(ac.Targets.DesiredVerticalRate);
+
+        // Hold over: climbs out to 1500 ft AGL (1600 MSL).
+        phase.ElapsedSeconds = 10;
+        Assert.False(phase.OnTick(ctx));
+        Assert.Equal(1600, ac.Targets.TargetAltitude);
+        Assert.True(ac.Targets.DesiredVerticalRate > 0, $"climb rate {ac.Targets.DesiredVerticalRate}");
+
+        ac.Altitude = 1500;
+        Assert.False(phase.OnTick(ctx));
+
+        ac.Altitude = 1600;
+        Assert.True(phase.OnTick(ctx));
+    }
+
+    [Fact]
+    public void LowApproach_BelowTheFloor_HoldsItsAltitudeUntilTheHoldEnds()
+    {
+        // Jet at 80 ft AGL, below its 150 ft AGL floor (250 MSL): it holds 180, never climbing up to the floor.
         RunwayInfo rwy = DefaultRunway(100);
         AircraftState ac = MakeAircraft(altitude: 180, onGround: false, ias: 140);
         var phase = new LowApproachPhase();
         PhaseContext ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
+        phase.ElapsedSeconds = 5;
 
-        // Descend to go-around altitude (Jet: 100ft AGL = 200ft MSL)
-        ac.Altitude = 200;
         Assert.False(phase.OnTick(ctx));
+        Assert.Equal(180, ac.Targets.TargetAltitude);
+    }
 
-        // At go-around alt → starts climbing
-        ac.Altitude = 199;
-        phase.OnTick(ctx);
+    [Fact]
+    public void LowApproach_AboveTheFloor_SettlesToTheFloor()
+    {
+        // Jet at 400 MSL over a 100 ft runway: settles to the 250 MSL floor at 500 fpm.
+        RunwayInfo rwy = DefaultRunway(100);
+        AircraftState ac = MakeAircraft(altitude: 400, onGround: false, ias: 140);
+        var phase = new LowApproachPhase();
+        PhaseContext ctx = Ctx(ac, rwy);
 
-        // Climb to 1500 AGL (1600 MSL)
-        ac.Altitude = 1500;
+        phase.OnStart(ctx);
+        phase.ElapsedSeconds = 1;
+
         Assert.False(phase.OnTick(ctx));
-
-        ac.Altitude = 1600;
-        Assert.True(phase.OnTick(ctx));
+        Assert.Equal(250, ac.Targets.TargetAltitude);
+        Assert.Equal(-500, ac.Targets.DesiredVerticalRate);
     }
 
     [Fact]

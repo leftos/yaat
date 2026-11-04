@@ -486,7 +486,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Touch and go | `TG [rwy] [MLT/MRT [rwy] [alt]]` | — | The pattern modifier may name the runway (and altitude) for the circuit flown after the option: `TG MLT 28L`. |
 | Stop and go | `SG [MLT/MRT [rwy] [alt]]` | — | Same modifier as `TG`. |
 | Begin takeoff (stop-and-go) | `GO` | — | — |
-| Low approach | `LA [MLT/MRT [rwy] [alt]]` | — | Same modifier as `TG`. |
+| Low approach | `LA [MLT/MRT [rwy] [alt]]` | — | Same modifier as `TG`. The aircraft levels off before the threshold (100 ft AGL piston and turboprop, 150 jet, 50 helicopter), crosses it level, holds 10 s, then climbs straight ahead to 1500 ft AGL. While the low approach is current, or the aircraft is on final at or below that height, `CLAND`/`TG`/`SG`/`COPT`/`LAHSO` on the same runway is refused ("Unable, too high to land, continuing low approach, Runway 28R") once it is at or past the aim point 1000 ft down the runway or above a 4° path to it; on any pattern leg, or above that height, they are accepted. `CLANDF` is not refused. |
 | Cleared for option | `COPT [MLT/MRT [rwy] [alt]]` | — | Same modifier as `TG`: `COPT MLT 28L` = the option on the current runway, then left traffic for 28L. |
 
 ### Pattern

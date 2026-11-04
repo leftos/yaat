@@ -662,16 +662,19 @@ public static class CategoryPerformance
         };
     }
 
-    /// <summary>Low approach go-around initiation altitude (feet AGL).</summary>
-    public static double LowApproachAltitudeAgl(AircraftCategory cat)
+    /// <summary>
+    /// Height (feet AGL) a low approach levels off at before the threshold and holds across it
+    /// (AIM 4-3-12.a; heights are a judgement call).
+    /// </summary>
+    public static double LowApproachLevelOffAgl(AircraftCategory cat)
     {
         return cat switch
         {
-            AircraftCategory.Jet => 100,
-            AircraftCategory.Turboprop => 75,
-            AircraftCategory.Piston => 50,
-            AircraftCategory.Helicopter => 30,
-            _ => 100,
+            AircraftCategory.Jet => 150,
+            AircraftCategory.Turboprop => 100,
+            AircraftCategory.Piston => 100,
+            AircraftCategory.Helicopter => 50,
+            _ => 150,
         };
     }
 

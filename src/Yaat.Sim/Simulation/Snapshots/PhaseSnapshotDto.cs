@@ -1301,9 +1301,6 @@ public sealed class LowApproachPhaseDto : PhaseDto
 {
     public required double FieldElevation { get; init; }
     public required double RunwayHeadingDeg { get; init; }
-    public required double GoAroundAgl { get; init; }
-    public required double ThresholdLat { get; init; }
-    public required double ThresholdLon { get; init; }
     public required bool ClimbingOut { get; init; }
 
     /// <summary>Low approach is the lead-in to a landing on a diverging runway (#292); turn onto that

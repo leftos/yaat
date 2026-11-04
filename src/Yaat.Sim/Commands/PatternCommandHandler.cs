@@ -3301,6 +3301,16 @@ internal static class PatternCommandHandler
                 ?? new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
+        // TG, SG and COPT can end in a touchdown, which a low approach level near the threshold cannot fly.
+        if (
+            (clearance != ClearanceType.ClearedLowApproach)
+            && (aircraft.Phases.AssignedRunway is { } optionRunway)
+            && IsTooHighToLandFromLowApproach(aircraft, optionRunway, ctx.GroundLayout)
+        )
+        {
+            return TooHighToLandFromLowApproach(aircraft);
+        }
+
         if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, OptionClearanceTerminal(clearance)))
         {
             return new CommandResult(false, $"{verb} requires a pending approach (no landing phase to replace)");
@@ -4398,6 +4408,11 @@ internal static class PatternCommandHandler
                 );
             }
 
+            if (IsTooHighToLandFromLowApproach(aircraft, assignedRunway, ctx.GroundLayout))
+            {
+                return TooHighToLandFromLowApproach(aircraft);
+            }
+
             bool isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
             Phase landingCtl = isHeliCtl ? new HelicopterLandingPhase() : new LandingPhase();
             if (CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landingCtl))
@@ -4492,6 +4507,63 @@ internal static class PatternCommandHandler
 
         return HasLowApproachPhase(phases);
     }
+
+    // Steepest path (degrees) from the aircraft to the runway aim point at which a low approach can still be
+    // turned into a landing. A judgement call by the aviation review: the publications are silent on it. A low
+    // approach flies level at 100-150 ft AGL near the threshold, so a landing clearance there needs a dive.
+    internal const double MaxLandingFromLowApproachPathDeg = 4.0;
+
+    // Distance (feet) past the landing threshold of the aim point the landing path is judged against.
+    private const double LandingAimPointFt = 1000.0;
+
+    /// <summary>
+    /// True when the low-approach floor is holding the aircraft level (its <see cref="LowApproachPhase"/> is
+    /// current, or it is on <see cref="FinalApproachPhase"/> at or below
+    /// <see cref="LowApproachPhase.FloorMslFt"/>) and it is past the runway aim point (the landing threshold plus
+    /// <see cref="LandingAimPointFt"/>) or above a <see cref="MaxLandingFromLowApproachPathDeg"/> path to it, so
+    /// a landing (CLAND, TG, SG, COPT, LAHSO) is no longer flyable. False anywhere else: with no low approach in
+    /// progress, on any pattern leg, and on final above the floor, where the aircraft flies the same glidepath a
+    /// landing would.
+    /// </summary>
+    internal static bool IsTooHighToLandFromLowApproach(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? layout)
+    {
+        if (!IsOnLowApproach(aircraft))
+        {
+            return false;
+        }
+
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        Phase? current = aircraft.Phases?.CurrentPhase;
+        bool heldAtTheFloor =
+            (current is LowApproachPhase)
+            || (
+                (current is FinalApproachPhase)
+                && (aircraft.Altitude <= LowApproachPhase.FloorMslFt(runway.ElevationFt, category) + FlightPhysics.AltitudeSnapFt)
+            );
+        if (!heldAtTheFloor)
+        {
+            return false;
+        }
+
+        LatLon aimPoint = GeoMath.ProjectPoint(LandingThreshold.Resolve(runway, layout), runway.TrueHeading, LandingAimPointFt / GeoMath.FeetPerNm);
+        double alongNm = GeoMath.AlongTrackDistanceNm(aircraft.Position, aimPoint, runway.TrueHeading.ToReciprocal());
+        double heightFt = aircraft.Altitude - runway.ElevationFt;
+        double angleDeg = (alongNm > 0) ? Math.Atan2(heightFt, alongNm * GeoMath.FeetPerNm) * (180.0 / Math.PI) : double.NaN;
+        bool tooHigh = (alongNm <= 0) || (angleDeg > MaxLandingFromLowApproachPathDeg);
+
+        Log.LogDebug(
+            "[LowApproachLanding] {Callsign}: {Along:F3}nm to the aim point, {Height:F0}ft above the runway, path {Angle:F2}°, tooHigh={TooHigh}",
+            aircraft.Callsign,
+            alongNm,
+            heightFt,
+            angleDeg,
+            tooHigh
+        );
+        return tooHigh;
+    }
+
+    private static CommandResult TooHighToLandFromLowApproach(AircraftState aircraft) =>
+        new(false, $"Unable, too high to land, continuing low approach{CommandDispatcher.RunwayLabel(aircraft)}");
 
     private static bool HasLowApproachPhase(PhaseList phases) =>
         phases.CurrentPhase is LowApproachPhase
@@ -4887,6 +4959,11 @@ internal static class PatternCommandHandler
         // Compute the hold-short lat/lon on the landing runway centerline. Anchored at the landing
         // threshold, matching the datum ComputeHoldShortDistanceNm measured from.
         LatLon holdShortPoint = GeoMath.ProjectPoint(LandingThreshold.Resolve(runway, groundLayout), runway.TrueHeading, holdShortDistNm);
+
+        if (IsTooHighToLandFromLowApproach(aircraft, runway, groundLayout))
+        {
+            return TooHighToLandFromLowApproach(aircraft);
+        }
 
         if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LandingPhase()))
         {

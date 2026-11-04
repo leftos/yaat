@@ -369,6 +369,9 @@ aviation-sim-expert-validated against the AIM / FAA 7110.65. Airborne kinematics
 | `GroundAccelRate` (kt/s, takeoff roll at takeoff thrust) | 5.0 | 4.0 | 2.7 | 2.0 |
 | `GroundAccelIdleRate` (kt/s, at brake release) | 1.0 | 0.8 | 0.5 | 2.0 |
 | `GroundAccelSpoolSeconds` (s, idle → takeoff thrust) | 5 | 4 | 3 | 0 |
+| `LowApproachLevelOffAgl` (ft AGL, a low approach levels off here before the threshold; default 150) | 150 | 100 | 100 | 50 |
+
+`LowApproachLevelOffAgl` is an owner-approved judgement call, not a published figure; the behaviour it serves is AIM 4-3-12.a (see `LowApproachPhase`).
 
 `DefaultSpeed(cat, altitude)` (`AircraftCategory.cs`, `CategoryPerformance.DefaultSpeed`) — the auto-schedule speed by altitude band:
 

@@ -1,15 +1,16 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// Low approach: aircraft flies normal glideslope but does not land.
-/// At category-specific AGL (Jet 100ft, Turboprop 75ft, Piston 50ft),
-/// initiates go-around climb. Uses same climb profile as GoAroundPhase.
-/// Completes at 1500ft AGL (self-clear).
+/// Low approach (AIM 4-3-12.a): the aircraft flies the glidepath but does not land. It levels off at a
+/// category height before the threshold (<see cref="CategoryPerformance.LowApproachLevelOffAgl"/>;
+/// <see cref="FinalApproachPhase"/> clamps its glidepath at <see cref="FloorMslFt"/> while this phase is
+/// pending), crosses the threshold level and holds level for <see cref="LevelHoldSeconds"/> past it, then
+/// climbs straight ahead on runway heading at the initial climb rate and speed, completing at 1500 ft AGL
+/// (self-clear).
 /// </summary>
 public sealed class LowApproachPhase : Phase
 {
@@ -17,11 +18,14 @@ public sealed class LowApproachPhase : Phase
 
     private const double SelfClearAgl = 1500.0;
 
+    /// <summary>Seconds the low approach holds level past the threshold before it climbs.</summary>
+    public const double LevelHoldSeconds = 10.0;
+
+    /// <summary>Vertical rate (fpm) at which an aircraft above the floor settles down to it.</summary>
+    private const double SettleToFloorFpm = -500.0;
+
     private double _fieldElevation;
     private TrueHeading _runwayHeading;
-    private double _goAroundAgl;
-    private double _thresholdLat;
-    private double _thresholdLon;
     private bool _climbingOut;
 
     // Retarget-to-diverging-runway state (#292). When _retargetToDifferentRunway is set, the low
@@ -29,7 +33,7 @@ public sealed class LowApproachPhase : Phase
     // to 1500 ft AGL it completes so the appended PatternEntryPhase(B) can turn onto B's final. The
     // turn must begin while the aircraft can still reach B's final on the approach side, so the phase
     // completes when the aircraft's projection onto B's final reaches the gate distance (last feasible
-    // turn point) or the low-pass floor — whichever comes first.
+    // turn point) or the end of the level hold — whichever comes first.
     private bool _retargetToDifferentRunway;
     private double _retargetGateLat;
     private double _retargetGateLon;
@@ -42,7 +46,7 @@ public sealed class LowApproachPhase : Phase
     /// Marks this low approach as the lead-in to a landing on a DIFFERENT, diverging runway
     /// (7110.65 §3-10-5 "change to runway", issue #292). Instead of the straight climb-out to
     /// 1500 ft AGL, the phase completes at the last point from which runway B's final is still
-    /// reachable (its gate, <paramref name="gateNm"/> out on B's final) or at the low-pass floor,
+    /// reachable (its gate, <paramref name="gateNm"/> out on B's final) or at the end of the level hold,
     /// so the appended <see cref="PatternEntryPhase"/> for runway B can turn onto its final and land.
     /// Set by <see cref="Commands.PatternCommandHandler.TryClearedToLand"/>.
     /// </summary>
@@ -55,6 +59,13 @@ public sealed class LowApproachPhase : Phase
         _retargetGateNm = gateNm;
     }
 
+    /// <summary>
+    /// The altitude (feet MSL) a low approach levels off at before the threshold and holds across it. Static, because
+    /// <see cref="FinalApproachPhase"/> reads it while this phase is still pending.
+    /// </summary>
+    public static double FloorMslFt(double runwayElevationFt, AircraftCategory category) =>
+        runwayElevationFt + CategoryPerformance.LowApproachLevelOffAgl(category);
+
     public override PhaseDto ToSnapshot() =>
         new LowApproachPhaseDto
         {
@@ -63,9 +74,6 @@ public sealed class LowApproachPhase : Phase
             Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             FieldElevation = _fieldElevation,
             RunwayHeadingDeg = _runwayHeading.Degrees,
-            GoAroundAgl = _goAroundAgl,
-            ThresholdLat = _thresholdLat,
-            ThresholdLon = _thresholdLon,
             ClimbingOut = _climbingOut,
             RetargetToDifferentRunway = _retargetToDifferentRunway,
             RetargetGateLat = _retargetGateLat,
@@ -80,9 +88,6 @@ public sealed class LowApproachPhase : Phase
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
         phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
-        phase._goAroundAgl = dto.GoAroundAgl;
-        phase._thresholdLat = dto.ThresholdLat;
-        phase._thresholdLon = dto.ThresholdLon;
         phase._climbingOut = dto.ClimbingOut;
         phase._retargetToDifferentRunway = dto.RetargetToDifferentRunway;
         phase._retargetGateLat = dto.RetargetGateLat;
@@ -96,18 +101,8 @@ public sealed class LowApproachPhase : Phase
     {
         _fieldElevation = ctx.FieldElevation;
         _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
-        _goAroundAgl = CategoryPerformance.LowApproachAltitudeAgl(ctx.Category);
 
-        if (ctx.Runway is not null)
-        {
-            // Same datum FinalApproachPhase just handed off on, so the descent profile doesn't jump
-            // when the low pass takes over on a runway with a displaced threshold.
-            LatLon threshold = LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout);
-            _thresholdLat = threshold.Lat;
-            _thresholdLon = threshold.Lon;
-        }
-
-        // Continue on glideslope toward threshold
+        // Fly runway heading; OnTick holds the level-off floor.
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
@@ -123,9 +118,9 @@ public sealed class LowApproachPhase : Phase
         ctx.Targets.SpeedCeiling = null;
 
         Log.LogDebug(
-            "[LowApproach] {Callsign}: started, goAroundAgl={Agl:F0}ft, rwyHdg={Hdg:F0}",
+            "[LowApproach] {Callsign}: started, levelOffAgl={Agl:F0}ft, rwyHdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
-            _goAroundAgl,
+            CategoryPerformance.LowApproachLevelOffAgl(ctx.Category),
             _runwayHeading.Degrees
         );
     }
@@ -136,27 +131,25 @@ public sealed class LowApproachPhase : Phase
 
         if (!_climbingOut)
         {
-            // Descend toward go-around altitude using proportional rate
-            double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
-
-            double goAroundAlt = _fieldElevation + _goAroundAgl;
-            ctx.Targets.TargetAltitude = goAroundAlt;
-
-            double timeToThresholdSec = ctx.Aircraft.GroundSpeed > 1 ? distNm / (ctx.Aircraft.GroundSpeed / 3600.0) : 1.0;
-            double altToLose = ctx.Aircraft.Altitude - goAroundAlt;
-            if (altToLose > 0 && timeToThresholdSec > 1)
+            // Level at the floor: a high aircraft settles down to it without diving; one at or below it
+            // holds its own altitude and never climbs up to the floor during the hold.
+            double floor = FloorMslFt(_fieldElevation, ctx.Category);
+            if (ctx.Aircraft.Altitude > floor + FlightPhysics.AltitudeSnapFt)
             {
-                double requiredFpm = (altToLose / timeToThresholdSec) * 60.0;
-                double maxFpm = distNm > 2.0 ? 2500 : 1500;
-                double clampedFpm = Math.Clamp(requiredFpm, 200, maxFpm);
-                ctx.Targets.DesiredVerticalRate = -clampedFpm;
+                ctx.Targets.TargetAltitude = floor;
+                ctx.Targets.DesiredVerticalRate = SettleToFloorFpm;
+            }
+            else
+            {
+                ctx.Targets.TargetAltitude = Math.Min(floor, ctx.Aircraft.Altitude);
+                ctx.Targets.DesiredVerticalRate = null;
             }
 
-            // Retarget to a diverging runway (#292): fly the low pass as low as the geometry allows,
-            // but hand off to the runway-change turn once the aircraft reaches the last point from
-            // which runway B's final is still reachable on the approach side (its gate). Turning any
-            // later would put B's final behind the aircraft. The low-pass floor is the backstop for
-            // well-separated pairs where the aircraft can descend all the way before that point.
+            // Retarget to a diverging runway (#292): fly the low pass level at the floor, but hand off
+            // to the runway-change turn once the aircraft reaches the last point from which runway B's
+            // final is still reachable on the approach side (its gate). Turning any later would put B's
+            // final behind the aircraft. The end of the level hold is the backstop for well-separated
+            // pairs where the gate lies further on: the pass ends where a plain low approach would climb.
             if (_retargetToDifferentRunway)
             {
                 // The aircraft is landing on B, not going around — configure and slow to final approach
@@ -170,7 +163,7 @@ public sealed class LowApproachPhase : Phase
                     new LatLon(_retargetGateLat, _retargetGateLon),
                     _retargetRunwayHeadingB.ToReciprocal()
                 );
-                if ((alongPastGate <= 0) || (agl <= _goAroundAgl))
+                if ((alongPastGate <= 0) || (ElapsedSeconds >= LevelHoldSeconds))
                 {
                     Log.LogDebug(
                         "[LowApproach] {Callsign}: handing off to runway-change turn at {Agl:F0}ft AGL (pastGate={Past:F2}nm)",
@@ -184,7 +177,7 @@ public sealed class LowApproachPhase : Phase
                 return false;
             }
 
-            if (agl <= _goAroundAgl)
+            if (ElapsedSeconds >= LevelHoldSeconds)
             {
                 _climbingOut = true;
                 Log.LogDebug("[LowApproach] {Callsign}: climbing out at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);

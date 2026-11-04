@@ -2921,9 +2921,14 @@ public class PatternEntryTests : IDisposable
         var lowApproach = new LowApproachPhase();
         phases.Add(lowApproach);
 
-        // At the low-pass floor, then climbed clear of the field: the low approach completes on the second tick.
-        aircraft.Altitude = 9;
+        // Level at the low-pass floor until the hold ends and the climb begins, then climbed clear of the field:
+        // the low approach completes on the next tick. The minimal context's DeltaSeconds is 0, so the hold's
+        // elapsed time is advanced here rather than by the ticks.
+        aircraft.Altitude = LowApproachPhase.FloorMslFt(ctx.FieldElevation, ctx.Category);
         PhaseRunner.Tick(aircraft, ctx);
+        lowApproach.ElapsedSeconds = LowApproachPhase.LevelHoldSeconds;
+        PhaseRunner.Tick(aircraft, ctx);
+        Assert.True(aircraft.Targets.DesiredVerticalRate > 0, "the low approach did not start its climb when the hold ended");
         aircraft.Altitude = 3000;
         PhaseRunner.Tick(aircraft, ctx);
 

@@ -1241,6 +1241,23 @@
     "Solo": false
   },
   {
+    "File": "low-approach-descends-to-runway-recording.yaat-bug-report-bundle.zip",
+    "Commands": 192,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "Compound": 91,
+      "Delete": 10,
+      "FlightPlan": 1,
+      "GhostTrack": 1,
+      "SetActivePosition": 1,
+      "Strip": 87
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 2,
+    "Solo": false
+  },
+  {
     "File": "mia-spawn-replay-cross12-recording.zip",
     "Commands": 14,
     "ByKind": {

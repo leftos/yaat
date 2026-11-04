@@ -106,6 +106,8 @@ Four `AircraftProcedureDto` fields carry the via clearances and the speed memory
 
 `HoldingInPositionPhaseDto.EndsBrokenOffFollow` (bool?, written only when true, absent on older snapshots; no schema bump, still 40) marks the hold a `HOLD` that broke off a `FOLLOWG` follow ends in, so a restored aircraft still refuses `RES` there (`GroundCommandHandler.RefusesResumeTaxi`); a lead-gone hold in position is not marked.
 
+`LowApproachPhaseDto` carries no `GoAroundAgl`, `ThresholdLat` or `ThresholdLon`: the level-off height is derived from the category and field elevation and the phase no longer measures to the threshold. Older snapshots that still hold those members load, the extra properties being ignored.
+
 `HoldShortPointDto.EndsNoDestinationRoute` (bool, written only when true, absent on older snapshots; no schema bump) carries `HoldShortPoint.EndsNoDestinationRoute`, the flag on the hold that ends a clearance with no destination short of its last taxiway, so a restored aircraft still refuses `RES`/`CROSS` there.
 
 `ScenarioSnapshotDto.ActiveRunways` (the room's active runway ends per airport, as `ActiveRunwayListParser` tokens: `28L` both, `D28L` departures, `A28R` arrivals) is the one nullable member of that DTO left out while empty; its other nullable members are written as null.
