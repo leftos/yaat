@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services.Speech;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Speech;
@@ -549,7 +550,7 @@ public sealed class SpeechRecognitionService(
                 TranscriptMapResult mapping = pressed.Result;
                 canonical = mapping.Canonical;
                 callsign = mapping.Callsign;
-                sayAgainText = CallsignUnclearStatus(pressed.Decode, mapping.Callsign);
+                sayAgainText = CallsignUnclearStatus(pressed.Decode, mapping.Callsign, mapping.Canonical);
                 usedLlmFallback = mapping.UsedLlmFallback;
                 outcome = canonical is not null ? SpeechSessionOutcome.CommandAccepted : SpeechSessionOutcome.NoMappingFound;
                 trace = BuildTrace(
@@ -713,11 +714,11 @@ public sealed class SpeechRecognitionService(
     /// <summary>
     /// The status line an accurate press carries when the decoder named no callsign and the policy accepted none: the
     /// decoder's best guess when it has one, a plain callsign-unclear line otherwise, and null on the fast path, on a
-    /// resolved decode, and when a callsign was accepted.
+    /// resolved decode, when a callsign was accepted, and on a command that addresses no aircraft.
     /// </summary>
-    private static string? CallsignUnclearStatus(PressDecodeTrace decode, string? acceptedCallsign)
+    internal static string? CallsignUnclearStatus(PressDecodeTrace decode, string? acceptedCallsign, string? canonical)
     {
-        if (acceptedCallsign is not null)
+        if ((acceptedCallsign is not null) || CommandNeedsNoCallsign(canonical))
         {
             return null;
         }
@@ -930,8 +931,8 @@ public sealed class SpeechRecognitionService(
     /// text, digit normalized. A <see cref="DecodeState.SayAgain"/> or <see cref="DecodeState.NoCallsign"/> decode accepts a
     /// callsign from the parser or the LLM resolver only under <see cref="AcceptUnresolvedCallsign"/> — the decoder's own best
     /// guess for a say-again, a callsign outside the room otherwise — and a decode left without one carries no canonical
-    /// command, so the caller stages the transcript and a callsign-unclear status instead. An n-best with no entry is mapped
-    /// as an empty transcript without a decode.
+    /// command unless the command addresses no aircraft (the unaddressed say again), so the caller stages the transcript and
+    /// a callsign-unclear status instead. An n-best with no entry is mapped as an empty transcript without a decode.
     /// </summary>
     /// <param name="hypotheses">The engine's alternatives, best first.</param>
     /// <param name="decode">The room's transmission context and the decoder settings.</param>
@@ -986,12 +987,29 @@ public sealed class SpeechRecognitionService(
             )
             .ConfigureAwait(false);
 
-        if ((decoded.State != DecodeState.Resolved) && (result.Callsign is null))
+        if ((decoded.State != DecodeState.Resolved) && (result.Callsign is null) && !CommandNeedsNoCallsign(result.Canonical))
         {
             result = result with { Canonical = null };
         }
 
         return new HypothesesMapResult(result, ruleTrace, llmTrace, decoded, decodeSw.Elapsed.TotalMilliseconds);
+    }
+
+    /// <summary>
+    /// True when <paramref name="canonical"/> addresses no aircraft — the unaddressed say again <c>AGAINU</c> and its
+    /// callsign-only form <c>AGAINU CS</c> — so an accurate press whose decode named no callsign still keeps and dispatches
+    /// it instead of withholding the command and reporting a callsign-unclear status.
+    /// </summary>
+    private static bool CommandNeedsNoCallsign(string? canonical)
+    {
+        if (string.IsNullOrWhiteSpace(canonical))
+        {
+            return false;
+        }
+
+        string verb = canonical.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].ToUpperInvariant();
+        return CommandRegistry.AliasToCanonicType.TryGetValue(verb, out CanonicalCommandType type)
+            && (type == CanonicalCommandType.SayAgainUnaddressed);
     }
 
     /// <summary>

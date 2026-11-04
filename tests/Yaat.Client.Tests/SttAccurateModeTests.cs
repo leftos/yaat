@@ -107,6 +107,55 @@ public sealed class SttAccurateModeTests
     }
 
     [Fact]
+    public async Task Keeps_An_Unaddressed_Say_Again_That_Named_No_Callsign()
+    {
+        TransmissionContext room = Context(new RoomAircraftInput("SWA2495", "B737", [], null));
+
+        HypothesesMapResult mapped = await MapAsync(OneHypothesis("aircraft calling say again"), room, ["SWA2495"]);
+
+        Assert.NotEqual(DecodeState.Resolved, mapped.Decode.State);
+        Assert.Equal("AGAINU", mapped.Result.Canonical);
+        Assert.Null(mapped.Result.Callsign);
+        Assert.Null(StatusOf(mapped));
+    }
+
+    [Fact]
+    public async Task Keeps_A_Callsign_Only_Unaddressed_Say_Again_That_Named_No_Callsign()
+    {
+        TransmissionContext room = Context(new RoomAircraftInput("SWA2495", "B737", [], null));
+
+        HypothesesMapResult mapped = await MapAsync(OneHypothesis("station calling say again your callsign"), room, ["SWA2495"]);
+
+        Assert.NotEqual(DecodeState.Resolved, mapped.Decode.State);
+        Assert.Equal("AGAINU CS", mapped.Result.Canonical);
+        Assert.Null(mapped.Result.Callsign);
+        Assert.Null(StatusOf(mapped));
+    }
+
+    [Fact]
+    public async Task Withholds_An_Ordinary_Command_That_Named_No_Callsign()
+    {
+        TransmissionContext room = Context(new RoomAircraftInput("SWA2495", "B737", [], null));
+
+        HypothesesMapResult mapped = await MapAsync(OneHypothesis("climb and maintain five thousand"), room, ["SWA2495"]);
+
+        Assert.NotEqual(DecodeState.Resolved, mapped.Decode.State);
+        Assert.Null(mapped.Result.Canonical);
+        Assert.NotNull(StatusOf(mapped));
+    }
+
+    /// <summary>
+    /// The status the live pipeline would show for <paramref name="mapped"/>: the decode trace <c>MapAccurateAsync</c> builds
+    /// around it, the callsign it accepted and the canonical it kept.
+    /// </summary>
+    private static string? StatusOf(HypothesesMapResult mapped) =>
+        SpeechRecognitionService.CallsignUnclearStatus(
+            new PressDecodeTrace(TranscriptionMode.Accurate, null, mapped.Decode.State, mapped.Decode.BestGuess?.Entity.Value, null, null),
+            mapped.Result.Callsign,
+            mapped.Result.Canonical
+        );
+
+    [Fact]
     public async Task Hands_The_Mapper_The_Spoken_Form_The_Decoder_Rewrote()
     {
         HypothesesMapResult mapped = await MapAsync(OneHypothesis(KizerHypothesis), KaiserRoom(), ["SWA2495"]);
