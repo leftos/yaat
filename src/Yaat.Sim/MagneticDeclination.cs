@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using Geo;
 using Geo.Geomagnetism;
 
@@ -22,19 +23,78 @@ public static class MagneticDeclination
     private static readonly WmmGeomagnetismCalculator Calculator = new();
 
     // WMM epochs last 5 years, so the model covering "now" is stable for the lifetime of the
-    // process. Resolve once at startup, then reuse — avoids a per-call LINQ scan of the 9
-    // embedded models on every tick, per aircraft.
-    private static readonly DateTime EpochDate = ResolveEpochDate();
+    // process. The day is resolved once, on the first read, then reused — avoids a per-call LINQ
+    // scan of the 9 embedded models on every tick, per aircraft. Later reads take no lock, since
+    // display readouts read the day per aircraft per frame.
+    private static readonly Lock EpochLock = new();
+    private static long _epochTicks; // 0 until the day is resolved
+    private static DateTime? _pinnedDate;
 
     /// <summary>
-    /// The instant display-only readouts evaluate the WMM at: the UTC day the process started, clamped into the
-    /// bundled model range (so a stale package still evaluates), never a time of day, so two processes started seconds
-    /// apart agree. Not a clock: the session clock's fallback is <see cref="Simulation.SimScenarioState.ProcessDayUtc"/>. Simulation state uses the scenario's
+    /// The instant display-only readouts evaluate the WMM at: the day a test process pinned with
+    /// <see cref="PinEvaluationDate"/>, else the UTC day the process started, clamped into the bundled model range
+    /// (so a stale package still evaluates), never a time of day, so two processes started seconds apart agree. Not a
+    /// clock: the session clock's fallback is <see cref="Simulation.SimScenarioState.ProcessDayUtc"/>. Simulation state uses the scenario's
     /// <see cref="Simulation.SimScenarioState.MagneticModelDateUtc"/> — the day of its recorded session start.
     /// </summary>
     public static DateTime EvaluationDateUtc => EpochDate;
 
-    private static DateTime ResolveEpochDate() => ClampToModelRange(DateTime.UtcNow.Date);
+    /// <summary>
+    /// Fixes the day display-only readouts evaluate at, for a test process whose goldens were rendered on that day.
+    /// Production never calls this, and its behaviour is unchanged. A process resolves the day once, so this must run
+    /// before the first read of <see cref="EvaluationDateUtc"/> (or of any display API that uses it); a later call
+    /// throws rather than being silently ignored.
+    /// </summary>
+    /// <param name="dateUtc">The day display readouts evaluate at, as a UTC <see cref="DateTime"/>; clamped into the bundled model range.</param>
+    /// <exception cref="ArgumentException"><paramref name="dateUtc"/> is not <see cref="DateTimeKind.Utc"/>.</exception>
+    /// <exception cref="InvalidOperationException">The evaluation date was already resolved in this process.</exception>
+    public static void PinEvaluationDate(DateTime dateUtc)
+    {
+        if (dateUtc.Kind != DateTimeKind.Utc)
+        {
+            throw new ArgumentException($"PinEvaluationDate needs a UTC date (DateTimeKind.Utc); got {dateUtc.Kind}.");
+        }
+
+        lock (EpochLock)
+        {
+            if (Volatile.Read(ref _epochTicks) != 0)
+            {
+                DateTime resolved = new(_epochTicks, DateTimeKind.Utc);
+                throw new InvalidOperationException(
+                    $"MagneticDeclination.EvaluationDateUtc is already resolved to {IsoDay(resolved)} (UTC); "
+                        + $"PinEvaluationDate({IsoDay(dateUtc)}) must run before the first read of EvaluationDateUtc."
+                );
+            }
+
+            _pinnedDate = ClampToModelRange(dateUtc.Date);
+        }
+    }
+
+    private static DateTime EpochDate
+    {
+        get
+        {
+            long ticks = Volatile.Read(ref _epochTicks);
+            return (ticks != 0) ? new DateTime(ticks, DateTimeKind.Utc) : ResolveEpochDate();
+        }
+    }
+
+    private static DateTime ResolveEpochDate()
+    {
+        lock (EpochLock)
+        {
+            if (_epochTicks != 0)
+            {
+                return new DateTime(_epochTicks, DateTimeKind.Utc);
+            }
+
+            DateTime resolved = _pinnedDate ?? ClampToModelRange(DateTime.UtcNow.Date);
+            Volatile.Write(ref _epochTicks, resolved.Ticks);
+            return resolved;
+        }
+    }
+
+    private static string IsoDay(DateTime dateUtc) => dateUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Clamps an evaluation date into the range the bundled WMM epochs cover. A date past the newest bundled

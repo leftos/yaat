@@ -969,7 +969,7 @@ A synthetic footprint (`ADG-I` to `ADG-VI`) for one airplane design group: the g
 A recording test that pins behaviour which must keep holding on today's airport (a regression test for a sim, pathfinder or parser fix). It runs on today's layout (`TestData/<id>.geojson`) through `RecordingGroundData.Evergreen(why)` and is maintained as the layout changes; when a parser change renumbers nodes, its fixture's recorded `#id` TAXI commands and snapshot routes are remapped to today's ids.
 
 **Golden (menu golden)**:
-A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden, and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
+A committed text snapshot of an aircraft right-click menu for one view and one situation fixture (`tests/Yaat.Client.UI.Tests/Goldens/menu/{radar,ground,list}/<fixture>.txt`, written by `MenuTreeSnapshot`); `MenuGoldenTests` fails when a menu differs from its golden (the test process pins the magnetic evaluation day to the one the goldens were rendered on, so bearings do not follow the run date), and `YAAT_MENU_GOLDEN_REGENERATE=1` rewrites them.
 
 **Layout set**:
 The source files whose hash is a precompute key's layout algorithm hash: `Data/Airport` minus `Precompute/`, the `Tug*.cs` planner files and a few pathfinder/navigator helpers, plus a few files outside it (`PrecomputeLayoutSource` in `Yaat.Sim.csproj`).

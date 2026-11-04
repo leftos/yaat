@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Yaat.Client.Logging;
+using Yaat.Sim;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Client.UI.Tests;
@@ -31,6 +32,11 @@ internal static class ModuleInit
     [ModuleInitializer]
     public static void Initialize()
     {
+        // The menu goldens' magnetic bearings were rendered on this day; display readouts otherwise follow the UTC day
+        // the process starts, so the goldens would drift at every UTC midnight the suite crosses. Pinned first, before
+        // any test reads a display readout.
+        MagneticDeclination.PinEvaluationDate(new DateTime(2026, 11, 3, 0, 0, 0, DateTimeKind.Utc));
+
         SweepStaleDirs(Path.Combine(Path.GetTempPath(), RootName));
 
         string testDir = Path.Combine(Path.GetTempPath(), RootName, Guid.NewGuid().ToString("N"));

@@ -595,6 +595,8 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 - **A pinned value must not carry the process's day.** `MagneticDeclination.EvaluationDateUtc` and `SimScenarioState.ProcessDayUtc` are the UTC day the test process started, and a session start goes into the snapshot (`SimScenarioState.SessionStartUtc`).
 
   A test that compares against a value pinned across runs (a hash, a golden) passes a fixed `DateTime` with `DateTimeKind.Utc` as the session start, or it breaks every day at 00:00Z. Tests comparing two loads made in one process may use `EvaluationDateUtc`.
+
+  Display readouts (the menu goldens' bearings and headings) read `EvaluationDateUtc`, so the Client.UI, UI.Render and yaat-server ClientDriver.Mcp test processes call `MagneticDeclination.PinEvaluationDate` from `tests/Yaat.Client.UI.Tests/ModuleInit.cs` (linked into the other two) with the day the menu goldens were rendered. Re-rendering the goldens means moving that date. The call needs a UTC date and runs before the first read: later, it throws `InvalidOperationException`.
 - **Static-singleton race.** A class reading a `TestVnasData`-populated singleton (`AircraftProfileDatabase`, `AircraftSiblingMap`,
   `NavigationDatabase`, …) can race a class mid-init. Symptom: `Expected 98 / Actual 96.5` (default-fallback), passes alone, flakes in the
   suite. **Fix: `TestVnasData.EnsureInitialized()` in the class *constructor*.**

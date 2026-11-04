@@ -1637,7 +1637,7 @@ SpeciCriteria.cs               # Static: SPECI decision vs last issued (wind shi
 MetarIssuer.cs                 # Per-room state machine: routine METAR at :53 + SPECI on change; freezes conditions at issuance
 WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
 MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library, memoized on a 0.02° grid (cell-centre eval) per evaluation day; TrueToMagnetic/MagneticToTrue conversion.
-                               # Sim state passes the scenario's MagneticModelDateUtc (the day of its SessionStartUtc, recorded with the session so replays never drift); display-only callers use EvaluationDateUtc (the process day)
+                               # Sim state passes the scenario's MagneticModelDateUtc (the day of its SessionStartUtc, recorded with the session so replays never drift); display-only callers use EvaluationDateUtc (the process day, or the day a test process fixed with PinEvaluationDate)
 VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportForRunway, TryAcquireTraffic, IsOccludedByBank
                                # Maintained-contact variants (already-in-sight, weather-only incl. visibility-collapse × 1.25 tolerance): TryMaintainAirportContact, TryMaintainTrafficContact
                                # Airport visibility envelope AirportVisibilityRangeNm (vis × 0.869 × 1.5 × max(1, AGL/3000ft) — Koschmieder slab; shared by acquire + maintain; traffic keeps the literal cap)
@@ -2933,7 +2933,7 @@ One image in `docs/user-guide/img/` comes from no scene: `crc-environment-select
 
 ```
 Program.cs                     # Entry: parses --scene/--out, starts InProcessServer, pins every wall clock a capture shows (server TerminalClock, client WallClock seams on MainViewModel / VStripsViewModel / VTdlsView) to FixedTimeProvider.CaptureInstant and the server's ScenarioSeedSource (session start + RNG seed), dispatches scenes; calls Environment.Exit so headless threads don't keep the process alive
-ModuleInit.cs                  # Redirects YAAT_APPDATA_DIR to a temp folder + seeds preferences.json (CID/initials AB/ARTCC) so MainViewModel.AttemptConnectAsync passes its identity gates
+ModuleInit.cs                  # Redirects YAAT_APPDATA_DIR to a temp folder + seeds preferences.json (CID/initials AB/ARTCC) so MainViewModel.AttemptConnectAsync passes its identity gates; pins MagneticDeclination.PinEvaluationDate to the day the menu goldens were rendered
 Capture/FixedTimeProvider.cs   # TimeProvider frozen at CaptureInstant, the instant every pinned clock shows
 Capture/RoomTicks.cs           # AdvanceUntilAsync + Stage (what, step seconds, max seconds): runs the paused room in steps until an aircraft meets a predicate, throwing with its state at the cap; AdvancePausedAsync: runs a paused room forward an exact number of sim-seconds (RoomEngine.AdvanceLiveSecond under the tick gate, in chunks so the radar builds its history), waiting two hosted-loop passes per step (detected by clearing TrainingRoom.PausedSinceUtc) so the client holds the step's state before the capture
 Server/InProcessServer.cs      # Port allocation (TcpListener trick) + ServerApp.BuildAsync + StartAsync/StopAsync lifecycle; exposes Services and starts with LiveTraffic:Enabled so the live-traffic scene can feed the store
