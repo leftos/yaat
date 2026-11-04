@@ -268,6 +268,7 @@ Most commands work the same in Solo Training and RPO mode, but a few matter more
 | Issue a wake advisory | `CWT`, `CTO ... CWT`, or `CLAND [NODEL] CWT` | No forced shortcut |
 | Clear VFR through Class B | `CLBRV` / `CBRV` / `BRAVO` | No forced shortcut |
 | Acknowledge without a maneuver | `STBY` / `ROGER` | No forced shortcut |
+| Ask a pilot to repeat | `AGAIN` (whole transmission) or `AGAIN CS` (call sign only); with no aircraft selected it goes to the pilot whose call awaits you, else the last to call | No forced shortcut |
 | Use visual follow | structured `RTIS` first, then `FOLLOW` or `CVA ... FOLLOW` | forced traffic-in-sight shortcuts |
 
 A refused RPO-only command, such as `CLANDF`, shows only its terminal error line; the pilot does not answer "unable".

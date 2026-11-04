@@ -79,6 +79,34 @@ public sealed class SayAgainReplayTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Unaddressed_ReplaysToTheSameTarget()
+    {
+        TestVnasData.EnsureInitialized();
+        SimulationEngine engine = SayAgainTests.NewEngine(soloTrainingMode: true);
+        AircraftState first = SayAgainTests.AddAirborne(engine, "N123AB");
+        AircraftState second = SayAgainTests.AddAirborne(engine, "N456CD");
+        SayAgainUnaddressedTests.QueueProactive(second, "tower, november four five six charlie delta, eight miles east, inbound landing.");
+        Assert.Single(engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1));
+        // The awaited call and the last to transmit are different aircraft, so a restore that lost the awaited call
+        // would pick the other one.
+        first.LastPilotTransmission = SayAgainUnaddressedTests.LastLine(first, "fly heading 270", atSeconds: 20);
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+
+        Assert.True(engine.SendCommand("", "AGAINU").Success);
+        PilotTransmission live = Assert.Single(engine.World.DrainReadyPilotTransmissions(70, rngSeed: 1));
+
+        SimulationEngine restored = SayAgainTests.NewEngine(soloTrainingMode: true);
+        restored.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!);
+        Assert.True(restored.SendCommand("", "AGAINU").Success);
+        PilotTransmission replayed = Assert.Single(restored.World.DrainReadyPilotTransmissions(70, rngSeed: 1));
+
+        Assert.Equal("N456CD", live.Callsign);
+        Assert.Equal(live.Callsign, replayed.Callsign);
+        Assert.Equal(live.Text, replayed.Text);
+        Assert.True(replayed.IsRepeat);
+    }
+
+    [Fact]
     public void PendingRepeatCallsignOnly_SurvivesASnapshotRoundTrip_AndIsOmittedWhenFalse()
     {
         var aircraft = new AircraftState

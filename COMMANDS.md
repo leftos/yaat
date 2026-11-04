@@ -80,6 +80,7 @@ Most commands work the same in Solo Training and RPO mode. The differences below
 | Wake advisory | `CWT`, `CTO ... CWT`, or `CLAND [NODEL] CWT` | Same syntax | Records caution-wake-turbulence proof. Bare `CWT` proves only when the Session Report sees exactly one current wake-advisory context for that aircraft. |
 | VFR Class B entry | `CLBRV`, `CBRV`, or `BRAVO` | Same syntax | In Solo Training, this satisfies the VFR Class B entry gate; a vector, direct, pattern entry or approach clearance into the Bravo does too. |
 | Class C contact without a maneuver | `STBY`, `STANDBY`, `ROGER`, or `RGR` | Same syntax | In Solo Training, this can establish two-way communications for Class C when targeted at that aircraft. It does not satisfy a separate pending pilot request. |
+| Say again | `AGAIN` or `AGAIN CS`, with or without an aircraft selected | Refused: no pilot speaks on the frequency | Solo Training only. With no aircraft the pilot whose call awaits a response, else the last to transmit, repeats; see Track Operations. |
 | Visual follow | Structured `RTIS` first, then `FOLLOW` or `CVA ... FOLLOW` | RPO mode can use forced traffic-in-sight shortcuts | The aircraft must have reported the traffic in sight before visual follow behavior can start. |
 
 Solo Training rejects the RPO-only forms with guidance such as `Use RTIS <clock> <miles> <direction> <type> [altitude] in solo training` or `RFISF is RPO-only; use RFIS <clock> <miles> in solo training`.
@@ -598,6 +599,7 @@ preference: it applies to the commands *you* issue, and other controllers in the
 | Frequency change approved | `FCA` | — | — |
 | Cleared Bravo airspace | `CLBRV` | `CBRV`, `BRAVO` | — |
 | Acknowledge pilot contact | `STBY` | `STANDBY`, `ROGER`, `RGR` | — |
+| Say again (solo training) | `AGAIN` / `AGAIN CS` | — | Unaddressed when nothing is selected, and `AGAIN CS` always |
 | Ghost track (runway) | `GHOST N12345 28R` | — | Global; callsign in args |
 | Ghost track (airport+runway) | `GHOST N12345 KOAK 28R` | — | Global; callsign in args |
 | Ghost track (lat/lon) | `GHOST N12345 37.7 -122.2` | — | Global; callsign in args |
@@ -1990,6 +1992,8 @@ Changing your active position also updates the radar display:
 | `FCA` | Frequency change approved — VFR dismissal when there is no next controller (FAA 7110.65 §7-6-11) |
 | `CLBRV` / `CBRV` / `BRAVO` | Cleared through/to enter/out of Bravo airspace. In solo training, satisfies the VFR Class B entry gate (FAA 7110.65 §7-9-2); a heading, direct, pattern entry or approach clearance into the Bravo also counts as the clearance there, and the pilot reads back "cleared into the bravo". |
 | `STBY` / `STANDBY` / `ROGER` / `RGR` | Acknowledge pilot contact without issuing a maneuver. In solo training, satisfies the VFR Class C two-way-comms gate when targeted at that aircraft (AIM 3-2-4; FAA 7110.65 §7-8-4). |
+| `AGAIN` / `AGAIN CS` | Say again, solo training only (pilots speak on the frequency only there; elsewhere it is refused with "AGAIN is solo-training only; pilots speak on the frequency only in solo training"). The pilot repeats its whole last transmission (`AGAIN`) or only its call sign (`AGAIN CS`), after its own line if one is still waiting. A pilot that has not spoken says it did not say anything; one that has left your frequency is refused. A second request while one is pending is a no-op (`Say again already requested (N123AB)`). It answers nothing: the pilot's call stays unanswered, though your transmission counts as airtime on the frequency |
+| `AGAIN` / `AGAIN CS` with no aircraft | Unaddressed say again ("Aircraft calling, say again" / "Aircraft calling, say again your call sign"). A typed `AGAIN CS` is always unaddressed, even with an aircraft selected; a bare `AGAIN` is unaddressed only when nothing is selected, and goes to the selected aircraft otherwise. The client sends it as the global verb `AGAINU` / `AGAINU CS`, which students do not type. The pilot is the one whose call still awaits a controller response, else the one that transmitted last (ties to the lower call sign), skipping pilots that have left your frequency. The result names the pilot (`Say again → N123AB`, `Say again callsign → N123AB`) or reads `Say again: no pilot has called` |
 | `GHOST N12345 28R` | Create ghost track off 28R (auto-stagger, scenario airport) |
 | `GHOST N12345 KOAK 28R` | Create ghost track off 28R at KOAK |
 | `GHOST N12345 37.7 -122.2` | Create ghost track at exact position |

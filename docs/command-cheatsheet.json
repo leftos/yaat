@@ -249,6 +249,7 @@
         { "verb": "DBINH", "aliases": [], "description": "Inhibit duplicate-beacon indication" },
         { "verb": "CT", "aliases": ["cont"], "description": "Contact next controller [callsign|freq|tcp]" },
         { "verb": "FCA", "aliases": [], "description": "Frequency change approved" },
+        { "verb": "AGAIN", "aliases": [], "description": "Say again (solo): repeat the last transmission; `AGAIN CS` the callsign only. No aircraft: the pilot awaiting a response, else the last to call" },
         { "verb": "ACCEPTALL", "aliases": [], "description": "Accept all handoffs", "global": true },
         { "verb": "HOALL", "aliases": [], "description": "Handoff all to position", "global": true },
         { "verb": "GHOST", "aliases": [], "description": "Ghost track (cs rwy | cs apt rwy | cs lat lon)", "global": true },

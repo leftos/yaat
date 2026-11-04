@@ -99,6 +99,49 @@ public class MainViewModelGlobalCommandTests
         Assert.Contains("No aircraft matched", vm.StatusText);
     }
 
+    /// <summary>"AGAIN CS" asks who called, so it goes out unaddressed even with an aircraft selected.</summary>
+    [AvaloniaFact]
+    public async Task TypedAgainCs_WithAnAircraftSelected_SendsTheUnaddressedVerb()
+    {
+        MainViewModel vm = await NewVmAsync();
+        vm.OnAircraftUpdated(MakeAircraft("N172TB"));
+        Dispatcher.UIThread.RunJobs();
+        vm.SelectedAircraft = Assert.Single(vm.Aircraft, a => a.Callsign == "N172TB");
+
+        await SendAsync(vm, "AGAIN CS");
+
+        Assert.Equal("AGAINU error: Not connected.", vm.StatusText);
+        Assert.Equal("N172TB", vm.SelectedAircraft?.Callsign);
+    }
+
+    [AvaloniaFact]
+    public async Task TypedAgain_WithNothingSelected_SendsTheUnaddressedVerb()
+    {
+        MainViewModel vm = await NewVmAsync();
+        Assert.Null(vm.SelectedAircraft);
+
+        await SendAsync(vm, "AGAIN");
+
+        Assert.Equal("AGAINU error: Not connected.", vm.StatusText);
+        Assert.Equal("", vm.CommandText);
+    }
+
+    /// <summary>A bare "AGAIN" with an aircraft selected stays addressed to that aircraft.</summary>
+    [AvaloniaFact]
+    public async Task TypedAgain_WithAnAircraftSelected_StaysAddressed()
+    {
+        MainViewModel vm = await NewVmAsync();
+        vm.OnAircraftUpdated(MakeAircraft("N172TB"));
+        Dispatcher.UIThread.RunJobs();
+        vm.SelectedAircraft = Assert.Single(vm.Aircraft, a => a.Callsign == "N172TB");
+
+        await SendAsync(vm, "AGAIN");
+
+        // The aircraft send path's own failure line (see the class summary), not the global path's "AGAINU error: …".
+        Assert.Equal("Command error: Not connected.", vm.StatusText);
+        Assert.Equal("N172TB", vm.SelectedAircraft?.Callsign);
+    }
+
     /// <summary>
     /// Every verb routed to the global path has a handler and nothing else does: a verb listed without one would be
     /// swallowed unsent, as GHOST was.

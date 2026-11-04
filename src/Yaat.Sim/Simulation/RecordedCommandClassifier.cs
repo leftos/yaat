@@ -117,6 +117,12 @@ public enum RecordedCommandKind
     /// would answer the aircraft lookup instead of the mistake.
     /// </summary>
     MalformedGlobal,
+
+    /// <summary>
+    /// AGAINU / AGAINU CS — the unaddressed say again, sent with no callsign; the pilot that repeats is chosen when it is
+    /// applied (<see cref="Pilot.PilotRepeat.PickUnaddressedTarget"/>) from snapshotted state, so a replay chooses the same one.
+    /// </summary>
+    SayAgainUnaddressed,
 }
 
 /// <summary>A <see cref="ParsedCommand"/> subtype no arm of the classifier has claimed. Decide its kind and scope; there is no default.</summary>
@@ -222,6 +228,7 @@ public static class RecordedCommandClassifier
             RecordedCommandKind.Bookmark => ActionScope.Global,
             RecordedCommandKind.Transport => ActionScope.Global,
             RecordedCommandKind.MalformedGlobal => ActionScope.Global,
+            RecordedCommandKind.SayAgainUnaddressed => ActionScope.Global,
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Every RecordedCommandKind needs an ActionScope"),
         };
 
@@ -266,6 +273,7 @@ public static class RecordedCommandClassifier
             CfrDepartureCommand => RecordedCommandKind.Cfr,
             BookmarkCommand => RecordedCommandKind.Bookmark,
             PauseCommand or UnpauseCommand or SimRateCommand => RecordedCommandKind.Transport,
+            SayAgainUnaddressedCommand => RecordedCommandKind.SayAgainUnaddressed,
             _ when IsAviationCommand(parsed) => RecordedCommandKind.Compound,
             _ => throw new UnroutedCommandException(parsed.GetType()),
         };

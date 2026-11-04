@@ -951,6 +951,13 @@ public record AcknowledgePilotContactCommand : ParsedCommand;
 /// </summary>
 public record SayAgainCommand(bool CallsignOnly) : ParsedCommand;
 
+/// <summary>
+/// AGAINU / AGAINU CS — the unaddressed say again, sent with no callsign: the client sends it for an <c>AGAIN CS</c>, and
+/// for an <c>AGAIN</c> typed with nothing selected. The pilot it goes to is chosen when it is applied
+/// (<see cref="Pilot.PilotRepeat.PickUnaddressedTarget"/>), so the recorded text names no callsign.
+/// </summary>
+public record SayAgainUnaddressedCommand(bool CallsignOnly) : ParsedCommand;
+
 public record AcceptAllHandoffsCommand : ParsedCommand;
 
 public record InitiateHandoffAllCommand(string TcpCode) : ParsedCommand;

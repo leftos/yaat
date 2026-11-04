@@ -181,6 +181,7 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
         "RetractPointoutCommand",
         "SafetyAlertCommand",
         "SayAgainCommand",
+        "SayAgainUnaddressedCommand",
         "SayAltitudeCommand",
         "SayCommand",
         "SayExitFixEstimateCommand",

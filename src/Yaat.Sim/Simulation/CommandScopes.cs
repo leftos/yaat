@@ -47,6 +47,7 @@ public static class CommandScopes
         [CanonicalCommandType.AsdexEnableAllAlerts] = RecordedCommandKind.AsdexEnableAllAlerts,
         [CanonicalCommandType.GhostTrack] = RecordedCommandKind.GhostTrack,
         [CanonicalCommandType.Timer] = RecordedCommandKind.Timer,
+        [CanonicalCommandType.SayAgainUnaddressed] = RecordedCommandKind.SayAgainUnaddressed,
     }.ToFrozenDictionary();
 
     /// <summary>

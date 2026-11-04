@@ -133,6 +133,8 @@ through their Sim applier; see [snapshots-and-replay.md](snapshots-and-replay.md
 
 `CommandScopes.SendsWithoutSelection(CanonicalCommandType)` (`Yaat.Sim`) names the typed verbs the desktop client sends with an empty callsign whatever is selected: every verb whose recorded kind has `Global` or `Position` scope (read off `RecordedCommandClassifier.ScopeOf`, so the client and the router cannot disagree), plus `GHOST` (its callsign rides in the argument) and `TIMER` (an empty callsign is the room timer). `CFR` and the other aircraft-scoped verbs are not in it.
 
+`AGAINU` (the unaddressed say again) is one such Global verb that students never type: `MainViewModel.AsUnaddressedSayAgain` rewrites a typed `AGAIN CS` (always) and a bare `AGAIN` (only with nothing selected) to it before the global check. Its arm picks the pilot when it applies, from snapshotted state, so the callsign-free record replays onto the same pilot.
+
 The client routes them through `MainViewModel.GlobalCommandHandlerFor`, its one table of handlers; a test holds the table and `SendsWithoutSelection` to the same set. [client-mainviewmodel.md](client-mainviewmodel.md) has the client's step order.
 
 When the single-command parser rejects a body whose first token is such a verb, `RecordedCommandClassifier.Classify` returns `MalformedGlobal` (Global scope, `Parsed` null) instead of the aircraft-scoped `Compound`, so the controller reads the parser's own reason (`HFR requires an airport`) rather than `Aircraft '' not found`. Only a single command qualifies: a body containing a `;` or `,` chain separator stays a `Compound` whatever verb leads it, so a failing chain such as `REL OAK; FH 2X0` still answers `Aircraft '' not found`.

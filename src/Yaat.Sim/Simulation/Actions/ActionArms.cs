@@ -481,6 +481,51 @@ internal static class ActionArms
     public static CommandResult TaxiAll(ArmContext ctx) => ctx.Engine.TaxiAll((TaxiAllCommand)ctx.Parsed!);
 
     /// <summary>
+    /// <c>AGAINU</c> / <c>AGAINU CS</c>: the pilot is chosen now, from snapshotted state
+    /// (<see cref="PilotRepeat.PickUnaddressedTarget"/>), so a replay of the callsign-free record chooses the same one;
+    /// the request then takes the addressed say again's dispatch and post-dispatch path (refusals, the controller's airtime
+    /// on the frequency), and the result names the pilot.
+    /// </summary>
+    public static CommandResult SayAgainUnaddressed(ArmContext ctx)
+    {
+        var command = (SayAgainUnaddressedCommand)ctx.Parsed!;
+        SimulationEngine engine = ctx.Engine;
+        if (engine.Scenario?.SoloTrainingMode != true)
+        {
+            return PilotRepeat.SoloTrainingOnlyRefusal();
+        }
+
+        if (PilotRepeat.PickUnaddressedTarget(engine.World) is not { } target)
+        {
+            return new CommandResult(false, "Say again: no pilot has called");
+        }
+
+        // The addressed verb, as the aviation arm would dispatch it to the target.
+        string addressed = CommandDescriber.DescribeCommand(new SayAgainCommand(command.CallsignOnly));
+        CompoundCommand compound = CommandParser.ParseCompound(addressed, target.FlightPlan.Route).Value!;
+        bool alreadyRequested = target.PendingRepeat || target.PendingRepeatCallsignOnly;
+        DispatchOrigin origin = ctx.Origin;
+        var capture = PreDispatchCapture.BeforeDispatch(target);
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            compound,
+            target,
+            engine.BuildDispatchContext(target, origin == DispatchOrigin.ControllerAi, ctx.Identity?.FacilityId)
+        );
+        engine.ApplyPostDispatch(target, compound, result, origin, capture);
+        if (!result.Success)
+        {
+            return result;
+        }
+
+        // A request already pending keeps the no-op's own text, so the student sees nothing new was asked.
+        string message =
+            alreadyRequested ? $"{result.Message} ({target.Callsign})"
+            : command.CallsignOnly ? $"Say again callsign → {target.Callsign}"
+            : $"Say again → {target.Callsign}";
+        return result with { Message = message };
+    }
+
+    /// <summary>
     /// <c>ADD</c>. Derived on every run kind from the shared RNG and beacon pool; a recorded action's baked aircraft
     /// is the authority when the derivation disagrees (<see cref="SimulationEngine.AddAircraft"/>). The aircraft that
     /// ended up in the world is baked onto a fresh action's record.

@@ -668,6 +668,9 @@ The hold on the solo frequency between a controller instruction and the pilot's 
 **Simulated tower**:
 The tower the sim plays without a word at a towered airport where the solo student does not work the tower and no AI tower covers it (`PilotContactRoster.TowerIsSimulatedAt`): no tower call reaches the student, it clears a departure the student transferred for takeoff once the runway is clear, clears arrivals to land and sends them around when the runway is not clear.
 
+**Unaddressed say again**:
+The controller's say again sent with no callsign (`AGAINU` / `AGAINU CS`, a Global verb the client sends for a typed `AGAIN CS` and for a bare `AGAIN` with nothing selected): the pilot still on the frequency whose call awaits a controller response repeats, else the one that transmitted last (`PilotRepeat.PickUnaddressedTarget`, docs/solo-training-pilot-speech.md).
+
 **Value floor**:
 The aviation floor for a rule's variant rows, checked by value rather than by rendered text: a row must carry the rule pattern's captures in the same order and the same ordered keyword classes, and only a busy row may drop climb/descend or the word runway on a runway clearance (`AviationFloor.HoldsTemplate`, enforced at test time over every row, docs/solo-training-pilot-speech.md).
 

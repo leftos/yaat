@@ -102,6 +102,7 @@ public static class ArmTable
             Sim(RecordedCommandKind.Reposition, ActionArms.Reposition),
             Sim(RecordedCommandKind.SquawkAll, ActionArms.SquawkAll),
             Sim(RecordedCommandKind.TaxiAll, ActionArms.TaxiAll),
+            Sim(RecordedCommandKind.SayAgainUnaddressed, ActionArms.SayAgainUnaddressed),
             Sim(RecordedCommandKind.HoldForRelease, ActionArms.HoldForRelease),
             Sim(RecordedCommandKind.DisarmHoldForRelease, ActionArms.DisarmHoldForRelease),
             Sim(RecordedCommandKind.ReleaseDeparture, ActionArms.ReleaseDeparture),

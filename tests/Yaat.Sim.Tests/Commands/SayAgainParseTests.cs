@@ -60,6 +60,35 @@ public sealed class SayAgainParseTests
     }
 
     [Fact]
+    public void Parse_AgainU_And_AgainUCs()
+    {
+        foreach (
+            (string text, bool callsignOnly, string canonical) in new[]
+            {
+                ("AGAINU", false, "AGAINU"),
+                ("AGAINU CS", true, "AGAINU CS"),
+                ("againu cs", true, "AGAINU CS"),
+            }
+        )
+        {
+            ParseResult<ParsedCommand> parsed = CommandParser.Parse(text);
+
+            SayAgainUnaddressedCommand command = Assert.IsType<SayAgainUnaddressedCommand>(parsed.Value);
+            Assert.Equal(callsignOnly, command.CallsignOnly);
+            Assert.Equal(CanonicalCommandType.SayAgainUnaddressed, CommandDescriber.ToCanonicalType(command));
+            Assert.Equal(canonical, CommandDescriber.DescribeCommand(command));
+            Assert.Equal(command, CommandParser.Parse(CommandDescriber.DescribeCommand(command)).Value);
+        }
+
+        ParseResult<ParsedCommand> rejected = CommandParser.Parse("AGAINU X");
+        Assert.False(rejected.IsSuccess);
+        // The parser frames every rejection with the quoted verb and the verb's accepted forms.
+        Assert.Contains("AGAINU takes no argument, or CS for the callsign only", rejected.Reason, StringComparison.Ordinal);
+        Assert.Equal(CanonicalCommandType.SayAgainUnaddressed, CommandRegistry.AliasToCanonicType["AGAINU"]);
+        Assert.Equal(CanonicalCommandType.SayAgain, CommandRegistry.AliasToCanonicType["AGAIN"]);
+    }
+
+    [Fact]
     public void Registry_Again_HasNoAliasCollision()
     {
         CommandDefinition definition = Assert.IsType<CommandDefinition>(CommandRegistry.Get(CanonicalCommandType.SayAgain));

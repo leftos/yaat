@@ -39,6 +39,7 @@ public class CommandScopesTests
         [CanonicalCommandType.AsdexEnableAllAlerts] = "ASDXALERTS",
         [CanonicalCommandType.GhostTrack] = "GHOST N77GH 37.72 -122.22",
         [CanonicalCommandType.Timer] = "TIMER 90",
+        [CanonicalCommandType.SayAgainUnaddressed] = "AGAINU",
     };
 
     public CommandScopesTests()

@@ -30,7 +30,7 @@ Say again is a command for students. It asks a pilot to repeat its last transmis
 
 - **Re-queued in the Sim.** The last transmission is snapshotted Sim state. A say-again puts it back on the frequency, subject to airtime and the gates, so it replays identically.
 - **"Say again callsign" is supported** besides the whole-transmission repeat: the pilot repeats only its callsign. Partial repeats ("all after/before X") are not supported; a plain "say again" repeats the whole transmission.
-- **Nothing to repeat:** the pilot answers briefly (e.g. "{callsign}, I didn't say anything"). An aircraft that has left the frequency gets the refusal `CONTACT` already gives.
+- **Nothing to repeat:** the pilot answers briefly (e.g. "{callsign}, I didn't say anything"). An aircraft that has left the frequency is refused (`CONTACT` has no such refusal).
 - **Feature branch** `feat/say-again`, opened when work starts.
 - **Verb** (user): `AGAIN` repeats the whole transmission, `AGAIN CS` only the callsign. Neither ATCTrainer's nor VICE's command list has a say-again verb; `SA` is already taken in `CommandRegistry`.
 - **Last transmission** (user): any pilot line on the frequency counts — readbacks, proactive calls, reports and "unable" lines. The repeat itself does not replace it (its text is the same).

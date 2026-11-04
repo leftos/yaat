@@ -3017,7 +3017,7 @@ public partial class MainViewModel : ObservableObject
         // SetActivePosition ("AS {tcp}") is global only when it's a standalone
         // command. The prefix form "AS {tcp} {track_command}" is per-aircraft
         // (server's ExtractAsPrefix strips the prefix and resolves RPO identity).
-        ParsedInput? globalParsed = CommandSchemeParser.Parse(text, scheme);
+        ParsedInput? globalParsed = AsUnaddressedSayAgain(CommandSchemeParser.Parse(text, scheme), SelectedAircraft is not null);
         if (globalParsed is not null && IsGlobalCommand(globalParsed.Type))
         {
             bool isAsPrefix = (globalParsed.Type == CanonicalCommandType.SetActivePosition) && (globalParsed.Argument?.Contains(' ') == true);
@@ -3361,8 +3361,30 @@ public partial class MainViewModel : ObservableObject
             CanonicalCommandType.ActiveRunways => p => SendGlobalVerbAsync("ARWY", p.Argument),
             CanonicalCommandType.GhostTrack => p => SendGlobalVerbAsync("GHOST", p.Argument),
             CanonicalCommandType.AsdexEnableAllAlerts => p => SendGlobalVerbAsync("ASDXALERTS", p.Argument),
+            CanonicalCommandType.SayAgainUnaddressed => p => SendGlobalVerbAsync("AGAINU", p.Argument),
             _ => null,
         };
+
+    /// <summary>
+    /// The typed say again sent unaddressed (<c>AGAINU</c>): <c>AGAIN CS</c> always, since it asks who called, and a bare
+    /// <c>AGAIN</c> when no aircraft is selected. A bare <c>AGAIN</c> with an aircraft selected, and anything else, is
+    /// returned unchanged. The server picks the pilot; the client never does.
+    /// </summary>
+    private static ParsedInput? AsUnaddressedSayAgain(ParsedInput? parsed, bool aircraftSelected)
+    {
+        if (parsed is not { Type: CanonicalCommandType.SayAgain })
+        {
+            return parsed;
+        }
+
+        string typed = string.IsNullOrWhiteSpace(parsed.Argument) ? "AGAIN" : $"AGAIN {parsed.Argument}";
+        return CommandParser.Parse(typed).Value switch
+        {
+            SayAgainCommand { CallsignOnly: true } => new ParsedInput(CanonicalCommandType.SayAgainUnaddressed, "CS"),
+            SayAgainCommand { CallsignOnly: false } when !aircraftSelected => new ParsedInput(CanonicalCommandType.SayAgainUnaddressed, null),
+            _ => parsed,
+        };
+    }
 
     /// <summary>Sends <c>{verb} [argument]</c> with an empty callsign and shows the server's answer.</summary>
     private async Task SendGlobalVerbAsync(string verb, string? argument)

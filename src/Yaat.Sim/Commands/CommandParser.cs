@@ -992,6 +992,11 @@ public static class CommandParser
                 new SayAgainCommand(true)
             ),
             CanonicalCommandType.SayAgain => PR.Fail("AGAIN takes no argument, or CS for the callsign only"),
+            CanonicalCommandType.SayAgainUnaddressed when arg is null => PR.Ok(new SayAgainUnaddressedCommand(false)),
+            CanonicalCommandType.SayAgainUnaddressed when string.Equals(arg.Trim(), "CS", StringComparison.OrdinalIgnoreCase) => PR.Ok(
+                new SayAgainUnaddressedCommand(true)
+            ),
+            CanonicalCommandType.SayAgainUnaddressed => PR.Fail("AGAINU takes no argument, or CS for the callsign only"),
             AcceptAllHandoffs when arg is null => PR.Ok(new AcceptAllHandoffsCommand()),
             InitiateHandoffAll => ParseTcpArg(arg, tcp => new InitiateHandoffAllCommand(tcp)),
             PointOut => PR.Ok(new PointOutCommand(arg?.Trim().ToUpperInvariant())),

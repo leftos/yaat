@@ -350,7 +350,7 @@ order:
    `CRC ` prefix skips the built-in steps so a shadowed alias is still reachable.
 4. **Global command** — `CommandSchemeParser.Parse` + `IsGlobalCommand` (`CommandScopes.SendsWithoutSelection`: the room-addressed verbs plus `GHOST` and `TIMER`, whatever is selected); dispatched via `HandleGlobalCommand` with no
    callsign through `GlobalCommandHandlerFor`, the one table of global handlers (a routed verb without a row is a test failure). A malformed one is answered with the server's parse reason. Exception: the `AS {tcp} {track_command}` *prefix* form is per-aircraft (the standalone `AS {tcp}` is
-   global), so it is **not** taken here.
+   global), so it is **not** taken here. The typed say again is rewritten first (`AsUnaddressedSayAgain`): `AGAIN CS` always, and a bare `AGAIN` when no aircraft is selected, go as the global `AGAINU` / `AGAINU CS` (the server picks the pilot); a bare `AGAIN` with an aircraft selected stays addressed.
 5. **Single-token select** — if the input is one token with no `,`/`;` and matches a callsign, just select that
    aircraft and return (no command sent).
 6. **Macro expand** — `TypedCommandText.TryExpandMacros` (over `MacroExpander`, shared with custom quick commands) so callsign-prefix resolution sees real verbs.

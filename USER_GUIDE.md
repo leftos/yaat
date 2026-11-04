@@ -2036,6 +2036,8 @@ Use these USER_GUIDE sections as the UI reference while following the tutorial:
 
 For syntax, mode-specific restrictions, and examples, see [Command Reference: Solo Training Command Differences](COMMANDS.md#solo-training-command-differences).
 
+**Say again.** `AGAIN` makes a pilot repeat its whole last transmission and `AGAIN CS` only its call sign; the repeat comes after any line the pilot still has waiting. Type `AGAIN` with no aircraft selected, or `AGAIN CS` at any time, to ask whoever called without naming them ("Aircraft calling, say again"): the pilot whose call still awaits your response answers, else the one who transmitted last (the lower call sign on a tie), skipping pilots who have left your frequency. The terminal names the pilot (`Say again → N123AB`), reads `Say again already requested (N123AB)` when a repeat is already on its way and `Say again: no pilot has called` when nobody has. A say again leaves the pilot's call unanswered, and your transmission counts as airtime on the frequency. Outside Solo Training it is refused.
+
 ---
 
 ## Commands

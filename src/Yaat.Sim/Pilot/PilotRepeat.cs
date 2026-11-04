@@ -23,7 +23,7 @@ public static class PilotRepeat
     {
         if (!ctx.SoloTrainingMode)
         {
-            return CommandDispatcher.OperatorGuidanceRefusal("AGAIN is solo-training only; pilots speak on the frequency only in solo training");
+            return SoloTrainingOnlyRefusal();
         }
 
         if (aircraft.HasLeftStudentFrequency)
@@ -44,6 +44,37 @@ public static class PilotRepeat
 
         aircraft.PendingRepeat = true;
         return CommandDispatcher.Ok("Say again");
+    }
+
+    /// <summary>The refusal of a say again of any form outside solo training, where no pilot speaks.</summary>
+    public static CommandResult SoloTrainingOnlyRefusal() =>
+        CommandDispatcher.OperatorGuidanceRefusal("AGAIN is solo-training only; pilots speak on the frequency only in solo training");
+
+    /// <summary>
+    /// The pilot an unaddressed say again (<c>AGAINU</c>) goes to, among the aircraft still on the student's frequency: the
+    /// one whose call awaits a controller response, else the one whose last transmission went out latest (ties to the
+    /// ordinal-lower callsign), else none. Reads snapshotted state only, so a replay or a restored rewind picks the same one.
+    /// </summary>
+    public static AircraftState? PickUnaddressedTarget(SimulationWorld world)
+    {
+        List<AircraftState> candidates = [.. world.GetSnapshot().Where(a => !a.HasLeftStudentFrequency)];
+        if (world.ActiveFrequency.AwaitingControllerResponseTo is { } awaited)
+        {
+            AircraftState? awaitedAircraft = candidates.Find(a => string.Equals(a.Callsign, awaited, StringComparison.Ordinal));
+            if (awaitedAircraft is not null)
+            {
+                Log.LogDebug("Unaddressed say again goes to {Callsign}", awaitedAircraft.Callsign);
+                return awaitedAircraft;
+            }
+        }
+
+        AircraftState? last = candidates
+            .Where(a => a.LastPilotTransmission is not null)
+            .OrderByDescending(a => a.LastPilotTransmission!.AtSeconds)
+            .ThenBy(a => a.Callsign, StringComparer.Ordinal)
+            .FirstOrDefault();
+        Log.LogDebug("Unaddressed say again goes to {Callsign}", last?.Callsign ?? "nobody");
+        return last;
     }
 
     /// <summary>Whether <paramref name="compound"/> carries nothing but say-again requests.</summary>

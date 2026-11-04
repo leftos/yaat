@@ -168,6 +168,7 @@ public enum CanonicalCommandType
     ClearedBravoAirspace,
     AcknowledgePilotContact,
     SayAgain,
+    SayAgainUnaddressed,
 
     // Coordination
     CoordinationRelease,

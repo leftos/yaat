@@ -1259,6 +1259,22 @@ public static class CommandRegistry
                 ]
             ),
             Cmd(
+                SayAgainUnaddressed,
+                "Say Again (Unaddressed)",
+                "Track Operations",
+                CommandDimension.None,
+                false,
+                ["AGAINU"],
+                [
+                    O(null, [], "Aircraft calling, say again: the pilot who called last repeats its transmission (solo training)"),
+                    O(
+                        "Callsign",
+                        [L("CS")],
+                        "Aircraft calling, say again your call sign: the pilot who called last says its call sign only (solo training)"
+                    ),
+                ]
+            ),
+            Cmd(
                 InitiateHandoff,
                 "Handoff",
                 "Track Operations",
