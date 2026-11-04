@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -11,6 +13,8 @@ namespace Yaat.Sim.Data.Airport;
 /// </summary>
 public static class RunwayHoldBars
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("RunwayHoldBars");
+
     /// <summary>
     /// Each layout's runway hold-short bar nodes by runway (<see cref="RunwayBarIndex"/>), built on first use and held with the
     /// layout — a new layout instance starts a new index — so a tick's hold-line checks never scan every node of the layout.
@@ -54,8 +58,12 @@ public static class RunwayHoldBars
     /// <summary>The holding position marking painted at a bar (<see cref="DepthPastMarkingFt"/>).</summary>
     /// <param name="TowardRunwayDeg">The taxiway axis at the bar pointing toward the runway (deg true).</param>
     /// <param name="HalfWidthFt">Half the painted length: half the taxiway width (<see cref="HoldShortStandoff.TaxiwayWidthProxyFt"/>).</param>
-    /// <param name="BesideLineFt">The distance (ft) from the centreline a point beside the paint is judged against (S_eff).</param>
-    private sealed record BarMarking(double TowardRunwayDeg, double HalfWidthFt, double BesideLineFt);
+    /// <param name="BesideLineFt">The distance (ft) from the centreline a part is judged against when the gear is off the stub (S_eff).</param>
+    /// <param name="StubCutFt">
+    /// How far back from the bar (ft, along the taxiway axis, away from the runway) the stub the bar marks ends (<see cref="StubCutOf"/>).
+    /// </param>
+    /// <param name="OffEnd">True when the bar's foot on the centreline extended falls beyond either runway end.</param>
+    private sealed record BarMarking(double TowardRunwayDeg, double HalfWidthFt, double BesideLineFt, double StubCutFt, bool OffEnd);
 
     /// <summary>The runway hold-short bar nodes of <paramref name="runway"/>.</summary>
     /// <param name="layout">The airport's ground layout.</param>
@@ -141,14 +149,23 @@ public static class RunwayHoldBars
     /// How far (ft) <paramref name="point"/>, a part of an aircraft whose main gear is at <paramref name="gearPosition"/>, lies
     /// past the holding position marking painted at <paramref name="bar"/> toward <paramref name="runway"/> (negative short of it;
     /// AIM 2-3-5.a, 4-3-21.b). The marking is a segment through the bar node, square to the taxiway axis there
-    /// (<see cref="TaxiwayAxisBearingDeg(RunwayInfo, GroundNode)"/>), half the taxiway width
-    /// (<see cref="HoldShortStandoff.TaxiwayWidthProxyFt"/>) each side of the node. The paint governs the aircraft on the stub it
-    /// marks: when both the main gear and the point lie in front of it (their offset along the line from the node within that
-    /// half-width), the point is measured past the line along the taxiway axis. Otherwise — a part beside the paint, or an
-    /// aircraft on a parallel taxiway whose wingtip reaches over the stub's paint — it is measured against the runway's standoff
-    /// S (<see cref="GroundRunway.HoldShortStandoffFt"/>, else <see cref="GroundRunway.HoldShortDistanceFt"/>), never farther out
-    /// than the bar itself, as a line parallel to the centreline; with no ground runway of that name in
-    /// <paramref name="layout"/>, against the bar's own distance from it.
+    /// (<see cref="TaxiwayAxisBearingDeg(RunwayInfo, GroundNode)"/>), half the taxiway width W
+    /// (<see cref="HoldShortStandoff.TaxiwayWidthProxyFt"/>) each side of the node.
+    /// <para>
+    /// The paint governs the aircraft whose main gear is on the stub it marks (AIM 2-3-5.a.1, 7110.65 3-7-4 NOTE): within W/2 of
+    /// the taxiway axis and, along it, between the runway edge and the stub's cut (<see cref="StubCutOf"/>). Every part of that
+    /// aircraft is measured past the painted line extended, along the taxiway axis, but never less than the safety floor: how
+    /// far the part lies inside the runway half-width plus <see cref="RunwayOccupancy.LateralSlackFt"/>.
+    /// </para>
+    /// <para>
+    /// With the gear off the stub — on a parallel taxiway whose wingtip reaches over the stub's paint, or on the runway — every
+    /// part is measured against the runway's standoff S (<see cref="GroundRunway.HoldShortStandoffFt"/>, else
+    /// <see cref="GroundRunway.HoldShortDistanceFt"/>), never farther out than the bar itself, as a line parallel to the
+    /// centreline; against the bar's own distance from the centreline segment when <paramref name="layout"/> has no ground
+    /// runway of that name. At a bar whose foot on the centreline extended falls beyond either runway end, a part over the
+    /// bar's paint (within W/2 of the bar along its line) is measured past the painted line extended as well, and never reads
+    /// short of that standoff line.
+    /// </para>
     /// </summary>
     /// <param name="layout">The airport's ground layout.</param>
     /// <param name="runway">The runway.</param>
@@ -158,37 +175,171 @@ public static class RunwayHoldBars
     /// <returns>The depth past the marking (ft).</returns>
     public static double DepthPastMarkingFt(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar, LatLon point, LatLon gearPosition)
     {
-        BarMarking marking = SidesOf(layout, runway)
-            .Markings.GetOrAdd(bar.Id, static (_, args) => MarkingOf(args.layout, args.runway, args.bar), (layout, runway, bar));
-        (double pointOffsetFt, double pointPastFt) = LineFrame(marking, bar, point);
-        bool inFront =
-            (Math.Abs(pointOffsetFt) <= marking.HalfWidthFt) && (Math.Abs(LineFrame(marking, bar, gearPosition).OffsetFt) <= marking.HalfWidthFt);
-        return inFront ? pointPastFt : marking.BesideLineFt - CentrelineFt(runway, point);
+        BarMarking marking = MarkingAt(layout, runway, bar);
+        double pointFt = CentrelineFt(runway, point);
+        if (IsGearOnTheStub(runway, marking, bar, gearPosition))
+        {
+            double floorFt = (runway.WidthFt / 2.0) + RunwayOccupancy.LateralSlackFt - pointFt;
+            return Math.Max(LineFrame(marking.TowardRunwayDeg, bar, point).PastFt, floorFt);
+        }
+
+        (double offsetFt, double pastFt) = LineFrame(marking.TowardRunwayDeg, bar, point);
+        double besideFt = marking.BesideLineFt - pointFt;
+        return (marking.OffEnd && (Math.Abs(offsetFt) <= marking.HalfWidthFt)) ? Math.Max(pastFt, besideFt) : besideFt;
     }
 
     /// <summary>
-    /// Where <paramref name="point"/> lies against <paramref name="bar"/>'s marking: its offset along the line from the node, and
-    /// its distance past the line along the taxiway axis toward the runway (both ft).
+    /// Whether <paramref name="gearPosition"/> lies on the stub <paramref name="bar"/>'s marking governs: within the paint's
+    /// half-width of the taxiway axis and, along the axis, between the runway edge and the stub's cut — its foot on the axis
+    /// outside the runway half-width and on the bar's side of the centreline.
     /// </summary>
-    private static (double OffsetFt, double PastFt) LineFrame(BarMarking marking, GroundNode bar, LatLon point)
+    private static bool IsGearOnTheStub(RunwayInfo runway, BarMarking marking, GroundNode bar, LatLon gearPosition)
+    {
+        (double offsetFt, double pastFt) = LineFrame(marking.TowardRunwayDeg, bar, gearPosition);
+        if ((Math.Abs(offsetFt) > marking.HalfWidthFt) || (-pastFt > marking.StubCutFt))
+        {
+            return false;
+        }
+
+        double towardDeg = (pastFt >= 0.0) ? marking.TowardRunwayDeg : marking.TowardRunwayDeg + 180.0;
+        LatLon foot = GeoMath.ProjectPoint(bar.Position, new TrueHeading(towardDeg), Math.Abs(pastFt) / GeoMath.FeetPerNm);
+        return (CentrelineFt(runway, foot) > runway.WidthFt / 2.0)
+            && (IsRightOfCentreline(runway, foot) == IsRightOfCentreline(runway, bar.Position));
+    }
+
+    /// <summary>
+    /// Where <paramref name="point"/> lies against the marking at <paramref name="bar"/> square to <paramref name="towardRunwayDeg"/>:
+    /// its offset along the line from the node, and its distance past the line along the taxiway axis toward the runway (both ft).
+    /// </summary>
+    private static (double OffsetFt, double PastFt) LineFrame(double towardRunwayDeg, GroundNode bar, LatLon point)
     {
         double distanceFt = GeoMath.DistanceNm(bar.Position, point) * GeoMath.FeetPerNm;
-        double angleRad = GeoMath.SignedBearingDifference(marking.TowardRunwayDeg, GeoMath.BearingTo(bar.Position, point)) * Math.PI / 180.0;
+        double angleRad = GeoMath.SignedBearingDifference(towardRunwayDeg, GeoMath.BearingTo(bar.Position, point)) * Math.PI / 180.0;
         return (distanceFt * Math.Sin(angleRad), distanceFt * Math.Cos(angleRad));
     }
+
+    /// <summary>
+    /// How far back from <paramref name="bar"/> (ft, along the taxiway axis away from <paramref name="runway"/>) the stub its
+    /// marking governs ends (<see cref="StubCutOf"/>).
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="runway">The runway.</param>
+    /// <param name="bar">The bar.</param>
+    /// <returns>The cut (ft back from the bar).</returns>
+    internal static double StubCutFt(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar) => MarkingAt(layout, runway, bar).StubCutFt;
+
+    /// <summary>
+    /// The distance (ft) from <paramref name="runway"/>'s centreline that a part of an aircraft whose gear is off the stub of
+    /// <paramref name="bar"/> is judged against (<see cref="DepthPastMarkingFt"/>): the runway's standoff S
+    /// (<see cref="GroundRunway.HoldShortStandoffFt"/>, else <see cref="GroundRunway.HoldShortDistanceFt"/>), never farther out
+    /// than the bar itself; the bar's own distance when <paramref name="layout"/> has no ground runway of that name. A part
+    /// over an off-end bar's paint is judged past the painted line instead, never less than this line.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="runway">The runway.</param>
+    /// <param name="bar">The bar.</param>
+    /// <returns>The beside line (ft from the centreline).</returns>
+    internal static double BesideLineFt(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar) => MarkingAt(layout, runway, bar).BesideLineFt;
+
+    private static BarMarking MarkingAt(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar) =>
+        SidesOf(layout, runway).Markings.GetOrAdd(bar.Id, static (_, args) => MarkingOf(args.layout, args.runway, args.bar), (layout, runway, bar));
 
     private static BarMarking MarkingOf(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar)
     {
         GroundRunway? groundRunway = layout.Runways.FirstOrDefault(r => r.Id.Overlaps(runway.Id));
         double barFt = CentrelineFt(runway, bar.Position);
+        bool beyondAnEnd = GeoMath
+            .FootOfPerpendicular(bar.Position, new LatLon(runway.Lat1, runway.Lon1), new LatLon(runway.Lat2, runway.Lon2))
+            .Clamped;
         double besideFt = (groundRunway?.HoldShortStandoffFt ?? groundRunway?.HoldShortDistanceFt) is { } standoffFt
             ? Math.Min(standoffFt, barFt)
             : barFt;
-        return new BarMarking(
-            new TrueHeading(TaxiwayAxisBearingDeg(runway, bar) + 180.0).Degrees,
-            HoldShortStandoff.TaxiwayWidthProxyFt(runway.WidthFt) / 2.0,
-            besideFt
-        );
+        double towardRunwayDeg = new TrueHeading(TaxiwayAxisBearingDeg(runway, bar) + 180.0).Degrees;
+        double halfWidthFt = HoldShortStandoff.TaxiwayWidthProxyFt(runway.WidthFt) / 2.0;
+        return new BarMarking(towardRunwayDeg, halfWidthFt, besideFt, StubCutOf(bar, towardRunwayDeg, halfWidthFt), beyondAnEnd);
+    }
+
+    /// <summary>
+    /// How far back from <paramref name="bar"/> (ft, along the taxiway axis away from the runway) the stub it marks ends:
+    /// walking back along the bar's taxiway (<see cref="BarTaxiwayName"/>, edges of exactly that name, fillet arcs of that one
+    /// name included), the first node past the bar where a straight edge of another taxiway meets it — a joining taxiway; a
+    /// node whose only other-named edges are fillet arcs is stepped over. The cut is that node's distance back less the
+    /// joining taxiway's half-width (<paramref name="halfWidthFt"/>: the layout carries no taxiway width, so the same proxy
+    /// the paint uses); with nothing joining, the node where the taxiway's chain ends. Zero when the bar has no named taxiway
+    /// or no edge of it leading back.
+    /// </summary>
+    /// <param name="bar">The bar node.</param>
+    /// <param name="towardRunwayDeg">The taxiway axis at the bar pointing toward the runway (deg true).</param>
+    /// <param name="halfWidthFt">The taxiway half-width proxy (ft).</param>
+    /// <returns>The cut (ft back from the bar).</returns>
+    private static double StubCutOf(GroundNode bar, double towardRunwayDeg, double halfWidthFt)
+    {
+        if (BarTaxiwayName(bar) is not { } taxiway)
+        {
+            return 0.0;
+        }
+
+        bool IsTaxiway(IGroundEdge edge) => string.Equals(edge.TaxiwayName, taxiway, StringComparison.Ordinal);
+        double BackFt(GroundNode node) => -LineFrame(towardRunwayDeg, bar, node.Position).PastFt;
+
+        IGroundEdge? edge = bar.Edges.Where(e => IsTaxiway(e) && !e.IsRunwayCenterline).MaxBy(e => BackFt(e.OtherNode(bar)));
+        if ((edge is null) || (BackFt(edge.OtherNode(bar)) <= 0.0))
+        {
+            return 0.0;
+        }
+
+        (double cutFt, string? joiner) = WalkBackFt(bar, edge, IsTaxiway, BackFt, halfWidthFt);
+        Log.LogDebug("Bar #{BarId} on {Taxiway}: stub cut {CutFt:F1} ft back, {Joiner}", bar.Id, taxiway, cutFt, joiner ?? "chain end");
+        return cutFt;
+    }
+
+    /// <summary>
+    /// Where the stub <paramref name="bar"/> marks ends, walked back from the bar along its taxiway from <paramref name="first"/>:
+    /// the joining straight taxiway's node less its half-width, the chain's end when nothing joins, or the node reached when the
+    /// walk closes a loop.
+    /// </summary>
+    /// <param name="bar">The bar node.</param>
+    /// <param name="first">The bar's first edge back along its taxiway.</param>
+    /// <param name="isTaxiway">Whether an edge is of the bar's taxiway.</param>
+    /// <param name="backFt">How far a node lies back from the bar along its axis (ft).</param>
+    /// <param name="halfWidthFt">The joining taxiway's half-width proxy (ft).</param>
+    /// <returns>The cut (ft back from the bar) and the joining taxiway's name, or null for a chain end.</returns>
+    private static (double CutFt, string? Joiner) WalkBackFt(
+        GroundNode bar,
+        IGroundEdge first,
+        Func<IGroundEdge, bool> isTaxiway,
+        Func<GroundNode, double> backFt,
+        double halfWidthFt
+    )
+    {
+        IGroundEdge edge = first;
+        GroundNode at = bar;
+        var visited = new HashSet<int> { bar.Id };
+        while (true)
+        {
+            GroundNode next = edge.OtherNode(at);
+            if (!visited.Add(next.Id))
+            {
+                return (backFt(at), null);
+            }
+
+            IGroundEdge[] others = [.. next.Edges.Where(e => !ReferenceEquals(e, edge))];
+            IGroundEdge? joiner = others.FirstOrDefault(e => (e is GroundEdge) && !isTaxiway(e));
+            if (joiner is not null)
+            {
+                return (backFt(next) - halfWidthFt, joiner.TaxiwayName);
+            }
+
+            IGroundEdge[] onward = [.. others.Where(isTaxiway)];
+            if (onward.Length == 0)
+            {
+                return (backFt(next), null);
+            }
+
+            double inboundDeg = GeoMath.BearingTo(at.Position, next.Position);
+            edge = onward.MinBy(e => GeoMath.AbsBearingDifference(inboundDeg, BearingAtBar(next, e)))!;
+            at = next;
+        }
     }
 
     /// <summary>

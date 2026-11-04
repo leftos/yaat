@@ -14,6 +14,8 @@
 - `MLT` and `MRT` on the ground before a takeoff clearance are refused, so they never move the departure runway or re-route the taxi.
 - `CTO, MLT 28L` and `CTO; MLT 28L` fly as `CTO MLT 28L`: the aircraft departs the runway its readback names, then flies the pattern.
 - `MLT` or `MRT` after a takeoff clearance, still on the ground, flies the closed traffic from the cleared runway, keeping its pattern runway and altitude.
+- A widebody holding at an angled hold bar no longer reads as fouling the runway when its wingtip sits beside the painted line.
+- Traffic taxiing past a runway's end, or on a parallel taxiway through a short stub, no longer reads as fouling that runway.
 - Pilot voices say approach names as charted ("ILS runway two eight right", "VOR Alpha") instead of spelling them letter by letter.
 - `CROSS` at a hold short is refused when the aircraft has no airport ground layout, instead of releasing the hold with no crossing planned.
 - An aircraft cleared for takeoff while lining up behind `LUAW` rolls into its takeoff without slowing, and `CTOC` during that line-up stops it on the centerline.

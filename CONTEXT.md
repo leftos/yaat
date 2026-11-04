@@ -448,6 +448,12 @@ How far from the rule's centerline standoff D a painted bar's snap point may sit
 **Standoff (S, D)**:
 The hold-short placement rule (`HoldShortStandoff`). **S** is a runway's base separation: feet from its centreline to the nearest point of the hold line, from the authored `holdShortDistance` or the rule by width, length, ILS category and elevation. **D** is where the taxiway's centreline meets that line, `D = S + (W_twy / 2) · |cos θ|` for a taxiway at angle θ to the runway, so an angled taxiway's bar sits farther out than S (docs/ground/hold-short-placement.md).
 
+**Stub** (of a hold bar):
+The length of the bar's taxiway the bar's painted line marks: within half the taxiway width of its axis and, along it, from the runway's near edge back to the stub cut. An aircraft whose main gear is on the stub is judged against the painted line extended; off it, against the standoff line (docs/runway-fouling.md).
+
+**Stub cut**:
+Where a stub ends, measured back from the bar along the taxiway axis (`RunwayHoldBars.StubCutFt`): the first node back where a straight edge of another taxiway joins, less that taxiway's half-width proxy; fillet arcs never set it, and with no straight joiner it is the end of the bar taxiway's chain.
+
 **Vacating** (a runway):
 The pilot sense, not the controller's: an aircraft on the ground leaving a runway whose tail is still over the strict paved half-width or inside the hold line (`RunwayOccupancy.IsVacating`), moving or stopped, until the tail is out. Moving, it has right of way over taxiing traffic; held, only against traffic coming head-on into its way out.
 
