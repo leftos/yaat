@@ -50,7 +50,7 @@ public sealed class MainViewModelStartupLoadTests
         var first = new MainViewModel(new FakeFilePickerService());
         await first.NavDataInitialization.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
 
-        // A test that installs a synthetic database and never restores it, as RadarViewModelFixFilterTests does.
+        // Replace the singleton with a synthetic database and leave it installed: the load must put the committed one back.
         NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
         try
         {

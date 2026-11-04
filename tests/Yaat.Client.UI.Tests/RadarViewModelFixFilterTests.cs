@@ -22,7 +22,7 @@ public class RadarViewModelFixFilterTests
             ["SUNOL"] = (37.5922, -121.8822),
             ["OAK169001"] = (37.7053, -122.2166),
         };
-        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting(fixes));
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting(fixes));
 
         RadarViewModel vm = NewVm();
         vm.SetNavDbReady();

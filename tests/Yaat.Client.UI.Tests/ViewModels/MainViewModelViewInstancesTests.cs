@@ -65,7 +65,9 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void OpenExtraRadarView_AllocatesLowestFreeOrdinalAndPersists()
     {
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
+        vm.MarkNavDbReady();
         try
         {
             vm.OpenExtraRadarView("KOAK");
@@ -73,17 +75,17 @@ public class MainViewModelViewInstancesTests
 
             // The docked view is #1, so the first two extra windows are #2 and #3.
             Assert.Equal([2, 3], vm.ExtraRadarViews.Select(i => i.Ordinal).ToList());
-            Assert.Equal([new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KOAK")], vm.Preferences.ExtraRadarViews);
+            Assert.Equal([new SavedExtraView(2, "OAK"), new SavedExtraView(3, "OAK")], vm.Preferences.ExtraRadarViews);
             Assert.Equal("#3", vm.ExtraRadarViews[1].Vm.SettingsKeySuffix);
             Assert.False(vm.ExtraRadarViews[1].Vm.IsPrimary);
 
             vm.CloseExtraRadarView(vm.ExtraRadarViews.Single(i => i.Ordinal == 2));
-            Assert.Equal([new SavedExtraView(3, "KOAK")], vm.Preferences.ExtraRadarViews);
+            Assert.Equal([new SavedExtraView(3, "OAK")], vm.Preferences.ExtraRadarViews);
 
             // The gap the closed window left is reused before a new number is taken.
             vm.OpenExtraRadarView("KOAK");
             Assert.Contains(vm.ExtraRadarViews, i => i.Ordinal == 2);
-            Assert.Equal([new SavedExtraView(2, "KOAK"), new SavedExtraView(3, "KOAK")], vm.Preferences.ExtraRadarViews);
+            Assert.Equal([new SavedExtraView(2, "OAK"), new SavedExtraView(3, "OAK")], vm.Preferences.ExtraRadarViews);
         }
         finally
         {
@@ -94,7 +96,9 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void SelectedAircraft_FansOutToExtras_AndChildSelectionWritesBack()
     {
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
+        vm.MarkNavDbReady();
         try
         {
             vm.OnAircraftUpdated(MakeAircraft("AAL1"));
@@ -125,7 +129,9 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void ExtraGroundView_MirrorsPrimaryLayoutOnOpen()
     {
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
+        vm.MarkNavDbReady();
         try
         {
             vm.Ground.SetLayoutForTesting(Layout("TST"));
@@ -146,20 +152,22 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void ReconcileExtraViews_KeepsSurvivorsClosesMissingOpensNew()
     {
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
+        vm.MarkNavDbReady();
         try
         {
             vm.OpenExtraRadarView("KOAK");
             vm.OpenExtraRadarView("KOAK");
             RadarViewInstance survivor = vm.ExtraRadarViews.Single(i => i.Ordinal == 3);
 
-            vm.ReconcileExtraViews([new SavedExtraView(3, "KOAK"), new SavedExtraView(4, "KOAK")], []);
+            vm.ReconcileExtraViews([new SavedExtraView(3, "OAK"), new SavedExtraView(4, "OAK")], []);
 
             Assert.Equal([3, 4], vm.ExtraRadarViews.Select(i => i.Ordinal).ToList());
             // A survivor keeps its view-model, so applying a profile doesn't reset that window's view state.
             Assert.Same(survivor, vm.ExtraRadarViews.Single(i => i.Ordinal == 3));
             Assert.Same(survivor.Vm, vm.ExtraRadarViews.Single(i => i.Ordinal == 3).Vm);
-            Assert.Equal([new SavedExtraView(3, "KOAK"), new SavedExtraView(4, "KOAK")], vm.Preferences.ExtraRadarViews);
+            Assert.Equal([new SavedExtraView(3, "OAK"), new SavedExtraView(4, "OAK")], vm.Preferences.ExtraRadarViews);
         }
         finally
         {
@@ -170,6 +178,7 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void ExtraViews_RestoreFromPreferencesOnConstruction()
     {
+        using IDisposable navScope = SeedNavDb();
         var preferences = new UserPreferences();
         MainViewModel? vm = null;
         try
@@ -200,9 +209,8 @@ public class MainViewModelViewInstancesTests
     // The picker lists the ARTCC config's airports, which are FAA ids ("OAK"), while scenarios and
     // layouts carry ICAO ("KOAK"). Both forms must name the same airport, so the nav db is seeded with
     // the canonical mapping every test that exercises normalization needs.
-    private static void SeedNavDb()
-    {
-        NavigationDatabase.SetInstance(
+    private static IDisposable SeedNavDb() =>
+        NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(
                 fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -218,12 +226,11 @@ public class MainViewModelViewInstancesTests
                 }
             )
         );
-    }
 
     [AvaloniaFact]
     public void OpenExtraRadarView_SeedsChosenAirportIdAndCentre()
     {
-        SeedNavDb();
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
         try
         {
@@ -247,7 +254,7 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void OpenExtraView_TakesFaaOrIcaoFormIdentically()
     {
-        SeedNavDb();
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
         try
         {
@@ -271,7 +278,7 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void OpenExtraGroundView_SameAirportMirrors()
     {
-        SeedNavDb();
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
         try
         {
@@ -294,7 +301,7 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void OpenExtraGroundView_DifferentAirportDoesNotMirror()
     {
-        SeedNavDb();
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
         try
         {
@@ -316,7 +323,7 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void ScenarioBootstrap_ReseedsExtraGroundFromTheNewPrimaryAirport()
     {
-        SeedNavDb();
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
         try
         {
@@ -354,7 +361,7 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void ClearScenarioState_DropsEveryExtraGroundViewsScenarioId()
     {
-        SeedNavDb();
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
         try
         {
@@ -393,7 +400,9 @@ public class MainViewModelViewInstancesTests
     [AvaloniaFact]
     public void ReconcileExtraViews_ReopensInstanceWhoseAirportChanged()
     {
+        using IDisposable navScope = SeedNavDb();
         var vm = new MainViewModel(new FakeFilePickerService());
+        vm.MarkNavDbReady();
         try
         {
             RadarViewInstance original = vm.OpenExtraRadarView("KOAK");
@@ -405,8 +414,8 @@ public class MainViewModelViewInstancesTests
             RadarViewInstance reopened = Assert.Single(vm.ExtraRadarViews);
             Assert.NotSame(original, reopened);
             Assert.Equal(2, reopened.Ordinal);
-            Assert.Equal("KSFO", reopened.AirportId);
-            Assert.Equal("KSFO", reopened.Vm.PrimaryAirportId);
+            Assert.Equal("SFO", reopened.AirportId);
+            Assert.Equal("SFO", reopened.Vm.PrimaryAirportId);
         }
         finally
         {
