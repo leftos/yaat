@@ -306,14 +306,17 @@ public class PatternCompressionTests
         return wp;
     }
 
-    /// <summary>A C172's right circuit on 28L encloses 28R, and its legs cross 28R's extended centerline within 1 nm of its ends.</summary>
+    /// <summary>
+    /// A C172's right circuit on 28L encloses 28R and crosses its extended centerline, but 28R, 1,000 ft north, is by design: no
+    /// right circuit of any width from 0.3 to 2.5 nm clears it, so the pilot flies the normal pattern without a warning.
+    /// </summary>
     [Fact]
-    public void Oak28L_C172CircuitAround28R_CrossesItsCorridorAndWarns()
+    public void Oak28L_C172CircuitAround28R_IsByDesignAndDoesNotWarn()
     {
         PatternWaypoints wp = RightCircuitAround28R("C172");
 
         Assert.Null(wp.CompressedDownwindSpeedKts);
-        Assert.Equal("28R", wp.RunwayCrossing?.CrossedRunway);
+        Assert.Null(wp.RunwayCrossing);
     }
 
     /// <summary>
@@ -327,6 +330,114 @@ public class PatternCompressionTests
 
         Assert.Null(wp.CompressedDownwindSpeedKts);
         Assert.Null(wp.RunwayCrossing);
+    }
+
+    private static PatternWaypoints Oak28R(string type, PatternDirection direction, params string[] active) =>
+        OakCircuit("28R", type, direction, ActiveRunways.Empty.With("OAK", [.. active.Select(a => new ActiveRunway(a, ActiveRunwayUse.Both))]));
+
+    private static PatternWaypoints OakCircuit(string runway, string type, PatternDirection direction, ActiveRunways activeRunways) =>
+        PatternGeometry.Compute(
+            new PatternGeometryRequest(Runway("KOAK", runway), AircraftCategorization.Categorize(type), type, 0, direction)
+            {
+                SizeOverrideNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = OakRunways,
+                AuthoredRunway = null,
+                ActiveRunways = activeRunways,
+                Commanded = PatternCommanded.None,
+            }
+        );
+
+    /// <summary>
+    /// 28R clears a left circuit on 33 only from about 0.92 nm wide, inside the by-design range, so it stays protected and a
+    /// C172, whose compressed floor is far narrower, still warns of it.
+    /// </summary>
+    [Fact]
+    public void Oak33Mlt_C172_Runway28RActive_StillWarnsOf28R()
+    {
+        PatternWaypoints wp = OakCircuit(
+            "33",
+            "C172",
+            PatternDirection.Left,
+            ActiveRunways.Empty.With("OAK", [new ActiveRunway("33", ActiveRunwayUse.Both), new ActiveRunway("28R", ActiveRunwayUse.Both)])
+        );
+
+        Assert.Equal("28R", wp.RunwayCrossing?.CrossedRunway);
+    }
+
+    /// <summary>With no active list every runway counts, but 28L is by design for a left circuit on 28R, so a PC12 compresses for 30.</summary>
+    [Fact]
+    public void Oak28RMlt_DefaultRoom_TurbopropCompressesForRunway30()
+    {
+        PatternWaypoints wp = OakCircuit("28R", "PC12", PatternDirection.Left, ActiveRunways.Empty);
+
+        Assert.NotNull(wp.CompressedDownwindSpeedKts);
+        Assert.Null(wp.RunwayCrossing);
+        Assert.Equal(0.814, wp.PatternSizeNm, 3);
+    }
+
+    /// <summary>Runway 33's corridor crosses 28R's own pavement; no right circuit of any width from 0.3 to 2.5 nm clears it, so it is by design.</summary>
+    [Theory]
+    [InlineData("C172")]
+    [InlineData("C208")]
+    public void Oak28RMrt_Runway33Active_IsByDesign_FliesNormalAndDoesNotWarn(string type)
+    {
+        PatternWaypoints wp = Oak28R(type, PatternDirection.Right, "28R", "33");
+
+        Assert.Null(wp.CompressedDownwindSpeedKts);
+        Assert.Null(wp.RunwayCrossing);
+        Assert.Equal(CategoryPerformance.PatternSizeNm(AircraftCategorization.Categorize(type)), wp.PatternSizeNm, 3);
+    }
+
+    /// <summary>28L, 1,000 ft south of 28R, lies inside every left circuit on 28R that a compression could fly, so it is by design.</summary>
+    [Theory]
+    [InlineData("C172")]
+    [InlineData("PC12")]
+    public void Oak28RMlt_Runway28LActive_IsByDesign_FliesNormalAndDoesNotWarn(string type)
+    {
+        PatternWaypoints wp = Oak28R(type, PatternDirection.Left, "28R", "28L");
+
+        Assert.Null(wp.CompressedDownwindSpeedKts);
+        Assert.Null(wp.RunwayCrossing);
+        Assert.Equal(CategoryPerformance.PatternSizeNm(AircraftCategorization.Categorize(type)), wp.PatternSizeNm, 3);
+    }
+
+    /// <summary>28L, 1,000 ft south of 28R, is by design for a left circuit on 28R; runway 30 still compresses it.</summary>
+    [Theory]
+    [InlineData("C172")]
+    [InlineData("PC12")]
+    [InlineData("SF50")]
+    public void Oak28RMlt_28LAnd30Active_CompressesForRunway30Only(string type)
+    {
+        PatternWaypoints only30 = Oak28R(type, PatternDirection.Left, "28R", "30");
+
+        PatternWaypoints wp = Oak28R(type, PatternDirection.Left, "28R", "28L", "30");
+
+        Assert.NotNull(only30.CompressedDownwindSpeedKts);
+        Assert.NotNull(wp.CompressedDownwindSpeedKts);
+        Assert.Null(wp.RunwayCrossing);
+        Assert.Equal(only30.PatternSizeNm, wp.PatternSizeNm, 6);
+    }
+
+    /// <summary>A B738's compressed floor is wider than any left circuit on 28R that clears runway 30, so it still warns of 30.</summary>
+    [Fact]
+    public void Oak28RMlt_B738_28LAnd30Active_StillWarnsOfRunway30()
+    {
+        PatternWaypoints wp = Oak28R("B738", PatternDirection.Left, "28R", "28L", "30");
+
+        Assert.Null(wp.CompressedDownwindSpeedKts);
+        Assert.Equal("30", wp.RunwayCrossing?.CrossedRunway);
+    }
+
+    /// <summary>A PC12's left circuit on 28R compresses clear of runway 30, as before the by-design rule.</summary>
+    [Fact]
+    public void Oak28RMlt_Runway30Active_CompressesAsToday()
+    {
+        PatternWaypoints wp = Oak28R("PC12", PatternDirection.Left, "28R", "30");
+
+        Assert.NotNull(wp.CompressedDownwindSpeedKts);
+        Assert.Null(wp.RunwayCrossing);
+        Assert.Equal(0.814, wp.PatternSizeNm, 3);
     }
 
     [Fact]

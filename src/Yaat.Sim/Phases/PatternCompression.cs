@@ -87,6 +87,15 @@ public static class PatternCompression
     /// <summary>How far past each end the other runway's centerline is protected (7110.65 3-9-9.b).</summary>
     private const double ProtectedCenterlineNm = 1.0;
 
+    /// <summary>
+    /// The narrowest circuit the by-design test tries: about the C152's compressed floor (0.307 nm), the narrowest of any
+    /// fixed-wing type.
+    /// </summary>
+    private const double ByDesignNarrowestNm = 0.30;
+
+    /// <summary>The widest circuit the by-design test tries: about the B738's normal circuit as flown (2.517 nm).</summary>
+    private const double ByDesignWidestNm = 2.5;
+
     private const double SearchStepNm = 0.005;
 
     private static readonly double BankRateKnots = 1091.0 * Math.Tan(BankDegrees * Math.PI / 180.0);
@@ -261,6 +270,13 @@ public static class PatternCompression
         return !others.Any(o => o.Touches(track));
     }
 
+    /// <summary>
+    /// The runways a circuit stays clear of: every other active runway that does not cross the pattern runway, less those that
+    /// are by design, which no circuit on this side from <see cref="ByDesignNarrowestNm"/> to <see cref="ByDesignWidestNm"/>
+    /// wide clears. A by-design runway neither compresses the pattern nor draws the crossing warning: the field's layout makes
+    /// overflying it unavoidable, so it is treated as the field's normal flow. This is a design choice, not a rule from the
+    /// references.
+    /// </summary>
     private static List<ProtectedRunway> ProtectedRunways(PatternCompressionRequest request, TrackFrame frame)
     {
         var result = new List<ProtectedRunway>();
@@ -278,13 +294,39 @@ public static class PatternCompression
             }
 
             string? end = NamedEnd(other, request.Runway, active);
-            if (end is not null)
+            if (end is null)
             {
-                result.Add(new ProtectedRunway(end, frame.Project(other.Lat1, other.Lon1), frame.Project(other.Lat2, other.Lon2), other.WidthFt));
+                continue;
+            }
+
+            var runway = new ProtectedRunway(end, frame.Project(other.Lat1, other.Lon1), frame.Project(other.Lat2, other.Lon2), other.WidthFt);
+            if (SomeCircuitClears(request, frame, runway))
+            {
+                result.Add(runway);
             }
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// True when some circuit from <see cref="ByDesignNarrowestNm"/> to <see cref="ByDesignWidestNm"/> wide, in
+    /// <see cref="SearchStepNm"/> steps, clears <paramref name="runway"/>.
+    /// </summary>
+    private static bool SomeCircuitClears(PatternCompressionRequest request, TrackFrame frame, ProtectedRunway runway)
+    {
+        List<ProtectedRunway> alone = [runway];
+        int steps = (int)Math.Round((ByDesignWidestNm - ByDesignNarrowestNm) / SearchStepNm);
+        for (int i = 0; i <= steps; i++)
+        {
+            double sizeNm = ByDesignNarrowestNm + (i * SearchStepNm);
+            if (Clears(request, frame, alone, sizeNm))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>The end to name <paramref name="other"/> by, or null when an active list leaves it out.</summary>
