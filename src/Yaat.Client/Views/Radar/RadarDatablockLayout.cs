@@ -207,7 +207,7 @@ internal readonly struct RadarDatablockLayout
         // line3 (owner/handoff/scratchpads) flashes the handoff token on a 500 ms cycle. Draw the
         // flashing string but reserve width and a line slot for the stable (handoff-always) version so
         // the rect — and thus the selection border, leader endpoint, and hit area — never pulses.
-        bool handoffFlashOn = Environment.TickCount64 / 500 % 2 == 0;
+        bool handoffFlashOn = RadarBlink.IsOn;
         string line3 = BuildOwnerScratchpadLine(ac, showHandoff: handoffFlashOn) ?? "";
         string line3Stable = BuildOwnerScratchpadLine(ac, showHandoff: true) ?? "";
         bool reserveOwnerSlot = line3Stable.Length > 0;
@@ -224,7 +224,7 @@ internal readonly struct RadarDatablockLayout
         // Belt-and-suspenders on auto-CTL — the sim already gates the warning on !AutoClearedToLand,
         // but if the toggle flips mid-session before the next state push, the flash stays off.
         bool noLndgClncActive = placement.ShowNoLandingClearance && ac.NoLandingClearanceWarningActive && !ac.IsAutoClearedToLand;
-        bool noLndgClncFlashOn = noLndgClncActive && (Environment.TickCount64 / 500 % 2 == 0);
+        bool noLndgClncFlashOn = noLndgClncActive && RadarBlink.IsOn;
         string line5 = noLndgClncFlashOn ? NoLandingClearanceText : "";
 
         // ATPA in-trail distance, drawn steady below the owner/scratchpad line. Only the trailing member
@@ -240,7 +240,7 @@ internal readonly struct RadarDatablockLayout
         // live separation values without pulsing between flash phases.
         bool conflictActive = overlays.ShowConflictAlerts && !string.IsNullOrEmpty(ac.ConflictPeerCallsign);
         string conflictStable = conflictActive ? BuildConflictLine(ac, overlays.ConflictPeer) : "";
-        bool conflictFlashOn = conflictActive && (Environment.TickCount64 / 500 % 2 == 0);
+        bool conflictFlashOn = conflictActive && RadarBlink.IsOn;
         string conflictLine = conflictFlashOn ? conflictStable : "";
 
         float w1 = placement.Style.Measure(line1);

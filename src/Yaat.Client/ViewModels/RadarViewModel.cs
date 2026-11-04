@@ -99,8 +99,18 @@ public partial class RadarViewModel(
 
     private LatLon _primaryAirportPosition;
 
+    /// <summary>
+    /// The ARTCC area centre <see cref="ApplyVideoMapsDto"/> fell back to because the primary airport's position was not
+    /// known yet; null when it centred on the airport. <see cref="RecenterOnPrimaryAirport"/> moves the scope only while
+    /// it is still there.
+    /// </summary>
+    private LatLon? _areaFallbackCenter;
+
+    /// <summary>The range a video-map load sets the scope to.</summary>
+    private const double DefaultRangeNm = 40;
+
     [ObservableProperty]
-    private double _rangeNm = 40;
+    private double _rangeNm = DefaultRangeNm;
 
     /// <summary>The radar cue a pointed or focused menu row shows (<see cref="IMenuHost.SetRadarCue"/>); null for none.</summary>
     [ObservableProperty]
@@ -595,6 +605,36 @@ public partial class RadarViewModel(
 
     public void SetPrimaryAirportPosition(double lat, double lon) => _primaryAirportPosition = new LatLon(lat, lon);
 
+    /// <summary>
+    /// Sets the primary airport's position once it becomes known late (the navigation data finished loading after the
+    /// scenario bootstrap), and centres the scope on it as <see cref="ApplyVideoMapsDto"/> would have, but only while the
+    /// scope is still on the area fallback centre at the default range: a scope the user panned or zoomed is left alone.
+    /// </summary>
+    public void RecenterOnPrimaryAirport(double lat, double lon)
+    {
+        SetPrimaryAirportPosition(lat, lon);
+        if (!IsOnAreaFallback(out LatLon fallback))
+        {
+            return;
+        }
+
+        _areaFallbackCenter = null;
+        CenterLat = lat;
+        CenterLon = lon;
+        if ((RangeRingCenterLat == fallback.Lat) && (RangeRingCenterLon == fallback.Lon))
+        {
+            RangeRingCenterLat = lat;
+            RangeRingCenterLon = lon;
+        }
+    }
+
+    /// <summary>Whether the scope is still where a video-map load's area fallback put it: same centre, default range.</summary>
+    private bool IsOnAreaFallback(out LatLon fallback)
+    {
+        fallback = _areaFallbackCenter.GetValueOrDefault();
+        return (_areaFallbackCenter is not null) && (CenterLat == fallback.Lat) && (CenterLon == fallback.Lon) && (RangeNm == DefaultRangeNm);
+    }
+
     public double GetFieldElevation(string? destination)
     {
         if (_getAirportElevation is null)
@@ -668,6 +708,9 @@ public partial class RadarViewModel(
         }
     }
 
+    /// <summary>Applies a facility's video-map list as the server's answer would, with no server round-trip.</summary>
+    internal void ApplyVideoMapsDtoForTesting(FacilityVideoMapsDto dto) => ApplyVideoMapsDto(dto);
+
     private void ApplyVideoMapsDto(FacilityVideoMapsDto dto)
     {
         // Build brightness lookup
@@ -678,6 +721,7 @@ public partial class RadarViewModel(
         }
 
         // Set center: prefer primary airport, fall back to ARTCC area center
+        _areaFallbackCenter = null;
         if ((_primaryAirportPosition.Lat != 0) || (_primaryAirportPosition.Lon != 0))
         {
             CenterLat = _primaryAirportPosition.Lat;
@@ -692,9 +736,10 @@ public partial class RadarViewModel(
             CenterLon = area.CenterLon;
             RangeRingCenterLat = area.CenterLat;
             RangeRingCenterLon = area.CenterLon;
+            _areaFallbackCenter = new LatLon(area.CenterLat, area.CenterLon);
         }
 
-        RangeNm = 40;
+        RangeNm = DefaultRangeNm;
 
         // Build toggle list
         MapToggles.Clear();

@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Yaat.Client.ViewModels;
 using Yaat.GuideCapture.Capture;
 using Yaat.Server.LiveTraffic;
+using Yaat.Server.Simulation;
 using Yaat.Sim;
 using Yaat.Sim.LiveTraffic;
 
@@ -49,8 +50,16 @@ internal sealed class LiveTrafficScene : ScenarioSceneBase
     {
         await RadarViewScene.EnableLoWestSectorAsync(vm, ctx);
 
+        // The server's live-traffic sync reads SimLockedClock (Program); bind it to this room's sim time and stamp the
+        // feed from the same clock, so each sample's sim second and the feed's age repeat run to run.
+        string roomId = vm.ActiveRoomId ?? throw new InvalidOperationException("The client is in no room.");
+        TrainingRoom room =
+            ctx.ServerServices.GetRequiredService<TrainingRoomManager>().GetRoom(roomId)
+            ?? throw new InvalidOperationException($"The server has no room '{roomId}'.");
+        SimLockedClock.Instance.ElapsedSeconds = () => room.ActiveScenario?.ElapsedSeconds ?? 0;
+
         LiveTrafficStore store = ctx.ServerServices.GetRequiredService<LiveTrafficStore>();
-        store.ReportFeedState(connected: true, DateTimeOffset.UtcNow);
+        store.ReportFeedState(connected: true, SimLockedClock.Instance.GetUtcNow());
         PublishTracks(store);
 
         vm.SessionLiveTrafficEnabled = true;
@@ -74,9 +83,15 @@ internal sealed class LiveTrafficScene : ScenarioSceneBase
         Dispatcher.UIThread.RunJobs();
     }
 
+    public override void AfterCapture()
+    {
+        SimLockedClock.Instance.ElapsedSeconds = static () => 0;
+        base.AfterCapture();
+    }
+
     private static void PublishTracks(LiveTrafficStore store)
     {
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset now = SimLockedClock.Instance.GetUtcNow();
         foreach (
             (string Callsign, string Type, uint Beacon, double Lat, double Lon, double AltFt, double GsKt, double TrackDeg, double VsFpm) t in Tracks
         )

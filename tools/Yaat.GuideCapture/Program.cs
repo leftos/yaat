@@ -8,7 +8,9 @@ using Yaat.GuideCapture.Capture;
 using Microsoft.Extensions.DependencyInjection;
 using Yaat.Client.Tdls.Views.VTdls;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Radar;
 using Yaat.GuideCapture.Server;
+using Yaat.Server.LiveTraffic;
 using Yaat.Server.Simulation;
 #endif
 
@@ -76,9 +78,26 @@ public static class Program
         // same RNG seed, so strip times, generated CIDs and the rest of a
         // load's random draws repeat run to run.
         server.Services.GetRequiredService<ScenarioSeedSource>().Pin(FixedTimeProvider.CaptureInstant.GetUtcNow().UtcDateTime, CaptureRngSeed);
+        // The live-traffic sync reads sim-locked time, so a fed sample maps to the
+        // same sim second and the feed reports the same age whatever the run's pace.
+        server.Services.GetRequiredService<LiveTrafficClock>().Time = SimLockedClock.Instance;
         MainViewModel.WallClock = FixedTimeProvider.CaptureInstant;
         VStripsViewModel.WallClock = FixedTimeProvider.CaptureInstant;
         VTdlsView.WallClock = FixedTimeProvider.CaptureInstant;
+        // Blinking datablock tokens and target symbols are always drawn.
+        RadarBlink.Clock = static () => 0;
+
+        // Load the navigation database once, before any window opens, so every
+        // view model starts with it ready instead of racing its own load against
+        // the scenario bootstrap.
+        Console.WriteLine("Loading navigation data ...");
+        if (!await new DefaultMainViewModelStartupLoads().EnsureNavigationDatabaseAsync())
+        {
+            Console.Error.WriteLine("Navigation data unavailable (NavData or CIFP could not be loaded); captures need it. Aborting.");
+            return 1;
+        }
+
+        MainViewModel.StartupLoads = new CaptureStartupLoads();
 
         using var session = HeadlessUnitTestSession.StartNew(typeof(Program));
         var ctx = new CaptureContext { ServerUrl = server.Url, ServerServices = server.Services };

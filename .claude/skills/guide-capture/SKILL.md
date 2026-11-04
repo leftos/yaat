@@ -24,6 +24,7 @@ The facts (CLI, scene contract, determinism, `ADD` forms, menu builders) are in 
 - Every run re-pays the server boot and the scenario load: change one thing per run, and debug the scene's state with log lines or assertions in the scene, not by eye across many runs.
 - A run that shows the wrong state is a staging error: go back to the state the entry needs (the doc's five steps), never try another position, runway or command to see what sticks. Run captures one at a time; two GuideCapture builds at once collide on file locks.
 - The active-runways prompt covers the views after a scenario load in an RPO room: handle it first when a shot comes out with a dialog over it.
+- When a picture is wrong, check it in a full run as well as with `--scene`: a full-catalogue run shares state across scenes, so a fault can appear only there.
 - Done means you opened the PNG and it shows the state the scene names. Exit code 0 is not evidence.
 
 ## When the tool is the obstacle

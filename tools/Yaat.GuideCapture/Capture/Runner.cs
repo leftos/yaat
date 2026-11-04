@@ -1,5 +1,8 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Headless;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Yaat.Client;
@@ -50,6 +53,20 @@ internal static class Runner
         return failed == 0 ? 0 : 1;
     }
 
+    private static readonly IBrush FullRedrawBrush = new SolidColorBrush(Color.FromRgb(0x01, 0x02, 0x03));
+
+    // CaptureRenderedFrame reads the compositor's retained frame, which is redrawn
+    // only where something changed, so pixels can depend on the redraw history.
+    // A frame rendered with the window's whole background swapped dirties every
+    // pixel; the capture after the swap is undone is then a full redraw.
+    private static void ForceFullRedraw(Window target)
+    {
+        using (target.SetValue(TemplatedControl.BackgroundProperty, FullRedrawBrush, BindingPriority.Animation))
+        {
+            target.CaptureRenderedFrame()?.Dispose();
+        }
+    }
+
     // Returns the exception a scene's AfterCapture threw, or null. A failed AfterCapture fails the
     // scene: the run counts it and its exit status reflects it, the way a capture failure does.
     private static async Task<Exception?> CaptureOneAsync(Scene scene, CaptureContext ctx, string outDir, double renderScaling)
@@ -96,7 +113,8 @@ internal static class Runner
             Dispatcher.UIThread.RunJobs();
 
             Window captureTarget = scene.GetCaptureTarget(window);
-            WriteableBitmap bitmap =
+            ForceFullRedraw(captureTarget);
+            using WriteableBitmap bitmap =
                 captureTarget.CaptureRenderedFrame()
                 ?? throw new InvalidOperationException("CaptureRenderedFrame returned null. UseHeadlessDrawing must be false.");
 

@@ -9,7 +9,14 @@ How to build a screenshot scene in `tools/Yaat.GuideCapture` that renders the sa
 - `--out` defaults to the scene's own folder (`Scene.DefaultOutDir`): `docs/user-guide/img/`, or `docs/releases/img/` for a showcase scene, one named `whats-new-<topic>`. Without `--out` a PNG goes under the repo root (`CaptureContext.RepoRoot`, found from `yaat.slnx`) whatever the current directory; an explicit `--out` is relative to the current directory. A showcase scene runs only when named with `--scene`; a plain run skips every `whats-new-*` scene (`SceneCatalog.Select`).
 - Re-running a guide scene with no `--out` rewrites its tracked PNG byte-identically, so it is a safe check that a change did not move the picture.
 - A fresh worktree's first capture downloads CIFP, which adds to that run's time.
-- Output is deterministic: the clock is pinned to `FixedTimeProvider.CaptureInstant` (2026-01-15 18:30Z) for the server, the terminal and every wall-clock view, and the scenario seed is pinned (`Program.cs`, `CaptureRngSeed`). A scene that reads `DateTime.Now`, `Random.Shared` or real time breaks this.
+- Output is deterministic, from four pins set in `Program.cs` and `Capture/Runner.cs`:
+  - The clocks: `FixedTimeProvider.CaptureInstant` (2026-01-15 18:30Z) for the server's terminal stamps, the terminal and every wall-clock view; the live-traffic sync reads `SimLockedClock` (that instant plus the bound room's elapsed sim seconds, through yaat-server's `LiveTrafficClock`), which is also the clock `LiveTrafficScene` stamps its samples with; and blinking radar tokens are pinned on (`RadarBlink.Clock`), so they are always drawn.
+  - The scenario seed (`CaptureRngSeed`).
+  - The navigation data, loaded once before any window opens (`CaptureStartupLoads`), so no window's radar races its own load against the scenario bootstrap.
+  - A full redraw before each capture (`Runner.ForceFullRedraw`): the retained frame is redrawn with the background swapped, so no pixel depends on the redraw history.
+
+  A scene that reads `DateTime.Now`, `Random.Shared`, `Environment.TickCount64` or real time breaks this.
+- A full-catalogue run shares process state across scenes (the server, its rooms, static clocks and preferences a scene did not put back), so a picture fault can appear only in the full run and not with `--scene`. GuideCapture writes no client log; debug a scene with its own console lines.
 - Each run pays the server boot, the room, the scenario load and whatever sim time the scene advances. A scenario-based scene that advances 480 s costs about 1.5 to 2.5 minutes before its own step runs, so every retry pays it again.
 
 ## The scene contract

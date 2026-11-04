@@ -2150,6 +2150,14 @@ public partial class MainViewModel : ObservableObject
                     instance.Vm.SetPrimaryAirportPosition(position.Lat, position.Lon);
                 }
             }
+
+            // A scenario bootstrap that ran before the nav db was ready could not place the main radar on its primary
+            // airport, so the scope took the ARTCC area's centre: put it where a nav-db-first order would have.
+            if ((_radarAirportId is { } radarAirportId) && (navDb.GetAirportPosition(radarAirportId) is { } primaryPosition))
+            {
+                Radar.RecenterOnPrimaryAirport(primaryPosition.Lat, primaryPosition.Lon);
+            }
+
             _log.LogInformation("Navdata loaded: {Count} fixes, CIFP initialized", navDb.Count);
             StatusText = "Navigation data loaded";
         }
@@ -3672,8 +3680,15 @@ public partial class MainViewModel : ObservableObject
         // applied once at scenario load and changed mid-session only via the gear flyout.
         _commandInput.Macros = _preferences.Macros;
 
+    /// <summary>
+    /// The primary airport the last scenario bootstrap gave the main radar, kept for <see cref="InitializeNavDataAsync"/>
+    /// when the nav db was not ready to resolve it; null for a bootstrap with none.
+    /// </summary>
+    private string? _radarAirportId;
+
     private void SetRadarAirportPosition(string? airportId)
     {
+        _radarAirportId = string.IsNullOrEmpty(airportId) ? null : airportId;
         if (string.IsNullOrEmpty(airportId))
         {
             return;

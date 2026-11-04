@@ -167,7 +167,7 @@ public static class EuroScopeTagLayout
             if (hasHandoff)
             {
                 // Flash to match STARS convention.
-                bool show = Environment.TickCount64 / 500 % 2 == 0;
+                bool show = RadarBlink.IsOn;
                 if (show)
                 {
                     x = AddField(fields, TagFieldId.Handoff, $">{ac.HandoffDisplay}", x, y4Top, y4Bot, style);
@@ -220,7 +220,7 @@ public static class EuroScopeTagLayout
             maxWidth = MathF.Max(maxWidth, reservedWidth);
             lineCount++;
 
-            bool flashOn = Environment.TickCount64 / 500 % 2 == 0;
+            bool flashOn = RadarBlink.IsOn;
             if (flashOn)
             {
                 x = originX;
@@ -241,7 +241,7 @@ public static class EuroScopeTagLayout
             maxWidth = MathF.Max(maxWidth, style.Measure(conflictText));
             lineCount++;
 
-            bool flashOn = Environment.TickCount64 / 500 % 2 == 0;
+            bool flashOn = RadarBlink.IsOn;
             if (flashOn)
             {
                 x = originX;

@@ -889,7 +889,7 @@ public sealed class TargetRenderer : IDisposable
             cursor = DrawSpan(canvas, line[headLength..tailStart], cursor, baseline, blockColor);
         }
 
-        bool blinkOff = Environment.TickCount64 / 500 % 2 != 0;
+        bool blinkOff = !RadarBlink.IsOn;
         if (!blinkOff)
         {
             DrawSpan(canvas, line[tailStart..], cursor, baseline, blockColor);
@@ -932,7 +932,7 @@ public sealed class TargetRenderer : IDisposable
         }
 
         float reportedWidth = font.MeasureText(reported);
-        bool blinkOff = Environment.TickCount64 / 500 % 2 != 0;
+        bool blinkOff = !RadarBlink.IsOn;
         paint.Color = blinkOff ? DimColor(color, 0.25f) : color;
         canvas.DrawText(line[space..], x + reportedWidth, baseline, SKTextAlign.Left, font, paint);
         paint.Color = color;
@@ -1278,7 +1278,7 @@ public sealed class TargetRenderer : IDisposable
             {
                 // Flashes on the 500 ms cycle. The field rect is emitted either way, so the tag bounds
                 // and the click target stay put while the text blinks.
-                if (Environment.TickCount64 / 500 % 2 == 0)
+                if (RadarBlink.IsOn)
                 {
                     canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
                 }
