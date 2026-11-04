@@ -25,7 +25,6 @@
 - [ ] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer
 - [ ] YAAT-1679 Read back 'at {taxiway}' when CTO RWY departs from a runway crossing hold
 - [ ] YAAT-1681 Runway-change warning says 'taxi clearance' when a CTO changed the runway
-- [/] YAAT-1790 MLT 28L at a 28R hold short re-routes the departure; CTO, MLT 28L reads back 28R but departs 28L · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -673,7 +672,7 @@
 - [ ] YAAT-1801 Restore the published speed a cancelled crossing replaced on an approach fix inside 5 nm
 - [ ] YAAT-1803 Final-gate crossing cancel: skip missed-approach fixes; treat id-0 controller crossings as controller speeds
 
-### 2 Refinements and rulings (0/13 done)
+### 2 Refinements and rulings (0/14 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
 - [ ] YAAT-1430 Refine the speed-envelope unable: 5 kt rounding, Mach answers in Mach, same-block altitude · release vNext+1
@@ -687,6 +686,7 @@
 - [ ] YAAT-1619 Clear the controller-issued speed flags when a phase ends a bound with its assignment; keep a controller ceiling above 200 through a procedure turn
 - [ ] YAAT-1685 Look past an already-met at-or-below speed fix when planning the next slowdown
 - [ ] YAAT-1764 Decide whether a deferred speed cancels crossing speeds by issue time or fire time
+- [ ] YAAT-1810 Maneuver speed follow-ups: C208 Vmo class; or-greater/less bounds through a maneuver
 
 ### 3 Hygiene and tests (0/5 done)
 - [ ] YAAT-117 Split FlightPhysics.UpdateSpeed into layer helpers (complexity ≤8)
@@ -775,7 +775,7 @@
 
 ## Traffic pattern and airborne FOLLOW
 
-### 1 Defects (3/29 done)
+### 1 Defects (4/29 done)
 - [ ] YAAT-138 FOLLOW brief B leftovers: downwind return entry, S-turn call, re-clearance
 - [ ] YAAT-139 FOLLOW brief E leftovers: COPT at install, spacing, split VfrFollowPhase
 - [ ] YAAT-142 Clear the follow in GoAroundHelper.Trigger
@@ -801,7 +801,6 @@
 - [ ] YAAT-1501 Carry an armed pattern runway and its deferred altitude into a FOLLOW's pursuit list
 - [ ] YAAT-1780 Pattern compression ignores runways no pattern could clear (KOAK 28R MRT vs 33, MLT vs 28L) · release vNext
 - [ ] YAAT-1781 Airborne FOLLOW from an extended upwind turns at once and cuts in front of a leader already on crosswind · release vNext
-- [/] YAAT-1791 A ground MLT/MRT after a separate CTO may not build the circuit after takeoff · release vNext
 
 ### 2 Refinements and rulings (0/13 done)
 - [ ] YAAT-140 Warn when a FOLLOW re-sequence from a pattern leg voids the landing clearance
