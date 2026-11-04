@@ -57,7 +57,7 @@
 ## Say again
 
 - [ ] YAAT-21 Say again: student asks a pilot to repeat its last transmission · release vNext
-  - [ ] YAAT-1762 Merge feat/say-again to main (#1363)
+  - [ ] YAAT-1762 Merge feat/say-again to main (#1363) · release vNext
 - [ ] YAAT-1789 Replay a recording with an unaddressed say again (AGAINU) and assert the same pilot repeats
 
 ## Taxi append
@@ -146,7 +146,7 @@
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (11/56 done)
+### 1 Defects (12/56 done)
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-1669 Refuse a bare CTO at a runway-crossing hold short instead of departing the crossing runway
@@ -180,7 +180,6 @@
 - [ ] YAAT-1394 Check LeavesRunwayAtBar does not misread a near-side bar as an exit where a taxiway wraps a threshold (OAK 33 C)
 - [ ] YAAT-1415 Keep a rolling aircraft's makeable stop ahead instead of moving the no-destination hold onto it (bare TAXI inside the setback) · release vNext
 - [ ] YAAT-1467 Far-side gate overstates a crossing leader's stop distance from its stale route cursor · release vNext
-- [/] YAAT-1469 Place a hold-short stop on a fillet arc along the arc, not on its chord · release vNext
 - [ ] YAAT-1608 Refuse a KCOS TAXI C2 A2 A that leaves a larger aircraft's tail over the 35L hold line
 - [ ] YAAT-1615 Give a TAXI on ATL's M - K arc 80-120 ft from bar 710 the approach leg instead of starting at D's bar
 - [ ] YAAT-1657 Keep the hold when a CTO at a taxiway hold short is refused after its implicit taxi installed
@@ -640,7 +639,7 @@
 
 ## Speed control and performance limits
 
-### 1 Defects (10/37 done)
+### 1 Defects (10/41 done)
 - [ ] YAAT-188 Cap descent by angle in UpdateDescentPlanning
 - [ ] YAAT-190 Use one snap tolerance in FlightPhysics.BoundsCorrectionTarget
 - [ ] YAAT-853 Refuse a rolling takeoff to a Super or heavy that has no aircraft profile (A388, A225, IL76, KC10)
@@ -668,6 +667,10 @@
 - [ ] YAAT-1763 Fly a controller's crossing speed when its fix is next under an explicit speed, Mach or DSR
 - [ ] YAAT-1796 Open the speed final gate at the FAF when it is closer than 5 nm (7110.65 5-7-1.b.4)
 - [ ] YAAT-1797 Keep an earlier CFIX's plain speed revert when a constrained DCTF replaces the route
+- [ ] YAAT-1799 Put the final speed gate at the FAF when it is closer than 5 nm (7110.65 5-7-1.b.4)
+- [ ] YAAT-1800 Clear AssignedSpeed on the explicit-SPD release at the final gate, as the crossing cancel does
+- [ ] YAAT-1801 Restore the published speed a cancelled crossing replaced on an approach fix inside 5 nm
+- [ ] YAAT-1803 Final-gate crossing cancel: skip missed-approach fixes; treat id-0 controller crossings as controller speeds
 
 ### 2 Refinements and rulings (0/13 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
@@ -684,10 +687,12 @@
 - [ ] YAAT-1685 Look past an already-met at-or-below speed fix when planning the next slowdown
 - [ ] YAAT-1764 Decide whether a deferred speed cancels crossing speeds by issue time or fire time
 
-### 3 Hygiene and tests (0/3 done)
+### 3 Hygiene and tests (0/5 done)
 - [ ] YAAT-117 Split FlightPhysics.UpdateSpeed into layer helpers (complexity ≤8)
 - [ ] YAAT-1682 Split FlightPhysics.UpdateNavigation under the 100-line limit
 - [ ] YAAT-1687 Split ApplyConstrainedForceDirectTo and DispatchCrossFix under 100 lines
+- [ ] YAAT-1802 Split ApplyConstrainedForceDirectTo under the 100-line limit
+- [ ] YAAT-1804 Measure the per-tick cost of FinalGateRunway for every arrival with a route
 
 ### No milestone
 - [ ] YAAT-1523 Apply or refuse an SPD/MACH given beside CTO in a phase-handled block instead of dropping it silently
@@ -1239,7 +1244,7 @@
 - [ ] YAAT-1207 Keep a resolved Discord thread name within 100 characters when the emoji is added
 - [ ] YAAT-1210 Retry refused Discord archive and close-rename writes instead of dropping them
 - [ ] YAAT-1211 Close the cron-versus-webhook races in the Discord thread rename
-- [ ] YAAT-1744 GuideCapture radar scenes render without the video map, and live-traffic draws no shadows · release vNext
+- [/] YAAT-1744 GuideCapture radar scenes render without the video map, and live-traffic draws no shadows · release vNext
 
 ### 2 Refinements and rulings (0/2 done)
 - [ ] YAAT-1645 Brief rule: find and prove a red-first test's staging before dispatch
@@ -1305,7 +1310,7 @@
 - [ ] YAAT-1419 Give the menu golden regeneration command its routed gate --env form in tests/CLAUDE.md, CONTEXT.md and the context-menu plans
 - [ ] YAAT-1491 Fix the dead links and heading anchors docs-lint reports in docs/crc, euroscope and three subsystem docs
 - [ ] YAAT-1617 Route the SpeechSandbox Release builds, single-step gate chains and the routing-census regen (gate census)
-- [ ] YAAT-1622 Pin GuideCapture's CRC alias folder so a capture never reads the machine's CRC install · release vNext
+- [/] YAAT-1622 Pin GuideCapture's CRC alias folder so a capture never reads the machine's CRC install · release vNext
 - [ ] YAAT-1651 Repoint issue descriptions that link retired plan files
 - [ ] YAAT-1658 Move the yaat-nextup orchestration rules into docs/agents/orchestrator.md (CC-567)
 - [ ] YAAT-1690 Use tools/airac.py in stash-procedure.py instead of its own cycle math
@@ -1318,7 +1323,7 @@
 - [ ] YAAT-1531 Have bug_bundle.py install register a new fixture with the layout-coverage list and the routing census
 - [ ] YAAT-1549 Make BuildMinimalContext's ground layout argument required
 - [ ] YAAT-1683 Remove counts and path:line references from durable docs (use symbols, headings, test names)
-- [ ] YAAT-1745 Build yaat release installers and the server image locally by default, not on GitHub Actions · release vNext
+- [/] YAAT-1745 Build yaat release installers and the server image locally by default, not on GitHub Actions · release vNext
 
 ## Backlog
 
