@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -22,8 +23,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// off the far end of the runway. Every subsequent CTO failed with "Aircraft is not lined up and
 /// waiting" because the current phase was a pattern leg.
 ///
-/// Expected: MLT issued to an on-ground departure only pre-arms the traffic direction; the aircraft
-/// keeps its taxi route, holds short of 28L, and departs normally on CTO.
+/// Expected: MLT issued to an on-ground departure before its takeoff clearance is refused (the
+/// clearance carries the pattern, CTO MLT); the aircraft keeps its taxi route, holds short of 28L, and
+/// departs normally on CTO.
 ///
 /// Fixture timing — read before re-timing this pair again (it has now been re-timed three times).
 /// The subject of both tests is what MLT / CTO do to an aircraft in <see cref="CrossingRunwayPhase"/>;
@@ -122,13 +124,15 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
         CrossingRunwayPhase? crossing = TickUntilCrossingRunway(engine, 120);
         Assert.NotNull(crossing);
 
-        // Standalone MLT mid-crossing: must only pre-arm the pattern direction for the eventual
-        // departure — never splice airborne pattern phases into a ground aircraft's chain.
+        // Standalone MLT mid-crossing, before any takeoff clearance: refused (the takeoff clearance carries the
+        // pattern, CTO MLT) — and it must never splice airborne pattern phases into a ground aircraft's chain.
+        PatternDirection? directionBefore = aircraft.Pattern.TrafficDirection;
         CommandResult mlt = engine.SendCommand(Callsign, "MLT");
-        Assert.True(mlt.Success, mlt.Message);
+        Assert.False(mlt.Success);
+        Assert.Equal("Can't assign a traffic pattern before takeoff clearance; use CTO MLT", mlt.Message);
         aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
-        Assert.Equal(PatternDirection.Left, aircraft.Pattern.TrafficDirection);
+        Assert.Equal(directionBefore, aircraft.Pattern.TrafficDirection);
 
         // The aircraft must finish the crossing and taxi to the 28L bar ON THE GROUND ROUTE.
         // With the bug, the spliced circuit makes Upwind the next phase after the crossing and the
@@ -211,6 +215,62 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
             $"never rotated within 300s of rolling CTO; phase={engine.FindAircraft(Callsign)?.Phases?.CurrentPhase?.Name} "
                 + $"ias={engine.FindAircraft(Callsign)?.IndicatedAirspeed:F1}"
         );
+    }
+
+    /// <summary>
+    /// The rolling clearance stored mid-crossing, then a traffic direction while still crossing: the MLT re-states the stored
+    /// clearance (it now holds one), never splices pattern legs into the ground chain, and the aircraft keeps its route to 28L
+    /// and departs there.
+    /// </summary>
+    [Fact]
+    public void CtoThenMltWhileCrossingToReTaxiedRunway_KeepsTaxiRoute_AndDeparts()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            return;
+        }
+
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        Assert.NotNull(layout);
+        AircraftState departure = SpawnOnTaxiwayB(engine, layout);
+
+        CommandResult taxi28R = engine.SendCommand(Callsign, "TAXI B 28R");
+        Assert.True(taxi28R.Success, taxi28R.Message);
+        LatLon bar28R = Bar28RPosition(departure, layout);
+
+        Assert.NotNull(TickUntilTaxiingShortOfBar(engine, bar28R, 60));
+        CommandResult taxi28L = engine.SendCommand(Callsign, "TAXI B 28L");
+        Assert.True(taxi28L.Success, taxi28L.Message);
+        AssertCrossingOf28RIsUncleared(departure);
+        Assert.NotNull(TickUntilCrossingRunway(engine, 120));
+
+        CommandResult cto = engine.SendCommand(Callsign, "CTO");
+        Assert.True(cto.Success, cto.Message);
+        TaxiRoute? routeBefore = departure.Ground.AssignedTaxiRoute;
+        CommandResult mlt = engine.SendCommand(Callsign, "MLT");
+        Assert.True(mlt.Success, mlt.Message);
+        Assert.Same(routeBefore, departure.Ground.AssignedTaxiRoute);
+        Assert.IsType<CrossingRunwayPhase>(departure.Phases?.CurrentPhase);
+
+        for (int t = 1; t <= 300; t++)
+        {
+            engine.TickOneSecond();
+            AircraftState? aircraft = engine.FindAircraft(Callsign);
+            Assert.NotNull(aircraft);
+            FailIfPatternLegOnGround(aircraft, t);
+            if (!aircraft.IsOnGround)
+            {
+                output.WriteLine($"airborne {t}s after CTO + MLT (ias={aircraft.IndicatedAirspeed:F0}, alt={aircraft.Altitude:F0})");
+                Assert.Equal("28L", aircraft.Phases?.AssignedRunway?.Designator);
+                Assert.Equal(PatternDirection.Left, aircraft.Phases?.TrafficDirection);
+                Assert.DoesNotContain(aircraft.Phases!.Phases, p => p is InitialClimbPhase);
+                Assert.Contains(aircraft.Phases.Phases, p => p is UpwindPhase or CrosswindPhase);
+                return;
+            }
+        }
+
+        Assert.Fail($"never rotated within 300s of CTO + MLT; phase={engine.FindAircraft(Callsign)?.Phases?.CurrentPhase?.Name}");
     }
 
     /// <summary>

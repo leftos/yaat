@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
@@ -565,7 +566,8 @@ internal static class PatternCommandHandler
             double arcNm = (totalTurnDeg * Math.PI / 180.0) * radiusNm;
 
             Log.LogDebug(
-                "[EF-LoopCheck] {Callsign}: vfr={IsVfr}, hdg={Hdg:F0}, brg→entry={Brg:F0}, turnToEntry={T1:F0}°, turnAtEntry={T2:F0}°, spd={Spd:F0}kt, rate={Rate:F0}°/s, r={R:F2}nm, dist={Dist:F1}nm, arc={Arc:F1}nm",
+                "[EF-LoopCheck] {Callsign}: vfr={IsVfr}, hdg={Hdg:F0}, brg→entry={Brg:F0}, turnToEntry={T1:F0}°, turnAtEntry={T2:F0}°, "
+                    + "spd={Spd:F0}kt, rate={Rate:F0}°/s, r={R:F2}nm, dist={Dist:F1}nm, arc={Arc:F1}nm",
                 aircraft.Callsign,
                 aircraft.FlightPlan.IsVfr,
                 aircraft.TrueHeading.Degrees,
@@ -642,7 +644,9 @@ internal static class PatternCommandHandler
             if (onShortFinalInsideEntry || crossingFinalInsideFloor || cannotCompleteTurns)
             {
                 Log.LogDebug(
-                    "[EF-Reject] {Callsign}: shortFinal={ShortFinal} crossingInsideFloor={Crossing} cannotCompleteTurns={CannotTurn} — acAlong={AcAlong:F2}nm entryAlong={EntryAlong:F2}nm crossTrack={Cross:F2}nm angleOffFinal={AngleF:F0}° trackingOutbound={Tracking}",
+                    "[EF-Reject] {Callsign}: shortFinal={ShortFinal} crossingInsideFloor={Crossing} cannotCompleteTurns={CannotTurn} — "
+                        + "acAlong={AcAlong:F2}nm entryAlong={EntryAlong:F2}nm crossTrack={Cross:F2}nm angleOffFinal={AngleF:F0}° "
+                        + "trackingOutbound={Tracking}",
                     aircraft.Callsign,
                     onShortFinalInsideEntry,
                     crossingFinalInsideFloor,
@@ -953,6 +957,266 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok($"{verb}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");
     }
 
+    /// <summary>
+    /// Whether the aircraft holds a takeoff clearance: one stored during taxi (<see cref="PhaseList.DepartureClearance"/> of
+    /// takeoff type), or a takeoff phase ahead of it (or running) with no line-up-and-wait still waiting on the clearance before
+    /// it. A line-up-and-wait clearance, stored or built, is not one (7110.65 3-9-4).
+    /// </summary>
+    private static bool HasTakeoffClearance(AircraftState aircraft)
+    {
+        PhaseList? phases = aircraft.Phases;
+        if (phases is null)
+        {
+            return false;
+        }
+
+        if (phases.DepartureClearance is { Type: ClearanceType.ClearedForTakeoff })
+        {
+            return true;
+        }
+
+        for (int i = Math.Max(phases.CurrentIndex, 0); i < phases.Phases.Count; i++)
+        {
+            switch (phases.Phases[i])
+            {
+                case LinedUpAndWaitingPhase { HasTakeoffClearance: false }:
+                    return false;
+                case TakeoffPhase or HelicopterTakeoffPhase:
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsOnRunwayInLandingOrOption(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase
+            is LandingPhase
+                or HelicopterLandingPhase
+                or TouchAndGoPhase
+                or StopAndGoPhase
+                or LowApproachPhase
+                or GoAroundPhase;
+
+    /// <summary>
+    /// A traffic pattern given to a departure still on the ground before its takeoff clearance is refused, with or without a
+    /// runway: a named runway would move the runway it lines up on. The takeoff clearance carries the pattern instead
+    /// (<c>CTO MLT</c> / <c>CTO MLT 28L</c>). An aircraft on the runway in a landing or option (a touch-and-go roll) is flying
+    /// the pattern, not departing, and keeps taking it.
+    /// </summary>
+    private static CommandResult? RefuseBeforeTakeoffClearance(AircraftState aircraft, PatternDirection newDirection, string? runwayId)
+    {
+        if (!aircraft.IsOnGround || IsOnRunwayInLandingOrOption(aircraft) || HasTakeoffClearance(aircraft))
+        {
+            return null;
+        }
+
+        string verb = newDirection == PatternDirection.Left ? "MLT" : "MRT";
+        string runwaySuffix = runwayId is null ? "" : $" {RunwayIdentifier.ToDisplayDesignator(runwayId)}";
+        return new CommandResult(false, $"Can't assign a traffic pattern before takeoff clearance; use CTO {verb}{runwaySuffix}");
+    }
+
+    /// <summary>
+    /// MLT/MRT to a departure on the ground that already holds its takeoff clearance re-states that clearance's departure as
+    /// closed traffic, exactly as if it had been <c>CTO MLT 28L</c>: the aircraft departs the runway it was cleared for and flies
+    /// the named runway's circuit after it. A clearance stored for the end of the taxi has its departure replaced (the taxi
+    /// builds the circuit from it); one already built into phases has its circuit (or initial climb) rebuilt after the takeoff.
+    /// Traffic direction and runway in use are separate items (7110.65 3-10-1.a/b), so a bare MLT/MRT keeps the pattern runway
+    /// the clearance already names, and on that runway its pattern altitude; naming another runway drops the altitude given
+    /// for the old one. Null when the aircraft is airborne, on the runway in a landing or option, or a helicopter (its takeoff
+    /// keeps the plain pattern-direction path).
+    /// </summary>
+    private static CommandResult? TryRestateTakeoffClearanceCircuit(
+        AircraftState aircraft,
+        PatternDirection newDirection,
+        string? runwayId,
+        int? altitudeOverride,
+        ActiveRunways activeRunways
+    )
+    {
+        if (
+            !aircraft.IsOnGround
+            || IsOnRunwayInLandingOrOption(aircraft)
+            || (AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter)
+            || aircraft.Phases is not { } phases
+        )
+        {
+            return null;
+        }
+
+        RunwayInfo? namedRunway = null;
+        if ((runwayId is not null) && !TryResolvePatternRunway(aircraft, runwayId, out namedRunway, out CommandResult? unresolved))
+        {
+            return unresolved;
+        }
+
+        return phases.DepartureClearance is { Type: ClearanceType.ClearedForTakeoff } stored
+            ? RestateStoredClearance(aircraft, phases, stored, newDirection, namedRunway, altitudeOverride)
+            : RebuildTakeoffClearanceCircuit(aircraft, phases, newDirection, namedRunway, altitudeOverride, activeRunways);
+    }
+
+    /// <summary>
+    /// The stored half of <see cref="TryRestateTakeoffClearanceCircuit"/>: the takeoff clearance stored for the end of the taxi
+    /// has its departure replaced by the re-stated closed traffic, which the taxi builds into phases when it reaches the runway.
+    /// </summary>
+    private static CommandResult RestateStoredClearance(
+        AircraftState aircraft,
+        PhaseList phases,
+        DepartureClearanceInfo stored,
+        PatternDirection direction,
+        RunwayInfo? namedRunway,
+        int? altitudeOverride
+    )
+    {
+        var previous = stored.Departure as ClosedTrafficDeparture;
+        bool runwayChanged = ClearAltitudeOverrideOnRunwayChange(aircraft, phases, namedRunway, stored.PatternRunway ?? phases.AssignedRunway);
+        int? altitude = RestatedPatternAltitude(altitudeOverride, runwayChanged, previous?.PatternAltitude);
+        RunwayInfo? patternRunway = namedRunway ?? stored.PatternRunway;
+        phases.DepartureClearance = new DepartureClearanceInfo
+        {
+            Type = stored.Type,
+            Departure = new ClosedTrafficDeparture(direction, patternRunway?.Designator, altitude)
+            {
+                PatternAltitudeText = RestatedPatternAltitudeText(altitudeOverride, runwayChanged, previous),
+            },
+            AssignedAltitude = stored.AssignedAltitude,
+            PatternRunway = patternRunway,
+            PreClearedHoldShortNodeIds = stored.PreClearedHoldShortNodeIds,
+        };
+        return CommandDispatcher.Ok(
+            $"Make {DirectionWord(direction)} traffic{CommandDispatcher.RunwayLabel(patternRunway ?? phases.AssignedRunway)}"
+        );
+    }
+
+    /// <summary>
+    /// The built half of <see cref="TryRestateTakeoffClearanceCircuit"/>: everything after the takeoff phase (the initial climb or
+    /// an earlier circuit) is replaced by the re-stated closed traffic's circuit from the runway the clearance departs. With no
+    /// altitude given on the same pattern runway, the pattern altitude override already set is kept. A takeoff with no runway to
+    /// roll on is refused: the plain pattern-direction path would write the pattern runway into the runway the takeoff reads.
+    /// Null when no takeoff is ahead.
+    /// </summary>
+    private static CommandResult? RebuildTakeoffClearanceCircuit(
+        AircraftState aircraft,
+        PhaseList phases,
+        PatternDirection direction,
+        RunwayInfo? namedRunway,
+        int? altitudeOverride,
+        ActiveRunways activeRunways
+    )
+    {
+        int takeoffIdx = phases.Phases.FindIndex(Math.Max(phases.CurrentIndex, 0), p => p is TakeoffPhase);
+        if (takeoffIdx < 0)
+        {
+            return null;
+        }
+
+        if ((phases.DepartureRunway ?? phases.AssignedRunway) is not { } takeoffRunway)
+        {
+            return new CommandResult(false, "Can't change the traffic pattern: no takeoff runway for the cleared departure");
+        }
+
+        var previous = ((TakeoffPhase)phases.Phases[takeoffIdx]).Departure as ClosedTrafficDeparture;
+        bool runwayChanged = ClearAltitudeOverrideOnRunwayChange(aircraft, phases, namedRunway, phases.PatternRunway ?? takeoffRunway);
+        var departure = new ClosedTrafficDeparture(direction, (namedRunway ?? phases.PatternRunway)?.Designator, altitudeOverride)
+        {
+            PatternAltitudeText = RestatedPatternAltitudeText(altitudeOverride, runwayChanged, previous),
+        };
+        phases.Phases.RemoveRange(takeoffIdx + 1, phases.Phases.Count - takeoffIdx - 1);
+        SetRestatedDeparture(phases, takeoffIdx, departure);
+
+        DepartureClearanceHandler.ApplyCircuitDeparture(
+            departure,
+            aircraft,
+            phases,
+            takeoffRunway,
+            null,
+            removeInitialClimb: true,
+            activeRunways: activeRunways
+        );
+        return CommandDispatcher.Ok($"Make {DirectionWord(direction)} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
+    }
+
+    /// <summary>Hands the re-stated departure to the line-up-and-wait and takeoff phases from the current one to the takeoff.</summary>
+    private static void SetRestatedDeparture(PhaseList phases, int takeoffIdx, ClosedTrafficDeparture departure)
+    {
+        for (int i = Math.Max(phases.CurrentIndex, 0); i <= takeoffIdx; i++)
+        {
+            switch (phases.Phases[i])
+            {
+                case LinedUpAndWaitingPhase luaw:
+                    luaw.Departure = departure;
+                    break;
+                case TakeoffPhase takeoff:
+                    takeoff.SetAssignedDeparture(departure);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="namedRunway"/> moves the pattern off <paramref name="previousPatternRunway"/>; when it does, the
+    /// pattern altitude override is cleared (different runway, different pattern altitude), as the airborne path does.
+    /// </summary>
+    private static bool ClearAltitudeOverrideOnRunwayChange(
+        AircraftState aircraft,
+        PhaseList phases,
+        RunwayInfo? namedRunway,
+        RunwayInfo? previousPatternRunway
+    )
+    {
+        bool changed =
+            (namedRunway is not null)
+            && !string.Equals(namedRunway.Designator, previousPatternRunway?.Designator, StringComparison.OrdinalIgnoreCase);
+        if (changed)
+        {
+            aircraft.Pattern.SetAltitudeOverride(null, phases, AircraftCategorization.Categorize(aircraft.AircraftType));
+        }
+
+        return changed;
+    }
+
+    /// <summary>The altitude given, else the previous pattern altitude when the pattern stays on its runway.</summary>
+    private static int? RestatedPatternAltitude(int? given, bool runwayChanged, int? previous) => runwayChanged ? given : given ?? previous;
+
+    /// <summary>
+    /// The typed pattern-altitude token the re-stated departure carries: the previous departure's when its altitude is inherited
+    /// (none given, same pattern runway). A given altitude arrives as feet only, so it carries none and is described from them.
+    /// </summary>
+    private static string? RestatedPatternAltitudeText(int? given, bool runwayChanged, ClosedTrafficDeparture? previous) =>
+        (given is null) && !runwayChanged ? previous?.PatternAltitudeText : null;
+
+    private static string DirectionWord(PatternDirection direction) => direction == PatternDirection.Left ? "left" : "right";
+
+    /// <summary>
+    /// Resolves a pattern runway named on MLT/MRT at the aircraft's airport: true with <paramref name="runway"/> set, false with
+    /// <paramref name="refusal"/> set when there is no airport context or no such runway.
+    /// </summary>
+    private static bool TryResolvePatternRunway(
+        AircraftState aircraft,
+        string runwayId,
+        [NotNullWhen(true)] out RunwayInfo? runway,
+        [NotNullWhen(false)] out CommandResult? refusal
+    )
+    {
+        runway = null;
+        refusal = null;
+        string airportId = ResolveAirportContext(aircraft);
+        if (string.IsNullOrEmpty(airportId))
+        {
+            refusal = new CommandResult(false, "No airport context to resolve runway");
+            return false;
+        }
+
+        runway = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
+        if (runway is null)
+        {
+            refusal = new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} not found at {airportId}");
+            return false;
+        }
+
+        return true;
+    }
+
     internal static CommandResult TryChangePatternDirection(
         AircraftState aircraft,
         PatternDirection newDirection,
@@ -969,19 +1233,22 @@ internal static class PatternCommandHandler
         PatternDirection? previousDirection = aircraft.Phases?.TrafficDirection ?? CurrentLegWaypoints(aircraft.Phases?.CurrentPhase)?.Direction;
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
+        if (RefuseBeforeTakeoffClearance(aircraft, newDirection, runwayId) is { } refusal)
+        {
+            return refusal;
+        }
+
+        if (TryRestateTakeoffClearanceCircuit(aircraft, newDirection, runwayId, altitudeOverride, activeRunways) is { } restated)
+        {
+            return restated;
+        }
+
         // Resolve runway from argument if provided
         if (runwayId is not null)
         {
-            string airportId = ResolveAirportContext(aircraft);
-            if (string.IsNullOrEmpty(airportId))
+            if (!TryResolvePatternRunway(aircraft, runwayId, out RunwayInfo? resolved, out CommandResult? unresolved))
             {
-                return new CommandResult(false, "No airport context to resolve runway");
-            }
-
-            RunwayInfo? resolved = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
-            if (resolved is null)
-            {
-                return new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} not found at {airportId}");
+                return unresolved;
             }
 
             aircraft.Phases ??= new PhaseList();
@@ -1056,7 +1323,7 @@ internal static class PatternCommandHandler
                 runway.Designator
             );
 
-            string dirStrGoAround = newDirection == PatternDirection.Left ? "left" : "right";
+            string dirStrGoAround = DirectionWord(newDirection);
             return CommandDispatcher.Ok($"Make {dirStrGoAround} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
         }
 
@@ -1106,7 +1373,8 @@ internal static class PatternCommandHandler
             ApplyRebuiltPatternChain(aircraft, runway, newDirection, rebuiltChain);
 
             Log.LogDebug(
-                "[ChangePatternDirection] {Callsign}: rebuilt chain from {Leg} for {Dir} {Rwy} (flown {Flown}), runwaySwitch={Switch}, wrongSide={WrongSide}",
+                "[ChangePatternDirection] {Callsign}: rebuilt chain from {Leg} for {Dir} {Rwy} (flown {Flown}), "
+                    + "runwaySwitch={Switch}, wrongSide={WrongSide}",
                 aircraft.Callsign,
                 activeLeg,
                 newDirection,
@@ -1116,7 +1384,7 @@ internal static class PatternCommandHandler
                 legSwitch.WrongSide
             );
 
-            string dirStrRebuild = newDirection == PatternDirection.Left ? "left" : "right";
+            string dirStrRebuild = DirectionWord(newDirection);
             return CommandDispatcher.Ok(
                 $"Make {dirStrRebuild} traffic{CommandDispatcher.RunwayLabel(aircraft)}{MidfieldCrossingLabel(rebuiltChain)}"
             );
@@ -1135,7 +1403,7 @@ internal static class PatternCommandHandler
         // the circuit in the right place (after TakeoffPhase) when the aircraft actually departs.
         if (!hasPatternPhases && aircraft.IsOnGround)
         {
-            string dirStrGround = newDirection == PatternDirection.Left ? "left" : "right";
+            string dirStrGround = DirectionWord(newDirection);
             return CommandDispatcher.Ok($"Make {dirStrGround} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
         }
 
@@ -1194,7 +1462,7 @@ internal static class PatternCommandHandler
             }
         }
 
-        string dirStr = newDirection == PatternDirection.Left ? "left" : "right";
+        string dirStr = DirectionWord(newDirection);
         return CommandDispatcher.Ok($"Make {dirStr} traffic{CommandDispatcher.RunwayLabel(aircraft)}{MidfieldCrossingLabel(aircraft.Phases.Phases)}");
     }
 
@@ -1828,7 +2096,8 @@ internal static class PatternCommandHandler
         {
             return new CommandResult(
                 false,
-                $"Cannot roll back to {leg.ToString().ToLowerInvariant()} from {current.ToString().ToLowerInvariant()} — use bare EXT or L360/R360 for spacing"
+                $"Cannot roll back to {leg.ToString().ToLowerInvariant()} from {current.ToString().ToLowerInvariant()} — "
+                    + "use bare EXT or L360/R360 for spacing"
             );
         }
 
@@ -2510,7 +2779,9 @@ internal static class PatternCommandHandler
         {
             return new CommandResult(
                 false,
-                $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(requested)} — {aircraft.Callsign} is queued to enter the pattern for runway {RunwayIdentifier.ToDisplayDesignator(entryRunwayId)} — re-issue the entry for runway {RunwayIdentifier.ToDisplayDesignator(requested)}, or CLC first"
+                $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(requested)} — {aircraft.Callsign} is queued to enter "
+                    + $"the pattern for runway {RunwayIdentifier.ToDisplayDesignator(entryRunwayId)} — re-issue the entry for runway "
+                    + $"{RunwayIdentifier.ToDisplayDesignator(requested)}, or CLC first"
             );
         }
 
@@ -2659,7 +2930,8 @@ internal static class PatternCommandHandler
         if (!MatchesRunway(pending.RunwayId, runway))
         {
             aircraft.PendingWarnings.Add(
-                $"{aircraft.Callsign} pre-issued clearance for runway {RunwayIdentifier.ToDisplayDesignator(pending.RunwayId)} does not apply to runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} — re-clear"
+                $"{aircraft.Callsign} pre-issued clearance for runway {RunwayIdentifier.ToDisplayDesignator(pending.RunwayId)} "
+                    + $"does not apply to runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} — re-clear"
             );
             return;
         }
@@ -2685,7 +2957,8 @@ internal static class PatternCommandHandler
             if (pendingPatternRunway is null)
             {
                 aircraft.PendingWarnings.Add(
-                    $"{aircraft.Callsign} pre-issued clearance names pattern runway {RunwayIdentifier.ToDisplayDesignator(pending.PatternRunwayId)}, which does not exist at this airport — pattern unchanged"
+                    $"{aircraft.Callsign} pre-issued clearance names pattern runway {RunwayIdentifier.ToDisplayDesignator(pending.PatternRunwayId)}, "
+                        + "which does not exist at this airport — pattern unchanged"
                 );
             }
             else
@@ -2741,7 +3014,8 @@ internal static class PatternCommandHandler
 
         string directionWord = direction == PatternDirection.Right ? "right" : "left";
         aircraft.PendingWarnings.Add(
-            $"{aircraft.Callsign}: {directionWord} traffic runway {RunwayIdentifier.ToDisplayDesignator(patternRunway.Designator)} will cross midfield"
+            $"{aircraft.Callsign}: {directionWord} traffic runway {RunwayIdentifier.ToDisplayDesignator(patternRunway.Designator)} "
+                + "will cross midfield"
         );
     }
 
@@ -3975,7 +4249,8 @@ internal static class PatternCommandHandler
         );
 
         Log.LogDebug(
-            "[EF-Retarget] {Callsign}: alongTrack={Along:F2}nm rightOffset={Cross:F2}nm angleOffFinal={AngleFinal:F0}° angleOffOutbound={AngleOut:F0}° side={Side}",
+            "[EF-Retarget] {Callsign}: alongTrack={Along:F2}nm rightOffset={Cross:F2}nm angleOffFinal={AngleFinal:F0}° "
+                + "angleOffOutbound={AngleOut:F0}° side={Side}",
             aircraft.Callsign,
             alongTrackNm,
             rightOffsetNm,
@@ -4471,7 +4746,8 @@ internal static class PatternCommandHandler
 
                 return new CommandResult(
                     false,
-                    $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)} — {aircraft.Callsign} is established for runway {RunwayIdentifier.ToDisplayDesignator(assignedRunway.Designator)}"
+                    $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)} — {aircraft.Callsign} is established "
+                        + $"for runway {RunwayIdentifier.ToDisplayDesignator(assignedRunway.Designator)}"
                 );
             }
 
@@ -4533,7 +4809,8 @@ internal static class PatternCommandHandler
         {
             return new CommandResult(
                 false,
-                $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)} — {aircraft.Callsign} has no approach; use EF {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)} or have it follow traffic first"
+                $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)} — {aircraft.Callsign} has no approach; "
+                    + $"use EF {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)} or have it follow traffic first"
             );
         }
 
@@ -5006,7 +5283,8 @@ internal static class PatternCommandHandler
         {
             return new CommandResult(
                 false,
-                $"Runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} does not intersect runway {RunwayIdentifier.ToDisplayDesignator(lahso.CrossingRunwayId)}"
+                $"Runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} does not intersect "
+                    + $"runway {RunwayIdentifier.ToDisplayDesignator(lahso.CrossingRunwayId)}"
             );
         }
 
@@ -5058,7 +5336,8 @@ internal static class PatternCommandHandler
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, runway, ctx);
         return CommandDispatcher.Ok(
-            $"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}, hold short runway {RunwayIdentifier.ToDisplayDesignator(lahso.CrossingRunwayId)}"
+            $"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}, "
+                + $"hold short runway {RunwayIdentifier.ToDisplayDesignator(lahso.CrossingRunwayId)}"
         );
     }
 

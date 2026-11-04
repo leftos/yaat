@@ -141,6 +141,8 @@ handler guard, wedge) the turn. The sequential `CTO; R270` is deliberate and all
 until airborne. `L270`/`R270`/`L360`/`R360` themselves refuse an aircraft on the ground
 (`PatternCommandHandler.TryMakeTurn`).
 
+A takeoff clearance chained with `MLT`/`MRT` (`CTO, MLT 28L`, or an unconditioned next block `CTO; MLT 28L`) is the opposite case: `CommandDispatcher.FoldTrafficDirectionIntoTakeoffClearance` rewrites it at dispatch time into the closed-traffic modifier `CTO MLT 28L` (recorded text and client parse unchanged). Only a plain `CTO` folds; one carrying another departure is refused whole with *"Conflicting departure instructions: … ; use CTO MLT 28L"*. A standalone `MLT`/`MRT` on the ground before a takeoff clearance is refused by `PatternCommandHandler`.
+
 Both parsers (`CommandSchemeParser.ParseCompound` on the client, `CommandParser.ParseCompound` on the server) also refuse
 a bare condition — an `AT` block with no command of its own — that has another block or command after it (`AT SUNOL; DM 020`,
 `AT SUNOL, DM 020`), with *"AT has no command before the ';' — did you mean 'AT SUNOL DM 020'?"*

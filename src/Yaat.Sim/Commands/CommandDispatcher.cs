@@ -537,6 +537,11 @@ public static class CommandDispatcher
         // tell "this CROSS armed the crossing" from "a crossing was already pending".
         bool hadPendingCrossingBeforeDispatch = HasPendingRunwayCrossing(aircraft, ctx);
 
+        if (FoldTrafficDirectionIntoTakeoffClearance(ref compound) is { } conflictingDeparture)
+        {
+            return conflictingDeparture;
+        }
+
         compound = NormalizeCrossThenClearanceAtCrossingHold(compound, aircraft, currentPhaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx);
 
         // The first block's view of its transmission: a takeoff or line-up clearance after its CROSS carries that crossing.
@@ -2230,6 +2235,123 @@ public static class CommandDispatcher
     }
 
     /// <summary>
+    /// A takeoff clearance chained with a traffic direction (<c>CTO, MLT 28L</c> or <c>CTO; MLT 28L</c>) is the
+    /// <c>CTO MLT 28L</c> modifier: the <c>MLT</c>/<c>MRT</c> (direction, runway, altitude) becomes the clearance's
+    /// <see cref="ClosedTrafficDeparture"/> and leaves the block list, so the aircraft departs the runway the clearance reads
+    /// back and flies the named pattern runway after it. Folded from the CTO's own block when it holds exactly one
+    /// <c>MLT</c>/<c>MRT</c>, else from the next <c>;</c> block when that is one unconditioned <c>MLT</c>/<c>MRT</c>. A CTO
+    /// already carrying a closed-traffic or pattern-exit modifier is left alone (a later MLT/MRT re-states its circuit).
+    /// Only a plain <c>CTO</c> folds: a clearance carrying another departure instruction (a heading, RH, on course, a fix,
+    /// <c>CTOPP</c>) chained with MLT/MRT is refused whole, nothing applied. A dispatch-time rewrite, so the recorded text
+    /// replays through it unchanged.
+    /// </summary>
+    /// <returns>The refusal for conflicting departure instructions, or null with <paramref name="compound"/> folded.</returns>
+    private static CommandResult? FoldTrafficDirectionIntoTakeoffClearance(ref CompoundCommand compound)
+    {
+        List<ParsedBlock> blocks = [.. compound.Blocks];
+        bool folded = false;
+        for (int i = 0; i < blocks.Count; i++)
+        {
+            ParsedCommand? clearance = blocks[i].Commands.Find(IsTakeoffClearanceWithoutCircuit);
+            if (clearance is null)
+            {
+                continue;
+            }
+
+            if (clearance is not ClearedForTakeoffCommand { Departure: DefaultDeparture } cto)
+            {
+                if (FirstChainedTrafficDirection(blocks, i) is { } chained)
+                {
+                    string trafficText = CommandDescriber.DescribeCommand(chained);
+                    return new CommandResult(
+                        false,
+                        $"Conflicting departure instructions: {CommandDescriber.DescribeCommand(clearance)} and {trafficText}; use CTO {trafficText}"
+                    );
+                }
+
+                continue;
+            }
+
+            ParsedCommand? traffic = TakeSameBlockTrafficDirection(blocks, i) ?? TakeNextBlockTrafficDirection(blocks, i);
+            if (traffic is null)
+            {
+                continue;
+            }
+
+            List<ParsedCommand> commands = [.. blocks[i].Commands];
+            commands[commands.FindIndex(c => ReferenceEquals(c, clearance))] = WithClosedTraffic(cto, traffic);
+            blocks[i] = blocks[i] with { Commands = commands };
+            folded = true;
+        }
+
+        if (folded)
+        {
+            compound = compound with { Blocks = blocks };
+        }
+
+        return null;
+    }
+
+    private static bool IsTakeoffClearanceWithoutCircuit(ParsedCommand cmd) =>
+        cmd is ClearedForTakeoffCommand { Departure: not (ClosedTrafficDeparture or PatternExitDeparture) } or ClearedTakeoffPresentCommand;
+
+    private static bool IsTrafficDirection(ParsedCommand cmd) => cmd is MakeLeftTrafficCommand or MakeRightTrafficCommand;
+
+    /// <summary>The first MLT/MRT in block <paramref name="i"/>, else in the unconditioned block after it; null for none.</summary>
+    private static ParsedCommand? FirstChainedTrafficDirection(List<ParsedBlock> blocks, int i) =>
+        blocks[i].Commands.Find(IsTrafficDirection)
+        ?? ((i + 1 < blocks.Count) && blocks[i + 1] is { Condition: null } next ? next.Commands.Find(IsTrafficDirection) : null);
+
+    /// <summary>The one MLT/MRT in block <paramref name="i"/>, taken out of it; null (block untouched) for none or several.</summary>
+    private static ParsedCommand? TakeSameBlockTrafficDirection(List<ParsedBlock> blocks, int i)
+    {
+        if (blocks[i].Commands.FindAll(IsTrafficDirection) is not [var only])
+        {
+            return null;
+        }
+
+        blocks[i] = blocks[i] with { Commands = blocks[i].Commands.FindAll(c => !ReferenceEquals(c, only)) };
+        return only;
+    }
+
+    /// <summary>
+    /// The MLT/MRT that is the whole of the unconditioned block after <paramref name="i"/>, with that block removed; null when
+    /// block <paramref name="i"/> holds an MLT/MRT of its own or the next block is anything else.
+    /// </summary>
+    private static ParsedCommand? TakeNextBlockTrafficDirection(List<ParsedBlock> blocks, int i)
+    {
+        if (
+            blocks[i].Commands.Exists(IsTrafficDirection)
+            || (i + 1 >= blocks.Count)
+            || blocks[i + 1] is not { Condition: null, Commands: [var next] }
+            || !IsTrafficDirection(next)
+        )
+        {
+            return null;
+        }
+
+        blocks.RemoveAt(i + 1);
+        return next;
+    }
+
+    private static ClearedForTakeoffCommand WithClosedTraffic(ClearedForTakeoffCommand cto, ParsedCommand traffic) =>
+        cto with
+        {
+            Departure = traffic switch
+            {
+                MakeLeftTrafficCommand mlt => new ClosedTrafficDeparture(PatternDirection.Left, mlt.RunwayId, mlt.Altitude)
+                {
+                    PatternAltitudeText = mlt.AltitudeText,
+                },
+                MakeRightTrafficCommand mrt => new ClosedTrafficDeparture(PatternDirection.Right, mrt.RunwayId, mrt.Altitude)
+                {
+                    PatternAltitudeText = mrt.AltitudeText,
+                },
+                _ => cto.Departure,
+            },
+        };
+
+    /// <summary>
     /// <paramref name="compound"/> with a first block of <c>CROSS x, CTO|LUAW y, …</c> split into <c>CROSS x; CTO|LUAW y, …</c> when
     /// the aircraft holds short of a runway that CROSS crosses (<see cref="WillProduceRunwayCrossing"/>), so the one-block 7110.65
     /// 3-9-10.e transmission runs the sequenced form's path: the clearance waits for the crossing
@@ -3905,11 +4027,11 @@ public static class CommandDispatcher
         : aircraft.FlightPlan.Destination is { Length: > 0 } dest ? dest
         : null;
 
-    internal static string RunwayLabel(AircraftState aircraft)
-    {
-        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
-        return runway is not null ? $", Runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)}" : "";
-    }
+    internal static string RunwayLabel(AircraftState aircraft) => RunwayLabel(aircraft.Phases?.AssignedRunway);
+
+    /// <summary>The <c>, Runway 28L</c> suffix a readback carries for <paramref name="runway"/>; empty for none.</summary>
+    internal static string RunwayLabel(RunwayInfo? runway) =>
+        runway is not null ? $", Runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)}" : "";
 
     internal static GroundNode? FindTaxiwayIntersection(AirportGroundLayout layout, string taxiway1, string taxiway2)
     {
