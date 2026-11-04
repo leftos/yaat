@@ -127,6 +127,89 @@ public sealed class RouteChangeSpeedRevertTests
     [Fact]
     public void CfixThenJrado_RestoresThePendingSpeed() => AssertRouteChangeRestoresThePendingSpeed("JRADO PMD090");
 
+    /// <summary>DCTF HEC with a crossing at <paramref name="altitudeFt"/> and <paramref name="speedKts"/>, as the speech path builds it.</summary>
+    private static ConstrainedForceDirectToCommand DirectToHecCrossingAt(int altitudeFt, int speedKts)
+    {
+        LatLon hec = FixPosition("HEC");
+        return new ConstrainedForceDirectToCommand(
+            [new ResolvedFix("HEC", hec.Lat, hec.Lon)],
+            new Dictionary<int, ConstrainedFixAltitude> { [0] = new(altitudeFt, CrossFixAltitudeType.At) },
+            new Dictionary<int, int> { [0] = speedKts },
+            null
+        );
+    }
+
+    private static void Dispatch(AircraftState aircraft, ParsedCommand command)
+    {
+        CommandResult result = CommandDispatcher.Dispatch(command, aircraft, TestDispatch.Context(new SerializableRandom(1)));
+        Assert.True(result.Success, result.Message);
+    }
+
+    private static void FlyUntilPassed(AircraftState aircraft, string fixName)
+    {
+        for (int second = 0; (second < 3_600) && aircraft.Targets.NavigationRoute.Exists(fix => fix.Name == fixName); second++)
+        {
+            FlySeconds(aircraft, 1);
+        }
+
+        Assert.False(aircraft.Targets.NavigationRoute.Exists(fix => fix.Name == fixName), $"the aircraft never sequenced {fixName}");
+    }
+
+    /// <summary>
+    /// A constrained DCTF with a crossing speed moves the pending revert to its own last speed fix: past HEC the aircraft
+    /// goes back to the 300 the dropped PMD crossing replaced, not to PMD's 250.
+    /// </summary>
+    [Fact]
+    public void CfixThenConstrainedDctfWithSpeed_RevertsToThePendingSpeedPastItsFix()
+    {
+        AircraftState ac = Airborne(altitude: 15_000, ias: OriginalSpeedKts, EastOfPmd);
+        Send(ac, "SPD 300");
+        Send(ac, "CFIX PMD 110 250");
+        ac.IndicatedAirspeed = CrossingSpeedKts;
+        FlySeconds(ac, 2);
+
+        Dispatch(ac, DirectToHecCrossingAt(11_000, 210));
+        FlyUntilPassed(ac, "HEC");
+
+        // The slowdown into HEC is not under test: under the explicit SPD the planner does not slow for a crossing speed on
+        // the direct-to's first fix, so HEC is crossed at the 300 flown. Past it the 300 stays assigned and flown.
+        _output.WriteLine($"Sequenced HEC at {ac.Altitude:F0} ft, {ac.IndicatedAirspeed:F0} KIAS, assigned {ac.Targets.AssignedSpeed}");
+        Assert.Equal((double?)OriginalSpeedKts, ac.Targets.AssignedSpeed);
+        FlySeconds(ac, 20);
+        Assert.Equal((double?)OriginalSpeedKts, ac.Targets.AssignedSpeed);
+        Assert.True(ac.IndicatedAirspeed >= OriginalSpeedKts - 5, $"slowed past HEC to {ac.IndicatedAirspeed:F0} KIAS");
+    }
+
+    [Fact]
+    public void SmaxCfixThenConstrainedDctfWithSpeed_RearmsSpeedMaxPastItsFix()
+    {
+        AircraftState ac = Airborne(altitude: 15_000, ias: 280, EastOfPmd);
+        Send(ac, "SMAX");
+        Send(ac, "CFIX PMD 110 250");
+        Assert.False(ac.Targets.SpeedMaxHeld);
+
+        Dispatch(ac, DirectToHecCrossingAt(11_000, 210));
+        Assert.False(ac.Targets.SpeedMaxHeld);
+        FlyUntilPassed(ac, "HEC");
+
+        Assert.True(ac.Targets.SpeedMaxHeld);
+    }
+
+    [Fact]
+    public void MachCfixThenConstrainedDctfWithSpeed_HoldsTheMachPastItsFix()
+    {
+        AircraftState ac = Airborne(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000), EastOfPmd);
+        Send(ac, "MACH .78");
+        Send(ac, "CFIX PMD 350 250");
+        Assert.Null(ac.Targets.TargetMach);
+
+        Dispatch(ac, DirectToHecCrossingAt(35_000, 250));
+        Assert.Null(ac.Targets.TargetMach);
+        FlyUntilPassed(ac, "HEC");
+
+        Assert.Equal((double?)0.78, ac.Targets.TargetMach);
+    }
+
     /// <summary>A crossing given after a JRADO is still pending when its intercept fires: the block's route change applies it.</summary>
     [Fact]
     public void JradoThenCfix_InterceptFires_RestoresThePendingSpeed()
@@ -171,6 +254,56 @@ public sealed class RouteChangeSpeedRevertTests
         Send(ac, "FH 270");
 
         Assert.Equal((double?)0.78, ac.Targets.TargetMach);
+    }
+
+    /// <summary>
+    /// An RNS given with the dropped crossing is done past the direct-to's own crossing, as a CFIX carries it: past HEC no
+    /// ceiling holds the aircraft to HEC's 210 and no speed stays assigned.
+    /// </summary>
+    [Fact]
+    public void CfixWithRnsThenConstrainedDctfWithSpeed_ResumesPastItsFix()
+    {
+        AircraftState ac = Airborne(altitude: 15_000, ias: OriginalSpeedKts, EastOfPmd);
+        Send(ac, "SPD 300");
+        Send(ac, "CFIX PMD 110 250, RNS");
+        Assert.Contains(ac.Targets.NavigationRoute, fix => fix.RevertResume is not null);
+
+        Dispatch(ac, DirectToHecCrossingAt(11_000, 210));
+        FlyUntilPassed(ac, "HEC");
+
+        double atHec = ac.IndicatedAirspeed;
+        Assert.Null(ac.Targets.SpeedCeiling);
+        FlySeconds(ac, 30);
+        _output.WriteLine($"past HEC: {atHec:F0} KIAS, 30 s later {ac.IndicatedAirspeed:F0} KIAS, ceiling {ac.Targets.SpeedCeiling}");
+        Assert.Null(ac.Targets.SpeedCeiling);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// A Mach nobody assigned, pending below FL240 where it comes back as an IAS (no Mach hold to read), still moves to the
+    /// direct-to's crossing as a Mach revert: past HEC it is restored and HEC's 210 is no ceiling.
+    /// </summary>
+    [Fact]
+    public void UnassignedMachCfixBelowFl240ThenConstrainedDctfWithSpeed_LeavesNoCeilingPastItsFix()
+    {
+        AircraftState ac = Airborne(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000), EastOfPmd);
+        ac.Targets.TargetMach = 0.78;
+        Send(ac, "CFIX PMD 200 250");
+        NavigationTarget pmd = Assert.Single(ac.Targets.NavigationRoute, fix => fix.Name == "PMD");
+        Assert.Equal((bool?)false, pmd.RevertMachExplicit);
+
+        // The crossing altitude is reached with the revert still pending.
+        ac.Altitude = 20_000;
+        ac.Targets.TargetAltitude = 20_000;
+        ac.IndicatedAirspeed = CrossingSpeedKts;
+
+        Dispatch(ac, DirectToHecCrossingAt(11_000, 210));
+        Assert.Null(ac.Targets.TargetMach);
+        FlyUntilPassed(ac, "HEC");
+
+        _output.WriteLine($"past HEC: target {ac.Targets.TargetSpeed}, assigned {ac.Targets.AssignedSpeed}, ceiling {ac.Targets.SpeedCeiling}");
+        Assert.Null(ac.Targets.SpeedCeiling);
+        Assert.NotEqual((double?)210, ac.Targets.TargetSpeed);
     }
 
     /// <summary>An RPS given with the crossing is done on the heading vector: no assigned speed and no ceiling remain.</summary>

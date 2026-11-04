@@ -1250,20 +1250,22 @@ internal static class FlightCommandHandler
         }
 
         int transmissionId = ctx.TransmissionId;
-        bool speedMaxPending = NavigationCommandHandler.SpeedMaxPending(aircraft);
-        // A Mach revert already pending on the route moves to the last crossing speed this direct-to sets, so a later
-        // crossing is flown first and the Mach comes back past it, as CFIX's does (PlaceMachRevert).
-        NavigationTarget? pendingMachFix = aircraft.Targets.NavigationRoute.Find(fix => fix.RevertMach is not null);
         ClearActiveProcedure(aircraft);
-        if (cmd.SpeedConstraints is not { Count: > 0 })
-        {
-            // With no crossing speed here to carry it, the pending revert applies now as other route changes apply it.
-            NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
-        }
-        else
-        {
-            aircraft.Targets.NavigationRoute.Clear();
-        }
+
+        // The pending revert of every dropped crossing applies now, as other route changes apply it, before anything
+        // below reads the speed state. With no crossing speed here that is the end of it; with one, the speed it restored
+        // (a plain speed, a Mach hold or SMAX armed again) is what this direct-to's last speed fix reverts to, so the
+        // dropped crossing's revert moves past the new crossing rather than being lost. A Mach restored as an IAS below
+        // the handover altitude and an RNS, RPS or DSR leave no live state that says so, so they are read from the fixes
+        // taken: each is what the dropped fix restored when neither SMAX nor (for the resume) a Mach came first there.
+        List<NavigationTarget> taken = NavigationCommandHandler.TakePendingSpeedReverts(aircraft.Targets.NavigationRoute);
+        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ApplyTakenSpeedReverts(aircraft, taken);
+        bool speedMaxPending = NavigationCommandHandler.SpeedMaxPending(aircraft);
+        NavigationTarget? takenMachHolder = taken.FindLast(fix => !fix.RevertSpeedMax && (fix.RevertMach is not null));
+        SpeedResumeKind? takenResume = taken
+            .FindLast(fix => !fix.RevertSpeedMax && (fix.RevertMach is null) && (fix.RevertResume is not null))
+            ?.RevertResume;
 
         aircraft.Targets.AssignedMagneticHeading = null;
 
@@ -1281,13 +1283,13 @@ internal static class FlightCommandHandler
             }
         }
 
-        // A Mach the crossing speeds replace, held now or pending from an earlier crossing, is restored past the last fix
-        // whose speed this direct-to sets, altitude-constrained or not, and then no fix carries a plain speed revert. While
-        // SMAX is pending, PlaceSpeedMaxRevert arms it again past the last crossing speed instead.
+        // A Mach the crossing speeds replace, held now or restored above from a dropped crossing, is restored past the last
+        // fix whose speed this direct-to sets, altitude-constrained or not, and then no fix carries a plain speed revert.
+        // While SMAX is in force, PlaceSpeedMaxRevert arms it again past the last crossing speed instead.
         int lastSpeedIdx = (cmd.SpeedConstraints is { Count: > 0 } speeds) ? speeds.Keys.Max() : -1;
         bool holdingMach = aircraft.Targets.TargetMach is not null;
-        double? machToRestore = speedMaxPending ? null : (aircraft.Targets.TargetMach ?? pendingMachFix?.RevertMach);
-        bool? machToRestoreExplicit = holdingMach ? aircraft.Targets.HasExplicitSpeedCommand : pendingMachFix?.RevertMachExplicit;
+        double? machToRestore = speedMaxPending ? null : (aircraft.Targets.TargetMach ?? takenMachHolder?.RevertMach);
+        bool? machToRestoreExplicit = holdingMach ? aircraft.Targets.HasExplicitSpeedCommand : takenMachHolder?.RevertMachExplicit;
 
         // Capture current altitude/speed for revert on the last constrained fix, unless reverting would reverse the
         // direction flown into it (NavigationCommandHandler.AltitudeRevertReversesTravel)
@@ -1383,6 +1385,12 @@ internal static class FlightCommandHandler
             if (speedMaxPending)
             {
                 NavigationCommandHandler.PlaceSpeedMaxRevert(aircraft.Targets.NavigationRoute);
+            }
+            else if ((machToRestore is null) && (takenResume is { } resume))
+            {
+                // The RNS, RPS or DSR given with a dropped crossing is done past this direct-to's last crossing speed,
+                // as a CFIX carries it, so that crossing's ceiling does not hold for good.
+                NavigationCommandHandler.PlaceResumeRevert(aircraft.Targets.NavigationRoute, resume);
             }
 
             aircraft.Targets.SpeedLimitsLifted = false;

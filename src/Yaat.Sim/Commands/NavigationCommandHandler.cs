@@ -1919,9 +1919,11 @@ internal static class NavigationCommandHandler
     /// <summary>
     /// Applies the speed reverts a route change took from the fixes it dropped (<see cref="TakePendingSpeedReverts"/>), as
     /// if each fix were crossed (<see cref="FlightPhysics.RestoreSpeedPastFix"/>), so the speed a crossing replaced comes
-    /// back rather than the crossing speed holding for good (AIM 4-4-10.g; 7110.65 §5-7-1.b-d). Called once the command's
-    /// new route and procedure are in place, so an RNS or RPS resumes against them. In a hold or inside the final gate the
-    /// reverts go instead. An SMAX re-arm is armed now: no crossing on a dropped fix can carry it further.
+    /// back rather than the crossing speed holding for good (AIM 4-4-10.g; 7110.65 §5-7-1.b-d). Most route changes call it
+    /// once their new route and procedure are in place, so an RNS or RPS resumes against them; a constrained direct-to
+    /// calls it on the emptied route, before it builds its fixes, and with crossing speeds carries what it restored past
+    /// its own last crossing speed. In a hold or inside the final gate the reverts go instead. An SMAX re-arm is armed
+    /// now: no crossing on a dropped fix can carry it further.
     /// </summary>
     internal static void ApplyTakenSpeedReverts(AircraftState aircraft, List<NavigationTarget> holders)
     {

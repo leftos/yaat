@@ -84,7 +84,10 @@ public sealed class MakeTurnPhase : Phase
         _lastHeading = ctx.Aircraft.TrueHeading;
 
         SetSustainedTurnTarget(ctx);
-        ctx.Targets.NavigationRoute.Clear();
+
+        // A crossing pending on the route ends here as if its fix were crossed, before the capture, so the turn's resume
+        // brings back the speed the crossing replaced rather than the crossing speed.
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(ctx.Aircraft);
 
         _speed.Capture(ctx);
         _speed.Reduce(ctx);

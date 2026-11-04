@@ -43,7 +43,7 @@
 - A runway no traffic pattern could clear, such as 33 beside Oakland 28R right traffic, no longer shrinks the pattern or draws the pilot's crossing warning.
 - An IFR departure cleared to a maintain checks in "leaving 2,000, climbing to 5,000" instead of "climbing via" its SID; climb and descent check-ins now say "climbing to" or "descending to".
 - `DVIA` given while an aircraft is still on its departure procedure now starts the descent along the arrival.
-- A direct-to, heading, airway or radial join, `JARR`, `JLOC` or military route that drops a crossing fix returns the aircraft to the speed the crossing replaced.
+- A route change, 360 or 270 that drops a crossing fix, direct-tos with crossing speeds included, returns the aircraft to the speed the crossing replaced.
 - A crossing that needs a steep climb or descent is met by the time the fix is passed, and pattern entries reach pattern altitude before turning in.
 - A departure climbing via its SID whose route ends at a SID ceiling fix climbs on to its top altitude instead of levelling at that fix.
 ### Added
