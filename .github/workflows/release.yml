@@ -1,9 +1,11 @@
 name: Release
 
-# Windows + Linux installers. This workflow CREATES the GitHub Release on a v*
-# tag push, without waiting on Apple notarization. macOS is built and notarized
-# by release-macos.yml (same tag trigger) and its assets are appended to this
-# release when they're ready.
+# Windows + Linux installers, the hosted fallback for tools/release-local/release.ps1
+# (the default release path, run on the local builders). A tag push starts nothing:
+# when the local builders are unavailable, dispatch it on the tag ref,
+# `gh workflow run release.yml --ref v{version}`, and release-macos.yml the same way.
+# It CREATES the GitHub Release without waiting on Apple notarization; release-macos.yml
+# appends the macOS assets to it when they're ready.
 #
 # Draft-until-published: the GitHub Release is ALWAYS created as a DRAFT —
 # invisible to the releases page and to Velopack auto-update — so users can't
@@ -17,9 +19,7 @@ name: Release
 # fires the release:published event, which triggers the Discord announcement.
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -36,6 +36,13 @@ jobs:
       version: ${{ steps.ver.outputs.version }}
       short_sha: ${{ steps.ver.outputs.short_sha }}
     steps:
+      - name: Refuse a run that is not on a v* tag
+        run: |
+          if [[ "$GITHUB_REF_TYPE" != "tag" || "$GITHUB_REF_NAME" != v* ]]; then
+            echo "::error::Dispatch this on a v* tag: gh workflow run release.yml --ref v{version} (got $GITHUB_REF_TYPE $GITHUB_REF_NAME)"
+            exit 1
+          fi
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false

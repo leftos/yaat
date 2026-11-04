@@ -1,18 +1,18 @@
 name: Release (macOS)
 
-# Split out from release.yml so the win+linux installers publish immediately on
-# a tag push instead of waiting on Apple notarization (which can take 15-30 min).
-# Both workflows fire on the same v* tag. release.yml CREATES the GitHub Release;
-# this one appends the macOS assets to it once notarization finishes.
+# The hosted fallback for the macOS half of tools/release-local/release.ps1 (the default
+# release path, which builds macOS on the mac-mini). A tag push starts nothing: dispatch it
+# on the tag ref, `gh workflow run release-macos.yml --ref v{version}`, after release.yml.
+# Split out from release.yml so the win+linux installers publish without waiting on Apple
+# notarization (which can take 15-30 min). release.yml CREATES the GitHub Release; this one
+# appends the macOS assets to it once notarization finishes.
 #
 # Apple Silicon and Intel ship as two separate packages, each on its own Velopack
 # channel (osx-arm64 / osx-x64). Velopack resolves updates by channel, so a shared
 # channel would eventually offer an Intel package to an Apple Silicon client.
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,6 +29,13 @@ jobs:
       version: ${{ steps.ver.outputs.version }}
       short_sha: ${{ steps.ver.outputs.short_sha }}
     steps:
+      - name: Refuse a run that is not on a v* tag
+        run: |
+          if [[ "$GITHUB_REF_TYPE" != "tag" || "$GITHUB_REF_NAME" != v* ]]; then
+            echo "::error::Dispatch this on a v* tag: gh workflow run release-macos.yml --ref v{version} (got $GITHUB_REF_TYPE $GITHUB_REF_NAME)"
+            exit 1
+          fi
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false

@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
-  Builds a client release without GitHub Actions and creates its draft: release.yml and
-  release-macos.yml, run from this PC through the gate.
+  Builds a client release on the local builders and creates its draft: the default release path,
+  doing what release.yml and release-macos.yml (now manual workflow_dispatch fallbacks) do, run
+  from this PC through the gate.
 
 .DESCRIPTION
   Checks the tag out into a detached worktree (X:\dev\yaat.wt\release-local-<tag>), copies this
@@ -40,7 +41,9 @@ if (-not $ReleaseName) { $ReleaseName = $Tag }
 
 function Assert-NoRelease([string]$Name) {
   gh release view $Name --repo $gitHubRepo --json tagName *> $null
-  if ($LASTEXITCODE -eq 0) { throw "a GitHub release named $Name already exists (CI's draft, or an earlier run): delete it or use -BuildOnly" }
+  if ($LASTEXITCODE -eq 0) {
+    throw "a GitHub release named $Name already exists (an earlier run, or a dispatched hosted fallback): delete it or use -BuildOnly"
+  }
 }
 
 # Signing material and the LM-Kit key, into this process's environment under release-macos.yml's names.
@@ -74,7 +77,8 @@ function Invoke-Leg([string]$Name, [string[]]$GateArguments, [string]$Script, [s
 function Copy-ReleaseAsset([string]$OutRoot, [string]$Version, [string]$ReleaseDir) {
   New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
   # The auto-updater fetches RELEASES*, *.json and *-full.nupkg by exact name: copied verbatim.
-  Get-ChildItem $OutRoot -Recurse -File | Where-Object { ($_.Name -like 'RELEASES*') -or ($_.Name -like '*.json') -or ($_.Name -like '*-full.nupkg') } |
+  Get-ChildItem $OutRoot -Recurse -File |
+    Where-Object { ($_.Name -like 'RELEASES*') -or ($_.Name -like '*.json') -or ($_.Name -like '*-full.nupkg') } |
     Copy-Item -Destination $ReleaseDir -Force
   # The legacy single osx channel, superseded by the arch split, points at the arm64 index.
   Copy-Item (Join-Path $ReleaseDir 'releases.osx-arm64.json') (Join-Path $ReleaseDir 'releases.osx.json') -Force
@@ -107,14 +111,16 @@ try {
   foreach ($file in Get-ChildItem $PSScriptRoot -File) {
     if (-not (Test-Path (Join-Path $scripts $file.Name))) { Copy-Item $file.FullName $scripts }
   }
-  $version = ([xml](Get-Content (Join-Path $worktree 'Directory.Build.props') -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+  $props = [xml](Get-Content (Join-Path $worktree 'Directory.Build.props') -Raw)
+  $version = $props.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
   $shortSha = $sha.Substring(0, 7)
   Write-Host "Release $Tag ($sha): version $version, InformationalVersion $version+$shortSha"
 
   Import-ReleaseSecret
   $legs = @(
     Invoke-Leg 'win-linux' @('--env', 'LMKIT_LICENSE_KEY') 'pack-win-linux.ps1' $version $shortSha $worktree
-    Invoke-Leg 'macos' (@('--builder', $macBuilder, '--env', 'LMKIT_LICENSE_KEY') + @('MACOS_DEVID_APP_CERT_P12_BASE64', 'MACOS_DEVID_INSTALLER_CERT_P12_BASE64',
+    Invoke-Leg 'macos' (@('--builder', $macBuilder, '--env', 'LMKIT_LICENSE_KEY') + @(
+      'MACOS_DEVID_APP_CERT_P12_BASE64', 'MACOS_DEVID_INSTALLER_CERT_P12_BASE64',
       'MACOS_DEVID_CERT_PASSWORD', 'MACOS_NOTARY_API_KEY_P8_BASE64', 'MACOS_NOTARY_API_KEY_ID', 'MACOS_NOTARY_API_ISSUER_ID',
       'MACOS_SIGN_APP_IDENTITY', 'MACOS_SIGN_INSTALL_IDENTITY' | ForEach-Object { '--env', $_ })) 'pack-macos.ps1' $version $shortSha $worktree
   )

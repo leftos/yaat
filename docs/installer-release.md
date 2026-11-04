@@ -1,6 +1,6 @@
 # Installer and release pipeline
 
-YAAT ships as a Velopack installer with auto-update, built and published by a tag-driven GitHub Actions workflow. This doc covers the packaging stack, the auto-update path, the CRC install-time configuration prompt, and the `release.yml` flow end-to-end.
+YAAT ships as a Velopack installer with auto-update, built on the local builders by `tools/release-local/release.ps1` (a `v*` tag push starts no hosted build) and published by the `/prepare-release` flow; the `release.yml` and `release-macos.yml` workflows are a manual `workflow_dispatch` fallback. This doc covers the packaging stack, the auto-update path, the CRC install-time configuration prompt, and the `release.yml` flow end-to-end.
 
 ## Versioning
 
@@ -8,7 +8,7 @@ The version lives in `Directory.Build.props` at the yaat repo root (`<Version>`)
 
 ### Hotfix releases
 
-A hotfix is released from a `hotfix/v<version>` branch cut at the last release tag, by the same `v*` tag and `release.yml` as a regular release (the changelog section it extracts is the branch's own); `/prepare-release` has the procedure.
+A hotfix is released from a `hotfix/v<version>` branch cut at the last release tag, by the same `v*` tag and local release path as a regular release (the changelog section it extracts is the branch's own); `/prepare-release` has the procedure.
 
 Its version sits above the last release and below the next regular one: Velopack offers an installed client the highest semver in its channel, so a regular release numbered at or below the last hotfix would never be offered to the users who took it. After `0.16.2-beta` as a hotfix, the next regular release is `0.16.3-beta` or `0.17.0-beta`.
 
@@ -82,7 +82,7 @@ The check runs automatically five seconds after startup and stays silent unless 
 
 ## Release workflow (`release.yml`)
 
-Triggered on `push` of a `v*` tag. Jobs run in dependency order:
+Triggered only by `workflow_dispatch`, run on a `v*` tag ref (`gh workflow run release.yml --ref v<version>`); a run on any other ref refuses. It mirrors what `release.ps1` does locally. Jobs run in dependency order:
 
 1. **version** — reads `<Version>` from `Directory.Build.props` and the short SHA.
 2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body, and uploads both as `changelog.md` and `highlights.md` in the `release-notes` artifact, with `showcase.md` holding a link to the release's feature showcase (`docs/releases/whats-new-<version>.md`) when the tagged commit has one. It fails when the section is missing or has no entries outside Highlights.
@@ -100,14 +100,16 @@ Triggered on `push` of a `v*` tag. Jobs run in dependency order:
 
 ### Draft-until-published
 
-Every release is created as a draft — invisible to the releases page and to Velopack auto-update. CI cannot judge deployment scope: a release can be server-affecting purely via the yaat-server repo, which `release.yml` (running in the yaat repo) cannot see, so publishing is never decided in CI. The `/prepare-release` flow, which has cross-repo visibility, publishes the draft:
+Every release is created as a draft — invisible to the releases page and to Velopack auto-update. CI cannot judge deployment scope: a release can be server-affecting purely via the yaat-server repo, which `release.yml` (running in the yaat repo) cannot see, so publishing is never decided in the build. The `/prepare-release` flow, which has cross-repo visibility, publishes the draft:
 
-- **Server-affecting releases**: `deploy-to-droplet.ps1` publishes (`gh release edit --draft=false`) after verifying via `/api/version` that the deployed client commit **is** the tagged commit. The client release workflow finishes in ~5 minutes while the server image build + droplet deploy takes ~30; keeping the release a draft until then stops users picking up a client whose matching server isn't live yet.
-- **Client-only releases**: the `/prepare-release` flow publishes once `release.yml` finishes building the installers — no deploy is involved.
+- **Server-affecting releases**: `deploy-to-droplet.ps1` publishes (`gh release edit --draft=false`) after verifying via `/api/version` that the deployed client commit **is** the tagged commit. The client release build usually finishes well before the server image build and droplet deploy; keeping the release a draft until then stops users picking up a client whose matching server isn't live yet.
+- **Client-only releases**: the `/prepare-release` flow publishes once `release.ps1` (or the hosted fallback) finishes building the installers — no deploy is involved.
 
-`release-macos.yml` is unaffected: the authenticated `gh release view`/`upload` it uses sees drafts, so macOS assets land on the draft like any release.
+`release-macos.yml` (the hosted fallback) is unaffected: the authenticated `gh release view`/`upload` it uses sees drafts, so macOS assets land on the draft like any release.
 
-**Missing macOS assets on a fresh draft are expected.** `release-macos.yml` is a separate workflow on the same `v*` tag: `release.yml` creates the release with the Windows and Linux assets, and the macOS workflow *appends* the notarized `osx-arm64`/`osx-x64` `.pkg`, Portable, and `RELEASES` assets 15–30 minutes later (Apple notarization dominates). Publishing before they land is the designed flow; do not hold the publish for them, and do not read their absence as a failed run.
+**Missing macOS assets on a fresh draft are expected on the hosted fallback.** `release-macos.yml` is a separate workflow, dispatched on the same `v*` tag after `release.yml`: `release.yml` creates the release with the Windows and Linux assets, and the macOS workflow *appends* the notarized `osx-arm64`/`osx-x64` `.pkg`, Portable, and `RELEASES` assets 15–30 minutes later (Apple notarization dominates).
+
+Publishing before they land is the designed flow; do not hold the publish for them, and do not read their absence as a failed run.
 
 A failed or skipped deploy leaves the release as a draft on purpose — publish manually with `gh release edit v{version} --repo leftos/yaat --draft=false` once a matching server is live.
 
@@ -117,22 +119,22 @@ A failed or skipped deploy leaves the release as a draft on purpose — publish 
 
 ## Shipping a release
 
-Use the `/prepare-release` skill: it bumps the version, promotes the changelog, drafts highlights, tags, and pushes after approval.
+Use the `/prepare-release` skill: it bumps the version, promotes the changelog, drafts highlights, tags, and pushes after approval, then runs the local release (and, for a server-affecting one, the local server image build) side by side in the background.
 
-### Building the server image without GitHub Actions
+### Building the server image locally (the default)
 
-The deploy normally pulls the image yaat-server's `docker-image.yml` builds. When GitHub Actions is down or a run stalls, `deploy-to-droplet.ps1 -BuildImageLocally` builds the same image on this machine with the .NET SDK's container publish, with no Docker engine, and pushes it to ghcr with the same tags. Use it with `-BuildImageOnly`, then deploy with `-SkipCiBuild`, or with a full deploy.
+The local build is the default: `deploy-to-droplet.ps1 -BuildImageOnly -BuildImageLocally -ServerRef v<version> -ClientRef v<version>` builds the same image as yaat-server's `docker-image.yml` (the hosted fallback, dispatched by the same script without `-BuildImageLocally`) on this machine with the .NET SDK's container publish, with no Docker engine, and pushes it to ghcr with the same tags. Use it with `-BuildImageOnly`, then deploy with `-SkipCiBuild`, or with a full deploy.
 
 It builds clean worktrees of both repos at `-ServerRef` / `-ClientRef`, so the image carries the tag commits and the publish check passes as it does after a CI build. The gh CLI's token must carry `write:packages` (`gh auth refresh -h github.com -s write:packages`). The tool and its footguns are in [`tools/server-image/README.md`](../tools/server-image/README.md).
 
-### Releasing without GitHub Actions
+### Releasing locally (the default)
 
-When `release.yml` and `release-macos.yml` can't run, `tools/release-local/release.ps1 -Tag v<version>` builds the same release from this PC through the gate:
+`tools/release-local/release.ps1 -Tag v<version>` builds the release from this PC through the gate; a `v*` tag push starts no hosted build, and `release.yml` / `release-macos.yml` are the manual fallback when the builders are unavailable:
 - **Windows and Linux** build on the Windows builder; vpk cross-packs the AppImage.
 - **macOS** builds on `builder@mac-mini`, signed with Developer ID and notarized.
 - **The draft** gets the same assets under the same names, and the same body: `release.yml` and the script share `tools/release-local/release-notes.sh`.
 
-Publishing stays as above. The script refuses a run when a release of that name already exists, so cancel the hosted runs and delete their draft first. The Intel smoke test is reduced to its static x86_64 slice check, since the mac-mini is Apple Silicon. The tool, its secrets and its footguns are in [`tools/release-local/README.md`](../tools/release-local/README.md).
+Publishing stays as above. The script refuses a run when a release of that name already exists, so delete a hosted run's draft first. The Intel smoke test is reduced to its static x86_64 slice check, since the mac-mini is Apple Silicon. The tool, its secrets and its footguns are in [`tools/release-local/README.md`](../tools/release-local/README.md).
 
 ### Moving an unpublished draft to a new commit
 
@@ -146,19 +148,13 @@ git push origin main
 git push origin v{version}
 ```
 
-`release.yml` re-runs on the new tag push and recreates the draft. For a server-affecting release the server image must also be **rebuilt**: it bakes `YAAT_CLIENT_COMMIT` at build time and the deploy only auto-publishes the draft when that commit is the tagged one.
+Run `release.ps1` for the new tag (or dispatch the hosted fallback on it) to recreate the draft. For a server-affecting release the server image must also be **rebuilt**: it bakes `YAAT_CLIENT_COMMIT` at build time and the deploy only auto-publishes the draft when that commit is the tagged one.
 
-### Troubleshooting: the tag push started no workflow
+### Troubleshooting: the tag push started no CI run
 
-- **Signature:** `gh api "repos/leftos/yaat/actions/runs?head_sha=<sha>"` still reports `total_count: 0` well after the push.
+A `v*` tag push starts no release build, so a missing release run is expected. `ci.yml` runs on the branch push; when `gh api "repos/leftos/yaat/actions/runs?head_sha=<sha>"` still reports `total_count: 0` well after it, a GitHub Actions outage dropped the event, or GitHub coalesced a simultaneous branch push and tag push into one delivered `push` webhook.
 
-  Two known causes: a GitHub Actions outage drops the push event outright (it is not queued, and recovery does not replay it), and GitHub occasionally coalesces a simultaneous branch push and tag push into one delivered `push` webhook, in which case only the `main`-triggered CI workflow fires. The second cause is why `/prepare-release` pushes `main` and the tag as two separate commands.
-- **Recovery:** delete and re-push the tag to generate a fresh tag-push event; both `release.yml` and `release-macos.yml` then fire normally. There is no rerun path for a run that was never created.
-
-  ```bash
-  git push origin :refs/tags/v{version}
-  git push origin v{version}
-  ```
+That is why `/prepare-release` pushes `main` and the tag as two separate commands. The installers are unaffected; re-push the branch (or the tag, `git push origin :refs/tags/v{version}` then `git push origin v{version}`) to generate a fresh event for `ci.yml`.
 
 The flow can optionally wait for `deploy-to-droplet.ps1 -WaitForEmptyRooms` before deploying, so an in-progress training session
 isn't disrupted. That flag polls the live server's `/admin/status`; it **can't gate the very release that first ships that endpoint**

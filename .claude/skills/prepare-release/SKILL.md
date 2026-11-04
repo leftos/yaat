@@ -126,7 +126,7 @@ git cherry-pick -x <sha>...
 
 Pick the items in the order they landed. Nothing else from `main` goes onto either branch. A conflict is a stop: report it to the user rather than resolving it silently, since it means the item depends on `main` work outside the hotfix.
 
-Then write the hotfix's `CHANGELOG.md` section on the yaat branch: the branch, cut from `PREV_TAG`, has no `## Unreleased`, so add `## {version}` (dated like its siblings) holding only the hotfix items' bullets, copied from `main`'s `## Unreleased`. `release.yml` extracts that section from the tagged commit and fails without it. Step 8.4 moves the same bullets on `main`.
+Then write the hotfix's `CHANGELOG.md` section on the yaat branch: the branch, cut from `PREV_TAG`, has no `## Unreleased`, so add `## {version}` (dated like its siblings) holding only the hotfix items' bullets, copied from `main`'s `## Unreleased`. The release build (`release-notes.sh`, shared by the local run and the hosted fallback) extracts that section from the tagged commit and fails without it. Step 8.4 moves the same bullets on `main`.
 
 ## Phase 2: Launch every independent check
 
@@ -274,7 +274,7 @@ Redirect the combined output to `.tmp/deploy-scope-since-$PREV_TAG.log`.
 - **CLIENT_ONLY** — both server-trigger queries are empty, every file in the full yaat list maps to a client-only path above, and the yaat-server query is empty (only ever the excluded `extern/yaat` bump). The running server already matches this release.
 - **SERVER_AFFECTING** — anything else, **including any changed path you don't positively recognize as client-only**. Bias toward SERVER_AFFECTING: a wrong "skip" leaves a stale server live, while a wrong "deploy" only costs downtime.
 
-Report the verdict with its evidence — the server-relevant paths that triggered it, or "none — all changes are client-only". Note *why* skipping is safe for CLIENT_ONLY: with `Yaat.Sim` untouched the SignalR/CRC wire contract is unchanged, so the already-running server stays compatible with the newly-released client, and the client installer itself is built by `release.yml`, not by the droplet.
+Report the verdict with its evidence — the server-relevant paths that triggered it, or "none — all changes are client-only". Note *why* skipping is safe for CLIENT_ONLY: with `Yaat.Sim` untouched the SignalR/CRC wire contract is unchanged, so the already-running server stays compatible with the newly-released client, and the client installer itself is built by `release.ps1` (or the hosted fallback), not by the droplet.
 
 ### 2.8 Audit user-facing documentation against the release commits (subagent)
 
@@ -338,7 +338,7 @@ Skipping the check leaves both errors available: a bullet that under-states its 
 
 A minor or major version bump (1.4) ships a **feature showcase** (`CONTEXT.md`): `docs/releases/whats-new-next.md`, one section per major feature this release introduces or reworks (or a set of UI and UX changes worth showing together), each a short paragraph and a screenshot under `docs/releases/img/`.
 
-A revision bump ships none, so on one this step is skipped; a `whats-new-next.md` left from earlier work waits for the next minor release. A missing showcase is not a release failure: `release.yml` and the Discord announcement add the "What's new" link only when the file exists.
+A revision bump ships none, so on one this step is skipped; a `whats-new-next.md` left from earlier work waits for the next minor release. A missing showcase is not a release failure: the release body and the Discord announcement add the "What's new" link only when the file exists.
 
 On a minor or major bump, read the open release's issues (`linear list yaat`, release `vNext`) beside the unreleased section and check every candidate has its section; a missing one is written before the cut (step 3.2), its screenshot a `whats-new-<topic>` scene.
 
@@ -471,7 +471,7 @@ Apply **every** version bump decided in 2.6 — `<Version>` in `Directory.Build.
 
 1. **Promote the CHANGELOG.md heading** in place — `Edit` the heading line to the chosen format (version + optional date, matching sibling sections). Do not touch the body of the section yet.
 2. **Insert the approved highlights** into CHANGELOG.md as a `### Highlights` subsection at the top of the version's section, immediately after the heading and before the first existing subsection (typically `### Added` or `### Fixed`). Use the bullets verbatim as approved in Phase 4 — these are what the GitHub release will surface.
-3. **Rename the showcase**, when the release has one (2.11): `docs/releases/whats-new-next.md` to `whats-new-<version>.md` (and its image folder references). `release.yml` links that file from the GitHub release below the highlights, and the Discord announcement carries the link, so the name must match the version exactly (`whats-new-0.16.0-beta.md` for `v0.16.0-beta`).
+3. **Rename the showcase**, when the release has one (2.11): `docs/releases/whats-new-next.md` to `whats-new-<version>.md` (and its image folder references). The release body links that file below the highlights, and the Discord announcement carries the link, so the name must match the version exactly (`whats-new-0.16.0-beta.md` for `v0.16.0-beta`).
 
 ### 5.3 Update the architecture doc
 
@@ -499,15 +499,15 @@ Needs the release commit and tag from Phase 5.
 
 ### 6.1 Ask how to push
 
-Pushing causes no downtime — the room check, the wait for empty rooms and the deploy come *after* the ~20-minute CI image build (step 7.4), when they're actually current. Use `AskUserQuestion` (single-select), ordered by the 2.7 verdict. Every release is created as a hidden draft that something in this flow must publish (Phase 7, "Drafts and the announcement").
+Pushing causes no downtime — the room check, the wait for empty rooms and the deploy come *after* the local image build (step 7.4), when they're actually current. Use `AskUserQuestion` (single-select), ordered by the 2.7 verdict. Every release is created as a hidden draft that something in this flow must publish (Phase 7, "Drafts and the announcement").
 
 **If 2.7 was CLIENT_ONLY** — lead with skipping the deploy:
-- **Push only — skip server deploy (Recommended)** — no shared-library, server, or web-UI (vStrips/vTDLS) changes this cycle, so the running server already matches the release. Pushing ships the new client via `release.yml`; step 7.1 watches the release runs and step 7.3 publishes the draft when they are green.
+- **Push only — skip server deploy (Recommended)** — no shared-library, server, or web-UI (vStrips/vTDLS) changes this cycle, so the running server already matches the release. The tag push starts no hosted build: step 7.1 runs `release.ps1` for the installers, and step 7.3 publishes the draft when it is done.
 - **Push, then build image + deploy after** — force a redeploy anyway (e.g. to pull a new AIRAC cycle); continues through steps 7.2, 7.4 and 7.5.
 - **Abort** — stop here; the user resumes manually.
 
 **If 2.7 was SERVER_AFFECTING** — the release changes what the server runs:
-- **Push and start the server image build (Recommended)** — push both repos, then front-load the ~20-minute CI image build (no downtime; the live server keeps serving). The deploy decision and room check happen when the image is ready.
+- **Push and start the server image build (Recommended)** — push both repos, then front-load the local image build (no downtime; the live server keeps serving). The deploy decision and room check happen when the image is ready.
 - **Push only — no image build, no deploy** — leaves the live server on the previous build. **Warn explicitly:** the draft release stays invisible to users and to auto-update until a deploy publishes it — or until it's published manually with `gh release edit v{version} --repo leftos/yaat --draft=false`.
 - **Abort** — stop here; the user resumes manually.
 
@@ -560,33 +560,37 @@ Each should print nothing but the release tag you just created. If it lists othe
 
 **On a hotfix** the pushes are the branches, then the tags, each its own command and never coalesced with a `main` push: `git -C "$SERVER" push origin hotfix/v{version}` first (the image build runs on that ref, so the branch must be on the remote before step 7.2 dispatches), then `git -C "$SERVER" push origin v{version}`; then in yaat `git push origin hotfix/v{version}` and, after it returns, `git push origin v{version}`.
 
-`main` is not pushed. The branch push starts `ci.yml` on the branch; the tag push starts `Release` and `Release (macOS)` as on a regular release.
+`main` is not pushed. The branch push starts `ci.yml` on the branch; the tag push starts no release build, as on a regular release.
 
-**Two pushes, not one.** GitHub sometimes coalesces a simultaneous branch push and tag push into a single delivered `push` webhook event; when that happens the `release.yml` workflow (`push: tags: ['v*']`) does not fire and only the `main`-triggered CI workflow runs. A tag pushed on its own always produces its own event.
+**Two pushes, not one.** GitHub sometimes coalesces a simultaneous branch push and tag push into a single delivered `push` webhook event, and `ci.yml` is then the only run on the commit. A tag pushed on its own always produces its own event, and the tag must be on the remote before the local builds start (`release.ps1` checks it out by name).
 
-If the release workflow still shows no run for the tag (`gh api "repos/leftos/yaat/actions/runs?head_sha=<sha>"` → `total_count: 0`), re-push the tag in isolation: `git push --delete origin v{version}` then `git push origin v{version}`.
-
-**Never use `--tags` here.** Besides re-sending every existing tag in one batch (which raises the coalescing risk above), this repo has two tag namespaces with separate release workflows — `v*` (the client, `release.yml`) and `crc-config-v*` (the standalone tool, `yaat-crc-config.yml`).
+**Never use `--tags` here.** Besides re-sending every existing tag in one batch (which raises the coalescing risk above), this repo has two tag namespaces — `v*` (the client, built locally by `release.ps1`; a `v*` tag push starts no hosted build) and `crc-config-v*` (the standalone tool, whose `yaat-crc-config.yml` still fires on its tag).
 
 `--tags` pushes every local tag, so any stale unpushed tag fires its workflow and publishes a release built from whatever old commit it points at. Because GitHub ranks "Latest" by publish time, that stale release also steals the Latest badge and the `/releases/latest` API from the real client release.
 
-Order matters: yaat-server first means yaat-server's own work is live before yaat's release CI fires. yaat's CI builds and tests yaat-server's `main` against the release commit, so pushing yaat second tests the pair as it ships.
+Order matters: yaat-server first means yaat-server's own work is live before yaat's `ci.yml` runs on the push. yaat's CI builds and tests yaat-server's `main` against the release commit, so pushing yaat second tests the pair as it ships.
 
 ## Phase 7: Watch, build and publish
 
-Needs the tag push. Steps 7.1 and 7.2 launch together, in the background, right after it; each later step names what it waits on.
+Needs the tag push. Steps 7.1 and 7.2 launch side by side, in the background, right after it; each later step names what it waits on.
 
-**Drafts and the announcement.** `release.yml` **always** creates the GitHub Release as a *draft* — invisible to users and to auto-update. CI cannot judge deployment scope (a release can be server-affecting purely via yaat-server, which the workflow can't see), so publishing is never decided there: step 7.3 publishes a client-only release, and the deploy script publishes on the deploy path.
+**Drafts and the announcement.** `release.ps1` **always** creates the GitHub Release as a *draft* (the hosted `release.yml` fallback does the same) — invisible to users and to auto-update. The build cannot judge deployment scope (a release can be server-affecting purely via yaat-server, which it can't see), so publishing is never decided there: step 7.3 publishes a client-only release, and the deploy script publishes on the deploy path.
 
-The Discord announcement fires on its own, once, on publish: publishing with a user token (manually or via the deploy script) raises the `release: published` event that triggers `discord-release.yml` — do **not** also dispatch that workflow, or the announcement posts twice. A release published without an installer is announced without it.
+The Discord announcement fires on its own, once, on publish: publishing with a user token (manually or via the deploy script) raises the `release: published` event that triggers `discord-release.yml` — do **not** also dispatch that workflow, or the announcement posts twice. A release published without an installer is announced without it. A `v*` tag push starts no hosted release build; the hosted workflows are a manual fallback (7.1, 7.2).
 
-### 7.1 Watch every client release run — both paths, always
+### 7.1 Build every client installer — local by default, watch `CI`
 
-The tag push starts three workflows on the tagged commit: `Release` (Windows installer + the draft GitHub Release), `Release (macOS)` (signed/notarized `.pkg` + `.app`, appended to that draft with `gh release upload`), and `CI`.
+A `v*` tag push starts no hosted release build. Right after the tag push, run the local release **in the background** (it takes every leg through the gate itself; 7.2's image build runs alongside):
 
-Confirming they *started* is not the step; a run that fails after that goes unnoticed until a user reports it, and publishing the draft (step 7.3 or the deploy) before `Release (macOS)` has uploaded ships a release with no macOS installer. This step is complete only when every run on the tagged SHA reports `success`, or when the one failure is `CI`'s formatting or style step (item 3 below).
+```bash
+pwsh -NoProfile -File tools/release-local/release.ps1 -Tag v{version}
+```
 
-Right after the tag push, list the runs and watch each one **in the background** (they take 15-30 minutes; the image build in step 7.2 runs alongside):
+It builds every installer through the gate, with macOS on the mac-mini, signed and notarized, and creates the draft with the body from `release-notes.sh`. `tools/release-local/README.md` covers its secrets and footguns. A hotfix tag goes through the same run.
+
+Starting it is not the step; publishing the draft (step 7.3 or the deploy) before it has finished ships a release with a missing installer. This step is complete only when `release.ps1` exits 0 with the draft created and every `CI` run on the tagged SHA reports `success`, or the one failure is `CI`'s formatting or style step (item 3 below).
+
+`ci.yml` still runs on the branch push. List its runs and watch each one in the background:
 
 ```bash
 SHA=$(git rev-parse v{version}^{commit})
@@ -594,47 +598,44 @@ gh api "repos/leftos/yaat/actions/runs?head_sha=$SHA" --jq '.workflow_runs[] | "
 gh run watch <run-id> --repo leftos/yaat --exit-status   # one background call per run
 ```
 
-If the list is missing `Release` or `Release (macOS)`, the tag push was coalesced — re-push the tag in isolation as described in step 6.3. When a watch exits non-zero:
+If `CI` is missing, the branch and tag pushes were coalesced; the installers are unaffected. When `release.ps1` or a watch exits non-zero:
 
-1. `gh run view <run-id> --repo leftos/yaat --json conclusion,jobs` to find the failed job and step, then `gh run view <run-id> --repo leftos/yaat --log-failed > .tmp/<name>-failed.log` and read the error lines.
-2. **Transient infrastructure** — Apple's timestamp service (`CMS signature encoding failed: The timestamp service is not available. (-67885)`), a notarization upload/poll timeout, `smoke-intel`'s model download from Hugging Face, a runner lost mid-job — re-run the failed jobs: `gh run rerun <run-id> --repo leftos/yaat --failed`, then watch the re-run the same way. The `build` jobs stay green and are not repeated.
-3. **A `CI` failure confined to `Formatting (CSharpier)` or `Style diagnostics`** (an info-level IDE rule in a test file, say) while `Release` and `Release (macOS)` are green is not a release defect: the installers are fine, so carry on to the publish (7.3) or the deploy (7.5).
+1. For `release.ps1`, read its output and the gate logs it names. For a `CI` run, `gh run view <run-id> --repo leftos/yaat --json conclusion,jobs` to find the failed job and step, then `gh run view <run-id> --repo leftos/yaat --log-failed > .tmp/<name>-failed.log` and read the error lines.
+2. **Transient infrastructure** — Apple's timestamp service (`CMS signature encoding failed: The timestamp service is not available. (-67885)`), a notarization upload/poll timeout, a builder lost mid-run — re-run `release.ps1`; it refuses while a release of that tag exists, so delete a half-made draft first (`gh release delete v{version} --repo leftos/yaat --yes`; a draft has no tag to lose). For a failed `CI` run, `gh run rerun <run-id> --repo leftos/yaat --failed`, then watch it the same way.
+3. **A `CI` failure confined to `Formatting (CSharpier)` or `Style diagnostics`** (an info-level IDE rule in a test file, say) while the installers are built is not a release defect: carry on to the publish (7.3) or the deploy (7.5).
 
    Commit and push the fix only after the draft is published or the deploy prints `Deployment complete!` — the image is built from yaat at `client_ref` (default `main`), and a commit past the tag fails the deploy's tag-equals-deployed-commit publish check. A hotfix image is built from the tag itself, so a later commit on `main` cannot reach it.
-4. **GitHub Actions is down, or the runs won't start or stay stuck** (an open incident on githubstatus.com, or no progress long after the usual 15-30 minutes). Build the release locally instead: cancel the `Release` and `Release (macOS)` runs, delete any draft they made (`gh release delete v{version} --repo leftos/yaat --yes`; a draft has no tag to lose), then run it in the background:
+4. **The local builders are unavailable** (the mac-mini or the Windows builder is down, or the signing material is missing). Fall back to the hosted workflows, dispatched on the tag ref; they refuse any other ref. Delete any draft the local run made (`gh release delete v{version} --repo leftos/yaat --yes`), then:
 
    ```bash
-   pwsh -NoProfile -File tools/release-local/release.ps1 -Tag v{version}
+   gh workflow run release.yml --ref v{version}
+   gh workflow run release-macos.yml --ref v{version}
    ```
 
-   It builds every installer through the gate, with macOS on the mac-mini, signed and notarized, and creates the same draft with the same body. Carry on at 7.3 or 7.5 as usual. `tools/release-local/README.md` covers its secrets and footguns.
+   `Release` (Windows and Linux installers, creates the draft) and `Release (macOS)` (signed/notarized `.pkg`, appended to that draft with `gh release upload`) are not started by the tag push, so find each run with `gh run list --repo leftos/yaat --workflow release.yml --limit 1` (and `release-macos.yml`) and watch it in the background with `gh run watch <run-id> --repo leftos/yaat --exit-status` (15-30 minutes).
+
+   Publishing before `Release (macOS)` has uploaded ships a release with no macOS installer. A transient failure there is re-run with `gh run rerun <run-id> --repo leftos/yaat --failed`.
 5. **Anything else** (compile error, packaging error, a missing secret) is a release defect: report it with the error lines and stop. Do not publish the draft and do not deploy until the user decides how to fix forward; a hidden draft is recoverable, a published release with a broken or missing installer is not.
 
-Report each run's final conclusion to the user in the message that moves on to the next step.
+Report `release.ps1`'s outcome and each watched run's final conclusion to the user in the message that moves on to the next step.
 
 ### 7.2 Build the server image (when 6.1 chose an image build)
 
-Run it **in the background**, through the gate wrapper (a green-looking failed build would feed a stale image straight into step 7.5). The build runs on a GitHub runner and this command only dispatches and watches it, so it takes no slot (`-Slot none`), as the deploy in 7.5 does: any slot would sit idle for twenty minutes while a local build or test waits for it.
-
-```bash
-pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 3600 -Slot none -- pwsh deploy-to-droplet.ps1 -BuildImageOnly
-```
-
-It dispatches yaat-server's `docker-image.yml`, watches the ~20-minute CI build, and exits without touching the droplet — the live server keeps serving throughout, so no room check is needed yet. (`docker-image.yml` checks `extern/yaat` out at its `client_ref` input, default `main`, at build time, so dispatching immediately after the push is safe.)
-
-**When the CI build fails to start, stalls or GitHub Actions has an open incident**, cancel the run (`gh run cancel <id> --repo leftos/yaat-server`) and build the image on this machine instead. It's the same image, pushed with the same tags:
+Run it **in the background**, side by side with 7.1, through the gate wrapper (a green-looking failed build would feed a stale image straight into step 7.5). The outer gate takes no slot (`-Slot none`), as the deploy in 7.5 does; the build inside it takes its own `heavy` slot:
 
 ```bash
 pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 3600 -Slot none -- pwsh deploy-to-droplet.ps1 -BuildImageOnly -BuildImageLocally -ServerRef v{version} -ClientRef v{version}
 ```
 
-The outer gate takes no slot; the build inside it takes its own `heavy` slot. It needs the gh token's `write:packages` scope; if that's missing, the script names the `gh auth refresh` command, which goes to the user in a pane.
+It builds the image on this machine, pushes it with the same tags a CI build would, and exits without touching the droplet — the live server keeps serving throughout, so no room check is needed yet. It needs the gh token's `write:packages` scope; if that's missing, the script names the `gh auth refresh` command, which goes to the user in a pane.
 
-`gh run watch` can fail on GitHub API 502s while the run itself is fine: check `gh run view <id> --json status,conclusion` before treating a watch failure as a failed build.
+**When the local build can't run** (no usable Docker, or the scope can't be granted), build the image on GitHub instead: the same command without `-BuildImageLocally`, which dispatches yaat-server's `docker-image.yml` and watches it. `docker-image.yml` checks `extern/yaat` out at its `client_ref` input at build time, so dispatching immediately after the push is safe.
+
+If that run fails to start or stalls, cancel it (`gh run cancel <id> --repo leftos/yaat-server`). `gh run watch` can fail on GitHub API 502s while the run itself is fine: check `gh run view <id> --json status,conclusion` before treating a watch failure as a failed build.
 
 **Do not land further commits on yaat main until the deploy finishes** — the image bakes in whatever main holds, and the deploy only auto-publishes the draft release when the deployed client commit *is* the tagged commit. If the build fails, surface it and stop — do not deploy a stale image.
 
-**On a hotfix** the image is built from both repos' `hotfix/v{version}` branches with `extern/yaat` pinned to the yaat tag, which is why 6.3 pushes the server branch first:
+**On a hotfix** the image is built from both repos' `hotfix/v{version}` branches with `extern/yaat` pinned to the yaat tag, which is why 6.3 pushes the server branch first (add `-BuildImageLocally` for the local default):
 
 ```bash
 pwsh tools/gate.ps1 -Log .tmp/deploy-image-build.log -TimeoutSeconds 3600 -Slot none -- pwsh deploy-to-droplet.ps1 -BuildImageOnly -ServerRef hotfix/v{version} -ClientRef v{version}
@@ -644,20 +645,20 @@ The image lands on `:latest`, and `main` may keep moving: nothing the build read
 
 ### 7.3 Publish a CLIENT_ONLY release (waits on 7.1)
 
-Skip on SERVER_AFFECTING — the deploy publishes there. On the client-only path no deploy will publish the draft. Once step 7.1 is complete, confirm the draft holds all three installers — `YaatClient-{version}-win-Setup.exe`, `YaatClient-{version}-osx-arm64-Setup.pkg` and `YaatClient-{version}-osx-x64-Setup.pkg`:
+Skip on SERVER_AFFECTING — the deploy publishes there. On the client-only path no deploy will publish the draft. Once step 7.1 is complete, confirm the draft `release.ps1` made holds all three installers — `YaatClient-{version}-win-Setup.exe`, `YaatClient-{version}-osx-arm64-Setup.pkg` and `YaatClient-{version}-osx-x64-Setup.pkg`:
 
 ```bash
 gh release view v{version} --repo leftos/yaat --json assets --jq '.assets[].name | select(endswith("-Setup.exe") or endswith("-Setup.pkg"))'
 ```
 
-A missing one means its run has not uploaded yet: back to 7.1. With all three listed, publish:
+A missing one means the build did not finish or upload it: back to 7.1. With all three listed, publish:
 `gh release edit v{version} --repo leftos/yaat --draft=false`
 
 Steps 7.4 to 7.6 are the image-build/deploy path: they run only when 6.1 chose an image build (7.2 is then already building). Otherwise go on to Phase 8.
 
 ### 7.4 Wait for the installers, then for empty rooms (waits on 7.2's success)
 
-The deploy takes just the container-recreate downtime (~2 minutes) and publishes the draft release. It is never asked about: once 6.1 chose an image build, the flow is fixed. Wait for every 7.1 run to be complete, then for the rooms to clear, then deploy (7.5).
+The deploy takes just the container-recreate downtime (~2 minutes) and publishes the draft release. It is never asked about: once 6.1 chose an image build, the flow is fixed. Wait for 7.1 to be complete, then for the rooms to clear, then deploy (7.5).
 
 1. Run `pwsh deploy-to-droplet.ps1 -StatusOnly` and report the result: the active room count, and for each room its id, members, scenario and aircraft count, or "no active rooms". The script reads `ADMIN_PASSWORD` from yaat `.env` itself — **do not read the secret yourself**. If the query fails (server unreachable, password unset — exit code 2), say so and treat occupancy as unknown.
 2. Once 7.1 is complete, run `pwsh deploy-to-droplet.ps1 -WaitForEmptyRooms` **in the background**, chained with step 7.5's deploy command so the deploy starts the moment it exits cleanly. It polls `GET /admin/status` every 60 s and blocks until the server reports zero rooms, printing the active rooms each check. The deploy still calls `prepare-restart` as a safety net for any room that appears between "cleared" and "deployed".
@@ -666,7 +667,7 @@ Only a user who asks to skip the deploy changes this: then **warn explicitly** (
 
 ### 7.5 Deploy (waits on 7.4 and on 7.1 being complete)
 
-The deploy publishes the draft release, so a still-running or failed `Release (macOS)` at this point ships a release without a macOS installer; 7.4 therefore starts the room wait only once every watch is complete, and the deploy's `prepare-restart` covers any room that appears after the wait. Run it through the gate wrapper:
+The deploy publishes the draft release, so an unfinished or failed 7.1 at this point ships a release without an installer; 7.4 therefore starts the room wait only once 7.1 is complete, and the deploy's `prepare-restart` covers any room that appears after the wait. Run it through the gate wrapper:
 
 ```bash
 pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot none -- pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
@@ -684,9 +685,9 @@ pwsh tools/gate.ps1 -Log .tmp/deploy-droplet.log -TimeoutSeconds 1800 -Slot none
 
 On the deploy path `deploy-to-droplet.ps1` publishes the draft after verifying the deployed client commit matches the tag — watch for its "Published GitHub release" line.
 
-Confirm with `gh release view v{version} --repo leftos/yaat --json isDraft,assets`: `isDraft` false **and** the three installers of step 7.3 listed — a public release missing one means its run failed or never uploaded, so go back to step 7.1 for it.
+Confirm with `gh release view v{version} --repo leftos/yaat --json isDraft,assets`: `isDraft` false **and** the three installers of step 7.3 listed — a public release missing one means its build failed or never uploaded, so go back to step 7.1 for it.
 
-If it's still a draft (deploy skipped, failed, the commit check refused, or `release.yml` hadn't created the draft yet when the deploy finished), the release is invisible to users and auto-update; publish manually with `gh release edit v{version} --repo leftos/yaat --draft=false` once the matching server is live.
+If it's still a draft (deploy skipped, failed, the commit check refused, or the 7.1 build hadn't created the draft yet when the deploy finished), the release is invisible to users and auto-update; publish manually with `gh release edit v{version} --repo leftos/yaat --draft=false` once the matching server is live.
 
 ## Phase 8: Close out
 
@@ -730,6 +731,6 @@ Then delete `hotfix/v{version}` in both repos, locally and on the remote: `git b
 
 ## What the tag push ships
 
-The tag push triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` at the tagged commit (using the tag name; on a hotfix that is the branch's own section), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block.
+The tag push triggers no hosted build: `tools/release-local/release.ps1` (step 7.1) builds the release, and the hosted `release.yml` stays a manual fallback. The build extracts the matching section from `CHANGELOG.md` at the tagged commit (using the tag name; on a hotfix that is the branch's own section), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block.
 
 The highlights you and the user agreed on in Phase 4 are exactly what ships — no AI rewriting at release time. Every release is created as a draft and published by this flow: step 7.3 for client-only releases, the deploy script for server-affecting ones (full mechanics: `docs/installer-release.md`).

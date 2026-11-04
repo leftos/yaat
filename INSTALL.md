@@ -336,7 +336,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 ### Windows SmartScreen blocks the installer
 
-The installer is not code-signed (signing certificates are expensive and YAAT is a free project). Click **More info** → **Run anyway** to proceed. The contents come from the GitHub Actions build pipeline — you can verify the build via the [Actions tab](https://github.com/leftos/yaat/actions/workflows/release.yml) if you want to audit what went in.
+The installer is not code-signed (signing certificates are expensive and YAAT is a free project). Click **More info** → **Run anyway** to proceed. The release is built from the public source by the scripts in [`tools/release-local`](tools/release-local/README.md) (the [`release.yml`](.github/workflows/release.yml) workflow is the manual fallback) — you can read them if you want to audit what went in.
 
 ### Client can't connect to server
 

@@ -1,13 +1,15 @@
 # release-local
 
-Builds a client release without GitHub Actions and creates its draft. It's the fallback when `release.yml` and `release-macos.yml` can't run. Every asset the hosted release has is built under the same name, and the draft gets the same body. Publishing stays where it is for a hosted release: `prepare-release` 7.3, or the deploy.
+Builds a client release on the local builders and creates its draft. It's the default release path: a `v*` tag push starts no hosted build, and `release.yml` and `release-macos.yml` stay as a manual fallback (`gh workflow run release.yml --ref v<version>`, then `gh workflow run release-macos.yml --ref v<version>`) for when the builders are unavailable.
+
+Every asset the hosted release has is built under the same name, and the draft gets the same body. Publishing stays where it is for a hosted release: `prepare-release` 7.3, or the deploy.
 
 ```powershell
 pwsh -NoProfile -File tools/release-local/release.ps1 -Tag v<version>            # build all, create the draft
 pwsh -NoProfile -File tools/release-local/release.ps1 -Tag v<version> -BuildOnly # build and gather, no release
 ```
 
-The tag must be pushed. The script refuses a run when a GitHub release of that name already exists, so it never races CI's draft or overwrites it. When the hosted workflows ran part of the way, cancel them, delete their draft, then run this.
+The tag must be pushed. The script refuses a run when a GitHub release of that name already exists, so it never races a hosted run's draft or overwrites it. To switch to the hosted fallback after a partial local run, delete the draft first; to switch back after a hosted run started, cancel it and delete its draft.
 
 | File | What it does |
 |---|---|

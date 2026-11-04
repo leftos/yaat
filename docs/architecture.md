@@ -702,7 +702,7 @@ update-ladd.ps1                   # Monthly LADD routine in one command: fetch-l
                                   # deploy-to-droplet.ps1 -WaitForEmptyRooms -> deploy-ladd.ps1 -Restart; -Zip uses an already-downloaded zip
 swim-slice.ps1                    # Live-traffic repro: copies the SWIM raw-log hours covering -From/-To off the droplet's yaat-swim-raw volume (or -Local) and
                                   # runs yaat-server tools/Yaat.SwimSlice cut [-Artcc [-Facility]]; output under yaat-server/.tmp/swim-slices (FAA data, never shared)
-tools/release-local/              # Builds a client release without GitHub Actions and creates its draft: release.ps1 (orchestrator, worktree at the tag), pack-win-linux.ps1 (Windows builder), pack-macos.ps1 (mac-mini, signed + notarized), release-notes.sh (body, shared with release.yml); README.md
+tools/release-local/              # Builds a client release on the local builders (the default path; the hosted workflows are the manual fallback) and creates its draft: release.ps1 (orchestrator, worktree at the tag), pack-win-linux.ps1 (Windows builder), pack-macos.ps1 (mac-mini, signed + notarized), release-notes.sh (body, shared with release.yml); README.md
 tools/server-image/               # Builds the yaat-server image with the .NET SDK container publish (no Docker) from clean worktrees and pushes it to ghcr; build.ps1, container.targets (mirrors the Dockerfile's runtime stage), web-apps.proj; README.md
 tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
@@ -759,7 +759,9 @@ tools/tests/test_speech_telemetry.py # pytest for speech_telemetry.py against a 
 
 The sibling yaat-server repo registers the same two guards via its own `.claude/settings.json` → `tools/hooks/claude-guard.sh`, a shim that resolves these scripts through the sibling checkout first and `extern/yaat/` second (the same order `Directory.Build.props` uses for Yaat.Sim) and fails open if neither is present.
 
-See [installer-release.md](installer-release.md) for the Velopack packaging, auto-update, CRC install prompt, and the tag-driven `release.yml` (win+linux) / `release-macos.yml` (Apple Silicon + Intel, one Velopack channel per architecture) pipelines. macOS code signing/notarization (Developer ID certs, entitlements + `Info.plist` template in `build/macos/`, the eight `MACOS_*` secrets) is set up via [macos-code-signing.md](macos-code-signing.md).
+See [installer-release.md](installer-release.md) for the Velopack packaging, auto-update, CRC install prompt, and the local `tools/release-local/release.ps1` release (the default; a `v*` tag push starts no hosted build) with the manual `workflow_dispatch` fallback `release.yml` (win+linux) / `release-macos.yml` (Apple Silicon + Intel, one Velopack channel per architecture).
+
+macOS code signing/notarization (Developer ID certs, entitlements + `Info.plist` template in `build/macos/`, the eight `MACOS_*` secrets) is set up via [macos-code-signing.md](macos-code-signing.md).
 
 ## Yaat.Client.Strips — WASM-clean strip layer (`src/Yaat.Client.Strips/`)
 

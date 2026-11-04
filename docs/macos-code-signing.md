@@ -1,6 +1,6 @@
 # macOS code signing & notarization setup
 
-The release pipeline signs and notarizes the macOS `.pkg` and `.app` so they launch without a Gatekeeper warning and auto-update silently. This is a **one-time setup** of an Apple Developer account's certificates plus eight GitHub Actions secrets. Until the secrets exist, `release-macos.yml` still builds a working macOS package — just unsigned, with the old right-click-to-open caveat.
+The hosted fallback release pipeline (the local default signs with its own certificates, see `tools/release-local/README.md`) signs and notarizes the macOS `.pkg` and `.app` so they launch without a Gatekeeper warning and auto-update silently. This is a **one-time setup** of an Apple Developer account's certificates plus eight GitHub Actions secrets. Until the secrets exist, `release-macos.yml` still builds a working macOS package — just unsigned, with the old right-click-to-open caveat.
 
 The local release route (`tools/release-local/`, for when GitHub Actions can't run) signs with a second set of certificates and a separate notary key kept in Private Config, since GitHub secrets can't be read back; its README says where they live.
 
@@ -124,8 +124,9 @@ rm devid_app.p12 devid_installer.p12 AuthKey_*.p8 *.b64
 
 ## Step 6 — Verify
 
-Cut a release as usual (the `/prepare-release` skill → tag push). In each
-`package-macos` job log (one per architecture) you should see, from `vpk pack`:
+Cut a release as usual (the `/prepare-release` skill → tag push), then dispatch the hosted fallback
+(`gh workflow run release-macos.yml --ref v{version}`), since the GitHub secrets are used only there;
+the local release signs with its own certificates. In each `package-macos` job log (one per architecture) you should see, from `vpk pack`:
 
 - `Code signing application bundle recursively (with --deep)…`
 - `Notarization completed successfully` (the upload to Apple usually takes a
