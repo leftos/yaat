@@ -1000,4 +1000,24 @@ public class PhraseologyVerbalizerTests
         string? result = PhraseologyVerbalizer.Verbalize(new DescendMaintainCommand(3000));
         Assert.Equal("descend and maintain three thousand", result);
     }
+
+    [Fact]
+    public void Verbalize_SayAgain_EveryRuleIsSttOnly_AndSpeaksNoReadback()
+    {
+        // "Aircraft calling, say again (your call sign)" is controller-side phraseology: the pilot
+        // answers with PilotRepeat, never a readback, so the verbalizer has nothing to say for
+        // either verb. The rules exist, so the nulls are the rule set's doing.
+        List<PhraseologyRule> rules =
+        [
+            .. PhraseologyRules.All.Where(r => r.Type is CanonicalCommandType.SayAgain or CanonicalCommandType.SayAgainUnaddressed),
+        ];
+
+        Assert.Contains(rules, r => r.Type == CanonicalCommandType.SayAgain);
+        Assert.Contains(rules, r => r.Type == CanonicalCommandType.SayAgainUnaddressed);
+
+        Assert.Null(PhraseologyVerbalizer.Verbalize(new SayAgainCommand(CallsignOnly: false)));
+        Assert.Null(PhraseologyVerbalizer.Verbalize(new SayAgainCommand(CallsignOnly: true)));
+        Assert.Null(PhraseologyVerbalizer.Verbalize(new SayAgainUnaddressedCommand(CallsignOnly: false)));
+        Assert.Null(PhraseologyVerbalizer.Verbalize(new SayAgainUnaddressedCommand(CallsignOnly: true)));
+    }
 }

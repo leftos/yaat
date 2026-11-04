@@ -1166,6 +1166,37 @@ public static class PhraseologyRules
             new(["say", "position"], "SPOS", SayPosition),
             new(["report", "position"], "SPOS", SayPosition),
             new(["say", "expected", "approach"], "SEAPP", SayExpectedApproach),
+            // 7110.65 PCG "SAY AGAIN": "Used to request a repeat of the last transmission. Usually
+            // specifies transmission or portion thereof not understood or received; e.g., 'Say
+            // again all after ABRAM VOR.'" Partial repeats are unsupported, so the whole
+            // transmission is repeated. AIM 3-2 has the unaddressed form, "Aircraft calling Dulles
+            // approach control, standby": "aircraft calling" (FAA) and "station calling" (ICAO),
+            // with an optional facility name, address the last caller even when another aircraft is
+            // selected. A spoken callsign keeps the line addressed because the client puts it in
+            // front of the command (MainViewModel.HandleSpeechServiceCommandReady), so
+            // AsUnaddressedSayAgain never sees a bare AGAIN. All SttOnly: the pilot answers with
+            // PilotRepeat, and no readback speaks this controller-side wording.
+            new(["say", "again"], "AGAIN", SayAgain, SttOnly: true),
+            new(["say", "again", "your?", "callsign"], "AGAIN CS", SayAgain, SttOnly: true),
+            new(["say", "again", "your?", "call", "sign"], "AGAIN CS", SayAgain, SttOnly: true),
+            // "{rest...}" is the matcher's rest-of-line slot: everything after "all after/before"
+            // belongs to the repeat request, never a second command.
+            new(["say", "again", "all", "after", "{rest...}"], "AGAIN", SayAgain, SttOnly: true),
+            new(["say", "again", "all", "before", "{rest...}"], "AGAIN", SayAgain, SttOnly: true),
+            new(["aircraft", "calling", "say", "again"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["station", "calling", "say", "again"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["aircraft", "calling", "say", "again", "your?", "callsign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
+            new(["aircraft", "calling", "say", "again", "your?", "call", "sign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
+            new(["station", "calling", "say", "again", "your?", "callsign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
+            new(["station", "calling", "say", "again", "your?", "call", "sign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
+            // A facility name may sit between "calling" and "say again" ("Aircraft calling Dulles
+            // approach control, say again"): "{facility...}" scans up to the required "say".
+            new(["aircraft", "calling", "{facility...}", "say", "again"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["station", "calling", "{facility...}", "say", "again"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["aircraft", "calling", "{facility...}", "say", "again", "your?", "callsign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
+            new(["aircraft", "calling", "{facility...}", "say", "again", "your?", "call", "sign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
+            new(["station", "calling", "{facility...}", "say", "again", "your?", "callsign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
+            new(["station", "calling", "{facility...}", "say", "again", "your?", "call", "sign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
             // 7110.65 §9-2-6.e. The pilot's answer is built by PilotSayBuilder rather than rendered
             // from this pattern, so these exist to recognise the controller's spoken form.
             new(["verify", "your?", "exit", "fix", "estimate", "and?", "requested?", "altitude?", "after?", "exit?"], "SAYEXIT", SayExitFixEstimate),

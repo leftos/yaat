@@ -1493,6 +1493,66 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand);
     }
 
+    // --- Say again (7110.65 PCG "SAY AGAIN": "Used to request a repeat of the last transmission";
+    // AIM 3-2: "Aircraft calling Dulles approach control, standby") ---
+
+    [Theory]
+    [InlineData("say again", "AGAIN")]
+    [InlineData("please say again", "AGAIN")]
+    [InlineData("say again your callsign", "AGAIN CS")]
+    [InlineData("say again your call sign", "AGAIN CS")]
+    [InlineData("say again callsign", "AGAIN CS")]
+    // "Aircraft/station calling, say again" is unaddressed: the last caller repeats even when
+    // another aircraft is selected.
+    [InlineData("aircraft calling say again", "AGAINU")]
+    [InlineData("station calling say again", "AGAINU")]
+    [InlineData("aircraft calling say again your call sign", "AGAINU CS")]
+    [InlineData("station calling say again callsign", "AGAINU CS")]
+    // A facility name may sit between "calling" and "say again" (AIM 3-2).
+    [InlineData("aircraft calling oakland approach say again", "AGAINU")]
+    [InlineData("station calling oakland tower say again your call sign", "AGAINU CS")]
+    // Partial repeats are unsupported: the whole transmission is repeated, and the tail of an
+    // "all after/before X" is swallowed rather than dispatched as a second command.
+    [InlineData("say again all after abram", "AGAIN")]
+    [InlineData("say again all after cleared to land", "AGAIN")]
+    [InlineData("say again all after maintain 5000", "AGAIN")]
+    [InlineData("say again all before cleared to land", "AGAIN")]
+    [InlineData("say again altitude", "AGAIN")]
+    [InlineData("roger say again", "STBY, AGAIN")]
+    // "I say again" is the controller repeating its own message, not a request: it emits nothing.
+    [InlineData("turn left heading two seven zero i say again turn left heading two seven zero", "TL 270, TL 270")]
+    [InlineData("descend and maintain five thousand i say again descend and maintain five thousand", "DM 5000, DM 5000")]
+    // The say-again rules never steal the broadcast-request family.
+    [InlineData("say altitude again", "SALT")]
+    [InlineData("say your altitude", "SALT")]
+    public void SayAgain_Rules(string transcript, string expected)
+    {
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
+    [InlineData("again")]
+    [InlineData("repeat")]
+    public void SayAgain_NonExamples_NoMatch(string transcript) => Assert.Null(PhraseologyMapper.Map(transcript, NoContext));
+
+    [Fact]
+    public void SayAgain_AddressedByName_StaysAddressed()
+    {
+        MapContext ctx = MapContext.Empty with { ActiveCallsigns = ["UAL234"] };
+
+        MapResult? addressed = PhraseologyMapper.Map("united 234 say again your call sign", ctx);
+        Assert.NotNull(addressed);
+        Assert.Equal("UAL234", addressed!.Callsign);
+        Assert.Equal("AGAIN CS", addressed.CanonicalCommand);
+
+        MapResult? trailing = PhraseologyMapper.Map("say again united 234", ctx);
+        Assert.NotNull(trailing);
+        Assert.Equal("UAL234", trailing!.Callsign);
+        Assert.Equal("AGAIN", trailing.CanonicalCommand);
+    }
+
     // --- Tower expanded ---
 
     [Theory]

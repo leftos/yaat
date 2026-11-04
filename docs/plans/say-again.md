@@ -35,12 +35,14 @@ Say again is a command for students. It asks a pilot to repeat its last transmis
 - **Verb** (user): `AGAIN` repeats the whole transmission, `AGAIN CS` only the callsign. Neither ATCTrainer's nor VICE's command list has a say-again verb; `SA` is already taken in `CommandRegistry`.
 - **Last transmission** (user): any pilot line on the frequency counts — readbacks, proactive calls, reports and "unable" lines. The repeat itself does not replace it (its text is the same).
 - **Mid-transmission** (user): at most one pending repeat per aircraft. A say-again while the pilot is transmitting or has a line queued queues one repeat behind it; a second say-again while one is pending is a no-op. The pending flag is snapshotted with the last transmission.
-- **Unaddressed "station calling, say again callsign"** (user): the most recent aircraft whose call still awaits a controller response (a check-in or a request) repeats its callsign; with none waiting, the last aircraft to transmit does.
+- **Unaddressed "Aircraft calling, say again (your call sign)"** (user): the verb is `AGAINU` / `AGAINU CS`; the most recent aircraft whose call still awaits a controller response (a check-in or a request) repeats, with none waiting the last aircraft to transmit does, even with another aircraft selected. "Station calling, say again" is the ICAO wording and maps the same.
 - **Pilots asking the student to say again** stays with pilot-AI M11.3/M11.4 (user); this programme builds the student verb and the last-transmission store they will reuse.
+
+- **Spoken mapping** (landed): "say again" / "please say again" → `AGAIN`; "say again (your) call sign" → `AGAIN CS`; "aircraft calling" / "station calling", optionally a facility name, then "say again (your call sign)" → `AGAINU` / `AGAINU CS`. "Say again all after/before X" repeats the whole transmission and never issues the tail as a command. The controller's own "I say again" emits nothing. "Repeat" and bare "again" map to nothing. All are STT-only rules in `PhraseologyRules.cs`.
 
 ## Open decisions
 
-1. The STT phrase set ("say again", "say again callsign", "repeat") and its rule shapes in `PhraseologyRules.cs`, settled at the STT step against the real corpus.
+None.
 
 ## Task Index rows for the landing commit
 

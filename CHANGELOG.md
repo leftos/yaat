@@ -4,7 +4,7 @@
 
 ### Added
 
-- In solo training, `AGAIN` asks a pilot to repeat its last transmission word for word, and `AGAIN CS` asks for its callsign only. With no aircraft selected, the pilot who called last answers.
+- In solo training, `AGAIN` asks a pilot to repeat its last transmission word for word, and `AGAIN CS` asks for its callsign only. With no aircraft selected, the pilot who called last answers; spoken "aircraft calling, say again" always reaches that pilot.
 
 ### Fixed
 

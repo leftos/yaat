@@ -5,6 +5,7 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Speech;
 
 namespace Yaat.Client.UI.Tests.ViewModels;
 
@@ -43,6 +44,34 @@ public class MainViewModelSayAgainEnterTests
         CommandBoxOutcome outcome = await vm.SubmitCommandTextAsync("xnited twelve turn left heading two seven zero");
 
         Assert.NotEqual(SayAgain, outcome.StatusText);
+    }
+
+    [AvaloniaFact]
+    public async Task Speech_AircraftCallingSayAgain_SelectedAircraft_SendsUnaddressedAgainU()
+    {
+        MainViewModel vm = await ConnectedVmAsync();
+        vm.SelectedAircraft = Assert.Single(vm.Aircraft, a => a.Callsign == "UAL12");
+
+        const string Transcript = "aircraft calling say again";
+        TranscriptMapResult mapped = await SpeechRecognitionService.MapTranscriptAsync(
+            Transcript,
+            new SpeechContext([], [], string.Empty),
+            new PhraseologyCommandMapper(),
+            llmMapper: null,
+            callsignResolver: null,
+            TestContext.Current.CancellationToken
+        );
+        Assert.Equal("AGAINU", mapped.Canonical);
+
+        vm.HandleSpeechServiceCommandReady(new SpeechResult(Transcript, mapped.Canonical, mapped.Callsign, null));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("AGAINU", vm.CommandText);
+
+        CommandBoxOutcome outcome = await vm.SubmitCommandTextAsync(vm.CommandText);
+
+        // This view model has no server: the global path reports "{VERB} error: …" and the
+        // addressed path "Command error: …", so the message proves the send was unaddressed.
+        Assert.StartsWith("AGAINU error:", outcome.StatusText, StringComparison.Ordinal);
     }
 
     private static void DeliverSayAgain(MainViewModel vm, string transcript)

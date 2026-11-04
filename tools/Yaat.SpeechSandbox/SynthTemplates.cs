@@ -206,6 +206,8 @@ public static partial class SynthTemplates
         new("shdg", "BroadcastRules", "say heading", "SHDG"),
         new("spos", "BroadcastRules", "report position", "SPOS"),
         new("seapp", "BroadcastRules", "say expected approach", "SEAPP"),
+        new("again", "BroadcastRules", "say again", "AGAIN"),
+        new("again-cs", "BroadcastRules", "say again your call sign", "AGAIN CS"),
         // Compound transmissions (two and three clauses)
         new("dm-spd", CompoundFamily, "descend and maintain {alt} reduce speed to {spd}", "DM {alt}, SPD {spd}"),
         new("tr-dm", CompoundFamily, "turn right heading {hdg} descend and maintain {alt}", "TR {hdg}, DM {alt}"),

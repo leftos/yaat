@@ -411,6 +411,15 @@ public static class PhraseologyMapper
                 continue;
             }
 
+            // "i say again" is the controller repeating its own message (7110.65 PCG "I SAY
+            // AGAIN": "The message will be repeated"), not a request to the pilot: skip it like a
+            // connector so it emits nothing and the repeated instruction that follows still matches.
+            if (IsISayAgain(tokens, idx))
+            {
+                idx += 3;
+                continue;
+            }
+
             (string Output, int Consumed, PhraseologyRule Rule)? best = FindLongestMatch(tokens, idx, context, ref runwayInvalid);
             if (best is null)
             {
@@ -432,6 +441,13 @@ public static class PhraseologyMapper
         }
         return (outputs, totalConsumed);
     }
+
+    /// <summary>True when the three tokens at <paramref name="index"/> are the phrase "i say again".</summary>
+    private static bool IsISayAgain(List<string> tokens, int index) =>
+        (index + 2 < tokens.Count)
+        && string.Equals(tokens[index], "i", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(tokens[index + 1], "say", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(tokens[index + 2], "again", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Find the best-matching rule starting at <paramref name="start"/>. "Best" prefers:

@@ -234,10 +234,10 @@ Only the legacy Whisper engine takes a prompt; the rasr engines ignore it.
 ## Phraseology Rule Mapper
 
 - `src/Yaat.Sim/Speech/PhraseologyRules.cs` — single static catalog of
-  ~160 rules grouped into category builders: `HeadingRules`,
+  rules grouped into category builders: `HeadingRules`,
   `AltitudeSpeedRules`, `NavigationRules`, `TowerRules`, `ApproachRules`,
   `PtacRules`, `PatternRules`, `HoldRules`, `HelicopterRules`,
-  `TransponderRules`, `GroundRules`, `BroadcastRules`. `Build()` (line 48)
+  `TransponderRules`, `GroundRules`, `BroadcastRules`. `Build()`
   concatenates them into `PhraseologyRules.All`. Each category mirrors
   the grouping in `CommandRegistry.*Commands`.
 - Rules are `PhraseologyRule` records:
@@ -257,6 +257,8 @@ Only the legacy Whisper engine takes a prompt; the rasr engines ignore it.
   It then extracts a condition prefix (`AT {fix}`, `when level at {alt}` → `LV {alt}`), collapses NATO phonetic runs via `NatoLetterNormalizer` (see below), then does a greedy left-to-right longest-match against `PhraseologyRules.All`.
 
   A `{callsign}` or `{rwy}` capture with no digit is no match for that rule. Multiple clause matches are concatenated with commas. Tie-break rule: **more literal tokens wins at equal consumed count** — so a more-specific rule always beats a shorter one. For two rules of equal pattern length this reduces to "fewer captures wins" (e.g. `squawk vfr → SQVFR` beats `squawk {code} → SQ vfr`).
+
+  The mapper skips the three tokens "i say again" like a connector (the controller repeating itself, 7110.65 PCG), so they emit nothing and the instruction after them still matches. The say-again family in `BroadcastRules` is all `SttOnly` (pilots never speak it): "say again" → `AGAIN`, "say again your call sign" → `AGAIN CS`, "aircraft/station calling [facility…] say again [your call sign]" → `AGAINU` / `AGAINU CS` (the facility is a mid-pattern variadic), and "say again all after/before {rest…}" → `AGAIN` with the tail swallowed by a rest-of-line variadic so it is never issued as a command. A spoken call sign is extracted before matching, so it keeps the line addressed. "repeat" and bare "again" map to nothing.
 
   Returns `null` if no rule matched any part of the transcript. Because the digit and NATO passes run before matching, a spoken literal they rewrite ("three sixty", "bravo") needs an `SttOnly` twin in the rewritten form; the spoken rule stays for `PhraseologyVerbalizer`.
 - `src/Yaat.Sim/Speech/NatoLetterNormalizer.cs` — after callsign +
@@ -600,7 +602,7 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 
 - `tests/Yaat.Sim.Tests/Speech/PhraseologyMapperTests.cs` — unit tests
   per rule category. Ground rules are exercised as `[InlineData]` theory
-  rows around line 457 (`"pushback approved" → "PUSH"`,
+  rows (`"pushback approved" → "PUSH"`,
   `"hold position" → "HOLD"`, etc.).
 - `tests/Yaat.Client.Tests/SpeechPipelineTranscriptIntegrationTests.cs`
   — E2E rule-engine + LLM-fallback integration tests. Gated on the
