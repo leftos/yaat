@@ -2553,7 +2553,8 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
             RunwayInfo rwy = Oak("28R");
             var trail = new RecordedTrail(rwy);
 
-            for (int t = 285; t <= 500; t++)
+            // The window runs well past the follower's final turn at about t=500, so a tick of timing does not decide the oracle.
+            for (int t = 285; t <= 600; t++)
             {
                 engine.ReplayOneSecond();
                 trail.Observe(t, engine.FindAircraft("N123AB"), engine.FindAircraft("N314GT"), output);
@@ -2570,6 +2571,67 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
             Assert.True(trail.BothOnFinalSeen, "N123AB and N314GT were never on final together");
             Assert.True(trail.MinFinalGapNm >= 1.0, $"along-final gap fell to {trail.MinFinalGapNm:F2} nm");
             Assert.True(trail.MaxSouthNm <= 0.1, $"N123AB went {trail.MaxSouthNm:F2} nm south of the 28R centerline before its final turn");
+        }
+    }
+
+    /// <summary>
+    /// The recorded case's follower N123AB hands over to its pattern entry 1.3 nm before PTN-ENTRY, whose "at pattern
+    /// altitude" restriction it descends to: it shallows into the level-off rather than steepening in the last seconds,
+    /// and is at pattern altitude when PTN-ENTRY sequences.
+    /// </summary>
+    [Fact]
+    public void FollowFromBase_RecordedCase_PatternEntryDescentNeverSteepensBeforeSequencing()
+    {
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine engine = BuildEngine();
+            engine.Replay(recording, 284);
+
+            var rates = new List<double>();
+            int? patternAltitudeFt = null;
+            double? altitudeAtSequencing = null;
+            for (int t = 285; t <= 500 && altitudeAtSequencing is null; t++)
+            {
+                engine.ReplayOneSecond();
+                AircraftState follower = Assert.IsType<AircraftState>(engine.FindAircraft("N123AB"));
+                NavigationTarget? entry = follower.Targets.NavigationRoute.Find(f => f.Name == "PTN-ENTRY");
+                if (entry is not null)
+                {
+                    Assert.NotNull(entry.AltitudeRestriction);
+                    patternAltitudeFt ??= entry.AltitudeRestriction.Altitude1Ft;
+                    rates.Add(Math.Abs(follower.Targets.PlannedVerticalRate ?? 0));
+                }
+                else if (patternAltitudeFt is not null)
+                {
+                    altitudeAtSequencing = follower.Altitude;
+                    output.WriteLine($"t={t} PTN-ENTRY sequenced at {follower.Altitude:F0} ft, pattern altitude {patternAltitudeFt}");
+                }
+            }
+
+            Assert.True(altitudeAtSequencing is not null, "N123AB never sequenced a PTN-ENTRY within the window");
+            List<double> last = [.. rates.TakeLast(10)];
+            output.WriteLine(
+                $"Planned |rate| over the last {last.Count} s before sequencing: {string.Join(", ", last.Select(r => r.ToString("F0")))}"
+            );
+            for (int k = 1; k < last.Count; k++)
+            {
+                Assert.True(
+                    last[k] <= last[k - 1] + 50,
+                    $"The planned descent stepped up from {last[k - 1]:F0} to {last[k]:F0} fpm before PTN-ENTRY"
+                );
+            }
+
+            Assert.True(
+                altitudeAtSequencing <= patternAltitudeFt + FlightPhysics.AltitudeSnapFt,
+                $"N123AB sequenced PTN-ENTRY at {altitudeAtSequencing:F0} ft, above pattern altitude {patternAltitudeFt}"
+            );
         }
     }
 

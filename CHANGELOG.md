@@ -44,6 +44,7 @@
 - An IFR departure cleared to a maintain checks in "leaving 2,000, climbing to 5,000" instead of "climbing via" its SID; climb and descent check-ins now say "climbing to" or "descending to".
 - `DVIA` given while an aircraft is still on its departure procedure now starts the descent along the arrival.
 - A direct-to, heading, airway or radial join, `JARR`, `JLOC` or military route that drops a crossing fix returns the aircraft to the speed the crossing replaced.
+- A crossing that needs a steep climb or descent is met by the time the fix is passed, and pattern entries reach pattern altitude before turning in.
 ### Added
 
 - `LA 600` clears an altitude-restricted low approach ("at or above 600"). The aircraft never goes below it, and the clearance is refused under 500 ft above the airport.

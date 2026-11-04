@@ -461,7 +461,7 @@ public static class FlightPhysics
 
     /// <summary>
     /// Step-descent planning for STAR via mode. Finds the next altitude constraint
-    /// in the route and computes the descent rate required to meet it at the fix.
+    /// in the route and computes the descent rate required to meet it at the sequencing point.
     /// Adjusts the descent rate (steeper or shallower) rather than using a fixed rate
     /// with a distance-based trigger. The rate is published in
     /// <see cref="ControlTargets.PlannedVerticalRate"/>, which <see cref="Update"/> clears before every
@@ -508,7 +508,8 @@ public static class FlightPhysics
                 continue;
             }
 
-            ClearedAltitudePlan clearedPlan = PlanToClearedAltitude(aircraft, cat, restriction, cumulativeDistNm, descending: true);
+            double sequencingDistNm = SequencingDistanceNm(aircraft, route, i, cumulativeDistNm);
+            ClearedAltitudePlan clearedPlan = PlanToClearedAltitude(aircraft, cat, restriction, sequencingDistNm, descending: true);
             if (clearedPlan == ClearedAltitudePlan.Targeted)
             {
                 break;
@@ -547,23 +548,14 @@ public static class FlightPhysics
 
             aircraft.Targets.TargetAltitude = targetAlt;
 
-            // Compute the descent rate required to reach targetAlt at the fix
+            // Compute the descent rate required to reach targetAlt where the fix sequences
             double standardRate = AircraftPerformance.DescentRate(aircraft.AircraftType, cat, aircraft.Altitude);
-            double timeMinutes = cumulativeDistNm / (aircraft.GroundSpeed / 60.0);
+            double timeMinutes = sequencingDistNm / (aircraft.GroundSpeed / 60.0);
 
-            if (timeMinutes > 0.1)
-            {
-                double requiredFpm = altDelta / timeMinutes;
-                // Cap at 2× standard rate; no minimum — use a gentle rate if there's plenty of distance
-                double maxRate = standardRate * 2.0;
-                double rate = Math.Min(requiredFpm, maxRate);
-                aircraft.Targets.PlannedVerticalRate = -rate;
-            }
-            else
-            {
-                // Almost at the fix — descend at max rate
-                aircraft.Targets.PlannedVerticalRate = -(standardRate * 2.0);
-            }
+            // Cap at 2× standard rate; no minimum — use a gentle rate if there's plenty of distance. Almost at the
+            // sequencing point the time is floored at one physics tick: on track the required rate holds steady and arrives on
+            // the last tick, never steepening into the level-off.
+            aircraft.Targets.PlannedVerticalRate = -Math.Min(altDelta / Math.Max(timeMinutes, 1.0 / 60), standardRate * 2.0);
 
             break; // Step descent: only target the next constraint
         }
@@ -572,7 +564,7 @@ public static class FlightPhysics
     /// <summary>
     /// Step-climb planning for SID via mode. Symmetric to descent planning:
     /// finds the next altitude constraint and computes the climb rate required
-    /// to meet it at the fix. The rate is published in
+    /// to meet it at the sequencing point. The rate is published in
     /// <see cref="ControlTargets.PlannedVerticalRate"/>, which <see cref="Update"/> clears before every
     /// run of this method: it therefore lives only as long as a constrained fix is in the route, and a
     /// vector that clears the route returns the aircraft to its profile climb rate on the next tick.
@@ -622,7 +614,8 @@ public static class FlightPhysics
                 continue;
             }
 
-            ClearedAltitudePlan clearedPlan = PlanToClearedAltitude(aircraft, cat, restriction, cumulativeDistNm, descending: false);
+            double sequencingDistNm = SequencingDistanceNm(aircraft, route, i, cumulativeDistNm);
+            ClearedAltitudePlan clearedPlan = PlanToClearedAltitude(aircraft, cat, restriction, sequencingDistNm, descending: false);
             if (clearedPlan == ClearedAltitudePlan.Targeted)
             {
                 break;
@@ -668,23 +661,14 @@ public static class FlightPhysics
 
             aircraft.Targets.TargetAltitude = targetAlt;
 
-            // Compute the climb rate required to reach targetAlt at the fix
+            // Compute the climb rate required to reach targetAlt where the fix sequences
             double standardRate = AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, aircraft.Altitude);
-            double timeMinutes = cumulativeDistNm / (aircraft.GroundSpeed / 60.0);
+            double timeMinutes = sequencingDistNm / (aircraft.GroundSpeed / 60.0);
 
-            if (timeMinutes > 0.1)
-            {
-                double requiredFpm = altDelta / timeMinutes;
-                // Cap at 2× standard rate; no minimum — use a gentle rate if there's plenty of distance
-                double maxRate = standardRate * 2.0;
-                double rate = Math.Min(requiredFpm, maxRate);
-                aircraft.Targets.PlannedVerticalRate = rate;
-            }
-            else
-            {
-                // Almost at the fix — climb at max rate
-                aircraft.Targets.PlannedVerticalRate = standardRate * 2.0;
-            }
+            // Cap at 2× standard rate; no minimum — use a gentle rate if there's plenty of distance. Almost at the
+            // sequencing point the time is floored at one physics tick: on track the required rate holds steady and arrives on
+            // the last tick, never steepening into the level-off.
+            aircraft.Targets.PlannedVerticalRate = Math.Min(altDelta / Math.Max(timeMinutes, 1.0 / 60), standardRate * 2.0);
 
             break; // Step climb: only target the next constraint
         }
@@ -766,9 +750,7 @@ public static class FlightPhysics
                 : AircraftPerformance.AccelRate(aircraft.AircraftType, cat);
 
             // The constraint holds where the fix sequences, its sequencing threshold before the fix itself.
-            LatLon legStart = (i == 0) ? aircraft.Position : route[i - 1].Position;
-            NavigationTarget? nextFix = (i + 1 < route.Count) ? route[i + 1] : null;
-            double sequencingDistNm = Math.Max(0, cumulativeDistNm - SequencingThreshold(aircraft, legStart, route[i], nextFix).ThresholdNm);
+            double sequencingDistNm = SequencingDistanceNm(aircraft, route, i, cumulativeDistNm);
             double changeTimeSeconds = speedDelta / rate;
             double timeToFixSeconds = sequencingDistNm / (aircraft.GroundSpeed / 3600.0);
 
@@ -1158,14 +1140,15 @@ public static class FlightPhysics
     /// Flies to the cleared altitude when it already meets <paramref name="restriction"/>'s bound
     /// (<see cref="ClearedAltitudeMeetingBound"/>). While the aircraft is still on the wrong side of the bound (climbing
     /// below an at-or-above, descending above an at-or-below, outside a window) it must still be past the bound by the fix
-    /// (AIM 4-4-10.e), so the rate is the one that reaches the bound in <paramref name="distanceToFixNm"/>, never slower
+    /// (AIM 4-4-10.e), so the rate is the one that reaches the bound in <paramref name="sequencingDistNm"/>, the distance to
+    /// where the fix sequences (<see cref="SequencingDistanceNm"/>), never slower
     /// than the standard rate (<see cref="BoundCrossingRate"/>). Once past the bound it flies at the profile rate.
     /// </summary>
     private static ClearedAltitudePlan PlanToClearedAltitude(
         AircraftState aircraft,
         AircraftCategory cat,
         CifpAltitudeRestriction restriction,
-        double distanceToFixNm,
+        double sequencingDistNm,
         bool descending
     )
     {
@@ -1187,7 +1170,7 @@ public static class FlightPhysics
             double standardRate = descending
                 ? AircraftPerformance.DescentRate(aircraft.AircraftType, cat, aircraft.Altitude)
                 : AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, aircraft.Altitude);
-            double rate = BoundCrossingRate(feetToBound, distanceToFixNm, aircraft.GroundSpeed, standardRate);
+            double rate = BoundCrossingRate(feetToBound, sequencingDistNm, aircraft.GroundSpeed, standardRate);
             aircraft.Targets.PlannedVerticalRate = descending ? -rate : rate;
         }
         else
@@ -1221,8 +1204,22 @@ public static class FlightPhysics
     }
 
     /// <summary>
+    /// The along-route distance from the aircraft to where it sequences <paramref name="route"/>[<paramref name="i"/>]:
+    /// <paramref name="cumulativeDistNm"/> (the distance to the fix itself) less the fix's
+    /// <see cref="SequencingThreshold"/>, never below zero. A crossing restriction holds where the fix sequences, so the
+    /// planners aim their required rate here (AIM 1-2-1.b.1, 4-4-10.e). For a fly-by turn under 90° the threshold is the
+    /// turn anticipation, so this measures to the turn start, which is at or before sequencing.
+    /// </summary>
+    internal static double SequencingDistanceNm(AircraftState aircraft, List<NavigationTarget> route, int i, double cumulativeDistNm)
+    {
+        LatLon legStart = (i == 0) ? aircraft.Position : route[i - 1].Position;
+        NavigationTarget? nextFix = (i + 1 < route.Count) ? route[i + 1] : null;
+        return Math.Max(0, cumulativeDistNm - SequencingThreshold(aircraft, legStart, route[i], nextFix).ThresholdNm);
+    }
+
+    /// <summary>
     /// The vertical rate that covers <paramref name="feetToBound"/> in <paramref name="distanceNm"/>, between the standard
-    /// rate and twice it; twice it when the fix is less than six seconds away.
+    /// rate and twice it; twice it when the sequencing point is less than six seconds away.
     /// </summary>
     private static double BoundCrossingRate(double feetToBound, double distanceNm, double groundSpeedKts, double standardRate)
     {

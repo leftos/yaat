@@ -212,9 +212,135 @@ public class CrossingBoundMetByClearanceTests
 
         _output.WriteLine($"Closest to PORTE: {overFix.DistanceNm:F2} nm at {overFix.AltitudeFt:F0} ft");
         Assert.True(overFix.DistanceNm < 1.0, $"The aircraft came no closer than {overFix.DistanceNm:F2} nm to PORTE");
-        // Flyby sequencing ends the planned rate before PORTE, ~150 ft short of A120: the planner aims the rate at the fix itself.
-        Assert.True(overFix.AltitudeFt >= 11750, $"The aircraft crossed PORTE at {overFix.AltitudeFt:F0} ft");
+        Assert.True(overFix.AltitudeFt >= 12000, $"The aircraft crossed PORTE at {overFix.AltitudeFt:F0} ft");
         Assert.Equal(14000, ac.Targets.AssignedAltitude);
+    }
+
+    /// <summary>
+    /// "CM 140; CFIX PORTE at or above 120" from 3,000 issued 12 nm before PORTE, a fly-by fix: the climb needs more than the
+    /// standard rate, and the planner aims it at the point YAAT sequences PORTE, its turn anticipation before the fix, so the
+    /// aircraft is through 12,000 when PORTE leaves the route (AIM 4-4-10.e, 1-2-1.b.1).
+    /// </summary>
+    [Fact]
+    public void ClimbThroughAtOrAboveAtFlyByFix_ReachesTheBoundBySequencing()
+    {
+        AircraftState ac = ClimbViaTopAltitudeTests.Cndel5Departure(sidAlreadyActive: false, out _);
+        LatLon porte = FixPosition("PORTE");
+        FlyPhysicsWithin(ac, porte, 12.0);
+
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
+        DispatchLine(ac, "CM 140", ctx);
+        DispatchLine(ac, "CFIX PORTE A120", ctx);
+        Assert.Equal(14000, ac.Targets.AssignedAltitude);
+        AssertNeedsMoreThanStandardRate(ac, porte, 12000, descending: false);
+
+        FlyPastFix(ac, "PORTE", _ => { });
+
+        _output.WriteLine($"Sequenced PORTE {GeoMath.DistanceNm(ac.Position, porte):F2} nm from it at {ac.Altitude:F0} ft");
+        Assert.True(ac.Altitude >= 12000, $"The aircraft sequenced PORTE at {ac.Altitude:F0} ft, below 12,000");
+    }
+
+    /// <summary>
+    /// "DM 100; CFIX TOOOL at or below 120" from 16,000 issued 8 nm before TOOOL, a fly-by fix: the descent needs more than the
+    /// standard rate, and the planner aims it at the point YAAT sequences TOOOL, so the aircraft is through 12,000 when TOOOL
+    /// leaves the route (AIM 4-4-10.e, 1-2-1.b.1).
+    /// </summary>
+    [Fact]
+    public void DescendThroughAtOrBelowAtFlyByFix_ReachesTheBoundBySequencing()
+    {
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        string fixName = StarFixOnRoute(aircraft);
+        LatLon fix = FixPosition(fixName);
+        for (int t = 1; GeoMath.DistanceNm(aircraft.Position, fix) > 8.0; t++)
+        {
+            Assert.True(t <= 1800, $"The aircraft did not come within 8 nm of {fixName} within 1800 s");
+            harness.Engine.TickOneSecond();
+        }
+
+        SendOk(harness, "DM 100");
+        SendOk(harness, $"CFIX {fixName} B120");
+        Assert.Equal(10000, aircraft.Targets.AssignedAltitude);
+        AssertNeedsMoreThanStandardRate(aircraft, fix, 12000, descending: true);
+
+        TickUntilPassed(harness, fixName, _ => { });
+
+        _output.WriteLine($"Sequenced {fixName} {GeoMath.DistanceNm(aircraft.Position, fix):F2} nm from it at {aircraft.Altitude:F0} ft");
+        Assert.True(aircraft.Altitude <= 12000, $"The aircraft sequenced {fixName} at {aircraft.Altitude:F0} ft, above 12,000");
+    }
+
+    /// <summary>
+    /// "CM 100; DCTF PORTE/at or above 80" from 3,000 issued 6 nm before PORTE: PORTE is the only, so the last, route fix and
+    /// sequences 0.5 nm before it; the climb needs more than the standard rate and the planner aims it at that point, so the
+    /// aircraft is through 8,000 when PORTE leaves the route (AIM 4-4-10.e).
+    /// </summary>
+    [Fact]
+    public void ConstrainedDirectToLastFix_ReachesTheBoundBySequencing()
+    {
+        AircraftState ac = ClimbViaTopAltitudeTests.Cndel5Departure(sidAlreadyActive: false, out _);
+        LatLon porte = FixPosition("PORTE");
+        FlyPhysicsWithin(ac, porte, 6.0);
+
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
+        DispatchLine(ac, "CM 100", ctx);
+        DispatchLine(ac, "DCTF PORTE/A080", ctx);
+        Assert.Equal(10000, ac.Targets.AssignedAltitude);
+        Assert.Equal("PORTE", Assert.Single(ac.Targets.NavigationRoute).Name);
+        AssertNeedsMoreThanStandardRate(ac, porte, 8000, descending: false);
+
+        FlyPastFix(ac, "PORTE", _ => { });
+
+        _output.WriteLine($"Sequenced PORTE {GeoMath.DistanceNm(ac.Position, porte):F2} nm from it at {ac.Altitude:F0} ft");
+        Assert.True(ac.Altitude >= 8000, $"The aircraft sequenced PORTE at {ac.Altitude:F0} ft, below 8,000");
+    }
+
+    /// <summary>
+    /// "DCTF PORTE/at 80" from 3,000 issued 8 nm before PORTE, the last route fix: no cleared altitude meets an "at", so the
+    /// climb planner flies it inline. It shallows into the level-off rather than steepening in the last seconds, and is at
+    /// 8,000 when PORTE sequences.
+    /// </summary>
+    [Fact]
+    public void ConstrainedDirectAtLastFix_ClimbNeverSteepensBeforeSequencing()
+    {
+        AircraftState ac = ClimbViaTopAltitudeTests.Cndel5Departure(sidAlreadyActive: false, out _);
+        LatLon porte = FixPosition("PORTE");
+        FlyPhysicsWithin(ac, porte, 8.0);
+
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
+        DispatchLine(ac, "DCTF PORTE/080", ctx);
+        NavigationTarget fix = Assert.Single(ac.Targets.NavigationRoute);
+        Assert.NotNull(fix.AltitudeRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.At, fix.AltitudeRestriction.Type);
+        Assert.False(NavigationCommandHandler.CrossingBoundMetByClearance(ac, fix.AltitudeRestriction));
+
+        var rates = new List<double>();
+        FlyPastFix(
+            ac,
+            "PORTE",
+            _ =>
+            {
+                if (ac.Targets.NavigationRoute.Count > 0)
+                {
+                    rates.Add(Math.Abs(ac.Targets.PlannedVerticalRate ?? 0));
+                }
+            }
+        );
+
+        List<double> last = [.. rates.TakeLast(10)];
+        _output.WriteLine(
+            $"Sequenced PORTE at {ac.Altitude:F0} ft; planned |rate| over the last {last.Count} s: {string.Join(", ", last.Select(r => r.ToString("F0")))}"
+        );
+        for (int k = 1; k < last.Count; k++)
+        {
+            Assert.True(last[k] <= last[k - 1] + 50, $"The planned climb stepped up from {last[k - 1]:F0} to {last[k]:F0} fpm before PORTE");
+        }
+
+        Assert.True(ac.Altitude >= 8000 - FlightPhysics.AltitudeSnapFt, $"The aircraft sequenced PORTE at {ac.Altitude:F0} ft, below 8,000");
     }
 
     /// <summary>
@@ -375,6 +501,31 @@ public class CrossingBoundMetByClearanceTests
             aircraft.Altitude >= clearedFt - FlightPhysics.AltitudeSnapFt,
             $"At {t} s the aircraft descended to {aircraft.Altitude:F0} ft, below its cleared {clearedFt:F0}"
         );
+
+    private static void FlyPhysicsWithin(AircraftState aircraft, LatLon fix, double distanceNm)
+    {
+        for (int t = 1; GeoMath.DistanceNm(aircraft.Position, fix) > distanceNm; t++)
+        {
+            Assert.True(t <= 1800, $"The aircraft did not come within {distanceNm:F0} nm of the fix within 1800 s");
+            FlightPhysics.Update(aircraft, 1.0);
+        }
+    }
+
+    /// <summary>The staging precondition: reaching <paramref name="boundFt"/> by the fix itself already takes more than the standard rate.</summary>
+    private void AssertNeedsMoreThanStandardRate(AircraftState aircraft, LatLon fix, double boundFt, bool descending)
+    {
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double standardFpm = descending
+            ? AircraftPerformance.DescentRate(aircraft.AircraftType, cat, aircraft.Altitude)
+            : AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, aircraft.Altitude);
+        double minutesToFix = GeoMath.DistanceNm(aircraft.Position, fix) / (aircraft.GroundSpeed / 60.0);
+        double requiredFpm = Math.Abs(aircraft.Altitude - boundFt) / minutesToFix;
+        _output.WriteLine(
+            $"{GeoMath.DistanceNm(aircraft.Position, fix):F1} nm from the fix at {aircraft.Altitude:F0} ft, {aircraft.GroundSpeed:F0} kt: "
+                + $"{requiredFpm:F0} fpm needed, standard {standardFpm:F0}"
+        );
+        Assert.True(requiredFpm > standardFpm, $"The bound needs {requiredFpm:F0} fpm, no more than the standard {standardFpm:F0}");
+    }
 
     private static void FlyPastFix(AircraftState aircraft, string fixName, Action<int> eachSecond)
     {
