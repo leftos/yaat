@@ -26,7 +26,7 @@ public class MainWindowTabOrderTests
         (MainWindow window, MainViewModel vm) = MainWindowHost.Boot();
         try
         {
-            await vm.NavDataInitialization;
+            await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
             TabControl tabControl = window.FindControl<TabControl>("MainTabControl")!;
 
             // The student Strips[0] and vTDLS[0] entries are created in the ctor and

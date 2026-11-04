@@ -87,7 +87,7 @@ public class MainViewModelPilotVoiceWarningTests
     private static async Task<MainViewModel> JoinedViewModelAsync(bool solo, PromptStub prompt)
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         Dispatcher.UIThread.RunJobs();
         vm.Preferences.SetPilotVoiceSettings(false, 80, true, 1.1);
         vm.ApplyRoomState(PausedRoom(solo));

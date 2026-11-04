@@ -22,7 +22,7 @@ public class MainViewModelTrafficFeedUrlTests
             IsConnected = true,
             ActiveRoomId = RoomId,
         };
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         return vm;
     }
 

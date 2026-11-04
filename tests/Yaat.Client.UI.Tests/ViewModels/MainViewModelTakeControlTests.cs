@@ -23,7 +23,7 @@ public class MainViewModelTakeControlTests
     public async Task TakeControl_WhenConfirmationCancelled_ShortCircuitsAndPreservesPlayback()
     {
         var vm = new MainViewModel(new FakeFilePickerService()) { IsPlaybackMode = true, PlaybackTapeEnd = 120 };
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         vm.StatusText = "sentinel";
 
         bool prompted = false;
@@ -45,7 +45,7 @@ public class MainViewModelTakeControlTests
     public async Task TakeControl_WhenConfirmed_ProceedsPastTheGate()
     {
         var vm = new MainViewModel(new FakeFilePickerService()) { IsPlaybackMode = true };
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         vm.StatusText = "sentinel";
 
         bool prompted = false;

@@ -148,7 +148,7 @@ public class MainViewModelBookmarksTests
     public async Task BmGoto_UnknownId_ReportsItWithoutSeeking()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         vm.ApplyBookmarks([Bm("bm-1", 10, null)]);
 
         await vm.HandleBookmarkGlobalCommand("GO 9");
@@ -160,7 +160,7 @@ public class MainViewModelBookmarksTests
     public async Task BmMalformed_ReportsTheParseFailure()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
 
         await vm.HandleBookmarkGlobalCommand("DEL xyz");
 
@@ -171,7 +171,7 @@ public class MainViewModelBookmarksTests
     public async Task BmNext_WithNothingAhead_IsANoOp()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         vm.ApplyBookmarks([Bm("bm-1", 10, null)]);
         vm.ScenarioElapsedSeconds = 30;
         vm.StatusText = "unchanged";

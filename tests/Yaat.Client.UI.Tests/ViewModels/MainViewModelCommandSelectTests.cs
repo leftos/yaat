@@ -46,7 +46,7 @@ public class MainViewModelCommandSelectTests
     public async Task BareCommand_DoesNotSelectAircraftBySubstringCallsign()
     {
         MainViewModel vm = NewVm();
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         vm.OnAircraftUpdated(MakeAircraft("N172TB"));
         Dispatcher.UIThread.RunJobs();
 

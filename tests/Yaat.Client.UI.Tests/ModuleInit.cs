@@ -20,7 +20,7 @@ namespace Yaat.Client.UI.Tests;
 // ProcessExit also makes a best-effort cleanup pass — but YAAT's logger holds
 // files open at exit so the in-process recursive delete sometimes leaves the
 // dir behind; the next run's PID-aware sweep then reaps it.
-internal static class ModuleInit
+internal static partial class ModuleInit
 {
     private const string RootName = "yaat-ui-tests";
     private const string PidMarker = ".yaat-pid";
@@ -52,8 +52,18 @@ internal static class ModuleInit
         // automation dispatcher's among them) writes to the per-run log and feeds AppLog.RecentErrors, whatever the order.
         AppLog.Initialize("yaat-ui-tests.log");
 
+        // A view model a test builds reads that committed navdata and sends nothing to vNAS or the update feed. Only this
+        // project implements the hook; an assembly that links this file alone builds no MainViewModel.
+        InstallStartupLoads();
+
         AppDomain.CurrentDomain.ProcessExit += (_, _) => TryDeleteDir(testDir);
     }
+
+    /// <summary>
+    /// Installs the startup loads the view models a test builds run; implemented in <c>ModuleInit.StartupLoads.cs</c>,
+    /// which only Yaat.Client.UI.Tests compiles, so the call compiles away in the assemblies that link this file.
+    /// </summary>
+    static partial void InstallStartupLoads();
 
     /// <summary>
     /// Resolves NavData and CIFP against the pins committed in <c>tests/Yaat.Sim.Tests/TestData</c> of this checkout before

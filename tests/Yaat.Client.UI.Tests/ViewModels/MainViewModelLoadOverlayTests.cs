@@ -23,7 +23,7 @@ public class MainViewModelLoadOverlayTests
             IsNonMentor = false,
             ActiveScenarioId = "scenario-1",
         };
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         return vm;
     }
 

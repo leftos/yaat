@@ -41,7 +41,7 @@ public class MainViewModelSubmitCommandTextTests
     public async Task VfrGatedCommandOnAnIfrAircraft_ReturnsTheGateRejectionAsAWarning_AndSendsNothing()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         await vm.CrcAliasLoad;
         vm.Preferences.SetVfrCommandsForIfr(VfrCommandsForIfr.None);
         vm.IsConnected = true;

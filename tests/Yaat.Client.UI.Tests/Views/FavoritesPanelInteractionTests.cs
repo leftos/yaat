@@ -28,7 +28,7 @@ public class FavoritesPanelInteractionTests
     private static async Task<MainViewModel> NewVmAsync()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         return vm;
     }
 

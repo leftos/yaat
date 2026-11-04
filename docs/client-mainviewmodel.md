@@ -136,7 +136,7 @@ cache, `RefreshShownTaxiRoutes` reconstructs every route on each call, so the gr
    `ExtraGroundViewOrdinals`.
 7. **~38 `ServerConnection` event subscriptions** (`MainViewModel.cs:1769`-`1810`).
 8. **Fire-and-forget init** — `InitializeNavDataAsync()`, `_vnasConfigService.InitializeAsync()`,
-   `CheckForUpdateAsync()`.
+   `CheckForUpdateAsync()`, all three through the internal `MainViewModel.StartupLoads` (`IMainViewModelStartupLoads` in `MainViewModelStartupLoads.cs`), read once per constructor. The default is the production behaviour; `Yaat.Client.UI.Tests` installs offline loads (committed test navdata, no vNAS config request, no update check).
 
 `InitializeNavDataAsync` (`MainViewModel.cs:1837`) loads NavData + CIFP and calls `NavigationDatabase.Initialize(...)`,
 then flips `_commandInput.NavDbReady = true` and pushes elevation lookups into `Radar` / `Ground`. The constructor keeps its task as the public `NavDataInitialization`, which tests that assert `StatusText` await. Until it completes,

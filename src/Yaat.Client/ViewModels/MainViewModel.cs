@@ -2088,10 +2088,14 @@ public partial class MainViewModel : ObservableObject
         _favoriteStore.Changed += () => Dispatcher.UIThread.Post(RefreshDisplayFavorites);
         _preferences.FavoriteSetsChanged += () => Dispatcher.UIThread.Post(RefreshDisplayFavorites);
 
-        NavDataInitialization = InitializeNavDataAsync();
-        _ = _vnasConfigService.InitializeAsync();
+        IMainViewModelStartupLoads startupLoads = StartupLoads;
+        NavDataInitialization = InitializeNavDataAsync(startupLoads);
+        _ = startupLoads.InitializeVnasConfigAsync(_vnasConfigService);
         CrcAliasLoad = LoadCrcAliasesAsync();
-        _ = DelayedStartupUpdateCheckAsync();
+        if (startupLoads.RunsStartupUpdateCheck)
+        {
+            _ = DelayedStartupUpdateCheckAsync();
+        }
 
         // A warm is put off while a benchmark runs, so one is due when the run ends. Raised off the UI thread: only post.
         SttBench.Changed += () => Dispatcher.UIThread.Post(WarmPilotVoiceIfDue);
@@ -2104,28 +2108,23 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public Task NavDataInitialization { get; }
 
-    private async Task InitializeNavDataAsync()
+    /// <summary>
+    /// The startup loads every view model built from here on runs; read once per constructor. A test host sets loads
+    /// that stay offline.
+    /// </summary>
+    internal static IMainViewModelStartupLoads StartupLoads { get; set; } = new DefaultMainViewModelStartupLoads();
+
+    private async Task InitializeNavDataAsync(IMainViewModelStartupLoads startupLoads)
     {
         try
         {
-            using var vnasData = new VnasDataService();
-            await vnasData.InitializeAsync();
-
-            using var cifpService = new CifpDataService();
-            await cifpService.InitializeAsync(CifpDataService.CreateDefaultOptions());
-
-            if (vnasData.NavData is null || cifpService.CifpFilePath is null)
+            if (!await startupLoads.EnsureNavigationDatabaseAsync())
             {
                 _log.LogError("NavData or CIFP data unavailable — navigation database not initialized");
                 StatusText = "Navigation data unavailable — live weather and fix lookups are disabled";
                 return;
             }
 
-            NavigationDatabase.Initialize(
-                vnasData.NavData,
-                cifpService.CifpFilePath,
-                supplementaryCifpFilePaths: cifpService.SupplementaryCifpFilePaths
-            );
             NavigationDatabase navDb = NavigationDatabase.Instance;
 
             MarkNavDbReady();

@@ -23,7 +23,7 @@ public class MainViewModelActivePositionTests
     public async Task SetActiveTcpFromServer_SeedsIndicator_WithoutSendingAs()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         vm.StatusText = "sentinel";
 
         vm.SetActiveTcpFromServer("3Y");
@@ -38,7 +38,7 @@ public class MainViewModelActivePositionTests
     public async Task SelectingTcp_SendsAsCommand()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         vm.SetActiveTcpFromServer("3Y");
         vm.StatusText = "sentinel";
 

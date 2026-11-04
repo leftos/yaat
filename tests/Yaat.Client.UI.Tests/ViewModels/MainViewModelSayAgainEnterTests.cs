@@ -54,7 +54,7 @@ public class MainViewModelSayAgainEnterTests
     private static async Task<MainViewModel> ConnectedVmAsync()
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         await vm.CrcAliasLoad;
         vm.IsConnected = true;
         vm.ActiveRoomId = "room-1";

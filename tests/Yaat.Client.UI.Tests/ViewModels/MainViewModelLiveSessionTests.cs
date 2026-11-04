@@ -150,7 +150,7 @@ public class MainViewModelLiveSessionTests
             IsPlaybackMode = true,
             PlaybackTapeEnd = 90,
         };
-        await vm.NavDataInitialization;
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         vm.StatusText = "sentinel";
 
         await vm.GoLiveCommand.ExecuteAsync(null);

@@ -336,7 +336,7 @@ public class MenuHeaderTests
     private static async Task<(MainViewModel Main, AircraftModel Aircraft)> GatedMainAsync()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        await main.NavDataInitialization;
+        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         Assert.NotEqual(VfrCommandsForIfr.All, main.VfrCommandsForIfr);
         AircraftModel ac = Jet();
         main.Aircraft.Add(ac);
