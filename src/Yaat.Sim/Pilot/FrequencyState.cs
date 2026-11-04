@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Pilot;
 
@@ -184,6 +185,95 @@ public sealed class FrequencyState
         _awaitingControllerResponseSinceSeconds = 0;
         _nextAvailableAtSeconds = 0;
         ActivityMeter.Restore([]);
+    }
+
+    /// <summary>
+    /// The frequency's queue and gates, or null when it is quiet — nothing queued, no read-back awaited that is still
+    /// queued, no gate held and next free now — so a quiet frequency writes no field and a snapshot written before they
+    /// were captured restores an empty one. Each awaited read-back records the index of its transmission in the pending
+    /// queue, so <see cref="Restore"/> can hand it back the very object its reference match needs; one whose transmission
+    /// is no longer queued could never match a restored object, so it is not written.
+    /// </summary>
+    public FrequencyStateDto? ToSnapshot()
+    {
+        List<AwaitedReadbackDto> awaited = [];
+        foreach (AwaitedReadback entry in _awaitingReadbacks)
+        {
+            int index = PendingIndexOf(entry.Transmission);
+            if (index >= 0)
+            {
+                awaited.Add(new AwaitedReadbackDto { PendingIndex = index, SinceSeconds = entry.SinceSeconds });
+            }
+        }
+
+        if (
+            (_pending.Count == 0)
+            && (awaited.Count == 0)
+            && (_nextAvailableAtSeconds == 0)
+            && (_awaitingControllerResponseTo is null)
+            && (!_awaitingControllerResponseIsCheckIn)
+            && (_awaitingControllerResponseSinceSeconds == 0)
+        )
+        {
+            return null;
+        }
+
+        return new FrequencyStateDto
+        {
+            Pending = [.. _pending.Select(PilotTransmissionDto.From)],
+            AwaitingReadbacks = awaited,
+            NextAvailableAtSeconds = _nextAvailableAtSeconds,
+            AwaitingControllerResponseTo = _awaitingControllerResponseTo,
+            AwaitingControllerResponseIsCheckIn = _awaitingControllerResponseIsCheckIn,
+            AwaitingControllerResponseSinceSeconds = _awaitingControllerResponseSinceSeconds,
+        };
+    }
+
+    /// <summary>
+    /// Replaces the queue and gates with a snapshot's, or empties them when it holds none. The <see cref="ActivityMeter"/>
+    /// is left alone: it keeps its own restore. An awaited read-back points at its queued entry, so the reference match
+    /// keeps holding the frequency for it; an index the restored queue has no line for is dropped with a warning rather
+    /// than turned into an object that can never match and would hold the frequency for the timeout.
+    /// </summary>
+    public void Restore(FrequencyStateDto? dto)
+    {
+        _pending.Clear();
+        _awaitingReadbacks.Clear();
+        _nextAvailableAtSeconds = 0;
+        _awaitingControllerResponseTo = null;
+        _awaitingControllerResponseIsCheckIn = false;
+        _awaitingControllerResponseSinceSeconds = 0;
+
+        if (dto is null)
+        {
+            return;
+        }
+
+        List<PilotTransmission> pending = [.. dto.Pending.Select(t => t.ToTransmission())];
+        foreach (PilotTransmission transmission in pending)
+        {
+            _pending.Enqueue(transmission);
+        }
+
+        foreach (AwaitedReadbackDto awaited in dto.AwaitingReadbacks)
+        {
+            if ((awaited.PendingIndex < 0) || (awaited.PendingIndex >= pending.Count))
+            {
+                Log.LogWarning(
+                    "Snapshot awaited read-back index {Index} is outside the restored queue ({Count} lines); dropping it",
+                    awaited.PendingIndex,
+                    pending.Count
+                );
+                continue;
+            }
+
+            _awaitingReadbacks.Enqueue(new AwaitedReadback(pending[awaited.PendingIndex], awaited.SinceSeconds));
+        }
+
+        _nextAvailableAtSeconds = dto.NextAvailableAtSeconds;
+        _awaitingControllerResponseTo = dto.AwaitingControllerResponseTo;
+        _awaitingControllerResponseIsCheckIn = dto.AwaitingControllerResponseIsCheckIn;
+        _awaitingControllerResponseSinceSeconds = dto.AwaitingControllerResponseSinceSeconds;
     }
 
     private int SelectReadyIndex(double elapsedSeconds, int rngSeed)

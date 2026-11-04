@@ -1733,6 +1733,259 @@ public class SnapshotRoundTripTests
     }
 
     /// <summary>
+    /// A rewind resumes the frequency's queue and gates exactly: the pending lines in order, the awaited read-back (by
+    /// reference to its queued entry), the controller-response gate and the next free second. Left out, lines queued
+    /// before the rewind would still be spoken and the gates would hold the frequency for a state that no longer exists.
+    /// </summary>
+    [Fact]
+    public void Restore_FrequencyQueueAndGates_RoundTripExactly()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        FrequencyState frequency = engine.World.ActiveFrequency;
+        double now = scenario.ElapsedSeconds;
+        PilotTransmission readback = Transmission("AAL100", PilotTransmissionKind.Readback, initialContact: false);
+        PilotTransmission checkIn = Transmission("AAL200", PilotTransmissionKind.Proactive, initialContact: true);
+        PilotTransmission report = Transmission("AAL300", PilotTransmissionKind.Report, initialContact: false);
+        frequency.Enqueue(readback);
+        frequency.Enqueue(checkIn);
+        frequency.Enqueue(report);
+        frequency.ExpectReadback([readback], now);
+
+        // The awaited read-back airs first, then the check-in at the frequency's own pace: it sets the controller-response
+        // gate as a check-in and pushes the next free second out.
+        Assert.Equal(PilotTransmissionKind.Readback, frequency.TryDequeueReady(now, 1)!.Kind);
+        double checkInAt = now + FrequencyState.EstimateAirtimeSeconds(readback.SpeechText);
+        Assert.Equal(PilotTransmissionKind.Proactive, frequency.TryDequeueReady(checkInAt, 1)!.Kind);
+
+        // A read-back still owed from the report's pilot, queued behind it: the captured state holds every snapshotted
+        // field at once.
+        PilotTransmission lateReadback = Transmission("AAL300", PilotTransmissionKind.Readback, initialContact: false);
+        frequency.Enqueue(lateReadback);
+        frequency.ExpectReadback([lateReadback], checkInAt);
+
+        int pendingCount = frequency.PendingCount;
+        string? awaitingReadback = frequency.AwaitingReadbackFrom;
+        string? awaitingController = frequency.AwaitingControllerResponseTo;
+        Assert.Equal(2, pendingCount);
+        Assert.Equal("AAL300", awaitingReadback);
+        Assert.Equal("AAL200", awaitingController);
+
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+        Assert.Contains("\"Frequency\"", json, StringComparison.Ordinal);
+
+        var fresh = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        fresh.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        fresh.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!);
+
+        Assert.Equal(pendingCount, fresh.World.ActiveFrequency.PendingCount);
+        Assert.Equal(awaitingReadback, fresh.World.ActiveFrequency.AwaitingReadbackFrom);
+        Assert.Equal(awaitingController, fresh.World.ActiveFrequency.AwaitingControllerResponseTo);
+
+        // Both frequencies spend the next 20 s the same way, at the same seconds and with the same seeded draws.
+        var before = new List<(double Second, string Callsign, string Text)>();
+        var after = new List<(double Second, string Callsign, string Text)>();
+        for (int offset = 0; offset < 20; offset++)
+        {
+            double second = checkInAt + offset;
+            while (frequency.TryDequeueReady(second, 1) is { } spoken)
+            {
+                before.Add((second, spoken.Callsign, spoken.Text));
+            }
+
+            while (fresh.World.ActiveFrequency.TryDequeueReady(second, 1) is { } spoken)
+            {
+                after.Add((second, spoken.Callsign, spoken.Text));
+            }
+        }
+
+        Assert.NotEmpty(before);
+        Assert.Equal(before, after);
+    }
+
+    /// <summary>
+    /// The awaited read-backs match their queued transmissions by reference, so a restored read-back must be the very
+    /// object in the restored queue: a value copy never matches, and the frequency would stop holding for it.
+    /// </summary>
+    [Fact]
+    public void Restore_AwaitedReadback_StillHoldsTheFrequencyForItsReadback()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        double now = scenario.ElapsedSeconds;
+        PilotTransmission call = Transmission("AAL200", PilotTransmissionKind.Proactive, initialContact: true);
+        PilotTransmission readback = Transmission("AAL300", PilotTransmissionKind.Readback, initialContact: false);
+        engine.World.ActiveFrequency.Enqueue(call);
+        engine.World.ActiveFrequency.Enqueue(readback);
+        engine.World.ActiveFrequency.ExpectReadback([readback], now);
+
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+
+        var fresh = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        fresh.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        fresh.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!);
+
+        PilotTransmission? first = fresh.World.ActiveFrequency.TryDequeueReady(now, 1);
+
+        Assert.NotNull(first);
+        Assert.Equal("AAL300", first.Callsign);
+        Assert.Equal(PilotTransmissionKind.Readback, first.Kind);
+    }
+
+    /// <summary>
+    /// An awaited read-back whose transmission is not in the queue can never be matched after a restore — no restored
+    /// object is reference-equal to it — so it is not snapshotted at all. Written as a fresh unqueued object it would
+    /// hold the frequency for up to the timeout for a read-back that can never come.
+    /// </summary>
+    [Fact]
+    public void Restore_AwaitedReadbackNotYetQueued_IsNotSnapshotted()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        double now = scenario.ElapsedSeconds;
+        engine.World.ActiveFrequency.ExpectReadback([Transmission("AAL300", PilotTransmissionKind.Readback, initialContact: false)], now);
+
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+
+        var fresh = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        fresh.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        fresh.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!);
+
+        Assert.Null(fresh.World.ActiveFrequency.AwaitingReadbackFrom);
+
+        // Another pilot's call is not held: it airs on the first dequeue, not after the awaited-readback timeout.
+        fresh.World.ActiveFrequency.Enqueue(Transmission("AAL200", PilotTransmissionKind.Proactive, initialContact: true));
+        PilotTransmission? first = fresh.World.ActiveFrequency.TryDequeueReady(now, 1);
+
+        Assert.NotNull(first);
+        Assert.Equal("AAL200", first.Callsign);
+    }
+
+    /// <summary>
+    /// For captures taken after a tick, the aircraft's staging list is empty: the tick drains it into the frequency queue
+    /// before the snapshot point, so a rewind that does not snapshot it loses no line. A capture between a command and
+    /// the next tick (yaat-server room checkpoints) can still miss a staged line.
+    /// </summary>
+    [Fact]
+    public void Capture_AfterATick_HasNoStagedPilotTransmissions()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped())
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "test",
+                ScenarioName = "Test",
+                RngSeed = 1,
+                OriginalScenarioJson = "{}",
+                ElapsedSeconds = 30,
+                SoloTrainingMode = true,
+            },
+        };
+        var aircraft = new AircraftState { Callsign = "N123AB", AircraftType = "C172" };
+        engine.World.AddAircraft(aircraft);
+        aircraft.PendingPilotTransmissions.Add(Transmission("N123AB", PilotTransmissionKind.Readback, initialContact: false));
+
+        engine.TickOneSecond();
+
+        // The line spoke, so it reached the frequency queue during the tick...
+        Assert.NotEmpty(engine.World.ActiveFrequency.ActivityMeter.Transmissions);
+        // ...and no aircraft still holds a staged transmission at the capture point.
+        Assert.All(engine.World.GetSnapshot(), ac => Assert.Empty(ac.PendingPilotTransmissions));
+    }
+
+    /// <summary>
+    /// A reload starts the frequency with no queue and no gate held: a reload-and-replay from zero must not speak lines
+    /// the run it replaces had queued, nor hold the frequency for a pilot that run was waiting on.
+    /// </summary>
+    [Fact]
+    public void LoadScenario_ClearsTheFrequencyQueueAndGates()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        FrequencyState frequency = engine.World.ActiveFrequency;
+        double now = scenario.ElapsedSeconds;
+        frequency.Enqueue(Transmission("AAL200", PilotTransmissionKind.Proactive, initialContact: true));
+        Assert.NotNull(frequency.TryDequeueReady(now, 1));
+        PilotTransmission readback = Transmission("AAL300", PilotTransmissionKind.Readback, initialContact: false);
+        frequency.Enqueue(readback);
+        frequency.ExpectReadback([readback], now);
+        Assert.Equal("AAL200", frequency.AwaitingControllerResponseTo);
+        Assert.Equal("AAL300", frequency.AwaitingReadbackFrom);
+        Assert.Equal(1, frequency.PendingCount);
+
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+
+        Assert.Equal(0, engine.World.ActiveFrequency.PendingCount);
+        Assert.Null(engine.World.ActiveFrequency.AwaitingReadbackFrom);
+        Assert.Null(engine.World.ActiveFrequency.AwaitingControllerResponseTo);
+    }
+
+    /// <summary>
+    /// A quiet frequency writes no field at all, so its snapshot stays byte-identical to one taken before the queue and
+    /// gates were captured — which is what keeps a pinned snapshot hash over the whole DTO from moving.
+    /// </summary>
+    [Fact]
+    public void Capture_QuietFrequency_WritesNoFrequencyProperty()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is null)
+        {
+            return;
+        }
+
+        // Plain default options, as yaat-server's pinned snapshot-zero hash test serializes the snapshot.
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot());
+
+        Assert.DoesNotContain("\"Frequency\"", json, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// An empty meter writes no field at all, so a snapshot of a quiet frequency is byte-identical to one taken before
     /// the meter was captured — which is what keeps a pinned snapshot hash over the whole DTO from moving.
     /// </summary>
@@ -1755,6 +2008,21 @@ public class SnapshotRoundTripTests
         string json = JsonSerializer.Serialize(engine.CaptureSnapshot());
 
         Assert.DoesNotContain("FrequencyTransmission", json, StringComparison.Ordinal);
+    }
+
+    /// <summary>One pilot line of <paramref name="kind"/>, with a text that says what it is.</summary>
+    private static PilotTransmission Transmission(string callsign, PilotTransmissionKind kind, bool initialContact)
+    {
+        string text = kind switch
+        {
+            PilotTransmissionKind.Readback => "roger",
+            PilotTransmissionKind.Report => "field in sight",
+            _ => "with you",
+        };
+        return new PilotTransmission(callsign, text, text, PilotResponder.SourceResponse, kind, FrequencyState.EstimateAirtimeSeconds(text))
+        {
+            IsInitialContact = initialContact,
+        };
     }
 
     /// <summary>An airborne aircraft carrying <paramref name="layout"/>, or none at all.</summary>

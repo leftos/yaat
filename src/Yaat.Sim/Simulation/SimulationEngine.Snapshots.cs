@@ -52,6 +52,7 @@ public sealed partial class SimulationEngine
             Rng = World.Rng.GetState(),
             WeatherJson = World.Weather is not null ? JsonSerializer.Serialize(World.Weather) : null,
             FrequencyTransmissions = frequencyTransmissions.Count > 0 ? frequencyTransmissions : null,
+            Frequency = World.ActiveFrequency.ToSnapshot(),
             Aircraft = [.. aircraft.Select(ac => ac.ToSnapshot())],
             Scenario = scenario.ToSnapshot(),
             Server = CaptureServerSnapshot(aircraft),
@@ -119,6 +120,10 @@ public sealed partial class SimulationEngine
             var ac = AircraftState.FromSnapshot(acDto, aircraftLayout);
             World.AddAircraft(ac);
         }
+
+        // The queue and gates come back after the aircraft: adding an aircraft that replaces an existing callsign calls
+        // ForgetAircraft, which would drop the restored awaited read-backs before they could hold the frequency.
+        World.ActiveFrequency.Restore(snapshot.Frequency);
 
         // Restore scenario state — we need the original scenario JSON from the existing Scenario
         // (it's not in the snapshot DTO since it's immutable). The caller must ensure Scenario

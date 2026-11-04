@@ -18,7 +18,7 @@ The end result: solo training feels like one frequency with many aircraft, not a
 
 ## Per-aircraft typed queue
 
-`AircraftState.PendingPilotTransmissions` is a `List<PilotTransmission>` (transient — not snapshot-serialized).
+`AircraftState.PendingPilotTransmissions` is a `List<PilotTransmission>` (transient — not snapshot-serialized; the frequency's own queue is, see below). A snapshot taken between a command and the next tick can lose a line still staged here (YAAT-1788).
 
 ```csharp
 public sealed record PilotTransmission(
@@ -52,7 +52,7 @@ Builders push entries via `PilotResponder.QueueSoloPilotTransmission` (Readback/
 
    `FrequencyState.GetLoadBand` trims the window and returns the three-way `FrequencyLoadBand`. `SimulationEngine.ApplyPostDispatch` reads the band into the `PilotSpeechContext` the readback builders take (see Activity-aware readback shortening).
 
-   The recorded intervals are snapshotted (`StateSnapshotDto.FrequencyTransmissions`, restored by `Restore`), so a rewind or restore resumes in the load band the run was in: see [snapshots-and-replay.md](snapshots-and-replay.md). `SimulationEngine.LoadScenario` empties the meter, so a reload replayed from zero never keeps intervals from later in the run.
+   The recorded intervals are snapshotted (`StateSnapshotDto.FrequencyTransmissions`, restored by `Restore`), so a rewind or restore resumes in the load band the run was in: see [snapshots-and-replay.md](snapshots-and-replay.md). `SimulationEngine.LoadScenario` clears the whole active frequency (queue, gates and meter), so a reload replayed from zero never keeps lines, gates or intervals from later in the run.
 
 Drained transmissions become terminal entries with kind `SayReadback` (for readbacks) or `SayPilot` (for proactive/reports). The client renders both as green SAY lines and routes them to `PilotVoiceService` if Piper is installed.
 
@@ -68,7 +68,7 @@ In normal operation the readback emerges on the very next drain (1 s) and its en
 
 An aircraft that leaves the world (`SimulationWorld.RemoveAircraft`) or is replaced by a same-callsign spawn (`AddAircraft`'s replace path) has its awaited readbacks dropped at once (`FrequencyState.ForgetAircraft`), so the next pilot speaks on the next drain.
 
-If the awaited readback never arrives otherwise — an instruction whose readback never queues, or a future bug that calls `ExpectReadback` without a paired enqueue — the gate releases after `AwaitedTimeoutSeconds` (8 s) and other pilots resume mic'ing up under FIFO. Gate state, like the pending queue, is not snapshotted. **The gate is best-effort ordering, not a hard lock.** Real pilots get impatient too.
+If the awaited readback never arrives otherwise — an instruction whose readback never queues, or a future bug that calls `ExpectReadback` without a paired enqueue — the gate releases after `AwaitedTimeoutSeconds` (8 s) and other pilots resume mic'ing up under FIFO. The pending queue and both gates are snapshotted (`FrequencyState.ToSnapshot` / `Restore`, `StateSnapshotDto.Frequency`), so a rewind resumes the queued lines, the awaited read-backs and the next free second exactly: see [snapshots-and-replay.md](snapshots-and-replay.md). **The gate is best-effort ordering, not a hard lock.** Real pilots get impatient too.
 
 ## Awaiting controller response after a proactive call
 

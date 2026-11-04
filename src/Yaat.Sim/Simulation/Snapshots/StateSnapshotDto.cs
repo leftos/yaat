@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Simulation.Snapshots;
 
@@ -29,6 +30,14 @@ public sealed class StateSnapshotDto
     public List<FrequencyTransmissionDto>? FrequencyTransmissions { get; set; }
 
     /// <summary>
+    /// The active frequency's pending queue and gates. Written only when the frequency is not quiet: an empty frequency
+    /// is left out of the JSON, exactly as a snapshot written before they were captured, and either restores an empty
+    /// one. An absent property therefore needs no schema bump.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public FrequencyStateDto? Frequency { get; init; }
+
+    /// <summary>
     /// The pre-V39 meter: the second each transmission started, with no duration. Read only so
     /// <see cref="SnapshotSchemaMigrator"/> can turn it into <see cref="FrequencyTransmissions"/>; nulled there, so a
     /// rewritten snapshot drops it.
@@ -50,6 +59,62 @@ public sealed record FrequencyTransmissionDto
 {
     public required double Start { get; init; }
     public required double Duration { get; init; }
+}
+
+/// <summary>
+/// The active frequency's queue and gates: the lines waiting to speak in queue order, the read-backs it is holding for,
+/// the second it is next free, and the controller-response gate.
+/// </summary>
+public sealed class FrequencyStateDto
+{
+    public List<PilotTransmissionDto> Pending { get; init; } = [];
+    public List<AwaitedReadbackDto> AwaitingReadbacks { get; init; } = [];
+    public double NextAvailableAtSeconds { get; init; }
+    public string? AwaitingControllerResponseTo { get; init; }
+    public bool AwaitingControllerResponseIsCheckIn { get; init; }
+    public double AwaitingControllerResponseSinceSeconds { get; init; }
+}
+
+/// <summary>
+/// One queued pilot line. <see cref="PilotTransmission.LoadBand"/> is not carried: it is stamped only when the line is
+/// dequeued, so every queued entry holds its default.
+/// </summary>
+public sealed record PilotTransmissionDto
+{
+    public required string Callsign { get; init; }
+    public required string Text { get; init; }
+    public required string SpeechText { get; init; }
+    public required string SourceKind { get; init; }
+    public required PilotTransmissionKind Kind { get; init; }
+    public required double CanonicalAirtimeSeconds { get; init; }
+    public bool IsInitialContact { get; init; }
+
+    public static PilotTransmissionDto From(PilotTransmission transmission) =>
+        new()
+        {
+            Callsign = transmission.Callsign,
+            Text = transmission.Text,
+            SpeechText = transmission.SpeechText,
+            SourceKind = transmission.SourceKind,
+            Kind = transmission.Kind,
+            CanonicalAirtimeSeconds = transmission.CanonicalAirtimeSeconds,
+            IsInitialContact = transmission.IsInitialContact,
+        };
+
+    public PilotTransmission ToTransmission() =>
+        new(Callsign, Text, SpeechText, SourceKind, Kind, CanonicalAirtimeSeconds) { IsInitialContact = IsInitialContact };
+}
+
+/// <summary>
+/// One read-back the frequency is holding for, from the second its instruction was dispatched.
+/// <see cref="PendingIndex"/> is its transmission's index in the restored pending queue — the same object, so the
+/// reference match that gives it airtime priority survives the round-trip. Only an entry whose transmission is still
+/// queued is written: one that has left the queue could never be reference-equal to a restored object.
+/// </summary>
+public sealed record AwaitedReadbackDto
+{
+    public required int PendingIndex { get; init; }
+    public required double SinceSeconds { get; init; }
 }
 
 /// <summary>

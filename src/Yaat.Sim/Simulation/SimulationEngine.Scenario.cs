@@ -41,9 +41,9 @@ public sealed partial class SimulationEngine
     {
         Scenario?.ReplaceWindGridPins(null);
         World.Clear();
-        // A reload starts the frequency quiet: a reload-and-replay from zero must not inherit airtime recorded later in
-        // the run the load replaces.
-        World.ActiveFrequency.ActivityMeter.Restore([]);
+        // A reload starts the frequency quiet and free of gates: a reload-and-replay from zero must not inherit airtime
+        // recorded later in the run the load replaces, nor lines it still had queued.
+        World.ActiveFrequency.Clear();
         _loggedExitCapacityRefusals.Clear();
         World.Rng = new SerializableRandom(rngSeed);
         World.ReactionDelayRng = new SerializableRandom(rngSeed);

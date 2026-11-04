@@ -9,7 +9,7 @@
 ```
 StateSnapshotDto
 ├─ SchemaVersion (int)
-├─ ElapsedSeconds, Rng (RngState), WeatherJson, FrequencyTransmissions?, Server?
+├─ ElapsedSeconds, Rng (RngState), WeatherJson, FrequencyTransmissions?, Frequency?, Server?
 └─ Aircraft[] : AircraftSnapshotDto
     ├─ identity + kinematics (callsign, lat/lon, true heading, alt, IAS, …)
     ├─ FlightPlan       — AircraftFlightPlanDto
@@ -77,6 +77,10 @@ No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. 
 `CaptureSnapshot` writes it only when the meter holds a transmission, so a snapshot of a silent frequency omits the field and the pinned snapshot-zero hash stays put.
 
 `RestoreFromSnapshot` replaces the meter's intervals with the field (absent restores an empty meter), without trimming them: the next `Trim` trims, as the original run would have. Only the active frequency's meter is captured.
+
+`StateSnapshotDto.Frequency` (`FrequencyStateDto?`, `WhenWritingNull`) carries the active frequency's queue and gates (`FrequencyState.ToSnapshot` / `Restore`): `Pending` in queue order, `AwaitingReadbacks` as `(PendingIndex, SinceSeconds)` into that list (only read-backs whose line is still queued), `NextAvailableAtSeconds`, and `AwaitingControllerResponseTo` / `AwaitingControllerResponseIsCheckIn` / `AwaitingControllerResponseSinceSeconds`. It is written only when the frequency is not quiet; no schema bump, an absent field restores an empty frequency.
+
+`RestoreFromSnapshot` restores it after the aircraft loop, so a rewind resumes the pending lines, both gates and the next free second exactly, and an awaited read-back still holds the frequency for its read-back (an index outside the restored queue is dropped with a warning). `SimulationEngine.LoadScenario` clears the whole active frequency, not only the meter.
 
 `PhaseListDto.TaxiRoute` (a `TaxiRouteDto`) is the route a TAXI on the landing rollout stores behind the exit ([landing-and-runway-exit.md](landing-and-runway-exit.md) § TAXI on the rollout), null otherwise; `PhaseListDto.StoredTaxiDestinationRunway` is the destination runway that TAXI named, `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]` and restored only with a route.
 
@@ -182,6 +186,7 @@ Some state is intentionally runtime-only:
 - **`Ground.Layout`** is `[JsonIgnore]`. Only `Ground.LayoutAirportId` round-trips. On restore, `SimulationEngine.RestoreFromSnapshot` re-resolves the layout from the airport ID against the engine's ground data — for each live aircraft (`ResolveAirportLayout(LayoutAirportId)`, falling back to the primary airport's layout when the snapshot carries no id or names a field with no map) and for each aircraft in the delayed-spawn queue alike.
 
   An aircraft bound to a secondary airport therefore comes back on that airport's layout, so its on-final and distance-to-threshold verdicts are the same before and after a rewind (`SnapshotRoundTripTests`). This avoids embedding an entire taxiway graph per aircraft.
+- **`AircraftState.PendingPilotTransmissions`** is transient: the frequency's queue is captured (`StateSnapshotDto.Frequency`), but a line still staged on the aircraft between a command and the next tick is lost by a capture then (YAAT-1788).
 - **`PendingObservations`** (pilot "watch for condition" state) — ephemeral, never restored.
 - **`CommandBlock.ApplyAction` / `CommandBlock.ParsedCommands`** — the queued-block closure and its parsed
   commands are runtime-only; `SourceCommandText` is the durable carrier, with `IsScenarioScripted` (the creating dispatch was a preset or AI controller). `SimulationEngine.RehydrateRestoredQueueBlocks`
