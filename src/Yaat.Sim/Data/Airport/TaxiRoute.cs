@@ -381,7 +381,20 @@ public sealed class TaxiRoute
     /// <param name="barSegmentIndex">Index of the segment whose far node is the bar's node.</param>
     /// <param name="holdShort">The bar.</param>
     /// <returns>The setback in nautical miles.</returns>
-    internal double HoldShortSetbackNm(int barSegmentIndex, HoldShortPoint holdShort)
+    internal double HoldShortSetbackNm(int barSegmentIndex, HoldShortPoint holdShort) =>
+        HoldShortSetbackNm(barSegmentIndex, Math.Max(0, CurrentSegmentIndex), holdShort);
+
+    /// <summary>
+    /// <see cref="HoldShortSetbackNm(int, HoldShortPoint)"/> with the walk back toward the aircraft bounded by segment
+    /// <paramref name="startSegmentIndex"/> rather than by the route's cursor: the read for an aircraft off its route, whose cursor
+    /// stays behind its progress (a crossing aircraft on its onward route). A stop lying behind that segment is on no stretch of
+    /// route ahead of the aircraft.
+    /// </summary>
+    /// <param name="barSegmentIndex">Index of the segment whose far node is the bar's node.</param>
+    /// <param name="startSegmentIndex">Segment the stretch of route ahead starts at.</param>
+    /// <param name="holdShort">The bar.</param>
+    /// <returns>The setback in nautical miles.</returns>
+    internal double HoldShortSetbackNm(int barSegmentIndex, int startSegmentIndex, HoldShortPoint holdShort)
     {
         if (
             (holdShort.Latitude is not { } lat)
@@ -394,7 +407,7 @@ public sealed class TaxiRoute
         }
 
         var stop = new LatLon(lat, lon);
-        int inProgressIndex = Math.Min(barSegmentIndex, Math.Max(0, CurrentSegmentIndex));
+        int inProgressIndex = Math.Min(barSegmentIndex, Math.Max(0, startSegmentIndex));
         (double? aheadNm, double walkedNm) = WalkBackToStop(stop, barSegmentIndex, inProgressIndex, 0.0);
         return aheadNm
             ?? WalkBackToStop(stop, inProgressIndex - 1, 0, walkedNm).SetbackNm

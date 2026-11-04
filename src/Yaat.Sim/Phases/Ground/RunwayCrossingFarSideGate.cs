@@ -42,7 +42,7 @@ internal static class RunwayCrossingFarSideGate
     /// counts toward the stop projected for it (<see cref="KnownStopAheadFt"/>): only at the top of a judgement, so a leader's
     /// gate is judged without its own leaders' gates and the judgement never recurses further.
     /// </summary>
-    private readonly record struct Judge(PhaseContext Ctx, double LookAheadSeconds, bool JudgeLeadersGates);
+    internal readonly record struct Judge(PhaseContext Ctx, double LookAheadSeconds, bool JudgeLeadersGates);
 
     /// <summary>
     /// Whether an aircraft short of a cleared crossing bar, <paramref name="toStopFt"/> from its painted stop, has committed to
@@ -496,14 +496,28 @@ internal static class RunwayCrossingFarSideGate
     }
 
     /// <summary>
-    /// How far (ft) <paramref name="other"/> is from the painted stop of the first bar on its taxi route it stops at
-    /// (<see cref="FirstStopBarAhead"/>), else from the route's end. Null without a route left or a layout.
+    /// How far (ft) <paramref name="other"/> is from the stop its taxi route sets ahead of it: the painted stop of the first bar
+    /// on the route it stops at (<see cref="FirstStopBarAhead"/>), else the route's end. Null without a route left or a layout.
+    ///
+    /// <para>An aircraft inside a runway crossing has its progress read from the crossing instead
+    /// (<see cref="CrossingStopAheadFt"/>): its route cursor stays on the crossing's entry segment until the crossing ends
+    /// (<see cref="CrossingRunwayPhase.HandRouteBack"/> is its only writer), so measured from there, a leader past that segment's
+    /// end node has the distance it already drove counted again, and the stop projected for it reads farther away than it is.
+    /// The same stale-cursor read <see cref="GroundConflictDetector"/> takes its path from the crossing for.</para>
     /// </summary>
-    private static double? RouteStopAheadFt(Judge judge, AircraftState other)
+    internal static double? RouteStopAheadFt(Judge judge, AircraftState other)
     {
-        if (
-            (other.Ground.AssignedTaxiRoute is not { IsComplete: false } route) || ((other.Ground.Layout ?? judge.Ctx.GroundLayout) is not { } layout)
-        )
+        if ((other.Ground.Layout ?? judge.Ctx.GroundLayout) is not { } layout)
+        {
+            return null;
+        }
+
+        if ((other.Phases?.CurrentPhase is CrossingRunwayPhase crossing) && (crossing.PathAhead(other) is { } ahead))
+        {
+            return CrossingStopAheadFt(judge, other, crossing, ahead, layout);
+        }
+
+        if (other.Ground.AssignedTaxiRoute is not { IsComplete: false } route)
         {
             return null;
         }
@@ -514,15 +528,64 @@ internal static class RunwayCrossingFarSideGate
     }
 
     /// <summary>
-    /// The first bar on <paramref name="route"/> <paramref name="other"/> stops at. When the judge judges leaders' gates, the
-    /// first its own taxi brakes for (<see cref="TaxiingPhase.FirstStoppingBarAhead"/>, judged without its own leaders' gates):
-    /// a cleared crossing bar its near-line gate holds it at counts, so a leader rolling toward a line it will be held at is not
-    /// projected to roll on. Otherwise the first uncleared bar.
+    /// How far (ft) a crossing aircraft is from the stop it will make, measured from the crossing's own progress
+    /// (<see cref="CrossingRunwayPhase.PathAhead"/>): the rest of its slice, then its onward route from the slice's end point — the
+    /// tail clearance's cut into the first segment that clearance did not drive whole — to the painted stop of the first bar it
+    /// stops at there (<see cref="FirstStopBarAhead"/>), else to the route's end. The onward route is not driven at all while the
+    /// crossing runs, so its segments count whole. A crossing over its own path, whose onward movement is not the aircraft's taxi
+    /// route, is measured to its slice's end: its tail clear of the far marking.
+    /// </summary>
+    private static double CrossingStopAheadFt(
+        Judge judge,
+        AircraftState other,
+        CrossingRunwayPhase crossing,
+        (TaxiRoute Slice, int SliceStart, TaxiRoute? Onward, int OnwardStart) ahead,
+        AirportGroundLayout layout
+    )
+    {
+        TaxiRoute slice = ahead.Slice;
+        double sliceFt = slice.IsComplete ? 0.0 : slice.RemainingDistanceFt(other.Position, slice.Segments.Count);
+        if (ahead.Onward is not { } onward)
+        {
+            return sliceFt;
+        }
+
+        int start = Math.Clamp(ahead.OnwardStart, 0, onward.Segments.Count);
+        double cutFt = crossing.TailCutFt;
+        // The search measures from OnwardStart's start node, which the slice runs cutFt past: the leader is sliceFt - cutFt
+        // short of that node, so every distance the search judges is the leader's true distance.
+        var from = new TaxiingPhase.BarSearchStart(start, Math.Max(0.0, sliceFt - cutFt));
+        double onwardFt = FirstStopBarAheadFrom(judge, other, onward, layout, from) is { } bar
+            ? TaxiingPhase.AlongRouteDistanceToHoldShortFt(layout, onward, start, bar) - cutFt
+            : onward.PrefixDistanceFt(onward.Segments.Count) - onward.PrefixDistanceFt(start) - cutFt;
+        return sliceFt + onwardFt;
+    }
+
+    /// <summary>
+    /// The first bar on <paramref name="route"/> <paramref name="other"/> stops at, from its cursor on. When the judge judges
+    /// leaders' gates, the first its own taxi brakes for (<see cref="TaxiingPhase.FirstStoppingBarAhead"/>, judged without its
+    /// own leaders' gates): a cleared crossing bar its near-line gate holds it at counts, so a leader rolling toward a line it
+    /// will be held at is not projected to roll on. Otherwise the first uncleared bar.
     /// </summary>
     private static HoldShortPoint? FirstStopBarAhead(Judge judge, AircraftState other, TaxiRoute route, AirportGroundLayout layout) =>
         judge.JudgeLeadersGates
             ? TaxiingPhase.FirstStoppingBarAhead(LeaderContext(judge.Ctx, other, layout), route, layout, judgeLeadersGates: false)?.Bar
             : TaxiingPhase.FirstUnclearedBarAhead(route)?.Bar;
+
+    /// <summary>
+    /// <see cref="FirstStopBarAhead"/> searched from <paramref name="start"/> on and measured from the node before its segment, for
+    /// an aircraft that is off the route: a crossing aircraft, read along its onward route.
+    /// </summary>
+    private static HoldShortPoint? FirstStopBarAheadFrom(
+        Judge judge,
+        AircraftState other,
+        TaxiRoute route,
+        AirportGroundLayout layout,
+        TaxiingPhase.BarSearchStart start
+    ) =>
+        judge.JudgeLeadersGates
+            ? TaxiingPhase.FirstStoppingBarAhead(LeaderContext(judge.Ctx, other, layout), route, layout, judgeLeadersGates: false, start)?.Bar
+            : TaxiingPhase.FirstUnclearedBarAhead(route, start.SegmentIndex)?.Bar;
 
     /// <summary><paramref name="leader"/>'s own phase context for judging its gate, over the world <paramref name="ctx"/> sees.</summary>
     private static PhaseContext LeaderContext(PhaseContext ctx, AircraftState leader, AirportGroundLayout layout) =>

@@ -498,25 +498,60 @@ public sealed class TaxiingPhase : Phase
     /// <param name="position">The aircraft's current position.</param>
     /// <param name="holdShort">The bar to measure to.</param>
     /// <returns>Distance in feet.</returns>
-    public static double AlongRouteDistanceToHoldShortFt(AirportGroundLayout layout, TaxiRoute route, LatLon position, HoldShortPoint holdShort)
+    public static double AlongRouteDistanceToHoldShortFt(AirportGroundLayout layout, TaxiRoute route, LatLon position, HoldShortPoint holdShort) =>
+        AlongRouteDistanceToHoldShortFt(layout, route, Math.Max(0, route.CurrentSegmentIndex), position, holdShort);
+
+    /// <summary>
+    /// How far (ft) <paramref name="holdShort"/>'s painted stop lies along <paramref name="route"/> from the node before its segment
+    /// <paramref name="startSegmentIndex"/>, every segment counted whole: the measure for an aircraft that is not on its route at
+    /// all, a crossing aircraft at the end of its crossing slice, whose route cursor stays on the crossing's entry segment
+    /// (<see cref="CrossingRunwayPhase.HandRouteBack"/> is its only writer).
+    /// <see cref="double.PositiveInfinity"/> when the bar has no computed position or is on no segment from that index on.
+    /// </summary>
+    /// <param name="layout">Ground layout the route is resolved on.</param>
+    /// <param name="route">The route being read.</param>
+    /// <param name="startSegmentIndex">Segment the measure starts at the start node of.</param>
+    /// <param name="holdShort">The bar to measure to.</param>
+    /// <returns>Distance in feet.</returns>
+    internal static double AlongRouteDistanceToHoldShortFt(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        int startSegmentIndex,
+        HoldShortPoint holdShort
+    ) => AlongRouteDistanceToHoldShortFt(layout, route, startSegmentIndex, position: null, holdShort);
+
+    private static double AlongRouteDistanceToHoldShortFt(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        int startSegmentIndex,
+        LatLon? position,
+        HoldShortPoint holdShort
+    )
     {
         if (holdShort.Latitude is null || holdShort.Longitude is null || !layout.Nodes.ContainsKey(holdShort.NodeId))
         {
             return double.PositiveInfinity;
         }
 
-        // Measured as TaxiRoute.RemainingDistanceFt measures it, the in-progress leg straight to its end node, except that a
-        // fillet arc in progress carrying the bar's stop is measured along the arc, the geometry its setback is measured on.
-        int inProgress = Math.Max(0, route.CurrentSegmentIndex);
-        for (int i = inProgress; i < route.Segments.Count; i++)
+        int start = Math.Max(0, startSegmentIndex);
+        for (int i = start; i < route.Segments.Count; i++)
         {
-            if (route.Segments[i].ToNodeId == holdShort.NodeId)
+            if (route.Segments[i].ToNodeId != holdShort.NodeId)
             {
-                double setbackFt = route.HoldShortSetbackNm(i, holdShort) * GeoMath.FeetPerNm;
-                return (i == inProgress) && (InProgressArcToEndFt(route, i, position, holdShort) is { } alongArcFt)
-                    ? alongArcFt - setbackFt
-                    : route.RemainingDistanceFt(position, i + 1) - setbackFt;
+                continue;
             }
+
+            double setbackFt = route.HoldShortSetbackNm(i, start, holdShort) * GeoMath.FeetPerNm;
+            if (position is not { } from)
+            {
+                return route.PrefixDistanceFt(i + 1) - route.PrefixDistanceFt(start) - setbackFt;
+            }
+
+            // Measured as TaxiRoute.RemainingDistanceFt measures it, the in-progress leg straight to its end node, except that a
+            // fillet arc in progress carrying the bar's stop is measured along the arc, the geometry its setback is measured on.
+            return (i == start) && (InProgressArcToEndFt(route, i, from, holdShort) is { } alongArcFt)
+                ? alongArcFt - setbackFt
+                : route.RemainingDistanceFt(from, i + 1) - setbackFt;
         }
 
         return double.PositiveInfinity;
@@ -1221,9 +1256,16 @@ public sealed class TaxiingPhase : Phase
     private static bool IsHeldByAnother(PhaseContext ctx, HoldShortPoint bar) => ctx.IsHoldShortNodeOccupied?.Invoke(bar.NodeId) == true;
 
     /// <summary>The first uncleared bar on a segment from the current one on, with the index of the segment that ends at it.</summary>
-    internal static (int SegmentIndex, HoldShortPoint Bar)? FirstUnclearedBarAhead(TaxiRoute route)
+    internal static (int SegmentIndex, HoldShortPoint Bar)? FirstUnclearedBarAhead(TaxiRoute route) =>
+        FirstUnclearedBarAhead(route, Math.Max(0, route.CurrentSegmentIndex));
+
+    /// <summary>
+    /// <see cref="FirstUnclearedBarAhead(TaxiRoute)"/> searched from segment <paramref name="startSegmentIndex"/> on rather than
+    /// from the route's cursor: the read for a crossing aircraft, whose cursor stays on the crossing's entry segment.
+    /// </summary>
+    internal static (int SegmentIndex, HoldShortPoint Bar)? FirstUnclearedBarAhead(TaxiRoute route, int startSegmentIndex)
     {
-        for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
+        for (int i = Math.Max(0, startSegmentIndex); i < route.Segments.Count; i++)
         {
             if (route.GetHoldShortAt(route.Segments[i].ToNodeId) is { IsCleared: false } bar)
             {
@@ -1523,12 +1565,55 @@ public sealed class TaxiingPhase : Phase
         TaxiRoute route,
         AirportGroundLayout layout,
         bool judgeLeadersGates
-    )
+    ) =>
+        FirstStoppingBarAhead(
+            new StoppingScan(ctx, route, layout, judgeLeadersGates, Math.Max(0, route.CurrentSegmentIndex), 0.0, ctx.Aircraft.Position)
+        );
+
+    /// <summary>
+    /// <see cref="FirstStoppingBarAhead(PhaseContext, TaxiRoute, AirportGroundLayout, bool)"/> searched from
+    /// <paramref name="start"/> on, every stop measured from the node before its segment rather than from the aircraft's position:
+    /// the read for a crossing aircraft, which is off its route while it crosses with its route cursor still on the crossing's
+    /// entry segment. <see cref="BarSearchStart.LeadFt"/> is added to every distance judged, so the stretch of path the aircraft
+    /// still has to drive to reach that segment counts from where it is.
+    /// </summary>
+    internal static (int SegmentIndex, HoldShortPoint Bar, bool FarSideBlocked)? FirstStoppingBarAhead(
+        PhaseContext ctx,
+        TaxiRoute route,
+        AirportGroundLayout layout,
+        bool judgeLeadersGates,
+        BarSearchStart start
+    ) => FirstStoppingBarAhead(new StoppingScan(ctx, route, layout, judgeLeadersGates, start.SegmentIndex, start.LeadFt, null));
+
+    /// <summary>
+    /// Where a stopping-bar search starts for an aircraft that is off its route: the segment it will search from, and how far
+    /// (ft) the aircraft still has to drive to reach that segment's start node.
+    /// </summary>
+    /// <param name="SegmentIndex">Segment the search starts at.</param>
+    /// <param name="LeadFt">Distance (ft) still to drive to the start node of <paramref name="SegmentIndex"/>.</param>
+    internal readonly record struct BarSearchStart(int SegmentIndex, double LeadFt);
+
+    /// <summary>
+    /// A stopping-bar scan: the context and route it runs over, the segment it starts at, how far the aircraft still has to drive
+    /// to reach that segment, and the position its in-progress leg is measured from (null with none: from that segment's start
+    /// node, each segment counted whole).
+    /// </summary>
+    private readonly record struct StoppingScan(
+        PhaseContext Ctx,
+        TaxiRoute Route,
+        AirportGroundLayout Layout,
+        bool JudgeLeadersGates,
+        int StartSegmentIndex,
+        double LeadFt,
+        LatLon? Position
+    );
+
+    private static (int SegmentIndex, HoldShortPoint Bar, bool FarSideBlocked)? FirstStoppingBarAhead(StoppingScan scan)
     {
         bool gateInReach = true;
-        for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
+        for (int i = scan.StartSegmentIndex; i < scan.Route.Segments.Count; i++)
         {
-            if (route.GetHoldShortAt(route.Segments[i].ToNodeId) is not { } bar)
+            if (scan.Route.GetHoldShortAt(scan.Route.Segments[i].ToNodeId) is not { } bar)
             {
                 continue;
             }
@@ -1538,14 +1623,14 @@ public sealed class TaxiingPhase : Phase
                 return (i, bar, false);
             }
 
-            if (!gateInReach || !NeedsRunwayCrossing(bar, layout))
+            if (!gateInReach || !NeedsRunwayCrossing(bar, scan.Layout))
             {
                 continue;
             }
 
-            double toStopFt = AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar);
-            gateInReach = toStopFt <= FarSideReachFt(ctx);
-            if (gateInReach && IsFarSideBlockedAhead(ctx, (route, layout), (i, bar, toStopFt), judgeLeadersGates))
+            double toStopFt = scan.LeadFt + AlongRouteDistanceToHoldShortFt(scan.Layout, scan.Route, scan.StartSegmentIndex, scan.Position, bar);
+            gateInReach = toStopFt <= FarSideReachFt(scan.Ctx);
+            if (gateInReach && IsFarSideBlockedAhead(scan.Ctx, (scan.Route, scan.Layout), (i, bar, toStopFt), scan.JudgeLeadersGates))
             {
                 return (i, bar, true);
             }

@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- An aircraft held short of a runway behind traffic crossing it is no longer released early because the crossing aircraft's stop was misjudged.
 - A speed assigned during a 360, 270, S-turn or VFR hold stands: reaching the hold fix or ending the maneuver no longer changes it.
 - A departure leg that ends on a VOR radial turns where the chart puts that radial, measured with the VOR's published variation.
 - A hold-short stop that falls on a curved taxiway fillet sits on the painted curve, not up to 15 feet off the pavement.

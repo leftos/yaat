@@ -128,6 +128,13 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             { } route => route.RemainingDistanceFt(position, route.Segments.Count),
         };
 
+    /// <summary>
+    /// How far (ft) into the segment <see cref="PathAhead"/>'s <c>OnwardStart</c> names the crossing slice ends: the tail
+    /// clearance's cut, zero when the slice ends on a node. A reader measuring the onward route from the slice's end point
+    /// subtracts it from a distance measured from that segment's start node.
+    /// </summary>
+    internal double TailCutFt => _tailDecision?.CutFt ?? 0.0;
+
     /// <summary>The navigator's straight-segment speed cap (kts), or null before the crossing slice is built.</summary>
     public double? NavMaxSpeedKts => _navigator?.MaxSpeedKts;
 
