@@ -608,6 +608,22 @@ public sealed class SpeedMaxCommandTests
         Assert.Equal("PMD", flagged.Name);
     }
 
+    /// <summary>A crossing speed restated on the same fix keeps SMAX's one re-arm past it.</summary>
+    [Fact]
+    public void Smax_Cfix_Restated_KeepsOneReArm()
+    {
+        AircraftState ac = Airborne("B738", altitude: 15_000, ias: 280);
+        Assert.True(Send(ac, "SMAX").Success);
+        Assert.True(Send(ac, "CFIX PMD 110 280").Success);
+        Assert.True(Send(ac, "CFIX PMD 110 250").Success);
+
+        NavigationTarget flagged = Assert.Single(ac.Targets.NavigationRoute, fix => fix.RevertSpeedMax);
+        Assert.Equal("PMD", flagged.Name);
+
+        Assert.NotNull(FlyUntilSequenced(ac, "PMD"));
+        Assert.True(ac.Targets.SpeedMaxHeld);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -680,6 +696,35 @@ public sealed class SpeedMaxCommandTests
 
         Assert.Equal((double?)0.78, restored.RevertMach);
         Assert.False(restored.RevertMachExplicit);
+    }
+
+    [Fact]
+    public void SpeedBoundAndResumeReverts_SurviveSnapshotRoundTrip_AndNullsAreOmitted()
+    {
+        var fix = new NavigationTarget
+        {
+            Name = "PMD",
+            Position = new LatLon(34.632, -118.064),
+            RevertSpeedFloor = 280,
+            RevertSpeedCeiling = 300,
+            RevertResume = SpeedResumeKind.Published,
+        };
+        string json = JsonSerializer.Serialize(fix.ToSnapshot(), RecordingJsonOptions.Default);
+        var restored = NavigationTarget.FromSnapshot(JsonSerializer.Deserialize<NavigationTargetDto>(json, RecordingJsonOptions.Default)!);
+
+        Assert.Equal((double?)280, restored.RevertSpeedFloor);
+        Assert.Equal((double?)300, restored.RevertSpeedCeiling);
+        Assert.Equal(SpeedResumeKind.Published, restored.RevertResume);
+
+        var bare = new NavigationTarget { Name = "PMD", Position = new LatLon(34.632, -118.064) };
+        string bareJson = JsonSerializer.Serialize(bare.ToSnapshot(), RecordingJsonOptions.Default);
+        Assert.DoesNotContain("RevertSpeedFloor", bareJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RevertSpeedCeiling", bareJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RevertResume", bareJson, StringComparison.OrdinalIgnoreCase);
+        var bareRestored = NavigationTarget.FromSnapshot(JsonSerializer.Deserialize<NavigationTargetDto>(bareJson, RecordingJsonOptions.Default)!);
+        Assert.Null(bareRestored.RevertSpeedFloor);
+        Assert.Null(bareRestored.RevertSpeedCeiling);
+        Assert.Null(bareRestored.RevertResume);
     }
 
     [Fact]

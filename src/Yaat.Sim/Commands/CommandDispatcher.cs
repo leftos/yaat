@@ -989,7 +989,7 @@ public static class CommandDispatcher
         aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.StarViaFloor = null;
         NavigationCommandHandler.DropSpeedReverts(aircraft);
-        NavigationCommandHandler.RestorePublishedSpeedsForApproach(aircraft, ctx.TransmissionId);
+        NavigationCommandHandler.RestorePublishedSpeedsOfEarlierCrossings(aircraft, ctx.TransmissionId);
 
         return Ok($"Cleared {clearance.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(clearance.RunwayId)}");
     }
@@ -1309,13 +1309,13 @@ public static class CommandDispatcher
             case SpeedCommand cmd:
                 return FlightCommandHandler.ApplySpeed(cmd, aircraft, ctx);
             case ResumeNormalSpeedCommand:
-                return FlightCommandHandler.ApplyResumeNormalSpeed(aircraft);
+                return FlightCommandHandler.ApplyResumeNormalSpeed(aircraft, ctx);
             case ResumePublishedSpeedCommand:
-                return FlightCommandHandler.ApplyResumePublishedSpeed(aircraft);
+                return FlightCommandHandler.ApplyResumePublishedSpeed(aircraft, ctx);
             case ReduceToFinalApproachSpeedCommand:
                 return FlightCommandHandler.ApplyReduceToFinalApproachSpeed(aircraft, ctx);
             case DeleteSpeedRestrictionsCommand:
-                return FlightCommandHandler.ApplyDeleteSpeedRestrictions(aircraft);
+                return FlightCommandHandler.ApplyDeleteSpeedRestrictions(aircraft, ctx);
             case ExpediteCommand cmd:
                 return FlightCommandHandler.ApplyExpedite(cmd, aircraft, ctx.GroundLayout);
             case NormalRateCommand:
@@ -4762,7 +4762,7 @@ public static class CommandDispatcher
     /// to an earlier speed past its fix
     /// (<see cref="NavigationCommandHandler.DropSpeedReverts"/>) and gives each fix whose crossing speed an earlier
     /// transmission set its published speed back, whether or not a speed is restated with it
-    /// (<see cref="NavigationCommandHandler.RestorePublishedSpeedsForApproach"/>); a pending approach does so when it is
+    /// (<see cref="NavigationCommandHandler.RestorePublishedSpeedsOfEarlierCrossings"/>); a pending approach does so when it is
     /// cleared. When its cancel stands a crossing speed of its own transmission stays in force
     /// (<see cref="NavigationCommandHandler.KeepTransmissionCrossingSpeed"/>).
     /// </summary>
@@ -4777,7 +4777,7 @@ public static class CommandDispatcher
         }
 
         NavigationCommandHandler.DropSpeedReverts(aircraft);
-        NavigationCommandHandler.RestorePublishedSpeedsForApproach(aircraft, ctx.TransmissionId);
+        NavigationCommandHandler.RestorePublishedSpeedsOfEarlierCrossings(aircraft, ctx.TransmissionId);
         if (ctx.SpeedRestatedInTransmission)
         {
             before.Restore(aircraft);

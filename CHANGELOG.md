@@ -15,6 +15,9 @@
 - A hold short handed over too late to stop for after a runway crossing gets an immediate "unable to hold short, stopping" from the pilot.
 - A crossing pilot no longer reports clear of the runway on an offset crossing while its tail is still inside the far hold-short marking.
 - `SPD` below the runway-crossing speed caps the crossing, even with `CROSS … EXP`.
+- A speed instruction given after a `CFIX` crossing speed now replaces that speed, instead of the crossing restoring the old speed past the fix.
+- A speed instruction sent with a `CFIX` (`CFIX PMD 110 250, RNS`) takes effect past the fix, after the crossing speed.
+- Restating a crossing speed on the same fix keeps the speed to resume past it.
 
 ## v0.18.0-beta [2026/11/02]
 
