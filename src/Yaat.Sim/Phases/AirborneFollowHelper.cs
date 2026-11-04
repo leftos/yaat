@@ -1607,7 +1607,6 @@ public static class AirborneFollowHelper
         double width = frame.WidthNm;
         double dDer = frame.DerNm;
         double dBase = frame.BaseNm;
-        double dwLen = dBase - dDer; // downwind leg length (DER-abeam to base turn)
         double finalLen = dBase; // final leg length (base turn along-track to threshold at 0)
 
         return leg switch
@@ -1615,9 +1614,10 @@ public static class AirborneFollowHelper
             // Upwind: on the centerline, departure side. Remaining upwind to the DER (0 once past),
             // then crosswind + downwind (longer if extended past the DER) + base + final.
             UpwindLegIndex => Math.Max(0, dP - dDer) + width + (dBase - Math.Min(dP, dDer)) + width + finalLen,
-            // Crosswind: near the DER along-track, perpendicular 0→width. Remaining crosswind (0 if
-            // extended wider) + downwind + base (wider if extended) + final.
-            CrosswindLegIndex => Math.Max(0, width - rhoP) + dwLen + Math.Max(width, rhoP) + finalLen,
+            // Crosswind: at or past the DER along-track, perpendicular 0→width. Remaining crosswind (0 if
+            // extended wider) + downwind (longer when the crosswind is flown past the DER; a crosswind
+            // turned short of the DER reads as if turned at it) + base (wider if extended) + final.
+            CrosswindLegIndex => Math.Max(0, width - rhoP) + (dBase - Math.Min(dP, dDer)) + Math.Max(width, rhoP) + finalLen,
             // Downwind: at the downwind offset, along-track DER→base turn. Remaining downwind (0 if
             // extended past the base turn) + base (the aircraft's ACTUAL perpendicular offset, so a
             // wider downwind from a widened crosswind counts its longer base) + final (longer if

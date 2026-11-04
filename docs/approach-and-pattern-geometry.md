@@ -963,7 +963,9 @@ complementary, not redundant.
 
 The downwind along-track hold does not transfer to the `UpwindPhase`/`CrosswindPhase` legs: the upwind leg's along-track runs *opposite* the downwind sequence axis (its heading is the runway heading, the reciprocal of downwind), so "further along upwind" means a *longer* path to landing, not a shorter one — a follower that is behind the lead on upwind is geometrically committed to a *shorter* downwind and would roll out on final *ahead* of the traffic it was told to follow.
 
-To sequence correctly on every leg, `RemainingPatternPathNm` (`AirborneFollowHelper`) computes the remaining circuit distance to the threshold (upwind → crosswind → downwind → base → final); it is monotone toward landing and *increases* when a leg is extended (a longer upwind lengthens the downwind; a wider crosswind lengthens the base; a longer downwind lengthens the final — the downwind term uses the aircraft's **actual** perpendicular offset so a widened pattern counts its longer base).
+To sequence correctly on every leg, `RemainingPatternPathNm` (`AirborneFollowHelper`) computes the remaining circuit distance to the threshold (upwind → crosswind → downwind → base → final); it is monotone toward landing and *increases* when a leg is extended (a longer upwind lengthens the downwind, and so does a crosswind flown past the runway's departure end; a crosswind turned short of it reads as if turned at it; a wider crosswind lengthens the base; a longer downwind lengthens the final — the downwind term uses the aircraft's **actual** perpendicular offset so a widened pattern counts its longer base).
+
+"Follow" is in-trail spacing in remaining path, not turning at the leader's turn point: a follower on an extended upwind holds the upwind until it is spaced behind a lead already on crosswind, rather than cutting inside it.
 
 A lead still joining the pattern (leg 0) is measured along its entry route, straight lines with no corner-cut credit, then the leg formula at the join.
 

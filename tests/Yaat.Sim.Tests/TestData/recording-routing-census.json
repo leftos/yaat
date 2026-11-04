@@ -2056,5 +2056,22 @@
     "ReactionDelayed": 0,
     "AsPrefixed": 3,
     "Solo": false
+  },
+  {
+    "File": "yaat1781-oak-follow-extended-upwind-recording.yaat-bug-report-bundle.zip",
+    "Commands": 105,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "Compound": 45,
+      "Delete": 5,
+      "FlightPlan": 1,
+      "GhostTrack": 1,
+      "SetActivePosition": 1,
+      "Strip": 51
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 2,
+    "Solo": false
   }
 ]
