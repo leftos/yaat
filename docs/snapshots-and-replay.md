@@ -113,6 +113,8 @@ Four `AircraftProcedureDto` fields carry the via clearances and the speed memory
 
 `HoldShortPointDto.EndsNoDestinationRoute` (bool, written only when true, absent on older snapshots; no schema bump) carries `HoldShortPoint.EndsNoDestinationRoute`, the flag on the hold that ends a clearance with no destination short of its last taxiway, so a restored aircraft still refuses `RES`/`CROSS` there.
 
+`MakeTurnPhaseDto`, `VfrHoldPhaseDto` and `STurnPhaseDto` carry the `ManeuverSpeedController` state beyond the three older fields: `SpeedTakenOver` (bool, the controller assigned a speed during the maneuver, so neither its slow-down nor its resume touches speed) and `PriorAssignedSpeed` (double?, the pre-maneuver assigned speed restored when the prior target was null). Both are written only at a non-default value and absent on older snapshots, which restore false and null; no schema bump.
+
 `ScenarioSnapshotDto.ActiveRunways` (the room's active runway ends per airport, as `ActiveRunwayListParser` tokens: `28L` both, `D28L` departures, `A28R` arrivals) is the one nullable member of that DTO left out while empty; its other nullable members are written as null.
 
 A snapshot with no active runways stays byte-identical, and an older one restores none; no schema bump. Restore goes through `ActiveRunwayListParser.FromTokenLists`, which logs and drops a malformed token instead of failing the load.

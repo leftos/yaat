@@ -42,6 +42,8 @@ public sealed class STurnPhase : Phase
             PriorTargetSpeed = _speed.PriorTargetSpeed,
             PriorHasExplicitSpeed = _speed.PriorHasExplicitSpeed,
             SpeedReduced = _speed.SpeedReduced,
+            SpeedTakenOver = _speed.SpeedTakenOver,
+            PriorAssignedSpeed = _speed.PriorAssignedSpeed,
         };
 
     public static STurnPhase FromSnapshot(STurnPhaseDto dto)
@@ -60,6 +62,8 @@ public sealed class STurnPhase : Phase
         phase._speed.PriorTargetSpeed = dto.PriorTargetSpeed;
         phase._speed.PriorHasExplicitSpeed = dto.PriorHasExplicitSpeed;
         phase._speed.SpeedReduced = dto.SpeedReduced;
+        phase._speed.SpeedTakenOver = dto.SpeedTakenOver;
+        phase._speed.PriorAssignedSpeed = dto.PriorAssignedSpeed;
         return phase;
     }
 

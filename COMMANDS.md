@@ -1923,7 +1923,7 @@ The explicit verb is `HOLDP`. However, `HOLD` followed by holding pattern argume
 | `HFIXL {fix}` / `HFIXR {fix}` | Fly to fix, then left/right 360s |
 | `HFIX {fix}` | Fly to fix, then hover — **helicopters only**; fixed-wing aircraft are rejected and should use `HFIXL`/`HFIXR` |
 
-Starting any of these holds clears the assigned heading. Winged-aircraft holds (`HPPL`/`HPPR`, `HFIXL`/`HFIXR`) decelerate to holding speed while orbiting and resume normal speed when the hold is cancelled. Any heading, altitude, or speed command clears the hold.
+Starting any of these holds clears the assigned heading. Winged-aircraft holds (`HPPL`/`HPPR`, `HFIXL`/`HFIXR`) decelerate to holding speed while orbiting and resume normal speed when the hold is cancelled. A speed assigned during a hold, 360, 270 or S-turn stays: the maneuver neither slows the aircraft further (a hold reaching its fix) nor changes the speed when it ends. An altitude or speed command is flown without leaving the hold; any other command, such as a heading, clears it.
 
 ### Track Operations
 

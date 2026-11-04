@@ -1337,6 +1337,12 @@ public sealed class MakeTurnPhaseDto : PhaseDto
     public double? PriorTargetSpeed { get; init; }
     public bool PriorHasExplicitSpeed { get; init; }
     public bool SpeedReduced { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SpeedTakenOver { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double? PriorAssignedSpeed { get; init; }
 }
 
 public sealed class VfrHoldPhaseDto : PhaseDto
@@ -1351,6 +1357,12 @@ public sealed class VfrHoldPhaseDto : PhaseDto
     public double? PriorTargetSpeed { get; init; }
     public bool PriorHasExplicitSpeed { get; init; }
     public bool SpeedReduced { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SpeedTakenOver { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double? PriorAssignedSpeed { get; init; }
 }
 
 public sealed class AirspaceBoundaryHoldPhaseDto : PhaseDto
@@ -1418,6 +1430,12 @@ public sealed class STurnPhaseDto : PhaseDto
     public double? PriorTargetSpeed { get; init; }
     public bool PriorHasExplicitSpeed { get; init; }
     public bool SpeedReduced { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SpeedTakenOver { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double? PriorAssignedSpeed { get; init; }
 }
 
 public sealed class StopAndGoPhaseDto : PhaseDto
