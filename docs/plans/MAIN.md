@@ -25,7 +25,7 @@
 - [ ] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer
 - [ ] YAAT-1679 Read back 'at {taxiway}' when CTO RWY departs from a runway crossing hold
 - [ ] YAAT-1681 Runway-change warning says 'taxi clearance' when a CTO changed the runway
-- [ ] YAAT-1790 MLT 28L at a 28R hold short re-routes the departure; CTO, MLT 28L reads back 28R but departs 28L · release vNext
+- [/] YAAT-1790 MLT 28L at a 28R hold short re-routes the departure; CTO, MLT 28L reads back 28R but departs 28L · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -57,7 +57,6 @@
 ## Say again
 
 - [ ] YAAT-21 Say again: student asks a pilot to repeat its last transmission · release vNext
-  - [ ] YAAT-1754 Say again 4: STT phrases for say again, settled against the corpus · release vNext
   - [ ] YAAT-1762 Merge feat/say-again to main (#1363)
 - [ ] YAAT-1789 Replay a recording with an unaddressed say again (AGAINU) and assert the same pilot repeats
 
@@ -147,13 +146,13 @@
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (11/55 done)
+### 1 Defects (11/56 done)
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-1669 Refuse a bare CTO at a runway-crossing hold short instead of departing the crossing runway
 - [ ] YAAT-468 Stop at a hold-short bar the parser places at the aircraft's own start on a short leg
 - [ ] YAAT-471 Stop on the taxiway centreline at a node-only hold short issued after a turn about
-- [ ] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling · release vNext
+- [/] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling · release vNext
 - [ ] YAAT-583 Restore the junction target when a hold short ahead is cleared mid-taxi
 - [ ] YAAT-635 End a taxi completed at an uncleared runway bar in HoldingShortPhase
 - [ ] YAAT-670 Judge an HS given with the TAXI clearance against the firm braking rate
@@ -181,7 +180,7 @@
 - [ ] YAAT-1394 Check LeavesRunwayAtBar does not misread a near-side bar as an exit where a taxiway wraps a threshold (OAK 33 C)
 - [ ] YAAT-1415 Keep a rolling aircraft's makeable stop ahead instead of moving the no-destination hold onto it (bare TAXI inside the setback) · release vNext
 - [ ] YAAT-1467 Far-side gate overstates a crossing leader's stop distance from its stale route cursor · release vNext
-- [ ] YAAT-1469 Place a hold-short stop on a fillet arc along the arc, not on its chord · release vNext
+- [/] YAAT-1469 Place a hold-short stop on a fillet arc along the arc, not on its chord · release vNext
 - [ ] YAAT-1608 Refuse a KCOS TAXI C2 A2 A that leaves a larger aircraft's tail over the 35L hold line
 - [ ] YAAT-1615 Give a TAXI on ATL's M - K arc 80-120 ft from bar 710 the approach leg instead of starting at D's bar
 - [ ] YAAT-1657 Keep the hold when a CTO at a taxiway hold short is refused after its implicit taxi installed
@@ -192,6 +191,7 @@
 - [ ] YAAT-1766 Report the runway being left for a route built off the runway with no exit-bar hold point
 - [ ] YAAT-1771 Runway being left on intersecting runways and on a route recrossing one runway
 - [ ] YAAT-1774 Mid-crossing CROSS EXP on a FOLLOWG own-path crossing may mark the wrong route's hold-short
+- [ ] YAAT-1792 Project a stop past a fillet arc along the arc's tangent, not its chord bearing
 
 ### 2 Refinements and rulings (0/16 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
@@ -535,9 +535,10 @@
 
 ## Runway safety and solo scoring
 
-### 1 Defects (0/18 done)
+### 1 Defects (0/19 done)
 - [ ] YAAT-699 Warn on a landing clearance behind an arrival stopped on the runway
 - [ ] YAAT-816 Judge only the nose on the approach to an uncleared hold within 30° of the runway axis
+- [ ] YAAT-1787 RPO advisor and SameRunwaySeparation treat a restricted low approach (3-10-10) as a departing leader
 - [ ] YAAT-818 Resolve the CLAND fouler warning against the landing runway's airport layout
 - [ ] YAAT-1333 Pick a same-runway separation category for types missing from the FAA table (DA62 gets Category III)
 - [ ] YAAT-1336 Check a departure between 400 ft and the runway end still counts as a preceding departure
@@ -639,7 +640,7 @@
 
 ## Speed control and performance limits
 
-### 1 Defects (10/35 done)
+### 1 Defects (10/37 done)
 - [ ] YAAT-188 Cap descent by angle in UpdateDescentPlanning
 - [ ] YAAT-190 Use one snap tolerance in FlightPhysics.BoundsCorrectionTarget
 - [ ] YAAT-853 Refuse a rolling takeoff to a Super or heavy that has no aircraft profile (A388, A225, IL76, KC10)
@@ -652,8 +653,8 @@
 - [ ] YAAT-1386 Stop a crossing restriction's speed revert overwriting a newer SPD or RNS when the fix is passed
 - [ ] YAAT-1397 Make AircraftCategorization.Categorize fail loudly on unloaded aircraft tables instead of returning Jet
 - [ ] YAAT-1448 Keep a speed assigned during a maneuver when ManeuverSpeedController restores a null prior target · release vNext
-- [ ] YAAT-1451 Skip a crossing fix's speed revert in a hold or inside the final gate (7110.65 5-7-1.b) · release vNext
-- [ ] YAAT-1453 Write a constrained DCTF's speed revert on its last speed-constrained fix too · release vNext
+- [/] YAAT-1451 Skip a crossing fix's speed revert in a hold or inside the final gate (7110.65 5-7-1.b) · release vNext
+- [/] YAAT-1453 Write a constrained DCTF's speed revert on its last speed-constrained fix too · release vNext
 - [ ] YAAT-1454 Restore a dropped crossing restriction's speed revert (or SMAX) when DCTF replaces the route · release vNext
 - [ ] YAAT-1577 End a crossed published speed ceiling when the aircraft is vectored or sent direct off the procedure
 - [ ] YAAT-1586 Stop a crossing fix's revert restoring a speed RNS already ended
@@ -665,6 +666,8 @@
 - [ ] YAAT-1686 Decide whether a DCT or unconstrained DCTF ends a pending Mach revert
 - [ ] YAAT-1758 Keep an assigned Mach or SMAX through a maneuver's speed capture and resume
 - [ ] YAAT-1763 Fly a controller's crossing speed when its fix is next under an explicit speed, Mach or DSR
+- [ ] YAAT-1796 Open the speed final gate at the FAF when it is closer than 5 nm (7110.65 5-7-1.b.4)
+- [ ] YAAT-1797 Keep an earlier CFIX's plain speed revert when a constrained DCTF replaces the route
 
 ### 2 Refinements and rulings (0/13 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
@@ -694,11 +697,10 @@
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (6/23 done)
+### 1 Defects (7/25 done)
 - [ ] YAAT-1666 Find a SID's TDLS initial altitude by version and in the op configs, as the climb-via top does
 - [ ] YAAT-1036 Reach a crossing bound by the flyby sequencing point, not the fix position · release vNext
 - [ ] YAAT-1037 Stop an unmet published SID/STAR altitude bound from overriding a non-via assigned altitude · release vNext
-- [ ] YAAT-926 Convert CR/VR departure-leg radials with the navaid's variation · release vNext
 - [ ] YAAT-964 Keep the STAR when a constrained direct shares a transmission with DVIA · release vNext
 - [ ] YAAT-974 Stop CTO storing the PDC dropdown's first altitude as the SID altitude · release vNext
 - [ ] YAAT-976 Keep climbing to the SID top altitude when the route ends at a ceiling fix · release vNext
@@ -712,6 +714,8 @@
 - [ ] YAAT-1659 Stop the route planner flying published STAR altitudes without a via clearance (JARR climbs to 23,000; climbs after CFIX+CAPP)
 - [ ] YAAT-1662 End the non-via climb scan at a met ceiling (AtOrBelow at its altitude, Between at its top)
 - [ ] YAAT-1765 Keep the first altitude revert when a CFIX altitude on the same fix is restated
+- [ ] YAAT-1795 Sequence a VR leg whose radial is already passed at the initial-climb handoff
+- [ ] YAAT-1798 Convert departure course legs with the published declination, not the aircraft's
 
 ### 2 Refinements and rulings (0/7 done)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
@@ -733,8 +737,9 @@
 
 ## Approaches and holds
 
-### 1 Defects (0/12 done)
+### 1 Defects (0/13 done)
 - [ ] YAAT-48 Check the SFO I28L MAP/DA (65 ft) against CIFP
+- [ ] YAAT-1784 Report the glidepath descent rate as VerticalSpeed on final (snap zeroes it every tick) · release vNext+1
 - [ ] YAAT-134 Procedure-turn leftovers: HOLDP magnetic course, LOC declination, navaid key
 - [ ] YAAT-148 Keep the field-in-sight report across a new approach clearance
 - [ ] YAAT-920 Track a hold's inbound course to the fix instead of flying direct
@@ -764,7 +769,7 @@
 
 ## Traffic pattern and airborne FOLLOW
 
-### 1 Defects (3/28 done)
+### 1 Defects (3/29 done)
 - [ ] YAAT-138 FOLLOW brief B leftovers: downwind return entry, S-turn call, re-clearance
 - [ ] YAAT-139 FOLLOW brief E leftovers: COPT at install, spacing, split VfrFollowPhase
 - [ ] YAAT-142 Clear the follow in GoAroundHelper.Trigger
@@ -790,8 +795,9 @@
 - [ ] YAAT-1501 Carry an armed pattern runway and its deferred altitude into a FOLLOW's pursuit list
 - [ ] YAAT-1780 Pattern compression ignores runways no pattern could clear (KOAK 28R MRT vs 33, MLT vs 28L) · release vNext
 - [ ] YAAT-1781 Airborne FOLLOW from an extended upwind turns at once and cuts in front of a leader already on crosswind · release vNext
+- [/] YAAT-1791 A ground MLT/MRT after a separate CTO may not build the circuit after takeoff · release vNext
 
-### 2 Refinements and rulings (0/11 done)
+### 2 Refinements and rulings (0/12 done)
 - [ ] YAAT-140 Warn when a FOLLOW re-sequence from a pattern leg voids the landing clearance
 - [ ] YAAT-143 Rule and implement the per-tick cross-runway check for a running follow
 - [ ] YAAT-146 Rule FOLLOW B5b-5 leftovers: FAS ceiling, at-or-below fix speeds
@@ -803,6 +809,7 @@
 - [ ] YAAT-332 VFR departure direction: skip heliports and private strips, prefer the 91.159 direction
 - [ ] YAAT-1642 Plan each compressed-pattern turn with its own tailwind component, not the full wind speed
 - [ ] YAAT-1750 Turn crosswind no earlier than half a mile past the departure end (AIM 4-3-2.c.1)
+- [ ] YAAT-1794 Refuse a ground MLT/MRT during a full-stop landing rollout
 
 ### 3 Hygiene and tests (0/9 done)
 - [ ] YAAT-141 Split DownwindPhase.OnTick; add a bug_bundle phase-state subcommand
@@ -843,7 +850,7 @@
 
 ## Pilot readbacks and phraseology
 
-### 1 Defects (0/21 done)
+### 1 Defects (0/22 done)
 - [ ] YAAT-313 Readback RPO form (callsign of the traffic) never reaches the instructor
 - [ ] YAAT-1331 Read an uncovered RES CROSS naming a taxiway as "cross taxiway", not "cross runway"
 - [ ] YAAT-1592 Radar-vector SIDs check in with 'climbing via' instead of 'climbing to'
@@ -865,6 +872,7 @@
 - [ ] YAAT-1143 Read back a bare CAPPF after an expected visual as the visual clearance
 - [ ] YAAT-1151 Remove the odd pauses Piper speaks inside words and callsigns
 - [ ] YAAT-1421 Speak a pilot's unable line when a chained command is refused at fire time (ApplyBlock drops PilotUnable)
+- [ ] YAAT-1793 Read back the pattern altitude of a CTO closed-traffic modifier
 
 ### 2 Refinements and rulings (0/14 done)
 - [ ] YAAT-185 Group gate numbers in PhraseologyVerbalizer.SpellDestinationName
@@ -1149,9 +1157,8 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (14/19 done)
+### 1 Defects (15/19 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
-- [ ] YAAT-305 UI tests: AppLifetime.IsShuttingDown never resets after a MainWindow close · release vNext
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
 - [ ] YAAT-1689 Make tools/tests collect: add brotli to the dev dependencies
@@ -1319,11 +1326,6 @@
 - [ ] YAAT-1505 Snapshot pending pilot traffic and field lookouts so a rewind keeps them
 - [ ] YAAT-1533 List taxiway S at KOAK as a ramp taxilane, not movement area
 
-## No project
-
-- [ ] YAAT-1784 Report the glidepath descent rate as VerticalSpeed on final (snap zeroes it every tick) · release vNext+1
-- [ ] YAAT-1787 RPO advisor and SameRunwaySeparation treat a restricted low approach (3-10-10) as a departing leader
-
 ## Design files
 
 - [README.md](README.md) — YAAT-1013
@@ -1345,5 +1347,6 @@
 - [pilot-phraseology-variants/readbacks.md](pilot-phraseology-variants/readbacks.md) — YAAT-1091, YAAT-1092, YAAT-1093, YAAT-1149
 - [pilot-phraseology-variation.md](pilot-phraseology-variation.md) — Pilot phraseology by load (feat/pilot-phraseology-load)
 - [say-again.md](say-again.md) — Say again
+- [stt-rule-gaps.md](stt-rule-gaps.md) — STT tuning
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208, YAAT-1252
