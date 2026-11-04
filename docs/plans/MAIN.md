@@ -146,7 +146,7 @@
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (12/57 done)
+### 1 Defects (12/58 done)
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-1669 Refuse a bare CTO at a runway-crossing hold short instead of departing the crossing runway
@@ -192,8 +192,9 @@
 - [ ] YAAT-1774 Mid-crossing CROSS EXP on a FOLLOWG own-path crossing may mark the wrong route's hold-short
 - [ ] YAAT-1792 Project a stop past a fillet arc along the arc's tangent, not its chord bearing
 - [ ] YAAT-1805 OAK 33: judge the layout's runway pavement past the navdata end (165-288 ft stretch on C reads clear)
+- [ ] YAAT-1809 Make the two G8 fouling judges (FollowingPhase, RunwayOccupancy) judge against the same bar
 
-### 2 Refinements and rulings (0/16 done)
+### 2 Refinements and rulings (0/17 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
 - [ ] YAAT-1407 Key the snapped-bar escape ceiling on the same taxiway's farthest painted bar, not the runway's · release vNext+1
 - [ ] YAAT-755 Use one readback for an aircraft stopped over a runway's hold line
@@ -210,6 +211,7 @@
 - [ ] YAAT-1649 TAXI from a destination-runway bar: decide the nose-past-the-bar case and fix two misleading refusals · release vNext+1
 - [ ] YAAT-1717 Say so when a taxi or CROSS clearance drops a stored takeoff clearance
 - [ ] YAAT-1769 Name the hold-short runway end the controller issued in every pilot call
+- [ ] YAAT-1808 G8 stub gate refinements: negative cut, unnamed joiners, curved stubs, unbounded off-end strip
 
 ### 3 Hygiene and tests (0/13 done)
 - [ ] YAAT-812 Test the merge-hold ready-to-taxi and route-incomplete calls through HoldingShortPhase
@@ -640,7 +642,7 @@
 
 ## Speed control and performance limits
 
-### 1 Defects (10/41 done)
+### 1 Defects (12/41 done)
 - [ ] YAAT-188 Cap descent by angle in UpdateDescentPlanning
 - [ ] YAAT-190 Use one snap tolerance in FlightPhysics.BoundsCorrectionTarget
 - [ ] YAAT-853 Refuse a rolling takeoff to a Super or heavy that has no aircraft profile (A388, A225, IL76, KC10)
@@ -652,9 +654,7 @@
 - [ ] YAAT-967 Stop a crossing-speed revert from overriding a later SPD
 - [ ] YAAT-1386 Stop a crossing restriction's speed revert overwriting a newer SPD or RNS when the fix is passed
 - [ ] YAAT-1397 Make AircraftCategorization.Categorize fail loudly on unloaded aircraft tables instead of returning Jet
-- [ ] YAAT-1448 Keep a speed assigned during a maneuver when ManeuverSpeedController restores a null prior target · release vNext
-- [/] YAAT-1451 Skip a crossing fix's speed revert in a hold or inside the final gate (7110.65 5-7-1.b) · release vNext
-- [/] YAAT-1453 Write a constrained DCTF's speed revert on its last speed-constrained fix too · release vNext
+- [/] YAAT-1448 Keep a speed assigned during a maneuver when ManeuverSpeedController restores a null prior target · release vNext
 - [ ] YAAT-1454 Restore a dropped crossing restriction's speed revert (or SMAX) when DCTF replaces the route · release vNext
 - [ ] YAAT-1577 End a crossed published speed ceiling when the aircraft is vectored or sent direct off the procedure
 - [ ] YAAT-1586 Stop a crossing fix's revert restoring a speed RNS already ended
@@ -803,7 +803,7 @@
 - [ ] YAAT-1781 Airborne FOLLOW from an extended upwind turns at once and cuts in front of a leader already on crosswind · release vNext
 - [/] YAAT-1791 A ground MLT/MRT after a separate CTO may not build the circuit after takeoff · release vNext
 
-### 2 Refinements and rulings (0/12 done)
+### 2 Refinements and rulings (0/13 done)
 - [ ] YAAT-140 Warn when a FOLLOW re-sequence from a pattern leg voids the landing clearance
 - [ ] YAAT-143 Rule and implement the per-tick cross-runway check for a running follow
 - [ ] YAAT-146 Rule FOLLOW B5b-5 leftovers: FAS ceiling, at-or-below fix speeds
@@ -816,8 +816,9 @@
 - [ ] YAAT-1642 Plan each compressed-pattern turn with its own tailwind component, not the full wind speed
 - [ ] YAAT-1750 Turn crosswind no earlier than half a mile past the departure end (AIM 4-3-2.c.1)
 - [ ] YAAT-1794 Refuse a ground MLT/MRT during a full-stop landing rollout
+- [ ] YAAT-1807 Read back a pattern altitude on MLT/MRT; confirm a helicopter departs where cleared after MLT
 
-### 3 Hygiene and tests (0/9 done)
+### 3 Hygiene and tests (0/10 done)
 - [ ] YAAT-141 Split DownwindPhase.OnTick; add a bug_bundle phase-state subcommand
 - [ ] YAAT-156 FOLLOW B6b-1 brief 2 leftovers: TakeoffPhase comment, crossing-climb reuse
 - [ ] YAAT-158 FOLLOW B6b-2 leftovers: VfrFollowPhase.OnTick, upwind below-TPA turn
@@ -827,6 +828,7 @@
 - [ ] YAAT-1639 Move pattern tests off TestRunwayFactory onto real navdata runways
 - [ ] YAAT-1641 Move PatternBuilder and pattern-handler entry points to request records (positional parameters over 5) · release vNext+1
 - [ ] YAAT-1646 Add the whats-new-pattern-compression GuideCapture scene for the release showcase
+- [ ] YAAT-1806 Split TryChangePatternDirection under the hard limits; reuse TryResolvePatternRunway and DirectionWord
 
 ### No milestone
 - [ ] YAAT-1517 Drop a queued teardrop behind an active field crossing once an altitude is assigned
