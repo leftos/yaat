@@ -145,13 +145,12 @@
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (12/58 done)
+### 1 Defects (13/58 done)
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-1669 Refuse a bare CTO at a runway-crossing hold short instead of departing the crossing runway
 - [ ] YAAT-468 Stop at a hold-short bar the parser places at the aircraft's own start on a short leg
 - [ ] YAAT-471 Stop on the taxiway centreline at a node-only hold short issued after a turn about
-- [/] YAAT-1275 G8 fouling: widebodies at shallow-angle bars and parallel traffic through a short stub read as fouling · release vNext
 - [ ] YAAT-583 Restore the junction target when a hold short ahead is cleared mid-taxi
 - [ ] YAAT-635 End a taxi completed at an uncleared runway bar in HoldingShortPhase
 - [ ] YAAT-670 Judge an HS given with the TAXI clearance against the firm braking rate
@@ -641,7 +640,7 @@
 
 ## Speed control and performance limits
 
-### 1 Defects (12/41 done)
+### 1 Defects (13/41 done)
 - [ ] YAAT-188 Cap descent by angle in UpdateDescentPlanning
 - [ ] YAAT-190 Use one snap tolerance in FlightPhysics.BoundsCorrectionTarget
 - [ ] YAAT-853 Refuse a rolling takeoff to a Super or heavy that has no aircraft profile (A388, A225, IL76, KC10)
@@ -653,7 +652,6 @@
 - [ ] YAAT-967 Stop a crossing-speed revert from overriding a later SPD
 - [ ] YAAT-1386 Stop a crossing restriction's speed revert overwriting a newer SPD or RNS when the fix is passed
 - [ ] YAAT-1397 Make AircraftCategorization.Categorize fail loudly on unloaded aircraft tables instead of returning Jet
-- [/] YAAT-1448 Keep a speed assigned during a maneuver when ManeuverSpeedController restores a null prior target · release vNext
 - [ ] YAAT-1454 Restore a dropped crossing restriction's speed revert (or SMAX) when DCTF replaces the route · release vNext
 - [ ] YAAT-1577 End a crossed published speed ceiling when the aircraft is vectored or sent direct off the procedure
 - [ ] YAAT-1586 Stop a crossing fix's revert restoring a speed RNS already ended
