@@ -34,7 +34,7 @@ internal static class FlightCommandHandler
     {
         string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
@@ -45,7 +45,7 @@ internal static class FlightCommandHandler
     {
         string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
@@ -56,7 +56,7 @@ internal static class FlightCommandHandler
     {
         string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
@@ -67,7 +67,7 @@ internal static class FlightCommandHandler
     {
         string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading - cmd.Degrees;
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading - cmd.Degrees;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
@@ -79,7 +79,7 @@ internal static class FlightCommandHandler
     {
         string prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading + cmd.Degrees;
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading + cmd.Degrees;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
@@ -92,7 +92,7 @@ internal static class FlightCommandHandler
         string prev = PreviousLateralGuidance(aircraft);
         int hdg = aircraft.MagneticHeading.ToDisplayInt();
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
@@ -102,7 +102,7 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplyForceHeading(ForceHeadingCommand cmd, AircraftState aircraft)
     {
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.TrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.TrueTrack = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
@@ -1141,7 +1141,7 @@ internal static class FlightCommandHandler
         }
 
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.AssignedMagneticHeading = null;
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
@@ -1183,7 +1183,7 @@ internal static class FlightCommandHandler
         }
 
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.AssignedMagneticHeading = null;
         aircraft.Targets.PreferredTurnDirection = direction;
         var resolved = fixes.ToList();
@@ -1212,7 +1212,7 @@ internal static class FlightCommandHandler
         }
 
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.AssignedMagneticHeading = null;
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
@@ -1255,7 +1255,16 @@ internal static class FlightCommandHandler
         // crossing is flown first and the Mach comes back past it, as CFIX's does (PlaceMachRevert).
         NavigationTarget? pendingMachFix = aircraft.Targets.NavigationRoute.Find(fix => fix.RevertMach is not null);
         ClearActiveProcedure(aircraft);
-        aircraft.Targets.NavigationRoute.Clear();
+        if (cmd.SpeedConstraints is not { Count: > 0 })
+        {
+            // With no crossing speed here to carry it, the pending revert applies now as other route changes apply it.
+            NavigationCommandHandler.ClearRouteApplyingSpeedReverts(aircraft);
+        }
+        else
+        {
+            aircraft.Targets.NavigationRoute.Clear();
+        }
+
         aircraft.Targets.AssignedMagneticHeading = null;
 
         // Clear any forced turn direction left over from a preceding relative turn so a
@@ -1686,9 +1695,11 @@ internal static class FlightCommandHandler
             return false;
         }
 
-        // Truncate: remove fixes before the matched one
+        // Truncate: remove fixes before the matched one, taking the speed reverts they held first.
+        List<NavigationTarget> skippedReverts = [];
         if (matchIndex > 0)
         {
+            skippedReverts = NavigationCommandHandler.TakePendingSpeedReverts(route.GetRange(0, matchIndex));
             route.RemoveRange(0, matchIndex);
         }
 
@@ -1715,7 +1726,27 @@ internal static class FlightCommandHandler
             }
         }
 
+        ApplySkippedSpeedReverts(aircraft, skippedReverts);
         return true;
+    }
+
+    /// <summary>
+    /// Applies the speed reverts a direct-to onto the active procedure took from the fixes it skipped, with the procedure
+    /// still active, so an RPS resumes its upcoming published speeds (7110.65 4-5-7.h NOTE 1). The last crossed published
+    /// speed is not held as the ceiling while they apply: it holds only until ATC assigns a direct route (7110.65 5-7-1.e
+    /// NOTE), so it is hidden from the resume and put back after.
+    /// </summary>
+    private static void ApplySkippedSpeedReverts(AircraftState aircraft, List<NavigationTarget> skippedReverts)
+    {
+        if (skippedReverts.Count == 0)
+        {
+            return;
+        }
+
+        double? lastCrossedKts = aircraft.Procedure.LastCrossedPublishedSpeedKts;
+        aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
+        NavigationCommandHandler.ApplyTakenSpeedReverts(aircraft, skippedReverts);
+        aircraft.Procedure.LastCrossedPublishedSpeedKts = lastCrossedKts;
     }
 
     private static void ClearActiveProcedure(AircraftState aircraft)

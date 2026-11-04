@@ -39,7 +39,7 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchJrado(JoinRadialOutboundCommand cmd, AircraftState aircraft)
     {
         // Block 0 (immediate): fly present heading
-        aircraft.Targets.NavigationRoute.Clear();
+        ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
@@ -73,7 +73,7 @@ internal static class NavigationCommandHandler
             ApplyAction = (ac, _) =>
             {
                 var magneticHdg = new MagneticHeading(cmd.Radial);
-                ac.Targets.NavigationRoute.Clear();
+                ClearRouteApplyingSpeedReverts(ac);
                 ac.Targets.TargetTrueHeading = trueRadial;
                 ac.Targets.AssignedMagneticHeading = magneticHdg;
                 ac.Targets.PreferredTurnDirection = null;
@@ -91,7 +91,7 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchJradi(JoinRadialInboundCommand cmd, AircraftState aircraft)
     {
         // Block 0 (immediate): fly present heading
-        aircraft.Targets.NavigationRoute.Clear();
+        ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
@@ -122,8 +122,10 @@ internal static class NavigationCommandHandler
             ApplyAction = (ac, _) =>
             {
                 ac.Targets.AssignedMagneticHeading = null;
+                List<NavigationTarget> holders = TakePendingSpeedReverts(ac.Targets.NavigationRoute);
                 ac.Targets.NavigationRoute.Clear();
                 ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = cmd.FixName, Position = new LatLon(cmd.FixLat, cmd.FixLon) });
+                ApplyTakenSpeedReverts(ac, holders);
                 return new CommandResult(true);
             },
             Description = $"at {FixDisplay(cmd.FixName)} R{cmd.Radial:D3}: DCT {FixDisplay(cmd.FixName)}",
@@ -159,6 +161,7 @@ internal static class NavigationCommandHandler
                 RevertAssignedSpeed = existing?.RevertAssignedSpeed,
                 RevertSpeedFloor = existing?.RevertSpeedFloor,
                 RevertSpeedCeiling = existing?.RevertSpeedCeiling,
+                RevertSpeedMax = existing?.RevertSpeedMax ?? false,
                 RevertResume = existing?.RevertResume,
                 RevertMach = existing?.RevertMach,
                 RevertMachExplicit = existing?.RevertMachExplicit,
@@ -642,6 +645,7 @@ internal static class NavigationCommandHandler
         List<NavigationTarget>? cifpResult = TryResolveStarFromCifp(cmd, aircraft, out ProcedureSource? starSource);
         if (cifpResult is not null)
         {
+            List<NavigationTarget> holders = TakePendingSpeedReverts(aircraft.Targets.NavigationRoute);
             aircraft.Targets.NavigationRoute.Clear();
             aircraft.Targets.AssignedMagneticHeading = null;
             foreach (NavigationTarget target in cifpResult)
@@ -653,6 +657,8 @@ internal static class NavigationCommandHandler
             aircraft.Procedure.StarViaMode = false; // STAR via mode OFF by default
             aircraft.Procedure.StarViaTransmissionId = null;
             aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
+            // An RPS given with a crossing on the old route resumes this STAR's published speeds, not the old one's.
+            ApplyTakenSpeedReverts(aircraft, holders);
 
             string cifpFixList = string.Join(" ", cifpResult.Select(t => FixDisplay(t.Name)));
             return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {cifpFixList}") with
@@ -714,6 +720,7 @@ internal static class NavigationCommandHandler
             }
         }
 
+        List<NavigationTarget> pendingReverts = TakePendingSpeedReverts(aircraft.Targets.NavigationRoute);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.AssignedMagneticHeading = null;
         foreach (string fixName in deduped)
@@ -735,6 +742,7 @@ internal static class NavigationCommandHandler
         aircraft.Procedure.StarViaMode = false;
         aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
+        ApplyTakenSpeedReverts(aircraft, pendingReverts);
 
         string fixListStr = string.Join(" ", deduped.Select(FixDisplay));
         return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {fixListStr}");
@@ -1040,7 +1048,7 @@ internal static class NavigationCommandHandler
         }
 
         // Block 0 (immediate): fly present heading (to allow intercept)
-        aircraft.Targets.NavigationRoute.Clear();
+        ClearRouteApplyingSpeedReverts(aircraft);
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
@@ -1084,11 +1092,14 @@ internal static class NavigationCommandHandler
             ApplyAction = (ac, _) =>
             {
                 ac.Targets.AssignedMagneticHeading = null;
+                List<NavigationTarget> holders = TakePendingSpeedReverts(ac.Targets.NavigationRoute);
                 ac.Targets.NavigationRoute.Clear();
                 foreach (NavigationTarget target in plan.NavTargets)
                 {
                     ac.Targets.NavigationRoute.Add(target);
                 }
+
+                ApplyTakenSpeedReverts(ac, holders);
                 return new CommandResult(true);
             },
             Description = $"intercept {cmd.AirwayId}: DCT {string.Join(" ", plan.RemainingFixes.Select(FixDisplay))}",
@@ -1400,6 +1411,7 @@ internal static class NavigationCommandHandler
 
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;
+        List<NavigationTarget> pendingReverts = TakePendingSpeedReverts(aircraft.Targets.NavigationRoute);
         aircraft.Targets.NavigationRoute.Clear();
 
         // Clear existing phases
@@ -1409,6 +1421,10 @@ internal static class NavigationCommandHandler
             PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
             aircraft.Phases.Clear(ctx);
         }
+
+        // A join flown on own navigation, as JRADI is: a crossing pending on the dropped route ends as if its fix were
+        // crossed, so the speed it replaced comes back.
+        ApplyTakenSpeedReverts(aircraft, pendingReverts);
 
         ApproachCommandHandler.ClearPendingApproach(aircraft);
 
@@ -1854,14 +1870,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     private static bool ResetsSpeed(NavigationTarget fix, int transmissionId, Lazy<Dictionary<string, NavigationTarget>> published) =>
         !IsSpeedStampedBy(fix, transmissionId)
-        && (
-            (fix.SpeedTransmissionId is not null)
-            || HasPlainRevert(fix)
-            || (fix.RevertMach is not null)
-            || fix.RevertSpeedMax
-            || (fix.RevertResume is not null)
-            || published.Value.ContainsKey(fix.Name)
-        );
+        && ((fix.SpeedTransmissionId is not null) || HasSpeedRevert(fix) || published.Value.ContainsKey(fix.Name));
 
     /// <summary>
     /// A via clearance cancels any speed assigned before it, a superseded crossing speed included, so the procedure's
@@ -1894,6 +1903,43 @@ internal static class NavigationCommandHandler
         {
             ClearSpeedReverts(fix);
         }
+    }
+
+    /// <summary>Whether <paramref name="fix"/> holds any speed revert: plain (with its bounds), Mach, SMAX's re-arm or a resume.</summary>
+    internal static bool HasSpeedRevert(NavigationTarget fix) =>
+        HasPlainRevert(fix) || (fix.RevertMach is not null) || fix.RevertSpeedMax || (fix.RevertResume is not null);
+
+    /// <summary>
+    /// The fixes among <paramref name="fixes"/> that hold a speed revert, in route order. A route change takes them before
+    /// it clears or truncates the route and hands them to <see cref="ApplyTakenSpeedReverts"/> once its new state is in
+    /// place.
+    /// </summary>
+    internal static List<NavigationTarget> TakePendingSpeedReverts(IReadOnlyList<NavigationTarget> fixes) => [.. fixes.Where(HasSpeedRevert)];
+
+    /// <summary>
+    /// Applies the speed reverts a route change took from the fixes it dropped (<see cref="TakePendingSpeedReverts"/>), as
+    /// if each fix were crossed (<see cref="FlightPhysics.RestoreSpeedPastFix"/>), so the speed a crossing replaced comes
+    /// back rather than the crossing speed holding for good (AIM 4-4-10.g; 7110.65 §5-7-1.b-d). Called once the command's
+    /// new route and procedure are in place, so an RNS or RPS resumes against them. In a hold or inside the final gate the
+    /// reverts go instead. An SMAX re-arm is armed now: no crossing on a dropped fix can carry it further.
+    /// </summary>
+    internal static void ApplyTakenSpeedReverts(AircraftState aircraft, List<NavigationTarget> holders)
+    {
+        foreach (NavigationTarget holder in holders)
+        {
+            FlightPhysics.RestoreSpeedPastFix(aircraft, holder, []);
+        }
+    }
+
+    /// <summary>
+    /// Clears the route as a route change does, applying the speed reverts its fixes held once it is empty
+    /// (<see cref="ApplyTakenSpeedReverts"/>).
+    /// </summary>
+    internal static void ClearRouteApplyingSpeedReverts(AircraftState aircraft)
+    {
+        List<NavigationTarget> holders = TakePendingSpeedReverts(aircraft.Targets.NavigationRoute);
+        aircraft.Targets.NavigationRoute.Clear();
+        ApplyTakenSpeedReverts(aircraft, holders);
     }
 
     /// <summary>Clears every speed revert on <paramref name="fix"/>: plain (with its bounds), Mach, SMAX's re-arm and resume.</summary>
@@ -2223,12 +2269,7 @@ internal static class NavigationCommandHandler
         (transmissionId != 0) && (fix.SpeedTransmissionId == transmissionId);
 
     private static bool HasPendingRevert(NavigationTarget fix) =>
-        (fix.RevertAltitude is not null)
-        || (fix.RevertAssignedAltitude is not null)
-        || HasPlainRevert(fix)
-        || (fix.RevertMach is not null)
-        || fix.RevertSpeedMax
-        || (fix.RevertResume is not null);
+        (fix.RevertAltitude is not null) || (fix.RevertAssignedAltitude is not null) || HasSpeedRevert(fix);
 
     /// <summary>
     /// The speed the procedure of the via clearance in force publishes at <paramref name="fixName"/>, whatever a controller

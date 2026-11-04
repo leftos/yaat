@@ -343,6 +343,7 @@ public static class MilitaryRouteCommandHandler
     private static void LoadRouteOfFlight(AircraftState aircraft, string route)
     {
         NavigationDatabase navDb = NavigationDatabase.Instance;
+        List<NavigationTarget> pendingReverts = NavigationCommandHandler.TakePendingSpeedReverts(aircraft.Targets.NavigationRoute);
         aircraft.Targets.NavigationRoute.Clear();
         foreach (string name in navDb.ExpandRouteForNavigation(route, aircraft.FlightPlan.Departure))
         {
@@ -354,6 +355,8 @@ public static class MilitaryRouteCommandHandler
                 );
             }
         }
+
+        NavigationCommandHandler.ApplyTakenSpeedReverts(aircraft, pendingReverts);
     }
 
     /// <summary>

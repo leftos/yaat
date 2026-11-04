@@ -329,11 +329,13 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Restores what a fix's crossing speed replaced, once the aircraft sequences past it: SMAX's re-arm past the last
-    /// crossing the controller set (<see cref="Commands.NavigationCommandHandler.PlaceSpeedMaxRevert"/>), else the Mach
-    /// hold, else the plain speed and its assignment.
+    /// Restores what a fix's crossing speed replaced, once the aircraft sequences past the fix or a route change drops it
+    /// (<see cref="Commands.NavigationCommandHandler.ApplyTakenSpeedReverts"/>): SMAX's re-arm past the last crossing the
+    /// controller set (<see cref="Commands.NavigationCommandHandler.PlaceSpeedMaxRevert"/>), else the Mach hold, else the
+    /// RNS, RPS or DSR given with the crossing (<see cref="Commands.FlightCommandHandler.ApplySpeedResume"/>), else the
+    /// plain speed and its assignment. In a hold or inside the final gate nothing is restored and every revert goes.
     /// </summary>
-    private static void RestoreSpeedPastFix(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
+    internal static void RestoreSpeedPastFix(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
     {
         // A hold flies the holding phase's speed and an arrival inside 5 nm final its approach speed (7110.65 §5-7-1.b.4):
         // no revert is applied there, and every revert on the route goes rather than waiting for a fix past the gate.
