@@ -25,6 +25,7 @@
 - [ ] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer
 - [ ] YAAT-1679 Read back 'at {taxiway}' when CTO RWY departs from a runway crossing hold
 - [ ] YAAT-1681 Runway-change warning says 'taxi clearance' when a CTO changed the runway
+- [ ] YAAT-1790 MLT 28L at a 28R hold short re-routes the departure; CTO, MLT 28L reads back 28R but departs 28L · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -56,9 +57,9 @@
 ## Say again
 
 - [ ] YAAT-21 Say again: student asks a pilot to repeat its last transmission · release vNext
-  - [/] YAAT-1753 Say again 3: unaddressed AGAIN CS, typed entry with nothing selected, and docs · release vNext
   - [ ] YAAT-1754 Say again 4: STT phrases for say again, settled against the corpus · release vNext
   - [ ] YAAT-1762 Merge feat/say-again to main (#1363)
+- [ ] YAAT-1789 Replay a recording with an unaddressed say again (AGAINU) and assert the same pilot repeats
 
 ## Taxi append
 
@@ -816,7 +817,6 @@
 
 ### No milestone
 - [ ] YAAT-1517 Drop a queued teardrop behind an active field crossing once an altitude is assigned
-- [ ] YAAT-1786 LA {alt}: altitude-restricted low approach at or above {alt} (7110.65 3-10-10) · release vNext
 
 ## Navigation data and route geometry
 
