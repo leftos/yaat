@@ -745,6 +745,65 @@ public class DescendViaSupersedesEarlierAltitudeTests
         Assert.True(aircraft.Altitude <= 15000, $"the leftover climb via held the aircraft at {aircraft.Altitude:F0} ft");
     }
 
+    /// <summary>
+    /// A DVIA ends a SID via still in force too: with <see cref="AircraftProcedure.SidViaMode"/> left on, descent planning
+    /// stays off (FlightPhysics.UpdateDescentPlanning) and the aircraft never follows the STAR down (YAAT-980).
+    /// </summary>
+    [Fact]
+    public void DescendVia_InSidViaMode_ClearsSidViaModeAndPlansTheDescent()
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        aircraft.Procedure.SidViaMode = true;
+        double start = aircraft.Altitude;
+
+        SendOk(harness, "DVIA");
+
+        Assert.False(aircraft.Procedure.SidViaMode, "the DVIA left the SID via mode on, which switches descent planning off");
+        NavigationTarget next = aircraft.Targets.NavigationRoute.First(t => t.AltitudeRestriction is not null);
+        CifpAltitudeRestriction published = Assert.IsType<CifpAltitudeRestriction>(next.AltitudeRestriction);
+        Assert.True(
+            published.Type is CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.Between,
+            $"setup: {next.Name} publishes {published.Type} {published.Altitude1Ft}, not a ceiling to descend to"
+        );
+        int bound =
+            published.Type == CifpAltitudeRestrictionType.Between
+                ? Math.Min(published.Altitude1Ft, published.Altitude2Ft ?? published.Altitude1Ft)
+                : published.Altitude1Ft;
+
+        double? target = null;
+        for (int t = 0; t <= 30; t++)
+        {
+            if (t > 0)
+            {
+                harness.Engine.TickOneSecond();
+            }
+
+            target = aircraft.Targets.TargetAltitude;
+            if (target is { } v && (v <= bound))
+            {
+                break;
+            }
+        }
+
+        _output.WriteLine(
+            $"after DVIA {next.Name} publishes {published.Type} {bound}; target {target}, altitude {aircraft.Altitude:F0} from {start:F0}"
+        );
+        Assert.NotNull(target);
+        Assert.True(target <= bound, $"the target altitude is {target}, above the {bound} ft published at {next.Name}");
+        for (int t = 0; (t < 120) && (aircraft.Altitude >= start); t++)
+        {
+            harness.Engine.TickOneSecond();
+        }
+
+        Assert.True(aircraft.Altitude < start, $"the aircraft is still at {aircraft.Altitude:F0} ft, level with the {start:F0} ft it held");
+    }
+
     [Fact]
     public void DescendViaExceptMaintain_DescentStopsAtTheFloor()
     {

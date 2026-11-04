@@ -3556,8 +3556,8 @@ public static partial class PilotResponder
 
     /// <summary>
     /// Builds the vertical-state clause for an IFR airborne check-in. AIM 5-3-1.b.2.a gives the
-    /// "level" / "leaving (present) climbing|descending (assigned)" forms; descend-via / climb-via
-    /// (AIM 5-4-1.b.2 / 5-2-9.b.9) name the STAR/SID. Returns the terminal + TTS clause and whether
+    /// "level" / "leaving (altitude), climbing to|descending to (altitude)" forms; descend-via / climb-via
+    /// (AIM 5-4-1.a.2.b / 5-2-9.h.9) name the STAR/SID. Returns the terminal + TTS clause and whether
     /// the aircraft is departing (climbing / climb-via) so the caller can drop the arrival ATIS.
     /// Empty clause when the altitude is sub-reportable (rounds below 100 ft).
     /// </summary>
@@ -3574,18 +3574,27 @@ public static partial class PilotResponder
         {
             return BuildViaClause(aircraft, altTerm, altTts, aircraft.Procedure.ActiveStarId, "descending via", "arrival", isDeparture: false);
         }
-        if (aircraft.Procedure.SidViaMode && !string.IsNullOrEmpty(aircraft.Procedure.ActiveSidId))
+        // The via form speaks only while a climb via is in force (AIM 5-2-9.h.9): a bare "maintain" on a SID is a plain
+        // climb to the altitude held.
+        bool sidDeparture = aircraft.Procedure.SidViaMode && !string.IsNullOrEmpty(aircraft.Procedure.ActiveSidId);
+        if (sidDeparture && (aircraft.Procedure.ClimbViaTargetFt is not null))
         {
-            return BuildViaClause(aircraft, altTerm, altTts, aircraft.Procedure.ActiveSidId, "climbing via", "departure", isDeparture: true);
+            return BuildViaClause(aircraft, altTerm, altTts, aircraft.Procedure.ActiveSidId!, "climbing via", "departure", isDeparture: true);
         }
 
-        double? trend = aircraft.Targets.AssignedAltitude ?? aircraft.Targets.TargetAltitude;
+        // A SID departure under a "maintain" is held at its TDLS initial altitude, which is no assigned altitude, and that
+        // is the altitude the aircraft reports: the step-climb planner's target may be a lower restricted leg.
+        double? clearedAltitude = aircraft.Targets.AssignedAltitude ?? (sidDeparture ? aircraft.Procedure.SidInitialAltitudeFt : null);
+        double? trend = clearedAltitude ?? aircraft.Targets.TargetAltitude;
         if (trend is { } target && Math.Abs(target - altitudeFt) > VerticalTrendThresholdFt)
         {
             bool climbing = target > altitudeFt;
             string verb = climbing ? "climbing" : "descending";
-            (string? toTerm, string? toTts) = AltitudeClause(aircraft.Targets.AssignedAltitude);
-            return ($"leaving {altTerm} {verb}{toTerm}", $"leaving {altTts} {verb}{toTts}", climbing);
+            (string toTerm, string toTts) = AltitudeClause(clearedAltitude);
+            // AIM 5-3-1.b.2.a: "leaving (altitude), climbing to|descending to (altitude)"; with none, the verb stands bare.
+            string towardsTerm = toTerm.Length == 0 ? "" : $" to{toTerm}";
+            string towardsTts = toTts.Length == 0 ? "" : $" to{toTts}";
+            return ($"leaving {altTerm}, {verb}{towardsTerm}", $"leaving {altTts}, {verb}{towardsTts}", climbing);
         }
 
         // Level. FL form already reads as a maintained level, so the "level" verb is dropped above FL180.

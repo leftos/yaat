@@ -237,6 +237,8 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 2000);
         ac.Procedure.SidViaMode = true;
         ac.Procedure.ActiveSidId = "LAURA2";
+        // The via form speaks only while a climb via is in force (AIM 5-2-9.h.9): LAURA2's charted top.
+        ac.Procedure.ClimbViaTargetFt = 14000;
         ac.Targets.TargetAltitude = 14000;
         SimScenarioState sc = MakeScenario("APP");
 
@@ -255,7 +257,7 @@ public class M102AirborneCheckInTests
 
         PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("approach, american one twenty three, leaving eight thousand climbing one four thousand.", line!.Tts);
+        Assert.Equal("approach, american one twenty three, leaving eight thousand, climbing to one four thousand.", line!.Tts);
     }
 
     [Fact]
@@ -267,7 +269,10 @@ public class M102AirborneCheckInTests
 
         PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("approach, american one twenty three, leaving one five thousand descending nine thousand, with information Alpha.", line!.Tts);
+        Assert.Equal(
+            "approach, american one twenty three, leaving one five thousand, descending to nine thousand, with information Alpha.",
+            line!.Tts
+        );
     }
 
     [Fact]
@@ -279,7 +284,7 @@ public class M102AirborneCheckInTests
 
         PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("approach, american one twenty three, leaving one five thousand descending, with information Alpha.", line!.Tts);
+        Assert.Equal("approach, american one twenty three, leaving one five thousand, descending, with information Alpha.", line!.Tts);
     }
 
     [Fact]

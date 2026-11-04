@@ -41,6 +41,8 @@
 - Restating a crossing speed on the same fix keeps the speed to resume past it.
 - An aircraft on an extended upwind told to follow traffic already on crosswind holds its upwind until behind it, instead of cutting inside.
 - A runway no traffic pattern could clear, such as 33 beside Oakland 28R right traffic, no longer shrinks the pattern or draws the pilot's crossing warning.
+- An IFR departure cleared to a maintain checks in "leaving 2,000, climbing to 5,000" instead of "climbing via" its SID; climb and descent check-ins now say "climbing to" or "descending to".
+- `DVIA` given while an aircraft is still on its departure procedure now starts the descent along the arrival.
 ### Added
 
 - `LA 600` clears an altitude-restricted low approach ("at or above 600"). The aircraft never goes below it, and the clearance is refused under 500 ft above the airport.

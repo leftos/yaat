@@ -427,8 +427,8 @@ public class ClimbViaTopAltitudeTests
     }
 
     /// <summary>
-    /// A SID departure cleared "CTO 050" with no climb via checks in naming its assigned altitude, "leaving (altitude) for
-    /// 5,000, climbing via the COAST9 departure" (AIM 5-3-1.b.2.a).
+    /// A SID departure cleared "CTO 050" with no climb via checks in naming its assigned altitude, "leaving (altitude)
+    /// climbing to 5,000", never the SID: the via form speaks only while a climb via is in force (AIM 5-2-9.h.9, 5-3-1.b.2.a).
     /// </summary>
     [Fact]
     public void SidDeparture_CtoWithAltitude_NoClimbVia_CheckInNamesTheAssignedAltitude()
@@ -442,9 +442,40 @@ public class ClimbViaTopAltitudeTests
         PilotSpeechText line = Assert.IsType<PilotSpeechText>(PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition));
         _output.WriteLine(line.Terminal);
 
-        (string procTerm, string procTts) = PhraseologyVerbalizer.ProcedureName("COAST9");
-        Assert.Contains($" for {PhraseologyVerbalizer.CompactAltitude(5000)}, climbing via the {procTerm} departure", line.Terminal);
-        Assert.Contains($" for {AtcNumberParser.AltitudeToWords(5000)}, climbing via the {procTts} departure", line.Tts);
+        Assert.Contains($"climbing to {PhraseologyVerbalizer.CompactAltitude(5000)}", line.Terminal);
+        Assert.DoesNotContain("climbing via", line.Terminal);
+        Assert.Contains($"climbing to {AtcNumberParser.AltitudeToWords(5000)}", line.Tts);
+        Assert.DoesNotContain("climbing via", line.Tts);
+    }
+
+    /// <summary>
+    /// A bare "CTO" on a SID whose TDLS initial altitude is the ARTCC's default (KSJC's SJC3: 5,000) checks in climbing to
+    /// that altitude, never "level": the trend follows the altitude the aircraft is held to, not the step-climb planner's
+    /// target on a low restricted leg (staged here as 100 ft above the present altitude), and a "level" report would keep
+    /// the arrival ATIS (AIM 5-2-9.h.9, 5-3-1.b.2.a).
+    /// </summary>
+    [Fact]
+    public void SidDeparture_TdlsDefaultInitialAltMaintain_CheckInNamesThatAltitude()
+    {
+        Departure departure = StartSjc3Departure(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        FlyFor(departure, 10);
+        Assert.True(ac.Procedure.SidViaMode, "setup: a SID departure flies its SID in via mode");
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(5000, ac.Procedure.SidInitialAltitudeFt);
+        Assert.Null(ac.Targets.AssignedAltitude);
+        // Staged: the step-climb planner's target on a leg restricted below the 5,000 the aircraft is held to, within the
+        // 200 ft the check-in treats as level.
+        ac.Targets.TargetAltitude = ac.Altitude + 100;
+
+        PilotSpeechText line = Assert.IsType<PilotSpeechText>(PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition));
+        _output.WriteLine($"{ac.Altitude:F0} ft, target {ac.Targets.TargetAltitude:F0}: {line.Terminal}");
+
+        Assert.Contains($"climbing to {PhraseologyVerbalizer.CompactAltitude(5000)}", line.Terminal);
+        Assert.DoesNotContain("level", line.Terminal);
+        Assert.DoesNotContain("climbing via", line.Terminal);
+        Assert.Contains($"climbing to {AtcNumberParser.AltitudeToWords(5000)}", line.Tts);
+        Assert.DoesNotContain("climbing via", line.Tts);
     }
 
     [Theory]
@@ -883,6 +914,37 @@ public class ClimbViaTopAltitudeTests
         Assert.True(result.Success, $"{command}: {result.Message}");
     }
 
+    /// <summary>A KSJC runway 30 as the navdata publishes it, with the 30 end as end 1.</summary>
+    private static RunwayInfo Ksjc30()
+    {
+        IReadOnlyList<RunwayInfo> runways = NavigationDatabase.Instance.GetRunways(NavigationDatabase.NormalizeAirport("KSJC"));
+        if (runways.Count == 0)
+        {
+            runways = NavigationDatabase.Instance.GetRunways("KSJC");
+        }
+
+        RunwayInfo? phys = runways.FirstOrDefault(r =>
+            r.Id.End1.StartsWith("30", StringComparison.Ordinal) || r.Id.End2.StartsWith("30", StringComparison.Ordinal)
+        );
+        Assert.NotNull(phys);
+        bool thirtyIsEnd2 = !phys.Id.End1.StartsWith("30", StringComparison.Ordinal);
+        return new RunwayInfo
+        {
+            AirportId = "KSJC",
+            Id = phys.Id,
+            Designator = thirtyIsEnd2 ? phys.Id.End2 : phys.Id.End1,
+            Lat1 = thirtyIsEnd2 ? phys.Lat2 : phys.Lat1,
+            Lon1 = thirtyIsEnd2 ? phys.Lon2 : phys.Lon1,
+            Elevation1Ft = thirtyIsEnd2 ? phys.Elevation2Ft : phys.Elevation1Ft,
+            TrueHeading1 = thirtyIsEnd2 ? phys.TrueHeading2 : phys.TrueHeading1,
+            Lat2 = thirtyIsEnd2 ? phys.Lat1 : phys.Lat2,
+            Lon2 = thirtyIsEnd2 ? phys.Lon1 : phys.Lon2,
+            Elevation2Ft = thirtyIsEnd2 ? phys.Elevation1Ft : phys.Elevation2Ft,
+            TrueHeading2 = thirtyIsEnd2 ? phys.TrueHeading1 : phys.TrueHeading2,
+            WidthFt = phys.WidthFt,
+        };
+    }
+
     private static RunwayInfo Koak30()
     {
         RunwayInfo phys = Assert.IsType<RunwayInfo>(
@@ -961,6 +1023,64 @@ public class ClimbViaTopAltitudeTests
             Assert.True(cvia.Success, cvia.Message);
             Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
         }
+
+        CommandResult cto = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holding,
+            ClearanceType.ClearedForTakeoff,
+            new DefaultDeparture(),
+            assignedAltitude: ctoAltitude,
+            requestedRunway: null,
+            TestDispatch.Context(Random.Shared),
+            TestDispatch.EmptyTaxi,
+            NullLogger.Instance
+        );
+        Assert.True(cto.Success, cto.Message);
+
+        ac.IsOnGround = false;
+        ac.Position = GeoMath.ProjectPoint(new LatLon(rwy.EndLatitude, rwy.EndLongitude), rwy.TrueHeading, 0.2);
+        ac.TrueHeading = rwy.TrueHeading;
+        ac.Altitude = rwy.ElevationFt + 450;
+        ac.IndicatedAirspeed = 170;
+
+        PhaseContext ctx = NewContext(ac, rwy);
+        ac.Phases.SkipTo<InitialClimbPhase>(ctx);
+        return new Departure(ac, ctx, rwy);
+    }
+
+    /// <summary>
+    /// Clears an SJC3 departure out of KSJC for takeoff with <paramref name="ctoAltitude"/> or none and puts it airborne just
+    /// past the DER in its initial climb, its TDLS initial altitude (5,000, the ARTCC's default for SJC3) resolved from
+    /// <paramref name="artccConfig"/>.
+    /// </summary>
+    private static Departure StartSjc3Departure(ArtccConfigRoot artccConfig, int? ctoAltitude)
+    {
+        RunwayInfo rwy = Ksjc30();
+
+        var ac = new AircraftState
+        {
+            Callsign = "SWA2210",
+            AircraftType = "B738",
+            Position = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
+            TrueHeading = rwy.TrueHeading,
+            Altitude = rwy.ElevationFt,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KSJC",
+                Destination = "KLAS",
+                Route = "SJC3 AVE",
+                Altitude = PlannedAltitude.Ifr(35000),
+                FlightRules = "IFR",
+            },
+            Phases = new PhaseList { AssignedRunway = rwy },
+        };
+        DepartureClearanceHandler.StoreSidInitialAltitude(ac, artccConfig);
+        Assert.Equal(5000, ac.Procedure.SidInitialAltitudeFt);
+
+        var holding = new HoldingInPositionPhase();
+        ac.Phases.Add(holding);
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
 
         CommandResult cto = DepartureClearanceHandler.TryDepartureClearance(
             ac,

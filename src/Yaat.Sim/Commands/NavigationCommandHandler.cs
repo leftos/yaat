@@ -1670,6 +1670,8 @@ internal static class NavigationCommandHandler
         aircraft.Procedure.ClimbViaTargetFt = null;
         aircraft.Procedure.ClimbViaTransmissionId = null;
         aircraft.Procedure.SidViaCeiling = null;
+        // SidViaMode switches descent planning off (FlightPhysics.UpdateDescentPlanning): a descend via leaves it.
+        aircraft.Procedure.SidViaMode = false;
         // The via clearance supersedes any altitude assigned before it (converse of 7110.65 4-5-7.h.11 NOTE 1).
         aircraft.Targets.AssignedAltitude = null;
         aircraft.Procedure.SpeedRestrictionsDeleted = false;

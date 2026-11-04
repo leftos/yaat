@@ -54,10 +54,12 @@ Courtesy in pilot-initiated calls (all **J**; no FAA text names these words):
 | Case | Canonical (spoken) |
 |---|---|
 | Level, approach | `{facility}, {callsign}, level one zero thousand, with information {atis}.` |
-| Climbing (departure, no ATIS) | `{facility}, {callsign}, leaving four thousand climbing one one thousand.` |
-| Descending | `{facility}, {callsign}, leaving one two thousand descending eight thousand, with information {atis}.` |
+| Climbing (departure, no ATIS) | `{facility}, {callsign}, leaving four thousand, climbing to one one thousand.` |
+| Descending | `{facility}, {callsign}, leaving one two thousand, descending to eight thousand, with information {atis}.` |
 | Center, flight level | `{facility}, {callsign}, flight level two four zero.` |
-| Climb via | `{facility}, {callsign}, leaving two thousand for one zero thousand, climbing via the {sid} departure.` |
+| Climb via, ATC-assigned top (`CVIA nnn`, TDLS EXC MAINT) | `{facility}, {callsign}, leaving two thousand for one zero thousand, climbing via the {sid} departure.` |
+| Climb via, charted top | `{facility}, {callsign}, leaving two thousand, climbing via the {sid} departure.` |
+| SID departure under a maintain (`CTO {alt}`, `CM`, TDLS default initial altitude) | `{facility}, {callsign}, leaving two thousand, climbing to five thousand.` (no SID named: no climb via is in force) |
 | Descend via | `{facility}, {callsign}, leaving flight level two four zero, descending via the {star} arrival, with information {atis}.` |
 | Tower (rare) | `{facility}, {callsign}, runway two eight right, with information {atis}.` |
 
@@ -68,25 +70,25 @@ Courtesy in pilot-initiated calls (all **J**; no FAA text names these words):
 | Quiet | `{facility}, {callsign}, with you level one zero thousand, with information {atis}.` | OK (J), courtesy table |
 | Normal | canonical | OK |
 | Normal | `{facility}, {callsign}, level one zero thousand, information {atis}.` | OK (4-2-3.a.3 "Information Charlie received") |
-| Normal | `{facility}, {callsign}, passing four thousand climbing one one thousand.` | OK (J): "passing" for AIM's "leaving", both altitudes and the verb kept |
-| Quiet, Normal, Busy | `{facility}, {callsign}, leaving four thousand climbing to one one thousand.` | OK (owner ruling 3; AIM 5-3-1.b.2(a) example 2, verbatim) |
-| Quiet, Normal, Busy | `{facility}, {callsign}, leaving one two thousand descending to eight thousand, with information {atis}.` | OK (owner ruling 3) |
+| Normal | `{facility}, {callsign}, passing four thousand, climbing to one one thousand.` | OK (J): "passing" for AIM's "leaving", both altitudes and the verb kept |
+| Quiet, Normal, Busy | `{facility}, {callsign}, leaving four thousand, climbing to one one thousand.` | OK (owner ruling 3; AIM 5-3-1.b.2(a) example 2, verbatim) |
+| Quiet, Normal, Busy | `{facility}, {callsign}, leaving one two thousand, descending to eight thousand, with information {atis}.` | OK (owner ruling 3) |
 | Busy | `{facility}, {callsign}, level ten thousand, with {atis}.` | OK (owner ruling 2, group form) |
-| Busy | `{facility}, {callsign}, leaving four thousand climbing to eleven thousand.` | OK (owner rulings 2 and 3) |
-| Busy | `{facility}, {callsign}, leaving twelve thousand descending eight thousand, with {atis}.` | OK (owner ruling 2) |
+| Busy | `{facility}, {callsign}, leaving four thousand, climbing to eleven thousand.` | OK (owner rulings 2 and 3) |
+| Busy | `{facility}, {callsign}, leaving twelve thousand, descending to eight thousand, with {atis}.` | OK (owner ruling 2) |
 | Busy | `{facility}, {callsign}, leaving two thousand for ten thousand, climbing via the {sid}.` | OK (owner ruling 2; "for" kept, P6) |
 | Busy | `{facility}, {callsign}, level one zero thousand, with {atis}.` | OK (owner example "with India"; 4-1-13.d) |
 | Busy | `{facility}, {callsign}, leaving two thousand for one zero thousand, climbing via the {sid}.` | OK (J): "departure" / "arrival" dropped, procedure name kept |
-| Busy | `{facility}, {callsign}, leaving one six thousand climbing to flight level two three zero.` | OK (5-3-1.b.2(a); owner ruling 3) |
-| Busy | `{facility}, {callsign}, leaving sixteen thousand climbing to flight level two three zero.` | OK (owner rulings 2 and 3; the flight level stays in digits) |
+| Busy | `{facility}, {callsign}, leaving one six thousand, climbing to flight level two three zero.` | OK (5-3-1.b.2(a); owner ruling 3) |
+| Busy | `{facility}, {callsign}, leaving sixteen thousand, climbing to flight level two three zero.` | OK (owner rulings 2 and 3; the flight level stays in digits) |
 | any | `…, one zero thousand, with {atis}.` ("level" dropped) | No: P6 |
 | any | `…, leaving four thousand for one one thousand.` (owner "9,800 for 12,000") | No: P6, "climbing" dropped; "for" belongs to the climb-via form |
-| Quiet, Normal | `…, leaving four thousand climbing eleven thousand.` / `…, level ten thousand, …` | No: P7, group form is busy only (owner ruling 2) |
+| Quiet, Normal | `…, leaving four thousand, climbing to eleven thousand.` (group form below FL180) / `…, level ten thousand, …` | No: P7, group form is busy only (owner ruling 2) |
 | any | `…, leaving two thousand for ten thousand, climbing to …` / `…, climbing via the {sid} to …` | No: P6, a climb-via check-in uses "for", never "to" (5-2-9.h.9) |
 | any | `…, nine point eight for twelve` | No: F3 |
 | any | `…, two four zero.` (FL keyword dropped) | No: F3 |
 | any | `…, flight level two forty.` | No: P7, flight levels stay in separate digits (7110.65 2-4-17.b.2) |
-| any | `…, leaving two thousand, climbing via the {sid} departure.` ("for one zero thousand" dropped) | No: P6 (5-2-9.h.9 example 2) |
+| any | `…, leaving two thousand, climbing via the {sid} departure.` ("for one zero thousand" dropped while ATC assigned a top; with a charted top this is the canonical form) | No: P6 (5-2-9.h.9 example 2) |
 | any | `…, climbing via the {sid} departure to one niner thousand.` (charted top added) | No: F13 |
 | any | `{callsign}, level one zero thousand, with {atis}.` | No: P1 |
 | any | `{facility}, {callsign}, level one zero thousand.` (ATIS dropped) | No: P9 |
