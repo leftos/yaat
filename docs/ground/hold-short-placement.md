@@ -137,7 +137,9 @@ Where no intersecting-taxiway marking is painted (the layout carries none), AIM 
   The unmakeable judgement in `TaxiingPhase`, the navigator's braking-curve constraint and `StopLiesOnSegment` all share it, so an aircraft rolling on the leg back toward a stop it passed on the way out is not judged unable to hold short of it.
 
   Runway bars share this: their half-length setback (65 ft for a B738) is longer than the 7–31 ft last segment at many OAK and SFO bars.
-- **The setback walks free-space legs too.** `VirtualNode.OffsetBefore` steps back through the route's own segments (`FindApproachNode` takes each segment's from-node, virtual or not), so a bar at the end of a free-space approach leg is set back along the leg exactly as along a graph edge.
+- **The setback walks free-space legs too.** `VirtualNode.OffsetBefore` steps back through the route's own segments (`FindApproachEdge` takes each segment's approach edge, virtual or not, and `ApproachLengthNm` and `PointBack` walk it), so a bar at the end of a free-space approach leg is set back along the leg exactly as along a graph edge.
+
+  A setback that lands on a fillet `GroundArc` is placed along the arc, not on the node-to-node chord. `HoldShortAnnotator.RoutePolyline` (`Build`, `PositionAt`, `OntoLeg`) and `FindCrossedRunwayHoldShort` measure an arc leg by its walked length too, so the wingtip floor, the walk-back limit, the aircraft-position check and the crossed-runway gap all agree with the arc-placed stop. Straight edges are unchanged.
 
   For a **taxiway** bar, a leg shorter than the setback ends the walk at the leg's virtual start, where the aircraft stands: the stop goes there, never projected on behind the aircraft (`HoldShortAnnotatorTests`, SFO B short of T).
 

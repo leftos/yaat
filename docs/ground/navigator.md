@@ -651,7 +651,7 @@ The navigator never overspeeds into a future turn. `BuildSpeedConstraints` (`Gro
 
    The skip exists because the owning phase aims a stopping target at the bar's painted stop, which sits back from the node: a later bar's stop, measured from the node, would land behind it and brake the aircraft short of the first bar. The target's own set-back stop and the backward propagation stay.
 
-   The stop's zero sits at the bar node's along-route distance minus `TaxiRoute.HoldShortSetbackNm` (the setback measured back along the route's chords) minus `SetBackStopMarginFt` = 2 ft, because a taxiway or runway stop can sit several segments before its bar node ([hold-short-placement.md](./hold-short-placement.md)).
+   The stop's zero sits at the bar node's along-route distance minus `TaxiRoute.HoldShortSetbackNm` (the setback measured back along the route's own geometry: a straight segment's chord, a fillet arc's arc length) minus `SetBackStopMarginFt` = 2 ft, because a taxiway or runway stop can sit several segments before its bar node ([hold-short-placement.md](./hold-short-placement.md)).
 
    For a set-back stop, `TaxiingPhase.TryHoldAtSetBackStop` caps the navigator's `MaxSpeedKts` to that curve every tick before the navigator runs, and `TaxiingPhase.CapAtUnclearedBar` caps the published target after it ([Stopping at an uncleared bar](#stopping-at-an-uncleared-bar)). The navigator publishes no speed on a node-arrival sub-tick, which over a run of short segments left the aircraft several knots above its curve.
 

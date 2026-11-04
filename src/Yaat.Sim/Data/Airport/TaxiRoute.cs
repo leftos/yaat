@@ -367,11 +367,11 @@ public sealed class TaxiRoute
 
     /// <summary>
     /// How far (nm, along the route) <paramref name="holdShort"/>'s stop sits back from the node it protects, the far end of
-    /// segment <paramref name="barSegmentIndex"/>. A painted stop is placed on the route's node-to-node chords, possibly
-    /// several segments back, so the walk goes backward from the bar's segment to the segment the stop lies on; whole
-    /// segments count at their own length (an arc's arc length), the one the stop lies on pro rata. A stop the taxi phase
-    /// moved forward lies on the segment's own geometry instead, which on a fillet is the arc, not its chord: a segment is
-    /// read on whichever of its chord and its arc the stop lies closer to, and on the arc the stop's distance to the
+    /// segment <paramref name="barSegmentIndex"/>. A painted stop is placed on the route's own geometry — the chord between
+    /// a straight segment's nodes, the curve of a fillet arc — possibly several segments back, so the walk goes backward
+    /// from the bar's segment to the segment the stop lies on; whole segments count at their own length (an arc's arc
+    /// length), the one the stop lies on pro rata. A segment is read on whichever of its chord and its arc the stop lies
+    /// closer to, and on the arc the stop's distance to the
     /// segment's end is measured along the arc (<see cref="GroundArc.Locate"/>). The stop is kept on the stretch of route
     /// ahead of the aircraft and nearest the bar: the walk first goes back only to the segment in progress, and reaches
     /// the segments behind it only when no segment ahead carries the stop, so a route that doubles back over its stop reads

@@ -1456,11 +1456,21 @@ public static class HoldShortAnnotator
         return new PlacedStop(VirtualNode.Create(centre.Lat, centre.Lon), barFt - limitCentreFt);
     }
 
-    /// <summary>A taxi route as a polyline of node positions, with the along-route distance (ft) of each node.</summary>
+    /// <summary>
+    /// A taxi route as a polyline of node positions, with the along-route distance (ft) of each node. A leg whose edge is a
+    /// fillet arc follows the arc: it counts the arc's walked length (<see cref="GroundArc.Locate"/>), and a point on it lies
+    /// on the curve (<see cref="GroundArc.PointAtFt"/>), the measure <see cref="VirtualNode.OffsetBefore"/> places a stop by.
+    /// </summary>
     private sealed class RoutePolyline
     {
         private readonly List<GroundNode> _vertices = [];
         private readonly List<double> _alongFt = [];
+
+        /// <summary>The fillet arc of the leg ending at each vertex, with the node the leg starts from; null for a straight leg.</summary>
+        private readonly List<ArcLeg?> _arcs = [];
+
+        /// <summary>A leg that follows a fillet arc, driven from <paramref name="From"/>.</summary>
+        private readonly record struct ArcLeg(GroundArc Arc, GroundNode From);
 
         public double LengthFt => _alongFt.Count == 0 ? 0.0 : _alongFt[^1];
 
@@ -1473,11 +1483,16 @@ public static class HoldShortAnnotator
                 {
                     path._vertices.Add(seg.Edge.FromNode);
                     path._alongFt.Add(0.0);
+                    path._arcs.Add(null);
                 }
 
-                double legFt = GeoMath.DistanceNm(path._vertices[^1].Position, seg.Edge.ToNode.Position) * GeoMath.FeetPerNm;
+                ArcLeg? arcLeg = seg.Edge.Edge is GroundArc arc ? new ArcLeg(arc, seg.Edge.FromNode) : null;
+                double legFt = arcLeg is { } onArc
+                    ? onArc.Arc.Locate(onArc.From, seg.Edge.ToNode.Position).AlongFt
+                    : GeoMath.DistanceNm(path._vertices[^1].Position, seg.Edge.ToNode.Position) * GeoMath.FeetPerNm;
                 path._vertices.Add(seg.Edge.ToNode);
                 path._alongFt.Add(path._alongFt[^1] + legFt);
+                path._arcs.Add(arcLeg);
             }
 
             return path;
@@ -1509,11 +1524,18 @@ public static class HoldShortAnnotator
         }
 
         /// <summary>
-        /// <paramref name="point"/> projected onto the leg ending at vertex <paramref name="leg"/>, clamped to the leg's ends:
+        /// <paramref name="point"/> projected onto the leg ending at vertex <paramref name="leg"/> (onto the curve, for an arc
+        /// leg), clamped to the leg's ends:
         /// the foot's distance along the route (ft) and the point's distance from the foot (ft).
         /// </summary>
         private (double AlongFt, double OffFt) OntoLeg(int leg, LatLon point)
         {
+            if (_arcs[leg] is { } arcLeg)
+            {
+                (double alongArcFt, double offArcFt) = arcLeg.Arc.Locate(arcLeg.From, point);
+                return (_alongFt[leg - 1] + Math.Clamp(alongArcFt, 0.0, _alongFt[leg] - _alongFt[leg - 1]), offArcFt);
+            }
+
             LatLon from = _vertices[leg - 1].Position;
             double legBearing = GeoMath.BearingTo(from, _vertices[leg].Position);
             double toPointFt = GeoMath.DistanceNm(from, point) * GeoMath.FeetPerNm;
@@ -1551,6 +1573,11 @@ public static class HoldShortAnnotator
                 if (alongFt <= _alongFt[i])
                 {
                     double intoLegFt = Math.Max(0.0, alongFt - _alongFt[i - 1]);
+                    if (_arcs[i] is { } arcLeg)
+                    {
+                        return arcLeg.Arc.PointAtFt(arcLeg.From, intoLegFt);
+                    }
+
                     double bearing = GeoMath.BearingTo(_vertices[i - 1].Position, _vertices[i].Position);
                     (double lat, double lon) = GeoMath.ProjectPointRaw(
                         _vertices[i - 1].Position.Lat,
@@ -1573,7 +1600,7 @@ public static class HoldShortAnnotator
     /// cap a taxiway hold-short's setback so it never lands behind the runway, and to detect the
     /// tail-over-runway state when the gap is shorter than a fuselage.
     /// </summary>
-    private static (int RunwayNodeId, double GapNm)? FindCrossedRunwayHoldShort(
+    internal static (int RunwayNodeId, double GapNm)? FindCrossedRunwayHoldShort(
         AirportGroundLayout layout,
         TaxiRoute route,
         int nodeId,
@@ -1585,11 +1612,13 @@ public static class HoldShortAnnotator
         for (int guard = 0; guard <= route.Segments.Count; guard++)
         {
             int approachId = -1;
+            GroundArc? approachArc = null;
             foreach (TaxiRouteSegment seg in route.Segments)
             {
                 if (seg.ToNodeId == currentId)
                 {
                     approachId = seg.FromNodeId;
+                    approachArc = seg.Edge.Edge as GroundArc;
                     break;
                 }
             }
@@ -1603,7 +1632,10 @@ public static class HoldShortAnnotator
                 break;
             }
 
-            accumulated += GeoMath.DistanceNm(curNode.Position, approachNode.Position);
+            // A fillet arc counts its walked length, as the route polyline and the setback walk measure it.
+            accumulated += approachArc is not null
+                ? approachArc.Locate(curNode, approachNode.Position).AlongFt / GeoMath.FeetPerNm
+                : GeoMath.DistanceNm(curNode.Position, approachNode.Position);
             if (accumulated > withinNm)
             {
                 break;

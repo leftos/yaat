@@ -136,12 +136,14 @@ public static class VirtualNode
 
         while (remaining > 0)
         {
-            if (FindApproachNode(route, currentId) is not { } approachNode)
+            if (FindApproachEdge(route, currentId) is not { } approachEdge)
             {
                 break;
             }
 
-            double edgeLen = GeoMath.DistanceNm(approachNode.Position, currentNode.Position);
+            GroundNode approachNode = approachEdge.FromNode;
+            var arc = approachEdge.Edge as GroundArc;
+            double edgeLen = ApproachLengthNm(arc, currentNode, approachNode);
             lastBearing = GeoMath.BearingTo(currentNode.Position, approachNode.Position);
 
             if (edgeLen < 1e-9)
@@ -161,8 +163,7 @@ public static class VirtualNode
 
             if (remaining <= edgeLen)
             {
-                (double lat, double lon) = GeoMath.ProjectPointRaw(currentNode.Position.Lat, currentNode.Position.Lon, lastBearing, remaining);
-                return Create(lat, lon);
+                return PointBack(arc, currentNode, lastBearing, remaining);
             }
 
             remaining -= edgeLen;
@@ -193,6 +194,33 @@ public static class VirtualNode
 
         Log.LogDebug("[VirtualNode] OffsetBefore: no approach edge for node {NodeId}", nodeId);
         return Create(currentNode.Position.Lat, currentNode.Position.Lon);
+    }
+
+    /// <summary>
+    /// The length (nm) of the route edge from <paramref name="from"/> back to <paramref name="approachNode"/>: a fillet
+    /// <paramref name="arc"/> is measured along the curve (<see cref="GroundArc.Locate"/>), since its chord is shorter than the
+    /// painted arc; a straight edge is the distance between its nodes.
+    /// </summary>
+    private static double ApproachLengthNm(GroundArc? arc, GroundNode from, GroundNode approachNode) =>
+        arc is not null
+            ? arc.Locate(from, approachNode.Position).AlongFt / GeoMath.FeetPerNm
+            : GeoMath.DistanceNm(approachNode.Position, from.Position);
+
+    /// <summary>
+    /// The stop <paramref name="remainingNm"/> back from <paramref name="from"/> on the edge toward the approach node: along a
+    /// fillet <paramref name="arc"/> (<see cref="GroundArc.PointAtFt"/>), so the stop lies on the painted curve, not its chord;
+    /// on a straight edge, projected along <paramref name="bearing"/>.
+    /// </summary>
+    private static GroundNode PointBack(GroundArc? arc, GroundNode from, double bearing, double remainingNm)
+    {
+        if (arc is not null)
+        {
+            LatLon onArc = arc.PointAtFt(from, remainingNm * GeoMath.FeetPerNm);
+            return Create(onArc.Lat, onArc.Lon);
+        }
+
+        (double lat, double lon) = GeoMath.ProjectPointRaw(from.Position.Lat, from.Position.Lon, bearing, remainingNm);
+        return Create(lat, lon);
     }
 
     /// <summary>
@@ -420,16 +448,17 @@ public static class VirtualNode
     }
 
     /// <summary>
-    /// The node the route reaches <paramref name="nodeId"/> from, taken from the route's own segment rather than
-    /// <see cref="AirportGroundLayout.Nodes"/>: a free-space approach leg or a ramp-lane cut starts at a virtual node the layout never holds.
+    /// The edge the route reaches <paramref name="nodeId"/> along, taken from the route's own segment rather than
+    /// <see cref="AirportGroundLayout.Nodes"/>: a free-space approach leg or a ramp-lane cut starts at a virtual node the layout
+    /// never holds, and the segment's edge says whether it is a fillet arc.
     /// </summary>
-    private static GroundNode? FindApproachNode(TaxiRoute route, int nodeId)
+    private static DirectionalEdge? FindApproachEdge(TaxiRoute route, int nodeId)
     {
         foreach (TaxiRouteSegment seg in route.Segments)
         {
             if (seg.ToNodeId == nodeId)
             {
-                return seg.Edge.FromNode;
+                return seg.Edge;
             }
         }
 
