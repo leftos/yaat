@@ -149,7 +149,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ExplicitSpeedCommand_BlocksPlanning()
+    public void ExplicitSpeedCommand_BlocksPublishedSpeedPlanning()
     {
         AircraftState aircraft = CreateAircraft(ias: 280, altitude: 12000);
         aircraft.Targets.HasExplicitSpeedCommand = true;
@@ -158,11 +158,31 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
 
         FlightPhysics.Update(aircraft, 0.25);
 
-        // With HasExplicitSpeedCommand, look-ahead should not set 210
+        // With HasExplicitSpeedCommand, look-ahead skips a published fix (only a controller crossing is planned), so not 210
         if (aircraft.Targets.TargetSpeed is { } ts)
         {
             Assert.True(ts != 210, $"Expected TargetSpeed != 210 when HasExplicitSpeedCommand, got {ts}");
         }
+    }
+
+    [Fact]
+    public void ExplicitSpeed_PublishedFixBeforeAControllerCrossing_PlansTheCrossing()
+    {
+        AircraftState aircraft = CreateAircraft(ias: 280, altitude: 12000);
+        aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Targets.AssignedSpeed = 280;
+        aircraft.Targets.TargetSpeed = 280;
+        // A published 210 the assigned speed overrides, then a controller crossing at 250 close enough that its
+        // deceleration window is open: the published fix must neither be planned nor end the scan.
+        aircraft.Targets.NavigationRoute.Add(MakeFix("PUBLD", 1.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow)));
+        NavigationTarget crossing = MakeFix("CTLR", 1.25, speed: new CifpSpeedRestriction(250, CifpSpeedRestrictionType.AtOrBelow));
+        crossing.SpeedTransmissionId = 1;
+        aircraft.Targets.NavigationRoute.Add(crossing);
+
+        FlightPhysics.Update(aircraft, 0.25);
+
+        Log(aircraft, "after update");
+        Assert.Equal(250, aircraft.Targets.TargetSpeed);
     }
 
     [Fact]

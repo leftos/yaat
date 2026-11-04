@@ -654,6 +654,228 @@ public class DescendViaSpeedResumeTests
         Assert.InRange(crossingIas, 210 - CrossingToleranceKts, 210 + CrossingToleranceKts);
     }
 
+    // --- Controller crossing speeds planned under an assigned speed (YAAT-1828) ---
+
+    [Fact]
+    public void AssignedSpeed_ThenCfixSpeedOnTheFirstFix_CrossesAtTheCfixSpeed()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "SPD 300");
+        Tick(harness, 5);
+        NavigationTarget fix = aircraft.Targets.NavigationRoute[0];
+        SendOk(harness, $"CFIX {fix.Name} 160 250");
+
+        (double crossingIas, _) = TickUntilPassed(harness, fix.Name);
+        Assert.InRange(crossingIas, 250 - CrossingToleranceKts, 250 + CrossingToleranceKts);
+    }
+
+    [Fact]
+    public void AssignedSpeed_ThenConstrainedDctfFirstFixSpeed_CrossesTheFirstFixAtTheDctfSpeed()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "SPD 300");
+        Tick(harness, 5);
+        NavigationTarget first = aircraft.Targets.NavigationRoute[0];
+        NavigationTarget second = aircraft.Targets.NavigationRoute[1];
+        var direct = new ConstrainedForceDirectToCommand(
+            [
+                new ResolvedFix(first.Name, first.Position.Lat, first.Position.Lon),
+                new ResolvedFix(second.Name, second.Position.Lat, second.Position.Lon),
+            ],
+            new Dictionary<int, ConstrainedFixAltitude> { [1] = new(16000, CrossFixAltitudeType.At) },
+            new Dictionary<int, int> { [0] = 210 },
+            null
+        );
+        CommandResult result = CommandDispatcher.Dispatch(direct, aircraft, TestDispatch.Context(Random.Shared));
+        Assert.True(result.Success, result.Message);
+
+        (double crossingIas, _) = TickUntilPassed(harness, first.Name);
+        Assert.InRange(crossingIas, 210 - CrossingToleranceKts, 210 + CrossingToleranceKts);
+    }
+
+    [Fact]
+    public void AssignedSpeed_ThenCfixSpeedOnTheSecondFix_HoldsTheAssignedSpeedUntilTheSlowdown()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "SPD 300");
+        Tick(harness, 5);
+        NavigationTarget first = aircraft.Targets.NavigationRoute[0];
+        NavigationTarget second = aircraft.Targets.NavigationRoute[1];
+        SendOk(harness, $"CFIX {second.Name} 160 250");
+        double decelRate = AircraftPerformance.DecelRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
+
+        (double iasAtFirst, _) = TickUntilPassed(harness, first.Name);
+        AssertHoldsTheAssignedSpeed(aircraft, second.Name, iasAtFirst, decelRate, $"at {first.Name}");
+
+        Tick(harness, 30);
+        AssertHoldsTheAssignedSpeed(aircraft, second.Name, aircraft.IndicatedAirspeed, decelRate, $"30 s past {first.Name}");
+
+        (double crossingIas, _) = TickUntilPassed(harness, second.Name);
+        Assert.InRange(crossingIas, 250 - CrossingToleranceKts, 250 + CrossingToleranceKts);
+    }
+
+    [Fact]
+    public void AssignedSpeed_ThenStarPublishedSpeed_IsNotPlanned()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        SendOk(harness, "SPD 280");
+
+        (double crossingIas, _) = TickUntilPassed(harness, "GRUDG");
+        Assert.True(crossingIas >= 270, $"The aircraft crossed GRUDG at {crossingIas:F0} kt under SPD 280, below 270");
+    }
+
+    [Fact]
+    public void AssignedSpeed_PublishedSpeedBeforeAControllerCrossing_PlansOnlyTheCrossing()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "SPD 300");
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        int grudg = route.FindIndex(f => f.Name.Equals("GRUDG", StringComparison.OrdinalIgnoreCase));
+        Assert.True(grudg >= 0, "GRUDG is not on the route");
+        NavigationTarget later = route[grudg + 1];
+        SendOk(harness, $"CFIX {later.Name} 160 230");
+
+        (double iasAtGrudg, _) = TickUntilPassed(harness, "GRUDG");
+        Assert.True(iasAtGrudg >= 290, $"The aircraft crossed GRUDG at {iasAtGrudg:F0} kt under SPD 300, below 290");
+        double decelRate = AircraftPerformance.DecelRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
+        double remainingNm = RouteDistanceNm(aircraft, later.Name);
+        double slowdownBoundNm = 2 * aircraft.GroundSpeed * ((300 - 230) / decelRate) * 1.1 / 3600;
+        _output.WriteLine($"At GRUDG: {remainingNm:F1} nm to {later.Name}, bound {slowdownBoundNm:F1} nm");
+        Assert.True(
+            remainingNm > slowdownBoundNm,
+            $"At GRUDG only {remainingNm:F1} nm remain to {later.Name}, inside the {slowdownBoundNm:F1} nm bound: the leg is too short"
+        );
+
+        (double crossingIas, _) = TickUntilPassed(harness, later.Name);
+        Assert.InRange(crossingIas, 230 - CrossingToleranceKts, 230 + CrossingToleranceKts);
+    }
+
+    [Fact]
+    public void AssignedSpeed_ThenCfixSpeedAboveTheAssignedSpeed_AcceleratesAndCrossesAtIt()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "SPD 210");
+        Tick(harness, 5);
+        NavigationTarget fix = aircraft.Targets.NavigationRoute[1];
+        SendOk(harness, $"CFIX {fix.Name} 160 250");
+
+        (double crossingIas, _) = TickUntilPassed(harness, fix.Name);
+        Assert.InRange(crossingIas, 250 - CrossingToleranceKts, 250 + CrossingToleranceKts);
+    }
+
+    [Fact]
+    public void CfixSpeedThenSpdInOneTransmission_HoldsTheAssignedSpeedUntilTheSlowdown()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        NavigationTarget first = aircraft.Targets.NavigationRoute[0];
+        NavigationTarget second = aircraft.Targets.NavigationRoute[1];
+        SendOk(harness, $"CFIX {second.Name} 160 250, SPD 300");
+        double decelRate = AircraftPerformance.DecelRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
+
+        (double iasAtFirst, _) = TickUntilPassed(harness, first.Name);
+        AssertHoldsTheAssignedSpeed(aircraft, second.Name, iasAtFirst, decelRate, $"at {first.Name}");
+
+        Tick(harness, 30);
+        AssertHoldsTheAssignedSpeed(aircraft, second.Name, aircraft.IndicatedAirspeed, decelRate, $"30 s past {first.Name}");
+
+        (double crossingIas, _) = TickUntilPassed(harness, second.Name);
+        Assert.InRange(crossingIas, 250 - CrossingToleranceKts, 250 + CrossingToleranceKts);
+    }
+
+    [Fact]
+    public void AssignedSpeedFloor_ThenCfixSpeedBelowIt_KeepsTheFloor()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "SPD 280+");
+        NavigationTarget fix = aircraft.Targets.NavigationRoute[1];
+        SendOk(harness, $"CFIX {fix.Name} 160 250");
+        double decelRate = AircraftPerformance.DecelRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
+
+        // Before the fix sequences (its revert puts 280 back past it), inside the 280 -> 250 slowdown window: the planner
+        // has reached the crossing and must have kept the floor rather than given way to the lower speed.
+        bool inWindow = false;
+        for (int t = 1; (t <= 1800) && !inWindow; t++)
+        {
+            harness.Engine.TickOneSecond();
+            List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+            Assert.True(route.Exists(f => f.Name == fix.Name), $"{fix.Name} sequenced before its slowdown window was reached");
+            double windowNm = aircraft.GroundSpeed * ((280 - 250) / decelRate) * 1.1 / 3600;
+            inWindow = (route[0].Name == fix.Name) && (RouteDistanceNm(aircraft, fix.Name) <= windowNm);
+        }
+
+        Assert.True(inWindow, $"{fix.Name}'s slowdown window was not reached within 1800 s");
+        _output.WriteLine(
+            $"In the window, {RouteDistanceNm(aircraft, fix.Name):F1} nm before {fix.Name}: floor {aircraft.Targets.SpeedFloor}, target {aircraft.Targets.TargetSpeed}"
+        );
+        Assert.Equal(280, aircraft.Targets.SpeedFloor);
+        Assert.True(
+            (aircraft.Targets.TargetSpeed is null) || (aircraft.Targets.TargetSpeed >= 280),
+            $"The target fell to {aircraft.Targets.TargetSpeed} kt, below the assigned 280 floor"
+        );
+        Assert.True(
+            aircraft.IndicatedAirspeed >= 278,
+            $"The aircraft flew {aircraft.IndicatedAirspeed:F0} kt in the window, below the assigned 280 floor"
+        );
+
+        (double crossingIas, _) = TickUntilPassed(harness, fix.Name);
+        Assert.True(crossingIas >= 270, $"The aircraft crossed {fix.Name} at {crossingIas:F0} kt, below the assigned 280 floor");
+    }
+
+    /// <summary>
+    /// Asserts the aircraft still holds the assigned 300 kt while <paramref name="fixName"/> lies beyond twice the
+    /// distance the slowdown to 250 kt takes at the present ground speed, with the planner's 1.1 margin.
+    /// </summary>
+    private void AssertHoldsTheAssignedSpeed(AircraftState aircraft, string fixName, double ias, double decelRate, string where)
+    {
+        double remainingNm = RouteDistanceNm(aircraft, fixName);
+        double slowdownBoundNm = 2 * aircraft.GroundSpeed * ((300 - 250) / decelRate) * 1.1 / 3600;
+        _output.WriteLine($"{where}: {remainingNm:F1} nm to {fixName}, bound {slowdownBoundNm:F1} nm, IAS {ias:F0} kt");
+        Assert.True(
+            remainingNm > slowdownBoundNm,
+            $"{where} only {remainingNm:F1} nm remain to {fixName}, inside the {slowdownBoundNm:F1} nm bound: the leg is too short"
+        );
+        Assert.True(ias >= 295, $"{where} the aircraft flew {ias:F0} kt, {remainingNm:F1} nm before {fixName}, below the assigned 300");
+    }
+
     // --- A speed restated in the same block (decision 7) ---
 
     [Fact]

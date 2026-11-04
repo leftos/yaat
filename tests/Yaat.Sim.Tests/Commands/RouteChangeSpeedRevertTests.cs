@@ -21,6 +21,9 @@ public sealed class RouteChangeSpeedRevertTests
     private const double OriginalSpeedKts = 300;
     private const double CrossingSpeedKts = 250;
 
+    /// <summary>Speed snap the physics settles within (<c>FlightPhysics.SpeedSnapKts</c>).</summary>
+    private const double SpeedSnapKts = 2;
+
     /// <summary>East of PMD on its 090 radial side, west-bound: CFIX PMD and DCT HEC both lie ahead.</summary>
     private static readonly LatLon EastOfPmd = new(34.771654, -114.542825);
 
@@ -171,13 +174,14 @@ public sealed class RouteChangeSpeedRevertTests
         Dispatch(ac, DirectToHecCrossingAt(11_000, 210));
         FlyUntilPassed(ac, "HEC");
 
-        // The slowdown into HEC is not under test: under the explicit SPD the planner does not slow for a crossing speed on
-        // the direct-to's first fix, so HEC is crossed at the 300 flown. Past it the 300 stays assigned and flown.
+        // Under the explicit SPD the planner slows for the direct-to's first fix's crossing speed, so HEC is crossed at
+        // about 210; past it the 300 is assigned again and the aircraft speeds back up to fly it.
         _output.WriteLine($"Sequenced HEC at {ac.Altitude:F0} ft, {ac.IndicatedAirspeed:F0} KIAS, assigned {ac.Targets.AssignedSpeed}");
+        Assert.InRange(ac.IndicatedAirspeed, 210 - 10, 210 + 10);
         Assert.Equal((double?)OriginalSpeedKts, ac.Targets.AssignedSpeed);
-        FlySeconds(ac, 20);
+        FlySeconds(ac, 90);
         Assert.Equal((double?)OriginalSpeedKts, ac.Targets.AssignedSpeed);
-        Assert.True(ac.IndicatedAirspeed >= OriginalSpeedKts - 5, $"slowed past HEC to {ac.IndicatedAirspeed:F0} KIAS");
+        Assert.InRange(ac.IndicatedAirspeed, OriginalSpeedKts - SpeedSnapKts, OriginalSpeedKts + SpeedSnapKts);
     }
 
     [Fact]

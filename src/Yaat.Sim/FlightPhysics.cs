@@ -690,8 +690,8 @@ public static class FlightPhysics
             return;
         }
 
-        // Don't override controller-issued speed commands or Mach hold
-        if (aircraft.Targets.HasExplicitSpeedCommand || aircraft.Procedure.SpeedRestrictionsDeleted || (aircraft.Targets.TargetMach is not null))
+        // Don't override a Mach hold; under an assigned speed only controller crossings are planned (below)
+        if (aircraft.Procedure.SpeedRestrictionsDeleted || (aircraft.Targets.TargetMach is not null))
         {
             return;
         }
@@ -713,6 +713,14 @@ public static class FlightPhysics
             }
 
             if (route[i].SpeedRestriction is not { } restriction)
+            {
+                continue;
+            }
+
+            // An assigned speed overrides a published one (AIM 5-4-1.a.1; 7110.65 5-7-1.f, 5-7-4.c), so a published fix is
+            // neither planned nor hides a controller crossing after it; a controller crossing is an ATC assignment itself,
+            // flown at the assigned speed until its slowdown point. The same rule ApplyFixSpeedConstraint keeps at sequencing.
+            if (aircraft.Targets.HasExplicitSpeedCommand && !IsControllerSetSpeed(route[i]))
             {
                 continue;
             }
@@ -772,9 +780,11 @@ public static class FlightPhysics
 
     /// <summary>
     /// The speed the planner flies to cross a fix's <paramref name="restriction"/>: its published speed under 14 CFR 91.117,
-    /// clamped to the speed floor and ceiling in force. The planner runs only with no explicit ATC speed, so a floor is
-    /// the procedure's, a minimum crossed earlier: it holds until the pilot slows for a lower "at" or "at or below" speed
-    /// ahead, which it then gives way to (7110.65 5-7-1.g NOTE 3; AIM 5-4-1 NOTE 2), and <c>FloorGivesWay</c> says so.
+    /// clamped to the speed floor and ceiling in force. With no explicit ATC speed a floor is the procedure's, a minimum
+    /// crossed earlier: it holds until the pilot slows for a lower "at" or "at or below" speed ahead, which it then gives
+    /// way to (7110.65 5-7-1.g NOTE 3; AIM 5-4-1 NOTE 2), and <c>FloorGivesWay</c> says so. Under an explicit ATC speed,
+    /// where only a controller crossing is planned, the floor never gives way: the speed is clamped to it, as
+    /// <see cref="ApplyFixSpeedConstraint"/> clamps it at sequencing.
     /// </summary>
     private static (double Speed, bool FloorGivesWay) PlannedConstraintSpeed(
         AircraftState aircraft,
@@ -793,7 +803,8 @@ public static class FlightPhysics
         bool floorGivesWay = false;
         if (aircraft.Targets.SpeedFloor is { } floor)
         {
-            floorGivesWay = (restriction.Type != CifpSpeedRestrictionType.AtOrAbove) && (floor > constraintSpeed);
+            floorGivesWay =
+                (!aircraft.Targets.HasExplicitSpeedCommand) && (restriction.Type != CifpSpeedRestrictionType.AtOrAbove) && (floor > constraintSpeed);
             if (!floorGivesWay)
             {
                 constraintSpeed = Math.Max(constraintSpeed, floor);
@@ -965,14 +976,14 @@ public static class FlightPhysics
 
     /// <summary>
     /// As <see cref="ApplyFixConstraints(AircraftState, NavigationTarget)"/>, for the fix the aircraft has just sequenced
-    /// onto: a published speed below the present one is left to the speed planner's deceleration window, in every mode
-    /// (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2). A controller-set crossing speed and a Mach hold still apply at
-    /// once, the Mach hold's at once being a fallback while the planner is off under a Mach target, not the intended
-    /// descent profile (AIM 5-4-1.a.1), and an altitude, an acceleration and an "at or above" floor are left immediate by
-    /// the flag itself.
+    /// onto: a speed below the present one is left to the speed planner's deceleration window, in every mode, a
+    /// controller-set speed under an assigned speed too, so the aircraft holds its speed until the slowdown point
+    /// (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2). Under a Mach hold it still applies at once, a fallback while the
+    /// planner is off under a Mach target, not the intended descent profile (AIM 5-4-1.a.1), and an altitude, an
+    /// acceleration and an "at or above" floor are left immediate by the flag itself.
     /// </summary>
     internal static void ApplySequencedFixConstraints(AircraftState aircraft, NavigationTarget target) =>
-        ApplyFixConstraints(aircraft, target, slowdownLeftToPlanner: !IsControllerSetSpeed(target) && (aircraft.Targets.TargetMach is null));
+        ApplyFixConstraints(aircraft, target, slowdownLeftToPlanner: aircraft.Targets.TargetMach is null);
 
     private static void ApplyFixConstraints(AircraftState aircraft, NavigationTarget target, bool slowdownLeftToPlanner)
     {

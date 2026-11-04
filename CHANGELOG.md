@@ -20,6 +20,7 @@
 - A direct-to with crossings onto the active STAR's fixes keeps the STAR from there, and the descend via too when `DVIA` shares the transmission.
 - In a hold or inside 5 miles on final, passing a crossing fix keeps the holding or approach speed instead of returning to an earlier speed.
 - A controller crossing speed on a fix inside 5 miles final ends at the 5-mile point, and the aircraft never speeds up afterwards.
+- Under `SPD` or `SMAX`, an aircraft holds its assigned speed until it must slow for a controller's crossing speed, then crosses the fix at it.
 - A direct-to with crossing speeds is refused inside 5 miles final, as `SPD` is; one with altitudes only is accepted.
 - `MLT` and `MRT` on the ground before a takeoff clearance are refused, so they never move the departure runway or re-route the taxi.
 - `CTO, MLT 28L` and `CTO; MLT 28L` fly as `CTO MLT 28L`: the aircraft departs the runway its readback names, then flies the pattern.

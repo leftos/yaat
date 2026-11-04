@@ -2037,8 +2037,9 @@ internal static class NavigationCommandHandler
     /// controller-set crossing (the resume, SMAX's re-arm, the Mach hold, or the plain speed with its assignment and
     /// bounds), and the first such crossing's speed is the assigned speed again, as
     /// <see cref="KeepTransmissionCrossingSpeed"/> leaves it. A speed bound and a DSR's deletion wait for the fix, so
-    /// neither overrides the crossing before it. Under an explicit speed the look-ahead planner stands aside, so the
-    /// crossing speed is the target speed too.</para>
+    /// neither overrides the crossing before it. The target speed is left as the instruction set it: the look-ahead
+    /// planner times the slowdown for the crossing under an explicit speed too, and an acceleration toward it applies at
+    /// once from the CFIX.</para>
     /// </summary>
     internal static void CancelEarlierCrossingSpeeds(AircraftState aircraft, int transmissionId, SpeedResumeKind? resume)
     {
@@ -2060,10 +2061,6 @@ internal static class NavigationCommandHandler
         PlaceSameTransmissionRevert(aircraft, route, resume);
         FlightCommandHandler.EndMachHoldAndSpeedMax(aircraft);
         targets.AssignedSpeed = crossing.SpeedKts;
-        if (targets.HasExplicitSpeedCommand)
-        {
-            targets.TargetSpeed = crossing.SpeedKts;
-        }
     }
 
     /// <summary>
