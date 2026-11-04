@@ -892,7 +892,7 @@
 
 ## Solo training: simulated controllers and call-ups
 
-### 1 Defects (1/15 done)
+### 1 Defects (2/16 done)
 - [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window
 - [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm
@@ -906,7 +906,7 @@
 - [ ] YAAT-1492 Voice every solo SAY answer, typed or deferred (typed ones are flushed unspoken)
 - [ ] YAAT-1496 Count the controller's instruction in a contact read-back's load band; route CT, FCA and pattern-size read-backs whenever someone answers
 - [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C
-- [ ] YAAT-1755 Reset or snapshot the frequency queue and gates on a rewind or scenario load
+- [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick
 
 ### 2 Refinements and rulings (2/12 done)
 - [ ] YAAT-1545 Route each pilot report, check-in and readback to the position the pilot is tuned to, not a hardcoded Ground/Tower set · release vNext+1
