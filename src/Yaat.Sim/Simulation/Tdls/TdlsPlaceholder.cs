@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Yaat.Sim.Simulation.Tdls;
 
 /// <summary>
@@ -19,5 +21,6 @@ public static class TdlsPlaceholder
     /// </summary>
     /// <param name="value">A clearance field value, or an FE-authored SID or transition name.</param>
     /// <returns>True when the value is the FE's "no value" placeholder (or nothing at all); false when it names something.</returns>
-    public static bool IsPlaceholder(string? value) => string.IsNullOrWhiteSpace(value) || (value.Replace(" ", "").Replace("-", "").Length == 0);
+    public static bool IsPlaceholder([NotNullWhen(false)] string? value) =>
+        string.IsNullOrWhiteSpace(value) || (value.Replace(" ", "").Replace("-", "").Length == 0);
 }

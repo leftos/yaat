@@ -43,6 +43,9 @@ public class DepartureProcedureVectorClimbStallTests
     private const int ControllerAltitudeFt = 5000;
     private const int ForcedAltitudeFt = 3000;
 
+    /// <summary>Where the SUNNE1 cases take over: under the DepartureProcedurePhase, established at the 5,000 ft maintain.</summary>
+    private const double SunneHeldAltitudeFt = 4950.0;
+
     private readonly ITestOutputHelper _output;
 
     public DepartureProcedureVectorClimbStallTests(ITestOutputHelper output)
@@ -242,8 +245,8 @@ public class DepartureProcedureVectorClimbStallTests
     }
 
     /// <summary>
-    /// A vector with no controller altitude leaves the departure holding the SID's published initial altitude
-    /// (OAK publishes 2,000 ft), not the filed cruise altitude the phase resolved as its climb ceiling.
+    /// A vector with no controller altitude leaves the departure holding the SID's TDLS initial altitude (SUNNE1: 5,000 ft),
+    /// not the filed cruise altitude the phase resolved as its climb ceiling.
     /// </summary>
     [Fact]
     public void VectorOffSid_NoAssignment_HoldsSidInitialAltitude()
@@ -255,7 +258,7 @@ public class DepartureProcedureVectorClimbStallTests
             return;
         }
 
-        Departure departure = FlyIntoClimbWindow(artccConfig);
+        Departure departure = FlyIntoProcedureAbove(StartSunne1Departure(artccConfig), SunneHeldAltitudeFt);
         AircraftState ac = departure.Aircraft;
         int sidInitial = Assert.NotNull(ac.Procedure.SidInitialAltitudeFt);
         _output.WriteLine($"SidInitialAltitudeFt={sidInitial}");
@@ -286,7 +289,7 @@ public class DepartureProcedureVectorClimbStallTests
             return;
         }
 
-        Departure departure = FlyIntoClimbWindow(artccConfig);
+        Departure departure = FlyIntoProcedureAbove(StartSunne1Departure(artccConfig), SunneHeldAltitudeFt);
         AircraftState ac = departure.Aircraft;
         int sidInitial = Assert.NotNull(ac.Procedure.SidInitialAltitudeFt);
 
@@ -309,9 +312,9 @@ public class DepartureProcedureVectorClimbStallTests
     }
 
     /// <summary>
-    /// A coded-leg SID with no controller altitude holds the SID's published initial altitude (OAK publishes
-    /// 2,000 ft) through every coded leg: the VM leg that follows the climb window must not carry the aircraft
-    /// up toward its filed cruise altitude (7110.65 §4-3-2.e.5 / AIM 5-2-9.h.5).
+    /// A coded-leg SID with no controller altitude holds the SID's TDLS initial altitude (SUNNE1: 5,000 ft) through every
+    /// coded leg: the VM leg that follows the VA climb must not carry the aircraft up toward its filed cruise altitude
+    /// (7110.65 §4-3-2.e.5 / AIM 5-2-9.h.5).
     /// </summary>
     [Fact]
     public void CodedLegSid_NoAssignment_HoldsSidInitialAltitudeThroughAllCodedLegs()
@@ -323,7 +326,7 @@ public class DepartureProcedureVectorClimbStallTests
             return;
         }
 
-        Departure departure = StartCoast9Departure(artccConfig);
+        Departure departure = StartSunne1Departure(artccConfig);
         AircraftState ac = departure.Aircraft;
         int sidInitial = Assert.NotNull(ac.Procedure.SidInitialAltitudeFt);
         _output.WriteLine($"SidInitialAltitudeFt={sidInitial}");
@@ -339,13 +342,13 @@ public class DepartureProcedureVectorClimbStallTests
         );
         Assert.InRange(ac.Altitude, sidInitial - 100, sidInitial + 100);
 
-        // The hold must survive the whole leg sequence, not just the climb window: the VD leg's distance
-        // termination has to sequence. COAST9 RWY30's coded run is VD → VM → CF, and the VM leg holds until a
-        // controller vector, so the VM leg is as far as an unaided flight gets.
+        // The hold must survive the whole leg sequence: the VA leg's altitude termination has to sequence. SUNNE1
+        // RWY30's coded run is VA → VM → DF, and the VM leg holds until a controller vector, so the VM leg is as far as an
+        // unaided flight gets.
         DepartureProcedurePhase phase = Assert.IsType<DepartureProcedurePhase>(ac.Phases!.CurrentPhase);
         _output.WriteLine($"leg={phase.ActiveLegIndex} of {phase.Legs.Count} types={string.Join(",", phase.Legs.Select(l => l.Type))}");
-        Assert.True(phase.Legs.Count > 1, $"setup: COAST9 RWY30 must carry the VM leg after its climb window, had {phase.Legs.Count} coded leg(s)");
-        Assert.True(phase.ActiveLegIndex > 0, $"the VD distance leg never sequenced — the phase is still on leg {phase.ActiveLegIndex}");
+        Assert.True(phase.Legs.Count > 1, $"setup: SUNNE1 RWY30 must carry the VM leg after its VA leg, had {phase.Legs.Count} coded leg(s)");
+        Assert.True(phase.ActiveLegIndex > 0, $"the VA altitude leg never sequenced — the phase is still on leg {phase.ActiveLegIndex}");
         Assert.Equal(ProcedureLegType.HeadingToManual, phase.Legs[phase.ActiveLegIndex].Type);
     }
 
@@ -363,7 +366,7 @@ public class DepartureProcedureVectorClimbStallTests
             return;
         }
 
-        Departure departure = FlyIntoClimbWindow(artccConfig);
+        Departure departure = FlyIntoProcedureAbove(StartSunne1Departure(artccConfig), SunneHeldAltitudeFt);
         AircraftState ac = departure.Aircraft;
         int sidInitial = Assert.NotNull(ac.Procedure.SidInitialAltitudeFt);
         DepartureProcedurePhase phase = Assert.IsType<DepartureProcedurePhase>(ac.Phases!.CurrentPhase);
@@ -477,11 +480,20 @@ public class DepartureProcedureVectorClimbStallTests
     /// the DER, in its initial climb. NavData and CIFP are hard preconditions, so a missing runway, fix or
     /// SID fails rather than skips.
     /// </summary>
-    private static Departure StartCoast9Departure(ArtccConfigRoot? artccConfig)
+    private static Departure StartCoast9Departure(ArtccConfigRoot? artccConfig) => StartDeparture(artccConfig, "COAST9 MCKEY LAX COMIX2");
+
+    /// <summary>
+    /// A SUNNE1 RWY30 departure from KOAK, cleared and airborne as <see cref="StartCoast9Departure"/> leaves it: SUNNE1's TDLS
+    /// transition default is a 5000FT initial altitude and no climb via, so a bare CTO stores a maintain. Its coded legs
+    /// are VA, VM, DF.
+    /// </summary>
+    private static Departure StartSunne1Departure(ArtccConfigRoot artccConfig) => StartDeparture(artccConfig, "SUNNE1 SUNNE");
+
+    private static Departure StartDeparture(ArtccConfigRoot? artccConfig, string route)
     {
         RunwayInfo rwy = Assert.IsType<RunwayInfo>(Koak30());
         (double Lat, double Lon) oakPos = Assert.NotNull(NavigationDatabase.Instance.GetFixPosition("OAK"));
-        Assert.NotNull(NavigationDatabase.Instance.GetSid("KOAK", "COAST9"));
+        Assert.NotNull(NavigationDatabase.Instance.GetSid("KOAK", route.Split(' ')[0]));
         var oak = new LatLon(oakPos.Lat, oakPos.Lon);
 
         var ac = new AircraftState
@@ -496,7 +508,7 @@ public class DepartureProcedureVectorClimbStallTests
             {
                 Departure = "KOAK",
                 Destination = "KSAN",
-                Route = "COAST9 MCKEY LAX COMIX2",
+                Route = route,
                 Altitude = PlannedAltitude.Ifr(39000),
                 FlightRules = "IFR",
             },
@@ -507,7 +519,12 @@ public class DepartureProcedureVectorClimbStallTests
         // the aircraft through the handler directly, so resolve it here from the same TDLS config.
         if (artccConfig is not null)
         {
-            DepartureClearanceHandler.StoreSidInitialAltitude(ac, artccConfig);
+            DepartureClearanceHandler.StoreSidInitialAltitude(
+                ac,
+                TestDispatch.Context(Random.Shared, artccConfig: artccConfig),
+                clearanceAltitude: null,
+                isTakeoffClearance: true
+            );
         }
 
         var holding = new HoldingInPositionPhase();
@@ -580,6 +597,25 @@ public class DepartureProcedureVectorClimbStallTests
         }
 
         Assert.Fail("aircraft never established in the COAST9 climb window under the DepartureProcedurePhase");
+    }
+
+    /// <summary>Flies until the aircraft is under its DepartureProcedurePhase at or above <paramref name="altitudeFt"/>.</summary>
+    private Departure FlyIntoProcedureAbove(Departure departure, double altitudeFt)
+    {
+        AircraftState ac = departure.Aircraft;
+        for (int t = 0; t < 360; t++)
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+            FlightPhysics.Update(ac, 1.0);
+            if ((ac.Phases!.CurrentPhase is DepartureProcedurePhase) && (ac.Altitude >= altitudeFt))
+            {
+                _output.WriteLine($"in the procedure at t={t}: alt={ac.Altitude:F0} tgtAlt={ac.Targets.TargetAltitude:F0}");
+                return departure;
+            }
+        }
+
+        Assert.Fail($"the aircraft never passed {altitudeFt:F0} ft under the DepartureProcedurePhase");
+        return departure;
     }
 
     private static FlightResult FlyFor(Departure departure, int seconds)

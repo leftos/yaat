@@ -145,6 +145,9 @@ The single route every action takes, on every run kind, from text to effect. The
 it lives in `Yaat.Sim`, and no entry point decides anything the router decides.
 _Avoid_: dispatch chain, handler chain, command pipeline (the pipeline is the whole path from keyboard to aircraft)
 
+**Ops config**:
+A TDLS operational configuration of a facility (SFO, OAK, BOS): its own SIDs, each transition with its own defaults, so an east/west runway split issues different clearances. A bare `CTO` finds the departure's SID in the facility's SID list or in any ops config, not only the active one.
+
 **RPO room**:
 Any room not in solo training (`!SoloTrainingMode`), an instructor room with no pilot operator included: a person, not the sim, launches its departures and answers for its pilots.
 _Avoid_: instructor room (as a contrast to RPO room; the code draws no line between them)
@@ -180,6 +183,10 @@ _Avoid_: global command (`CommandDefinition.IsGlobal` is a different question: t
 Who wrote a route altitude restriction (`CifpAltitudeRestriction.Source`, a `CifpAltitudeRestrictionSource`): Procedure (a SID's or STAR's published restriction, the default), Approach (a published approach-segment altitude inserted with an approach clearance), Atc (a controller's crossing, from a CFIX or constrained DCTF), or System (a point a phase inserts as the pilot's own plan: pattern entry, teardrop re-entry). Recorded only; nothing reads it yet.
 _Avoid_: crossing stamp (that one is the transmission id `CrossingTransmissionId`, which names the transmission, not the writer)
 
+**SID initial altitude**:
+The TDLS `DefaultInitialAlt` of a SID transition: the "maintain" altitude a bare `CTO`, `CTOPP` or `LUAW` gives a departure on that SID when the transition's TDLS default carries no climb via (`AircraftProcedure.SidInitialAltitudeFt`). A "- - - -" placeholder is no value. The facility's `InitialAlts` dropdown is never it.
+_Avoid_: initial-altitude cap, SID hold altitude
+
 **Speed restated in transmission**:
 The fact (`CommandBlock.SpeedRestatedInTransmission`, `DispatchContext.SpeedRestatedInTransmission`) that a speed was assigned in the block or in an earlier block of the same transmission as a DVIA, CVIA or approach clearance, which then leaves that speed standing instead of cancelling it (7110.65 5-7-1.c). A crossing speed does not count.
 _Avoid_: speed in block
@@ -193,7 +200,7 @@ The transmission id (`NavigationTarget.SpeedTransmissionId`) of the transmission
 _Avoid_: crossing stamp (that one answers for the altitude only)
 
 **Top altitude** (of a SID):
-The altitude a bare `CVIA` climbs to, held in `AircraftProcedure.ClimbViaTargetFt`: the SID's ARTCC TDLS "EXC MAINT" altitude, else its TDLS initial altitude, else the highest altitude the SID publishes on the legs flown (CIFP does not code the charted top). `CVIA nnn` names it directly. An ATC-assigned one (`CVIA nnn`, a TDLS EXC MAINT) is what the check-in reports ("for nnn").
+The altitude a climb via climbs to, held in `AircraftProcedure.ClimbViaTargetFt`: the SID's ARTCC TDLS "EXC MAINT" altitude, else its TDLS initial altitude, else the highest altitude the SID publishes on the legs flown (the common leg and runway transition when no enroute transition is identifiable; CIFP does not code the charted top). `CVIA nnn` names it directly. A bare `CTO`, `CTOPP` or `LUAW` whose SID transition's TDLS default is a climb via puts it in force from takeoff with the same top ("EXC MAINT X" as `CVIA X`). An ATC-assigned one (`CVIA nnn`, a TDLS EXC MAINT) is what the check-in reports ("for nnn").
 _Avoid_: ceiling (`SidViaCeiling` is only the assigned "except maintain" altitude, and a restriction ahead can lower the target below the top)
 
 **Transmission id**:

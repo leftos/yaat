@@ -117,6 +117,34 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
         Assert.DoesNotContain(TakeoffClearanceWarning("28R", "28L"), ac.PendingWarnings);
     }
 
+    /// <summary>
+    /// A departure whose clearance put a climb via in force rather than a maintain (a TDLS "CLIMB VIA SID EXC MAINT 4000FT"
+    /// default, as at KIAH) has had its departure clearance read just the same: re-taxied to another runway, it draws the
+    /// departure-clearance warning.
+    /// </summary>
+    [Fact]
+    public void TaxiNamingADifferentRunway_AfterAClimbViaClearance_WarnsTheChange()
+    {
+        if (OakLayout() is not { } layout)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeOakDeparture(layout);
+        AssignDepartureRunway(ac, "28L");
+        ac.Procedure.SidViaMode = true;
+        ac.Procedure.SidViaCeiling = 4000;
+        ac.Procedure.ClimbViaTargetFt = 4000;
+        Assert.Null(ac.Procedure.SidInitialAltitudeFt);
+
+        CommandResult result = TaxiTo(ac, layout, "28R");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("28R", ac.Procedure.DepartureRunway);
+        Assert.Contains(DepartureClearanceWarning("28R", "28L"), ac.PendingWarnings);
+        Assert.DoesNotContain(TakeoffClearanceWarning("28R", "28L"), ac.PendingWarnings);
+    }
+
     /// <summary>The reciprocal end is a different departure runway, not a confirmation of the same one.</summary>
     [Fact]
     public void TaxiNamingTheReciprocalEnd_WarnsTheChange()
@@ -163,7 +191,9 @@ public class TaxiRunwayChangeTests(ITestOutputHelper output)
         Assert.True(cto.Success, cto.Message);
         Assert.NotNull(ac.Phases!.DepartureClearance);
         Assert.Null(ac.Procedure.SidInitialAltitudeFt);
-        Assert.Empty(ac.PendingWarnings);
+        // The filed SKYL1 is the navdata's SKYL2, and with no ARTCC config there is no TDLS value for it: the bare CTO warns
+        // that the departure has no initial altitude, and nothing else.
+        Assert.Equal(["no initial altitude for TEST1; assign one"], ac.PendingWarnings);
 
         CommandResult result = TaxiTo(ac, layout, "28R");
 

@@ -3237,6 +3237,29 @@ public static class CommandDispatcher
             CrossFeedsFollowingClearance = blockCtx.CrossFeedsFollowingClearance || commands.Skip(index + 1).Any(IsTakeoffOrLineUp),
         };
 
+    /// <summary>
+    /// Once a takeoff or line-up clearance has been given effect (<paramref name="result"/> succeeded, the departure runway
+    /// set), resolves what the SID transition's TDLS defaults give an IFR departure with no commanded altitude: a climb via
+    /// in force from takeoff, or a maintain <c>InitialClimbPhase</c> holds
+    /// (<see cref="DepartureClearanceHandler.StoreSidInitialAltitude"/>). A clearance not given effect, refused or answered
+    /// with a query, resolves nothing. Returns <paramref name="result"/>.
+    /// </summary>
+    private static CommandResult WithDepartureAltitudeStored(
+        CommandResult result,
+        AircraftState aircraft,
+        DispatchContext ctx,
+        int? clearanceAltitude,
+        bool isTakeoffClearance
+    )
+    {
+        if (result.Success)
+        {
+            DepartureClearanceHandler.StoreSidInitialAltitude(aircraft, ctx, clearanceAltitude, isTakeoffClearance);
+        }
+
+        return result;
+    }
+
     private static CommandResult ApplyClearedForTakeoff(
         ClearedForTakeoffCommand cto,
         AircraftState aircraft,
@@ -3307,14 +3330,6 @@ public static class CommandDispatcher
             );
         }
 
-        // Cache the SID's published initial-altitude cap so an IFR departure with no commanded
-        // altitude holds it through the initial climb (issue #187). Resolved here where the ARTCC
-        // TDLS config is in scope; consumed later by InitialClimbPhase.ResolveTargetAltitude.
-        if (command is ClearedForTakeoffCommand or LineUpAndWaitCommand or ClearedTakeoffPresentCommand)
-        {
-            DepartureClearanceHandler.StoreSidInitialAltitude(aircraft, ctx.ArtccConfig);
-        }
-
         var taxiDispatch = new GroundCommandHandler.TaxiDispatch(
             ctx.AutoCrossRunwayMode,
             ctx.ActiveRunways,
@@ -3325,7 +3340,13 @@ public static class CommandDispatcher
         switch (command)
         {
             case ClearedForTakeoffCommand cto:
-                return ApplyClearedForTakeoff(cto, aircraft, currentPhase, ctx, taxiDispatch);
+                return WithDepartureAltitudeStored(
+                    ApplyClearedForTakeoff(cto, aircraft, currentPhase, ctx, taxiDispatch),
+                    aircraft,
+                    ctx,
+                    cto.AssignedAltitude,
+                    isTakeoffClearance: true
+                );
 
             case CancelTakeoffClearanceCommand:
                 // Cancelling the takeoff clearance moots any pending expedite intent.
@@ -3356,6 +3377,11 @@ public static class CommandDispatcher
                 if (luawResult.Success)
                 {
                     aircraft.Ground.IsExpeditingLineup = luawCmd.WithoutDelay;
+                }
+
+                if (luawResult.Success)
+                {
+                    DepartureClearanceHandler.StoreSidInitialAltitude(aircraft, ctx, clearanceAltitude: null, isTakeoffClearance: false);
                 }
 
                 if (luawResult.TaxiwayHoldTakeoff is { } taxiwayHold)
@@ -3649,7 +3675,17 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryLand(aircraft, land, groundLayout);
 
             case ClearedTakeoffPresentCommand ctopp:
-                return DepartureClearanceHandler.TryClearedTakeoffPresent(ctopp, aircraft, groundLayout);
+            {
+                CommandResult ctoppResult = DepartureClearanceHandler.TryClearedTakeoffPresent(ctopp, aircraft, groundLayout);
+                // A hover clearance authorises no climb: the vertical liftoff's hover altitude stays the target, so nothing
+                // is resolved from the SID's TDLS defaults.
+                if (ctopp.Departure is PresentPositionHoverDeparture)
+                {
+                    return ctoppResult;
+                }
+
+                return WithDepartureAltitudeStored(ctoppResult, aircraft, ctx, ctopp.AssignedAltitude, isTakeoffClearance: true);
+            }
 
             // Ground commands
             case PushbackCommand push:

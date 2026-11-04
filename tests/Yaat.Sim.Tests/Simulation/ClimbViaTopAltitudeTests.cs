@@ -181,6 +181,46 @@ public class ClimbViaTopAltitudeTests
     }
 
     /// <summary>
+    /// KIAH's FLYZA5 publishes up to 7,000 on its common route and 11,000 on its enroute transitions. Filed "FLYZA5" with no
+    /// transition, and with no fix of a transition on its live route, the flown transition cannot be identified: a bare CVIA
+    /// with no TDLS value climbs to the highest altitude the runway transitions and common route publish, never to a
+    /// transition's altitude the aircraft is not flying.
+    /// </summary>
+    [Fact]
+    public void ClimbVia_NoTransitionIdentified_ClimbsToTheCommonRouteTop_NotATransitionsTop()
+    {
+        CifpSidProcedure sid = Assert.IsType<CifpSidProcedure>(NavigationDatabase.Instance.GetSid("KIAH", "FLYZA5"));
+        int commonTop = HighestPublishedFt(sid.RunwayTransitions.Values.SelectMany(t => t.Legs).Concat(sid.CommonLegs));
+        int transitionTop = HighestPublishedFt(sid.EnrouteTransitions.Values.SelectMany(t => t.Legs));
+        Assert.True(transitionTop > commonTop, $"setup: a FLYZA5 transition must publish above the common route ({transitionTop} vs {commonTop})");
+
+        LatLon position = FixPosition(sid.CommonLegs.First(l => !string.IsNullOrEmpty(l.FixIdentifier)).FixIdentifier);
+        var ac = new AircraftState
+        {
+            Callsign = "UAL1402",
+            AircraftType = "B738",
+            Position = position,
+            Altitude = 3000,
+            IndicatedAirspeed = 230,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KIAH",
+                Destination = "KLAX",
+                Route = "FLYZA5",
+                Altitude = PlannedAltitude.Ifr(35000),
+                FlightRules = "IFR",
+            },
+        };
+        ac.Procedure.ActiveSidId = sid.ProcedureId;
+        ac.Procedure.SidViaMode = true;
+
+        DispatchLine(ac, "CVIA", TestDispatch.Context(Random.Shared));
+
+        _output.WriteLine($"commonTop={commonTop} transitionTop={transitionTop} climbViaTarget={ac.Procedure.ClimbViaTargetFt}");
+        Assert.Equal(commonTop, ac.Procedure.ClimbViaTargetFt);
+    }
+
+    /// <summary>
     /// The filed NUEVO8 resolves to the current version in navdata, while the ZOA snapshot's TDLS entry is still NUEVO8: its
     /// SNS transition carries "CLB VIA SID EXC MAINT 10000FT" in each of KOAK's op configs, above anything the SID publishes.
     /// A bare CVIA climbs to it, not to the 2,000 CTO stored from KOAK's menu.
@@ -1244,7 +1284,12 @@ public class ClimbViaTopAltitudeTests
             },
             Phases = new PhaseList { AssignedRunway = rwy },
         };
-        DepartureClearanceHandler.StoreSidInitialAltitude(ac, artccConfig);
+        DepartureClearanceHandler.StoreSidInitialAltitude(
+            ac,
+            TestDispatch.Context(Random.Shared, artccConfig: artccConfig),
+            ctoAltitude,
+            isTakeoffClearance: true
+        );
 
         var holding = new HoldingInPositionPhase();
         ac.Phases.Add(holding);
@@ -1309,7 +1354,12 @@ public class ClimbViaTopAltitudeTests
             },
             Phases = new PhaseList { AssignedRunway = rwy },
         };
-        DepartureClearanceHandler.StoreSidInitialAltitude(ac, artccConfig);
+        DepartureClearanceHandler.StoreSidInitialAltitude(
+            ac,
+            TestDispatch.Context(Random.Shared, artccConfig: artccConfig),
+            ctoAltitude,
+            isTakeoffClearance: true
+        );
         Assert.Equal(5000, ac.Procedure.SidInitialAltitudeFt);
 
         var holding = new HoldingInPositionPhase();

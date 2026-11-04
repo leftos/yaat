@@ -57,15 +57,18 @@ public class AircraftProcedure
     public double? LastCrossedPublishedSpeedKts { get; set; }
 
     /// <summary>
-    /// Published initial ("maintain") altitude in feet for this aircraft's departure SID transition,
-    /// from the airport's TDLS config (e.g. KIAH 4000, KHOU 5000). When set, an IFR departure with no
-    /// explicit clearance altitude climbs to and maintains it until ATC issues a climb (7110.65 4-3-2).
-    /// Null when off a SID, VFR, or the airport publishes no initial altitude.
+    /// The initial ("maintain") altitude in feet a bare takeoff clearance stored from this aircraft's SID transition's TDLS
+    /// default initial altitude (e.g. KHOU 5000), when that transition carries no climb-via default. When set, an IFR
+    /// departure with no explicit clearance altitude climbs to and maintains it until ATC issues a climb (7110.65 4-3-2).
+    /// Null when off a SID, VFR, the transition's default is a climb via (then <see cref="ClimbViaTargetFt"/> is in force
+    /// from takeoff), or it carries no value.
     /// </summary>
     public int? SidInitialAltitudeFt { get; set; }
 
     /// <summary>
-    /// The altitude a climb via clearance (<c>CVIA</c>) climbs to, resolved once when it is issued: <c>CVIA nnn</c>'s
+    /// The altitude a climb via clearance climbs to, resolved once when it is issued — a <c>CVIA</c>, or a bare takeoff
+    /// clearance whose SID transition's TDLS default is a climb via ("CLIMB VIA SID EXC MAINT 4000FT" acting as
+    /// <c>CVIA 040</c>): <c>CVIA nnn</c>'s
     /// altitude; else the TDLS climb-via text's "EXC MAINT" altitude for the SID and filed transition; else that
     /// transition's TDLS initial altitude; else the highest altitude the SID publishes on its flown legs (a stand-in for
     /// the charted top, which CIFP does not code); else present altitude. A TDLS value is never raised by a published
@@ -74,7 +77,7 @@ public class AircraftProcedure
     /// outranks every other departure climb target (the CTO altitude, the procedure phase's ceiling, filed cruise). A route
     /// that ends at the SID's last constrained fix keeps it in force, the fix's ceiling applying only up to the fix; reaching
     /// the top clears it, with the top left as the assigned altitude. Cleared with <see cref="SidViaCeiling"/> by any later
-    /// altitude clearance, a DVIA or a procedure reset. Null when no CVIA is in force.
+    /// altitude clearance (a CTO altitude included), a DVIA or a procedure reset. Null when no climb via is in force.
     /// </summary>
     public int? ClimbViaTargetFt { get; set; }
 

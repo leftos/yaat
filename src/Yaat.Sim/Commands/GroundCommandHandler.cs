@@ -2101,7 +2101,7 @@ public static partial class GroundCommandHandler
     private readonly record struct DepartureRunwayAssignment(
         string? PriorDepartureRunway,
         bool IsArrival,
-        bool HasSidInitialAltitude,
+        bool DepartureClearanceRead,
         bool HasStoredTakeoffClearance
     );
 
@@ -2111,7 +2111,7 @@ public static partial class GroundCommandHandler
     /// clearance pending — without its airborne clause: a taxi clearance already requires the wheels on the
     /// ground, and a helicopter hovering over the field on an air taxi is manoeuvring on the airport, not
     /// arriving. The two clearance flags are what makes a runway change worth warning about: a SID initial
-    /// altitude means the departure clearance has been read to the crew, and
+    /// altitude or a climb via in force means the departure clearance has been read to the crew, and
     /// <see cref="PhaseList.DepartureClearance"/> is a takeoff clearance stored while the aircraft taxis. A VFR
     /// or repositioning aircraft has neither.
     /// </summary>
@@ -2124,7 +2124,7 @@ public static partial class GroundCommandHandler
         return new DepartureRunwayAssignment(
             aircraft.Procedure.DepartureRunway,
             isArrival,
-            aircraft.Procedure.SidInitialAltitudeFt is not null,
+            (aircraft.Procedure.SidInitialAltitudeFt is not null) || (aircraft.Procedure.ClimbViaTargetFt is not null),
             aircraft.Phases?.DepartureClearance is not null
         );
     }
@@ -2160,7 +2160,7 @@ public static partial class GroundCommandHandler
     /// costs depends on what had been issued for the old runway, so the warning says only what applies:
     ///
     /// <list type="bullet">
-    /// <item>a departure clearance had been read to the crew (a SID initial altitude is held): it no longer
+    /// <item>a departure clearance had been read to the crew (a SID initial altitude is held or a climb via is in force): it no longer
     /// applies, and 4-3-2.c.1 NOTE 1 wants the amended one issued before the aircraft enters the runway;</item>
     /// <item>only a takeoff clearance was stored during the taxi: a takeoff clearance is runway-specific
     /// (3-9-10.a) and is cancelled explicitly (3-9-11), never by re-taxiing the aircraft.</item>
@@ -2171,7 +2171,7 @@ public static partial class GroundCommandHandler
     /// </summary>
     private static void WarnIfDepartureRunwayChanged(AircraftState aircraft, RunwayInfo runway, DepartureRunwayAssignment prior)
     {
-        if ((prior.PriorDepartureRunway is not { Length: > 0 } previous) || (!prior.HasSidInitialAltitude && !prior.HasStoredTakeoffClearance))
+        if ((prior.PriorDepartureRunway is not { Length: > 0 } previous) || (!prior.DepartureClearanceRead && !prior.HasStoredTakeoffClearance))
         {
             return;
         }
@@ -2190,7 +2190,7 @@ public static partial class GroundCommandHandler
         string head =
             $"taxi clearance names runway {assigned} but the departure runway assigned is {briefed} — this is a runway change, "
             + "not a confirmation (7110.65 3-7-2); ";
-        string warning = prior.HasSidInitialAltitude
+        string warning = prior.DepartureClearanceRead
             ? head
                 + $"the departure clearance issued for {briefed} no longer applies and the SID runway transition will be "
                 + $"resolved for {assigned} when the amended clearance is issued, so issue it before the aircraft enters the "

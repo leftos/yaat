@@ -1501,27 +1501,26 @@ internal static class NavigationCommandHandler
         // is active yet — e.g. the aircraft was given runway heading (CTO RH) or vectored off and then
         // re-cleared DCT to a downstream SID fix — activate the one in the filed route and overlay its
         // published crossing restrictions onto the live lateral route.
-        if ((aircraft.Procedure.ActiveSidId is null) && !TryActivateFiledSid(aircraft, ctx.TransmissionId))
+        bool inForce = TryPutClimbViaInForce(
+            aircraft,
+            ctx.TransmissionId,
+            () =>
+            {
+                SupersedeEarlierCrossingRestrictions(aircraft, ctx.TransmissionId, ActiveSidRestrictions);
+                CancelEarlierAssignedSpeed(aircraft, ctx.SpeedRestatedInTransmission, ctx.TransmissionId);
+                // A bare climb via cancels an interim altitude assigned before it and climbs to the SID's top altitude
+                // (7110.65 4-5-7.h.10 Example 1, h.11 NOTE 1; AIM 5-2-9.h.8).
+                aircraft.Targets.AssignedAltitude = null;
+                aircraft.Procedure.SpeedRestrictionsDeleted = false;
+                return ResolveClimbViaTarget(cmd, aircraft, ctx.ArtccConfig);
+            }
+        );
+        if (!inForce)
         {
             return new CommandResult(false, "No active SID — climb via requires a SID in the filed route");
         }
 
-        SupersedeEarlierCrossingRestrictions(aircraft, ctx.TransmissionId, ActiveSidRestrictions);
-        CancelEarlierAssignedSpeed(aircraft, ctx.SpeedRestatedInTransmission, ctx.TransmissionId);
-        (int target, int? exceptMaintain) = ResolveClimbViaTarget(cmd, aircraft, ctx.ArtccConfig);
-        aircraft.Procedure.SidViaMode = true;
-        aircraft.Procedure.SidViaCeiling = exceptMaintain;
-        aircraft.Procedure.ClimbViaTargetFt = target;
-        aircraft.Procedure.ClimbViaTransmissionId = StampedTransmission(ctx.TransmissionId);
-        // A bare climb via cancels an interim altitude assigned before it and climbs to the SID's top altitude
-        // (7110.65 4-5-7.h.10 Example 1, h.11 NOTE 1; AIM 5-2-9.h.8).
-        aircraft.Targets.AssignedAltitude = null;
         aircraft.Targets.TargetAltitude = FlightPhysics.ClimbViaAltitude(aircraft);
-        aircraft.Procedure.SpeedRestrictionsDeleted = false;
-        // Reset procedural speed memory; ApplyFirstConstrainedFix will repopulate
-        // it from the next constrained fix in the route.
-        aircraft.Procedure.LastProcedureSpeedKts = null;
-        ApplyFirstConstrainedFix(aircraft);
 
         if (cmd.Altitude is not null)
         {
@@ -1529,6 +1528,68 @@ internal static class NavigationCommandHandler
         }
 
         return CommandDispatcher.Ok("Climb via SID");
+    }
+
+    /// <summary>
+    /// Puts a climb via in force from takeoff for the climb-via text of the SID transition's TDLS default, the via the
+    /// departure clearance read to the crew before anything said on the ground: unlike a <c>CVIA</c>, it supersedes no
+    /// crossing restriction given on the ground — activating the SID (<see cref="TryActivateFiledSid"/>) does overlay its
+    /// published restrictions onto the route fixes they match — and cancels no speed or altitude assigned before it. Its top is
+    /// <paramref name="exceptMaintainFt"/>, an "except maintain"; with none, the highest altitude the SID publishes on its
+    /// flown legs. Never below present altitude rounded up to 100 ft. False, with nothing changed, when no SID in the filed
+    /// route can be activated.
+    /// </summary>
+    internal static bool TryPutTdlsClimbViaInForce(AircraftState aircraft, int transmissionId, int? exceptMaintainFt) =>
+        TryPutClimbViaInForce(
+            aircraft,
+            transmissionId,
+            () =>
+            {
+                int floor = (int)(Math.Ceiling(Math.Round(aircraft.Altitude) / 100.0) * 100);
+                if (exceptMaintainFt is { } assigned)
+                {
+                    return (Math.Max(assigned, floor), assigned);
+                }
+
+                if (HighestPublishedSidAltitudeFt(aircraft) is { } published)
+                {
+                    return (Math.Max(published, floor), null);
+                }
+
+                Log.LogWarning(
+                    "[ClimbVia] {Callsign}: no published top altitude for {Sid} at {Departure}; the TDLS climb via holds {Floor}",
+                    aircraft.Callsign,
+                    aircraft.Procedure.ActiveSidId,
+                    aircraft.FlightPlan.Departure,
+                    floor
+                );
+                return (floor, null);
+            }
+        );
+
+    /// <summary>
+    /// Puts a climb via in force: activates the filed SID when none is active, then resolves the top with
+    /// <paramref name="resolveTop"/> (the caller's own steps that must precede it run there, after the SID is active) and
+    /// writes the via state and the first constrained fix; a caller that wants the target altitude set at once writes it
+    /// itself. False, with nothing changed, when no SID in the filed route can be activated.
+    /// </summary>
+    private static bool TryPutClimbViaInForce(AircraftState aircraft, int transmissionId, Func<(int TargetFt, int? ExceptMaintainFt)> resolveTop)
+    {
+        if ((aircraft.Procedure.ActiveSidId is null) && !TryActivateFiledSid(aircraft, transmissionId))
+        {
+            return false;
+        }
+
+        (int target, int? exceptMaintain) = resolveTop();
+        aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.SidViaCeiling = exceptMaintain;
+        aircraft.Procedure.ClimbViaTargetFt = target;
+        aircraft.Procedure.ClimbViaTransmissionId = StampedTransmission(transmissionId);
+        // Reset procedural speed memory; ApplyFirstConstrainedFix will repopulate
+        // it from the next constrained fix in the route.
+        aircraft.Procedure.LastProcedureSpeedKts = null;
+        ApplyFirstConstrainedFix(aircraft);
+        return true;
     }
 
     /// <summary>
@@ -1544,7 +1605,7 @@ internal static class NavigationCommandHandler
     /// <item>else present altitude, with a warning.</item>
     /// </list>
     /// Never below present altitude rounded up to 100 ft, since a via clearance never commands a descent (a descent takes
-    /// DM). The TDLS initial-altitude menu and the <see cref="AircraftProcedure.SidInitialAltitudeFt"/> CTO stored from it
+    /// DM). The TDLS initial-altitude menu and the maintain a bare CTO stored (<see cref="AircraftProcedure.SidInitialAltitudeFt"/>)
     /// never take part.
     /// </summary>
     private static (int TargetFt, int? ExceptMaintainFt) ResolveClimbViaTarget(
@@ -2459,9 +2520,9 @@ internal static class NavigationCommandHandler
     /// The legs of <paramref name="sid"/> that <paramref name="aircraft"/> flies, in order: the runway transition matching
     /// <see cref="AircraftProcedure.DepartureRunway"/> (a persistent field that survives a phase teardown), so the
     /// first-wins dedup prefers the flown runway's values; the common route; then the enroute transition(s) flown — named
-    /// in the filed route, or holding a fix of the live route outside the common route. Where no runway transition, or no
-    /// enroute transition, can be identified, every one is read: harmless for the by-name overlay, since a rejoin route
-    /// only holds downstream fixes.
+    /// in the filed route, or holding a fix of the live route outside the common route. Where no runway transition can be
+    /// identified, every one is read. Where no enroute transition can be identified, none is read: a transition the
+    /// aircraft is not known to fly must not raise a climb via's top altitude, nor lay its restrictions on the route.
     /// </summary>
     private static List<CifpLeg> FlownSidLegs(CifpSidProcedure sid, AircraftState aircraft)
     {
@@ -2505,7 +2566,7 @@ internal static class NavigationCommandHandler
                 filedTokens.Contains(t.Name) || t.Legs.Any(l => routeFixes.Contains(l.FixIdentifier) && (!commonFixes.Contains(l.FixIdentifier)))
             ),
         ];
-        return flown.Count > 0 ? flown : [.. sid.EnrouteTransitions.Values];
+        return flown;
     }
 
     internal static CommandResult DispatchReportFieldInSight(AircraftState aircraft, DispatchContext ctx)

@@ -8,6 +8,9 @@
 
 ### Fixed
 
+- A bare `CTO` takes a SID departure's altitude from its transition's TDLS clearance (climb via, except maintain, or maintain), never the initial-altitude dropdown.
+- A bare `CTO` on a filed SID with no TDLS altitude warns the instructor: "no initial altitude for (callsign); assign one".
+- A bare `CVIA` with no transition in the route climbs to the SID's common-route top, not an altitude from a transition the aircraft won't fly.
 - An aircraft held short of a runway behind traffic crossing it is no longer released early because the crossing aircraft's stop was misjudged.
 - When navigation data finishes loading after a scenario loads, the radar centres on the scenario's airport instead of the facility area's centre.
 - A speed assigned during a 360, 270, S-turn or VFR hold stands: reaching the hold fix or ending the maneuver no longer changes it.

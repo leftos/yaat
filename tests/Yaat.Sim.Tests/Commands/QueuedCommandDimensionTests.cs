@@ -696,11 +696,11 @@ public class QueuedCommandDimensionTests
     // ---------------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// An IFR B738 holding short of OAK 28R — the state a takeoff clearance is issued from. IFR because
-    /// the SID-cap case below needs it (StoreSidInitialAltitude clears the cap for a VFR departure); the
-    /// two dimension cases are indifferent to the flight rules.
+    /// An IFR B738 holding short of OAK 28R — the state a takeoff clearance is issued from — filed on
+    /// <paramref name="route"/> (empty for none). IFR because the SID-cap case below needs it (StoreSidInitialAltitude clears the
+    /// cap for a VFR departure); the two dimension cases are indifferent to the flight rules.
     /// </summary>
-    private static AircraftState HoldingShortOf28RAtOakland()
+    private static AircraftState HoldingShortOf28RAtOakland(string route)
     {
         var ac = new AircraftState
         {
@@ -715,6 +715,7 @@ public class QueuedCommandDimensionTests
             {
                 Departure = "OAK",
                 Destination = "KLAX",
+                Route = route,
                 FlightRules = "IFR",
             },
             Phases = new PhaseList(),
@@ -737,7 +738,7 @@ public class QueuedCommandDimensionTests
     [Fact]
     public void ChainedTakeoffClearance_LeavesQueuedDepartureTurnAlone()
     {
-        AircraftState ac = HoldingShortOf28RAtOakland();
+        AircraftState ac = HoldingShortOf28RAtOakland(route: "");
         Dispatch("AT 2000 TL 270", ac, preserveConditionals: false);
         Assert.True(StillQueued(ac, CanonicalCommandType.TurnLeft), "setup: the departure turn should be queued behind its AT trigger");
 
@@ -757,7 +758,7 @@ public class QueuedCommandDimensionTests
         // 4-4-10.g), so the queued turn goes — while a queued speed stays: §5-7-1.d names the clearances
         // that cancel a previously assigned speed (approach, and climb via/descend via) and a takeoff
         // clearance is not among them.
-        AircraftState ac = HoldingShortOf28RAtOakland();
+        AircraftState ac = HoldingShortOf28RAtOakland(route: "");
         Dispatch("AT 2000 TL 270", ac, preserveConditionals: false);
         Dispatch("AT 2000 SPD 210", ac, preserveConditionals: false);
 
@@ -771,10 +772,10 @@ public class QueuedCommandDimensionTests
     }
 
     // ---------------------------------------------------------------------------------------------------
-    // What the surviving block is FOR. An IFR departure cleared with a bare CTO climbs to its SID's
-    // published initial altitude — InitialClimbPhase.ResolveTargetAltitude step 1b, reading the cap
-    // StoreSidInitialAltitude resolved from the TDLS config when the clearance fired (OAK publishes
-    // 2,000 ft). The pre-armed "AT 1000 CM 5000" survives the chained clearance, fires during the climb,
+    // What the surviving block is FOR. An IFR departure cleared with a bare CTO climbs to its SID transition's
+    // TDLS initial altitude — InitialClimbPhase.ResolveTargetAltitude step 1b, reading the maintain
+    // StoreSidInitialAltitude resolved from the TDLS config when the clearance fired (OAK's NIMI6 carries
+    // 3,000 ft). The pre-armed "AT 1000 CM 5000" survives the chained clearance, fires during the climb,
     // and step 0 — the controller-assigned altitude — outranks the cap, so the aircraft climbs through it
     // to 5,000. While the clearance fired All this block was wiped and the departure levelled at the cap.
     //
@@ -787,8 +788,11 @@ public class QueuedCommandDimensionTests
     // skipped over by that scan, which is what lets the survivor fire on its own trigger.
     // ---------------------------------------------------------------------------------------------------
 
-    /// <summary>OAK's published initial altitude, the first <c>initialAlts</c> entry of its TDLS config.</summary>
-    private const int OakPublishedInitialAltitudeFt = 2000;
+    /// <summary>The filed route of the SID-cap cases: OAK's NIMI6, whose TDLS transition default is a 3000FT initial altitude.</summary>
+    private const string Nimi6Route = "NIMI6";
+
+    /// <summary>NIMI6's TDLS initial altitude, the maintain a bare CTO stores.</summary>
+    private const int Nimi6InitialAltitudeFt = 3000;
 
     private static void DispatchWithArtccConfig(string text, AircraftState ac, ArtccConfigRoot artccConfig)
     {
@@ -809,7 +813,7 @@ public class QueuedCommandDimensionTests
     /// Flies the departure the takeoff clearance installed: airborne past the DER, into
     /// <see cref="InitialClimbPhase"/> — the roll itself needs a ground layout this class does not load, so
     /// the lineup and takeoff phases are skipped the way KaseLindz1DepartureE2ETests skips them — and then
-    /// <paramref name="seconds"/> ticks of phase + physics. The climb starts on the published cap.
+    /// <paramref name="seconds"/> ticks of phase + physics. The climb starts on the SID transition's TDLS maintain.
     /// </summary>
     private static void FlyTheDepartureClimb(AircraftState ac, int seconds)
     {
@@ -832,7 +836,7 @@ public class QueuedCommandDimensionTests
             Logger = NullLogger.Instance,
         };
         ac.Phases.SkipTo<InitialClimbPhase>(ctx);
-        Assert.Equal(OakPublishedInitialAltitudeFt, ac.Targets.TargetAltitude);
+        Assert.Equal(Nimi6InitialAltitudeFt, ac.Targets.TargetAltitude);
 
         for (int t = 0; t < seconds; t++)
         {
@@ -855,7 +859,7 @@ public class QueuedCommandDimensionTests
             return;
         }
 
-        AircraftState ac = HoldingShortOf28RAtOakland();
+        AircraftState ac = HoldingShortOf28RAtOakland(Nimi6Route);
         DispatchWithArtccConfig("AT 1000 CM 5000", ac, artccConfig);
         DispatchWithArtccConfig("CTO; SQ 1234", ac, artccConfig);
 
@@ -884,11 +888,11 @@ public class QueuedCommandDimensionTests
             return;
         }
 
-        AircraftState ac = HoldingShortOf28RAtOakland();
+        AircraftState ac = HoldingShortOf28RAtOakland(Nimi6Route);
         DispatchWithArtccConfig("AT 1000 CM 5000", ac, artccConfig);
         DispatchWithArtccConfig("CTO; AT 5000 SPD 250", ac, artccConfig);
 
-        Assert.Equal(OakPublishedInitialAltitudeFt, ac.Procedure.SidInitialAltitudeFt);
+        Assert.Equal(Nimi6InitialAltitudeFt, ac.Procedure.SidInitialAltitudeFt);
         Assert.True(StillQueued(ac, CanonicalCommandType.ClimbMaintain), "setup: the queued climb must survive the takeoff clearance");
 
         FlyTheDepartureClimb(ac, seconds: 240);
@@ -897,7 +901,7 @@ public class QueuedCommandDimensionTests
         Assert.Equal(5000, ac.Targets.AssignedAltitude);
         Assert.True(
             ac.Altitude > 4900 && ac.Altitude < 5100,
-            $"the commanded 5,000 outranks the {OakPublishedInitialAltitudeFt} ft published cap, but the aircraft is at {ac.Altitude:F0}"
+            $"the commanded 5,000 outranks the {Nimi6InitialAltitudeFt} ft TDLS maintain, but the aircraft is at {ac.Altitude:F0}"
         );
     }
 

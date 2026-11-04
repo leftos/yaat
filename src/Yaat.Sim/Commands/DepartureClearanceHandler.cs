@@ -24,19 +24,22 @@ internal sealed record DepartureRouteResult(
 
 internal static class DepartureClearanceHandler
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("DepartureClearanceHandler");
+
     /// <summary>
     /// When CTO bundles an explicit climb-to altitude, mirror it onto
     /// <see cref="ControlTargets.AssignedAltitude"/> so the datablock and SALT
     /// observe a single source of truth from issuance —
     /// matching the CM/DM/FA pattern. Bare LUAW (without takeoff) does not
     /// authorize the climb yet, so leave the field alone in that case. The altitude is the last clearance, so it cancels
-    /// an earlier climb via's "except maintain" and top altitude (7110.65 4-5-7.h.11 NOTE 1).
+    /// an earlier climb via's "except maintain", its top altitude and the via mode itself (7110.65 4-5-7.h.11 NOTE 1).
     /// </summary>
     private static void SyncControllerAssignedAltitude(AircraftState aircraft, ClearanceType type, int? assignedAltitude)
     {
         if ((type == ClearanceType.ClearedForTakeoff) && (assignedAltitude is { } v))
         {
             aircraft.Targets.AssignedAltitude = v;
+            aircraft.Procedure.SidViaMode = false;
             aircraft.Procedure.SidViaCeiling = null;
             aircraft.Procedure.ClimbViaTargetFt = null;
             aircraft.Procedure.ClimbViaTransmissionId = null;
@@ -44,24 +47,72 @@ internal static class DepartureClearanceHandler
     }
 
     /// <summary>
-    /// Resolves and stores the departure's published SID initial-altitude cap (the TDLS "maintain"
-    /// altitude, e.g. KIAH 4000 / KHOU 5000) on the aircraft so <see cref="InitialClimbPhase"/> holds
-    /// it when no altitude is commanded. Only IFR departures on a SID get a value; VFR clears it. The
-    /// SID and enroute transition come from the filed route's first two tokens (e.g. "BLTWY7 CRIED").
+    /// Resolves what a takeoff or line-up clearance gives an IFR departure from its SID transition's TDLS defaults, as vTDLS
+    /// fills the clearance (<see cref="ArtccConfigResolver.GetSidDepartureAltitude"/>), so <see cref="InitialClimbPhase"/>
+    /// flies it when no altitude is commanded. Runs only once the clearance has been given effect. A climb-via default puts
+    /// the climb via read in the departure clearance in force from takeoff
+    /// (<see cref="NavigationCommandHandler.TryPutTdlsClimbViaInForce"/>), its top "EXC MAINT X" or the SID's published
+    /// top, with <paramref name="ctx"/>'s transmission and without cancelling anything assigned on the ground; an initial
+    /// altitude is stored as <see cref="AircraftProcedure.SidInitialAltitudeFt"/>, a maintain; with neither, or when no SID
+    /// can be activated for the climb via, nothing is stored, and a takeoff clearance (<paramref name="isTakeoffClearance"/>)
+    /// on a filed SID the departure airport publishes warns the instructor that the departure has no initial altitude, with
+    /// or without a TDLS config; a departure filing no SID is not warned. A climb via already in force (a <c>CVIA</c> given on
+    /// the ground, or one an earlier line-up clearance put in force) and an altitude already assigned win: nothing is
+    /// resolved. A clearance carrying its own altitude (<paramref name="clearanceAltitude"/>) resolves nothing and drops the
+    /// stored maintain. VFR clears the maintain.
     /// </summary>
-    internal static void StoreSidInitialAltitude(AircraftState aircraft, ArtccConfigRoot? artccConfig)
+    internal static void StoreSidInitialAltitude(AircraftState aircraft, DispatchContext ctx, int? clearanceAltitude, bool isTakeoffClearance)
     {
-        if (aircraft.FlightPlan.IsVfr)
+        if (aircraft.FlightPlan.IsVfr || (clearanceAltitude is not null))
         {
             aircraft.Procedure.SidInitialAltitudeFt = null;
             return;
         }
 
-        string[] tokens = (aircraft.FlightPlan.Route ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        string? sidId = tokens.Length > 0 ? tokens[0] : null;
-        string? transitionId = tokens.Length > 1 ? tokens[1] : null;
+        if (aircraft.Procedure.SidViaMode || (aircraft.Targets.AssignedAltitude is not null))
+        {
+            return;
+        }
 
-        aircraft.Procedure.SidInitialAltitudeFt = artccConfig.GetSidInitialAltitudeFt(aircraft.FlightPlan.Departure ?? "", sidId, transitionId);
+        TdlsDepartureAltitude resolved = ctx.ArtccConfig.GetSidDepartureAltitude(aircraft.FlightPlan.Departure ?? "", aircraft.FlightPlan.Route);
+        aircraft.Procedure.SidInitialAltitudeFt = null;
+        if (resolved.Kind == TdlsDepartureAltitudeKind.Maintain)
+        {
+            aircraft.Procedure.SidInitialAltitudeFt = resolved.AltitudeFt;
+            return;
+        }
+
+        if (resolved.Kind == TdlsDepartureAltitudeKind.ClimbVia)
+        {
+            if (NavigationCommandHandler.TryPutTdlsClimbViaInForce(aircraft, ctx.TransmissionId, resolved.AltitudeFt))
+            {
+                return;
+            }
+
+            Log.LogWarning(
+                "{Callsign}: TDLS climb via for {Route} at {Departure}, but no filed SID activates; no initial altitude",
+                aircraft.Callsign,
+                aircraft.FlightPlan.Route,
+                aircraft.FlightPlan.Departure
+            );
+        }
+
+        if (isTakeoffClearance)
+        {
+            WarnNoInitialAltitude(aircraft);
+        }
+    }
+
+    /// <summary>
+    /// Warns the instructor that a takeoff-cleared departure on a filed SID the departure airport publishes has no initial
+    /// altitude to climb to. A departure filing no SID is left alone.
+    /// </summary>
+    private static void WarnNoInitialAltitude(AircraftState aircraft)
+    {
+        if (FiledProcedureLookup.FindSid(NavigationDatabase.Instance, aircraft.FlightPlan.Departure, aircraft.FlightPlan.Route) is not null)
+        {
+            aircraft.PendingWarnings.Add($"no initial altitude for {aircraft.Callsign}; assign one");
+        }
     }
 
     /// <summary>
@@ -2668,7 +2719,7 @@ internal static class DepartureClearanceHandler
             Runway = null,
             FieldElevation = aircraft.Altitude,
             GroundLayout = groundLayout,
-            Logger = SimLog.CreateLogger("DepartureClearanceHandler"),
+            Logger = Log,
         };
         aircraft.Phases.Start(ctoppCtx);
         SyncControllerAssignedAltitude(aircraft, ClearanceType.ClearedForTakeoff, ctopp.AssignedAltitude);

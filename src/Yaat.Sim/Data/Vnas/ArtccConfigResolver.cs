@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Tdls;
 
 namespace Yaat.Sim.Data.Vnas;
 
@@ -1643,42 +1644,73 @@ public static partial class ArtccConfigResolver
         config.FindFacility(facilityId)?.StarsConfiguration?.AutomaticConsolidation ?? false;
 
     /// <summary>
-    /// The published initial ("maintain") altitude in feet for an IFR departure on the given SID and
-    /// enroute transition, from the departure airport's TDLS config: the transition's
-    /// <c>DefaultInitialAlt</c> when set, otherwise the facility's primary <c>InitialAlts</c> value
-    /// (some facilities, e.g. KIAH, leave the per-transition default blank and rely on the list).
-    /// Returns null when the airport has no TDLS config, the SID isn't configured, or no value is published.
+    /// The altitude a bare takeoff clearance gives an IFR departure filed on <paramref name="filedRoute"/>, as vTDLS fills
+    /// the clearance from the departure airport's TDLS config. The route splits at spaces, dots and plus signs; its first
+    /// token is the SID, its second the transition hint. The SID entry is the first of that name in the airport's SID list,
+    /// then in each ops config's in list order; only when none has that name, and the token ends in a version digit, the
+    /// first entry of the same base name (a renumbered SID still filed, or still configured, under the old version). The
+    /// transition is the one whose first route point is the hint, else the one so named, else the SID's first. Its defaults
+    /// decide: a climb-via text puts a climb via in force, its "EXC(EPT) MAINT(AIN) X" altitude the "except maintain" (no
+    /// altitude: to the SID's published top); otherwise a parsable initial altitude is a maintain; otherwise none. A
+    /// placeholder ("- - - -") is no value. The facility's initial-altitude menu never takes part. None when the airport has
+    /// no TDLS config or the SID is not configured.
     /// </summary>
-    public static int? GetSidInitialAltitudeFt(this ArtccConfigRoot? config, string departureAirportId, string? sidId, string? transitionId)
+    public static TdlsDepartureAltitude GetSidDepartureAltitude(this ArtccConfigRoot? config, string departureAirportId, string? filedRoute)
     {
-        if (config?.Facility is null || string.IsNullOrWhiteSpace(departureAirportId))
+        if ((config?.Facility is null) || string.IsNullOrWhiteSpace(departureAirportId))
         {
-            return null;
+            return TdlsDepartureAltitude.None;
         }
 
+        string[] tokens = (filedRoute ?? "").Split([' ', '.', '+'], StringSplitOptions.RemoveEmptyEntries);
         TdlsConfig? tdls = FindTdlsConfigForAirport(config.Facility, NormalizeFaaAirport(departureAirportId));
-        if (tdls is null)
+        if ((tdls is null) || (tokens.Length == 0))
         {
-            return null;
+            return TdlsDepartureAltitude.None;
         }
 
-        string? raw = null;
-        if (!string.IsNullOrWhiteSpace(sidId))
+        string sidId = tokens[0];
+        List<TdlsSidConfig> sids = [.. tdls.Sids, .. tdls.OpConfigs.SelectMany(c => c.Sids)];
+        TdlsSidConfig? sid = sids.FirstOrDefault(s => s.Name.Equals(sidId, StringComparison.OrdinalIgnoreCase));
+        if ((sid is null) && char.IsDigit(sidId[^1]))
         {
-            TdlsSidConfig? sid = tdls.Sids.FirstOrDefault(s => s.Name.Equals(sidId, StringComparison.OrdinalIgnoreCase));
-            if (sid is not null)
-            {
-                TdlsSidTransitionConfig? transition = transitionId is not null
-                    ? sid.Transitions.FirstOrDefault(t => t.Name.Equals(transitionId, StringComparison.OrdinalIgnoreCase))
-                    : null;
-                raw =
-                    transition?.DefaultInitialAlt
-                    ?? sid.Transitions.Select(t => t.DefaultInitialAlt).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
-            }
+            string baseName = NavigationDatabase.StripTrailingDigits(sidId);
+            sid = sids.FirstOrDefault(s => NavigationDatabase.StripTrailingDigits(s.Name).Equals(baseName, StringComparison.OrdinalIgnoreCase));
         }
 
-        raw ??= tdls.InitialAlts.FirstOrDefault()?.Value;
-        return ParseTdlsAltitudeFt(raw);
+        string? hint = tokens.Length > 1 ? tokens[1] : null;
+        TdlsSidTransitionConfig? transition = sid is null ? null : SelectedTransition(sid, hint);
+        return transition is null ? TdlsDepartureAltitude.None : TransitionDepartureAltitude(transition);
+    }
+
+    /// <summary>
+    /// The transition vTDLS selects for <paramref name="sid"/> from the filed route's transition hint: the one whose first
+    /// route point is the hint, else the one so named, else the SID's first. A placeholder name or first route point names
+    /// no fix and never matches.
+    /// </summary>
+    private static TdlsSidTransitionConfig? SelectedTransition(TdlsSidConfig sid, string? hint) =>
+        ((hint is null) ? null : sid.Transitions.FirstOrDefault(t => TransitionCandidateMatches(t.FirstRoutePoint, hint)))
+        ?? ((hint is null) ? null : sid.Transitions.FirstOrDefault(t => TransitionCandidateMatches(t.Name, hint)))
+        ?? sid.Transitions.FirstOrDefault();
+
+    private static bool TransitionCandidateMatches(string? candidate, string hint) =>
+        !TdlsPlaceholder.IsPlaceholder(candidate) && candidate.Trim().Equals(hint, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// What <paramref name="transition"/>'s defaults give a bare takeoff clearance: its climb-via text a climb via (a
+    /// climb via suppresses the maintain, as in vTDLS), else its initial altitude a maintain, else none.
+    /// </summary>
+    private static TdlsDepartureAltitude TransitionDepartureAltitude(TdlsSidTransitionConfig transition)
+    {
+        if (!TdlsPlaceholder.IsPlaceholder(transition.DefaultClimbvia))
+        {
+            Match exceptMaintain = ExceptMaintainRegex().Match(transition.DefaultClimbvia);
+            return TdlsDepartureAltitude.ClimbVia(exceptMaintain.Success ? ParseTdlsAltitudeFt(exceptMaintain.Groups[1].Value) : null);
+        }
+
+        return (!TdlsPlaceholder.IsPlaceholder(transition.DefaultInitialAlt) && (ParseTdlsAltitudeFt(transition.DefaultInitialAlt) is { } initial))
+            ? TdlsDepartureAltitude.Maintain(initial)
+            : TdlsDepartureAltitude.None;
     }
 
     /// <summary>
@@ -1813,4 +1845,31 @@ public static partial class ArtccConfigResolver
 
         return int.TryParse(span, out int ft) && (ft > 0) ? ft : null;
     }
+}
+
+/// <summary>Which clearance a SID transition's TDLS defaults give a bare takeoff clearance.</summary>
+public enum TdlsDepartureAltitudeKind
+{
+    /// <summary>No value: neither a climb-via text nor a parsable initial altitude, or no configured SID.</summary>
+    None,
+
+    /// <summary>An initial altitude to climb to and maintain.</summary>
+    Maintain,
+
+    /// <summary>A climb via in force from takeoff.</summary>
+    ClimbVia,
+}
+
+/// <summary>
+/// What a bare takeoff clearance gives an IFR departure from its SID transition's TDLS defaults
+/// (<see cref="ArtccConfigResolver.GetSidDepartureAltitude"/>): a maintain at <see cref="AltitudeFt"/>; a climb via whose
+/// "except maintain" is <see cref="AltitudeFt"/>, or which climbs to the SID's published top when that is null; or none.
+/// </summary>
+public readonly record struct TdlsDepartureAltitude(TdlsDepartureAltitudeKind Kind, int? AltitudeFt)
+{
+    public static TdlsDepartureAltitude None => new(TdlsDepartureAltitudeKind.None, null);
+
+    public static TdlsDepartureAltitude Maintain(int altitudeFt) => new(TdlsDepartureAltitudeKind.Maintain, altitudeFt);
+
+    public static TdlsDepartureAltitude ClimbVia(int? exceptMaintainFt) => new(TdlsDepartureAltitudeKind.ClimbVia, exceptMaintainFt);
 }
