@@ -1517,6 +1517,10 @@ public class PhraseologyMapperTests
     [InlineData("say again all after cleared to land", "AGAIN")]
     [InlineData("say again all after maintain 5000", "AGAIN")]
     [InlineData("say again all before cleared to land", "AGAIN")]
+    // The unaddressed form swallows the tail the same way, with and without a facility name.
+    [InlineData("aircraft calling say again all after maintain five thousand", "AGAINU")]
+    [InlineData("station calling say again all before cleared to land", "AGAINU")]
+    [InlineData("aircraft calling oakland tower say again all after maintain five thousand", "AGAINU")]
     [InlineData("say again altitude", "AGAIN")]
     [InlineData("roger say again", "STBY, AGAIN")]
     // "I say again" is the controller repeating its own message, not a request: it emits nothing.

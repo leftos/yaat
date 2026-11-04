@@ -66,13 +66,13 @@ public sealed class SayAgainReplayTests(ITestOutputHelper output)
         SimulationEngine restored = SayAgainTests.NewEngine(soloTrainingMode: true);
         restored.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!);
         AircraftState restoredAircraft = restored.FindAircraft(Name)!;
-        var host = SayAgainTests.RecordingHost.Around(restored.BareHost);
+        var host = new SpineCapturingHost(restored.BareHost);
         for (int i = 0; i < 30; i++)
         {
-            restored.RunSecond(host.AsHost);
+            restored.RunSecond(host);
         }
 
-        List<PilotTransmission> repeats = [.. host.Spoken.Where(t => (t.Callsign == Name) && (t.Text == last.Text))];
+        List<PilotTransmission> repeats = [.. host.PilotTransmissions.Where(t => (t.Callsign == Name) && (t.Text == last.Text))];
         Assert.Single(repeats);
         Assert.False(restoredAircraft.PendingRepeat);
         Assert.Equal(last.AtSeconds, restoredAircraft.LastPilotTransmission!.AtSeconds);

@@ -1197,6 +1197,16 @@ public static class PhraseologyRules
             new(["aircraft", "calling", "{facility...}", "say", "again", "your?", "call", "sign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
             new(["station", "calling", "{facility...}", "say", "again", "your?", "callsign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
             new(["station", "calling", "{facility...}", "say", "again", "your?", "call", "sign"], "AGAINU CS", SayAgainUnaddressed, SttOnly: true),
+            // The unaddressed forms swallow an "all after/before" tail the same way the addressed ones do:
+            // the repeat request owns everything after it, so it is never dispatched as a second command.
+            new(["aircraft", "calling", "say", "again", "all", "after", "{rest...}"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["aircraft", "calling", "say", "again", "all", "before", "{rest...}"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["station", "calling", "say", "again", "all", "after", "{rest...}"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["station", "calling", "say", "again", "all", "before", "{rest...}"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["aircraft", "calling", "{facility...}", "say", "again", "all", "after", "{rest...}"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["aircraft", "calling", "{facility...}", "say", "again", "all", "before", "{rest...}"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["station", "calling", "{facility...}", "say", "again", "all", "after", "{rest...}"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
+            new(["station", "calling", "{facility...}", "say", "again", "all", "before", "{rest...}"], "AGAINU", SayAgainUnaddressed, SttOnly: true),
             // 7110.65 §9-2-6.e. The pilot's answer is built by PilotSayBuilder rather than rendered
             // from this pattern, so these exist to recognise the controller's spoken form.
             new(["verify", "your?", "exit", "fix", "estimate", "and?", "requested?", "altitude?", "after?", "exit?"], "SAYEXIT", SayExitFixEstimate),

@@ -38,6 +38,9 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
     /// <summary>Every strip change set the spine's drain step handed over, in order.</summary>
     public List<StripChangeSet> StripChanges { get; } = [];
 
+    /// <summary>Every pilot transmission the host handed over, in order: what the server broadcasts and the client speaks.</summary>
+    public List<PilotTransmission> PilotTransmissions { get; } = [];
+
     /// <summary>How many times a drain — the router's or the spine's — reported the coordination lists changed.</summary>
     public int CoordinationChangeCount { get; private set; }
 
@@ -182,7 +185,11 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
 
     public void OnPilotReadbacks(List<(string Callsign, string Readback)> readbacks) => _inner.OnPilotReadbacks(readbacks);
 
-    public void OnPilotTransmissions(List<PilotTransmission> transmissions) => _inner.OnPilotTransmissions(transmissions);
+    public void OnPilotTransmissions(List<PilotTransmission> transmissions)
+    {
+        PilotTransmissions.AddRange(transmissions);
+        _inner.OnPilotTransmissions(transmissions);
+    }
 
     public void OnApproachScores(List<ApproachScore> scores) => _inner.OnApproachScores(scores);
 

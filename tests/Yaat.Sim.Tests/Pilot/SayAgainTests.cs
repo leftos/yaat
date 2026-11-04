@@ -1,5 +1,3 @@
-using System.Reflection;
-using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -92,19 +90,19 @@ public sealed class SayAgainTests
         var said = new List<TerminalEntry>();
         engine.TerminalEntryEmitted += entry => said.Add(entry);
         // The bare host, with every OnPilotTransmissions payload (what the server broadcasts and the client speaks) recorded.
-        var host = RecordingHost.Around(engine.BareHost);
+        var host = new SpineCapturingHost(engine.BareHost);
         Assert.True(engine.SendCommand(Callsign, "FH 270").Success);
-        Assert.True(TickUntil(engine, host.AsHost, () => PilotLines(said).Count == 1, 10) >= 0, "the read-back should go out");
+        Assert.True(TickUntil(engine, host, () => PilotLines(said).Count == 1, 10) >= 0, "the read-back should go out");
 
         Assert.True(engine.SendCommand(Callsign, "AGAIN").Success);
-        Assert.True(TickUntil(engine, host.AsHost, () => PilotLines(said).Count == 2, 20) >= 0, "the repeat should go out");
+        Assert.True(TickUntil(engine, host, () => PilotLines(said).Count == 2, 20) >= 0, "the repeat should go out");
 
         List<TerminalEntry> lines = PilotLines(said);
         Assert.Equal("SayPilot", lines[1].Kind);
         Assert.Equal(lines[0].Kind, lines[1].Kind);
         Assert.Equal(lines[0].Message, lines[1].Message);
         Assert.Equal("fly heading 270", lines[1].Message);
-        List<PilotTransmission> spoken = [.. host.Spoken.Where(t => (t.Callsign == Callsign) && (t.Text == "fly heading 270"))];
+        List<PilotTransmission> spoken = [.. host.PilotTransmissions.Where(t => (t.Callsign == Callsign) && (t.Text == "fly heading 270"))];
         Assert.Equal(2, spoken.Count);
         Assert.False(spoken[0].IsRepeat);
         Assert.True(spoken[1].IsRepeat);
@@ -458,46 +456,5 @@ public sealed class SayAgainTests
         }
 
         return -1;
-    }
-
-    /// <summary>
-    /// A host that forwards every call to the engine's own host and records each <c>OnPilotTransmissions</c> payload: the
-    /// transmissions the server broadcasts and the client speaks, with their spoken text.
-    /// </summary>
-    public class RecordingHost : DispatchProxy
-    {
-        private ISimulationHost _inner = null!;
-
-        public List<PilotTransmission> Spoken { get; } = [];
-
-        /// <summary>This proxy as the host the engine runs a second through.</summary>
-        public ISimulationHost AsHost => (ISimulationHost)(object)this;
-
-        public static RecordingHost Around(ISimulationHost inner)
-        {
-            ISimulationHost proxy = Create<ISimulationHost, RecordingHost>();
-            var host = (RecordingHost)(object)proxy;
-            host._inner = inner;
-            return host;
-        }
-
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
-        {
-            ArgumentNullException.ThrowIfNull(targetMethod);
-            if ((targetMethod.Name == nameof(IHostConsumers.OnPilotTransmissions)) && (args?[0] is List<PilotTransmission> transmissions))
-            {
-                Spoken.AddRange(transmissions);
-            }
-
-            try
-            {
-                return targetMethod.Invoke(_inner, args);
-            }
-            catch (TargetInvocationException e) when (e.InnerException is not null)
-            {
-                ExceptionDispatchInfo.Capture(e.InnerException).Throw();
-                throw;
-            }
-        }
     }
 }
