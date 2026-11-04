@@ -44,6 +44,41 @@ public sealed class SayAgainReplayTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Rewind_WithARepeatQueued_SpeaksItOnceAndKeepsTheLastTransmission()
+    {
+        TestVnasData.EnsureInitialized();
+        const string Name = "N123AB";
+        SimulationEngine engine = SayAgainTests.NewEngine(soloTrainingMode: true);
+        AircraftState aircraft = SayAgainTests.AddAirborne(engine, Name);
+        Assert.True(engine.SendCommand(Name, "FH 270").Success);
+        PilotTransmission original = Assert.Single(engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1));
+        Assert.Equal(original.Text, aircraft.LastPilotTransmission!.Text);
+        AircraftLastPilotTransmission last = aircraft.LastPilotTransmission!;
+
+        Assert.True(engine.SendCommand(Name, "AGAIN").Success);
+        // The read-back holds the frequency until t=11, so the repeat materialises behind it and waits, unaired.
+        Assert.Empty(engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1));
+        Assert.Equal(1, engine.World.ActiveFrequency.PendingCount);
+        Assert.True(engine.World.ActiveFrequency.HasPendingFrom(Name));
+        Assert.True(aircraft.PendingRepeat);
+
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
+        SimulationEngine restored = SayAgainTests.NewEngine(soloTrainingMode: true);
+        restored.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!);
+        AircraftState restoredAircraft = restored.FindAircraft(Name)!;
+        var host = SayAgainTests.RecordingHost.Around(restored.BareHost);
+        for (int i = 0; i < 30; i++)
+        {
+            restored.RunSecond(host.AsHost);
+        }
+
+        List<PilotTransmission> repeats = [.. host.Spoken.Where(t => (t.Callsign == Name) && (t.Text == last.Text))];
+        Assert.Single(repeats);
+        Assert.False(restoredAircraft.PendingRepeat);
+        Assert.Equal(last.AtSeconds, restoredAircraft.LastPilotTransmission!.AtSeconds);
+    }
+
+    [Fact]
     public void PendingRepeatCallsignOnly_SurvivesASnapshotRoundTrip_AndIsOmittedWhenFalse()
     {
         var aircraft = new AircraftState

@@ -88,6 +88,7 @@ public sealed record PilotTransmissionDto
     public required PilotTransmissionKind Kind { get; init; }
     public required double CanonicalAirtimeSeconds { get; init; }
     public bool IsInitialContact { get; init; }
+    public bool IsRepeat { get; init; }
 
     public static PilotTransmissionDto From(PilotTransmission transmission) =>
         new()
@@ -99,10 +100,11 @@ public sealed record PilotTransmissionDto
             Kind = transmission.Kind,
             CanonicalAirtimeSeconds = transmission.CanonicalAirtimeSeconds,
             IsInitialContact = transmission.IsInitialContact,
+            IsRepeat = transmission.IsRepeat,
         };
 
     public PilotTransmission ToTransmission() =>
-        new(Callsign, Text, SpeechText, SourceKind, Kind, CanonicalAirtimeSeconds) { IsInitialContact = IsInitialContact };
+        new(Callsign, Text, SpeechText, SourceKind, Kind, CanonicalAirtimeSeconds) { IsInitialContact = IsInitialContact, IsRepeat = IsRepeat };
 }
 
 /// <summary>
