@@ -56,7 +56,7 @@
 ## Say again
 
 - [ ] YAAT-21 Say again: student asks a pilot to repeat its last transmission · release vNext
-  - [ ] YAAT-1753 Say again 3: unaddressed AGAIN CS, typed entry with nothing selected, and docs · release vNext
+  - [/] YAAT-1753 Say again 3: unaddressed AGAIN CS, typed entry with nothing selected, and docs · release vNext
   - [ ] YAAT-1754 Say again 4: STT phrases for say again, settled against the corpus · release vNext
   - [ ] YAAT-1762 Merge feat/say-again to main (#1363)
 
@@ -816,7 +816,6 @@
 
 ### No milestone
 - [ ] YAAT-1517 Drop a queued teardrop behind an active field crossing once an altitude is assigned
-- [/] YAAT-1785 Low approach levels off before the threshold, holds level, then climbs (AIM 4-3-12) · release vNext
 - [ ] YAAT-1786 LA {alt}: altitude-restricted low approach at or above {alt} (7110.65 3-10-10) · release vNext
 
 ## Navigation data and route geometry
