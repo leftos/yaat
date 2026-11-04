@@ -261,12 +261,15 @@ internal static class ProcedureLegResolver
             {
                 return null;
             }
+            // A radial is referenced to the facility's variation of record, never the aircraft's live declination
+            // (RadialConversion): the live value would move the crossing point as the aircraft flies.
             return new ProcedureLeg
             {
                 Type = isHeading ? ProcedureLegType.HeadingToRadial : ProcedureLegType.CourseToRadial,
                 CourseMagnetic = leg.OutboundCourse,
                 TerminationReferencePosition = reference,
                 TerminationRadialMagnetic = radial,
+                RadialDeclinationDeg = RadialConversion.Declination(navDb, leg.RecommendedNavaidId, reference),
                 AltitudeRestriction = leg.Altitude,
                 SpeedRestriction = leg.Speed,
                 Turn = turn,

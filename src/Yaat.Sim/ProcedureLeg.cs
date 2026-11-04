@@ -103,6 +103,15 @@ public sealed class ProcedureLeg
     /// <summary>Magnetic radial from the reference navaid that terminates a CourseToRadial/HeadingToRadial leg.</summary>
     public double? TerminationRadialMagnetic { get; init; }
 
+    /// <summary>
+    /// The declination <see cref="TerminationRadialMagnetic"/> was charted against — the reference navaid's variation
+    /// of record (P/CG RADIAL; AIM 1-1-17b.5(j)(1)), east-positive degrees, as
+    /// <see cref="Yaat.Sim.Data.NavigationDatabase.GetPublishedCourseDeclination"/> reports it. Null for every other
+    /// leg type, and for a radial leg restored from a pre-V43 snapshot, which recorded neither the navaid nor its
+    /// declination: that one converts with the aircraft's live declination, as that snapshot's flight did.
+    /// </summary>
+    public double? RadialDeclinationDeg { get; init; }
+
     /// <summary>Crossing speed restriction at the terminating fix.</summary>
     public CifpSpeedRestriction? SpeedRestriction { get; init; }
 
@@ -139,6 +148,7 @@ public sealed class ProcedureLeg
             TerminationReferencePosition = TerminationReferencePosition,
             TerminationDistanceNm = TerminationDistanceNm,
             TerminationRadialMagnetic = TerminationRadialMagnetic,
+            RadialDeclinationDeg = RadialDeclinationDeg,
         };
 
     public static ProcedureLeg FromSnapshot(ProcedureLegDto dto) =>
@@ -170,5 +180,6 @@ public sealed class ProcedureLeg
             TerminationReferencePosition = dto.TerminationReferencePosition,
             TerminationDistanceNm = dto.TerminationDistanceNm,
             TerminationRadialMagnetic = dto.TerminationRadialMagnetic,
+            RadialDeclinationDeg = dto.RadialDeclinationDeg,
         };
 }

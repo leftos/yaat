@@ -17,6 +17,11 @@ public static class RadialConversion
     public static MagneticHeading ToMagnetic(NavigationDatabase navDb, string fixName, LatLon fixPosition, TrueHeading trueBearing) =>
         trueBearing.ToMagnetic(Declination(navDb, fixName, fixPosition));
 
-    private static double Declination(NavigationDatabase navDb, string fixName, LatLon fixPosition) =>
+    /// <summary>
+    /// The declination a radial from <paramref name="fixName"/> is referenced to, for a caller that needs the value
+    /// itself rather than one of the conversions above. The one owner of that choice: every radial referencing goes
+    /// through here, so a course and its termination radial can never disagree about which variation is theirs.
+    /// </summary>
+    internal static double Declination(NavigationDatabase navDb, string? fixName, LatLon fixPosition) =>
         navDb.GetPublishedCourseDeclination(fixName, string.Empty, fixPosition);
 }

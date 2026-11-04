@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- A departure leg that ends on a VOR radial turns where the chart puts that radial, measured with the VOR's published variation.
 - Pilot voices say approach names as charted ("ILS runway two eight right", "VOR Alpha") instead of spelling them letter by letter.
 - `CROSS` at a hold short is refused when the aircraft has no airport ground layout, instead of releasing the hold with no crossing planned.
 - An aircraft cleared for takeoff while lining up behind `LUAW` rolls into its takeoff without slowing, and `CTOC` during that line-up stops it on the centerline.

@@ -28,7 +28,7 @@ public static class SnapshotSchemaMigrator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("SnapshotSchemaMigrator");
 
-    public const int CurrentSchemaVersion = 42;
+    public const int CurrentSchemaVersion = 43;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -336,6 +336,13 @@ public static class SnapshotSchemaMigrator
         // V41→V42: CTO/LUAW runway grammar; no snapshot data changes, the version stamps recordings so their actions are
         //   rewritten on load (DepartureGrammarCanonicalRewriter, gated in RecordingArchive.ReadActions and
         //   RecordingSchemaUpgrader on the first snapshot's schema).
+
+        // V42→V43: ProcedureLegDto.RadialDeclinationDeg added, the declination a CR/VR leg's termination radial was
+        //   charted against — its reference navaid's variation of record, not the aircraft's live one. No data
+        //   transformation: the radial legs a pre-V43 snapshot already carries read null and convert with the live
+        //   declination exactly as they did when that snapshot was taken, so those legs replay unchanged. A departure
+        //   the older recording clears after that snapshot resolves its legs under V43, and so flies the corrected
+        //   radial.
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

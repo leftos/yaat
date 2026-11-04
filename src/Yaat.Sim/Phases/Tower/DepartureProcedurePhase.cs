@@ -35,6 +35,9 @@ public sealed class DepartureProcedurePhase : Phase
     private double? _previousSignedCrossTrack;
     private double _legElapsedSeconds;
 
+    /// <summary>The leg index whose live-declination fallback was last logged, so a fallback logs once per leg.</summary>
+    private int _radialFallbackLoggedLeg = -1;
+
     /// <summary>Overall climb ceiling (cruise / assigned). A leg's at-or-below window only ever
     /// caps <i>below</i> this — never raises it — so releasing a leg cap restores the SID's hold altitude when
     /// there is one (an unassigned IFR departure never climbs past it) and this ceiling otherwise, leaving any
@@ -269,7 +272,7 @@ public sealed class DepartureProcedurePhase : Phase
             return true;
         }
 
-        TrueHeading radialTrue = new MagneticHeading(radialMagnetic).ToTrue(ctx.Aircraft.Declination);
+        TrueHeading radialTrue = new MagneticHeading(radialMagnetic).ToTrue(ResolveRadialDeclination(ctx, leg));
         var bearingFromNavaid = new TrueHeading(GeoMath.BearingTo(reference, ctx.Aircraft.Position));
         double signed = radialTrue.SignedAngleTo(bearingFromNavaid);
         // Only the near-side (0°) crossing terminates: gating on |angle| < 90° rejects the reciprocal
@@ -294,6 +297,35 @@ public sealed class DepartureProcedurePhase : Phase
         }
 
         return flipped;
+    }
+
+    /// <summary>
+    /// The declination a radial leg's termination radial converts with: the reference navaid's variation of record,
+    /// which <see cref="ProcedureLeg.RadialDeclinationDeg"/> carries. Only a leg restored from a pre-V43 snapshot
+    /// carries none — nothing recorded the navaid then — so it falls back to the aircraft's live declination, the
+    /// value that snapshot's flight was flown with, and so replays to the same crossing point.
+    /// </summary>
+    private double ResolveRadialDeclination(PhaseContext ctx, ProcedureLeg leg)
+    {
+        if (leg.RadialDeclinationDeg is { } published)
+        {
+            return published;
+        }
+
+        if (_radialFallbackLoggedLeg != _legIndex)
+        {
+            _radialFallbackLoggedLeg = _legIndex;
+            Log.LogDebug(
+                "[DepartureProcedure] {Callsign}: radial leg {Idx} ({Radial:F1}°) carries no recorded declination "
+                    + "(restored from a pre-V43 snapshot) — converting with the live {Decl:F1}°",
+                ctx.Aircraft.Callsign,
+                _legIndex,
+                leg.TerminationRadialMagnetic ?? double.NaN,
+                ctx.Aircraft.Declination
+            );
+        }
+
+        return ctx.Aircraft.Declination;
     }
 
     /// <summary>

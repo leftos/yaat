@@ -130,4 +130,5 @@ public sealed class ProcedureLegDto
     public LatLon? TerminationReferencePosition { get; init; }
     public double? TerminationDistanceNm { get; init; }
     public double? TerminationRadialMagnetic { get; init; }
+    public double? RadialDeclinationDeg { get; init; }
 }
