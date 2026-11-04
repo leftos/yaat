@@ -80,6 +80,19 @@ public sealed class SttBenchRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task The_Peak_Working_Set_Never_Reads_Below_The_Pre_Load_Sample()
+    {
+        // A platform that reports no peak, and a working set that shrank after the pre-load sample, still reports a peak
+        // covering every working set the run read, the pre-load sample included.
+        var memory = new ScriptedMemory(peakBytes: 0, 2600 * Megabyte, 500 * Megabyte, 600 * Megabyte, 550 * Megabyte);
+
+        SttBenchResult result = await RunAsync(Job(SttMode.Fast, SttDevice.Cpu), Source(TranscriptionMode.Fast), new ScriptedGpu(-1), memory);
+
+        Assert.True(result.Succeeded, result.Failure);
+        Assert.Equal(2600 * Megabyte, result.Timing!.PeakWorkingSetBytes);
+    }
+
+    [Fact]
     public async Task The_Platform_Peak_Wins_When_It_Is_Larger()
     {
         var memory = new ScriptedMemory(peakBytes: 4000 * Megabyte, 500 * Megabyte, 2000 * Megabyte);

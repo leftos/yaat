@@ -72,8 +72,8 @@ public static class SttBenchRunner
     /// <summary>
     /// The row's figures, or the one line saying why it has none. The load time covers creating the engine and warming it
     /// up. The first clip is then transcribed once untimed, so first-call graph set-up never lands in the percentiles. The
-    /// peak working set reported is the larger of the process's own peak and every working set read after the load and
-    /// after each clip, since not every platform tracks the peak.
+    /// peak working set reported is the larger of the process's own peak and every working set read: before the load,
+    /// after it and after each clip, since not every platform tracks the peak.
     /// </summary>
     /// <param name="job">The row to measure.</param>
     /// <param name="engines">Creates the job's engine.</param>
@@ -188,7 +188,7 @@ public static class SttBenchRunner
     {
         var latencies = new List<(double LatencyMs, bool Cached)>(row.Clips.Count);
         long peakGpuBytes = loaded.AfterLoadGpuBytes;
-        long peakSampledWorkingSetBytes = loaded.AfterLoadWorkingSetBytes;
+        long peakSampledWorkingSetBytes = Math.Max(row.PreLoadWorkingSetBytes, loaded.AfterLoadWorkingSetBytes);
         foreach (BenchClip clip in row.Clips)
         {
             ct.ThrowIfCancellationRequested();
