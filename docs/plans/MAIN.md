@@ -146,7 +146,7 @@
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (12/56 done)
+### 1 Defects (12/57 done)
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-1669 Refuse a bare CTO at a runway-crossing hold short instead of departing the crossing runway
@@ -191,6 +191,7 @@
 - [ ] YAAT-1771 Runway being left on intersecting runways and on a route recrossing one runway
 - [ ] YAAT-1774 Mid-crossing CROSS EXP on a FOLLOWG own-path crossing may mark the wrong route's hold-short
 - [ ] YAAT-1792 Project a stop past a fillet arc along the arc's tangent, not its chord bearing
+- [ ] YAAT-1805 OAK 33: judge the layout's runway pavement past the navdata end (165-288 ft stretch on C reads clear)
 
 ### 2 Refinements and rulings (0/16 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
@@ -1323,7 +1324,6 @@
 - [ ] YAAT-1531 Have bug_bundle.py install register a new fixture with the layout-coverage list and the routing census
 - [ ] YAAT-1549 Make BuildMinimalContext's ground layout argument required
 - [ ] YAAT-1683 Remove counts and path:line references from durable docs (use symbols, headings, test names)
-- [/] YAAT-1745 Build yaat release installers and the server image locally by default, not on GitHub Actions · release vNext
 
 ## Backlog
 
