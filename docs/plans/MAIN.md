@@ -6,10 +6,6 @@
 
 - [?] YAAT-1864 Command pipeline: with the pilot-reaction delay on, a fresh immediate command fails to supersede a pending triggered queue block (#420 sibling for conditionals, not just WAIT/BEHIND)
 
-## Do first
-
-- [ ] YAAT-1863 Make CrcJoinSessionTests.JoinSession_ToAnotherPrimary_LeavesTheFirstAndClearsSubscriptions load-proof · release vNext — Urgent · Test infrastructure and CI
-
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
 - [ ] YAAT-1509 Match vNAS's ~58-61 kt rolling edge for ASDE-X runway users (OPP DIR LANDER flip)
@@ -715,9 +711,10 @@
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (17/40 done)
+### 1 Defects (18/44 done)
 - [ ] YAAT-1666 Find a SID's TDLS initial altitude by version and in the op configs, as the climb-via top does
 - [/] YAAT-1037 Stop an unmet published SID/STAR altitude bound from overriding a non-via assigned altitude · release vNext
+  - [ ] YAAT-1867 Hold a descent at the first in-force floor past a met bound (YAAT-1037 part C2) · release vNext
 - [ ] YAAT-1483 Sequence a SID's heading-to-intercept leg when the next leg is a fix-less course-to-altitude leg (KSJC SUNOL1 RW12B)
 - [ ] YAAT-1484 Parse TDLS initial altitudes written as 'MAINTAIN 5000FT' (every ZLA SID's hold is off)
 - [ ] YAAT-1654 Match the CTO's SID initial altitude across SID versions (filed NUEVO8, TDLS NUEVO9)
@@ -739,6 +736,8 @@
 - [ ] YAAT-1857 Keep a vectored aircraft's heading when a bare CFIX names a fix on no route it holds
 - [ ] YAAT-1858 End a procedural SID departure's initial climb when a heading or direct-to releases it before the TERPS gate
 - [ ] YAAT-1861 Keep an obstacle departure procedure's crossing windows under a controller altitude
+- [ ] YAAT-1869 Cancel a controller crossing when a later maintain omits it
+- [ ] YAAT-1870 Hold a SID departure under an ATC ceiling below its altitude instead of climbing on
 
 ### 2 Refinements and rulings (1/15 done)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
@@ -765,6 +764,7 @@
 ### No milestone
 - [ ] YAAT-1840 Enforce a CFIX on a SID's coded-leg fix on that leg, with its revert at the fix · release vNext
 - [ ] YAAT-1519 Restore a crossed published ceiling on a re-issued CVIA; lift a SID waypoint's ceiling once passed
+- [ ] YAAT-1868 Climb at no less than the profile rate toward a far constrained fix
 
 ## Approaches and holds
 
@@ -1193,7 +1193,7 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (16/21 done)
+### 1 Defects (17/21 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
