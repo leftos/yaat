@@ -51,8 +51,27 @@ public class CfixCodedLegWindowTests
     /// <summary>A departure to stage: from <paramref name="Runway"/> at <paramref name="Airport"/> on <paramref name="Route"/>.</summary>
     private sealed record DepartureSpec(string Airport, string Runway, string Destination, string Route, int? CtoAltitude, bool ClimbViaOnTheGround);
 
-    /// <summary>What a flight to a coded-leg fix saw: the highest altitude and target before the fix, and the target after.</summary>
-    private sealed record FixPassage(double MaxAltitude, double MaxTarget, double TargetAfter);
+    /// <summary>
+    /// What a flight to a coded-leg fix saw: the highest altitude and target before the fix, the target after, the airspeed
+    /// it crossed the fix at, and the assigned and target speeds the sequencing tick left.
+    /// </summary>
+    private sealed record FixPassage(
+        double MaxAltitude,
+        double MaxTarget,
+        double TargetAfter,
+        double SpeedAtFix,
+        double? AssignedSpeedAfter,
+        double? TargetSpeedAfter
+    );
+
+    /// <summary>How far from a crossing speed the aircraft may cross its fix, as PhaseStartSpeedRevertTests allows.</summary>
+    private const double SpeedToleranceKts = 5.0;
+
+    /// <summary>
+    /// A COAST9 crossing speed at SEGUL the aircraft must slow to: below the speed it starts the CF SEGUL leg at, and below
+    /// the 200 kt limit it was held to on that leg with no crossing speed planned.
+    /// </summary>
+    private const int ReachableCrossingKts = 190;
 
     private static DepartureSpec Coast9(int? ctoAltitude = null) => new("KOAK", "30", "KSAN", "COAST9 MCKEY LAX COMIX2", ctoAltitude, false);
 
@@ -421,6 +440,127 @@ public class CfixCodedLegWindowTests
         AssertLevel(ac, 4000, "under the later crossing");
     }
 
+    // ---- A crossing speed on a coded-leg fix: planned to cross the fix, reverted once as its leg sequences ----
+
+    [Fact]
+    public void Coast9Via_CfixSegulWithSpeed_PlansCrossingSpeed_RevertsAtSequencing()
+    {
+        const int x = 5000;
+        const int speed = ReachableCrossingKts;
+        Departure departure = FlyIntoClimbWindow(LoadZoa());
+        AircraftState ac = departure.Aircraft;
+        NavigationTarget segul = PendingFix(CurrentProcedure(ac), "SEGUL");
+        double? assignedBefore = ac.Targets.AssignedSpeed;
+
+        Dispatch(ac, $"CFIX SEGUL {x / 100:D3} {speed}");
+        Assert.Equal(speed, ac.Targets.AssignedSpeed);
+        Assert.True(NavigationCommandHandler.HasSpeedRevert(segul), "setup: the crossing speed holds no revert");
+        double? revertSpeed = segul.RevertSpeed;
+
+        FixPassage passage = FlyToSegul(departure, 120, out DepartureProcedurePhase rewound);
+
+        AssertCrossedAt(passage, speed);
+        Assert.Equal(assignedBefore, passage.AssignedSpeedAfter);
+        Assert.Equal(revertSpeed, passage.TargetSpeedAfter);
+        Assert.NotSame(rewound, ac.Phases?.CurrentPhase);
+        // Cleared as the leg sequenced, so the handover on the same tick had no revert left to apply again.
+        Assert.False(NavigationCommandHandler.HasSpeedRevert(PendingFix(rewound, "SEGUL")), "the crossing speed's revert outlived SEGUL");
+    }
+
+    [Fact]
+    public void Coast9Via_CfixSegulWithSpeed_ViaSpeedsResumePastSegul()
+    {
+        const int speed = ReachableCrossingKts;
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), Coast9() with { ClimbViaOnTheGround = true });
+        AircraftState ac = departure.Aircraft;
+        Assert.Equal(Coast9TopAltitudeFt, ac.Procedure.ClimbViaTargetFt);
+
+        Dispatch(ac, $"CFIX SEGUL 050 {speed}");
+
+        FixPassage passage = FlyToSegul(departure, 120, out DepartureProcedurePhase rewound);
+        AssertCrossedAt(passage, speed);
+
+        Assert.Equal(Coast9TopAltitudeFt, ac.Procedure.ClimbViaTargetFt);
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.False(ac.Targets.HasExplicitSpeedCommand, "a controller speed outlived SEGUL");
+        Assert.DoesNotContain(ac.Targets.NavigationRoute, FlightPhysics.IsControllerSetSpeed);
+        Assert.False(NavigationCommandHandler.HasSpeedRevert(PendingFix(rewound, "SEGUL")), "the crossing speed's revert outlived SEGUL");
+
+        FlyFor(departure, 120);
+        _output.WriteLine($"past SEGUL: ias={ac.IndicatedAirspeed:F0} target={ac.Targets.TargetSpeed}");
+        Assert.True(ac.IndicatedAirspeed > speed + SpeedToleranceKts, $"the crossing speed held past SEGUL: {ac.IndicatedAirspeed:F0}");
+    }
+
+    [Fact]
+    public void Coast9Via_AltitudeOnlyCfix_PlansNoSpeed()
+    {
+        Departure baseline = FlyIntoClimbWindow(LoadZoa());
+        Departure departure = FlyIntoClimbWindow(LoadZoa());
+        // Met by the via top, so the crossing changes no altitude and only the speed planner could tell the flights apart.
+        Dispatch(departure.Aircraft, "CFIX SEGUL A050");
+
+        var baselineTrace = new List<(double? TargetSpeed, double Ias)>();
+        var crossedTrace = new List<(double? TargetSpeed, double Ias)>();
+        FlyToSegul(baseline, 120, out _, baselineTrace);
+        FlyToSegul(departure, 120, out _, crossedTrace);
+
+        Assert.Equal(baselineTrace.Count, crossedTrace.Count);
+        for (int t = 0; t < baselineTrace.Count; t++)
+        {
+            Assert.Equal(baselineTrace[t].TargetSpeed, crossedTrace[t].TargetSpeed);
+            Assert.Equal(baselineTrace[t].Ias, crossedTrace[t].Ias, 0.5);
+        }
+    }
+
+    [Fact]
+    public void Molen9Rw10_CfixSiplySpeed_RevertAtSiplyNotHandover()
+    {
+        const int speed = 200;
+        Departure departure = StartInDeparturePhase(artccConfig: null, Molen9("10L", climbViaOnTheGround: false), HoldFt);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
+        int siply = CodedFixLeg(procedure, "SIPLY");
+        Assert.Equal(procedure.ActiveLegIndex, siply);
+        Assert.Equal(ProcedureLegType.HeadingToIntercept, procedure.Legs[siply + 1].Type);
+        NavigationTarget siplyFix = PendingFix(procedure, "SIPLY");
+        double? assignedBefore = ac.Targets.AssignedSpeed;
+
+        Dispatch(ac, $"CFIX SIPLY 040 {speed}");
+        Assert.True(NavigationCommandHandler.HasSpeedRevert(siplyFix), "setup: the crossing speed holds no revert");
+        double? revertSpeed = siplyFix.RevertSpeed;
+
+        FixPassage passage = FlyUntilLegSequenced(departure, procedure, siply);
+
+        AssertCrossedAt(passage, speed);
+        Assert.Same(procedure, ac.Phases?.CurrentPhase);
+        Assert.Equal(siply + 1, procedure.ActiveLegIndex);
+        Assert.Equal(assignedBefore, passage.AssignedSpeedAfter);
+        Assert.Equal(revertSpeed, passage.TargetSpeedAfter);
+        Assert.False(NavigationCommandHandler.HasSpeedRevert(siplyFix), "the crossing speed's revert waits for the handover");
+    }
+
+    [Fact]
+    public void WindowCfixSpeed_ThenCmOmitting_SpeedStillRevertsAtFix()
+    {
+        const int speed = ReachableCrossingKts;
+        Departure departure = FlyIntoClimbWindow(LoadZoa());
+        AircraftState ac = departure.Aircraft;
+        NavigationTarget segul = PendingFix(CurrentProcedure(ac), "SEGUL");
+        double? assignedBefore = ac.Targets.AssignedSpeed;
+
+        Dispatch(ac, $"CFIX SEGUL 040 {speed}");
+        Dispatch(ac, "CM 060");
+        Assert.True(NavigationCommandHandler.HasSpeedRevert(segul), "setup: the maintain dropped the crossing speed's revert");
+        double? revertSpeed = segul.RevertSpeed;
+
+        FixPassage passage = FlyToSegul(departure, 300, out DepartureProcedurePhase rewound);
+
+        AssertCrossedAt(passage, speed);
+        Assert.Equal(assignedBefore, passage.AssignedSpeedAfter);
+        Assert.Equal(revertSpeed, passage.TargetSpeedAfter);
+        Assert.False(NavigationCommandHandler.HasSpeedRevert(PendingFix(rewound, "SEGUL")), "the crossing speed's revert outlived SEGUL");
+    }
+
     // ---- The constrained direct-to keeps its assignment rule in the window ----
 
     [Fact]
@@ -722,10 +862,13 @@ public class CfixCodedLegWindowTests
         return new Departure(ac, ctx, rwy);
     }
 
-    /// <summary>Flies the COAST9 departure under the ZOA config until it is levelled in the 2,000 ft climb window.</summary>
-    private Departure FlyIntoClimbWindow(ArtccConfigRoot artccConfig)
+    /// <summary>Flies the <see cref="Coast9"/> departure under the ZOA config until it is levelled in the 2,000 ft climb window.</summary>
+    private Departure FlyIntoClimbWindow(ArtccConfigRoot artccConfig) => FlyIntoClimbWindow(artccConfig, Coast9());
+
+    /// <summary>Flies the COAST9 departure <paramref name="spec"/> under the ZOA config until it is levelled in the 2,000 ft climb window.</summary>
+    private Departure FlyIntoClimbWindow(ArtccConfigRoot artccConfig, DepartureSpec spec)
     {
-        Departure departure = StartDeparture(artccConfig, Coast9(), holdFt: null);
+        Departure departure = StartDeparture(artccConfig, spec, holdFt: null);
         AircraftState ac = departure.Aircraft;
         for (int t = 0; t < 360; t++)
         {
@@ -811,18 +954,57 @@ public class CfixCodedLegWindowTests
         return rewound;
     }
 
+    /// <summary>
+    /// Flies COAST9's VD leg and <paramref name="seconds"/> more on the VM leg, then the CF SEGUL leg (rewound to,
+    /// <paramref name="rewound"/>) until SEGUL sequences, recording the target speed and airspeed of each second of the CF
+    /// leg in <paramref name="speedTrace"/> when given. At the rewind it checks the premises of
+    /// <see cref="ReachableCrossingKts"/>: the aircraft is faster than it and not yet targeting it.
+    /// </summary>
+    private FixPassage FlyToSegul(
+        Departure departure,
+        int seconds,
+        out DepartureProcedurePhase rewound,
+        List<(double? TargetSpeed, double Ias)>? speedTrace = null
+    )
+    {
+        AircraftState ac = departure.Aircraft;
+        FlyThroughVdLeg(departure);
+        FlyFor(departure, seconds);
+        _output.WriteLine($"CF SEGUL leg starts at ias={ac.IndicatedAirspeed:F0} target={ac.Targets.TargetSpeed}");
+        Assert.True(
+            ac.IndicatedAirspeed > ReachableCrossingKts + SpeedToleranceKts,
+            $"setup: the CF SEGUL leg starts no faster than the crossing speed: {ac.IndicatedAirspeed:F0}"
+        );
+        Assert.NotEqual(ReachableCrossingKts, ac.Targets.TargetSpeed);
+        rewound = RewindToLeg(departure, "SEGUL");
+        return FlyUntilLegSequenced(departure, rewound, speedTrace);
+    }
+
+    private static void AssertCrossedAt(FixPassage passage, double speedKts) =>
+        Assert.InRange(passage.SpeedAtFix, speedKts - SpeedToleranceKts, speedKts + SpeedToleranceKts);
+
     /// <summary>Flies the rewound phase's last coded leg until it sequences and the phase hands over.</summary>
-    private FixPassage FlyUntilLegSequenced(Departure departure, DepartureProcedurePhase procedure)
+    private FixPassage FlyUntilLegSequenced(
+        Departure departure,
+        DepartureProcedurePhase procedure,
+        List<(double? TargetSpeed, double Ias)>? speedTrace = null
+    )
     {
         Assert.Equal(procedure.Legs.Count - 1, procedure.ActiveLegIndex);
-        return FlyUntilLegSequenced(departure, procedure, procedure.ActiveLegIndex);
+        return FlyUntilLegSequenced(departure, procedure, procedure.ActiveLegIndex, speedTrace);
     }
 
     /// <summary>
     /// Flies until <paramref name="procedure"/> sequences leg <paramref name="leg"/> (or completes); returns the highest
-    /// altitude and target before, and the target on the tick it sequenced.
+    /// altitude and target before, and the target on the tick it sequenced. With <paramref name="speedTrace"/>, records the
+    /// target speed and airspeed after each second flown.
     /// </summary>
-    private FixPassage FlyUntilLegSequenced(Departure departure, DepartureProcedurePhase procedure, int leg)
+    private FixPassage FlyUntilLegSequenced(
+        Departure departure,
+        DepartureProcedurePhase procedure,
+        int leg,
+        List<(double? TargetSpeed, double Ias)>? speedTrace = null
+    )
     {
         AircraftState ac = departure.Aircraft;
         double maxAltitude = ac.Altitude;
@@ -837,17 +1019,22 @@ public class CfixCodedLegWindowTests
                 _output.WriteLine(
                     $"leg {leg} sequenced at t={t}: alt={ac.Altitude:F0} maxAlt={maxAltitude:F0} maxTgt={maxTarget:F0} after={after:F0}"
                 );
+                var passage = new FixPassage(maxAltitude, maxTarget, after, ac.IndicatedAirspeed, ac.Targets.AssignedSpeed, ac.Targets.TargetSpeed);
+                _output.WriteLine(
+                    $"  speed at the fix={passage.SpeedAtFix:F0} assigned={passage.AssignedSpeedAfter} target={passage.TargetSpeedAfter}"
+                );
                 FlightPhysics.Update(ac, 1.0);
-                return new FixPassage(maxAltitude, maxTarget, after);
+                return passage;
             }
 
             maxTarget = Math.Max(maxTarget, ac.Targets.TargetAltitude ?? 0);
             FlightPhysics.Update(ac, 1.0);
             maxAltitude = Math.Max(maxAltitude, ac.Altitude);
+            speedTrace?.Add((ac.Targets.TargetSpeed, ac.IndicatedAirspeed));
         }
 
         Assert.Fail($"leg {leg} did not sequence within 1200 s");
-        return new FixPassage(maxAltitude, maxTarget, 0);
+        return new FixPassage(maxAltitude, maxTarget, 0, 0, null, null);
     }
 
     /// <summary>Flies the same seconds with and without the crossing and asserts the two flights match.</summary>

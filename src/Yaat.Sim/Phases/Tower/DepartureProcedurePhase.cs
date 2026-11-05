@@ -162,6 +162,7 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
     private void AdvanceLeg(PhaseContext ctx)
     {
         ApplyCrossingRevertAtFix(ctx, Legs[_legIndex]);
+        ApplyCrossingSpeedRevertAtFix(ctx, Legs[_legIndex]);
         _legIndex++;
         _legElapsedSeconds = 0;
         _legEntryPosition = ctx.Aircraft.Position;
@@ -449,20 +450,81 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
     /// </summary>
     private NavigationTarget? CrossingAtLegFix(ProcedureLeg leg)
     {
+        int index = PendingFixIndex(leg);
+        return (index >= 0) && (PostRoute[index].AltitudeRestriction?.Source == CifpAltitudeRestrictionSource.Atc) ? PostRoute[index] : null;
+    }
+
+    /// <summary>The index of the pending-route target named after <paramref name="leg"/>'s fix; -1 when it ends at no fix or has none.</summary>
+    private int PendingFixIndex(ProcedureLeg leg)
+    {
         if (leg.FixName is not { } name)
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < PostRoute.Count; i++)
+        {
+            if (PostRoute[i].Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// The crossing speed a controller set on the active leg's fix and the straight-line distance to where that leg
+    /// sequences (<see cref="FixArrivalNm"/> before the fix), so the speed planner plans the crossing while the live route is
+    /// still empty; null when the coded legs are not flying, the active leg ends at no fix, or no controller speed is on it.
+    /// </summary>
+    internal (CifpSpeedRestriction Restriction, double SequencingDistNm)? ActiveLegCrossingSpeed(AircraftState aircraft)
+    {
+        if ((_overridden) || (_handedOver) || (_legIndex >= Legs.Count) || (Legs[_legIndex].FixPosition is not { } position))
         {
             return null;
         }
 
-        NavigationTarget? target = PostRoute.Find(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        return target?.AltitudeRestriction?.Source == CifpAltitudeRestrictionSource.Atc ? target : null;
+        int index = PendingFixIndex(Legs[_legIndex]);
+        if ((index < 0) || (PostRoute[index].SpeedRestriction is not { } restriction) || (!FlightPhysics.IsControllerSetSpeed(PostRoute[index])))
+        {
+            return null;
+        }
+
+        return (restriction, Math.Max(0, GeoMath.DistanceNm(aircraft.Position, position) - FixArrivalNm));
+    }
+
+    /// <summary>
+    /// When a leg sequences at a fix whose crossing speed a controller set, the speed it replaced comes back there, as on the
+    /// live route (<see cref="FlightPhysics.RestoreSpeedPastFix"/>, with the pending fixes after it). The holder's speed
+    /// reverts are then cleared, so the handover never applies them again, also when it is the last coded leg.
+    /// </summary>
+    private void ApplyCrossingSpeedRevertAtFix(PhaseContext ctx, ProcedureLeg leg)
+    {
+        int index = PendingFixIndex(leg);
+        if ((index < 0) || (!NavigationCommandHandler.HasSpeedRevert(PostRoute[index])))
+        {
+            return;
+        }
+
+        NavigationTarget holder = PostRoute[index];
+        FlightPhysics.RestoreSpeedPastFix(ctx.Aircraft, holder, PostRoute.GetRange(index + 1, PostRoute.Count - index - 1));
+        NavigationCommandHandler.ClearSpeedReverts(holder);
+        Log.LogDebug(
+            "[DepartureProcedure] {Callsign}: crossing speed at {Fix} reverted as its leg sequenced, target {Target}kt assigned {Assigned}kt",
+            ctx.Aircraft.Callsign,
+            holder.Name,
+            ctx.Targets.TargetSpeed,
+            ctx.Targets.AssignedSpeed
+        );
     }
 
     /// <summary>
     /// When a leg sequences at a fix that carries a controller crossing, the crossing ends there: the target goes back to the
     /// clearance in force (<see cref="ResolveReleaseAltitude"/>: the climb via, the assigned altitude, the SID hold altitude,
     /// the climb ceiling), never to an altitude captured when the crossing was issued. The holder's altitude reverts are
-    /// cleared, so the handover never applies them again. Its speed reverts are left for the handover.
+    /// cleared, so the handover never applies them again. Its speed reverts apply in
+    /// <see cref="ApplyCrossingSpeedRevertAtFix"/>.
     /// </summary>
     private void ApplyCrossingRevertAtFix(PhaseContext ctx, ProcedureLeg leg)
     {
@@ -544,8 +606,10 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
             start++;
         }
 
-        // The leading pending fixes the coded legs flew are not re-added, so a crossing speed a CFIX in the climb window
-        // put on one reverts here rather than being lost with it.
+        // The leading pending fixes the coded legs flew are not re-added. A crossing speed a CFIX in the climb window put on
+        // one has already reverted, and been cleared, as its leg sequenced (ApplyCrossingSpeedRevertAtFix), so this finds
+        // nothing in normal flow. It stays as a guard for a phase restored from a snapshot taken before that hook ran,
+        // whose flown fix still holds its revert: it reverts here rather than being lost with the fix.
         holders.AddRange(NavigationCommandHandler.TakePendingSpeedReverts(PostRoute.GetRange(0, start)));
         for (int i = start; i < PostRoute.Count; i++)
         {

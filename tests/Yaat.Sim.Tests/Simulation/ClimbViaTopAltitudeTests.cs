@@ -1169,11 +1169,11 @@ public class ClimbViaTopAltitudeTests
 
     /// <summary>
     /// A CFIX with a speed on the coded legs' CF fix (COAST9: VD, VM, CF SEGUL) stamps that fix's pending entry, which the
-    /// handover drops as flown: it applies the fix's speed revert once there, so the crossing speed is not left assigned
-    /// past the coded legs.
+    /// handover drops as flown: the fix's speed revert applies once, as the CF leg sequences at SEGUL, the last coded leg,
+    /// so the handover on the same tick follows it, and the crossing speed is not left assigned past the coded legs.
     /// </summary>
     [Fact]
-    public void CrossFix_SpeedOnCodedLegFix_RevertsAtTheHandover()
+    public void CrossFix_SpeedOnCodedLegFix_RevertsAtTheFix()
     {
         Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
         AircraftState ac = departure.Aircraft;

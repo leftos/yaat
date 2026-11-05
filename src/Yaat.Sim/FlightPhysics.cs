@@ -1301,7 +1301,13 @@ public static class FlightPhysics
         }
 
         List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
-        bool speedLimitWaived = AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType) || aircraft.MilitaryRoute.SpeedLimitWaived;
+        if (route.Count == 0)
+        {
+            PlanPendingCrossingSpeed(aircraft, cat);
+            return;
+        }
+
+        bool speedLimitWaived = IsSpeedLimitWaived(aircraft);
         double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
 
         for (int i = 0; i < route.Count; i++)
@@ -1316,36 +1322,74 @@ public static class FlightPhysics
                 continue;
             }
 
-            (double constraintSpeed, bool floorGivesWay) = PlannedConstraintSpeed(aircraft, restriction, speedLimitWaived);
-            if (!IsPlannedSpeedFix(aircraft, restriction, constraintSpeed))
-            {
-                continue;
-            }
-
             // The constraint holds where the fix sequences, its sequencing threshold before the fix itself.
             double sequencingDistNm = SequencingDistanceNm(aircraft, route, i, cumulativeDistNm);
-            if (aircraft.Targets.TargetMach is not null)
+            if (PlanConstraintSpeed(aircraft, cat, restriction, sequencingDistNm, speedLimitWaived))
             {
-                PlanCrossingUnderMach(aircraft, cat, constraintSpeed, floorGivesWay, sequencingDistNm);
+                break; // Step planning: only target the first speed-constrained fix
             }
-            else
-            {
-                PlanFixSpeed(aircraft, cat, constraintSpeed, floorGivesWay, sequencingDistNm);
-            }
-
-            break; // Step planning: only target the first speed-constrained fix
         }
     }
 
     /// <summary>
-    /// Whether the speed planner is off: on the ground or not moving, with the published speeds deleted, or with no route.
-    /// Under an assigned speed or a Mach hold it still runs, for controller crossings only.
+    /// Plans the crossing speed a controller set on the fix of the coded leg a SID departure flies while its route is still
+    /// pending (<see cref="Phases.Tower.DepartureProcedurePhase.ActiveLegCrossingSpeed"/>), with the live planner's judge
+    /// (<see cref="PlanConstraintSpeed"/>), so the aircraft crosses that fix at it.
+    /// </summary>
+    private static void PlanPendingCrossingSpeed(AircraftState aircraft, AircraftCategory cat)
+    {
+        if (
+            (aircraft.Phases?.CurrentPhase is not Phases.Tower.DepartureProcedurePhase departure)
+            || (departure.ActiveLegCrossingSpeed(aircraft) is not { } crossing)
+        )
+        {
+            return;
+        }
+
+        PlanConstraintSpeed(aircraft, cat, crossing.Restriction, crossing.SequencingDistNm, IsSpeedLimitWaived(aircraft));
+    }
+
+    /// <summary>Whether 14 CFR 91.117's 250 KIAS limit is waived: for the type, or on a military route that waives it.</summary>
+    private static bool IsSpeedLimitWaived(AircraftState aircraft) =>
+        (AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType)) || (aircraft.MilitaryRoute.SpeedLimitWaived);
+
+    /// <summary>
+    /// Plans a fix's speed <paramref name="restriction"/>, <paramref name="sequencingDistNm"/> before the point the fix
+    /// sequences (<see cref="PlannedConstraintSpeed"/>, then under a Mach hold <see cref="PlanCrossingUnderMach"/>, else
+    /// <see cref="PlanFixSpeed"/>). False when the planner skips the restriction (<see cref="IsPlannedSpeedFix"/>).
+    /// </summary>
+    private static bool PlanConstraintSpeed(
+        AircraftState aircraft,
+        AircraftCategory cat,
+        CifpSpeedRestriction restriction,
+        double sequencingDistNm,
+        bool speedLimitWaived
+    )
+    {
+        (double constraintSpeed, bool floorGivesWay) = PlannedConstraintSpeed(aircraft, restriction, speedLimitWaived);
+        if (!IsPlannedSpeedFix(aircraft, restriction, constraintSpeed))
+        {
+            return false;
+        }
+
+        if (aircraft.Targets.TargetMach is not null)
+        {
+            PlanCrossingUnderMach(aircraft, cat, constraintSpeed, floorGivesWay, sequencingDistNm);
+        }
+        else
+        {
+            PlanFixSpeed(aircraft, cat, constraintSpeed, floorGivesWay, sequencingDistNm);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the speed planner is off: on the ground or not moving, or with the published speeds deleted. Under an
+    /// assigned speed or a Mach hold it still runs, for controller crossings only.
     /// </summary>
     private static bool IsSpeedPlanningOff(AircraftState aircraft) =>
-        aircraft.IsOnGround
-        || (aircraft.GroundSpeed <= 0)
-        || aircraft.Procedure.SpeedRestrictionsDeleted
-        || (aircraft.Targets.NavigationRoute.Count == 0);
+        (aircraft.IsOnGround) || (aircraft.GroundSpeed <= 0) || (aircraft.Procedure.SpeedRestrictionsDeleted);
 
     /// <summary>
     /// Whether <paramref name="fix"/>'s speed is a published one an ATC speed or a Mach hold overrides, so the planner
