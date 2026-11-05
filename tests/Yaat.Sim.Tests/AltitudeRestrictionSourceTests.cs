@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -22,6 +23,9 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class AltitudeRestrictionSourceTests
 {
+    /// <summary>How far under a held altitude the aircraft may settle and still count as holding it.</summary>
+    private const double LevelToleranceFt = 100;
+
     private readonly ITestOutputHelper _output;
 
     public AltitudeRestrictionSourceTests(ITestOutputHelper output)
@@ -156,6 +160,250 @@ public class AltitudeRestrictionSourceTests
         List<NavigationTarget> restricted = [.. appended.Where(t => t.AltitudeRestriction is not null)];
         Assert.NotEmpty(restricted);
         Assert.All(restricted, t => Assert.Equal(CifpAltitudeRestrictionSource.Approach, t.AltitudeRestriction!.Source));
+    }
+
+    /// <summary>
+    /// "DM 120, CAPP I30" on OAKES3 with no descend via defers the approach to the STAR fix it joins. Until the aircraft is
+    /// past that fix the approach's altitudes are not in force and it keeps its assigned 12,000; past it they bind, so an
+    /// approach floor below 12,000 is no longer met by the cleared altitude and the aircraft descends for the approach
+    /// before the approach phases take over at the route's end.
+    /// </summary>
+    [Fact]
+    public void DeferredCapp_NoDvia_HoldsAssignedAltitudeUntilPastConnectingFix()
+    {
+        if (DeferredI30(descendVia: false) is not { } deferred)
+        {
+            return;
+        }
+
+        (
+            DescendViaSupersedesEarlierAltitudeTests.Harness harness,
+            string connectingFix,
+            CifpAltitudeRestriction approachAltitude,
+            string? storedConnectingFix
+        ) = deferred;
+        AircraftState aircraft = harness.Aircraft;
+
+        double lowestBefore = FlyToConnectingFix(harness, connectingFix, approachAltitude);
+        Assert.True(lowestBefore >= 12000 - LevelToleranceFt, $"descended to {lowestBefore:F0} ft before {connectingFix}");
+        Assert.True(
+            AltitudeRestrictionInForce.IsInForce(aircraft, approachAltitude),
+            $"past {connectingFix} the approach altitudes are not in force"
+        );
+
+        double lowestPending = aircraft.Altitude;
+        for (int t = 1; (t <= 1800) && (aircraft.Approach.PendingClearance is not null); t++)
+        {
+            harness.Engine.TickOneSecond();
+            lowestPending = Math.Min(lowestPending, aircraft.Altitude);
+        }
+
+        _output.WriteLine(
+            $"Lowest while the approach was pending past {connectingFix}: {lowestPending:F0} ft, assigned {aircraft.Targets.AssignedAltitude}"
+        );
+        Assert.True(lowestPending < 12000 - 300, $"held {lowestPending:F0} ft past {connectingFix}: the approach altitudes did not bring it down");
+        Assert.Equal(connectingFix, storedConnectingFix);
+    }
+
+    /// <summary>
+    /// "DVIA, CAPP I30" on OAKES3: the STAR's altitudes drive the descent up to the fix the deferred approach joins and the
+    /// approach's own only bind past it, so the aircraft does not descend early to the approach's first segment altitude.
+    /// </summary>
+    [Fact]
+    public void DeferredCapp_Dvia_DescendsThroughTransition()
+    {
+        if (DeferredI30(descendVia: true) is not { } deferred)
+        {
+            return;
+        }
+
+        (
+            DescendViaSupersedesEarlierAltitudeTests.Harness harness,
+            string connectingFix,
+            CifpAltitudeRestriction approachAltitude,
+            string? storedConnectingFix
+        ) = deferred;
+        AircraftState aircraft = harness.Aircraft;
+        CifpAltitudeRestriction starBottom = Assert.IsType<CifpAltitudeRestriction>(
+            Assert.Single(aircraft.Targets.NavigationRoute, t => t.Name.Equals(connectingFix, StringComparison.OrdinalIgnoreCase)).AltitudeRestriction
+        );
+        int starFloor = Assert.IsType<int>(starBottom.Altitude2Ft);
+        _output.WriteLine($"{connectingFix}: {starBottom}");
+
+        double lowestBefore = FlyToConnectingFix(harness, connectingFix, approachAltitude);
+        Assert.True(
+            lowestBefore >= starFloor - LevelToleranceFt,
+            $"descended to {lowestBefore:F0} ft before {connectingFix}, below the STAR's floor there, {starFloor}"
+        );
+        Assert.True(
+            AltitudeRestrictionInForce.IsInForce(aircraft, approachAltitude),
+            $"past {connectingFix} the approach altitudes are not in force"
+        );
+        Assert.Equal(connectingFix, storedConnectingFix);
+    }
+
+    /// <summary>
+    /// "DM 120, CAPP I30" deferred at FFIST on OAKES3, then "DCTF PARBB", an approach fix past FFIST: the direct drops FFIST
+    /// from the route, but the aircraft flying an unpublished route to PARBB keeps its last assigned altitude until it is
+    /// established at PARBB (AIM 5-4-7.f; 7110.65 4-8-1.a.4), so the pending clearance's connecting fix moves to PARBB and
+    /// the aircraft holds 12,000 until PARBB sequences.
+    /// </summary>
+    [Fact]
+    public void DeferredCapp_ThenDctToAnApproachFixPastTheConnectingFix_HoldsTheAssignedAltitudeUntilThatFix()
+    {
+        if (DeferredI30(descendVia: false) is not { } deferred)
+        {
+            return;
+        }
+
+        DescendViaSupersedesEarlierAltitudeTests.Harness harness = deferred.Harness;
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "DCTF PARBB");
+        Assert.Equal("PARBB", aircraft.Approach.PendingClearance?.ConnectingFix);
+        CifpAltitudeRestriction parbb = Assert.IsType<CifpAltitudeRestriction>(
+            Assert.Single(aircraft.Targets.NavigationRoute, t => t.Name == "PARBB").AltitudeRestriction
+        );
+
+        bool reachedAssigned = false;
+        double lastBeforeParbb = aircraft.Altitude;
+        for (int t = 1; aircraft.Targets.NavigationRoute.Exists(f => f.Name == "PARBB"); t++)
+        {
+            Assert.True(t <= 1800, "The aircraft did not pass PARBB within 1800 s");
+            Assert.False(AltitudeRestrictionInForce.IsInForce(aircraft, parbb), $"{t} s after the direct PARBB's altitude is in force");
+            Assert.True(
+                lastBeforeParbb >= 12000 - 20,
+                $"{t} s after the direct, PARBB still ahead, the aircraft left 12,000 for {lastBeforeParbb:F0} ft"
+            );
+            reachedAssigned |= lastBeforeParbb <= 12000 + 20;
+            harness.Engine.TickOneSecond();
+            if (aircraft.Targets.NavigationRoute.Exists(f => f.Name == "PARBB"))
+            {
+                lastBeforeParbb = aircraft.Altitude;
+            }
+        }
+
+        _output.WriteLine($"At PARBB {lastBeforeParbb:F0} ft, after sequencing it {aircraft.Altitude:F0} ft");
+        Assert.True(reachedAssigned, "the aircraft never reached its assigned 12,000 before PARBB");
+        Assert.InRange(lastBeforeParbb, 12000 - 20, 12000 + 20);
+    }
+
+    /// <summary>
+    /// "CAPP H12-Z" deferred at HIRMO, HIRMO passed so the approach's altitudes bind, then "CAPP H12-Z" again: the
+    /// re-clearance is the same approach the aircraft is already established on, so its altitudes stay in force and the
+    /// aircraft does not level off at its assigned altitude for a segment.
+    /// </summary>
+    [Fact]
+    public void DeferredCapp_ReclearedAfterTheGateOpened_KeepsTheApproachAltitudesInForce()
+    {
+        AircraftState aircraft = DeferredH12Z();
+        aircraft.Targets.AssignedAltitude = 12000;
+        aircraft.Altitude = 12000;
+        aircraft.Targets.NavigationRoute.RemoveRange(0, aircraft.Targets.NavigationRoute.FindIndex(t => t.Name == "HIRMO") + 1);
+        CifpAltitudeRestriction approachAltitude = FirstApproachAltitude(aircraft);
+        Assert.True(AltitudeRestrictionInForce.IsInForce(aircraft, approachAltitude), "past HIRMO the approach altitudes are not in force");
+
+        var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        Assert.True(result.Success, result.Message);
+        _output.WriteLine(
+            $"pending {aircraft.Approach.PendingClearance?.ConnectingFix}, active {aircraft.Phases?.ActiveApproach?.ApproachId}, route "
+                + string.Join(" ", aircraft.Targets.NavigationRoute.Select(t => t.Name))
+        );
+
+        foreach (
+            CifpAltitudeRestriction restriction in aircraft
+                .Targets.NavigationRoute.Select(t => t.AltitudeRestriction)
+                .OfType<CifpAltitudeRestriction>()
+        )
+        {
+            Assert.True(AltitudeRestrictionInForce.IsInForce(aircraft, restriction), $"after the re-clearance {restriction} is not in force");
+        }
+    }
+
+    /// <summary>
+    /// A deferred approach restored from a pre-V45 snapshot carries no connecting fix: its approach altitudes are in force
+    /// while it is pending, as before the gate.
+    /// </summary>
+    [Fact]
+    public void Snapshot_PreV45PendingNullConnectingFix_KeepsUngatedBehaviour()
+    {
+        AircraftState aircraft = DeferredH12Z();
+        CifpAltitudeRestriction approachAltitude = FirstApproachAltitude(aircraft);
+
+        JsonNode json = Assert.IsType<JsonObject>(JsonSerializer.SerializeToNode(aircraft.ToSnapshot(), RecordingJsonOptions.Default));
+        Assert.IsType<JsonObject>(json["Approach"]?["PendingClearance"]).Remove("ConnectingFix");
+        AircraftSnapshotDto dto = Assert.IsType<AircraftSnapshotDto>(json.Deserialize<AircraftSnapshotDto>(RecordingJsonOptions.Default));
+        var restored = AircraftState.FromSnapshot(dto, null);
+
+        Assert.Null(Assert.IsType<PendingApproachInfo>(restored.Approach.PendingClearance).ConnectingFix);
+        Assert.Contains(restored.Targets.NavigationRoute, t => t.Name == "HIRMO");
+        Assert.True(AltitudeRestrictionInForce.IsInForce(restored, approachAltitude));
+    }
+
+    /// <summary>The fix a deferred approach joins survives a snapshot round trip through the recording JSON.</summary>
+    [Fact]
+    public void Snapshot_RoundTrip_KeepsConnectingFix()
+    {
+        AircraftState aircraft = DeferredH12Z();
+        Assert.Equal("HIRMO", aircraft.Approach.PendingClearance?.ConnectingFix);
+
+        string json = JsonSerializer.Serialize(aircraft.ToSnapshot(), RecordingJsonOptions.Default);
+        AircraftSnapshotDto dto = Assert.IsType<AircraftSnapshotDto>(
+            JsonSerializer.Deserialize<AircraftSnapshotDto>(json, RecordingJsonOptions.Default)
+        );
+        var restored = AircraftState.FromSnapshot(dto, null);
+
+        Assert.Equal("HIRMO", restored.Approach.PendingClearance?.ConnectingFix);
+    }
+
+    /// <summary>
+    /// A deferred approach restored from a snapshot gates on the route it restores with: not in force while the connecting
+    /// fix is still ahead, in force once it has been sequenced.
+    /// </summary>
+    [Fact]
+    public void Snapshot_RestoredPending_GateFollowsTheRoute()
+    {
+        AircraftState aircraft = DeferredH12Z();
+        CifpAltitudeRestriction approachAltitude = FirstApproachAltitude(aircraft);
+
+        var beforeFix = AircraftState.FromSnapshot(aircraft.ToSnapshot(), null);
+        Assert.False(AltitudeRestrictionInForce.IsInForce(beforeFix, approachAltitude), "in force with HIRMO still ahead");
+
+        aircraft.Targets.NavigationRoute.RemoveRange(0, aircraft.Targets.NavigationRoute.FindIndex(t => t.Name == "HIRMO") + 1);
+        var pastFix = AircraftState.FromSnapshot(aircraft.ToSnapshot(), null);
+        Assert.True(AltitudeRestrictionInForce.IsInForce(pastFix, approachAltitude), "not in force with HIRMO behind");
+    }
+
+    /// <summary>
+    /// A V44 snapshot holding a deferred approach migrates to V45 with no connecting fix, so the approach's altitudes stay in
+    /// force while it is pending, and its route restrictions keep their sources.
+    /// </summary>
+    [Fact]
+    public void Migrator_V44_LeavesPendingConnectingFixNull()
+    {
+        AircraftState aircraft = DeferredH12Z();
+        PendingApproachInfo pending = Assert.IsType<PendingApproachInfo>(aircraft.Approach.PendingClearance);
+        aircraft.Approach.PendingClearance = new PendingApproachInfo
+        {
+            Clearance = pending.Clearance,
+            AssignedRunway = pending.AssignedRunway,
+            ConnectingFix = null,
+        };
+        List<int> sources =
+        [
+            .. aircraft.Targets.NavigationRoute.Where(t => t.AltitudeRestriction is not null).Select(t => (int)t.AltitudeRestriction!.Source),
+        ];
+        StateSnapshotDto snapshot = MigratableSnapshot(44, aircraft.ToSnapshot());
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        Assert.Equal(45, snapshot.SchemaVersion);
+        AircraftSnapshotDto migrated = Assert.Single(snapshot.Aircraft);
+        Assert.Null(Assert.IsType<PendingApproachDto>(migrated.Approach.PendingClearance).ConnectingFix);
+        Assert.Equal(
+            sources,
+            migrated.Targets!.NavigationRoute!.Where(t => t.AltitudeRestriction is not null).Select(t => t.AltitudeRestriction!.Source)
+        );
     }
 
     /// <summary>A route carrying one restriction of each source keeps each through a snapshot round trip.</summary>
@@ -308,7 +556,7 @@ public class AltitudeRestrictionSourceTests
 
         SnapshotSchemaMigrator.Migrate(snapshot);
 
-        Assert.Equal(44, snapshot.SchemaVersion);
+        Assert.Equal(45, snapshot.SchemaVersion);
         List<NavigationTargetDto> route = Assert.Single(snapshot.Aircraft).Targets!.NavigationRoute!;
         Assert.Equal((int)CifpAltitudeRestrictionSource.Atc, route[0].AltitudeRestriction!.Source);
         Assert.Equal((int)CifpAltitudeRestrictionSource.Procedure, route[1].AltitudeRestriction!.Source);
@@ -429,6 +677,135 @@ public class AltitudeRestrictionSourceTests
         Assert.Contains(aircraft.Targets.NavigationRoute, t => t.Name == "PTN-ENTRY");
         return (aircraft, waypoints.PatternAltitude);
     }
+
+    /// <summary>
+    /// A jet on OAKES3 past its entry fix, re-joined by JARR, sent <c>DM 120</c> or <c>DVIA</c>, then cleared <c>CAPP I30</c>,
+    /// which defers. Returns the STAR fix the approach joined (the last fix the route kept from before the clearance), the
+    /// first approach-source altitude after it, and the connecting fix the pending clearance stored.
+    /// </summary>
+    private (
+        DescendViaSupersedesEarlierAltitudeTests.Harness Harness,
+        string ConnectingFix,
+        CifpAltitudeRestriction ApproachAltitude,
+        string? StoredConnectingFix
+    )? DeferredI30(bool descendVia)
+    {
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return null;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        TickUntilFirstFixPassed(harness);
+        SendOk(harness, "JARR OAKES3");
+        SendOk(harness, descendVia ? "DVIA" : "DM 120");
+        List<string> starRoute = [.. aircraft.Targets.NavigationRoute.Select(t => t.Name)];
+        SendOk(harness, "CAPP I30");
+        PendingApproachInfo pending = Assert.IsType<PendingApproachInfo>(aircraft.Approach.PendingClearance);
+
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        int kept = 0;
+        while ((kept < Math.Min(starRoute.Count, route.Count)) && route[kept].Name.Equals(starRoute[kept], StringComparison.OrdinalIgnoreCase))
+        {
+            kept++;
+        }
+
+        Assert.True(kept > 0, "the deferred approach kept none of the STAR");
+        string connectingFix = route[kept - 1].Name;
+        _output.WriteLine(
+            $"Joined at {connectingFix} (stored {pending.ConnectingFix}): "
+                + string.Join(
+                    " ",
+                    route.Select(t => $"{t.Name}[{t.AltitudeRestriction?.Source} {t.AltitudeRestriction?.Type} {t.AltitudeRestriction?.Altitude1Ft}]")
+                )
+        );
+        CifpAltitudeRestriction approachAltitude = route
+            .Skip(kept)
+            .Select(t => t.AltitudeRestriction)
+            .OfType<CifpAltitudeRestriction>()
+            .First(r => r.Source == CifpAltitudeRestrictionSource.Approach);
+        return (harness, connectingFix, approachAltitude, pending.ConnectingFix);
+    }
+
+    /// <summary>
+    /// Ticks until <paramref name="connectingFix"/> leaves the route, asserting every second before that the approach's
+    /// <paramref name="approachAltitude"/> is not in force; returns the lowest altitude flown.
+    /// </summary>
+    private double FlyToConnectingFix(
+        DescendViaSupersedesEarlierAltitudeTests.Harness harness,
+        string connectingFix,
+        CifpAltitudeRestriction approachAltitude
+    )
+    {
+        AircraftState aircraft = harness.Aircraft;
+        double lowest = aircraft.Altitude;
+        for (int t = 1; t <= 1800; t++)
+        {
+            Assert.False(
+                AltitudeRestrictionInForce.IsInForce(aircraft, approachAltitude),
+                $"{t} s after the clearance, with {connectingFix} still ahead at {aircraft.Altitude:F0} ft, the approach altitudes are in force"
+            );
+            harness.Engine.TickOneSecond();
+            lowest = Math.Min(lowest, aircraft.Altitude);
+            if (!aircraft.Targets.NavigationRoute.Exists(f => f.Name.Equals(connectingFix, StringComparison.OrdinalIgnoreCase)))
+            {
+                _output.WriteLine($"Passed {connectingFix} after {t} s at {aircraft.Altitude:F0} ft, lowest {lowest:F0} ft");
+                return lowest;
+            }
+        }
+
+        Assert.Fail($"The aircraft did not pass {connectingFix} within 1800 s");
+        return lowest;
+    }
+
+    /// <summary>A jet on EMZOH4 with EMZOH and HIRMO ahead, cleared H12-Z, which defers to HIRMO.</summary>
+    private static AircraftState DeferredH12Z()
+    {
+        NavigationDatabase navDb = Assert.IsType<NavigationDatabase>(TestVnasData.NavigationDb);
+        (double Lat, double Lon) emzoh = Assert.IsType<(double, double)>(navDb.GetFixPosition("EMZOH"));
+        (double Lat, double Lon) hirmo = Assert.IsType<(double, double)>(navDb.GetFixPosition("HIRMO"));
+
+        AircraftState aircraft = ApproachAircraft();
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "EMZOH", Position = new LatLon(emzoh.Lat, emzoh.Lon) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(hirmo.Lat, hirmo.Lon) });
+        aircraft.Approach.Expected = "H12-Z";
+
+        var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+        Assert.True(result.Success, result.Message);
+        Assert.NotNull(aircraft.Approach.PendingClearance);
+        return aircraft;
+    }
+
+    private static CifpAltitudeRestriction FirstApproachAltitude(AircraftState aircraft) =>
+        aircraft
+            .Targets.NavigationRoute.Select(t => t.AltitudeRestriction)
+            .OfType<CifpAltitudeRestriction>()
+            .First(r => r.Source == CifpAltitudeRestrictionSource.Approach);
+
+    private static StateSnapshotDto MigratableSnapshot(int schemaVersion, AircraftSnapshotDto aircraft) =>
+        new()
+        {
+            SchemaVersion = schemaVersion,
+            ElapsedSeconds = 0,
+            Rng = new RngState(1, 2, 3, 4),
+            Aircraft = [aircraft],
+            Scenario = new ScenarioSnapshotDto
+            {
+                ScenarioId = "altitude-restriction-source",
+                ScenarioName = "source migration",
+                RngSeed = 42,
+                ElapsedSeconds = 0,
+                AutoClearedToLand = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+                ValidateDctFixes = false,
+                IsPaused = false,
+                SimRate = 1.0,
+                AutoAcceptDelaySeconds = 0,
+                IsStudentTowerPosition = false,
+            },
+        };
 
     private static void TickUntilFirstFixPassed(DescendViaSupersedesEarlierAltitudeTests.Harness harness)
     {

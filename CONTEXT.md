@@ -180,8 +180,12 @@ A typed verb the desktop client sends with an empty callsign whatever aircraft i
 _Avoid_: global command (`CommandDefinition.IsGlobal` is a different question: the pilot never answers Unable)
 
 **Altitude in force**:
-A route altitude restriction that drives the aircraft now, decided by its restriction source (`AltitudeRestrictionInForce`): a controller's crossing always, a pattern-phase point while that phase flies, a published approach altitude once an approach clearance is held, a published SID or STAR altitude only under a climb via or descend via. A maintain leaves the published altitudes on the route but out of force.
+A route altitude restriction that drives the aircraft now, decided by its restriction source (`AltitudeRestrictionInForce`): a controller's crossing always, a pattern-phase point while that phase flies, a published approach altitude once an approach clearance is active or a deferred one's connecting fix is behind the aircraft, a published SID or STAR altitude only under a climb via or descend via. A maintain leaves the published altitudes on the route but out of force.
 _Avoid_: active restriction (a restriction's speed applies whether or not its altitude is in force)
+
+**Connecting fix** (of a deferred approach clearance):
+The STAR or route fix a `CAPP` given while the aircraft is still on the STAR joins at (`PendingApproachInfo.ConnectingFix`), or the fix of a later direct that skips it. The approach's published altitudes bind only once the aircraft is past it; until then it keeps its last assigned altitude.
+_Avoid_: join fix
 
 **Restriction source**:
 Who wrote a route altitude restriction (`CifpAltitudeRestriction.Source`, a `CifpAltitudeRestrictionSource`): Procedure (a SID's or STAR's published restriction, the default), Approach (a published approach-segment altitude inserted with an approach clearance), Atc (a controller's crossing, from a CFIX or constrained DCTF), or System (a point a phase inserts as the pilot's own plan: pattern entry, teardrop re-entry). It decides whether the altitude is in force.

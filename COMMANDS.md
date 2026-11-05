@@ -1525,6 +1525,8 @@ Approach clearances use FAA [CIFP](#glossary) procedure data. Approach IDs can b
 
 A hold clears the assigned heading when it starts, so an aircraft in a hold has no vector to intercept from. If the aircraft has a nav route (e.g. you previously issued `DCT FIX`), CAPP builds the published procedure instead. AT/DCT fixes always override heading intercept.
 
+**Deferred clearance altitudes:** a `CAPP` given while the aircraft is still on a STAR appends the approach's fixes after the STAR fix the approach joins (the connecting fix). The aircraft keeps its last assigned altitude until it is past that fix; after it the approach's published altitudes bind, including floors below the assigned altitude, while a ceiling above it never makes the aircraft climb. The assigned altitude stays shown. A `DCT`/`DCTF` onto the active procedure that skips the connecting fix moves it to the direct's fix (AIM 5-4-7.f), and clearing the same approach again past it keeps the approach altitudes in force. Under `DVIA` the STAR's altitudes drive the descent through the transition.
+
 **In-trail speed restated with the clearance:** An approach clearance cancels previously assigned speeds (7110.65 §5-7-1.d).
 
 When the simulated approach controller is holding the arrival to an in-trail speed reduction (the *Auto arrival spacing behind traffic on the runway* setting), that reduction stays in force, so `CAPP` and `PTAC` (and their forced variants) restate it in the terminal log as §5-7-1.c requires: `NCT → UAL123: maintain 180 knots (in-trail spacing, restated with the approach clearance)`.

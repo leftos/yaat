@@ -2048,8 +2048,34 @@ internal static class FlightCommandHandler
             }
         }
 
+        MovePendingApproachConnectingFixToDirect(aircraft);
         ApplySkippedSpeedReverts(aircraft, skippedReverts);
         return true;
+    }
+
+    /// <summary>
+    /// When a direct drops a deferred approach's connecting fix from the route, the aircraft flies an unpublished route to
+    /// the direct's fix and keeps its last assigned altitude until established there (AIM 5-4-7.f; 7110.65 4-8-1.a.4), so
+    /// the pending clearance's connecting fix becomes the direct's fix, the route's first.
+    /// </summary>
+    private static void MovePendingApproachConnectingFixToDirect(AircraftState aircraft)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        if (
+            (aircraft.Approach.PendingClearance is not { ConnectingFix: { } connectingFix } pending)
+            || (route.Count == 0)
+            || route.Exists(t => t.Name.Equals(connectingFix, StringComparison.OrdinalIgnoreCase))
+        )
+        {
+            return;
+        }
+
+        aircraft.Approach.PendingClearance = new PendingApproachInfo
+        {
+            Clearance = pending.Clearance,
+            AssignedRunway = pending.AssignedRunway,
+            ConnectingFix = route[0].Name,
+        };
     }
 
     /// <summary>

@@ -333,6 +333,7 @@ public class ApproachClearanceTests
                 FinalApproachCourse = rwy12.TrueHeading,
             },
             AssignedRunway = rwy12,
+            ConnectingFix = null,
         };
 
         var cmd = new JoinFinalApproachCourseCommand("H12-Z");

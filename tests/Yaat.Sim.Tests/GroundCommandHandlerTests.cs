@@ -2642,6 +2642,7 @@ public class GroundCommandHandlerTests
                 FinalApproachCourse = rwy12.TrueHeading,
             },
             AssignedRunway = rwy12,
+            ConnectingFix = null,
         };
 
         CommandResult result = GroundCommandHandler.TryAssignRunway(ac, "30");

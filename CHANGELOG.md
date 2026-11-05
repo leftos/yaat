@@ -10,6 +10,7 @@
 
 - Without `CVIA` or `DVIA`, an aircraft told to climb or descend and maintain levels there; a SID's or STAR's published altitudes no longer move it.
 - `JARR` without `DVIA` keeps the aircraft at its altitude while it flies the STAR's route and published speeds.
+- After a `CAPP` given on a STAR, the aircraft keeps its assigned altitude until it joins the approach, then descends for the approach's altitudes.
 - A bare `CTO` takes a SID departure's altitude from its transition's TDLS clearance (climb via, except maintain, or maintain), never the initial-altitude dropdown.
 - A bare `CTO` on a filed SID with no TDLS altitude warns the instructor: "no initial altitude for (callsign); assign one".
 - A bare `CVIA` with no transition in the route climbs to the SID's common-route top, not an altitude from a transition the aircraft won't fly.

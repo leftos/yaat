@@ -552,11 +552,25 @@ internal static class NavigationCommandHandler
     /// which stays assigned (AIM 4-4-10.a; 7110.65 4-5-7). A cleared altitude equal to the bound (as a CFIX that assigned
     /// its own bound leaves it) is not met, and the planner plans the crossing itself. A plain "at" crossing is never met
     /// this way, nor is any bound with no cleared altitude, or under a descend or climb via, which flies to the depicted
-    /// altitudes.
+    /// altitudes. Nor is a published approach floor in force below the cleared altitude (an at-or-above bound, or a window's
+    /// lower bound with the cleared altitude above the window): once established on a segment of a cleared approach the
+    /// aircraft descends to the approach's altitudes (AIM 5-4-7.f; 7110.65 4-8-1.a.4), while an approach ceiling above the
+    /// cleared altitude, or a window it lies strictly inside, still leaves it at the cleared altitude rather than climbing.
     /// </summary>
     internal static bool CrossingBoundMetByClearance(AircraftState aircraft, CifpAltitudeRestriction restriction)
     {
         if (AltitudeRestrictionInForce.ViaClearanceInForce(aircraft) || (aircraft.Targets.AssignedAltitude is not { } cleared))
+        {
+            return false;
+        }
+
+        // A window with the cleared altitude above it is already not met by the switch below; only the at-or-above floor
+        // needs the approach exception.
+        if (
+            (restriction.Source == CifpAltitudeRestrictionSource.Approach)
+            && (restriction.Type == CifpAltitudeRestrictionType.AtOrAbove)
+            && AltitudeRestrictionInForce.IsInForce(aircraft, restriction)
+        )
         {
             return false;
         }

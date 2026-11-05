@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 44;
+    public const int CurrentSchemaVersion = 45;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -368,6 +368,11 @@ public static class SnapshotSchemaMigrator
                 MigrateLegacyAltitudeRestrictionSources(ac);
             }
         }
+
+        // V44→V45: PendingApproachDto.ConnectingFix added, the STAR fix a deferred approach joins; the approach's altitudes
+        //   take effect once the aircraft is past it. No data transformation: a pre-V45 pending clearance reads null, which
+        //   keeps its approach altitudes in force while it is pending, as they were. A pre-V44 snapshot's appended approach
+        //   fixes migrated as Procedure (V43→V44 above), so the approach arm never sees them.
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

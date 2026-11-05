@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
@@ -541,6 +542,69 @@ public class CrossingBoundMetByClearanceTests
         aircraft.Procedure.ClimbViaTargetFt = descendVia ? null : 14000;
         var bound = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 11000);
         Assert.False(NavigationCommandHandler.CrossingBoundMetByClearance(aircraft, bound));
+    }
+
+    /// <summary>
+    /// A deferred approach's altitudes once the aircraft is past the fix the approach joins: an approach floor below the
+    /// cleared altitude (an at-or-above bound, or a window's lower bound with the cleared altitude above the window) is not
+    /// met, so the planner descends for it; an approach ceiling above the cleared altitude and a window the cleared altitude
+    /// lies strictly inside stay met, so the aircraft is never climbed for them. With the connecting fix still ahead the
+    /// approach floor is not in force, and the cleared altitude meets it as any other floor below it.
+    /// </summary>
+    [Theory]
+    [InlineData(CifpAltitudeRestrictionType.AtOrAbove, 4000, null, "EMZOH", false)]
+    [InlineData(CifpAltitudeRestrictionType.AtOrBelow, 10000, null, "EMZOH", true)]
+    [InlineData(CifpAltitudeRestrictionType.Between, 6000, 4000, "EMZOH", false)]
+    [InlineData(CifpAltitudeRestrictionType.Between, 9000, 4000, "EMZOH", true)]
+    [InlineData(CifpAltitudeRestrictionType.AtOrAbove, 4000, null, "HIRMO", true)]
+    public void DeferredCapp_FloorBelowClearedAltitude_NotMetAfterEstablished(
+        CifpAltitudeRestrictionType type,
+        int bound,
+        int? lowerBound,
+        string fixAhead,
+        bool met
+    )
+    {
+        AircraftState aircraft = AircraftClearedTo(8000);
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fixAhead, Position = new LatLon(37.6, -122.0) });
+        aircraft.Approach.PendingClearance = PendingApproachJoining("HIRMO");
+        var restriction = new CifpAltitudeRestriction(type, bound, lowerBound) { Source = CifpAltitudeRestrictionSource.Approach };
+
+        Assert.Equal(fixAhead != "HIRMO", AltitudeRestrictionInForce.IsInForce(aircraft, restriction));
+        Assert.Equal(met, NavigationCommandHandler.CrossingBoundMetByClearance(aircraft, restriction));
+    }
+
+    /// <summary>
+    /// Until the aircraft is past the fix the deferred approach joins, the approach's altitudes are not in force: the
+    /// aircraft keeps its cleared altitude.
+    /// </summary>
+    [Fact]
+    public void DeferredCapp_BeforeConnectingFix_ApproachAltitudeNotInForce()
+    {
+        AircraftState aircraft = AircraftClearedTo(8000);
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "HIRMO", Position = new LatLon(37.6, -122.0) });
+        aircraft.Approach.PendingClearance = PendingApproachJoining("hirmo");
+        var floor = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 4000) { Source = CifpAltitudeRestrictionSource.Approach };
+
+        Assert.False(AltitudeRestrictionInForce.IsInForce(aircraft, floor));
+    }
+
+    private static PendingApproachInfo PendingApproachJoining(string connectingFix)
+    {
+        RunwayInfo runway = TestRunwayFactory.Make(designator: "12", heading: 120, elevationFt: 10);
+        return new PendingApproachInfo
+        {
+            Clearance = new ApproachClearance
+            {
+                TransitionName = "HIRMO",
+                ApproachId = "H12-Z",
+                AirportCode = "KOAK",
+                RunwayId = "12",
+                FinalApproachCourse = runway.TrueHeading,
+            },
+            AssignedRunway = runway,
+            ConnectingFix = connectingFix,
+        };
     }
 
     private static AircraftState AircraftClearedTo(double? cleared)

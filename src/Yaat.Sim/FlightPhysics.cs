@@ -1231,7 +1231,8 @@ public static class FlightPhysics
     /// <paramref name="restriction"/>'s bound outside a descend or climb via
     /// (<see cref="NavigationCommandHandler.CrossingBoundMetByClearance"/>); otherwise null, and the restriction resolves as
     /// <see cref="ResolveAltitudeRestriction"/> says. A via clearance flies to the depicted altitudes and clears the
-    /// assigned altitude, so it never meets a bound this way.
+    /// assigned altitude, so it never meets a bound this way; nor does an in-force published approach floor below the cleared
+    /// altitude, which the aircraft descends to once established on the approach (AIM 5-4-7.f; 7110.65 4-8-1.a.4).
     /// </summary>
     private static double? ClearedAltitudeMeetingBound(AircraftState aircraft, CifpAltitudeRestriction restriction) =>
         NavigationCommandHandler.CrossingBoundMetByClearance(aircraft, restriction) ? aircraft.Targets.AssignedAltitude : null;

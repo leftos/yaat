@@ -7,10 +7,12 @@ namespace Yaat.Sim;
 /// <summary>
 /// Whether a route altitude restriction binds the aircraft now, by who wrote it
 /// (<see cref="CifpAltitudeRestriction.Source"/>). A controller's crossing always does; a point a pattern phase inserts
-/// does while that phase flies; a published approach altitude does once an approach clearance is held; a published SID or
-/// STAR altitude does only under a via clearance, or on a SID departure released with no controller altitude at all
-/// (AIM 5-2-9.h.8 for a SID, 5-4-1.a.2 for a STAR; 7110.65 4-5-7.h). A maintain clearance off a via therefore leaves
-/// the published altitudes on the route but out of force, while their speeds still apply.
+/// does while that phase flies; a published approach altitude does once the aircraft is established on a segment of a
+/// cleared approach: an active approach, or a deferred one once the aircraft is past the fix its altitudes wait for,
+/// keeping its last assigned altitude until then (AIM 5-4-7.f; 7110.65 4-8-1.a.4). A published SID or STAR altitude does
+/// only under a via clearance, or on a SID departure released with no controller altitude at all (AIM 5-2-9.h.8 for a
+/// SID, 5-4-1.a.2 for a STAR; 7110.65 4-5-7.h). A maintain clearance off a via therefore leaves the published altitudes
+/// on the route but out of force, while their speeds still apply.
 /// </summary>
 internal static class AltitudeRestrictionInForce
 {
@@ -54,8 +56,7 @@ internal static class AltitudeRestrictionInForce
             CifpAltitudeRestrictionSource.Atc => true,
             CifpAltitudeRestrictionSource.System => aircraft.Phases?.CurrentPhase is PatternEntryPhase or TeardropReentryPhase,
             CifpAltitudeRestrictionSource.Procedure => ProcedureAltitudesInForce(aircraft),
-            CifpAltitudeRestrictionSource.Approach => (aircraft.Approach.PendingClearance is not null)
-                || (aircraft.Phases?.ActiveApproach is not null),
+            CifpAltitudeRestrictionSource.Approach => PendingApproachEstablished(aircraft) || (aircraft.Phases?.ActiveApproach is not null),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(restriction),
                 restriction.Source,
@@ -75,5 +76,26 @@ internal static class AltitudeRestrictionInForce
         }
 
         return inForce;
+    }
+
+    /// <summary>
+    /// Whether a deferred approach clearance is held and the aircraft is past the fix the approach joins
+    /// (<see cref="Phases.PendingApproachInfo.ConnectingFix"/>): that fix is no longer on the route, by a case-insensitive
+    /// name match, whether it was sequenced or dropped by a direct. A clearance with no connecting fix (restored from a
+    /// pre-V45 snapshot) counts as past it.
+    /// </summary>
+    internal static bool PendingApproachEstablished(AircraftState aircraft)
+    {
+        if (aircraft.Approach.PendingClearance is not { } pending)
+        {
+            return false;
+        }
+
+        if (pending.ConnectingFix is not { } connectingFix)
+        {
+            return true;
+        }
+
+        return !aircraft.Targets.NavigationRoute.Exists(t => t.Name.Equals(connectingFix, StringComparison.OrdinalIgnoreCase));
     }
 }

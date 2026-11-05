@@ -352,4 +352,11 @@ public sealed class PendingApproachDto
 {
     public required ApproachClearanceDto Clearance { get; init; }
     public required RunwayInfoDto AssignedRunway { get; init; }
+
+    /// <summary>
+    /// The fix the approach's altitudes wait for: the STAR fix the approach joins, or the fix a later direct goes to.
+    /// Absent before V45, which reads null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ConnectingFix { get; init; }
 }

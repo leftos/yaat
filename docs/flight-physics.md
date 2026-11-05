@@ -240,7 +240,7 @@ planner owns the route. Both also activate (outside via mode) whenever the route
 
 - A controller's crossing (CFIX, constrained DCTF) always.
 - A pattern-entry or teardrop point while that phase flies.
-- A published approach altitude once an approach clearance is pending or active.
+- A published approach altitude once an approach clearance is active, or a deferred (pending) one once the aircraft is past its connecting fix. Until then the aircraft keeps its last assigned altitude; past it the approach's floors below the assigned altitude pull the aircraft down, and a ceiling above it never makes it climb. A direct onto the active procedure that skips the connecting fix moves it to the direct's fix (AIM 5-4-7.f).
 - A published SID or STAR altitude only under a climb via or descend via, or on a SID departure with no altitude at all (the no-data fallback treated as climb via).
 
 A maintain (`DM`/`CM`, a `CTO` altitude, a TDLS maintain value) with no `CVIA`/`DVIA` leaves the published altitudes on the route but out of force, so the aircraft levels at its assigned altitude; published speeds still apply.

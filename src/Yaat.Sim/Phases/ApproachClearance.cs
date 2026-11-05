@@ -170,10 +170,28 @@ public sealed class PendingApproachInfo
     public required ApproachClearance Clearance { get; init; }
     public required RunwayInfo AssignedRunway { get; init; }
 
-    public PendingApproachDto ToSnapshot() => new() { Clearance = Clearance.ToSnapshot(), AssignedRunway = AssignedRunway.ToSnapshot() };
+    /// <summary>
+    /// The fix the approach's altitudes wait for: the STAR fix the approach joins, or the fix a later direct goes to. The
+    /// approach's altitudes take effect once it is no longer on the route. Null on a clearance restored from a pre-V45
+    /// snapshot, whose approach altitudes are in force while the clearance is pending.
+    /// </summary>
+    public required string? ConnectingFix { get; init; }
+
+    public PendingApproachDto ToSnapshot() =>
+        new()
+        {
+            Clearance = Clearance.ToSnapshot(),
+            AssignedRunway = AssignedRunway.ToSnapshot(),
+            ConnectingFix = ConnectingFix,
+        };
 
     public static PendingApproachInfo FromSnapshot(PendingApproachDto dto) =>
-        new() { Clearance = ApproachClearance.FromSnapshot(dto.Clearance), AssignedRunway = RunwayInfo.FromSnapshot(dto.AssignedRunway) };
+        new()
+        {
+            Clearance = ApproachClearance.FromSnapshot(dto.Clearance),
+            AssignedRunway = RunwayInfo.FromSnapshot(dto.AssignedRunway),
+            ConnectingFix = dto.ConnectingFix,
+        };
 }
 
 /// <summary>Holding pattern parameters extracted from a missed approach HA/HF/HM leg.</summary>

@@ -475,7 +475,20 @@ public static class ApproachCommandHandler
             if (trimmedFixes.Count > 0 && atFixMatchesConnection && NavRouteContainsFix(aircraft, connectingFix))
             {
                 ApproachClearance clearance = BuildClearance(procedure, transition, airport, facResult, approachRunway, cmd.Force);
-                aircraft.Approach.PendingClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = approachRunway };
+
+                // Re-cleared for the same approach once already established on it: keep the prior connecting fix so the
+                // approach's altitudes stay in force rather than waiting for the next approach fix on the route.
+                bool reclearedEstablished =
+                    (aircraft.Approach.PendingClearance is { } prior)
+                    && prior.Clearance.ApproachId.Equals(procedure.ApproachId, StringComparison.OrdinalIgnoreCase)
+                    && prior.Clearance.AirportCode.Equals(airport, StringComparison.OrdinalIgnoreCase)
+                    && AltitudeRestrictionInForce.PendingApproachEstablished(aircraft);
+                aircraft.Approach.PendingClearance = new PendingApproachInfo
+                {
+                    Clearance = clearance,
+                    AssignedRunway = approachRunway,
+                    ConnectingFix = reclearedEstablished ? aircraft.Approach.PendingClearance!.ConnectingFix : connectingFix,
+                };
                 aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
                 // Append approach fixes after the connecting fix in the NavigationRoute
@@ -2843,7 +2856,7 @@ public static class ApproachCommandHandler
 
     /// <summary>
     /// Activates a pending approach clearance. Called from FlightPhysics when the
-    /// NavigationRoute empties and a PendingApproachClearance exists.
+    /// NavigationRoute empties and a <see cref="PendingApproachInfo"/> exists.
     /// </summary>
     public static void ActivatePendingApproach(AircraftState aircraft, PendingApproachInfo pending)
     {

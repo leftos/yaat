@@ -285,6 +285,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         var cappH12 = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
         Assert.True(ApproachCommandHandler.TryClearedApproach(cappH12, aircraft).Success, "H12-Z deferred");
         Assert.Equal("H12-Z", aircraft.Approach.PendingClearance!.Clearance.ApproachId);
+        Assert.Equal("HIRMO", aircraft.Approach.PendingClearance.ConnectingFix);
 
         int hirmoIdx = aircraft.Targets.NavigationRoute.ToList().FindIndex(t => t.Name == "HIRMO");
         var h12Tail = aircraft.Targets.NavigationRoute.Skip(hirmoIdx + 1).Select(t => t.Name).ToList();
@@ -304,6 +305,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         var cappH30 = new ClearedApproachCommand("H30-Z", "KOAK", false, null, null, null, null, null, null, null, null);
         Assert.True(ApproachCommandHandler.TryClearedApproach(cappH30, aircraft).Success, "H30-Z deferred");
         Assert.Equal("H30-Z", aircraft.Approach.PendingClearance!.Clearance.ApproachId);
+        Assert.Equal("ALLXX", aircraft.Approach.PendingClearance.ConnectingFix);
 
         AircraftState reference = MakeAircraft(destination: "KOAK", destinationRunway: "30", heading: 280, lat: 37.75, lon: -122.35);
         foreach (string? name in new[] { "WEBRR", "BOYYS", "HOPTA", "ALLXX" })
@@ -349,6 +351,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         var second = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
         Assert.True(ApproachCommandHandler.TryClearedApproach(second, aircraft).Success);
+        Assert.Equal("HIRMO", aircraft.Approach.PendingClearance?.ConnectingFix);
 
         var names = aircraft.Targets.NavigationRoute.Select(t => t.Name).ToList();
         Assert.DoesNotContain("STALE_TAIL", names);
@@ -536,7 +539,12 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         };
 
         AircraftState aircraft = MakeAircraft(destination: "KOAK", heading: 120, lat: 37.73, lon: -122.22);
-        aircraft.Approach.PendingClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = runway };
+        aircraft.Approach.PendingClearance = new PendingApproachInfo
+        {
+            Clearance = clearance,
+            AssignedRunway = runway,
+            ConnectingFix = null,
+        };
 
         // Simulate route emptying by calling Update with an empty route
         Assert.Empty(aircraft.Targets.NavigationRoute);

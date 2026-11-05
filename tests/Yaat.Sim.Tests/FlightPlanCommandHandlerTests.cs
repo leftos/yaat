@@ -192,6 +192,7 @@ public class FlightPlanCommandHandlerTests
                 FinalApproachCourse = rwy28R.TrueHeading,
             },
             AssignedRunway = rwy28R,
+            ConnectingFix = null,
         };
 
         CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "OAK");
