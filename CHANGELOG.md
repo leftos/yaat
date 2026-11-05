@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A landing with no reachable exit stops on the runway and asks to back-taxi, instead of steering toward a ramp or parallel taxiway.
+
 ## v0.18.1-beta [2026/11/05]
 
 ### Highlights

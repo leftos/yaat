@@ -107,7 +107,7 @@ public sealed class LandingPhase : Phase
         /// <summary>Missed exit — broadcast, relax preference, re-search.</summary>
         Unable,
 
-        /// <summary>No runway/graph fallback, or all exits exhausted. Brake to zero on centerline.</summary>
+        /// <summary>No runway or ground graph, or all exits exhausted. Brake to zero on centerline.</summary>
         FullStop,
 
         /// <summary>Go-around triggered via command or stabilization failure. Hands off to GoAroundPhase.</summary>
@@ -939,14 +939,7 @@ public sealed class LandingPhase : Phase
         // airborne cadence. Cleared when the phase hands off to RunwayExitPhase.
         ctx.Targets.TurnRateOverride = CategoryPerformance.GroundTurnRate(ctx.Category);
 
-        // Re-resolve candidate from scratch if the controller changed the preference mid-rollout
-        ExitPreference? currentPref = ctx.Aircraft.Phases?.RequestedExit;
-        if (currentPref != _originalPreference)
-        {
-            TakeNewExitInstruction(ctx.Aircraft, currentPref);
-            _candidateExit = null;
-            _forcedNoExitUntilAlongNm = null;
-        }
+        ApplyExitPreferenceChange(ctx.Aircraft);
 
         // LAHSO: the landing roll has to end short of the hold-short point — exit before it, or stop at it
         // (AIM 2-3-5.a.2, AIM 4-3-11.b.6). Measured along the runway from the landing threshold — the datum the
@@ -977,7 +970,7 @@ public sealed class LandingPhase : Phase
         // A LAHSO hold-short point outranks the forced rollout: its own stop logic already keeps the aircraft short.
         bool forcedRollout = forced && !_hasLahso;
 
-        ResolveRolloutCandidate(ctx, plan, forced, forcedRollout);
+        ResolveRolloutCandidate(ctx, plan, forced);
 
         // The forced rollout judges its own candidate — TickForcedRollout gives up one it can no longer make, a
         // passed one included, and keeps braking to its stop — so the missed-exit path, which ends in State.Unable
@@ -992,11 +985,29 @@ public sealed class LandingPhase : Phase
         AircraftCategory category = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
         _canGoAround = ctx.Aircraft.IndicatedAirspeed >= CategoryPerformance.RejectedLandingMinSpeed(category);
 
-        if (forcedRollout)
-        {
-            return TickForcedRollout(ctx, plan, coastSpeed);
-        }
+        return forcedRollout ? TickForcedRollout(ctx, plan, coastSpeed) : TickPlannedRollout(ctx, plan, coastSpeed, lahsoStopDistNm);
+    }
 
+    /// <summary>
+    /// Re-resolves the candidate from scratch when the controller changed the exit preference mid-rollout.
+    /// </summary>
+    private void ApplyExitPreferenceChange(AircraftState aircraft)
+    {
+        ExitPreference? currentPref = aircraft.Phases?.RequestedExit;
+        if (currentPref != _originalPreference)
+        {
+            TakeNewExitInstruction(aircraft, currentPref);
+            _candidateExit = null;
+            _forcedNoExitUntilAlongNm = null;
+        }
+    }
+
+    /// <summary>
+    /// The rollout that is not forced: brakes for the candidate exit (or to coast speed without one), under the LAHSO
+    /// ceiling when there is one, and hands off to the runway exit once it can.
+    /// </summary>
+    private bool TickPlannedRollout(PhaseContext ctx, LandingPlan plan, double coastSpeed, double lahsoStopDistNm)
+    {
         (double targetSpeed, double decelRateOverride) = PlanExitDeceleration(ctx, plan, coastSpeed);
 
         if (_hasLahso)
@@ -1018,14 +1029,13 @@ public sealed class LandingPhase : Phase
 
     /// <summary>
     /// Resolves the rollout's candidate exit when it has none. Always search for the next exit ahead — even without an
-    /// explicit preference, the pilot plans deceleration for the first reachable exit. The forced rollout takes only a
-    /// turnoff off this runway's centerline graph: the straight-line fallback returns any taxiway node ahead within 1.5 nm
-    /// (a ramp or a parallel taxiway included) with a one-node path the runway exit cannot drive, and such a node would
-    /// hand the rollout off short of its stop. A forced landing the normal planner cannot serve falls back to its own
-    /// search (<see cref="ResolveForcedCandidate"/>); when that too finds nothing, both are skipped until the aircraft
-    /// passes the next branch point (<see cref="IsForcedSearchMissCached"/>).
+    /// explicit preference, the pilot plans deceleration for the first reachable exit. Every rollout takes only a turnoff
+    /// off this runway's centerline graph; with none it can make, the aircraft stops on the runway and the no-exit handling
+    /// takes over. A forced landing the normal planner cannot serve falls back to its own search
+    /// (<see cref="ResolveForcedCandidate"/>); when that too finds nothing, both are skipped until the aircraft passes the
+    /// next branch point (<see cref="IsForcedSearchMissCached"/>).
     /// </summary>
-    private void ResolveRolloutCandidate(PhaseContext ctx, LandingPlan plan, bool forced, bool forcedRollout)
+    private void ResolveRolloutCandidate(PhaseContext ctx, LandingPlan plan, bool forced)
     {
         if ((_candidateExit is not null) || (forced && IsForcedSearchMissCached(ctx, plan)))
         {
@@ -1033,14 +1043,7 @@ public sealed class LandingPhase : Phase
         }
 
         _forcedNoExitUntilAlongNm = null;
-        if (forcedRollout)
-        {
-            TryResolveGraphCandidate(ctx, plan);
-        }
-        else
-        {
-            ResolveNextCandidate(ctx, plan);
-        }
+        ResolveGraphCandidate(ctx, plan);
 
         if (forced && (_candidateExit is null))
         {
@@ -1344,10 +1347,9 @@ public sealed class LandingPhase : Phase
             // even though the hold-short itself is still geometrically ahead.
             //
             // RunwayExitPhase requires Path.Count >= 2 to build the exit route
-            // (virtual approach segment + at least one taxiway edge). When the
-            // candidate came from the straight-line fallback (Path = [single
-            // node]), leave ResolvedExit null so RunwayExitPhase falls back to
-            // its own analog search.
+            // (virtual approach segment + at least one taxiway edge). A candidate
+            // with a one-node path (only a snapshot restore can carry one) leaves
+            // ResolvedExit null, so RunwayExitPhase runs its own search.
             if (_candidateExit is { Path.Count: >= 2 })
             {
                 ctx.Aircraft.Phases.ResolvedExit = _candidateExit;
@@ -1860,7 +1862,7 @@ public sealed class LandingPhase : Phase
     /// but past that limit or past a LAHSO hold-short point — and when it is the exit the aircraft is already braking for, that
     /// refusal gives it up (<see cref="RefuseNamedExit"/>) — and as no such exit ahead when no connection of the taxiway is ahead on
     /// a runway with hold-short data. Allowed before touchdown, on a forced (<c>CLANDF</c>) rollout, with no layout, and on a runway
-    /// without hold-short data, where the straight-line fallback resolves the exit. The refusal is applied here, not only reported:
+    /// without hold-short data, where the rollout has no graph exit to judge it against. The refusal is applied here, not only reported:
     /// the caller's own state (the standing preference) is left as it was.
     /// </summary>
     public ExitInstructionVerdict EvaluateAndApplyNamedExitInstruction(AircraftState aircraft, ExitPreference preference, bool expedite)
@@ -2016,7 +2018,7 @@ public sealed class LandingPhase : Phase
     /// expedite, per taxiway and side (<see cref="ListExitsAhead(ExitCandidateQuery, LatLon, Func{string, ExitSide, bool})"/>) — with
     /// the distance from the aircraft and the exit it is braking for (<see cref="CandidateExit"/>) marked planned. Read-only: it never
     /// refuses, gives up or commits anything. Null when no list applies: off the rollout, on a forced (<c>CLANDF</c>) rollout, and with
-    /// no assigned runway, layout or hold-short data for the runway (where the straight-line fallback, not the graph, resolves exits).
+    /// no assigned runway, layout or hold-short data for the runway (where the rollout resolves no exit of its own).
     /// </summary>
     public IReadOnlyList<ExitAheadDto>? ListExitsAhead(AircraftState aircraft)
     {
@@ -2167,8 +2169,8 @@ public sealed class LandingPhase : Phase
     /// <summary>
     /// The refusal for <paramref name="taxiway"/>, whose <paramref name="query"/> found nothing at the named limit: the crew's
     /// "unable" when a connection is ahead past that limit or past a LAHSO hold-short point (the connection is there, the crew
-    /// cannot use it), "no {taxiway} ahead" when none is ahead on a runway with hold-short data, and allowed on a runway without
-    /// (the straight-line fallback resolves the exit). An "unable" for the exit the aircraft is already braking for is the crew's
+    /// cannot use it), "no {taxiway} ahead" when none is ahead on a runway with hold-short data, and allowed on a runway without,
+    /// where the rollout has no graph exit to judge it against. An "unable" for the exit the aircraft is already braking for is the crew's
     /// one call for it: the exit is given up here (<see cref="GiveUpNamedExit"/>), the call recorded as made and the candidate
     /// dropped, so the next tick resolves a later exit without a second call at the branch. A command is replayed on the same tick
     /// it was issued, so the give-up is as deterministic as the tick's own.
@@ -2321,14 +2323,6 @@ public sealed class LandingPhase : Phase
     private HashSet<int>? UnableBranchPointsOrNull() => _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null;
 
     /// <summary>
-    /// True when an aircraft turning off at <paramref name="branchNode"/> leaves the runway before the LAHSO
-    /// hold-short point — the branch point sits at or before the stop target, setback included. Only meaningful
-    /// while <see cref="_hasLahso"/> is set.
-    /// </summary>
-    private bool BranchFitsInsideLahso(AircraftState aircraft, GroundNode branchNode, LandingPlan plan) =>
-        BranchFitsBefore(branchNode, plan, _lahsoHoldShortDistNm - LahsoSetbackNm(aircraft));
-
-    /// <summary>
     /// True when <paramref name="branchNode"/> lies no further than <paramref name="stopLimitNm"/> along the runway from the landing
     /// threshold.
     /// </summary>
@@ -2342,72 +2336,20 @@ public sealed class LandingPhase : Phase
         return branchFromThreshold <= stopLimitNm;
     }
 
-    private void ResolveNextCandidate(PhaseContext ctx, LandingPlan plan)
-    {
-        if ((ctx.GroundLayout is null) || TryResolveGraphCandidate(ctx, plan))
-        {
-            return;
-        }
-
-        string? rwyDesignator = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
-
-        // Fallback: straight-line search (airports without hold-short data)
-        (GroundNode Node, string Taxiway)? result = ctx.GroundLayout.FindExitAheadOnRunway(
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon,
-            plan.RunwayHeading,
-            _activePreference,
-            rwyDesignator,
-            excludeTaxiways: ctx.Aircraft.Phases?.GivenUpExitTaxiways,
-            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
-        );
-
-        if (result is null)
-        {
-            return;
-        }
-
-        if (_hasLahso && !BranchFitsInsideLahso(ctx.Aircraft, result.Value.Node, plan))
-        {
-            Log.LogDebug(
-                "[Landing] {Callsign}: fallback exit {Taxiway} is past the LAHSO hold-short point",
-                ctx.Aircraft.Callsign,
-                result.Value.Taxiway
-            );
-            return;
-        }
-
-        double fallbackAngle = ctx.GroundLayout.MeasureExitAngle([result.Value.Node], result.Value.Node, result.Value.Taxiway, plan.RunwayHeading);
-        double fallbackTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, fallbackAngle);
-
-        _candidateExit = new ResolvedExitInfo
-        {
-            HoldShortNode = result.Value.Node,
-            TaxiwayName = result.Value.Taxiway,
-            TurnOffSpeed = fallbackTurnOffSpeed,
-            Path = [result.Value.Node],
-            BranchPointNode = result.Value.Node,
-            SelectionDecelRate = null,
-            Side = null,
-            StopsTailInsideRunwayLine = false,
-        };
-    }
-
     /// <summary>
     /// Commits the next exit ahead that the runway's centerline graph offers (<see cref="FindGraphCandidate"/>) as the
-    /// candidate. Returns false, leaving the candidate unset, when there is no layout or assigned runway or the graph
-    /// has no reachable exit.
+    /// candidate. Leaves the candidate unset when there is no layout or assigned runway or the graph has no reachable exit.
     /// </summary>
-    private bool TryResolveGraphCandidate(PhaseContext ctx, LandingPlan plan)
+    private void ResolveGraphCandidate(PhaseContext ctx, LandingPlan plan)
     {
         if ((ctx.GroundLayout is not { } layout) || (ctx.Aircraft.Phases?.AssignedRunway?.Designator is not { } rwyDesignator))
         {
-            return false;
+            return;
         }
 
         if (FindGraphCandidate(ctx, layout, plan, rwyDesignator) is not { } resolved)
         {
-            return false;
+            return;
         }
 
         _candidateExit = resolved;
@@ -2418,7 +2360,6 @@ public sealed class LandingPhase : Phase
             resolved.TurnOffSpeed,
             resolved.SelectionDecelRate
         );
-        return true;
     }
 
     /// <summary>
@@ -2573,8 +2514,8 @@ public sealed class LandingPhase : Phase
     /// this first finds it (<see cref="ReportUnableToExit"/>) and gives the taxiway up (<see cref="GiveUpNamedExit"/>): the
     /// preference relaxes to the controller's side and the caller resolves again under it, so the rollout brakes for the next
     /// exit it can make and never for the one refused, and the missed-exit path (<see cref="MarkExitUnable"/>) has nothing
-    /// left to call at the branch. Without this the straight-line fallback would hand back the same exit as a one-node path
-    /// with no braking check. Every category gives an exit up this way (7110.65 3-10-9.a: exit instructions are "if able").
+    /// left to call at the branch. Without this the search under the named preference finds nothing and the rollout rolls on
+    /// silently, never making the call or looking for a later exit. Every category gives an exit up this way (7110.65 3-10-9.a: exit instructions are "if able").
     /// A forced (<c>CLANDF</c>) rollout judges its own candidate and is left out.
     /// </summary>
     private bool GiveUpUnreachableNamedExit(PhaseContext ctx, ExitCandidateQuery query)

@@ -141,6 +141,8 @@ A **standard** 60–90° exit qualifies only if it needs at most the routine `Ro
 
 When no exit qualifies, the landing searches once more at the category's firm rate (`CategoryPerformance.FirmBrakingRate`: jet 5.0 / turboprop 5.0 / piston 4.0 / helicopter 3.0 kt/s) and takes the earliest exit it can make that way (a CRJ9 on OAK 28R exits at C1 instead of stopping on the runway); only when even that fails does `RunwayExitPhase`'s "no exit found… braking to stop" path run.
 
+Every rollout, forced or not, takes only exits off the runway's centerline graph; with none it can make, it stops on the runway and the no-exit handling takes over (§ Stopped on the runway with no exit ahead).
+
 The committed exit carries the rate that selected it (`ResolvedExitInfo.SelectionDecelRate`, snapshotted); the rollout brakes for it at most that rate + `LandingPhase.CommittedExitDecelToleranceKtsPerSec` (0.25) and gives the exit up past that.
 
 Fallback-chosen, instructed and restored-without-a-rate exits are capped at the category's firm rate, which sits below its expedite rate for every category (comfortable ≤ firm < expedite, pinned by `RolloutBrakingRatesTests`); `EXP` keeps max effort (pinned by `UninstructedExitSelectionTests`).
@@ -239,7 +241,7 @@ A taxiway the crew has said "unable" to is given up for the rest of the landing:
 
 It is the taxiway, not a branch node, because one bar is reached from several centerline nodes (OAK 30's W3 from 87, 714, 715 and 716) and excluding one would let the next search re-find the exit at the next. The set lives on the phase list, not the phase, so `LandingPhase` and `RunwayExitPhase` share one source:
 
-- **Skipped while rolling.** The rollout's searches (`JudgeCandidate`), the straight-line fallback (`FindExitAheadOnRunway(..., excludeTaxiways)`) and every `RunwayExitPhase` search after the hand-off — the analog search, the occupied-exit re-search, the backstop's `FindExitBehind` — skip a given-up taxiway while the aircraft is moving (`RunwayExitPhase.IsRolling`: above `BackstopStoppedSpeedKts`, 1 kt).
+- **Skipped while rolling.** The rollout's searches (`JudgeCandidate`) and every `RunwayExitPhase` search after the hand-off — the analog search, the occupied-exit re-search, the backstop's `FindExitBehind` — skip a given-up taxiway while the aircraft is moving (`RunwayExitPhase.IsRolling`: above `BackstopStoppedSpeedKts`, 1 kt).
 - **Eligible once stopped.** The "unable" was about rollout speed. An aircraft stopped on the runway, which may not reverse without ATC approval (AIM 4-3-21.a), may taxi forward to a given-up taxiway ahead like any other exit, so a stop with only a given-up exit ahead takes it rather than reporting "unable to exit". The stop does not clear the set; a search run once rolling again skips it again.
 - **Revived only by a new instruction naming it.** An accepted `EXIT <twy>` takes `<twy>` out of the set whatever phase the aircraft is in (`GroundCommandHandler.TryExitCommand`, `LandingPhase.TakeNewExitInstruction`), judged afresh by the up-front check; a re-target probe (`RunRetargetSearch`) treats the taxiway the instruction names as eligible before that write. A refused instruction, a side-only `EL`/`ER` and a bare `EXP` leave the set alone.
 - **Cleared** when a landing starts (`LandingPhase.OnStart`) and when the runway exit completes (`RunwayExitPhase.CompleteExit`), so a later runway exit of the same aircraft starts with none.
@@ -286,7 +288,7 @@ A `TAXI` in `RunwayExitPhase` or `HoldingAfterExitPhase` is unchanged: it clears
 
 ## Land and hold short (LAHSO)
 
-`LAHSO <rwy>` (`PatternCommandHandler.TryLandAndHoldShort`) stores a `LahsoTarget` on `Phases.LahsoHoldShort`: the hold-short point's distance from the **landing** threshold (`RunwayIntersectionCalculator.ComputeHoldShortDistanceNm` — half the crossing runway's width plus the 200 ft runway safety area back from the intersection). `LandingPhase.OnStart` captures it; everything below lives in `LandingPhase.TickRollout`.
+`LAHSO <rwy>` (`PatternCommandHandler.TryLandAndHoldShort`) stores a `LahsoTarget` on `Phases.LahsoHoldShort`: the hold-short point's distance from the **landing** threshold (`RunwayIntersectionCalculator.ComputeHoldShortDistanceNm` — half the crossing runway's width plus the 200 ft runway safety area back from the intersection). `LandingPhase.OnStart` captures it; everything below lives in `LandingPhase.TickPlannedRollout`.
 
 The pilot's obligation is AIM 4-3-11.b.6 — exit at the first convenient taxiway before the hold-short point, *otherwise* stop and hold at it — and the stopping datum is AIM 2-3-5.a.2: all of the aircraft short of the runway holding position marking.
 
@@ -298,9 +300,9 @@ The pilot's obligation is AIM 4-3-11.b.6 — exit at the first convenient taxiwa
 - **Stop branch** (`TickLahsoStop`, once the stop target is reached): target 0 at the category's firm rate (`FirmBrakingRate`); past the point itself the rate is the category's expedite rate and the stop logs `LAHSO overrun — stopped N ft past the hold-short point`.
 
   At ≤ 0.5 kt `StoppedForLahso` is set and the phase completes; `PhaseRunner` then appends `RunwayHoldingPhase` → `RunwayExitPhase` → `HoldingAfterExitPhase` and clears the target; any phases still queued behind the landing are ended first (`PhaseList.Clear`, Skipped), so the runway hold always runs next. There is no self-initiated go-around after touchdown.
-- **Exit before the point wins.** While LAHSO is active `ResolveNextCandidate` (both the planner path and the straight-line fallback) skips any exit whose branch point lies past the stop target (`BranchFitsInsideLahso`) — an instructor-preferred exit included. The handoff to `RunwayExitPhase` needs a committed candidate that phase will honour: a real route (`Path.Count >= 2`) whose hold-short node is not occupied (the same test `RunwayExitPhase.OnStart` applies).
+- **Exit before the point wins.** While LAHSO is active the graph search skips any exit whose branch point lies past the stop target (`JudgeCandidate`'s `LahsoStopLimitNm` check, `BranchFitsBefore`) — an instructor-preferred exit included. The handoff to `RunwayExitPhase` needs a committed candidate that phase will honour: a real route (`Path.Count >= 2`) whose hold-short node is not occupied (the same test `RunwayExitPhase.OnStart` applies).
 
-  `TickHandoff` nulls `Phases.LahsoHoldShort` in the same branch that publishes `ResolvedExit`, so the landing stops being a hold exactly when the exit is committed. An occupied or route-less candidate never hands off: the normal missed-exit path runs, and with nothing left before the point the aircraft stops and holds. A restore into `State.Handoff` without a usable candidate is routed back through `TickRollout` for the same reason.
+  `TickHandoff` nulls `Phases.LahsoHoldShort` in the same branch that publishes `ResolvedExit`, so the landing stops being a hold exactly when the exit is committed. An occupied or route-less candidate never hands off: the normal missed-exit path runs, and with nothing left before the point the aircraft stops and holds. A restore into `State.Handoff` without a usable candidate is routed back through the planned rollout (`TickPlannedRollout`) for the same reason.
 - **An amended clearance ends it** (AIM 4-3-11.b.5): every go-around (`GoAroundHelper`), a `TG`/`SG`/`LA`/`COPT` that replaces the landing terminator, and `CANCLAND` null the target. `CLAND` restated after `LAHSO` keeps it (same clearance), and so does `CLANDF`: a forced landing after `LAHSO` keeps the hold-short until it is cancelled explicitly.
 
 Known gaps are open in YAAT-31 (LAHSO residuals): `RunwayExitPhase`'s own re-search and the instructor's late `EL`/`ER`/`EXIT` retarget are LAHSO-blind after the handoff, and the exit filter tests the branch point rather than the turn-off arc.
@@ -321,7 +323,7 @@ The numbers live in `Phases/Tower/ForcedLandingProfile.cs` and are an instructor
 
 **Forced rollout.** `ForceLanding` stays set through the rollout and is consumed in `LandingPhase.OnEnd` once the landing ends on the ground. While it is set (and no LAHSO hold-short point outranks it), `LandingPhase.TickForcedRollout` replaces the normal exit braking:
 
-- It takes only exits off the runway's centerline graph (`TryResolveGraphCandidate`), never the straight-line fallback, whose one-node path the runway exit cannot drive. When the normal planner finds none, `ResolveForcedCandidate` takes the last exit ahead it can make at 6 kt/s or less, since the last one is the gentlest to brake for.
+- When the normal planner (`ResolveGraphCandidate`) finds no exit, `ResolveForcedCandidate` takes the last exit ahead it can make at 6 kt/s or less, since the last one is the gentlest to brake for.
 - It brakes to the exit's turn-off speed 300 ft before the branch point (`ExitBrakingMarginFt`), at a rate clamped to 3–6 kt/s. An exit that needs more than 6 kt/s is given up (`MarkExitUnable`) and the search runs again as the aircraft slows. A search that finds nothing is not repeated until the aircraft passes the next branch point it saw (`ForcedNoExitUntilAlongNm`, snapshotted).
 - With no usable exit it stops 300 ft before the runway end (`TickForcedRunwayEndStop`), braking 3–10 kt/s, and harder only when even 10 kt/s would carry it off the end (`ForcedRunwayEndStopDecelKtsPerSec`). Once stopped the landing completes and `RunwayExitPhase` takes over.
 

@@ -401,7 +401,7 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
         }
 
         SimulationEngine engine = NewEngineWithEndTurnoffsBlocked(rwy);
-        AircraftState aircraft = AddForcedArrival(engine, rwy);
+        AircraftState aircraft = AddArrival(engine, rwy, "CLANDF");
         var exitPhase = (RunwayExitPhase)aircraft.Phases!.Phases[2];
 
         double? landingStopAlongFt = null;
@@ -486,8 +486,81 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
         }
     }
 
-    /// <summary>A CRJ7 1.55 nm past the 28L threshold at 20 ft and 120 kt, on final for 28L, with CLANDF issued.</summary>
-    private static AircraftState AddForcedArrival(SimulationEngine engine, Sfo28L rwy)
+    /// <summary>
+    /// The same arrival cleared to land (<c>CLAND</c>, not forced), with every end turnoff occupied, finds no makeable exit on
+    /// the centerline graph. The rollout takes its exits from the graph only. It never commits to a one-node straight-line pick
+    /// of any taxiway node ahead (a ramp or a parallel-taxiway node, which it would "miss" one after another), no terminal line
+    /// repeats, and it stops on the centerline under the no-exit handling. Where along the runway it stops is not asserted:
+    /// the non-forced no-exit stop plan is pinned separately.
+    /// </summary>
+    [Fact]
+    public void NotForcedRollout_NoGraphExit_StopsOnCenterlineWithoutStraightLinePicks()
+    {
+        if (Load() is not { } rwy)
+        {
+            return;
+        }
+
+        SimulationEngine engine = NewEngineWithEndTurnoffsBlocked(rwy);
+        AircraftState aircraft = AddArrival(engine, rwy, "CLAND");
+        var landing = (LandingPhase)aircraft.Phases!.Phases[1];
+        List<string> messages = CaptureMessages(engine, "TSTAC");
+
+        List<string> straightLinePicks = [];
+        double? stopAlongFt = null;
+        double maxAlongFt = double.MinValue;
+        double maxCrossTrackFt = 0;
+        for (int t = 1; (t <= LeaveRunwayBudgetSeconds) && (stopAlongFt is null); t++)
+        {
+            engine.TickOneSecond();
+            Phase? phase = aircraft.Phases?.CurrentPhase;
+            if (!aircraft.IsOnGround || (phase is not (LandingPhase or RunwayExitPhase)))
+            {
+                continue;
+            }
+
+            double alongFt = AlongFt(rwy, aircraft.Position);
+            maxAlongFt = Math.Max(maxAlongFt, alongFt);
+            maxCrossTrackFt = Math.Max(maxCrossTrackFt, Math.Abs(CrossTrackFt(rwy, aircraft.Position)));
+            if ((phase is LandingPhase) && (landing.CandidateExit is { } candidate))
+            {
+                output.WriteLine(
+                    $"t={t}: {alongFt:F0} ft along, gs={aircraft.GroundSpeed:F1} kt, "
+                        + $"candidate {candidate.TaxiwayName} hold-short {candidate.HoldShortNode.Id}"
+                );
+                if ((candidate.Path.Count == 1) || (candidate.HoldShortNode.Type != GroundNodeType.RunwayHoldShort))
+                {
+                    straightLinePicks.Add($"t={t} {candidate.TaxiwayName} node {candidate.HoldShortNode.Id} ({candidate.HoldShortNode.Type})");
+                }
+            }
+
+            if (aircraft.GroundSpeed < 1.0)
+            {
+                stopAlongFt = alongFt;
+            }
+        }
+
+        foreach (string message in messages)
+        {
+            output.WriteLine($"message: {message}");
+        }
+
+        string summary =
+            $"stop {stopAlongFt?.ToString("F0") ?? "none"} ft, max along {maxAlongFt:F0} ft of {rwy.LandingDistanceFt:F0} ft, "
+            + $"max |xte| {maxCrossTrackFt:F0} ft, in {aircraft.Phases?.CurrentPhase?.Name}";
+        output.WriteLine(summary);
+
+        Assert.True(straightLinePicks.Count == 0, $"the rollout committed to straight-line picks: {string.Join("; ", straightLinePicks)}");
+        Assert.True(messages.Count == messages.Distinct(StringComparer.Ordinal).Count(), $"a terminal line repeated: {string.Join(" | ", messages)}");
+        Assert.True(stopAlongFt is not null, $"never stopped on the runway: {summary}");
+        Assert.True(maxCrossTrackFt <= rwy.Runway.WidthFt / 2.0, $"left the side of the runway: {summary}");
+    }
+
+    /// <summary>
+    /// A CRJ7 1.55 nm past the 28L threshold at 20 ft and 120 kt, on final for 28L, with <paramref name="clearance"/>
+    /// (<c>CLANDF</c> or <c>CLAND</c>) issued.
+    /// </summary>
+    private static AircraftState AddArrival(SimulationEngine engine, Sfo28L rwy, string clearance)
     {
         LatLon start = GeoMath.ProjectPoint(rwy.Threshold, rwy.Runway.TrueHeading, 1.55);
         AircraftState aircraft = NewCrj7("TSTAC", start, rwy.Runway.TrueHeading, rwy.Runway.ElevationFt + 20, iasKts: 120, onGround: false);
@@ -500,8 +573,8 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, rwy.Layout));
         AddPending(engine, aircraft, rwy.Layout);
 
-        CommandResult result = engine.SendCommand("TSTAC", "CLANDF");
-        Assert.True(result.Success, $"CLANDF failed: {result.Message}");
+        CommandResult result = engine.SendCommand("TSTAC", clearance);
+        Assert.True(result.Success, $"{clearance} failed: {result.Message}");
         return aircraft;
     }
 
@@ -513,7 +586,7 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
     private List<string> RunForcedRolloutTrace(Sfo28L rwy, bool roundTrip)
     {
         SimulationEngine engine = NewEngineWithEndTurnoffsBlocked(rwy);
-        AddForcedArrival(engine, rwy);
+        AddArrival(engine, rwy, "CLANDF");
 
         // No round trip once the runway exit follows its route — backlog: "GroundNavigatorDto omits arc/Bezier/reversal/
         // turn-accumulator state, so a mid-route restore is lossy".

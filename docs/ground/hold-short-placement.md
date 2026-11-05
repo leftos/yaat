@@ -231,7 +231,7 @@ published length (the takeoff surface), unlike a `NavigationDatabase` runway rec
 `Coordinates[0]` is `Id.End1`'s threshold. Along-track is `GeoMath.AlongTrackDistanceNm`; side is
 `GeoMath.SignedCrossTrackDistanceNm`. The taxiway name comes from the node's **straight** edges only — an arc at a hold
 short carries a joined fillet name no controller would say — and `currentTaxiway` only breaks a multi-name tie (it is
-null when naming the nearest node, so that stays deterministic). `AirportGroundLayout.GetExitTaxiwayName` is deliberately
+null when naming the nearest node, so that stays deterministic). The layout's exit-naming helpers are deliberately
 not reused: exit semantics, first-edge-arbitrary, includes arc names.
 
 Testing it: select nodes by edge taxiway name, never node id (see Footguns), and remember that one taxiway name can match

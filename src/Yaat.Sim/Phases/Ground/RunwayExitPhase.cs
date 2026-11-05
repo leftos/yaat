@@ -530,7 +530,7 @@ public sealed class RunwayExitPhase : Phase
     /// the preference (taxiway → side → any) until an exit is found.
     /// Sets _holdShortNode/_exitTaxiway/_exitPath if found.
     ///
-    /// Lookahead rule (mirrors <see cref="LandingPhase.ResolveNextCandidate"/>):
+    /// Lookahead rule (mirrors <see cref="AirportGroundLayout.FindOnSidePreferredExit"/>):
     /// when there is a side preference (explicit or inferred) and the BFS at a
     /// given centerline returns an off-side hold-short (because the on-side was
     /// occupied or doesn't exist there), defer that candidate and continue

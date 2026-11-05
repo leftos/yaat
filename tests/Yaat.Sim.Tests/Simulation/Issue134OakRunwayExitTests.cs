@@ -88,62 +88,6 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Unit test: FindExitAheadOnRunway on OAK 28L should also return a real
-    /// taxiway intersection, not an intermediate routing vertex.
-    /// </summary>
-    [Fact]
-    public void FindExitAheadOnRunway_28L_ReturnsRealIntersection()
-    {
-        AirportGroundLayout? layout = LoadOakLayout();
-        if (layout is null)
-        {
-            return;
-        }
-
-        GroundRunway? rwy28L = layout.FindGroundRunway("28L");
-        Assert.NotNull(rwy28L);
-
-        // Position early on 28L so exits ahead include J and P
-        List<(double Lat, double Lon)> coords = rwy28L.Coordinates;
-        int idx = coords.Count / 3;
-        double lat = coords[idx].Lat;
-        double lon = coords[idx].Lon;
-
-        (GroundNode Node, string Taxiway)? result = layout.FindExitAheadOnRunway(
-            lat,
-            lon,
-            new TrueHeading(280.0),
-            null,
-            "28L",
-            excludeTaxiways: null,
-            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
-        );
-        Assert.NotNull(result);
-
-        GroundNode exitNode = result.Value.Node;
-        var distinctTaxiways = exitNode
-            .Edges.Where(e => !e.IsRunwayCenterline)
-            .Select(e => e.TaxiwayName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        output.WriteLine(
-            $"Exit ahead node {exitNode.Id} at ({exitNode.Position.Lat:F6},{exitNode.Position.Lon:F6}): "
-                + $"taxiway={result.Value.Taxiway}, "
-                + $"all taxiways=[{string.Join(", ", distinctTaxiways)}], "
-                + $"type={exitNode.Type}"
-        );
-
-        Assert.True(
-            (distinctTaxiways.Count >= 2)
-                || (exitNode.Type is GroundNodeType.Spot or GroundNodeType.RunwayHoldShort)
-                || (exitNode.Edges.Count(e => !e.IsRunwayCenterline) >= 3),
-            $"Exit node {exitNode.Id} is an intermediate routing vertex with taxiways [{string.Join(", ", distinctTaxiways)}] — "
-                + "expected a real intersection"
-        );
-    }
-
-    /// <summary>
     /// E2E: Replay N70CS landing on OAK 28L. After runway exit completes, the
     /// aircraft should end up at a real taxiway intersection, not in the grass
     /// between J and P.

@@ -149,27 +149,6 @@ public class FilletLandingExitTests
     }
 
     [Fact]
-    public void FindExitAhead_OAK28R_H_ReturnsIt()
-    {
-        AirportGroundLayout? layout = LoadOakLayout();
-        if (layout is null)
-        {
-            return;
-        }
-
-        (GroundNode Node, string Taxiway)? result = layout.FindExitAheadOnRunway(
-            37.724806,
-            -122.204721,
-            new TrueHeading(280.0),
-            new ExitPreference { Taxiway = "H" },
-            "28R",
-            excludeTaxiways: null,
-            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
-        );
-        Assert.NotNull(result);
-    }
-
-    [Fact]
     public void FindNearestExit_OAK28R_ReturnsExitOnCorrectRunway()
     {
         AirportGroundLayout? layout = LoadOakLayout();

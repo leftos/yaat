@@ -3885,22 +3885,6 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
-    /// Get the taxiway name for the edge connected to a node that leads away from the runway.
-    /// </summary>
-    public string? GetExitTaxiwayName(GroundNode exitNode)
-    {
-        foreach (IGroundEdge edge in exitNode.Edges)
-        {
-            if (!edge.IsRunwayCenterline)
-            {
-                return edge.TaxiwayName;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
     /// Get all hold-short nodes for a specific runway.
     /// </summary>
     public List<GroundNode> GetRunwayHoldShortNodes(string runwayId)
@@ -4581,115 +4565,6 @@ public sealed class AirportGroundLayout
 
         return null;
     }
-
-    /// <summary>The straight-line exit search's radius, in nautical miles.</summary>
-    public const double DefaultExitSearchNm = 1.5;
-
-    /// <summary>
-    /// Find a runway exit that is ahead of the aircraft along the runway heading.
-    /// Applies the given exit preference (taxiway name, side, or nearest).
-    /// Returns the exit node and its taxiway name, or null if no suitable exit is ahead.
-    /// A node whose taxiway is in <paramref name="excludeTaxiways"/> (compared without regard to case) is never returned: the
-    /// rollout passes the taxiways the crew has given up on this landing.
-    /// </summary>
-    public (GroundNode Node, string Taxiway)? FindExitAheadOnRunway(
-        double lat,
-        double lon,
-        TrueHeading runwayHeading,
-        ExitPreference? preference,
-        string? runwayDesignator,
-        IReadOnlySet<string>? excludeTaxiways,
-        double maxSearchNm
-    )
-    {
-        GroundNode? best = null;
-        double bestScore = double.MaxValue;
-        GroundRunway? targetRunway = runwayDesignator is not null ? FindGroundRunway(runwayDesignator) : null;
-
-        foreach (GroundNode node in Nodes.Values)
-        {
-            if (!IsValidExitCandidate(node, targetRunway) || IsOnExcludedTaxiway(node, excludeTaxiways))
-            {
-                continue;
-            }
-
-            double dist = GeoMath.DistanceNm(new LatLon(lat, lon), node.Position);
-            if (dist > maxSearchNm)
-            {
-                continue;
-            }
-
-            // Only consider exits ahead of the aircraft along the runway
-            double alongTrack = GeoMath.AlongTrackDistanceNm(node.Position, new LatLon(lat, lon), runwayHeading);
-            if (alongTrack <= 0)
-            {
-                continue;
-            }
-
-            // Check for taxiway preference match
-            bool matchesPreference = false;
-
-            if (preference?.Taxiway is { } taxiway)
-            {
-                foreach (IGroundEdge edge in node.Edges)
-                {
-                    if (!edge.IsRunwayCenterline && edge.MatchesTaxiway(taxiway))
-                    {
-                        matchesPreference = true;
-                        break;
-                    }
-                }
-            }
-
-            // Apply preference filters
-            if (preference?.Taxiway is not null && !matchesPreference)
-            {
-                continue;
-            }
-
-            if (preference?.Side is { } side)
-            {
-                double bearing = GeoMath.BearingTo(new LatLon(lat, lon), node.Position);
-                double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
-                bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
-                if (!isOnRequestedSide)
-                {
-                    continue;
-                }
-            }
-
-            // Score by along-track distance (prefer nearest ahead exit), biased toward parking
-            double parkingBias = AverageNearestParkingDistanceNm(node, ParkingSampleCount) * ParkingProximityWeight;
-            double score = alongTrack + parkingBias;
-            if (score < bestScore)
-            {
-                bestScore = score;
-                best = node;
-            }
-        }
-
-        if (best is null)
-        {
-            return null;
-        }
-
-        string? taxiwayName = GetExitTaxiwayName(best);
-        if (taxiwayName is null)
-        {
-            return null;
-        }
-
-        return (best, taxiwayName);
-    }
-
-    /// <summary>
-    /// True when the exit taxiway <paramref name="node"/> leads onto is one of <paramref name="excludeTaxiways"/>, compared without
-    /// regard to case.
-    /// </summary>
-    private bool IsOnExcludedTaxiway(GroundNode node, IReadOnlySet<string>? excludeTaxiways) =>
-        (excludeTaxiways is { Count: > 0 })
-        && (GetExitTaxiwayName(node) is { } nodeTaxiway)
-        && excludeTaxiways.Any(excluded => string.Equals(excluded, nodeTaxiway, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Number of nearest parking nodes to average when computing parking proximity bias.

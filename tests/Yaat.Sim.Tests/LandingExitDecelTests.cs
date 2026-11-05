@@ -280,71 +280,6 @@ public class LandingExitDecelTests
         Assert.Null(layout.ComputeExitAngle(hsNodes[0], "NONEXISTENT", new TrueHeading(280.0)));
     }
 
-    // -- FindExitAheadOnRunway (retained for EL/ER/EXIT commands) --
-
-    [Fact]
-    public void FindExitAhead_OAK28R_H_ReturnsIt()
-    {
-        AirportGroundLayout? layout = LoadOakLayout();
-        if (layout is null)
-        {
-            return;
-        }
-
-        (GroundNode Node, string Taxiway)? result = layout.FindExitAheadOnRunway(
-            37.724806,
-            -122.204721,
-            new TrueHeading(280.0),
-            new ExitPreference { Taxiway = "H" },
-            "28R",
-            excludeTaxiways: null,
-            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
-        );
-        Assert.NotNull(result);
-    }
-
-    [Fact]
-    public void FindExitAhead_NoPreference_FindsNearest()
-    {
-        AirportGroundLayout? layout = LoadOakLayout();
-        if (layout is null)
-        {
-            return;
-        }
-
-        (GroundNode Node, string Taxiway)? result = layout.FindExitAheadOnRunway(
-            37.724806,
-            -122.204721,
-            new TrueHeading(280.0),
-            null,
-            "28R",
-            excludeTaxiways: null,
-            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
-        );
-        Assert.NotNull(result);
-    }
-
-    [Fact]
-    public void FindExitAhead_SidePreference_FiltersCorrectly()
-    {
-        AirportGroundLayout? layout = LoadOakLayout();
-        if (layout is null)
-        {
-            return;
-        }
-
-        (GroundNode Node, string Taxiway)? rightResult = layout.FindExitAheadOnRunway(
-            37.724806,
-            -122.204721,
-            new TrueHeading(280.0),
-            new ExitPreference { Side = ExitSide.Right },
-            "28R",
-            excludeTaxiways: null,
-            maxSearchNm: AirportGroundLayout.DefaultExitSearchNm
-        );
-        Assert.NotNull(rightResult);
-    }
-
     // -- The committed-exit braking ceiling --
 
     /// <summary>The W5 high-speed exit on OAK 30: branch node, hold-short node, and turn-off speed. Null without W5.</summary>
@@ -1916,114 +1851,6 @@ public class LandingExitDecelTests
     }
 
     /// <summary>
-    /// The straight-line fallback skips a given-up taxiway too: a B738 at 150 kt 500 ft before OAK 30's W6, where no exit on the
-    /// centerline graph is makeable at any rate, falls back to the nearest taxiway node ahead; with the taxiway that fallback picks
-    /// given up, it picks another.
-    /// </summary>
-    [Fact]
-    public void StraightLineFallback_SkipsAGivenUpTaxiway()
-    {
-        AirportGroundLayout? layout = LoadOakLayout();
-        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "30");
-        if ((layout is null) || (runway is null))
-        {
-            return;
-        }
-
-        LatLon threshold = LandingThreshold.Resolve(runway, layout);
-        AirportGroundLayout.CenterlineExitResult? w6 = layout.FindOnSidePreferredExit(
-            threshold.Lat,
-            threshold.Lon,
-            runway.TrueHeading,
-            runway.Designator,
-            new ExitPreference { Taxiway = "W6" },
-            sidePref: null,
-            excludeBranchPoints: null,
-            excludeHoldShortNodes: null,
-            filter: null,
-            maxIterations: AirportGroundLayout.DefaultMaxIterations
-        );
-        Assert.NotNull(w6);
-        LatLon start = GeoMath.ProjectPoint(w6.Value.Path[0].Position, runway.TrueHeading.ToReciprocal(), 500.0 / GeoMath.FeetPerNm);
-
-        ResolvedExitInfo first = FallbackCandidateAt(layout, runway, start, givenUp: null);
-        ResolvedExitInfo second = FallbackCandidateAt(layout, runway, start, givenUp: first.TaxiwayName);
-
-        Assert.False(
-            string.Equals(first.TaxiwayName, second.TaxiwayName, StringComparison.OrdinalIgnoreCase),
-            $"the straight-line fallback still picked {first.TaxiwayName} after the crew gave it up"
-        );
-    }
-
-    /// <summary>
-    /// The straight-line fallback takes the turn-off speed of the exit angle it measures (<see cref="AirportGroundLayout.MeasureExitAngle"/>,
-    /// <see cref="AirportGroundLayout.UnmeasuredExitAngleDeg"/> when the exit cannot be measured), never the speed of an unknown angle: a
-    /// B738 at 150 kt 500 ft before OAK 30's W6 falls back to the nearest taxiway node ahead.
-    /// </summary>
-    [Fact]
-    public void StraightLineFallback_TakesTheTurnOffSpeedOfTheMeasuredExitAngle()
-    {
-        AirportGroundLayout? layout = LoadOakLayout();
-        RunwayInfo? runway = NavigationDatabase.Instance.GetRunway("OAK", "30");
-        if ((layout is null) || (runway is null))
-        {
-            return;
-        }
-
-        LatLon threshold = LandingThreshold.Resolve(runway, layout);
-        AirportGroundLayout.CenterlineExitResult? w6 = layout.FindOnSidePreferredExit(
-            threshold.Lat,
-            threshold.Lon,
-            runway.TrueHeading,
-            runway.Designator,
-            new ExitPreference { Taxiway = "W6" },
-            sidePref: null,
-            excludeBranchPoints: null,
-            excludeHoldShortNodes: null,
-            filter: null,
-            maxIterations: AirportGroundLayout.DefaultMaxIterations
-        );
-        Assert.NotNull(w6);
-        LatLon start = GeoMath.ProjectPoint(w6.Value.Path[0].Position, runway.TrueHeading.ToReciprocal(), 500.0 / GeoMath.FeetPerNm);
-
-        ResolvedExitInfo candidate = FallbackCandidateAt(layout, runway, start, givenUp: null);
-
-        double measuredAngle = layout.MeasureExitAngle([candidate.HoldShortNode], candidate.HoldShortNode, candidate.TaxiwayName, runway.TrueHeading);
-        double measuredSpeed = CategoryPerformance.ExitTurnOffSpeed(AircraftCategory.Jet, measuredAngle);
-        double unknownAngleSpeed = CategoryPerformance.ExitTurnOffSpeed(AircraftCategory.Jet, null);
-        string staged =
-            $"{candidate.TaxiwayName} measures {measuredAngle:F1} deg ({measuredSpeed} kt), an unknown angle gives {unknownAngleSpeed} kt";
-        Assert.True(measuredSpeed != unknownAngleSpeed, $"the staging cannot tell the two apart: {staged}");
-        Assert.True(candidate.TurnOffSpeed == measuredSpeed, $"the fallback took {candidate.TurnOffSpeed} kt: {staged}");
-    }
-
-    /// <summary>
-    /// The candidate a B738 rollout at 150 kt resolves from <paramref name="start"/> with <paramref name="givenUp"/> given up — asserted
-    /// to come from the straight-line fallback (a one-node path), as nothing on the graph is makeable from there at that speed.
-    /// </summary>
-    private static ResolvedExitInfo FallbackCandidateAt(AirportGroundLayout layout, RunwayInfo runway, LatLon start, string? givenUp)
-    {
-        AircraftState aircraft = MakeLandedAircraftOfType("B738", start.Lat, start.Lon, runway.TrueHeading.Degrees, ias: 150);
-        aircraft.Phases!.AssignedRunway = runway;
-        aircraft.Ground.Layout = layout;
-        GroundFrame.EnterGround(aircraft, 150);
-        PhaseContext ctx = CtxFor(aircraft, runway, layout, AircraftCategory.Jet, 1.0);
-
-        var phase = new LandingPhase();
-        phase.OnStart(ctx);
-        if (givenUp is not null)
-        {
-            aircraft.Phases.GivenUpExitTaxiways.Add(givenUp);
-        }
-
-        phase.OnTick(ctx);
-
-        ResolvedExitInfo candidate = Assert.IsType<ResolvedExitInfo>(phase.CandidateExit);
-        Assert.True(candidate.Path.Count == 1, $"the candidate {candidate.TaxiwayName} came from the graph, not the straight-line fallback");
-        return candidate;
-    }
-
-    /// <summary>
     /// The given-up taxiways ride the phase list through a snapshot taken while the runway exit is running, their case-insensitivity
     /// included.
     /// </summary>
@@ -2828,7 +2655,7 @@ public class LandingExitDecelTests
         ResolvedExitInfo candidate = Assert.IsType<ResolvedExitInfo>(staged.Phase.CandidateExit);
         Assert.Equal("D", candidate.TaxiwayName);
         Assert.Equal(77, candidate.HoldShortNode.Id);
-        Assert.True(candidate.Path.Count >= 2, "the candidate came from the straight-line fallback, not the graph");
+        Assert.True(candidate.Path.Count >= 2, "the candidate carries a one-node path the runway exit cannot drive");
         Assert.True(staged.Phase.EvaluateAndApplyNamedExitInstruction(staged.Ctx.Aircraft, requested, expedite: false).Allowed);
     }
 
@@ -2836,8 +2663,7 @@ public class LandingExitDecelTests
 
     /// <summary>
     /// Outside LAHSO, a rollout whose every exit hold-short is already claimed has no exit to take: the graph planner
-    /// excludes the occupied bars, the straight-line fallback hands the landing a candidate the exit phase then drops for
-    /// occupancy, and the centerline re-search finds nothing. The arrival must stop on the remaining runway rather than
+    /// excludes the occupied bars and the centerline re-search finds nothing. The arrival must stop on the remaining runway rather than
     /// leave the pavement or coast off its end.
     /// </summary>
     [Fact(Skip = "YAAT-30(h): the no-exit stop is not built yet; the aircraft overruns the departure end")]
