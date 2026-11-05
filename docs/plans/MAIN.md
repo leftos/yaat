@@ -711,7 +711,7 @@
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (20/44 done)
+### 1 Defects (20/46 done)
 - [ ] YAAT-1666 Find a SID's TDLS initial altitude by version and in the op configs, as the climb-via top does
 - [ ] YAAT-1483 Sequence a SID's heading-to-intercept leg when the next leg is a fix-less course-to-altitude leg (KSJC SUNOL1 RW12B)
 - [ ] YAAT-1484 Parse TDLS initial altitudes written as 'MAINTAIN 5000FT' (every ZLA SID's hold is off)
@@ -736,8 +736,10 @@
 - [ ] YAAT-1861 Keep an obstacle departure procedure's crossing windows under a controller altitude
 - [ ] YAAT-1869 Cancel a controller crossing when a later maintain omits it
 - [ ] YAAT-1870 Hold a SID departure under an ATC ceiling below its altitude instead of climbing on
+- [ ] YAAT-1871 Apply a coded-leg CFIX's altitude revert when the departure procedure is abandoned
+- [ ] YAAT-1876 Give every transmission an id so a queued maintain never cancels a later crossing
 
-### 2 Refinements and rulings (1/15 done)
+### 2 Refinements and rulings (1/16 done)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
 - [ ] YAAT-965 Restore STAR restrictions without guessing a runway transition
 - [ ] YAAT-977 Decide what a departure does when vectored off a SID after a climb via
@@ -752,15 +754,18 @@
 - [ ] YAAT-1854 Decide what a HOLD or a different approach does to a pending deferred approach clearance
 - [ ] YAAT-1855 Answer an arrival's request for lower with expect-lower, request-from-facility and unable
 - [ ] YAAT-1859 Plan an arrival's request for lower to its most limiting STAR restriction
+- [ ] YAAT-1874 Have the pilot query a crossing above the climb-via top instead of silently stopping at the top
 
-### 3 Hygiene and tests (0/4 done)
+### 3 Hygiene and tests (0/5 done)
 - [ ] YAAT-983 Read the active op config's SID top altitude before the others
 - [ ] YAAT-1030 Split NavigationCommandHandler.DispatchCrossFix under the complexity limit
 - [ ] YAAT-1395 Tidy YAAT-1356 follow-ups: overlay stale stamps, the airspace hold's saved stamps, the speed target after an approach clearance
 - [ ] YAAT-1862 Pin PTAC PA's climb-via arm with an assigned altitude present
+- [ ] YAAT-1875 Bring NavigationCommandHandler.BoundMetByCleared to cyclomatic complexity 8 or less
 
 ### No milestone
 - [ ] YAAT-1840 Enforce a CFIX on a SID's coded-leg fix on that leg, with its revert at the fix · release vNext
+  - [ ] YAAT-1873 Plan a CFIX speed toward a SID's coded-leg fix and revert it at the fix (YAAT-1840 part B) · release vNext
 - [ ] YAAT-1519 Restore a crossed published ceiling on a re-issued CVIA; lift a SID waypoint's ceiling once passed
 - [ ] YAAT-1868 Climb at no less than the profile rate toward a far constrained fix
 
