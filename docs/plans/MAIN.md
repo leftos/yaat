@@ -711,10 +711,8 @@
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (18/44 done)
+### 1 Defects (20/44 done)
 - [ ] YAAT-1666 Find a SID's TDLS initial altitude by version and in the op configs, as the climb-via top does
-- [/] YAAT-1037 Stop an unmet published SID/STAR altitude bound from overriding a non-via assigned altitude · release vNext
-  - [ ] YAAT-1867 Hold a descent at the first in-force floor past a met bound (YAAT-1037 part C2) · release vNext
 - [ ] YAAT-1483 Sequence a SID's heading-to-intercept leg when the next leg is a fix-less course-to-altitude leg (KSJC SUNOL1 RW12B)
 - [ ] YAAT-1484 Parse TDLS initial altitudes written as 'MAINTAIN 5000FT' (every ZLA SID's hold is off)
 - [ ] YAAT-1654 Match the CTO's SID initial altitude across SID versions (filed NUEVO8, TDLS NUEVO9)
