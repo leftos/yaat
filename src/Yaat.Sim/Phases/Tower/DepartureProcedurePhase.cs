@@ -28,7 +28,8 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
     /// <summary>A controller altitude assignment — a "maintain" (<c>CM</c>/<c>DM</c>) or a forced altitude
     /// (<c>FA</c>/<c>CMN</c>) — issued while the coded legs are active: it interrupts the SID's vertical
     /// navigation and outranks its published crossing restrictions (7110.65 §4-3-2.e.4 NOTE 2 /
-    /// AIM 5-2-9.h.10), so the phase must stop writing <c>TargetAltitude</c>.</summary>
+    /// AIM 5-2-9.h.10), so the phase stops writing <c>TargetAltitude</c>, except while a controller crossing on a coded-leg
+    /// fix lies ahead (<see cref="ApplyLegAltitudeCap"/>).</summary>
     private bool _controllerAltitude;
 
     private LatLon? _legEntryPosition;
@@ -160,6 +161,7 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
 
     private void AdvanceLeg(PhaseContext ctx)
     {
+        ApplyCrossingRevertAtFix(ctx, Legs[_legIndex]);
         _legIndex++;
         _legElapsedSeconds = 0;
         _legEntryPosition = ctx.Aircraft.Position;
@@ -341,36 +343,143 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
     }
 
     /// <summary>
-    /// Writes the climb target while a coded leg flies: the climb via's altitude, else the SID hold altitude, else
-    /// <see cref="_climbCeiling"/>, capped at the active leg's "at", "at or below", or "between" crossing altitude
-    /// (AIM §5-2-9.e) only while the SID's published altitudes are in force
-    /// (<see cref="AltitudeRestrictionInForce.ProcedureAltitudesInForce"/>: a climb via, or a SID departure with no
-    /// controller altitude at all). The cap is a pure ceiling, never a target: the aircraft levels off only if it reaches
-    /// it before the leg sequences, and the next leg releases it. "At or above" is deliberately excluded — its floor is
-    /// satisfied by the climb. A CTO altitude or a TDLS "maintain" value puts the published altitudes out of force (AIM
-    /// 5-2-9.h.8 Example 2), so the leg's window never caps below it. A "maintain" issued while the coded legs fly owns the
-    /// target outright (7110.65 §4-3-2.e.4 NOTE 2 / AIM 5-2-9.h.10) and the phase writes nothing, until a climb via puts
-    /// the SID's restrictions back in force under its top altitude; with no assignment the SID's published initial
-    /// altitude is the base (7110.65 §4-3-2.e.5 / AIM 5-2-9.h.5).
+    /// Writes the climb target while a coded leg flies: the climb via's altitude, else the controller's assignment, else
+    /// the SID hold altitude, else <see cref="_climbCeiling"/> (<see cref="ResolveReleaseAltitude"/>), capped at the active
+    /// leg's "at", "at or below", or "between" crossing altitude (AIM §5-2-9.e) only while the SID's published altitudes
+    /// are in force (<see cref="AltitudeRestrictionInForce.ProcedureAltitudesInForce"/>: a climb via, or a SID departure
+    /// with no controller altitude at all), and at every controller crossing ceiling on a coded-leg fix still ahead
+    /// (<see cref="CrossingsAhead"/>). The cap is a pure ceiling, never a target: the aircraft levels off only if it
+    /// reaches it before the leg sequences, and the next leg releases it. "At or above" is deliberately excluded — its
+    /// floor is satisfied by the climb. A CTO altitude or a TDLS "maintain" value puts the published altitudes out of force
+    /// (AIM 5-2-9.h.8 Example 2), so the leg's window never caps below it. A controller crossing on the leg's own fix
+    /// replaces that leg's published restriction. A "maintain" issued while the coded legs fly owns the target outright
+    /// (7110.65 §4-3-2.e.4 NOTE 2 / AIM 5-2-9.h.10) and the phase writes nothing, until a climb via puts the SID's
+    /// restrictions back in force under its top altitude, except while a controller crossing on a coded-leg fix lies
+    /// ahead: the crossing drives the target until its fix and the maintain is the altitude after it. With no assignment
+    /// the SID's published initial altitude is the base (7110.65 §4-3-2.e.5 / AIM 5-2-9.h.5).
     /// </summary>
     private void ApplyLegAltitudeCap(PhaseContext ctx, ProcedureLeg leg)
     {
         double? climbVia = FlightPhysics.ClimbViaAltitude(ctx.Aircraft);
+        (bool crossingAhead, double? crossingCeiling) = CrossingsAhead();
         if (_controllerAltitude && (climbVia is null))
+        {
+            ApplyCrossingUnderMaintain(ctx, crossingAhead, crossingCeiling);
+            return;
+        }
+
+        double ceiling = ResolveReleaseAltitude(ctx);
+        if (PublishedLegCeiling(ctx, leg) is { } legCeiling)
+        {
+            ceiling = Math.Min(ceiling, legCeiling);
+        }
+
+        if (crossingCeiling is { } crossing)
+        {
+            ceiling = Math.Min(ceiling, crossing);
+        }
+
+        ctx.Targets.TargetAltitude = ceiling;
+    }
+
+    /// <summary>
+    /// Under a controller "maintain", writes the target only while a controller crossing on a coded-leg fix lies ahead: the
+    /// maintained altitude, capped at the crossing's ceiling. A crossing whose floor lies above the maintained altitude
+    /// assigned its own altitude when it was issued, so the assigned altitude is the target.
+    /// </summary>
+    private static void ApplyCrossingUnderMaintain(PhaseContext ctx, bool crossingAhead, double? crossingCeiling)
+    {
+        if ((!crossingAhead) || (ctx.Targets.AssignedAltitude is not { } assigned))
         {
             return;
         }
 
-        double ceiling = climbVia ?? ResolveSidHoldAltitude(ctx) ?? _climbCeiling;
-        if (
-            AltitudeRestrictionInForce.ProcedureAltitudesInForce(ctx.Aircraft)
-            && (leg.AltitudeRestriction is { } restriction)
-            && (restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between)
-        )
+        ctx.Targets.TargetAltitude = Math.Min(assigned, crossingCeiling ?? assigned);
+    }
+
+    /// <summary>
+    /// The active leg's published ceiling while the SID's published altitudes are in force and no controller crossing
+    /// replaced it on the leg's own fix; null otherwise.
+    /// </summary>
+    private double? PublishedLegCeiling(PhaseContext ctx, ProcedureLeg leg)
+    {
+        if ((!AltitudeRestrictionInForce.ProcedureAltitudesInForce(ctx.Aircraft)) || (CrossingAtLegFix(leg) is not null))
         {
-            ceiling = Math.Min(ceiling, restriction.Altitude1Ft);
+            return null;
         }
-        ctx.Targets.TargetAltitude = ceiling;
+
+        return CeilingFt(leg.AltitudeRestriction);
+    }
+
+    /// <summary>
+    /// Whether a controller crossing (a CFIX stamped on the pending route) lies on a coded-leg fix from the active leg on,
+    /// and the lowest ceiling among them: an "at", an "at or below", or a window's top. Such a crossing applies from its
+    /// issue until its fix sequences, while earlier legs' in-force restrictions still bind.
+    /// </summary>
+    private (bool Any, double? Ceiling) CrossingsAhead()
+    {
+        bool any = false;
+        double? lowest = null;
+        for (int i = _legIndex; i < Legs.Count; i++)
+        {
+            if (CrossingAtLegFix(Legs[i]) is not { } holder)
+            {
+                continue;
+            }
+
+            any = true;
+            if (CeilingFt(holder.AltitudeRestriction) is { } ceiling)
+            {
+                lowest = Math.Min(lowest ?? ceiling, ceiling);
+            }
+        }
+
+        return (any, lowest);
+    }
+
+    /// <summary>The ceiling a restriction sets: an "at", an "at or below", or a window's top; null for none or an "at or above".</summary>
+    private static double? CeilingFt(CifpAltitudeRestriction? restriction) =>
+        restriction is { Type: CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between }
+            ? restriction.Altitude1Ft
+            : null;
+
+    /// <summary>
+    /// The pending-route target named after <paramref name="leg"/>'s fix when a controller crossing is stamped on it; null
+    /// when the leg ends at no fix or its fix carries no controller crossing.
+    /// </summary>
+    private NavigationTarget? CrossingAtLegFix(ProcedureLeg leg)
+    {
+        if (leg.FixName is not { } name)
+        {
+            return null;
+        }
+
+        NavigationTarget? target = PostRoute.Find(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        return target?.AltitudeRestriction?.Source == CifpAltitudeRestrictionSource.Atc ? target : null;
+    }
+
+    /// <summary>
+    /// When a leg sequences at a fix that carries a controller crossing, the crossing ends there: the target goes back to the
+    /// clearance in force (<see cref="ResolveReleaseAltitude"/>: the climb via, the assigned altitude, the SID hold altitude,
+    /// the climb ceiling), never to an altitude captured when the crossing was issued. The holder's altitude reverts are
+    /// cleared, so the handover never applies them again. Its speed reverts are left for the handover.
+    /// </summary>
+    private void ApplyCrossingRevertAtFix(PhaseContext ctx, ProcedureLeg leg)
+    {
+        if (CrossingAtLegFix(leg) is not { } holder)
+        {
+            return;
+        }
+
+        ctx.Targets.TargetAltitude = ResolveReleaseAltitude(ctx);
+        holder.RevertAltitude = null;
+        holder.RevertAssignedAltitude = null;
+        Log.LogDebug(
+            "[DepartureProcedure] {Callsign}: crossing at {Fix} ended as its leg sequenced, target {Target:F0}ft",
+            ctx.Aircraft.Callsign,
+            holder.Name,
+            ctx.Targets.TargetAltitude
+        );
     }
 
     private bool FlyToFix(PhaseContext ctx, ProcedureLeg leg)
@@ -484,19 +593,25 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
     /// controller's (a CTO climb-to altitude arrives as <see cref="AssignedAltitude"/>; a climb via or a later
     /// assignment is tested ahead of every caller) or the flight is VFR, whose climb is unchanged.
     /// </summary>
-    private double? ResolveSidHoldAltitude(PhaseContext ctx)
+    private double? ResolveSidHoldAltitude(PhaseContext ctx) => SidHoldAltitude(ctx.Aircraft);
+
+    /// <summary>
+    /// The SID hold altitude <paramref name="aircraft"/> flies while this phase flies its coded legs with no controller
+    /// altitude (<see cref="ResolveSidHoldAltitude"/>): the cleared altitude a crossing given there is measured against.
+    /// </summary>
+    internal double? SidHoldAltitude(AircraftState aircraft)
     {
         if (AssignedAltitude is not null)
         {
             return null;
         }
 
-        if ((ctx.Aircraft.FlightPlan.IsVfr) || (ctx.Aircraft.Procedure.SidInitialAltitudeFt is not { } sidInitial))
+        if ((aircraft.FlightPlan.IsVfr) || (aircraft.Procedure.SidInitialAltitudeFt is not { } sidInitial))
         {
             return null;
         }
 
-        return Math.Max(ctx.Aircraft.Altitude, sidInitial);
+        return Math.Max(aircraft.Altitude, sidInitial);
     }
 
     private double ResolveClimbCeiling()

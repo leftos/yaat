@@ -411,12 +411,12 @@ internal static class NavigationCommandHandler
 
         // The altitude and speed to revert to after fix passage.
         bool restatedWithVia = ViaAppliedInTransmission(aircraft, transmissionId);
-        bool revertsAltitude = !restatedWithVia && !AltitudeRevertReversesTravel(aircraft.Altitude, cmd.Altitude, aircraft.Targets.TargetAltitude);
+        CifpAltitudeRestriction altRestriction = FlightCommandHandler.ToAltitudeRestriction(cmd.Altitude, cmd.AltType);
+        bool revertsAltitude = (!restatedWithVia) && CapturesAltitudeRevert(aircraft, altRestriction);
         double? previousAlt = revertsAltitude ? aircraft.Targets.TargetAltitude : null;
         double? previousAssignedAlt = revertsAltitude ? aircraft.Targets.AssignedAltitude : null;
         SpeedRevertCapture capture = CaptureSpeedRevert(aircraft, revertsSpeed: (cmd.Speed is not null) && !restatedWithVia);
 
-        CifpAltitudeRestriction altRestriction = FlightCommandHandler.ToAltitudeRestriction(cmd.Altitude, cmd.AltType);
         CifpSpeedRestriction? speedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null;
 
         // Id 0 is no transmission (a queued block restored from a snapshot written before blocks carried one).
@@ -461,9 +461,10 @@ internal static class NavigationCommandHandler
         // But do set AssignedAltitude for the datablock display, unless this transmission's DVIA or CVIA already applied
         // and cleared it: both orders of "CFIX, DVIA" and of "CFIX, CVIA" then end with no assigned altitude. A cleared
         // altitude that already meets the crossing's bound stays assigned (CrossingBoundMetByClearance). While a SID handover
-        // is pending none is written: a bare crossing gives no new altitude to maintain, and the handover reads the
-        // assigned altitude to choose the altitude it holds after the coded legs.
-        if (!handoverPending && !restatedWithVia && !CrossingBoundMetByClearance(aircraft, altRestriction))
+        // is pending only a floor above the cleared altitude is written (AssignsCrossingAltitude): any other crossing
+        // there gives no new altitude to maintain, and the handover reads the assigned altitude to choose the altitude it
+        // holds after the coded legs.
+        if ((!restatedWithVia) && AssignsCrossingAltitude(aircraft, altRestriction, handoverPending))
         {
             aircraft.Targets.AssignedAltitude = cmd.Altitude;
         }
@@ -513,8 +514,8 @@ internal static class NavigationCommandHandler
     /// <summary>
     /// Refuses a CFIX before anything changes: a crossing speed for an arrival on final inside 5 nm, as a plain SPD is
     /// (7110.65 §5-7-1.b.4; a crossing with no speed is an altitude instruction and is accepted), a crossing speed the type
-    /// cannot fly, and, while a SID handover is pending, a fix off the pending route (<see cref="RefuseOffPendingRoute"/>).
-    /// Null when the crossing may go ahead.
+    /// cannot fly, and, while a SID handover is pending, a fix off the pending route or a coded-leg fix already behind the
+    /// aircraft (<see cref="RefuseOffPendingRoute"/>). Null when the crossing may go ahead.
     /// </summary>
     private static CommandResult? RefuseCrossFix(
         CrossFixCommand cmd,
@@ -543,11 +544,22 @@ internal static class NavigationCommandHandler
     /// While a SID handover is pending (<paramref name="pendingRoute"/> not null), refuses as unable a crossing at a fix
     /// that is neither on the pending route nor one of the coded legs' fixes the current phase flies or hands to. A filed
     /// route token the pending route lacks is refused too: it is behind the aircraft, stripped as colocated with the
-    /// departure, or no fix ahead. Null when the crossing may go ahead.
+    /// departure, or no fix ahead. So is a coded-leg fix whose leg has already sequenced
+    /// (<see cref="RefusePassedCodedFix"/>). Null when the crossing may go ahead.
     /// </summary>
     private static CommandResult? RefuseOffPendingRoute(AircraftState aircraft, List<NavigationTarget>? pendingRoute, string fixName)
     {
-        if ((pendingRoute is null) || pendingRoute.Exists(f => f.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
+        if (pendingRoute is null)
+        {
+            return null;
+        }
+
+        if (RefusePassedCodedFix(aircraft, fixName) is { } passed)
+        {
+            return passed;
+        }
+
+        if (pendingRoute.Exists(f => f.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
         {
             return null;
         }
@@ -565,6 +577,107 @@ internal static class NavigationCommandHandler
 
         return new CommandResult(false, $"unable, {FixDisplay(fixName)} isn't on our route");
     }
+
+    /// <summary>
+    /// While the departure phase flies its coded legs, refuses as unable a crossing at a coded-leg fix whose leg has already
+    /// sequenced and that no leg still ahead ends at, nor any pending-route fix beyond the coded legs: the fix is behind the
+    /// aircraft. Null when the crossing may go ahead, a fix on the active leg still ahead included.
+    /// </summary>
+    private static CommandResult? RefusePassedCodedFix(AircraftState aircraft, string fixName)
+    {
+        if (aircraft.Phases?.CurrentPhase is not DepartureProcedurePhase procedure)
+        {
+            return null;
+        }
+
+        bool passed = procedure.Legs.Take(procedure.ActiveLegIndex).Any(l => NamesFix(l.FixName, fixName)) && !FixAhead(procedure, fixName);
+        return passed ? new CommandResult(false, $"unable, we're already past {FixDisplay(fixName)}") : null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="fixName"/> still lies ahead of the departure phase: a coded leg from the active one on ends
+    /// there, or the pending route names it again beyond the coded legs.
+    /// </summary>
+    private static bool FixAhead(DepartureProcedurePhase procedure, string fixName)
+    {
+        if (procedure.Legs.Skip(procedure.ActiveLegIndex).Any(l => NamesFix(l.FixName, fixName)))
+        {
+            return true;
+        }
+
+        var coded = new HashSet<string>(procedure.Legs.Where(l => l.FixName is not null).Select(l => l.FixName!), StringComparer.OrdinalIgnoreCase);
+        return procedure.PostRoute.SkipWhile(f => coded.Contains(f.Name)).Any(f => NamesFix(f.Name, fixName));
+    }
+
+    private static bool NamesFix(string? name, string fixName) => string.Equals(name, fixName, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether a CFIX captures the altitude to revert to past its fix: not when the crossing reverses the direction of
+    /// flight (<see cref="AltitudeRevertReversesTravel"/>), nor in a SID's climb window when the clearance in force already
+    /// meets its bound (<see cref="WindowCrossingMet"/>), which changes nothing.
+    /// </summary>
+    private static bool CapturesAltitudeRevert(AircraftState aircraft, CifpAltitudeRestriction restriction)
+    {
+        if (WindowCrossingMet(aircraft, restriction))
+        {
+            return false;
+        }
+
+        return !AltitudeRevertReversesTravel(aircraft.Altitude, restriction.Altitude1Ft, aircraft.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// Whether, while the departure phase flies its coded legs, the clearance in force already meets a crossing's bound:
+    /// under a climb via, an at-or-above bound at or below the via's top; otherwise the cleared altitude, or the SID hold
+    /// altitude with none assigned (<see cref="WindowHoldOrAssigned"/>), lying beyond it by the rules of
+    /// <see cref="CrossingBoundMetByClearance"/>.
+    /// </summary>
+    private static bool WindowCrossingMet(AircraftState aircraft, CifpAltitudeRestriction restriction)
+    {
+        if (aircraft.Phases?.CurrentPhase is not DepartureProcedurePhase { PendingRoute: not null })
+        {
+            return false;
+        }
+
+        if (aircraft.Procedure.ClimbViaTargetFt is { } top)
+        {
+            return (restriction.Type == CifpAltitudeRestrictionType.AtOrAbove) && (restriction.Altitude1Ft <= top);
+        }
+
+        return BoundMetByCleared(aircraft, restriction, WindowHoldOrAssigned(aircraft));
+    }
+
+    /// <summary>
+    /// Whether a CFIX writes its altitude as the assigned altitude. Off the climb window: unless the cleared altitude already
+    /// meets its bound. While a SID handover is pending: only an "at" or at-or-above floor above the cleared altitude (or the
+    /// SID hold altitude with none assigned) while the departure phase flies its coded legs and no via is in force, so the
+    /// aircraft climbs to the floor once the earlier legs' caps release and stays there past the fix; under a via the top
+    /// caps the crossing, and any other crossing there is a temporary deviation that assigns nothing.
+    /// </summary>
+    private static bool AssignsCrossingAltitude(AircraftState aircraft, CifpAltitudeRestriction restriction, bool handoverPending)
+    {
+        if (!handoverPending)
+        {
+            return !CrossingBoundMetByClearance(aircraft, restriction);
+        }
+
+        bool floor = restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrAbove;
+        if ((!floor) || AltitudeRestrictionInForce.ViaClearanceInForce(aircraft) || (WindowHoldOrAssigned(aircraft) is not { } cleared))
+        {
+            return false;
+        }
+
+        return restriction.Altitude1Ft > cleared;
+    }
+
+    /// <summary>
+    /// The cleared altitude while the departure phase flies its coded legs: the assigned altitude, else the SID hold altitude
+    /// the phase flies. Null outside the departure phase or with neither.
+    /// </summary>
+    private static double? WindowHoldOrAssigned(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase is DepartureProcedurePhase { PendingRoute: not null } procedure
+            ? aircraft.Targets.AssignedAltitude ?? procedure.SidHoldAltitude(aircraft)
+            : null;
 
     /// <summary>The readback of a CFIX: the fix, the altitude with its at / at or above / at or below, and any speed.</summary>
     private static string CrossFixReadback(CrossFixCommand cmd)
@@ -621,9 +734,16 @@ internal static class NavigationCommandHandler
     /// aircraft descends to the approach's altitudes (AIM 5-4-7.f; 7110.65 4-8-1.a.4), while an approach ceiling above the
     /// cleared altitude, or a window it lies strictly inside, still leaves it at the cleared altitude rather than climbing.
     /// </summary>
-    internal static bool CrossingBoundMetByClearance(AircraftState aircraft, CifpAltitudeRestriction restriction)
+    internal static bool CrossingBoundMetByClearance(AircraftState aircraft, CifpAltitudeRestriction restriction) =>
+        BoundMetByCleared(aircraft, restriction, aircraft.Targets.AssignedAltitude);
+
+    /// <summary>
+    /// Whether <paramref name="cleared"/> already lies beyond <paramref name="restriction"/>'s bound, by the rules of
+    /// <see cref="CrossingBoundMetByClearance"/>; false with no cleared altitude or under a via clearance.
+    /// </summary>
+    private static bool BoundMetByCleared(AircraftState aircraft, CifpAltitudeRestriction restriction, double? cleared)
     {
-        if (AltitudeRestrictionInForce.ViaClearanceInForce(aircraft) || (aircraft.Targets.AssignedAltitude is not { } cleared))
+        if (AltitudeRestrictionInForce.ViaClearanceInForce(aircraft) || (cleared is not { } altitude))
         {
             return false;
         }
@@ -641,12 +761,55 @@ internal static class NavigationCommandHandler
 
         return restriction.Type switch
         {
-            CifpAltitudeRestrictionType.AtOrAbove => cleared > restriction.Altitude1Ft,
-            CifpAltitudeRestrictionType.AtOrBelow => cleared < restriction.Altitude1Ft,
-            CifpAltitudeRestrictionType.Between => (restriction.Altitude2Ft is { } lower) && (cleared > lower) && (cleared < restriction.Altitude1Ft),
+            CifpAltitudeRestrictionType.AtOrAbove => altitude > restriction.Altitude1Ft,
+            CifpAltitudeRestrictionType.AtOrBelow => altitude < restriction.Altitude1Ft,
+            CifpAltitudeRestrictionType.Between => (restriction.Altitude2Ft is { } lower)
+                && (altitude > lower)
+                && (altitude < restriction.Altitude1Ft),
             _ => false,
         };
     }
+
+    /// <summary>
+    /// A "maintain" (CM or DM) accepted while a SID handover is pending (<see cref="PendingDepartureRoute"/>: the initial
+    /// climb or the departure phase's coded legs) cancels the altitude of every controller crossing an earlier transmission
+    /// stamped on the pending route (<see cref="CrossingStampedBefore"/>): the fix gets the SID's published restriction
+    /// back, as a via clearance gives it (<see cref="SupersedeEarlierCrossingRestrictions"/>), and loses its altitude
+    /// reverts. A crossing stamped in the maintain's own transmission stays (7110.65 4-2-5.b Example 1), and every crossing
+    /// keeps its speed and speed reverts, since speed restrictions remain in effect until the controller cancels them
+    /// (7110.65 4-5-7.h.11 NOTE 1). The live route is left alone. Returns <paramref name="result"/> unchanged.
+    /// </summary>
+    internal static CommandResult CancelEarlierWindowCrossingAltitudes(CommandResult result, AircraftState aircraft, int transmissionId)
+    {
+        if ((!result.Success) || (PendingDepartureRoute(aircraft) is not { } pending))
+        {
+            return result;
+        }
+
+        var published = new Lazy<Dictionary<string, NavigationTarget>>(() => ActiveSidRestrictions(aircraft));
+        foreach (
+            NavigationTarget fix in pending.Where(f =>
+                (f.AltitudeRestriction?.Source == CifpAltitudeRestrictionSource.Atc) && CrossingStampedBefore(f, transmissionId)
+            )
+        )
+        {
+            fix.AltitudeRestriction = published.Value.GetValueOrDefault(fix.Name)?.AltitudeRestriction;
+            fix.CrossingTransmissionId = null;
+            fix.RevertAltitude = null;
+            fix.RevertAssignedAltitude = null;
+            Log.LogDebug("{Callsign}: the maintain cancels the crossing altitude at {Fix} on the pending route", aircraft.Callsign, fix.Name);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="fix"/>'s crossing was stamped in a transmission before <paramref name="transmissionId"/>: always
+    /// for a transmission with no id (one carrying no crossing, which follows every stamped one) or a crossing with no
+    /// stamp; otherwise only for a smaller id, so a queued maintain that fires after a later crossing leaves that crossing.
+    /// </summary>
+    private static bool CrossingStampedBefore(NavigationTarget fix, int transmissionId) =>
+        (transmissionId == 0) || (fix.CrossingTransmissionId is not { } stamp) || (stamp < transmissionId);
 
     internal static CommandResult DispatchListApproaches(ListApproachesCommand cmd, AircraftState aircraft)
     {
@@ -2597,7 +2760,7 @@ internal static class NavigationCommandHandler
         if (ResolveActiveSid(aircraft) is not { } sid)
         {
             Log.LogWarning(
-                "{Callsign}: CVIA could not resolve SID {Sid} at {Dep}; crossing restrictions it supersedes are cleared, not restored",
+                "{Callsign}: could not resolve SID {Sid} at {Dep}; superseded crossing restrictions are cleared, not restored",
                 aircraft.Callsign,
                 aircraft.Procedure.ActiveSidId,
                 aircraft.FlightPlan.Departure

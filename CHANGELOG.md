@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- A `CFIX` during a SID's opening legs keeps the departure on the SID and the crossing on its route; an off-route fix is refused.
+- A `CFIX` during a SID's opening legs is flown as a crossing at its fix, keeping the SID; an off-route or already passed fix is refused.
 - A SID departure released with a `CTO` altitude or a TDLS "maintain" is no longer held below it at a SID leg's crossing altitude.
 - `PTAC … PA` on a SID departure released with a `CTO` altitude keeps that altitude.
 - `ASSUME` of a climbing live-traffic SID departure climbs via the SID, except maintain the feed's interim; a feed's assigned altitude below cruise is kept instead.

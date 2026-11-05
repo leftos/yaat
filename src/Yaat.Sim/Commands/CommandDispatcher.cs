@@ -1304,9 +1304,17 @@ public static class CommandDispatcher
 
             // --- Altitude ---
             case ClimbMaintainCommand cmd:
-                return FlightCommandHandler.ApplyClimbMaintain(cmd, aircraft, ctx.GroundLayout);
+                return NavigationCommandHandler.CancelEarlierWindowCrossingAltitudes(
+                    FlightCommandHandler.ApplyClimbMaintain(cmd, aircraft, ctx.GroundLayout),
+                    aircraft,
+                    ctx.TransmissionId
+                );
             case DescendMaintainCommand cmd:
-                return FlightCommandHandler.ApplyDescendMaintain(cmd, aircraft, ctx.GroundLayout);
+                return NavigationCommandHandler.CancelEarlierWindowCrossingAltitudes(
+                    FlightCommandHandler.ApplyDescendMaintain(cmd, aircraft, ctx.GroundLayout),
+                    aircraft,
+                    ctx.TransmissionId
+                );
             case ForceAltitudeCommand cmd:
                 return FlightCommandHandler.ApplyForceAltitude(cmd, aircraft);
 
