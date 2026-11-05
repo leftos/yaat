@@ -1784,6 +1784,8 @@ A later `DVIA` supersedes a `CFIX` or constrained `DCTF` crossing (see **`DVIA` 
 
 A SID's or STAR's published altitudes bind the aircraft only under a via: a climb via or descend via, or a SID departure with no altitude at all (treated as climb via).
 
+A `CFIX` under a climb via or descend via is a temporary deviation: the aircraft makes the crossing, then keeps flying the chart as published from there, with the via still in force. To take an aircraft off the procedure, give `DCT {fix}` before the `CFIX {fix}`: the direct-to cancels the SID or STAR.
+
 A maintain (`DM`/`CM`, a `CTO` altitude, a TDLS maintain value) without `CVIA`/`DVIA` leaves the published altitudes on the route but out of force, so the aircraft levels at its assigned altitude (`CTO 050` on CNDEL6 levels at 5,000 and no coded leg's crossing window holds it lower, and a later `CVIA` brings the restrictions ahead back); published speeds still apply. The "vectored off procedure without an altitude assignment" warning and the level-off on a direct-to an on-SID fix fire only when the block carries a heading or a direct-to (a `CFIX` alone on a SID departure flying its published altitudes draws neither) and the SID's published altitudes were in force before the command (a climb via, a descend via, or the no-data fallback), not after `CTO 050` or a TDLS maintain.
 
 A controller's crossing (`CFIX`, constrained `DCTF`) always binds, and a `JARR` without `DVIA` holds the present altitude.
