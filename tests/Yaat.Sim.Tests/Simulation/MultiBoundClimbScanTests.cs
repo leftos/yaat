@@ -221,8 +221,13 @@ public class MultiBoundClimbScanTests
         Assert.Null(ac.Targets.TargetAltitude);
     }
 
+    /// <summary>
+    /// A controller's at-or-above floor above the cleared altitude is complied with: the aircraft climbs to cross the fix at
+    /// the floor. An at-or-above is not an altitude to maintain, so past its fix, with no revert stored, the aircraft resumes
+    /// its assigned altitude (AIM 4-4-10.e).
+    /// </summary>
     [Fact]
-    public void NonVia_AtcFloorAboveAssigned_ClimbsToFloorAndHolds()
+    public void NonVia_AtcFloorAboveAssigned_ClimbsToFloorThenResumesAssigned()
     {
         AircraftState ac = NonViaDeparture(altitude: 3000, assigned: 5000);
         string fix = Stamp(ac, 0, CifpAltitudeRestrictionType.AtOrAbove, 7000);
@@ -232,11 +237,16 @@ public class MultiBoundClimbScanTests
         Assert.Equal(7000, ac.Targets.TargetAltitude);
 
         double crossed = ClimbViaTopAltitudeTests.FlyPastFix(ac, fix, 1800);
-        ClimbViaTopAltitudeTests.FlyPhysics(ac, 60);
-        _output.WriteLine($"crossed {fix} at {crossed:F0} ft; 60 s later {ac.Altitude:F0} ft, target {ac.Targets.TargetAltitude}");
+        _output.WriteLine($"crossed {fix} at {crossed:F0} ft, target {ac.Targets.TargetAltitude}");
+        // About 7,000 at the fix: the level-off taper leaves the last few tens of feet to the tick that sequences it.
+        Assert.InRange(crossed, 6900, 7000 + FlightPhysics.AltitudeSnapFt);
+        Assert.Equal(5000, ac.Targets.TargetAltitude);
+
+        ClimbViaTopAltitudeTests.FlyPhysics(ac, 180);
+        _output.WriteLine($"180 s past {fix}: {ac.Altitude:F0} ft, target {ac.Targets.TargetAltitude}");
         // The level-off clears the target, which then holds the present altitude.
-        Assert.True(ac.Targets.TargetAltitude is null or 7000, $"target {ac.Targets.TargetAltitude} past {fix}");
-        Assert.Equal(7000, ac.Altitude, FlightPhysics.AltitudeSnapFt);
+        Assert.True(ac.Targets.TargetAltitude is null or 5000, $"target {ac.Targets.TargetAltitude} past {fix}");
+        Assert.Equal(5000, ac.Altitude, FlightPhysics.AltitudeSnapFt);
     }
 
     [Fact]
