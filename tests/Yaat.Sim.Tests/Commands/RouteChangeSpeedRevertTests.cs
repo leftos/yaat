@@ -205,10 +205,10 @@ public sealed class RouteChangeSpeedRevertTests
         AircraftState ac = Airborne(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000), EastOfPmd);
         Send(ac, "MACH .78");
         Send(ac, "CFIX PMD 350 250");
-        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)0.78, ac.Targets.TargetMach);
 
         Dispatch(ac, DirectToHecCrossingAt(35_000, 250));
-        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)0.78, ac.Targets.TargetMach);
         FlyUntilPassed(ac, "HEC");
 
         Assert.Equal((double?)0.78, ac.Targets.TargetMach);
@@ -252,7 +252,7 @@ public sealed class RouteChangeSpeedRevertTests
         AircraftState ac = Airborne(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000), EastOfPmd);
         Send(ac, "MACH .78");
         Send(ac, "CFIX PMD 350 250");
-        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)0.78, ac.Targets.TargetMach);
         Assert.Contains(ac.Targets.NavigationRoute, fix => fix.RevertMach is not null);
 
         Send(ac, "FH 270");

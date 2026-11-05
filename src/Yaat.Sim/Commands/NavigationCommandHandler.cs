@@ -260,7 +260,10 @@ internal static class NavigationCommandHandler
     {
         ControlTargets targets = aircraft.Targets;
         bool speedMax = revertsSpeed && SpeedMaxPending(aircraft);
-        double? mach = (revertsSpeed && !speedMax) ? targets.TargetMach : null;
+        // A Mach still held after an earlier crossing captured it is that crossing's pending revert, not a second one: it
+        // moves past this crossing with the pending revert (PlaceCrossingSpeedReverts).
+        bool machRevertPending = targets.NavigationRoute.Exists(fix => fix.RevertMach is not null);
+        double? mach = (revertsSpeed && !speedMax && !machRevertPending) ? targets.TargetMach : null;
         if (revertsSpeed && !speedMax && (mach is null))
         {
             return new SpeedRevertCapture(
@@ -477,7 +480,8 @@ internal static class NavigationCommandHandler
             aircraft.Targets.SpeedLimitsLifted = false;
             // A crossing speed is an ATC speed act like SPD, so it ends a forced speed's override of the final gate.
             aircraft.Targets.SpeedOverridesFinalGate = false;
-            FlightCommandHandler.EndMachHoldAndSpeedMax(aircraft);
+            // A Mach hold stays live until the planner hands it over to the crossing speed (PlanCrossingUnderMach).
+            FlightCommandHandler.EndSpeedMaxHold(aircraft);
 
             // For acceleration, set TargetSpeed immediately so the aircraft starts
             // accelerating toward the CFIX speed right away. For deceleration,

@@ -470,18 +470,19 @@ public sealed class SpeedMaxCommandTests
 
     private const string RfasRow = "RFAS";
     private const string ConstrainedDirectRow = "DCTF PMD/300 S250";
+    private const string CfixRow = "CFIX PMD 300 250";
 
     [Theory]
-    [InlineData("RNS", null, null)]
-    [InlineData("SPD 250", 250.0, null)]
-    [InlineData("MACH .78", null, 0.78)]
-    [InlineData("DSR", null, null)]
-    [InlineData("SPDN 250", 250.0, null)]
-    [InlineData(RfasRow, null, null)]
-    [InlineData("WARP PMD 270 300 280", 280.0, null)]
-    [InlineData("CFIX PMD 300 250", 250.0, null)]
-    [InlineData(ConstrainedDirectRow, null, null)]
-    public void Smax_EndedBy(string command, double? expectedAssigned, double? expectedMach)
+    [InlineData("RNS", null, null, false)]
+    [InlineData("SPD 250", 250.0, null, false)]
+    [InlineData("MACH .78", null, 0.78, false)]
+    [InlineData("DSR", null, null, false)]
+    [InlineData("SPDN 250", 250.0, null, false)]
+    [InlineData(RfasRow, null, null, false)]
+    [InlineData("WARP PMD 270 300 280", 280.0, null, false)]
+    [InlineData(CfixRow, 250.0, null, true)]
+    [InlineData(ConstrainedDirectRow, null, null, true)]
+    public void Smax_EndedBy(string command, double? expectedAssigned, double? expectedMach, bool keepsMach)
     {
         AircraftState ac = Airborne("B738", altitude: 30_000, ias: 280);
         Assert.True(Send(ac, "SMAX").Success);
@@ -494,9 +495,10 @@ public sealed class SpeedMaxCommandTests
 
         double? assigned =
             command == RfasRow ? AircraftPerformance.ApproachSpeed("B738", AircraftCategorization.Categorize("B738")) : expectedAssigned;
+        // YAAT-1839: a crossing speed ends SMAX but leaves its Mach above the crossover live for the planner to end
         Assert.False(ac.Targets.SpeedMaxHeld);
         Assert.Equal(assigned, ac.Targets.AssignedSpeed);
-        Assert.Equal(expectedMach, ac.Targets.TargetMach);
+        Assert.Equal(keepsMach ? B738SmaxMach : expectedMach, ac.Targets.TargetMach);
     }
 
     [Fact]
@@ -528,7 +530,7 @@ public sealed class SpeedMaxCommandTests
         Assert.True(Send(ac, "SMAX").Success);
         Assert.True(Send(ac, "CFIX PMD 110 250").Success);
         Assert.False(ac.Targets.SpeedMaxHeld);
-        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal(B738SmaxMach, ac.Targets.TargetMach);
 
         double? crossingIas = null;
         for (int second = 0; (second < 3_600) && (crossingIas is null); second++)
@@ -547,6 +549,80 @@ public sealed class SpeedMaxCommandTests
         Assert.True(WindInterpolator.MachToIas(B738SmaxMach, ac.Altitude) > B738SmaxKts, "premise: below the crossover past the fix");
         Assert.Equal(Math.Round(B738SmaxKts), Assert.IsType<double>(ac.Targets.AssignedSpeed));
         Assert.Null(ac.Targets.TargetMach);
+    }
+
+    /// <summary>
+    /// YAAT-1839: SMAX above the crossover holds a Mach; a constrained DCTF with crossing speeds ends SMAX but leaves that
+    /// Mach live until the crossing's switch point, so the IAS keeps following the Mach rather than freezing at its
+    /// issue-time figure, and SMAX is armed again past the last crossing.
+    /// </summary>
+    [Fact]
+    public void Smax_AboveTheCrossover_ThenConstrainedDctfWithSpeed_LeavesNoFrozenIas()
+    {
+        AircraftState ac = Airborne("B738", altitude: 35_000, ias: 250);
+        Assert.True(Send(ac, "SMAX").Success);
+        Assert.Equal(B738SmaxMach, ac.Targets.TargetMach);
+        var cmd = new ConstrainedForceDirectToCommand(
+            ResolveFixes("HEC", "PMD"),
+            new Dictionary<int, ConstrainedFixAltitude> { [0] = new(30_000, CrossFixAltitudeType.At), [1] = new(11_000, CrossFixAltitudeType.At) },
+            new Dictionary<int, int> { [0] = 300, [1] = 250 },
+            null
+        );
+        CommandResult result = CommandDispatcher.Dispatch(cmd, ac, TestDispatch.Context(new SerializableRandom(1)));
+        Assert.True(result.Success, result.Message);
+
+        Assert.False(ac.Targets.SpeedMaxHeld);
+        Assert.Equal(B738SmaxMach, ac.Targets.TargetMach);
+
+        for (int second = 0; (second < 3_600) && (ac.Altitude > 33_000) && (ac.Targets.TargetMach is not null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+        }
+
+        _output.WriteLine($"At {ac.Altitude:F0} ft: {ac.IndicatedAirspeed:F0} KIAS, Mach {ac.Targets.TargetMach}");
+        Assert.True(ac.Altitude <= 33_000, $"premise: the descent toward HEC passed FL330, at {ac.Altitude:F0} ft");
+        Assert.Equal(B738SmaxMach, ac.Targets.TargetMach);
+        Assert.True(
+            WindInterpolator.MachToIas(B738SmaxMach, ac.Altitude) > WindInterpolator.MachToIas(B738SmaxMach, 35_000) + 5,
+            "premise: the Mach's IAS rose on the descent"
+        );
+        Assert.InRange(
+            ac.IndicatedAirspeed,
+            WindInterpolator.MachToIas(B738SmaxMach, ac.Altitude) - SpeedSnapKts,
+            WindInterpolator.MachToIas(B738SmaxMach, ac.Altitude) + SpeedSnapKts
+        );
+
+        AssertCrossesPmdAt250ThenSmaxIsArmedAgain(ac);
+    }
+
+    /// <summary>
+    /// YAAT-1839: as <see cref="Smax_AboveTheCrossover_ThenConstrainedDctfWithSpeed_LeavesNoFrozenIas"/>, for a CFIX speed:
+    /// SMAX ends, its Mach stays live and the IAS follows it until the crossing's switch point.
+    /// </summary>
+    [Fact]
+    public void Smax_AboveTheCrossover_ThenCfixSpeed_LeavesNoFrozenIas()
+    {
+        AircraftState ac = Airborne("B738", altitude: 35_000, ias: 250);
+        Assert.True(Send(ac, "SMAX").Success);
+        Assert.True(Send(ac, "CFIX PMD 110 250").Success);
+        Assert.False(ac.Targets.SpeedMaxHeld);
+        Assert.Equal(B738SmaxMach, ac.Targets.TargetMach);
+
+        FlySeconds(ac, 60, _ => { });
+
+        _output.WriteLine($"At {ac.Altitude:F0} ft: {ac.IndicatedAirspeed:F0} KIAS, target {ac.Targets.TargetSpeed}, Mach {ac.Targets.TargetMach}");
+        Assert.Equal(B738SmaxMach, ac.Targets.TargetMach);
+        Assert.InRange(
+            ac.IndicatedAirspeed,
+            WindInterpolator.MachToIas(B738SmaxMach, ac.Altitude) - SpeedSnapKts,
+            WindInterpolator.MachToIas(B738SmaxMach, ac.Altitude) + SpeedSnapKts
+        );
+
+        double? crossingIas = FlyUntilSequenced(ac, "PMD");
+        _output.WriteLine($"Crossed PMD at {crossingIas:F0} KIAS, {ac.Altitude:F0} ft");
+        Assert.NotNull(crossingIas);
+        Assert.InRange(crossingIas.Value, 240, 260);
+        Assert.True(ac.Targets.SpeedMaxHeld);
     }
 
     [Theory]

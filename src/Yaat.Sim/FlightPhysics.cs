@@ -685,23 +685,12 @@ public static class FlightPhysics
     /// </summary>
     private static void UpdateSpeedPlanning(AircraftState aircraft, AircraftCategory cat)
     {
-        if (aircraft.IsOnGround || aircraft.GroundSpeed <= 0)
-        {
-            return;
-        }
-
-        // Don't override a Mach hold; under an assigned speed only controller crossings are planned (below)
-        if (aircraft.Procedure.SpeedRestrictionsDeleted || (aircraft.Targets.TargetMach is not null))
+        if (IsSpeedPlanningOff(aircraft))
         {
             return;
         }
 
         List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
-        if (route.Count == 0)
-        {
-            return;
-        }
-
         bool speedLimitWaived = AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType) || aircraft.MilitaryRoute.SpeedLimitWaived;
         double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
 
@@ -712,69 +701,176 @@ public static class FlightPhysics
                 cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
             }
 
-            if (route[i].SpeedRestriction is not { } restriction)
-            {
-                continue;
-            }
-
-            // An assigned speed overrides a published one (AIM 5-4-1.a.1; 7110.65 5-7-1.f, 5-7-4.c), so a published fix is
-            // neither planned nor hides a controller crossing after it; a controller crossing is an ATC assignment itself,
-            // flown at the assigned speed until its slowdown point. The same rule ApplyFixSpeedConstraint keeps at sequencing.
-            if (aircraft.Targets.HasExplicitSpeedCommand && !IsControllerSetSpeed(route[i]))
+            if ((route[i].SpeedRestriction is not { } restriction) || IsPublishedSpeedOverridden(aircraft, route[i]))
             {
                 continue;
             }
 
             (double constraintSpeed, bool floorGivesWay) = PlannedConstraintSpeed(aircraft, restriction, speedLimitWaived);
-
-            // A minimum ("at or above") restriction must never trigger a deceleration: the
-            // aircraft may legally cross faster. Only act on it to accelerate up to the floor
-            // when currently slower (fall through); otherwise skip it.
-            if ((restriction.Type == CifpSpeedRestrictionType.AtOrAbove) && (aircraft.IndicatedAirspeed > constraintSpeed))
+            if (!IsPlannedSpeedFix(aircraft, restriction, constraintSpeed))
             {
                 continue;
             }
-
-            // A maximum ("at or below") restriction caps a following aircraft's speed; it is never a cue to accelerate,
-            // which would close on the lead the follower is spacing behind. Skip it, as a minimum is skipped above.
-            if (
-                (restriction.Type == CifpSpeedRestrictionType.AtOrBelow)
-                && (aircraft.Approach.FollowingCallsign is not null)
-                && (aircraft.IndicatedAirspeed < constraintSpeed)
-            )
-            {
-                continue;
-            }
-
-            double speedDelta = Math.Abs(aircraft.IndicatedAirspeed - constraintSpeed);
-            if (speedDelta < SpeedSnapKts)
-            {
-                // Pin TargetSpeed to the constraint so the auto speed schedule
-                // doesn't override it while the constrained fix is still ahead.
-                SetPlannedSpeed(aircraft, constraintSpeed, floorGivesWay);
-                break;
-            }
-
-            bool needsDecel = aircraft.IndicatedAirspeed > constraintSpeed;
-            double rate = needsDecel
-                ? AircraftPerformance.DecelRate(aircraft.AircraftType, cat)
-                : AircraftPerformance.AccelRate(aircraft.AircraftType, cat);
 
             // The constraint holds where the fix sequences, its sequencing threshold before the fix itself.
             double sequencingDistNm = SequencingDistanceNm(aircraft, route, i, cumulativeDistNm);
-            double changeTimeSeconds = speedDelta / rate;
-            double timeToFixSeconds = sequencingDistNm / (aircraft.GroundSpeed / 3600.0);
-
-            // Acceleration: set TargetSpeed immediately — there's no benefit to
-            // delaying, and starting early ensures the aircraft meets the constraint.
-            // Deceleration: wait until time-to-fix is within 10% of change time so the
-            // aircraft doesn't slow down prematurely.
-            if (!needsDecel || (timeToFixSeconds <= changeTimeSeconds * 1.1))
+            if (aircraft.Targets.TargetMach is not null)
             {
-                SetPlannedSpeed(aircraft, constraintSpeed, floorGivesWay);
+                PlanCrossingUnderMach(aircraft, cat, constraintSpeed, floorGivesWay, sequencingDistNm);
+            }
+            else
+            {
+                PlanFixSpeed(aircraft, cat, constraintSpeed, floorGivesWay, sequencingDistNm);
             }
 
             break; // Step planning: only target the first speed-constrained fix
+        }
+    }
+
+    /// <summary>
+    /// Whether the speed planner is off: on the ground or not moving, with the published speeds deleted, or with no route.
+    /// Under an assigned speed or a Mach hold it still runs, for controller crossings only.
+    /// </summary>
+    private static bool IsSpeedPlanningOff(AircraftState aircraft) =>
+        aircraft.IsOnGround
+        || (aircraft.GroundSpeed <= 0)
+        || aircraft.Procedure.SpeedRestrictionsDeleted
+        || (aircraft.Targets.NavigationRoute.Count == 0);
+
+    /// <summary>
+    /// Whether <paramref name="fix"/>'s speed is a published one an ATC speed or a Mach hold overrides, so the planner
+    /// neither plans it nor stops at it. An assigned speed overrides a published one (AIM 5-4-1.a.1; 7110.65 5-7-1.f,
+    /// 5-7-4.c), so a published fix is neither planned nor hides a controller crossing after it; a controller crossing is
+    /// an ATC assignment itself, flown at the assigned speed until its slowdown point. The same rule
+    /// ApplyFixSpeedConstraint keeps at sequencing. Under a Mach hold a published fix is not planned either.
+    /// </summary>
+    private static bool IsPublishedSpeedOverridden(AircraftState aircraft, NavigationTarget fix) =>
+        (aircraft.Targets.HasExplicitSpeedCommand || (aircraft.Targets.TargetMach is not null)) && !IsControllerSetSpeed(fix);
+
+    /// <summary>
+    /// Whether the planner plans <paramref name="restriction"/> (planned as <paramref name="constraintSpeed"/>), or
+    /// skips past it to the next speed fix.
+    /// </summary>
+    private static bool IsPlannedSpeedFix(AircraftState aircraft, CifpSpeedRestriction restriction, double constraintSpeed)
+    {
+        // A minimum ("at or above") restriction must never trigger a deceleration: the
+        // aircraft may legally cross faster. Only act on it to accelerate up to the floor
+        // when currently slower; otherwise skip it.
+        if ((restriction.Type == CifpSpeedRestrictionType.AtOrAbove) && (aircraft.IndicatedAirspeed > constraintSpeed))
+        {
+            return false;
+        }
+
+        // A maximum ("at or below") restriction caps a following aircraft's speed; it is never a cue to accelerate,
+        // which would close on the lead the follower is spacing behind. Skip it, as a minimum is skipped above.
+        return !(
+            (restriction.Type == CifpSpeedRestrictionType.AtOrBelow)
+            && (aircraft.Approach.FollowingCallsign is not null)
+            && (aircraft.IndicatedAirspeed < constraintSpeed)
+        );
+    }
+
+    /// <summary>
+    /// Plans the fix speed <paramref name="constraintSpeed"/>, <paramref name="sequencingDistNm"/> before the point the
+    /// fix sequences, with no Mach hold in force: an acceleration is targeted at once, a deceleration at its slowdown point.
+    /// </summary>
+    private static void PlanFixSpeed(
+        AircraftState aircraft,
+        AircraftCategory cat,
+        double constraintSpeed,
+        bool floorGivesWay,
+        double sequencingDistNm
+    )
+    {
+        double speedDelta = Math.Abs(aircraft.IndicatedAirspeed - constraintSpeed);
+        if (speedDelta < SpeedSnapKts)
+        {
+            // Pin TargetSpeed to the constraint so the auto speed schedule
+            // doesn't override it while the constrained fix is still ahead.
+            SetPlannedSpeed(aircraft, constraintSpeed, floorGivesWay);
+            return;
+        }
+
+        bool needsDecel = aircraft.IndicatedAirspeed > constraintSpeed;
+        double rate = needsDecel
+            ? AircraftPerformance.DecelRate(aircraft.AircraftType, cat)
+            : AircraftPerformance.AccelRate(aircraft.AircraftType, cat);
+        double changeTimeSeconds = speedDelta / rate;
+        double timeToFixSeconds = sequencingDistNm / (aircraft.GroundSpeed / 3600.0);
+
+        // Acceleration: set TargetSpeed immediately — there's no benefit to
+        // delaying, and starting early ensures the aircraft meets the constraint.
+        // Deceleration: wait until time-to-fix is within 10% of change time so the
+        // aircraft doesn't slow down prematurely.
+        if (!needsDecel || (timeToFixSeconds <= changeTimeSeconds * 1.1))
+        {
+            SetPlannedSpeed(aircraft, constraintSpeed, floorGivesWay);
+        }
+    }
+
+    /// <summary>
+    /// Plans a controller's crossing speed (<paramref name="constraintSpeed"/>) under the Mach hold in force,
+    /// <paramref name="sequencingDistNm"/> before the point the fix sequences: the Mach is held until the window opens,
+    /// at the slowdown point for a crossing below the speed it flies (the larger of the IAS and the Mach's IAS
+    /// equivalent), and for a crossing at or above it at the earlier of the acceleration point and the point where the
+    /// Mach's IAS equivalent reaches the crossing speed. There the Mach hold and SMAX end and the crossing speed is
+    /// flown as an IAS (AIM 4-4-12.c). At or below FL240 before the window opens (7110.65 5-7-1.g;
+    /// <see cref="MachHandOverAltitudeFt"/>) they end too, handed over to the Mach's own IAS
+    /// (<see cref="MachHandOverKts"/>), which the window then slows from as for any IAS. Before either nothing is
+    /// written, and the Mach keeps steering the target speed.
+    /// </summary>
+    private static void PlanCrossingUnderMach(
+        AircraftState aircraft,
+        AircraftCategory cat,
+        double constraintSpeed,
+        bool floorGivesWay,
+        double sequencingDistNm
+    )
+    {
+        if (aircraft.Targets.TargetMach is not { } mach)
+        {
+            return;
+        }
+
+        double machIas = WindInterpolator.MachToIas(mach, aircraft.Altitude);
+        double startSpeed = Math.Max(aircraft.IndicatedAirspeed, machIas);
+        double timeToFixSeconds = sequencingDistNm / (aircraft.GroundSpeed / 3600.0);
+        bool windowOpen;
+        if (constraintSpeed < startSpeed)
+        {
+            double decelSeconds = (startSpeed - constraintSpeed) / AircraftPerformance.DecelRate(aircraft.AircraftType, cat);
+            windowOpen = timeToFixSeconds <= decelSeconds * 1.1;
+        }
+        else
+        {
+            double accelSeconds = (constraintSpeed - machIas) / AircraftPerformance.AccelRate(aircraft.AircraftType, cat);
+            windowOpen = (machIas >= constraintSpeed - SpeedSnapKts) || (timeToFixSeconds <= accelSeconds * 1.1);
+        }
+
+        if (!windowOpen && (aircraft.Altitude > MachHandOverAltitudeFt))
+        {
+            return;
+        }
+
+        // Below FL240 before the window opens the Mach is handed over to its own IAS, which the window then slows from.
+        double target = windowOpen ? constraintSpeed : MachHandOverKts(aircraft.AircraftType, mach, aircraft.Altitude);
+        Log.LogDebug(
+            "{Callsign}: Mach {Mach:F2} ends for the {Speed:F0} kt crossing at {Altitude:F0} ft, targeting {Target:F0} kt",
+            aircraft.Callsign,
+            mach,
+            constraintSpeed,
+            aircraft.Altitude,
+            target
+        );
+        aircraft.Targets.TargetMach = null;
+        aircraft.Targets.SpeedMaxHeld = false;
+        if (windowOpen)
+        {
+            SetPlannedSpeed(aircraft, constraintSpeed, floorGivesWay);
+        }
+        else
+        {
+            aircraft.Targets.TargetSpeed = target;
         }
     }
 
@@ -978,12 +1074,15 @@ public static class FlightPhysics
     /// As <see cref="ApplyFixConstraints(AircraftState, NavigationTarget)"/>, for the fix the aircraft has just sequenced
     /// onto: a speed below the present one is left to the speed planner's deceleration window, in every mode, a
     /// controller-set speed under an assigned speed too, so the aircraft holds its speed until the slowdown point
-    /// (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2). Under a Mach hold it still applies at once, a fallback while the
-    /// planner is off under a Mach target, not the intended descent profile (AIM 5-4-1.a.1), and an altitude, an
-    /// acceleration and an "at or above" floor are left immediate by the flag itself.
+    /// (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2), and under a Mach hold a controller-set speed too, which the
+    /// planner plans there (<see cref="PlanCrossingUnderMach"/>). Under an ATC-assigned Mach a published speed is not
+    /// applied at all (an assigned speed outranks it, AIM 5-4-1.a.1); under a Mach nobody assigned (live traffic) it is
+    /// applied at once, but the Mach rewrites the target speed each tick while it is held, so of what it sets only the
+    /// <see cref="ControlTargets.SpeedFloor"/> and <see cref="AircraftProcedure.LastProcedureSpeedKts"/> outlast the
+    /// Mach. An altitude, an acceleration and an "at or above" floor are left immediate by the flag itself.
     /// </summary>
     internal static void ApplySequencedFixConstraints(AircraftState aircraft, NavigationTarget target) =>
-        ApplyFixConstraints(aircraft, target, slowdownLeftToPlanner: aircraft.Targets.TargetMach is null);
+        ApplyFixConstraints(aircraft, target, slowdownLeftToPlanner: (aircraft.Targets.TargetMach is null) || IsControllerSetSpeed(target));
 
     private static void ApplyFixConstraints(AircraftState aircraft, NavigationTarget target, bool slowdownLeftToPlanner)
     {
@@ -2068,7 +2167,8 @@ public static class FlightPhysics
     /// is the Mach's own at that tick, no higher than Vmo less <see cref="SpeedMaxMarginKts"/> (<see cref="MachHandOverKts"/>),
     /// so a high Mach keeps its IAS and a slow one is never sped up. SMAX keeps its own Mach hold
     /// (<see cref="HoldMaximumForwardSpeed"/>), a helicopter is left to the envelope, and a Mach no speed command set (live
-    /// traffic) gets a target speed only, never an assigned one.
+    /// traffic) gets a target speed only, never an assigned one. A controller's crossing speed still ahead on the route stays
+    /// the assigned speed until its fix: the handover then sets the target speed only.
     /// </summary>
     private static void HandOverMachHold(AircraftState aircraft, AircraftCategory cat)
     {
@@ -2093,7 +2193,10 @@ public static class FlightPhysics
         );
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.TargetSpeed = handOverKts;
-        if (aircraft.Targets.HasExplicitSpeedCommand)
+        bool controllerCrossingAhead = aircraft.Targets.NavigationRoute.Exists(fix =>
+            (fix.SpeedRestriction is not null) && IsControllerSetSpeed(fix)
+        );
+        if (aircraft.Targets.HasExplicitSpeedCommand && !controllerCrossingAhead)
         {
             aircraft.Targets.AssignedSpeed = handOverKts;
         }

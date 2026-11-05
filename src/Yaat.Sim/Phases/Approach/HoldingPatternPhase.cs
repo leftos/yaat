@@ -123,6 +123,9 @@ public sealed class HoldingPatternPhase : Phase
             return;
         }
 
+        // A Mach hold is flown to the fix and ends there, so the holding speed is flown in the pattern rather than
+        // rewritten each tick from the Mach, whether the MACH came before the HOLD or after it.
+        Commands.FlightCommandHandler.EndMachHoldAndSpeedMax(ctx.Aircraft);
         DecelerateToHoldingSpeed(ctx);
         ctx.Targets.NavigationRoute.Clear();
         Log.LogDebug("[HoldingPattern] {Callsign}: at fix, entering via {Entry}", ctx.Aircraft.Callsign, _entry);

@@ -203,7 +203,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void MachHold_BlocksPlanning()
+    public void Mach_PublishedFixSpeed_IsNotPlanned()
     {
         AircraftState aircraft = CreateAircraft(ias: 280, altitude: 35000);
         aircraft.Targets.TargetMach = 0.78;
@@ -212,8 +212,9 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
 
         FlightPhysics.Update(aircraft, 0.25);
 
-        // Mach hold should prevent speed planning from setting 210
-        // TargetSpeed will be set by Mach hold logic instead
+        // A published speed is not planned under a Mach hold: the planner leaves the Mach in place.
+        Log(aircraft, "after tick");
+        Assert.Equal(0.78, aircraft.Targets.TargetMach);
     }
 
     /// <summary>

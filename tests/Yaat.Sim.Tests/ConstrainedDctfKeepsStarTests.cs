@@ -344,7 +344,76 @@ public class ConstrainedDctfKeepsStarTests
         NavigationTarget grudg = RouteFix(aircraft, Grudg);
         Assert.Equal((double?)0.62, grudg.RevertMach);
         Assert.Equal((bool?)false, grudg.RevertMachExplicit);
+        // YAAT-1839: the CFIX speed leaves the Mach live for the speed planner to end, below FL240 on the next tick
+        Assert.Equal((double?)0.62, aircraft.Targets.TargetMach);
+    }
+
+    /// <summary>
+    /// YAAT-1839: "MACH .70, DVIA, DCTF GRUDG A220 250" in one block leaves the Mach live for the speed planner to end,
+    /// as a CFIX restated with the via does, so the IAS keeps following the Mach down the descent rather than freezing at
+    /// its figure at dispatch. On this harness the descent handover or the GRUDG window ends the Mach within the first
+    /// 2,000 ft, so the IAS is read where the Mach ends: it has followed the Mach up from the dispatch figure.
+    /// </summary>
+    [Fact]
+    public void MachThenDviaThenDctfWithSpeed_SameBlock_LeavesNoFrozenIas()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+        ParsedCommand mach = Assert.IsAssignableFrom<ParsedCommand>(CommandParser.Parse("MACH .70").Value);
+        double dispatchIas = aircraft.IndicatedAirspeed;
+        Assert.True(WindInterpolator.MachToIas(0.70, aircraft.Altitude) > dispatchIas + 4, "premise: the Mach's IAS is above the dispatch IAS");
+
+        DispatchOk(aircraft, mach, new DescendViaCommand(null), GrudgCrossing(aircraft, CrossingFloorFt, CrossingSpeedKts));
+
+        Assert.Equal((double?)0.70, aircraft.Targets.TargetMach);
+        double startFt = aircraft.Altitude;
+        (double Ias, double MachIas) lastUnderMach = (aircraft.IndicatedAirspeed, WindInterpolator.MachToIas(0.70, aircraft.Altitude));
+        for (int t = 0; (t < 1800) && (aircraft.Targets.TargetMach is not null); t++)
+        {
+            lastUnderMach = (aircraft.IndicatedAirspeed, WindInterpolator.MachToIas(0.70, aircraft.Altitude));
+            Tick(harness, 1);
+        }
+
+        // On the last tick the Mach was held, the IAS was the Mach's own.
+        _output.WriteLine($"Last tick under the Mach: {lastUnderMach.Ias:F1} KIAS, Mach IAS {lastUnderMach.MachIas:F1}");
+        Assert.InRange(lastUnderMach.Ias, lastUnderMach.MachIas - SnapKts, lastUnderMach.MachIas + SnapKts);
+
+        _output.WriteLine(
+            $"Dispatched at {startFt:F0} ft, {dispatchIas:F0} KIAS; Mach ended at {aircraft.Altitude:F0} ft, {aircraft.IndicatedAirspeed:F0} KIAS"
+        );
         Assert.Null(aircraft.Targets.TargetMach);
+        Assert.True(
+            aircraft.IndicatedAirspeed > dispatchIas + 4,
+            $"the IAS stayed at {aircraft.IndicatedAirspeed:F0} KIAS from {dispatchIas:F0} at dispatch"
+        );
+    }
+
+    /// <summary>
+    /// YAAT-1839: a direct that keeps the STAR with a crossing speed on BANND, after a CFIX GRUDG speed under a Mach whose
+    /// revert GRUDG still holds, leaves one Mach revert: the Mach still held is the one GRUDG's crossing captured.
+    /// </summary>
+    [Fact]
+    public void StarKeptDctf_WithAMachRevertOnAKeptFix_KeepsOneMachRevert()
+    {
+        OakesHarness harness = BuildOakesRw12Harness();
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "MACH .78");
+        SendOk(harness, "CFIX GRUDG 160 250");
+        Assert.Equal((double?)0.78, RouteFix(aircraft, Grudg).RevertMach);
+        Assert.Equal((double?)0.78, aircraft.Targets.TargetMach);
+        var direct = new ConstrainedForceDirectToCommand(
+            [ResolvedOnRoute(aircraft, Grudg), ResolvedOnRoute(aircraft, Bannd)],
+            [],
+            new Dictionary<int, int> { [1] = BanndCrossingKts },
+            null
+        );
+
+        DispatchOk(aircraft, direct);
+
+        Assert.Equal("OAKES3", aircraft.Procedure.ActiveStarId);
+        NavigationTarget holder = Assert.Single(aircraft.Targets.NavigationRoute, fix => fix.RevertMach is not null);
+        _output.WriteLine($"Mach revert on {holder.Name}");
+        Assert.Equal((double?)0.78, holder.RevertMach);
     }
 
     /// <summary>

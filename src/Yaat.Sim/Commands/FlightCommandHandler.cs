@@ -945,15 +945,24 @@ internal static class FlightCommandHandler
     }
 
     /// <summary>
-    /// Ends any Mach hold and SMAX for an act that replaces the speed (a crossing speed, a constrained direct, WARP):
-    /// both a Mach hold SMAX set and one a MACH command set go, so the new speed is flown rather than rewritten each tick
-    /// from the old Mach.
+    /// Ends any Mach hold and SMAX for an act that replaces the speed now (a crossing speed kept by a later speed
+    /// instruction of its transmission, a hold, WARP): both a Mach hold SMAX set and one
+    /// a MACH command set go, so the new speed is flown rather than rewritten each tick from the old Mach. A crossing
+    /// speed on its own ends SMAX only (<see cref="EndSpeedMaxHold"/>).
     /// </summary>
     internal static void EndMachHoldAndSpeedMax(AircraftState aircraft)
     {
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.SpeedMaxHeld = false;
     }
+
+    /// <summary>
+    /// Ends SMAX for a crossing speed (a CFIX, a constrained direct) and leaves any Mach hold live, SMAX's own above the
+    /// crossover included: the speed planner ends it where the crossing speed takes over
+    /// (<see cref="FlightPhysics"/>'s <c>PlanCrossingUnderMach</c>), so the IAS follows the Mach until then rather than
+    /// freezing at its figure when the crossing was issued.
+    /// </summary>
+    internal static void EndSpeedMaxHold(AircraftState aircraft) => aircraft.Targets.SpeedMaxHeld = false;
 
     /// <summary>
     /// True when <paramref name="mach"/>'s IAS equivalent at <paramref name="altitudeFt"/> is within the type's limits
@@ -1299,13 +1308,13 @@ internal static class FlightCommandHandler
         // The last index that has an altitude constraint carries the altitude revert.
         int lastConstrainedIdx = (cmd.AltitudeConstraints.Count > 0) ? cmd.AltitudeConstraints.Keys.Max() : -1;
 
-        // A Mach the crossing speeds replace, held now or restored above from a dropped crossing, is restored past the last
-        // fix whose speed this direct-to sets, altitude-constrained or not, and then no fix carries a plain speed revert.
-        // While SMAX is in force, PlaceSpeedMaxRevert arms it again past the last crossing speed instead.
         int lastSpeedIdx = (cmd.SpeedConstraints is { Count: > 0 } speeds) ? speeds.Keys.Max() : -1;
-        bool holdingMach = aircraft.Targets.TargetMach is not null;
-        double? machToRestore = (speedMaxPending || restatedWithVia) ? null : (aircraft.Targets.TargetMach ?? takenMachHolder?.RevertMach);
-        bool? machToRestoreExplicit = holdingMach ? aircraft.Targets.HasExplicitSpeedCommand : takenMachHolder?.RevertMachExplicit;
+        (double? machToRestore, bool? machToRestoreExplicit) = ConstrainedDirectMachToRestore(
+            aircraft,
+            speedStamped,
+            takenMachHolder,
+            speedMaxPending || restatedWithVia
+        );
 
         (double? revertAlt, double? revertAssignedAlt) = CaptureConstrainedDirectAltitude(
             cmd,
@@ -1338,6 +1347,30 @@ internal static class FlightCommandHandler
 
         string fixNames = FixListSpaced(cmd.Fixes);
         return CommandDispatcher.Ok($"Proceed direct {fixNames}");
+    }
+
+    /// <summary>
+    /// The Mach a constrained direct-to's crossing speeds replace, with whether ATC assigned it: held now or restored from
+    /// a dropped crossing (<paramref name="takenMachHolder"/>), it is restored past the last fix whose speed the direct-to
+    /// sets, altitude-constrained or not, and then no fix carries a plain speed revert. None when <paramref name="noRestore"/>
+    /// (SMAX is pending, whose re-arm PlaceSpeedMaxRevert places instead, or the crossing is restated with a via). A Mach
+    /// still held after an earlier crossing captured it, whose revert a kept fix outside <paramref name="speedStamped"/>
+    /// still holds, is that revert's Mach: it moves past the direct-to's crossings with the pending revert rather than
+    /// being captured a second time.
+    /// </summary>
+    private static (double? Mach, bool? MachExplicit) ConstrainedDirectMachToRestore(
+        AircraftState aircraft,
+        List<NavigationTarget> speedStamped,
+        NavigationTarget? takenMachHolder,
+        bool noRestore
+    )
+    {
+        double? liveMach = aircraft.Targets.NavigationRoute.Exists(fix => (fix.RevertMach is not null) && !speedStamped.Contains(fix))
+            ? null
+            : aircraft.Targets.TargetMach;
+        double? mach = noRestore ? null : (liveMach ?? takenMachHolder?.RevertMach);
+        bool? machExplicit = (liveMach is not null) ? aircraft.Targets.HasExplicitSpeedCommand : takenMachHolder?.RevertMachExplicit;
+        return (mach, machExplicit);
     }
 
     /// <summary>
@@ -1488,7 +1521,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedLimitsLifted = false;
         // A crossing speed is an ATC speed act like SPD, so it ends a forced speed's override of the final gate.
         aircraft.Targets.SpeedOverridesFinalGate = false;
-        EndMachHoldAndSpeedMax(aircraft);
+        EndSpeedMaxHold(aircraft);
     }
 
     /// <summary>

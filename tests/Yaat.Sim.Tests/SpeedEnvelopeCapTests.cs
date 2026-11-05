@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -124,7 +125,7 @@ public sealed class SpeedEnvelopeCapTests
     }
 
     [Fact]
-    public void Mach_ThenCfixWithSpeed_ClearsTheMachHold()
+    public void Mach_ThenCfixWithSpeed_KeepsTheMachHoldUntilTheSwitch()
     {
         AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
         Assert.True(Send(ac, "MACH .78").Success);
@@ -132,16 +133,14 @@ public sealed class SpeedEnvelopeCapTests
         CommandResult fix = Send(ac, "CFIX SUNOL 200 250");
 
         Assert.True(fix.Success, fix.Message);
-        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
 
         FlySeconds(ac, 120, _ => { });
 
-        // The crossing speed is planned to the fix, not flown at once, so the aircraft holds its issue IAS while the Mach
-        // it replaced would have carried it faster down the long leg to SUNOL.
-        Assert.True(
-            ac.IndicatedAirspeed < WindInterpolator.MachToIas(0.78, ac.Altitude) - 2,
-            $"the CFIX speed did not replace the Mach hold: {ac.IndicatedAirspeed:F0} KIAS at {ac.Altitude:F0} ft"
-        );
+        // YAAT-1839: the crossing speed is planned to the fix, so the Mach is held down the long leg to SUNOL until the
+        // planner hands it over to the crossing speed, and the IAS follows the Mach rather than freezing at its issue figure.
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.InRange(ac.IndicatedAirspeed, WindInterpolator.MachToIas(0.78, ac.Altitude) - 2, WindInterpolator.MachToIas(0.78, ac.Altitude) + 2);
     }
 
     /// <summary>
@@ -157,7 +156,8 @@ public sealed class SpeedEnvelopeCapTests
 
         FlySeconds(ac, 120, _ => { });
 
-        Assert.Null(ac.Targets.TargetMach);
+        // YAAT-1839: the Mach is held until the planner hands it over to the crossing speed, near the fix
+        Assert.Equal(0.78, ac.Targets.TargetMach);
         Assert.Equal((double?)250, ac.Targets.AssignedSpeed);
 
         for (int second = 0; (second < 9_000) && ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"); second++)
@@ -237,7 +237,7 @@ public sealed class SpeedEnvelopeCapTests
     }
 
     [Fact]
-    public void Mach_ThenConstrainedDctf_ClearsTheMachHold()
+    public void Mach_ThenConstrainedDctf_KeepsTheMachHoldForThePlanner()
     {
         AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
         Assert.True(Send(ac, "MACH .78").Success);
@@ -248,8 +248,9 @@ public sealed class SpeedEnvelopeCapTests
             TestDispatch.Context(new SerializableRandom(1))
         );
 
+        // YAAT-1839: the planner, not the direct-to, ends the Mach where the crossing speed takes over
         Assert.True(dct.Success, dct.Message);
-        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
         Assert.False(ac.Targets.SpeedMaxHeld);
     }
 
@@ -270,11 +271,11 @@ public sealed class SpeedEnvelopeCapTests
         );
 
         Assert.True(dct.Success, dct.Message);
-        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
 
         FlySeconds(ac, 120, _ => { });
 
-        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
 
         for (int second = 0; (second < 9_000) && ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"); second++)
         {
@@ -295,8 +296,8 @@ public sealed class SpeedEnvelopeCapTests
     /// <summary>
     /// YAAT-1422: a second crossing speed issued before the fix holding the Mach revert takes it over, so the Mach does not
     /// come back at the first fix and override the later crossing, and it comes back past the last one. The speed each
-    /// crossing is flown at is the crossing-speed planner's business: with an explicit Mach issued the deceleration to the
-    /// first crossing is not planned, so only the later one is pinned within the 2 kt snap.
+    /// crossing is flown at is the crossing-speed planner's business, which ends the Mach for the first crossing; only the
+    /// later one is pinned within the 2 kt snap.
     /// </summary>
     [Fact]
     public void Mach_TwoChainedCrossings_FliesTheSecondCrossingSpeed()
@@ -506,6 +507,417 @@ public sealed class SpeedEnvelopeCapTests
         }
 
         Assert.False(aircraft.Targets.NavigationRoute.Exists(fix => fix.Name == fixName), $"the aircraft never sequenced {fixName}");
+    }
+
+    /// <summary>
+    /// YAAT-1839: a crossing speed below a Mach hold's IAS keeps the Mach until the slowdown point for the crossing
+    /// (7110.65 5-7-1.g; AIM 4-4-12.c): the IAS follows the Mach until then, not the figure it had when the CFIX was issued,
+    /// and from there the aircraft flies the crossing IAS, then holds the Mach again past the fix.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenCfixSpeed_FarAhead_HoldsTheMachUntilTheWindow_ThenCrossesAtTheSpeed()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "CFIX SUNOL 350 240").Success);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+
+        FlySeconds(ac, 120, _ => { });
+
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Equal((double?)240, ac.Targets.AssignedSpeed);
+        Assert.InRange(ac.IndicatedAirspeed, WindInterpolator.MachToIas(0.78, ac.Altitude) - 2, WindInterpolator.MachToIas(0.78, ac.Altitude) + 2);
+
+        for (int second = 0; (second < 9_000) && (ac.Targets.TargetMach is not null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+        }
+
+        double sunolNm = GeoMath.DistanceNm(ac.Position, ac.Targets.NavigationRoute.Single(fix => fix.Name == "SUNOL").Position);
+        _output.WriteLine($"Mach ended {sunolNm:F1} nm before SUNOL at {ac.IndicatedAirspeed:F0} KIAS, {ac.Altitude:F0} ft");
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)240, ac.Targets.TargetSpeed);
+        Assert.Equal((double?)240, ac.Targets.AssignedSpeed);
+        Assert.True(sunolNm < 20, $"the Mach ended {sunolNm:F1} nm before SUNOL, before the slowdown point");
+
+        double? crossed = null;
+        for (int second = 0; (second < 3_600) && (crossed is null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+            if (!ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"))
+            {
+                crossed = ac.IndicatedAirspeed;
+            }
+        }
+
+        _output.WriteLine($"Crossed SUNOL at {crossed:F0} KIAS");
+        Assert.NotNull(crossed);
+        Assert.InRange(crossed.Value, 230, 250);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// YAAT-1839: a crossing speed above a Mach hold's IAS keeps the Mach until its IAS equivalent reaches the crossing
+    /// speed on the descent, then flies the crossing speed, never running past it.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenCfixSpeed_MachIasReachesTheCrossing_EndsTheMachThere()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "DM 280").Success);
+        Assert.True(Send(ac, "CFIX SUNOL 280 290").Success);
+        Assert.True(WindInterpolator.MachToIas(0.78, 35_000) < 288, "premise: the crossing is above the Mach's IAS at FL350");
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+
+        double peakIas = 0;
+        for (int second = 0; (second < 9_000) && (ac.Targets.TargetMach is not null); second++)
+        {
+            FlySeconds(ac, 1, a => peakIas = Math.Max(peakIas, a.IndicatedAirspeed));
+        }
+
+        _output.WriteLine(
+            $"Mach ended at {ac.Altitude:F0} ft, {ac.IndicatedAirspeed:F0} KIAS, Mach IAS {WindInterpolator.MachToIas(0.78, ac.Altitude):F0}"
+        );
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Contains(ac.Targets.NavigationRoute, fix => fix.Name == "SUNOL");
+        Assert.True(WindInterpolator.MachToIas(0.78, ac.Altitude) >= 288 - SpeedSnapKts, "the Mach ended before its IAS reached the crossing");
+        // The target speed is cleared once the IAS reaches it.
+        Assert.Equal(290, ac.Targets.TargetSpeed ?? ac.IndicatedAirspeed, SpeedSnapKts);
+
+        FlyUntilSequenced(ac, "SUNOL");
+        Assert.True(peakIas <= 300, $"the aircraft flew {peakIas:F0} KIAS on the way to a 290 crossing");
+    }
+
+    /// <summary>
+    /// YAAT-1839: a Mach carried down a descent below FL240 before the crossing's slowdown point is handed over to an IAS
+    /// there at the latest (7110.65 5-7-1.g), and the crossing speed stays the assigned speed until the fix.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenCfixSpeed_DescentThroughFl240BeforeTheWindow_FliesTheIasAtFl240()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "DM 110").Success);
+        Assert.True(Send(ac, "CFIX SUNOL 110 250").Success);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+
+        for (int second = 0; (second < 9_000) && (ac.Targets.TargetMach is not null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+        }
+
+        _output.WriteLine($"Mach ended at {ac.Altitude:F0} ft, target {ac.Targets.TargetSpeed}, assigned {ac.Targets.AssignedSpeed}");
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Contains(ac.Targets.NavigationRoute, fix => fix.Name == "SUNOL");
+        Assert.True(ac.Altitude >= 24_000 - 500, $"the Mach was carried to {ac.Altitude:F0} ft");
+        // The target speed is cleared once the IAS reaches it.
+        double handedOver = ac.Targets.TargetSpeed ?? ac.IndicatedAirspeed;
+        double handOverKts = Math.Min(A320VmoKts - 10, WindInterpolator.MachToIas(0.78, ac.Altitude));
+        Assert.InRange(handedOver, handOverKts - 2, handOverKts + 2);
+        Assert.True(handedOver > 250, $"handed over to {handedOver:F0} KIAS, the crossing speed before its slowdown");
+        Assert.Equal((double?)250, ac.Targets.AssignedSpeed);
+
+        double? crossed = null;
+        double? crossingTargetedNm = null;
+        for (int second = 0; (second < 9_000) && (crossed is null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+            if (ac.Targets.NavigationRoute.Find(fix => fix.Name == "SUNOL") is not { } sunol)
+            {
+                crossed = ac.IndicatedAirspeed;
+                continue;
+            }
+
+            Assert.Equal((double?)250, ac.Targets.AssignedSpeed);
+            if ((crossingTargetedNm is null) && (ac.Targets.TargetSpeed == 250))
+            {
+                crossingTargetedNm = GeoMath.DistanceNm(ac.Position, sunol.Position);
+            }
+        }
+
+        _output.WriteLine($"Targeted 250 {crossingTargetedNm:F1} nm before SUNOL; crossed it at {crossed:F0} KIAS, {ac.Altitude:F0} ft");
+        Assert.NotNull(crossed);
+        Assert.InRange(crossed.Value, 240, 260);
+        Assert.NotNull(crossingTargetedNm);
+        Assert.True(crossingTargetedNm < 20, $"the 250 was targeted {crossingTargetedNm:F1} nm before SUNOL, before its slowdown point");
+    }
+
+    /// <summary>
+    /// YAAT-1839: a crossing speed above a level Mach hold's IAS is accelerated to in time to cross at it: the Mach is
+    /// held until the acceleration point, never all the way to the fix at its own lower IAS.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenCfixSpeedAboveTheMachIas_Level_AcceleratesInTimeToCrossAtIt()
+    {
+        AircraftState ac = A320At(altitude: 28_000, ias: WindInterpolator.MachToIas(0.72, 28_000));
+        Assert.True(Send(ac, "MACH .72").Success);
+        Assert.True(Send(ac, "CFIX SUNOL 280 320").Success);
+        Assert.True(WindInterpolator.MachToIas(0.72, 28_000) < 310, "premise: the crossing is above the Mach's IAS");
+
+        double? crossed = null;
+        for (int second = 0; (second < 9_000) && (crossed is null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+            if (!ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"))
+            {
+                crossed = ac.IndicatedAirspeed;
+            }
+        }
+
+        _output.WriteLine($"Crossed SUNOL at {crossed:F0} KIAS, {ac.Altitude:F0} ft");
+        Assert.NotNull(crossed);
+        Assert.InRange(crossed.Value, 310, 330);
+    }
+
+    /// <summary>
+    /// YAAT-1839: a Mach held level below FL240 with a crossing speed far ahead is handed over to its own IAS there
+    /// (7110.65 5-7-1.g), not slowed to the crossing at once: the crossing speed waits for its slowdown point.
+    /// </summary>
+    [Fact]
+    public void Mach_LevelBelowFl240_ThenCfixSpeedFarAhead_FliesTheMachIasUntilTheSlowdown()
+    {
+        AircraftState ac = A320At(altitude: 23_000, ias: WindInterpolator.MachToIas(0.70, 23_000));
+        Assert.True(Send(ac, "MACH .70, CFIX SUNOL 230 250").Success);
+
+        FlySeconds(ac, 5, _ => { });
+
+        // The target speed is cleared once the IAS reaches it.
+        double target = ac.Targets.TargetSpeed ?? ac.IndicatedAirspeed;
+        double handOverKts = Math.Round(Math.Min(A320VmoKts - 10, WindInterpolator.MachToIas(0.70, ac.Altitude)));
+        _output.WriteLine($"5 s later: target {ac.Targets.TargetSpeed}, {ac.IndicatedAirspeed:F0} KIAS, hand-over {handOverKts:F0}");
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.InRange(target, handOverKts - 2, handOverKts + 2);
+        Assert.True(target > 260, $"targeted {target:F0} KIAS 5 s after the crossing was issued far ahead");
+
+        double? crossed = null;
+        for (int second = 0; (second < 9_000) && (crossed is null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+            if (!ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"))
+            {
+                crossed = ac.IndicatedAirspeed;
+            }
+        }
+
+        _output.WriteLine($"Crossed SUNOL at {crossed:F0} KIAS");
+        Assert.NotNull(crossed);
+        Assert.InRange(crossed.Value, 240, 260);
+    }
+
+    /// <summary>
+    /// YAAT-1839: a hold entered with a Mach still held for a crossing ends the Mach, so the aircraft flies the holding
+    /// speed rather than the Mach's IAS around the pattern.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenCfixSpeed_ThenHold_FliesTheHoldingSpeed()
+    {
+        AircraftState ac = A320At(altitude: 31_000, ias: WindInterpolator.MachToIas(0.80, 31_000));
+        ResolvedFix sunol = RouteFix("SUNOL");
+        ac.Position = GeoMath.ProjectPoint(new LatLon(sunol.Lat, sunol.Lon), new TrueHeading(90), 5);
+        ac.Phases = new PhaseList();
+        Assert.True(Send(ac, "MACH .80").Success);
+        Assert.True(Send(ac, "CFIX SUNOL 310 250").Success);
+        Assert.True(Send(ac, "HOLD SUNOL 090 R").Success);
+
+        FlyWithPhases(ac, 180, () => false);
+
+        double holding = AircraftPerformance.HoldingSpeed("A320", ac.Altitude);
+        _output.WriteLine($"in the hold: {ac.IndicatedAirspeed:F0} KIAS, Mach {ac.Targets.TargetMach}, holding {holding:F0}");
+        Assert.True(ac.IndicatedAirspeed <= holding + 5, $"{ac.IndicatedAirspeed:F0} KIAS in the hold, holding speed {holding:F0}");
+    }
+
+    /// <summary>
+    /// YAAT-1839: a hold issued far from its fix under a Mach hold keeps the Mach all the way to the fix, and there the
+    /// aircraft slows to the holding speed for the pattern. DM 250 keeps the descent above FL240, so the descent
+    /// handover does not end the Mach first.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenHoldFarAhead_HoldsTheMachUntilTheFix()
+    {
+        AircraftState ac = HoldingAircraftEastOfSunol(120);
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "DM 250").Success);
+        Assert.True(Send(ac, "HOLD SUNOL 090 R").Success);
+
+        bool atFix = FlyWithPhases(
+            ac,
+            3_600,
+            () =>
+            {
+                if (!ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"))
+                {
+                    return true;
+                }
+
+                Assert.Equal(0.78, ac.Targets.TargetMach);
+                return false;
+            }
+        );
+        _output.WriteLine($"at SUNOL: {ac.IndicatedAirspeed:F0} KIAS, {ac.Altitude:F0} ft, Mach {ac.Targets.TargetMach}");
+        Assert.True(atFix, "the hold never reached SUNOL");
+
+        AssertFliesTheHoldingSpeedInThePattern(ac);
+    }
+
+    /// <summary>YAAT-1839: a MACH given after the HOLD, before the fix, also ends at the fix for the holding speed.</summary>
+    [Fact]
+    public void HoldFarAhead_ThenMach_FliesTheHoldingSpeedInThePattern()
+    {
+        AircraftState ac = HoldingAircraftEastOfSunol(120);
+        Assert.True(Send(ac, "DM 250").Success);
+        Assert.True(Send(ac, "HOLD SUNOL 090 R").Success);
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+
+        bool atFix = FlyWithPhases(ac, 3_600, () => !ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"));
+        Assert.True(atFix, "the hold never reached SUNOL");
+
+        AssertFliesTheHoldingSpeedInThePattern(ac);
+    }
+
+    /// <summary>An A320 at FL350, <paramref name="distanceNm"/> east of SUNOL and west-bound toward it, with phases.</summary>
+    private static AircraftState HoldingAircraftEastOfSunol(double distanceNm)
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        ResolvedFix sunol = RouteFix("SUNOL");
+        ac.Position = GeoMath.ProjectPoint(new LatLon(sunol.Lat, sunol.Lon), new TrueHeading(90), distanceNm);
+        ac.Phases = new PhaseList();
+        return ac;
+    }
+
+    private void AssertFliesTheHoldingSpeedInThePattern(AircraftState ac)
+    {
+        FlyWithPhases(ac, 240, () => false);
+        double holding = AircraftPerformance.HoldingSpeed("A320", ac.Altitude);
+        _output.WriteLine($"in the hold: {ac.IndicatedAirspeed:F0} KIAS, {ac.Altitude:F0} ft, Mach {ac.Targets.TargetMach}, holding {holding:F0}");
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.InRange(ac.IndicatedAirspeed, holding - 5, holding + 5);
+    }
+
+    /// <summary>
+    /// Ticks the phases and the physics for up to <paramref name="seconds"/>, so a hold reaches its fix and flies its
+    /// pattern; stops early, returning true, once <paramref name="done"/> (checked each second) says so.
+    /// </summary>
+    private static bool FlyWithPhases(AircraftState ac, int seconds, Func<bool> done)
+    {
+        for (int second = 0; second < seconds; second++)
+        {
+            for (int sub = 0; sub < 4; sub++)
+            {
+                var ctx = new PhaseContext
+                {
+                    Aircraft = ac,
+                    Targets = ac.Targets,
+                    Category = AircraftCategorization.Categorize(ac.AircraftType),
+                    DeltaSeconds = 0.25,
+                    Runway = ac.Phases?.AssignedRunway,
+                    ActiveRunways = ActiveRunways.Empty,
+                    Logger = NullLogger.Instance,
+                };
+                PhaseRunner.Tick(ac, ctx);
+                FlightPhysics.Update(ac, 0.25);
+            }
+
+            if (done())
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// YAAT-1839: a Mach held level below FL240 with a crossing speed ahead flies the crossing's IAS and keeps the crossing
+    /// assigned, rather than the handover's IAS overwriting it.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenCfixSpeed_LevelBelowFl240_KeepsTheCrossingAssigned()
+    {
+        AircraftState ac = A320At(altitude: 23_000, ias: WindInterpolator.MachToIas(0.70, 23_000));
+        Assert.True(Send(ac, "MACH .70, CFIX SUNOL 230 250").Success);
+
+        FlySeconds(ac, 5, _ => { });
+
+        // The target speed is cleared once the IAS reaches it.
+        double target = ac.Targets.TargetSpeed ?? ac.IndicatedAirspeed;
+        double handOverKts = Math.Round(Math.Min(A320VmoKts - 10, WindInterpolator.MachToIas(0.70, ac.Altitude)));
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.InRange(target, handOverKts - 2, handOverKts + 2);
+        Assert.Equal((double?)250, ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// YAAT-1839: a constrained DCTF after a CFIX under a Mach hold leaves one Mach revert, past the DCTF's last crossing
+    /// speed: the Mach still held after the CFIX is the one that CFIX already captured.
+    /// </summary>
+    [Fact]
+    public void Mach_ThenCfixThenDctf_KeepsOneMachRevert()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        Assert.True(Send(ac, "DCT HEC PMD").Success);
+        Assert.True(Send(ac, "CFIX HEC 350 250").Success);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+
+        var direct = new ConstrainedForceDirectToCommand(
+            [RouteFix("HEC"), RouteFix("PMD")],
+            new Dictionary<int, ConstrainedFixAltitude> { [0] = new(35_000, CrossFixAltitudeType.At) },
+            new Dictionary<int, int> { [1] = 240 },
+            null
+        );
+        CommandResult dct = CommandDispatcher.Dispatch(direct, ac, TestDispatch.Context(new SerializableRandom(1)));
+        Assert.True(dct.Success, dct.Message);
+
+        NavigationTarget holder = Assert.Single(ac.Targets.NavigationRoute, fix => fix.RevertMach is not null);
+        Assert.Equal("PMD", holder.Name);
+        Assert.Equal((double?)0.78, holder.RevertMach);
+        Assert.Equal((bool?)true, holder.RevertMachExplicit);
+
+        FlyUntilSequenced(ac, "PMD");
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// YAAT-1839: a Mach nobody assigned (live traffic) is held until the crossing's slowdown point too, and past the fix
+    /// comes back with no assigned speed.
+    /// </summary>
+    [Fact]
+    public void UnassignedMach_ThenCfixSpeed_PlansAndKeepsNoAssignedSpeedPastTheFix()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        ac.Targets.TargetMach = 0.78;
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
+        Assert.True(Send(ac, "CFIX SUNOL 350 240").Success);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+
+        for (int second = 0; (second < 9_000) && (ac.Targets.TargetMach is not null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+        }
+
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Contains(ac.Targets.NavigationRoute, fix => fix.Name == "SUNOL");
+        Assert.Equal((double?)240, ac.Targets.TargetSpeed);
+
+        double? crossed = null;
+        for (int second = 0; (second < 3_600) && (crossed is null); second++)
+        {
+            FlySeconds(ac, 1, _ => { });
+            if (!ac.Targets.NavigationRoute.Exists(fix => fix.Name == "SUNOL"))
+            {
+                crossed = ac.IndicatedAirspeed;
+            }
+        }
+
+        Assert.NotNull(crossed);
+        Assert.InRange(crossed.Value, 230, 250);
+        Assert.NotNull(ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
     }
 
     [Fact]
