@@ -2072,7 +2072,7 @@ public class ClimbViaTopAltitudeTests
     }
 
     /// <summary>Flies physics alone until <paramref name="fixName"/> leaves the route; returns the altitude there.</summary>
-    private static double FlyPastFix(AircraftState aircraft, string fixName, int maxSeconds)
+    internal static double FlyPastFix(AircraftState aircraft, string fixName, int maxSeconds)
     {
         for (int t = 0; t < maxSeconds; t++)
         {
@@ -2087,7 +2087,7 @@ public class ClimbViaTopAltitudeTests
         return aircraft.Altitude;
     }
 
-    private static void FlyPhysics(AircraftState aircraft, int seconds)
+    internal static void FlyPhysics(AircraftState aircraft, int seconds)
     {
         for (int t = 0; t < seconds; t++)
         {

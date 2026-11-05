@@ -245,7 +245,14 @@ planner owns the route. Both also activate (outside via mode) whenever the route
 
 A maintain (`DM`/`CM`, a `CTO` altitude, a TDLS maintain value) with no `CVIA`/`DVIA` leaves the published altitudes on the route but out of force, so the aircraft levels at its assigned altitude; published speeds still apply.
 
-The climb scan walks the route in order and ends at the first restriction that fixes the altitude before a later window: one needing a descent (more than `AltitudeSnapFt` below the aircraft), or an already-met "At" / glideslope-intercept restriction. A higher window past it therefore starts no climb before that fix.
+The climb scan (`FlightPhysics.PlanClimbScan`, shared by `UpdateClimbPlanning`, fix sequencing in `ApplyFixAltitudeConstraint` and `ReleaseClimbCeilingPastFix`) walks the route in order from the cleared altitude (the top altitude when none is assigned) and lowers the target by every in-force ceiling still ahead: an at, a glideslope intercept, an at-or-below, a window's top. A ceiling at or above the running target neither binds nor hides a later lower one; the first one below it binds, and floors beyond it wait until its fix sequences. A floor met by the cleared altitude no longer hides a later ceiling. The scan ends at a nearer restriction that needs a descent (more than `AltitudeSnapFt` below the aircraft), so no climb for a later one undoes that descent; a SID departure's crossing below the aircraft takes the descending path at fix sequencing.
+
+- **Rate.** A climb under a binding at-or-below runs at the profile rate, unless a floor or an At before the ceiling needs a steeper one; the steepest such rate wins, capped at 2× standard.
+- **Target.** A controller's at-or-above floor above the cleared altitude is complied with and becomes the target. With no assigned altitude, an in-force floor of any source, or a window's lower bound above the aircraft, is the altitude to climb to; an at-or-below, or a window the aircraft is already within, sets no target.
+- **Nothing acts.** When no bound acts the planner leaves the target alone, so an aircraft level at an approach floor is not sent back up.
+- **Past a ceiling's fix.** `ReleaseClimbCeilingPastFix` resumes the climb at once to the cleared altitude, even without a CFIX revert, and logs "past {Fix}, climb resumes to {Target}" at Debug on the FlightPhysics category.
+
+The descent scan is unchanged: a one-constraint step descent that stops at a met bound.
 
 ## Speed integration (`UpdateSpeed`) + look-ahead planning
 

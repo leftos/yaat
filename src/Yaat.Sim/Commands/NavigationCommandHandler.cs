@@ -1758,7 +1758,7 @@ internal static class NavigationCommandHandler
     /// The largest altitude the active SID publishes on the legs <paramref name="aircraft"/> flies: the upper bound of a
     /// between restriction, the value of every other kind. Null when the SID cannot be resolved or publishes none.
     /// </summary>
-    private static int? HighestPublishedSidAltitudeFt(AircraftState aircraft)
+    internal static int? HighestPublishedSidAltitudeFt(AircraftState aircraft)
     {
         if (ResolveActiveSid(aircraft) is not { } sid)
         {

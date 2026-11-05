@@ -201,6 +201,10 @@ public static class FlightPhysics
                 aircraft.Targets.AssignedAltitude = sequenced.RevertAssignedAltitude;
                 aircraft.Targets.DesiredVerticalRate = null;
             }
+            else
+            {
+                ReleaseClimbCeilingPastFix(aircraft, sequenced, route);
+            }
 
             // Read while the fix still carries it: a resume written with the crossing ends its speed at the fix, so the
             // crossing must not leave that speed as a ceiling — not even where the reverts are cleared instead of applied.
@@ -565,12 +569,12 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Step-climb planning for SID via mode. Symmetric to descent planning:
-    /// finds the next altitude constraint and computes the climb rate required
-    /// to meet it at the sequencing point. The rate is published in
-    /// <see cref="ControlTargets.PlannedVerticalRate"/>, which <see cref="Update"/> clears before every
-    /// run of this method: it therefore lives only as long as a constrained fix is in the route, and a
-    /// vector that clears the route returns the aircraft to its profile climb rate on the next tick.
+    /// Climb planning off a climb via or descend via. The target comes from the climb scan over the route
+    /// (<see cref="PlanClimbScan"/>): the cleared or top altitude under every in-force ceiling still ahead, at the rate the
+    /// bounds before the binding ceiling need. The rate is published in <see cref="ControlTargets.PlannedVerticalRate"/>,
+    /// which <see cref="Update"/> clears before every run of this method: it therefore lives only as long as a constrained
+    /// fix is in the route, and a vector that clears the route returns the aircraft to its profile climb rate on the next
+    /// tick. A climb via owns its own target (<see cref="ApplyClimbViaAltitude"/>).
     /// </summary>
     private static void UpdateClimbPlanning(AircraftState aircraft, AircraftCategory cat)
     {
@@ -591,91 +595,389 @@ public static class FlightPhysics
             return;
         }
 
-        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
-        if (route.Count == 0)
-        {
-            return;
-        }
-
         // Activate only when some route fix carries an altitude restriction in force
-        if (!route.Exists(t => (t.AltitudeRestriction is { } r) && AltitudeRestrictionInForce.IsInForce(aircraft, r)))
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        if (!HasInForceAltitudeRestriction(aircraft, route))
         {
             return;
         }
 
-        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
-
-        for (int i = 0; i < route.Count; i++)
+        ClimbScanPlan plan = PlanClimbScan(aircraft, cat, route, 0);
+        if ((plan.TargetFt is { } target) && (target > aircraft.Altitude))
         {
-            if (i > 0)
-            {
-                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
-            }
+            aircraft.Targets.TargetAltitude = target;
+            aircraft.Targets.PlannedVerticalRate = plan.RateFpm;
+        }
+    }
 
+    /// <summary>Whether some fix on <paramref name="route"/> carries an altitude restriction in force for <paramref name="aircraft"/>.</summary>
+    private static bool HasInForceAltitudeRestriction(AircraftState aircraft, List<NavigationTarget> route) =>
+        route.Exists(t => (t.AltitudeRestriction is { } r) && AltitudeRestrictionInForce.IsInForce(aircraft, r));
+
+    /// <summary>
+    /// What the climb scan plans: the altitude to climb to, null when no bound acted, and the rate the bounds before the
+    /// binding ceiling need (null: the profile rate).
+    /// </summary>
+    private readonly record struct ClimbScanPlan(double? TargetFt, double? RateFpm);
+
+    /// <summary>What one in-force restriction does to the climb scan.</summary>
+    private enum ClimbScanStep
+    {
+        /// <summary>The scan goes on to the next fix.</summary>
+        Continue,
+
+        /// <summary>The restriction needs a descent: the scan ends there.</summary>
+        NeedsDescent,
+    }
+
+    /// <summary>The scanned route and where the scan started on it, for the stand-in top a SID-fallback departure reads lazily.</summary>
+    private readonly record struct ClimbScanRoute(List<NavigationTarget> Route, int Start);
+
+    /// <summary>A climb scan's running state (<see cref="PlanClimbScan"/>).</summary>
+    private struct ClimbScanState
+    {
+        /// <summary>The running target: the cleared or top altitude, lowered by each ceiling ahead, or raised by a floor.</summary>
+        public double? TargetFt;
+
+        /// <summary>The steepest rate a bound before the binding ceiling needs.</summary>
+        public double? RateFpm;
+
+        /// <summary>Whether any bound acted, so the scan has a target to plan.</summary>
+        public bool Acted;
+
+        /// <summary>Whether a ceiling below the running target has bound it: floors beyond wait until its fix sequences.</summary>
+        public bool Bound;
+
+        /// <summary>Whether the cleared or top altitude is still to be read (a SID-fallback departure's stand-in top).</summary>
+        public bool TopPending;
+    }
+
+    /// <summary>
+    /// The climb the in-force restrictions on <paramref name="route"/> from <paramref name="start"/> plan, off a climb via
+    /// (which <see cref="ApplyClimbViaAltitude"/> owns) and off a descend via. The target is the cleared or top altitude
+    /// (<see cref="ClimbClearedOrTopAltitude"/>) under every in-force ceiling still ahead (an at, a glideslope intercept, an
+    /// at-or-below, a window's top), up to a nearer restriction that needs a descent, which ends the scan. A ceiling at or
+    /// above the running target neither binds nor ends the scan; the first one below it binds, and floors beyond it are not
+    /// planned until its fix sequences. Before that, a floor (an at-or-above, a window's bottom, an at) and a bound the
+    /// cleared altitude already meets only set the required rate, the steepest one needed winning; a controller's
+    /// at-or-above floor above the cleared altitude is complied with and becomes the target. With no cleared or top altitude,
+    /// an at or a floor of any source is the altitude to fly, and an at-or-below sets none. The target is null when no bound
+    /// acted, so a route whose bounds are all already met leaves the target alone. Shared by the climb planner
+    /// (<see cref="UpdateClimbPlanning"/>), fix sequencing (<see cref="ApplyClimbScanAtFix"/>) and the release past a
+    /// ceiling's fix (<see cref="ReleaseClimbCeilingPastFix"/>), so the clamp has one judge.
+    /// </summary>
+    private static ClimbScanPlan PlanClimbScan(AircraftState aircraft, AircraftCategory cat, List<NavigationTarget> route, int start)
+    {
+        var scanned = new ClimbScanRoute(route, start);
+        var state = new ClimbScanState { TargetFt = aircraft.Targets.AssignedAltitude, TopPending = aircraft.Targets.AssignedAltitude is null };
+        double standardRate = AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, aircraft.Altitude);
+        double cumulativeDistNm = 0;
+        for (int i = start; i < route.Count; i++)
+        {
+            LatLon from = (i == start) ? aircraft.Position : route[i - 1].Position;
+            cumulativeDistNm += GeoMath.DistanceNm(from, route[i].Position);
             if ((route[i].AltitudeRestriction is not { } restriction) || !AltitudeRestrictionInForce.IsInForce(aircraft, restriction))
             {
                 continue;
             }
 
-            double sequencingDistNm = SequencingDistanceNm(aircraft, route, i, cumulativeDistNm);
-            ClearedAltitudePlan clearedPlan = PlanToClearedAltitude(aircraft, cat, restriction, sequencingDistNm, descending: false);
-            if (clearedPlan == ClearedAltitudePlan.Targeted)
+            var leg = new ClimbScanLeg(SequencingDistanceNm(aircraft, route, i, cumulativeDistNm), standardRate);
+            if (ApplyBoundToClimbScan(aircraft, restriction, leg, scanned, ref state) == ClimbScanStep.NeedsDescent)
             {
                 break;
             }
+        }
 
-            if (clearedPlan == ClearedAltitudePlan.AlreadyThere)
-            {
-                continue;
-            }
+        return new ClimbScanPlan(state.Acted ? state.TargetFt : null, state.RateFpm);
+    }
 
-            // When not in via mode, infer direction from current altitude vs constraint
-            bool isDescending = !aircraft.Procedure.SidViaMode && aircraft.Altitude > restriction.Altitude1Ft;
-            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction, isDescending);
-            if (resolvedAlt is not { } targetAlt)
-            {
-                continue;
-            }
+    /// <summary>A scanned fix's distance to where it sequences and the aircraft's standard climb rate.</summary>
+    private readonly record struct ClimbScanLeg(double SequencingDistNm, double StandardRate);
 
-            // Only handle climb constraints here; descent is handled by UpdateDescentPlanning. A nearer restriction that
-            // needs a descent ends the scan: a climb for one beyond it would undo that descent before its fix.
-            if (targetAlt < aircraft.Altitude - AltitudeSnapFt)
-            {
-                break;
-            }
+    /// <summary>
+    /// Applies one in-force restriction to the climb scan's <paramref name="state"/> (<see cref="PlanClimbScan"/>). Each
+    /// bound's needed rate is the one that reaches it where its fix sequences: for a bound the cleared altitude meets,
+    /// <see cref="BoundCrossingRate"/>; for any other, <see cref="NeededClimbRate"/>.
+    /// </summary>
+    private static ClimbScanStep ApplyBoundToClimbScan(
+        AircraftState aircraft,
+        CifpAltitudeRestriction restriction,
+        ClimbScanLeg leg,
+        ClimbScanRoute scanned,
+        ref ClimbScanState state
+    )
+    {
+        if (ClearedAltitudeMeetingBound(aircraft, restriction) is not null)
+        {
+            ApplyMetBoundToClimbScan(aircraft, restriction, leg, ref state);
+            return ClimbScanStep.Continue;
+        }
 
-            // A met "at" crossing pins the altitude to its fix, so no climb for a restriction beyond it starts before then.
-            bool pinsAltitude = restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.GlideSlopeIntercept;
-            if (targetAlt <= aircraft.Altitude)
-            {
-                if (pinsAltitude)
-                {
-                    break;
-                }
+        // Only climbs are planned here; descent is handled by UpdateDescentPlanning. A nearer restriction that needs a
+        // descent ends the scan: a climb for one beyond it would undo that descent before its fix.
+        bool isDescending = (!aircraft.Procedure.SidViaMode) && (aircraft.Altitude > restriction.Altitude1Ft);
+        double? resolved = ResolveAltitudeRestriction(aircraft, restriction, isDescending);
+        if ((resolved is { } resolvedFt) && (resolvedFt < aircraft.Altitude - AltitudeSnapFt))
+        {
+            return ClimbScanStep.NeedsDescent;
+        }
 
-                continue;
-            }
+        ResolvePendingClimbTop(aircraft, scanned, ref state);
+        if (IsClimbCeiling(restriction))
+        {
+            ApplyCeilingToClimbScan(aircraft, restriction, leg, ref state);
+        }
+        else
+        {
+            ApplyFloorToClimbScan(aircraft, restriction, resolved, leg, ref state);
+        }
 
-            double altDelta = targetAlt - aircraft.Altitude;
-            if (altDelta <= 0)
-            {
-                continue;
-            }
+        return ClimbScanStep.Continue;
+    }
 
-            aircraft.Targets.TargetAltitude = targetAlt;
-
-            // Compute the climb rate required to reach targetAlt where the fix sequences
-            double standardRate = AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, aircraft.Altitude);
-            double timeMinutes = sequencingDistNm / (aircraft.GroundSpeed / 60.0);
-
-            // Cap at 2× standard rate; no minimum — use a gentle rate if there's plenty of distance. Almost at the
-            // sequencing point the time is floored at one physics tick: on track the required rate holds steady and arrives on
-            // the last tick, never steepening into the level-off.
-            aircraft.Targets.PlannedVerticalRate = Math.Min(altDelta / Math.Max(timeMinutes, 1.0 / 60), standardRate * 2.0);
-
-            break; // Step climb: only target the next constraint
+    /// <summary>Reads the cleared or top altitude the first time the scan needs it (a SID-fallback departure's stand-in top).</summary>
+    private static void ResolvePendingClimbTop(AircraftState aircraft, ClimbScanRoute scanned, ref ClimbScanState state)
+    {
+        if (state.TopPending)
+        {
+            state.TargetFt = ClimbClearedOrTopAltitude(aircraft, scanned.Route, scanned.Start);
+            state.TopPending = false;
         }
     }
+
+    /// <summary>A bound the cleared altitude meets before the binding ceiling: it sets the rate that crosses it in time.</summary>
+    private static void ApplyMetBoundToClimbScan(
+        AircraftState aircraft,
+        CifpAltitudeRestriction restriction,
+        ClimbScanLeg leg,
+        ref ClimbScanState state
+    )
+    {
+        if (state.Bound)
+        {
+            return;
+        }
+
+        state.Acted = true;
+        double feetToBound = FeetShortOfBound(aircraft.Altitude, restriction, descending: false);
+        if (feetToBound > 0)
+        {
+            state.RateFpm = SteeperRate(state.RateFpm, BoundCrossingRate(feetToBound, leg.SequencingDistNm, aircraft.GroundSpeed, leg.StandardRate));
+        }
+    }
+
+    /// <summary>
+    /// A ceiling ahead lowers the running target to its value; one below the target binds it. With no cleared or top
+    /// altitude an at, or a window whose bottom is above the aircraft, is itself the altitude to fly, and an at-or-below
+    /// sets none but still binds. Before the binding, an at's value and a window's bottom set the rate as floors.
+    /// </summary>
+    private static void ApplyCeilingToClimbScan(
+        AircraftState aircraft,
+        CifpAltitudeRestriction restriction,
+        ClimbScanLeg leg,
+        ref ClimbScanState state
+    )
+    {
+        bool wasBound = state.Bound;
+        double? floorFt = (restriction.Type == CifpAltitudeRestrictionType.Between) ? restriction.Altitude2Ft : restriction.Altitude1Ft;
+        if (state.TargetFt is { } running)
+        {
+            state.Acted = true;
+            if (restriction.Altitude1Ft < running)
+            {
+                state.TargetFt = restriction.Altitude1Ft;
+                state.Bound = true;
+            }
+        }
+        else
+        {
+            ApplyNoTopCeiling(aircraft, restriction, floorFt, ref state);
+        }
+
+        bool hasFloor = restriction.Type is not CifpAltitudeRestrictionType.AtOrBelow;
+        if ((!wasBound) && hasFloor && (floorFt is { } f))
+        {
+            state.RateFpm = SteeperRate(state.RateFpm, FloorRate(aircraft, f, state.TargetFt, leg));
+        }
+    }
+
+    /// <summary>
+    /// A ceiling with no cleared or top altitude: an at or a glideslope intercept targets its value, a window its bottom
+    /// when that is above the aircraft; either binds, as does an at-or-below, which sets no target.
+    /// </summary>
+    private static void ApplyNoTopCeiling(AircraftState aircraft, CifpAltitudeRestriction restriction, double? floorFt, ref ClimbScanState state)
+    {
+        if (state.Bound)
+        {
+            return;
+        }
+
+        state.Bound = true;
+        if (restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.GlideSlopeIntercept)
+        {
+            state.TargetFt = restriction.Altitude1Ft;
+            state.Acted = true;
+        }
+        else if ((restriction.Type == CifpAltitudeRestrictionType.Between) && (floorFt is { } lower) && (lower > aircraft.Altitude))
+        {
+            state.TargetFt = lower;
+            state.Acted = true;
+        }
+    }
+
+    /// <summary>
+    /// An at-or-above floor <paramref name="resolved"/> above the aircraft, before the binding ceiling (any other restriction
+    /// that is not a ceiling does nothing). With no cleared or top altitude it is the altitude to fly, whoever wrote it; a
+    /// controller's floor above the cleared altitude is complied with and becomes the target, and past its fix the aircraft
+    /// holds the altitude it crossed at. Any other floor only sets the required rate.
+    /// </summary>
+    private static void ApplyFloorToClimbScan(
+        AircraftState aircraft,
+        CifpAltitudeRestriction restriction,
+        double? resolved,
+        ClimbScanLeg leg,
+        ref ClimbScanState state
+    )
+    {
+        if (
+            (state.Bound)
+            || (restriction.Type != CifpAltitudeRestrictionType.AtOrAbove)
+            || (resolved is not { } floor)
+            || (floor <= aircraft.Altitude)
+        )
+        {
+            return;
+        }
+
+        state.Acted = true;
+        if ((state.TargetFt is not { } current) || ((restriction.Source == CifpAltitudeRestrictionSource.Atc) && (floor > current)))
+        {
+            state.TargetFt = floor;
+        }
+
+        state.RateFpm = SteeperRate(state.RateFpm, FloorRate(aircraft, floor, state.TargetFt, leg));
+    }
+
+    /// <summary>The rate a floor at <paramref name="floorFt"/> needs, toward no higher than <paramref name="target"/>.</summary>
+    private static double? FloorRate(AircraftState aircraft, double floorFt, double? target, ClimbScanLeg leg)
+    {
+        if (target is not { } t)
+        {
+            return null;
+        }
+
+        return NeededClimbRate(Math.Min(floorFt, t) - aircraft.Altitude, leg.SequencingDistNm, aircraft.GroundSpeed, leg.StandardRate);
+    }
+
+    /// <summary>
+    /// The climb rate that covers <paramref name="altDelta"/> where the fix sequences, capped at twice
+    /// <paramref name="standardRate"/>; no minimum, so a gentle rate if there is plenty of distance. Almost at the sequencing
+    /// point the time is floored at one physics tick: on track the required rate holds steady and arrives on the last tick,
+    /// never steepening into the level-off. Null when nothing is left to climb.
+    /// </summary>
+    private static double? NeededClimbRate(double altDelta, double sequencingDistNm, double groundSpeedKts, double standardRate)
+    {
+        if (altDelta <= 0)
+        {
+            return null;
+        }
+
+        double timeMinutes = sequencingDistNm / (groundSpeedKts / 60.0);
+        return Math.Min(altDelta / Math.Max(timeMinutes, 1.0 / 60), standardRate * 2.0);
+    }
+
+    /// <summary>The steeper of two needed climb rates; null when neither is needed.</summary>
+    private static double? SteeperRate(double? a, double? b) =>
+        (a, b) switch
+        {
+            ({ } x, { } y) => Math.Max(x, y),
+            (null, _) => b,
+            _ => a,
+        };
+
+    /// <summary>Whether <paramref name="restriction"/> caps a climb: an at, a glideslope intercept, an at-or-below or a window.</summary>
+    private static bool IsClimbCeiling(CifpAltitudeRestriction restriction) =>
+        restriction.Type
+            is CifpAltitudeRestrictionType.At
+                or CifpAltitudeRestrictionType.GlideSlopeIntercept
+                or CifpAltitudeRestrictionType.AtOrBelow
+                or CifpAltitudeRestrictionType.Between;
+
+    /// <summary>
+    /// The altitude a climb scan flies to with nothing capping it, off a climb via: the cleared altitude
+    /// (<see cref="ControlTargets.AssignedAltitude"/>), else, for a SID departure released with no controller altitude (its
+    /// published altitudes in force through <see cref="AltitudeRestrictionInForce.ProcedureAltitudesInForce"/>'s fallback),
+    /// the SID's stand-in top (<see cref="NavigationCommandHandler.HighestPublishedSidAltitudeFt"/>), or the highest in-force
+    /// published bound on the scanned fixes when the SID cannot be resolved. Null otherwise.
+    /// </summary>
+    private static double? ClimbClearedOrTopAltitude(AircraftState aircraft, List<NavigationTarget> route, int start)
+    {
+        if (aircraft.Targets.AssignedAltitude is { } assigned)
+        {
+            return assigned;
+        }
+
+        if ((!aircraft.Procedure.SidViaMode) || (!AltitudeRestrictionInForce.ProcedureAltitudesInForce(aircraft)))
+        {
+            return null;
+        }
+
+        return NavigationCommandHandler.HighestPublishedSidAltitudeFt(aircraft) ?? HighestInForceProcedureBoundFt(aircraft, route, start);
+    }
+
+    /// <summary>
+    /// The highest in-force published bound on <paramref name="route"/> from <paramref name="start"/>: a window's top,
+    /// any other's value.
+    /// </summary>
+    private static double? HighestInForceProcedureBoundFt(AircraftState aircraft, List<NavigationTarget> route, int start)
+    {
+        double? highest = null;
+        for (int i = start; i < route.Count; i++)
+        {
+            if (
+                (route[i].AltitudeRestriction is { Source: CifpAltitudeRestrictionSource.Procedure } restriction)
+                && AltitudeRestrictionInForce.IsInForce(aircraft, restriction)
+            )
+            {
+                highest = Math.Max(highest ?? 0, Math.Max(restriction.Altitude1Ft, restriction.Altitude2Ft ?? 0));
+            }
+        }
+
+        return highest;
+    }
+
+    /// <summary>
+    /// Past the fix of a ceiling that capped the climb, the climb resumes at once to the cleared or top altitude, under the
+    /// ceilings on the remaining route (<see cref="PlanClimbScan"/>), when that is above the present altitude
+    /// (AIM 5-2-9.e.5). Called only where the fix carries no revert: a crossing's revert decides the altitude past its fix.
+    /// </summary>
+    private static void ReleaseClimbCeilingPastFix(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
+    {
+        if (!ReleasesClimbPastFix(aircraft, sequenced))
+        {
+            return;
+        }
+
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double? target = PlanClimbScan(aircraft, cat, route, 0).TargetFt ?? ClimbClearedOrTopAltitude(aircraft, route, 0);
+        if ((target is { } climbTo) && (climbTo > aircraft.Altitude))
+        {
+            Log.LogDebug("{Callsign}: past {Fix}, climb resumes to {Target}", aircraft.Callsign, sequenced.Name, climbTo);
+            aircraft.Targets.TargetAltitude = climbTo;
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="sequenced"/> held an in-force climb ceiling a controller or the procedure wrote, off a climb
+    /// via (which re-targets itself) and a descend via.
+    /// </summary>
+    private static bool ReleasesClimbPastFix(AircraftState aircraft, NavigationTarget sequenced) =>
+        (!aircraft.Procedure.StarViaMode)
+        && (aircraft.Procedure.ClimbViaTargetFt is null)
+        && (sequenced.AltitudeRestriction is { } passed)
+        && (passed.Source is CifpAltitudeRestrictionSource.Atc or CifpAltitudeRestrictionSource.Procedure)
+        && IsClimbCeiling(passed)
+        && AltitudeRestrictionInForce.IsInForce(aircraft, passed);
 
     /// <summary>
     /// Speed look-ahead planning for procedure fixes. Scans the navigation route for the
@@ -1099,7 +1401,7 @@ public static class FlightPhysics
         bool climbVia = ApplyClimbViaAltitude(aircraft);
         if ((!climbVia) && (target.AltitudeRestriction is { } alt) && AltitudeRestrictionInForce.IsInForce(aircraft, alt))
         {
-            ApplyFixAltitudeConstraint(aircraft, alt);
+            ApplyFixAltitudeConstraint(aircraft, target, alt);
         }
 
         ApplyFixSpeedConstraint(aircraft, target, slowdownLeftToPlanner);
@@ -1195,8 +1497,20 @@ public static class FlightPhysics
         }
     }
 
-    private static void ApplyFixAltitudeConstraint(AircraftState aircraft, CifpAltitudeRestriction alt)
+    /// <summary>
+    /// Targets the altitude <paramref name="target"/>'s in-force restriction <paramref name="alt"/> calls for. A climb takes
+    /// its target from the climb scan (<see cref="PlanClimbScan"/>) over the route from <paramref name="target"/> (or over
+    /// that fix alone when it is not on the route), so a fix never raises the target above the cleared or top altitude nor
+    /// above a later ceiling; it is left alone when that is not above the present altitude.
+    /// </summary>
+    private static void ApplyFixAltitudeConstraint(AircraftState aircraft, NavigationTarget target, CifpAltitudeRestriction alt)
     {
+        if (ClimbsToFixBound(aircraft, alt))
+        {
+            ApplyClimbScanAtFix(aircraft, target);
+            return;
+        }
+
         if (ClearedAltitudeMeetingBound(aircraft, alt) is { } cleared)
         {
             // The bound does not move the aircraft: it keeps flying to its cleared altitude
@@ -1208,21 +1522,72 @@ public static class FlightPhysics
             return;
         }
 
+        ApplyDescendingFixBound(aircraft, alt);
+    }
+
+    /// <summary>
+    /// Targets what <paramref name="alt"/> resolves to for a fix that does not mean a climb (<see cref="ClimbsToFixBound"/>):
+    /// under a descend via the depicted altitude, never below the via's floor.
+    /// </summary>
+    private static void ApplyDescendingFixBound(AircraftState aircraft, CifpAltitudeRestriction alt)
+    {
         bool sidVia = aircraft.Procedure.SidViaMode;
         bool starVia = aircraft.Procedure.StarViaMode;
 
         // When not in via mode, infer direction from current altitude vs constraint
-        bool isDescending = starVia || (!sidVia && aircraft.Altitude > alt.Altitude1Ft);
+        bool isDescending = starVia || ((!sidVia) && (aircraft.Altitude > alt.Altitude1Ft));
         double? resolvedAlt = ResolveAltitudeRestriction(aircraft, alt, isDescending);
         if (resolvedAlt is { } targetAlt)
         {
             // Apply the STAR floor limit (only in via mode)
-            if (starVia && aircraft.Procedure.StarViaFloor is { } floor)
+            if ((starVia) && (aircraft.Procedure.StarViaFloor is { } floor))
             {
                 targetAlt = Math.Max(targetAlt, floor);
             }
 
             aircraft.Targets.TargetAltitude = targetAlt;
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="alt"/> at the fix ahead means a climb: off a descend via, never for a bound that resolves
+    /// below the aircraft (an at or an at-or-below under it, which takes the descending path, SID via included), toward a
+    /// cleared altitude above the present one that already meets the bound, else (with the bound not met) under a SID via
+    /// or from at or below the bound's value.
+    /// </summary>
+    private static bool ClimbsToFixBound(AircraftState aircraft, CifpAltitudeRestriction alt)
+    {
+        if (aircraft.Procedure.StarViaMode)
+        {
+            return false;
+        }
+
+        if ((ResolveAltitudeRestriction(aircraft, alt, isDescending: false) is { } resolved) && (resolved < aircraft.Altitude - AltitudeSnapFt))
+        {
+            return false;
+        }
+
+        if (ClearedAltitudeMeetingBound(aircraft, alt) is { } cleared)
+        {
+            return cleared > aircraft.Altitude + AltitudeSnapFt;
+        }
+
+        return (aircraft.Procedure.SidViaMode) || (aircraft.Altitude <= alt.Altitude1Ft);
+    }
+
+    /// <summary>
+    /// Targets the climb scan's altitude (<see cref="PlanClimbScan"/>) over the route from <paramref name="target"/>, or over
+    /// that fix alone when it is not on the route, when that is above the present altitude.
+    /// </summary>
+    private static void ApplyClimbScanAtFix(AircraftState aircraft, NavigationTarget target)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        int start = route.IndexOf(target);
+        List<NavigationTarget> scanned = (start >= 0) ? route : [target];
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        if ((PlanClimbScan(aircraft, cat, scanned, Math.Max(start, 0)).TargetFt is { } climbTo) && (climbTo > aircraft.Altitude))
+        {
+            aircraft.Targets.TargetAltitude = climbTo;
         }
     }
 
@@ -1346,10 +1711,10 @@ public static class FlightPhysics
     /// Resolves an altitude restriction to a concrete target altitude based on the aircraft's
     /// current altitude and the restriction type (At, AtOrAbove, AtOrBelow, Between).
     /// Returns null if the aircraft already satisfies the restriction.
-    /// When <paramref name="isDescending"/> is true (STAR via mode), AtOrAbove constraints
-    /// resolve to the depicted altitude even when the aircraft is above it — the pilot
-    /// descends TO the constraint altitude. When false (SID via mode), AtOrBelow constraints
-    /// resolve to the depicted altitude even when below — the pilot climbs TO the ceiling.
+    /// When <paramref name="isDescending"/> is true (a descend via, or a non-via aircraft above the bound), AtOrAbove
+    /// constraints resolve to the depicted altitude even when the aircraft is above it: the pilot descends TO the constraint
+    /// altitude. When false, AtOrBelow constraints resolve to the depicted altitude even when below it; that value is a cap,
+    /// and the climb scan (<see cref="PlanClimbScan"/>) never climbs past the cleared or top altitude for it.
     /// </summary>
     private static double? ResolveAltitudeRestriction(AircraftState aircraft, CifpAltitudeRestriction alt, bool isDescending)
     {
