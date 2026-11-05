@@ -2678,6 +2678,19 @@ public class PilotResponderTests
         Assert.DoesNotContain("to land", result.Tts);
     }
 
+    // --- YAAT-1693: an IFR arrival's request for lower at its top of descent leads with facility and callsign ---
+
+    [Fact]
+    public void BuildDescentRequest_FacilityAndCallsignLead()
+    {
+        AircraftState ac = MakeAircraft("UAL325");
+
+        PilotSpeechText result = PilotResponder.BuildDescentRequest(ac, "NorCal Approach");
+
+        Assert.Equal("request lower.", result.Terminal);
+        Assert.Equal("NorCal Approach, united three twenty five, request lower.", result.Tts);
+    }
+
     // --- A1-4: closed-traffic check-in rounds altitude to the nearest 100 ft ---
 
     [Fact]

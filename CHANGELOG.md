@@ -5,6 +5,7 @@
 ### Added
 
 - In solo training, `AGAIN` asks a pilot to repeat its last transmission word for word, and `AGAIN CS` asks for its callsign only. With no aircraft selected, the pilot who called last answers; spoken "aircraft calling, say again" always reaches that pilot.
+- In solo training, an IFR arrival left level with no descent clearance calls "request lower" near its top of descent, and asks again until answered.
 
 ### Fixed
 

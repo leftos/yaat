@@ -267,6 +267,7 @@ public sealed partial class SimulationEngine
             {
                 Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
                 Pilot.PilotProactive.TickArrivalApproachRequest(ac, scenario, LookupAirportPosition);
+                Pilot.PilotProactive.TickDescentRequest(ac, scenario, LookupAirportPosition);
                 Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
             }
 

@@ -2070,6 +2070,18 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// An IFR arrival's request for lower at its top of descent, with no descent clearance in force: facility and callsign
+    /// lead, and the pilot names neither its altitude nor its destination. Terminal <c>"request lower."</c>; spoken
+    /// <c>"{facility}, {callsign}, request lower."</c>.
+    /// </summary>
+    public static PilotSpeechText BuildDescentRequest(AircraftState aircraft, string facilityCallName)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string facility = CleanFacilityCallName(facilityCallName, "approach");
+        return new PilotSpeechText("request lower.", $"{facility}, {spoken}, request lower.");
+    }
+
+    /// <summary>
     /// Initial-contact check-in for VFR aircraft joining a towered field's traffic pattern for
     /// closed traffic. Fired by <c>PatternEntryPhase</c> on entry in solo-training mode, gated
     /// by <c>!HasMadeInitialContact</c>. Output:

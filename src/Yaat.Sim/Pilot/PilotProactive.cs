@@ -1,8 +1,12 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airspace;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Pilot;
@@ -17,6 +21,14 @@ namespace Yaat.Sim.Pilot;
 /// </summary>
 public static class PilotProactive
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PilotProactive");
+
+    /// <summary>
+    /// The destinations already warned about for a missing field elevation (<see cref="LogMissingElevation"/>). Logging
+    /// state only: no simulation decision reads it.
+    /// </summary>
+    private static readonly HashSet<string> WarnedMissingElevation = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Per-aircraft, per-tick airborne-spawn check-in. Fires once when an aircraft is first
     /// observed airborne in solo-training mode and has not yet spoken to ATC. No-op when any
@@ -173,6 +185,266 @@ public static class PilotProactive
             line,
             PilotRequestContext.Runway(runwayId, facilityCallName)
         );
+    }
+
+    /// <summary>The field elevation plus this is the descent target of an arrival with no published altitude ahead.</summary>
+    private const double NoStarTargetAboveFieldFt = 3000.0;
+
+    /// <summary>How far short of the destination an arrival with no published altitude ahead plans to reach its target.</summary>
+    private const double NoStarTargetDistanceFromFieldNm = 10.0;
+
+    /// <summary>The seconds of flight before its top of descent at which the pilot asks for lower.</summary>
+    private const double DescentRequestLeadSeconds = 60.0;
+
+    /// <summary>The shallowest descent a plan allows: 3 NM of track per 1,000 ft.</summary>
+    private const double DescentGradientNmPerThousandFt = 3.0;
+
+    /// <summary>The altitude below which the 250 KIAS limit applies (14 CFR 91.117(a)).</summary>
+    private const double SpeedLimitAltitudeFt = 10000.0;
+
+    /// <summary>The speed limit below <see cref="SpeedLimitAltitudeFt"/>.</summary>
+    private const double SpeedLimitKts = 250.0;
+
+    /// <summary>The track a descent adds to slow to <see cref="SpeedLimitKts"/> when it crosses <see cref="SpeedLimitAltitudeFt"/> faster.</summary>
+    private const double SpeedLimitSlowdownNm = 10.0;
+
+    /// <summary>
+    /// An IFR arrival with no descent clearance in force asks the radar student "request lower" about
+    /// <see cref="DescentRequestLeadSeconds"/> of flight before its top of descent, or at once when it is already past it
+    /// (a late handoff). The pilot never leaves its altitude on its own: this only records the request, which
+    /// <see cref="PilotRequestTracker"/> re-asks and any descent clearance answers. Solo only, like
+    /// <see cref="TickArrivalApproachRequest"/>. Once answered the request is no longer open, so an aircraft level again
+    /// with no further descent clearance asks again at its next top of descent.
+    /// </summary>
+    public static void TickDescentRequest(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)
+    {
+        if (!IsDescentRequestEligible(aircraft, scenario) || ShouldNotAskForLower(aircraft))
+        {
+            return;
+        }
+
+        if (ResolveDescentDestination(aircraft, airportLookup) is not { } destination)
+        {
+            return;
+        }
+
+        if (PlanDescentTarget(aircraft, destination.Position, destination.ElevationFt) is not { } plan)
+        {
+            return;
+        }
+
+        double groundSpeedKts = aircraft.GroundSpeed;
+        double requiredNm = RequiredDescentDistanceNm(aircraft, plan.TargetAltitudeFt, groundSpeedKts);
+        double leadNm = groundSpeedKts * DescentRequestLeadSeconds / 3600.0;
+        if ((plan.DistanceRemainingNm - requiredNm) > leadNm)
+        {
+            return;
+        }
+
+        string positionType = scenario.StudentPositionType!;
+        string facilityCallName = PilotResponder.ResolveStudentFacilityCallName(
+            scenario,
+            positionType,
+            positionType == "CTR" ? "center" : "approach"
+        );
+        PilotSpeechText line = PilotResponder.BuildDescentRequest(aircraft, facilityCallName);
+        Log.LogDebug(
+            "{Callsign}: request lower, target {Target:F0} ft, {Remaining:F1} NM remaining, {Required:F1} NM required",
+            aircraft.Callsign,
+            plan.TargetAltitudeFt,
+            plan.DistanceRemainingNm,
+            requiredNm
+        );
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
+        PilotRequestTracker.RecordRequest(
+            aircraft,
+            PilotPendingRequestKind.Descent,
+            scenario.ElapsedSeconds,
+            line,
+            PilotRequestContext.Facility(facilityCallName)
+        );
+    }
+
+    /// <summary>
+    /// Whether the pilot may make a new call now: solo training with a radar student, an airborne IFR aircraft whose
+    /// check-in the controller has acknowledged, nothing queued to say and no request already open.
+    /// </summary>
+    private static bool IsDescentRequestEligible(AircraftState aircraft, SimScenarioState scenario) =>
+        scenario.SoloTrainingMode && IsRadarStudent(scenario.StudentPositionType) && IsAirborneIfrInContact(aircraft) && IsFreeToCall(aircraft);
+
+    /// <summary>Whether the student works a radar position: approach, departure or center, not ground or tower.</summary>
+    private static bool IsRadarStudent(string? positionType) => !string.IsNullOrWhiteSpace(positionType) && (positionType is not ("GND" or "TWR"));
+
+    /// <summary>Whether the aircraft is an airborne IFR flight whose check-in the controller has acknowledged.</summary>
+    private static bool IsAirborneIfrInContact(AircraftState aircraft) =>
+        !aircraft.IsOnGround && !aircraft.FlightPlan.IsVfr && aircraft.HasMadeInitialContact && aircraft.HasControllerAcknowledgedInitialContact;
+
+    /// <summary>Whether the pilot has nothing queued to say and no request already open.</summary>
+    private static bool IsFreeToCall(AircraftState aircraft) =>
+        (aircraft.PendingPilotRequest is not { IsOpen: true }) && (aircraft.PendingPilotTransmissions.Count == 0);
+
+    /// <summary>
+    /// The filed destination's position and field elevation, or null with no destination filed, no position for it, or
+    /// (logged as a warning) no elevation for it.
+    /// </summary>
+    private static (LatLon Position, double ElevationFt)? ResolveDescentDestination(AircraftState aircraft, Func<string, LatLon?> airportLookup)
+    {
+        string destination = aircraft.FlightPlan.Destination;
+        if (string.IsNullOrWhiteSpace(destination) || (airportLookup(destination) is not { } position))
+        {
+            return null;
+        }
+
+        if (NavigationDatabase.Instance.GetAirportElevation(destination) is not { } elevationFt)
+        {
+            LogMissingElevation(aircraft.Callsign, destination);
+            return null;
+        }
+
+        return (position, elevationFt);
+    }
+
+    /// <summary>
+    /// Logs a destination with no field elevation as a warning the first time it is seen, at Debug after. The set is
+    /// logging state only: it touches no simulation state, so it cannot change a replay.
+    /// </summary>
+    private static void LogMissingElevation(string callsign, string destination)
+    {
+        bool first;
+        lock (WarnedMissingElevation)
+        {
+            first = WarnedMissingElevation.Add(destination);
+        }
+
+        if (first)
+        {
+            Log.LogWarning("{Callsign}: no field elevation for destination {Destination}, no request for lower", callsign, destination);
+        }
+        else
+        {
+            Log.LogDebug("{Callsign}: no field elevation for destination {Destination}, no request for lower", callsign, destination);
+        }
+    }
+
+    /// <summary>
+    /// Whether the pilot has no reason to ask for lower, or to repeat an open request for it: a descent is authorised or
+    /// queued (<see cref="DescentAuthorized"/>), a climb is in progress or cleared (<see cref="IsClimbingOrDeparting"/>),
+    /// or the aircraft is off the student's work (<see cref="IsOffTheStudentsWork"/>). <see cref="PilotRequestTracker"/>
+    /// reads it to close an open request as moot.
+    /// </summary>
+    internal static bool ShouldNotAskForLower(AircraftState aircraft) =>
+        DescentAuthorized(aircraft) || IsClimbingOrDeparting(aircraft) || IsOffTheStudentsWork(aircraft);
+
+    /// <summary>An assigned altitude above it, a climb via, or an initial-climb or departure-procedure phase.</summary>
+    private static bool IsClimbingOrDeparting(AircraftState aircraft) =>
+        ((aircraft.Targets.AssignedAltitude is { } assigned) && (assigned > aircraft.Altitude + FlightPhysics.AltitudeSnapFt))
+        || (aircraft.Procedure.ClimbViaTargetFt is not null)
+        || (aircraft.Phases?.CurrentPhase is InitialClimbPhase or DepartureProcedurePhase);
+
+    /// <summary>Off the student's frequency, holding, or cleared to land.</summary>
+    private static bool IsOffTheStudentsWork(AircraftState aircraft) =>
+        aircraft.HasLeftStudentFrequency || (aircraft.Phases?.CurrentPhase is HoldingPatternPhase) || (aircraft.Phases?.LandingClearance is not null);
+
+    /// <summary>
+    /// Whether a descent is already authorised or waiting to be applied, so the pilot has no reason to ask: an assigned
+    /// altitude below it, a descend via, a controller's crossing on the route, an active or deferred approach clearance,
+    /// or a vertical command still queued behind a condition or a pilot-reaction delay.
+    /// </summary>
+    private static bool DescentAuthorized(AircraftState aircraft) =>
+        ((aircraft.Targets.AssignedAltitude is { } assigned) && (assigned < aircraft.Altitude - FlightPhysics.AltitudeSnapFt))
+        || aircraft.Procedure.StarViaMode
+        || aircraft.Targets.NavigationRoute.Exists(t => t.AltitudeRestriction is { Source: CifpAltitudeRestrictionSource.Atc })
+        || (aircraft.Phases?.ActiveApproach is not null)
+        || (aircraft.Approach.PendingClearance is not null)
+        || HasQueuedVerticalCommand(aircraft);
+
+    /// <summary>
+    /// Whether a vertical command waits to be applied: in a queued block not yet applied (an <c>AT</c> condition), or in a
+    /// deferred dispatch (a pilot-reaction delay or a <c>WAIT</c>).
+    /// </summary>
+    private static bool HasQueuedVerticalCommand(AircraftState aircraft)
+    {
+        foreach (CommandBlock block in aircraft.Queue.Blocks)
+        {
+            if (!block.IsApplied && !block.TriggerMissed && (block.ParsedCommands is { } commands) && commands.Exists(IsVertical))
+            {
+                return true;
+            }
+        }
+
+        foreach (DeferredDispatch deferred in aircraft.DeferredDispatches)
+        {
+            if (deferred.Payload.Blocks.Any(b => b.Commands.Any(IsVertical)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsVertical(ParsedCommand command) =>
+        (CommandDescriber.GetQueuedCommandDimension(command) & CommandDimension.Vertical) != CommandDimension.None;
+
+    /// <summary>
+    /// The altitude a descent plans to and the along-route distance to where it is reached. On a STAR, the first route
+    /// fix whose published altitude (<see cref="CifpAltitudeRestriction.Altitude1Ft"/>, the upper bound of a window) is
+    /// below the aircraft. With no STAR or no such altitude ahead, the destination field elevation plus
+    /// <see cref="NoStarTargetAboveFieldFt"/>, reached <see cref="NoStarTargetDistanceFromFieldNm"/> from the field.
+    /// Planning to the altitude never authorises flying it. Null when the target is not below the aircraft.
+    /// </summary>
+    private static (double TargetAltitudeFt, double DistanceRemainingNm)? PlanDescentTarget(
+        AircraftState aircraft,
+        LatLon destinationPosition,
+        double fieldElevationFt
+    )
+    {
+        double ceilingFt = aircraft.Altitude - FlightPhysics.AltitudeSnapFt;
+        double alongNm = 0.0;
+        LatLon previous = aircraft.Position;
+        bool onStar = !string.IsNullOrEmpty(aircraft.Procedure.ActiveStarId);
+        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        {
+            alongNm += GeoMath.DistanceNm(previous, fix.Position);
+            previous = fix.Position;
+            if (onStar && (fix.AltitudeRestriction is { } restriction) && (restriction.Altitude1Ft < ceilingFt))
+            {
+                return (restriction.Altitude1Ft, alongNm);
+            }
+        }
+
+        double targetFt = fieldElevationFt + NoStarTargetAboveFieldFt;
+        if (targetFt >= ceilingFt)
+        {
+            return null;
+        }
+
+        alongNm += GeoMath.DistanceNm(previous, destinationPosition);
+        return (targetFt, alongNm - NoStarTargetDistanceFromFieldNm);
+    }
+
+    /// <summary>
+    /// The distance a descent to <paramref name="targetAltitudeFt"/> needs: the profile descent rate over the ground speed,
+    /// no less than <see cref="DescentGradientNmPerThousandFt"/>, plus <see cref="SpeedLimitSlowdownNm"/> to slow to
+    /// <see cref="SpeedLimitKts"/> when it crosses <see cref="SpeedLimitAltitudeFt"/> faster.
+    /// </summary>
+    private static double RequiredDescentDistanceNm(AircraftState aircraft, double targetAltitudeFt, double groundSpeedKts)
+    {
+        double altDeltaFt = aircraft.Altitude - targetAltitudeFt;
+        double descentRateFpm = AircraftPerformance.DescentRate(
+            aircraft.AircraftType,
+            AircraftCategorization.Categorize(aircraft.AircraftType),
+            aircraft.Altitude
+        );
+        double gradientNm = DescentGradientNmPerThousandFt * altDeltaFt / 1000.0;
+        double profileNm = (descentRateFpm > 0) ? altDeltaFt / descentRateFpm * groundSpeedKts / 60.0 : 0.0;
+        double requiredNm = Math.Max(profileNm, gradientNm);
+        if ((aircraft.Altitude > SpeedLimitAltitudeFt) && (targetAltitudeFt < SpeedLimitAltitudeFt) && (aircraft.IndicatedAirspeed > SpeedLimitKts))
+        {
+            requiredNm += SpeedLimitSlowdownNm;
+        }
+
+        return requiredNm;
     }
 
     private const double ReportAtFixArrivalNm = 0.5;

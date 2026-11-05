@@ -176,6 +176,13 @@ public static class PilotRequestTracker
             return true;
         }
 
+        // A request for lower is moot once the pilot would not ask it: a descent authorised or queued, a climb, a
+        // handoff, a hold, or an approach or landing clearance.
+        if ((request.Kind == PilotPendingRequestKind.Descent) && PilotProactive.ShouldNotAskForLower(aircraft))
+        {
+            return true;
+        }
+
         // A ready-to-taxi or taxi-in follow-up is only voiced while the aircraft is stopped and waiting on a
         // clearance. An aircraft that is taxiing, following, holding short, or crossing a runway is executing
         // one, so the request is moot and re-announcing "at parking GA16 … ready to taxi" from the taxiway is
@@ -270,6 +277,28 @@ public static class PilotRequestTracker
             {
                 ClearedBravoAirspaceCommand or ContactCommand or FrequencyChangeApprovedCommand => PilotPendingRequestResponseState.Satisfied,
                 _ when ImplicitBravoClearance.IsImpliedClearanceCommand(command) => PilotPendingRequestResponseState.Satisfied,
+                _ => PilotPendingRequestResponseState.None,
+            },
+            // Any descent answers a request for lower: an altitude, a descend via, a crossing, or an approach clearance. A
+            // frequency change hands the request to the next controller and a hold replaces it. A STBY reaches Standby
+            // through AcknowledgePilotContactCommand; anything else leaves the request open.
+            PilotPendingRequestKind.Descent => command switch
+            {
+                ContactCommand or FrequencyChangeApprovedCommand or HoldingPatternCommand => PilotPendingRequestResponseState.Superseded,
+                ExpediteCommand { Altitude: not null } => PilotPendingRequestResponseState.Satisfied,
+                DescendMaintainCommand
+                or ClimbMaintainCommand
+                or ForceAltitudeCommand
+                or DescendViaCommand
+                or CrossFixCommand
+                or ConstrainedForceDirectToCommand
+                or ClearedApproachCommand
+                or ClearedApproachStraightInCommand
+                or ClearedVisualApproachCommand
+                or PositionTurnAltitudeClearanceCommand
+                or JoinApproachCommand
+                or JoinApproachStraightInCommand
+                or JoinFinalApproachCourseCommand => PilotPendingRequestResponseState.Satisfied,
                 _ => PilotPendingRequestResponseState.None,
             },
             _ => PilotPendingRequestResponseState.None,

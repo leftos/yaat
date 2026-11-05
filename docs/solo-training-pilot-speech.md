@@ -389,9 +389,18 @@ A refusal about YAAT's own command forms is never voiced: the RPO-only commands 
 
   A `Taxi`, `Pushback` or `Clearance` request is also closed as `Superseded` once the aircraft is in any phase but one where a pilot still waits for a taxi clearance (`AtParkingPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`, `HoldingInPositionPhase`, or `HoldingShortPhase` at a bar that protects no runway), so an aircraft taxiing or following never repeats "at parking GA16 … ready to taxi" from the taxiway.
 
-Eight request kinds: `Taxi`, `Pushback` (a jet or turboprop on a push-back stand asking for a push; mapped as Taxi is), `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`, `Clearance` (an IFR or VFR departure's request to the lowest position the student works) and `Release` (an untowered runway spawn's release request).
+Nine request kinds: `Descent` (below), `Taxi`, `Pushback` (a jet or turboprop on a push-back stand asking for a push; mapped as Taxi is), `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`, `Clearance` (an IFR or VFR departure's request to the lowest position the student works) and `Release` (an untowered runway spawn's release request).
 
 Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand` → Satisfied for Takeoff; `FollowGroundCommand`, like any taxi or push, → Satisfied for Taxi; `SquawkCommand` / `RandomSquawkCommand` / `SquawkVfrCommand` → Satisfied for Clearance; `ExpectApproachCommand` → Standby for Approach; `LineUpAndWaitCommand` → Superseded for Takeoff). A `Release` request is answered only through `SatisfyOpenRequest`.
+
+### Descent request ("request lower")
+
+`PilotProactive.TickDescentRequest` (called from `SimulationEngine.TickPilotProactive` after `TickArrivalApproachRequest`) has an IFR arrival ask the radar student for lower: `PilotResponder.BuildDescentRequest`, queued through `QueueSoloPilotTransmission` and recorded as a `Descent` pending request.
+
+- **Who asks.** An IFR arrival with a filed destination whose elevation is known (otherwise a warning is logged and it stays silent), level with no descent clearance, whose check-in the controller has acknowledged, and whose student is an approach or center position. No call in RPO mode, for VFR, after leaving the student's frequency, in a hold, with an approach or landing clearance, in a departure phase, while climbing or under a climb via, or with a GND/TWR student.
+- **When.** About 60 s before the computed top of descent, or at once when the aircraft is already past it. The target is the first published STAR altitude ahead that is below the aircraft; with none, destination field elevation + 3,000 ft reached 10 NM out. The distance needed is the larger of the profile descent and 3 NM per 1,000 ft, plus 10 NM when the descent crosses 10,000 ft above 250 KIAS.
+- **Answered by** `DM`, `DVIA`, `CFIX`, a constrained direct-to, `CM` or `EXP` with an altitude, a forced altitude, or any approach clearance. `CT`, `FC` and `HOLD` close it as superseded; any other instruction leaves it open, and `STBY` moves the re-ask to 90 s (else 120 s).
+- **Moot** (`PilotProactive.ShouldNotAskForLower`, read by `PilotRequestTracker`'s moot check): once a descent is authorised or queued (`AT`/`LV`/`WAIT` or a reaction delay), the aircraft climbs, is handed off, holds, or is cleared for an approach or to land. It is closed without a re-ask. A stepped-down arrival asks again at its next top of descent.
 
 ## `ApplyPostDispatch` — one hook, two hosts
 

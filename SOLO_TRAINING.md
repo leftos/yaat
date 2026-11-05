@@ -254,6 +254,8 @@ Solo pilots make calls when the scenario and phase call for them. Common example
 
 Requests remain pending until you handle the underlying need. `STBY` and `ROGER` acknowledge the call, but they do not satisfy a taxi, departure, landing, approach, or airspace-entry request. A pilot told to stand by waits longer before following up.
 
+An IFR arrival you work as approach or center, once you have answered its check-in, asks "request lower" about a minute before its top of descent (at once if already past it). Any descent answers it (`DM`, `DVIA`, `CFIX`, `CM` or `EXP` with an altitude, or an approach clearance); `CT`, `FC` and `HOLD` close it, and other instructions leave it open, so the pilot asks again after two minutes (90 seconds after `STBY`). A pilot that holds a descent, a climb, a hold or an approach clearance does not ask. A stepped-down arrival asks again at its next top of descent.
+
 `STBY` and `ROGER` can still establish two-way communications for Class C airspace when targeted at that aircraft. That is separate from satisfying the request.
 
 ## Solo-Specific Command Habits

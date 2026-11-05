@@ -21,6 +21,9 @@ public enum PilotPendingRequestKind
     /// A jet or turboprop parked on a push-back stand asking ground for a push; its after-push call is the taxi request.
     /// </summary>
     Pushback,
+
+    /// <summary>An IFR arrival's request to the radar student for lower at its top of descent.</summary>
+    Descent,
 }
 
 public enum PilotPendingRequestResponseState
