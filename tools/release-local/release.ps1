@@ -5,7 +5,9 @@
   from this PC through the gate.
 
 .DESCRIPTION
-  Checks the tag out into a detached worktree (X:\dev\yaat.wt\release-local-<tag>), copies this
+  Checks the tag out into a worktree (X:\dev\yaat.wt\release-local-<tag>) on a throwaway branch,
+  release-local/<tag>, since the gate refuses to route a detached HEAD to the Mac builder (it cannot
+  diff it against .gate/windows.toml's paths); the branch goes with the worktree. It copies this
   folder's scripts into it when the tag predates them, and runs the two legs in parallel through the
   gate: pack-win-linux.ps1 on the Windows builder, pack-macos.ps1 pinned to the Mac builder. It then
   gathers the assets under the names release.yml and release-macos.yml give them into
@@ -102,8 +104,9 @@ Assert-LastExit 'git fetch --tags'
 $sha = (git -C $repo rev-parse --verify "$Tag^{commit}").Trim()
 $worktree = "X:\dev\yaat.wt\release-local-$Tag"
 $stage = Join-Path $repo ".tmp\release-local\$Tag"
+$branch = "release-local/$Tag"
 if (Test-Path $worktree) { throw "$worktree exists: an earlier run's worktree; remove it with git worktree remove --force" }
-git -C $repo worktree add --detach $worktree $sha
+git -C $repo worktree add -B $branch $worktree $sha
 Assert-LastExit "git worktree add $worktree"
 try {
   $scripts = Join-Path $worktree 'tools\release-local'
@@ -166,4 +169,6 @@ finally {
     Copy-Item -Destination (Join-Path $repo '.tmp') -Force
   git -C $repo worktree remove --force $worktree
   if ($LASTEXITCODE -ne 0) { Write-Warning "could not remove the worktree $worktree; remove it with git worktree remove --force" }
+  git -C $repo branch -D $branch
+  if ($LASTEXITCODE -ne 0) { Write-Warning "could not delete the branch $branch; delete it with git branch -D $branch" }
 }
