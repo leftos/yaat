@@ -739,7 +739,7 @@
 - [ ] YAAT-1871 Apply a coded-leg CFIX's altitude revert when the departure procedure is abandoned
 - [ ] YAAT-1876 Give every transmission an id so a queued maintain never cancels a later crossing
 
-### 2 Refinements and rulings (1/16 done)
+### 2 Refinements and rulings (1/17 done)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
 - [ ] YAAT-965 Restore STAR restrictions without guessing a runway transition
 - [ ] YAAT-977 Decide what a departure does when vectored off a SID after a climb via
@@ -755,6 +755,7 @@
 - [ ] YAAT-1855 Answer an arrival's request for lower with expect-lower, request-from-facility and unable
 - [ ] YAAT-1859 Plan an arrival's request for lower to its most limiting STAR restriction
 - [ ] YAAT-1874 Have the pilot query a crossing above the climb-via top instead of silently stopping at the top
+- [ ] YAAT-1877 Plan departure-window crossing speeds across legs, under the Class B shelf cap, and match the live route past the fix
 
 ### 3 Hygiene and tests (0/5 done)
 - [ ] YAAT-983 Read the active op config's SID top altitude before the others
@@ -764,8 +765,6 @@
 - [ ] YAAT-1875 Bring NavigationCommandHandler.BoundMetByCleared to cyclomatic complexity 8 or less
 
 ### No milestone
-- [ ] YAAT-1840 Enforce a CFIX on a SID's coded-leg fix on that leg, with its revert at the fix · release vNext
-  - [ ] YAAT-1873 Plan a CFIX speed toward a SID's coded-leg fix and revert it at the fix (YAAT-1840 part B) · release vNext
 - [ ] YAAT-1519 Restore a crossed published ceiling on a re-issued CVIA; lift a SID waypoint's ceiling once passed
 - [ ] YAAT-1868 Climb at no less than the profile rate toward a far constrained fix
 
