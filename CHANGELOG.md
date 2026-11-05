@@ -1,11 +1,19 @@
 # Changelog
 
-## Unreleased
+## v0.18.1-beta [2026/11/05]
+
+### Highlights
+
+- In solo training, `AGAIN` and `AGAIN CS` ask a pilot to repeat its last transmission or its callsign.
+- In solo training as approach, departure or center, IFR arrivals left level call "request lower" near their top of descent.
+- `LA 600` clears an altitude-restricted low approach, and low approaches now level off before the threshold before climbing out.
+- Assigned altitudes and crossing speeds are flown as given: without `CVIA` or `DVIA`, SID and STAR altitudes no longer move the aircraft, and `CFIX` and direct-to speeds resume correctly past the fix.
 
 ### Added
 
-- In solo training, `AGAIN` asks a pilot to repeat its last transmission word for word, and `AGAIN CS` asks for its callsign only. With no aircraft selected, the pilot who called last answers; spoken "aircraft calling, say again" always reaches that pilot.
-- In solo training, an IFR arrival left level with no descent clearance calls "request lower" near its top of descent, and asks again until answered.
+- In solo training, `AGAIN` asks a pilot to repeat its last transmission word for word, and `AGAIN CS` asks for its callsign only. With no aircraft selected, the pilot whose call awaits you, else the last to call, answers; spoken "aircraft calling, say again" always reaches that pilot.
+- In solo training as approach, departure or center, an IFR arrival left level with no descent clearance calls "request lower" near its top of descent, and asks again until answered.
+- `LA 600` clears an altitude-restricted low approach ("at or above 600"). The aircraft never goes below it, and the clearance is refused under 500 ft above the airport.
 
 ### Fixed
 
@@ -21,7 +29,7 @@
 - A bare `CTO` on a filed SID with no TDLS altitude warns the instructor: "no initial altitude for (callsign); assign one".
 - A bare `CVIA` with no transition in the route climbs to the SID's common-route top, not an altitude from a transition the aircraft won't fly.
 - An aircraft held short of a runway behind traffic crossing it is no longer released early because the crossing aircraft's stop was misjudged.
-- When navigation data finishes loading after a scenario loads, the radar centres on the scenario's airport instead of the facility area's centre.
+- When navigation data finishes loading after a scenario loads, the main radar centres on the scenario's airport instead of the facility area's centre, unless it was already panned or zoomed.
 - A speed assigned during a 360, 270, S-turn or VFR hold stands: reaching the hold fix or ending the maneuver no longer changes it.
 - A departure leg that ends on a VOR radial turns where the chart puts that radial, measured with the VOR's published variation.
 - A hold-short stop that falls on a curved taxiway fillet sits on the painted curve, not up to 15 feet off the pavement.
@@ -37,14 +45,14 @@
 - `MLT` or `MRT` after a takeoff clearance, still on the ground, flies the closed traffic from the cleared runway, keeping its pattern runway and altitude.
 - A widebody holding at an angled hold bar no longer reads as fouling the runway when its wingtip sits beside the painted line.
 - Traffic taxiing past a runway's end, or on a parallel taxiway through a short stub, no longer reads as fouling that runway.
-- Pilot voices say approach names as charted ("ILS runway two eight right", "VOR Alpha") instead of spelling them letter by letter.
+- In solo training, pilot voices say approach names as charted ("ILS runway two eight right", "VOR Alpha") instead of spelling them letter by letter.
 - `CROSS` at a hold short is refused when the aircraft has no airport ground layout, instead of releasing the hold with no crossing planned.
-- An aircraft cleared for takeoff while lining up behind `LUAW` rolls into its takeoff without slowing, and `CTOC` during that line-up stops it on the centerline.
+- An aircraft cleared for takeoff while lining up behind `LUAW` rolls into its takeoff without slowing, and `CTOC` during that line-up stops it, braking onto the centerline when a `LUAW` releases it again.
 - `CLANDF` is cancelled when the aircraft is vectored off the final approach, and refused once it has flown past the runway's far end.
-- In solo sessions, rewinding restores the frequency as it was. Pilots no longer speak lines from the abandoned timeline, and a pilot still awaiting a reply keeps its turn.
+- In solo sessions, rewinding, or a room restored after a server restart, restores the frequency as it was. Pilots no longer speak lines from the abandoned timeline, and a pilot still awaiting a reply keeps its turn.
 - On a low approach (`LA`), the aircraft levels off before the threshold, at 100 ft (150 ft for a jet). It holds that height for about 10 seconds before climbing out, instead of descending as if to land.
 - An aircraft held level over the runway on a low approach answers "unable, too high to land" to `CLAND`, `TG`, `SG`, `COPT` or `LAHSO`, and continues its low approach.
-- If YAAT stops while updating the GPU speech runtime, the next start puts the previous copy back instead of leaving GPU speech uninstalled.
+- If YAAT stops while updating the GPU speech-recognition runtime, the next start puts the previous copy back instead of leaving GPU speech uninstalled.
 - The DH8C and Q400 (DH8D) are held to their certified maximum speeds.
 - Aircraft with no FAA approach speed, such as the C-5M and F/A-18, fly their real approach speed instead of one about 20% too fast.
 - An aircraft leaving a runway still counts as on it until its tail, not its nose, has passed the exit's hold-short marking.
@@ -56,14 +64,11 @@
 - Restating a crossing speed on the same fix keeps the speed to resume past it.
 - An aircraft on an extended upwind told to follow traffic already on crosswind holds its upwind until behind it, instead of cutting inside.
 - A runway no traffic pattern could clear, such as 33 beside Oakland 28R right traffic, no longer shrinks the pattern or draws the pilot's crossing warning.
-- An IFR departure cleared to a maintain checks in "leaving 2,000, climbing to 5,000" instead of "climbing via" its SID; climb and descent check-ins now say "climbing to" or "descending to".
+- In solo training, an IFR departure cleared to a maintain checks in "leaving 2,000, climbing to 5,000" instead of "climbing via" its SID; climb and descent check-ins now say "climbing to" or "descending to".
 - `DVIA` given while an aircraft is still on its departure procedure now starts the descent along the arrival.
 - A route change, 360 or 270 that drops a crossing fix, direct-tos with crossing speeds included, returns the aircraft to the speed the crossing replaced.
 - A crossing that needs a steep climb or descent is met by the time the fix is passed, and pattern entries reach pattern altitude before turning in.
 - A departure climbing via its SID whose route ends at a SID ceiling fix climbs on to its top altitude instead of levelling at that fix.
-### Added
-
-- `LA 600` clears an altitude-restricted low approach ("at or above 600"). The aircraft never goes below it, and the clearance is refused under 500 ft above the airport.
 
 ## v0.18.0-beta [2026/11/02]
 

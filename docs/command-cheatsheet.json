@@ -134,7 +134,7 @@
         { "verb": "CLC", "aliases": ["ctlc"], "description": "Cancel landing clearance" },
         { "verb": "TG", "aliases": [], "description": "Touch and go [rwy] [MLT/MRT [rwy] [alt]] — e.g. `TG MLT 28L`: then left traffic 28L" },
         { "verb": "SG", "aliases": [], "description": "Stop and go [MLT/MRT [rwy] [alt]]" },
-        { "verb": "LA", "aliases": [], "description": "Low approach [alt] [MLT/MRT [rwy] [alt]]" },
+        { "verb": "LA", "aliases": [], "description": "Low approach [alt] [MLT/MRT [rwy] [alt]]; alt = at or above, >=500 ft above the airport" },
         { "verb": "COPT", "aliases": [], "description": "Cleared for option [MLT/MRT [rwy] [alt]] — e.g. `COPT MLT 28L`" }
       ],
       "notes": [
@@ -153,7 +153,7 @@
         { "verb": "ELC / ERC", "aliases": [], "description": "Enter L/R crosswind [rwy]" },
         { "verb": "ELB / ERB", "aliases": [], "description": "Enter L/R base [rwy] [dist]" },
         { "verb": "EF", "aliases": [], "description": "Make straight-in [rwy]" },
-        { "verb": "MLT / MRT", "aliases": [], "description": "Make L/R traffic [rwy]" },
+        { "verb": "MLT / MRT", "aliases": [], "description": "Make L/R traffic [rwy]; on the ground before CTO refused (use CTO MLT)" },
         { "verb": "TC", "aliases": [], "description": "Turn crosswind" },
         { "verb": "TD", "aliases": [], "description": "Turn downwind" },
         { "verb": "TB", "aliases": [], "description": "Turn base" },
