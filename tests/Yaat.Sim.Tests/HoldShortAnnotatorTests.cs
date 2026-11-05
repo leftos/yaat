@@ -384,6 +384,136 @@ public class HoldShortAnnotatorTests(ITestOutputHelper output)
     }
 
     // -------------------------------------------------------------------------
+    // BindsPastLeavingBar: the three guards that keep a taxiway hold on the leaving bar
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// ATL E11 off 08R/26L meets B10 at a T with no fillet, and the 26L bar sits on B10 itself. Leaving the runway on E11 and
+    /// turning onto B10, a hold short of B10 binds that bar: the edge past it is a straight edge of B10, so binding past the bar
+    /// would drive the aircraft onto the taxiway it holds short of. Both turns onto B10 hold at the bar. The route stands for the
+    /// far side of a crossing whose entry hold sits on the other bar, so it carries no runway hold on the leaving bar.
+    /// </summary>
+    [Fact]
+    public void BindsPastLeavingBar_NextEdgeIsAStraightEdgeOfTheTarget_HoldsAtTheBar()
+    {
+        TestVnasData.EnsureInitialized();
+        if (new TestAirportGroundData().GetLayout("ATL") is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode bar = Assert.Single(TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "26L", "E11"), b => StraightNeighbours(b, "B10").Count > 0);
+        GroundNode offRunway = Assert.Single(StraightNeighbours(bar, "E11"), n => LeavesRunwayAt(layout, n, bar, "E11"));
+        List<GroundNode> ontoB10 = StraightNeighbours(bar, "B10");
+        Assert.Equal(2, ontoB10.Count);
+
+        foreach (GroundNode next in ontoB10)
+        {
+            TaxiRoute route = RouteOf([Leg(offRunway, bar, "E11"), Leg(bar, next, "B10")], [], 0);
+            output.WriteLine($"ATL E11 #{offRunway.Id} -> 26L bar #{bar.Id} -> B10 #{next.Id} ({next.Type})");
+            Assert.True(HoldShortAnnotator.IsBarLeavingRunway(layout, route.Segments[0]), $"bar #{bar.Id} is not reached from 26L's side");
+            Assert.False(IsBarOrCentreline(next), $"B10 #{next.Id} is a bar or a runway centreline node");
+
+            Assert.False(HoldShortAnnotator.BindsPastLeavingBar(layout, route, 0, "B10"), $"HS B10 binds past bar #{bar.Id}, onto B10 #{next.Id}");
+            ExplicitHoldShortPlan plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("B10"));
+            Assert.Equal(ExplicitHoldShortOutcome.Add, plan.Outcome);
+            Assert.Equal(bar.Id, plan.NodeId);
+        }
+    }
+
+    /// <summary>
+    /// MIA T8 leaves 12/30 at a bar carrying T's fillet arcs, and the next node along T8 is 09/27's bar. A hold short of T binds
+    /// the 12/30 bar: the edge past it ends on another runway's bar, and extending the hold onto it would leave no stop clear of
+    /// runway pavement. The route stands for the far side of a crossing whose entry hold sits on the other bar, so it carries no
+    /// runway hold on the leaving bar.
+    /// </summary>
+    [Fact]
+    public void BindsPastLeavingBar_NextEdgeEndsOnARunwayBar_HoldsAtTheBar()
+    {
+        TestVnasData.EnsureInitialized();
+        if (new TestAirportGroundData().GetLayout("MIA") is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode bar = Assert.Single(
+            TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "30", "T8"),
+            b => StraightNeighbours(b, "T8").Any(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && id.Contains("27"))
+        );
+        GroundNode next = Assert.Single(StraightNeighbours(bar, "T8"), n => n.Type == GroundNodeType.RunwayHoldShort);
+        GroundNode offRunway = Assert.Single(StraightNeighbours(bar, "T8"), n => n.Type != GroundNodeType.RunwayHoldShort);
+        TaxiRoute route = RouteOf([Leg(offRunway, bar, "T8"), Leg(bar, next, "T8")], [], 0);
+        output.WriteLine($"MIA T8 #{offRunway.Id} -> 30 bar #{bar.Id} -> {next.RunwayId} bar #{next.Id}");
+        Assert.True(HoldShortAnnotator.IsBarLeavingRunway(layout, route.Segments[0]), $"bar #{bar.Id} is not reached from 30's side");
+        Assert.Contains(bar.Edges, e => (e is GroundArc) && e.MatchesTaxiway("T"));
+
+        Assert.False(HoldShortAnnotator.BindsPastLeavingBar(layout, route, 0, "T"), $"HS T binds past bar #{bar.Id}, onto bar #{next.Id}");
+        ExplicitHoldShortPlan plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("T"));
+        Assert.Equal(ExplicitHoldShortOutcome.Add, plan.Outcome);
+        Assert.Equal(bar.Id, plan.NodeId);
+    }
+
+    /// <summary>
+    /// COS A1 off 17R/35L: an aircraft between the runway and A1's bar, routed onto A by A's fillet arcs. The route reaches no
+    /// other 35L bar first, so the annotator holds it at A1's bar for the runway (a crossing hold), and a hold short of A binds
+    /// that bar rather than the end of A's fillet past it. Both fillets onto A hold at the bar.
+    /// </summary>
+    [Fact]
+    public void BindsPastLeavingBar_BarCarriesARunwayCrossingHold_HoldsAtTheBar()
+    {
+        TestVnasData.EnsureInitialized();
+        if (new TestAirportGroundData().GetLayout("COS") is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode bar = GroundNodeLookup.HoldShortBar(layout, "35L", "A1");
+        GroundNode offRunway = Assert.Single(StraightNeighbours(bar, "A1"), n => LeavesRunwayAt(layout, n, bar, "A1"));
+        List<GroundArc> fillets = [.. bar.Edges.OfType<GroundArc>().Where(a => a.MatchesTaxiway("A"))];
+        Assert.NotEmpty(fillets);
+
+        foreach (GroundArc fillet in fillets)
+        {
+            GroundNode next = fillet.OtherNode(bar);
+            List<TaxiRouteSegment> segments =
+            [
+                Leg(offRunway, bar, "A1"),
+                new TaxiRouteSegment { TaxiwayName = fillet.TaxiwayName, Edge = fillet.Directed(bar, next) },
+            ];
+            var holds = new List<HoldShortPoint>();
+            HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holds, null);
+            TaxiRoute route = RouteOf(segments, holds, 0);
+            string holdList = string.Join(", ", holds.Select(h => $"#{h.NodeId} {h.Reason}"));
+            output.WriteLine($"COS A1 #{offRunway.Id} -> 35L bar #{bar.Id} -> A fillet end #{next.Id}; holds {holdList}");
+            Assert.True(HoldShortAnnotator.IsBarLeavingRunway(layout, route.Segments[0]), $"bar #{bar.Id} is not reached from 35L's side");
+            Assert.Contains(holds, h => (h.NodeId == bar.Id) && (h.Reason == HoldShortReason.RunwayCrossing));
+            Assert.False(IsBarOrCentreline(next), $"A fillet end #{next.Id} is a bar or a runway centreline node");
+
+            Assert.False(HoldShortAnnotator.BindsPastLeavingBar(layout, route, 0, "A"), $"HS A binds past bar #{bar.Id}, onto #{next.Id}");
+            ExplicitHoldShortPlan plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, HoldShortTarget.Parse("A"));
+            Assert.Equal(ExplicitHoldShortOutcome.Add, plan.Outcome);
+            Assert.Equal(bar.Id, plan.NodeId);
+        }
+    }
+
+    /// <summary>The distinct far ends of <paramref name="node"/>'s straight edges named <paramref name="taxiway"/>.</summary>
+    private static List<GroundNode> StraightNeighbours(GroundNode node, string taxiway) =>
+        [.. node.Edges.OfType<GroundEdge>().Where(e => e.TaxiwayName == taxiway).Select(e => e.OtherNode(node)).DistinctBy(n => n.Id)];
+
+    /// <summary>The leg from <paramref name="from"/> to <paramref name="to"/> along their straight edge named <paramref name="taxiway"/>.</summary>
+    private static TaxiRouteSegment Leg(GroundNode from, GroundNode to, string taxiway)
+    {
+        GroundEdge edge = from.Edges.OfType<GroundEdge>().First(e => (e.TaxiwayName == taxiway) && (e.OtherNode(from).Id == to.Id));
+        return new TaxiRouteSegment { TaxiwayName = taxiway, Edge = edge.Directed(from, to) };
+    }
+
+    private static bool LeavesRunwayAt(AirportGroundLayout layout, GroundNode from, GroundNode bar, string taxiway) =>
+        HoldShortAnnotator.IsBarLeavingRunway(layout, Leg(from, bar, taxiway));
+
+    private static bool IsBarOrCentreline(GroundNode node) =>
+        (node.Type == GroundNodeType.RunwayHoldShort) || AirportGroundLayout.HasRunwayCenterlineEdge(node);
+
+    // -------------------------------------------------------------------------
     // AddDestinationHoldShort
     // -------------------------------------------------------------------------
 

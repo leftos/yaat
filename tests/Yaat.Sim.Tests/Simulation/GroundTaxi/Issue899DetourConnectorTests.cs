@@ -1234,54 +1234,24 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
         const string FromTaxiway = "C2";
         const string ToTaxiway = "A2";
         const string Onward = "A";
-        if ((CosStart(FromTaxiway, ToTaxiway) is not { } start) || (TestVnasData.NavigationDb is not { } navDb))
+        SimLogBuilder.CreateForTest(output).EnableCategory("HoldShortAnnotator", LogLevel.Debug).InitializeSimLog();
+        if (
+            CrossCosC2A2(
+                $"TAXI {FromTaxiway} {ToTaxiway} {Onward} HS {Onward}",
+                null,
+                null,
+                new CosScenario("test-yaat-1460-cos-c2-a2-hs-a", "COS C2/A2 across 17R/35L, HS A")
+            )
+            is not { } crossed
+        )
         {
             return;
         }
 
-        SimLogBuilder.CreateForTest(output).EnableCategory("HoldShortAnnotator", LogLevel.Debug).InitializeSimLog();
-        using IDisposable _ = NavigationDatabase.ScopedOverride(CosDeclaring(navDb, "A2", "C2", "17R/35L"));
-        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
-        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(start.Layout, "COS", start.Node, start.HeadingDeg);
-        engine.World.AddAircraft(aircraft);
-        engine.Scenario = new SimScenarioState
-        {
-            ScenarioId = "test-yaat-1460-cos-c2-a2-hs-a",
-            ScenarioName = "COS C2/A2 across 17R/35L, HS A",
-            RngSeed = 42,
-            OriginalScenarioJson = "{}",
-            PrimaryAirportId = "COS",
-            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
-        };
-
-        CommandResult taxi = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, $"TAXI {FromTaxiway} {ToTaxiway} {Onward} HS {Onward}");
-        output.WriteLine($"taxi: {taxi.Success} — {taxi.Message}");
-        Assert.True(taxi.Success, taxi.Message);
-        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-        output.WriteLine($"segments: {string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}->{s.ToNodeId}({s.TaxiwayName})"))}");
-        output.WriteLine($"holds: {string.Join(" ", route.HoldShortPoints.Select(h => $"{h.NodeId}:{h.Reason}:{h.TargetName}:{h.IsCleared}"))}");
-
+        (TaxiStart start, TaxiRoute route, GroundNode farBar, GroundNode onA, HoldRun run) = crossed;
         HoldShortPoint holdA = Assert.Single(route.HoldShortPoints, h => h.TargetName == Onward);
         Assert.NotEqual(GroundNodeType.RunwayHoldShort, start.Layout.Nodes[holdA.NodeId].Type);
 
-        AircraftState? holding = Issue1334OakDToFAcross33Tests.TickUntil(output, engine, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900);
-        HoldingShortPhase entryHold = Assert.IsType<HoldingShortPhase>(holding?.Phases?.CurrentPhase);
-        output.WriteLine($"holding short of {entryHold.HoldShort.TargetName} at node #{entryHold.HoldShort.NodeId}");
-        Assert.True(
-            IsCosRunwayBarOnTaxiway(start.Layout, entryHold.HoldShort.NodeId, FromTaxiway),
-            $"holding at #{entryHold.HoldShort.NodeId}, not {FromTaxiway}'s bar"
-        );
-
-        int farBarSegment = route.Segments.FindIndex(s => IsCosRunwayBarOnTaxiway(start.Layout, s.FromNodeId, ToTaxiway));
-        Assert.True(farBarSegment >= 0, $"the route never leaves {ToTaxiway}'s 17R/35L bar");
-        GroundNode farBar = start.Layout.Nodes[route.Segments[farBarSegment].FromNodeId];
-
-        GroundNode onA = FirstRouteNodeOnTaxiwayFrom(start.Layout, route, farBarSegment, Onward);
-        CommandResult cross = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "CROSS 35L");
-        output.WriteLine($"cross: {cross.Success} — {cross.Message}");
-        Assert.True(cross.Success, cross.Message);
-
-        HoldRun run = DriveToRestPastTheCrossing(engine, entryHold.HoldShort.NodeId, farBar, onA, 420);
         AircraftState atRest = Assert.IsType<AircraftState>(run.AtRest);
         HoldingShortPhase nextHold = Assert.IsType<HoldingShortPhase>(atRest.Phases?.CurrentPhase);
         Assert.Equal(Onward, nextHold.HoldShort.TargetName);
@@ -1315,6 +1285,55 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The jet twin of <see cref="CosC2A2_ExplicitHsA_HoldsShortOfAPastThe35LBar"/>: a B738 cleared <c>TAXI C2 A2 A HS A</c> across
+    /// COS 17R/35L, then <c>CROSS 35L</c>. Its stop for A lies just past the crossing's slice end, inside the jet's stop-cap reach
+    /// (<see cref="CrossingRunwayPhase"/>'s stop cap), so the crossing brakes onto that stop at the taxi rate: it rests within
+    /// <see cref="GroundNavigator.SetBackStopMarginFt"/> of the stop, and no sub-tick loses more than the jet's taxi decel takes off.
+    /// The premise is asserted too: on the crossing's last sub-tick the stop lies inside the cap's reach at the fastest speed
+    /// the crossing flew, so a layout or stop-placement drift fails here rather than leave the cap unexercised.
+    /// </summary>
+    [Fact]
+    public void CosC2A2_ExplicitHsA_Jet_CrossingBrakesOntoTheStopForA()
+    {
+        var scenario = new CosScenario("test-yaat-1473-cos-c2-a2-hs-a-jet", "COS C2/A2 across 17R/35L, HS A, B738");
+        if (CrossCosC2A2("TAXI C2 A2 A HS A", null, "B738", scenario) is not { } crossed)
+        {
+            return;
+        }
+
+        (TaxiStart start, _, GroundNode farBar, GroundNode onA, HoldRun run) = crossed;
+        AircraftState atRest = Assert.IsType<AircraftState>(run.AtRest);
+        HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(atRest.Phases?.CurrentPhase);
+        Assert.Equal("A", hold.HoldShort.TargetName);
+
+        double reachFt = StopCapReachFt(run.Crossing.FastestKts, atRest.AircraftType);
+        output.WriteLine(
+            $"crossing: fastest {run.Crossing.FastestKts:F2} kt, stop for A {run.Crossing.ToStopFt:F1} ft past the crossing's end, "
+                + $"cap reach {reachFt:F1} ft"
+        );
+        double halfFt = AircraftLength.ResolveFt(atRest.AircraftType) / 2.0;
+        double centrePastBarFt = GeoMath.DistanceNm(atRest.Position, farBar.Position) * GeoMath.FeetPerNm;
+        bool pastTheBar = GeoMath.DistanceNm(atRest.Position, start.Node.Position) > GeoMath.DistanceNm(farBar.Position, start.Node.Position);
+        double tailPastBarFt = pastTheBar ? centrePastBarFt - halfFt : -(centrePastBarFt + halfFt);
+        output.WriteLine($"held {centrePastBarFt:F1} ft from far bar #{farBar.Id}; tail {tailPastBarFt:F1} ft past it");
+        output.WriteLine($"nose past A's centreline node #{onA.Id} at most {run.NosePastFt:F1} ft");
+
+        // The B738 rests with its tail over 35L here; where a jet should rest after this crossing is YAAT-1890's decision, so this
+        // test pins only the stop cap's braking.
+        Assert.True(
+            run.Crossing.ToStopFt < reachFt,
+            $"the stop for A lay {run.Crossing.ToStopFt:F1} ft past the crossing's end, outside the stop cap's {reachFt:F1} ft reach"
+        );
+
+        AssertRestsAtItsStop(atRest, hold.HoldShort, farBar, GroundNavigator.SetBackStopMarginFt);
+        double maxLossKts = TaxiDecelPerSubTickKts(atRest) + 0.01;
+        Assert.True(
+            run.Losses.WorstKts <= maxLossKts,
+            $"the aircraft lost {run.Losses.WorstKts:F2} kt in one sub-tick at {run.Losses.WorstAt}, more than the taxi rate's {maxLossKts:F2} kt"
+        );
+    }
+
+    /// <summary>
     /// YAAT-1464: <c>TAXI C2 A2 A A3</c>, then <c>HS A</c> and <c>CROSS 35L</c> across COS 17R/35L. The hold short of A binds
     /// the first route node past A2's far bar, at the end of A2's fillet onto A, so the crossing's tail clearance never takes that
     /// fillet whole over the stop: the aircraft brakes onto the stop and holds short of A there.
@@ -1322,49 +1341,13 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     [Fact]
     public void CosC2A2_HsAOnARouteAcrossA_CrossesAndHoldsShortOfA()
     {
-        if ((CosStart("C2", "A2") is not { } start) || (TestVnasData.NavigationDb is not { } navDb))
+        var scenario = new CosScenario("test-yaat-1464-cos-c2-a2-a-a3-hs-a-cross", "COS C2/A2 across 17R/35L onto A, HS A, CROSS 35L");
+        if (CrossCosC2A2("TAXI C2 A2 A A3", "HS A", null, scenario) is not { } crossed)
         {
             return;
         }
 
-        using IDisposable _ = NavigationDatabase.ScopedOverride(CosDeclaring(navDb, "A2", "C2", "17R/35L"));
-        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
-        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(start.Layout, "COS", start.Node, start.HeadingDeg);
-        engine.World.AddAircraft(aircraft);
-        engine.Scenario = new SimScenarioState
-        {
-            ScenarioId = "test-yaat-1464-cos-c2-a2-a-a3-hs-a-cross",
-            ScenarioName = "COS C2/A2 across 17R/35L onto A, HS A, CROSS 35L",
-            RngSeed = 42,
-            OriginalScenarioJson = "{}",
-            PrimaryAirportId = "COS",
-            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
-        };
-
-        CommandResult taxi = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "TAXI C2 A2 A A3");
-        Assert.True(taxi.Success, taxi.Message);
-        CommandResult hs = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "HS A");
-        Assert.True(hs.Success, hs.Message);
-        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
-        output.WriteLine($"segments: {string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}->{s.ToNodeId}({s.TaxiwayName})"))}");
-        output.WriteLine($"holds: {string.Join(" ", route.HoldShortPoints.Select(h => $"{h.NodeId}:{h.Reason}:{h.TargetName}"))}");
-
-        AircraftState? holding = Issue1334OakDToFAcross33Tests.TickUntil(output, engine, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900);
-        HoldingShortPhase entryHold = Assert.IsType<HoldingShortPhase>(holding?.Phases?.CurrentPhase);
-        Assert.True(
-            IsCosRunwayBarOnTaxiway(start.Layout, entryHold.HoldShort.NodeId, "C2"),
-            $"holding at #{entryHold.HoldShort.NodeId}, not C2's bar"
-        );
-
-        int farBarSegment = route.Segments.FindIndex(s => IsCosRunwayBarOnTaxiway(start.Layout, s.FromNodeId, "A2"));
-        Assert.True(farBarSegment >= 0, "the route never leaves A2's 17R/35L bar");
-        GroundNode farBar = start.Layout.Nodes[route.Segments[farBarSegment].FromNodeId];
-        GroundNode onA = FirstRouteNodeOnTaxiwayFrom(start.Layout, route, farBarSegment, "A");
-
-        CommandResult cross = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "CROSS 35L");
-        Assert.True(cross.Success, cross.Message);
-
-        HoldRun run = DriveToRestPastTheCrossing(engine, entryHold.HoldShort.NodeId, farBar, onA, 420);
+        (_, _, GroundNode farBar, _, HoldRun run) = crossed;
         AircraftState atRest = Assert.IsType<AircraftState>(run.AtRest);
         HoldingShortPhase hold = Assert.IsType<HoldingShortPhase>(atRest.Phases?.CurrentPhase);
         Assert.Equal("A", hold.HoldShort.TargetName);
@@ -1389,7 +1372,131 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     /// guard node, the most speed it lost in one sub-tick and where, and the first sub-tick it held short past the crossing still
     /// counted as using 35L.
     /// </summary>
-    private sealed record HoldRun(AircraftState? AtRest, double NosePastFt, SpeedLossWatch Losses, string? CountedWhileHoldingAt);
+    private sealed record HoldRun(
+        AircraftState? AtRest,
+        double NosePastFt,
+        SpeedLossWatch Losses,
+        string? CountedWhileHoldingAt,
+        CrossingWatch Crossing
+    );
+
+    /// <summary>The scenario a <see cref="CrossCosC2A2"/> run is recorded under.</summary>
+    private sealed record CosScenario(string Id, string Name);
+
+    /// <summary>
+    /// What <see cref="CrossCosC2A2"/> staged and drove: the COS start, the assigned route, A2's far 35L bar, the first route node
+    /// on A past it, and the drive to rest past the crossing.
+    /// </summary>
+    private sealed record CosC2A2Crossing(TaxiStart Start, TaxiRoute Route, GroundNode FarBar, GroundNode OnA, HoldRun Run);
+
+    /// <summary>
+    /// The COS C2 → A2 crossing of 17R/35L onto A: an aircraft (a C172 unless <paramref name="aircraftType"/> names another) on C2
+    /// given <paramref name="taxiCommand"/>, then <paramref name="hsCommand"/> when one is given, held at C2's entry bar, cleared
+    /// <c>CROSS 35L</c>, and driven on physics sub-ticks to rest past the crossing (<see cref="DriveToRestPastTheCrossing"/>).
+    /// Null when the COS layout or the navigation database is not available.
+    /// </summary>
+    private CosC2A2Crossing? CrossCosC2A2(string taxiCommand, string? hsCommand, string? aircraftType, CosScenario scenario)
+    {
+        if ((CosStart("C2", "A2") is not { } start) || (TestVnasData.NavigationDb is not { } navDb))
+        {
+            return null;
+        }
+
+        using IDisposable _ = NavigationDatabase.ScopedOverride(CosDeclaring(navDb, "A2", "C2", "17R/35L"));
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        AircraftState aircraft = Issue1334OakDToFAcross33Tests.MakeAircraftAt(start.Layout, "COS", start.Node, start.HeadingDeg);
+        aircraft.AircraftType = aircraftType ?? aircraft.AircraftType;
+        engine.World.AddAircraft(aircraft);
+        engine.Scenario = new SimScenarioState
+        {
+            ScenarioId = scenario.Id,
+            ScenarioName = scenario.Name,
+            RngSeed = 42,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = "COS",
+            AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+        };
+
+        string[] commands = (hsCommand is null) ? [taxiCommand] : [taxiCommand, hsCommand];
+        foreach (string command in commands)
+        {
+            CommandResult result = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, command);
+            output.WriteLine($"{command}: {result.Success} — {result.Message}");
+            Assert.True(result.Success, result.Message);
+        }
+
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        output.WriteLine($"segments: {string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}->{s.ToNodeId}({s.TaxiwayName})"))}");
+        output.WriteLine($"holds: {string.Join(" ", route.HoldShortPoints.Select(h => $"{h.NodeId}:{h.Reason}:{h.TargetName}:{h.IsCleared}"))}");
+
+        AircraftState? holding = Issue1334OakDToFAcross33Tests.TickUntil(output, engine, ac => ac.Phases?.CurrentPhase is HoldingShortPhase, 900);
+        HoldingShortPhase entryHold = Assert.IsType<HoldingShortPhase>(holding?.Phases?.CurrentPhase);
+        output.WriteLine($"holding short of {entryHold.HoldShort.TargetName} at node #{entryHold.HoldShort.NodeId}");
+        Assert.True(
+            IsCosRunwayBarOnTaxiway(start.Layout, entryHold.HoldShort.NodeId, "C2"),
+            $"holding at #{entryHold.HoldShort.NodeId}, not C2's bar"
+        );
+
+        int farBarSegment = route.Segments.FindIndex(s => IsCosRunwayBarOnTaxiway(start.Layout, s.FromNodeId, "A2"));
+        Assert.True(farBarSegment >= 0, "the route never leaves A2's 17R/35L bar");
+        GroundNode farBar = start.Layout.Nodes[route.Segments[farBarSegment].FromNodeId];
+        GroundNode onA = FirstRouteNodeOnTaxiwayFrom(start.Layout, route, farBarSegment, "A");
+
+        CommandResult cross = engine.SendCommand(Issue1334OakDToFAcross33Tests.Callsign, "CROSS 35L");
+        output.WriteLine($"cross: {cross.Success} — {cross.Message}");
+        Assert.True(cross.Success, cross.Message);
+
+        HoldRun run = DriveToRestPastTheCrossing(engine, entryHold.HoldShort.NodeId, farBar, onA, 420);
+        return new CosC2A2Crossing(start, route, farBar, onA, run);
+    }
+
+    /// <summary>
+    /// What the crossing of a <see cref="DriveToRestPastTheCrossing"/> run flew: the fastest ground speed (kt) it reached, and how
+    /// far (ft) along the route the stop for A lay past the crossing's end, measured on the first sub-tick after the crossing
+    /// handed the route back (plus that sub-tick's travel, so never less than the gap from the slice end); infinite when the
+    /// crossing never handed back.
+    /// </summary>
+    private sealed class CrossingWatch
+    {
+        private bool _crossing;
+
+        public double FastestKts { get; private set; }
+
+        public double ToStopFt { get; private set; } = double.PositiveInfinity;
+
+        /// <summary>Records one sub-tick of <paramref name="ac"/>.</summary>
+        public void Sample(AircraftState ac)
+        {
+            if (ac.Phases?.CurrentPhase is CrossingRunwayPhase)
+            {
+                (_crossing, FastestKts) = (true, Math.Max(FastestKts, ac.GroundSpeed));
+                return;
+            }
+
+            if (
+                _crossing
+                && (ac.Ground.AssignedTaxiRoute is { } route)
+                && (ac.Ground.Layout is { } layout)
+                && (route.HoldShortPoints.FirstOrDefault(h => h.TargetName == "A") is { } holdA)
+            )
+            {
+                double subTickFt = ac.GroundSpeed * GroundStopBraking.FeetPerSecondPerKt / SimulationEngine.PhysicsSubTickRate;
+                ToStopFt = TaxiingPhase.AlongRouteDistanceToHoldShortFt(layout, route, ac.Position, holdA) + subTickFt;
+            }
+
+            _crossing = false;
+        }
+    }
+
+    /// <summary>
+    /// How near (ft) past the slice end an onward stop must lie for the crossing's stop cap to act at <paramref name="speedKts"/>:
+    /// the taxi-rate stopping distance, plus <see cref="GroundNavigator.SetBackStopMarginFt"/> and one sub-tick's travel, as
+    /// <see cref="CrossingRunwayPhase"/> weighs it. A stop that near the aircraft as the crossing ends is nearer the slice end still.
+    /// </summary>
+    private static double StopCapReachFt(double speedKts, string aircraftType) =>
+        GroundStopBraking.StoppingDistanceFt(speedKts, CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(aircraftType)))
+        + GroundNavigator.SetBackStopMarginFt
+        + (speedKts * GroundStopBraking.FeetPerSecondPerKt / SimulationEngine.PhysicsSubTickRate);
 
     /// <summary>
     /// Drives the aircraft on physics sub-ticks from a <c>CROSS</c> of COS 35L until it rests holding short of a bar other than
@@ -1404,6 +1511,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
         AircraftState aircraft = Assert.IsType<AircraftState>(engine.FindAircraft(Issue1334OakDToFAcross33Tests.Callsign));
         var way = new TrueHeading(GeoMath.BearingTo(farBar.Position, guard.Position));
         SpeedLossWatch losses = new(aircraft);
+        var crossing = new CrossingWatch();
         double nosePastFt = double.NegativeInfinity;
         string? countedWhileHoldingAt = null;
         int subTick = 0;
@@ -1421,6 +1529,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
                 LatLon nose = SegmentExpander.ProjectAlong(ac.Position, ac.TrueHeading.Degrees, AircraftLength.ResolveFt(ac.AircraftType) / 2.0);
                 nosePastFt = Math.Max(nosePastFt, GeoMath.AlongTrackDistanceNm(nose, guard.Position, way) * GeoMath.FeetPerNm);
                 losses.Sample();
+                crossing.Sample(ac);
                 bool holdingPast = (ac.Phases?.CurrentPhase is HoldingShortPhase held) && (held.HoldShort.NodeId != entryHoldNodeId);
                 if (!holdingPast)
                 {
@@ -1436,7 +1545,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
         );
         output.WriteLine($"drive: nose past #{guard.Id} at most {nosePastFt:F1} ft; worst sub-tick loss {losses.WorstKts:F2} kt at {losses.WorstAt}");
         output.WriteLine($"drive: last sub-tick {subTick}: {last}");
-        return new HoldRun(atRest, nosePastFt, losses, countedWhileHoldingAt);
+        return new HoldRun(atRest, nosePastFt, losses, countedWhileHoldingAt, crossing);
     }
 
     /// <summary>
