@@ -14,7 +14,7 @@ namespace Yaat.Sim.Phases.Tower;
 /// <c>FlightPhysics.UpdateNavigation</c>. A heading or direct-to command takes the aircraft off the
 /// procedure (the phase yields immediately).
 /// </summary>
-public sealed class DepartureProcedurePhase : Phase
+public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
 {
     private static readonly ILogger Log = SimLog.CreateLogger("DepartureProcedurePhase");
 
@@ -49,6 +49,18 @@ public sealed class DepartureProcedurePhase : Phase
 
     /// <summary>Fix-to-fix route loaded into NavigationRoute once the coded legs are flown.</summary>
     public required List<NavigationTarget> PostRoute { get; init; }
+
+    /// <summary>
+    /// The post-route while this phase flies the coded legs; null once a lateral instruction took the aircraft off them,
+    /// as the post-route is then never loaded.
+    /// </summary>
+    public List<NavigationTarget>? PendingRoute => _overridden ? null : PostRoute;
+
+    /// <summary>
+    /// Whether <see cref="Finish"/> loaded the post-route, so neither a later lateral instruction
+    /// (<see cref="OnCommandAccepted"/>) nor <see cref="OnEnd"/> applies its reverts as abandoned.
+    /// </summary>
+    private bool _handedOver;
 
     /// <summary>Controller-assigned climb-to altitude, if any (CTO bundled CM/DM).</summary>
     public int? AssignedAltitude { get; init; }
@@ -408,6 +420,8 @@ public sealed class DepartureProcedurePhase : Phase
         // altitude an unassigned IFR departure holds (7110.65 §4-3-2.e.5 / AIM 5-2-9.h.5).
         ctx.Targets.TargetAltitude =
             FlightPhysics.ClimbViaAltitude(ctx.Aircraft) ?? ctx.Targets.AssignedAltitude ?? ResolveSidHoldAltitude(ctx) ?? _climbCeiling;
+        // The live route is replaced, so the speed reverts its fixes held apply, as on any route change.
+        List<NavigationTarget> holders = NavigationCommandHandler.TakePendingSpeedReverts(ctx.Targets.NavigationRoute);
         ctx.Targets.NavigationRoute.Clear();
 
         var flown = new HashSet<string>(Legs.Where(l => l.FixName is not null).Select(l => l.FixName!), StringComparer.OrdinalIgnoreCase);
@@ -416,10 +430,17 @@ public sealed class DepartureProcedurePhase : Phase
         {
             start++;
         }
+
+        // The leading pending fixes the coded legs flew are not re-added, so a crossing speed a CFIX in the climb window
+        // put on one reverts here rather than being lost with it.
+        holders.AddRange(NavigationCommandHandler.TakePendingSpeedReverts(PostRoute.GetRange(0, start)));
         for (int i = start; i < PostRoute.Count; i++)
         {
             ctx.Targets.NavigationRoute.Add(PostRoute[i]);
         }
+
+        NavigationCommandHandler.ApplyTakenSpeedReverts(ctx.Aircraft, holders);
+        _handedOver = true;
 
         Log.LogDebug(
             "[DepartureProcedure] {Callsign}: coded legs complete, loaded {Count} route fixes",
@@ -522,8 +543,10 @@ public sealed class DepartureProcedurePhase : Phase
             or CanonicalCommandType.FlyPresentHeading
             or CanonicalCommandType.ForceHeading
             // The pilot keeps flying the SID laterally; a climb via or a forced altitude retargets the
-            // vertical path (AIM 5-2-9.h.3, h.10).
+            // vertical path (AIM 5-2-9.h.3, h.10). A crossing restriction stamps the pending route this
+            // phase hands over, and the coded legs keep steering.
             or CanonicalCommandType.ClimbVia
+            or CanonicalCommandType.CrossFix
             or CanonicalCommandType.ForceAltitude => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
@@ -550,13 +573,42 @@ public sealed class DepartureProcedurePhase : Phase
             or CanonicalCommandType.TurnRightDirectTo => true,
             _ => false,
         };
-        if (lateralOverride)
+        if (lateralOverride && !_overridden && !_handedOver)
         {
+            // The instruction abandons the post-route: the speed reverts a crossing in the climb window left on it apply now,
+            // before a later command of the same transmission sets speed, as a live route's reverts apply on a route change.
             _overridden = true;
+            ApplyAbandonedReverts(ctx);
         }
         if ((IsAltitudeFamilyCommand(cmd)) || (cmd == CanonicalCommandType.ForceAltitude))
         {
             _controllerAltitude = true;
+        }
+    }
+
+    /// <summary>
+    /// A phase that ends without its handover or a lateral instruction (the chain cleared) abandons the post-route here, so
+    /// the speed reverts a crossing in the climb window left on it apply, as on any fix a route change drops. A lateral
+    /// instruction applied them already (<see cref="OnCommandAccepted"/>).
+    /// </summary>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        if (!_handedOver && !_overridden)
+        {
+            ApplyAbandonedReverts(ctx);
+        }
+    }
+
+    /// <summary>
+    /// Applies the speed reverts the abandoned post-route holds and clears them, so no later exit applies them again.
+    /// </summary>
+    private void ApplyAbandonedReverts(PhaseContext ctx)
+    {
+        List<NavigationTarget> holders = NavigationCommandHandler.TakePendingSpeedReverts(PostRoute);
+        NavigationCommandHandler.ApplyTakenSpeedReverts(ctx.Aircraft, holders);
+        foreach (NavigationTarget holder in holders)
+        {
+            NavigationCommandHandler.ClearSpeedReverts(holder);
         }
     }
 

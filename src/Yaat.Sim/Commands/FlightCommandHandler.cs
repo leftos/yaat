@@ -1270,31 +1270,16 @@ internal static class FlightCommandHandler
         // dropped crossing's revert moves past the new crossing rather than being lost. A Mach restored as an IAS below
         // the handover altitude and an RNS, RPS or DSR leave no live state that says so, so they are read from the fixes
         // taken: each is what the dropped fix restored when neither SMAX nor (for the resume) a Mach came first there.
-        List<NavigationTarget> taken;
-        bool endsVia = false;
-        bool restatedWithVia = false;
-        List<NavigationTarget> speedStamped = [];
         StarCrossingFixes? starFixes = StarFixesForConstrainedDirect(cmd, aircraft);
-        if (starFixes is not null)
-        {
-            // Fixes consecutive on the active STAR's route, in order, keep the STAR from the first of them (7110.65
-            // 4-5-7.h; AIM 5-4-1.a.2): the fixes before it are dropped, and the crossings go onto the STAR's own fixes.
-            speedStamped = SpeedStampedStarFixes(cmd, starFixes);
-            taken = KeepStarForConstrainedDirect(aircraft, starFixes, speedStamped, transmissionId, out endsVia);
-            // After a DVIA of this same transmission has applied, the crossing is restated with it, as a CFIX is: no reverts,
-            // and the assigned altitude the via cleared is left alone. Read once every other via has ended (a CVIA too).
-            restatedWithVia = NavigationCommandHandler.ViaAppliedInTransmission(aircraft, transmissionId);
-        }
-        else
-        {
-            // Any other fixes replace the route, and the procedure ends.
-            ClearActiveProcedure(aircraft);
-            taken = NavigationCommandHandler.TakePendingSpeedReverts(aircraft.Targets.NavigationRoute);
-            aircraft.Targets.NavigationRoute.Clear();
-            NavigationCommandHandler.ApplyTakenSpeedReverts(aircraft, taken);
-        }
+        (
+            List<NavigationTarget> taken,
+            List<NavigationTarget> speedStamped,
+            bool endsVia,
+            bool restatedWithVia,
+            List<NavigationTarget> abandonedPending
+        ) = TakeRouteForConstrainedDirect(cmd, aircraft, starFixes, transmissionId);
 
-        bool speedMaxPending = NavigationCommandHandler.SpeedMaxPending(aircraft);
+        bool speedMaxPending = NavigationCommandHandler.SpeedMaxPending(aircraft, aircraft.Targets.NavigationRoute);
         NavigationTarget? takenMachHolder = taken.FindLast(fix => !fix.RevertSpeedMax && (fix.RevertMach is not null));
         SpeedResumeKind? takenResume = taken
             .FindLast(fix => !fix.RevertSpeedMax && (fix.RevertMach is null) && (fix.RevertResume is not null))
@@ -1338,7 +1323,11 @@ internal static class FlightCommandHandler
             speedMaxPending
         );
 
-        NavigationCommandHandler.PendingSpeedReverts pending = ClearTakenAndReadPendingSpeedReverts(aircraft, speedStamped, takenResume);
+        NavigationCommandHandler.PendingSpeedReverts pending = ClearTakenAndReadPendingSpeedReverts(
+            aircraft,
+            [.. speedStamped, .. abandonedPending],
+            takenResume
+        );
         StampConstrainedDirectFixes(aircraft, starFixes, crossing);
         if (cmd.SpeedConstraints is { Count: > 0 })
         {
@@ -1424,19 +1413,66 @@ internal static class FlightCommandHandler
     }
 
     /// <summary>
-    /// Clears the speed reverts of the kept fixes whose speed a constrained direct-to sets (<paramref name="speedStamped"/>):
-    /// they were taken and applied already and must not restore again when crossed. Called only once the reads of what
-    /// was taken (the Mach, the resume) are done. Returns the reverts still pending on the route, read after the clear:
-    /// those, on kept fixes whose speed the direct-to leaves alone, move past its last crossing speed as a CFIX moves
-    /// them, and a resume taken from a dropped or restated crossing (<paramref name="takenResume"/>) is carried the same way.
+    /// Takes what a constrained direct-to drops before it captures the speed state: the speed reverts of the pending
+    /// departure route it abandons (a crossing given in a SID's climb window), applied with the live route's, and either
+    /// the fixes before an active STAR it keeps (<paramref name="starFixes"/>, <see cref="KeepStarForConstrainedDirect"/>)
+    /// or the whole live route, which it clears ending the procedure. Returns every holder taken and applied, the kept STAR
+    /// fixes whose speed the direct-to sets, whether the STAR ends in a via, whether a DVIA of this transmission restates
+    /// the crossing, and the abandoned pending route's holders, which the caller clears once its reads are done so the
+    /// departure phase's own abandonment finds none left.
+    /// </summary>
+    private static (
+        List<NavigationTarget> Taken,
+        List<NavigationTarget> SpeedStamped,
+        bool EndsVia,
+        bool RestatedWithVia,
+        List<NavigationTarget> AbandonedPending
+    ) TakeRouteForConstrainedDirect(ConstrainedForceDirectToCommand cmd, AircraftState aircraft, StarCrossingFixes? starFixes, int transmissionId)
+    {
+        List<NavigationTarget> abandonedPending = NavigationCommandHandler.PendingDepartureRoute(aircraft) is { } pendingRoute
+            ? NavigationCommandHandler.TakePendingSpeedReverts(pendingRoute)
+            : [];
+        if (starFixes is not null)
+        {
+            NavigationCommandHandler.ApplyTakenSpeedReverts(aircraft, abandonedPending);
+            // Fixes consecutive on the active STAR's route, in order, keep the STAR from the first of them (7110.65
+            // 4-5-7.h; AIM 5-4-1.a.2): the fixes before it are dropped, and the crossings go onto the STAR's own fixes.
+            List<NavigationTarget> speedStamped = SpeedStampedStarFixes(cmd, starFixes);
+            List<NavigationTarget> dropped = KeepStarForConstrainedDirect(aircraft, starFixes, speedStamped, transmissionId, out bool endsVia);
+            List<NavigationTarget> taken = [.. abandonedPending, .. dropped];
+            // After a DVIA of this same transmission has applied, the crossing is restated with it, as a CFIX is: no reverts,
+            // and the assigned altitude the via cleared is left alone. Read once every other via has ended (a CVIA too).
+            bool restatedWithVia = NavigationCommandHandler.ViaAppliedInTransmission(aircraft, transmissionId);
+            return (taken, speedStamped, endsVia, restatedWithVia, abandonedPending);
+        }
+
+        // Any other fixes replace the route, and the procedure ends.
+        ClearActiveProcedure(aircraft);
+        List<NavigationTarget> replaced =
+        [
+            .. abandonedPending,
+            .. NavigationCommandHandler.TakePendingSpeedReverts(aircraft.Targets.NavigationRoute),
+        ];
+        aircraft.Targets.NavigationRoute.Clear();
+        NavigationCommandHandler.ApplyTakenSpeedReverts(aircraft, replaced);
+        return (replaced, [], false, false, abandonedPending);
+    }
+
+    /// <summary>
+    /// Clears the speed reverts of holders a constrained direct-to took and applied already (<paramref name="applied"/>:
+    /// the kept fixes whose speed it sets and the abandoned pending departure route's holders), so they do not restore
+    /// again when crossed or abandoned. Called only once the reads of what was taken (the Mach, the resume) are done.
+    /// Returns the reverts still pending on the route, read after the clear: those, on kept fixes whose speed the
+    /// direct-to leaves alone, move past its last crossing speed as a CFIX moves them, and a resume taken from a dropped
+    /// or restated crossing (<paramref name="takenResume"/>) is carried the same way.
     /// </summary>
     private static NavigationCommandHandler.PendingSpeedReverts ClearTakenAndReadPendingSpeedReverts(
         AircraftState aircraft,
-        List<NavigationTarget> speedStamped,
+        List<NavigationTarget> applied,
         SpeedResumeKind? takenResume
     )
     {
-        foreach (NavigationTarget holder in speedStamped)
+        foreach (NavigationTarget holder in applied)
         {
             NavigationCommandHandler.ClearSpeedReverts(holder);
         }
@@ -1489,7 +1525,7 @@ internal static class FlightCommandHandler
         {
             // Restated with this transmission's via, the crossing speed stays in force and is the assigned speed, as
             // when the via comes second and cancels the speeds before it.
-            NavigationCommandHandler.KeepTransmissionCrossingSpeed(aircraft, crossing.TransmissionId);
+            NavigationCommandHandler.KeepTransmissionCrossingSpeed(aircraft, aircraft.Targets.NavigationRoute, crossing.TransmissionId);
         }
         else if (crossing.SpeedMaxPending)
         {

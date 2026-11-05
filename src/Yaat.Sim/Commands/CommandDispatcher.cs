@@ -4948,7 +4948,7 @@ public static class CommandDispatcher
         }
         else
         {
-            NavigationCommandHandler.KeepTransmissionCrossingSpeed(aircraft, ctx.TransmissionId);
+            NavigationCommandHandler.KeepTransmissionCrossingSpeed(aircraft, NavigationCommandHandler.EffectiveRoute(aircraft), ctx.TransmissionId);
         }
 
         return result;

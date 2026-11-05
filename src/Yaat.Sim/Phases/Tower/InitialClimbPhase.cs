@@ -9,7 +9,7 @@ namespace Yaat.Sim.Phases.Tower;
 /// accelerates to normal climb speed. Self-clears when reaching
 /// target altitude. Handles navigation setup for route-based departures.
 /// </summary>
-public sealed class InitialClimbPhase : Phase
+public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
 {
     private static readonly ILogger Log = SimLog.CreateLogger("InitialClimbPhase");
 
@@ -82,7 +82,7 @@ public sealed class InitialClimbPhase : Phase
     public static InitialClimbPhase FromSnapshot(InitialClimbPhaseDto dto)
     {
         DepartureInstruction? departure = dto.Departure is not null ? DepartureInstruction.FromSnapshot(dto.Departure) : null;
-        var departureRoute = dto.DepartureRoute?.Select(NavigationTarget.FromSnapshot).ToList();
+        List<NavigationTarget> departureRoute = dto.DepartureRoute?.Select(NavigationTarget.FromSnapshot).ToList() ?? [];
         var phase = new InitialClimbPhase
         {
             Departure = departure,
@@ -121,8 +121,25 @@ public sealed class InitialClimbPhase : Phase
     /// <summary>Target altitude override from CTO command.</summary>
     public int? AssignedAltitude { get; init; }
 
-    /// <summary>Pre-resolved navigation targets for route-based departures.</summary>
-    public List<NavigationTarget>? DepartureRoute { get; init; }
+    /// <summary>Pre-resolved navigation targets for route-based departures; empty when there are none.</summary>
+    public List<NavigationTarget> DepartureRoute { get; init; } = [];
+
+    /// <summary>
+    /// <see cref="DepartureRoute"/> while a handover will load it: before the deferred-turn gate (the TERPS-gate hand-off to
+    /// <see cref="DepartureProcedurePhase"/> for a typed-leg SID, or a deferred-turn departure's route loading at the gate),
+    /// or while a radar-vectors SID holds its heading. Null otherwise, when the route is already live (loaded at once, at
+    /// the gate, or by a radar-vectors SID's hand-off ahead of the gate: <see cref="RouteLoadedAtHandoff"/>), or a
+    /// controller instruction replaced it.
+    /// </summary>
+    public List<NavigationTarget>? PendingRoute =>
+        ((DepartureRoute.Count > 0) && (!_deferredTurnApplied || _rvSidActive) && !RouteLoadedAtHandoff) ? DepartureRoute : null;
+
+    /// <summary>
+    /// Whether a radar-vectors SID's post-hand-off delay expired and loaded <see cref="DepartureRoute"/>
+    /// (<see cref="UpdateRvSidHeadingHold"/>). A hand-off below the deferred-turn gate loads it before the gate, so the
+    /// gate must not load it again.
+    /// </summary>
+    private bool RouteLoadedAtHandoff => !_rvSidActive && (_rvSidHandoffElapsed >= RvSidPostHandoffDelaySec);
 
     /// <summary>Whether the aircraft is VFR.</summary>
     public bool IsVfr { get; init; }
@@ -246,7 +263,7 @@ public sealed class InitialClimbPhase : Phase
             _targetAltitude,
             initialSpeed,
             DepartureSidId ?? "none",
-            DepartureRoute?.Count ?? 0
+            DepartureRoute.Count
         );
     }
 
@@ -352,6 +369,13 @@ public sealed class InitialClimbPhase : Phase
             return CommandAcceptance.Allowed;
         }
 
+        // A crossing restriction stamps the pending departure route while a handover will load it; with none pending it
+        // clears the phase, so a heading departure's crossing cannot leave the phase waiting on its heading.
+        if (cmd == CanonicalCommandType.CrossFix)
+        {
+            return PendingRoute is not null ? CommandAcceptance.Allowed : CommandAcceptance.ClearsPhase;
+        }
+
         return cmd switch
         {
             CanonicalCommandType.DirectTo
@@ -398,12 +422,17 @@ public sealed class InitialClimbPhase : Phase
 
         if (releasesRvSidHold)
         {
+            // The instruction replaces the departure route the hold was waiting to load: that route is abandoned, so the
+            // speed reverts a crossing left on it apply now, as on any fix a route change drops.
+            List<NavigationTarget>? abandoned = PendingRoute;
             _rvSidActive = false;
             _deferredTurnApplied = true;
+            ApplyAbandonedReverts(ctx, abandoned);
         }
     }
 
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) =>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
         // Clear any directional bias the departure set (RelativeTurnDeparture /
         // FlyHeadingDeparture / DirectFixDeparture with direction). The phase
         // exits at HeadingToleranceDeg=1.0°, but UpdateHeading's snap that
@@ -412,6 +441,26 @@ public sealed class InitialClimbPhase : Phase
         // navigation) would then inherit the stale direction and turn the
         // long way around to the next heading.
         ctx.Targets.PreferredTurnDirection = null;
+
+        // Ended with the route still pending (the chain cleared before its handover): the route is abandoned.
+        ApplyAbandonedReverts(ctx, PendingRoute);
+    }
+
+    private static void ApplyAbandonedReverts(PhaseContext ctx, List<NavigationTarget>? abandoned)
+    {
+        if (abandoned is null)
+        {
+            return;
+        }
+
+        // Cleared once applied, so no later exit applies them again.
+        List<NavigationTarget> holders = NavigationCommandHandler.TakePendingSpeedReverts(abandoned);
+        NavigationCommandHandler.ApplyTakenSpeedReverts(ctx.Aircraft, holders);
+        foreach (NavigationTarget holder in holders)
+        {
+            NavigationCommandHandler.ClearSpeedReverts(holder);
+        }
+    }
 
     /// <summary>
     /// Whether the departure instruction involves a turn away from runway heading.
@@ -428,7 +477,7 @@ public sealed class InitialClimbPhase : Phase
         var proc = new DepartureProcedurePhase
         {
             Legs = DepartureProcedureLegs!,
-            PostRoute = DepartureRoute ?? [],
+            PostRoute = DepartureRoute,
             AssignedAltitude = AssignedAltitude,
             CruiseAltitude = CruiseAltitude,
         };
@@ -448,11 +497,16 @@ public sealed class InitialClimbPhase : Phase
     {
         if (DepartureRoute is { Count: > 0 })
         {
+            // The departure route replaces the live one, so the speed reverts the live fixes held apply, as on any route
+            // change; the departure route's own fixes are re-added as they are, stamps and reverts included.
+            List<NavigationTarget> holders = NavigationCommandHandler.TakePendingSpeedReverts(ctx.Targets.NavigationRoute);
             ctx.Targets.NavigationRoute.Clear();
             foreach (NavigationTarget target in DepartureRoute)
             {
                 ctx.Targets.NavigationRoute.Add(target);
             }
+
+            NavigationCommandHandler.ApplyTakenSpeedReverts(ctx.Aircraft, holders);
 
             // For DirectFixDeparture with a turn direction (TRDCT/TLDCT), pre-set the
             // heading toward the first nav target with the preferred direction. Without
@@ -497,7 +551,9 @@ public sealed class InitialClimbPhase : Phase
         // route that the pilot picks up after the controller hands them off.
         // UpdateRvSidHeadingHold calls SetupDepartureNavigation when _rvSidActive
         // flips to false after the post-handoff delay.
-        if (!_rvSidActive)
+        // A hand-off below the gate already loaded the route (RouteLoadedAtHandoff): loading it again would apply the live
+        // fixes' speed reverts early and re-add fixes already flown.
+        if (!_rvSidActive && !RouteLoadedAtHandoff)
         {
             SetupDepartureNavigation(ctx);
         }

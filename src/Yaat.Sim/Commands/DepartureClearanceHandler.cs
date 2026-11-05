@@ -1302,7 +1302,7 @@ internal static class DepartureClearanceHandler
             {
                 Departure = departure,
                 AssignedAltitude = assignedAltitude,
-                DepartureRoute = routeResult?.Targets,
+                DepartureRoute = routeResult?.Targets ?? [],
                 DepartureSidId = routeResult?.SidId,
                 SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
                 RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? false,
@@ -2432,7 +2432,7 @@ internal static class DepartureClearanceHandler
         {
             Departure = departure,
             AssignedAltitude = assignedAltitude,
-            DepartureRoute = routeResult?.Targets,
+            DepartureRoute = routeResult?.Targets ?? [],
             DepartureSidId = routeResult?.SidId,
             SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? false,

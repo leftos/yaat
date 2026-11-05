@@ -259,10 +259,11 @@ internal static class NavigationCommandHandler
     private static SpeedRevertCapture CaptureSpeedRevert(AircraftState aircraft, bool revertsSpeed)
     {
         ControlTargets targets = aircraft.Targets;
-        bool speedMax = revertsSpeed && SpeedMaxPending(aircraft);
+        List<NavigationTarget> route = EffectiveRoute(aircraft);
+        bool speedMax = revertsSpeed && SpeedMaxPending(aircraft, route);
         // A Mach still held after an earlier crossing captured it is that crossing's pending revert, not a second one: it
         // moves past this crossing with the pending revert (PlaceCrossingSpeedReverts).
-        bool machRevertPending = targets.NavigationRoute.Exists(fix => fix.RevertMach is not null);
+        bool machRevertPending = route.Exists(fix => fix.RevertMach is not null);
         double? mach = (revertsSpeed && !speedMax && !machRevertPending) ? targets.TargetMach : null;
         if (revertsSpeed && !speedMax && (mach is null))
         {
@@ -396,24 +397,19 @@ internal static class NavigationCommandHandler
     /// </summary>
     internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        // A crossing speed is a speed assignment, refused for an arrival on final inside 5 nm exactly as a plain SPD is
-        // (7110.65 §5-7-1.b.4); a crossing with no speed is an altitude instruction and is accepted.
-        if ((cmd.Speed is not null) && (FlightCommandHandler.RefuseInsideFinalGate(aircraft) is { } insideFinal))
+        // While a SID handover is pending the crossing acts on the route the phase will hand over, never on the live route,
+        // which stays empty so the coded legs keep steering.
+        List<NavigationTarget>? pendingRoute = PendingDepartureRoute(aircraft);
+        if (RefuseCrossFix(cmd, aircraft, ctx, pendingRoute) is { } refused)
         {
-            return insideFinal;
+            return refused;
         }
 
-        if (
-            (cmd.Speed is { } crossingSpeed)
-            && (FlightCommandHandler.RefuseUnflyableSpeed(aircraft, ctx, crossingSpeed, SpeedModifier.None, cmd.Altitude) is { } unflyable)
-        )
-        {
-            return unflyable;
-        }
-
+        bool handoverPending = pendingRoute is not null;
+        List<NavigationTarget> route = pendingRoute ?? aircraft.Targets.NavigationRoute;
         int transmissionId = ctx.TransmissionId;
 
-        // Capture current altitude/speed for revert after fix passage
+        // The altitude and speed to revert to after fix passage.
         bool restatedWithVia = ViaAppliedInTransmission(aircraft, transmissionId);
         bool revertsAltitude = !restatedWithVia && !AltitudeRevertReversesTravel(aircraft.Altitude, cmd.Altitude, aircraft.Targets.TargetAltitude);
         double? previousAlt = revertsAltitude ? aircraft.Targets.TargetAltitude : null;
@@ -428,16 +424,12 @@ internal static class NavigationCommandHandler
 
         // The reverts already on the route are read before the stamp below, which clears them when this CFIX restates the
         // speed on the fix that holds them.
-        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
         var pending = PendingSpeedReverts.Read(route);
 
-        // CFIX names a fix that is already on the route. Stamp the restriction on that fix in
-        // place, preserving the rest of the route (fixes before and after) and any restriction
-        // already on another fix — so multiple CFIX commands are additive instead of clobbering
-        // one another. If the named fix is not on the route, append it (with its restriction) to
-        // the end of the route rather than wiping the route — so a chain of CFIX on a vectored
-        // aircraft builds a crossing profile in issue order. An empty route therefore becomes a
-        // single-fix direct route.
+        // CFIX stamps a fix already on the route in place, keeping the other fixes and their restrictions, so CFIX commands
+        // are additive. A fix not on the route is appended, so a chain of CFIX on a vectored aircraft builds a crossing
+        // profile in issue order (an empty route becomes a single-fix direct route). A coded-leg fix a pending route lacks
+        // goes first, where the handover drops it as flown and applies its reverts.
         NavigationTarget? existing = route.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
         // A crossing speed restated on a fix whose speed a controller already set, in any transmission, changes the
         // crossing figure only: what the aircraft goes back to past the fix is still what the first crossing replaced
@@ -446,7 +438,7 @@ internal static class NavigationCommandHandler
         NavigationTarget fix = existing ?? new NavigationTarget { Name = cmd.FixName, Position = new LatLon(cmd.FixLat, cmd.FixLon) };
         if (existing is null)
         {
-            route.Add(fix);
+            route.Insert(handoverPending ? 0 : route.Count, fix);
         }
 
         fix.AltitudeRestriction = altRestriction;
@@ -468,8 +460,10 @@ internal static class NavigationCommandHandler
         // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
         // But do set AssignedAltitude for the datablock display, unless this transmission's DVIA or CVIA already applied
         // and cleared it: both orders of "CFIX, DVIA" and of "CFIX, CVIA" then end with no assigned altitude. A cleared
-        // altitude that already meets the crossing's bound stays assigned (CrossingBoundMetByClearance).
-        if (!restatedWithVia && !CrossingBoundMetByClearance(aircraft, altRestriction))
+        // altitude that already meets the crossing's bound stays assigned (CrossingBoundMetByClearance). While a SID handover
+        // is pending none is written: a bare crossing gives no new altitude to maintain, and the handover reads the
+        // assigned altitude to choose the altitude it holds after the coded legs.
+        if (!handoverPending && !restatedWithVia && !CrossingBoundMetByClearance(aircraft, altRestriction))
         {
             aircraft.Targets.AssignedAltitude = cmd.Altitude;
         }
@@ -483,9 +477,8 @@ internal static class NavigationCommandHandler
             // A Mach hold stays live until the planner hands it over to the crossing speed (PlanCrossingUnderMach).
             FlightCommandHandler.EndSpeedMaxHold(aircraft);
 
-            // For acceleration, set TargetSpeed immediately so the aircraft starts
-            // accelerating toward the CFIX speed right away. For deceleration,
-            // the look-ahead planner (UpdateSpeedPlanning) handles timing.
+            // An acceleration toward the CFIX speed starts at once; the look-ahead planner (UpdateSpeedPlanning) times a
+            // deceleration.
             if (spdVal > aircraft.IndicatedAirspeed)
             {
                 aircraft.Targets.TargetSpeed = spdVal;
@@ -500,6 +493,77 @@ internal static class NavigationCommandHandler
         }
 
         return CommandDispatcher.Ok(CrossFixReadback(cmd));
+    }
+
+    /// <summary>
+    /// The route a crossing restriction acts on: while a SID handover is pending (<see cref="IPendingDepartureRoute"/>), the
+    /// pending route the departure phase will hand over, the one home of a crossing given there, which the handover re-adds
+    /// as it is; otherwise the live route.
+    /// </summary>
+    internal static List<NavigationTarget> EffectiveRoute(AircraftState aircraft) =>
+        PendingDepartureRoute(aircraft) ?? aircraft.Targets.NavigationRoute;
+
+    /// <summary>
+    /// The pending route of the current departure phase while a SID handover will load it
+    /// (<see cref="IPendingDepartureRoute.PendingRoute"/>); null when no handover is pending.
+    /// </summary>
+    internal static List<NavigationTarget>? PendingDepartureRoute(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase is IPendingDepartureRoute { PendingRoute: { } pending } ? pending : null;
+
+    /// <summary>
+    /// Refuses a CFIX before anything changes: a crossing speed for an arrival on final inside 5 nm, as a plain SPD is
+    /// (7110.65 §5-7-1.b.4; a crossing with no speed is an altitude instruction and is accepted), a crossing speed the type
+    /// cannot fly, and, while a SID handover is pending, a fix off the pending route (<see cref="RefuseOffPendingRoute"/>).
+    /// Null when the crossing may go ahead.
+    /// </summary>
+    private static CommandResult? RefuseCrossFix(
+        CrossFixCommand cmd,
+        AircraftState aircraft,
+        DispatchContext ctx,
+        List<NavigationTarget>? pendingRoute
+    )
+    {
+        if ((cmd.Speed is not null) && (FlightCommandHandler.RefuseInsideFinalGate(aircraft) is { } insideFinal))
+        {
+            return insideFinal;
+        }
+
+        if (
+            (cmd.Speed is { } crossingSpeed)
+            && (FlightCommandHandler.RefuseUnflyableSpeed(aircraft, ctx, crossingSpeed, SpeedModifier.None, cmd.Altitude) is { } unflyable)
+        )
+        {
+            return unflyable;
+        }
+
+        return RefuseOffPendingRoute(aircraft, pendingRoute, cmd.FixName);
+    }
+
+    /// <summary>
+    /// While a SID handover is pending (<paramref name="pendingRoute"/> not null), refuses as unable a crossing at a fix
+    /// that is neither on the pending route nor one of the coded legs' fixes the current phase flies or hands to. A filed
+    /// route token the pending route lacks is refused too: it is behind the aircraft, stripped as colocated with the
+    /// departure, or no fix ahead. Null when the crossing may go ahead.
+    /// </summary>
+    private static CommandResult? RefuseOffPendingRoute(AircraftState aircraft, List<NavigationTarget>? pendingRoute, string fixName)
+    {
+        if ((pendingRoute is null) || pendingRoute.Exists(f => f.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        IReadOnlyList<ProcedureLeg> codedLegs = aircraft.Phases?.CurrentPhase switch
+        {
+            DepartureProcedurePhase procedure => procedure.Legs,
+            InitialClimbPhase climb => climb.DepartureProcedureLegs ?? [],
+            _ => [],
+        };
+        if (codedLegs.Any(l => string.Equals(l.FixName, fixName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        return new CommandResult(false, $"unable, {FixDisplay(fixName)} isn't on our route");
     }
 
     /// <summary>The readback of a CFIX: the fix, the altitude with its at / at or above / at or below, and any speed.</summary>
@@ -1865,17 +1929,18 @@ internal static class NavigationCommandHandler
     /// resolution as <c>JARR</c> so the constraint semantics are identical (<see cref="OverlayPublishedRestrictions"/>).
     /// </summary>
     private static void OverlayStarRestrictions(AircraftState aircraft, CifpStarProcedure star, int transmissionId) =>
-        OverlayPublishedRestrictions(aircraft, PublishedStarRestrictions(star, aircraft), transmissionId);
+        OverlayPublishedRestrictions(aircraft.Targets.NavigationRoute, PublishedStarRestrictions(star, aircraft), transmissionId);
 
     /// <summary>
     /// Copies <paramref name="byName"/>'s published restrictions onto the route fixes of the same name, each axis on its
     /// own. A crossing altitude a CFIX in this same transmission stamped stays, and so does a speed this transmission set:
     /// the controller restated them with the via clearance. The other axis takes the published restriction, so an
-    /// altitude-only CFIX still gets the fix's published speed.
+    /// altitude-only CFIX still gets the fix's published speed. <paramref name="route"/> is the live route for a STAR and
+    /// the effective one for a SID (<see cref="EffectiveRoute"/>).
     /// </summary>
-    private static void OverlayPublishedRestrictions(AircraftState aircraft, Dictionary<string, NavigationTarget> byName, int transmissionId)
+    private static void OverlayPublishedRestrictions(List<NavigationTarget> route, Dictionary<string, NavigationTarget> byName, int transmissionId)
     {
-        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget fix in route)
         {
             if (!byName.TryGetValue(fix.Name, out NavigationTarget? source))
             {
@@ -1919,7 +1984,7 @@ internal static class NavigationCommandHandler
     {
         var published = new Lazy<Dictionary<string, NavigationTarget>>(() => publishedRestrictions(aircraft));
         var approachSpeeds = new Lazy<Dictionary<string, CifpSpeedRestriction>>(() => ClearedApproachSpeeds(aircraft));
-        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget fix in EffectiveRoute(aircraft))
         {
             if (AltitudeSetBefore(fix, transmissionId))
             {
@@ -1971,7 +2036,7 @@ internal static class NavigationCommandHandler
         {
             FlightCommandHandler.CancelAssignedSpeedKeepingProcedureFloor(aircraft);
             FlightCommandHandler.RestoreCrossedPublishedCeiling(aircraft);
-            KeepTransmissionCrossingSpeed(aircraft, transmissionId);
+            KeepTransmissionCrossingSpeed(aircraft, EffectiveRoute(aircraft), transmissionId);
         }
     }
 
@@ -1983,7 +2048,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     internal static void DropSpeedReverts(AircraftState aircraft)
     {
-        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget fix in EffectiveRoute(aircraft))
         {
             ClearSpeedReverts(fix);
         }
@@ -2069,7 +2134,7 @@ internal static class NavigationCommandHandler
             FlightCommandHandler.ApplySpeedResume(aircraft, resumed);
         }
 
-        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        List<NavigationTarget> route = EffectiveRoute(aircraft);
         NavigationTarget? firstCrossing = route.Find(fix => IsSpeedStampedBy(fix, transmissionId) && (fix.SpeedRestriction is not null));
         if (firstCrossing?.SpeedRestriction is not { } crossing)
         {
@@ -2168,10 +2233,11 @@ internal static class NavigationCommandHandler
 
     /// <summary>
     /// Whether a crossing speed set now reverts to SMAX past its crossings: SMAX is in force, or a route fix already
-    /// arms it again (<see cref="NavigationTarget.RevertSpeedMax"/>).
+    /// arms it again (<see cref="NavigationTarget.RevertSpeedMax"/>). <paramref name="route"/> is the route the crossing goes
+    /// on: the effective one for a CFIX (<see cref="EffectiveRoute"/>), the live one for a command that rebuilds it.
     /// </summary>
-    internal static bool SpeedMaxPending(AircraftState aircraft) =>
-        aircraft.Targets.SpeedMaxHeld || aircraft.Targets.NavigationRoute.Exists(fix => fix.RevertSpeedMax);
+    internal static bool SpeedMaxPending(AircraftState aircraft, List<NavigationTarget> route) =>
+        aircraft.Targets.SpeedMaxHeld || route.Exists(fix => fix.RevertSpeedMax);
 
     /// <summary>
     /// Puts SMAX's re-arm (<see cref="NavigationTarget.RevertSpeedMax"/>) on the route-order-last fix whose speed the
@@ -2243,7 +2309,7 @@ internal static class NavigationCommandHandler
     {
         Dictionary<string, CifpSpeedRestriction>? approachSpeeds = null;
         Dictionary<string, NavigationTarget>? starRestrictions = null;
-        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget fix in EffectiveRoute(aircraft))
         {
             if ((fix.SpeedTransmissionId is null) || IsSpeedStampedBy(fix, transmissionId))
             {
@@ -2326,10 +2392,10 @@ internal static class NavigationCommandHandler
     /// the data block, as when the crossing is issued after the clearance. The crossing itself stays on its fix, which the
     /// speed stamp keeps. An altitude-only CFIX restates no speed, so its fix's published speed is never assigned here.
     /// </summary>
-    internal static void KeepTransmissionCrossingSpeed(AircraftState aircraft, int transmissionId)
+    internal static void KeepTransmissionCrossingSpeed(AircraftState aircraft, List<NavigationTarget> route, int transmissionId)
     {
         NavigationTarget? first = null;
-        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
+        foreach (NavigationTarget fix in route)
         {
             if (!IsSpeedStampedBy(fix, transmissionId) || (fix.SpeedRestriction is null))
             {
@@ -2500,7 +2566,7 @@ internal static class NavigationCommandHandler
     /// (<see cref="OverlayPublishedRestrictions"/>).
     /// </summary>
     private static void OverlaySidRestrictions(AircraftState aircraft, CifpSidProcedure sid, int transmissionId) =>
-        OverlayPublishedRestrictions(aircraft, PublishedSidRestrictions(sid, aircraft), transmissionId);
+        OverlayPublishedRestrictions(EffectiveRoute(aircraft), PublishedSidRestrictions(sid, aircraft), transmissionId);
 
     /// <summary>The active SID's published restrictions by fix name; empty when the SID cannot be resolved.</summary>
     private static Dictionary<string, NavigationTarget> ActiveSidRestrictions(AircraftState aircraft)
@@ -2580,7 +2646,7 @@ internal static class NavigationCommandHandler
     {
         var filedTokens = new HashSet<string>(FiledRouteTokens(aircraft), StringComparer.OrdinalIgnoreCase);
         var commonFixes = new HashSet<string>(sid.CommonLegs.Select(l => l.FixIdentifier), StringComparer.OrdinalIgnoreCase);
-        var routeFixes = new HashSet<string>(aircraft.Targets.NavigationRoute.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
+        var routeFixes = new HashSet<string>(EffectiveRoute(aircraft).Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
         List<CifpTransition> flown =
         [
             .. sid.EnrouteTransitions.Values.Where(t =>

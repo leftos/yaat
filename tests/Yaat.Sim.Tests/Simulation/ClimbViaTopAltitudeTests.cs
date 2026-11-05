@@ -57,6 +57,21 @@ public class ClimbViaTopAltitudeTests
 
     private sealed record Departure(AircraftState Aircraft, PhaseContext Context, RunwayInfo Runway);
 
+    /// <summary>
+    /// A KOAK RWY30 departure <see cref="StartKoak30Departure"/> stages: filed <paramref name="Route"/> to
+    /// <paramref name="Destination"/>, cleared for takeoff with <paramref name="Instruction"/> and <paramref name="CtoAltitude"/>
+    /// or none (after a bare climb via in position with <paramref name="ClimbViaOnTheGround"/>), and put
+    /// <paramref name="HeightAglFt"/> above the field.
+    /// </summary>
+    private sealed record KoakDeparture(
+        string Destination,
+        string Route,
+        int? CtoAltitude,
+        bool ClimbViaOnTheGround,
+        DepartureInstruction Instruction,
+        double HeightAglFt
+    );
+
     private sealed record FlightResult(double MinAltitude, double MaxAltitude, bool SawDepartureProcedure);
 
     private sealed record Harness(SimulationEngine Engine, AircraftState Aircraft);
@@ -724,7 +739,7 @@ public class ClimbViaTopAltitudeTests
     [Fact]
     public void Cndel6_CtoFifty_NoClimbVia_LevelsAtAssigned()
     {
-        Departure departure = StartKoak30Departure(LoadZoa(), "KLAS", "CNDEL6 SUSEY", ctoAltitude: 5000, climbViaOnTheGround: false);
+        Departure departure = StartKoak30Departure(LoadZoa(), new KoakDeparture("KLAS", "CNDEL6 SUSEY", 5000, false, new DefaultDeparture(), 450));
 
         (double maxAltitude, double atPorte) = FlyPastPorteTrimmedThere(departure, _ => { });
 
@@ -740,7 +755,7 @@ public class ClimbViaTopAltitudeTests
     [Fact]
     public void Cndel6_CtoFifty_ThenClimbVia_RestrictionsAheadComeBack()
     {
-        Departure departure = StartKoak30Departure(LoadZoa(), "KLAS", "CNDEL6 SUSEY", ctoAltitude: 5000, climbViaOnTheGround: false);
+        Departure departure = StartKoak30Departure(LoadZoa(), new KoakDeparture("KLAS", "CNDEL6 SUSEY", 5000, false, new DefaultDeparture(), 450));
         AircraftState ac = departure.Aircraft;
 
         int? viaTop = null;
@@ -875,52 +890,647 @@ public class ClimbViaTopAltitudeTests
 
     /// <summary>
     /// A CVIA given inside the SID's climb window cancels a speed an earlier CFIX assigned, so it does not outlive the
-    /// window (7110.65 5-7-1). The CFIX fix is not on the pending route in the window, so its crossing is appended to the
-    /// live route and dropped at handover; the via clearance cancels the assigned speed, and the fix carries its
-    /// published restriction with no speed reverts.
+    /// window (7110.65 5-7-1). The CFIX keeps the departure phase and stamps its fix on the pending route the phase hands
+    /// over; the via clearance, in a later transmission, gives that pending fix its published speed back with no speed
+    /// reverts and cancels the assigned speed, while the coded legs still steer.
     /// </summary>
     [Fact]
     public void ClimbVia_InTheClimbWindow_CancelsAnEarlierCrossFixSpeedPastTheWindow()
     {
         Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
         AircraftState ac = departure.Aircraft;
-        DepartureProcedurePhase procedure = Assert.IsType<DepartureProcedurePhase>(Assert.IsType<PhaseList>(ac.Phases).CurrentPhase);
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
 
-        string fix = procedure.PostRoute[0].Name;
-        CifpSpeedRestriction? published = procedure.PostRoute[0].SpeedRestriction;
-        _output.WriteLine($"fix={fix} published={published}");
+        NavigationTarget pending = procedure.PostRoute[0];
+        CifpSpeedRestriction? published = pending.SpeedRestriction;
+        _output.WriteLine($"fix={pending.Name} published={published}");
 
-        Dispatch(ac, $"CFIX {fix} A100 230");
+        Dispatch(ac, $"CFIX {pending.Name} A100 230");
         Assert.Equal(230, ac.Targets.AssignedSpeed);
+        Assert.Equal(230, pending.SpeedRestriction?.SpeedKts);
 
         Dispatch(ac, "CVIA");
 
-        int elapsed = 0;
-        while ((elapsed < 600) && (ac.Phases?.CurrentPhase is DepartureProcedurePhase))
-        {
-            PhaseRunner.Tick(ac, departure.Context);
-            FlightPhysics.Update(ac, 1.0);
-            elapsed++;
-        }
-
-        Assert.False(
-            ac.Phases?.CurrentPhase is DepartureProcedurePhase,
-            $"still under the departure procedure after {elapsed} s: alt={ac.Altitude:F0} tgtAlt={ac.Targets.TargetAltitude:F0}"
-        );
+        Assert.Same(procedure, ac.Phases?.CurrentPhase);
         Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.Equal(published, pending.SpeedRestriction);
+        Assert.Null(pending.SpeedTransmissionId);
+        Assert.Null(pending.RevertSpeed);
+        Assert.Null(pending.RevertAssignedSpeed);
+    }
 
-        NavigationTarget? routed = ac.Targets.NavigationRoute.Find(f => f.Name == fix);
-        if (routed is null)
+    /// <summary>
+    /// A CFIX in the SID's climb window keeps the departure phase (YAAT-1699): the coded legs keep steering, the live route
+    /// stays empty, and the crossing stamps its fix on the pending route the phase hands over. A bare crossing gives no new
+    /// altitude to maintain, so the assigned altitude stays as it was.
+    /// </summary>
+    [Fact]
+    public void CrossFix_InClimbWindow_KeepsTheDeparturePhase()
+    {
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
+        NavigationTarget segul = PendingFix(procedure, "SEGUL");
+        double? assignedBefore = ac.Targets.AssignedAltitude;
+
+        Dispatch(ac, "CFIX SEGUL A100");
+
+        Assert.Same(procedure, ac.Phases?.CurrentPhase);
+        Assert.Empty(ac.Targets.NavigationRoute);
+        Assert.Equal(AtOrAboveAtc(10000), segul.AltitudeRestriction);
+        Assert.NotNull(segul.CrossingTransmissionId);
+        Assert.Equal(assignedBefore, ac.Targets.AssignedAltitude);
+    }
+
+    /// <summary>
+    /// A CFIX with an altitude and a speed on a pending fix beyond the coded legs survives the handover: the phase re-adds
+    /// the stamped pending fix itself, so the live route's fix carries the crossing, its stamps and its speed reverts.
+    /// </summary>
+    [Fact]
+    public void CrossFix_PendingFixBeyondCodedLegs_SurvivesTheHandover()
+    {
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
+        NavigationTarget pending = FirstPendingFixBeyondCodedLegs(procedure);
+        _output.WriteLine($"pending fix beyond the coded legs: {pending.Name}");
+
+        Dispatch(ac, $"CFIX {pending.Name} A100 230");
+        Assert.Same(procedure, ac.Phases?.CurrentPhase);
+        Assert.True(NavigationCommandHandler.HasSpeedRevert(pending), "setup: the crossing speed must hold a speed revert");
+
+        RunFinish(departure, procedure);
+
+        NavigationTarget live = RouteFix(ac, pending.Name);
+        Assert.Equal(AtOrAboveAtc(10000), live.AltitudeRestriction);
+        Assert.Equal(new CifpSpeedRestriction(230, CifpSpeedRestrictionType.AtOrBelow), live.SpeedRestriction);
+        Assert.NotNull(live.CrossingTransmissionId);
+        Assert.Equal(pending.CrossingTransmissionId, live.CrossingTransmissionId);
+        Assert.Equal(pending.SpeedTransmissionId, live.SpeedTransmissionId);
+        Assert.True(NavigationCommandHandler.HasSpeedRevert(live), $"{live.Name} lost its speed revert at the handover");
+        Assert.Equal(pending.RevertSpeed, live.RevertSpeed);
+        Assert.Equal(pending.RevertAssignedSpeed, live.RevertAssignedSpeed);
+        Assert.Equal(pending.RevertAltitude, live.RevertAltitude);
+        Assert.Equal(pending.RevertAssignedAltitude, live.RevertAssignedAltitude);
+    }
+
+    /// <summary>
+    /// While a SID handover is pending, a CFIX on a fix that is on neither the pending route, the coded legs nor the filed
+    /// route is refused as unable, and nothing changes: the departure phase and its pending route stay as they were.
+    /// </summary>
+    [Fact]
+    public void CrossFix_OffRoute_InClimbWindow_IsRefusedAndSidKept()
+    {
+        const string offRoute = "SAC";
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
+        List<string> pendingBefore = [.. procedure.PostRoute.Select(f => f.Name)];
+        _output.WriteLine($"pending route: {string.Join(" ", pendingBefore)}; filed: {ac.FlightPlan.Route}");
+        Assert.DoesNotContain(offRoute, pendingBefore, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain(procedure.Legs, l => string.Equals(l.FixName, offRoute, StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(offRoute, ac.FlightPlan.Route.Split(' '), StringComparer.OrdinalIgnoreCase);
+
+        CommandResult result = DispatchResult(ac, $"CFIX {offRoute} A100");
+
+        Assert.False(result.Success, $"the off-route CFIX was accepted: {result.Message}");
+        Assert.Equal($"unable, {PhraseologyVerbalizer.FixDisplayTextUpper(offRoute)} isn't on our route", result.Message);
+        Assert.Same(procedure, ac.Phases?.CurrentPhase);
+        Assert.Equal(pendingBefore, procedure.PostRoute.Select(f => f.Name));
+        Assert.All(procedure.PostRoute, f => Assert.Null(f.CrossingTransmissionId));
+        Assert.Empty(ac.Targets.NavigationRoute);
+    }
+
+    /// <summary>
+    /// A CFIX with a speed on the coded legs' CF fix (COAST9: VD, VM, CF SEGUL) stamps that fix's pending entry, which the
+    /// handover drops as flown: it applies the fix's speed revert once there, so the crossing speed is not left assigned
+    /// past the coded legs.
+    /// </summary>
+    [Fact]
+    public void CrossFix_SpeedOnCodedLegFix_RevertsAtTheHandover()
+    {
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
+        _output.WriteLine($"legs={string.Join(",", procedure.Legs.Select(l => $"{l.Type}:{l.FixName}"))}");
+        _output.WriteLine($"pending={string.Join(" ", procedure.PostRoute.Select(f => f.Name))}");
+        Assert.Contains(procedure.Legs, l => l.FixName == "SEGUL");
+        NavigationTarget segul = procedure.PostRoute[0];
+        Assert.Equal("SEGUL", segul.Name);
+        double? assignedBefore = ac.Targets.AssignedSpeed;
+
+        Dispatch(ac, "CFIX SEGUL A100 230");
+        Assert.Same(procedure, ac.Phases?.CurrentPhase);
+        Assert.Equal(230, ac.Targets.AssignedSpeed);
+        double revertSpeed = Assert.NotNull(segul.RevertSpeed);
+        Assert.Equal(assignedBefore, segul.RevertAssignedSpeed);
+
+        RunFinish(departure, procedure);
+
+        _output.WriteLine($"after the handover: assigned={ac.Targets.AssignedSpeed} target={ac.Targets.TargetSpeed} revert={revertSpeed}");
+        Assert.Equal(assignedBefore, ac.Targets.AssignedSpeed);
+        Assert.Equal(revertSpeed, ac.Targets.TargetSpeed);
+        Assert.DoesNotContain(ac.Targets.NavigationRoute, f => f.Name == "SEGUL");
+    }
+
+    /// <summary>
+    /// A CVIA in a later transmission than a CFIX on a pending fix beyond the coded legs cancels that crossing: the pending
+    /// fix gets its published restriction and speed back, with no stamps and no reverts, and the assigned speed goes. Given
+    /// in the same transmission as the CFIX, the via clearance restates the crossing, which keeps its stamp.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ClimbVia_AfterAWindowCrossing_CancelsOnlyInALaterTransmission(bool sameTransmission)
+    {
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
+        NavigationTarget pending = FirstPendingFixBeyondCodedLegs(procedure);
+        CifpAltitudeRestriction? publishedAltitude = pending.AltitudeRestriction;
+        CifpSpeedRestriction? publishedSpeed = pending.SpeedRestriction;
+        _output.WriteLine($"fix={pending.Name} published={publishedAltitude}/{publishedSpeed}");
+
+        if (sameTransmission)
         {
-            _output.WriteLine($"{fix} is not on the route after the procedure completed");
+            Dispatch(ac, $"CFIX {pending.Name} A100 230, CVIA");
         }
         else
         {
-            Assert.Equal(published, routed.SpeedRestriction);
-            Assert.Null(routed.SpeedTransmissionId);
-            Assert.Null(routed.RevertSpeed);
-            Assert.Null(routed.RevertAssignedSpeed);
+            Dispatch(ac, $"CFIX {pending.Name} A100 230");
+            Dispatch(ac, "CVIA");
         }
+
+        Assert.Same(procedure, ac.Phases?.CurrentPhase);
+        AssertNoReverts(pending);
+        Assert.False(NavigationCommandHandler.HasSpeedRevert(pending), $"{pending.Name} kept a speed revert");
+        if (sameTransmission)
+        {
+            Assert.Equal(AtOrAboveAtc(10000), pending.AltitudeRestriction);
+            Assert.NotNull(pending.CrossingTransmissionId);
+            Assert.Equal(new CifpSpeedRestriction(230, CifpSpeedRestrictionType.AtOrBelow), pending.SpeedRestriction);
+            Assert.NotNull(pending.SpeedTransmissionId);
+        }
+        else
+        {
+            Assert.Equal(publishedAltitude, pending.AltitudeRestriction);
+            Assert.Null(pending.CrossingTransmissionId);
+            Assert.Equal(publishedSpeed, pending.SpeedRestriction);
+            Assert.Null(pending.SpeedTransmissionId);
+            Assert.Null(ac.Targets.AssignedSpeed);
+        }
+    }
+
+    /// <summary>
+    /// A CFIX given while an RV SID holds its heading keeps the initial climb: the heading hold and the deferred turn stay,
+    /// and the crossing stamps the departure route the phase loads after the hand-off, so the live route then holds it.
+    /// </summary>
+    [Fact]
+    public void InitialClimb_RvSidCfix_KeepsHeadingHoldAndStampsTheRoute()
+    {
+        Departure departure = StartKoak30Departure(LoadZoa(), RvSidNimi5(heightAglFt: 450));
+        AircraftState ac = departure.Aircraft;
+        InitialClimbPhase climb = Assert.IsType<InitialClimbPhase>(ac.Phases?.CurrentPhase);
+        InitialClimbPhaseDto before = Assert.IsType<InitialClimbPhaseDto>(climb.ToSnapshot());
+        _output.WriteLine(
+            $"rv={before.RvSidActive} turnApplied={before.VfrTurnApplied} route={string.Join(" ", climb.DepartureRoute.Select(f => f.Name))}"
+        );
+        Assert.True(before.RvSidActive, "setup: the NIMI5 departure must hold its radar-vectors heading");
+        Assert.Empty(ac.Targets.NavigationRoute);
+        NavigationTarget pending = climb.DepartureRoute[0];
+        TrueHeading? headingBefore = ac.Targets.TargetTrueHeading;
+
+        Dispatch(ac, $"CFIX {pending.Name} A100");
+
+        Assert.Same(climb, ac.Phases?.CurrentPhase);
+        InitialClimbPhaseDto after = Assert.IsType<InitialClimbPhaseDto>(climb.ToSnapshot());
+        Assert.Equal(before.RvSidActive, after.RvSidActive);
+        Assert.Equal(before.VfrTurnApplied, after.VfrTurnApplied);
+        Assert.Equal(headingBefore, ac.Targets.TargetTrueHeading);
+        Assert.Equal(AtOrAboveAtc(10000), pending.AltitudeRestriction);
+        Assert.NotNull(pending.CrossingTransmissionId);
+        Assert.Empty(ac.Targets.NavigationRoute);
+
+        ac.HasLeftStudentFrequency = true;
+        for (int t = 0; (t < 30) && !ac.Targets.NavigationRoute.Exists(f => ReferenceEquals(f, pending)); t++)
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+            FlightPhysics.Update(ac, 1.0);
+        }
+
+        NavigationTarget live = Assert.Single(ac.Targets.NavigationRoute, f => f.Name == pending.Name);
+        Assert.Same(pending, live);
+        Assert.Equal(AtOrAboveAtc(10000), live.AltitudeRestriction);
+        Assert.NotNull(live.CrossingTransmissionId);
+    }
+
+    /// <summary>
+    /// An RV SID that defers its vectors heading to the 400 ft AGL gate and is handed off below it loads the departure route
+    /// at the hand-off, once: the gate then loads nothing more, so a window CFIX's speed revert stays on its live fix until
+    /// the aircraft sequences it, and the phase holds no pending route once the route is live. With
+    /// <paramref name="roundTripBeforeTheGate"/> an aircraft snapshot round trip between the hand-off load and the gate
+    /// keeps that.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RvSid_DeferredHeading_EarlyHandoff_LoadsTheRouteOnce(bool roundTripBeforeTheGate)
+    {
+        Departure departure = StartKoak30Departure(LoadZoa(), RvSidNimi5(heightAglFt: 20));
+        AircraftState ac = departure.Aircraft;
+        PhaseContext ctx = departure.Context;
+        double gateFt = departure.Runway.ElevationFt + 400;
+        InitialClimbPhase climb = Assert.IsType<InitialClimbPhase>(ac.Phases?.CurrentPhase);
+        InitialClimbPhaseDto before = Assert.IsType<InitialClimbPhaseDto>(climb.ToSnapshot());
+        List<string> routeNames = [.. climb.DepartureRoute.Select(f => f.Name)];
+        _output.WriteLine($"rv={before.RvSidActive} turnApplied={before.VfrTurnApplied} route={string.Join(" ", routeNames)}");
+        Assert.True(before.RvSidActive, "setup: the NIMI5 departure must hold its radar-vectors heading");
+        Assert.True(climb.RvSidDeferHeadingUntilMinAlt, "setup: the NIMI5 departure must defer its vectors heading to the gate");
+        Assert.False(before.VfrTurnApplied, "setup: the aircraft must start below the deferred-turn gate");
+        Assert.Contains("FESIK", routeNames);
+        double? assignedBefore = ac.Targets.AssignedSpeed;
+
+        Dispatch(ac, "CFIX FESIK A100 230");
+        Assert.Same(climb, ac.Phases?.CurrentPhase);
+        Assert.Equal(230, ac.Targets.AssignedSpeed);
+        Assert.True(NavigationCommandHandler.HasSpeedRevert(climb.DepartureRoute.Single(f => f.Name == "FESIK")), "setup: no speed revert");
+
+        ac.HasLeftStudentFrequency = true;
+        for (int t = 0; (t < 30) && (ac.Targets.NavigationRoute.Count == 0); t++)
+        {
+            PhaseRunner.Tick(ac, ctx);
+            FlightPhysics.Update(ac, 1.0);
+        }
+
+        _output.WriteLine($"route live at alt={ac.Altitude:F0} (gate {gateFt:F0}), assigned={ac.Targets.AssignedSpeed}");
+        Assert.NotEmpty(ac.Targets.NavigationRoute);
+        Assert.True(ac.Altitude < gateFt, $"setup: the hand-off load must come below the gate, at {ac.Altitude:F0} ft");
+        Assert.Same(climb, ac.Phases?.CurrentPhase);
+        Assert.Null(climb.PendingRoute);
+
+        if (roundTripBeforeTheGate)
+        {
+            ac = AircraftState.FromSnapshot(ac.ToSnapshot(), groundLayout: null);
+            ctx = NewContext(ac, departure.Runway);
+            climb = Assert.IsType<InitialClimbPhase>(ac.Phases?.CurrentPhase);
+            Assert.Null(climb.PendingRoute);
+        }
+
+        List<double?> assignedSeen = [ac.Targets.AssignedSpeed];
+        bool fesikSequenced = false;
+        for (int t = 0; (t < 1200) && !fesikSequenced; t++)
+        {
+            PhaseRunner.Tick(ac, ctx);
+            FlightPhysics.Update(ac, 1.0);
+            if (ac.Targets.AssignedSpeed != assignedSeen[^1])
+            {
+                assignedSeen.Add(ac.Targets.AssignedSpeed);
+            }
+
+            if ((ac.Altitude >= gateFt + 100) && (ac.Phases?.CurrentPhase is InitialClimbPhase current))
+            {
+                Assert.Null(current.PendingRoute);
+            }
+
+            if (ac.Altitude < gateFt + 100)
+            {
+                Assert.Equal(routeNames, ac.Targets.NavigationRoute.Select(f => f.Name));
+                Assert.Equal(230, ac.Targets.AssignedSpeed);
+            }
+
+            fesikSequenced = !ac.Targets.NavigationRoute.Exists(f => f.Name == "FESIK");
+        }
+
+        _output.WriteLine($"assigned speeds seen: {string.Join(" -> ", assignedSeen.Select(s => s?.ToString() ?? "none"))}");
+        Assert.True(fesikSequenced, "FESIK was not sequenced");
+        Assert.True(ac.Altitude >= gateFt, "the aircraft never flew through the gate");
+        Assert.Equal([230, assignedBefore], assignedSeen);
+    }
+
+    /// <summary>
+    /// A window CFIX with a speed on a pending fix, then "FH 270, SPD 250" in one later transmission: the vector abandons
+    /// the pending route, whose speed revert applies at once, before the SPD of the same block, so the SPD 250 holds after
+    /// the next ticks and the fix keeps no revert. <paramref name="rvHold"/> stages it on a radar-vectors SID's heading
+    /// hold (<see cref="InitialClimbPhase"/>) instead of the COAST9 coded legs (<see cref="DepartureProcedurePhase"/>).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CrossFix_SpeedInWindow_ThenVectoredWithSpeed_KeepsTheNewSpeed(bool rvHold)
+    {
+        (Departure departure, NavigationTarget fix, _) = CrossWithSpeedOnPendingFix(rvHold);
+        AircraftState ac = departure.Aircraft;
+
+        Dispatch(ac, "FH 270, SPD 250");
+        Assert.Equal(250, ac.Targets.AssignedSpeed);
+
+        for (int t = 0; t < 5; t++)
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+            FlightPhysics.Update(ac, 1.0);
+            Assert.Equal(250, ac.Targets.AssignedSpeed);
+        }
+
+        Assert.False(NavigationCommandHandler.HasSpeedRevert(fix), $"{fix.Name} kept its speed revert past the vector");
+
+        for (int t = 0; t < 300; t++)
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+            FlightPhysics.Update(ac, 1.0);
+            Assert.Equal(250, ac.Targets.AssignedSpeed);
+        }
+    }
+
+    /// <summary>
+    /// A window CFIX with a speed on a pending fix, then a constrained direct-to that fix with its own speed in a later
+    /// transmission: the pending route's revert applies with the direct-to's own, before it captures the speed it
+    /// replaces, so the assigned speed is the pre-CFIX one again, the fix carries the direct-to's crossing speed and a
+    /// revert to the pre-CFIX speed, and the CFIX's 230 never comes back, at the fix or past it. <paramref name="rvHold"/> as in
+    /// <see cref="CrossFix_SpeedInWindow_ThenVectoredWithSpeed_KeepsTheNewSpeed"/>.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CrossFix_SpeedInWindow_ThenConstrainedDctf_KeepsTheDctfSpeedState(bool rvHold)
+    {
+        (Departure departure, NavigationTarget fix, double? assignedBefore) = CrossWithSpeedOnPendingFix(rvHold);
+        AircraftState ac = departure.Aircraft;
+
+        // The text parser builds no constrained direct-to speed, so the command is built as ConstrainedDctfKeepsStarTests does.
+        var direct = new ConstrainedForceDirectToCommand(
+            [new ResolvedFix(fix.Name, fix.Position.Lat, fix.Position.Lon)],
+            new Dictionary<int, ConstrainedFixAltitude> { [0] = new(8000, CrossFixAltitudeType.AtOrAbove) },
+            new Dictionary<int, int> { [0] = 250 },
+            null
+        );
+        CommandResult result = CommandDispatcher.DispatchCompound(
+            new CompoundCommand([new ParsedBlock(null, [direct])]),
+            ac,
+            TestDispatch.Context(Random.Shared, artccConfig: LoadZoa())
+        );
+        _output.WriteLine($"DCTF {fix.Name}/A080 250 -> {result.Message}");
+        Assert.True(result.Success, result.Message);
+
+        NavigationTarget live = RouteFix(ac, fix.Name);
+        _output.WriteLine($"after DCTF: assigned={ac.Targets.AssignedSpeed} before={assignedBefore}");
+        _output.WriteLine($"after DCTF: restriction={live.SpeedRestriction} revertAssigned={live.RevertAssignedSpeed}");
+        Assert.Equal(assignedBefore, ac.Targets.AssignedSpeed);
+        Assert.Equal(new CifpSpeedRestriction(250, CifpSpeedRestrictionType.AtOrBelow), live.SpeedRestriction);
+        Assert.True(NavigationCommandHandler.HasSpeedRevert(live), $"{live.Name} holds no speed revert");
+        Assert.Equal(assignedBefore, live.RevertAssignedSpeed);
+
+        bool sequenced = false;
+        for (int t = 0; (t < 1500) && !sequenced; t++)
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+            FlightPhysics.Update(ac, 1.0);
+            sequenced = !ac.Targets.NavigationRoute.Contains(live);
+            Assert.NotEqual(230, ac.Targets.AssignedSpeed);
+        }
+
+        Assert.True(sequenced, $"{live.Name} was not sequenced");
+        Assert.Equal(assignedBefore, ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// Stages a window crossing with a speed, "CFIX {fix} A100 230", on the first pending fix beyond the coded legs of a
+    /// COAST9 departure in its climb window, or with <paramref name="rvHold"/> on the first fix of a NIMI5 departure's
+    /// pending route while it holds its radar-vectors heading. Returns the assigned speed before the crossing.
+    /// </summary>
+    private (Departure Departure, NavigationTarget Fix, double? AssignedBefore) CrossWithSpeedOnPendingFix(bool rvHold)
+    {
+        Departure departure;
+        NavigationTarget fix;
+        if (rvHold)
+        {
+            departure = StartKoak30Departure(LoadZoa(), RvSidNimi5(heightAglFt: 450));
+            InitialClimbPhase climb = Assert.IsType<InitialClimbPhase>(departure.Aircraft.Phases?.CurrentPhase);
+            List<NavigationTarget> pending = Assert.IsType<List<NavigationTarget>>(climb.PendingRoute);
+            fix = pending[0];
+        }
+        else
+        {
+            departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+            fix = FirstPendingFixBeyondCodedLegs(CurrentProcedure(departure.Aircraft));
+        }
+
+        AircraftState ac = departure.Aircraft;
+        double? assignedBefore = ac.Targets.AssignedSpeed;
+        _output.WriteLine($"pending fix {fix.Name}, assigned speed before the crossing: {assignedBefore}");
+        Dispatch(ac, $"CFIX {fix.Name} A100 230");
+        Assert.Equal(230, ac.Targets.AssignedSpeed);
+        Assert.True(NavigationCommandHandler.HasSpeedRevert(fix), "setup: the crossing speed must hold a speed revert");
+        Assert.Empty(ac.Targets.NavigationRoute);
+        return (departure, fix, assignedBefore);
+    }
+
+    /// <summary>A CFIX stamped on the pending route mid-window survives an aircraft snapshot round trip.</summary>
+    [Fact]
+    public void CrossFix_InClimbWindow_RoundTripsThroughSnapshot()
+    {
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
+        NavigationTarget segul = PendingFix(procedure, "SEGUL");
+
+        Dispatch(ac, "CFIX SEGUL A100 230");
+        Assert.Same(procedure, ac.Phases?.CurrentPhase);
+
+        var restored = AircraftState.FromSnapshot(ac.ToSnapshot(), groundLayout: null);
+        NavigationTarget restoredSegul = PendingFix(CurrentProcedure(restored), "SEGUL");
+
+        Assert.Equal(AtOrAboveAtc(10000), restoredSegul.AltitudeRestriction);
+        Assert.Equal(segul.SpeedRestriction, restoredSegul.SpeedRestriction);
+        Assert.NotNull(restoredSegul.CrossingTransmissionId);
+        Assert.Equal(segul.CrossingTransmissionId, restoredSegul.CrossingTransmissionId);
+        Assert.Equal(segul.SpeedTransmissionId, restoredSegul.SpeedTransmissionId);
+        Assert.Equal(segul.RevertSpeed, restoredSegul.RevertSpeed);
+        Assert.Equal(segul.RevertAssignedSpeed, restoredSegul.RevertAssignedSpeed);
+        Assert.Empty(restored.Targets.NavigationRoute);
+    }
+
+    /// <summary>
+    /// "DCT MCKEY, CFIX MCKEY A100 230" in the climb window: the direct-to takes the aircraft off the coded legs first, so no
+    /// handover is pending and the crossing stamps the live route the direct-to built. Nothing is left on the abandoned
+    /// pending route, and past MCKEY the speed goes back to what it was.
+    /// </summary>
+    [Fact]
+    public void CrossFix_DctThenCfixSameBlock_InClimbWindow_StampsTheLiveRoute()
+    {
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
+        double? assignedBefore = ac.Targets.AssignedSpeed;
+
+        Dispatch(ac, "DCT MCKEY, CFIX MCKEY A100 230");
+
+        NavigationTarget mckey = RouteFix(ac, "MCKEY");
+        Assert.Equal(AtOrAboveAtc(10000), mckey.AltitudeRestriction);
+        Assert.NotNull(mckey.CrossingTransmissionId);
+        Assert.True(NavigationCommandHandler.HasSpeedRevert(mckey), "the live MCKEY must hold the crossing's speed revert");
+        Assert.DoesNotContain(procedure.PostRoute, f => f.CrossingTransmissionId is not null);
+        Assert.DoesNotContain(procedure.PostRoute, NavigationCommandHandler.HasSpeedRevert);
+
+        int t = 0;
+        for (; (t < 3000) && ac.Targets.NavigationRoute.Exists(f => ReferenceEquals(f, mckey)); t++)
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+            FlightPhysics.Update(ac, 1.0);
+        }
+
+        _output.WriteLine($"MCKEY sequenced after {t} s: assigned={ac.Targets.AssignedSpeed}");
+        Assert.False(ac.Phases?.CurrentPhase is DepartureProcedurePhase, "the direct-to must end the departure procedure");
+        Assert.DoesNotContain(mckey, ac.Targets.NavigationRoute);
+        Assert.Equal(assignedBefore, ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// A heading departure in its initial climb has no departure route pending, so a CFIX clears the phase as it always has,
+    /// rather than leaving the phase waiting on its heading.
+    /// </summary>
+    [Fact]
+    public void CrossFix_HeadingDeparture_ClearsTheInitialClimb()
+    {
+        var heading = new FlyHeadingDeparture(new MagneticHeading(270), null);
+        Departure departure = StartKoak30Departure(LoadZoa(), new KoakDeparture("KSAN", "COAST9 MCKEY LAX COMIX2", null, false, heading, 450));
+        AircraftState ac = departure.Aircraft;
+        PhaseRunner.Tick(ac, departure.Context);
+        InitialClimbPhase climb = Assert.IsType<InitialClimbPhase>(ac.Phases?.CurrentPhase);
+        _output.WriteLine($"departure route={string.Join(" ", climb.DepartureRoute.Select(f => f.Name))}");
+        Assert.Null(climb.PendingRoute);
+
+        Dispatch(ac, "CFIX MCKEY A100");
+
+        Assert.False(ac.Phases?.CurrentPhase is InitialClimbPhase, "the CFIX must clear the heading departure's initial climb");
+    }
+
+    /// <summary>
+    /// A departure cleared direct to a fix with its turn deferred to the 400 ft gate: a CFIX on that fix before the gate
+    /// stamps the departure route, the live route stays empty until the gate, and the route loaded there carries it.
+    /// </summary>
+    [Fact]
+    public void CrossFix_DeferredTurnDirectDeparture_BeforeTheGate_SurvivesTheTurn()
+    {
+        LatLon segulPosition = FixPosition("SEGUL");
+        var direct = new DirectFixDeparture("SEGUL", segulPosition.Lat, segulPosition.Lon, null);
+        Departure departure = StartKoak30Departure(LoadZoa(), new KoakDeparture("KSAN", "COAST9 MCKEY LAX COMIX2", null, false, direct, 150));
+        AircraftState ac = departure.Aircraft;
+        InitialClimbPhase climb = Assert.IsType<InitialClimbPhase>(ac.Phases?.CurrentPhase);
+        _output.WriteLine($"departure route={string.Join(" ", climb.DepartureRoute.Select(f => f.Name))}");
+        Assert.Empty(ac.Targets.NavigationRoute);
+        NavigationTarget segul = Assert.Single(climb.DepartureRoute, f => f.Name == "SEGUL");
+
+        Dispatch(ac, "CFIX SEGUL A100");
+
+        Assert.Same(climb, ac.Phases?.CurrentPhase);
+        Assert.Equal(AtOrAboveAtc(10000), segul.AltitudeRestriction);
+        Assert.Empty(ac.Targets.NavigationRoute);
+
+        for (int t = 0; (t < 120) && (ac.Targets.NavigationRoute.Count == 0); t++)
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+            FlightPhysics.Update(ac, 1.0);
+        }
+
+        NavigationTarget live = Assert.Single(ac.Targets.NavigationRoute, f => f.Name == "SEGUL");
+        Assert.Same(segul, live);
+        Assert.Equal(AtOrAboveAtc(10000), live.AltitudeRestriction);
+        Assert.NotNull(live.CrossingTransmissionId);
+    }
+
+    /// <summary>
+    /// A crossing speed given in the climb window, then a vector in a later transmission: the vector takes the aircraft off
+    /// the coded legs, so the pending route is never loaded, and its speed revert applies as the phase ends.
+    /// </summary>
+    [Fact]
+    public void CrossFix_SpeedInWindow_ThenVectored_RevertsTheSpeed()
+    {
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
+        NavigationTarget pending = FirstPendingFixBeyondCodedLegs(procedure);
+        double? assignedBefore = ac.Targets.AssignedSpeed;
+
+        Dispatch(ac, $"CFIX {pending.Name} A100 230");
+        Assert.Equal(230, ac.Targets.AssignedSpeed);
+        Dispatch(ac, "FH 270");
+
+        for (int t = 0; (t < 10) && (ac.Phases?.CurrentPhase is DepartureProcedurePhase); t++)
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+        }
+
+        Assert.False(ac.Phases?.CurrentPhase is DepartureProcedurePhase, "the vector must end the departure procedure");
+        Assert.Equal(assignedBefore, ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// "CFIX X A100 230, SPD 250" in the climb window ends as the same line does on a live route
+    /// (SpeedRevertSupersededTests.SameTransmission_Cfix_Then_Spd_RestoresTheSpdPastTheFix): the crossing speed is the
+    /// assigned speed, and the SPD is what the fix reverts to past it.
+    /// </summary>
+    [Fact]
+    public void CrossFix_SpeedThenSpdSameTransmission_InWindow_MatchesTheLiveRoute()
+    {
+        Departure departure = FlyIntoClimbWindow(LoadZoa(), ctoAltitude: null);
+        AircraftState ac = departure.Aircraft;
+        DepartureProcedurePhase procedure = CurrentProcedure(ac);
+        NavigationTarget pending = FirstPendingFixBeyondCodedLegs(procedure);
+
+        Dispatch(ac, $"CFIX {pending.Name} A100 230, SPD 250");
+
+        Assert.Same(procedure, ac.Phases?.CurrentPhase);
+        Assert.Equal(230, ac.Targets.AssignedSpeed);
+        Assert.Equal(230, pending.SpeedRestriction?.SpeedKts);
+        Assert.Equal(250, pending.RevertAssignedSpeed);
+        Assert.Empty(ac.Targets.NavigationRoute);
+    }
+
+    /// <summary>While an RV SID holds its heading, a CFIX on a fix off its departure route is refused and the hold stays.</summary>
+    [Fact]
+    public void CrossFix_OffRoute_InInitialClimbRvHold_IsRefused()
+    {
+        (AircraftState ac, InitialClimbPhase climb) = StartNimi5RvDeparture();
+        List<string> routeBefore = [.. climb.DepartureRoute.Select(f => f.Name)];
+        Assert.DoesNotContain("SEGUL", routeBefore);
+
+        CommandResult result = DispatchResult(ac, "CFIX SEGUL A100");
+
+        Assert.False(result.Success, $"the off-route CFIX was accepted: {result.Message}");
+        Assert.Equal($"unable, {PhraseologyVerbalizer.FixDisplayTextUpper("SEGUL")} isn't on our route", result.Message);
+        Assert.Same(climb, ac.Phases?.CurrentPhase);
+        Assert.True(Assert.IsType<InitialClimbPhaseDto>(climb.ToSnapshot()).RvSidActive);
+        Assert.Equal(routeBefore, climb.DepartureRoute.Select(f => f.Name));
+        Assert.Empty(ac.Targets.NavigationRoute);
+    }
+
+    /// <summary>
+    /// A filed-route token the pending departure route lacks (NIMI5's OAK, stripped as colocated with the departure) is no
+    /// fix ahead: a CFIX on it while the handover is pending is refused.
+    /// </summary>
+    [Fact]
+    public void CrossFix_FiledTokenNotOnPendingRoute_IsRefused()
+    {
+        (AircraftState ac, InitialClimbPhase climb) = StartNimi5RvDeparture();
+        Assert.Contains("OAK", ac.FlightPlan.Route.Split(' '));
+        Assert.DoesNotContain(climb.DepartureRoute, f => f.Name == "OAK");
+
+        CommandResult result = DispatchResult(ac, "CFIX OAK A100");
+
+        Assert.False(result.Success, $"the CFIX on the filed token was accepted: {result.Message}");
+        Assert.Equal($"unable, {PhraseologyVerbalizer.FixDisplayTextUpper("OAK")} isn't on our route", result.Message);
+        Assert.Same(climb, ac.Phases?.CurrentPhase);
+        Assert.Empty(ac.Targets.NavigationRoute);
+    }
+
+    /// <summary>A NIMI5 departure off KOAK runway 30, holding its radar-vectors heading in its initial climb.</summary>
+    private (AircraftState Aircraft, InitialClimbPhase Climb) StartNimi5RvDeparture()
+    {
+        Departure departure = StartKoak30Departure(LoadZoa(), RvSidNimi5(heightAglFt: 450));
+        InitialClimbPhase climb = Assert.IsType<InitialClimbPhase>(departure.Aircraft.Phases?.CurrentPhase);
+        _output.WriteLine($"departure route={string.Join(" ", climb.DepartureRoute.Select(f => f.Name))}");
+        Assert.True(Assert.IsType<InitialClimbPhaseDto>(climb.ToSnapshot()).RvSidActive, "setup: NIMI5 must hold its RV heading");
+        return (departure.Aircraft, climb);
     }
 
     [Theory]
@@ -1118,6 +1728,63 @@ public class ClimbViaTopAltitudeTests
     private static NavigationTarget RouteFix(AircraftState aircraft, string name) => aircraft.Targets.NavigationRoute.First(f => f.Name == name);
 
     private static bool CarriesClimbVia(CommandBlock block) => block.ParsedCommands?.Exists(c => c is ClimbViaCommand) is true;
+
+    private static DepartureProcedurePhase CurrentProcedure(AircraftState aircraft) =>
+        Assert.IsType<DepartureProcedurePhase>(Assert.IsType<PhaseList>(aircraft.Phases).CurrentPhase);
+
+    /// <summary>The pending-route entry named <paramref name="name"/>; fails, listing the pending route, when there is none.</summary>
+    private static NavigationTarget PendingFix(DepartureProcedurePhase procedure, string name) =>
+        procedure.PostRoute.Find(f => f.Name == name)
+        ?? throw new Xunit.Sdk.XunitException(
+            $"setup: {name} is not on the pending route {string.Join(" ", procedure.PostRoute.Select(f => f.Name))}"
+        );
+
+    /// <summary>The first pending-route entry whose name is none of the coded legs' fixes.</summary>
+    private static NavigationTarget FirstPendingFixBeyondCodedLegs(DepartureProcedurePhase procedure)
+    {
+        var coded = new HashSet<string>(procedure.Legs.Where(l => l.FixName is not null).Select(l => l.FixName!), StringComparer.OrdinalIgnoreCase);
+        return Assert.IsType<NavigationTarget>(procedure.PostRoute.Find(f => !coded.Contains(f.Name)));
+    }
+
+    private static CifpAltitudeRestriction AtOrAboveAtc(int altitudeFt) =>
+        new(CifpAltitudeRestrictionType.AtOrAbove, altitudeFt) { Source = CifpAltitudeRestrictionSource.Atc };
+
+    /// <summary>
+    /// COAST9's VM leg holds until a controller vector, so the phase never reaches Finish unaided: rewinds the phase's own
+    /// snapshot to "every coded leg flown" and ticks once, so the phase list runs the real completion (Finish), as
+    /// DepartureProcedureVectorClimbStallTests does.
+    /// </summary>
+    private static void RunFinish(Departure departure, DepartureProcedurePhase procedure)
+    {
+        AircraftState ac = departure.Aircraft;
+        PhaseList phases = Assert.IsType<PhaseList>(ac.Phases);
+        DepartureProcedurePhaseDto snapshot = Assert.IsType<DepartureProcedurePhaseDto>(procedure.ToSnapshot());
+        Assert.False(snapshot.Overridden, "setup: the aircraft must still be flying the coded procedure");
+        var allLegsFlown = DepartureProcedurePhase.FromSnapshot(
+            new DepartureProcedurePhaseDto
+            {
+                Status = snapshot.Status,
+                ElapsedSeconds = snapshot.ElapsedSeconds,
+                Requirements = snapshot.Requirements,
+                Legs = snapshot.Legs,
+                PostRoute = snapshot.PostRoute,
+                AssignedAltitude = snapshot.AssignedAltitude,
+                CruiseAltitude = snapshot.CruiseAltitude,
+                LegIndex = snapshot.Legs.Count,
+                Overridden = false,
+                LegEntryPosition = snapshot.LegEntryPosition,
+                PreviousSignedCrossTrack = snapshot.PreviousSignedCrossTrack,
+                LegElapsedSeconds = snapshot.LegElapsedSeconds,
+                ControllerAltitude = snapshot.ControllerAltitude,
+            }
+        );
+        int index = phases.Phases.IndexOf(procedure);
+        Assert.True(index >= 0, "the departure-procedure phase must be in the phase list");
+        phases.Phases[index] = allLegsFlown;
+
+        PhaseRunner.Tick(ac, departure.Context);
+        Assert.False(ReferenceEquals(allLegsFlown, phases.CurrentPhase), "the phase must complete through Finish");
+    }
 
     private static void AssertNoReverts(NavigationTarget fix)
     {
@@ -1400,22 +2067,22 @@ public class ClimbViaTopAltitudeTests
     private static Departure StartCoast9Departure(ArtccConfigRoot artccConfig, int? ctoAltitude, bool climbViaOnTheGround)
     {
         Assert.NotNull(NavigationDatabase.Instance.GetSid("KOAK", "COAST9"));
-        return StartKoak30Departure(artccConfig, "KSAN", "COAST9 MCKEY LAX COMIX2", ctoAltitude, climbViaOnTheGround);
+        return StartKoak30Departure(
+            artccConfig,
+            new KoakDeparture("KSAN", "COAST9 MCKEY LAX COMIX2", ctoAltitude, climbViaOnTheGround, new DefaultDeparture(), 450)
+        );
     }
 
+    /// <summary>A NIMI5 radar-vectors SID departure to KSAC (NIMI5 OAK V6 SAC), no CTO altitude, <paramref name="heightAglFt"/> up.</summary>
+    private static KoakDeparture RvSidNimi5(double heightAglFt) => new("KSAC", "NIMI5 OAK V6 SAC", null, false, new DefaultDeparture(), heightAglFt);
+
     /// <summary>
-    /// Clears a RWY30 departure out of KOAK filed <paramref name="route"/> to <paramref name="destination"/> for takeoff,
-    /// with <paramref name="ctoAltitude"/> or none, and puts it airborne just past the DER in its initial climb, as
-    /// <see cref="StartCoast9Departure"/> does.
+    /// Clears the RWY30 departure out of KOAK that <paramref name="spec"/> describes for takeoff and puts it airborne just
+    /// past the DER in its initial climb, as <see cref="StartCoast9Departure"/> does.
     /// </summary>
-    private static Departure StartKoak30Departure(
-        ArtccConfigRoot artccConfig,
-        string destination,
-        string route,
-        int? ctoAltitude,
-        bool climbViaOnTheGround
-    )
+    private static Departure StartKoak30Departure(ArtccConfigRoot artccConfig, KoakDeparture spec)
     {
+        (string destination, string route, int? ctoAltitude, bool climbViaOnTheGround, DepartureInstruction departure, double heightAglFt) = spec;
         RunwayInfo rwy = Koak30();
 
         var ac = new AircraftState
@@ -1459,7 +2126,7 @@ public class ClimbViaTopAltitudeTests
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
-            new DefaultDeparture(),
+            departure,
             assignedAltitude: ctoAltitude,
             requestedRunway: null,
             TestDispatch.Context(Random.Shared),
@@ -1471,7 +2138,7 @@ public class ClimbViaTopAltitudeTests
         ac.IsOnGround = false;
         ac.Position = GeoMath.ProjectPoint(new LatLon(rwy.EndLatitude, rwy.EndLongitude), rwy.TrueHeading, 0.2);
         ac.TrueHeading = rwy.TrueHeading;
-        ac.Altitude = rwy.ElevationFt + 450;
+        ac.Altitude = rwy.ElevationFt + heightAglFt;
         ac.IndicatedAirspeed = 170;
 
         PhaseContext ctx = NewContext(ac, rwy);
@@ -1648,10 +2315,20 @@ public class ClimbViaTopAltitudeTests
     /// <summary>Dispatches one transmission (possibly several chained blocks) as the controller would send it.</summary>
     private void DispatchLine(AircraftState aircraft, string text, DispatchContext ctx)
     {
+        CommandResult result = DispatchLineResult(aircraft, text, ctx);
+        Assert.True(result.Success, $"'{text}' was refused: {result.Message}");
+    }
+
+    /// <summary>As <see cref="Dispatch"/>, returning the result rather than asserting it was accepted.</summary>
+    private CommandResult DispatchResult(AircraftState aircraft, string text) =>
+        DispatchLineResult(aircraft, text, TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
+
+    private CommandResult DispatchLineResult(AircraftState aircraft, string text, DispatchContext ctx)
+    {
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
         Assert.True(parsed.IsSuccess, $"parse failed for '{text}': {parsed.Reason}");
         CommandResult result = CommandDispatcher.DispatchCompound(Assert.IsType<CompoundCommand>(parsed.Value), aircraft, ctx);
         _output.WriteLine($"{text} -> {result.Message}");
-        Assert.True(result.Success, $"'{text}' was refused: {result.Message}");
+        return result;
     }
 }

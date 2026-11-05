@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- A `CFIX` during a SID's opening legs keeps the departure on the SID and the crossing on its route; an off-route fix is refused.
 - Without `CVIA` or `DVIA`, an aircraft told to climb or descend and maintain levels there; a SID's or STAR's published altitudes no longer move it.
 - `JARR` without `DVIA` keeps the aircraft at its altitude while it flies the STAR's route and published speeds.
 - After a `CAPP` given on a STAR, the aircraft keeps its assigned altitude until it joins the approach, then descends for the approach's altitudes.
