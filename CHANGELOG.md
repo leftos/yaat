@@ -5,6 +5,7 @@
 ### Fixed
 
 - A landing with no reachable exit stops on the runway and asks to back-taxi, instead of steering toward a ramp or parallel taxiway.
+- A taxiing aircraft restored partway round a turn, from a rewind or an older recording, keeps following the turn instead of veering off it.
 
 ## v0.18.1-beta [2026/11/05]
 

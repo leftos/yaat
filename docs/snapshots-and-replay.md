@@ -275,7 +275,7 @@ Older snapshots read them as `TaxiTurnAboutShape.None` and null.
 
 `GroundNavigator` round-trips the primitive it is playing: `GroundNavigatorDto.Playback` carries the primitive (straight, Bézier or slow turn), its playback progress, the arc-entry blend, the entry-alignment bookkeeping and the from-node of the segment it was captured on.
 
-`FromSnapshot` holds the playback back, and the owning phase's first `SetupSegment` after the restore resumes it (`TryResumeRestoredPlayback`) when that segment's from- and to-nodes match the saved ones, so a restore mid-curve goes on along the same curve, position for position (`GroundNavigatorArcRestoreTests`, `CrossingRunwayRestoreTests`).
+`FromSnapshot` holds the playback back, and the owning phase's first `SetupSegment` after the restore resumes it (`TryResumeRestoredPlayback`) when that segment's from- and to-nodes match the saved ones, so a restore mid-curve goes on along the same curve, position for position (`GroundNavigatorArcRestoreTests`, `CrossingRunwayRestoreTests`). For a snapshot without saved curve progress, the setup's alignment check reads the bearing at the aircraft's closest point on the curve, on any route segment, so the restore continues along the curve instead of turning toward its start bearing.
 
 A mismatch drops the playback with a warning and builds the segment afresh from the aircraft's pose; a virtual (negative-id) from-node is not compared: its id hashes its position (`VirtualNode.IdFor`), but it sits at the aircraft's pose when the route was built (`RunwayExitPhase`'s approach leg), so a rebuild puts it somewhere else.
 

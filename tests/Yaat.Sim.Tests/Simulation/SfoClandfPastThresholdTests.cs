@@ -25,8 +25,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// of the session — so TAI562 went around at t=1265 with SKW5416 as the blocking occupant.
 ///
 /// Hybrid replay (docs/e2e-tdd-issue-debugging.md §5b): restore the snapshot just before the CLANDF and step the
-/// recording forward, so the recorded CLANDF is what applies. The restore is at t=1150 rather than t=1155 because the
-/// t=1155 snapshot restores SKW3396 mid-fillet and the navigator's teleport guard throws on the first tick.
+/// recording forward, so the recorded CLANDF is what applies. The restore is 10 s before the recorded CLANDF, and nothing
+/// in the test depends on a taxiway curve.
 ///
 /// The descent cap (<see cref="ForcedLandingProfile.DescentCapFpm"/>) gives way when the capped path cannot reach the
 /// ground by the aim point — the instructor's forced landing always lands and stops on the runway. SKW5416's geometry

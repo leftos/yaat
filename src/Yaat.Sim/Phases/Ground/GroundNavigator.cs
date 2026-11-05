@@ -960,7 +960,7 @@ public sealed class GroundNavigator
         // near-crawl and any overshoot of a very short segment is small and recovered by the normal
         // arrival/overshoot advance on the (near-collinear) segments that follow.
         double segDepartureBearing = seg.Edge.DepartureBearing;
-        double entryBearing = MidCurveEntryBearing(route, segmentPrimitive, ctx.Aircraft.Position) ?? segDepartureBearing;
+        double entryBearing = MidCurveEntryBearing(segmentPrimitive, ctx.Aircraft.Position) ?? segDepartureBearing;
         double headingDelta = new TrueHeading(entryBearing).AbsAngleTo(ctx.Aircraft.TrueHeading);
         if (headingDelta > EntryAlignmentGateDeg(route, segDepartureBearing))
         {
@@ -1028,16 +1028,24 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
-    /// Where a route that starts partway round a curve enters it: when the route's first segment is a fillet Bézier and the
-    /// aircraft stands on or beside it — within <see cref="TaxiEdgeLocator.OnTaxiwayMaxOffsetFt"/> of the curve, at a point
-    /// strictly between its ends — the curve's tangent at the aircraft's closest point on it. Playback starts there on the first
-    /// tick (<see cref="ResumeBezierFromPosition"/>), and the braking distance counts the arc length left from it
-    /// (<see cref="BezierRemainingNm"/>), so the entry-alignment check reads the heading against that tangent rather than the
-    /// curve's start. Null for every other segment start, which keeps the departure bearing.
+    /// Where a segment that starts partway round a curve enters it: the curve's tangent at the aircraft's closest point on
+    /// it, when the segment is a fillet Bézier and the aircraft is off its start point. The start-point test
+    /// (<see cref="FromCurveStartFt"/> above <see cref="AirportGroundLayout.AtNodeToleranceFt"/>) is the one
+    /// <see cref="ResumeBezierFromPosition"/> uses to start playback at that closest point, and the braking distance counts
+    /// the arc length left from it (<see cref="BezierRemainingNm"/>), so the entry-alignment check reads the heading against
+    /// that tangent rather than the curve's start. Two filters are this check's own: the closest point lies strictly
+    /// between the curve's ends, and the aircraft is within <see cref="TaxiEdgeLocator.OnTaxiwayMaxOffsetFt"/> of it
+    /// (playback refuses an offset only beyond its own limit). Null for every other segment start, which keeps the
+    /// departure bearing.
     /// </summary>
-    private static double? MidCurveEntryBearing(TaxiRoute route, PathPrimitive primitive, LatLon position)
+    private static double? MidCurveEntryBearing(PathPrimitive primitive, LatLon position)
     {
-        if ((route.CurrentSegmentIndex != 0) || (primitive is not PathPrimitiveBezier bezier))
+        if (primitive is not PathPrimitiveBezier bezier)
+        {
+            return null;
+        }
+
+        if (FromCurveStartFt(bezier, position) <= AirportGroundLayout.AtNodeToleranceFt)
         {
             return null;
         }
@@ -1049,6 +1057,10 @@ public sealed class GroundNavigator
 
         return (closest.OffFt <= TaxiEdgeLocator.OnTaxiwayMaxOffsetFt) ? bezier.Curve.TangentBearing(closest.T) : null;
     }
+
+    /// <summary>How far <paramref name="position"/> is from the start point of <paramref name="bezier"/>'s curve, in feet.</summary>
+    private static double FromCurveStartFt(PathPrimitiveBezier bezier, LatLon position) =>
+        GeoMath.DistanceNm(position, new LatLon(bezier.Curve.P0Lat, bezier.Curve.P0Lon)) * GeoMath.FeetPerNm;
 
     /// <summary>
     /// The heading difference (deg) from the segment's first tangent above which <see cref="SetupSegment"/> rounds the
@@ -3448,8 +3460,7 @@ public sealed class GroundNavigator
     /// </summary>
     private void ResumeBezierFromPosition(PhaseContext ctx, PathPrimitiveBezier bezier)
     {
-        var curveStart = new LatLon(bezier.Curve.P0Lat, bezier.Curve.P0Lon);
-        double fromStartFt = GeoMath.DistanceNm(ctx.Aircraft.Position, curveStart) * GeoMath.FeetPerNm;
+        double fromStartFt = FromCurveStartFt(bezier, ctx.Aircraft.Position);
 
         if (fromStartFt > AirportGroundLayout.AtNodeToleranceFt)
         {
@@ -3498,7 +3509,7 @@ public sealed class GroundNavigator
         }
 
         double entryTangentDeg = bezier.Curve.TangentBearing(0.0);
-        double distFt = GeoMath.DistanceNm(position, curveStart) * GeoMath.FeetPerNm;
+        double distFt = FromCurveStartFt(bezier, position);
         double deltaDeg = GeoMath.SignedBearingDifference(GeoMath.BearingTo(position, curveStart), entryTangentDeg);
         double alongFt = distFt * Math.Cos(deltaDeg * (Math.PI / 180.0));
 

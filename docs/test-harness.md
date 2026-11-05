@@ -518,7 +518,7 @@ The default run passes `--filter-not-trait` for each of the three (untagged test
 
   **Evergreen** is behaviour that must keep holding on today's airport (a regression test for a sim, pathfinder or parser fix): it runs on `TestData/<id>.geojson` and is maintained as the layout changes. When a parser change renumbers nodes, its fixture's recorded `#id` TAXI commands and snapshot routes are remapped to today's ids.
 
-  **Version-pinned** is behaviour that only makes sense on the airport as recorded (a restored mid-taxi route, recorded node ids): it runs on the archive's bundled layout, and its fixture's ids are never remapped. An airport the archive does not bundle falls back to `TestAirportGroundData`.
+  **Version-pinned** is behaviour that only makes sense on the airport as recorded (a restored mid-taxi route, recorded node ids): it runs on the archive's bundled layout, and its fixture's ids are never remapped. On the `sfo-gc-28-01` recording a restore on today's SFO layout (Evergreen) does not reproduce mid-taxi behaviour; a mid-taxi restore test uses `RecordingGroundData.VersionPinned`, the layout the recording bundles. An airport the archive does not bundle falls back to `TestAirportGroundData`.
 
   An archive can mix node-id spaces: a bundled layout or recorded `#id` commands carry the ids of the unsnapped graph, while the harness's OAK is snapped, where a bar seated on a shape point or minted on the paint renumbers nodes. For an unsnapped A/B comparison, parse OAK with a null map (`RunwayPaintSnapTests.ParseOak(map: null, ...)`) and run the same recording on both layouts; compare by meaning (`GroundNodeLookup`), never by id.
 
