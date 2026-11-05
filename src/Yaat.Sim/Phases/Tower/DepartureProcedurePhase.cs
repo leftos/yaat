@@ -341,14 +341,17 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
     }
 
     /// <summary>
-    /// Caps the climb at an active leg's "at", "at or below", or "between" crossing altitude
-    /// (AIM §5-2-9.e): a pure ceiling, never a target. The aircraft levels off only if it reaches the
-    /// cap before the leg sequences; the cap is released (restored to the SID hold altitude, else
-    /// <see cref="_climbCeiling"/>) on the next leg. "At or above" is deliberately excluded — its floor is
-    /// satisfied by the climb. A controller altitude assignment owns the target instead (7110.65 §4-3-2.e.4
-    /// NOTE 2 / AIM 5-2-9.h.10), until a climb via puts the SID's restrictions back in force under its top
-    /// altitude; with no assignment the SID's published initial altitude is the base (7110.65 §4-3-2.e.5 /
-    /// AIM 5-2-9.h.5).
+    /// Writes the climb target while a coded leg flies: the climb via's altitude, else the SID hold altitude, else
+    /// <see cref="_climbCeiling"/>, capped at the active leg's "at", "at or below", or "between" crossing altitude
+    /// (AIM §5-2-9.e) only while the SID's published altitudes are in force
+    /// (<see cref="AltitudeRestrictionInForce.ProcedureAltitudesInForce"/>: a climb via, or a SID departure with no
+    /// controller altitude at all). The cap is a pure ceiling, never a target: the aircraft levels off only if it reaches
+    /// it before the leg sequences, and the next leg releases it. "At or above" is deliberately excluded — its floor is
+    /// satisfied by the climb. A CTO altitude or a TDLS "maintain" value puts the published altitudes out of force (AIM
+    /// 5-2-9.h.8 Example 2), so the leg's window never caps below it. A "maintain" issued while the coded legs fly owns the
+    /// target outright (7110.65 §4-3-2.e.4 NOTE 2 / AIM 5-2-9.h.10) and the phase writes nothing, until a climb via puts
+    /// the SID's restrictions back in force under its top altitude; with no assignment the SID's published initial
+    /// altitude is the base (7110.65 §4-3-2.e.5 / AIM 5-2-9.h.5).
     /// </summary>
     private void ApplyLegAltitudeCap(PhaseContext ctx, ProcedureLeg leg)
     {
@@ -360,8 +363,9 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
 
         double ceiling = climbVia ?? ResolveSidHoldAltitude(ctx) ?? _climbCeiling;
         if (
-            leg.AltitudeRestriction is { } restriction
-            && restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between
+            AltitudeRestrictionInForce.ProcedureAltitudesInForce(ctx.Aircraft)
+            && (leg.AltitudeRestriction is { } restriction)
+            && (restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between)
         )
         {
             ceiling = Math.Min(ceiling, restriction.Altitude1Ft);

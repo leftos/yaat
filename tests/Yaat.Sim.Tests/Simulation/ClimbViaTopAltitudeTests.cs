@@ -848,6 +848,172 @@ public class ClimbViaTopAltitudeTests
     }
 
     /// <summary>
+    /// A COAST9 departure cleared "CTO 050" with no climb via: the controller's 5,000 replaces the SID's published
+    /// altitudes (AIM 5-2-9.h.8 Example 2; 7110.65 4-3-2), so the coded legs' 2,000 ft climb window never caps the climb
+    /// under the DepartureProcedurePhase and the aircraft levels at 5,000.
+    /// </summary>
+    [Fact]
+    public void Coast9_CtoFifty_NoClimbVia_LegWindowDoesNotCapBelowAssigned()
+    {
+        Departure departure = StartCoast9Departure(LoadZoa(), ctoAltitude: 5000, climbViaOnTheGround: false);
+        AircraftState ac = departure.Aircraft;
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(5000, ac.Targets.AssignedAltitude);
+
+        bool sawDepartureProcedure = false;
+        double lowestProcedureTarget = double.MaxValue;
+        for (int t = 0; t < 420; t++)
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+            if (ac.Phases?.CurrentPhase is DepartureProcedurePhase)
+            {
+                sawDepartureProcedure = true;
+                lowestProcedureTarget = Math.Min(lowestProcedureTarget, ac.Targets.TargetAltitude ?? double.MaxValue);
+            }
+
+            FlightPhysics.Update(ac, 1.0);
+        }
+
+        _output.WriteLine($"lowest target under the procedure={lowestProcedureTarget:F0} final={ac.Altitude:F0}");
+        Assert.True(sawDepartureProcedure, "setup: the departure never flew COAST9's coded legs");
+        Assert.True(
+            lowestProcedureTarget >= 5000 - LevelToleranceFt,
+            $"COAST9's climb window capped the climb at {lowestProcedureTarget:F0}, below the assigned 5,000"
+        );
+        Assert.InRange(ac.Altitude, 5000 - LevelToleranceFt, 5000 + LevelToleranceFt);
+    }
+
+    /// <summary>
+    /// A bare CTO under a TDLS "maintain" 5,000 (<see cref="AircraftProcedure.SidInitialAltitudeFt"/>) is a controller
+    /// altitude: the SID's published altitudes are not in force under it (AIM 5-2-9.h.8 Example 2), so a coded leg's
+    /// crossing window below 5,000 never caps the DepartureProcedurePhase's hold. Neither SJC3 nor SUNNE1 codes such a
+    /// window, so this stages a COAST9 departure with no ARTCC config (no TDLS climb via) and sets
+    /// <see cref="AircraftProcedure.SidInitialAltitudeFt"/> to 5,000 on the field before flying, as
+    /// <see cref="TdlsMaintain_SidPublishedAltitudesNotInForce"/> does; COAST9's 2,000 ft window then lies below the hold.
+    /// </summary>
+    [Fact]
+    public void TdlsMaintain_LegWindowDoesNotCap()
+    {
+        Departure departure = StartCoast9Departure(artccConfig: null, ctoAltitude: null, climbViaOnTheGround: false);
+        AircraftState ac = departure.Aircraft;
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        ac.Procedure.SidInitialAltitudeFt = 5000;
+
+        bool sawWindowBelowHold = false;
+        double lowestTargetInWindow = double.MaxValue;
+        for (int t = 0; t < 420; t++)
+        {
+            PhaseRunner.Tick(ac, departure.Context);
+            if (
+                (ac.Phases?.CurrentPhase is DepartureProcedurePhase phase)
+                && (phase.ActiveLegIndex < phase.Legs.Count)
+                && (phase.Legs[phase.ActiveLegIndex].AltitudeRestriction is { } restriction)
+                && (
+                    restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between
+                )
+                && (restriction.Altitude1Ft < 5000)
+            )
+            {
+                sawWindowBelowHold = true;
+                lowestTargetInWindow = Math.Min(lowestTargetInWindow, ac.Targets.TargetAltitude ?? double.MaxValue);
+            }
+
+            FlightPhysics.Update(ac, 1.0);
+        }
+
+        _output.WriteLine($"lowest target in a window={lowestTargetInWindow:F0} final={ac.Altitude:F0}");
+        Assert.True(sawWindowBelowHold, "setup: COAST9 flew no coded leg with a crossing window below 5,000");
+        Assert.Equal(5000, ac.Procedure.SidInitialAltitudeFt);
+        Assert.True(
+            lowestTargetInWindow >= 5000 - LevelToleranceFt,
+            $"a coded leg's window capped the TDLS maintain 5,000 at {lowestTargetInWindow:F0}"
+        );
+    }
+
+    /// <summary>
+    /// "CTO 050", then a direct to a fix on the SID: the published altitudes were not in force before the direct, so ending
+    /// the via mode takes nothing away; no "vectored off procedure" warning, no level-off, and the aircraft goes on to its
+    /// assigned 5,000 (7110.65 4-3-2; AIM 5-2-9.h.8 Example 2).
+    /// </summary>
+    [Fact]
+    public void CtoFifty_DctToOnSidFix_KeepsClimbingTo5000()
+    {
+        Departure departure = StartCndel6Departure(LoadZoa(), ctoAltitude: 5000, climbViaOnTheGround: false);
+        AircraftState ac = departure.Aircraft;
+        string fix = FlyUntilSidFixAhead(departure);
+        Assert.True(ac.Altitude < 4500, $"setup: the direct must come before the aircraft reaches 5,000, at {ac.Altitude:F0}");
+
+        DispatchDirectToRouteFix(ac, fix);
+        _output.WriteLine($"after DCT {fix}: target={ac.Targets.TargetAltitude} warnings={string.Join("; ", ac.PendingWarnings)}");
+
+        Assert.NotNull(ac.Procedure.ActiveSidId);
+        Assert.DoesNotContain("Vectored off procedure without an altitude assignment", ac.PendingWarnings);
+        Assert.NotNull(ac.Targets.TargetAltitude);
+
+        FlyFor(departure, 300);
+        Assert.InRange(ac.Altitude, 5000 - LevelToleranceFt, 5000 + LevelToleranceFt);
+    }
+
+    /// <summary>
+    /// Under a climb via, a direct to a fix on the SID without an altitude ends the via's published altitudes: the
+    /// "vectored off procedure without an altitude assignment" warning and the level-off stay (7110.65 5-6-2).
+    /// </summary>
+    [Fact]
+    public void ClimbVia_DctToOnSidFix_StillLevelsOffAndWarns()
+    {
+        Departure departure = StartCndel6Departure(LoadZoa(), ctoAltitude: null, climbViaOnTheGround: true);
+        AircraftState ac = departure.Aircraft;
+        Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+        string fix = FlyUntilSidFixAhead(departure);
+
+        DispatchDirectToRouteFix(ac, fix);
+        _output.WriteLine($"after DCT {fix}: target={ac.Targets.TargetAltitude} warnings={string.Join("; ", ac.PendingWarnings)}");
+
+        Assert.Contains("Vectored off procedure without an altitude assignment", ac.PendingWarnings);
+        Assert.Null(ac.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// A SID departure with no controller altitude at all (no config, so no TDLS value, and a bare CTO) flies the SID's
+    /// published altitudes as a climb via; a direct to a fix on the SID without an altitude ends them, so the warning and the
+    /// level-off stay.
+    /// </summary>
+    [Fact]
+    public void FallbackSidDeparture_DctToOnSidFix_StillWarns()
+    {
+        Departure departure = StartCndel6Departure(artccConfig: null, ctoAltitude: null, climbViaOnTheGround: false);
+        AircraftState ac = departure.Aircraft;
+        string fix = FlyUntilSidFixAhead(departure);
+        Assert.True(AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac), "setup: the SID's published altitudes must be in force");
+
+        DispatchDirectToRouteFix(ac, fix);
+        _output.WriteLine($"after DCT {fix}: target={ac.Targets.TargetAltitude} warnings={string.Join("; ", ac.PendingWarnings)}");
+
+        Assert.Contains("Vectored off procedure without an altitude assignment", ac.PendingWarnings);
+        Assert.Null(ac.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// A SID departure with no controller altitude at all flies the SID's published altitudes; a CFIX on a fix of the SID
+    /// writes a controller altitude, which puts them out of force, but it is no vector: no "vectored off procedure" warning
+    /// and no level-off.
+    /// </summary>
+    [Fact]
+    public void FallbackSidDeparture_CrossFix_NoVectoringWarning()
+    {
+        Departure departure = StartCndel6Departure(artccConfig: null, ctoAltitude: null, climbViaOnTheGround: false);
+        AircraftState ac = departure.Aircraft;
+        string fix = FlyUntilSidFixAhead(departure);
+        Assert.True(AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac), "setup: the SID's published altitudes must be in force");
+
+        DispatchLine(ac, $"CFIX {fix} 080", TestDispatch.Context(Random.Shared));
+        _output.WriteLine($"after CFIX {fix} 080: target={ac.Targets.TargetAltitude} warnings={string.Join("; ", ac.PendingWarnings)}");
+
+        Assert.DoesNotContain("Vectored off procedure without an altitude assignment", ac.PendingWarnings);
+        Assert.NotNull(ac.Targets.TargetAltitude);
+    }
+
+    /// <summary>
     /// A CFIX on a SID fix, then the filed SID activated with no transmission (the TDLS climb via path): the published
     /// altitude the overlay restores is no longer the controller's, so the fix drops its crossing stamp with it.
     /// </summary>
@@ -2064,7 +2230,7 @@ public class ClimbViaTopAltitudeTests
     /// airborne just past the DER in its initial climb, its TDLS initial altitude resolved from <paramref name="artccConfig"/>.
     /// With <paramref name="climbViaOnTheGround"/> a bare climb via is issued in position, before the takeoff clearance.
     /// </summary>
-    private static Departure StartCoast9Departure(ArtccConfigRoot artccConfig, int? ctoAltitude, bool climbViaOnTheGround)
+    private static Departure StartCoast9Departure(ArtccConfigRoot? artccConfig, int? ctoAltitude, bool climbViaOnTheGround)
     {
         Assert.NotNull(NavigationDatabase.Instance.GetSid("KOAK", "COAST9"));
         return StartKoak30Departure(
@@ -2073,6 +2239,14 @@ public class ClimbViaTopAltitudeTests
         );
     }
 
+    /// <summary>
+    /// A CNDEL6 SUSEY RWY30 departure out of KOAK to KLAS, staged as <see cref="StartCoast9Departure"/> stages COAST9 but
+    /// with no ARTCC config when <paramref name="artccConfig"/> is null (no TDLS value). CNDEL6 is flown fix to fix, so its
+    /// fixes are on the live route from takeoff.
+    /// </summary>
+    private static Departure StartCndel6Departure(ArtccConfigRoot? artccConfig, int? ctoAltitude, bool climbViaOnTheGround) =>
+        StartKoak30Departure(artccConfig, new KoakDeparture("KLAS", "CNDEL6 SUSEY", ctoAltitude, climbViaOnTheGround, new DefaultDeparture(), 450));
+
     /// <summary>A NIMI5 radar-vectors SID departure to KSAC (NIMI5 OAK V6 SAC), no CTO altitude, <paramref name="heightAglFt"/> up.</summary>
     private static KoakDeparture RvSidNimi5(double heightAglFt) => new("KSAC", "NIMI5 OAK V6 SAC", null, false, new DefaultDeparture(), heightAglFt);
 
@@ -2080,7 +2254,7 @@ public class ClimbViaTopAltitudeTests
     /// Clears the RWY30 departure out of KOAK that <paramref name="spec"/> describes for takeoff and puts it airborne just
     /// past the DER in its initial climb, as <see cref="StartCoast9Departure"/> does.
     /// </summary>
-    private static Departure StartKoak30Departure(ArtccConfigRoot artccConfig, KoakDeparture spec)
+    private static Departure StartKoak30Departure(ArtccConfigRoot? artccConfig, KoakDeparture spec)
     {
         (string destination, string route, int? ctoAltitude, bool climbViaOnTheGround, DepartureInstruction departure, double heightAglFt) = spec;
         RunwayInfo rwy = Koak30();
@@ -2231,6 +2405,37 @@ public class ClimbViaTopAltitudeTests
         Assert.Fail("the aircraft never leveled in the COAST9 climb window under the DepartureProcedurePhase");
         return departure;
     }
+
+    /// <summary>
+    /// Flies the departure until its live route holds a SID fix past the first one and returns that fix's name: a direct
+    /// to it keeps the SID (<see cref="FlightCommandHandler.TryPreserveProcedure"/>).
+    /// </summary>
+    private string FlyUntilSidFixAhead(Departure departure)
+    {
+        AircraftState ac = departure.Aircraft;
+        for (int t = 0; t < 600; t++)
+        {
+            if ((ac.Procedure.ActiveSidId is not null) && (ac.Targets.NavigationRoute.Count >= 2))
+            {
+                string fix = ac.Targets.NavigationRoute[1].Name;
+                _output.WriteLine($"SID fix {fix} ahead at t={t}: alt={ac.Altitude:F0} phase={ac.Phases?.CurrentPhase?.Name}");
+                return fix;
+            }
+
+            PhaseRunner.Tick(ac, departure.Context);
+            FlightPhysics.Update(ac, 1.0);
+        }
+
+        Assert.Fail("the departure's live route never held a SID fix past the first");
+        return "";
+    }
+
+    /// <summary>
+    /// "DCT <paramref name="fix"/>" to a fix on the live route, with the ZOA config; the programmed-fix check is off, as the
+    /// fix comes from the live route rather than the filed route's expansion.
+    /// </summary>
+    private void DispatchDirectToRouteFix(AircraftState aircraft, string fix) =>
+        DispatchLine(aircraft, $"DCT {fix}", TestDispatch.Context(Random.Shared, validateDctFixes: false, artccConfig: LoadZoa()));
 
     private static void FlyUntilAbove(Departure departure, double altitudeFt, int maxSeconds)
     {

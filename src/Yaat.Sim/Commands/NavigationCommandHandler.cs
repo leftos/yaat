@@ -1778,6 +1778,29 @@ internal static class NavigationCommandHandler
         return highest;
     }
 
+    /// <summary>
+    /// Whether the active SID can be cleared as a climb via: it resolves, it is not a radar-vectors SID
+    /// (<see cref="DepartureClearanceHandler.IsRadarVectorsSid"/> on the runway transition for
+    /// <see cref="AircraftProcedure.DepartureRunway"/>, or on any runway transition when no transition is identified for it:
+    /// the runway is unknown, or the SID has no transition for it), and it publishes a crossing restriction at a fix on the
+    /// legs <paramref name="aircraft"/> flies (<see cref="PublishedSidRestrictions"/>; a CA/VA/VI leg's end altitude is
+    /// none). A radar-vectors SID, or one with no published crossing restriction, is never a climb-via clearance (7110.65
+    /// 4-3-2.e.5; AIM 5-2-9.h.5).
+    /// </summary>
+    internal static bool ActiveSidPublishesClimbViaAltitudes(AircraftState aircraft)
+    {
+        if (ResolveActiveSid(aircraft) is not { } sid)
+        {
+            return false;
+        }
+
+        bool radarVectors =
+            (FlownRunwayTransition(sid, aircraft) is { } flown) ? DepartureClearanceHandler.IsRadarVectorsSid(flown.Legs, sid.CommonLegs)
+            : (sid.RunwayTransitions.Count == 0) ? DepartureClearanceHandler.IsRadarVectorsSid([], sid.CommonLegs)
+            : sid.RunwayTransitions.Values.Any(t => DepartureClearanceHandler.IsRadarVectorsSid(t.Legs, sid.CommonLegs));
+        return !radarVectors && PublishedSidRestrictions(sid, aircraft).Values.Any(t => t.AltitudeRestriction is not null);
+    }
+
     private static CifpSidProcedure? ResolveActiveSid(AircraftState aircraft)
     {
         string? sidId = aircraft.Procedure.ActiveSidId;
@@ -2615,16 +2638,7 @@ internal static class NavigationCommandHandler
     {
         var allLegs = new List<CifpLeg>();
 
-        CifpTransition? assignedRwTransition = null;
-        if (aircraft.Procedure.DepartureRunway is { } rwy)
-        {
-            if (!sid.RunwayTransitions.TryGetValue("RW" + rwy, out assignedRwTransition))
-            {
-                // CIFP "B" suffix means both L/R share one transition (e.g. "RW28B").
-                sid.RunwayTransitions.TryGetValue("RW" + rwy.TrimEnd('L', 'R', 'C') + "B", out assignedRwTransition);
-            }
-        }
-
+        CifpTransition? assignedRwTransition = FlownRunwayTransition(sid, aircraft);
         if (assignedRwTransition is not null)
         {
             allLegs.AddRange(assignedRwTransition.Legs);
@@ -2640,6 +2654,25 @@ internal static class NavigationCommandHandler
         allLegs.AddRange(sid.CommonLegs);
         allLegs.AddRange(FlownSidEnrouteTransitions(sid, aircraft).SelectMany(t => t.Legs));
         return allLegs;
+    }
+
+    /// <summary>
+    /// The runway transition of <paramref name="sid"/> for <see cref="AircraftProcedure.DepartureRunway"/>, the CIFP "B"
+    /// suffix standing for both L/R (e.g. "RW28B"); null when the runway is unknown or has no transition.
+    /// </summary>
+    private static CifpTransition? FlownRunwayTransition(CifpSidProcedure sid, AircraftState aircraft)
+    {
+        if (aircraft.Procedure.DepartureRunway is not { } rwy)
+        {
+            return null;
+        }
+
+        if (sid.RunwayTransitions.TryGetValue("RW" + rwy, out CifpTransition? transition))
+        {
+            return transition;
+        }
+
+        return sid.RunwayTransitions.TryGetValue("RW" + rwy.TrimEnd('L', 'R', 'C') + "B", out transition) ? transition : null;
     }
 
     private static List<CifpTransition> FlownSidEnrouteTransitions(CifpSidProcedure sid, AircraftState aircraft)

@@ -21,7 +21,7 @@ internal static class AltitudeRestrictionInForce
     /// <summary>
     /// Whether a descend via (<see cref="AircraftProcedure.StarViaMode"/>) or a climb via
     /// (<see cref="AircraftProcedure.ClimbViaTargetFt"/>) is in force. Unlike
-    /// <see cref="AircraftProcedure.IsViaClearanceInForce"/>, a SID departure flying its SID with no climb via is not.
+    /// <see cref="AircraftProcedure.ProcedureSpeedsInForce"/>, a SID departure flying its SID with no climb via is not.
     /// </summary>
     /// <param name="aircraft">The aircraft whose clearance is read.</param>
     /// <returns>True under a descend via or a climb via.</returns>

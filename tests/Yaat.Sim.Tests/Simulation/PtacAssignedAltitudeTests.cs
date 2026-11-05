@@ -145,6 +145,29 @@ public class PtacAssignedAltitudeTests
         Assert.Null(harness.Aircraft.Procedure.SidViaCeiling);
     }
 
+    /// <summary>
+    /// A SID departure cleared "CTO 050" with no climb via flies its SID in via mode under an assigned 5,000. The CTO
+    /// altitude is a controller altitude (7110.65 4-5-7.h.11 NOTE 1), and PTAC PA keeps an assigned altitude when no via
+    /// clearance is in force.
+    /// </summary>
+    [Fact]
+    public void PtacPa_CtoFiftyDeparture_KeepsTheAssigned5000()
+    {
+        if (BuildHarness(altitudeFt: 3530) is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        harness.Aircraft.Procedure.SidViaMode = true;
+        harness.Aircraft.Targets.AssignedAltitude = 5000;
+        harness.Aircraft.Targets.TargetAltitude = 5000;
+
+        SendPtacPa(harness);
+
+        AssertAltitudes(harness, 5000);
+    }
+
     [Theory]
     [InlineData(3550, 3600)]
     [InlineData(3520, 3500)]

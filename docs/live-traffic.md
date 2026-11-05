@@ -157,7 +157,7 @@ squawk note (7700/7600) → coasting note → `SeedState`:
    clearance implied); else inside the gate, ≤ 30°/≤ 1 nm, field VMC (≥ 1 000 ft / 3 sm from the room METAR, VMC assumed
    when unknown) → visual approach with field-in-sight set; else aligned within 10 nm → heading hold + "on vectors to the
    runway final" warning. Then **initial climb** (climbing ≥ 300 fpm, < 3 nm of the track-aligned departure runway end,
-   ≤ 30° aligned) → feed cleared heading else runway heading, filed SID restrictions activated when the route names one
+   ≤ 30° aligned) → feed cleared heading else runway heading, filed SID activated when the route names one (a feed controller altitude is the interim, or the assigned altitude when it differs from the filed cruise). A climb via goes in force (summary "initial climb runway {rwy} heading {hdg}, {SID} restrictions active") only on a SID with published crossing restrictions that is not a radar-vectors SID, for a departure observed climbing with no feed controller altitude, or with a feed interim, read as "climb via SID except maintain {interim}" (the windows keep capping). An assigned-only feed altitude is a plain maintain: SID active, published altitudes out of force ("…, {SID} active, maintain {alt}"). A radar-vectors SID, or one with no published altitudes, gets no climb via ("…, {SID} active")
    (§5-6-3: never turned direct to an enroute fix off the runway — this deliberately precedes the rejoin). Then the filed
    route: `NextFixAhead` (closest leg → its end fix, one skip when that fix is abeam/behind, ±45° of track,
    ≥ max(2 nm, 30 s)) installs `NavigationRoute` from that fix; `ArrivalRouteResolver.ApplyAltitudeProfile` within 30 nm
@@ -169,7 +169,7 @@ squawk note (7700/7600) → coasting note → `SeedState`:
    air vector at/above FL240.
 7. **Vertical** (skipped when an approach was installed — the approach owns the vertical path): level when the last 3
    samples span ≤ 200 ft and |VS| ≤ 400 fpm (Mode C is 100-ft quantised), or while coasting → altitude to the 100 ft
-   (never a hemispheric snap). Climbing → keep the rate to interim/assigned/filed, else the next 1 000 ft up. Descending →
+   (never a hemispheric snap). A feed controller altitude is taken as the assigned and target altitude even when the aircraft is observed level or above it. A departure observed level with no feed altitude keeps the level altitude as assigned and gets no climb via (the old vertical seed). A climb via in force (step 5) lets the published altitudes drive the climb, capped by the feed interim when there is one. Climbing → keep the rate to interim/assigned/filed, else the next 1 000 ft up. Descending →
    keep the rate to interim/assigned, else the first at/at-or-below restriction on the installed route below the aircraft,
    else `max(MVA floor, destination elevation + 2 000 ft rounded up)`; when none of those exist (no MVA coverage, no
    destination) the aircraft is **levelled off** with a warning rather than seeded an unbounded descent (§5-6-1.a.3).

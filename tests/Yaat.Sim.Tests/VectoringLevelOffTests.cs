@@ -1,5 +1,7 @@
 ﻿using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Tests;
 
@@ -198,6 +200,39 @@ public class VectoringLevelOffTests
         // Via-mode disabled without altitude/DVIA → level off
         Assert.Null(ac.Targets.TargetAltitude);
         Assert.Single(ac.PendingWarnings);
+    }
+
+    /// <summary>
+    /// A JARR sent alone to an aircraft descending via its STAR ends the descend via with no altitude in the block: the
+    /// "vectored off procedure" warning and the level-off apply, as for a direct to a fix on the procedure.
+    /// </summary>
+    [Fact]
+    public void Jarr_UnderDvia_NoAlt_LevelsOffAndWarns()
+    {
+        var request = new SpawnRequest
+        {
+            Rules = FlightRulesKind.Ifr,
+            Weight = WeightClass.Heavy,
+            Engine = EngineKind.Jet,
+            PositionType = SpawnPositionType.OnStar,
+            StarEntryFix = "OAKES",
+            StarId = "OAKES3",
+            StarRunway = "12",
+            DescendVia = true,
+            StarAltitude = 16000,
+            DestinationAirportId = "KOAK",
+        };
+        (AircraftState? ac, string? error) = AircraftGenerator.Generate(request, "KOAK", [], groundLayout: null, new Random(1), new BeaconCodePool());
+        Assert.Null(error);
+        Assert.NotNull(ac);
+        Assert.True(ac.Procedure.StarViaMode, "setup: the aircraft must be descending via OAKES3");
+
+        CommandResult result = CommandDispatcher.Dispatch(new JoinStarCommand("OAKES3", null, null), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success, result.Message);
+        Assert.False(AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac), "setup: the JARR must end the descend via");
+        Assert.Contains("Vectored off procedure without an altitude assignment", ac.PendingWarnings);
+        Assert.Null(ac.Targets.TargetAltitude);
     }
 
     [Fact]

@@ -960,7 +960,7 @@ public static class ApproachCommandHandler
             return explicitAltitude;
         }
 
-        bool viaInForce = aircraft.Procedure.IsViaClearanceInForce;
+        bool viaInForce = AltitudeRestrictionInForce.ViaClearanceInForce(aircraft);
         // A VFR "at or above" / "at or below" restriction records its bound as AssignedAltitude; a bound is not an altitude to maintain
         bool vfrBoundInForce = (aircraft.Targets.AltitudeFloor is not null) || (aircraft.Targets.AltitudeCeiling is not null);
         if (!viaInForce && !vfrBoundInForce && (aircraft.Targets.AssignedAltitude is { } assigned))

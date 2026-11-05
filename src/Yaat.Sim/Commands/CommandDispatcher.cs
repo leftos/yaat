@@ -4852,7 +4852,7 @@ public static class CommandDispatcher
         return (ac, firedFromQueue) =>
         {
             bool hadProcedure = ac.Procedure.ActiveSidId is not null || ac.Procedure.ActiveStarId is not null;
-            bool hadViaMode = ac.Procedure.IsViaClearanceInForce;
+            bool hadProcedureAltitudes = AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac);
             var messages = new List<string>();
             DispatchContext current = ctx with { TransmissionId = block.TransmissionId };
             HandlerReadback? readback = null;
@@ -4895,7 +4895,7 @@ public static class CommandDispatcher
                 }
             }
 
-            CheckVectoringWarning(ac, captured, hadProcedure, hadViaMode);
+            CheckVectoringWarning(ac, captured, hadProcedure, hadProcedureAltitudes);
             string? msg = messages.Count > 0 ? string.Join(", ", messages) : null;
             return new CommandResult(true, msg) { PilotReadback = taxiReadback.Readback(readback, captured, ac) };
         };
@@ -4990,9 +4990,9 @@ public static class CommandDispatcher
     /// Warns and levels off when an aircraft is vectored off a procedure (SID/STAR)
     /// without an altitude assignment in the same block. Handles two cases:
     /// 1. Procedure fully cleared (heading/DCT off-procedure without altitude)
-    /// 2. Procedure preserved but via-mode disabled (DCT on-procedure without altitude/DVIA/CVIA)
+    /// 2. Procedure preserved but its published altitudes no longer in force (DCT on-procedure without altitude/DVIA/CVIA)
     /// </summary>
-    private static void CheckVectoringWarning(AircraftState aircraft, List<ParsedCommand> commands, bool hadProcedure, bool hadViaMode)
+    private static void CheckVectoringWarning(AircraftState aircraft, List<ParsedCommand> commands, bool hadProcedure, bool hadProcedureAltitudes)
     {
         if (!hadProcedure)
         {
@@ -5003,23 +5003,24 @@ public static class CommandDispatcher
         bool hasAltCmd = commands.Any(c => c is ClimbMaintainCommand or DescendMaintainCommand or PositionTurnAltitudeClearanceCommand);
         bool procedureCleared = aircraft.Procedure.ActiveSidId is null && aircraft.Procedure.ActiveStarId is null;
 
+        // Only a lateral command (a heading or a direct) vectors the aircraft: a CFIX that writes an altitude does not
+        bool hasHeadingCmd = commands.Any(c =>
+            c
+                is FlyHeadingCommand
+                    or TurnLeftCommand
+                    or TurnRightCommand
+                    or LeftTurnCommand
+                    or RightTurnCommand
+                    or FlyPresentHeadingCommand
+                    or DirectToCommand
+                    or ForceDirectToCommand
+                    or ConstrainedForceDirectToCommand
+                    or TurnLeftDirectToCommand
+                    or TurnRightDirectToCommand
+        );
+
         if (procedureCleared)
         {
-            bool hasHeadingCmd = commands.Any(c =>
-                c
-                    is FlyHeadingCommand
-                        or TurnLeftCommand
-                        or TurnRightCommand
-                        or LeftTurnCommand
-                        or RightTurnCommand
-                        or FlyPresentHeadingCommand
-                        or DirectToCommand
-                        or ForceDirectToCommand
-                        or ConstrainedForceDirectToCommand
-                        or TurnLeftDirectToCommand
-                        or TurnRightDirectToCommand
-            );
-
             if (hasHeadingCmd && !hasAltCmd)
             {
                 aircraft.PendingWarnings.Add("Vectored off procedure without an altitude assignment");
@@ -5029,8 +5030,10 @@ public static class CommandDispatcher
             return;
         }
 
-        // Procedure preserved (DCT to on-procedure fix) but via-mode was disabled
-        if (hadViaMode && !aircraft.Procedure.IsViaClearanceInForce)
+        // Procedure preserved (DCT to on-procedure fix) but the published altitudes that were in force no longer are
+        // A JARR re-routes onto the procedure and ends a via clearance, so it counts as a lateral command here
+        bool hasLateralCmd = hasHeadingCmd || commands.Any(c => c is JoinStarCommand);
+        if (hasLateralCmd && hadProcedureAltitudes && !AltitudeRestrictionInForce.ProcedureAltitudesInForce(aircraft))
         {
             bool hasViaCmd = commands.Any(c => c is ClimbViaCommand or DescendViaCommand);
             if (!hasAltCmd && !hasViaCmd)

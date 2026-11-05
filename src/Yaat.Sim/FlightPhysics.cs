@@ -186,7 +186,7 @@ public static class FlightPhysics
             // Read while the fix is on the route: an enroute transition counts as flown only while one of its own fixes is
             // ahead, so past a transition's last fix the published speed a controller replaced there could not be found.
             CifpSpeedRestriction? viaPublishedSpeed =
-                (aircraft.Procedure.IsViaClearanceInForce && IsControllerSetSpeed(sequenced))
+                (aircraft.Procedure.ProcedureSpeedsInForce && IsControllerSetSpeed(sequenced))
                     ? Commands.NavigationCommandHandler.ViaProcedureSpeedAt(aircraft, sequenced.Name)
                     : null;
             route.RemoveAt(0);
@@ -210,7 +210,7 @@ public static class FlightPhysics
             // Under a via clearance a crossing speed the controller set ends at its fix (7110.65 5-7-2.e), and a speed the
             // procedure publishes there is still the speed crossed (5-7-1.e NOTE, 5-7-1.g NOTE 3). With no via clearance
             // the crossing speed holds until ATC ends it.
-            bool controllerCrossingEnds = aircraft.Procedure.IsViaClearanceInForce && IsControllerSetSpeed(sequenced);
+            bool controllerCrossingEnds = aircraft.Procedure.ProcedureSpeedsInForce && IsControllerSetSpeed(sequenced);
             CifpSpeedRestriction? crossedRestriction = sequenced.SpeedRestriction;
             if (controllerCrossingEnds)
             {
@@ -1187,7 +1187,7 @@ public static class FlightPhysics
                 // procedure terminates without further ATC instruction the aircraft
                 // does not accelerate beyond it. Under a via clearance a crossing speed
                 // the controller set ends at its fix (7110.65 5-7-2.e), so it is not one.
-                if (!(aircraft.Procedure.IsViaClearanceInForce && IsControllerSetSpeed(target)))
+                if (!(aircraft.Procedure.ProcedureSpeedsInForce && IsControllerSetSpeed(target)))
                 {
                     aircraft.Procedure.LastProcedureSpeedKts = targetSpeed;
                 }

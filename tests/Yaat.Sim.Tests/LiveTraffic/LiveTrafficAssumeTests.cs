@@ -4,6 +4,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -843,6 +844,366 @@ public class LiveTrafficAssumeTests
         Assert.Contains("initial climb runway 28R", result.Message, StringComparison.Ordinal);
         Assert.Empty(ac.Targets.NavigationRoute);
         Assert.InRange(Math.Abs(ac.Targets.TargetTrueHeading!.Value - runway.TrueHeading), 0, 0.5);
+    }
+
+    /// <summary>
+    /// An assumed departure in its initial climb on a filed SID gets a climb via, the path a TDLS-put climb via takes, so
+    /// the SID's published altitudes drive it and the summary's "restrictions active" is true; the observed climb target
+    /// does not linger as an assigned altitude, as after a CVIA.
+    /// </summary>
+    [Fact]
+    public void AssumedSidDeparture_GetsClimbVia_PublishedAltitudesDrive()
+    {
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "30")!;
+        var der = new LatLon(runway.EndLatitude, runway.EndLongitude);
+        LatLon pos = GeoMath.ProjectPoint(der, runway.TrueHeading, 1.5);
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            Departure = "KOAK",
+            Destination = "KLAS",
+            Route = "CNDEL5 SUSEY",
+        };
+        AircraftState ac = Shadow(Sample(0, pos, runway.ElevationFt + 900, 160, runway.TrueHeading.Degrees, 2_500), plan);
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("restrictions active", result.Message, StringComparison.Ordinal);
+        Assert.NotNull(ac.Procedure.ActiveSidId);
+        Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+        Assert.True(AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac));
+        Assert.Null(ac.Targets.AssignedAltitude);
+        Assert.Equal(FlightPhysics.ClimbViaAltitude(ac), ac.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// An assumed departure on CNDEL5, a SID with published crossing restrictions (LEJAY and PORTE at or below), whose feed
+    /// carries a controller's interim altitude climbs via the SID except maintain that altitude: the climb via's top and its
+    /// "except maintain" are the interim, and as after a CVIA the aircraft carries no assigned altitude.
+    /// </summary>
+    [Fact]
+    public void AssumedSidDeparture_WithFeedInterim_ClimbsViaExceptMaintain()
+    {
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "30")!;
+        var der = new LatLon(runway.EndLatitude, runway.EndLongitude);
+        LatLon pos = GeoMath.ProjectPoint(der, runway.TrueHeading, 1.5);
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            Departure = "KOAK",
+            Destination = "KLAS",
+            Route = "CNDEL5 SUSEY",
+        };
+        AircraftState ac = Shadow(
+            Sample(0, pos, runway.ElevationFt + 900, 160, runway.TrueHeading.Degrees, 2_500) with
+            {
+                InterimAltitudeFt = 5_000,
+            },
+            plan
+        );
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("restrictions active, maintain 5000", result.Message, StringComparison.Ordinal);
+        Assert.NotNull(ac.Procedure.ActiveSidId);
+        Assert.Equal(5_000, ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(5_000, ac.Procedure.SidViaCeiling);
+        Assert.Null(ac.Targets.AssignedAltitude);
+        Assert.True(AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac));
+    }
+
+    /// <summary>An assumed departure in its initial climb with no SID in its filed route gets no climb via.</summary>
+    [Fact]
+    public void AssumedNonSidDeparture_NoClimbVia()
+    {
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        var der = new LatLon(runway.EndLatitude, runway.EndLongitude);
+        LatLon pos = GeoMath.ProjectPoint(der, runway.TrueHeading, 1.5);
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            Departure = "KOAK",
+            Destination = "KRDD",
+            Route = "SAC RBL",
+        };
+        AircraftState ac = Shadow(Sample(0, pos, runway.ElevationFt + 900, 160, runway.TrueHeading.Degrees, 2_500), plan);
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("initial climb runway 28R", result.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("restrictions active", result.Message, StringComparison.Ordinal);
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+    }
+
+    /// <summary>
+    /// An assumed CNDEL5 departure whose feed's assigned altitude equals the filed cruise carries no amendment, so it gets the
+    /// climb via as a departure with no feed altitude does.
+    /// </summary>
+    [Fact]
+    public void AssumedSidDeparture_AssignedEqualsCruise_GetsClimbVia()
+    {
+        AircraftState ac = Koak30InitialClimbShadow("CNDEL5 SUSEY", "KLAS", s => s with { AssignedAltitudeFt = 35_000 });
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("restrictions active", result.Message, StringComparison.Ordinal);
+        Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+        Assert.Null(ac.Procedure.SidViaCeiling);
+        Assert.Null(ac.Targets.AssignedAltitude);
+        Assert.True(AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac));
+    }
+
+    /// <summary>
+    /// An assumed CNDEL5 departure whose feed carries only an assigned altitude below the filed cruise keeps it as a plain
+    /// maintain: the SID is active with its published altitudes out of force, and the summary names the SID and the altitude.
+    /// </summary>
+    [Fact]
+    public void AssumedSidDeparture_AssignedBelowCruise_KeepsItNoClimbVia()
+    {
+        AircraftState ac = Koak30InitialClimbShadow("CNDEL5 SUSEY", "KLAS", s => s with { AssignedAltitudeFt = 12_000 });
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain("restrictions active", result.Message, StringComparison.Ordinal);
+        Assert.NotNull(ac.Procedure.ActiveSidId);
+        Assert.Contains($"{ac.Procedure.ActiveSidId} active, maintain 12000", result.Message, StringComparison.Ordinal);
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(12_000, ac.Targets.AssignedAltitude);
+        Assert.Equal(12_000, ac.Targets.TargetAltitude);
+        Assert.False(AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac));
+    }
+
+    /// <summary>
+    /// An assumed CNDEL5 departure rejoining at PORTE (at or below 10,000) with a feed interim of 12,000 climbs via the SID
+    /// except maintain 12,000: the via's top and "except maintain" are the interim, it carries no assigned altitude, and
+    /// PORTE's window below the interim still caps the climb.
+    /// </summary>
+    [Fact]
+    public void AssumedSidDeparture_InterimOnRestrictedSid_ClimbsViaExceptMaintain()
+    {
+        AircraftState ac = CndelRejoinShadow(6_000, 1_500, s => s with { InterimAltitudeFt = 12_000 });
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("direct PORTE", result.Message, StringComparison.Ordinal);
+        Assert.Equal(12_000, ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(12_000, ac.Procedure.SidViaCeiling);
+        Assert.Null(ac.Targets.AssignedAltitude);
+        Assert.Equal(10_000, ac.Targets.TargetAltitude);
+        Assert.Equal(FlightPhysics.ClimbViaAltitude(ac), ac.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// An assumed CNDEL5 departure observed level at 6,000 with no feed altitude gets no climb via: it keeps the level
+    /// altitude as its assigned altitude.
+    /// </summary>
+    [Fact]
+    public void AssumedSidDeparture_ObservedLevel_NoClimbVia_KeepsLevel()
+    {
+        AircraftState ac = CndelRejoinShadow(6_000, 0, s => s);
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("direct PORTE", result.Message, StringComparison.Ordinal);
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(6_000, ac.Targets.AssignedAltitude);
+        Assert.Equal(6_000, ac.Targets.TargetAltitude);
+        Assert.False(AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac));
+    }
+
+    /// <summary>
+    /// An assumed NIMI5 departure (a radar-vectors SID) in its initial climb with no feed altitude gets no climb via: it
+    /// keeps the old vertical seed, climbing to the filed cruise as its assigned altitude.
+    /// </summary>
+    [Fact]
+    public void AssumedRvSidDeparture_NoClimbVia()
+    {
+        AircraftState ac = Koak30InitialClimbShadow("NIMI5 OAK V6 SAC", "KSAC", s => s);
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain("restrictions active", result.Message, StringComparison.Ordinal);
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(35_000, ac.Targets.AssignedAltitude);
+        Assert.Equal(35_000, ac.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// An assumed KATFH4 departure (filed "ROWLY VYYDA KATFH4 SUSEY") climbing near KOAK with no feed altitude rejoins its
+    /// route at VYYDA and gets the climb via: the top is the SID's highest published altitude (KATFH at or above 6,000), and
+    /// VYYDA's at or below 4,000, on the rejoined route and in force, caps the via target below it.
+    /// </summary>
+    [Fact]
+    public void AssumedSidDeparture_RejoinNearDeparture_ViaTargetCappedBySidFix()
+    {
+        AircraftState ac = RejoinShadow("ROWLY VYYDA KATFH4 SUSEY", "ROWLY", "VYYDA", 2_500, 1_500, s => s);
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("direct VYYDA", result.Message, StringComparison.Ordinal);
+        Assert.Equal(6_000, ac.Procedure.ClimbViaTargetFt);
+        Assert.Null(ac.Targets.AssignedAltitude);
+        NavigationTarget vyyda = ac.Targets.NavigationRoute.First(f => f.Name == "VYYDA");
+        Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 4_000), vyyda.AltitudeRestriction);
+        Assert.Equal(4_000, ac.Targets.TargetAltitude);
+        Assert.Equal(FlightPhysics.ClimbViaAltitude(ac), ac.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// An assumed CNDEL5 departure descending near KOAK with no feed altitude is not climbing, so it gets no climb via.
+    /// </summary>
+    [Fact]
+    public void AssumedSidDeparture_DescendingNearDeparture_NoClimbVia()
+    {
+        AircraftState ac = CndelRejoinShadow(6_000, -1_000, s => s);
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Contains("direct PORTE", result.Message, StringComparison.Ordinal);
+        Assert.Null(ac.Procedure.ClimbViaTargetFt);
+        Assert.False(AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac));
+    }
+
+    /// <summary>
+    /// The filed-cruise exclusion is for the SID-departure via choice only: an arrival descending onto a feed assigned
+    /// altitude equal to its filed cruise still takes it, so it levels there.
+    /// </summary>
+    [Fact]
+    public void AssumedArrival_AssignedEqualsCruise_StillLevels()
+    {
+        AircraftState ac = EnRouteShadow(36_000, -1_500, s => s with { AssignedAltitudeFt = 35_000 });
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(35_000, ac.Targets.TargetAltitude);
+        Assert.Equal(35_000, ac.Targets.AssignedAltitude);
+    }
+
+    /// <summary>An assumed aircraft observed level with a feed controller altitude takes that altitude as its assigned altitude.</summary>
+    [Fact]
+    public void AssumedAircraft_LevelWithFeedAltitude_TakesFeedAltitude()
+    {
+        AircraftState ac = EnRouteShadow(12_000, 0, s => s with { AssignedAltitudeFt = 14_000 });
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(14_000, ac.Targets.TargetAltitude);
+        Assert.Equal(14_000, ac.Targets.AssignedAltitude);
+    }
+
+    /// <summary>
+    /// An assumed aircraft climbing above its feed controller altitude takes that altitude as its assigned altitude; present
+    /// altitude does not replace it.
+    /// </summary>
+    [Fact]
+    public void AssumedAircraft_ClimbingAboveFeedAltitude_TakesFeedAltitude()
+    {
+        AircraftState ac = EnRouteShadow(8_000, 1_500, s => s with { AssignedAltitudeFt = 7_000 });
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(7_000, ac.Targets.TargetAltitude);
+        Assert.Equal(7_000, ac.Targets.AssignedAltitude);
+    }
+
+    /// <summary>
+    /// A departure out of KOAK runway 30 on <paramref name="route"/> to <paramref name="destination"/>, filed at 35,000,
+    /// 1.5 nm past the DER and 900 ft up climbing 2,500 fpm, its feed sample shaped by <paramref name="feed"/>.
+    /// </summary>
+    private static AircraftState Koak30InitialClimbShadow(string route, string destination, Func<LiveTrafficSample, LiveTrafficSample> feed)
+    {
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "30")!;
+        var der = new LatLon(runway.EndLatitude, runway.EndLongitude);
+        LatLon pos = GeoMath.ProjectPoint(der, runway.TrueHeading, 1.5);
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            Departure = "KOAK",
+            Destination = destination,
+            Route = route,
+            Altitude = PlannedAltitude.Ifr(35_000),
+        };
+        return Shadow(feed(Sample(0, pos, runway.ElevationFt + 900, 160, runway.TrueHeading.Degrees, 2_500)), plan);
+    }
+
+    /// <summary>
+    /// A KOAK departure to KLAS filed <see cref="CndelRejoinRoute"/> at 35,000, on the leg LEJAY-PORTE (PORTE at or below
+    /// 10,000, CNDEL5's highest published altitude), as <see cref="RejoinShadow"/> places it.
+    /// </summary>
+    private static AircraftState CndelRejoinShadow(double altitudeFt, double verticalSpeedFpm, Func<LiveTrafficSample, LiveTrafficSample> feed) =>
+        RejoinShadow(CndelRejoinRoute, "LEJAY", "PORTE", altitudeFt, verticalSpeedFpm, feed);
+
+    /// <summary>
+    /// CNDEL5 filed after LEJAY, the SID's first fix: the expanded SID alone (PORTE SUSEY) never rejoins at a SID fix, as
+    /// the rejoin never picks a route's first fix.
+    /// </summary>
+    private const string CndelRejoinRoute = "LEJAY CNDEL5 SUSEY";
+
+    /// <summary>
+    /// A KOAK departure to KLAS filed <paramref name="route"/> at 35,000, 2.5 nm before <paramref name="toFix"/> on the leg
+    /// from <paramref name="fromFix"/> and tracking to it at <paramref name="altitudeFt"/> and
+    /// <paramref name="verticalSpeedFpm"/>, away from the field, so the assumer rejoins the route at
+    /// <paramref name="toFix"/> rather than seeding an initial climb; its feed sample shaped by <paramref name="feed"/>.
+    /// </summary>
+    private static AircraftState RejoinShadow(
+        string route,
+        string fromFix,
+        string toFix,
+        double altitudeFt,
+        double verticalSpeedFpm,
+        Func<LiveTrafficSample, LiveTrafficSample> feed
+    )
+    {
+        List<string> fixes = RouteExpander.Expand(route, NavigationDatabase.Instance, includeAllTransitionsOnMismatch: false);
+        int to = fixes.IndexOf(toFix);
+        Assert.True((to >= 1) && (fixes[to - 1] == fromFix), $"setup: the expanded route must fly {fromFix} then {toFix}: {string.Join(" ", fixes)}");
+        LatLon from = FixPosition(fromFix);
+        LatLon toPos = FixPosition(toFix);
+        double legNm = GeoMath.DistanceNm(from, toPos);
+        Assert.True(legNm > 2.5, $"setup: the leg {fromFix}-{toFix} is {legNm:F1} nm");
+        LatLon pos = GeoMath.ProjectPoint(from, new TrueHeading(GeoMath.BearingTo(from, toPos)), legNm - 2.5);
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            Departure = "KOAK",
+            Destination = "KLAS",
+            Route = route,
+            Altitude = PlannedAltitude.Ifr(35_000),
+        };
+        return Shadow(feed(Sample(0, pos, altitudeFt, 220, GeoMath.BearingTo(pos, toPos), verticalSpeedFpm)), plan);
+    }
+
+    /// <summary>An en-route IFR aircraft near Stockton filed at 35,000, its feed sample shaped by <paramref name="feed"/>.</summary>
+    private static AircraftState EnRouteShadow(double altitudeFt, double verticalSpeedFpm, Func<LiveTrafficSample, LiveTrafficSample> feed)
+    {
+        var plan = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            Departure = "KSFO",
+            Destination = "KSMF",
+            Altitude = PlannedAltitude.Ifr(35_000),
+        };
+        return Shadow(feed(Sample(0, EnRoute, altitudeFt, 280, 90, verticalSpeedFpm)), plan);
+    }
+
+    private static LatLon FixPosition(string name)
+    {
+        (double Lat, double Lon)? pos = NavigationDatabase.Instance.ResolveFixOrFrd(name);
+        Assert.True(pos.HasValue, $"setup: {name} must resolve");
+        return new LatLon(pos.Value.Lat, pos.Value.Lon);
     }
 
     [Fact]

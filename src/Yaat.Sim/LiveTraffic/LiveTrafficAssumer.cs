@@ -375,19 +375,30 @@ public static class LiveTrafficAssumer
     private static string SeedVertical(AircraftState ac, AircraftLiveTraffic lt, List<string> notes)
     {
         double vs = ac.VerticalSpeed;
+        if (FlightPhysics.ClimbViaAltitude(ac) is { } viaTarget)
+        {
+            // The lateral seed put the filed SID's climb via in force: it drives the climb and, as after a CVIA, the
+            // aircraft carries no assigned altitude. This is the one place the assumer clears it.
+            ac.Targets.TargetAltitude = viaTarget;
+            ac.Targets.AssignedAltitude = null;
+            ac.Targets.DesiredVerticalRate = (vs > 0) ? Math.Abs(vs) : null;
+            return $"climbing via the SID to {viaTarget:F0}";
+        }
+
+        // A controller altitude in the feed is the assigned altitude: neither the observed level nor present altitude
+        // replaces it.
+        double? cleared = FeedControllerAltitude(ac, lt, sidDeparture: ac.Procedure.ActiveSidId is not null)?.AltitudeFt;
         if (IsLevel(ac, lt))
         {
-            ac.Targets.TargetAltitude = RoundTo100(ac.Altitude);
+            ac.Targets.TargetAltitude = cleared ?? RoundTo100(ac.Altitude);
             ac.Targets.AssignedAltitude = ac.Targets.TargetAltitude;
             return $"level {ac.Targets.TargetAltitude:F0}";
         }
 
-        double? cleared = lt.InterimAltitudeFt ?? lt.AssignedAltitudeFt;
         ac.Targets.DesiredVerticalRate = Math.Abs(vs);
         if (vs > 0)
         {
-            double target = cleared ?? ac.FlightPlan.Altitude.CruiseFeet ?? RoundUpTo1000(ac.Altitude + 1);
-            target = Math.Max(target, RoundTo100(ac.Altitude));
+            double target = cleared ?? Math.Max(ac.FlightPlan.Altitude.CruiseFeet ?? RoundUpTo1000(ac.Altitude + 1), RoundTo100(ac.Altitude));
             ac.Targets.TargetAltitude = target;
             ac.Targets.AssignedAltitude = target;
             return $"climbing to {target:F0}";
@@ -516,7 +527,7 @@ public static class LiveTrafficAssumer
             return climbSummary;
         }
 
-        (string? rejoinSummary, bool rejoined) = TrySeedRouteRejoin(ac, notes);
+        (string? rejoinSummary, bool rejoined) = TrySeedRouteRejoin(ac, lt, notes);
         if (rejoined)
         {
             return rejoinSummary!;
@@ -611,7 +622,7 @@ public static class LiveTrafficAssumer
     /// <summary>
     /// Just off the departure end and climbing: the aircraft is on its cleared heading, the runway heading,
     /// or its SID — never turned direct to an enroute fix (§5-6-3 NOTE), which is why this runs before the
-    /// route rejoin. The filed SID's restrictions are activated when the route names one.
+    /// route rejoin. When the route names a SID, the aircraft is put under its climb via.
     /// </summary>
     private static string? TrySeedInitialClimb(AircraftState ac, AircraftLiveTraffic lt)
     {
@@ -633,25 +644,47 @@ public static class LiveTrafficAssumer
             }
 
             ac.Procedure.DepartureRunway = runway.Designator;
-            bool sid = NavigationCommandHandler.TryActivateFiledSid(ac, transmissionId: 0);
-            ac.Targets.TargetTrueHeading = lt.ClearedHeadingDeg is { } cleared
-                ? new MagneticHeading(cleared).ToTrue(ac.Declination)
-                : runway.TrueHeading;
-            string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
-            string heading = $"{ac.Targets.TargetTrueHeading.Value.ToMagnetic(ac.Declination).Degrees:000}";
-            return sid
-                ? $"initial climb runway {display} heading {heading}, {ac.Procedure.ActiveSidId} restrictions active"
-                : $"initial climb runway {display} heading {heading}";
+            bool climbVia = TryPutFiledSidClimbViaInForce(ac, lt);
+            TrueHeading held = lt.ClearedHeadingDeg is { } cleared ? new MagneticHeading(cleared).ToTrue(ac.Declination) : runway.TrueHeading;
+            ac.Targets.TargetTrueHeading = held;
+            return InitialClimbSummary(ac, lt, runway, held, climbVia);
         }
 
         return null;
     }
 
     /// <summary>
+    /// The initial-climb summary: the runway and the heading <paramref name="held"/>, then the SID's state — its restrictions
+    /// active under a climb via (naming the "except maintain" altitude when there is one), else the SID active, naming the
+    /// feed's controller altitude when there is one.
+    /// </summary>
+    private static string InitialClimbSummary(AircraftState ac, AircraftLiveTraffic lt, RunwayInfo runway, TrueHeading held, bool climbVia)
+    {
+        string display = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+        string heading = $"{held.ToMagnetic(ac.Declination).Degrees:000}";
+        string summary = $"initial climb runway {display} heading {heading}";
+        if (ac.Procedure.ActiveSidId is not { } activeSid)
+        {
+            return summary;
+        }
+
+        if (climbVia)
+        {
+            return (ac.Procedure.SidViaCeiling is { } exceptMaintain)
+                ? $"{summary}, {activeSid} restrictions active, maintain {exceptMaintain}"
+                : $"{summary}, {activeSid} restrictions active";
+        }
+
+        return (FeedControllerAltitude(ac, lt, sidDeparture: true) is { } maintain)
+            ? $"{summary}, {activeSid} active, maintain {maintain.AltitudeFt:F0}"
+            : $"{summary}, {activeSid} active";
+    }
+
+    /// <summary>
     /// Installs the filed route from the next fix ahead. Returns the summary and whether a route was
     /// installed; when not, the summary carries the reason for the terminal note.
     /// </summary>
-    private static (string? Summary, bool Rejoined) TrySeedRouteRejoin(AircraftState ac, List<string> notes)
+    private static (string? Summary, bool Rejoined) TrySeedRouteRejoin(AircraftState ac, AircraftLiveTraffic lt, List<string> notes)
     {
         if (string.IsNullOrWhiteSpace(ac.FlightPlan.Route))
         {
@@ -692,11 +725,76 @@ public static class LiveTrafficAssumer
         }
         else if (IsWithinOfAirport(ac, ac.FlightPlan.Departure, ArrivalProfileDistanceNm))
         {
-            NavigationCommandHandler.TryActivateFiledSid(ac, transmissionId: 0);
+            TryPutFiledSidClimbViaInForce(ac, lt);
         }
 
         notes.AddRange(warnings);
         return ($"direct {resolved[candidate].Name} then the filed route", true);
+    }
+
+    /// <summary>
+    /// Activates the filed SID on an assumed departure (<see cref="NavigationCommandHandler.TryActivateFiledSid"/>) and
+    /// decides from the feed sample <paramref name="lt"/> whether its climb via goes in force, by the path a TDLS-put climb
+    /// via takes (<see cref="NavigationCommandHandler.TryPutTdlsClimbViaInForce"/>). Only a SID with published crossing
+    /// restrictions that is not a radar-vectors SID
+    /// (<see cref="NavigationCommandHandler.ActiveSidPublishesClimbViaAltitudes"/>) is a climb-via clearance (7110.65
+    /// 4-3-2.e.5; AIM 5-2-9.h.5); on any other the SID is only activated. On one:
+    /// <list type="bullet">
+    /// <item>a feed interim altitude is "climb via SID except maintain" it: the published windows keep capping and the
+    /// aircraft climbs to the interim;</item>
+    /// <item>a feed assigned altitude other than the filed cruise (<see cref="FeedControllerAltitude"/>) is a plain
+    /// maintain, the published altitudes out of force;</item>
+    /// <item>with no feed altitude, a climbing departure gets the climb via (top: the SID's highest published altitude,
+    /// never below present altitude); one observed level gets none and keeps the level altitude.</item>
+    /// </list>
+    /// Under the climb via, <see cref="SeedVertical"/> clears the assigned altitude, as after a CVIA. True only when the
+    /// climb via went in force.
+    /// </summary>
+    private static bool TryPutFiledSidClimbViaInForce(AircraftState ac, AircraftLiveTraffic lt)
+    {
+        if ((ac.Procedure.ActiveSidId is null) && !NavigationCommandHandler.TryActivateFiledSid(ac, transmissionId: 0))
+        {
+            return false;
+        }
+
+        if (!NavigationCommandHandler.ActiveSidPublishesClimbViaAltitudes(ac))
+        {
+            return false;
+        }
+
+        if (FeedControllerAltitude(ac, lt, sidDeparture: true) is { } feed)
+        {
+            return feed.IsInterim
+                && NavigationCommandHandler.TryPutTdlsClimbViaInForce(ac, transmissionId: 0, exceptMaintainFt: (int)Math.Round(feed.AltitudeFt));
+        }
+
+        // Only a climbing departure, by the initial climb's own threshold, gets the climb via.
+        if ((ac.VerticalSpeed < ClimbingMinFpm) || IsLevel(ac, lt))
+        {
+            return false;
+        }
+
+        return NavigationCommandHandler.TryPutTdlsClimbViaInForce(ac, transmissionId: 0, exceptMaintainFt: null);
+    }
+
+    /// <summary>
+    /// The altitude a real controller cleared the aircraft to, per the feed, and whether it is the interim altitude: its
+    /// interim altitude, else its assigned altitude; null when the feed carries neither. For a SID departure
+    /// (<paramref name="sidDeparture"/>) an assigned altitude equal to the filed cruise is no amendment, so it is none.
+    /// </summary>
+    private static (double AltitudeFt, bool IsInterim)? FeedControllerAltitude(AircraftState ac, AircraftLiveTraffic lt, bool sidDeparture)
+    {
+        if (lt.InterimAltitudeFt is { } interim)
+        {
+            return (interim, true);
+        }
+
+        if (lt.AssignedAltitudeFt is not { } assigned)
+        {
+            return null;
+        }
+
+        return (sidDeparture && (assigned == ac.FlightPlan.Altitude.CruiseFeet)) ? null : (assigned, false);
     }
 
     /// <summary>

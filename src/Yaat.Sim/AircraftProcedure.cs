@@ -20,8 +20,14 @@ public class AircraftProcedure
     public bool SidViaMode { get; set; }
     public bool StarViaMode { get; set; }
 
-    /// <summary>Whether a descend via or climb via clearance is in force.</summary>
-    public bool IsViaClearanceInForce => StarViaMode || SidViaMode;
+    /// <summary>
+    /// Whether the via's speed behaviour applies: the aircraft flies a STAR or SID in via mode
+    /// (<see cref="StarViaMode"/> or <see cref="SidViaMode"/>), so a controller-set crossing speed ends at its fix and the
+    /// procedure's own published speeds take over. It says nothing about altitudes: a SID departure under a CTO altitude
+    /// flies its SID in via mode with the published altitudes out of force (see
+    /// <see cref="AltitudeRestrictionInForce.ProcedureAltitudesInForce"/>).
+    /// </summary>
+    public bool ProcedureSpeedsInForce => StarViaMode || SidViaMode;
 
     /// <summary>
     /// The ATC-assigned "except maintain" altitude of the climb via in force: <c>CVIA nnn</c>'s, or, for a bare CVIA, the
