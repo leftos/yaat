@@ -29,7 +29,7 @@ public class CrossingBoundMetByClearanceTests
     [Fact]
     public void DescendThenCrossAtOrAboveBelowClearance_KeepsClearedAltitude()
     {
-        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");
             return;
@@ -114,7 +114,7 @@ public class CrossingBoundMetByClearanceTests
     [Fact]
     public void DescendThenConstrainedDirectAtOrAboveBelowClearance_KeepsClearedAltitude()
     {
-        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");
             return;
@@ -138,7 +138,7 @@ public class CrossingBoundMetByClearanceTests
     [Fact]
     public void DescendThroughAtOrBelowAtFixEightNmAhead_CrossesAtOrBelowTheBound()
     {
-        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");
             return;
@@ -248,7 +248,7 @@ public class CrossingBoundMetByClearanceTests
     [Fact]
     public void DescendThroughAtOrBelowAtFlyByFix_ReachesTheBoundBySequencing()
     {
-        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");
             return;
@@ -351,7 +351,7 @@ public class CrossingBoundMetByClearanceTests
     [Fact]
     public void DescendVia_LaterCrossFixes_AssignTheLastCrossingAltitude()
     {
-        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");
             return;
@@ -379,7 +379,7 @@ public class CrossingBoundMetByClearanceTests
     [Fact]
     public void PlainAtOrBelowFromAbove_FarFix_KeepsTheGentlePlannedRate()
     {
-        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");
             return;
@@ -408,6 +408,96 @@ public class CrossingBoundMetByClearanceTests
             -aircraft.VerticalSpeed < standardFpm / 2,
             $"Descending at {-aircraft.VerticalSpeed:F0} fpm, not the gentle planned rate (standard {standardFpm:F0})"
         );
+    }
+
+    /// <summary>
+    /// On OAKES3 joined by JARR with no descend via, "DM 120" with a published ceiling below 12,000 ahead: the published
+    /// altitude is not in force, so the aircraft descends to and levels at 12,000 through that fix (AIM 5-4-1.a.2 and its
+    /// Example 2 NOTE; 7110.65 4-5-7.h.2).
+    /// </summary>
+    [Fact]
+    public void MaintainWithoutDescendVia_PublishedAtOrBelowAhead_LevelsAtAssigned()
+    {
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        TickUntilPassed(harness, aircraft.Targets.NavigationRoute[0].Name, _ => { });
+        SendOk(harness, "JARR OAKES3");
+        NavigationTarget ceilingFix = aircraft.Targets.NavigationRoute.First(f =>
+            (f.AltitudeRestriction is { } r)
+            && (r.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between)
+            && (r.Altitude1Ft < 12000)
+        );
+        _output.WriteLine($"{ceilingFix.Name} publishes {ceilingFix.AltitudeRestriction!.Type} {ceilingFix.AltitudeRestriction.Altitude1Ft}");
+
+        SendOk(harness, "DM 120");
+        TickUntilPassed(
+            harness,
+            ceilingFix.Name,
+            t => Assert.True(aircraft.Altitude >= 12000 - 20, $"At {t} s the aircraft descended to {aircraft.Altitude:F0} ft, below its 12,000")
+        );
+
+        Assert.InRange(aircraft.Altitude, 12000 - 20, 12000 + 20);
+        Assert.Equal(12000, aircraft.Targets.AssignedAltitude);
+    }
+
+    /// <summary>
+    /// A CNDEL5 departure in SID mode cleared "CTO 050" (no climb via), then "CFIX PORTE at or above 30": SID mode is not a
+    /// via clearance, so the cleared 5,000 meets the bound and stays assigned (AIM 4-4-10.a; 7110.65 4-5-7).
+    /// </summary>
+    [Fact]
+    public void CtoFifty_ThenCfixAtOrAboveAboveIt_KeepsTheAssignedAltitude()
+    {
+        AircraftState aircraft = ClimbViaTopAltitudeTests.Cndel5Departure(sidAlreadyActive: true, out _);
+        // The state "CTO 050" leaves a SID departure in: SID mode, 5,000 assigned, no climb via
+        aircraft.Targets.AssignedAltitude = 5000;
+        aircraft.Targets.TargetAltitude = 5000;
+        Assert.True(aircraft.Procedure.SidViaMode);
+        Assert.Null(aircraft.Procedure.ClimbViaTargetFt);
+
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("CFIX PORTE A030");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
+        Assert.True(result.Success, result.Message);
+
+        Assert.Equal(5000, aircraft.Targets.AssignedAltitude);
+    }
+
+    /// <summary>
+    /// "DM 120", then "CFIX TOOOL at or below 100": the controller's crossing is in force, so the aircraft crosses TOOOL at
+    /// or below 10,000 and holds the altitude it crossed at past it, never climbing back toward 12,000.
+    /// </summary>
+    [Fact]
+    public void CrossFixAtOrBelowAfterMaintain_AimsAtTheBoundAndHolds()
+    {
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        string fixName = StarFixOnRoute(aircraft);
+        SendOk(harness, "DM 120");
+        SendOk(harness, $"CFIX {fixName} B100");
+
+        TickUntilPassed(harness, fixName, _ => { });
+        double crossed = aircraft.Altitude;
+        _output.WriteLine($"Crossed {fixName} at {crossed:F0} ft");
+        Assert.True(crossed <= 10000 + 20, $"Crossed {fixName} at {crossed:F0} ft, above its 10,000 bound");
+
+        for (int t = 1; t <= 300; t++)
+        {
+            harness.Engine.TickOneSecond();
+            Assert.True(
+                aircraft.Altitude <= crossed + 20,
+                $"{t} s past {fixName} the aircraft climbed back to {aircraft.Altitude:F0} ft from {crossed:F0}"
+            );
+        }
     }
 
     [Theory]
@@ -448,6 +538,7 @@ public class CrossingBoundMetByClearanceTests
         AircraftState aircraft = AircraftClearedTo(12000);
         aircraft.Procedure.StarViaMode = descendVia;
         aircraft.Procedure.SidViaMode = !descendVia;
+        aircraft.Procedure.ClimbViaTargetFt = descendVia ? null : 14000;
         var bound = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 11000);
         Assert.False(NavigationCommandHandler.CrossingBoundMetByClearance(aircraft, bound));
     }

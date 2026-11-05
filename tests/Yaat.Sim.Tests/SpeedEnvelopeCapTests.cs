@@ -938,7 +938,7 @@ public sealed class SpeedEnvelopeCapTests
     [Fact]
     public void ForceSpeedThenApproachClearanceInOneBlock_KeepsTheFlag()
     {
-        if (Yaat.Sim.Tests.Simulation.DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        if (Yaat.Sim.Tests.Simulation.DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");
             return;

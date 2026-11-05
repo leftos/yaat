@@ -552,7 +552,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     internal static bool CrossingBoundMetByClearance(AircraftState aircraft, CifpAltitudeRestriction restriction)
     {
-        if (aircraft.Procedure.IsViaClearanceInForce || (aircraft.Targets.AssignedAltitude is not { } cleared))
+        if (AltitudeRestrictionInForce.ViaClearanceInForce(aircraft) || (aircraft.Targets.AssignedAltitude is not { } cleared))
         {
             return false;
         }
@@ -1867,6 +1867,7 @@ internal static class NavigationCommandHandler
             if (!IsStampedBy(fix, transmissionId))
             {
                 fix.AltitudeRestriction = source.AltitudeRestriction;
+                fix.CrossingTransmissionId = null;
             }
 
             if (!IsSpeedStampedBy(fix, transmissionId))

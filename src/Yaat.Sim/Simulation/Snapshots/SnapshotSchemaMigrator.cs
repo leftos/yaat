@@ -29,6 +29,12 @@ public static class SnapshotSchemaMigrator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("SnapshotSchemaMigrator");
 
+    /// <summary>
+    /// The route fix names the pattern phases write with their own altitude: PatternEntryPhase's PTN-ENTRY and
+    /// TeardropReentryPhase's TDROP-OUT, TDROP-LI and TDROP-ABM.
+    /// </summary>
+    private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
+
     public const int CurrentSchemaVersion = 44;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
@@ -349,10 +355,12 @@ public static class SnapshotSchemaMigrator
         //   procedure, a published approach segment, a controller's crossing, or a phase inserting the pilot's own plan.
         //   Through V43 only a controller's crossing left a record — NavigationTargetDto.CrossingTransmissionId, stamped by a
         //   CFIX or a constrained DCTF — so every route fix carrying both it and an altitude restriction migrates as Atc
-        //   and every other restriction stays the published procedure's. A pattern-phase or approach-inserted restriction
-        //   therefore migrates as Procedure, and stays so in a snapshot taken mid-pattern-entry, mid-teardrop or after an
-        //   approach clearance: those phases write their route in OnStart and their FromSnapshot rebuilds nothing. Only a
-        //   replay that runs the phase or the clearance again writes System or Approach onto the regenerated route.
+        //   and every other restriction stays the published procedure's, except the points the pattern phases insert as the
+        //   pilot's own plan: a fix named PTN-ENTRY (PatternEntryPhase) or TDROP-OUT, TDROP-LI or TDROP-ABM
+        //   (TeardropReentryPhase) migrates as System, so a snapshot taken mid-pattern-entry or mid-teardrop keeps its
+        //   descent in force (those phases write their route in OnStart and their FromSnapshot rebuilds nothing). An
+        //   approach-inserted restriction still migrates as Procedure; only a replay that runs the clearance again writes
+        //   Approach onto the regenerated route.
         if (snapshot.SchemaVersion < 44)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
@@ -401,14 +409,26 @@ public static class SnapshotSchemaMigrator
         }
     }
 
-    /// <summary>Marks a pre-V44 fix's altitude restriction Atc when the crossing stamp says a controller wrote it.</summary>
+    /// <summary>
+    /// Marks a pre-V44 fix's altitude restriction Atc when the crossing stamp says a controller wrote it, and System when
+    /// the fix is one a pattern phase inserts (<see cref="PatternPhaseFixNames"/>).
+    /// </summary>
     private static void MigrateLegacyAltitudeRestrictionSources(AircraftSnapshotDto ac)
     {
         foreach (NavigationTargetDto fix in LegacyRoutes(ac).SelectMany(route => route))
         {
-            if ((fix.AltitudeRestriction is { } restriction) && (fix.CrossingTransmissionId is not null))
+            if (fix.AltitudeRestriction is not { } restriction)
+            {
+                continue;
+            }
+
+            if (fix.CrossingTransmissionId is not null)
             {
                 restriction.Source = (int)CifpAltitudeRestrictionSource.Atc;
+            }
+            else if (PatternPhaseFixNames.Contains(fix.Name))
+            {
+                restriction.Source = (int)CifpAltitudeRestrictionSource.System;
             }
         }
     }

@@ -260,7 +260,7 @@ public sealed class SpeedRevertSupersededTests
     [Fact]
     public void Later_Rps_OnAStar_FliesThePublishedSpeedPastTheFix()
     {
-        if (Simulation.DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        if (Simulation.DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");
             return;
@@ -298,7 +298,7 @@ public sealed class SpeedRevertSupersededTests
         Assert.False(ac.Procedure.SpeedRestrictionsDeleted);
 
         // Past the fix the aircraft holds what RPS alone gives it there: the same transmissions with no crossing at all.
-        if (Simulation.DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } reference)
+        if (Simulation.DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } reference)
         {
             return;
         }

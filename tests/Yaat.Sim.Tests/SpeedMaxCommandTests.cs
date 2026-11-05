@@ -975,7 +975,7 @@ public sealed class SpeedMaxCommandTests
 
     private OakesHarness? BuildHarness()
     {
-        OakesHarness? harness = DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output);
+        OakesHarness? harness = DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000);
         if (harness is null)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");

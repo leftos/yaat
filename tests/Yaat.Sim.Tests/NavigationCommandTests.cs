@@ -1335,13 +1335,71 @@ public class NavigationCommandTests : IDisposable
     }
 
     [Fact]
-    public void NonViaMode_RouteWithConstraints_TriggersPlanning()
+    public void ControllerCrossing_NoVia_TriggersDescentPlanning()
     {
         AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
         aircraft.IndicatedAirspeed = 300;
         // GroundSpeed derived from IAS (no wind)
 
-        // Build a route with altitude constraints (not in via mode)
+        // A route carrying a controller crossing (CFIX or a drawn route), not in via mode
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "FIX1",
+                Position = new LatLon(37.7, -122.0),
+                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000, null)
+                {
+                    Source = CifpAltitudeRestrictionSource.Atc,
+                },
+            }
+        );
+
+        FlightPhysics.Update(aircraft, 1.0);
+
+        // Planning activates without via mode: a controller crossing is always in force
+        Assert.NotNull(aircraft.Targets.PlannedVerticalRate);
+        Assert.True(aircraft.Targets.PlannedVerticalRate < 0);
+        Assert.Equal(8000, aircraft.Targets.TargetAltitude);
+    }
+
+    [Fact]
+    public void ControllerCrossing_NoVia_TriggersClimbPlanning()
+    {
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 5000);
+        aircraft.IndicatedAirspeed = 250;
+        // GroundSpeed is derived from IAS; on ground IAS=GS, airborne IAS≈GS (no wind)
+
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "FIX1",
+                Position = new LatLon(37.7, -122.0),
+                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 10000, null)
+                {
+                    Source = CifpAltitudeRestrictionSource.Atc,
+                },
+            }
+        );
+
+        FlightPhysics.Update(aircraft, 1.0);
+
+        Assert.NotNull(aircraft.Targets.PlannedVerticalRate);
+        Assert.True(aircraft.Targets.PlannedVerticalRate > 0, "PlannedVerticalRate should be positive for climb");
+        Assert.Equal(10000, aircraft.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// The same route with a published (Procedure) restriction, no via clearance and an assigned altitude: the published
+    /// altitude is not in force (AIM 5-2-9.h.8, 5-4-1.a.2), so no planning starts and the target stays the assigned one.
+    /// </summary>
+    [Fact]
+    public void PublishedRestriction_NoVia_DoesNotTriggerPlanning()
+    {
+        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        aircraft.IndicatedAirspeed = 300;
+        aircraft.Targets.AssignedAltitude = 12000;
+        aircraft.Targets.TargetAltitude = 12000;
+
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
@@ -1353,33 +1411,8 @@ public class NavigationCommandTests : IDisposable
 
         FlightPhysics.Update(aircraft, 1.0);
 
-        // Planning should activate without via mode, just from the route constraint
-        Assert.NotNull(aircraft.Targets.PlannedVerticalRate);
-        Assert.True(aircraft.Targets.PlannedVerticalRate < 0);
-        Assert.Equal(8000, aircraft.Targets.TargetAltitude);
-    }
-
-    [Fact]
-    public void NonViaMode_RouteWithClimbConstraint_TriggersClimbPlanning()
-    {
-        AircraftState aircraft = MakeAircraft(heading: 090, altitude: 5000);
-        aircraft.IndicatedAirspeed = 250;
-        // GroundSpeed is derived from IAS; on ground IAS=GS, airborne IAS≈GS (no wind)
-
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = "FIX1",
-                Position = new LatLon(37.7, -122.0),
-                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 10000, null),
-            }
-        );
-
-        FlightPhysics.Update(aircraft, 1.0);
-
-        Assert.NotNull(aircraft.Targets.PlannedVerticalRate);
-        Assert.True(aircraft.Targets.PlannedVerticalRate > 0, "PlannedVerticalRate should be positive for climb");
-        Assert.Equal(10000, aircraft.Targets.TargetAltitude);
+        Assert.Null(aircraft.Targets.PlannedVerticalRate);
+        Assert.Equal(12000, aircraft.Targets.TargetAltitude);
     }
 
     // --- Revert on waypoint sequencing ---
@@ -1466,10 +1499,10 @@ public class NavigationCommandTests : IDisposable
         Assert.Equal(300, aircraft.Targets.AssignedSpeed);
     }
 
-    // --- ApplyFixConstraints works without via mode ---
+    // --- ApplyFixConstraints applies a controller crossing without via mode ---
 
     [Fact]
-    public void ApplyFixConstraints_WorksWithoutViaMode()
+    public void ApplyFixConstraints_ControllerCrossing_WorksWithoutViaMode()
     {
         AircraftState aircraft = MakeAircraft(heading: 090, altitude: 10000);
         aircraft.IndicatedAirspeed = 250;
@@ -1478,7 +1511,10 @@ public class NavigationCommandTests : IDisposable
         {
             Name = "FIX1",
             Position = new LatLon(37.7, -122.0),
-            AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 6000, null),
+            AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 6000, null)
+            {
+                Source = CifpAltitudeRestrictionSource.Atc,
+            },
         };
 
         // Neither SidViaMode nor StarViaMode is true

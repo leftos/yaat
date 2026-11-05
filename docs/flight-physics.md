@@ -234,7 +234,14 @@ The destination comes from the pilot's own cleared copy, snapshotted at spawn or
 **Step climb/descent planners** run *before* the integrators (`UpdateClimbPlanning`, `UpdateDescentPlanning`). Each scans the route
 for the next altitude-constrained fix, resolves the constraint via `ResolveAltitudeRestriction`, writes `TargetAltitude`, and computes
 the `PlannedVerticalRate` needed to hit it at the sequencing point (`SequencingDistanceNm`), so a crossing is met by the time the fix sequences: `requiredFpm = altDelta / timeMinutes`, capped at **2× the standard category rate**. In the last seconds the time is floored at one physics tick, so the required rate holds instead of jumping to 2× standard. Descent planning is suppressed under `SidViaMode`; climb planning under `StarViaMode` — the SID-via / STAR-via split decides which
-planner owns the route. Both also activate (outside via mode) whenever the route carries any explicit altitude restriction.
+planner owns the route. Both also activate (outside via mode) whenever the route carries an altitude restriction in force (`AltitudeRestrictionInForce`, by who wrote it, `CifpAltitudeRestriction.Source`):
+
+- A controller's crossing (CFIX, constrained DCTF) always.
+- A pattern-entry or teardrop point while that phase flies.
+- A published approach altitude once an approach clearance is pending or active.
+- A published SID or STAR altitude only under a climb via or descend via, or on a SID departure with no altitude at all (the no-data fallback treated as climb via).
+
+A maintain (`DM`/`CM`, a `CTO` altitude, a TDLS maintain value) with no `CVIA`/`DVIA` leaves the published altitudes on the route but out of force, so the aircraft levels at its assigned altitude; published speeds still apply.
 
 The climb scan walks the route in order and ends at the first restriction that fixes the altitude before a later window: one needing a descent (more than `AltitudeSnapFt` below the aircraft), or an already-met "At" / glideslope-intercept restriction. A higher window past it therefore starts no climb before that fix.
 
@@ -496,8 +503,8 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
   pirouetting on a stale `TargetTrueHeading`. Airborne helicopters at GS 0 (hover) are exempt because `IsOnGround` is false.
 - **Step climb/descent and speed look-ahead planners run BEFORE the integrators and overwrite `TargetAltitude`/`TargetSpeed` from upcoming route
   constraints.** The *speed* look-ahead (`UpdateSpeedPlanning`) self-suppresses under `SpeedRestrictionsDeleted` / `TargetMach`; under `HasExplicitSpeedCommand` it plans only controller-set crossings. The *altitude* planners (`UpdateClimbPlanning` /
-  `UpdateDescentPlanning`) have **no** explicit-command guard — they overwrite `TargetAltitude` whenever the route carries an altitude constraint
-  (or via mode is on), so a bare `CM`/`DM` altitude you expect to stick can be re-derived by a planner the moment the route has a constrained fix.
+  `UpdateDescentPlanning`) have **no** explicit-command guard — they overwrite `TargetAltitude` whenever the route carries an altitude restriction in force
+  (a controller's crossing, or a published one under a via), so a bare `CM`/`DM` altitude you expect to stick can be re-derived by a planner the moment the route has a constrained fix.
 - **A fix sequences before the fix itself.** The sequencing threshold (turn anticipation or `NavArrivalNm`) puts the "crossing" of a fix up to several nm short of it, so route-distance logic (the speed planner's deceleration end, restriction applies, reverts) is measured to that point, not to the fix position.
 - **`DesiredDecelRate` is honored only on the deceleration branch of `UpdateSpeed` and ignored when accelerating; `DesiredAccelRate` is the
   mirror.** Both must be cleared on phase transition or firm braking (or a tug's 0.3 kt/s crawl) leaks into the next phase. See

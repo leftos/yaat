@@ -716,6 +716,142 @@ public class ClimbViaTopAltitudeTests
         Assert.DoesNotContain("climbing via", line.Tts);
     }
 
+    /// <summary>
+    /// A CNDEL6 departure cleared "CTO 050" with no climb via: the controller's altitude replaces the SID's published
+    /// ones, so the aircraft climbs to and levels at 5,000, never on to PORTE's 10,000 ceiling (AIM 5-2-9.h.8 Example 2;
+    /// 7110.65 4-3-2). Its route ends at PORTE, as on a filed route that ends at the SID.
+    /// </summary>
+    [Fact]
+    public void Cndel6_CtoFifty_NoClimbVia_LevelsAtAssigned()
+    {
+        Departure departure = StartKoak30Departure(LoadZoa(), "KLAS", "CNDEL6 SUSEY", ctoAltitude: 5000, climbViaOnTheGround: false);
+
+        (double maxAltitude, double atPorte) = FlyPastPorteTrimmedThere(departure, _ => { });
+
+        _output.WriteLine($"at PORTE={atPorte:F0} max={maxAltitude:F0} final={departure.Aircraft.Altitude:F0}");
+        Assert.True(maxAltitude <= 5000 + ViaTopToleranceFt, $"the aircraft climbed to {maxAltitude:F0} ft, above its assigned 5,000");
+        Assert.InRange(departure.Aircraft.Altitude, 5000 - ViaTopToleranceFt, 5000 + ViaTopToleranceFt);
+    }
+
+    /// <summary>
+    /// The same "CTO 050" departure, then "CVIA 120" shortly after takeoff: the climb via brings the SID's restrictions ahead
+    /// back, so PORTE's at or below 10,000 caps the climb up to PORTE (AIM 5-2-9.h.6, h.8).
+    /// </summary>
+    [Fact]
+    public void Cndel6_CtoFifty_ThenClimbVia_RestrictionsAheadComeBack()
+    {
+        Departure departure = StartKoak30Departure(LoadZoa(), "KLAS", "CNDEL6 SUSEY", ctoAltitude: 5000, climbViaOnTheGround: false);
+        AircraftState ac = departure.Aircraft;
+
+        int? viaTop = null;
+        double beforePorte = 0;
+        double? viaAltitudeBeforePorte = null;
+        (_, double atPorte) = FlyPastPorteTrimmedThere(
+            departure,
+            t =>
+            {
+                if (t == 30)
+                {
+                    // Except maintain 12,000: the bare climb via's TDLS top is PORTE's own 10,000, which would leave the cap untested
+                    Dispatch(ac, "CVIA 120");
+                    viaTop = Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
+                }
+
+                if ((t > 30) && ac.Targets.NavigationRoute.Exists(f => f.Name == "PORTE"))
+                {
+                    beforePorte = Math.Max(beforePorte, ac.Altitude);
+                    viaAltitudeBeforePorte = FlightPhysics.ClimbViaAltitude(ac);
+                }
+            }
+        );
+
+        _output.WriteLine($"at PORTE={atPorte:F0} highest before={beforePorte:F0} top={viaTop} via before PORTE={viaAltitudeBeforePorte}");
+        Assert.True(viaTop > 10000, $"setup: the climb via top {viaTop} must sit above PORTE's 10,000 ceiling");
+        Assert.True(beforePorte <= 10000 + LevelToleranceFt, $"before PORTE the aircraft climbed to {beforePorte:F0}, above its 10,000 ceiling");
+        Assert.Equal(10000, viaAltitudeBeforePorte);
+        // Measured while PORTE is still on the route: PORTE sequences before the closest approach, and past it the climb
+        // via goes on toward its 12,000 top.
+        Assert.True(beforePorte > 5000 + 500, $"the climb via never took the aircraft above 5,000 before PORTE: {beforePorte:F0} ft");
+    }
+
+    /// <summary>
+    /// A bare CTO under a TDLS "maintain" value (<see cref="AircraftProcedure.SidInitialAltitudeFt"/>, 5,000) is a controller
+    /// altitude: the SID's published altitudes are not in force under it (AIM 5-2-9.h.8 Example 2), so the route planner never
+    /// caps the climb at LEJAY's published ceiling below 5,000.
+    /// </summary>
+    [Fact]
+    public void TdlsMaintain_SidPublishedAltitudesNotInForce()
+    {
+        List<NavigationTarget> resolved = DepartureClearanceHandler.ResolveLegsToTargets(FlownLegs("KOAK", "CNDEL5", "RW30", "SUSEY"));
+        int lejay = resolved.FindIndex(t => t.Name == "LEJAY");
+        Assert.True((lejay >= 0) && (lejay + 1 < resolved.Count), "setup: the flown CNDEL legs must pass LEJAY");
+        CifpAltitudeRestriction ceiling = Assert.IsType<CifpAltitudeRestriction>(resolved[lejay].AltitudeRestriction);
+        Assert.True(
+            (ceiling.Type == CifpAltitudeRestrictionType.AtOrBelow) && (ceiling.Altitude1Ft < 5000),
+            $"setup: LEJAY publishes {ceiling.Type} {ceiling.Altitude1Ft}, not a ceiling below 5,000"
+        );
+
+        LatLon fix = resolved[lejay].Position;
+        double track = GeoMath.BearingTo(fix, resolved[lejay + 1].Position);
+        LatLon start = GeoMath.ProjectPoint(fix, new TrueHeading(track + 180.0), 6.0);
+        var ac = new AircraftState
+        {
+            Callsign = "SWA2210",
+            AircraftType = "B738",
+            Position = start,
+            TrueHeading = new TrueHeading(GeoMath.BearingTo(start, fix)),
+            TrueTrack = new TrueHeading(GeoMath.BearingTo(start, fix)),
+            Altitude = 1500,
+            IndicatedAirspeed = 230,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KOAK",
+                Destination = "KLAS",
+                Route = "CNDEL5 SUSEY",
+                Altitude = PlannedAltitude.Ifr(35000),
+                FlightRules = "IFR",
+            },
+        };
+        foreach (NavigationTarget target in resolved.Skip(lejay).DistinctBy(f => f.Name))
+        {
+            ac.Targets.NavigationRoute.Add(target);
+        }
+
+        ac.Procedure.ActiveSidId = Cndel5ProcedureId();
+        ac.Procedure.DepartureRunway = "30";
+        ac.Procedure.SidViaMode = true;
+        ac.Procedure.SidInitialAltitudeFt = 5000;
+        ac.Targets.TargetAltitude = 5000;
+
+        double atLejay = FlyPastFix(ac, "LEJAY", 600);
+        _output.WriteLine($"at LEJAY={atLejay:F0} target={ac.Targets.TargetAltitude}");
+
+        Assert.True(
+            atLejay > ceiling.Altitude1Ft + 200,
+            $"crossed LEJAY at {atLejay:F0}: the planner capped the climb at its published {ceiling.Altitude1Ft:N0}"
+        );
+    }
+
+    /// <summary>
+    /// A CFIX on a SID fix, then the filed SID activated with no transmission (the TDLS climb via path): the published
+    /// altitude the overlay restores is no longer the controller's, so the fix drops its crossing stamp with it.
+    /// </summary>
+    [Fact]
+    public void Overlay_ClearsTheCrossingStampWhenRestoringThePublishedAltitude()
+    {
+        AircraftState ac = Cndel5Departure(sidAlreadyActive: false, out CifpAltitudeRestriction published);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared);
+        DispatchLine(ac, "CM 140", ctx);
+        DispatchLine(ac, "CFIX PORTE A120", ctx);
+        NavigationTarget porte = RouteFix(ac, "PORTE");
+        Assert.NotNull(porte.CrossingTransmissionId);
+
+        Assert.True(NavigationCommandHandler.TryActivateFiledSid(ac, 0));
+
+        Assert.Equal(published, porte.AltitudeRestriction);
+        Assert.Null(porte.CrossingTransmissionId);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -1263,8 +1399,24 @@ public class ClimbViaTopAltitudeTests
     /// </summary>
     private static Departure StartCoast9Departure(ArtccConfigRoot artccConfig, int? ctoAltitude, bool climbViaOnTheGround)
     {
-        RunwayInfo rwy = Koak30();
         Assert.NotNull(NavigationDatabase.Instance.GetSid("KOAK", "COAST9"));
+        return StartKoak30Departure(artccConfig, "KSAN", "COAST9 MCKEY LAX COMIX2", ctoAltitude, climbViaOnTheGround);
+    }
+
+    /// <summary>
+    /// Clears a RWY30 departure out of KOAK filed <paramref name="route"/> to <paramref name="destination"/> for takeoff,
+    /// with <paramref name="ctoAltitude"/> or none, and puts it airborne just past the DER in its initial climb, as
+    /// <see cref="StartCoast9Departure"/> does.
+    /// </summary>
+    private static Departure StartKoak30Departure(
+        ArtccConfigRoot artccConfig,
+        string destination,
+        string route,
+        int? ctoAltitude,
+        bool climbViaOnTheGround
+    )
+    {
+        RunwayInfo rwy = Koak30();
 
         var ac = new AircraftState
         {
@@ -1277,8 +1429,8 @@ public class ClimbViaTopAltitudeTests
             FlightPlan = new AircraftFlightPlan
             {
                 Departure = "KOAK",
-                Destination = "KSAN",
-                Route = "COAST9 MCKEY LAX COMIX2",
+                Destination = destination,
+                Route = route,
                 Altitude = PlannedAltitude.Ifr(39000),
                 FlightRules = "IFR",
             },
@@ -1441,6 +1593,49 @@ public class ClimbViaTopAltitudeTests
         }
 
         return new FlightResult(minAltitude, maxAltitude, sawDepartureProcedure);
+    }
+
+    /// <summary>
+    /// Flies a KOAK departure, its live route cut to end at PORTE, until it is well past PORTE, then two more minutes;
+    /// <paramref name="eachSecond"/> runs before each tick. Returns the highest altitude flown and the altitude at the
+    /// closest approach to PORTE.
+    /// </summary>
+    private (double MaxAltitude, double AtPorte) FlyPastPorteTrimmedThere(Departure departure, Action<int> eachSecond)
+    {
+        AircraftState ac = departure.Aircraft;
+        LatLon porte = FixPosition("PORTE");
+        double closest = double.MaxValue;
+        double atPorte = ac.Altitude;
+        double maxAltitude = ac.Altitude;
+        for (int t = 0; t < 1800; t++)
+        {
+            eachSecond(t);
+            List<NavigationTarget> route = ac.Targets.NavigationRoute;
+            int cut = route.FindIndex(f => f.Name == "PORTE");
+            if ((cut >= 0) && (cut + 1 < route.Count))
+            {
+                route.RemoveRange(cut + 1, route.Count - cut - 1);
+            }
+
+            PhaseRunner.Tick(ac, departure.Context);
+            FlightPhysics.Update(ac, 1.0);
+            maxAltitude = Math.Max(maxAltitude, ac.Altitude);
+            double distanceNm = GeoMath.DistanceNm(ac.Position, porte);
+            if (distanceNm < closest)
+            {
+                closest = distanceNm;
+                atPorte = ac.Altitude;
+            }
+            else if ((closest < 2.0) && (distanceNm > closest + 2.0))
+            {
+                FlightResult after = FlyFor(departure, 120);
+                return (Math.Max(maxAltitude, after.MaxAltitude), atPorte);
+            }
+        }
+
+        _output.WriteLine($"closest to PORTE {closest:F1} nm at {atPorte:F0} ft");
+        Assert.Fail("the departure did not pass PORTE within 1800 s");
+        return (maxAltitude, atPorte);
     }
 
     /// <summary>

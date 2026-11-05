@@ -195,10 +195,12 @@ public class ProcedureConstraintTests
     }
 
     [Fact]
-    public void NoViaMode_ConstraintsStillApplied()
+    public void NoViaMode_PublishedAltitudeNotInForce_SpeedStillApplied()
     {
         AircraftState aircraft = CreateAircraft(altitude: 3000);
-        // No via mode set — constraints now apply universally for CFIX/drawn routes
+        // No via mode set: a published altitude is not in force (AIM 5-2-9.h.8, 5-4-1.a.2), while its published speed
+        // still applies
+        double? targetBefore = aircraft.Targets.TargetAltitude;
 
         NavigationTarget target = MakeTarget(
             alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000),
@@ -206,7 +208,7 @@ public class ProcedureConstraintTests
         );
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
-        Assert.Equal(8000, aircraft.Targets.TargetAltitude);
+        Assert.Equal(targetBefore, aircraft.Targets.TargetAltitude);
         Assert.Equal(210, aircraft.Targets.TargetSpeed);
     }
 

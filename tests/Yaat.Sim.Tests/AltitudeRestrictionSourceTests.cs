@@ -34,7 +34,7 @@ public class AltitudeRestrictionSourceTests
     [Fact]
     public void Cfix_StampsAtc()
     {
-        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");
             return;
@@ -73,7 +73,7 @@ public class AltitudeRestrictionSourceTests
     [Fact]
     public void Jarr_PublishedRestrictions_AreProcedure()
     {
-        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output) is not { } harness)
+        if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
             _output.WriteLine("KOAK ground layout is unavailable, skipping");
             return;
@@ -312,6 +312,122 @@ public class AltitudeRestrictionSourceTests
         List<NavigationTargetDto> route = Assert.Single(snapshot.Aircraft).Targets!.NavigationRoute!;
         Assert.Equal((int)CifpAltitudeRestrictionSource.Atc, route[0].AltitudeRestriction!.Source);
         Assert.Equal((int)CifpAltitudeRestrictionSource.Procedure, route[1].AltitudeRestriction!.Source);
+    }
+
+    /// <summary>
+    /// A pre-V44 snapshot taken mid-pattern-entry or mid-teardrop: the phase's own points (PTN-ENTRY, TDROP-OUT, TDROP-LI,
+    /// TDROP-ABM) migrate as the phase's plan, System, and any other fix keeps the published procedure's source.
+    /// </summary>
+    [Fact]
+    public void MigratorV44_StampsSystemOnPatternFixes()
+    {
+        AircraftState aircraft = SnapshotAircraft();
+        aircraft.Targets.NavigationRoute.AddRange([
+            RouteFix("PTN-ENTRY", 38.0, -122.0, new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 1100)),
+            RouteFix("TDROP-OUT", 38.1, -122.1, new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 1350)),
+            RouteFix("TDROP-LI", 38.2, -122.2, new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 1150)),
+            RouteFix(TeardropReentryPhase.AbeamTargetName, 38.3, -122.3, new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 1100)),
+            RouteFix("BANND", 38.4, -122.4, new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 9000)),
+        ]);
+
+        var snapshot = new StateSnapshotDto
+        {
+            SchemaVersion = 43,
+            ElapsedSeconds = 0,
+            Rng = new RngState(1, 2, 3, 4),
+            Aircraft = [aircraft.ToSnapshot()],
+            Scenario = new ScenarioSnapshotDto
+            {
+                ScenarioId = "altitude-restriction-source",
+                ScenarioName = "source migration",
+                RngSeed = 42,
+                ElapsedSeconds = 0,
+                AutoClearedToLand = false,
+                AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+                ValidateDctFixes = false,
+                IsPaused = false,
+                SimRate = 1.0,
+                AutoAcceptDelaySeconds = 0,
+                IsStudentTowerPosition = false,
+            },
+        };
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        List<NavigationTargetDto> route = Assert.Single(snapshot.Aircraft).Targets!.NavigationRoute!;
+        Assert.Equal(
+            [
+                (int)CifpAltitudeRestrictionSource.System,
+                (int)CifpAltitudeRestrictionSource.System,
+                (int)CifpAltitudeRestrictionSource.System,
+                (int)CifpAltitudeRestrictionSource.System,
+                (int)CifpAltitudeRestrictionSource.Procedure,
+            ],
+            route.Select(f => f.AltitudeRestriction!.Source)
+        );
+    }
+
+    /// <summary>
+    /// A pattern entry's PTN-ENTRY point is the phase's own plan and in force while it flies: the planner descends to
+    /// pattern altitude.
+    /// </summary>
+    [Fact]
+    public void PatternEntry_SystemPointStillDrivesTheDescent()
+    {
+        (AircraftState aircraft, double patternAltitude) = StartPatternEntryAbovePatternAltitude();
+
+        FlightPhysics.Update(aircraft, 1.0);
+        FlightPhysics.Update(aircraft, 1.0);
+
+        _output.WriteLine($"target {aircraft.Targets.TargetAltitude}, planned rate {aircraft.Targets.PlannedVerticalRate}");
+        Assert.Equal(patternAltitude, aircraft.Targets.TargetAltitude);
+        Assert.True(aircraft.Targets.PlannedVerticalRate < 0, $"no planned descent to PTN-ENTRY: {aircraft.Targets.PlannedVerticalRate}");
+    }
+
+    /// <summary>
+    /// "CM 040" during the entry cancels the pattern entry (the phase clears): its PTN-ENTRY point is no longer the plan in
+    /// force, so the planner stops targeting pattern altitude and the aircraft climbs to the assigned 4,000.
+    /// </summary>
+    [Fact]
+    public void PatternEntryCleared_ByClimbMaintain_SystemPointNoLongerDrives()
+    {
+        (AircraftState aircraft, double patternAltitude) = StartPatternEntryAbovePatternAltitude();
+        FlightPhysics.Update(aircraft, 1.0);
+
+        DispatchLine(aircraft, "CM 040", TestDispatch.Context(Random.Shared));
+        _output.WriteLine(
+            $"after CM: phase {aircraft.Phases?.CurrentPhase?.Name}, route {string.Join(" ", aircraft.Targets.NavigationRoute.Select(t => t.Name))}"
+        );
+        FlightPhysics.Update(aircraft, 1.0);
+        FlightPhysics.Update(aircraft, 1.0);
+
+        _output.WriteLine($"target {aircraft.Targets.TargetAltitude}, planned rate {aircraft.Targets.PlannedVerticalRate}");
+        Assert.Contains(aircraft.Targets.NavigationRoute, t => t.Name == "PTN-ENTRY");
+        Assert.True(patternAltitude < 4000, $"setup: pattern altitude {patternAltitude:F0} must sit below the CM's 4,000");
+        Assert.Equal(4000, aircraft.Targets.TargetAltitude);
+        Assert.Null(aircraft.Targets.PlannedVerticalRate);
+    }
+
+    /// <summary>A jet 1,000 ft above pattern altitude with a started 45° pattern entry about 3 nm ahead.</summary>
+    private static (AircraftState Aircraft, double PatternAltitude) StartPatternEntryAbovePatternAltitude()
+    {
+        PatternWaypoints waypoints = DefaultWaypoints();
+        AircraftState aircraft = PatternAircraft();
+        aircraft.Altitude = waypoints.PatternAltitude + 1000;
+
+        var phase = new PatternEntryPhase
+        {
+            EntryLat = 37.05,
+            EntryLon = -122.0,
+            PatternAltitude = waypoints.PatternAltitude,
+            Kind = PatternEntryKind.FortyFive,
+        };
+        PhaseList phases = Assert.IsType<PhaseList>(aircraft.Phases);
+        phases.Add(phase);
+        phases.Start(PatternContext(aircraft));
+        Assert.IsType<PatternEntryPhase>(phases.CurrentPhase);
+        Assert.Contains(aircraft.Targets.NavigationRoute, t => t.Name == "PTN-ENTRY");
+        return (aircraft, waypoints.PatternAltitude);
     }
 
     private static void TickUntilFirstFixPassed(DescendViaSupersedesEarlierAltitudeTests.Harness harness)

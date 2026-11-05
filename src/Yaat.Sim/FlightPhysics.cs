@@ -490,8 +490,8 @@ public static class FlightPhysics
             return;
         }
 
-        // Activate when via mode is on OR when the route has any altitude constraint
-        if (!aircraft.Procedure.StarViaMode && !route.Exists(t => t.AltitudeRestriction is not null))
+        // Activate only when some route fix carries an altitude restriction in force
+        if (!route.Exists(t => (t.AltitudeRestriction is { } r) && AltitudeRestrictionInForce.IsInForce(aircraft, r)))
         {
             return;
         }
@@ -506,7 +506,7 @@ public static class FlightPhysics
                 cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
             }
 
-            if (route[i].AltitudeRestriction is not { } restriction)
+            if ((route[i].AltitudeRestriction is not { } restriction) || !AltitudeRestrictionInForce.IsInForce(aircraft, restriction))
             {
                 continue;
             }
@@ -597,8 +597,8 @@ public static class FlightPhysics
             return;
         }
 
-        // Activate when via mode is on OR when the route has any altitude constraint
-        if (!aircraft.Procedure.SidViaMode && !route.Exists(t => t.AltitudeRestriction is not null))
+        // Activate only when some route fix carries an altitude restriction in force
+        if (!route.Exists(t => (t.AltitudeRestriction is { } r) && AltitudeRestrictionInForce.IsInForce(aircraft, r)))
         {
             return;
         }
@@ -612,7 +612,7 @@ public static class FlightPhysics
                 cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
             }
 
-            if (route[i].AltitudeRestriction is not { } restriction)
+            if ((route[i].AltitudeRestriction is not { } restriction) || !AltitudeRestrictionInForce.IsInForce(aircraft, restriction))
             {
                 continue;
             }
@@ -998,7 +998,7 @@ public static class FlightPhysics
 
         // Under a climb via the target is its top altitude under the ceilings ahead: an at-or-above restriction never is.
         bool climbVia = ApplyClimbViaAltitude(aircraft);
-        if ((!climbVia) && (target.AltitudeRestriction is { } alt))
+        if ((!climbVia) && (target.AltitudeRestriction is { } alt) && AltitudeRestrictionInForce.IsInForce(aircraft, alt))
         {
             ApplyFixAltitudeConstraint(aircraft, alt);
         }
@@ -1302,6 +1302,7 @@ public static class FlightPhysics
                 && (
                     restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between
                 )
+                && AltitudeRestrictionInForce.IsInForce(aircraft, restriction)
             )
             {
                 target = Math.Min(target, restriction.Altitude1Ft);
@@ -1851,18 +1852,22 @@ public static class FlightPhysics
             return lowest;
         }
 
-        double? viaBottom = aircraft.Procedure.StarViaFloor ?? LowestRouteAltitudeBound(aircraft.Targets.NavigationRoute);
+        double? viaBottom = aircraft.Procedure.StarViaFloor ?? LowestRouteAltitudeBound(aircraft);
         return LowerOf(lowest, viaBottom);
     }
 
     private static double? LowerOf(double? a, double? b) => ((a is { } x) && (b is { } y)) ? Math.Min(x, y) : (a ?? b);
 
-    private static double? LowestRouteAltitudeBound(List<NavigationTarget> route)
+    /// <summary>The lowest altitude bound among the route's restrictions in force (<see cref="AltitudeRestrictionInForce.IsInForce"/>).</summary>
+    private static double? LowestRouteAltitudeBound(AircraftState aircraft)
     {
         double? lowest = null;
-        foreach (NavigationTarget fix in route)
+        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute)
         {
-            lowest = LowerOf(lowest, LowerAltitudeBoundFt(fix.AltitudeRestriction));
+            if ((fix.AltitudeRestriction is { } restriction) && AltitudeRestrictionInForce.IsInForce(aircraft, restriction))
+            {
+                lowest = LowerOf(lowest, LowerAltitudeBoundFt(restriction));
+            }
         }
 
         return lowest;
@@ -1886,8 +1891,8 @@ public static class FlightPhysics
     /// 10,000 ft: that crossing wins until the fix is passed. Published speeds deleted by DSR
     /// (<see cref="AircraftProcedure.SpeedRestrictionsDeleted"/>) are skipped, as the planner skips them; a controller's
     /// crossing speed (<see cref="IsControllerSetSpeed"/>) always counts. The fix's altitude must hold the aircraft up
-    /// there (<see cref="CrossingFloorFt"/>) and be in force: under a descend via, or set by the controller's crossing
-    /// (<see cref="NavigationTarget.CrossingTransmissionId"/>). A published altitude off a via clearance, an "at or below",
+    /// there (<see cref="CrossingFloorFt"/>) and be in force (<see cref="AltitudeRestrictionInForce.IsInForce"/>): a
+    /// controller's crossing, or a published one under a via clearance. A published altitude off a via clearance, an "at or below",
     /// or no altitude at all leaves the aircraft free to be below 10,000 ft before the fix, so it does not hold the band off.
     /// </summary>
     private static bool FastCrossingAtOrAboveTenThousandAhead(AircraftState aircraft)
@@ -1897,7 +1902,7 @@ public static class FlightPhysics
             return false;
         }
 
-        bool altitudeInForce = aircraft.Procedure.StarViaMode || (next.CrossingTransmissionId is not null);
+        bool altitudeInForce = (next.AltitudeRestriction is { } r) && AltitudeRestrictionInForce.IsInForce(aircraft, r);
         return altitudeInForce && (CrossingFloorFt(next.AltitudeRestriction) is { } floorFt) && (floorFt >= TenThousandFt);
     }
 

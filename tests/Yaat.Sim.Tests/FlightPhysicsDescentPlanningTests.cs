@@ -55,7 +55,10 @@ public sealed class FlightPhysicsDescentPlanningTests
             {
                 Name = FixName,
                 Position = fixPosition,
-                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, (int)CrossingAltitudeFt),
+                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, (int)CrossingAltitudeFt)
+                {
+                    Source = CifpAltitudeRestrictionSource.Atc,
+                },
             }
         );
 

@@ -1778,6 +1778,12 @@ A later `DVIA` supersedes a `CFIX` or constrained `DCTF` crossing (see **`DVIA` 
 | SID (after CTO) | **ON** — aircraft follows published climb restrictions | `CVIA` (re-enable after `CM`, `CTO RH`, or vectors) | `CM` or `DM` (any altitude command) |
 | STAR (after JARR) | **OFF** — aircraft maintains altitude, follows lateral path only | `DVIA` (enable descent restrictions) | `DM` or `CM` (any altitude command) |
 
+A SID's or STAR's published altitudes bind the aircraft only under a via: a climb via or descend via, or a SID departure with no altitude at all (treated as climb via).
+
+A maintain (`DM`/`CM`, a `CTO` altitude, a TDLS maintain value) without `CVIA`/`DVIA` leaves the published altitudes on the route but out of force, so the aircraft levels at its assigned altitude (`CTO 050` on CNDEL6 levels at 5,000, and a later `CVIA` brings the restrictions ahead back); published speeds still apply.
+
+A controller's crossing (`CFIX`, constrained `DCTF`) always binds, and a `JARR` without `DVIA` holds the present altitude.
+
 `DVIA` no longer requires a prior `JARR`: when no STAR is active, it activates the STAR filed in the flight-plan route and applies that STAR's published crossing restrictions before descending. When a STAR is already active, `DVIA` always overlays the STAR's published crossing restrictions onto the route in place (a `LVL` STAR spawn included); crossing values this transmission set are kept, and earlier `CFIX` crossings are superseded. The STAR's published speeds apply without `DVIA` (AIM 5-4-1.a.2(a)(3) NOTE 1; 7110.65 4-5-7 NOTE).
 
 Symmetrically, `CVIA` no longer requires an active SID: when none is active — for example after `CTO RH` or being vectored off the SID — it activates the SID filed in the route and overlays its published crossing restrictions onto the current route. Issue `DCT <SID fix>` first to reload the lateral path, then `CVIA` to climb via.

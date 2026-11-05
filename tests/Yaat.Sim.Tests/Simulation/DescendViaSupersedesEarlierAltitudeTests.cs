@@ -24,6 +24,9 @@ public class DescendViaSupersedesEarlierAltitudeTests
 {
     private const string Airport = "OAK";
 
+    /// <summary>The band around an assigned altitude the aircraft counts as level at.</summary>
+    private const double LevelToleranceFt = 20.0;
+
     private readonly ITestOutputHelper _output;
 
     public DescendViaSupersedesEarlierAltitudeTests(ITestOutputHelper output)
@@ -263,6 +266,99 @@ public class DescendViaSupersedesEarlierAltitudeTests
         SendOk(harness, "DVIA");
 
         Assert.Equal(FixNamed(reference.Aircraft, second).AltitudeRestriction, FixNamed(harness.Aircraft, second).AltitudeRestriction);
+    }
+
+    /// <summary>
+    /// "JARR OAKES3" with no descend via puts the STAR's published altitudes on the route but not in force: the aircraft
+    /// holds its assigned 16,000 through GRUDG (between 20,000 and 23,000) and still flies the STAR's published speeds
+    /// (YAAT-1644; AIM 5-4-1.a.2 and its Example 2 NOTE; 7110.65 4-5-7.h.2).
+    /// </summary>
+    [Fact]
+    public void JarrWithoutDescendVia_HoldsAltitudeThroughGrudg()
+    {
+        if (BuildOakesHarness() is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        TickUntilPassed(harness, aircraft.Targets.NavigationRoute[0].Name, _ => { });
+        SendOk(harness, "JARR OAKES3");
+        NavigationTarget grudg = FixNamed(aircraft, "GRUDG");
+        CifpSpeedRestriction speed = Assert.IsType<CifpSpeedRestriction>(grudg.SpeedRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.Between, grudg.AltitudeRestriction?.Type);
+
+        TickUntilPassed(
+            harness,
+            "GRUDG",
+            t =>
+                Assert.True(
+                    Math.Abs(aircraft.Altitude - 16000) <= LevelToleranceFt,
+                    $"{t} s after JARR the aircraft is at {aircraft.Altitude:F0} ft, off its assigned 16,000"
+                )
+        );
+
+        Assert.Equal(speed.SpeedKts, aircraft.Procedure.LastProcedureSpeedKts);
+    }
+
+    /// <summary>
+    /// From FL260, "JARR OAKES3" then "DVIA": the published altitudes are in force, so GRUDG is crossed inside its
+    /// 20,000-23,000 window. Staged above the window, since a descend via never climbs to a floor.
+    /// </summary>
+    [Fact]
+    public void JarrThenDescendVia_CrossesGrudgInsideItsWindow()
+    {
+        if (BuildOakesHarness(_output, starAltitude: 26000) is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        TickUntilPassed(harness, aircraft.Targets.NavigationRoute[0].Name, _ => { });
+        SendOk(harness, "JARR OAKES3");
+        SendOk(harness, "DVIA");
+
+        TickUntilPassed(harness, "GRUDG", _ => { });
+
+        Assert.InRange(aircraft.Altitude, 20000 - LevelToleranceFt, 23000 + LevelToleranceFt);
+    }
+
+    /// <summary>
+    /// At FL260 under a descend via, a later transmission's "DCTF GRUDG/A220" is the controller's crossing: the aircraft
+    /// crosses GRUDG at or above FL220 and levels there past it, never carrying on down toward 16,000.
+    /// </summary>
+    [Fact]
+    public void DescendViaThenOwnTransmissionDctf_LevelsAtTheCrossingPastGrudg()
+    {
+        if (BuildOakesHarness(_output, starAltitude: 26000) is not { } harness)
+        {
+            _output.WriteLine("KOAK ground layout is unavailable, skipping");
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        TickUntilPassed(harness, aircraft.Targets.NavigationRoute[0].Name, _ => { });
+        SendOk(harness, "JARR OAKES3");
+        SendOk(harness, "DVIA");
+        for (int t = 0; t < 5; t++)
+        {
+            harness.Engine.TickOneSecond();
+        }
+
+        SendOk(harness, "DCTF GRUDG/A220");
+        TickUntilPassed(harness, "GRUDG", _ => { });
+
+        double lowest = aircraft.Altitude;
+        for (int t = 0; t < 180; t++)
+        {
+            harness.Engine.TickOneSecond();
+            lowest = Math.Min(lowest, aircraft.Altitude);
+        }
+
+        _output.WriteLine($"180 s past GRUDG: altitude {aircraft.Altitude:F0}, lowest {lowest:F0}, target {aircraft.Targets.TargetAltitude}");
+        Assert.True(lowest >= 22000 - LevelToleranceFt, $"Past GRUDG the aircraft descended to {lowest:F0} ft, below its FL220 crossing");
     }
 
     /// <summary>Each route fix with the restrictions in force, in order, for comparing a route across a clearance.</summary>
@@ -997,10 +1093,10 @@ public class DescendViaSupersedesEarlierAltitudeTests
         Assert.True(result.Success, $"{command}: {result.Message}");
     }
 
-    private Harness? BuildOakesHarness() => BuildOakesHarness(_output);
+    private Harness? BuildOakesHarness() => BuildOakesHarness(_output, 16000);
 
     /// <summary>A generated jet established on Oakland's OAKES3 STAR, level at 16,000 with the STAR in its filed route.</summary>
-    internal static Harness? BuildOakesHarness(ITestOutputHelper output)
+    internal static Harness? BuildOakesHarness(ITestOutputHelper output, int starAltitude)
     {
         var groundData = new TestAirportGroundData();
         AirportGroundLayout? layout = groundData.GetLayout(Airport);
@@ -1024,7 +1120,7 @@ public class DescendViaSupersedesEarlierAltitudeTests
             StarId = "OAKES3",
             StarRunway = runwayKey.StartsWith("RW", StringComparison.Ordinal) ? runwayKey[2..] : runwayKey,
             DescendVia = false,
-            StarAltitude = 16000,
+            StarAltitude = starAltitude,
             DestinationAirportId = "KOAK",
         };
         (AircraftState? aircraft, string? error) = AircraftGenerator.Generate(
