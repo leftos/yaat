@@ -760,9 +760,8 @@
 
 ## Approaches and holds
 
-### 1 Defects (0/14 done)
+### 1 Defects (1/14 done)
 - [ ] YAAT-48 Check the SFO I28L MAP/DA (65 ft) against CIFP
-- [/] YAAT-1784 Report the glidepath descent rate as VerticalSpeed on final (snap zeroes it every tick) · release vNext
 - [ ] YAAT-134 Procedure-turn leftovers: HOLDP magnetic course, LOC declination, navaid key
 - [ ] YAAT-148 Keep the field-in-sight report across a new approach clearance
 - [ ] YAAT-920 Track a hold's inbound course to the fix instead of flying direct
@@ -1099,7 +1098,7 @@
 - [ ] YAAT-99 Add the ATPA in-trail line to EuroScope tags; required view-model ctor params
 - [ ] YAAT-101 Nav-route overlay: tell active from latent restrictions; draw route-fix holds · release vNext
   - [ ] YAAT-1895 Nav-route overlay: dim latent published speed restrictions, judged fix by fix · release vNext
-  - [ ] YAAT-1896 Nav-route overlay: draw queued holds dashed and VFR/boundary orbits as circles · release vNext
+  - [/] YAAT-1896 Nav-route overlay: draw queued holds dashed and VFR/boundary orbits as circles · release vNext
 - [ ] YAAT-102 Inspect Discord's SET_ACTIVITY response and add an AppLog capture seam
 - [ ] YAAT-105 Show the sim's Zulu clock on the Radar and Ground views, CRC-style
 - [ ] YAAT-340 Quick commands as an Import / Export hub item type
@@ -1126,6 +1125,9 @@
 - [ ] YAAT-1725 Convert [ObservableProperty] fields to partial properties across the client projects
 - [ ] YAAT-1726 Check MainWindow's multi-line Run text for doubled spaces
 - [ ] YAAT-1900 Remove NavRouteFixDto.RestrictionLines at the next Minimum-client bump
+
+### No milestone
+- [ ] YAAT-1907 Nav-route overlay: draw a pending hold-in-lieu of a procedure turn dashed
 
 ## Client-driver MCP and automation pipe
 
