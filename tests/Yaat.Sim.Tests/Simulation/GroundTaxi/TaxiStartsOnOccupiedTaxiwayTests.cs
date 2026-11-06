@@ -2864,8 +2864,8 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
 
     /// <summary>
     /// The holding position for the same runway reached by walking on from <paramref name="hold"/> away from
-    /// <paramref name="stub"/>, taking the straightest edge at each node; null when the walk meets none within
-    /// <see cref="MaxCrossingWalkNodes"/> nodes.
+    /// <paramref name="stub"/> along <paramref name="stub"/>'s taxiway, taking the straightest such edge at each node; null when
+    /// that taxiway has no holding position for the same runway across it within <see cref="MaxCrossingWalkNodes"/> nodes.
     /// </summary>
     private static GroundNode? FarSideBar(GroundNode hold, IGroundEdge stub)
     {
@@ -2877,7 +2877,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             GroundNode at = node;
             double inDeg = bearingDeg;
             IGroundEdge? next = at
-                .Edges.Where(e => e != from)
+                .Edges.Where(e => (e != from) && e.SharesTaxiway(stub))
                 .MinBy(e => GeoMath.AbsBearingDifference(e.Directed(at, e.OtherNode(at)).DepartureBearing, inDeg));
             if (next is null)
             {
