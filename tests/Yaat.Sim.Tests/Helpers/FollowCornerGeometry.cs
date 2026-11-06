@@ -110,7 +110,9 @@ internal static class FollowCornerGeometry
     internal static List<GroundNode> BChain(AirportGroundLayout layout)
     {
         List<GroundNode> bar28R = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
-        GroundNode bar28L = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0];
+        GroundNode bar28L = OakBars.Bar28LOnBFarFrom28R(layout);
+        // Pinned once: the node the old lowest-index ordinal named on today's layout.
+        Assert.Same(TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0], bar28L);
         GroundNode current = bar28R.OrderByDescending(node => GeoMath.DistanceNm(node.Position, bar28L.Position)).First();
         List<GroundNode> chain = [current];
         GroundNode? previous = null;
@@ -327,17 +329,20 @@ internal static class FollowCornerGeometry
         && HasStraightBeyond(corner.Corner.TangentOnJ, corner.Corner.NearOnJ, corner.OutTaxiway);
 
     /// <summary>
-    /// KOAK's K-to-L corner through node 441 (<paramref name="layout"/> is KOAK's), whose fillet arc's tightest radius is under
-    /// the floor no category steers under, so every follower refuses it at its main-gear turn radius and at its tight-turn floor
-    /// alike; logged to <paramref name="output"/> with its square way round against the follow planner's bound for it.
+    /// KOAK's K-to-L corner at the K/L junction (<paramref name="layout"/> is KOAK's), whose fillet arc's tightest radius is
+    /// under the floor no category steers under, so every follower refuses it at its main-gear turn radius and at its tight-turn
+    /// floor alike; logged to <paramref name="output"/> with its square way round against the follow planner's bound for it.
     /// </summary>
     internal static TaxiwayCorner KoakKToL441(AirportGroundLayout layout, ITestOutputHelper output)
     {
+        GroundNode junction = GroundNodeLookup.Junction(layout, "K", "L");
+        // Pinned once: the junction node the id selector named before it moved to the lookup.
+        Assert.Equal(441, junction.Id);
         TaxiwayCorner corner = ArcCorners(layout)
             .First(c =>
                 string.Equals(c.InTaxiway, "K", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(c.OutTaxiway, "L", StringComparison.OrdinalIgnoreCase)
-                && c.Corner.ThroughRun.Concat(c.Corner.Arc.Nodes).Any(n => n.Id == 441)
+                && c.Corner.ThroughRun.Concat(c.Corner.Arc.Nodes).Contains(junction)
             );
         double boundFt = 1.5 * FollowRoutePlanner.ArcStubLengthFt(corner.Corner.Arc);
         output.WriteLine($"K-to-L: square way {ThroughFt(corner.Corner):F1} ft against the 1.5 x stub bound {boundFt:F1} ft");

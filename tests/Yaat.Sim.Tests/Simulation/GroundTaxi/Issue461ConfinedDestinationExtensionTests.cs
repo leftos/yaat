@@ -22,8 +22,8 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
     /// <summary>North along G, towards SIG1.</summary>
     private const double OakNorthAlongGHeadingDeg = 0.0;
 
-    /// <summary>OAK C/C1 junction (node 356) on C, west of the runway 33 crossing.</summary>
-    private const int OakCC1JunctionNode = 356;
+    /// <summary>OAK's C/C1 junction on C, west of the runway 33 crossing.</summary>
+    private static GroundNode OakCC1JunctionNode(AirportGroundLayout layout) => GroundNodeLookup.Junction(layout, "C", "C1");
 
     /// <summary>West along C, towards the C/F junction.</summary>
     private const double OakWestAlongCHeadingDeg = 292.0;
@@ -85,7 +85,9 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode start = layout.Nodes[OakCC1JunctionNode];
+        GroundNode start = OakCC1JunctionNode(layout);
+        // Pinned once: the node the id selector named before it moved to the lookup.
+        Assert.Equal(356, start.Id);
         AircraftState aircraft = MakeAircraft(layout, start.Position, new TrueHeading(OakWestAlongCHeadingDeg), new HoldingInPositionPhase());
         var taxi = new TaxiCommand(Path: ["C"], HoldShorts: [], Expedite: false, DestinationParking: "OLD1");
 

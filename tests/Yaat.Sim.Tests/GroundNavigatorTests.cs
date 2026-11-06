@@ -579,11 +579,8 @@ public class GroundNavigatorTests(ITestOutputHelper output)
 
     // ---- Arc entry from off the curve: the playback must DRIVE there, never write the aircraft there ----
 
-    /// <summary>OAK node 763 — the ramp node whose fillet arc the entry-offset tests play back.</summary>
-    private const int FilletFromNodeId = 763;
-
-    /// <summary>The preferred far end of that fillet ("T - RAMP").</summary>
-    private const int FilletToNodeId = 762;
+    /// <summary>The turn (deg) the entry-offset fixture's fillet makes — the ~100° <see cref="PartWayAlongT"/> assumes.</summary>
+    private const double FixtureFilletTurnDeg = 100.0;
 
     /// <summary>Lateral offset (ft) from the fillet's start point the aircraft begins at.</summary>
     private const double EntryOffsetFt = 12.0;
@@ -651,24 +648,42 @@ public class GroundNavigatorTests(ITestOutputHelper output)
     private const double PartWayAlongT = 0.25;
 
     /// <summary>
-    /// The real OAK fillet arc at <see cref="FilletFromNodeId"/> as a one-segment route traversed from that
-    /// node (preferring the arc to <see cref="FilletToNodeId"/>). Null when the OAK layout is unavailable —
+    /// The real OAK fillet arc the entry-offset tests play back: of every T/RAMP fillet in the layout, the one whose turn is
+    /// closest to <see cref="FixtureFilletTurnDeg"/>, as its ramp end, the arc and the far end. Throws when the layout carries no
+    /// such arc; only a missing layout is a skip, and <see cref="OakFilletArcRoute"/> owns that check.
+    /// </summary>
+    private static (GroundNode From, GroundArc Arc, GroundNode To) OakFillet(AirportGroundLayout layout)
+    {
+        GroundArc arc =
+            layout
+                .Arcs.Where(candidate => GroundNodeLookup.JoinsFillet(candidate, "T", "RAMP"))
+                .MinBy(candidate => Math.Abs(candidate.TurnAngleDeg - FixtureFilletTurnDeg))
+            ?? throw new InvalidOperationException("OAK has no T/RAMP fillet arc to play back");
+
+        GroundNode from =
+            arc.Nodes.FirstOrDefault(node => node.Edges.OfType<GroundEdge>().Any(edge => edge.IsRamp))
+            ?? throw new InvalidOperationException($"OAK fillet arc {arc.TaxiwayName} has no end on a straight ramp edge");
+        GroundNode to = arc.OtherNode(from);
+        // Pinned once: the arc the ~100° rule names and the end the fixture is traversed from. The old fixture fell back to the
+        // lowest-other-id arc at its anchor node.
+        Assert.Equal<int>([761, 762], arc.Nodes.Select(node => node.Id).Order());
+        Assert.Equal(762, from.Id);
+        return (from, arc, to);
+    }
+
+    /// <summary>
+    /// <see cref="OakFillet"/> as a one-segment route traversed from its ramp end. Null when the OAK layout is unavailable —
     /// the suite's silent-skip convention for missing test data.
     /// </summary>
     private (GroundArc Arc, GroundNode From, GroundNode To, TaxiRoute Route)? OakFilletArcRoute()
     {
         AirportGroundLayout? layout = new Helpers.TestAirportGroundData().GetLayout("OAK");
-        if ((layout is null) || !layout.Nodes.TryGetValue(FilletFromNodeId, out GroundNode? from))
+        if (layout is null)
         {
             return null;
         }
 
-        GroundArc? arc =
-            layout.Arcs.FirstOrDefault(a => a.HasNode(FilletFromNodeId) && a.HasNode(FilletToNodeId))
-            ?? layout.Arcs.Where(a => a.HasNode(FilletFromNodeId)).OrderBy(a => a.OtherNodeId(FilletFromNodeId)).FirstOrDefault();
-        Assert.True(arc is not null, $"OAK node {FilletFromNodeId} carries no fillet arc to play back");
-
-        GroundNode to = arc!.OtherNode(from);
+        (GroundNode from, GroundArc arc, GroundNode to) = OakFillet(layout);
         var directed = new DirectionalEdge
         {
             Edge = arc,

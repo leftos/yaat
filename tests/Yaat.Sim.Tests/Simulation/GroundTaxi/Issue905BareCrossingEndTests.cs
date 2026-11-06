@@ -41,6 +41,10 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
     /// <summary>KOAK F's 15/33 bar on the far side of the D→F crossing.</summary>
     private static GroundNode OakFBar33Node(AirportGroundLayout layout) => GroundNodeLookup.HoldShortBar(layout, "33", "F");
 
+    /// <summary>KOAK's 28L bar on B at the C/B junction: a bar of another runway than the one crossed, off the runway itself.</summary>
+    private static GroundNode Oak28LBarOnB(AirportGroundLayout layout) =>
+        GroundNodeLookup.HoldShortBar(layout, "28L", "B", GroundNodeLookup.Junction(layout, "C", "B"));
+
     /// <summary>KOAK's next F node past <see cref="OakFBar33Node"/>, away from 15/33.</summary>
     private static GroundNode OakFPastItsBarNode(AirportGroundLayout layout) =>
         GroundNodeLookup.OnTaxiway(layout, "F", OakFBar33Node(layout), 1.0, GroundNodeLookup.Parking(layout, "GA20"));
@@ -469,6 +473,41 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The selectors resolve to the nodes the assertions above mean: the F bar is pinned to the one the old lowest-id selector
+    /// named on today's layout, while the two nodes that are ruled changes are 28L's bar on B (the old selector took whichever
+    /// 28L bar was first) and the F node past its 33 bar (the old one took the first node whose edges are all on F).
+    /// </summary>
+    [Fact]
+    public void Selectors_ResolveToTheNodesTheAssertionsMean()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        GroundNode legacyFBar33 = layout.Nodes.Values.First(n => IsBarOnTaxiway(layout, n.Id, "33", "F"));
+        Assert.Same(legacyFBar33, OakFBar33Node(layout));
+
+        // A ruled change: the old selector took the first node whose edges are all on F, a short fragment between shape points;
+        // the lookup names the F node past its 33 bar, which is the node the assertions above mean.
+        GroundNode fNode = OakFPastItsBarNode(layout);
+        Assert.NotEqual(GroundNodeType.RunwayHoldShort, fNode.Type);
+        Assert.All(fNode.Edges, edge => Assert.True(edge.MatchesTaxiway("F"), $"#{fNode.Id} has an edge off F"));
+        Assert.False(AirportGroundLayout.HasRunwayCenterlineEdge(fNode));
+
+        // A ruled change: the old selector took whichever 28L bar came first, and the lookup names 28L's bar on B. Both serve
+        // the assertions above only as "a bar of another runway than 15/33, off a centreline".
+        GroundNode bar28L = Oak28LBarOnB(layout);
+        Assert.Equal(GroundNodeType.RunwayHoldShort, bar28L.Type);
+        string? runwayId = bar28L.RunwayId?.ToString();
+        Assert.NotNull(runwayId);
+        Assert.Contains("28L", runwayId);
+        Assert.False(AirportGroundLayout.HasRunwayCenterlineEdge(bar28L));
+    }
+
+    /// <summary>
     /// A bare crossing never ends at another runway's bar (auto-cross could clear that hold short with the nose past the
     /// other runway's holding position) nor on a runway centreline, but may end on the crossed runway's own bar side or on a
     /// plain taxiway node. No real layout we carry reaches the other-runway end, so the predicate is pinned on KOAK's nodes.
@@ -484,13 +523,9 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
         }
 
         var crossed = RunwayIdentifier.Parse("15/33");
-        GroundNode bar28L = layout.Nodes.Values.First(n =>
-            (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId?.Contains("28L") == true) && !AirportGroundLayout.HasRunwayCenterlineEdge(n)
-        );
-        GroundNode fBar33 = layout.Nodes.Values.First(n => IsBarOnTaxiway(layout, n.Id, "33", "F"));
-        GroundNode fNode = layout.Nodes.Values.First(n =>
-            (n.Type != GroundNodeType.RunwayHoldShort) && n.Edges.All(e => e.MatchesTaxiway("F")) && !AirportGroundLayout.HasRunwayCenterlineEdge(n)
-        );
+        GroundNode bar28L = Oak28LBarOnB(layout);
+        GroundNode fBar33 = OakFBar33Node(layout);
+        GroundNode fNode = OakFPastItsBarNode(layout);
         output.WriteLine($"28L bar #{bar28L.Id}, F's 15/33 bar #{fBar33.Id}, F node #{fNode.Id}");
 
         Assert.True(SegmentExpander.RefusesClearOfRunwayEndAt(bar28L, crossed), $"a 15/33 crossing may end at 28L's bar #{bar28L.Id}");
@@ -520,9 +555,7 @@ public class Issue905BareCrossingEndTests(ITestOutputHelper output)
         }
 
         var crossed = RunwayIdentifier.Parse("15/33");
-        GroundNode bar28L = layout.Nodes.Values.First(n =>
-            (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId?.Contains("28L") == true) && !AirportGroundLayout.HasRunwayCenterlineEdge(n)
-        );
+        GroundNode bar28L = Oak28LBarOnB(layout);
         GroundNode fNode = OakFPastItsBarNode(layout);
         double wellPastFt = 1000.0;
 

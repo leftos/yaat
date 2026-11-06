@@ -56,15 +56,18 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         // Replay to t=1 — scenario loads, preset TAXI commands fire for N436MS/N172SP/N346G
         engine.Replay(recording, 1);
 
-        // Find node 508 (28R hold-short on B) for distance reference
+        // 28R's hold-short bar on H, for distance reference
         AircraftState? n436 = engine.FindAircraft("N436MS");
         Assert.NotNull(n436);
-        double node508Lat = 0;
-        double node508Lon = 0;
-        if (n436.Ground.Layout is not null && n436.Ground.Layout.Nodes.TryGetValue(508, out GroundNode? node508))
+        double holdBarLat = 0;
+        double holdBarLon = 0;
+        if (n436.Ground.Layout is { } layout)
         {
-            node508Lat = node508.Position.Lat;
-            node508Lon = node508.Position.Lon;
+            GroundNode bar28ROnH = GroundNodeLookup.HoldShortBar(layout, "28R", "H", GroundNodeLookup.Junction(layout, "C", "B"));
+            // Pinned once: the node the id selector named before it moved to the lookup.
+            Assert.Equal(508, bar28ROnH.Id);
+            holdBarLat = bar28ROnH.Position.Lat;
+            holdBarLon = bar28ROnH.Position.Lon;
         }
 
         // Find SIG1 parking node for distance reference
@@ -80,7 +83,7 @@ public class OakGroundE2ETests(ITestOutputHelper output)
             }
         }
 
-        output.WriteLine($"Node 508 (28R HS): ({node508Lat:F6}, {node508Lon:F6})");
+        output.WriteLine($"28R hold-short bar on H ({holdBarLat:F6}, {holdBarLon:F6})");
         output.WriteLine($"SIG1 parking:      ({sig1Lat:F6}, {sig1Lon:F6})");
         output.WriteLine("");
 
@@ -168,15 +171,15 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         Assert.NotNull(n172);
         Assert.NotNull(n346);
 
-        double n172Dist508Ft = GeoMath.DistanceNm(n172.Position.Lat, n172.Position.Lon, node508Lat, node508Lon) * GeoMath.FeetPerNm;
-        double n346Dist508Ft = GeoMath.DistanceNm(n346.Position.Lat, n346.Position.Lon, node508Lat, node508Lon) * GeoMath.FeetPerNm;
+        double n172DistBarFt = GeoMath.DistanceNm(n172.Position.Lat, n172.Position.Lon, holdBarLat, holdBarLon) * GeoMath.FeetPerNm;
+        double n346DistBarFt = GeoMath.DistanceNm(n346.Position.Lat, n346.Position.Lon, holdBarLat, holdBarLon) * GeoMath.FeetPerNm;
         double separationFt = GeoMath.DistanceNm(n172.Position.Lat, n172.Position.Lon, n346.Position.Lat, n346.Position.Lon) * GeoMath.FeetPerNm;
 
-        output.WriteLine(
-            $"N436MS: dist508={GeoMath.DistanceNm(engine.FindAircraft("N436MS")!.Position.Lat, engine.FindAircraft("N436MS")!.Position.Lon, node508Lat, node508Lon) * GeoMath.FeetPerNm:F0}ft phase={engine.FindAircraft("N436MS")!.Phases?.CurrentPhase?.Name}"
-        );
-        output.WriteLine($"N346G:  dist508={n346Dist508Ft:F0}ft phase={n346.Phases?.CurrentPhase?.Name}");
-        output.WriteLine($"N172SP: dist508={n172Dist508Ft:F0}ft phase={n172.Phases?.CurrentPhase?.Name}");
+        AircraftState n436AtEnd = engine.FindAircraft("N436MS")!;
+        double n436DistBarFt = GeoMath.DistanceNm(n436AtEnd.Position.Lat, n436AtEnd.Position.Lon, holdBarLat, holdBarLon) * GeoMath.FeetPerNm;
+        output.WriteLine($"N436MS: distBar={n436DistBarFt:F0}ft phase={n436AtEnd.Phases?.CurrentPhase?.Name}");
+        output.WriteLine($"N346G:  distBar={n346DistBarFt:F0}ft phase={n346.Phases?.CurrentPhase?.Name}");
+        output.WriteLine($"N172SP: distBar={n172DistBarFt:F0}ft phase={n172.Phases?.CurrentPhase?.Name}");
         output.WriteLine($"N346G <-> N172SP separation: {separationFt:F0}ft");
 
         Assert.True(separationFt > 5, $"N346G and N172SP are stacked ({separationFt:F0}ft apart)");

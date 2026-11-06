@@ -113,6 +113,31 @@ public class GroundNodeLookupTests
     }
 
     [Fact]
+    public void FilletEnd_EachEndOfTheUwFillet_LiesOnItsOwnTaxiway()
+    {
+        AirportGroundLayout layout = Oak();
+        GroundNode u = GroundNodeLookup.FilletEnd(layout, "U", "W");
+        GroundNode w = GroundNodeLookup.FilletEnd(layout, "W", "U", GroundNodeLookup.Junction(layout, "W", "W1"));
+
+        // Pinned once: the nodes the "<c>W - U</c>" display-name junctions resolved to before the pair moved to the name set.
+        Assert.Equal(693, u.Id);
+        Assert.Equal(690, w.Id);
+        Assert.Contains(u.Edges, edge => edge.TaxiwayName == "U");
+        Assert.Contains(u.Edges.OfType<GroundArc>(), arc => arc.MatchesTaxiway("U") && arc.MatchesTaxiway("W"));
+        Assert.Contains(w.Edges, edge => edge.TaxiwayName == "W");
+        Assert.Contains(w.Edges.OfType<GroundArc>(), arc => arc.MatchesTaxiway("U") && arc.MatchesTaxiway("W"));
+        Assert.NotSame(u, w);
+    }
+
+    [Fact]
+    public void FilletEnd_PairNeverFilleted_Throws()
+    {
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => GroundNodeLookup.FilletEnd(Oak(), "C", "NOSUCH"));
+
+        Assert.Equal("OAK: no fillet end of taxiways C and NOSUCH on C", error.Message);
+    }
+
+    [Fact]
     public void Parking_ByName_ReturnsThatStand()
     {
         GroundNode stand = GroundNodeLookup.Parking(Oak(), "GA20");

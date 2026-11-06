@@ -39,21 +39,12 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
         return new SimulationEngine(groundData, PushPlanStore.CreateShipped());
     }
 
-    // J approaches the 28R crossing from the #379 → #378 side (high-speed exit geometry).
-    private const int JApproachNode = 379;
-
-    /// <summary>The entry-side 28R hold-short bar on J: the one nearest the J approach node.</summary>
-    private static GroundNode EntryBarOnJ(AirportGroundLayout layout) =>
-        GroundNodeLookup.HoldShortBar(layout, "28R", "J", layout.Nodes[JApproachNode]);
-
-    /// <summary>The far-side 28R hold-short bar on J: the one nearest the C/J junction, across the runway.</summary>
-    private static GroundNode FarBarOnJ(AirportGroundLayout layout) =>
-        GroundNodeLookup.HoldShortBar(layout, "28R", "J", GroundNodeLookup.Junction(layout, "C", "J"));
-
     private static AircraftState SpawnOnJApproaching28R(AirportGroundLayout layout)
     {
-        GroundNode start = layout.Nodes[JApproachNode];
-        GroundNode toward = EntryBarOnJ(layout);
+        GroundNode start = OakJCrossing.ApproachNode(layout);
+        // Pinned once: the node the id selector named before it moved to the lookups.
+        Assert.Equal(379, start.Id);
+        GroundNode toward = OakJCrossing.EntryBarOnJ(layout);
         var aircraft = new AircraftState
         {
             Callsign = "N172JX",
@@ -89,8 +80,8 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
 
         AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         Assert.NotNull(layout);
-        GroundNode entryHs = EntryBarOnJ(layout);
-        GroundNode farHs = FarBarOnJ(layout);
+        GroundNode entryHs = OakJCrossing.EntryBarOnJ(layout);
+        GroundNode farHs = OakJCrossing.FarBarOnJ(layout);
         Assert.NotEqual(entryHs.Id, farHs.Id);
 
         AircraftState aircraft = SpawnOnJApproaching28R(layout);

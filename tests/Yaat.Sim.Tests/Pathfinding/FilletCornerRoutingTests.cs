@@ -27,11 +27,11 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
         ?? throw new InvalidOperationException("OAK layout has no nodes");
 
     /// <summary>The U end of the <c>W - U</c> fillet arc (the only node on both U and that arc).</summary>
-    private static GroundNode OakUArcEntry(AirportGroundLayout layout) => GroundNodeLookup.Junction(layout, "U", "W - U");
+    private static GroundNode OakUArcEntry(AirportGroundLayout layout) => GroundNodeLookup.FilletEnd(layout, "U", "W");
 
     /// <summary>The W end of the <c>W - U</c> fillet arc on the W1 side of the U/W junction, toward runway 30.</summary>
     private static GroundNode OakWArcExit(AirportGroundLayout layout) =>
-        GroundNodeLookup.Junction(layout, "W", "W - U", GroundNodeLookup.Junction(layout, "W", "W1"));
+        GroundNodeLookup.FilletEnd(layout, "W", "U", GroundNodeLookup.Junction(layout, "W", "W1"));
 
     /// <summary>UAL2164's stop on T after crossing 28L in the S1-SFO-2 bundle (#459), nosed south-west.</summary>
     private static GroundNode SfoTAfter28LCrossing(AirportGroundLayout layout) =>

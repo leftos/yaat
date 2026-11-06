@@ -1874,7 +1874,7 @@ public sealed class TaxiOnLandingRolloutRulingTests
             : null;
 
     /// <summary>
-    /// The arrival on its rollout with traffic standing at its stored route's end (else at the layout's first stand), and with
+    /// The arrival on its rollout with traffic standing at its stored route's end (else on stand 25), and with
     /// <paramref name="giveWay"/> a <c>GIVEWAY</c> to it, ticked until <paramref name="done"/>: each second's phase, speed and
     /// position before then, and the exit taken. A give-way stays pending every second before then.
     /// </summary>
@@ -1910,7 +1910,10 @@ public sealed class TaxiOnLandingRolloutRulingTests
         }
         else
         {
-            traffic.Position = layout.Nodes.Values.OrderBy(n => n.Id).First(n => n.Type == GroundNodeType.Parking).Position;
+            GroundNode stand = GroundNodeLookup.Parking(layout, "25");
+            // Pinned once: the stand the old lowest-id pick named on today's layout.
+            Assert.Same(layout.Nodes.Values.OrderBy(n => n.Id).First(n => n.Type == GroundNodeType.Parking), stand);
+            traffic.Position = stand.Position;
         }
 
         traffic.Ground.Layout = layout;

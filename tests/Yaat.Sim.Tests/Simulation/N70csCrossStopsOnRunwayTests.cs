@@ -28,10 +28,6 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
     private const string RecordingPath = "TestData/n70cs-cross-stops-on-runway-recording.yaat-bug-report-bundle.zip";
     private const string Callsign = "N70CS";
 
-    // OAK: taxiway J approaches the 28R/10L crossing from node 379. The entry-side (near) hold-short
-    // is resolved from the route itself (first 28R bar reached), so graph renumbering can't stale it.
-    private const int JApproachNode = 379;
-
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
@@ -76,7 +72,7 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
         // just clear, rather than truncating one segment past the near bar onto the runway.
         TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
             layout,
-            fromNodeId: JApproachNode,
+            fromNodeId: OakJCrossing.ApproachNode(layout).Id,
             taxiwayNames: ["J"],
             out string? failReason,
             new ExplicitPathOptions

@@ -125,7 +125,9 @@ public class AutoRouterGoalSetTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode goal = TestLayoutNodes.RunwayHoldShortsOnTaxiway(run.Layout, "28L", "B")[0];
+        GroundNode goal = OakBars.Bar28LOnBFarFrom28R(run.Layout);
+        // Pinned once: the node the old lowest-index ordinal named on today's layout.
+        Assert.Same(TestLayoutNodes.RunwayHoldShortsOnTaxiway(run.Layout, "28L", "B")[0], goal);
         TaxiRoute single = Assert.IsType<TaxiRoute>(TaxiPathfinder.FindRoute(run.Layout, run.Start.Id, goal.Id, Category, Wake));
         double goalCost = Assert.IsType<double>(SingleGoalCost(run.Layout, run.Start.Id, goal.Id));
 
@@ -257,7 +259,9 @@ public class AutoRouterGoalSetTests(ITestOutputHelper output)
         }
 
         List<GroundNode> bar28R = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
-        GroundNode bar28L = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0];
+        GroundNode bar28L = OakBars.Bar28LOnBFarFrom28R(layout);
+        // Pinned once: the node the old lowest-index ordinal named on today's layout.
+        Assert.Same(TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0], bar28L);
         GroundNode start = bar28R.OrderByDescending(node => Dist(node, bar28L)).First();
         return new StartRun(layout, start);
     }

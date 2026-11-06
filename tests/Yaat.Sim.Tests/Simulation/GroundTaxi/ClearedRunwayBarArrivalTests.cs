@@ -123,7 +123,9 @@ public class ClearedRunwayBarArrivalTests(ITestOutputHelper output)
     /// </summary>
     private static GBars BarsOnG(AirportGroundLayout layout)
     {
-        GroundNode any28LBar = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "G")[0];
+        GroundNode any28LBar = GroundNodeLookup.HoldShortBar(layout, "28L", "G");
+        // Pinned once: the node the old lowest-index ordinal named on today's layout.
+        Assert.Same(TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "G")[0], any28LBar);
         GroundNode crossing = GroundNodeLookup.HoldShortBar(layout, "28R", "G", any28LBar);
         GroundNode start = GroundNodeLookup.HoldShortBar(layout, "28L", "G", crossing);
         return new GBars(start, crossing);

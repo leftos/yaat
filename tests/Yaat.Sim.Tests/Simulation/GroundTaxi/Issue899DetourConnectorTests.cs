@@ -449,10 +449,12 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
                 double offJ = GeoMath.BearingTo(jBar.Position, cj.Position);
                 return OnTaxiway(layout, jBar.Id, offJ, ["C", "F", "K", "J", "A", "B", "W"], diag);
             case "OAK on C: C F K J C W":
-                double alongC = GeoMath.BearingTo(layout.Nodes[352].Position, layout.Nodes[357].Position);
+                GroundNode onC = GroundNodeLookup.Junction(layout, "C", "J");
+                GroundNode towardF = GroundNodeLookup.Junction(layout, "C", "F");
+                double alongC = GeoMath.BearingTo(onC.Position, towardF.Position);
                 return new AgreementStart(
                     layout,
-                    352,
+                    onC.Id,
                     ["C", "F", "K", "J", "C", "W"],
                     new ExplicitPathOptions
                     {
@@ -586,7 +588,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
 
     /// <summary>
     /// S2 (YAAT-899 R7): the first-transition exemptions follow the transition's index in the clearance, not the name of the
-    /// taxiway it leaves. At OAK's C/J junction (#352) an aircraft on C, cleared <c>TAXI F K J C W</c>, gets C prepended as the
+    /// taxiway it leaves. At OAK's C/J junction an aircraft on C, cleared <c>TAXI F K J C W</c>, gets C prepended as the
     /// implied lead ([C, F, K, J, C, W]); the closing C→W transition leaves the same taxiway as the lead but is the clearance's
     /// fifth, and C and W meet only through A and B, which the clearance left out: refused, not bridged silently.
     /// </summary>
@@ -601,10 +603,11 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode junction = layout.Nodes[352];
-        GroundNode cfJunction = layout.Nodes[357];
-        Assert.True(junction.Edges.Any(e => e.MatchesTaxiway("C")) && junction.Edges.Any(e => e.MatchesTaxiway("J")), "#352 is not the C/J junction");
-        Assert.True(cfJunction.Edges.Any(e => e.MatchesTaxiway("F")), "#357 is not the C/F junction");
+        GroundNode junction = GroundNodeLookup.Junction(layout, "C", "J");
+        GroundNode cfJunction = GroundNodeLookup.Junction(layout, "C", "F");
+        // Pinned once: the nodes the id selectors named before they moved to the lookups.
+        Assert.Equal(352, junction.Id);
+        Assert.Equal(357, cfJunction.Id);
         double heading = GeoMath.BearingTo(junction.Position, cfJunction.Position);
         output.WriteLine($"OAK C/J junction #{junction.Id}, nosed {heading:F0}° along C toward F");
 
@@ -800,7 +803,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The start exemptions cover only the clearance's first transition: at OAK's C/B junction (#193), <c>TAXI C A W</c> leads
+    /// The start exemptions cover only the clearance's first transition: at OAK's C/B junction, <c>TAXI C A W</c> leads
     /// off along C, but A and W meet only through B, which the clearance left out, so the pair is refused even though the
     /// aircraft started on B.
     /// </summary>
@@ -815,8 +818,9 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
             return;
         }
 
-        GroundNode junction = layout.Nodes[193];
-        Assert.True(junction.Edges.Any(e => e.MatchesTaxiway("B")) && junction.Edges.Any(e => e.MatchesTaxiway("C")), "#193 is not the C/B junction");
+        GroundNode junction = GroundNodeLookup.Junction(layout, "B", "C");
+        // Pinned once: the node the id selector named before it moved to the lookup.
+        Assert.Equal(193, junction.Id);
         GroundEdge alongC = junction.Edges.OfType<GroundEdge>().First(e => e.MatchesTaxiway("C"));
         double heading = GeoMath.BearingTo(junction.Position, alongC.OtherNode(junction).Position);
         output.WriteLine($"OAK C/B junction #{junction.Id}, nosed {heading:F0}° along C");

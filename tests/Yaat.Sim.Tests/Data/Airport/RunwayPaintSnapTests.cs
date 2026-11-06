@@ -104,7 +104,9 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
     {
         AirportGroundLayout layout = ParseOak(OakMap(), FilletMode.Standard);
         List<GroundNode> bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
-        GroundNode bar28L = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0];
+        GroundNode bar28L = OakBars.Bar28LOnBFarFrom28R(layout);
+        // Pinned once: the node the old lowest-index ordinal named on today's layout.
+        Assert.Same(TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0], bar28L);
         GroundNode north = bars.MaxBy(n => GeoMath.DistanceNm(n.Position, bar28L.Position))!;
         GroundNode south = bars.Where(n => n.Id != north.Id).MinBy(n => GeoMath.DistanceNm(n.Position, north.Position))!;
 
@@ -283,7 +285,8 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
     public void ClearOfEdgeEnds_MovesAMintedBarOffTheEdgeEndItSitsTooCloseTo(EndClearance scenario)
     {
         AirportGroundLayout layout = ParseOak(OakMap(), FilletMode.Standard);
-        (LatLon from, LatLon to) = (layout.Nodes[188].Position, layout.Nodes[189].Position);
+        (GroundNode first, GroundNode second) = BEdgeEndsBeside28R(layout);
+        (LatLon from, LatLon to) = (first.Position, second.Position);
         if (scenario == EndClearance.EdgeTooShort)
         {
             double edgeFt = GeoMath.DistanceNm(from, to) * GeoMath.FeetPerNm;
@@ -952,6 +955,35 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
 
     private static (double X, double Y) Feet(LatLon from, LatLon to) =>
         ((to.Lon - from.Lon) * FeetPerDegree * Math.Cos(from.Lat * Math.PI / 180.0), (to.Lat - from.Lat) * FeetPerDegree);
+
+    /// <summary>
+    /// The two nodes of the B edge beside 28R/10L: the map-parse B edge at a 28R holding position nearest the runway's
+    /// centreline — the edge a paint-seated bar sits at the end of, with no fillet or crossing-pass node on it. Pinned to the
+    /// ids the old selector named, #188 and #189.
+    /// </summary>
+    private static (GroundNode From, GroundNode To) BEdgeEndsBeside28R(AirportGroundLayout layout)
+    {
+        GroundRunway runway28R = layout.Runways.Single(runway => runway.Name.Contains("28R", StringComparison.Ordinal));
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway28R);
+        GroundEdge beside = layout
+            .Edges.OfType<GroundEdge>()
+            .Where(edge => edge.MatchesTaxiway("B"))
+            .Where(edge => edge.Nodes.All(node => node.Origin?.StartsWith("TaxiwayGraphBuilder:", StringComparison.Ordinal) == true))
+            .Where(edge =>
+                edge.Nodes.Any(node =>
+                    (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId?.ToString().Contains("28R", StringComparison.Ordinal) == true)
+                )
+            )
+            .MinBy(edge => Math.Min(CrossFt(rect, edge.Nodes[0].Position), CrossFt(rect, edge.Nodes[1].Position)))!;
+        GroundNode bar = beside.Nodes.First(node =>
+            (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId?.ToString().Contains("28R", StringComparison.Ordinal) == true)
+        );
+        GroundNode other = beside.OtherNode(bar);
+        // Pinned once: both ends the old id selector named, so the from/to order can never swap.
+        Assert.Equal(188, bar.Id);
+        Assert.Equal(189, other.Id);
+        return (bar, other);
+    }
 
     private static double SignedCrossFt(in RunwayRectangle rect, LatLon position) =>
         GeoMath.SignedCrossTrackDistanceNm(position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading) * GeoMath.FeetPerNm;

@@ -97,7 +97,9 @@ public class ClearRunwayRestoreTests(ITestOutputHelper output)
     /// </summary>
     private static AircraftState SpawnClearingRunway(SimulationEngine engine, AirportGroundLayout layout)
     {
-        GroundNode bar28L = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0];
+        GroundNode bar28L = OakBars.Bar28LOnBFarFrom28R(layout);
+        // Pinned once: the node the old lowest-index ordinal named on today's layout.
+        Assert.Same(TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0], bar28L);
         GroundNode farBar28R = TestLayoutNodes
             .RunwayHoldShortsOnTaxiway(layout, "28R", "B")
             .OrderBy(node => GeoMath.DistanceNm(node.Position, bar28L.Position))

@@ -3,11 +3,11 @@ using Yaat.Sim.Data.Airport;
 namespace Yaat.Sim.Tests.Helpers;
 
 /// <summary>
-/// Finds a ground-graph node by what it is (a runway's hold-short bar on a taxiway, the junction of two taxiways, a
-/// parking stand, a point a given distance along a taxiway) instead of by its node id. Ids come from a running counter
-/// that every parse pass draws from, so they shift whenever the layout's inputs change; a fixture that names a node by
-/// meaning keeps meaning the same node. Each lookup returns exactly one node, or throws naming the airport and the query
-/// when none matches or, without a tie-breaker, more than one does.
+/// Finds a ground-graph node by what it is — a runway's hold-short bar on a taxiway, the junction of two taxiways, a fillet's
+/// end on one of the taxiways it joins, a parking stand, a point a given distance along a taxiway — instead of by its node id.
+/// Ids come from a running counter that every parse pass draws from, so they shift whenever the layout's inputs change; a
+/// fixture that names a node by meaning keeps meaning the same node. Each lookup returns exactly one node, or throws naming
+/// the airport and the query when none matches or, without a tie-breaker, more than one does.
 /// </summary>
 /// <remarks>
 /// A node is on a taxiway when one of its edges carries exactly that name, so a fillet arc joining two taxiways
@@ -36,6 +36,28 @@ internal static class GroundNodeLookup
     /// </summary>
     public static GroundNode Junction(AirportGroundLayout layout, string taxiwayA, string taxiwayB, GroundNode nearestTo) =>
         Nearest(layout, Junctions(layout, taxiwayA, taxiwayB), nearestTo, $"junction of taxiways {taxiwayA} and {taxiwayB}");
+
+    /// <summary>
+    /// The end of the fillet arc joining <paramref name="onTaxiway"/> and <paramref name="otherTaxiway"/> that lies on
+    /// <paramref name="onTaxiway"/>: a fillet touches each taxiway once. The pair is matched as the arc's own set of taxiway
+    /// names, since its display name "<c>on - other</c>" is only whichever order the two edges were parsed in.
+    /// </summary>
+    public static GroundNode FilletEnd(AirportGroundLayout layout, string onTaxiway, string otherTaxiway) =>
+        Single(layout, FilletEnds(layout, onTaxiway, otherTaxiway), FilletQuery(onTaxiway, otherTaxiway));
+
+    /// <summary>
+    /// The end of the fillet arc joining <paramref name="onTaxiway"/> and <paramref name="otherTaxiway"/> that lies on
+    /// <paramref name="onTaxiway"/> nearest <paramref name="nearestTo"/>, for a pair filleted at more than one junction.
+    /// </summary>
+    public static GroundNode FilletEnd(AirportGroundLayout layout, string onTaxiway, string otherTaxiway, GroundNode nearestTo) =>
+        Nearest(layout, FilletEnds(layout, onTaxiway, otherTaxiway), nearestTo, FilletQuery(onTaxiway, otherTaxiway));
+
+    /// <summary>
+    /// The end of the fillet arc joining <paramref name="onTaxiway"/> and <paramref name="otherTaxiway"/> that lies on
+    /// <paramref name="onTaxiway"/> nearest <paramref name="nearestTo"/> (a recorded pose rather than a named node).
+    /// </summary>
+    public static GroundNode FilletEnd(AirportGroundLayout layout, string onTaxiway, string otherTaxiway, LatLon nearestTo) =>
+        Nearest(layout, FilletEnds(layout, onTaxiway, otherTaxiway), nearestTo, FilletQuery(onTaxiway, otherTaxiway));
 
     /// <summary>The parking (stand) node named <paramref name="name"/>.</summary>
     public static GroundNode Parking(AirportGroundLayout layout, string name)
@@ -104,6 +126,23 @@ internal static class GroundNodeLookup
     private static List<GroundNode> Junctions(AirportGroundLayout layout, string taxiwayA, string taxiwayB) =>
         [.. layout.Nodes.Values.Where(node => IsOn(node, taxiwayA) && IsOn(node, taxiwayB))];
 
+    private static List<GroundNode> FilletEnds(AirportGroundLayout layout, string onTaxiway, string otherTaxiway) =>
+        [
+            .. layout.Nodes.Values.Where(node =>
+                IsOn(node, onTaxiway) && node.Edges.OfType<GroundArc>().Any(arc => JoinsFillet(arc, onTaxiway, otherTaxiway))
+            ),
+        ];
+
+    /// <summary>
+    /// True of a fillet arc joining exactly <paramref name="taxiwayA"/> and <paramref name="taxiwayB"/>, matched as the arc's
+    /// own set of taxiway names: its display name is "<c>A - B</c>" only in whichever order the two edges were parsed in.
+    /// </summary>
+    internal static bool JoinsFillet(GroundArc arc, string taxiwayA, string taxiwayB) =>
+        (arc.TaxiwayNames.Length == 2) && arc.MatchesTaxiway(taxiwayA) && arc.MatchesTaxiway(taxiwayB);
+
+    private static string FilletQuery(string onTaxiway, string otherTaxiway) =>
+        $"fillet end of taxiways {onTaxiway} and {otherTaxiway} on {onTaxiway}";
+
     private static (IGroundEdge? Edge, double OffDeg) StraightestEdge(GroundNode at, IGroundEdge? arrivedBy, string taxiway, double headingDeg)
     {
         IGroundEdge? best = null;
@@ -142,7 +181,10 @@ internal static class GroundNodeLookup
         };
 
     private static GroundNode Nearest(AirportGroundLayout layout, List<GroundNode> matches, GroundNode nearestTo, string query) =>
+        Nearest(layout, matches, nearestTo.Position, query);
+
+    private static GroundNode Nearest(AirportGroundLayout layout, List<GroundNode> matches, LatLon nearestTo, string query) =>
         (matches.Count == 0)
             ? throw new InvalidOperationException($"{layout.AirportId}: no {query}")
-            : matches.MinBy(node => GeoMath.DistanceNm(nearestTo.Position, node.Position))!;
+            : matches.MinBy(node => GeoMath.DistanceNm(nearestTo, node.Position))!;
 }

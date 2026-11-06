@@ -23,7 +23,9 @@ public class RunwayHoldBarsMarkingTests
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(new TestAirportGroundData().GetLayout("OAK"));
         RunwayInfo runway = Assert.IsType<RunwayInfo>(NavigationDatabase.Instance.GetRunway("OAK", "28L"));
-        GroundNode bar = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0];
+        GroundNode bar = OakBars.Bar28LOnBFarFrom28R(layout);
+        // Pinned once: the node the old lowest-index ordinal named on today's layout.
+        Assert.Same(TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28L", "B")[0], bar);
         return (layout, runway, bar);
     }
 

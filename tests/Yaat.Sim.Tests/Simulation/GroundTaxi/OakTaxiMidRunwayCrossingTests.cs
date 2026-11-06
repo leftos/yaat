@@ -249,13 +249,20 @@ public sealed class OakTaxiMidRunwayCrossingTests
         GroundNode sig7 = layout.FindSpotByName("SIG7") ?? throw new InvalidOperationException("OAK has no SIG7");
         double sig7Side = Math.Sign(Signed28RCrossTrackFt(layout, sig7.Position));
         GroundNode southBar28R =
-            layout.Nodes.Values.FirstOrDefault(n =>
-                (n.Type == GroundNodeType.RunwayHoldShort)
-                && (n.RunwayId is { } id)
-                && id.Contains("28R")
-                && n.Edges.Any(e => e.MatchesTaxiway("B"))
-                && (Math.Sign(Signed28RCrossTrackFt(layout, n.Position)) != sig7Side)
-            ) ?? throw new InvalidOperationException("OAK has no 28R hold-short bar on B south of the runway");
+            TestLayoutNodes
+                .RunwayHoldShortsOnTaxiway(layout, "28R", "B")
+                .Where(n => Math.Sign(Signed28RCrossTrackFt(layout, n.Position)) != sig7Side)
+                .MinBy(n => GeoMath.DistanceNm(n.Position, sig7.Position))
+            ?? throw new InvalidOperationException("OAK has no 28R hold-short bar on B across the runway from SIG7");
+        // Pinned once: the node the old lowest-id selector named on today's layout.
+        GroundNode legacy = layout.Nodes.Values.First(n =>
+            (n.Type == GroundNodeType.RunwayHoldShort)
+            && (n.RunwayId is { } id)
+            && id.Contains("28R")
+            && n.Edges.Any(e => e.MatchesTaxiway("B"))
+            && (Math.Sign(Signed28RCrossTrackFt(layout, n.Position)) != sig7Side)
+        );
+        Assert.Same(legacy, southBar28R);
         GroundRunway runway28R = layout.FindRunway("28R") ?? throw new InvalidOperationException("OAK has no 28R");
         var end1 = new LatLon(runway28R.Coordinates[0].Lat, runway28R.Coordinates[0].Lon);
         var end2 = new LatLon(runway28R.Coordinates[^1].Lat, runway28R.Coordinates[^1].Lon);

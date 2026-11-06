@@ -38,16 +38,17 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     /// The route's start node: the from-node of the <c>T - RAMP</c> fillet arc, the ramp end of such an arc nearest the
     /// pushed aircraft (~105 ft ahead of it; the next is ~158 ft).
     /// </summary>
-    internal static GroundNode StartNode(AirportGroundLayout layout) => NearestOnBoth(layout, "RAMP", "T - RAMP", new LatLon(PushedLat, PushedLon));
-
-    /// <summary>
-    /// The node with an edge named <paramref name="nameA"/> and one named <paramref name="nameB"/> nearest <paramref name="near"/>.
-    /// </summary>
-    private static GroundNode NearestOnBoth(AirportGroundLayout layout, string nameA, string nameB, LatLon near) =>
-        layout
-            .Nodes.Values.Where(node => HasEdgeNamed(node, nameA) && HasEdgeNamed(node, nameB))
-            .MinBy(node => GeoMath.DistanceNm(node.Position, near))
-        ?? throw new InvalidOperationException($"OAK has no node on both {nameA} and {nameB}");
+    internal static GroundNode StartNode(AirportGroundLayout layout)
+    {
+        LatLon posed = new(PushedLat, PushedLon);
+        GroundNode start = GroundNodeLookup.FilletEnd(layout, "RAMP", "T", posed);
+        // Pinned once: the node the old display-name selector named on today's layout.
+        GroundNode legacy = layout
+            .Nodes.Values.Where(node => HasEdgeNamed(node, "RAMP") && HasEdgeNamed(node, "T - RAMP"))
+            .MinBy(node => GeoMath.DistanceNm(node.Position, posed))!;
+        Assert.Same(legacy, start);
+        return start;
+    }
 
     private static bool HasEdgeNamed(GroundNode node, string name) => node.Edges.Any(edge => edge.TaxiwayName == name);
 
@@ -921,8 +922,27 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     /// <summary>Runway 28R's centreline, as the layout names its edges.</summary>
     private const string Runway28REdgeName = "RWY28R/10L";
 
-    /// <summary>The fillet arcs joining taxiway G and runway 28R.</summary>
-    private const string G28RFilletName = "G - RWY28R/10L";
+    /// <summary>True of a fillet arc joining taxiway G and runway 28R's centreline.</summary>
+    private static bool IsG28RFillet(GroundArc arc) => GroundNodeLookup.JoinsFillet(arc, "G", Runway28REdgeName);
+
+    /// <summary>
+    /// The exit and north nodes are the ones the old display-name match (<c>G - RWY28R/10L</c>) named on today's layout.
+    /// </summary>
+    private static void PinToTheOldDisplayNameMatch(AirportGroundLayout layout, GroundNode exit, GroundNode north)
+    {
+        List<GroundNode> legacyRunwayEnds =
+        [
+            .. layout.Nodes.Values.Where(node => HasEdgeNamed(node, Runway28REdgeName) && HasEdgeNamed(node, "G - RWY28R/10L")),
+        ];
+        GroundNode legacyExit = legacyRunwayEnds.MinBy(node => AlongRunwayFt(legacyRunwayEnds[0], node))!;
+        GroundNode? legacyNorth = legacyExit
+            .Edges.Where(edge => edge.TaxiwayName == "G - RWY28R/10L")
+            .Select(edge => edge.OtherNode(legacyExit))
+            .MaxBy(node => node.Position.Lat);
+
+        Assert.Same(legacyExit, exit);
+        Assert.Same(legacyNorth, north);
+    }
 
     /// <summary>
     /// OAK taxiway G's 28R exit fillet: <c>Exit</c>, its from-node on the runway centerline (of the two G fillet ends on 28R,
@@ -932,15 +952,19 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
     {
         List<GroundNode> runwayEnds =
         [
-            .. layout.Nodes.Values.Where(node => HasEdgeNamed(node, Runway28REdgeName) && HasEdgeNamed(node, G28RFilletName)),
+            .. layout.Nodes.Values.Where(node =>
+                HasEdgeNamed(node, Runway28REdgeName) && node.Edges.OfType<GroundArc>().Any(arc => IsG28RFillet(arc))
+            ),
         ];
         Assert.NotEmpty(runwayEnds);
         GroundNode exit = runwayEnds.MinBy(node => AlongRunwayFt(runwayEnds[0], node))!;
         GroundNode? north = exit
-            .Edges.Where(edge => edge.TaxiwayName == G28RFilletName)
+            .Edges.OfType<GroundArc>()
+            .Where(arc => IsG28RFillet(arc))
             .Select(edge => edge.OtherNode(exit))
             .MaxBy(node => node.Position.Lat);
         Assert.NotNull(north);
+        PinToTheOldDisplayNameMatch(layout, exit, north);
         return (exit, north);
     }
 
