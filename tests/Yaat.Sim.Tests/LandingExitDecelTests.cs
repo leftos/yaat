@@ -214,8 +214,13 @@ public class LandingExitDecelTests
         Assert.True(ac.IndicatedAirspeed < speedBefore);
     }
 
+    /// <summary>
+    /// <c>EXIT B</c> with B already behind resolves no B exit. With no exit taken the rollout runs the no-exit stop: there is no hold
+    /// at the 40 kt coast speed, so the aircraft slows to the standard-exit speed (or stops at the no-exit stop point) without braking
+    /// past firm or rolling past that stop point.
+    /// </summary>
     [Fact]
-    public void OAK28R_ExitBehind_FallsBackToDefault()
+    public void OAK28R_ExitBehind_SlowsToTheNoExitPlan()
     {
         AirportGroundLayout? layout = LoadOakLayout();
         if (layout is null)
@@ -233,10 +238,26 @@ public class LandingExitDecelTests
         var phase = new LandingPhase();
         phase.OnStart(ctx);
 
-        (int _, double finalSpeed) = SimulateRollout(phase, ctx);
+        LatLon threshold = LandingThreshold.Resolve(rwy, layout);
+        double stopPointFt = ForcedLandingProfile.LandingDistanceFt(rwy, layout) - NoExitRunwayEndMarginFt;
+        double maxAlongFt = double.MinValue;
+        double maxBrakingRate = 0;
+        for (int tick = 0; tick < 500; tick++)
+        {
+            FlightPhysics.Update(ac, ctx.DeltaSeconds);
+            bool done = phase.OnTick(ctx);
+            Assert.True(phase.CandidateExit is null, $"tick {tick}: resolved {phase.CandidateExit?.TaxiwayName} with B behind");
+            maxAlongFt = Math.Max(maxAlongFt, GeoMath.AlongTrackDistanceNm(ac.Position, threshold, rwy.TrueHeading) * GeoMath.FeetPerNm);
+            maxBrakingRate = Math.Max(maxBrakingRate, ac.Targets.DesiredDecelRate ?? 0);
+            if (done)
+            {
+                break;
+            }
+        }
 
-        // B is behind → no exit resolved → completes at coast speed
-        Assert.InRange(finalSpeed, 38, 41);
+        Assert.InRange(ac.IndicatedAirspeed, 0.0, CategoryPerformance.StandardExitSpeed(AircraftCategory.Jet) + 0.5);
+        Assert.True(maxBrakingRate <= CategoryPerformance.FirmBrakingRate(AircraftCategory.Jet) + 1e-9, $"braked at {maxBrakingRate:F2} kt/s");
+        Assert.True(maxAlongFt <= stopPointFt + StopPointToleranceFt, $"rolled to {maxAlongFt:F0} ft, past the stop point {stopPointFt:F0} ft");
     }
 
     // -- ComputeExitAngle --
@@ -2040,6 +2061,43 @@ public class LandingExitDecelTests
         Assert.DoesNotContain(aircraft.PendingWarnings, warning => warning.Contains("no exit ahead", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// A B738 landing on SFO 28R told to exit at C, which it is too fast to make: the rollout gives C up and is left with no
+    /// candidate of its own, while the runway exit's search still finds an exit ahead. With an exit available the no-exit stop
+    /// does not engage: the rollout hands off to the runway exit, which takes an exit further down the runway, and the crew never
+    /// makes the "unable to exit" call.
+    /// </summary>
+    [Fact]
+    public void NoLandingCandidate_WithAnExitTheRunwayExitFindsAhead_HandsOffAndTakesIt_WithoutTheBackTaxiCall()
+    {
+        SoloArrival? arrival = SpawnSolo("SFO", "28R", "B738");
+        Assert.NotNull(arrival);
+        CommandResult exit = arrival.Engine.SendCommand(arrival.Aircraft.Callsign, "EXIT C");
+        Assert.True(exit.Success, $"EXIT C was refused: {exit.Message}");
+
+        bool rolledWithoutCandidate = false;
+        string? takenTaxiway = null;
+        for (int t = 1; (t <= 400) && (arrival.Aircraft.Phases?.CurrentPhase is not HoldingAfterExitPhase); t++)
+        {
+            arrival.Engine.TickOneSecond();
+            switch (arrival.Aircraft.Phases?.CurrentPhase)
+            {
+                case LandingPhase { CurrentState: LandingPhase.State.Rollout, CandidateExit: null } when arrival.Aircraft.IsOnGround:
+                    rolledWithoutCandidate = true;
+                    break;
+                case RunwayExitPhase { ExitTaxiway: { } taxiway }:
+                    takenTaxiway = taxiway;
+                    break;
+            }
+        }
+
+        Assert.True(rolledWithoutCandidate, "the rollout always had a candidate exit of its own");
+        Assert.IsType<HoldingAfterExitPhase>(arrival.Aircraft.Phases?.CurrentPhase);
+        Assert.NotNull(takenTaxiway);
+        Assert.False(string.Equals(takenTaxiway, "C", StringComparison.OrdinalIgnoreCase), "the aircraft exited at C, the exit it gave up");
+        Assert.DoesNotContain(arrival.Calls, call => call.Message.Contains("unable to exit", StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>The nearest connection of <paramref name="taxiway"/> ahead of <paramref name="from"/> on <paramref name="runway"/>, if any.</summary>
     private static AirportGroundLayout.CenterlineExitResult? ExitOf(AirportGroundLayout layout, RunwayInfo runway, LatLon from, string taxiway) =>
         layout.FindOnSidePreferredExit(
@@ -2662,31 +2720,74 @@ public class LandingExitDecelTests
     // -- No usable exit: stop on the remaining runway --
 
     /// <summary>
-    /// Outside LAHSO, a rollout whose every exit hold-short is already claimed has no exit to take: the graph planner
-    /// excludes the occupied bars and the centerline re-search finds nothing. The arrival must stop on the remaining runway rather than
-    /// leave the pavement or coast off its end.
+    /// The no-exit stop's centroid margin before the end of the landing distance (ft), stated here rather than read from the
+    /// production constant so the test pins the number.
     /// </summary>
-    [Fact(Skip = "YAAT-30(h): the no-exit stop is not built yet; the aircraft overruns the departure end")]
-    public void Rollout_WithEveryExitHoldShortOccupied_StopsOnTheRemainingRunway()
+    private const double NoExitRunwayEndMarginFt = 300.0;
+
+    /// <summary>How far short of the stop point (ft) the pin test still counts as stopping at it.</summary>
+    private const double StopPlanToleranceFt = 150.0;
+
+    /// <summary>How close to the stop point (ft) the case-table rows put the stop.</summary>
+    private const double StopPointToleranceFt = 10.0;
+
+    /// <summary>How long (s) a run is watched after the stop for a second call or a late move.</summary>
+    private const int AfterStopWatchSeconds = 30;
+
+    private sealed record NoExitStaging(
+        SimulationEngine Engine,
+        AircraftState Aircraft,
+        RunwayInfo Runway,
+        AirportGroundLayout Layout,
+        LatLon Threshold,
+        double StopPointFt,
+        List<GroundNode> HoldShorts
+    )
     {
-        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "CRJ9", "TST001", 1.0);
+        public double AlongFt(LatLon position) => GeoMath.AlongTrackDistanceNm(position, Threshold, Runway.TrueHeading) * GeoMath.FeetPerNm;
+    }
+
+    /// <summary>What a no-exit run did: where it went, how hard it braked, when it called and when it stopped.</summary>
+    private sealed class NoExitRun
+    {
+        public double MaxAlongFt { get; set; } = double.MinValue;
+        public double? StopAlongFt { get; set; }
+        public int? StopT { get; set; }
+        public double MaxBrakingRate { get; set; }
+        public List<int> CallTimes { get; } = [];
+        public List<string> Warnings { get; } = [];
+        public int? LeftAt { get; set; }
+        public int? CommittedHoldShortId { get; set; }
+
+        public string Summary(double stopPointFt) =>
+            $"stop {StopAlongFt?.ToString("F0") ?? "none"} ft at t={StopT?.ToString() ?? "-"}, max along {MaxAlongFt:F0} ft, stop point "
+            + $"{stopPointFt:F0} ft, max braking {MaxBrakingRate:F2} kt/s, calls at [{string.Join(",", CallTimes)}], "
+            + $"left at {LeftAt?.ToString() ?? "-"}";
+    }
+
+    /// <summary>
+    /// An arrival on a one-mile final cleared to land on <paramref name="airport"/> <paramref name="runwayDesignator"/>, with an
+    /// aircraft holding after exit at every hold-short of the runway, so it has no exit it can take.
+    /// </summary>
+    private static NoExitStaging? StageEveryExitOccupied(string airport, string runwayDesignator, string aircraftType, string callsign)
+    {
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand(airport, runwayDesignator, aircraftType, callsign, 1.0);
         if (spawned is null)
         {
-            return;
+            return null;
         }
 
         (SimulationEngine engine, AircraftState aircraft, RunwayInfo runway) = spawned;
-
-        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airport);
         if (layout is null)
         {
-            return;
+            return null;
         }
 
-        List<GroundNode> holdShorts = layout.GetRunwayHoldShortNodes("28R");
+        List<GroundNode> holdShorts = layout.GetRunwayHoldShortNodes(runwayDesignator);
         if (holdShorts.Count == 0)
         {
-            return;
+            return null;
         }
 
         foreach (GroundNode holdShort in holdShorts)
@@ -2694,34 +2795,606 @@ public class LandingExitDecelTests
             engine.World.AddAircraft(MakeHoldingAfterExitBlocker(runway, layout, holdShort));
         }
 
-        LatLon threshold = LandingThreshold.Resolve(runway, layout);
-        double runwayLengthFt = GeoMath.DistanceNm(threshold, new LatLon(runway.EndLatitude, runway.EndLongitude)) * GeoMath.FeetPerNm;
+        double stopPointFt = ForcedLandingProfile.LandingDistanceFt(runway, layout) - NoExitRunwayEndMarginFt;
+        return new NoExitStaging(engine, aircraft, runway, layout, LandingThreshold.Resolve(runway, layout), stopPointFt, holdShorts);
+    }
 
-        bool leftTheRunway = false;
-        for (int t = 1; t <= 420; t++)
+    /// <summary>
+    /// Ticks <paramref name="staging"/> until the arrival has been stopped for <see cref="AfterStopWatchSeconds"/> or has left the
+    /// runway, recording the run. <paramref name="onTick"/> runs each second the arrival is on the runway.
+    /// </summary>
+    private static NoExitRun RunNoExitLanding(NoExitStaging staging, Action<int, NoExitRun>? onTick = null)
+    {
+        var run = new NoExitRun();
+        int t = 0;
+        staging.Engine.PilotSpeechEmitted += (cs, text) =>
         {
-            engine.TickOneSecond();
-            if (aircraft.Phases?.CurrentPhase is HoldingAfterExitPhase)
+            if ((cs == staging.Aircraft.Callsign) && text.TerminalForRpo.Contains("unable to exit", StringComparison.OrdinalIgnoreCase))
             {
-                leftTheRunway = true;
+                run.CallTimes.Add(t);
+            }
+        };
+        staging.Engine.WarningEmitted += (cs, text) =>
+        {
+            if (cs != staging.Aircraft.Callsign)
+            {
+                return;
+            }
+
+            // Without the RPO pilot-speech display the pilot's line reaches the instructor as a warning.
+            run.Warnings.Add(text);
+            if (text.Contains("unable to exit", StringComparison.OrdinalIgnoreCase))
+            {
+                run.CallTimes.Add(t);
+            }
+        };
+
+        for (t = 1; t <= 420; t++)
+        {
+            staging.Engine.TickOneSecond();
+            AircraftState aircraft = staging.Aircraft;
+            if (aircraft.Phases?.CurrentPhase is RunwayExitPhase { TargetHoldShortNodeId: { } committed })
+            {
+                run.CommittedHoldShortId ??= committed;
+            }
+
+            if (aircraft.Phases?.CurrentPhase is HoldingAfterExitPhase or TaxiingPhase)
+            {
+                run.LeftAt = t;
                 break;
             }
 
-            if ((aircraft.GroundSpeed < 1.0) && (aircraft.Phases?.CurrentPhase is LandingPhase or RunwayExitPhase))
+            if ((run.StopT is { } stopT) && (t > stopT + AfterStopWatchSeconds))
             {
                 break;
+            }
+
+            if (!aircraft.IsOnGround || (aircraft.Phases?.CurrentPhase is not (LandingPhase or RunwayExitPhase)))
+            {
+                continue;
+            }
+
+            double alongFt = staging.AlongFt(aircraft.Position);
+            run.MaxAlongFt = Math.Max(run.MaxAlongFt, alongFt);
+            if ((run.StopT is null) && (aircraft.GroundSpeed >= 1.0) && (aircraft.Targets.DesiredDecelRate is { } rate))
+            {
+                run.MaxBrakingRate = Math.Max(run.MaxBrakingRate, rate);
+            }
+
+            if ((run.StopT is null) && (aircraft.GroundSpeed < 1.0))
+            {
+                run.StopT = t;
+                run.StopAlongFt = alongFt;
+            }
+
+            onTick?.Invoke(t, run);
+        }
+
+        return run;
+    }
+
+    /// <summary>
+    /// Outside LAHSO, a rollout whose every exit hold-short is already claimed has no exit to take. The arrival (a CRJ9 touching down
+    /// at 140 kt about 1,250 ft along OAK 28R) plans its stop on the remaining runway: it never passes the stop point 300 ft before
+    /// the end of the landing distance and stops close to it, not mid-runway. The crew's one "unable to exit" call goes out while the
+    /// aircraft is still braking to that stop (AIM 4-3-21.a: approval before stopping on the runway), and no exit is taken.
+    /// </summary>
+    [Fact]
+    public void Rollout_WithEveryExitHoldShortOccupied_StopsOnTheRemainingRunway()
+    {
+        if (StageEveryExitOccupied("OAK", "28R", "CRJ9", "TST001") is not { } staging)
+        {
+            return;
+        }
+
+        NoExitRun run = RunNoExitLanding(staging);
+        string summary = run.Summary(staging.StopPointFt);
+
+        Assert.True(run.LeftAt is null, $"the arrival took an exit whose hold-short was occupied: {summary}");
+        Assert.True(run.StopAlongFt is not null, $"never stopped on the runway: {summary}");
+        Assert.True(run.MaxAlongFt <= staging.StopPointFt + StopPointToleranceFt, $"rolled past the no-exit stop point: {summary}");
+        Assert.True(run.StopAlongFt >= staging.StopPointFt - StopPlanToleranceFt, $"stopped well short of its planned stop point: {summary}");
+        int callT = Assert.Single(run.CallTimes);
+        Assert.True(callT < run.StopT, $"the unable-to-exit call came only once stopped: {summary}");
+
+        // The instructor is told as the final stop begins, while the aircraft is still rolling.
+        Assert.Contains(run.Warnings, w => w.Contains("TST001 stopping on RWY 28R", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The case table's no-exit rows for each category, on OAK 28R with every hold-short occupied: the runway-end stop point binds
+    /// (the last exit's turn-in lies past it), and the distance allows a stop there without braking harder than the category's firm
+    /// rate, so the arrival stops at that point and never brakes past firm.
+    /// </summary>
+    [Theory]
+    [InlineData("CRJ9", AircraftCategory.Jet)]
+    [InlineData("DH8D", AircraftCategory.Turboprop)]
+    [InlineData("C172", AircraftCategory.Piston)]
+    public void NoExitRollout_EveryExitOccupied_StopsAtTheRunwayEndStopPointWithinFirmBraking(string aircraftType, AircraftCategory category)
+    {
+        if (StageEveryExitOccupied("OAK", "28R", aircraftType, "TST002") is not { } staging)
+        {
+            return;
+        }
+
+        Assert.Equal(category, AircraftCategorization.Categorize(aircraftType));
+        NoExitRun run = RunNoExitLanding(staging);
+        string summary = run.Summary(staging.StopPointFt);
+
+        Assert.True(run.LeftAt is null, $"took an occupied exit: {summary}");
+        Assert.True(run.StopAlongFt is not null, $"never stopped on the runway: {summary}");
+        Assert.True(Math.Abs(run.StopAlongFt!.Value - staging.StopPointFt) <= StopPointToleranceFt, $"did not stop at the stop point: {summary}");
+        Assert.True(run.MaxAlongFt <= staging.StopPointFt + StopPointToleranceFt, $"rolled past the stop point: {summary}");
+        Assert.True(run.MaxBrakingRate <= CategoryPerformance.FirmBrakingRate(category) + 1e-9, $"braked past firm: {summary}");
+        Assert.Single(run.CallTimes);
+    }
+
+    /// <summary>
+    /// An exit that frees while the arrival rolls toward its no-exit stop at the standard-exit speed is taken (the per-tick search,
+    /// reachable at no more than firm): a C172 on OAK 28R with every hold-short occupied, one bar well ahead freed once it is rolling
+    /// at 12 kt, turns off there, and the crew makes no "unable to exit" call.
+    /// </summary>
+    [Fact]
+    public void NoExitRollout_ExitFreesAheadWhileRollingAtStandardExitSpeed_IsTaken()
+    {
+        if (StageEveryExitOccupied("OAK", "28R", "C172", "TST004") is not { } staging)
+        {
+            return;
+        }
+
+        double plateauKts = CategoryPerformance.StandardExitSpeed(AircraftCategory.Piston);
+        int? freedId = null;
+        NoExitRun run = RunNoExitLanding(
+            staging,
+            (t, _) =>
+            {
+                if ((freedId is not null) || (staging.Aircraft.IndicatedAirspeed > plateauKts + 0.5))
+                {
+                    return;
+                }
+
+                double alongFt = staging.AlongFt(staging.Aircraft.Position);
+                GroundNode? ahead = staging
+                    .HoldShorts.Where(n => staging.AlongFt(n.Position) > alongFt + 800.0)
+                    .OrderBy(n => staging.AlongFt(n.Position))
+                    .FirstOrDefault();
+                if (ahead is not null)
+                {
+                    freedId = ahead.Id;
+                    staging.Engine.World.RemoveAircraft($"BLK{ahead.Id}");
+                }
+            }
+        );
+        string summary = run.Summary(staging.StopPointFt);
+
+        Assert.True(freedId is not null, $"never rolled at {plateauKts} kt with a bar 800 ft ahead to free: {summary}");
+        Assert.True(run.LeftAt is not null, $"never took the freed exit: {summary}");
+        Assert.Equal(freedId, run.CommittedHoldShortId);
+        Assert.Empty(run.CallTimes);
+    }
+
+    /// <summary>
+    /// The once-only "unable to exit" call survives a snapshot restore made between the call and the stop: the restored arrival
+    /// finishes its stop and the runway exit after it without calling again.
+    /// </summary>
+    [Fact]
+    public void NoExitRollout_RestoredBetweenTheCallAndTheStop_DoesNotCallAgain()
+    {
+        if (StageEveryExitOccupied("OAK", "28R", "CRJ9", "TST005") is not { } staging)
+        {
+            return;
+        }
+
+        string callsign = staging.Aircraft.Callsign;
+        List<int> calls = [];
+        int t = 0;
+        staging.Engine.PilotSpeechEmitted += (cs, text) =>
+        {
+            if ((cs == callsign) && text.TerminalForRpo.Contains("unable to exit", StringComparison.OrdinalIgnoreCase))
+            {
+                calls.Add(t);
+            }
+        };
+        staging.Engine.WarningEmitted += (cs, text) =>
+        {
+            if ((cs == callsign) && text.Contains("unable to exit", StringComparison.OrdinalIgnoreCase))
+            {
+                calls.Add(t);
+            }
+        };
+
+        bool restored = false;
+        int? stoppedAt = null;
+        for (t = 1; (t <= 420) && ((stoppedAt is null) || (t <= stoppedAt + AfterStopWatchSeconds)); t++)
+        {
+            staging.Engine.TickOneSecond();
+            AircraftState aircraft = staging.Engine.FindAircraft(callsign)!;
+            if (!restored && (calls.Count == 1) && (aircraft.GroundSpeed >= 1.0))
+            {
+                staging.Engine.RestoreFromSnapshot(staging.Engine.CaptureSnapshot());
+                restored = true;
+                continue;
+            }
+
+            if (restored && (stoppedAt is null) && (aircraft.GroundSpeed < 1.0))
+            {
+                stoppedAt = t;
             }
         }
 
-        Assert.False(leftTheRunway, "the arrival took an exit whose hold-short was occupied");
+        Assert.True(restored, $"never called while still rolling (calls at [{string.Join(",", calls)}])");
+        Assert.True(stoppedAt is not null, "never stopped after the restore");
+        Assert.Single(calls);
+    }
 
-        Assert.True(
-            aircraft.IsOnGround && (aircraft.GroundSpeed < 1.0),
-            $"the arrival should have stopped on the runway, phase={aircraft.Phases?.CurrentPhase?.Name} gs={aircraft.GroundSpeed:F1}"
+    /// <summary>The slowest the arrival rolls (kt) when an out-of-reach row frees the bar ahead of it.</summary>
+    private const double OutOfReachMinSpeedKts = 90.0;
+
+    /// <summary>How far ahead (ft) the bar an out-of-reach row frees lies: too close to slow for at firm from 90 kt.</summary>
+    private const double OutOfReachMinAheadFt = 200.0;
+
+    private const double OutOfReachMaxAheadFt = 700.0;
+
+    /// <summary>
+    /// The occupied bar an out-of-reach row frees, or null while there is none to free: the arrival is under the no-exit stop in its
+    /// rollout (no candidate, its speed target at or below the standard-exit speed) still at <see cref="OutOfReachMinSpeedKts"/> or
+    /// more, and the bar lies <see cref="OutOfReachMinAheadFt"/> to <see cref="OutOfReachMaxAheadFt"/> ahead of it.
+    /// </summary>
+    private static GroundNode? OutOfReachBarToFree(NoExitStaging staging, AircraftState aircraft)
+    {
+        bool underTheStop =
+            aircraft.IsOnGround
+            && (aircraft.Phases?.CurrentPhase is LandingPhase { CurrentState: LandingPhase.State.Rollout, CandidateExit: null })
+            && (aircraft.GroundSpeed >= OutOfReachMinSpeedKts)
+            && (aircraft.Targets.TargetSpeed is { } target)
+            && (target <= CategoryPerformance.StandardExitSpeed(AircraftCategorization.Categorize(aircraft.AircraftType)));
+        if (!underTheStop)
+        {
+            return null;
+        }
+
+        double alongFt = staging.AlongFt(aircraft.Position);
+        return staging
+            .HoldShorts.Where(n => staging.AlongFt(n.Position) - alongFt is >= OutOfReachMinAheadFt and <= OutOfReachMaxAheadFt)
+            .OrderBy(n => staging.AlongFt(n.Position))
+            .FirstOrDefault();
+    }
+
+    /// <summary>The hold-short <paramref name="aircraft"/> plans for (its rollout's candidate) or has committed to (its runway exit).</summary>
+    private static int? PlannedHoldShortId(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase switch
+        {
+            LandingPhase { CandidateExit: { } candidate } => candidate.HoldShortNode.Id,
+            RunwayExitPhase { TargetHoldShortNodeId: { } committed } => committed,
+            _ => null,
+        };
+
+    /// <summary>
+    /// An exit that frees while the arrival is under the no-exit stop, too close to slow for at the firm rate, is ignored (O5): a
+    /// CRJ9 on OAK 28R with every hold-short occupied, one bar 200-700 ft ahead freed while it still rolls at 90 kt or more, never
+    /// plans for that exit or commits to it, still stops on the runway, and makes its one "unable to exit" call.
+    /// </summary>
+    [Fact]
+    public void NoExitRollout_ExitFreesOutOfReachMidStop_IsIgnored()
+    {
+        if (StageEveryExitOccupied("OAK", "28R", "CRJ9", "TST006") is not { } staging)
+        {
+            return;
+        }
+
+        int? freedId = null;
+        List<string> plannedFreed = [];
+        NoExitRun run = RunNoExitLanding(
+            staging,
+            (t, _) =>
+            {
+                if ((freedId is not null) && (PlannedHoldShortId(staging.Aircraft) == freedId))
+                {
+                    plannedFreed.Add($"t={t} {staging.Aircraft.Phases?.CurrentPhase?.Name}");
+                }
+
+                if ((freedId is null) && (OutOfReachBarToFree(staging, staging.Aircraft) is { } bar))
+                {
+                    freedId = bar.Id;
+                    staging.Engine.World.RemoveAircraft($"BLK{bar.Id}");
+                }
+            }
         );
+        string summary = run.Summary(staging.StopPointFt);
 
-        double alongFt = GeoMath.AlongTrackDistanceNm(aircraft.Position, threshold, runway.TrueHeading) * GeoMath.FeetPerNm;
-        Assert.InRange(alongFt, 0.0, runwayLengthFt);
+        Assert.True(freedId is not null, $"never rolled under the no-exit stop at {OutOfReachMinSpeedKts} kt with a bar to free: {summary}");
+        Assert.True(plannedFreed.Count == 0, $"planned for the exit freed out of reach: {string.Join("; ", plannedFreed)}; {summary}");
+        Assert.True(run.LeftAt is null, $"left the runway: {summary}");
+        Assert.True(run.StopAlongFt is not null, $"never stopped on the runway: {summary}");
+        Assert.Single(run.CallTimes);
+    }
+
+    /// <summary>
+    /// The row above with the world snapshotted once the no-exit stop has engaged and before the exit frees, and restored into a fresh
+    /// world: the restored arrival ignores the exit freeing out of reach as the live one does, and the two runs roll, stop and change
+    /// phase tick for tick alike.
+    /// </summary>
+    [Fact]
+    public void NoExitRollout_RestoredMidStop_IgnoresAnExitFreeingOutOfReachAsLive()
+    {
+        if (
+            (StageEveryExitOccupied("OAK", "28R", "CRJ9", "TST007") is not { } live)
+            || (StageEveryExitOccupied("OAK", "28R", "CRJ9", "TST007") is not { } restored)
+        )
+        {
+            return;
+        }
+
+        GroundNode? bar = null;
+        for (int t = 1; (t <= 420) && (bar is null); t++)
+        {
+            live.Engine.TickOneSecond();
+            bar = OutOfReachBarToFree(live, live.Aircraft);
+        }
+
+        Assert.True(bar is not null, $"never rolled under the no-exit stop at {OutOfReachMinSpeedKts} kt with a bar to free");
+        restored.Engine.RestoreFromSnapshot(ThroughJson(live.Engine.CaptureSnapshot()));
+        live.Engine.World.RemoveAircraft($"BLK{bar.Id}");
+        restored.Engine.World.RemoveAircraft($"BLK{bar.Id}");
+
+        int? stoppedAt = null;
+        for (int t = 1; (t <= 420) && ((stoppedAt is null) || (t <= stoppedAt + AfterStopWatchSeconds)); t++)
+        {
+            live.Engine.TickOneSecond();
+            restored.Engine.TickOneSecond();
+            AircraftState liveAircraft = live.Engine.FindAircraft("TST007")!;
+            AircraftState restoredAircraft = restored.Engine.FindAircraft("TST007")!;
+            Assert.True(PlannedHoldShortId(liveAircraft) != bar.Id, $"t={t}: the live run planned for the exit freed out of reach");
+            Assert.True(PlannedHoldShortId(restoredAircraft) != bar.Id, $"t={t}: the restored run planned for the exit freed out of reach");
+
+            string liveState = RolloutState(liveAircraft, t);
+            string restoredState = RolloutState(restoredAircraft, t);
+            Assert.True(
+                liveState == restoredState,
+                $"diverged:{Environment.NewLine}live     {liveState}{Environment.NewLine}restored {restoredState}"
+            );
+            if (liveAircraft.Phases?.CurrentPhase is HoldingAfterExitPhase or TaxiingPhase)
+            {
+                break;
+            }
+
+            stoppedAt ??= liveAircraft.GroundSpeed < 1.0 ? t : null;
+        }
+
+        Assert.True(stoppedAt is not null, "the live run never stopped on the runway");
+    }
+
+    /// <summary><paramref name="aircraft"/>'s position, heading, ground speed and phase at full precision, for a tick-for-tick compare.</summary>
+    private static string RolloutState(AircraftState aircraft, int t) =>
+        $"t={t} {aircraft.Position.Lat:R},{aircraft.Position.Lon:R} hdg={aircraft.TrueHeading.Degrees:R} gs={aircraft.GroundSpeed:R} "
+        + $"{aircraft.Phases?.CurrentPhase?.Name} hs={PlannedHoldShortId(aircraft)}";
+
+    /// <summary>
+    /// The no-exit stop the last exit's stop point governs holds there (the stop point stays 50 ft short of that exit's turn-entry
+    /// point while the aircraft is at or below the standard-exit speed and firm braking still stops it before that turn-entry
+    /// point), all the way to a stop: a
+    /// jet slowing from 30 kt toward a last exit whose stop point lies well before the runway-end one, fed back its own speed target
+    /// and rate at 4 Hz, never has its stop point jump to the runway end, even once it rolls a little past the stop point. No
+    /// staging in this class puts the last exit's stop point before the runway-end one (OAK 28R's last turn-in lies past it), so
+    /// the plan is fed the along-track and speed sequence directly.
+    /// </summary>
+    [Fact]
+    public void NoExitStopPlan_LastExitStopPoint_HoldsThroughTheStop()
+    {
+        const double LandingDistanceFt = 10_000.0;
+        const double LastTurnEntryAlongFt = 7_000.0;
+        const double NoseOffsetFt = 60.0;
+        const double DeltaSeconds = 0.25;
+        const double FtPerSecPerKt = GeoMath.FeetPerNm / 3600.0;
+        double exitStopFt = LastTurnEntryAlongFt - NoExitStopPlan.LastExitSetbackFt;
+        Assert.True(exitStopFt < LandingDistanceFt - NoExitRunwayEndMarginFt);
+
+        double speedKts = 30.0;
+        double alongFt = 4_000.0;
+        int step = 0;
+        for (; (step < 4 * 600) && (speedKts > 0); step++)
+        {
+            NoExitStopPlan.StopStep plan = NoExitStopPlan.Compute(
+                AircraftCategory.Jet,
+                speedKts,
+                alongFt,
+                new NoExitStopPlan.StopDatums(LandingDistanceFt, LandingDistanceFt - NoseOffsetFt, LastTurnEntryAlongFt)
+            );
+            Assert.True(
+                plan.AtLastExit && (plan.StopAlongFt == exitStopFt),
+                $"step {step}: at {alongFt:F2} ft and {speedKts:F2} kt the stop point moved to {plan.StopAlongFt:F0} ft"
+            );
+
+            // Explicit Euler as FlightPhysics integrates: the position moves at this step's speed, then the speed slows toward the target.
+            alongFt += speedKts * FtPerSecPerKt * DeltaSeconds;
+            if (speedKts > plan.TargetSpeedKts)
+            {
+                speedKts = Math.Max(plan.TargetSpeedKts, speedKts - (plan.DecelRateKtsPerSec * DeltaSeconds));
+            }
+        }
+
+        Assert.True(speedKts <= 0, $"never stopped: {speedKts:F2} kt at {alongFt:F0} ft after {step} steps");
+        Assert.True(alongFt < LastTurnEntryAlongFt, $"stopped at {alongFt:F0} ft, past the last exit's turn-entry point");
+    }
+
+    /// <summary><paramref name="snapshot"/> written and read back through the recording's JSON, as a saved recording restores.</summary>
+    private static StateSnapshotDto ThroughJson(StateSnapshotDto snapshot) =>
+        JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default), RecordingJsonOptions.Default)!;
+
+    /// <summary>
+    /// The arrival side the landing's no-exit availability check asks the runway exit's search with is resolved once, from the
+    /// parking remark the arrival had then, and survives a restore: a CRJ9 on OAK 28R with every hold-short occupied and a remark
+    /// naming a stand left of the runway, whose remark is amended to a stand on the right once the stop has engaged, is snapshotted
+    /// and restored into a fresh world; the restored landing keeps the left side, and the two runs roll and stop tick for tick alike.
+    /// </summary>
+    [Fact]
+    public void NoExitRollout_RemarksAmendedMidStop_RestoredLandingKeepsItsArrivalSide()
+    {
+        if (
+            (StageEveryExitOccupied("OAK", "28R", "CRJ9", "TST009") is not { } live)
+            || (StageEveryExitOccupied("OAK", "28R", "CRJ9", "TST009") is not { } restored)
+        )
+        {
+            return;
+        }
+
+        (string leftRemark, string rightRemark) = ParkingRemarksEachSide(live);
+        live.Aircraft.FlightPlan.ReplaceRemarks(leftRemark);
+        LandingPhase? landing = null;
+        for (int t = 1; (t <= 420) && (landing?.RunwayExitSide is null); t++)
+        {
+            live.Engine.TickOneSecond();
+            landing = live.Aircraft.Phases?.CurrentPhase as LandingPhase;
+        }
+
+        Assert.True(landing?.RunwayExitSide == ExitSide.Left, $"the landing resolved {landing?.RunwayExitSide} under {leftRemark}");
+        live.Aircraft.FlightPlan.ReplaceRemarks(rightRemark);
+        restored.Engine.RestoreFromSnapshot(ThroughJson(live.Engine.CaptureSnapshot()));
+
+        int? stoppedAt = null;
+        for (int t = 1; (t <= 420) && ((stoppedAt is null) || (t <= stoppedAt + AfterStopWatchSeconds)); t++)
+        {
+            live.Engine.TickOneSecond();
+            restored.Engine.TickOneSecond();
+            AircraftState liveAircraft = live.Engine.FindAircraft("TST009")!;
+            AircraftState restoredAircraft = restored.Engine.FindAircraft("TST009")!;
+            if (restoredAircraft.Phases?.CurrentPhase is LandingPhase restoredLanding)
+            {
+                Assert.True(
+                    restoredLanding.RunwayExitSide == ExitSide.Left,
+                    $"t={t}: the restored landing re-resolved {restoredLanding.RunwayExitSide}"
+                );
+            }
+
+            string liveState = RolloutState(liveAircraft, t);
+            string restoredState = RolloutState(restoredAircraft, t);
+            Assert.True(
+                liveState == restoredState,
+                $"diverged:{Environment.NewLine}live     {liveState}{Environment.NewLine}restored {restoredState}"
+            );
+            if (liveAircraft.Phases?.CurrentPhase is HoldingAfterExitPhase or TaxiingPhase)
+            {
+                break;
+            }
+
+            stoppedAt ??= liveAircraft.GroundSpeed < 1.0 ? t : null;
+        }
+    }
+
+    /// <summary>
+    /// Two parking remarks for <paramref name="staging"/>'s arrival: the first naming a stand whose side of the runway resolves Left,
+    /// the second one that resolves Right (<see cref="ArrivalExitSide.Resolve(AircraftState, RunwayInfo, AirportGroundLayout, TrueHeading)"/>).
+    /// </summary>
+    private static (string Left, string Right) ParkingRemarksEachSide(NoExitStaging staging)
+    {
+        string original = staging.Aircraft.FlightPlan.Remarks;
+        string? left = null;
+        string? right = null;
+        IEnumerable<string> stands = staging
+            .Layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Name is { Length: > 0 }))
+            .Select(n => n.Name!)
+            .Order(StringComparer.Ordinal);
+        foreach (string stand in stands)
+        {
+            string remark = $"PARKING {stand}";
+            staging.Aircraft.FlightPlan.ReplaceRemarks(remark);
+            ExitSide? side = ArrivalExitSide.Resolve(staging.Aircraft, staging.Runway, staging.Layout, staging.Runway.TrueHeading);
+            left ??= side == ExitSide.Left ? remark : null;
+            right ??= side == ExitSide.Right ? remark : null;
+        }
+
+        staging.Aircraft.FlightPlan.ReplaceRemarks(original);
+        Assert.True((left is not null) && (right is not null), $"no OAK stand resolves each side of 28R (left {left}, right {right})");
+        return (left, right);
+    }
+
+    /// <summary>
+    /// The case table's runway-end row next to the last exit: a jet planned for the runway-end stop (too fast to stop short of the
+    /// last exit at the firm rate) that slows, fed back its own target and rate at 4 Hz, to the standard-exit speed just short of the
+    /// last exit's turn-entry point, where firm braking can no longer stop before it, never switches its stop point to the last exit
+    /// and never raises its speed target back above where it was.
+    /// </summary>
+    [Fact]
+    public void NoExitStopPlan_RunwayEndStop_SlowingTooLateForTheLastExit_NeverSwitchesToIt()
+    {
+        var datums = new NoExitStopPlan.StopDatums(PlanLandingDistanceFt, PlanLandingDistanceFt - PlanNoseOffsetFt, PlanLastTurnEntryAlongFt);
+        double speedKts = 30.0;
+        double alongFt = 6_810.0;
+        double lowestTargetKts = double.MaxValue;
+        for (int step = 0; (step < 4 * 120) && (alongFt < PlanLastTurnEntryAlongFt + 200.0); step++)
+        {
+            NoExitStopPlan.StopStep plan = NoExitStopPlan.Compute(AircraftCategory.Jet, speedKts, alongFt, datums);
+            Assert.False(plan.AtLastExit, $"step {step}: at {alongFt:F2} ft and {speedKts:F2} kt the stop switched to the last exit");
+            Assert.True(
+                plan.TargetSpeedKts <= lowestTargetKts,
+                $"step {step}: at {alongFt:F2} ft the target rose to {plan.TargetSpeedKts:F2} kt from {lowestTargetKts:F2} kt"
+            );
+            lowestTargetKts = plan.TargetSpeedKts;
+            (alongFt, speedKts) = PlanStep(alongFt, speedKts, plan.TargetSpeedKts, plan.DecelRateKtsPerSec);
+        }
+    }
+
+    /// <summary>
+    /// The case table's switching row: a jet planned for the runway-end stop (too fast for the last exit at the firm rate) whose speed
+    /// falls at the firm rate, fed at 4 Hz, so that it reaches the standard-exit speed where firm braking still stops it before the
+    /// last exit's turn-entry point. It may switch to the last exit's stop point there, and once switched it holds it to a stop.
+    /// </summary>
+    [Fact]
+    public void NoExitStopPlan_RunwayEndStop_SlowingEarlyEnough_SwitchesToTheLastExitAndHolds()
+    {
+        var datums = new NoExitStopPlan.StopDatums(PlanLandingDistanceFt, PlanLandingDistanceFt - PlanNoseOffsetFt, PlanLastTurnEntryAlongFt);
+        double firm = CategoryPerformance.FirmBrakingRate(AircraftCategory.Jet);
+        double speedKts = 40.0;
+        double alongFt = 6_700.0;
+        Assert.False(NoExitStopPlan.Compute(AircraftCategory.Jet, speedKts, alongFt, datums).AtLastExit, "planned at the last exit from the start");
+
+        int? switchedAt = null;
+        for (int step = 0; (step < 4 * 120) && (speedKts > 0); step++)
+        {
+            NoExitStopPlan.StopStep plan = NoExitStopPlan.Compute(AircraftCategory.Jet, speedKts, alongFt, datums);
+            switchedAt ??= plan.AtLastExit ? step : null;
+            Assert.True(
+                (switchedAt is null) || plan.AtLastExit,
+                $"step {step}: at {alongFt:F2} ft and {speedKts:F2} kt the stop switched back to the runway end after step {switchedAt}"
+            );
+            (alongFt, speedKts) = PlanStep(alongFt, speedKts, 0.0, firm);
+        }
+
+        Assert.True(speedKts <= 0, $"never stopped: {speedKts:F2} kt at {alongFt:F0} ft");
+    }
+
+    /// <summary>
+    /// The case table's past-the-stop-point row: past either stop point (the last exit's, its turn-entry point still ahead; the runway
+    /// end's) the speed target is zero.
+    /// </summary>
+    [Fact]
+    public void NoExitStopPlan_PastTheStopPoint_TargetsZero()
+    {
+        var datums = new NoExitStopPlan.StopDatums(PlanLandingDistanceFt, PlanLandingDistanceFt - PlanNoseOffsetFt, PlanLastTurnEntryAlongFt);
+        double exitStopFt = PlanLastTurnEntryAlongFt - NoExitStopPlan.LastExitSetbackFt;
+        NoExitStopPlan.StopStep atExit = NoExitStopPlan.Compute(AircraftCategory.Jet, 3.0, exitStopFt + 5.0, datums);
+        Assert.True(atExit.AtLastExit && (atExit.TargetSpeedKts == 0), $"past the last exit's stop point: {atExit}");
+
+        var noLastExit = new NoExitStopPlan.StopDatums(PlanLandingDistanceFt, PlanLandingDistanceFt - PlanNoseOffsetFt, null);
+        double runwayEndStopFt = PlanLandingDistanceFt - NoExitRunwayEndMarginFt;
+        NoExitStopPlan.StopStep atEnd = NoExitStopPlan.Compute(AircraftCategory.Jet, 3.0, runwayEndStopFt + 5.0, noLastExit);
+        Assert.True(!atEnd.AtLastExit && (atEnd.TargetSpeedKts == 0), $"past the runway-end stop point: {atEnd}");
+    }
+
+    private const double PlanLandingDistanceFt = 10_000.0;
+    private const double PlanLastTurnEntryAlongFt = 7_000.0;
+    private const double PlanNoseOffsetFt = 60.0;
+    private const double PlanStepSeconds = 0.25;
+
+    /// <summary>
+    /// One 4 Hz step as FlightPhysics integrates (explicit Euler): the position moves at this step's speed, then the speed slows
+    /// toward <paramref name="targetKts"/> at <paramref name="rateKtsPerSec"/>, never below it nor below zero.
+    /// </summary>
+    private static (double AlongFt, double SpeedKts) PlanStep(double alongFt, double speedKts, double targetKts, double rateKtsPerSec)
+    {
+        double nextAlongFt = alongFt + (speedKts * GeoMath.FeetPerNm / 3600.0 * PlanStepSeconds);
+        double nextSpeedKts = speedKts > targetKts ? Math.Max(Math.Max(targetKts, 0.0), speedKts - (rateKtsPerSec * PlanStepSeconds)) : speedKts;
+        return (nextAlongFt, nextSpeedKts);
     }
 
     /// <summary>

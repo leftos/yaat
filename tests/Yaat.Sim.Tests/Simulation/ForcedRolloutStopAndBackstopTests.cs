@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -290,11 +292,16 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
         string report = Assert.Single(messages, m => m.Contains("unable to exit", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("request back-taxi to", report, StringComparison.OrdinalIgnoreCase);
         Assert.Single(messages, m => m.Contains("no exit ahead", StringComparison.OrdinalIgnoreCase));
+
+        // Already stopped when it calls: the instructor line says so.
+        Assert.Contains(messages, m => m.Contains("TSTAC stopped on RWY 28L", StringComparison.Ordinal));
     }
 
     /// <summary>
     /// A CRJ7 that is not a forced rollout, stopped 20 ft short of the 28L end with every end turnoff occupied, holds where
-    /// it is — no backtrack, no report — and takes an end turnoff ahead once the occupants have gone.
+    /// it is — no backtrack — and the crew makes its one "unable to exit" call, which it owes the tower for a stop on the runway
+    /// whatever lies ahead (AIM 4-3-21.a), with the instructor told the exits ahead are occupied. It takes an end turnoff ahead
+    /// once the occupants have gone, and says nothing more.
     /// </summary>
     [Fact]
     public void RunwayExitBackstop_NotForcedStoppedWithExitsAheadOccupied_HoldsThenExitsAheadWhenCleared()
@@ -322,7 +329,8 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
 
         double heldMovedFt = GeoMath.DistanceNm(start, aircraft.Position) * GeoMath.FeetPerNm;
         Assert.True(heldMovedFt < 5.0, $"moved {heldMovedFt:F1} ft while holding");
-        Assert.DoesNotContain(messages, m => m.Contains("unable to exit", StringComparison.OrdinalIgnoreCase));
+        Assert.Single(messages, m => m.Contains("unable to exit", StringComparison.OrdinalIgnoreCase));
+        Assert.Single(messages, m => m.Contains("exits ahead occupied", StringComparison.OrdinalIgnoreCase));
 
         foreach (AircraftState blocker in engine.World.GetSnapshot().Where(ac => ac.Callsign.StartsWith("BLK", StringComparison.Ordinal)))
         {
@@ -350,7 +358,268 @@ public class ForcedRolloutStopAndBackstopTests(ITestOutputHelper output)
         Assert.True(committedAlongFt is not null, "never committed to an exit after the occupants left");
         Assert.True(committedAlongFt > startAlongFt - EndTurnoffWindowFt, $"took an exit at {committedAlongFt:F0} ft, not an end turnoff");
         Assert.True(leftAt is not null, $"never vacated the runway: still in {aircraft.Phases?.CurrentPhase?.Name}");
-        Assert.DoesNotContain(messages, m => m.Contains("unable to exit", StringComparison.OrdinalIgnoreCase));
+        Assert.Single(messages, m => m.Contains("unable to exit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// A CRJ7 rolling at 40 kt in <see cref="RunwayExitPhase"/> with every exit ahead occupied, 150 ft short of the first one's
+    /// branch, is under the no-exit stop; when that exit frees a tick later the aircraft cannot slow to its turn-off speed by its
+    /// turn-entry point at the firm rate, so it passes the exit by rather than committing to a turn it cannot make (an exit that
+    /// frees mid-stop out of reach is ignored), and it still stops on the runway.
+    /// </summary>
+    [Fact]
+    public void RunwayExitRolling_FreeExitTooCloseToMakeAtFirm_IsPassedBy()
+    {
+        if (Load() is not { } rwy)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AircraftState aircraft, AirportGroundLayout.CenterlineExitResult first, string firstBlocker, LatLon start) =
+            StageFreeExitTooCloseToMake(rwy);
+
+        double branchAlongFt = AlongFt(rwy, first.Path[0].Position);
+        var exitPhase = (RunwayExitPhase)aircraft.Phases!.Phases[0];
+
+        engine.TickOneSecond();
+        Assert.True(
+            exitPhase.TargetHoldShortNodeId is null,
+            $"committed to hold-short {exitPhase.TargetHoldShortNodeId} with every exit ahead occupied"
+        );
+        double freedAtFt = branchAlongFt - AlongFt(rwy, aircraft.Position);
+        output.WriteLine($"freeing {first.Taxiway} {freedAtFt:F0} ft short of its branch at {aircraft.GroundSpeed:F1} kt");
+        engine.World.RemoveAircraft(firstBlocker);
+
+        double maxAlongFt = AlongFt(rwy, start);
+        for (int t = 2; (t <= LeaveRunwayBudgetSeconds) && (aircraft.Phases?.CurrentPhase is RunwayExitPhase); t++)
+        {
+            engine.TickOneSecond();
+            Assert.True(
+                exitPhase.TargetHoldShortNodeId != first.HoldShort.Id,
+                $"t={t}: committed to {first.Taxiway}, freed {freedAtFt:F0} ft ahead of its branch mid-stop"
+            );
+            maxAlongFt = Math.Max(maxAlongFt, AlongFt(rwy, aircraft.Position));
+        }
+
+        Assert.True(maxAlongFt <= rwy.LandingDistanceFt, $"rolled past the runway end: max along {maxAlongFt:F0} ft");
+    }
+
+    /// <summary>
+    /// The run above snapshotted once the no-exit stop has engaged and before the exit frees, and restored into a fresh world:
+    /// the restored aircraft judges the freed exit by the same reach test the live one does, so neither takes it, and the two runs
+    /// roll and stop tick for tick alike.
+    /// </summary>
+    [Fact]
+    public void RunwayExitRolling_FreeExitTooCloseToMakeAtFirm_RestoredMidStop_IsPassedByAsLive()
+    {
+        if (Load() is not { } rwy)
+        {
+            return;
+        }
+
+        (SimulationEngine live, _, AirportGroundLayout.CenterlineExitResult first, string firstBlocker, _) = StageFreeExitTooCloseToMake(rwy);
+        live.TickOneSecond();
+        Assert.True(
+            live.World.FindAircraft("TSTAC")?.Phases?.CurrentPhase is RunwayExitPhase { TargetHoldShortNodeId: null },
+            "the no-exit stop did not engage on the first tick"
+        );
+        Assert.True(live.World.FindAircraft("TSTAC")?.Phases?.NoExitReachTestActive, "the no-exit reach test is not latched before the snapshot");
+
+        SimulationEngine restored = NewEngine(rwy);
+        restored.RestoreFromSnapshot(ThroughJson(live.CaptureSnapshot()));
+        live.World.RemoveAircraft(firstBlocker);
+        restored.World.RemoveAircraft(firstBlocker);
+
+        for (int t = 2; t <= LeaveRunwayBudgetSeconds; t++)
+        {
+            live.TickOneSecond();
+            restored.TickOneSecond();
+            string liveState = RollingState(live, first.HoldShort.Id, t);
+            string restoredState = RollingState(restored, first.HoldShort.Id, t);
+            Assert.True(
+                liveState == restoredState,
+                $"diverged:{Environment.NewLine}live     {liveState}{Environment.NewLine}restored {restoredState}"
+            );
+            if (live.World.FindAircraft("TSTAC")?.Phases?.CurrentPhase is not RunwayExitPhase)
+            {
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// TSTAC's position, heading, ground speed, phase and committed hold-short at full precision, asserting it has not committed to
+    /// <paramref name="freedBar"/>.
+    /// </summary>
+    private static string RollingState(SimulationEngine engine, int freedBar, int t)
+    {
+        AircraftState aircraft = engine.World.FindAircraft("TSTAC") ?? throw new InvalidOperationException("TSTAC is gone");
+        int? committed = (aircraft.Phases?.CurrentPhase as RunwayExitPhase)?.TargetHoldShortNodeId;
+        Assert.True(committed != freedBar, $"t={t}: committed to the freed hold-short {freedBar} mid-stop");
+        return $"t={t} {aircraft.Position.Lat:R},{aircraft.Position.Lon:R} hdg={aircraft.TrueHeading.Degrees:R} gs={aircraft.GroundSpeed:R} "
+            + $"{aircraft.Phases?.CurrentPhase?.Name} hs={committed}";
+    }
+
+    /// <summary>
+    /// A CRJ7 rolling at 40 kt in <see cref="RunwayExitPhase"/> on 28L, 150 ft short of the branch of the first exit free past
+    /// 5,000 ft along, with that exit and every other exit ahead occupied: the engine, the aircraft, that exit, the callsign of its
+    /// blocker and the start.
+    /// </summary>
+    private FreedExitStaging StageFreeExitTooCloseToMake(Sfo28L rwy)
+    {
+        SimulationEngine engine = NewEngineWithEndTurnoffsBlocked(rwy);
+        TrueHeading heading = rwy.Runway.TrueHeading;
+        LatLon probe = GeoMath.ProjectPoint(rwy.Threshold, heading, 5000.0 / GeoMath.FeetPerNm);
+        AirportGroundLayout.CenterlineExitResult? first = rwy.Layout.FindOnSidePreferredExit(
+            probe.Lat,
+            probe.Lon,
+            heading,
+            rwy.Runway.Designator,
+            preference: null,
+            sidePref: null,
+            excludeBranchPoints: null,
+            excludeHoldShortNodes: [.. engine.ComputeOccupiedHoldShortNodes()],
+            filter: c => c.ExitAngle > 100 ? AirportGroundLayout.CandidateVerdict.Skip : AirportGroundLayout.CandidateVerdict.Accept,
+            maxIterations: AirportGroundLayout.DefaultMaxIterations
+        );
+        Assert.True(first is not null, "no free exit ahead of 5,000 ft along 28L");
+        double branchAlongFt = AlongFt(rwy, first.Value.Path[0].Position);
+        LatLon start = GeoMath.ProjectPoint(rwy.Threshold, heading, (branchAlongFt - 150.0) / GeoMath.FeetPerNm);
+        output.WriteLine($"first free exit {first.Value.Taxiway} (bar {first.Value.HoldShort.Id}), branch {branchAlongFt:F0} ft along");
+
+        // Occupy every other hold-short ahead too, so no exit ahead is free and the no-exit stop engages on the first tick.
+        var watch = new BlockWatch([.. engine.ComputeOccupiedHoldShortNodes()], first.Value.HoldShort.Id);
+        string? firstBlocker = null;
+        foreach (ExitSide? side in (ExitSide?[])[null, ExitSide.Left, ExitSide.Right])
+        {
+            firstBlocker = BlockExitsAhead(engine, rwy, start, side, watch) ?? firstBlocker;
+        }
+
+        Assert.True(firstBlocker is not null, $"{first.Value.Taxiway} was not among the exits ahead of the start");
+
+        AircraftState aircraft = NewCrj7("TSTAC", start, heading, rwy.Runway.ElevationFt, iasKts: 40, onGround: true);
+        aircraft.Phases = new PhaseList { AssignedRunway = rwy.Runway };
+        aircraft.Phases.Add(new RunwayExitPhase());
+        aircraft.Phases.Add(new HoldingAfterExitPhase());
+        AddPending(engine, aircraft, rwy.Layout);
+        return new FreedExitStaging(engine, aircraft, first.Value, firstBlocker, start);
+    }
+
+    private sealed record FreedExitStaging(
+        SimulationEngine Engine,
+        AircraftState Aircraft,
+        AirportGroundLayout.CenterlineExitResult First,
+        string FirstBlocker,
+        LatLon Start
+    );
+
+    /// <summary>
+    /// A snapshot written before the "unable to exit" latch moved onto the phase list (schema 45) carries it on the runway exit's
+    /// phase. Restored, the migrator moves it onto the phase list, so an aircraft stopped after its call does not call again.
+    /// </summary>
+    [Fact]
+    public void LegacySnapshot_RunwayExitReportedNoExitAhead_MigratesOntoThePhaseList_AndDoesNotCallAgain()
+    {
+        if (Load() is not { } rwy)
+        {
+            return;
+        }
+
+        SimulationEngine engine = NewEngine(rwy);
+        double lastCenterlineAlongFt = rwy
+            .Layout.Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesRunway(rwy.Runway.Designator)))
+            .Max(n => AlongFt(rwy, n.Position));
+        LatLon start = GeoMath.ProjectPoint(
+            rwy.Threshold,
+            rwy.Runway.TrueHeading,
+            (lastCenterlineAlongFt + PastLastCenterlineNodeFt) / GeoMath.FeetPerNm
+        );
+        AircraftState aircraft = AddStoppedExiting(engine, rwy, start, forcedRollout: false);
+        List<string> messages = CaptureMessages(engine, "TSTAC");
+        engine.TickOneSecond();
+        Assert.Single(messages, m => m.Contains("unable to exit", StringComparison.OrdinalIgnoreCase));
+        Assert.True(aircraft.Phases?.ReportedNoExitAhead, "the call did not latch on the phase list");
+
+        // Rewrite the snapshot as schema 45 wrote it: the latch on the runway exit's phase, none on the phase list.
+        JsonNode json = JsonNode.Parse(JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default))!;
+        json["SchemaVersion"] = 45;
+        JsonObject phaseList = json["Aircraft"]!.AsArray().Single(a => (string?)a!["Callsign"] == "TSTAC")!["Phases"]!.AsObject();
+        phaseList.Remove("ReportedNoExitAhead");
+        JsonObject exitPhase = phaseList["Phases"]!.AsArray().Single(p => (string?)p!["$type"] == "RunwayExit")!.AsObject();
+        exitPhase["ReportedNoExitAhead"] = true;
+        StateSnapshotDto legacy = JsonSerializer.Deserialize<StateSnapshotDto>(json.ToJsonString(), RecordingJsonOptions.Default)!;
+
+        SnapshotSchemaMigrator.Migrate(legacy);
+        PhaseListDto migrated = legacy.Aircraft.Single(a => a.Callsign == "TSTAC").Phases!;
+        Assert.True(migrated.ReportedNoExitAhead, "the latch did not move onto the phase list");
+        Assert.Null(Assert.Single(migrated.Phases.OfType<RunwayExitPhaseDto>()).LegacyReportedNoExitAhead);
+
+        SimulationEngine restored = NewEngine(rwy);
+        restored.RestoreFromSnapshot(legacy);
+        List<string> restoredMessages = CaptureMessages(restored, "TSTAC");
+        for (int t = 1; t <= AfterRestoreWatchSeconds; t++)
+        {
+            restored.TickOneSecond();
+        }
+
+        Assert.DoesNotContain(restoredMessages, m => m.Contains("unable to exit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>How long (s) a restored aircraft is watched for a second "unable to exit" call.</summary>
+    private const int AfterRestoreWatchSeconds = 30;
+
+    /// <summary><paramref name="snapshot"/> written and read back through the recording's JSON, as a saved recording restores.</summary>
+    private static StateSnapshotDto ThroughJson(StateSnapshotDto snapshot) =>
+        JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot, RecordingJsonOptions.Default), RecordingJsonOptions.Default)!;
+
+    /// <summary>The hold-shorts already occupied (<paramref name="Occupied"/>, added to as bars are blocked) and the bar watched.</summary>
+    private sealed record BlockWatch(HashSet<int> Occupied, int WatchedBar);
+
+    /// <summary>
+    /// Puts an aircraft holding after exit at every free hold-short the centerline walk from <paramref name="from"/> finds ahead
+    /// under <paramref name="side"/>, an exit that bends back included (a side preference admits one), adding each to
+    /// <paramref name="watch"/>'s occupied set; returns the callsign of the one blocking its watched bar, if it blocked that one.
+    /// </summary>
+    private string? BlockExitsAhead(SimulationEngine engine, Sfo28L rwy, LatLon from, ExitSide? side, BlockWatch watch)
+    {
+        HashSet<int> occupied = watch.Occupied;
+        int watchedBar = watch.WatchedBar;
+        string? watchedBlocker = null;
+        for (int walk = 0; walk < 64; walk++)
+        {
+            AirportGroundLayout.CenterlineExitResult? next = rwy.Layout.FindOnSidePreferredExit(
+                from.Lat,
+                from.Lon,
+                rwy.Runway.TrueHeading,
+                rwy.Runway.Designator,
+                preference: side is { } s ? new ExitPreference { Side = s } : null,
+                sidePref: side,
+                excludeBranchPoints: null,
+                excludeHoldShortNodes: occupied,
+                filter: _ => AirportGroundLayout.CandidateVerdict.Accept,
+                maxIterations: AirportGroundLayout.DefaultMaxIterations
+            );
+            if ((next is not { } hit) || !occupied.Add(hit.HoldShort.Id))
+            {
+                return watchedBlocker;
+            }
+
+            output.WriteLine($"blocking {hit.Taxiway} hold-short {hit.HoldShort.Id}, branch {AlongFt(rwy, hit.Path[0].Position):F0} ft along");
+            AircraftState blocker = NewCrj7(
+                $"BLK{hit.HoldShort.Id}",
+                hit.HoldShort.Position,
+                rwy.Runway.TrueHeading,
+                rwy.Runway.ElevationFt,
+                iasKts: 0,
+                onGround: true
+            );
+            blocker.Phases = new PhaseList();
+            blocker.Phases.Add(new HoldingAfterExitPhase(rwy.Runway.Designator, exitTaxiway: null, hit.HoldShort.Id, heldShortOfRunway: null));
+            AddPending(engine, blocker, rwy.Layout);
+            watchedBlocker = (hit.HoldShort.Id == watchedBar) ? blocker.Callsign : watchedBlocker;
+        }
+
+        return watchedBlocker;
     }
 
     /// <summary>

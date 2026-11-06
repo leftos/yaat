@@ -44,6 +44,19 @@ public sealed class PhaseListDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? GivenUpExitTaxiways { get; init; }
 
+    // The crew has made its one "unable to exit" call on this landing (PhaseList.ReportedNoExitAhead), shared by the landing and the
+    // runway exit. Not `required`: absent on older snapshots, which restore false; and not written while false, so a snapshot of an
+    // aircraft that never made the call — every snapshot 0 — serializes exactly as it did before the field existed (yaat-server pins
+    // snapshot 0's hash). Settable for SnapshotSchemaMigrator, which moves a pre-V46 RunwayExitPhaseDto.LegacyReportedNoExitAhead here.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ReportedNoExitAhead { get; set; }
+
+    // The no-exit stop has engaged on this landing (PhaseList.NoExitReachTestActive): every exit search of the landing and the runway
+    // exit judges reach while it is set. Not `required` and not written while false, like ReportedNoExitAhead, so every snapshot 0
+    // serializes as before.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool NoExitReachTestActive { get; init; }
+
     // The destination runway the TAXI that stored TaxiRoute on the rollout named (PhaseList.StoredTaxiDestinationRunway). Not
     // `required` and not written while null, so a snapshot with no stored route — every snapshot 0 — serializes as before.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1236,8 +1249,14 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     // A backtrack exit committed whose route is not yet built: the heading flips to the reciprocal when it is.
     public bool BacktrackPending { get; init; }
 
-    // The pilot has already reported that it is stopped with no exit ahead.
-    public bool ReportedNoExitAhead { get; init; }
+    /// <summary>
+    /// Through V45 the "unable to exit" latch lived here (the pilot had already reported it was stopped with no exit ahead). Read only
+    /// so <see cref="SnapshotSchemaMigrator"/> can move a true one onto <see cref="PhaseListDto.ReportedNoExitAhead"/>, then nulled, so
+    /// a rewritten snapshot drops it.
+    /// </summary>
+    [JsonPropertyName("ReportedNoExitAhead")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyReportedNoExitAhead { get; set; }
 
     /// <summary>
     /// The exit route's stop leaves the tail inside the landing runway's holding position marking; null (an older snapshot, or no
@@ -1769,6 +1788,16 @@ public sealed class LandingPhaseDto : PhaseDto
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? SideBeforeTaxiRouteValue { get; init; }
+
+    // The arrival side the no-exit availability check asks the runway exit's search with (LandingPhase.RunwayExitSide, an
+    // ExitSide; null for none) and whether it has been resolved. Resolved once from the remarks the arrival had then, which may be
+    // amended later, so it is kept rather than re-derived. Neither is written while unresolved, so every snapshot 0 serializes as
+    // before; an older snapshot reads unresolved and resolves on its next no-candidate rollout tick.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RunwayExitSideResolved { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int? RunwayExitSideValue { get; init; }
 
     // The rest of the landing plan. Vref carries the gust additive the aircraft actually flew and the runway id
     // is the one it was assigned, so a rewind lands on the same numbers instead of recomputing them from the

@@ -139,9 +139,9 @@ The pilot picks the first comfortable forward exit (AIM 4-3-21.1 "exit at the fi
 
 A **standard** 60–90° exit qualifies only if it needs at most the routine `RolloutDecelRate` (jet 3.6 / turboprop 3.0 / piston 2.5) — a crew rolls past a 90° exit it cannot make at routine braking for the next high-speed one (SFO 19L: H, not F1).
 
-When no exit qualifies, the landing searches once more at the category's firm rate (`CategoryPerformance.FirmBrakingRate`: jet 5.0 / turboprop 5.0 / piston 4.0 / helicopter 3.0 kt/s) and takes the earliest exit it can make that way (a CRJ9 on OAK 28R exits at C1 instead of stopping on the runway); only when even that fails does `RunwayExitPhase`'s "no exit found… braking to stop" path run (that warning does not fire today; booked as YAAT-1901).
+When no exit qualifies, the landing searches once more at the category's firm rate (`CategoryPerformance.FirmBrakingRate`: jet 5.0 / turboprop 5.0 / piston 4.0 / helicopter 3.0 kt/s) and takes the earliest exit it can make that way (a CRJ9 on OAK 28R exits at C1 instead of stopping on the runway); only when even that fails (no candidate, no instructed exit ahead, and the runway exit's own search finds nothing) does the landing plan a stop on the remaining runway instead of handing off at coast (§ Stopping on the remaining runway).
 
-Every rollout, forced or not, takes only exits off the runway's centerline graph; with none it can make, it stops on the runway and the no-exit handling takes over (§ Stopped on the runway with no exit ahead).
+Every rollout, forced or not, takes only exits off the runway's centerline graph; with none it can make, it stops on the runway and the no-exit handling takes over (§ Stopping on the remaining runway, § Stopped on the runway with no exit ahead).
 
 The committed exit carries the rate that selected it (`ResolvedExitInfo.SelectionDecelRate`, snapshotted); the rollout brakes for it at most that rate + `LandingPhase.CommittedExitDecelToleranceKtsPerSec` (0.25) and gives the exit up past that.
 
@@ -336,7 +336,7 @@ Any successful tower or ground command to the aircraft on the ground clears the 
 RunwayExitPhase does not walk centerline nodes. It:
 
 1. **Steers** along the runway heading at the category's ground turn rate
-2. **Adjusts speed** toward coast speed (accel/decel at taxi rates)
+2. **Adjusts speed** toward coast speed (accel/decel at taxi rates); with no exit committed and none ahead it instead brakes to a stop on the remaining runway (§ Stopping on the remaining runway)
 3. **Searches** for exits ahead using `TryFindExitAhead` — a continuous, distance-based search that respects preferences and applies soft tiebreakers (inferred side for taxiway-only commands)
 
 When an exit is found, it builds a **virtual segment**: a synthetic route segment from the aircraft's current position to the branch node. This segment exists only to give GroundNavigator an inbound bearing for turn anticipation. The full route becomes `[virtual → branch → ... → hold-short]`.
@@ -397,6 +397,16 @@ sat in `RunwayExitPhase` for the rest of the session — never deleted under *On
 "clear of runway … at …" transmission on this path (no exit taxiway, no taxi graph): the aircraft is stopped *on* the runway, and under mode
 `Never` it stays there awaiting an instruction rather than claiming to be clear.
 
+### Stopping on the remaining runway
+
+A landing on a taxi-graph layout that is neither LAHSO nor forced, with no available exit (no landing candidate, no instructed exit still ahead, and the runway exit's own search, `RunwayExitPhase.FindExitAhead`, finds nothing), does not hand off at coast. `LandingPhase.TickNoExitStop` and, once the runway exit has started, `RunwayExitPhase.ApplyNoExitStop` run one law, `NoExitStopPlan.Compute`, a pure function of speed, position and the runway's geometry recomputed every tick:
+
+- **Speed.** It slows at the routine rollout rate to the standard-exit speed (`CategoryPerformance.StandardExitSpeed`: 15 kt jet and turboprop, 12 kt piston), rolls at it toward the stop point, then follows the routine-rate stopping curve to zero there. The landing completes at 0.5 kt, so the runway exit starts stopped.
+- **Stop point.** The last exit's turn-entry point less `NoExitStopPlan.LastExitSetbackFt` (50 ft) while stopping there needs the firm rate or less, else the end of the landing distance less `NoExitStopPlan.RunwayEndMarginFt` (300 ft). Once the aircraft is at or below the standard-exit speed the last-exit point holds while its turn-entry point is still ahead.
+- **Rate.** Routine, rising to the rate the distance needs, capped at firm; expedite only to keep the nose on the pavement (the landing distance less half the airframe length), and the phase logs an excursion warning when even that cannot.
+- **The call.** The pilot's "unable to exit, request back-taxi to {twy}." goes out once, as the final stop begins (the target speed drops below the standard-exit speed), also when every exit ahead is occupied (`PhaseList.ReportedNoExitAhead`, shared by both phases, snapshotted). The instructor line reads "{CS} stopping on RWY {rwy} with no exit ahead, awaiting TAXI or EXIT", or "…, exits ahead occupied, …".
+- **An exit that frees.** The stop re-searches every tick and disengages when an exit becomes available, but once it has engaged on a landing (`PhaseList.NoExitReachTestActive`, snapshotted, set the first time the stop engages and cleared when a landing starts and at `CompleteExit`) every exit search in both phases judges reach (`RunwayExitPhase.CanReachExit`): the exit is taken only when it can be made at firm (expedite under `EXP`) with its branch still ahead. The latch holds across a disengage, the hand-off and a restore. Before it engages every search picks as before, so a short crossover whose branch is just behind is still taken.
+
 ### Stopped on the runway with no exit ahead
 
 When `RunwayExitPhase` has no committed exit and the aircraft is at or below 1 kt (`BackstopStoppedSpeedKts`), for example after the runway-end safety stop or a forced landing that stopped short of the end, `TickStoppedWithoutExit` holds it at zero speed and searches again every tick:
@@ -406,7 +416,7 @@ When `RunwayExitPhase` has no committed exit and the aircraft is at or below 1 k
   The rollout heading flips to the reciprocal only once the route to that exit is built (`BacktrackPending`, snapshotted), so a failed route build leaves the aircraft facing its rollout direction.
 - **Any other aircraft** stays stopped, because reversing on the runway needs ATC approval (AIM 4-3-21.a). An exit ahead that is occupied or full is waited for.
 
-  When there is no exit ahead at all, the pilot reports once (`ReportedNoExitAhead`, snapshotted) with `PilotResponder.BuildUnableToExitRequestBackTaxi`: "unable to exit, request back-taxi to {twy}." naming the nearest free exit behind, or "unable to exit the runway." when there is none. The instructor terminal shows "{CS} stopped on RWY {rwy} with no exit ahead, awaiting TAXI or EXIT".
+  When there is no exit ahead at all, or every one ahead is occupied, the pilot reports once (`PhaseList.ReportedNoExitAhead`, snapshotted; already made if the stop began the call) with `PilotResponder.BuildUnableToExitRequestBackTaxi`: "unable to exit, request back-taxi to {twy}." naming the nearest free exit behind, or "unable to exit the runway." when there is none. The instructor terminal shows "{CS} stopped on RWY {rwy} with no exit ahead, awaiting TAXI or EXIT" ("exits ahead occupied" in place of "no exit ahead" when they are).
 
 A taxiway the crew gave up on the rollout counts as an exit ahead here: stopped, the aircraft may taxi forward to it (§ The given-up set), so it never asks for a back-taxi past one.
 
@@ -544,6 +554,7 @@ Helicopters are exempt (a wheeled pedal-turn holds the hover rate). Tight fillet
 | Turn-off tolerance | 3.0 kts | Discrete-tick overshoot margin |
 | High-speed exit threshold | 45° | Exits ≤45° use high-speed turn-off |
 | High-speed exit bonus | 0.15 nm | Scoring bonus for ≤45° exits |
+| No-exit stop runway-end margin (`NoExitStopPlan.RunwayEndMarginFt`) | 300 ft | Stop point when no exit is available: the end of the landing distance less this, unless the last exit's turn-entry point less 50 ft (`LastExitSetbackFt`) is nearer and makeable at firm |
 | Turn-entry lead | R·tan(min(Δ, 120°)/2) | Standard exits only: how far before the branch the turn begins (`RolloutBraking.TurnEntryLeadNm`); the point the hand-off, plan and missed-exit test use |
 
 ## Exit Angle Classification
@@ -577,6 +588,7 @@ The `SA` (Make Short Approach) compressed pattern has two coupled geometry invar
 ## Key Files
 
 - `src/Yaat.Sim/Phases/Tower/LandingPhase.cs` — Rollout braking, exit candidate resolution, unable-replan, the forced (CLANDF) rollout
+- `src/Yaat.Sim/Phases/NoExitStopPlan.cs` — The stop on the remaining runway when no exit is available: stop point, speed target and braking rate
 - `src/Yaat.Sim/Phases/Tower/ForcedLandingProfile.cs` — CLANDF aim point, descent cap and braking constants
 - `src/Yaat.Sim/Phases/Tower/FinalApproachExitForecast.cs` — The exits-ahead list on the last miles of final: projected touchdown, window, cache
 - `src/Yaat.Sim/ExitAheadDto.cs` — One exit of the list (taxiway, side, distance, planned, turn-off angle)

@@ -340,6 +340,22 @@ public sealed class PhaseList
     /// </summary>
     public HashSet<string> GivenUpExitTaxiways { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// The crew has made its one "unable to exit" call on this landing (AIM 4-3-21.a): no exit it can take ahead, so it stops on the
+    /// runway. Shared by <c>LandingPhase</c>, which calls as the final stop on the remaining runway begins, and <c>RunwayExitPhase</c>,
+    /// which calls when it stops with no exit or brakes to such a stop itself, so the call is made once across both. Cleared when a
+    /// landing starts and when the runway exit completes (<c>RunwayExitPhase.CompleteExit</c>).
+    /// </summary>
+    public bool ReportedNoExitAhead { get; set; }
+
+    /// <summary>
+    /// The no-exit stop on the remaining runway has engaged on this landing, in <c>LandingPhase</c> or <c>RunwayExitPhase</c>: from
+    /// then on every exit search of both phases judges its pick by the reach test, so an exit that frees mid-stop is taken only when
+    /// it can be made, across a disengage, the hand-off and a restore. Set the first time the stop engages; cleared with
+    /// <see cref="ReportedNoExitAhead"/> (when a landing starts and when the runway exit completes).
+    /// </summary>
+    public bool NoExitReachTestActive { get; set; }
+
     public int CurrentIndex { get; private set; }
 
     /// <summary>
@@ -519,6 +535,9 @@ public sealed class PhaseList
             list.GivenUpExitTaxiways.UnionWith(dto.GivenUpExitTaxiways);
         }
 
+        list.ReportedNoExitAhead = dto.ReportedNoExitAhead;
+        list.NoExitReachTestActive = dto.NoExitReachTestActive;
+
         list.StoredTaxiDestinationRunway = list.TaxiRoute is not null ? dto.StoredTaxiDestinationRunway : null;
         list.TaxiImpliedExit = (dto.RequestedExitIsTaxiImplied == true) ? list.RequestedExit : null;
         if ((dto.TaxiRoute is not null) && (list.TaxiRoute is null))
@@ -669,6 +688,8 @@ public sealed class PhaseList
             ActiveApproach = ActiveApproach?.ToSnapshot(),
             LahsoHoldShort = LahsoHoldShort?.ToSnapshot(),
             GivenUpExitTaxiways = (GivenUpExitTaxiways.Count > 0) ? [.. GivenUpExitTaxiways.Order(StringComparer.OrdinalIgnoreCase)] : null,
+            ReportedNoExitAhead = ReportedNoExitAhead,
+            NoExitReachTestActive = NoExitReachTestActive,
             StoredTaxiDestinationRunway = StoredTaxiDestinationRunway,
             RequestedExitIsTaxiImplied = ((TaxiImpliedExit is not null) && ReferenceEquals(TaxiImpliedExit, RequestedExit)) ? true : null,
             CurrentIndex = CurrentIndex,

@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 45;
+    public const int CurrentSchemaVersion = 46;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -374,7 +374,42 @@ public static class SnapshotSchemaMigrator
         //   keeps its approach altitudes in force while it is pending, as they were. A pre-V44 snapshot's appended approach
         //   fixes migrated as Procedure (V43→V44 above), so the approach arm never sees them.
 
+        // V45→V46: the "unable to exit" latch moved from RunwayExitPhaseDto.ReportedNoExitAhead onto
+        //   PhaseListDto.ReportedNoExitAhead, shared by the landing and the runway exit, and PhaseListDto.NoExitReachTestActive was
+        //   added. A true legacy latch moves onto its own phase list, so an aircraft restored stopped after its call does not call
+        //   again; the legacy field is nulled so a rewritten snapshot drops it. NoExitReachTestActive reads false on an older
+        //   snapshot: no build before V46 judged an exit search by reach. LandingPhaseDto.RunwayExitSideResolved and
+        //   RunwayExitSideValue were added too; an older snapshot reads unresolved, and the landing resolves the side on its next
+        //   no-candidate rollout tick.
+        if (snapshot.SchemaVersion < 46)
+        {
+            foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
+            {
+                MigrateLegacyReportedNoExitAhead(ac.Phases);
+            }
+        }
+
         snapshot.SchemaVersion = CurrentSchemaVersion;
+    }
+
+    /// <summary>Moves a pre-V46 runway exit's "unable to exit" latch onto its phase list; a legacy snapshot may carry no phase list.</summary>
+    private static void MigrateLegacyReportedNoExitAhead(PhaseListDto? phases)
+    {
+        // A legacy snapshot can carry a null phase list or phases (the lenient resolver permits it); nothing to move then.
+        if (phases?.Phases is not { } list)
+        {
+            return;
+        }
+
+        foreach (RunwayExitPhaseDto exit in list.OfType<RunwayExitPhaseDto>())
+        {
+            if (exit.LegacyReportedNoExitAhead == true)
+            {
+                phases.ReportedNoExitAhead = true;
+            }
+
+            exit.LegacyReportedNoExitAhead = null;
+        }
     }
 
     /// <summary>Turns a pre-V40 follow's been-on flag into the runways it marks been on: every cleared runway, or none.</summary>

@@ -215,6 +215,8 @@ The property applies to every project in the build, so the probe's item group ca
 
 A probe run routes like any other: the gate sends a gitignored `.targets` or `.props` named by a `-p:` value to the builder with the files it names, followed through imports. Three things keep the run on this machine: a wildcard in the targets file (`Include="*.cs"`, so name each file), a project reference to an ignored project, and more than 64 MiB of files in all. A probe that fails routed is a report to gate's inbox. If a later run shows probe types, rebuild the test project so they leave `bin/obj`.
 
+Name the `.targets` file by an absolute path, and keep it in a gitignored folder such as `.tmp/`. A relative `-p:CustomAfterMicrosoftCommonTargets=.tmp/...` compiles nothing (MSBuild resolves it beside `Microsoft.Common.targets`): the run reports zero tests, exit 0. An absolute path to an untracked but not ignored folder is routed to a builder where the path does not exist, again zero tests. Check that the run's `total:` is non-zero.
+
 Two local builds, one of a yaat test project and one of a yaat-server test project, cannot run at once: both write `Yaat.Sim.dll` and collide with CS2012. Run them in sequence.
 
 ### Linux runs: CI investigation and cross-platform verification

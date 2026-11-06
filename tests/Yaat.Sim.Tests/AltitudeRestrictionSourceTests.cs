@@ -397,7 +397,7 @@ public class AltitudeRestrictionSourceTests
 
         SnapshotSchemaMigrator.Migrate(snapshot);
 
-        Assert.Equal(45, snapshot.SchemaVersion);
+        Assert.Equal(46, snapshot.SchemaVersion);
         AircraftSnapshotDto migrated = Assert.Single(snapshot.Aircraft);
         Assert.Null(Assert.IsType<PendingApproachDto>(migrated.Approach.PendingClearance).ConnectingFix);
         Assert.Equal(
@@ -556,7 +556,7 @@ public class AltitudeRestrictionSourceTests
 
         SnapshotSchemaMigrator.Migrate(snapshot);
 
-        Assert.Equal(45, snapshot.SchemaVersion);
+        Assert.Equal(46, snapshot.SchemaVersion);
         List<NavigationTargetDto> route = Assert.Single(snapshot.Aircraft).Targets!.NavigationRoute!;
         Assert.Equal((int)CifpAltitudeRestrictionSource.Atc, route[0].AltitudeRestriction!.Source);
         Assert.Equal((int)CifpAltitudeRestrictionSource.Procedure, route[1].AltitudeRestriction!.Source);

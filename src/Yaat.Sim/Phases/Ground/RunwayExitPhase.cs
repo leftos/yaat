@@ -76,6 +76,9 @@ public sealed class RunwayExitPhase : Phase
     /// </summary>
     private const double BackstopStoppedSpeedKts = 1.0;
 
+    /// <summary>The most unreachable picks <see cref="RunSearchWithLookahead"/> excludes before it gives up; a runway has far fewer exits.</summary>
+    private const int MaxUnreachablePicks = 64;
+
     /// <summary>
     /// Sentinel node ID for the virtual approach segment. The segment from the
     /// aircraft's current position to the exit branch point uses this as FromNodeId.
@@ -128,8 +131,14 @@ public sealed class RunwayExitPhase : Phase
     // reciprocal heading once the route to it is built, and stays put if the build fails.
     private bool _backtrackPending;
 
-    // Latched once the pilot has reported it cannot exit, so a stopped aircraft with no exit ahead reports once.
-    private bool _reportedNoExitAhead;
+    // The last exit's turn-entry point (ft along from the landing threshold) the no-exit stop plans against, walked on the stop's
+    // first tick (NoExitStopPlan.LastExitTurnEntryAlongFt). Derived from the layout and the runway, so it stays out of the snapshot.
+    private double? _noExitLastTurnEntryAlongFt;
+    private bool _noExitLastExitResolved;
+
+    // The no-exit stop has logged that it engaged, and that it is running off the pavement; phase-local, so a restore may log again.
+    private bool _noExitStopLogged;
+    private bool _excursionLogged;
 
     // Segment the exit route was on when the snapshot was taken. The route itself is built from the live ground
     // layout and is not serialized, so the first tick after a restore rebuilds it — and without this the rebuild
@@ -242,20 +251,17 @@ public sealed class RunwayExitPhase : Phase
         if (
             (_lastResolvedPreference?.Side is null)
             && (ctx.GroundLayout is { HasTaxiGraph: true })
-            && (ctx.Aircraft.Phases?.AssignedRunway is { } assignedRunway)
+            && (ctx.Aircraft.Phases?.AssignedRunway is not null)
         )
         {
-            _inferredSide = ArrivalExitSide.Resolve(ctx.Aircraft, assignedRunway, ctx.GroundLayout, _runwayHeading);
+            _inferredSide = InferredSearchSide(ctx.Aircraft, ctx.GroundLayout, _runwayHeading);
             Log.LogDebug(
                 "[Exit] {Callsign}: inferred exit side for {Rwy} = {Side}",
                 ctx.Aircraft.Callsign,
                 _runwayId,
                 _inferredSide?.ToString() ?? "none"
             );
-            if (_inferredSide is not null)
-            {
-                _lastResolvedPreference = new ExitPreference { Side = _inferredSide.Value, Taxiway = _lastResolvedPreference?.Taxiway };
-            }
+            _lastResolvedPreference = WithInferredSide(_lastResolvedPreference, _inferredSide);
         }
 
         if (ctx.GroundLayout is not { HasTaxiGraph: true })
@@ -449,12 +455,10 @@ public sealed class RunwayExitPhase : Phase
     }
 
     /// <summary>
-    /// Analog centerline rolling: steer along the runway heading (no node
-    /// walking) and continuously search for exits ahead. Writes ControlTargets
-    /// and lets FlightPhysics integrate — no direct pose or IAS writes. Safe
-    /// from the StationaryGroundSpeedKts guard because rolling is always at
-    /// coast speed (≥ 15 kt helicopter, ≥ 40 kt jet), never approaching the
-    /// 0.1 kt floor.
+    /// Analog centerline rolling: steer along the runway heading (no node walking) and continuously search for exits ahead. Writes
+    /// ControlTargets and lets FlightPhysics integrate — no direct pose or IAS writes. With no exit committed the aircraft is
+    /// stopping on the remaining runway (<see cref="ApplyNoExitStop"/>, the rollout's own law), so it reaches the 0.1 kt
+    /// StationaryGroundSpeedKts floor only at the end of that stop, where it holds the heading it stopped on.
     /// </summary>
     private bool TickRolling(PhaseContext ctx)
     {
@@ -475,42 +479,15 @@ public sealed class RunwayExitPhase : Phase
             TryFindExitAhead(ctx);
         }
 
-        // Stopped with no free exit ahead (the runway-end stop below, or a forced landing that stopped short of its end).
+        // Stopped with no free exit ahead (the no-exit stop below, or a forced landing that stopped short of its end).
         if ((_holdShortNode is null) && !IsRolling(ctx.Aircraft))
         {
             return TickStoppedWithoutExit(ctx);
         }
 
-        // Terminal-end safety stop: if no exit was found and the aircraft is
-        // running out of runway, brake to a halt rather than coasting off the
-        // end. Without this backstop, a missing or unreachable forward exit
-        // (typically a geojson defect or an aircraft that landed past every
-        // exit) leaves the phase looping at coast speed indefinitely.
-        if ((_holdShortNode is null) && (ctx.Aircraft.Phases?.AssignedRunway is { } rwy))
+        if (_holdShortNode is null)
         {
-            double distToEndNm = GeoMath.AlongTrackDistanceNm(new LatLon(rwy.EndLatitude, rwy.EndLongitude), ctx.Aircraft.Position, _runwayHeading);
-
-            // 0.15 nm ≈ 911 ft — enough headroom for the aircraft to slow from
-            // coast speed (40 kts jet) to a stop at the firm braking rate
-            // before the runway end, without prematurely stopping on a runway
-            // where exits are still being searched for.
-            const double TerminalStopBufferNm = 0.15;
-            if (distToEndNm <= TerminalStopBufferNm)
-            {
-                // A runway-overrun backstop brakes at the category's max-effort rate, not the comfort rate
-                // a piston would otherwise coast off the end at (jet 7.5, turboprop 6.0, piston 4.5 kts/s).
-                ctx.Targets.TargetSpeed = 0;
-                ctx.Targets.DesiredDecelRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
-                if (_timeSinceLastLog >= LogIntervalSeconds)
-                {
-                    _timeSinceLastLog = 0;
-                    Log.LogWarning(
-                        "[Exit] {Callsign}: no exit found, {DistFt:F0}ft to runway end — braking to stop",
-                        ctx.Aircraft.Callsign,
-                        distToEndNm * 6076.12
-                    );
-                }
-            }
+            ApplyNoExitStop(ctx);
         }
 
         _timeSinceLastLog += ctx.DeltaSeconds;
@@ -562,30 +539,137 @@ public sealed class RunwayExitPhase : Phase
 
     /// <summary>
     /// The exit <see cref="TryFindExitAhead"/> would take ahead of the aircraft with <paramref name="occupied"/> excluded,
-    /// with the preference it was found under and whether it came from the inferred-side tiebreaker. Null when the
-    /// relaxation (taxiway → side → any) finds nothing. An exit the aircraft fits comes first under every preference of the
-    /// relaxation; only when none fits under any does the relaxation run again taking the best one anyway (it stops short of the
-    /// other runway, not clear), so a too-short exit on the preferred side never wins over one that fits under a relaxed preference.
+    /// this phase's search (<see cref="PhaseSearch"/>) fed to the shared entry
+    /// (<see cref="FindExitAhead(PhaseContext, ExitAheadSearch, HashSet{int}?, HashSet{string})"/>).
     /// </summary>
     private (AirportGroundLayout.CenterlineExitResult Found, ExitPreference? Preference, bool FromTiebreaker)? SearchExitAhead(
         PhaseContext ctx,
         HashSet<int>? occupied,
         HashSet<string> refusedOffSide
-    ) => SearchExitAhead(ctx, occupied, refusedOffSide, skipTooShort: true) ?? SearchExitAhead(ctx, occupied, refusedOffSide, skipTooShort: false);
+    ) => PhaseSearch(ctx) is { } search ? FindExitAhead(ctx, search, occupied, refusedOffSide) : null;
 
     /// <summary>
-    /// One pass of <see cref="SearchExitAhead(PhaseContext, HashSet{int}?, HashSet{string})"/>'s relaxation: with
+    /// This phase's search ahead: its runway, heading and preference, judging reach while the no-exit stop has engaged on this
+    /// landing (<see cref="PhaseList.NoExitReachTestActive"/>); null before the runway is known.
+    /// </summary>
+    private ExitAheadSearch? PhaseSearch(PhaseContext ctx) =>
+        _runwayId is null ? null : new ExitAheadSearch(_runwayId, _runwayHeading, _lastResolvedPreference, _inferredSide, JudgesReach(ctx.Aircraft));
+
+    /// <summary>Whether <paramref name="aircraft"/>'s exit searches judge reach: once the no-exit stop has engaged on this landing.</summary>
+    private static bool JudgesReach(AircraftState aircraft) => aircraft.Phases?.NoExitReachTestActive == true;
+
+    /// <summary>
+    /// What the runway exit's search ahead runs on: the runway rolled on (<paramref name="RunwayId"/>, along
+    /// <paramref name="RunwayHeading"/>), the exit preference it searches under (the instruction, with the inferred side merged in
+    /// when the instruction names none), the side inferred toward where the arrival parks, and whether the walk's pick is judged by
+    /// the reach test (<paramref name="JudgeReach"/>: only once the no-exit stop has engaged on this landing,
+    /// <see cref="PhaseList.NoExitReachTestActive"/>; otherwise the walk's pick is taken).
+    /// </summary>
+    public readonly record struct ExitAheadSearch(
+        string RunwayId,
+        TrueHeading RunwayHeading,
+        ExitPreference? Preference,
+        ExitSide? InferredSide,
+        bool JudgeReach
+    );
+
+    /// <summary>One pass of the search's relaxation: the preference it walks under, and whether it passes by an exit too short.</summary>
+    private readonly record struct SearchPass(ExitPreference? Preference, bool SkipTooShort);
+
+    /// <summary>
+    /// The search the runway exit would run for <paramref name="aircraft"/> if it started now rolling along
+    /// <paramref name="heading"/>, built as <see cref="OnStart"/> builds it from <paramref name="arrivalSide"/> (the side toward
+    /// where the arrival parks, <see cref="ArrivalSide"/>), judging reach once the no-exit stop has engaged on this landing; null
+    /// without an assigned runway or a taxi graph. <see cref="Tower.LandingPhase"/> asks it whether an exit is still available
+    /// before it plans a stop on the runway, and while that stop is engaged.
+    /// </summary>
+    public static ExitAheadSearch? ExitAheadSearchFor(AircraftState aircraft, AirportGroundLayout? layout, TrueHeading heading, ExitSide? arrivalSide)
+    {
+        if ((aircraft.Phases?.AssignedRunway is not { } runway) || (layout is not { HasTaxiGraph: true }))
+        {
+            return null;
+        }
+
+        ExitPreference? preference = aircraft.Phases.RequestedExit;
+        ExitSide? inferred = preference?.Side is null ? arrivalSide : null;
+        return new ExitAheadSearch(runway.Designator, heading, WithInferredSide(preference, inferred), inferred, JudgesReach(aircraft));
+    }
+
+    /// <summary>
+    /// The side toward where <paramref name="aircraft"/> parks, else from its assigned runway's layout, inferred along
+    /// <paramref name="heading"/> (<see cref="ArrivalExitSide.Resolve(AircraftState, RunwayInfo, AirportGroundLayout, TrueHeading)"/>);
+    /// null without an assigned runway. The input <see cref="ExitAheadSearchFor"/> takes, resolved once by its caller.
+    /// </summary>
+    public static ExitSide? ArrivalSide(AircraftState aircraft, AirportGroundLayout layout, TrueHeading heading) =>
+        aircraft.Phases?.AssignedRunway is { } runway ? ArrivalExitSide.Resolve(aircraft, runway, layout, heading) : null;
+
+    /// <summary>
+    /// The side toward where the arrival parks, else from the runway layout (the side the landing infers); asked only when the
+    /// preference names no side.
+    /// </summary>
+    private static ExitSide? InferredSearchSide(AircraftState aircraft, AirportGroundLayout layout, TrueHeading heading) =>
+        ArrivalSide(aircraft, layout, heading);
+
+    /// <summary><paramref name="preference"/> with <paramref name="inferred"/> as its side, its taxiway kept; unchanged without one.</summary>
+    private static ExitPreference? WithInferredSide(ExitPreference? preference, ExitSide? inferred) =>
+        inferred is { } side ? new ExitPreference { Side = side, Taxiway = preference?.Taxiway } : preference;
+
+    /// <summary>
+    /// The runway exit's search for an exit ahead, the one entry both it and <see cref="Tower.LandingPhase"/> call: the exit it
+    /// would take with <paramref name="occupied"/> excluded, with the preference it was found under and whether it came from the
+    /// inferred-side tiebreaker; null when the relaxation (taxiway → side → any) finds nothing it can reach. An exit the aircraft
+    /// fits comes first under every preference of the relaxation; only when none fits under any does the relaxation run again
+    /// taking the best one anyway (it stops short of the other runway, not clear), so a too-short exit on the preferred side never
+    /// wins over one that fits under a relaxed preference.
+    /// </summary>
+    public static (AirportGroundLayout.CenterlineExitResult Found, ExitPreference? Preference, bool FromTiebreaker)? FindExitAhead(
+        PhaseContext ctx,
+        ExitAheadSearch search,
+        HashSet<int>? occupied,
+        HashSet<string> refusedOffSide
+    ) =>
+        FindExitAhead(ctx, search, occupied, refusedOffSide, skipTooShort: true)
+        ?? FindExitAhead(ctx, search, occupied, refusedOffSide, skipTooShort: false);
+
+    /// <summary>
+    /// The exit the controller's instruction (<c>EL</c>/<c>ER</c>/<c>EXIT</c>, <see cref="PhaseList.RequestedExit"/>) names, still
+    /// ahead and reachable, occupied or not and with no relaxation of the instruction; null without an instruction or when no such
+    /// exit is ahead. Runs the same search as <see cref="FindExitAhead(PhaseContext, ExitAheadSearch, HashSet{int}?, HashSet{string})"/>.
+    /// </summary>
+    public static AirportGroundLayout.CenterlineExitResult? FindInstructedExitAhead(PhaseContext ctx, ExitAheadSearch search)
+    {
+        if (ctx.Aircraft.Phases?.RequestedExit is not { } instructed)
+        {
+            return null;
+        }
+
+        var refused = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        return RunSearchWithLookahead(ctx, search, new SearchPass(instructed, SkipTooShort: true), occupied: null, refused)
+            ?? RunSearchWithLookahead(ctx, search, new SearchPass(instructed, SkipTooShort: false), occupied: null, refused);
+    }
+
+    /// <summary>
+    /// The one judge of "the exits ahead are occupied" for the instructor line: true when <paramref name="search"/>, with no hold-short
+    /// counted occupied and reach not judged, finds an exit ahead (a given-up taxiway left out while rolling, as every search of this
+    /// phase does) — so the aircraft has no exit only because those ahead are taken.
+    /// </summary>
+    public static bool ExitAheadOccupied(PhaseContext ctx, ExitAheadSearch search) =>
+        FindExitAhead(ctx, search with { JudgeReach = false }, occupied: [], new HashSet<string>(StringComparer.OrdinalIgnoreCase)) is not null;
+
+    /// <summary>
+    /// One pass of <see cref="FindExitAhead(PhaseContext, ExitAheadSearch, HashSet{int}?, HashSet{string})"/>'s relaxation: with
     /// <paramref name="skipTooShort"/> every search passes by an exit too short for the aircraft
     /// (<see cref="RunwayTailClearance.IsTooShortForAutomaticExit"/>) that the controller did not name.
     /// </summary>
-    private (AirportGroundLayout.CenterlineExitResult Found, ExitPreference? Preference, bool FromTiebreaker)? SearchExitAhead(
+    private static (AirportGroundLayout.CenterlineExitResult Found, ExitPreference? Preference, bool FromTiebreaker)? FindExitAhead(
         PhaseContext ctx,
+        ExitAheadSearch search,
         HashSet<int>? occupied,
         HashSet<string> refusedOffSide,
         bool skipTooShort
     )
     {
-        if (ctx.GroundLayout is null || _runwayId is null)
+        if (ctx.GroundLayout is null)
         {
             return null;
         }
@@ -593,20 +677,20 @@ public sealed class RunwayExitPhase : Phase
         // Soft tiebreaker: when the preference has a taxiway but no side, try
         // with the inferred side first. If nothing found, fall through to the
         // normal relaxation loop with the original preference.
-        if ((_lastResolvedPreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
+        if ((search.Preference is { Taxiway: not null, Side: null }) && (search.InferredSide is not null))
         {
-            var tiebreakerPref = new ExitPreference { Taxiway = _lastResolvedPreference.Taxiway, Side = _inferredSide.Value };
-            if (RunSearchWithLookahead(ctx, tiebreakerPref, occupied, refusedOffSide, skipTooShort) is { } tiebreak)
+            var tiebreakerPref = new ExitPreference { Taxiway = search.Preference.Taxiway, Side = search.InferredSide.Value };
+            if (RunSearchWithLookahead(ctx, search, new SearchPass(tiebreakerPref, skipTooShort), occupied, refusedOffSide) is { } tiebreak)
             {
                 return (tiebreak, tiebreakerPref, true);
             }
         }
 
         // Try with current preference, then relax until we find something.
-        ExitPreference? preference = _lastResolvedPreference;
+        ExitPreference? preference = search.Preference;
         for (int attempt = 0; attempt < 3; attempt++)
         {
-            if (RunSearchWithLookahead(ctx, preference, occupied, refusedOffSide, skipTooShort) is { } found)
+            if (RunSearchWithLookahead(ctx, search, new SearchPass(preference, skipTooShort), occupied, refusedOffSide) is { } found)
             {
                 return (found, preference, false);
             }
@@ -632,9 +716,9 @@ public sealed class RunwayExitPhase : Phase
     /// <summary>
     /// Stopped on the runway with no free exit ahead. A forced (CLANDF) rollout backtracks to the nearest exit behind it
     /// on its own (<see cref="TryCommitExitBehind"/>). Any other aircraft stays stopped — reversing on the runway needs
-    /// ATC approval (AIM 4-3-21.a) — and re-searches every tick: when an exit ahead exists but is occupied or full it
-    /// waits for it to clear, and when there is none at all (nor for a forced rollout any behind) the pilot reports
-    /// once that it cannot exit and waits for an instructor TAXI or EXIT. A taxiway the crew gave up on the rollout counts
+    /// ATC approval (AIM 4-3-21.a) — and re-searches every tick, taking an exit ahead that clears. Unless the rollout already
+    /// made it, the pilot makes its one call that it cannot exit (nor, for a forced rollout, find one behind), whether the exits
+    /// ahead are occupied or there are none, and waits for an instructor TAXI or EXIT. A taxiway the crew gave up on the rollout counts
     /// as an exit ahead here: the give-up was about speed, and a stopped aircraft may taxi forward to it (<see cref="IsGivenUp"/>).
     /// </summary>
     private bool TickStoppedWithoutExit(PhaseContext ctx)
@@ -645,36 +729,120 @@ public sealed class RunwayExitPhase : Phase
             return false;
         }
 
-        if (!_reportedNoExitAhead && (SearchExitAhead(ctx, occupied: null, new HashSet<string>(StringComparer.OrdinalIgnoreCase)) is null))
+        if (ctx.Aircraft.Phases is { ReportedNoExitAhead: false })
         {
-            ReportNoExitAhead(ctx);
+            ReportNoExitAhead(ctx, _runwayId, _runwayHeading, PhaseExitAheadOccupied(ctx), stopped: true);
         }
 
         return false;
     }
 
+    /// <summary>This phase's question to the one occupancy judge (<see cref="ExitAheadOccupied(PhaseContext, ExitAheadSearch)"/>).</summary>
+    private bool PhaseExitAheadOccupied(PhaseContext ctx) => (PhaseSearch(ctx) is { } search) && ExitAheadOccupied(ctx, search);
+
     /// <summary>
-    /// The pilot's report that it is stopped with no exit ahead, asking for a back-taxi to the nearest free exit behind
-    /// it when there is one, plus an instructor terminal line saying the aircraft is waiting.
+    /// No exit ahead the aircraft can take while rolling, so it brakes to a stop on the remaining runway by the rollout's own law
+    /// (<see cref="NoExitStopPlan"/>, the routine rollout rate in place of the taxi rate), measured from the landing threshold of
+    /// the assigned runway. The crew makes its one "unable to exit" call as the final stop begins. Without an assigned runway the
+    /// aircraft keeps the coast speed <see cref="TickRolling"/> set.
     /// </summary>
-    private void ReportNoExitAhead(PhaseContext ctx)
+    private void ApplyNoExitStop(PhaseContext ctx)
     {
-        _reportedNoExitAhead = true;
+        if ((ctx.Aircraft.Phases is not { AssignedRunway: { } runway } phases) || (ctx.GroundLayout is not { } layout))
+        {
+            return;
+        }
+
+        phases.NoExitReachTestActive = true;
+        LatLon threshold = LandingThreshold.Resolve(runway, layout);
+        double alongFt = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, threshold, runway.TrueHeading) * GeoMath.FeetPerNm;
+        if (!_noExitLastExitResolved)
+        {
+            _noExitLastTurnEntryAlongFt = NoExitStopPlan.LastExitTurnEntryAlongFt(layout, runway, threshold, ctx.Aircraft.Position, ctx.Category);
+            _noExitLastExitResolved = true;
+        }
+
+        double landingDistanceFt = Tower.ForcedLandingProfile.LandingDistanceFt(runway, layout);
+        double noseLimitAlongFt = landingDistanceFt - (AircraftLength.ResolveFt(ctx.Aircraft.AircraftType) / 2.0);
+        NoExitStopPlan.StopStep stop = NoExitStopPlan.Compute(
+            ctx.Category,
+            ctx.Aircraft.GroundSpeed,
+            alongFt,
+            new NoExitStopPlan.StopDatums(landingDistanceFt, noseLimitAlongFt, _noExitLastTurnEntryAlongFt)
+        );
+        ctx.Targets.TargetSpeed = stop.TargetSpeedKts;
+        ctx.Targets.DesiredDecelRate = stop.DecelRateKtsPerSec;
+        LogNoExitStop(ctx, stop, alongFt);
+
+        if (stop.FinalStop && !phases.ReportedNoExitAhead)
+        {
+            ReportNoExitAhead(ctx, _runwayId, _runwayHeading, PhaseExitAheadOccupied(ctx), stopped: false);
+        }
+    }
+
+    /// <summary>Logs once that the no-exit stop engaged, and once that even max-effort braking cannot keep it on the pavement.</summary>
+    private void LogNoExitStop(PhaseContext ctx, NoExitStopPlan.StopStep stop, double alongFt)
+    {
+        if (!_noExitStopLogged)
+        {
+            _noExitStopLogged = true;
+            Log.LogInformation(
+                "[Exit] {Callsign}: no exit available, planning a stop at {StopFt:F0} ft along ({Datum}), {DistFt:F0} ft ahead at {Gs:F0} kts",
+                ctx.Aircraft.Callsign,
+                stop.StopAlongFt,
+                stop.AtLastExit ? "short of the last exit" : "runway end less margin",
+                stop.StopAlongFt - alongFt,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
+
+        if (stop.Excursion && !_excursionLogged)
+        {
+            _excursionLogged = true;
+            Log.LogWarning(
+                "[Exit] {Callsign}: runway excursion: max-effort braking cannot stop on the pavement, {AlongFt:F0} ft along at {Gs:F0} kts",
+                ctx.Aircraft.Callsign,
+                alongFt,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
+    }
+
+    /// <summary>
+    /// The pilot's one call that it cannot exit (AIM 4-3-21.a: approval before stopping on the runway), made as the final stop on
+    /// the runway begins or once stopped there, asking for a back-taxi to the nearest free exit behind it when there is one, plus an
+    /// instructor terminal line saying the aircraft is waiting — "exits ahead occupied" when <paramref name="exitsAheadOccupied"/>,
+    /// else "with no exit ahead". Latched on <see cref="PhaseList.ReportedNoExitAhead"/>, shared with the landing, so the call is
+    /// made once across both phases. <paramref name="runwayId"/> and <paramref name="runwayHeading"/> are the runway rolled on and
+    /// the direction of the roll. The caller picks the line's verb: "stopped on RWY" when <paramref name="stopped"/> (the aircraft
+    /// is already stopped), "stopping on RWY" when the call goes out as the final stop begins.
+    /// </summary>
+    public static void ReportNoExitAhead(PhaseContext ctx, string? runwayId, TrueHeading runwayHeading, bool exitsAheadOccupied, bool stopped)
+    {
+        if (ctx.Aircraft.Phases is not { } phaseList)
+        {
+            return;
+        }
+
+        phaseList.ReportedNoExitAhead = true;
 
         // A taxi route stored behind the exit (a TAXI on the rollout) never starts from an exit that cannot be made: dropped, so a
         // CROSS no longer amends it and the TAXI or EXIT the aircraft now waits for is the plan.
-        if (ctx.Aircraft.Phases is { TaxiRoute: not null } phases)
+        if (phaseList.TaxiRoute is not null)
         {
             Log.LogInformation("[Exit] {Callsign}: no exit ahead; the stored taxi route is dropped", ctx.Aircraft.Callsign);
-            phases.ClearStoredTaxiRoute();
+            phaseList.ClearStoredTaxiRoute();
         }
 
-        string? exitBehind = FindExitBehind(ctx)?.Taxiway;
-        string runway = RunwayIdentifier.ToDisplayDesignator(_runwayId ?? "?");
+        string? exitBehind = FindExitBehind(ctx, runwayId, runwayHeading)?.Taxiway;
+        string runway = RunwayIdentifier.ToDisplayDesignator(runwayId ?? "?");
+        string verb = stopped ? "stopped" : "stopping";
         Log.LogInformation(
-            "[Exit] {Callsign}: stopped on runway {Rwy} with no exit ahead, requesting back-taxi to {Twy}",
+            "[Exit] {Callsign}: {Verb} on runway {Rwy} with {Reason}, requesting back-taxi to {Twy}",
             ctx.Aircraft.Callsign,
+            verb,
             runway,
+            exitsAheadOccupied ? "every exit ahead occupied" : "no exit ahead",
             exitBehind ?? "(no exit behind)"
         );
 
@@ -686,7 +854,11 @@ public sealed class RunwayExitPhase : Phase
             Pilot.PilotResponder.BuildUnableToExitRequestBackTaxi(ctx.Aircraft, exitBehind),
             Pilot.PilotResponder.SoloPositionsTower
         );
-        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} stopped on RWY {runway} with no exit ahead, awaiting TAXI or EXIT");
+        ctx.Aircraft.PendingWarnings.Add(
+            exitsAheadOccupied
+                ? $"{ctx.Aircraft.Callsign} {verb} on RWY {runway}, exits ahead occupied, awaiting TAXI or EXIT"
+                : $"{ctx.Aircraft.Callsign} {verb} on RWY {runway} with no exit ahead, awaiting TAXI or EXIT"
+        );
     }
 
     /// <summary>
@@ -698,7 +870,7 @@ public sealed class RunwayExitPhase : Phase
     /// </summary>
     private bool TryCommitExitBehind(PhaseContext ctx)
     {
-        if (FindExitBehind(ctx) is { } behind)
+        if (FindExitBehind(ctx, _runwayId, _runwayHeading) is { } behind)
         {
             Log.LogInformation(
                 "[Exit] {Callsign}: stopped on runway {Rwy} with no exit ahead — backtracking to exit {Twy}",
@@ -722,22 +894,23 @@ public sealed class RunwayExitPhase : Phase
     /// <summary>
     /// The nearest free exit behind the aircraft — the end-of-runway turnoff included — using the same centerline walk as
     /// <see cref="TryFindExitAhead"/>, run on the reciprocal heading. The walk is tried under the reciprocal end's
-    /// designator first (the direction the aircraft would roll, so that end's no-turnoff list applies), then this end's.
+    /// designator first (the direction the aircraft would roll, so that end's no-turnoff list applies), then this end's
+    /// (<paramref name="runwayId"/>, rolled on along <paramref name="runwayHeading"/>).
     /// </summary>
-    private AirportGroundLayout.CenterlineExitResult? FindExitBehind(PhaseContext ctx)
+    private static AirportGroundLayout.CenterlineExitResult? FindExitBehind(PhaseContext ctx, string? runwayId, TrueHeading runwayHeading)
     {
-        if ((ctx.GroundLayout is null) || (_runwayId is null))
+        if ((ctx.GroundLayout is null) || (runwayId is null))
         {
             return null;
         }
 
-        TrueHeading backtrackHeading = _runwayHeading.ToReciprocal();
+        TrueHeading backtrackHeading = runwayHeading.ToReciprocal();
         List<string> designators = [];
         if (ctx.Aircraft.Phases?.AssignedRunway is { } runway)
         {
             designators.Add(string.Equals(runway.Id.End1, runway.Designator, StringComparison.OrdinalIgnoreCase) ? runway.Id.End2 : runway.Id.End1);
         }
-        designators.Add(_runwayId);
+        designators.Add(runwayId);
 
         // An exit the aircraft fits comes first; when none does, the best one anyway (it stops short of the other runway, not clear).
         foreach (bool skipTooShort in (bool[])[true, false])
@@ -801,34 +974,74 @@ public sealed class RunwayExitPhase : Phase
     /// option, falling back to the deferred off-side if none is found — unless
     /// the controller instructed the side, when an off-side candidate is never
     /// taken and its taxiway is added to <paramref name="refusedOffSide"/>.
-    /// The side preferred is <paramref name="preference"/>'s, else the inferred one. With <paramref name="skipTooShort"/> an exit
-    /// too short for the aircraft is passed by unless the controller named its taxiway.
-    /// Returns the exit found, or null.
+    /// The side preferred is <paramref name="pass"/>'s preference's, else the inferred one. With <see cref="SearchPass.SkipTooShort"/>
+    /// an exit too short for the aircraft is passed by unless the controller named its taxiway.
+    /// With <see cref="ExitAheadSearch.JudgeReach"/> the walk's pick is then judged by <see cref="CanReachExit"/>: one the aircraft
+    /// cannot slow for is excluded and the walk runs again, until it picks one it can reach or none. Returns the exit found, or null.
     /// </summary>
-    private AirportGroundLayout.CenterlineExitResult? RunSearchWithLookahead(
+    private static AirportGroundLayout.CenterlineExitResult? RunSearchWithLookahead(
         PhaseContext ctx,
-        ExitPreference? preference,
+        ExitAheadSearch search,
+        SearchPass pass,
         HashSet<int>? occupied,
-        HashSet<string> refusedOffSide,
-        bool skipTooShort
+        HashSet<string> refusedOffSide
     )
     {
-        if (ctx.GroundLayout is null || _runwayId is null)
+        if (!search.JudgeReach)
+        {
+            return WalkForExit(ctx, search, pass, occupied, refusedOffSide);
+        }
+
+        HashSet<int>? unreachable = null;
+        for (int attempt = 0; attempt < MaxUnreachablePicks; attempt++)
+        {
+            if (WalkForExit(ctx, search, pass, unreachable ?? occupied, refusedOffSide) is not { } pick)
+            {
+                return null;
+            }
+
+            if (CanReachExit(ctx, pick, search.RunwayHeading))
+            {
+                return pick;
+            }
+
+            unreachable ??= [.. occupied ?? []];
+            if (!unreachable.Add(pick.HoldShort.Id))
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>One centerline walk of <see cref="RunSearchWithLookahead"/>, with <paramref name="excluded"/> hold-shorts left out.</summary>
+    private static AirportGroundLayout.CenterlineExitResult? WalkForExit(
+        PhaseContext ctx,
+        ExitAheadSearch search,
+        SearchPass pass,
+        HashSet<int>? excluded,
+        HashSet<string> refusedOffSide
+    )
+    {
+        if (ctx.GroundLayout is null)
         {
             return null;
         }
 
+        ExitPreference? preference = pass.Preference;
+        bool skipTooShort = pass.SkipTooShort;
         bool isExplicit = (preference?.Taxiway is not null) || (preference?.Side is not null);
         ExitSide? instructedSide = ctx.Aircraft.Phases?.RequestedExit?.Side;
         return ctx.GroundLayout.FindOnSidePreferredExit(
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
-            _runwayHeading,
-            _runwayId,
+            search.RunwayHeading,
+            search.RunwayId,
             preference,
-            preference?.Side ?? _inferredSide,
+            preference?.Side ?? search.InferredSide,
             excludeBranchPoints: null,
-            excludeHoldShortNodes: occupied,
+            excludeHoldShortNodes: excluded,
             filter: candidate =>
             {
                 if (
@@ -883,6 +1096,34 @@ public sealed class RunwayExitPhase : Phase
     /// as stopped (<see cref="BackstopStoppedSpeedKts"/>).
     /// </summary>
     private static bool IsRolling(AircraftState aircraft) => aircraft.GroundSpeed > BackstopStoppedSpeedKts;
+
+    /// <summary>
+    /// True when the aircraft can take <paramref name="candidate"/> from where it is: already within its turn-off speed (plus
+    /// <see cref="RolloutBraking.TurnOffSpeedToleranceKts"/>), or able to slow to it by the exit's turn-entry point
+    /// (<see cref="RolloutBraking.TurnEntryLeadNm"/> short of the branch) at <see cref="RolloutBraking.NamedExitBrakingLimit"/> — the
+    /// firm rate, max effort under <c>EXP</c>. An exit that frees too close to make is passed by, never braked for at a rate the
+    /// crew would not use, the reach test the rollout judges an exit by. An exit whose branch is behind the aircraft is never
+    /// reachable, however slow it is rolling. Distances run along <paramref name="runwayHeading"/>.
+    /// </summary>
+    private static bool CanReachExit(PhaseContext ctx, AirportGroundLayout.CenterlineExitResult candidate, TrueHeading runwayHeading)
+    {
+        double turnOff = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, candidate.ExitAngle);
+        double distToBranchNm = GeoMath.AlongTrackDistanceNm(candidate.Path[0].Position, ctx.Aircraft.Position, runwayHeading);
+        if (distToBranchNm <= 0)
+        {
+            return false;
+        }
+
+        if (ctx.Aircraft.IndicatedAirspeed <= turnOff + RolloutBraking.TurnOffSpeedToleranceKts)
+        {
+            return true;
+        }
+
+        double distToTurnEntryNm = distToBranchNm - RolloutBraking.TurnEntryLeadNm(ctx.Category, turnOff, candidate.ExitAngle);
+        double limit = RolloutBraking.NamedExitBrakingLimit(ctx.Category, ctx.Aircraft.Ground.IsExpeditingExit);
+        return (distToTurnEntryNm > 0)
+            && (RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, turnOff, distToTurnEntryNm, ctx.Category) <= limit);
+    }
 
     private void CommitFoundExit(
         PhaseContext ctx,
@@ -1502,6 +1743,13 @@ public sealed class RunwayExitPhase : Phase
         // The landing's given-up exits end with its runway exit: a later runway exit of this aircraft starts with none.
         ctx.Aircraft.Phases?.GivenUpExitTaxiways.Clear();
 
+        // So do its "unable to exit" call and its no-exit reach test: a later landing calls afresh and searches as on the normal path.
+        if (ctx.Aircraft.Phases is { } phases)
+        {
+            phases.ReportedNoExitAhead = false;
+            phases.NoExitReachTestActive = false;
+        }
+
         // A taxi route stored behind the exit (a TAXI on the rollout) starts here, the aircraft rolling on into it; one the exit
         // does not reach is dropped with the crew's "unable" and the aircraft holds clear below.
         if ((ctx.Aircraft.Phases?.TaxiRoute is not null) && Commands.GroundCommandHandler.TryStartStoredTaxiRoute(ctx, StoredRouteJoin()))
@@ -1777,7 +2025,6 @@ public sealed class RunwayExitPhase : Phase
             TurnStarted = _turnStarted,
             TurnOffDecelRate = _turnOffDecelRate,
             BacktrackPending = _backtrackPending,
-            ReportedNoExitAhead = _reportedNoExitAhead,
             StopTailInsideLine = _stopTailInsideLine,
             StopHeldShortOfBarNodeId = _stopHeldShortOfBar?.Id,
             Navigator = _navigator?.ToSnapshot() ?? _restoredNavigator,
@@ -1829,7 +2076,6 @@ public sealed class RunwayExitPhase : Phase
             _turnStarted = dto.TurnStarted,
             _turnOffDecelRate = dto.TurnOffDecelRate,
             _backtrackPending = dto.BacktrackPending,
-            _reportedNoExitAhead = dto.ReportedNoExitAhead,
             _stopTailInsideLine = dto.StopTailInsideLine ?? false,
             _restoreSegmentIndex = Math.Max(dto.ExitWaypointIndex, 0),
             Status = (PhaseStatus)dto.Status,

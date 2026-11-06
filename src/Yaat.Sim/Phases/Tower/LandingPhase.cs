@@ -158,6 +158,35 @@ public sealed class LandingPhase : Phase
     private double? _noseOffsetNm;
 
     /// <summary>
+    /// The last exit's turn-entry point (ft along from the landing threshold) the no-exit stop plans against
+    /// (<see cref="NoExitStopPlan.LastExitTurnEntryAlongFt"/>), null when none is ahead; walked once on the stop's first tick
+    /// (<see cref="_noExitLastExitResolved"/>). Derived from the layout and the runway, so it stays out of the snapshot: a restored
+    /// phase walks it again from where the aircraft is, and the last exit ahead is the same one.
+    /// </summary>
+    private double? _noExitLastTurnEntryAlongFt;
+
+    private bool _noExitLastExitResolved;
+
+    /// <summary>
+    /// The no-exit stop has logged that it engaged, and that it is running off the pavement; phase-local, so a restore may log again.
+    /// </summary>
+    private bool _noExitStopLogged;
+
+    private bool _noExitExcursionLogged;
+
+    /// <summary>
+    /// The side toward where the arrival parks that the runway exit's search is asked with (<see cref="RunwayExitPhase.ArrivalSide"/>),
+    /// resolved once on the first no-candidate rollout tick (<see cref="_runwayExitSideResolved"/>). Snapshotted with that flag: the
+    /// side is read from the flight plan's remarks, which can be amended after it was resolved.
+    /// </summary>
+    private ExitSide? _runwayExitSide;
+
+    private bool _runwayExitSideResolved;
+
+    /// <summary>The arrival side the no-exit availability check asks the runway exit's search with; null until resolved.</summary>
+    public ExitSide? RunwayExitSide => _runwayExitSide;
+
+    /// <summary>
     /// The candidate <see cref="_turnEntryLeadNm"/> was computed for (<see cref="CandidateTurnEntryLeadNm"/>). Derived from the
     /// candidate's own path, so it stays out of the snapshot: a restored phase computes the same lead.
     /// </summary>
@@ -280,6 +309,8 @@ public sealed class LandingPhase : Phase
             InferredSideValue = (int?)_inferredSide,
             SideTowardTaxiRoute = _sideTowardTaxiRoute ? true : null,
             SideBeforeTaxiRouteValue = _sideTowardTaxiRoute ? (int?)_sideBeforeTaxiRoute : null,
+            RunwayExitSideResolved = _runwayExitSideResolved,
+            RunwayExitSideValue = (int?)_runwayExitSide,
             RunwayId = _plan?.RunwayId,
             FlareEntryAgl = _plan?.FlareEntryAgl,
             FlareFpm = _plan?.FlareFpm,
@@ -417,6 +448,8 @@ public sealed class LandingPhase : Phase
         }
         phase._sideTowardTaxiRoute = dto.SideTowardTaxiRoute ?? false;
         phase._sideBeforeTaxiRoute = (ExitSide?)dto.SideBeforeTaxiRouteValue;
+        phase._runwayExitSideResolved = dto.RunwayExitSideResolved;
+        phase._runwayExitSide = (ExitSide?)dto.RunwayExitSideValue;
         if (dto.ActivePreferenceSide.HasValue || dto.ActivePreferenceTaxiway is not null)
         {
             phase._activePreference = new ExitPreference
@@ -511,6 +544,11 @@ public sealed class LandingPhase : Phase
 
         // A new landing starts with nothing given up: a taxiway the crew refused belongs to the landing it was refused on.
         ctx.Aircraft.Phases?.GivenUpExitTaxiways.Clear();
+        if (ctx.Aircraft.Phases is { } phaseList)
+        {
+            phaseList.ReportedNoExitAhead = false;
+            phaseList.NoExitReachTestActive = false;
+        }
 
         _originalPreference = ctx.Aircraft.Phases?.RequestedExit;
         _activePreference = _originalPreference;
@@ -1004,10 +1042,16 @@ public sealed class LandingPhase : Phase
 
     /// <summary>
     /// The rollout that is not forced: brakes for the candidate exit (or to coast speed without one), under the LAHSO
-    /// ceiling when there is one, and hands off to the runway exit once it can.
+    /// ceiling when there is one, and hands off to the runway exit once it can. With no candidate on a taxi-graph layout outside
+    /// LAHSO it never hands off: it stops on the remaining runway (<see cref="TickNoExitStop"/>), re-searching every tick.
     /// </summary>
     private bool TickPlannedRollout(PhaseContext ctx, LandingPlan plan, double coastSpeed, double lahsoStopDistNm)
     {
+        if (NoExitStopGround(ctx) is { } ground)
+        {
+            return TickNoExitStop(ctx, plan, ground);
+        }
+
         (double targetSpeed, double decelRateOverride) = PlanExitDeceleration(ctx, plan, coastSpeed);
 
         if (_hasLahso)
@@ -1025,6 +1069,160 @@ public sealed class LandingPhase : Phase
         }
 
         return false;
+    }
+
+    private readonly record struct NoExitGround(RunwayInfo Runway, AirportGroundLayout Layout, PhaseList Phases);
+
+    /// <summary>
+    /// The runway, layout and phase list the no-exit stop runs on, or null when it does not apply: the rollout has a candidate,
+    /// is landing and holding short (LAHSO stops at its own point), the airport has no taxi graph (the runway exit's own stop), or
+    /// an exit is still available to the runway exit (<see cref="RunwayExitHasAnExitAhead"/>), so the rollout coasts and hands off.
+    /// Asked every tick, so the stop disengages the tick an exit becomes available.
+    /// </summary>
+    private NoExitGround? NoExitStopGround(PhaseContext ctx)
+    {
+        if ((_candidateExit is not null) || _hasLahso || (ctx.GroundLayout is not { HasTaxiGraph: true } layout))
+        {
+            return null;
+        }
+
+        if ((ctx.Runway is not { } runway) || (ctx.Aircraft.Phases is not { } phases) || RunwayExitHasAnExitAhead(ctx, layout))
+        {
+            return null;
+        }
+
+        return new NoExitGround(runway, layout, phases);
+    }
+
+    /// <summary>
+    /// True when the runway exit, started now, would have an exit to take: the instructed exit (<c>EL</c>/<c>ER</c>/<c>EXIT</c>) still
+    /// ahead (a given-up one is not), or any exit its own search finds ahead with occupied hold-shorts excluded. Both are
+    /// <see cref="RunwayExitPhase"/>'s own search entries, run on the heading it would start with. Before the no-exit stop engages
+    /// on this landing they pick as the runway exit does on the normal path; once it has engaged
+    /// (<see cref="PhaseList.NoExitReachTestActive"/>) an exit that frees counts only when the reach test finds it can be made.
+    /// </summary>
+    private bool RunwayExitHasAnExitAhead(PhaseContext ctx, AirportGroundLayout layout)
+    {
+        if (RunwayExitSearch(ctx, layout) is not { } search)
+        {
+            return false;
+        }
+
+        return (RunwayExitPhase.FindInstructedExitAhead(ctx, search) is not null)
+            || (
+                RunwayExitPhase.FindExitAhead(ctx, search, ctx.OccupiedHoldShortNodes, new HashSet<string>(StringComparer.OrdinalIgnoreCase))
+                is not null
+            );
+    }
+
+    /// <summary>
+    /// The runway exit's search as it would start now (<see cref="RunwayExitPhase.ExitAheadSearchFor"/>), on the aircraft's heading,
+    /// with the arrival's side resolved once per phase (<see cref="_runwayExitSide"/>).
+    /// </summary>
+    private RunwayExitPhase.ExitAheadSearch? RunwayExitSearch(PhaseContext ctx, AirportGroundLayout layout)
+    {
+        if (!_runwayExitSideResolved)
+        {
+            _runwayExitSide = RunwayExitPhase.ArrivalSide(ctx.Aircraft, layout, ctx.Aircraft.TrueHeading);
+            _runwayExitSideResolved = true;
+        }
+
+        return RunwayExitPhase.ExitAheadSearchFor(ctx.Aircraft, layout, ctx.Aircraft.TrueHeading, _runwayExitSide);
+    }
+
+    /// <summary>
+    /// No exit the rollout can take (every exit ahead occupied, or none left), so it stops on the remaining runway under
+    /// <see cref="NoExitStopPlan"/>, never handing off (<see cref="CanHandOff"/> is not asked) while the per-tick searches
+    /// (<see cref="ResolveRolloutCandidate"/>, <see cref="RunwayExitHasAnExitAhead"/>) still take an exit that frees and can be
+    /// made; from the first such tick every exit search of this landing judges reach (<see cref="PhaseList.NoExitReachTestActive"/>).
+    /// The crew makes its one "unable to exit" call as the final stop begins, before the aircraft has stopped (AIM 4-3-21.a).
+    /// Completes at 0.5 kt, as the forced runway-end stop does, so the runway exit that follows starts stopped.
+    /// </summary>
+    private bool TickNoExitStop(PhaseContext ctx, LandingPlan plan, NoExitGround ground)
+    {
+        ground.Phases.NoExitReachTestActive = true;
+        LatLon threshold = new(plan.ThresholdLat, plan.ThresholdLon);
+        double alongFt = AlongFromThresholdNm(plan, ctx.Aircraft.Position) * GeoMath.FeetPerNm;
+        if (!_noExitLastExitResolved)
+        {
+            _noExitLastTurnEntryAlongFt = NoExitStopPlan.LastExitTurnEntryAlongFt(
+                ground.Layout,
+                ground.Runway,
+                threshold,
+                ctx.Aircraft.Position,
+                ctx.Category
+            );
+            _noExitLastExitResolved = true;
+        }
+
+        double landingDistanceFt = ForcedLandingProfile.LandingDistanceFt(ground.Runway, ground.Layout);
+        double noseOffsetFt = NoseOffsetNm(ctx.Aircraft) * GeoMath.FeetPerNm;
+        NoExitStopPlan.StopStep stop = NoExitStopPlan.Compute(
+            ctx.Category,
+            ctx.Aircraft.GroundSpeed,
+            alongFt,
+            new NoExitStopPlan.StopDatums(landingDistanceFt, landingDistanceFt - noseOffsetFt, _noExitLastTurnEntryAlongFt)
+        );
+        ctx.Targets.TargetSpeed = stop.TargetSpeedKts;
+        ctx.Targets.DesiredDecelRate = stop.DecelRateKtsPerSec;
+        LogNoExitStopEngaged(ctx, stop, alongFt);
+
+        if (stop.FinalStop && !ground.Phases.ReportedNoExitAhead)
+        {
+            bool exitsAheadOccupied = (RunwayExitSearch(ctx, ground.Layout) is { } search) && RunwayExitPhase.ExitAheadOccupied(ctx, search);
+            RunwayExitPhase.ReportNoExitAhead(ctx, ground.Runway.Designator, plan.RunwayHeading, exitsAheadOccupied, stopped: false);
+        }
+
+        if (ctx.Aircraft.IndicatedAirspeed > 0.5)
+        {
+            return false;
+        }
+
+        double pastEndFt = alongFt + noseOffsetFt - landingDistanceFt;
+        if (pastEndFt > 0)
+        {
+            Log.LogWarning("[Landing] {Callsign}: runway excursion: stopped {PastFt:F0} ft past the end", ctx.Aircraft.Callsign, pastEndFt);
+        }
+
+        Log.LogInformation(
+            "[Landing] {Callsign}: stopped on runway {Runway} with no exit, {AlongFt:F0} ft along (stop point {StopFt:F0} ft)",
+            ctx.Aircraft.Callsign,
+            plan.RunwayId ?? "?",
+            alongFt,
+            stop.StopAlongFt
+        );
+        return true;
+    }
+
+    /// <summary>
+    /// Logs once per phase that the no-exit stop engaged, where it plans to stop and which datum won, and once that even max-effort
+    /// braking cannot keep it on the pavement.
+    /// </summary>
+    private void LogNoExitStopEngaged(PhaseContext ctx, NoExitStopPlan.StopStep stop, double alongFt)
+    {
+        if (!_noExitStopLogged)
+        {
+            _noExitStopLogged = true;
+            Log.LogInformation(
+                "[Landing] {Callsign}: no exit available, planning a stop at {StopFt:F0} ft along ({Datum}), {DistFt:F0} ft ahead at {Gs:F0} kts",
+                ctx.Aircraft.Callsign,
+                stop.StopAlongFt,
+                stop.AtLastExit ? "short of the last exit" : "runway end less margin",
+                stop.StopAlongFt - alongFt,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
+
+        if (stop.Excursion && !_noExitExcursionLogged)
+        {
+            _noExitExcursionLogged = true;
+            Log.LogWarning(
+                "[Landing] {Callsign}: runway excursion: max-effort braking cannot stop on the pavement, {AlongFt:F0} ft along at {Gs:F0} kts",
+                ctx.Aircraft.Callsign,
+                alongFt,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
     }
 
     /// <summary>
@@ -1115,8 +1313,9 @@ public sealed class LandingPhase : Phase
     /// <summary>
     /// The rollout's speed plan: the target speed and braking rate that bring the aircraft to the candidate exit's
     /// turn-off speed by its turn-entry point, or to coast speed when there is no candidate. Never plans above the
-    /// current speed: once IAS is at or below the planned target it holds IAS. Braking below coast is
-    /// <see cref="RunwayExitPhase"/>'s job.
+    /// current speed: once IAS is at or below the planned target it holds IAS. Without a candidate this runs only where the
+    /// no-exit stop (<see cref="TickNoExitStop"/>) does not — under LAHSO, whose ceiling stops the aircraft, and with no taxi
+    /// graph, where <see cref="RunwayExitPhase"/> brakes to the stop.
     /// </summary>
     private (double TargetSpeed, double DecelRate) PlanExitDeceleration(PhaseContext ctx, LandingPlan plan, double coastSpeed)
     {
