@@ -14,7 +14,7 @@ internal static class RunwayCrossingDetector
     private static readonly ILogger Log = SimLog.CreateLogger("RunwayCrossingDetector");
 
     /// <summary>Tolerance (nm) for runway boundary classification (~6ft).</summary>
-    private const double RunwayTolerance = 0.001;
+    internal const double RunwayTolerance = 0.001;
 
     /// <summary>
     /// Tolerance (ft) for reusing/snapping an existing node as hold-short instead of placing a
@@ -55,7 +55,20 @@ internal static class RunwayCrossingDetector
     /// How far (ft) beyond another runway's base separation S a point still touches that runway's holding area
     /// (<see cref="TouchesHoldingArea"/>), so a bar seated on that runway's hold line counts as touching it.
     /// </summary>
-    private const double OtherRunwayAreaMarginFt = 5.0;
+    internal const double OtherRunwayAreaMarginFt = 5.0;
+
+    /// <summary>
+    /// How far (ft) short of where the taxiway path from S outward first enters another runway's holding area the angled
+    /// bar point is clamped (<see cref="CrossingStandoffNm"/>), so an aircraft holding there stays outside that area.
+    /// </summary>
+    private const double OtherRunwayClampMarginFt = 5.0;
+
+    /// <summary>
+    /// The smallest angle (degrees, 0-90) between a path segment and another runway at which that runway's holding area,
+    /// judged along the segment (<see cref="OtherAreaBoundFt"/>), carries the angle term; a shallower segment runs
+    /// alongside the runway and is judged by its S plus <see cref="OtherRunwayAreaMarginFt"/> alone.
+    /// </summary>
+    private const double OtherRunwayAngleTermMinDeg = 30.0;
 
     /// <summary>The fraction range a minted node is clamped to along its edge, so it never lands on an endpoint.</summary>
     private const double MinEdgeFraction = 0.01;
@@ -530,8 +543,7 @@ internal static class RunwayCrossingDetector
         double toCross = GeoMath.SignedCrossTrackDistanceNm(to, reference, rect.TrueHeading);
         if ((fromCross * toCross < 0.0) && (Math.Abs(fromCross - toCross) > 1e-12))
         {
-            double fraction = fromCross / (fromCross - toCross);
-            return new LatLon(from.Lat + (fraction * (to.Lat - from.Lat)), from.Lon + (fraction * (to.Lon - from.Lon)));
+            return PointAlong(from, to, fromCross / (fromCross - toCross));
         }
 
         return Math.Abs(fromCross) <= Math.Abs(toCross) ? from : to;
@@ -585,8 +597,11 @@ internal static class RunwayCrossingDetector
 
     /// <summary>
     /// The crossing's centerline standoff, nm: D, the runway's base separation S plus the angle term for the taxiway's
-    /// angle to the runway (<see cref="HoldShortStandoff.CenterlineStandoffFt"/>), unless the taxiway path from the crossing
-    /// to the D point touches another runway's holding area at a node or along a segment (<see cref="FirstTouch"/>); then S.
+    /// angle to the runway (<see cref="HoldShortStandoff.CenterlineStandoffFt"/>), clamped to
+    /// <see cref="OtherRunwayClampMarginFt"/> short of where the taxiway path from the S point out to the D point first
+    /// enters another runway's holding area (<see cref="FirstEntry"/>), never inside S. A walk that ends past S but short
+    /// of D is judged the same way on its path from the S point to the last node it reaches. A walk that dead-ends short
+    /// of S gives S when its passed nodes touch another runway's holding area (<see cref="DeadEndTouch"/>), else D.
     /// <paramref name="pass"/> labels the log lines.
     /// </summary>
     private static double CrossingStandoffNm(
@@ -615,34 +630,231 @@ internal static class RunwayCrossingDetector
         }
 
         (List<GroundNode> passed, LatLon? point) = ProbeStandoffPoint(layout, crossing, rect, idealFt / GeoMath.FeetPerNm);
-        List<(string Label, LatLon Position)> path = [.. passed.Select(node => ($"node {node.Id}", node.Position))];
-        if (point is { } dPoint)
+        if (ProbeSPoint(layout, crossing, rect) is not { } sPoint)
         {
-            path.Add(("the D point", dPoint));
+            if (DeadEndTouch(passed, rect, runways) is not { } touch)
+            {
+                return idealFt / GeoMath.FeetPerNm;
+            }
+
+            Log.LogDebug(
+                "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: D={IdealFt:F1} ft dropped to S, {Touch} touches the {Other} "
+                    + "holding area ({TouchFt:F1} ft from its centerline, S={OtherFt:F1} ft)",
+                pass,
+                rect.CombinedId,
+                crossing.Edge.TaxiwayName,
+                idealFt,
+                touch.Label,
+                touch.Other.Rect.CombinedId,
+                touch.CrossFt,
+                touch.Other.StandoffFt
+            );
+            return rect.HoldShortNm;
         }
 
+        RunwayRectangle crossed = rect;
+        List<LatLon> path =
+        [
+            sPoint,
+            .. passed.Where(node => CrossTrackNm(crossed, node.Position) > crossed.HoldShortNm).Select(node => node.Position),
+        ];
+        if (point is { } dPoint)
+        {
+            path.Add(dPoint);
+        }
+
+        if (FirstEntry(path, rect, runways) is not { } entry)
+        {
+            return idealFt / GeoMath.FeetPerNm;
+        }
+
+        double clampedFt = Math.Min(idealFt, Math.Max(baseFt, entry.CrossFt - OtherRunwayClampMarginFt));
+        Log.LogDebug(
+            "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: D={IdealFt:F1} ft clamped to D′={ClampedFt:F1} ft, the path from S "
+                + "enters the {Other} holding area at {EntryFt:F1} ft (its bound {BoundFt:F1} ft from its centerline, S={OtherFt:F1} ft) on "
+                + "segment {Segment} ({SegmentFromFt:F1} → {SegmentToFt:F1} ft) at θ={SegmentAngle:F1}° to it",
+            pass,
+            rect.CombinedId,
+            crossing.Edge.TaxiwayName,
+            idealFt,
+            clampedFt,
+            entry.Other.Rect.CombinedId,
+            entry.CrossFt,
+            entry.BoundFt,
+            entry.Other.StandoffFt,
+            entry.Segment,
+            entry.SegmentFromFt,
+            entry.SegmentToFt,
+            entry.SegmentAngleDeg
+        );
+        return clampedFt / GeoMath.FeetPerNm;
+    }
+
+    /// <summary>
+    /// For a walk that dead-ends short of S, and so has no D point either: the first part of its passed nodes that touches
+    /// another runway's holding area (<see cref="FirstTouch"/>), with that runway. Null when none does.
+    /// </summary>
+    private static (string Label, double CrossFt, RunwayPlan Other)? DeadEndTouch(
+        List<GroundNode> passed,
+        in RunwayRectangle rect,
+        IReadOnlyList<RunwayPlan> runways
+    )
+    {
+        List<(string Label, LatLon Position)> path = [.. passed.Select(node => ($"node {node.Id}", node.Position))];
         foreach (RunwayPlan other in runways)
         {
             if (!other.Rect.CombinedId.Equals(rect.CombinedId) && (FirstTouch(path, other.Rect) is { } touch))
             {
-                Log.LogDebug(
-                    "Hold-short standoff ({Pass}) for {Runway} on {Taxiway}: D={IdealFt:F1} ft dropped to S, {Touch} touches the {Other} "
-                        + "holding area ({TouchFt:F1} ft from its centerline, S={OtherFt:F1} ft)",
-                    pass,
-                    rect.CombinedId,
-                    crossing.Edge.TaxiwayName,
-                    idealFt,
-                    touch.Label,
-                    other.Rect.CombinedId,
-                    touch.CrossFt,
-                    other.StandoffFt
-                );
-                return rect.HoldShortNm;
+                return (touch.Label, touch.CrossFt, other);
             }
         }
 
-        return idealFt / GeoMath.FeetPerNm;
+        return null;
     }
+
+    /// <summary>
+    /// The first point along <paramref name="path"/>, walked from its start (the S point) outward, that lies inside another
+    /// runway's holding area as each segment judges it (<see cref="OtherAreaBoundFt"/>): that runway, the point's distance
+    /// from <paramref name="rect"/>'s centerline (ft), the bound it entered (ft), and the entered segment: its index along
+    /// the path, its ends' distances from <paramref name="rect"/>'s centerline (ft) and its angle to that runway
+    /// (<see cref="SegmentAngleToRunwayDeg"/>). The earliest entry over all other runways wins. Null when the path enters
+    /// none.
+    /// </summary>
+    private static OtherAreaEntry? FirstEntry(List<LatLon> path, in RunwayRectangle rect, IReadOnlyList<RunwayPlan> runways)
+    {
+        for (int i = 0; i + 1 < path.Count; i++)
+        {
+            if (EarliestEntryOnSegment(path[i], path[i + 1], rect, runways) is { } entry)
+            {
+                LatLon at = PointAlong(path[i], path[i + 1], entry.Fraction);
+                return new OtherAreaEntry(
+                    entry.Other,
+                    CrossTrackNm(rect, at) * GeoMath.FeetPerNm,
+                    entry.BoundFt,
+                    i,
+                    CrossTrackNm(rect, path[i]) * GeoMath.FeetPerNm,
+                    CrossTrackNm(rect, path[i + 1]) * GeoMath.FeetPerNm,
+                    SegmentAngleToRunwayDeg(path[i], path[i + 1], entry.Other.Rect)
+                );
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Where the path from a crossing's S point first enters another runway's holding area (<see cref="FirstEntry"/>):
+    /// that runway, the entry's distance from the crossed runway's centerline (ft), the bound it entered (ft), the entered
+    /// segment's index along the path, its ends' distances from the crossed runway's centerline (ft), and its angle θ to
+    /// the other runway (degrees, 0-90).
+    /// </summary>
+    private readonly record struct OtherAreaEntry(
+        RunwayPlan Other,
+        double CrossFt,
+        double BoundFt,
+        int Segment,
+        double SegmentFromFt,
+        double SegmentToFt,
+        double SegmentAngleDeg
+    );
+
+    /// <summary>
+    /// The earliest fraction along <paramref name="from"/> → <paramref name="to"/> at which the segment lies inside another
+    /// runway's holding area (<see cref="SegmentEntryFraction"/>), over every runway but <paramref name="rect"/>'s, with
+    /// that runway and its bound (ft). Null when the segment enters none.
+    /// </summary>
+    private static (RunwayPlan Other, double Fraction, double BoundFt)? EarliestEntryOnSegment(
+        LatLon from,
+        LatLon to,
+        in RunwayRectangle rect,
+        IReadOnlyList<RunwayPlan> runways
+    )
+    {
+        (RunwayPlan Other, double Fraction, double BoundFt)? earliest = null;
+        foreach (RunwayPlan other in runways)
+        {
+            if (other.Rect.CombinedId.Equals(rect.CombinedId))
+            {
+                continue;
+            }
+
+            double boundFt = OtherAreaBoundFt(from, to, other.Rect);
+            if ((SegmentEntryFraction(from, to, other.Rect, boundFt) is { } fraction) && ((earliest is null) || (fraction < earliest.Value.Fraction)))
+            {
+                earliest = (other, fraction, boundFt);
+            }
+        }
+
+        return earliest;
+    }
+
+    /// <summary>
+    /// How far (ft) from <paramref name="other"/>'s centerline its holding area reaches as judged along the segment
+    /// <paramref name="from"/> → <paramref name="to"/>: its S plus the angle term for the segment's own angle to the runway
+    /// (<see cref="HoldShortStandoff.CenterlineStandoffFt"/>) when that angle is <see cref="OtherRunwayAngleTermMinDeg"/>
+    /// or more, else S alone; plus <see cref="OtherRunwayAreaMarginFt"/>. Taking the segment's own bearing, never the
+    /// other runway's crossing standoff, keeps the two runways' standoffs independent of each other.
+    /// </summary>
+    private static double OtherAreaBoundFt(LatLon from, LatLon to, in RunwayRectangle other)
+    {
+        double baseFt = other.HoldShortNm * GeoMath.FeetPerNm;
+        double foldedDeg = SegmentAngleToRunwayDeg(from, to, other);
+        double edgeFt =
+            (foldedDeg >= OtherRunwayAngleTermMinDeg) ? HoldShortStandoff.CenterlineStandoffFt(baseFt, RunwayWidthFt(other), foldedDeg) : baseFt;
+        return edgeFt + OtherRunwayAreaMarginFt;
+    }
+
+    /// <summary>
+    /// The angle (degrees, folded to 0-90) between the segment <paramref name="from"/> → <paramref name="to"/> and
+    /// <paramref name="other"/>'s centerline.
+    /// </summary>
+    private static double SegmentAngleToRunwayDeg(LatLon from, LatLon to, in RunwayRectangle other)
+    {
+        double angleDeg = Math.Abs(NormalizeBearingDelta(GeoMath.BearingTo(from, to) - other.TrueHeading.Degrees));
+        return (angleDeg > 90.0) ? 180.0 - angleDeg : angleDeg;
+    }
+
+    /// <summary>
+    /// The first fraction (0-1) along <paramref name="from"/> → <paramref name="to"/> at which the segment is alongside
+    /// <paramref name="other"/>'s length (within <see cref="RunwayTolerance"/> of either end) and no farther than
+    /// <paramref name="boundFt"/> from its centerline, both measured linearly along the segment. Null when it never is.
+    /// </summary>
+    private static double? SegmentEntryFraction(LatLon from, LatLon to, in RunwayRectangle other, double boundFt)
+    {
+        var reference = new LatLon(other.RefLat, other.RefLon);
+        double fromCrossFt = GeoMath.SignedCrossTrackDistanceNm(from, reference, other.TrueHeading) * GeoMath.FeetPerNm;
+        double toCrossFt = GeoMath.SignedCrossTrackDistanceNm(to, reference, other.TrueHeading) * GeoMath.FeetPerNm;
+        double fromAlongNm = GeoMath.AlongTrackDistanceNm(from, reference, other.TrueHeading);
+        double toAlongNm = GeoMath.AlongTrackDistanceNm(to, reference, other.TrueHeading);
+        (double crossLo, double crossHi) = FractionsWithin(fromCrossFt, toCrossFt, -boundFt, boundFt);
+        (double alongLo, double alongHi) = FractionsWithin(fromAlongNm, toAlongNm, -RunwayTolerance, other.LengthNm + RunwayTolerance);
+        double lo = Math.Max(0.0, Math.Max(crossLo, alongLo));
+        double hi = Math.Min(1.0, Math.Min(crossHi, alongHi));
+        return (lo <= hi) ? lo : null;
+    }
+
+    /// <summary>
+    /// The fractions f at which <paramref name="fromValue"/> + f · (<paramref name="toValue"/> − <paramref name="fromValue"/>)
+    /// lies within [<paramref name="min"/>, <paramref name="max"/>], as an interval: unbounded when the value is constant and
+    /// within, empty (low above high) when it is constant and outside.
+    /// </summary>
+    private static (double Lo, double Hi) FractionsWithin(double fromValue, double toValue, double min, double max)
+    {
+        double delta = toValue - fromValue;
+        if (Math.Abs(delta) < 1e-12)
+        {
+            bool within = (fromValue >= min) && (fromValue <= max);
+            return within ? (double.NegativeInfinity, double.PositiveInfinity) : (double.PositiveInfinity, double.NegativeInfinity);
+        }
+
+        double atMin = (min - fromValue) / delta;
+        double atMax = (max - fromValue) / delta;
+        return (Math.Min(atMin, atMax), Math.Max(atMin, atMax));
+    }
+
+    /// <summary>The point <paramref name="fraction"/> of the way from <paramref name="from"/> to <paramref name="to"/>.</summary>
+    private static LatLon PointAlong(LatLon from, LatLon to, double fraction) =>
+        new(from.Lat + (fraction * (to.Lat - from.Lat)), from.Lon + (fraction * (to.Lon - from.Lon)));
 
     /// <summary>
     /// The first part of <paramref name="path"/> that touches the runway's holding area, by the segment from a point to
@@ -1296,6 +1508,40 @@ internal static class RunwayCrossingDetector
         double idealNm
     )
     {
+        (List<GroundNode> passed, (LatLon Near, LatLon Far)? straddle) = WalkToCrossTrack(layout, crossing, rect, idealNm);
+        return (passed, (straddle is { } segment) ? InterpolateAtCrossTrack(rect, segment.Near, segment.Far, idealNm) : null);
+    }
+
+    /// <summary>
+    /// The S point of <paramref name="crossing"/>'s outward walk: where the walk's segment that straddles the runway's base
+    /// separation S reaches it, interpolated without the placement's clamp off the segment ends. Null when the walk
+    /// dead-ends short of S.
+    /// </summary>
+    private static LatLon? ProbeSPoint(AirportGroundLayout layout, Crossing crossing, in RunwayRectangle rect)
+    {
+        if (WalkToCrossTrack(layout, crossing, rect, rect.HoldShortNm).Straddle is not { } segment)
+        {
+            return null;
+        }
+
+        double crossNear = CrossTrackNm(rect, segment.Near);
+        double denom = CrossTrackNm(rect, segment.Far) - crossNear;
+        double fraction = (Math.Abs(denom) < 1e-12) ? 1.0 : (rect.HoldShortNm - crossNear) / denom;
+        return PointAlong(segment.Near, segment.Far, fraction);
+    }
+
+    /// <summary>
+    /// The outward walk of <paramref name="crossing"/> to <paramref name="idealNm"/> from the centerline (the edges
+    /// <see cref="ProbeStandoffPoint"/> follows): the nodes it passes short of that distance, and the segment that
+    /// straddles it, or null when the walk dead-ends first.
+    /// </summary>
+    private static (List<GroundNode> Passed, (LatLon Near, LatLon Far)? Straddle) WalkToCrossTrack(
+        AirportGroundLayout layout,
+        Crossing crossing,
+        in RunwayRectangle rect,
+        double idealNm
+    )
+    {
         var passed = new List<GroundNode>();
         if (CrossTrackNm(rect, crossing.Off.Position) < idealNm)
         {
@@ -1309,7 +1555,7 @@ internal static class RunwayCrossingDetector
         {
             if (CrossTrackNm(rect, current.Position) >= idealNm)
             {
-                return (passed, InterpolateAtCrossTrack(rect, prev.Position, current.Position, idealNm));
+                return (passed, (prev.Position, current.Position));
             }
 
             if (PickWalkContinuation(layout, new WalkStep(crossing.Edge.TaxiwayName, prev, current), visited, rect) is not { } next)
@@ -1338,7 +1584,7 @@ internal static class RunwayCrossingDetector
         double crossNear = CrossTrackNm(rect, near);
         double denom = CrossTrackNm(rect, far) - crossNear;
         double fraction = (Math.Abs(denom) < 1e-12) ? MaxEdgeFraction : Math.Clamp((idealNm - crossNear) / denom, MinEdgeFraction, MaxEdgeFraction);
-        return new LatLon(near.Lat + (fraction * (far.Lat - near.Lat)), near.Lon + (fraction * (far.Lon - near.Lon)));
+        return PointAlong(near, far, fraction);
     }
 
     /// <summary>

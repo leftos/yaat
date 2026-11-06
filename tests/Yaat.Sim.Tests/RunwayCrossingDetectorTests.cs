@@ -771,6 +771,80 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         Assert.Contains(b1Bars, bar => CrossTrackFt(rect, bar) < shortOfFt);
     }
 
+    // -------------------------------------------------------------------------
+    // The angle term near another runway's holding area
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// A taxiway that enters another runway's holding area between S and the angled bar point D, and leaves it again
+    /// before D, has its bar clamped just before that entry: ABQ C's 3/21 bar enters 12/30's angled holding area at
+    /// 549.8 ft from 3/21, so the bar sits 5 ft inside that, short of D (553.2 ft).
+    /// </summary>
+    [Fact]
+    public void Abq_3_21_C_ClampsBeforeRunway12_30sHoldingArea() => AssertBarAt("ABQ", "21", "C", 544.8, 2.0);
+
+    /// <summary>
+    /// A taxiway whose only touch of another runway's holding area lies inside S keeps the angle term: CYS B1 meets 9/27's
+    /// own bar inside 13/31's S, and the path from S out to D never enters 9/27's area, so 13/31's bar sits at D.
+    /// </summary>
+    [Fact]
+    public void Cys_13_31_B1_GoesToD_WhenTheTouchIsInsideS() => AssertBarAt("CYS", "31", "B1", 333.4, 2.0);
+
+    /// <summary>As <see cref="Cys_13_31_B1_GoesToD_WhenTheTouchIsInsideS"/>, on CYS E.</summary>
+    [Fact]
+    public void Cys_13_31_E_GoesToD_WhenTheTouchIsInsideS() => AssertBarAt("CYS", "31", "E", 334.8, 2.0);
+
+    /// <summary>
+    /// A taxiway whose S point already lies inside another runway's holding area keeps its bar at S: the angle term never
+    /// moves the bar into that area.
+    /// </summary>
+    [Theory]
+    [InlineData("HKY", "24", "A3", 261.9)]
+    [InlineData("HKY", "24", "B", 261.9)]
+    [InlineData("MIA", "12", "Q10", 280.0)]
+    [InlineData("COS", "31", "B1", 311.7)]
+    public void FullOverlap_StaysAtS(string airport, string runwayEnd, string taxiway, double expectedFt) =>
+        AssertBarAt(airport, runwayEnd, taxiway, expectedFt, 2.0, every: true);
+
+    /// <summary>
+    /// A path segment running alongside another runway, under 30° to it, judges that runway's holding area by S + 5 ft
+    /// alone, with no angle term: HKY A runs about 301 ft off 6/24, beyond its S + 5 ft, so 1/19's bars on A stay at D.
+    /// </summary>
+    [Fact]
+    public void ParallelSegment_DoesNotWidenTheOtherRunwaysArea() => AssertBarAt("HKY", "19", "A", 275.5, 0.5);
+
+    /// <summary>
+    /// Fails unless the committed layout of <paramref name="airport"/> has a bar of <paramref name="runwayEnd"/>'s runway on
+    /// <paramref name="taxiway"/> within <paramref name="toleranceFt"/> of <paramref name="expectedFt"/> from its centerline;
+    /// with <paramref name="every"/>, unless it has at least one such bar and every one of them is.
+    /// </summary>
+    private static void AssertBarAt(string airport, string runwayEnd, string taxiway, double expectedFt, double toleranceFt, bool every = false)
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airport);
+        Assert.NotNull(layout);
+
+        GroundRunway runway = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Contains(runwayEnd));
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
+        List<double> distances =
+        [
+            .. RunwayBars(layout, runwayEnd)
+                .Where(bar => bar.Edges.Any(edge => edge.MatchesTaxiway(taxiway)))
+                .Select(bar => CrossTrackFt(rect, bar))
+                .Order(),
+        ];
+        string seen = string.Join(", ", distances.Select(ft => ft.ToString("F1", CultureInfo.InvariantCulture)));
+        bool matches = every
+            ? (distances.Count > 0) && distances.All(ft => Math.Abs(ft - expectedFt) <= toleranceFt)
+            : distances.Any(ft => Math.Abs(ft - expectedFt) <= toleranceFt);
+        Assert.True(
+            matches,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{airport} {runwayEnd} {taxiway}: no bar at {expectedFt:F1} ± {toleranceFt:F1} ft; bars at [{seen}]"
+            )
+        );
+    }
+
     /// <summary>
     /// A branch taxiway that ends at a junction keeps its fallback bar when a route out of the junction leaves the
     /// runway's holding area without crossing another bar of the runway within the holding distance: ATL R3/R7/R11 end
@@ -967,14 +1041,16 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
     /// <summary>
     /// The angle term never seats a bar where the taxiway to it touches another runway's holding area: on every committed
     /// layout, for a runway's bar that sits more than <see cref="AirportGroundLayout.HoldingDistanceToleranceFt"/> beyond
-    /// its S (the term moved it), neither the bar nor any node on the taxiway path from the runway out to it touches
-    /// another runway's holding area (<see cref="RunwayCrossingDetector.TouchesHoldingArea"/>). The path is every node
-    /// reached from the bar by steps toward the runway's centerline, short of its pavement.
+    /// its S (the term moved it), neither the bar nor the taxiway path from its S out to it touches another runway's
+    /// holding area (<see cref="RunwayCrossingDetector.TouchesHoldingArea"/>); a touch inside S does not count. The path
+    /// is every node reached from the bar by steps toward the runway's centerline, cut where it reaches S. And walking
+    /// from such a bar alongside another runway toward that runway, that runway's own bar comes before its pavement.
     /// </summary>
     [Fact]
     public void EveryCommittedLayout_NoAngledBarSitsInsideAnotherRunwaysHoldingArea()
     {
         var violations = new List<string>();
+        var inversions = new List<string>();
         foreach (string path in Directory.EnumerateFiles("TestData", "*.geojson").Order(StringComparer.Ordinal))
         {
             string airport = Path.GetFileNameWithoutExtension(path);
@@ -990,10 +1066,12 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
             foreach ((string name, RunwayRectangle rect) in runways)
             {
                 violations.AddRange(AngledBarsInsideOtherHoldingAreas(airport, layout, name, rect, runways));
+                inversions.AddRange(AngledBarsBeyondOtherRunwaysBars(airport, layout, name, rect, runways));
             }
         }
 
         AssertMatchesBaseline("Angled bars inside another runway's holding area", KnownAngledBarViolations, violations);
+        AssertMatchesBaseline("Angled bars beyond another runway's own bar", KnownAngledBarInversions, inversions);
     }
 
     /// <summary>
@@ -1046,10 +1124,11 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
             }
 
             List<(GroundNode From, GroundNode To)> path = PathInFromBar(bar, rect);
+            List<(LatLon From, LatLon To)> beyondS = StepsBeyondS(path, rect, baseFt);
             foreach ((string otherName, RunwayRectangle other) in runways.Where(entry => !entry.Rect.CombinedId.Equals(rect.CombinedId)))
             {
                 bool barTouches = RunwayCrossingDetector.TouchesHoldingArea(bar.Position, other);
-                if (barTouches || path.Any(step => RunwayCrossingDetector.SegmentTouchesHoldingArea(step.From.Position, step.To.Position, other)))
+                if (barTouches || beyondS.Any(step => RunwayCrossingDetector.SegmentTouchesHoldingArea(step.From, step.To, other)))
                 {
                     string steps = string.Join("→", path.Select(step => step.To.Id));
                     CultureInfo inv = CultureInfo.InvariantCulture;
@@ -1058,6 +1137,130 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
                         + string.Create(inv, $"{other.HoldShortNm * FeetPerNm:F1} ft holding area");
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// The part of <paramref name="path"/> (steps from the bar inward, each nearer the runway's centerline) that lies
+    /// beyond the runway's S (<paramref name="baseFt"/>): every step whose start is beyond S, the last one cut where it
+    /// reaches S.
+    /// </summary>
+    private static List<(LatLon From, LatLon To)> StepsBeyondS(List<(GroundNode From, GroundNode To)> path, RunwayRectangle rect, double baseFt)
+    {
+        var steps = new List<(LatLon From, LatLon To)>();
+        foreach ((GroundNode from, GroundNode to) in path)
+        {
+            double fromFt = CrossTrackFt(rect, from);
+            double toFt = CrossTrackFt(rect, to);
+            if (fromFt <= baseFt)
+            {
+                break;
+            }
+
+            if (toFt >= baseFt)
+            {
+                steps.Add((from.Position, to.Position));
+                continue;
+            }
+
+            double fraction = (fromFt - baseFt) / (fromFt - toFt);
+            LatLon atS = new(
+                from.Position.Lat + (fraction * (to.Position.Lat - from.Position.Lat)),
+                from.Position.Lon + (fraction * (to.Position.Lon - from.Position.Lon))
+            );
+            steps.Add((from.Position, atS));
+            break;
+        }
+
+        return steps;
+    }
+
+    /// <summary>
+    /// The angled bars of a runway that sit alongside another runway's length (within
+    /// <see cref="RunwayCrossingDetector.RunwayTolerance"/> of either end) and within its angled holding area (its S plus
+    /// half the taxiway width proxy plus 5 ft), and from which the walk along the bar's taxiway toward that runway reaches
+    /// its pavement without passing one of its bars: the bar order is inverted there, an aircraft holding short of the
+    /// first runway stands beyond the second runway's hold line.
+    /// </summary>
+    private static IEnumerable<string> AngledBarsBeyondOtherRunwaysBars(
+        string airport,
+        AirportGroundLayout layout,
+        string runwayName,
+        RunwayRectangle rect,
+        List<(string Name, RunwayRectangle Rect)> runways
+    )
+    {
+        double baseFt = rect.HoldShortNm * FeetPerNm;
+        foreach (GroundNode bar in layout.Nodes.Values)
+        {
+            bool isBar = (bar.Type == GroundNodeType.RunwayHoldShort) && (bar.RunwayId is { } id) && id.Equals(rect.CombinedId);
+            double crossFt = CrossTrackFt(rect, bar);
+            if (!isBar || (crossFt <= baseFt + AirportGroundLayout.HoldingDistanceToleranceFt))
+            {
+                continue;
+            }
+
+            foreach ((string otherName, RunwayRectangle other) in runways.Where(entry => !entry.Rect.CombinedId.Equals(rect.CombinedId)))
+            {
+                double proxyFt = HoldShortStandoff.TaxiwayWidthProxyFt(RunwayCrossingDetector.RunwayWidthFt(other));
+                double ceilingFt = (other.HoldShortNm * FeetPerNm) + (proxyFt / 2.0) + RunwayCrossingDetector.OtherRunwayAreaMarginFt;
+                if (IsAlongside(other, bar) && (CrossTrackFt(other, bar) <= ceilingFt) && (PavementReachedWithoutBar(bar, other) is { } reached))
+                {
+                    CultureInfo inv = CultureInfo.InvariantCulture;
+                    yield return string.Create(inv, $"{airport} #{bar.Id}: bar of {runwayName} at {crossFt:F1} ft (S {baseFt:F1}) reaches ")
+                        + string.Create(inv, $"{otherName}'s pavement at #{reached.Id} before any of its bars ({CrossTrackFt(other, bar):F1} ft ")
+                        + string.Create(inv, $"from it, S {other.HoldShortNm * FeetPerNm:F1})");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="node"/> lies alongside the runway's length, within
+    /// <see cref="RunwayCrossingDetector.RunwayTolerance"/> of either end (the along-track test of
+    /// <see cref="RunwayCrossingDetector.TouchesHoldingArea"/>).
+    /// </summary>
+    private static bool IsAlongside(RunwayRectangle rect, GroundNode node)
+    {
+        double alongNm = GeoMath.AlongTrackDistanceNm(node.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading);
+        return (alongNm >= -RunwayCrossingDetector.RunwayTolerance) && (alongNm <= rect.LengthNm + RunwayCrossingDetector.RunwayTolerance);
+    }
+
+    /// <summary>
+    /// The first node on <paramref name="other"/>'s pavement that the walk from <paramref name="bar"/> along its own
+    /// taxiway reaches, each step to the neighbour nearest that runway's centerline, without passing a bar of that runway;
+    /// null when the walk meets one of its bars first or stops short of its pavement.
+    /// </summary>
+    private static GroundNode? PavementReachedWithoutBar(GroundNode bar, RunwayRectangle other)
+    {
+        string[] taxiways = [.. bar.Edges.OfType<GroundEdge>().Where(edge => !edge.IsRunwayCenterline).Select(edge => edge.TaxiwayName).Distinct()];
+        GroundNode node = bar;
+        while (true)
+        {
+            GroundNode current = node;
+            double crossFt = CrossTrackFt(other, current);
+            GroundNode? next = current
+                .Edges.Where(edge => !edge.IsRunwayCenterline && taxiways.Any(edge.MatchesTaxiway))
+                .Select(edge => edge.OtherNode(current))
+                .Where(candidate => CrossTrackFt(other, candidate) < crossFt)
+                .MinBy(candidate => CrossTrackFt(other, candidate));
+            if (next is null)
+            {
+                return null;
+            }
+
+            if (RunwayCrossingDetector.IsOnRunway(next.Position, other))
+            {
+                return next;
+            }
+
+            bool isOtherBar = (next.Type == GroundNodeType.RunwayHoldShort) && (next.RunwayId is { } id) && id.Equals(other.CombinedId);
+            if (isOtherBar)
+            {
+                return null;
+            }
+
+            node = next;
         }
     }
 
@@ -1151,13 +1354,6 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         "sea 34R - 16L: J/J - H",
         "aus 18L - 36R: H/G - H/H - G",
         // Found when every vNAS taxi-graph layout was committed; untriaged (data quirk vs detector gap), tracked by YAAT-1915:
-        "ABQ 12 - 30: C/F - C",
-        "ABQ 12 - 30: G",
-        "ABQ 12 - 30: G - RWY03/21",
-        "ABQ 12 - 30: RAMP/G - RAMP",
-        "ABQ 12 - 30: RAMP/G - RAMP",
-        "ABQ 12 - 30: RAMP/G - RAMP",
-        "ABQ 12 - 30: RAMP/G - RAMP",
         "ABQ 3 - 21: F2/F2 - RAMP",
         "ABQ 3 - 21: F4/F4 - RAMP",
         "ABQ 3 - 21: F6/F6 - RAMP",
@@ -1242,7 +1438,7 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         "LAS 1L - 19R: H/F - H",
         "LAS 1L - 19R: H/F - H",
         "LAS 1R - 19L: Y",
-        "LGA 4 - 22: AA/AA - P",
+        "LGA 4 - 22: AA",
         "LZU 7 - 25: ZHP/RAMP/ZHP - RAMP",
         "MDW 22L - 4R: Y",
         "MDW 22L - 4R: Y/Y1",
@@ -1369,12 +1565,15 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
     /// The angled bars the committed layouts have inside another runway's holding area, each tracked by the issue its comment
     /// names. A fix that moves one removes it; any other violation fails the sweep.
     /// </summary>
-    private static readonly string[] KnownAngledBarViolations =
-    [
-        // Angled bars inside another runway's holding area, fixed by YAAT-1252 (clamp the dropped angle term):
-        "CRG #47: bar of 14 - 32 at 266.8 ft (S 250.4) is 231.7 ft from 5 - 23; its path [53→132] touches its 200.0 ft holding area",
-        "HPN #99: bar of 16 - 34 at 299.7 ft (S 284.4) is 301.5 ft from 11 - 29; its path [114→352→354] touches its 200.0 ft holding area",
-    ];
+    private static readonly string[] KnownAngledBarViolations = [];
+
+    /// <summary>
+    /// The angled bars the committed layouts have beyond another runway's own bar (an aircraft holding short of the first
+    /// runway stands past the second runway's hold line). These predate the clamp of the angle term at the other runway's
+    /// holding area and are tracked as their own item. The list is empty: no committed layout has one, and any inversion
+    /// fails the sweep.
+    /// </summary>
+    private static readonly string[] KnownAngledBarInversions = [];
 
     private static string DescribeTaxiways(GroundNode node) =>
         string.Join("/", node.Edges.Where(edge => !edge.IsRunwayCenterline).Select(edge => edge.TaxiwayName).Distinct());

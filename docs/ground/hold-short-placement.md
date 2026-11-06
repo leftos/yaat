@@ -29,7 +29,11 @@ The bar is placed by the reviewed standoff rule (`HoldShortStandoff`; AIM 2-3-5.
 
 θ is the bearing, against the runway heading, of the walk segment where the taxiway centerline reaches cross-track S (`MeasureCrossingAngleDeg`, measured at parse time before the fillets exist). W_twy is a proxy from the *crossed* runway's width, as the layout carries no taxiway width: 75 ft from a 150 ft runway up, 50 from 100, 35 from 75, else 25 (`TaxiwayWidthProxyFt`). D is threaded to the placement as a per-crossing target and never stored on the runway.
 
-D is the rule's standoff, D_rule. D is not taken, and the bar is seated at S, when the taxiway path from the crossing to the D point, or the D point itself, comes within another runway's S plus 5 ft (`OtherRunwayAreaMarginFt`) of its centerline alongside its length (`TouchesHoldingArea`); a taxiway between two close runways keeps its bar out of the other's holding area.
+D is the rule's standoff, D_rule. Where the taxiway path of a crossing of runway A touches another runway B's holding area, the bar is clamped instead of dropped to S (`CrossingStandoffNm`). `ProbeSPoint` finds the S point, where the outward walk reaches A's S, and the probe walks the path from there outward: the S point, the nodes the walk passes beyond S, then the D point (`ProbeStandoffPoint`). The bar sits at D′ = min(D, max(S, first entry into B's area − 5 ft)), 5 ft being `OtherRunwayClampMarginFt`.
+
+B's area is judged per path segment (`FirstEntry`): B's S plus the angle term (`HoldShortStandoff.CenterlineStandoffFt`) when the segment crosses B at `OtherRunwayAngleTermMinDeg` (30°) or more, else B's S alone, plus `OtherRunwayAreaMarginFt` (5 ft), alongside B's length. A touch inside A's S no longer counts, so a path that only meets B's area before S keeps its bar at D. A partial overlap clamps D′ between S and D; a full overlap, where the area is entered at or inside S, leaves the bar at S.
+
+A walk that ends past S but short of D is judged on its path from the S point to the last node it reaches. A walk that dead-ends short of S has no S point and keeps the touch rule (`TouchesHoldingArea`, `DeadEndTouch`): S when a passed node touches B's S plus 5 ft, else D. A taxiway between two close runways keeps its bar out of the other's holding area.
 
 A **short bar** is a hold-short node inside S (a dead-end fallback), a **far bar** the crossed runway's bar on the side an aircraft leaves by (both in [CONTEXT.md](../../CONTEXT.md)). Because an angled bar is farther out than S, code that must reach a runway's bars bounds its walk by the largest cross-track among the runway's hold-line bars (`AirportGroundLayout.OutwardWalkBoundFt`), not by S.
 
@@ -370,5 +374,9 @@ dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --debug-fillets --d
 Regression coverage: `tests/Yaat.Sim.Tests/Data/Airport/HoldShortStandoffTests.cs` pins the rule (by width, length and ILS, the elevation term, calibrated and authored precedence, the 15 ft warning, the taxiway width proxy, the angle term).
 
 `tests/Yaat.Sim.Tests/RunwayCrossingDetectorTests.cs` pins it on real layouts: `DetectRunwayCrossings_Oak_AngledHoldShortsSitOutByTheAngleTerm` (perpendicular bars at S, angled bars at D), `BuildRunwayRectangle_Oak_UsesTheRuleOverAStaleAuthoredValue_ElseTheRule` (OAK 28R authors 225 ft, the rule gives 250 ft), `DetectRunwayCrossings_Oak_StoresTheResolvedStandoff` and `EveryCommittedLayout_NoAngledBarSitsInsideAnotherRunwaysHoldingArea`.
+
+That sweep judges only the part of each angled bar's taxiway path beyond the crossed runway's S, so a touch inside S is not a violation, and a second check (`KnownAngledBarInversions`) guards against an angled bar of runway A sitting past runway B's own bar alongside B. Both baselines (`KnownAngledBarViolations`, `KnownAngledBarInversions`) are empty. Per-bar tests pin the clamp and the full-overlap cases on real layouts (ABQ 3/21 C clamps, CYS 13/31 B1 and E go to D, full overlaps stay at S).
+
+OAK is the only committed layout with a tower-cab videomap (`tests/Yaat.Sim.Tests/TestData/TowerCabMaps`), so every other test layout is seated by the rule alone.
 
 `tests/Yaat.Sim.Tests/Data/Airport/RunwayHoldBarsMarkingTests.cs` pins the painted-segment depth ([runway-fouling.md](../runway-fouling.md)), and `LocalizerCategoryTests` the ILS category read.
