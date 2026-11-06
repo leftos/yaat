@@ -10,6 +10,7 @@
 
 ### Fixed
 
+- Under `LAHSO`, a landing no longer picks a shallow high-speed exit whose turn-off would cross the hold-short marking before leaving the runway.
 - Aircraft without an assigned speed hold their climb or descent airspeed to the crossover, then fly Mach, instead of exceeding their own climb Mach.
 - A `CFIX` the departure's TDLS maintain already meets no longer assigns its crossing altitude, so the aircraft keeps flying the maintain.
 - A landing with no reachable exit rolls to a planned stop on the remaining runway and asks to back-taxi, instead of steering toward a ramp or taxiway.

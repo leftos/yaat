@@ -1428,10 +1428,10 @@ public sealed class LandingPhase : Phase
             && !CanTurnOffAtTurnEntry(ctx, plan, _candidateExit);
 
         // A LAHSO lander hands off only with a candidate RunwayExitPhase will actually honour: one the resolver has
-        // restricted to a branch point before the hold-short point, that carries a real path, and whose hold-short
-        // is unclaimed. RunwayExitPhase drops a committed exit that fails either of the last two and re-searches
-        // the centerline with no knowledge of the hold-short point, which would put the exit back past it. Without
-        // such a candidate the aircraft stays in rollout under the LAHSO ceiling and stops at the point.
+        // restricted to an exit whose turn-off leaves the runway before the hold-short point, that carries a real path,
+        // and whose hold-short is unclaimed. RunwayExitPhase drops a committed exit that fails either of the last two
+        // and re-searches the centerline with no knowledge of the hold-short point, which would put the exit back past
+        // it. Without such a candidate the aircraft stays in rollout under the LAHSO ceiling and stops at the point.
         bool lahsoAllowsHandoff = !_hasLahso || ((_candidateExit is { Path.Count: >= 2 }) && !IsHoldShortOccupied(ctx, _candidateExit));
 
         return lahsoAllowsHandoff && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed);
@@ -2507,33 +2507,71 @@ public sealed class LandingPhase : Phase
     private double LahsoSetbackNm(AircraftState aircraft) => LahsoStopMarginNm + NoseOffsetNm(aircraft);
 
     /// <summary>
-    /// Furthest a branch point may lie from the landing threshold, along the runway, for an aircraft of
-    /// <paramref name="aircraftType"/> turning off there to leave the runway before a LAHSO hold-short point
-    /// <paramref name="holdShortDistNm"/> from the threshold: the point less the tick margin and the nose offset. The final-approach
-    /// forecast's form of the limit the rollout keeps (<see cref="LahsoStopLimitNm(AircraftState)"/>).
+    /// Furthest from the landing threshold a turn-off may leave the runway (<see cref="TurnOffFitsBefore"/>) for an
+    /// aircraft of <paramref name="aircraftType"/> holding short at a LAHSO point
+    /// <paramref name="holdShortDistNm"/> from the threshold: the point less the tick margin and the nose offset. The
+    /// final-approach forecast's form of the limit the rollout keeps (<see cref="LahsoStopLimitNm(AircraftState)"/>).
     /// </summary>
     internal static double LahsoStopLimitNm(double holdShortDistNm, string aircraftType) =>
         holdShortDistNm - (LahsoStopMarginNm + NoseOffsetNmOf(aircraftType));
 
-    /// <summary>The LAHSO stop limit for this landing's exit searches (<see cref="BranchFitsBefore"/>); null without LAHSO.</summary>
+    /// <summary>The LAHSO stop limit for this landing's exit searches (<see cref="TurnOffFitsBefore"/>); null without LAHSO.</summary>
     private double? LahsoStopLimitNm(AircraftState aircraft) => _hasLahso ? _lahsoHoldShortDistNm - LahsoSetbackNm(aircraft) : null;
 
     /// <summary>The branch points the crew has said "unable" at on this landing, for an exit search to pass over; null when none.</summary>
     private HashSet<int>? UnableBranchPointsOrNull() => _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null;
 
     /// <summary>
-    /// True when <paramref name="branchNode"/> lies no further than <paramref name="stopLimitNm"/> along the runway from the landing
-    /// threshold.
+    /// Flattest exit angle the run-on is judged at, in degrees: a flatter turn-off covers more pavement, so a degenerate
+    /// angle is judged no gentler than this rather than dividing by a tangent near zero.
     /// </summary>
-    private static bool BranchFitsBefore(GroundNode branchNode, LandingPlan plan, double stopLimitNm)
+    private const double MinTurnOffAngleDeg = 10.0;
+
+    /// <summary>
+    /// Along-runway distance, in nautical miles, between an exit's branch point and the point where an aircraft turning
+    /// off at <paramref name="exitAngleDeg"/> leaves the runway pavement: half the runway width divided by the tangent of
+    /// the angle. A right-angle exit and a back exit leave the pavement at the branch point, and an unknown runway width
+    /// leaves the judgment there too.
+    /// </summary>
+    /// <param name="exitAngleDeg">The exit's turn-off angle from the runway heading, in degrees.</param>
+    /// <param name="runwayWidthFt">The assigned runway's width in feet; 0 when it is unknown.</param>
+    /// <returns>The run-on distance in nautical miles, 0 for a right-angle or back exit.</returns>
+    internal static double TurnOffRunOnNm(double exitAngleDeg, double runwayWidthFt)
     {
-        double branchFromThreshold = GeoMath.AlongTrackDistanceNm(
-            branchNode.Position,
-            new LatLon(plan.ThresholdLat, plan.ThresholdLon),
-            plan.RunwayHeading
-        );
-        return branchFromThreshold <= stopLimitNm;
+        double clampedAngleDeg = Math.Clamp(exitAngleDeg, MinTurnOffAngleDeg, 90.0);
+        if ((clampedAngleDeg >= 90.0) || (runwayWidthFt <= 0))
+        {
+            return 0;
+        }
+
+        double halfWidthFt = runwayWidthFt / 2.0;
+        return halfWidthFt / Math.Tan(clampedAngleDeg * (Math.PI / 180.0)) / GeoMath.FeetPerNm;
     }
+
+    /// <summary>
+    /// True when an aircraft turning off at <paramref name="exitAngleDeg"/> from a branch point
+    /// <paramref name="branchFromThresholdNm"/> along the runway leaves the runway pavement no further than
+    /// <paramref name="stopLimitNm"/> from the landing threshold — the extent AIM 2-3-5.a.2 measures the holding position
+    /// marking against, so an exit whose arc runs on past the limit does not clear the marking.
+    /// </summary>
+    /// <param name="branchFromThresholdNm">The branch point's along-runway distance from the landing threshold, in nautical miles.</param>
+    /// <param name="exitAngleDeg">The exit's turn-off angle from the runway heading, in degrees.</param>
+    /// <param name="runwayWidthFt">The assigned runway's width in feet; 0 when it is unknown.</param>
+    /// <param name="stopLimitNm">The furthest from the threshold the turn-off may leave the pavement, in nautical miles.</param>
+    /// <returns>True when the turn-off arc leaves the runway at or before the stop limit.</returns>
+    internal static bool TurnOffFitsBefore(double branchFromThresholdNm, double exitAngleDeg, double runwayWidthFt, double stopLimitNm) =>
+        TurnOffArcFitsBefore(branchFromThresholdNm, TurnOffRunOnNm(exitAngleDeg, runwayWidthFt), stopLimitNm);
+
+    /// <summary>
+    /// <see cref="TurnOffFitsBefore"/> from an already-measured run-on (<see cref="TurnOffRunOnNm"/>), so a caller that
+    /// also logs the run-on measures it once.
+    /// </summary>
+    /// <param name="branchFromThresholdNm">The branch point's along-runway distance from the landing threshold, in nautical miles.</param>
+    /// <param name="runOnNm">The turn-off arc's run-on past the branch point, in nautical miles.</param>
+    /// <param name="stopLimitNm">The furthest from the threshold the turn-off may leave the pavement, in nautical miles.</param>
+    /// <returns>True when the turn-off arc leaves the runway at or before the stop limit.</returns>
+    internal static bool TurnOffArcFitsBefore(double branchFromThresholdNm, double runOnNm, double stopLimitNm) =>
+        (branchFromThresholdNm + runOnNm) <= stopLimitNm;
 
     /// <summary>
     /// Commits the next exit ahead that the runway's centerline graph offers (<see cref="FindGraphCandidate"/>) as the
@@ -2574,7 +2612,8 @@ public sealed class LandingPhase : Phase
         public required HashSet<int>? ExcludeBranchPoints { get; init; }
 
         /// <summary>
-        /// Under LAHSO, the furthest a branch point may lie from the landing threshold (<see cref="BranchFitsBefore"/>); null without.
+        /// Under LAHSO, the furthest from the landing threshold an exit's turn-off arc may leave the runway
+        /// (<see cref="TurnOffFitsBefore"/>); null without.
         /// </summary>
         public required double? LahsoStopLimitNm { get; init; }
 
@@ -2868,17 +2907,15 @@ public sealed class LandingPhase : Phase
             return AirportGroundLayout.CandidateVerdict.Skip;
         }
 
-        // Under a LAHSO clearance an exit past the hold-short point is no use, however reachable it is: the aircraft has
-        // to be stopped short of the point. Skipped like an unreachable candidate, so the search moves on and the stop at
-        // the point remains the fallback.
-        if ((query.LahsoStopLimitNm is { } lahsoStopLimitNm) && !query.IgnoreLahso && !BranchFitsBefore(branchNode, query.Plan, lahsoStopLimitNm))
+        // Under a LAHSO clearance an exit whose turn-off arc reaches past the hold-short point is no use, however
+        // reachable it is: the aircraft has to be stopped short of the point. Skipped like an unreachable candidate, so
+        // the search moves on and the stop at the point remains the fallback.
+        if (
+            (query.LahsoStopLimitNm is { } lahsoStopLimitNm)
+            && !query.IgnoreLahso
+            && !TurnOffFitsLahsoLimit(query, candidate, branchNode, lahsoStopLimitNm)
+        )
         {
-            Log.LogDebug(
-                "[Landing] {Callsign}: skipping exit {Taxiway} — branch point is past the LAHSO stop limit at {StopLimit:F2}nm",
-                aircraft.Callsign,
-                candidate.Taxiway,
-                lahsoStopLimitNm
-            );
             return AirportGroundLayout.CandidateVerdict.Skip;
         }
 
@@ -2898,6 +2935,42 @@ public sealed class LandingPhase : Phase
         }
 
         return AirportGroundLayout.CandidateVerdict.Accept;
+    }
+
+    /// <summary>
+    /// <see cref="TurnOffFitsBefore"/> for <paramref name="candidate"/>'s <paramref name="branchNode"/> against a LAHSO
+    /// <paramref name="stopLimitNm"/>, measured from the landing threshold along the runway heading with the assigned
+    /// runway's width. Logs the skip when the turn-off arc runs past the limit.
+    /// </summary>
+    private static bool TurnOffFitsLahsoLimit(
+        ExitCandidateQuery query,
+        AirportGroundLayout.CenterlineExitResult candidate,
+        GroundNode branchNode,
+        double stopLimitNm
+    )
+    {
+        double branchFromThresholdNm = GeoMath.AlongTrackDistanceNm(
+            branchNode.Position,
+            new LatLon(query.Plan.ThresholdLat, query.Plan.ThresholdLon),
+            query.Plan.RunwayHeading
+        );
+        double runwayWidthFt = query.Aircraft.Phases?.AssignedRunway?.WidthFt ?? 0;
+        double runOnNm = TurnOffRunOnNm(candidate.ExitAngle, runwayWidthFt);
+        if (TurnOffArcFitsBefore(branchFromThresholdNm, runOnNm, stopLimitNm))
+        {
+            return true;
+        }
+
+        Log.LogDebug(
+            "[Landing] {Callsign}: skipping exit {Taxiway} — branch point at {Branch:F3}nm plus a {RunOn:F3}nm "
+                + "turn-off arc is past the LAHSO stop limit at {StopLimit:F2}nm",
+            query.Aircraft.Callsign,
+            candidate.Taxiway,
+            branchFromThresholdNm,
+            runOnNm,
+            stopLimitNm
+        );
+        return false;
     }
 
     /// <summary>
