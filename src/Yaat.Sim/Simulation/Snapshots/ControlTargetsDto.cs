@@ -31,6 +31,11 @@ public sealed class ControlTargetsDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool SpeedMaxHeld { get; init; }
 
+    // Schema 47: the transmission that accepted the speed in force, written only when set; an older snapshot has none and
+    // restores null (no speed accepted in any known transmission).
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? AssignedSpeedTransmissionId { get; init; }
+
     public bool HasExplicitTurnRate { get; init; }
     public double? TargetMach { get; init; }
     public List<NavigationTargetDto>? NavigationRoute { get; init; }

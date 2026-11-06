@@ -200,7 +200,7 @@ The TDLS `DefaultInitialAlt` of a SID transition: the "maintain" altitude a bare
 _Avoid_: initial-altitude cap, SID hold altitude
 
 **Speed restated in transmission**:
-The fact (`CommandBlock.SpeedRestatedInTransmission`, `DispatchContext.SpeedRestatedInTransmission`) that a speed was assigned in the block or in an earlier block of the same transmission as a DVIA, CVIA or approach clearance, which then leaves that speed standing instead of cancelling it (7110.65 5-7-1.c). A crossing speed does not count.
+The fact that the speed in force was accepted in the DVIA, CVIA or approach clearance's own transmission or a later one (`ControlTargets.AssignedSpeedTransmissionId` at or after the clearance's transmission id, tested by `NavigationCommandHandler.SpeedStandsUnderClearance`), which then leaves that speed standing instead of cancelling it (7110.65 5-7-1.c, d). Judged when the clearance fires: a speed of the same transmission that has not fired yet, never fires or is refused restates nothing. A crossing speed does not count.
 _Avoid_: speed in block
 
 **Speed revert**:
@@ -216,7 +216,7 @@ The altitude a climb via climbs to, held in `AircraftProcedure.ClimbViaTargetFt`
 _Avoid_: ceiling (`SidViaCeiling` is only the assigned "except maintain" altitude, and a restriction ahead can lower the target below the top)
 
 **Transmission id**:
-The per-aircraft number (`CommandQueue.LastTransmissionId`) one transmission takes when it carries a CFIX, a constrained DCTF or a `DVIA SPD n FIX`, shared by every block that transmission queues and stamped on the fixes it constrains. A descend via compares it to tell a crossing restated in its own transmission, which it keeps, from an earlier one, which it supersedes. A DVIA or CVIA stamps it on the aircraft (`AircraftProcedure.StarViaTransmissionId` / `ClimbViaTransmissionId`) so a CFIX of the same transmission knows the via clearance has applied. Other transmissions take none.
+The per-aircraft number (`CommandQueue.LastTransmissionId`) every accepted transmission takes (a refused one hands it back), shared by every block that transmission queues and stamped on the fixes a CFIX, a constrained DCTF or a `DVIA SPD n FIX` constrains and, when a speed command applies, on the assignment in force (`ControlTargets.AssignedSpeedTransmissionId`). A descend via compares it to tell a crossing restated in its own transmission, which it keeps, from an earlier one, which it supersedes. A DVIA or CVIA stamps it on the aircraft (`AircraftProcedure.StarViaTransmissionId` / `ClimbViaTransmissionId`) so a CFIX of the same transmission knows the via clearance has applied.
 _Avoid_: command id, sequence number (a transmission is the whole `;`/`,` text sent to one aircraft at once)
 
 **Baked draw**:

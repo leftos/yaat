@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 46;
+    public const int CurrentSchemaVersion = 47;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -388,6 +388,14 @@ public static class SnapshotSchemaMigrator
                 MigrateLegacyReportedNoExitAhead(ac.Phases);
             }
         }
+
+        // V46→V47: CommandBlockDto's enqueue-time "a speed was assigned in an earlier block of this transmission" flag was
+        //   removed; a via or approach clearance now judges the speed in force when it fires, by ControlTargetsDto's new
+        //   AssignedSpeedTransmissionId (the transmission that accepted it), and every transmission now takes an id. The old
+        //   member no longer exists on the DTO, so deserialization drops it from an older snapshot's queued blocks and no data
+        //   transformation is needed. An older snapshot carries no AssignedSpeedTransmissionId, which restores null: "no speed
+        //   accepted in any known transmission", so a restored queued clearance cancels the speed in force even where the old
+        //   flag would have left it standing.
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

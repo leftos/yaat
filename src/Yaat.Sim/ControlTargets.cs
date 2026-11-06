@@ -156,6 +156,16 @@ public class ControlTargets
     public bool SpeedMaxHeld { get; set; }
 
     /// <summary>
+    /// The transmission (<see cref="Commands.DispatchContext.TransmissionId"/>) in which the speed assignment in force was
+    /// accepted: stamped when a SPD, SPDN, SPEEDF, MACH, SMAX or RFAS applies, never by a refused one, and cleared with the
+    /// assignment. A via or approach clearance cancels a speed assigned before it was issued and leaves one restated with it
+    /// standing (7110.65 5-7-1.c, d): a stamp at or after the clearance's own transmission stands; an earlier one or null
+    /// is cancelled. Judged when the clearance fires, so a speed of its transmission that has not fired yet, never fires or
+    /// is refused restates nothing.
+    /// </summary>
+    public int? AssignedSpeedTransmissionId { get; set; }
+
+    /// <summary>
     /// True when the user has issued an explicit TRATE command.
     /// Prevents pattern phases from overwriting TurnRateOverride.
     /// Cleared on TRATE (no arg), Warp, WarpGround, and phase-clear.
@@ -198,6 +208,7 @@ public class ControlTargets
             SpeedOverridesFinalGate = SpeedOverridesFinalGate,
             SpeedLimitsLifted = SpeedLimitsLifted,
             SpeedMaxHeld = SpeedMaxHeld,
+            AssignedSpeedTransmissionId = AssignedSpeedTransmissionId,
             HasExplicitTurnRate = HasExplicitTurnRate,
             TargetMach = TargetMach,
             NavigationRoute = NavigationRoute.Count > 0 ? [.. NavigationRoute.Select(n => n.ToSnapshot())] : null,
@@ -225,6 +236,7 @@ public class ControlTargets
         targets.SpeedOverridesFinalGate = dto.SpeedOverridesFinalGate;
         targets.SpeedLimitsLifted = dto.SpeedLimitsLifted;
         targets.SpeedMaxHeld = dto.SpeedMaxHeld;
+        targets.AssignedSpeedTransmissionId = dto.AssignedSpeedTransmissionId;
         targets.HasExplicitTurnRate = dto.HasExplicitTurnRate;
         targets.TargetMach = dto.TargetMach;
         targets.NavigationRoute.Clear();

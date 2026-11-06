@@ -95,7 +95,7 @@ and the FAA model for a partially-invalidated clearance is re-issuance, not frag
 amended clearance cancels). `CommandQueue.DiscardChainRemainder` removes every later,
 not-yet-applied block with the same `SourceCommandText` (the per-dispatch grouping key — blocks
 queued by *other* dispatches survive), marks the failed block's commands complete so the queue
-advances past it, and one warning names both the failure and the discarded commands.
+advances past it, and one warning names both the failure and the discarded commands. A discarded or refused speed stamps no `ControlTargets.AssignedSpeedTransmissionId`, so a via or approach clearance of the same transmission does not treat it as restated: `NavigationCommandHandler.SpeedStandsUnderClearance` judges the speed in force when the clearance fires.
 
 One block is not a fire-time failure: a CTO, CTOPP or LUAW block for a departure under a hold for release (`Ground.HeldForRelease`). `FlightPhysics.ApplyBlock` leaves it unapplied with its chain intact (`WaitsForRelease`) and returns `BlockApplyOutcome.Deferred`, not `Failed`: nothing is discarded.
 
@@ -200,7 +200,7 @@ accepted. `LV`, `ATFN`, `ONHS` and `OTG` never reach this case: each refuses a m
    supersedes it.
 4. **Split-block metadata loss** (#281): `SplitBlockNonConflicting` rebuilds a partially-superseded
    block; every `CommandBlock` field must be re-derived or copied. `SplitBlockPreservationTests`
-   pins the full property set by reflection. `TransmissionId` belongs to the transmission that queued the kept commands, so the rebuilt block copies it rather than taking the superseding transmission's; so do `SpeedRestatedInTransmission`, `CrossingsClearedInTransmission` and `CrossFeedsFollowingClearance`, which are serialized and never recomputed from `SourceCommandText`, since a repeated or split block cannot be placed in its transmission from the text.
+   pins the full property set by reflection. `TransmissionId` belongs to the transmission that queued the kept commands, so the rebuilt block copies it rather than taking the superseding transmission's; so do `CrossingsClearedInTransmission` and `CrossFeedsFollowingClearance`, which are serialized and never recomputed from `SourceCommandText`, since a repeated or split block cannot be placed in its transmission from the text.
 
    A queued block dropped before it applied (a later lateral command, `DELAT`/`DELCOND`, `NODEL`, a fire-time chain abort) needs no bookkeeping for a DVIA or CVIA it held: a CFIX takes no reverts only when a via clearance of its own transmission has already applied (`AircraftProcedure.StarViaTransmissionId` / `ClimbViaTransmissionId`, read by `NavigationCommandHandler.ViaAppliedInTransmission`), so a CFIX queued beside a dropped or refused via clearance fires as a lone CFIX would, with its reverts.
 5. **Idle-phase stranding** (#407/#311): a new "waiting for a command" ground phase must override

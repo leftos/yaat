@@ -1232,8 +1232,108 @@ public class DescendViaSpeedResumeTests
     }
 
     /// <summary>
+    /// "AT B SPD 200; AT A CAPP I30" with A reached first: the 200 is not given yet when the clearance fires, so the
+    /// clearance cancels the 250 an earlier transmission assigned (7110.65 5-7-1.d); at B the 200 applies and stands.
+    /// </summary>
+    [Fact]
+    public void ClearanceFiresBeforeItsTransmissionsSpeed_CancelsTheEarlierSpeed()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        string first = aircraft.Targets.NavigationRoute[0].Name;
+        string second = aircraft.Targets.NavigationRoute[1].Name;
+        SendOk(harness, "SPD 250");
+        Tick(harness, 5);
+        SendOk(harness, $"AT {second} SPD 200; AT {first} CAPP I30");
+        TickUntilPassed(harness, first);
+        Tick(harness, 1);
+
+        Assert.True(
+            (aircraft.Approach.PendingClearance is not null) || (aircraft.Phases?.ActiveApproach is not null),
+            "The approach clearance never applied"
+        );
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+
+        TickUntilPassed(harness, second);
+        Tick(harness, 5);
+
+        Assert.Equal(200, aircraft.Targets.AssignedSpeed);
+        Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
+    }
+
+    /// <summary>
+    /// "AT WESLA SPD 200; AT A CAPP I30" on an OAKES3 arrival that never passes WESLA (a KSFO departure fix): the speed
+    /// never takes effect, so it restates nothing and the clearance cancels the 250 an earlier transmission assigned.
+    /// </summary>
+    [Fact]
+    public void SpeedBlockThatNeverFires_RestatesNothing()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        string first = aircraft.Targets.NavigationRoute[0].Name;
+        Assert.DoesNotContain(aircraft.Targets.NavigationRoute, t => t.Name == "WESLA");
+        SendOk(harness, "SPD 250");
+        Tick(harness, 5);
+        SendOk(harness, $"AT WESLA SPD 200; AT {first} CAPP I30");
+        TickUntilPassed(harness, first);
+        Tick(harness, 5);
+
+        Assert.True(
+            (aircraft.Approach.PendingClearance is not null) || (aircraft.Phases?.ActiveApproach is not null),
+            "The approach clearance never applied"
+        );
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+    }
+
+    /// <summary>
+    /// "AT B CAPP I30; AT A SPD 60" with A reached first: the 60 is below the jet's minimum and refused when it fires, and
+    /// the chain abort spares the clearance's earlier block, which fires at B after the refusal. The refused speed restates
+    /// nothing, so the clearance cancels the 250 an earlier transmission assigned and restores nothing. It guards "a refused
+    /// speed stamps nothing": it was green on the base, where the clearance's block found no speed before it in the text.
+    /// </summary>
+    [Fact]
+    public void ApproachClearanceAfterRefusedSpeed_CancelsWithoutRestoring()
+    {
+        if (BuildHarness() is not { } harness)
+        {
+            return;
+        }
+
+        AircraftState aircraft = harness.Aircraft;
+        string first = aircraft.Targets.NavigationRoute[0].Name;
+        string second = aircraft.Targets.NavigationRoute[1].Name;
+        SendOk(harness, "SPD 250");
+        Tick(harness, 5);
+        SendOk(harness, $"AT {second} CAPP I30; AT {first} SPD 60");
+        TickUntilPassed(harness, first);
+        Tick(harness, 1);
+        _output.WriteLine($"Warnings: {string.Join(" | ", aircraft.PendingWarnings)}");
+        Assert.Equal(250, aircraft.Targets.AssignedSpeed);
+
+        TickUntilPassed(harness, second);
+        Tick(harness, 5);
+
+        Assert.True(
+            (aircraft.Approach.PendingClearance is not null) || (aircraft.Phases?.ActiveApproach is not null),
+            "The approach clearance never applied"
+        );
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+    }
+
+    /// <summary>
     /// As <see cref="SpeedThenConditionalApproachClearance_SameTransmission_KeepsTheSpeed"/>, across a snapshot taken
-    /// while the conditional clearance is still queued: the restored block carries the fact that the speed was restated before it.
+    /// while the conditional clearance is still queued: the restored speed carries the stamp of the clearance's transmission.
     /// </summary>
     [Fact]
     public void SpeedThenConditionalApproachClearance_RestoredFromSnapshot_KeepsTheSpeed()
@@ -1260,7 +1360,7 @@ public class DescendViaSpeedResumeTests
     /// <summary>
     /// As <see cref="SpeedThenConditionalApproachClearance_SameTransmission_KeepsTheSpeed"/>, with an altitude in the
     /// conditional block that a later "DM 100" supersedes: the block is rebuilt around the approach clearance, which
-    /// still finds the speed restated before it in its own transmission.
+    /// keeps its transmission and so still finds the speed stamped with it.
     /// </summary>
     [Fact]
     public void SpeedThenConditionalApproachClearance_RebuiltByALaterAltitude_KeepsTheSpeed()
@@ -1286,10 +1386,11 @@ public class DescendViaSpeedResumeTests
 
     /// <summary>
     /// As <see cref="SpeedThenConditionalApproachClearance_RebuiltByALaterAltitude_KeepsTheSpeed"/>, with the speed in an
-    /// earlier transmission: the rebuilt block finds no speed restated before it, so the clearance's cancel stands.
+    /// earlier transmission: the speed carries no stamp of the rebuilt clearance's transmission, so the clearance's cancel
+    /// stands.
     /// </summary>
     [Fact]
-    public void QueuedBlockRebuild_NoEarlierSpeed_FactIsFalse()
+    public void QueuedBlockRebuild_NoEarlierSpeed_HasNoStamp()
     {
         if (BuildHarness() is not { } harness)
         {
@@ -1316,7 +1417,9 @@ public class DescendViaSpeedResumeTests
 
     /// <summary>
     /// "CTO, SPD 230; CVIA" on an aircraft in a phase: the tower path takes the first block and queues the rest, and the
-    /// queued climb via finds the 230 restated before it at enqueue just as it does rebuilt from a snapshot.
+    /// queued climb via keeps its transmission's id at enqueue just as it does rebuilt from a snapshot, so either leaves a
+    /// 230 stamped with that transmission standing. The tower path drops the SPD sibling of the CTO, so the departure the
+    /// climb via fires on stands in for the 230 the controller restated with it.
     /// </summary>
     [Fact]
     public void PhaseActiveCompound_SpeedBeforeCvia_EnqueueMatchesRebuild()
@@ -1328,38 +1431,44 @@ public class DescendViaSpeedResumeTests
         CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, takeoff, ctx);
         Assert.True(result.Success, result.Message);
         CommandBlock enqueued = Assert.Single(takeoff.Queue.Blocks);
+        Assert.NotEqual(0, enqueued.TransmissionId);
 
         var rebuilt = CommandBlock.FromSnapshot(enqueued.ToSnapshot());
         Assert.True(CommandDispatcher.RehydrateRestoredBlock(rebuilt, takeoff, ctx), "The queued climb via did not rehydrate");
+        Assert.Equal(enqueued.TransmissionId, rebuilt.TransmissionId);
 
-        Assert.Equal(230, AssignedSpeedAfterClimbVia(rebuilt));
-        Assert.Equal(230, AssignedSpeedAfterClimbVia(enqueued));
+        Assert.Equal(230, AssignedSpeedAfterClimbVia(rebuilt, enqueued.TransmissionId));
+        Assert.Equal(230, AssignedSpeedAfterClimbVia(enqueued, enqueued.TransmissionId));
     }
 
     /// <summary>
     /// "CVIA; SPD 230; AT WESLA CVIA": the queued climb via repeats the first block's text, so the source text cannot place
-    /// it after the 230. The fact crosses a snapshot on the block itself.
+    /// it after the 230. Its transmission crosses a snapshot on the block, and the 230 it fires under carries that
+    /// transmission's stamp.
     /// </summary>
     [Fact]
-    public void RepeatedConditionalCvia_RestoredFromSnapshot_KeepsTheFactAndTheSpeed()
+    public void RepeatedConditionalCvia_RestoredFromSnapshot_KeepsTheStampAndTheSpeed()
     {
         OakesHarness restored = RestoredWeslaAfter("CVIA; SPD 230; AT WESLA CVIA", 5);
-        Assert.True(restored.Aircraft.Queue.Blocks[^1].SpeedRestatedInTransmission);
+        int transmission = restored.Aircraft.Queue.Blocks[^1].TransmissionId;
+        Assert.NotEqual(0, transmission);
 
         TickUntilPassed(restored, "WESLA");
         Tick(restored, 5);
 
         Assert.True(restored.Aircraft.Queue.Blocks[^1].IsApplied, "The conditional climb via never fired");
         Assert.Equal(230, restored.Aircraft.Targets.AssignedSpeed);
+        Assert.Equal(transmission, restored.Aircraft.Targets.AssignedSpeedTransmissionId);
     }
 
-    /// <summary>As <see cref="RepeatedConditionalCvia_RestoredFromSnapshot_KeepsTheFactAndTheSpeed"/>, with the last block matching the tail of the first.</summary>
+    /// <summary>As <see cref="RepeatedConditionalCvia_RestoredFromSnapshot_KeepsTheStampAndTheSpeed"/>, with the last block matching the tail of the first.</summary>
     [Fact]
-    public void RepeatedSequentialCvia_RestoredFromSnapshot_KeepsTheFactAndTheSpeed()
+    public void RepeatedSequentialCvia_RestoredFromSnapshot_KeepsTheStampAndTheSpeed()
     {
         OakesHarness restored = RestoredWeslaAfter("DM 100, CVIA; SPD 230; CVIA", 1);
         AircraftState aircraft = restored.Aircraft;
-        Assert.True(aircraft.Queue.Blocks[^1].SpeedRestatedInTransmission);
+        int transmission = aircraft.Queue.Blocks[^1].TransmissionId;
+        Assert.NotEqual(0, transmission);
 
         for (int t = 1; (t <= 1800) && !aircraft.Queue.Blocks[^1].IsApplied; t++)
         {
@@ -1368,14 +1477,16 @@ public class DescendViaSpeedResumeTests
 
         Assert.True(aircraft.Queue.Blocks[^1].IsApplied, "The last climb via never fired");
         Assert.Equal(230, aircraft.Targets.AssignedSpeed);
+        Assert.Equal(transmission, aircraft.Targets.AssignedSpeedTransmissionId);
     }
 
     /// <summary>
-    /// "SPD 180; AT X DM 120, SPD 200, CAPP I30" split twice, by "DM 100" and "SPD 190": the clearance's block keeps the
-    /// fact through both, so across a snapshot the clearance leaves the speed in force.
+    /// "SPD 180; AT X DM 120, SPD 200, CAPP I30" split twice, by "DM 100" and "SPD 190": the clearance's block keeps its
+    /// transmission through both, and the 190 carries the stamp of a later one, so across a snapshot the clearance leaves
+    /// the speed issued after it in force (7110.65 5-7-1.d cancels only a speed assigned before it).
     /// </summary>
     [Fact]
-    public void SplitTwice_RestoredFromSnapshot_KeepsTheFactAndTheSpeed()
+    public void SplitTwice_RestoredFromSnapshot_KeepsTheStampAndTheSpeed()
     {
         if (BuildHarness() is not { } live)
         {
@@ -1392,7 +1503,8 @@ public class DescendViaSpeedResumeTests
 
         OakesHarness restored = RestoreSnapshot(live, "OAK");
         CommandBlock clearance = Assert.Single(restored.Aircraft.Queue.Blocks, b => (b.Trigger is not null) && !b.IsApplied);
-        Assert.True(clearance.SpeedRestatedInTransmission);
+        Assert.Equal(restored.Aircraft.Queue.LastTransmissionId, restored.Aircraft.Targets.AssignedSpeedTransmissionId);
+        Assert.True(restored.Aircraft.Targets.AssignedSpeedTransmissionId > clearance.TransmissionId);
 
         TickUntilPassed(restored, fix);
         Tick(restored, 5);
@@ -1424,13 +1536,17 @@ public class DescendViaSpeedResumeTests
         return new OakesHarness(engine, Assert.IsType<AircraftState>(engine.FindAircraft(live.Aircraft.Callsign)));
     }
 
-    /// <summary>Fires <paramref name="climbVia"/> on an airborne WESLA5 departure assigned 230; returns the assigned speed left.</summary>
-    private static double? AssignedSpeedAfterClimbVia(CommandBlock climbVia)
+    /// <summary>
+    /// Fires <paramref name="climbVia"/> on an airborne WESLA5 departure assigned 230 in transmission
+    /// <paramref name="speedTransmissionId"/>; returns the assigned speed left.
+    /// </summary>
+    private static double? AssignedSpeedAfterClimbVia(CommandBlock climbVia, int speedTransmissionId)
     {
         AircraftState departure = BuildWeslaDeparture();
         departure.Targets.TargetSpeed = 230;
         departure.Targets.AssignedSpeed = 230;
         departure.Targets.HasExplicitSpeedCommand = true;
+        departure.Targets.AssignedSpeedTransmissionId = speedTransmissionId;
 
         CommandResult result = climbVia.ApplyAction!(departure, true);
 

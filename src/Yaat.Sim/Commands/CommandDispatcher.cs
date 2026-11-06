@@ -265,19 +265,13 @@ public static class CommandDispatcher
             return RejectChainedCommand(chainedVerb);
         }
 
-        // One id per transmission that carries a crossing restriction (CFIX, constrained DCTF, or DVIA SPD n FIX), shared
-        // by every block it queues, so a DVIA can tell a crossing restated on its own line from an earlier one, and a CFIX
-        // can tell a DVIA or CVIA of its own transmission that has applied. Every other transmission keeps id 0 and leaves
-        // the counter alone, and a refused one hands its id back, so neither changes a snapshot.
+        // One id per transmission, shared by every block it queues: a DVIA can tell a crossing restated on its own line from
+        // an earlier one, a CFIX can tell a DVIA or CVIA of its own transmission that has applied, and a via or approach
+        // clearance can tell a speed accepted with or after it from one assigned before it. A refused transmission hands its
+        // id back, so it leaves the counter where it was; scenario presets and replay dispatch through here too, so the
+        // ids follow dispatch order alone.
         int lastTransmissionId = aircraft.Queue.LastTransmissionId;
-        if (
-            compound.Blocks.Exists(b =>
-                b.Commands.Exists(c => c is CrossFixCommand or ConstrainedForceDirectToCommand or DescendViaCommand { Speed: not null })
-            )
-        )
-        {
-            ctx = ctx with { TransmissionId = aircraft.Queue.NextTransmissionId() };
-        }
+        ctx = ctx with { TransmissionId = aircraft.Queue.NextTransmissionId() };
 
         CommandResult? refusal = TryAssumeShadow(aircraft, compound, ctx, out AssumeUndo? autoAssumed);
         if (refusal is not null)
@@ -616,7 +610,7 @@ public static class CommandDispatcher
                         }
                     }
 
-                    // The queued blocks are a cut-down list, so a speed in a block the phase took is carried in.
+                    // The queued blocks are a cut-down list, so a crossing in a block the phase took is carried in.
                     int firstRemainingIdx = aircraft.Queue.Blocks.Count;
                     List<string> remainingMessages = [];
                     if (remainingBlocks.Count > 0)
@@ -624,8 +618,6 @@ public static class CommandDispatcher
                         int firstRemainingBlock = compound.Blocks.IndexOf(remainingBlocks[0]);
                         DispatchContext remainingCtx = ctx with
                         {
-                            SpeedRestatedInTransmission =
-                                ctx.SpeedRestatedInTransmission || SpeedAssignedBeforeBlock(compound.Blocks, firstRemainingBlock),
                             CrossingsClearedInTransmission = WithCrossings(
                                 ctx.CrossingsClearedInTransmission,
                                 compound.Blocks.Take(firstRemainingBlock).SelectMany(b => b.Commands)
@@ -1239,6 +1231,11 @@ public static class CommandDispatcher
     private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
         CommandResult result = ApplyCommandCore(command, aircraft, ctx);
+        if (result.Success && AssignsSpeed(command))
+        {
+            aircraft.Targets.AssignedSpeedTransmissionId = ctx.TransmissionId;
+        }
+
         EmitProcedureAdvisory(result, aircraft, ctx);
         return result;
     }
@@ -1477,7 +1474,7 @@ public static class CommandDispatcher
             case ClimbViaCommand cmd:
                 return NavigationCommandHandler.DispatchClimbVia(cmd, aircraft, ctx);
             case DescendViaCommand cmd:
-                return NavigationCommandHandler.DispatchDescendVia(cmd, aircraft, ctx.TransmissionId, ctx.SpeedRestatedInTransmission);
+                return NavigationCommandHandler.DispatchDescendVia(cmd, aircraft, ctx.TransmissionId);
 
             // RWY assigns the arrival/departure runway, which is a route decision rather than a surface one, so it
             // must apply with no phase active too — the tower switch has the same arm for the phase path.
@@ -3223,7 +3220,6 @@ public static class CommandDispatcher
     private static DispatchContext ForTransmissionBlock(DispatchContext ctx, List<ParsedBlock> blocks, int blockIndex) =>
         ctx with
         {
-            SpeedRestatedInTransmission = ctx.SpeedRestatedInTransmission || SpeedAssignedBeforeBlock(blocks, blockIndex),
             CrossingsClearedInTransmission = WithCrossings(ctx.CrossingsClearedInTransmission, blocks.Take(blockIndex).SelectMany(b => b.Commands)),
             CrossFeedsFollowingClearance = blocks.Skip(blockIndex + 1).Any(b => b.Commands.Exists(IsTakeoffOrLineUp)),
         };
@@ -4278,13 +4274,20 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// Hands back the id a refused transmission took, and forgets that transmission as the source of a DVIA or CVIA it
-    /// applied before the refusal: the next transmission takes the same id, and a CFIX in it must not read the earlier
-    /// via clearance as its own.
+    /// Hands back the id a refused transmission took, and forgets that transmission as the source of a DVIA or CVIA or a
+    /// speed it applied before the refusal: the next transmission takes the same id, and a CFIX in it must not read the
+    /// earlier via clearance as its own, nor a via or approach clearance in it read the earlier speed as restated with it.
+    /// The speed half is defensive: no current dispatch shape applies a speed and then refuses the transmission (a
+    /// phase-less dispatch dry-runs its first block before applying anything, and the tower path applies no speed sibling).
     /// </summary>
     private static void RewindTransmission(AircraftState aircraft, int lastTransmissionId)
     {
         aircraft.Queue.RewindTransmissionId(lastTransmissionId);
+        if (aircraft.Targets.AssignedSpeedTransmissionId > lastTransmissionId)
+        {
+            aircraft.Targets.AssignedSpeedTransmissionId = lastTransmissionId;
+        }
+
         if (aircraft.Procedure.StarViaTransmissionId > lastTransmissionId)
         {
             aircraft.Procedure.StarViaTransmissionId = null;
@@ -4495,7 +4498,6 @@ public static class CommandDispatcher
             HasDeleteCommand = parsedCommands.Exists(c => c is DeleteCommand),
             IsScenarioScripted = ctx.IsScenarioScripted,
             TransmissionId = ctx.TransmissionId,
-            SpeedRestatedInTransmission = ctx.SpeedRestatedInTransmission,
             CrossingsClearedInTransmission = ctx.CrossingsClearedInTransmission,
             CrossFeedsFollowingClearance = ctx.CrossFeedsFollowingClearance,
         };
@@ -4551,12 +4553,11 @@ public static class CommandDispatcher
 
         // Mirror CreateBlock: track commands stay out of the ApplyAction (they have no ApplyCommand arm
         // and are dispatched by SimulationEngine.ProcessTriggeredTrackBlocks) but stay in ParsedCommands.
-        // The speed restated in the transmission is the block's own serialized fact, as CreateBlock wrote it.
+        // The crossings cleared in the transmission are the block's own serialized facts, as CreateBlock wrote them.
         var applyCommands = matched.Where(c => !TrackEngine.IsTrackCommand(c)).ToList();
         block.ParsedCommands = matched;
         DispatchContext blockCtx = ctx with
         {
-            SpeedRestatedInTransmission = block.SpeedRestatedInTransmission,
             CrossingsClearedInTransmission = block.CrossingsClearedInTransmission,
             CrossFeedsFollowingClearance = block.CrossFeedsFollowingClearance,
         };
@@ -4599,15 +4600,6 @@ public static class CommandDispatcher
 
         return matched;
     }
-
-    /// <summary>
-    /// Whether a block before <paramref name="blockIndex"/> of a transmission's <paramref name="blocks"/> assigns a speed
-    /// (<see cref="AssignsSpeed"/>), so a via or approach clearance in that block finds the speed restated in its
-    /// transmission and leaves it standing (7110.65 5-7-1.c). A speed after the clearance needs no such fact: it applies
-    /// after the clearance and sets the speed itself, or is refused and the clearance's cancel stands.
-    /// </summary>
-    private static bool SpeedAssignedBeforeBlock(List<ParsedBlock> blocks, int blockIndex) =>
-        blocks.Take(blockIndex).Any(b => b.Commands.Exists(AssignsSpeed));
 
     /// <summary>
     /// Rebuilds a restored follow-up block queued by <see cref="NavigationCommandHandler"/> (JRADO/JRADI/JAWY
@@ -4744,8 +4736,7 @@ public static class CommandDispatcher
         var keptParsed = keepIndices.Select(i => block.ParsedCommands[i]).ToList();
         var labels = new BlockLabels(block.DescriptionPrefix, block.NaturalDescriptionPrefix);
 
-        // The kept commands still belong to the transmission that queued them, not to the superseding one, and so does
-        // a speed assigned in an earlier block of that transmission.
+        // The kept commands still belong to the transmission that queued them, not to the superseding one.
         CommandBlock rebuilt = CreateBlock(
             keptParsed,
             block.Trigger,
@@ -4754,7 +4745,6 @@ public static class CommandDispatcher
             ctx with
             {
                 TransmissionId = block.TransmissionId,
-                SpeedRestatedInTransmission = block.SpeedRestatedInTransmission,
                 CrossingsClearedInTransmission = block.CrossingsClearedInTransmission,
                 CrossFeedsFollowingClearance = block.CrossFeedsFollowingClearance,
             }
@@ -4907,11 +4897,6 @@ public static class CommandDispatcher
                 {
                     current = AfterDestinationChange(new ParsedBlock(null, [cmd]), ac, current);
                 }
-
-                if (AssignsSpeed(cmd))
-                {
-                    current = current with { SpeedRestatedInTransmission = true };
-                }
             }
 
             CheckVectoringWarning(ac, captured, hadProcedure, hadProcedureAltitudes);
@@ -4921,10 +4906,10 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// Whether <paramref name="cmd"/> replaces the whole ATC speed assignment, so a via or approach clearance later in its
-    /// block or in a later block of its transmission finds that speed restated with it (7110.65 5-7-1.c) and leaves it
-    /// standing (<see cref="DispatchContext.SpeedRestatedInTransmission"/>): a speed or Mach, "maintain maximum
-    /// forward speed", or "reduce to final approach speed". A crossing speed (a CFIX or constrained direct-to carrying
+    /// Whether <paramref name="cmd"/> replaces the whole ATC speed assignment, so once it applies it stamps its transmission
+    /// on the speed (<see cref="ControlTargets.AssignedSpeedTransmissionId"/>) and a via or approach clearance of that
+    /// transmission or an earlier one finds the speed restated with it (7110.65 5-7-1.c) and leaves it standing: a speed or Mach, "maintain
+    /// maximum forward speed", or "reduce to final approach speed". A crossing speed (a CFIX or constrained direct-to carrying
     /// one, or "DVIA SPD n FIX") restates only its own fix's restriction, which the fix's speed stamp keeps, so the
     /// clearance still cancels the speed assigned before it (7110.65 5-7-1.c, d).
     /// </summary>
@@ -4939,9 +4924,9 @@ public static class CommandDispatcher
 
     /// <summary>
     /// Runs an approach clearance (<paramref name="clear"/>), which cancels any speed assigned before it
-    /// (7110.65 5-7-1.d; AIM 4-4-12.g), and puts that speed back when it was restated before it in the clearance's
-    /// transmission, in its own block or an earlier one (7110.65 5-7-1.c, "maintain 180 until the final approach fix,
-    /// cleared ILS") or the clearance is refused. A clearance that applies leaves no crossing restriction able to revert
+    /// (7110.65 5-7-1.d; AIM 4-4-12.g), and puts that speed back when it was accepted in the clearance's transmission or a
+    /// later one (<see cref="NavigationCommandHandler.SpeedStandsUnderClearance"/>; 7110.65 5-7-1.c, "maintain 180 until the
+    /// final approach fix, cleared ILS") or the clearance is refused. A clearance that applies leaves no crossing restriction able to revert
     /// to an earlier speed past its fix
     /// (<see cref="NavigationCommandHandler.DropSpeedReverts"/>) and gives each fix whose crossing speed an earlier
     /// transmission set its published speed back, whether or not a speed is restated with it
@@ -4952,6 +4937,7 @@ public static class CommandDispatcher
     private static CommandResult ApplyApproachClearance(AircraftState aircraft, DispatchContext ctx, Func<CommandResult> clear)
     {
         var before = FlightCommandHandler.AssignedSpeedState.Capture(aircraft);
+        bool speedStands = NavigationCommandHandler.SpeedStandsUnderClearance(aircraft, ctx.TransmissionId);
         CommandResult result = clear();
         if (!result.Success)
         {
@@ -4961,7 +4947,7 @@ public static class CommandDispatcher
 
         NavigationCommandHandler.DropSpeedReverts(aircraft);
         NavigationCommandHandler.RestorePublishedSpeedsOfEarlierCrossings(aircraft, ctx.TransmissionId);
-        if (ctx.SpeedRestatedInTransmission)
+        if (speedStands)
         {
             before.Restore(aircraft);
         }

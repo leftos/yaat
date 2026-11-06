@@ -4585,6 +4585,7 @@ public static class FlightPhysics
         aircraft.Targets.HasExplicitSpeedCommand = false;
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedMaxHeld = false;
+        aircraft.Targets.AssignedSpeedTransmissionId = null;
         aircraft.Targets.SpeedFloor = null;
 
         // A phase that owns speed (pattern legs, an active instrument approach, final) keeps the aircraft from

@@ -1788,7 +1788,7 @@ internal static class NavigationCommandHandler
             () =>
             {
                 SupersedeEarlierCrossingRestrictions(aircraft, ctx.TransmissionId, ActiveSidRestrictions);
-                CancelEarlierAssignedSpeed(aircraft, ctx.SpeedRestatedInTransmission, ctx.TransmissionId);
+                CancelEarlierAssignedSpeed(aircraft, ctx.TransmissionId);
                 // A bare climb via cancels an interim altitude assigned before it and climbs to the SID's top altitude
                 // (7110.65 4-5-7.h.10 Example 1, h.11 NOTE 1; AIM 5-2-9.h.8).
                 aircraft.Targets.AssignedAltitude = null;
@@ -2006,12 +2006,7 @@ internal static class NavigationCommandHandler
         return ((sidId is null) || string.IsNullOrEmpty(departure)) ? null : NavigationDatabase.Instance.GetSid(departure, sidId);
     }
 
-    internal static CommandResult DispatchDescendVia(
-        DescendViaCommand cmd,
-        AircraftState aircraft,
-        int transmissionId,
-        bool speedRestatedInTransmission
-    )
+    internal static CommandResult DispatchDescendVia(DescendViaCommand cmd, AircraftState aircraft, int transmissionId)
     {
         // DVIA SPD <speed> <fix> names a fix on the route; refuse one off it before anything changes.
         NavigationTarget? speedFix = null;
@@ -2046,7 +2041,7 @@ internal static class NavigationCommandHandler
         }
 
         SupersedeEarlierCrossingRestrictions(aircraft, transmissionId, ActiveStarRestrictions);
-        CancelEarlierAssignedSpeed(aircraft, speedRestatedInTransmission, transmissionId);
+        CancelEarlierAssignedSpeed(aircraft, transmissionId);
         aircraft.Procedure.StarViaMode = true;
         aircraft.Procedure.StarViaTransmissionId = StampedTransmission(transmissionId);
         aircraft.Procedure.StarViaFloor = cmd.Altitude;
@@ -2250,21 +2245,31 @@ internal static class NavigationCommandHandler
     /// <summary>
     /// A via clearance cancels any speed assigned before it, a superseded crossing speed included, so the procedure's
     /// published speeds and the default schedule take the speed back (7110.65 5-7-1; AIM 4-4-12). A speed assigned in
-    /// the via clearance's own block or an earlier block of its transmission (<paramref name="speedRestatedInTransmission"/>)
-    /// is restated with it (7110.65 5-7-1.c) and stands. The cancel ends only the ATC assignment: on a STAR the last
-    /// crossed published speed is the ceiling again
+    /// the via clearance's transmission (or a later one) and accepted before it fires
+    /// (<see cref="SpeedStandsUnderClearance"/>) is restated with it (7110.65 5-7-1.c) and stands. The cancel ends only the
+    /// ATC assignment: on a STAR the last crossed published speed is the ceiling again
     /// (<see cref="FlightCommandHandler.RestoreCrossedPublishedCeiling"/>), and a crossing speed of this same transmission
     /// stays in force (<see cref="KeepTransmissionCrossingSpeed"/>).
     /// </summary>
-    private static void CancelEarlierAssignedSpeed(AircraftState aircraft, bool speedRestatedInTransmission, int transmissionId)
+    private static void CancelEarlierAssignedSpeed(AircraftState aircraft, int transmissionId)
     {
-        if (!speedRestatedInTransmission)
+        if (!SpeedStandsUnderClearance(aircraft, transmissionId))
         {
             FlightCommandHandler.CancelAssignedSpeedKeepingProcedureFloor(aircraft);
             FlightCommandHandler.RestoreCrossedPublishedCeiling(aircraft);
             KeepTransmissionCrossingSpeed(aircraft, EffectiveRoute(aircraft), transmissionId);
         }
     }
+
+    /// <summary>
+    /// Whether the speed in force stands under a via or approach clearance of transmission
+    /// <paramref name="transmissionId"/> as it fires: it was accepted in that transmission or a later one
+    /// (<see cref="ControlTargets.AssignedSpeedTransmissionId"/>), so it is restated with the clearance or issued after it,
+    /// not previously assigned (7110.65 5-7-1.c, d; AIM 4-4-12.f.5, g). A speed with no stamp, or one from an earlier
+    /// transmission, is cancelled.
+    /// </summary>
+    internal static bool SpeedStandsUnderClearance(AircraftState aircraft, int transmissionId) =>
+        aircraft.Targets.AssignedSpeedTransmissionId is { } accepted && (accepted >= transmissionId);
 
     /// <summary>
     /// An approach clearance cancels every speed assigned before it (7110.65 5-7-1.d), so no crossing restriction on the

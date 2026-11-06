@@ -345,27 +345,18 @@ public class CommandBlock
     public bool IsScenarioScripted { get; init; }
 
     /// <summary>
-    /// The id of the transmission that queued this block (<see cref="Commands.DispatchContext.TransmissionId"/>): set
-    /// only when that transmission carried a CFIX or a constrained DCTF, 0 otherwise. Serialized so a restored block's
+    /// The id of the transmission that queued this block (<see cref="Commands.DispatchContext.TransmissionId"/>); 0 only
+    /// for a block queued outside a dispatch or restored from a snapshot that predates it. Serialized so a restored block's
     /// rebuilt <see cref="ApplyAction"/> stamps the id the live dispatch would have.
     /// </summary>
     public int TransmissionId { get; init; }
 
     /// <summary>
-    /// Whether an earlier block of the transmission that queued this block assigned a speed
-    /// (<see cref="Commands.DispatchContext.SpeedRestatedInTransmission"/>), so a via or approach clearance here leaves it
-    /// standing. Serialized and carried through a split, never recomputed from <see cref="SourceCommandText"/>: a block that
-    /// repeats an earlier one, or was split, cannot be placed in its transmission from the text. Defaults false, so an
-    /// older snapshot restores with no speed restated.
-    /// </summary>
-    public bool SpeedRestatedInTransmission { get; init; }
-
-    /// <summary>
     /// The runways a <c>CROSS</c> in an earlier block of the transmission that queued this block cleared
     /// (<see cref="Commands.DispatchContext.CrossingsClearedInTransmission"/>), which a takeoff or line-up clearance here crosses
     /// on its implicit taxi from a taxiway hold short; null when none. Serialized and carried through a split, never
-    /// recomputed from <see cref="SourceCommandText"/>, as <see cref="SpeedRestatedInTransmission"/> is. Defaults null, so an
-    /// older snapshot restores with no crossing cleared.
+    /// recomputed from <see cref="SourceCommandText"/>: a block that repeats an earlier one, or was split, cannot be placed in
+    /// its transmission from the text. Defaults null, so an older snapshot restores with no crossing cleared.
     /// </summary>
     public IReadOnlyList<string>? CrossingsClearedInTransmission { get; init; }
 
@@ -373,7 +364,7 @@ public class CommandBlock
     /// Whether a takeoff or line-up clearance follows this block in a later block of the transmission that queued it
     /// (<see cref="Commands.DispatchContext.CrossFeedsFollowingClearance"/>), so a <c>CROSS</c> here at a taxiway hold short
     /// installs nothing and leaves its runways to that clearance's implicit taxi. Serialized and carried through a split, never
-    /// recomputed from <see cref="SourceCommandText"/>, as <see cref="SpeedRestatedInTransmission"/> is. Defaults false, so an
+    /// recomputed from <see cref="SourceCommandText"/>, as <see cref="CrossingsClearedInTransmission"/> is. Defaults false, so an
     /// older snapshot restores with no clearance following.
     /// </summary>
     public bool CrossFeedsFollowingClearance { get; init; }
@@ -409,7 +400,6 @@ public class CommandBlock
             HasDeleteCommand = HasDeleteCommand,
             IsScenarioScripted = IsScenarioScripted,
             TransmissionId = TransmissionId,
-            SpeedRestatedInTransmission = SpeedRestatedInTransmission,
             CrossingsClearedInTransmission = CrossingsClearedInTransmission is { } crossings ? [.. crossings] : null,
             CrossFeedsFollowingClearance = CrossFeedsFollowingClearance,
         };
@@ -437,7 +427,6 @@ public class CommandBlock
             HasDeleteCommand = dto.HasDeleteCommand,
             IsScenarioScripted = dto.IsScenarioScripted,
             TransmissionId = dto.TransmissionId,
-            SpeedRestatedInTransmission = dto.SpeedRestatedInTransmission,
             CrossingsClearedInTransmission = dto.CrossingsClearedInTransmission is { Count: > 0 } crossings ? [.. crossings] : null,
             CrossFeedsFollowingClearance = dto.CrossFeedsFollowingClearance,
             // ApplyAction is NOT restored here — this is a static context with no DispatchContext.
@@ -457,13 +446,13 @@ public class CommandQueue
     public bool IsComplete => CurrentBlockIndex >= Blocks.Count;
 
     /// <summary>
-    /// The id of the last accepted transmission to this aircraft that carried a CFIX or a constrained DCTF (0 before
-    /// the first); no other transmission takes an id. Per aircraft and snapshotted, so a restore followed by the same
-    /// commands hands out the same ids.
+    /// The id of the last accepted transmission to this aircraft (0 before the first); every dispatched transmission takes
+    /// an id and a refused one hands it back. Per aircraft and snapshotted, so a restore followed by the same commands
+    /// hands out the same ids.
     /// </summary>
     public int LastTransmissionId { get; private set; }
 
-    /// <summary>Advances <see cref="LastTransmissionId"/> for a transmission carrying a crossing restriction and returns it.</summary>
+    /// <summary>Advances <see cref="LastTransmissionId"/> for a transmission being dispatched and returns it.</summary>
     public int NextTransmissionId() => ++LastTransmissionId;
 
     /// <summary>Hands back the id a refused transmission took, so the refusal leaves the counter where it was.</summary>

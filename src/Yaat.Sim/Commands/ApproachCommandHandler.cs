@@ -3063,8 +3063,8 @@ public static class ApproachCommandHandler
 
     /// <summary>
     /// An approach clearance cancels any previously assigned speed (7110.65 5-7-1.d; AIM 4-4-12.g) and ends the STAR's
-    /// last-crossed published speed with the STAR (7110.65 5-7-1.e and NOTE). The dispatcher puts back a speed restated
-    /// in the clearance's transmission (<see cref="DispatchContext.SpeedRestatedInTransmission"/>; 7110.65 5-7-1.c). The
+    /// last-crossed published speed with the STAR (7110.65 5-7-1.e and NOTE). The dispatcher puts back a speed accepted
+    /// in the clearance's transmission (<see cref="NavigationCommandHandler.SpeedStandsUnderClearance"/>; 7110.65 5-7-1.c). The
     /// same-runway in-trail reduction's ceiling is not a speed the clearance cancels: it belongs to that pass and is
     /// restated with the clearance (<see cref="RestateStandingInTrailReduction"/>).
     /// </summary>

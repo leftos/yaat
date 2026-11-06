@@ -132,29 +132,16 @@ public sealed record DispatchContext
     public required Func<AircraftState, PilotSpeechContext> SpeechContextFor { get; init; }
 
     /// <summary>
-    /// The id of the transmission being dispatched when it carries a crossing restriction (a CFIX or a constrained
-    /// DCTF): <see cref="CommandDispatcher.DispatchCompound"/> takes it from the aircraft's
-    /// <see cref="CommandQueue.NextTransmissionId"/>, and a queued block puts its own back when it fires. Every other
-    /// transmission keeps 0. Not required, unlike the rest of the record: only the dispatcher sets it.
+    /// The id of the transmission being dispatched: <see cref="CommandDispatcher.DispatchCompound"/> takes one for every
+    /// transmission from the aircraft's <see cref="CommandQueue.NextTransmissionId"/> (a refused one hands it back), and a
+    /// queued block puts its own back when it fires. 0 only outside a dispatch. Not required, unlike the rest of the record:
+    /// only the dispatcher sets it.
     /// </summary>
     public int TransmissionId { get; internal init; }
 
     /// <summary>
-    /// True when the transmission restated a speed before the command being applied: SPD, SPEEDF, the forced final-approach
-    /// speed, MACH, SMAX or RFAS (<c>CommandDispatcher.AssignsSpeed</c>). It has two sources: such a speed applied earlier
-    /// in the same block (set by the block's apply action), or one in an earlier block of the same transmission (set when
-    /// the block is built, from the transmission's blocks, and carried on the block
-    /// (<see cref="CommandBlock.SpeedRestatedInTransmission"/>) through a snapshot or a split). A DVIA, CVIA or approach
-    /// clearance then leaves the speed in force assigned, since a speed still required is restated with the clearance
-    /// (7110.65 5-7-1.c). A speed after the clearance does not count: it applies after it, or is refused and the clearance's
-    /// cancel stands. A crossing speed (a CFIX or constrained DCTF carrying one, DVIA SPD n FIX) does not count either: it
-    /// restates only its own fix's restriction, which the fix's speed stamp keeps.
-    /// </summary>
-    public bool SpeedRestatedInTransmission { get; internal init; }
-
-    /// <summary>
     /// The runways a <c>CROSS</c> (runways named, no hold short) cleared earlier in the transmission than the command being
-    /// applied, or null when none did. Its sources mirror <see cref="SpeedRestatedInTransmission"/>: a CROSS earlier in the same
+    /// applied, or null when none did. It has two sources: a CROSS earlier in the same
     /// block (set per command as the block applies) or in an earlier block (set when the block is built and carried on it,
     /// <see cref="CommandBlock.CrossingsClearedInTransmission"/>, through a snapshot, a split or a wait for the release). A takeoff
     /// or line-up clearance at a taxiway hold short crosses exactly these on its implicit taxi; any other crossing still needs

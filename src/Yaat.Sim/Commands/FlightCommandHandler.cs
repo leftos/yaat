@@ -496,6 +496,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Targets.SpeedLimitsLifted = false;
         aircraft.Targets.SpeedMaxHeld = false;
+        aircraft.Targets.AssignedSpeedTransmissionId = null;
         aircraft.Procedure.LastProcedureSpeedKts = null;
     }
 
@@ -564,6 +565,7 @@ internal static class FlightCommandHandler
         bool SpeedOverridesFinalGate,
         bool SpeedLimitsLifted,
         bool SpeedMaxHeld,
+        int? AssignedSpeedTransmissionId,
         double? LastProcedureSpeedKts
     )
     {
@@ -579,6 +581,7 @@ internal static class FlightCommandHandler
                 aircraft.Targets.SpeedOverridesFinalGate,
                 aircraft.Targets.SpeedLimitsLifted,
                 aircraft.Targets.SpeedMaxHeld,
+                aircraft.Targets.AssignedSpeedTransmissionId,
                 aircraft.Procedure.LastProcedureSpeedKts
             );
 
@@ -594,6 +597,7 @@ internal static class FlightCommandHandler
             aircraft.Targets.SpeedOverridesFinalGate = SpeedOverridesFinalGate;
             aircraft.Targets.SpeedLimitsLifted = SpeedLimitsLifted;
             aircraft.Targets.SpeedMaxHeld = SpeedMaxHeld;
+            aircraft.Targets.AssignedSpeedTransmissionId = AssignedSpeedTransmissionId;
             aircraft.Procedure.LastProcedureSpeedKts = LastProcedureSpeedKts;
         }
     }

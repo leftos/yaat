@@ -977,7 +977,7 @@ public class DescendViaSupersedesEarlierAltitudeTests
         int stamped = Assert.IsType<int>(fix.CrossingTransmissionId);
         int counter = aircraft.Queue.LastTransmissionId;
         Assert.Equal(counter, stamped);
-        Assert.Equal(1, counter); // only a transmission carrying a CFIX takes an id; the DM took none
+        Assert.Equal(2, counter); // every transmission takes an id: the DM took 1, the CFIX 2
 
         NavigationTargetDto targetDto = RoundTrip(fix.ToSnapshot());
         CommandQueueDto queueDto = RoundTrip(aircraft.Queue.ToSnapshot());
@@ -987,11 +987,11 @@ public class DescendViaSupersedesEarlierAltitudeTests
 
         Assert.DoesNotContain(nameof(AircraftProcedureDto.StarViaTransmissionId), JsonSerializer.Serialize(aircraft.Procedure.ToSnapshot()));
         SendOk(harness, $"CFIX {fix.Name} 110, DVIA");
-        Assert.Equal(2, aircraft.Procedure.StarViaTransmissionId);
+        Assert.Equal(3, aircraft.Procedure.StarViaTransmissionId);
         aircraft.Procedure.ClimbViaTransmissionId = 1;
 
         var procedure = AircraftProcedure.FromSnapshot(RoundTrip(aircraft.Procedure.ToSnapshot()));
-        Assert.Equal(2, procedure.StarViaTransmissionId);
+        Assert.Equal(3, procedure.StarViaTransmissionId);
         Assert.Equal(1, procedure.ClimbViaTransmissionId);
     }
 

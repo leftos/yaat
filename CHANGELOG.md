@@ -14,6 +14,7 @@
 - Under `LAHSO`, a landing no longer picks a shallow high-speed exit whose turn-off would cross the hold-short marking before leaving the runway.
 - Types whose top speed varies with altitude (Dash 8 Q400, CRJ, Challenger 604, E170 and others) fly, refuse speeds and fly `SMAX` against the limit at their altitude.
 - Angled hold-short bars near a second runway sit just outside that runway's holding area instead of falling back to the minimum standoff.
+- A `DVIA`, `CVIA` or approach clearance keeps the assigned speed only when that speed actually applied with it or later, not one still queued or refused.
 - Aircraft without an assigned speed hold their climb or descent airspeed to the crossover, then fly Mach, instead of exceeding their own climb Mach.
 - A `CFIX` the departure's TDLS maintain already meets no longer assigns its crossing altitude, so the aircraft keeps flying the maintain.
 - A landing with no reachable exit rolls to a planned stop on the remaining runway and asks to back-taxi, instead of steering toward a ramp or taxiway.
