@@ -90,7 +90,14 @@ public static partial class GroundCommandHandler
             aircraft,
             taxi,
             groundLayout,
-            new TaxiDispatch(autoCrossRunwayMode, ActiveRunways.Empty, IsScenarioScripted: false, ResultReachesController: true, ListAircraft: null)
+            new TaxiDispatch(
+                autoCrossRunwayMode,
+                ActiveRunways.Empty,
+                IsScenarioScripted: false,
+                ResultReachesController: true,
+                ListAircraft: null,
+                DepartureRunwayClearance.Taxi
+            )
         );
 
     /// <summary>
@@ -115,13 +122,41 @@ public static partial class GroundCommandHandler
     /// controller goes to <see cref="AircraftState.PendingWarnings"/> instead.
     /// </param>
     /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
+    /// <param name="Clearance">
+    /// The clearance the taxi carries out, named when the departure runway it assigns changes (<see cref="WarnIfDepartureRunwayChanged"/>):
+    /// a taxi clearance, or the takeoff or line-up clearance whose implicit taxi it is.
+    /// </param>
     internal sealed record TaxiDispatch(
         AutoCrossRunwayMode AutoCrossRunwayMode,
         ActiveRunways ActiveRunways,
         bool IsScenarioScripted,
         bool ResultReachesController,
-        Func<IReadOnlyList<AircraftState>>? ListAircraft
+        Func<IReadOnlyList<AircraftState>>? ListAircraft,
+        DepartureRunwayClearance Clearance
     );
+
+    /// <summary>The clearance that assigned a departure runway by taxiing the aircraft to it.</summary>
+    internal enum DepartureRunwayClearance
+    {
+        /// <summary>A TAXI, TAXIAUTO, air taxi or rollout taxi clearance.</summary>
+        Taxi,
+
+        /// <summary>A takeoff clearance given at a taxiway hold short, taxiing the aircraft onto the taxiway.</summary>
+        Takeoff,
+
+        /// <summary>A line-up-and-wait clearance given at a taxiway hold short, taxiing the aircraft onto the taxiway.</summary>
+        LineUpAndWait,
+    }
+
+    /// <summary>How the runway-change warning names <paramref name="clearance"/>.</summary>
+    private static string DescribeClearance(DepartureRunwayClearance clearance) =>
+        clearance switch
+        {
+            DepartureRunwayClearance.Taxi => "taxi clearance",
+            DepartureRunwayClearance.Takeoff => "takeoff clearance",
+            DepartureRunwayClearance.LineUpAndWait => "line up and wait clearance",
+            _ => throw new ArgumentOutOfRangeException(nameof(clearance), clearance, "unknown departure runway clearance"),
+        };
 
     /// <summary>The dispatch-level switches a TAXI or TAXIAUTO resolves under.</summary>
     /// <param name="AutoCrossRunwayMode">Which runway crossings the scenario pre-clears.</param>
@@ -150,7 +185,8 @@ public static partial class GroundCommandHandler
         bool IsScenarioScripted,
         bool ResultReachesController,
         Func<IReadOnlyList<AircraftState>>? ListAircraft,
-        bool KeepsRunwayAssignment
+        bool KeepsRunwayAssignment,
+        DepartureRunwayClearance Clearance
     )
     {
         /// <summary>
@@ -164,7 +200,8 @@ public static partial class GroundCommandHandler
                 dispatch.IsScenarioScripted,
                 dispatch.ResultReachesController,
                 dispatch.ListAircraft,
-                KeepsRunwayAssignment: false
+                KeepsRunwayAssignment: false,
+                dispatch.Clearance
             );
 
         /// <summary>
@@ -443,7 +480,7 @@ public static partial class GroundCommandHandler
             aircraft.Ground.NoDeleteRequested = true;
         }
 
-        PhaseList taxiPhases = InstallFreshTaxiPhaseList(aircraft, detectedRunway, priorAssignment);
+        PhaseList taxiPhases = InstallFreshTaxiPhaseList(aircraft, detectedRunway, priorAssignment, options.Clearance);
         if (options.KeepsRunwayAssignment)
         {
             // A stored departure clearance is not carried: this route's end would consume it and depart from past the crossed
@@ -1159,12 +1196,17 @@ public static partial class GroundCommandHandler
     /// Gives the aircraft the empty phase list a taxi clearance starts on, with <paramref name="departureRunway"/> assigned when the
     /// route names or ends at one (<see cref="ApplyDepartureRunway"/>): nothing of the list it replaces carries over.
     /// </summary>
-    private static PhaseList InstallFreshTaxiPhaseList(AircraftState aircraft, RunwayInfo? departureRunway, DepartureRunwayAssignment prior)
+    private static PhaseList InstallFreshTaxiPhaseList(
+        AircraftState aircraft,
+        RunwayInfo? departureRunway,
+        DepartureRunwayAssignment prior,
+        DepartureRunwayClearance clearance
+    )
     {
         aircraft.Phases = new PhaseList();
         if (departureRunway is not null)
         {
-            ApplyDepartureRunway(aircraft, departureRunway, prior);
+            ApplyDepartureRunway(aircraft, departureRunway, prior, clearance);
         }
 
         return aircraft.Phases;
@@ -2140,7 +2182,12 @@ public static partial class GroundCommandHandler
     /// (7110.65 3-7-2), so a clearance that names a different one is honoured and warned about, never refused;
     /// see <see cref="WarnIfDepartureRunwayChanged"/>.
     /// </summary>
-    private static void ApplyDepartureRunway(AircraftState aircraft, RunwayInfo runway, DepartureRunwayAssignment prior)
+    private static void ApplyDepartureRunway(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        DepartureRunwayAssignment prior,
+        DepartureRunwayClearance clearance
+    )
     {
         aircraft.Phases ??= new PhaseList();
         aircraft.Phases.AssignedRunway = runway;
@@ -2149,12 +2196,13 @@ public static partial class GroundCommandHandler
             return;
         }
 
-        WarnIfDepartureRunwayChanged(aircraft, runway, prior);
+        WarnIfDepartureRunwayChanged(aircraft, runway, prior, clearance);
         aircraft.Procedure.DepartureRunway = runway.Designator;
     }
 
     /// <summary>
-    /// Warns the controller when the runway named in a taxi clearance is a different one from the departure
+    /// Warns the controller when the runway named in a taxi clearance (or in the takeoff or line-up clearance
+    /// <paramref name="clearance"/> whose implicit taxi this is, which the warning names) is a different one from the departure
     /// runway the aircraft is already flying to. 7110.65 3-7-2 frames the runway in a taxi clearance as a
     /// confirmation, so silently moving the aircraft to another one hides what the change costs — and what it
     /// costs depends on what had been issued for the old runway, so the warning says only what applies:
@@ -2169,7 +2217,12 @@ public static partial class GroundCommandHandler
     /// Only a genuine change is warned: the first assignment and a re-statement of the same runway are silent,
     /// and so is an aircraft with nothing issued against the old runway.
     /// </summary>
-    private static void WarnIfDepartureRunwayChanged(AircraftState aircraft, RunwayInfo runway, DepartureRunwayAssignment prior)
+    private static void WarnIfDepartureRunwayChanged(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        DepartureRunwayAssignment prior,
+        DepartureRunwayClearance clearance
+    )
     {
         if ((prior.PriorDepartureRunway is not { Length: > 0 } previous) || (!prior.DepartureClearanceRead && !prior.HasStoredTakeoffClearance))
         {
@@ -2188,7 +2241,7 @@ public static partial class GroundCommandHandler
         string assigned = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
         string briefed = RunwayIdentifier.ToDisplayDesignator(previous);
         string head =
-            $"taxi clearance names runway {assigned} but the departure runway assigned is {briefed} — this is a runway change, "
+            $"{DescribeClearance(clearance)} names runway {assigned} but the departure runway assigned is {briefed} — this is a runway change, "
             + "not a confirmation (7110.65 3-7-2); ";
         string warning = prior.DepartureClearanceRead
             ? head
@@ -2578,7 +2631,8 @@ public static partial class GroundCommandHandler
                 ActiveRunways.Empty,
                 isScenarioScripted,
                 ResultReachesController: !isScenarioScripted,
-                ListAircraft: null
+                ListAircraft: null,
+                DepartureRunwayClearance.Taxi
             )
         );
 
@@ -6157,6 +6211,7 @@ public static partial class GroundCommandHandler
         }
 
         aircraft.Phases ??= new PhaseList();
+        RunwayInfo? previousRunway = aircraft.Phases.AssignedRunway;
         aircraft.Phases.AssignedRunway = runway;
 
         if (IsArrivalRunwayAssignment(aircraft))
@@ -6174,6 +6229,11 @@ public static partial class GroundCommandHandler
         else
         {
             aircraft.Procedure.DepartureRunway = runway.Designator;
+            // The intersection remembered for the takeoff readback is where the old runway is entered, not the new one.
+            if (!string.Equals(previousRunway?.Designator, runway.Designator, StringComparison.OrdinalIgnoreCase))
+            {
+                aircraft.Phases.LineUpIntersectionTaxiway = null;
+            }
         }
 
         return CommandDispatcher.Ok($"Runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)}");
@@ -8370,7 +8430,7 @@ public static partial class GroundCommandHandler
         );
 
         // Non-null for a runway destination: TryAirTaxi refuses the command when the record cannot be resolved.
-        ApplyDepartureRunway(aircraft, terminusRunway!, priorAssignment);
+        ApplyDepartureRunway(aircraft, terminusRunway!, priorAssignment, DepartureRunwayClearance.Taxi);
     }
 
     /// <summary>

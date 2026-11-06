@@ -3180,7 +3180,8 @@ public static class CommandDispatcher
             ctx.ActiveRunways,
             ctx.IsScenarioScripted,
             ResultReachesController: true,
-            ListAircraft: null
+            ListAircraft: null,
+            GroundCommandHandler.DepartureRunwayClearance.Taxi
         );
         IReadOnlyList<string>? carried = ctx.CrossingsClearedInTransmission;
         foreach (ParsedCommand cmd in compound.Blocks.SelectMany(static b => b.Commands))
@@ -3343,7 +3344,8 @@ public static class CommandDispatcher
             ctx.ActiveRunways,
             ctx.IsScenarioScripted,
             ResultReachesController(ctx, firedFromQueue),
-            ctx.ListAircraft
+            ctx.ListAircraft,
+            GroundCommandHandler.DepartureRunwayClearance.Taxi
         );
         switch (command)
         {

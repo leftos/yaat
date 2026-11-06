@@ -3014,18 +3014,12 @@ internal static class NavigationCommandHandler
         aircraft.PendingObservations.Add(
             new TrafficAcquisitionObservation(targetCallsignUpper, ctx.ScenarioElapsedSeconds, ArmedAirborne: !aircraft.IsOnGround)
         );
-        if (ctx.SoloTrainingMode)
-        {
-            Pilot.PilotResponder.QueueSoloPilotReadback(
-                aircraft,
-                FormatTrafficLookingNotification(result, target),
-                Pilot.PilotResponder.SourceSayReadback
-            );
-        }
-        else
-        {
-            aircraft.PendingPilotReadbacks.Add(FormatTrafficLookingNotification(result, target));
-        }
+        Pilot.PilotResponder.RouteRpoSayReadback(
+            aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            Pilot.PilotResponder.BuildTrafficNegativeContactLooking(aircraft, target.Callsign, result.Reason)
+        );
         return CommandDispatcher.Ok($"Looking for traffic — {FormatTrafficFailureHint(result, target)}");
     }
 
@@ -3141,28 +3135,10 @@ internal static class NavigationCommandHandler
     }
 
     /// <summary>
-    /// Pilot readback when RTIS can't be satisfied on the first check — the
-    /// pilot acknowledges the request and commits to keep looking. Reviewed with
-    /// aviation-sim-expert: pilot phraseology only ("negative contact",
-    /// "looking"), no simulator-internal diagnostics ("outside forward
-    /// hemisphere", detection-range numbers). Layer details are paraphrased as
-    /// "clouds between us". "Unable" is reserved for refused clearances
-    /// (7110.65 2-4-20) and is NOT used here. See AIM 4-4-14 (visual separation)
-    /// and AIM 5-5-10 (pilot traffic advisories).
-    /// </summary>
-    private static string FormatTrafficLookingNotification(VisualAcquisitionResult r, AircraftState target) =>
-        r.Reason switch
-        {
-            VisualAcquisitionFailure.MixedCeiling => $"Negative contact, {target.Callsign}, clouds between us, looking",
-            VisualAcquisitionFailure.OccludedByBank => $"Negative contact, {target.Callsign}, in the turn, looking",
-            _ => $"Negative contact, {target.Callsign}, looking",
-        };
-
-    /// <summary>
     /// RPO-facing diagnostic naming the specific reason the pilot could not
     /// visually acquire the target. Surfaced through the command result so the
     /// instructor/RPO can decide whether to relay it to the student. Distinct
-    /// from <see cref="FormatTrafficLookingNotification"/>, which stays in
+    /// from <see cref="Pilot.PilotResponder.BuildTrafficNegativeContactLooking"/>, which stays in
     /// pilot phraseology and must avoid sim-internal diagnostics.
     /// </summary>
     private static string FormatTrafficFailureHint(VisualAcquisitionResult r, AircraftState target) =>
@@ -3178,7 +3154,7 @@ internal static class NavigationCommandHandler
     /// <summary>
     /// Pilot readback when RFIS can't be satisfied on the first check — the
     /// pilot acknowledges the request and commits to keep looking. Mirrors
-    /// the RTIS soft-fail readback (see <see cref="FormatTrafficLookingNotification"/>):
+    /// the RTIS soft-fail readback (see <see cref="Pilot.PilotResponder.BuildTrafficNegativeContactLooking"/>):
     /// pilot phraseology only, no simulator-internal diagnostics. "Unable" is
     /// reserved for refused clearances (7110.65 2-4-20) and is NOT used here.
     /// Reviewed with aviation-sim-expert:

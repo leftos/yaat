@@ -198,7 +198,8 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
                 ActiveRunways.Empty,
                 IsScenarioScripted: true,
                 ResultReachesController: false,
-                ListAircraft: null
+                ListAircraft: null,
+                GroundCommandHandler.DepartureRunwayClearance.Taxi
             )
         );
         foreach (string line in warnings.Warnings)

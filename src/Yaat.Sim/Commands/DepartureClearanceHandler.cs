@@ -559,6 +559,7 @@ internal static class DepartureClearanceHandler
         // Set the assigned runway and insert tower phases
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Procedure.DepartureRunway = runway.Designator;
+        RememberCrossingHoldIntersection(aircraft, holding.HoldShort, runway);
         DepartureRouteResult? routeResult = InsertTowerPhasesAfterCurrent(
             aircraft,
             clearanceType,
@@ -574,6 +575,27 @@ internal static class DepartureClearanceHandler
         {
             Advisory = ProcedureSourceSidAdvisory(clearanceType, routeResult, aircraft),
         };
+    }
+
+    /// <summary>
+    /// A takeoff or line-up clearance given at a crossing hold (a runway the route crosses, or that hold re-armed by the controller)
+    /// departs <paramref name="runway"/> from the taxiway held on. When that taxiway is an intersection departure point for the end
+    /// departed (<see cref="RunwayEntryPoint.Resolve"/>), it is remembered (<see cref="PhaseList.LineUpIntersectionTaxiway"/>) so the
+    /// takeoff clearance's readback names it: "cleared for takeoff runway 28R at J" (7110.65 3-9-10.b). A destination-runway hold is
+    /// left as it is.
+    /// </summary>
+    private static void RememberCrossingHoldIntersection(AircraftState aircraft, HoldShortPoint hold, RunwayInfo runway)
+    {
+        if (
+            (hold.Reason is not (HoldShortReason.RunwayCrossing or HoldShortReason.ExplicitHoldShort))
+            || (aircraft.Ground.Layout is not { } layout)
+            || (aircraft.Phases is not { } phases)
+        )
+        {
+            return;
+        }
+
+        phases.LineUpIntersectionTaxiway = RunwayEntryPoint.Resolve(layout, hold.NodeId, runway.Designator, aircraft.Ground.CurrentTaxiway);
     }
 
     /// <summary>
@@ -637,7 +659,7 @@ internal static class DepartureClearanceHandler
         // auto-cross mode.
         double? commandedTaxiSpeedKts = aircraft.Ground.CommandedTaxiSpeedKts;
         TaxiCommand taxi = ImplicitTaxi(aircraft, taxiway, runway, request.CrossingsCleared);
-        GroundCommandHandler.TaxiDispatch implicitTaxi = ImplicitTaxiDispatch(taxiDispatch);
+        GroundCommandHandler.TaxiDispatch implicitTaxi = ImplicitTaxiDispatch(taxiDispatch, request.ClearanceType);
         if (TrafficOnImplicitTaxi(aircraft, taxi, implicitTaxi) is { } blocked)
         {
             string blockedTaxiway = blocked.Taxiway ?? taxiway;
@@ -723,7 +745,10 @@ internal static class DepartureClearanceHandler
             }
         }
 
-        if (PreviewImplicitTaxi(aircraft, ImplicitTaxi(aircraft, taxiway, runway, carried), layout, taxiDispatch).Route is not { } route)
+        if (
+            PreviewImplicitTaxi(aircraft, ImplicitTaxi(aircraft, taxiway, runway, carried), layout, clearanceType, taxiDispatch).Route
+            is not { } route
+        )
         {
             return NoRouteToCarry(carried);
         }
@@ -749,6 +774,7 @@ internal static class DepartureClearanceHandler
         AircraftState aircraft,
         TaxiCommand taxi,
         AirportGroundLayout layout,
+        ClearanceType clearanceType,
         GroundCommandHandler.TaxiDispatch taxiDispatch
     )
     {
@@ -756,7 +782,7 @@ internal static class DepartureClearanceHandler
             aircraft,
             taxi,
             layout,
-            ImplicitTaxiDispatch(taxiDispatch) with
+            ImplicitTaxiDispatch(taxiDispatch, clearanceType) with
             {
                 ListAircraft = null,
             }
@@ -769,10 +795,27 @@ internal static class DepartureClearanceHandler
         return resolution;
     }
 
-    private static GroundCommandHandler.TaxiDispatch ImplicitTaxiDispatch(GroundCommandHandler.TaxiDispatch taxiDispatch) =>
+    /// <summary>
+    /// The dispatch the implicit taxi of a <paramref name="clearanceType"/> clearance installs under: no crossing pre-cleared by the
+    /// room, and a runway change it makes warned about as made by that clearance.
+    /// </summary>
+    private static GroundCommandHandler.TaxiDispatch ImplicitTaxiDispatch(
+        GroundCommandHandler.TaxiDispatch taxiDispatch,
+        ClearanceType clearanceType
+    ) =>
         taxiDispatch with
         {
             AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
+            Clearance = clearanceType switch
+            {
+                ClearanceType.ClearedForTakeoff => GroundCommandHandler.DepartureRunwayClearance.Takeoff,
+                ClearanceType.LineUpAndWait => GroundCommandHandler.DepartureRunwayClearance.LineUpAndWait,
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(clearanceType),
+                    clearanceType,
+                    "an implicit taxi is a takeoff or line-up clearance's"
+                ),
+            },
         };
 
     /// <summary>
@@ -798,7 +841,7 @@ internal static class DepartureClearanceHandler
         }
 
         RunwayInfo? assigned = aircraft.Phases?.AssignedRunway;
-        NamedRunwayReach reach = ClassifyNamedRunwayReach(aircraft, taxiway, runway, request.CrossingsCleared, taxiDispatch);
+        NamedRunwayReach reach = ClassifyNamedRunwayReach(aircraft, taxiway, runway, request.CrossingsCleared, request.ClearanceType, taxiDispatch);
         logger.LogDebug(
             "{Callsign}: {Clearance} naming {Runway} at the hold short of {Taxiway} (assigned {Assigned}) — {Reach}",
             aircraft.Callsign,
@@ -895,6 +938,7 @@ internal static class DepartureClearanceHandler
         string taxiway,
         RunwayInfo runway,
         IReadOnlyList<string> crossingsCleared,
+        ClearanceType clearanceType,
         GroundCommandHandler.TaxiDispatch taxiDispatch
     )
     {
@@ -907,6 +951,7 @@ internal static class DepartureClearanceHandler
             aircraft,
             ImplicitTaxi(aircraft, taxiway, runway, crossingsCleared),
             layout,
+            clearanceType,
             taxiDispatch
         );
         if (resolution.Route is not { } route)

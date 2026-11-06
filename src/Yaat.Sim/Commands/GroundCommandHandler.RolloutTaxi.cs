@@ -682,7 +682,7 @@ public static partial class GroundCommandHandler
         aircraft.Ground.CommandedTaxiSpeedKts = null;
         aircraft.Ground.ParkingSpot = null;
         aircraft.Ground.CurrentTaxiway = route.Segments[0].TaxiwayName;
-        PhaseList taxiPhases = InstallFreshTaxiPhaseList(aircraft, detectedRunway, prior);
+        PhaseList taxiPhases = InstallFreshTaxiPhaseList(aircraft, detectedRunway, prior, DepartureRunwayClearance.Taxi);
         taxiPhases.Add(new TaxiingPhase());
         taxiPhases.Start(ctx);
         Log.LogInformation("[TryTaxi] {Callsign}: stored taxi route started from the exit: {Summary}", aircraft.Callsign, route.ToSummary());

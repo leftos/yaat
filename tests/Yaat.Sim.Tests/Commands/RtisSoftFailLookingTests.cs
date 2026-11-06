@@ -2,6 +2,8 @@
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Pilot;
+using Yaat.Sim.Speech;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -11,7 +13,7 @@ namespace Yaat.Sim.Tests.Commands;
 ///
 /// When the pilot cannot visually acquire the requested traffic on the first
 /// check, RTIS now returns <see cref="CommandResult.Success"/> = true with a
-/// pilot readback ("unable, looking for traffic"), records a
+/// pilot readback ("negative contact, looking"), records a
 /// <c>TrafficAcquisitionObservation</c> on the aircraft, and re-runs the
 /// acquisition check each tick via <c>PilotObservationUpdater</c>. When the
 /// target becomes acquirable, <c>HasReportedTrafficInSight</c> is set and the
@@ -118,6 +120,126 @@ public class RtisSoftFailLookingTests
         Assert.True(result.Success);
         Assert.Contains("Looking for traffic", result.Message);
         Assert.Contains("OVC030", result.Message);
+    }
+
+    // -------------------------------------------------------------------------
+    // Soft-fail wording per reader: a pilot never learns the traffic's callsign
+    // from an advisory (7110.65 2-1-21.a.1-5, AIM 4-1-15.c.1), so the spoken
+    // answer and the solo terminal leave it out; the RPO terminal keeps it.
+    // -------------------------------------------------------------------------
+
+    private const string OwnCallsign = "N123AB";
+
+    [Fact]
+    public void Rtis_SoftFail_TargetBehind_SoloAndSpokenOmitTheTrafficCallsign_RpoKeepsIt()
+    {
+        AircraftState lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
+        AssertSoftFailWording(
+            () => MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: OwnCallsign),
+            lead,
+            new TrafficAdvisoryDetails(6, 3, "N", "B738", null),
+            weather: null,
+            clause: ""
+        );
+    }
+
+    [Fact]
+    public void Rtis_SoftFail_MixedCeiling_SoloAndSpokenOmitTheTrafficCallsign_RpoKeepsIt()
+    {
+        AircraftState lead = MakeAircraft(37.73, AptLon, heading: 180, altitude: 5000, callsign: "LEAD");
+        var weather = new WeatherProfile { Metars = ["KOAK 121853Z 27012KT 10SM OVC030 20/12 A2992"] };
+        AssertSoftFailWording(
+            () => MakeAircraft(37.75, AptLon, heading: 180, altitude: 2000, callsign: OwnCallsign),
+            lead,
+            new TrafficAdvisoryDetails(12, 1, "S", "B738", null),
+            weather,
+            clause: "clouds between us, "
+        );
+    }
+
+    [Fact]
+    public void Rtis_SoftFail_InTheTurn_SoloAndSpokenOmitTheTrafficCallsign_RpoKeepsIt()
+    {
+        // Heading south in a right bank: the high wing is on the left (east), where the traffic is.
+        AircraftState lead = MakeAircraft(37.73, -122.19, heading: 180, altitude: 3000, callsign: "LEAD");
+        AssertSoftFailWording(
+            () =>
+            {
+                AircraftState ownship = MakeAircraft(37.75, AptLon, heading: 180, altitude: 3000, callsign: OwnCallsign);
+                ownship.BankAngle = 25.0;
+                return ownship;
+            },
+            lead,
+            new TrafficAdvisoryDetails(10, 2, "S", "B738", null),
+            weather: null,
+            clause: "in the turn, "
+        );
+    }
+
+    /// <summary>
+    /// Dispatches the soft-failing traffic call once in solo training (the structured advisory <paramref name="advisory"/>, the RTIS
+    /// form solo training takes) and once in RPO mode (<c>RTIS LEAD</c>), each on a fresh ownship from <paramref name="makeOwnship"/>,
+    /// and checks the solo terminal, the spoken text and the RPO terminal.
+    /// </summary>
+    private static void AssertSoftFailWording(
+        Func<AircraftState> makeOwnship,
+        AircraftState lead,
+        TrafficAdvisoryDetails advisory,
+        WeatherProfile? weather,
+        string clause
+    )
+    {
+        AircraftState solo = DispatchSoftFailingRtis(
+            makeOwnship(),
+            lead,
+            new ReportTrafficAdvisoryCommand(advisory),
+            weather,
+            soloTrainingMode: true
+        );
+        PilotTransmission transmission = Assert.Single(solo.PendingPilotTransmissions);
+        Assert.Equal($"negative contact, {clause}looking.", transmission.Text);
+        Assert.Equal($"{CallsignParser.IcaoToSpoken(OwnCallsign)}, negative contact, {clause}looking.", transmission.SpeechText);
+
+        AircraftState rpo = DispatchSoftFailingRtis(makeOwnship(), lead, new ReportTrafficInSightCommand("LEAD"), weather, soloTrainingMode: false);
+        Assert.Equal($"Negative contact, LEAD, {clause}looking", Assert.Single(rpo.PendingPilotReadbacks));
+
+        AircraftState rpoSpeech = DispatchSoftFailingRtis(
+            makeOwnship(),
+            lead,
+            new ReportTrafficInSightCommand("LEAD"),
+            weather,
+            soloTrainingMode: false,
+            rpoShowPilotSpeech: true
+        );
+        PilotSpeechText speech = Assert.Single(rpoSpeech.PendingPilotSpeech);
+        Assert.DoesNotContain("LEAD", speech.Tts, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal($"Negative contact, LEAD, {clause}looking", speech.TerminalForRpo);
+        Assert.Empty(rpoSpeech.PendingPilotReadbacks);
+    }
+
+    private static AircraftState DispatchSoftFailingRtis(
+        AircraftState ownship,
+        AircraftState lead,
+        ParsedCommand command,
+        WeatherProfile? weather,
+        bool soloTrainingMode,
+        bool rpoShowPilotSpeech = false
+    )
+    {
+        DispatchContext ctx = TestDispatch.Context(
+            Random.Shared,
+            weather: weather,
+            findAircraft: cs => cs == "LEAD" ? lead : null,
+            listAircraft: () => [ownship, lead],
+            soloTrainingMode: soloTrainingMode,
+            rpoShowPilotSpeech: rpoShowPilotSpeech
+        );
+
+        CommandResult result = CommandDispatcher.Dispatch(command, ownship, ctx);
+
+        Assert.True(result.Success, $"Expected soft-fail success but got: {result.Message}");
+        Assert.False(ownship.Approach.HasReportedTrafficInSight, $"LEAD was acquired: {result.Message}");
+        return ownship;
     }
 
     // -------------------------------------------------------------------------

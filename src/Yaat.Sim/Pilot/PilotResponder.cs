@@ -2442,6 +2442,32 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// Pilot answer when a request to report traffic in sight cannot be satisfied on the first check: the pilot acknowledges it
+    /// and commits to keep looking. Reviewed with aviation-sim-expert: pilot phraseology only ("negative contact", "looking"),
+    /// no simulator-internal diagnostics ("outside forward hemisphere", detection-range numbers); a cloud layer between the two
+    /// aircraft is paraphrased as "clouds between us" and a high wing in a bank as "in the turn". "Unable" is reserved for
+    /// refused clearances (7110.65 2-4-20) and is not used here (AIM 4-4-14, 5-5-10). Neither the spoken form nor the solo
+    /// terminal names the traffic's callsign — a pilot never learns it from an advisory (7110.65 2-1-21.a.1-5, AIM 4-1-15.c.1)
+    /// — while the RPO terminal keeps it as an instructor diagnostic, as <see cref="BuildTrafficInSight"/> does. The RPO text keeps
+    /// its older shape ("Negative contact, {traffic}, looking", capitalised, no closing period) on purpose: it is the line RPOs
+    /// already read.
+    /// </summary>
+    public static PilotSpeechText BuildTrafficNegativeContactLooking(AircraftState aircraft, string targetCallsign, VisualAcquisitionFailure reason)
+    {
+        string clause = reason switch
+        {
+            VisualAcquisitionFailure.MixedCeiling => "clouds between us, ",
+            VisualAcquisitionFailure.OccludedByBank => "in the turn, ",
+            _ => "",
+        };
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText($"negative contact, {clause}looking.", $"{spoken}, negative contact, {clause}looking.")
+        {
+            RpoTerminal = $"Negative contact, {targetCallsign}, {clause}looking",
+        };
+    }
+
+    /// <summary>
     /// Pilot transmission when a traffic lookout ends without the pilot ever acquiring the traffic: an unsolicited
     /// "still negative contact on that traffic" (P/CG NEGATIVE CONTACT). Neither the spoken form nor the solo terminal
     /// names the traffic's callsign — a pilot identifies traffic by the position/type call, never by callsign

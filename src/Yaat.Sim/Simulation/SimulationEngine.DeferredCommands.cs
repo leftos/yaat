@@ -454,7 +454,8 @@ public sealed partial class SimulationEngine
             Scenario?.ActiveRunways ?? ActiveRunways.Empty,
             isScenarioScripted,
             ResultReachesController: false,
-            () => World.GetSnapshot()
+            () => World.GetSnapshot(),
+            GroundCommandHandler.DepartureRunwayClearance.Taxi
         );
         return GroundCommandHandler.ResolveTaxiRoute(aircraft, taxi, groundLayout, dispatch);
     }
