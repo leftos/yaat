@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.MilitaryRoutes;
@@ -8,10 +10,11 @@ using Yaat.Sim.Phases.Tower;
 namespace Yaat.Sim;
 
 /// <summary>
-/// Projects an aircraft's active procedure phase into drawable <see cref="NavRouteShapeDto"/> shapes
-/// for the radar "Show nav route" overlay. Covers the geometry the flat <see cref="NavRouteFixDto"/>
-/// route can't express: a holding pattern's racetrack, a procedure turn's course reversal, and the
-/// open-ended coded legs (CA/VA/CD/VD/CR/VR) of a SID. Pure geometry — no side effects.
+/// Projects an aircraft's active procedure phase and its queued holds into drawable <see cref="NavRouteShapeDto"/> shapes
+/// for the radar "Show nav route" overlay. Covers the geometry the flat <see cref="NavRouteFixDto"/> route can't express: a
+/// holding pattern's racetrack, a procedure turn's course reversal, the open-ended coded legs (CA/VA/CD/VD/CR/VR) of a SID,
+/// a military route's corridor, the dashed racetrack of each hold queued at a fix ahead, and the dashed circle of a VFR
+/// (HFIX) or airspace-boundary orbit. Pure geometry — no side effects.
 /// </summary>
 public static class NavRouteOverlayProjector
 {
@@ -28,16 +31,143 @@ public static class NavRouteOverlayProjector
     /// climb-out direction. The real leg ends on a condition (altitude/distance/radial), not a point.</summary>
     private const double CodedLegNominalNm = 4.0;
 
+    /// <summary>
+    /// The current phase's shapes, then one dashed racetrack per hold queued at a fix ahead, in queue order.
+    /// </summary>
     public static List<NavRouteShapeDto> BuildShapes(AircraftState aircraft)
     {
-        return aircraft.Phases?.CurrentPhase switch
+        List<NavRouteShapeDto> shapes = BuildCurrentPhaseShapes(aircraft);
+        foreach ((HoldingPatternCommand hold, double holdAltitudeFt) in QueuedHolds(aircraft))
+        {
+            shapes.Add(BuildPendingHoldRacetrack(aircraft, hold, holdAltitudeFt));
+        }
+
+        return shapes;
+    }
+
+    private static List<NavRouteShapeDto> BuildCurrentPhaseShapes(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase switch
         {
             HoldingPatternPhase hold => [BuildHoldRacetrack(aircraft, hold)],
             ProcedureTurnPhase pt => [BuildProcedureTurn(aircraft, pt)],
             DepartureProcedurePhase departure => BuildCodedLegVectors(aircraft, departure),
             Phases.MilitaryRoutePhase route => BuildMilitaryRouteCorridor(route),
-            _ => [],
+            _ => CurrentOrbit(aircraft) is { } orbit ? [BuildOrbitCircle(aircraft, orbit.Centre, orbit.Direction)] : [],
         };
+
+    /// <summary>
+    /// The orbit the current phase flies, if any: a VFR hold's fix (HFIX), also while still proceeding to it, or an
+    /// airspace-boundary orbit's reference position. A hover has no orbit, a hold at present position (HPP) keeps no record
+    /// of where its orbit began, and a level-off under a shelf does not turn, so none of them has one.
+    /// </summary>
+    private static (LatLon Centre, TurnDirection Direction)? CurrentOrbit(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase switch
+        {
+            VfrHoldPhase { OrbitDirection: { } dir, FixLat: { } lat, FixLon: { } lon } => (new LatLon(lat, lon), dir),
+            Phases.AirspaceBoundaryHoldPhase { Mode: Phases.AirspaceHoldMode.Orbit } boundary => (
+                boundary.ReferencePosition,
+                boundary.OrbitDirection
+            ),
+            _ => null,
+        };
+
+    /// <summary>
+    /// A closed circle of standard-rate radius at the aircraft's present altitude, centred on <paramref name="centre"/>,
+    /// traced in the orbit's turn direction.
+    /// </summary>
+    private static NavRouteShapeDto BuildOrbitCircle(AircraftState aircraft, LatLon centre, TurnDirection direction)
+    {
+        double radiusNm = TurnRadiusNm(aircraft);
+        var points = new List<LatLon> { GeoMath.ProjectPoint(centre, new TrueHeading(0.0), radiusNm) };
+        // A full sweep from north back to north: excludes the start, includes the end, closing the loop.
+        points.AddRange(GeoMath.GenerateArcPoints(centre, radiusNm, 0.0, 0.0, direction == TurnDirection.Right));
+        return new NavRouteShapeDto(NavRouteShapeKind.OrbitCircle, [.. points.Select(p => new[] { p.Lat, p.Lon })], null, null, null);
+    }
+
+    /// <summary>
+    /// Every hold queued at a fix ahead — a <see cref="HoldingPatternCommand"/> in an unapplied block behind a reach-fix
+    /// trigger — with the altitude it will be held at. A block whose parsed commands were not recovered is skipped.
+    /// </summary>
+    private static IEnumerable<(HoldingPatternCommand Hold, double HoldAltitudeFt)> QueuedHolds(AircraftState aircraft)
+    {
+        foreach (CommandBlock block in aircraft.Queue.Blocks)
+        {
+            if (block.IsApplied || (block.Trigger is not { Type: BlockTriggerType.ReachFix }) || (block.ParsedCommands is not { } commands))
+            {
+                continue;
+            }
+
+            double holdAltitudeFt = QueuedHoldAltitudeFt(aircraft, commands);
+            foreach (HoldingPatternCommand hold in commands.OfType<HoldingPatternCommand>())
+            {
+                yield return (hold, holdAltitudeFt);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A key covering every input of the queued-hold racetracks and the orbit circle that the aircraft's position does not
+    /// already cover: each queued hold's fix, course, leg, direction and hold altitude, and the orbit's centre and direction.
+    /// Empty when there are none, so it leaves an existing fingerprint unchanged.
+    /// </summary>
+    internal static string BuildPendingShapeKey(AircraftState aircraft)
+    {
+        StringBuilder? sb = null;
+        foreach ((HoldingPatternCommand hold, double holdAltitudeFt) in QueuedHolds(aircraft))
+        {
+            sb ??= new StringBuilder();
+            sb.Append(CultureInfo.InvariantCulture, $"|H{hold.FixName}:{hold.FixLat:R}:{hold.FixLon:R}:{hold.InboundCourse}");
+            sb.Append(CultureInfo.InvariantCulture, $":{hold.LegLength?.ToString("R", CultureInfo.InvariantCulture) ?? "-"}:{hold.IsMinuteBased}");
+            sb.Append(CultureInfo.InvariantCulture, $":{hold.Direction}:{holdAltitudeFt:R}");
+        }
+
+        if (CurrentOrbit(aircraft) is { } orbit)
+        {
+            sb ??= new StringBuilder();
+            sb.Append(CultureInfo.InvariantCulture, $"|O{orbit.Centre.Lat:R}:{orbit.Centre.Lon:R}:{orbit.Direction}");
+        }
+
+        return sb?.ToString() ?? "";
+    }
+
+    /// <summary>
+    /// The altitude a queued hold will be held at: the last altitude assignment in its own block, else the assigned
+    /// altitude, else the present one. Crossing restrictions are not read.
+    /// </summary>
+    private static double QueuedHoldAltitudeFt(AircraftState aircraft, List<ParsedCommand> blockCommands)
+    {
+        int? blockAltitude = null;
+        foreach (ParsedCommand command in blockCommands)
+        {
+            blockAltitude = command switch
+            {
+                ClimbMaintainCommand climb => climb.Altitude,
+                DescendMaintainCommand descend => descend.Altitude,
+                ForceAltitudeCommand force => force.Altitude,
+                _ => blockAltitude,
+            };
+        }
+
+        return blockAltitude ?? aircraft.Targets.AssignedAltitude ?? aircraft.Altitude;
+    }
+
+    /// <summary>
+    /// A queued hold's racetrack, built from the command exactly as <see cref="NavigationCommandHandler.DispatchHoldingPattern"/>
+    /// will build the phase (same leg rule, same magnetic-to-true conversion), judged at the altitude it will be held at.
+    /// </summary>
+    private static NavRouteShapeDto BuildPendingHoldRacetrack(AircraftState aircraft, HoldingPatternCommand hold, double holdAltitudeFt)
+    {
+        double radiusNm = TurnRadiusNm(aircraft, holdAltitudeFt);
+        (double legLength, bool isMinuteBased) = NavigationCommandHandler.ResolveHoldLeg(hold, holdAltitudeFt);
+        double legNm = HoldStraightLegNm(aircraft, legLength, isMinuteBased, holdAltitudeFt, radiusNm);
+        List<LatLon> points = HoldRacetrackPoints(
+            new LatLon(hold.FixLat, hold.FixLon),
+            NavigationCommandHandler.HoldInboundTrueCourse(hold),
+            hold.Direction == TurnDirection.Right,
+            legNm,
+            radiusNm
+        );
+        return new NavRouteShapeDto(NavRouteShapeKind.PendingHoldRacetrack, [.. points.Select(p => new[] { p.Lat, p.Lon })], null, null, null);
     }
 
     /// <summary>
@@ -317,24 +447,33 @@ public static class NavRouteOverlayProjector
         return points;
     }
 
-    private static double TurnRadiusNm(AircraftState aircraft)
+    private static double TurnRadiusNm(AircraftState aircraft) => TurnRadiusNm(aircraft, aircraft.Altitude);
+
+    /// <summary>The standard-rate turn radius at holding speed at <paramref name="altitudeFt"/>, clamped.</summary>
+    private static double TurnRadiusNm(AircraftState aircraft, double altitudeFt)
     {
-        double tas = HoldingTasKts(aircraft);
+        double tas = HoldingTasKts(aircraft, altitudeFt);
         double radius = (tas / 3600.0) / (StandardTurnRateDegPerSec * Math.PI / 180.0);
         return Math.Clamp(radius, MinTurnRadiusNm, MaxTurnRadiusNm);
     }
 
-    private static double HoldStraightLegNm(AircraftState aircraft, HoldingPatternPhase hold, double radiusNm)
+    private static double HoldStraightLegNm(AircraftState aircraft, HoldingPatternPhase hold, double radiusNm) =>
+        HoldStraightLegNm(aircraft, hold.LegLength, hold.IsMinuteBased, aircraft.Altitude, radiusNm);
+
+    /// <summary>
+    /// The straight leg in nm: a minute-based leg at holding TAS at <paramref name="altitudeFt"/>, else the leg as given.
+    /// </summary>
+    private static double HoldStraightLegNm(AircraftState aircraft, double legLength, bool isMinuteBased, double altitudeFt, double radiusNm)
     {
-        double nm = hold.IsMinuteBased ? HoldingTasKts(aircraft) * (hold.LegLength / 60.0) : hold.LegLength;
+        double nm = isMinuteBased ? HoldingTasKts(aircraft, altitudeFt) * (legLength / 60.0) : legLength;
         // Keep the straight leg at least a turn-diameter long so the racetrack never collapses.
         return Math.Max(nm, 2.0 * radiusNm);
     }
 
-    private static double HoldingTasKts(AircraftState aircraft)
+    private static double HoldingTasKts(AircraftState aircraft, double altitudeFt)
     {
-        double ias = AircraftPerformance.HoldingSpeed(aircraft.AircraftType, aircraft.Altitude);
-        double tas = WindInterpolator.IasToTas(ias, aircraft.Altitude);
+        double ias = AircraftPerformance.HoldingSpeed(aircraft.AircraftType, altitudeFt);
+        double tas = WindInterpolator.IasToTas(ias, altitudeFt);
         return tas > 0 ? tas : FallbackHoldingTasKts;
     }
 }

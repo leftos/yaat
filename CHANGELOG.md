@@ -5,6 +5,7 @@
 ### Added
 
 - The "Show nav route" overlay dims published altitude restrictions the current clearance does not bind; active altitudes and speeds draw as before.
+- The "Show nav route" overlay draws a hold queued at a fix ahead as a dashed racetrack, and VFR and airspace-boundary orbits as dashed circles.
 
 ### Fixed
 

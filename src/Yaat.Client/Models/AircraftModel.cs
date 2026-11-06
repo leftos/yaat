@@ -494,8 +494,10 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
 
     /// <summary>
     /// Server-projected geometry for the active procedure phase (hold racetracks, procedure turns,
-    /// open-ended SID coded legs) drawn by the "Show nav route" overlay — paths the flat
-    /// <see cref="NavRouteFixes"/> route can't express. Empty unless the aircraft is in such a phase.
+    /// open-ended SID coded legs, military route corridors, VFR and airspace-boundary orbit circles) and
+    /// for each hold queued at a fix ahead, drawn by the "Show nav route" overlay — paths the flat
+    /// <see cref="NavRouteFixes"/> route can't express. Empty unless the aircraft is in such a phase or
+    /// has such a hold queued.
     /// </summary>
     public List<NavRouteShapeDto> NavRouteShapes { get; set; } = [];
 

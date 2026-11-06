@@ -122,6 +122,10 @@ public sealed class RadarRenderer : IDisposable
     private readonly SKPaint[] _pathLeaderPaints;
     private readonly SKPaint[] _pathTailPaints;
 
+    // Reused for each nav-route shape drawn as one path (a pending hold, an orbit circle), so the dash runs continuously
+    // around it instead of restarting at every chord.
+    private readonly SKPath _shownShapePath = new();
+
     // Scope stroke paints rendered CRC-style (no AA, device-pixel width) by RadarLineStyle.Apply each
     // frame; the tuple carries each paint's base width in DIPs.
     private readonly List<(SKPaint Paint, float BaseWidth)> _strokePaints = [];
@@ -606,19 +610,28 @@ public sealed class RadarRenderer : IDisposable
             NavRouteShapeDto shape = entry.Shape;
             int paintIdx = PaintIndexForColor(entry.Color);
 
-            // Coded-leg vectors are open-ended (a heading flown until an altitude/distance/radial), so
-            // they draw dashed like a vector tail. Holds and procedure turns are definite flown paths,
-            // so they draw solid. A military route corridor is a boundary rather than a path — it is
-            // where other traffic must not be (7110.65 §9-2-6.d) — so it draws dashed too.
-            SKPaint linePaint = shape.Kind is NavRouteShapeKind.CodedLegVector or NavRouteShapeKind.MilitaryRouteCorridor
-                ? _pathTailPaints[paintIdx]
-                : _pathLinePaints[paintIdx];
-
-            for (int i = 1; i < shape.Points.Count; i++)
+            // A hold queued at a fix ahead is not flown yet, and a VFR or boundary orbit is a nominal circle, so both draw
+            // dashed, each as one path so the dash does not restart at every 5° chord.
+            if (shape.Kind is NavRouteShapeKind.PendingHoldRacetrack or NavRouteShapeKind.OrbitCircle)
             {
-                (float x1, float y1) = vp.LatLonToScreen(shape.Points[i - 1][0], shape.Points[i - 1][1]);
-                (float x2, float y2) = vp.LatLonToScreen(shape.Points[i][0], shape.Points[i][1]);
-                canvas.DrawLine(x1, y1, x2, y2, linePaint);
+                DrawShapeAsPath(canvas, vp, shape, _pathTailPaints[paintIdx]);
+            }
+            else
+            {
+                // Coded-leg vectors are open-ended (a heading flown until an altitude/distance/radial), so
+                // they draw dashed like a vector tail. Holds and procedure turns are definite flown paths,
+                // so they draw solid. A military route corridor is a boundary rather than a path — it is
+                // where other traffic must not be (7110.65 §9-2-6.d) — so it draws dashed too.
+                SKPaint linePaint = shape.Kind is NavRouteShapeKind.CodedLegVector or NavRouteShapeKind.MilitaryRouteCorridor
+                    ? _pathTailPaints[paintIdx]
+                    : _pathLinePaints[paintIdx];
+
+                for (int i = 1; i < shape.Points.Count; i++)
+                {
+                    (float x1, float y1) = vp.LatLonToScreen(shape.Points[i - 1][0], shape.Points[i - 1][1]);
+                    (float x2, float y2) = vp.LatLonToScreen(shape.Points[i][0], shape.Points[i][1]);
+                    canvas.DrawLine(x1, y1, x2, y2, linePaint);
+                }
             }
 
             if (shape.Labels is { Count: > 0 } labels && shape.LabelLat is { } labelLat && shape.LabelLon is { } labelLon)
@@ -632,6 +645,25 @@ public sealed class RadarRenderer : IDisposable
                 }
             }
         }
+    }
+
+    private void DrawShapeAsPath(SKCanvas canvas, MapViewport vp, NavRouteShapeDto shape, SKPaint paint)
+    {
+        if (shape.Points.Count < 2)
+        {
+            return;
+        }
+
+        _shownShapePath.Reset();
+        (float x0, float y0) = vp.LatLonToScreen(shape.Points[0][0], shape.Points[0][1]);
+        _shownShapePath.MoveTo(x0, y0);
+        for (int i = 1; i < shape.Points.Count; i++)
+        {
+            (float x, float y) = vp.LatLonToScreen(shape.Points[i][0], shape.Points[i][1]);
+            _shownShapePath.LineTo(x, y);
+        }
+
+        canvas.DrawPath(_shownShapePath, paint);
     }
 
     private static void DrawVectorTail(SKCanvas canvas, MapViewport vp, VectorTail tail, SKPaint linePaint, SKPaint arrowPaint)
@@ -1010,6 +1042,7 @@ public sealed class RadarRenderer : IDisposable
         _routeConditionLabelFont.Dispose();
         _pathLabelFont.Dispose();
         _pathRestrictionFont.Dispose();
+        _shownShapePath.Dispose();
 
         for (int i = 0; i < _pathLinePaints.Length; i++)
         {

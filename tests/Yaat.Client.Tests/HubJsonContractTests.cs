@@ -115,6 +115,31 @@ public class HubJsonContractTests
         Assert.Equal(["11000"], route[1].RestrictionLines);
     }
 
+    // A nav-route shape crosses as its integer kind: a queued hold (4) and an orbit circle (5) round-trip through the
+    // source-gen context, and a kind this client does not know (99, from a newer server) reads without throwing.
+    [Fact]
+    public void NavRouteShapeDto_NewAndUnknownKinds_RoundTripThroughYaatHubJsonContext()
+    {
+        const string json =
+            """[{"Kind":4,"Points":[[37.6,-121.9],[37.61,-121.9]],"Labels":null,"LabelLat":null,"LabelLon":null},"""
+            + """{"Kind":5,"Points":[[37.75,-122.1]],"Labels":null,"LabelLat":null,"LabelLon":null},"""
+            + """{"Kind":99,"Points":[[37.0,-122.0]],"Labels":null,"LabelLat":null,"LabelLon":null}]""";
+
+        List<Yaat.Sim.NavRouteShapeDto> first = Assert.IsType<List<Yaat.Sim.NavRouteShapeDto>>(
+            JsonSerializer.Deserialize(json, YaatHubJsonContext.Default.ListNavRouteShapeDto)
+        );
+        string written = JsonSerializer.Serialize(first, YaatHubJsonContext.Default.ListNavRouteShapeDto);
+        List<Yaat.Sim.NavRouteShapeDto> again = Assert.IsType<List<Yaat.Sim.NavRouteShapeDto>>(
+            JsonSerializer.Deserialize(written, YaatHubJsonContext.Default.ListNavRouteShapeDto)
+        );
+
+        Assert.Equal(
+            [Yaat.Sim.NavRouteShapeKind.PendingHoldRacetrack, Yaat.Sim.NavRouteShapeKind.OrbitCircle, (Yaat.Sim.NavRouteShapeKind)99],
+            again.Select(s => s.Kind)
+        );
+        Assert.Equal([37.61, -121.9], again[0].Points[1]);
+    }
+
     // The active-runways broadcast, the room-join field and the load result's session-setup prompt (both sections, the
     // assigned-runway counts included) and lowest worked level, in the server's wire shape.
     [Fact]

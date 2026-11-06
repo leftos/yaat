@@ -24,6 +24,18 @@ public enum NavRouteShapeKind
     /// stay out of it, and its width changes span to span and is asymmetric about the centerline.
     /// </summary>
     MilitaryRouteCorridor = 3,
+
+    /// <summary>
+    /// A hold queued at a fix ahead (a queued <c>HOLDP</c> behind a reach-fix trigger), drawn dashed because the
+    /// aircraft is not flying it yet. Becomes a solid <see cref="HoldRacetrack"/> once the aircraft is holding.
+    /// </summary>
+    PendingHoldRacetrack = 4,
+
+    /// <summary>
+    /// A VFR orbit (HFIX) or an airspace-boundary orbit, as a closed circle of standard-rate radius centred on the
+    /// orbit point, drawn dashed (a sim convention; 7110.65 §4-6-5 and §7-1-4 define no shape).
+    /// </summary>
+    OrbitCircle = 5,
 }
 
 /// <summary>

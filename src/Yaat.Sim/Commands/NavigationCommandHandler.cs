@@ -1556,23 +1556,37 @@ internal static class NavigationCommandHandler
     internal static double StandardHoldLegMinutes(double altitudeFt) =>
         altitudeFt <= StandardHoldLegThresholdFt ? StandardHoldLegMinutesAtOrBelow : StandardHoldLegMinutesAbove;
 
+    /// <summary>
+    /// The leg a <c>HOLDP</c> flies: the controller's leg when given, else the altitude standard at <paramref name="altitudeFt"/>
+    /// (always minute-based).
+    /// </summary>
+    internal static (double LegLength, bool IsMinuteBased) ResolveHoldLeg(HoldingPatternCommand cmd, double altitudeFt) =>
+        (cmd.LegLength ?? StandardHoldLegMinutes(altitudeFt), (cmd.LegLength is null) || cmd.IsMinuteBased);
+
+    /// <summary>
+    /// The true inbound course, in whole degrees, a <c>HOLDP</c>'s magnetic course flies. The controller's holding course is
+    /// magnetic (7110.65 1-2-1): referenced to the navaid's variation of record when the fix is a navaid, else to the modelled
+    /// variation at the fix.
+    /// </summary>
+    internal static int HoldInboundTrueCourse(HoldingPatternCommand cmd)
+    {
+        double declination = NavigationDatabase.Instance.GetPublishedCourseDeclination(cmd.FixName, string.Empty, new LatLon(cmd.FixLat, cmd.FixLon));
+        TrueHeading inboundTrue = new MagneticHeading(cmd.InboundCourse).ToTrue(declination);
+        return (int)Math.Round(inboundTrue.Degrees) % 360;
+    }
+
     internal static CommandResult DispatchHoldingPattern(HoldingPatternCommand cmd, AircraftState aircraft)
     {
         // An omitted leg is the altitude standard, fixed when the hold is issued: the assigned altitude, else the present one.
-        double legLength = cmd.LegLength ?? StandardHoldLegMinutes(aircraft.Targets.AssignedAltitude ?? aircraft.Altitude);
-        bool isMinuteBased = (cmd.LegLength is null) || cmd.IsMinuteBased;
+        (double legLength, bool isMinuteBased) = ResolveHoldLeg(cmd, aircraft.Targets.AssignedAltitude ?? aircraft.Altitude);
 
-        // The controller's holding course is magnetic (7110.65 1-2-1): referenced to the navaid's variation of record when the fix
-        // is a navaid, else to the modelled variation at the fix. The phase flies a true course; the readback keeps the magnetic one.
-        double declination = NavigationDatabase.Instance.GetPublishedCourseDeclination(cmd.FixName, string.Empty, new LatLon(cmd.FixLat, cmd.FixLon));
-        TrueHeading inboundTrue = new MagneticHeading(cmd.InboundCourse).ToTrue(declination);
-
+        // The phase flies a true course; the readback keeps the magnetic one.
         var phase = new HoldingPatternPhase
         {
             FixName = cmd.FixName,
             FixLat = cmd.FixLat,
             FixLon = cmd.FixLon,
-            InboundCourse = (int)Math.Round(inboundTrue.Degrees) % 360,
+            InboundCourse = HoldInboundTrueCourse(cmd),
             LegLength = legLength,
             IsMinuteBased = isMinuteBased,
             Direction = cmd.Direction,

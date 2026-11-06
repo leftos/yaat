@@ -1609,9 +1609,10 @@ public partial class RadarViewModel(
             string fingerprint = BuildShownPathFingerprint(ac);
             SKColor color = PathColors[_pathColorIndices[callsign]];
 
-            // Active-procedure geometry (holds/PTs/coded legs) is computed server-side and arrives
-            // ready to draw — map it straight through with the aircraft's overlay color. No caching
-            // needed (the points are cheap and change only on a phase transition).
+            // Active-procedure geometry (holds/PTs/coded legs/corridors, queued holds, orbit circles) is
+            // computed server-side and arrives ready to draw — map it straight through with the aircraft's
+            // overlay color. No caching needed (the points are cheap and change only on a phase transition
+            // or a queue edit).
             foreach (NavRouteShapeDto shape in ac.NavRouteShapes)
             {
                 shapes.Add(new ShownShapeEntry(shape, color));
