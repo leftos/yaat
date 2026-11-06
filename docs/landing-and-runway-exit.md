@@ -307,7 +307,7 @@ The pilot's obligation is AIM 4-3-11.b.6 — exit at the first convenient taxiwa
   `TickHandoff` nulls `Phases.LahsoHoldShort` in the same branch that publishes `ResolvedExit`, so the landing stops being a hold exactly when the exit is committed. An occupied or route-less candidate never hands off: the normal missed-exit path runs, and with nothing left before the point the aircraft stops and holds. A restore into `State.Handoff` without a usable candidate is routed back through the planned rollout (`TickPlannedRollout`) for the same reason.
 - **An amended clearance ends it** (AIM 4-3-11.b.5): every go-around (`GoAroundHelper`), a `TG`/`SG`/`LA`/`COPT` that replaces the landing terminator, and `CANCLAND` null the target. `CLAND` restated after `LAHSO` keeps it (same clearance), and so does `CLANDF`: a forced landing after `LAHSO` keeps the hold-short until it is cancelled explicitly.
 
-Known gaps are open in YAAT-31 (LAHSO residuals): `RunwayExitPhase`'s own re-search and the instructor's late `EL`/`ER`/`EXIT` retarget are LAHSO-blind after the handoff; the stop limit is not applied after the handoff together with the predicted nose overrun; the ACD-group landing-distance decline is not applied to LAHSO; and `CROSS` does not release the post-LAHSO hold, nor does `CLANDF` after LAHSO.
+Known gaps are open in YAAT-31 (LAHSO residuals): `RunwayExitPhase`'s own re-search and the instructor's late `EL`/`ER`/`EXIT` retarget are LAHSO-blind after the handoff; the stop limit is not applied after the handoff together with the predicted nose overrun; `CROSS` does not release the post-LAHSO hold; and a `CLANDF` after LAHSO rolls through the hold-short point to its last exit.
 
 ## Forced landing (CLANDF)
 
