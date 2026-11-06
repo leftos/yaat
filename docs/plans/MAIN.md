@@ -188,7 +188,7 @@
 - [ ] YAAT-1905 Bare TAXI {rwy} past the bar: test every body part for 'clear of the runway' and agree with TAXI {route} {rwy} on the note
 - [ ] YAAT-1906 TAXI {route} {rwy} from on the destination runway: stop saying 'holding short' and stop crossing to the far bar
 
-### 2 Refinements and rulings (2/18 done)
+### 2 Refinements and rulings (3/18 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
 - [ ] YAAT-755 Use one readback for an aircraft stopped over a runway's hold line
 - [ ] YAAT-806 Cap a normal runway crossing near 20 kt for jets and turboprops
@@ -199,7 +199,6 @@
 - [ ] YAAT-1343 Refuse CROSS when there is no room past the far bar to clear the runway
 - [ ] YAAT-1616 Line the arc approach leg up on the taxiway at the bar instead of a skewed chord
 - [ ] YAAT-1620 Follow-ups from the straight-over crossing reviews: OAK D nose stops short, repeated layout warning, unflyable-chord reply
-- [/] YAAT-1649 TAXI from a destination-runway bar: decide the nose-past-the-bar case and fix two misleading refusals · release vNext
 - [ ] YAAT-1717 Say so when a taxi or CROSS clearance drops a stored takeoff clearance
 - [ ] YAAT-1769 Name the hold-short runway end the controller issued in every pilot call
 - [ ] YAAT-1808 G8 stub gate refinements: negative cut, unnamed joiners, curved stubs, unbounded off-end strip
@@ -264,8 +263,8 @@
 - [ ] YAAT-1293 Refused standard exit says 'no exit ahead' while the branch is still ahead
 - [ ] YAAT-1901 Let the runway-exit 'no exit found' warnings fire: they share a timer the trace log resets
 
-### 2 Refinements and rulings (0/15 done)
-- [ ] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates · release vNext
+### 2 Refinements and rulings (0/16 done)
+- [/] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates · release vNext
 - [ ] YAAT-1302 Bring a runway exit's tail-clear arrival to one sub-tick of braking before CompleteExit
 - [ ] YAAT-1303 Stop an expedited runway exit at the taxi rate once its tail is clear
 - [ ] YAAT-1345 Let an auto exit take a short crossover when the stored taxi route already crosses the other runway there
@@ -280,6 +279,7 @@
 - [ ] YAAT-1772 Vary each landing's touchdown point by a seeded random distance into the touchdown zone
 - [ ] YAAT-1899 LAHSO rollout coasts at 40 kt up to the hold-short line instead of braking early
 - [ ] YAAT-1902 EL/ER/EXIT are accepted and ignored on a runway with no exits in the graph
+- [ ] YAAT-1908 Go around a non-forced landing that would touch down with less runway left than a maximum-effort stop
 
 ### 3 Hygiene and tests (2/8 done)
 - [ ] YAAT-1348 Pin YAAT-1328's landing-planner exit skip, FindExitBehind skip and no-exit-fits fallback with tests
@@ -760,7 +760,7 @@
 
 ## Approaches and holds
 
-### 1 Defects (1/14 done)
+### 1 Defects (1/15 done)
 - [ ] YAAT-48 Check the SFO I28L MAP/DA (65 ft) against CIFP
 - [ ] YAAT-134 Procedure-turn leftovers: HOLDP magnetic course, LOC declination, navaid key
 - [ ] YAAT-148 Keep the field-in-sight report across a new approach clearance
@@ -774,6 +774,7 @@
 - [ ] YAAT-1073 Trim the approach transition at a direct-to fix instead of looping back through it
 - [ ] YAAT-1403 Keep approach transition and last STAR speed true after a later DCT or approach clearance (YAAT-1356 review)
 - [ ] YAAT-1886 Report the commanded descent rate on a pre-FAF continuous descent (ApproachNavigationPhase snaps VerticalSpeed to 0)
+- [ ] YAAT-1909 Fly a queued hold's standard leg at the altitude its block assigns, as the overlay draws it
 
 ### 2 Refinements and rulings (0/10 done)
 - [ ] YAAT-193 Add the HOLDP EFC argument and release path
@@ -1128,6 +1129,7 @@
 
 ### No milestone
 - [ ] YAAT-1907 Nav-route overlay: draw a pending hold-in-lieu of a procedure turn dashed
+- [ ] YAAT-1910 Nav-route overlay: draw an HPP orbit circle (store where the orbit began)
 
 ## Client-driver MCP and automation pipe
 
