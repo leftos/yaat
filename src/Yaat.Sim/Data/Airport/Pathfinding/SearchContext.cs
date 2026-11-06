@@ -469,7 +469,10 @@ public sealed record SearchContext(
     /// <summary>
     /// The aircraft's pose (main gear, heading, body) when the route starts at the aircraft, which decides whether a runway bar
     /// at the start node holds it (<see cref="HoldShortAnnotator.StartBarHolds"/>): only on a first leg toward the runway, while
-    /// the bar is still ahead of every part of the body; never for an aircraft leaving the runway.
+    /// the bar is still ahead of every part of the body; never for an aircraft leaving the runway. A destination runway's bar
+    /// also holds an aircraft whose nose is already past it, while the main gear is within
+    /// <see cref="TaxiPathfinder.AtRunwayHoldShortRadiusFt"/> of the bar and no part of the aircraft is on that runway's
+    /// pavement.
     /// Null when the route does not start at an aircraft (a planner, a preview, an extension past another route's end): the
     /// start bar is then held only when the route goes on to cross its runway.
     /// </summary>

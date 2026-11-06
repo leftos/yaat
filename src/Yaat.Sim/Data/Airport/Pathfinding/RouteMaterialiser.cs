@@ -23,6 +23,14 @@ public static class RouteMaterialiser
     public static string NotInRouteIssuedWarning(string taxiway) => $"taxiing via {taxiway} — not in the route issued";
 
     /// <summary>
+    /// The controller's note for a destination runway hold whose bar the aircraft's nose has already passed: the aircraft holds
+    /// where it stands, clear of the runway, instead of taxiing up to the line. <c>already past the 33 hold-short line —
+    /// holding in place, clear of the runway</c>.
+    /// </summary>
+    public static string AlreadyPastHoldLineWarning(string runwayId) =>
+        $"already past the {RunwayIdentifier.ToDisplayDesignator(runwayId)} hold-short line — holding in place, clear of the runway";
+
+    /// <summary>
     /// The controller's note for a one-way lane the resolver implied into a gate or spot clearance as the connector the
     /// one-way rules leave the aircraft (<see cref="SegmentExpander"/>'s one-way lane extension): <c>M1 not in clearance</c>.
     /// The readback names the lane, since the aircraft drives it.
@@ -55,59 +63,21 @@ public static class RouteMaterialiser
         // Step 2: Annotate hold-short points.
         List<HoldShortPoint> holdShorts = AnnotateHoldShorts(segments, ctx);
 
-        // Step 3: Truncate to one segment past the last required stop.
-        (int TruncateAt, int HoldShortNodeId)? runwaySurfaceEntry = FindDestinationRunwaySurfaceEntry(segments, holdShorts, ctx);
-        int truncateAt = runwaySurfaceEntry?.TruncateAt ?? FindTruncationIndex(segments, holdShorts, ctx);
-        if (runwaySurfaceEntry is { TruncateAt: < 0 } entry)
-        {
-            segments = [];
-            holdShorts = [.. holdShorts.Where(hs => hs.NodeId == entry.HoldShortNodeId)];
-        }
-        else if (truncateAt >= 0 && truncateAt < segments.Count - 1)
-        {
-            segments = [.. segments.Take(truncateAt + 1)];
-
-            // Keep the route's own start node: a hold-short the aircraft is already parked at is never
-            // any segment's ToNodeId, so filtering on ToNodeId alone would silently drop it.
-            int startNodeId = segments.Count > 0 ? segments[0].FromNodeId : -1;
-            holdShorts =
-            [
-                .. holdShorts.Where(hs =>
-                    (hs.NodeId == startNodeId) || segments.Any(s => s.ToNodeId == hs.NodeId) || (hs.NodeId == runwaySurfaceEntry?.HoldShortNodeId)
-                ),
-            ];
-        }
+        // Step 3: Truncate to one segment past the last required stop. A destination runway bar the nose has already passed
+        // still holds the aircraft where it stands while no part of it is on the runway pavement and its main gear is within
+        // the hold radius of the bar; read that off the route before the truncation clears the segments.
+        string? pastDestinationBar = PastDestinationBarWarning(segments, ctx);
+        (segments, holdShorts) = TruncateAtLastRequiredStop(segments, holdShorts, ctx);
 
         // Step 4: Warnings for unauthorized letter taxiways traversed, plus informative
         // notifications for mandatory connector insertions.
         List<string> warnings = BuildWarnings(segments, ctx, insertions);
-
-        // An HS target that bound nothing — no runway bar, no adjacent-taxiway point — was silently
-        // dropped; tell the controller instead of letting them believe the aircraft will hold. A
-        // plain RunwayCrossing point does NOT satisfy the check: a located runway target whose
-        // location taxiway doesn't match the crossing's node (HS 28R@E when the route crosses 28R
-        // on J) leaves the crossing un-promoted, and AutoCross may then clear it — the one case
-        // where a name match must still warn. DestinationRunway points still satisfy it (the
-        // explicit-HS-of-own-destination no-op).
-        foreach (HoldShortTarget target in ctx.ExplicitHoldShorts)
+        if (pastDestinationBar is { } pastBarWarning)
         {
-            if (FindBoundHoldShort(holdShorts, target) is null)
-            {
-                string display = target.ToCanonical();
-                if (target.IsSpot)
-                {
-                    warnings.Add($"HS {display} not applied — the route never reaches {target.ToNatural()}");
-                }
-                else
-                {
-                    warnings.Add(
-                        ctx.Layout.TryGetRunwayCenterlineName(target.Target, out _)
-                            ? $"HS {display} not applied — no runway {target.Target} hold line on the route"
-                            : $"HS {display} not applied — the route never reaches {display}"
-                    );
-                }
-            }
+            warnings.Add(pastBarWarning);
         }
+
+        AddUnboundHoldShortWarnings(warnings, segments, holdShorts, ctx);
 
         // A bare taxiway HS target that is ALSO a cleared path element can bind at the crossing the
         // route STARTS from — the aircraft holds immediately and never taxis (the issue #358 report:
@@ -154,6 +124,87 @@ public static class RouteMaterialiser
             DestinationParking = ctx.Destination.ParkingName,
             DestinationSpot = ctx.Destination.SpotName,
         };
+    }
+
+    /// <summary>
+    /// Truncates the route at the last required stop: to no segments when the aircraft already stands at a destination runway
+    /// bar that holds it, else to the segment before the destination runway's surface. Hold-shorts survive only when they sit on
+    /// the start node, end a kept segment, or are the destination runway's own.
+    /// </summary>
+    private static (List<TaxiRouteSegment> Segments, List<HoldShortPoint> HoldShorts) TruncateAtLastRequiredStop(
+        List<TaxiRouteSegment> segments,
+        List<HoldShortPoint> holdShorts,
+        SearchContext ctx
+    )
+    {
+        (int TruncateAt, int HoldShortNodeId)? runwaySurfaceEntry = FindDestinationRunwaySurfaceEntry(segments, holdShorts, ctx);
+        int truncateAt = runwaySurfaceEntry?.TruncateAt ?? FindTruncationIndex(segments, holdShorts, ctx);
+        if (runwaySurfaceEntry is { TruncateAt: < 0 } entry)
+        {
+            return ([], [.. holdShorts.Where(hs => hs.NodeId == entry.HoldShortNodeId)]);
+        }
+
+        if (truncateAt >= 0 && truncateAt < segments.Count - 1)
+        {
+            segments = [.. segments.Take(truncateAt + 1)];
+
+            // Keep the route's own start node: a hold-short the aircraft is already parked at is never
+            // any segment's ToNodeId, so filtering on ToNodeId alone would silently drop it.
+            int startNodeId = segments.Count > 0 ? segments[0].FromNodeId : -1;
+            holdShorts =
+            [
+                .. holdShorts.Where(hs =>
+                    (hs.NodeId == startNodeId) || segments.Any(s => s.ToNodeId == hs.NodeId) || (hs.NodeId == runwaySurfaceEntry?.HoldShortNodeId)
+                ),
+            ];
+        }
+
+        return (segments, holdShorts);
+    }
+
+    /// <summary>
+    /// Adds the "HS … not applied" warnings for explicit hold-short targets the route binds nothing for — no runway bar, no
+    /// adjacent-taxiway point — instead of letting the controller believe the aircraft will hold. A plain
+    /// <see cref="HoldShortReason.RunwayCrossing"/> point does NOT satisfy the check: a located runway target whose location
+    /// taxiway doesn't match the crossing's node (HS 28R@E when the route crosses 28R on J) leaves the crossing un-promoted,
+    /// and AutoCross may then clear it — the one case where a name match must still warn. DestinationRunway points still
+    /// satisfy it (the explicit-HS-of-own-destination no-op). A route holding at the destination runway's bar the aircraft
+    /// already stands at binds no taxiway hold-short: the aircraft holds there for the runway anyway, so a target on the
+    /// taxiway it stands on is reported as such.
+    /// </summary>
+    private static void AddUnboundHoldShortWarnings(
+        List<string> warnings,
+        List<TaxiRouteSegment> segments,
+        List<HoldShortPoint> holdShorts,
+        SearchContext ctx
+    )
+    {
+        string? heldShortRunway = HoldAtDestinationRunwayDisplay(segments, holdShorts, ctx);
+        foreach (HoldShortTarget target in ctx.ExplicitHoldShorts)
+        {
+            if (FindBoundHoldShort(holdShorts, target) is null)
+            {
+                string display = target.ToCanonical();
+                if ((heldShortRunway is { } runwayDisplay) && (AlreadyOnHoldShortTaxiwayWarning(target, ctx, runwayDisplay) is { } alreadyOn))
+                {
+                    warnings.Add(alreadyOn);
+                    continue;
+                }
+
+                if (target.IsSpot)
+                {
+                    warnings.Add($"HS {display} not applied — the route never reaches {target.ToNatural()}");
+                }
+                else
+                {
+                    warnings.Add(
+                        ctx.Layout.TryGetRunwayCenterlineName(target.Target, out _)
+                            ? $"HS {display} not applied — no runway {target.Target} hold line on the route"
+                            : $"HS {display} not applied — the route never reaches {display}"
+                    );
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -432,9 +483,12 @@ public static class RouteMaterialiser
 
     /// <summary>
     /// True when the route's start node, the start of <paramref name="firstSegment"/>, is a bar of the destination runway
-    /// <paramref name="runwayId"/> in that runway's departure half, and the bar holds the aircraft: the aircraft has not
-    /// passed it along the first leg (<see cref="HoldShortAnnotator.StartBarHolds"/>, from <see cref="SearchContext.StartPose"/>),
-    /// or with no pose, the first leg leads toward the runway (<see cref="HoldShortAnnotator.FirstLegLeadsTowardRunway"/>).
+    /// <paramref name="runwayId"/> in that runway's departure half, and the bar holds the aircraft. The first leg must lead
+    /// toward the runway (<see cref="HoldShortAnnotator.FirstLegLeadsTowardRunway"/>), and with a pose
+    /// (<see cref="SearchContext.StartPose"/>) the aircraft must either not have passed the bar along that leg
+    /// (<see cref="HoldShortAnnotator.StartBarIsAhead"/>) or hold just past it (<see cref="HoldsAtPassedBar"/>): a nose already
+    /// over the line still holds the aircraft where it stands, clear of the runway, while the main gear stays within
+    /// <see cref="TaxiPathfinder.AtRunwayHoldShortRadiusFt"/> of the bar. With no pose the first leg's direction alone decides.
     /// A bar in the far half is the other end's, never a departure point for this one.
     /// </summary>
     private static bool StartsAtDestinationLineupBar(TaxiRouteSegment firstSegment, string runwayId, SearchContext ctx)
@@ -451,9 +505,112 @@ public static class RouteMaterialiser
         }
 
         GroundNode firstLegNext = firstSegment.Edge.ToNode;
-        return ctx.StartPose is { } pose
-            ? HoldShortAnnotator.StartBarHolds(ctx.Layout, startNode, firstLegNext, pose)
-            : HoldShortAnnotator.FirstLegLeadsTowardRunway(ctx.Layout, startNode, firstLegNext);
+        if (!HoldShortAnnotator.FirstLegLeadsTowardRunway(ctx.Layout, startNode, firstLegNext))
+        {
+            return false;
+        }
+
+        if (ctx.StartPose is not { } pose)
+        {
+            return true;
+        }
+
+        return HoldShortAnnotator.StartBarIsAhead(startNode, firstLegNext, pose) || HoldsAtPassedBar(ctx.Layout, startNode, pose, runwayId);
+    }
+
+    /// <summary>
+    /// Whether the aircraft has passed <paramref name="bar"/> yet still holds there: its main gear sits within
+    /// <see cref="TaxiPathfinder.AtRunwayHoldShortRadiusFt"/> of the bar, so it is at the holding position and not taxiing on,
+    /// and no part of the aircraft is on the runway's pavement — an aircraft is clear of the runway only when every part is
+    /// past its edge (AIM 4-3-20.a.2), which keeps the past-the-line note's "clear of the runway" true.
+    /// </summary>
+    internal static bool HoldsAtPassedBar(AirportGroundLayout layout, GroundNode bar, StartPose pose, string runwayId)
+    {
+        double gearToBarFt = GeoMath.DistanceNm(pose.MainGear, bar.Position) * GeoMath.FeetPerNm;
+        return (gearToBarFt <= TaxiPathfinder.AtRunwayHoldShortRadiusFt)
+            && pose.PartPositions().All(part => !TaxiPathfinder.IsOnRunwayPavement(layout, part, runwayId));
+    }
+
+    /// <summary>
+    /// The controller's note when the route starts at the destination runway's lineup bar and the aircraft's nose is already
+    /// past it: the bar still holds the aircraft where it stands while no part of it is on the runway pavement and its main
+    /// gear is within <see cref="TaxiPathfinder.AtRunwayHoldShortRadiusFt"/> of the bar
+    /// (<see cref="StartsAtDestinationLineupBar"/>), so it does not taxi up to the line. Null when the nose has not passed the
+    /// bar, or when the route does not start at the bar of <paramref name="ctx"/>'s destination runway.
+    /// </summary>
+    private static string? PastDestinationBarWarning(List<TaxiRouteSegment> segments, SearchContext ctx)
+    {
+        if (
+            (segments.Count == 0)
+            || (ctx.StartPose is not { } pose)
+            || (ctx.Destination.Kind != DestinationKind.Runway)
+            || (ctx.Destination.RunwayId is not { } runwayId)
+            || !StartsAtDestinationLineupBar(segments[0], runwayId, ctx)
+        )
+        {
+            return null;
+        }
+
+        GroundNode startBar = segments[0].Edge.FromNode;
+        if (HoldShortAnnotator.StartBarIsAhead(startBar, segments[0].Edge.ToNode, pose))
+        {
+            return null;
+        }
+
+        return AlreadyPastHoldLineWarning(runwayId);
+    }
+
+    /// <summary>
+    /// The destination runway's display designator when the materialised route is a hold at that runway's bar the aircraft
+    /// already stands at — no segments, and a <see cref="HoldShortReason.DestinationRunway"/> point on
+    /// <see cref="SearchContext.StartNodeId"/>, which must itself be a runway holding position — and null for any other route.
+    /// Shared by the HS warning here and <see cref="SegmentExpander"/>'s cleared-taxiway check so both judge the case alike.
+    /// </summary>
+    internal static string? HoldAtDestinationRunwayDisplay(
+        IReadOnlyList<TaxiRouteSegment> segments,
+        IReadOnlyList<HoldShortPoint> holdShorts,
+        SearchContext ctx
+    )
+    {
+        if ((segments.Count > 0) || (ctx.Destination.Kind != DestinationKind.Runway) || (ctx.Destination.RunwayId is not { } runwayId))
+        {
+            return null;
+        }
+
+        // A route out of an aircraft standing on the runway pavement holds at its own start node too (an empty route hit with no
+        // segment walked); that is no hold at the destination bar and keeps its old answers.
+        if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? startNode) || (startNode.Type != GroundNodeType.RunwayHoldShort))
+        {
+            return null;
+        }
+
+        if (!holdShorts.Any(hs => (hs.NodeId == ctx.StartNodeId) && (hs.Reason == HoldShortReason.DestinationRunway)))
+        {
+            return null;
+        }
+
+        return RunwayIdentifier.ToDisplayDesignator(runwayId);
+    }
+
+    /// <summary>
+    /// The controller's note when an unbound hold-short target is a bare taxiway the aircraft already stands on: the route
+    /// never reaches it because the aircraft holds at the bar it is parked at, not because the taxiway is out of reach. Null
+    /// when the target is a spot, a runway, or the located <c>X@Y</c> form, or when the route's start node does not touch it.
+    /// </summary>
+    private static string? AlreadyOnHoldShortTaxiwayWarning(HoldShortTarget target, SearchContext ctx, string runwayDisplay)
+    {
+        if ((target.IsSpot) || (target.OnTaxiway is not null) || ctx.Layout.TryGetRunwayCenterlineName(target.Target, out _))
+        {
+            return null;
+        }
+
+        if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? startNode) || !NodeIncidentToTaxiway(startNode, target.Target))
+        {
+            return null;
+        }
+
+        string display = target.ToCanonical();
+        return $"HS {display} not applied — already on {display}, holding short of runway {runwayDisplay}";
     }
 
     /// <summary>

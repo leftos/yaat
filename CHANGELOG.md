@@ -19,6 +19,8 @@
 - An aircraft holding at a bar painted closer to the runway than standard sends an arrival around only once it is well past that bar.
 - A landing at an airport whose map has runways but no taxiways rolls to a stop and completes, instead of waiting on the runway forever.
 - An aircraft established on the glidepath shows its descent as vertical speed, instead of 0.
+- `TAXI C 33` to an aircraft whose nose is already past its 33 bar holds it in place, instead of crossing the runway's end to the far bar.
+- `TAXI C D 33` and `TAXI C 33 HS C` from the aircraft's own 33 bar hold there with a note, instead of saying it cannot reach D or C.
 
 ## v0.18.1-beta [2026/11/05]
 

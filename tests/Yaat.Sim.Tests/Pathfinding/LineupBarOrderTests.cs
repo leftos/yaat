@@ -262,28 +262,22 @@ public class LineupBarOrderTests(ITestOutputHelper output)
     public void TaxiC33_Oak_StartAtCWestBar_EndsAtCWestBar() => AssertTaxiC33EndsAtCWestBar("bar");
 
     /// <summary>
-    /// A B738 holding at OAK's west C bar, nose at the bar and facing the runway, is given <c>TAXI C 33</c>: it holds short of
-    /// 33 where it stands, with nothing to taxi, and does not move, rather than crossing the runway's end to C's east bar.
+    /// A B738 whose main gear sits at <paramref name="mainGear"/>, facing <paramref name="headingDeg"/> on
+    /// <paramref name="taxiway"/>, in a holding-in-position phase, and the engine that drives it.
     /// </summary>
-    [Fact]
-    public void TaxiC33_Oak_HoldingAtCWestBar_HoldsThereAndDoesNotMove()
+    private static (SimulationEngine Engine, AircraftState Aircraft) StageOnTaxiway(LatLon mainGear, double headingDeg, string taxiway)
     {
         TestVnasData.EnsureInitialized();
         var groundData = new TestAirportGroundData();
         AirportGroundLayout? layout = groundData.GetLayout("OAK");
         Assert.NotNull(layout);
-        GroundNode westBar = Bar(layout, "OAK", "33", "C", West);
-        GroundNode outboard = Outboard(westBar, "OAK", "33");
-        double towardRunwayDeg = GeoMath.BearingTo(outboard.Position, westBar.Position);
-        double halfLengthNm = AircraftLength.ResolveFt("B738") / 2 / GeoMath.FeetPerNm;
-        LatLon mainGear = GeoMath.ProjectPoint(westBar.Position, new TrueHeading((towardRunwayDeg + 180.0) % 360.0), halfLengthNm);
 
         var aircraft = new AircraftState
         {
             Callsign = "N1287",
             AircraftType = "B738",
             Position = mainGear,
-            TrueHeading = new TrueHeading(towardRunwayDeg),
+            TrueHeading = new TrueHeading(headingDeg),
             Altitude = 0,
             IndicatedAirspeed = 0,
             IsOnGround = true,
@@ -293,7 +287,7 @@ public class LineupBarOrderTests(ITestOutputHelper output)
         aircraft.Phases.Add(new HoldingInPositionPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty, layout));
         aircraft.Ground.Layout = layout;
-        aircraft.Ground.CurrentTaxiway = "C";
+        aircraft.Ground.CurrentTaxiway = taxiway;
 
         var engine = new SimulationEngine(groundData, PushPlanStore.CreateShipped())
         {
@@ -308,6 +302,40 @@ public class LineupBarOrderTests(ITestOutputHelper output)
             },
         };
         engine.World.AddAircraft(aircraft);
+
+        return (engine, aircraft);
+    }
+
+    /// <summary>
+    /// A B738 on OAK's C west of runway 33, facing the runway, with its nose <paramref name="nosePastBarFt"/> ft past the
+    /// west C bar (<c>0</c> puts the nose at the bar), in a holding-in-position phase, and the engine that drives it. The main
+    /// gear sits half a B738 length back from the nose along the taxiway.
+    /// </summary>
+    private static (SimulationEngine Engine, AircraftState Aircraft) StageAtCWestBar(double nosePastBarFt, out GroundNode westBar)
+    {
+        AirportGroundLayout layout = Layout("OAK");
+        westBar = Bar(layout, "OAK", "33", "C", West);
+        GroundNode outboard = Outboard(westBar, "OAK", "33");
+        double towardRunwayDeg = GeoMath.BearingTo(outboard.Position, westBar.Position);
+        double halfLengthFt = AircraftLength.ResolveFt("B738") / 2;
+        LatLon mainGear = GeoMath.ProjectPoint(
+            westBar.Position,
+            new TrueHeading((towardRunwayDeg + 180.0) % 360.0),
+            (halfLengthFt - nosePastBarFt) / GeoMath.FeetPerNm
+        );
+
+        return StageOnTaxiway(mainGear, towardRunwayDeg, "C");
+    }
+
+    /// <summary>
+    /// A B738 holding at OAK's west C bar, nose at the bar and facing the runway, is given <c>TAXI C 33</c>: it holds short of
+    /// 33 where it stands, with nothing to taxi, and does not move, rather than crossing the runway's end to C's east bar.
+    /// </summary>
+    [Fact]
+    public void TaxiC33_Oak_HoldingAtCWestBar_HoldsThereAndDoesNotMove()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = StageAtCWestBar(0.0, out GroundNode westBar);
+        LatLon mainGear = aircraft.Position;
 
         CommandResult taxi = engine.SendCommand("N1287", "TAXI C 33");
         Assert.True(taxi.Success, taxi.Message);
@@ -324,8 +352,260 @@ public class LineupBarOrderTests(ITestOutputHelper output)
 
         double movedFt = GeoMath.DistanceNm(mainGear, aircraft.Position) * GeoMath.FeetPerNm;
         Assert.True(movedFt < 1.0, $"moved {movedFt:F1} ft from the west C bar");
-        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases.CurrentPhase);
+        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
         Assert.Equal(westBar.Id, holding.HoldShort.NodeId);
+    }
+
+    /// <summary>
+    /// A B738 whose nose is already 10 ft past OAK's west C bar, facing runway 33, is given <c>TAXI C 33</c>: it is already at
+    /// its runway, so it holds short of 33 where it stands, clear of the pavement, and the controller is told the nose is past
+    /// the line — rather than taxiing on along C across the runway's end to C's east bar.
+    /// </summary>
+    [Fact]
+    public void TaxiC33_Oak_NosePastCWestBar_HoldsWhereItStands()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = StageAtCWestBar(10.0, out GroundNode westBar);
+        LatLon start = aircraft.Position;
+
+        CommandResult taxi = engine.SendCommand("N1287", "TAXI C 33");
+        Assert.True(taxi.Success, taxi.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        Assert.Empty(route.Segments);
+        HoldShortPoint hold = Assert.Single(route.HoldShortPoints);
+        Assert.Equal(westBar.Id, hold.NodeId);
+        Assert.Equal(HoldShortReason.DestinationRunway, hold.Reason);
+        Assert.Contains("already past the 33 hold-short line — holding in place, clear of the runway", route.Warnings);
+        Assert.Contains("holding in place", taxi.Message);
+        Assert.DoesNotContain("holding short", taxi.Message);
+
+        for (int second = 0; second < 30; second++)
+        {
+            engine.TickOneSecond();
+        }
+
+        double movedFt = GeoMath.DistanceNm(start, aircraft.Position) * GeoMath.FeetPerNm;
+        Assert.True(movedFt < 1.0, $"moved {movedFt:F1} ft from the west C bar");
+        HoldingShortPhase holding = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.Equal(westBar.Id, holding.HoldShort.NodeId);
+    }
+
+    /// <summary>
+    /// A B738 at OAK's west C bar is given <c>TAXI C D 33</c>: the aircraft is already holding short of its runway where it
+    /// stands, so the command succeeds with a note naming the taxiway it did not taxi — never a message denying where the
+    /// aircraft is.
+    /// </summary>
+    [Fact]
+    public void TaxiCD33_Oak_HoldingAtCWestBar_HoldsThereWithANote()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = StageAtCWestBar(0.0, out GroundNode westBar);
+
+        CommandResult taxi = engine.SendCommand("N1287", "TAXI C D 33");
+        Assert.True(taxi.Success, taxi.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        Assert.Empty(route.Segments);
+        HoldShortPoint hold = Assert.Single(route.HoldShortPoints);
+        Assert.Equal(westBar.Id, hold.NodeId);
+        Assert.Equal(HoldShortReason.DestinationRunway, hold.Reason);
+        Assert.Contains("D not taxied — already holding short of runway 33", route.Warnings);
+        Assert.DoesNotContain(route.Warnings, w => w.StartsWith("already past", StringComparison.Ordinal));
+        Assert.DoesNotContain("unreachable", taxi.Message);
+    }
+
+    /// <summary>
+    /// A B738 at OAK's west C bar is given <c>TAXI C 33 HS C</c>: it is already on C and holding short of 33 where it stands,
+    /// so the note says the hold is already in effect rather than denying the route ever reaches C.
+    /// </summary>
+    [Fact]
+    public void TaxiC33HsC_Oak_HoldingAtCWestBar_DoesNotSayItNeverReachesC()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = StageAtCWestBar(0.0, out _);
+
+        CommandResult taxi = engine.SendCommand("N1287", "TAXI C 33 HS C");
+        Assert.True(taxi.Success, taxi.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        Assert.Empty(route.Segments);
+        Assert.DoesNotContain(route.Warnings, w => w.Contains("never reaches C", StringComparison.Ordinal));
+        Assert.Contains("HS C not applied — already on C, holding short of runway 33", route.Warnings);
+    }
+
+    /// <summary>
+    /// How far past OAK's west C bar, along the bar-to-runway bearing, a <paramref name="aircraftType"/>'s main gear sits with
+    /// its nose on runway 33's pavement and the gear itself off it: the shortest such distance over the whole bearing. NaN when
+    /// no such pose exists.
+    /// </summary>
+    private static double GearFtWithNoseOnPavement(AirportGroundLayout layout, GroundNode westBar, double towardRunwayDeg, string aircraftType)
+    {
+        var heading = new TrueHeading(towardRunwayDeg);
+        double halfLengthNm = AircraftLength.ResolveFt(aircraftType) / 2 / GeoMath.FeetPerNm;
+        for (double gearFt = 0; gearFt <= 500.0; gearFt += 0.5)
+        {
+            LatLon gear = GeoMath.ProjectPoint(westBar.Position, heading, gearFt / GeoMath.FeetPerNm);
+            LatLon nose = GeoMath.ProjectPoint(gear, heading, halfLengthNm);
+            if (!TaxiPathfinder.IsOnRunwayPavement(layout, gear, "33") && TaxiPathfinder.IsOnRunwayPavement(layout, nose, "33"))
+            {
+                return gearFt;
+            }
+        }
+
+        return double.NaN;
+    }
+
+    /// <summary>
+    /// The first distance past <paramref name="westBar"/>, along the bar-to-runway bearing and beyond
+    /// <paramref name="minFt"/>, at which every part of a <paramref name="aircraftType"/> is off runway 33's pavement. NaN when
+    /// no such pose exists.
+    /// </summary>
+    private static double GearFtWithAllPartsOffPavement(
+        AirportGroundLayout layout,
+        GroundNode westBar,
+        double towardRunwayDeg,
+        string aircraftType,
+        double minFt
+    )
+    {
+        for (double gearFt = minFt; gearFt <= 500.0; gearFt += 0.5)
+        {
+            LatLon gear = GeoMath.ProjectPoint(westBar.Position, new TrueHeading(towardRunwayDeg), gearFt / GeoMath.FeetPerNm);
+            bool allOffPavement = StartPose
+                .Of(gear, towardRunwayDeg, aircraftType)
+                .PartPositions()
+                .All(p => !TaxiPathfinder.IsOnRunwayPavement(layout, p, "33"));
+            if (allOffPavement)
+            {
+                return gearFt;
+            }
+        }
+
+        return double.NaN;
+    }
+
+    /// <summary>
+    /// A B738 holding with its nose 10 ft past OAK's west C bar, every part clear of 33's pavement and the main gear at the bar,
+    /// still holds there: the main gear is inside the bar's radius and no part of the aircraft is on the runway.
+    /// </summary>
+    [Fact]
+    public void HoldsAtPassedBar_NosePastBarGearOffPavement_Holds()
+    {
+        AirportGroundLayout layout = Layout("OAK");
+        GroundNode westBar = Bar(layout, "OAK", "33", "C", West);
+        GroundNode outboard = Outboard(westBar, "OAK", "33");
+        double towardRunwayDeg = GeoMath.BearingTo(outboard.Position, westBar.Position);
+        double halfLengthFt = AircraftLength.ResolveFt("B738") / 2;
+        LatLon mainGear = GeoMath.ProjectPoint(
+            westBar.Position,
+            new TrueHeading((towardRunwayDeg + 180.0) % 360.0),
+            (halfLengthFt - 10.0) / GeoMath.FeetPerNm
+        );
+
+        var pose = StartPose.Of(mainGear, towardRunwayDeg, "B738");
+        Assert.True(
+            GeoMath.DistanceNm(pose.MainGear, westBar.Position) * GeoMath.FeetPerNm <= TaxiPathfinder.AtRunwayHoldShortRadiusFt,
+            "the B738's main gear is outside the bar's hold radius"
+        );
+        Assert.True(
+            pose.PartPositions().All(p => !TaxiPathfinder.IsOnRunwayPavement(layout, p, "33")),
+            "a part of the B738 is on the 33 pavement at the bar"
+        );
+        Assert.True(RouteMaterialiser.HoldsAtPassedBar(layout, westBar, pose, "33"));
+    }
+
+    /// <summary>
+    /// A B744 whose nose reaches runway 33's pavement from OAK's west C bar — its main gear still off it and inside the bar's
+    /// hold radius — does not hold there: an aircraft is clear of the runway only when every part is past its edge (AIM
+    /// 4-3-20.a.2), so the past-the-line note's "clear of the runway" would be a lie.
+    /// </summary>
+    [Fact]
+    public void HoldsAtPassedBar_NoseOverTheRunwayPavement_DoesNotHold()
+    {
+        AirportGroundLayout layout = Layout("OAK");
+        GroundNode westBar = Bar(layout, "OAK", "33", "C", West);
+        GroundNode outboard = Outboard(westBar, "OAK", "33");
+        double towardRunwayDeg = GeoMath.BearingTo(outboard.Position, westBar.Position);
+        double gearFt = GearFtWithNoseOnPavement(layout, westBar, towardRunwayDeg, "B744");
+        Assert.False(double.IsNaN(gearFt), "no B744 pose has its nose on the 33 pavement with its main gear off it");
+        Assert.True(
+            gearFt <= TaxiPathfinder.AtRunwayHoldShortRadiusFt,
+            $"the closest such pose puts the B744's main gear {gearFt:F0} ft from the bar, past the "
+                + $"{TaxiPathfinder.AtRunwayHoldShortRadiusFt:F0} ft hold radius"
+        );
+
+        LatLon mainGear = GeoMath.ProjectPoint(westBar.Position, new TrueHeading(towardRunwayDeg), gearFt / GeoMath.FeetPerNm);
+        var pose = StartPose.Of(mainGear, towardRunwayDeg, "B744");
+        Assert.False(TaxiPathfinder.IsOnRunwayPavement(layout, pose.MainGear, "33"), $"the main gear at {gearFt:F0} ft is on the 33 pavement");
+        Assert.True(
+            pose.PartPositions().Any(p => TaxiPathfinder.IsOnRunwayPavement(layout, p, "33")),
+            $"no part of the B744 whose gear is {gearFt:F0} ft from the bar is on the 33 pavement"
+        );
+        Assert.False(RouteMaterialiser.HoldsAtPassedBar(layout, westBar, pose, "33"));
+    }
+
+    /// <summary>
+    /// A B738 whose main gear is more than 100 ft past OAK's west C bar with every part clear of 33's pavement is beyond the
+    /// bar's hold radius, so the bar does not hold it in place. Skips when this bar gives no such pose.
+    /// </summary>
+    [Fact]
+    public void HoldsAtPassedBar_GearBeyondTheRadius_DoesNotHold()
+    {
+        AirportGroundLayout layout = Layout("OAK");
+        GroundNode westBar = Bar(layout, "OAK", "33", "C", West);
+        GroundNode outboard = Outboard(westBar, "OAK", "33");
+        double towardRunwayDeg = GeoMath.BearingTo(outboard.Position, westBar.Position);
+        double gearFt = GearFtWithAllPartsOffPavement(layout, westBar, towardRunwayDeg, "B738", TaxiPathfinder.AtRunwayHoldShortRadiusFt + 0.5);
+        if (double.IsNaN(gearFt))
+        {
+            return;
+        }
+
+        LatLon mainGear = GeoMath.ProjectPoint(westBar.Position, new TrueHeading(towardRunwayDeg), gearFt / GeoMath.FeetPerNm);
+        var pose = StartPose.Of(mainGear, towardRunwayDeg, "B738");
+        Assert.True(
+            GeoMath.DistanceNm(pose.MainGear, westBar.Position) * GeoMath.FeetPerNm > TaxiPathfinder.AtRunwayHoldShortRadiusFt,
+            $"the B738's main gear at {gearFt:F0} ft is inside the bar's hold radius"
+        );
+        Assert.False(RouteMaterialiser.HoldsAtPassedBar(layout, westBar, pose, "33"));
+    }
+
+    /// <summary>
+    /// An aircraft standing on runway 33's centerline where C crosses it is not holding at the destination runway's bar:
+    /// <c>TAXI C D 33</c> keeps its refusal of the unreachable D, never the "already holding short" note.
+    /// </summary>
+    [Fact]
+    public void TaxiCD33_Oak_StandingOnRunway33_StillRefusesD()
+    {
+        AirportGroundLayout layout = Layout("OAK");
+        GroundNode westBar = Bar(layout, "OAK", "33", "C", West);
+        GroundNode? crossing = layout
+            .Nodes.Values.Where(n => n.Edges.Any(e => e.IsRunwayCenterline && e.MatchesRunway("33")))
+            .Where(n => n.Edges.Any(e => e.TaxiwayName == "C"))
+            .MinBy(n => GeoMath.DistanceNm(n.Position, westBar.Position));
+        Assert.NotNull(crossing);
+        GroundNode? onRunway = layout
+            .Nodes.Values.Where(n => n.Edges.Any(e => e.IsRunwayCenterline && e.MatchesRunway("33")))
+            .Where(n => !n.Edges.Any(e => e.TaxiwayName == "C"))
+            .Where(n => GeoMath.DistanceNm(n.Position, crossing.Position) * GeoMath.FeetPerNm <= 300)
+            .MinBy(n => GeoMath.DistanceNm(n.Position, westBar.Position));
+        Assert.NotNull(onRunway);
+        double runwayDeg = Axis("OAK", "33").Heading.Degrees;
+
+        (SimulationEngine engine, _) = StageOnTaxiway(onRunway.Position, runwayDeg, "C");
+        CommandResult taxi = engine.SendCommand("N1287", "TAXI C D 33");
+        Assert.False(taxi.Success, taxi.Message);
+        Assert.Contains("unreachable", taxi.Message);
+    }
+
+    /// <summary>
+    /// A misspelt taxiway is never accepted: <c>TAXI C ZZ 33</c> from OAK's west C bar is refused for the unknown name, not
+    /// accepted with a "ZZ not taxied" note.
+    /// </summary>
+    [Fact]
+    public void TaxiCZz33_Oak_HoldingAtCWestBar_RefusesAnUnknownTaxiway()
+    {
+        (SimulationEngine engine, _) = StageAtCWestBar(0.0, out _);
+
+        CommandResult taxi = engine.SendCommand("N1287", "TAXI C ZZ 33");
+        Assert.False(taxi.Success, taxi.Message);
+        Assert.Contains("ZZ", taxi.Message);
+        Assert.DoesNotContain("ZZ not taxied", taxi.Message);
     }
 
     private static void AssertTaxiC33EndsAtCWestBar(string startKind)

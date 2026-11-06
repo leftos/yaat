@@ -589,7 +589,9 @@ public static partial class GroundCommandHandler
         if ((route.Segments.Count == 0) && (taxi.DestinationRunway is not null))
         {
             string runwayDisplay = RunwayIdentifier.ToDisplayDesignator(taxi.DestinationRunway);
-            msg = $"Already at runway {runwayDisplay} — holding short (runway {runwayDisplay} assigned)";
+            msg = route.Warnings.Contains(RouteMaterialiser.AlreadyPastHoldLineWarning(taxi.DestinationRunway))
+                ? $"Already at runway {runwayDisplay} — holding in place (runway {runwayDisplay} assigned)"
+                : $"Already at runway {runwayDisplay} — holding short (runway {runwayDisplay} assigned)";
         }
         else if (unableEndHold is { } unableTarget)
         {

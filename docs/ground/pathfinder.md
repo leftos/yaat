@@ -6,7 +6,7 @@
 
 ## Architecture
 
-The **`TaxiPathfinder`** (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:10`) is a `public static class` with nine static entry points: `ResolveExplicitPathDetailed`, `ResolveExplicitPath`, `FindRoute`, `FindRouteToNearestGoal`, `FindRampConfinedRoute`, `FindRunwayRoute`, `FindAdjacentRunwayRoute`, `FindRoutes`, and `FindFullLengthLineupHoldShort`. All production callers invoke these directly.
+The **`TaxiPathfinder`** (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs`) is a `public static class` whose entry points are `ResolveExplicitPathDetailed`, `ResolveExplicitPath`, `FindRoute`, `FindRouteToNearestGoal`, `FindRampConfinedRoute`, `FindRunwayRoute`, `FindAdjacentRunwayRoute`, `FindRoutes` and `FindFullLengthLineupHoldShort`, plus the lineup-bar shadow test's public surface (`LineupBarShadowTest`, `RanksAsShadowed`, `LineupBarReach`, `LineupBarShadowCache`). All production callers invoke these directly.
 
 The implementation is unified — no dual-path selector, no variant adapter — and lives under `src/Yaat.Sim/Data/Airport/Pathfinding/`.
 
@@ -18,7 +18,7 @@ The implementation is unified — no dual-path selector, no variant adapter — 
 
 A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline (see [`../command-pipeline.md`](../command-pipeline.md) for the full input → dispatch walk). The ground-specific tail:
 
-1. `GroundCommandHandler.TryTaxi` / `TryTaxiAuto` (`src/Yaat.Sim/Commands/GroundCommandHandler.cs:15`, `:291`) is the dispatch target. `TryTaxiAuto` just builds an empty-path `TaxiCommand` and calls `TryTaxi` — so `TAXIAUTO RWY`/`TAXIAUTO @PARKING` is "a TAXI with no named taxiways". There is no separate auto pathfinder entry.
+1. `GroundCommandHandler.TryTaxi` / `TryTaxiAuto` (`src/Yaat.Sim/Commands/GroundCommandHandler.cs`) is the dispatch target. `TryTaxiAuto` just builds an empty-path `TaxiCommand` and calls `TryTaxi` — so `TAXIAUTO RWY`/`TAXIAUTO @PARKING` is "a TAXI with no named taxiways". There is no separate auto pathfinder entry.
 2. `TryTaxi` resolves the start node from `(position, heading)` with `AirportGroundLayout.PickTaxiStart(position, heading, TaxiStartTraffic)` (`FindTaxiStartNode` is its node), over the other ground aircraft `options.ListAircraft` lists; `FindNearestNode` is the off-graph fallback.
 
    `FOLLOWG`'s planner falls back to it ([navigator.md](./navigator.md#followg-joining-the-leads-taxi-path)). **The pathfinder's contract is strictly node-to-node**; mid-segment snapping happens here, upstream. The pick takes the first of:
@@ -99,7 +99,7 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 | `FindRouteToNearestGoal` | `(AirportGroundLayout, int fromNodeId, AircraftCategory, WakeClass, NearestGoalRequest)` | The route to whichever goal node is cheapest to reach, in one A* pass (`AutoRouter.RunToGoals`), under `FindRoute`'s context, cost model and two avoidance passes. The `NearestGoalRequest` carries the goal ids, a forbidden first move, the onward edges a goal must be turnable onto, and the moves never taken. Returns a `GoalRoute` (goal reached, route, search `Cost`); null for an empty goal set, a start not in the layout, or no reachable goal. `FOLLOWG`'s merge search. See [Goal-set search](#goal-set-search-autorouterruntogoals). |
 | `FindRampConfinedRoute` | `(AirportGroundLayout, int fromNodeId, int toNodeId, AircraftCategory, WakeClass)` | Node→node route that stays inside the ramp: ramp taxilanes, RAMP and unnamed pavement, at most one implied one-way lane, never a runway holding position (`SegmentExpander.FindRampConfinedRoute`). Null when there is none. |
 | `FindRunwayRoute` | `(AirportGroundLayout, GroundNode startNode, string runwayId, AircraftCategory, WakeClass)` | Empty-path runway destination route (`TAXIAUTO 28L`). Tries the runway's hold-shorts in `RouteMaterialiser.OrderFullLengthLineupBars` order (see [Full-length lineup bar order](#full-length-lineup-bar-order)); an aircraft already at the first returns a zero-segment hold there. Otherwise returns the first route that reaches a real destination runway hold-short without traversing that runway surface. |
-| `FindAdjacentRunwayRoute` | `(AirportGroundLayout, GroundNode startNode, LatLon position, TrueHeading heading, string runwayId, AircraftCategory, WakeClass)` | Bare `TAXI 28L` (runway only, no taxiways): the aircraft must already be at that runway. Within `AtRunwayHoldShortRadiusFt` (100 ft, any side) of one of its bars → a zero-segment route with one `DestinationRunway` hold-short on that bar; else a straight, single-taxiway, ≤`AdjacentRunwayHoldShortMaxFt` (600 ft) run ahead to a bar; else null and `GroundCommandHandler` refuses the command (issue #393). |
+| `FindAdjacentRunwayRoute` | `(AirportGroundLayout, GroundNode startNode, StartPose, string runwayId, AircraftCategory, WakeClass)` | Bare `TAXI 28L` (runway only, no taxiways): the aircraft must already be at that runway. Within `AtRunwayHoldShortRadiusFt` (100 ft, any side) of one of its bars → a zero-segment route with one `DestinationRunway` hold-short on that bar; else a straight, single-taxiway, ≤`AdjacentRunwayHoldShortMaxFt` (600 ft) run ahead to a bar; else null and `GroundCommandHandler` refuses the command (issue #393). |
 | `FindRoutes` | `(AirportGroundLayout, int fromNodeId, int toNodeId, RoutePreference?, int maxRoutes, IReadOnlySet<string>? authorizedTaxiways, AircraftCategory, WakeClass)` | Up to N distinct node→node routes; when `preference` is null, runs all three strategies (FewestTurns, Shortest, Fastest) and deduplicates. |
 | `FindFullLengthLineupHoldShort` | `(AirportGroundLayout, GroundNode startNode, string runwayId, List<GroundNode> holdShortNodes, AircraftCategory, WakeClass)` | Pick the canonical lineup hold-short: the first of `RouteMaterialiser.OrderFullLengthLineupBars`, with `startNode` giving the aircraft's side of the runway; the category and wake class drive the shadow test (`AutoRouter` passes `ctx.Category`/`ctx.WakeClass`, LayoutInspector's `auto-route` Jet/Large). The `RouteMaterialiser` version takes the same parameters. |
 
@@ -130,7 +130,7 @@ Consumers are `TaxiingPhase`, `GroundNavigator`, and snapshot/replay via `TaxiRo
 
 The pathfinder uses a single cost function (`RouteCostFunction.IncrementalCost`) evaluated at every decision point, with no per-decision scorer hacks or post-walk geometry fixes. This prevents the orbit/spin bugs (e.g., SKW3404 at SFO on route `A E B B3 A B1 Z S`, issue #165) that arose when local greedy choices were made without knowing downstream viability — and when per-node heuristics then tried to repair the wrong choice after the fact.
 
-The design evaluates the full sequence's viability before committing to an edge. Issue #165's regression test `Skw3404_DoesNotOrbitDuringTaxi` (`tests/Yaat.Sim.Tests/Simulation/Issue165SkwTaxiSpinTests.cs:201`) is un-skipped and passes under the current pathfinder.
+The design evaluates the full sequence's viability before committing to an edge. Issue #165's regression test `Skw3404_DoesNotOrbitDuringTaxi` (`tests/Yaat.Sim.Tests/Simulation/Issue165SkwTaxiSpinTests.cs`) is un-skipped and passes under the current pathfinder.
 
 
 ### Avoided taxiways (per-ARTCC)
@@ -186,7 +186,7 @@ An inadmissible junction is simply not an edge in the search graph from that arr
 | Piston | 155° |
 | Helicopter | 175° |
 
-(`CategoryLimits.MaxHeadingChangeDeg` in `src/Yaat.Sim/Data/Airport/Pathfinding/GeometricAdmissibility.cs:12`.) An arc's traversal direction carries no gate or cost of its own: a fillet is a symmetric curve, its end tangents are direction-aware (`GetDepartureBearing`), and the navigator plays a reversed arc exactly (`PathPrimitiveBuilder.BuildBezier` flips the control points).
+(`CategoryLimits.MaxHeadingChangeDeg` in `src/Yaat.Sim/Data/Airport/Pathfinding/GeometricAdmissibility.cs`.) An arc's traversal direction carries no gate or cost of its own: a fillet is a symmetric curve, its end tangents are direction-aware (`GetDepartureBearing`), and the navigator plays a reversed arc exactly (`PathPrimitiveBuilder.BuildBezier` flips the control points).
 
 A reverse-arc penalty (0.8 nm) used to exist here; since half of all corner traversals run against the arc's stored node order, it made the painted fillet dearer than a square pivot through the junction centre at every other corner (the S2-OAK-2 U→W turn was resolved `694→17→691` and rounded at the main-gear turn radius at 3 kt), so it is gone — `FilletCornerRoutingTests` and `RouteGeometryAsserts` guard the corner routing.
 
@@ -298,13 +298,15 @@ Because `AnnotateHoldShorts` keeps exactly one `HoldShortPoint` per crossed runw
 - A **located** target (`HS C@J`) filters both steps by node incidence with the location taxiway — existing candidate points off `J` are ignored (so the located command adds/re-arms only the crossing it names), and the segment walk skips nodes not on `J`. With no layout to check incidence against, a located target fails closed (`NotOnRoute`) rather than binding an unverifiable crossing.
 - The phase is told (`TaxiingPhase.NotifyHoldShortsChanged`) so the segment in progress is re-aimed at the new bar at once, and a bar inside the aircraft's firm-rate flown stop is flagged `Unable` at dispatch — see [hold-short-placement.md](hold-short-placement.md) § A hold-short armed under a taxi in progress.
 
-**Truncation rules** (`src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:233`):
+**Truncation rules** (`src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs`, `TruncateAtLastRequiredStop`):
 
 - **Runway destination → the route ends *exactly* at its lineup hold-short** (the **first** hold-short of the destination runway the route reaches — the near-side bar), with **no `+1` buffer** and overriding every other rule.
 
   A departure taxis *up to* its runway and holds; it never crosses its own departure runway, so first-match is the lineup. Taking the *last* match instead would extend the route across the runway to the far-side bar of the same crossing (both physical sides share the combined `28R/10L` id) — which gridlocks following traffic.
 
-  The truncation reads segment ends, so a bar the route *starts* on is no segment's end. `DestinationLineupStartBar` handles it: when the first segment starts at a bar of the destination runway in the runway's departure half (short of the midpoint between its threshold and far end, `LiesInDepartureHalf`) and the bar holds the aircraft (`HoldShortAnnotator.StartBarHolds` from the start pose, else `FirstLegLeadsTowardRunway`), the route is cut to zero segments with one `DestinationRunway` hold at the start node (`EnsureDestinationHold`). OAK `TAXI C 33` from C's west bar holds there instead of walking C across 33's end to the far bar; `TAXI C 15` from the same bar lies past 15's far end and routes on as before. A runway nav data cannot resolve is not taken as a departure half and logs `[RouteMaterialiser] Runway … is unknown to nav data` once.
+  The truncation reads segment ends, so a bar the route *starts* on is no segment's end. `DestinationLineupStartBar` handles it: when the first segment starts at a bar of the destination runway in the runway's departure half (short of the midpoint between its threshold and far end, `LiesInDepartureHalf`) and the bar holds the aircraft (`HoldShortAnnotator.StartBarHolds` from the start pose, or `RouteMaterialiser.HoldsAtPassedBar`, else `FirstLegLeadsTowardRunway`), the route is cut to zero segments with one `DestinationRunway` hold at the start node (`EnsureDestinationHold`). OAK `TAXI C 33` from C's west bar holds there instead of walking C across 33's end to the far bar; `TAXI C 15` from the same bar lies past 15's far end and routes on as before.
+
+  **A nose already past the bar** still holds (`HoldsAtPassedBar`): while no part of the aircraft is on the runway pavement (`TaxiPathfinder.IsOnRunwayPavement`) and the main gear is within `AtRunwayHoldShortRadiusFt` of the bar, the route is the same zero-segment hold and carries `RouteMaterialiser.AlreadyPastHoldLineWarning` ("already past the 33 hold-short line — holding in place, clear of the runway"), the one text `FindAdjacentRunwayRoute` also uses; `GroundCommandHandler` then replies "Already at runway 33 — holding in place (runway 33 assigned)" instead of "holding short". An aircraft standing on the runway keeps the old answers. A hold at the start bar also changes what the clearance's other tokens say: `HoldAtDestinationRunwayDisplay` lets `SegmentExpander` note a named taxiway the start node does not touch as "D not taxied — already holding short of runway 33" instead of refusing it as unreachable (an unknown taxiway is still refused), and `AddUnboundHoldShortWarnings` reports an `HS C` on the taxiway the aircraft stands on as "HS C not applied — already on C, holding short of runway 33". `TaxiingPhase.IsHoldAtStartOnly` is what keeps such a route from moving the aircraft. A runway nav data cannot resolve is not taken as a departure half and logs `[RouteMaterialiser] Runway … is unknown to nav data` once.
 
   Proceeding onto / across the runway is clearance-gated by Line-Up / Crossing phases, never baked into the taxi route. If a graph route reaches a destination runway centerline segment before encountering a typed `RunwayHoldShort`, the materialiser adds a destination hold at the surface-entry node and truncates before the centerline as a fallback guard; `FindRunwayRoute` still prefers candidate routes that terminate at a real typed hold-short.
 - **An en-route explicit hold-short crossed before reaching the last cleared taxiway** (`TAXI G C HS 28R`, no further runway destination) stops the route *one segment onto* that last cleared taxiway (`crossHoldTruncateAt` / `FindLastClearedTaxiwayEntry`) — the aircraft crosses and settles just past the junction, not stranded on the near side. This rule is **moot for a runway destination**, where the runway lies beyond the last cleared taxiway and the lineup-terminus rule wins.
@@ -583,7 +585,7 @@ So `TAXI A B1` on a map where A/B1 don't meet routes `A Q B1` (0 insertions) ins
 
 ## Step-by-step walkthrough — explicit mode (`SegmentExpander.Run`)
 
-`SegmentExpander.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:65`) returns exactly one of `(TaxiRoute, null)` or `(null, PathfindingFailure)`.
+`SegmentExpander.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs`) returns exactly one of `(TaxiRoute, null)` or `(null, PathfindingFailure)`.
 
 **1. Waypoint resolution.** `ResolveWaypoints` turns each token into a `WaypointToken`. `#NNNN` tokens become node-refs (`IsNodeRef = true`) — see **Node-reference paths** above for how they resolve; everything else is a named taxiway.
 
@@ -593,7 +595,7 @@ This is how `TAXI 28R G D` taxis along 28R then turns off onto G, D. A turn glyp
 
 The search starts with `head = PartialRoute.StartAt(ctx.StartNodeId)` — an immutable linked-list node (`PartialRoute.cs`) carrying head node id, arrival bearing, last edge, accumulated cost, depth, and a `VisitedNodeIds` set.
 
-**2. Parking→taxiway bridge** (`BridgeStartToTaxiway`, `:1241`, called from `:325`). If the start node has no edge on the first named taxiway (e.g. parked on a RAMP-only spot), a bounded BFS (≤ `MaxBridgeHops = 3`) collects every node within reach that carries that taxiway, then picks the best access node. Without it the first per-segment search finds no on-taxiway edge from the start and degrades to a failing detour.
+**2. Parking→taxiway bridge** (`BridgeStartToTaxiway`). If the start node has no edge on the first named taxiway (e.g. parked on a RAMP-only spot), a bounded BFS (≤ `MaxBridgeHops = 3`) collects every node within reach that carries that taxiway, then picks the best access node. Without it the first per-segment search finds no on-taxiway edge from the start and degrades to a failing detour.
 
 **Admissible bridges first.** `PickBridgeCandidate` builds each candidate's path with `BuildBridgePath` and prefers a bridge whose every hop is an admissible turn for the type (`GeometricAdmissibility`), the first hop judged against the start heading; a parking or helipad start is exempt on the first hop.
 
@@ -623,7 +625,7 @@ With no bias (single-taxiway with no known destination node) the score falls bac
 
    Candidates rank by an onward continuation on the taxiway first, then by path length. The leg runs only where the bridge has failed, so every route that resolved through the bridge resolves the same; when the leg does not help, the bridged failure is reported. The `[startleg]` lines on `ExplicitPathOptions.DiagnosticLog` trace it.
 
-**3. `ResolveSequence` with recursive look-ahead** (`:585`). Walks consecutive token pairs. For each non-final pair it calls `ExpandSegment`; the final token goes to `ExpandLastWaypoint`. After each segment it **resets `VisitedNodeIds` to just the new head node**, so a route may intentionally revisit a taxiway (`A E B B3 A B1`) — cycle prevention is per-segment, not global. `ExpandSegment` dispatches:
+**3. `ResolveSequence` with recursive look-ahead** (`ResolveSequence`). Walks consecutive token pairs. For each non-final pair it calls `ExpandSegment`; the final token goes to `ExpandLastWaypoint`. After each segment it **resets `VisitedNodeIds` to just the new head node**, so a route may intentionally revisit a taxiway (`A E B B3 A B1`) — cycle prevention is per-segment, not global. `ExpandSegment` dispatches:
    - node-ref → named: `RouteFromNodeRefToTaxiway`
    - named / node-ref → node-ref: `RouteToNodeRef` → `RouteToSpecificNode` (direct edge, else `AutoRouter`)
    - named → named: `RouteNamedToNamed` (the common case)
@@ -688,7 +690,7 @@ Zero variants → try same-name hold-shorts, else raise `DestinationUnreachable`
 
 **7. Parking/spot extension** (`ExtendToDestination`, `:2154`). For `@parking`/`$spot`/helipad destinations, runs `AutoRouter` from the named-path terminus to the destination node, confined to the cleared taxiways, ramp taxilanes and RAMP, with the implied lead-in and, failing it, one implied one-way lane as the exceptions (see *The destination extension is confined* above).
 
-**8. `RouteMaterialiser.Materialise`** (`:15`). One forward pass: build segments → annotate hold-shorts → truncate (runway destination = exactly at its lineup hold-short; otherwise one past the last required stop) → build warnings (mandatory-connector notifications + unauthorized-letter-taxiway warnings, with junction arcs and parking-bridge RAMP exempt). Returns the `TaxiRoute`.
+**8. `RouteMaterialiser.Materialise`**. One forward pass: build segments → annotate hold-shorts → truncate (runway destination = exactly at its lineup hold-short; otherwise one past the last required stop) → build warnings (mandatory-connector notifications + unauthorized-letter-taxiway warnings, with junction arcs and parking-bridge RAMP exempt). Returns the `TaxiRoute`.
 
 **9. Honor-named-taxiway check** (after materialise). Every named taxiway in the clearance must be **reached** by the resolved route — either *traversed* (an edge labeled for it, membership arcs count) or at least *touched* (the route passes through a node incident to it).
 
@@ -894,7 +896,7 @@ Every `VirtualNode` id is a function of its position (FNV-1a over the 1e-7° cel
 
 ### Auto-route walkthrough (`AutoRouter.Run`)
 
-`AutoRouter.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs:40`) is a flat A* over the whole layout, used by `FindRoute`/`FindRoutes`, the explicit-mode parking extension, the detour fallback, and node-ref routing.
+`AutoRouter.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs`) is a flat A* over the whole layout, used by `FindRoute`/`FindRoutes`, the explicit-mode parking extension, the detour fallback, and node-ref routing.
 
 - Resolves the destination node (runway → `FindFullLengthLineupHoldShort`, the first bar of the full-length lineup order; parking/spot/node → the resolved id).
 - A* with a `PriorityQueue<PartialRoute, double>`, a `(nodeId, arrival-bearing-bucket, arrival-taxiway)`-keyed `bestGScore` map for state-aware duplicate pruning, and the `GeometricAdmissibility` hard gate on every edge. `IncrementalCost` prices each edge. Heuristic = straight-line nm. Cap: **`MaxExpansions = 200_000`** → `SearchExhausted` (SFO cross-field routes legitimately explore 100k+).
@@ -949,7 +951,7 @@ Verify each against current code before relying on it — several are open work 
 
   This is intentional (recursion bound) but is a real limit. (The specific failure where a one-level probe's tail dead-ends *short of a concrete-node destination* is caught separately by `ProbeTailCost`'s destination-reach term — see "Intermediate transitions are destination-reach-scored" above.)
 
-- **`IsNumberedVariant` must reject digit-bearing bases.** `B10` is **not** a variant of `B1` — `B1` and `B10` are both siblings under base `B`. `IsNumberedVariant` (`SegmentExpander.cs:1279`) returns false when the base contains any digit, preventing the false positive that made a `B1`→runway hold-short look ambiguous against `B10`/`B11`. A digit-bearing base is a leaf connector with no further numbered variants.
+- **`IsNumberedVariant` must reject digit-bearing bases.** `B10` is **not** a variant of `B1` — `B1` and `B10` are both siblings under base `B`. `IsNumberedVariant` (`SegmentExpander.cs`) returns false when the base contains any digit, preventing the false positive that made a `B1`→runway hold-short look ambiguous against `B10`/`B11`. A digit-bearing base is a leaf connector with no further numbered variants.
 
 - **A* pruning is state-aware (`(nodeId, bearing-bucket, arrival-taxiway)`-keyed).** Both `AutoRouter` and `SegmentExpander`'s local searches close the open set by `GeometricAdmissibility.PruningStateKey` (1° buckets plus the taxiway the state arrived on — `PartialRoute.LastTaxiwayName`), not node id alone.
 
@@ -1000,6 +1002,6 @@ Both live in `src/Yaat.Sim/Data/Airport/ExplicitPathOptions.cs`.
 | `src/Yaat.Sim/Data/Airport/Pathfinding/PathfindingFailure.cs` | Structured failure: `FailureKind` enum + human message. |
 | `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | Graph types: `GroundNode`, `GroundArc`, `IGroundEdge`, `DirectionalEdge`, taxiway/runway lookup helpers. |
 | `src/Yaat.Sim/Data/Airport/TaxiRoute.cs` | Output type: segments, hold-shorts, warnings, implied one-way lanes, destination, current index. |
-| `src/Yaat.Sim/Commands/GroundCommandHandler.cs` | `TryTaxi`/`TryTaxiAuto` entry point (`GroundCommandHandler.cs:15`, `:291`). |
+| `src/Yaat.Sim/Commands/GroundCommandHandler.cs` | `TryTaxi`/`TryTaxiAuto` entry point. |
 
 **Tooling:** `tools/Yaat.LayoutInspector` with `--fillet-mode standard` to inspect the graph. See `docs/e2e-tdd-issue-debugging.md` for detailed layout-inspector usage.

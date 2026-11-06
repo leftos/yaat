@@ -534,6 +534,15 @@ public static class SegmentExpander
                 continue;
             }
 
+            // A route that holds at the destination runway's bar the aircraft already stands at taxis nothing: a cleared
+            // taxiway the start node does not touch lies beyond the aircraft's own hold, so it is not told the taxiway is
+            // unreachable — it is told which taxiway it did not taxi.
+            if (RouteMaterialiser.HoldAtDestinationRunwayDisplay(route.Segments, route.HoldShortPoints, ctx) is { } runwayDisplay)
+            {
+                route.Warnings.Add($"{wp.Name} not taxied — already holding short of runway {runwayDisplay}");
+                continue;
+            }
+
             return (
                 null,
                 new PathfindingFailure(

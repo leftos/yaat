@@ -558,9 +558,7 @@ public static class TaxiPathfinder
             TaxiRoute route = HoldAtBarRoute(atBar, runwayId);
             if (!IsAhead(position, heading, atBar))
             {
-                route.Warnings.Add(
-                    $"already past the {RunwayIdentifier.ToDisplayDesignator(runwayId)} hold-short line — holding in place, clear of the runway"
-                );
+                route.Warnings.Add(RouteMaterialiser.AlreadyPastHoldLineWarning(runwayId));
             }
 
             return route;
@@ -627,7 +625,7 @@ public static class TaxiPathfinder
     /// margin from the centerline). A hold-short bar sits well outside this band, so an aircraft that crept
     /// past the painted line is still "at the bar" only while this is false.
     /// </summary>
-    private static bool IsOnRunwayPavement(AirportGroundLayout layout, LatLon position, string runwayId)
+    internal static bool IsOnRunwayPavement(AirportGroundLayout layout, LatLon position, string runwayId)
     {
         GroundRunway? runway = layout.FindRunway(runwayId);
         if (runway is null || runway.Coordinates.Count < 2)
