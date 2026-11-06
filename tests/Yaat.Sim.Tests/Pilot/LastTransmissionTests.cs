@@ -58,7 +58,7 @@ public sealed class LastTransmissionTests
         world.AddAircraft(aircraft);
         QueueLine(aircraft, terminal, spoken, sourceKind, kind);
 
-        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10, rngSeed: 1);
+        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10, rngSeed: 1, studentPosition: null);
 
         PilotTransmission broadcast = Assert.Single(drained);
         AircraftLastPilotTransmission last = Assert.IsType<AircraftLastPilotTransmission>(aircraft.LastPilotTransmission);
@@ -110,7 +110,7 @@ public sealed class LastTransmissionTests
         world.AddAircraft(aircraft);
         aircraft.PendingPilotTransmissions.Add(RepeatOf(aircraft.LastPilotTransmission));
 
-        PilotTransmission repeated = Assert.Single(world.DrainReadyPilotTransmissions(elapsedSeconds: 20, rngSeed: 1));
+        PilotTransmission repeated = Assert.Single(world.DrainReadyPilotTransmissions(elapsedSeconds: 20, rngSeed: 1, studentPosition: null));
 
         Assert.False(aircraft.PendingRepeat);
         AircraftLastPilotTransmission last = Assert.IsType<AircraftLastPilotTransmission>(aircraft.LastPilotTransmission);
@@ -208,7 +208,7 @@ public sealed class LastTransmissionTests
         );
         world.RemoveAircraft("N123AB");
 
-        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10, rngSeed: 1);
+        List<PilotTransmission> drained = world.DrainReadyPilotTransmissions(elapsedSeconds: 10, rngSeed: 1, studentPosition: null);
 
         PilotTransmission broadcast = Assert.Single(drained);
         Assert.Equal("N123AB", broadcast.Callsign);

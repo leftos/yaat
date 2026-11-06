@@ -694,6 +694,9 @@ The hold on the solo frequency between a controller instruction and the pilot's 
 **Simulated tower**:
 The tower the sim plays without a word at a towered airport where the solo student does not work the tower and no AI tower covers it (`PilotContactRoster.TowerIsSimulatedAt`): no tower call reaches the student, it clears a departure the student transferred for takeoff once the runway is clear, clears arrivals to land and sends them around when the runway is not clear.
 
+**Tuned position**:
+The position a pilot is tuned to (`AircraftState.TunedPosition`, a `TrackOwner`, snapshotted; null when nothing has recorded one, which reads as the student's side). The student's `CT` sets it to the target (the track owner for a bare `CT`), the student's `FCA` and a `CT` to no resolvable position set `TrackOwner.Elsewhere`, and a later human instruction to an untuned aircraft sets the student's position; scripted and AI-controller commands never set it. `IsTunedAwayFrom(student)` is the "left the student's frequency" test, by callsign (a null student counts any tuning as away).
+
 **Unaddressed say again**:
 The controller's say again sent with no callsign (`AGAINU` / `AGAINU CS`, a Global verb the client sends for a typed `AGAIN CS` and for a bare `AGAIN` with nothing selected): the pilot still on the frequency whose call awaits a controller response repeats, else the one that transmitted last (`PilotRepeat.PickUnaddressedTarget`, docs/solo-training-pilot-speech.md).
 

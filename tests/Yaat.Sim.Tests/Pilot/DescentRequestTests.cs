@@ -110,7 +110,7 @@ public class DescentRequestTests
     [Fact]
     public void LeftStudentFrequency_NoCall()
     {
-        if (StagePastTopOfDescentWith(ac => ac.HasLeftStudentFrequency = true) is not { } staged)
+        if (StagePastTopOfDescentWith(ac => ac.TunedPosition = TrackOwner.Elsewhere) is not { } staged)
         {
             return;
         }

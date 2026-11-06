@@ -90,7 +90,7 @@ public sealed class SayAgainUnaddressedTests
         Assert.Single(Drain(engine, 10));
         Assert.Equal(Second, engine.World.ActiveFrequency.AwaitingControllerResponseTo);
         // Awaited and the last to transmit, but no longer on the student's frequency.
-        second.HasLeftStudentFrequency = true;
+        second.TunedPosition = TrackOwner.Elsewhere;
 
         CommandResult result = engine.SendCommand("", "AGAINU");
 
@@ -216,7 +216,7 @@ public sealed class SayAgainUnaddressedTests
         };
 
     private static List<PilotTransmission> Drain(SimulationEngine engine, double elapsedSeconds) =>
-        engine.World.DrainReadyPilotTransmissions(elapsedSeconds, rngSeed: 1);
+        engine.World.DrainReadyPilotTransmissions(elapsedSeconds, rngSeed: 1, studentPosition: engine.Scenario?.StudentPosition);
 
     internal static void QueueProactive(AircraftState aircraft, string spoken) =>
         aircraft.PendingPilotTransmissions.Add(

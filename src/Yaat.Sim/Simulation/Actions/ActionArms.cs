@@ -495,7 +495,7 @@ internal static class ActionArms
             return PilotRepeat.SoloTrainingOnlyRefusal();
         }
 
-        if (PilotRepeat.PickUnaddressedTarget(engine.World) is not { } target)
+        if (PilotRepeat.PickUnaddressedTarget(engine.World, engine.Scenario?.StudentPosition) is not { } target)
         {
             return new CommandResult(false, "Say again: no pilot has called");
         }

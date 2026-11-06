@@ -26,7 +26,7 @@ public static class PilotRepeat
             return SoloTrainingOnlyRefusal();
         }
 
-        if (aircraft.HasLeftStudentFrequency)
+        if (aircraft.IsTunedAwayFrom(ctx.StudentPosition))
         {
             return new CommandResult(false, $"{aircraft.Callsign} is no longer on your frequency");
         }
@@ -55,9 +55,11 @@ public static class PilotRepeat
     /// one whose call awaits a controller response, else the one whose last transmission went out latest (ties to the
     /// ordinal-lower callsign), else none. Reads snapshotted state only, so a replay or a restored rewind picks the same one.
     /// </summary>
-    public static AircraftState? PickUnaddressedTarget(SimulationWorld world)
+    /// <param name="world">The world the pilots are in.</param>
+    /// <param name="studentPosition">The student's position, against which a pilot's tuned position is read.</param>
+    public static AircraftState? PickUnaddressedTarget(SimulationWorld world, TrackOwner? studentPosition)
     {
-        List<AircraftState> candidates = [.. world.GetSnapshot().Where(a => !a.HasLeftStudentFrequency)];
+        List<AircraftState> candidates = [.. world.GetSnapshot().Where(a => !a.IsTunedAwayFrom(studentPosition))];
         if (world.ActiveFrequency.AwaitingControllerResponseTo is { } awaited)
         {
             AircraftState? awaitedAircraft = candidates.Find(a => string.Equals(a.Callsign, awaited, StringComparison.Ordinal));

@@ -41,7 +41,7 @@ public sealed class Issue297FollowUpCallsignLeakTests
         // Mirror the six RecordRequest call sites: they store the full PilotSpeechText (both forms).
         PilotRequestTracker.RecordRequest(aircraft, PilotPendingRequestKind.Taxi, 0, line, PilotRequestContext.Facility("ground"));
 
-        bool queued = PilotRequestTracker.TryQueueFollowUp(aircraft, PilotRequestTracker.NormalFollowUpDelaySeconds);
+        bool queued = PilotRequestTracker.TryQueueFollowUp(aircraft, PilotRequestTracker.NormalFollowUpDelaySeconds, studentPosition: null);
         Assert.True(queued);
         PilotTransmission followUp = Assert.Single(aircraft.PendingPilotTransmissions);
 

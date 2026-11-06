@@ -218,7 +218,7 @@ public static class PilotProactive
     /// </summary>
     public static void TickDescentRequest(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)
     {
-        if (!IsDescentRequestEligible(aircraft, scenario) || ShouldNotAskForLower(aircraft))
+        if (!IsDescentRequestEligible(aircraft, scenario) || ShouldNotAskForLower(aircraft, scenario.StudentPosition))
         {
             return;
         }
@@ -330,10 +330,11 @@ public static class PilotProactive
     /// Whether the pilot has no reason to ask for lower, or to repeat an open request for it: a descent is authorised or
     /// queued (<see cref="DescentAuthorized"/>), a climb is in progress or cleared (<see cref="IsClimbingOrDeparting"/>),
     /// or the aircraft is off the student's work (<see cref="IsOffTheStudentsWork"/>). <see cref="PilotRequestTracker"/>
-    /// reads it to close an open request as moot.
+    /// reads it to close an open request as moot. <paramref name="studentPosition"/> is the student's position, against which
+    /// the pilot's tuned position is read.
     /// </summary>
-    internal static bool ShouldNotAskForLower(AircraftState aircraft) =>
-        DescentAuthorized(aircraft) || IsClimbingOrDeparting(aircraft) || IsOffTheStudentsWork(aircraft);
+    internal static bool ShouldNotAskForLower(AircraftState aircraft, TrackOwner? studentPosition) =>
+        DescentAuthorized(aircraft) || IsClimbingOrDeparting(aircraft) || IsOffTheStudentsWork(aircraft, studentPosition);
 
     /// <summary>An assigned altitude above it, a climb via, or an initial-climb or departure-procedure phase.</summary>
     private static bool IsClimbingOrDeparting(AircraftState aircraft) =>
@@ -342,8 +343,10 @@ public static class PilotProactive
         || (aircraft.Phases?.CurrentPhase is InitialClimbPhase or DepartureProcedurePhase);
 
     /// <summary>Off the student's frequency, holding, or cleared to land.</summary>
-    private static bool IsOffTheStudentsWork(AircraftState aircraft) =>
-        aircraft.HasLeftStudentFrequency || (aircraft.Phases?.CurrentPhase is HoldingPatternPhase) || (aircraft.Phases?.LandingClearance is not null);
+    private static bool IsOffTheStudentsWork(AircraftState aircraft, TrackOwner? studentPosition) =>
+        aircraft.IsTunedAwayFrom(studentPosition)
+        || (aircraft.Phases?.CurrentPhase is HoldingPatternPhase)
+        || (aircraft.Phases?.LandingClearance is not null);
 
     /// <summary>
     /// Whether a descent is already authorised or waiting to be applied, so the pilot has no reason to ask: an assigned
@@ -518,7 +521,7 @@ public static class PilotProactive
             return;
         }
 
-        PilotRequestTracker.TryQueueFollowUp(aircraft, scenario.ElapsedSeconds);
+        PilotRequestTracker.TryQueueFollowUp(aircraft, scenario.ElapsedSeconds, scenario.StudentPosition);
     }
 
     /// <summary>
@@ -594,10 +597,10 @@ public static class PilotProactive
     /// The pilot is free to call the student for a Class B clearance: not cleared yet, in contact with the student and
     /// not sent to another frequency, nothing queued to say, and no other request open.
     /// </summary>
-    private static bool CanRequestBravoClearance(AircraftState aircraft) =>
+    private static bool CanRequestBravoClearance(AircraftState aircraft, TrackOwner? studentPosition) =>
         !aircraft.IsClearedIntoBravo
         && aircraft.HasMadeInitialContact
-        && !aircraft.HasLeftStudentFrequency
+        && !aircraft.IsTunedAwayFrom(studentPosition)
         && (aircraft.PendingPilotTransmissions.Count == 0)
         && (aircraft.PendingPilotRequest is not { IsOpen: true });
 
@@ -620,7 +623,7 @@ public static class PilotProactive
         Func<string, LatLon?> airportLookup
     )
     {
-        if (!CanRequestBravoClearance(aircraft))
+        if (!CanRequestBravoClearance(aircraft, scenario.StudentPosition))
         {
             return;
         }

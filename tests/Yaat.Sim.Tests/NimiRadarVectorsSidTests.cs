@@ -303,8 +303,8 @@ public class NimiRadarVectorsSidTests
     //
     // Track ownership ≠ comms (FAA 7110.65 §7-6-11). An auto-track or HOO does
     // not put the pilot on departure's frequency, so the RV SID heading hold
-    // must NOT release until the controller actually issues CT/FCA (which sets
-    // AircraftState.HasLeftStudentFrequency). Until then the aircraft must hold
+    // must NOT release until the controller actually issues CT/FCA (which tunes the
+    // pilot away from the student, AircraftState.IsTunedAwayFrom). Until then the aircraft must hold
     // 315° regardless of who owns the radar track.
     // -------------------------------------------------------------------------
 
@@ -363,10 +363,10 @@ public class NimiRadarVectorsSidTests
     [Fact]
     public void RvSid_NoFreqHandoff_HoldsHeadingFor60Seconds()
     {
-        // HasLeftStudentFrequency stays false — controller never issued CT. Aircraft
+        // The pilot stays tuned to the student — controller never issued CT. Aircraft
         // must hold 315° and not load NavigationRoute, regardless of how long passes.
         (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildRvSidClimbHarness();
-        Assert.False(ac.HasLeftStudentFrequency);
+        Assert.False(ac.IsTunedAwayFrom(ctx.StudentPosition));
 
         for (int i = 0; i < 60; i++)
         {
@@ -383,11 +383,11 @@ public class NimiRadarVectorsSidTests
         // The exact concern: an auto-track to a non-tower TCP MUST NOT release the
         // heading hold, because comms haven't been transferred. Pre-fix this would
         // start a 5s timer based purely on Track.Owner; post-fix the timer is gated
-        // on HasLeftStudentFrequency.
+        // on the pilot being tuned away from the student (IsTunedAwayFrom).
         (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildRvSidClimbHarness();
         ac.Track.Owner = TrackOwner.CreateNonNas("OAK_APP");
         ac.Track.HandoffAccepted = true;
-        Assert.False(ac.HasLeftStudentFrequency);
+        Assert.False(ac.IsTunedAwayFrom(ctx.StudentPosition));
 
         for (int i = 0; i < 30; i++)
         {
@@ -401,12 +401,12 @@ public class NimiRadarVectorsSidTests
     [Fact]
     public void RvSid_AfterCT_HoldsHeadingFor5SecondsThenLoadsRoute()
     {
-        // Controller issues CT (HasLeftStudentFrequency = true). 5s grace period:
+        // Controller issues CT (the pilot is tuned away from the student). 5s grace period:
         // aircraft still holds 315° (simulates pilot retuning the radio). After 5s
         // elapses the route loads and FlightPhysics takes over to fly to FESIK.
         (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildRvSidClimbHarness();
 
-        ac.HasLeftStudentFrequency = true;
+        ac.TunedPosition = TrackOwner.Elsewhere;
 
         // Ticks 1-4: still in post-CT delay, heading still being asserted, route NOT loaded.
         for (int i = 0; i < 4; i++)

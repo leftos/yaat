@@ -1277,7 +1277,7 @@ public class ClimbViaTopAltitudeTests
         Assert.NotNull(pending.CrossingTransmissionId);
         Assert.Empty(ac.Targets.NavigationRoute);
 
-        ac.HasLeftStudentFrequency = true;
+        ac.TunedPosition = TrackOwner.Elsewhere;
         for (int t = 0; (t < 30) && !ac.Targets.NavigationRoute.Exists(f => ReferenceEquals(f, pending)); t++)
         {
             PhaseRunner.Tick(ac, departure.Context);
@@ -1321,7 +1321,7 @@ public class ClimbViaTopAltitudeTests
         Assert.Equal(230, ac.Targets.AssignedSpeed);
         Assert.True(NavigationCommandHandler.HasSpeedRevert(climb.DepartureRoute.Single(f => f.Name == "FESIK")), "setup: no speed revert");
 
-        ac.HasLeftStudentFrequency = true;
+        ac.TunedPosition = TrackOwner.Elsewhere;
         for (int t = 0; (t < 30) && (ac.Targets.NavigationRoute.Count == 0); t++)
         {
             PhaseRunner.Tick(ac, ctx);

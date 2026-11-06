@@ -77,10 +77,21 @@ public sealed class AircraftSnapshotDto
     public bool HasControllerAcknowledgedInitialContact { get; init; }
 
     /// <summary>
-    /// Solo-training frequency-service gate. Non-required so older snapshots deserialize
-    /// with the default <see langword="false"/>.
+    /// The position the pilot is tuned to (<see cref="AircraftState.TunedPosition"/>); null when none is recorded, and then
+    /// left out of the JSON. Settable for <see cref="SnapshotSchemaMigrator"/>, which fills it from a pre-V48
+    /// <see cref="LegacyHasLeftStudentFrequency"/>.
     /// </summary>
-    public bool HasLeftStudentFrequency { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TrackOwnerDto? TunedPosition { get; set; }
+
+    /// <summary>
+    /// Through V47 the "left the student's frequency" flag lived here. Read only so <see cref="SnapshotSchemaMigrator"/> can
+    /// turn a true one into <see cref="TrackOwner.Elsewhere"/> on <see cref="TunedPosition"/>, then nulled, so a rewritten
+    /// snapshot drops it.
+    /// </summary>
+    [JsonPropertyName("HasLeftStudentFrequency")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyHasLeftStudentFrequency { get; set; }
 
     /// <summary>
     /// Scenario-elapsed seconds at spawn. Non-required so older snapshots default to 0,

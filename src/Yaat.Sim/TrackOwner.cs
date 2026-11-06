@@ -4,6 +4,13 @@ namespace Yaat.Sim;
 
 public record TrackOwner(string Callsign, string? FacilityId, int? Subset, string? SectorId, TrackOwnerType OwnerType)
 {
+    /// <summary>
+    /// The position a pilot is tuned to when the command that moved it named none it could resolve: an FCA, a CT whose target
+    /// is in no position tree, or a pre-V48 snapshot's "left the student's frequency". Its callsign "?" names no real position,
+    /// so it is never the student's (<see cref="AircraftState.IsTunedAwayFrom"/>), and it snapshots as an ordinary owner.
+    /// </summary>
+    public static readonly TrackOwner Elsewhere = CreateNonNas("?");
+
     public bool IsNasPosition => OwnerType is TrackOwnerType.Eram or TrackOwnerType.Stars;
 
     public bool IsTcp(Tcp tcp) => Subset == tcp.Subset && SectorId == tcp.SectorId;

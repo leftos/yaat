@@ -259,7 +259,7 @@ public class TdlsMaintainCrossingBoundTests
         AircraftState ac = d.Aircraft;
         if ((t == 90) && (ac.Phases?.CurrentPhase is InitialClimbPhase) && (NavigationCommandHandler.PendingDepartureRoute(ac) is not null))
         {
-            ac.HasLeftStudentFrequency = true;
+            ac.TunedPosition = TrackOwner.Elsewhere;
         }
     }
 

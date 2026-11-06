@@ -189,6 +189,7 @@ public class AiAnsweredCallupE2ETests
             PreserveConditionals = false,
             IsScenarioScripted = true,
             FacilityHint = null,
+            StudentPosition = engine.Scenario.StudentPosition,
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };

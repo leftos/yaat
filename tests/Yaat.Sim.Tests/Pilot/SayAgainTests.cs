@@ -217,7 +217,7 @@ public sealed class SayAgainTests
         // A say again already pending when the aircraft is sent away is dropped with it.
         Assert.True(engine.SendCommand(Callsign, "AGAIN").Success);
         Assert.True(engine.SendCommand(Callsign, "FCA").Success);
-        Assert.True(aircraft.HasLeftStudentFrequency);
+        Assert.True(aircraft.IsTunedAwayFrom(engine.Scenario!.StudentPosition));
         List<PilotTransmission> afterHandoff = [.. Drain(engine, 30), .. Drain(engine, 60)];
         Assert.DoesNotContain(afterHandoff, t => t.IsRepeat);
         Assert.False(aircraft.PendingRepeat);
@@ -338,7 +338,7 @@ public sealed class SayAgainTests
 
         // The session report the student is debriefed from is unchanged, and the aircraft is still the student's.
         Assert.Equal(before, SoloReport(engine, aircraft));
-        Assert.False(aircraft.HasLeftStudentFrequency);
+        Assert.False(aircraft.IsTunedAwayFrom(engine.Scenario!.StudentPosition));
     }
 
     /// <summary>The solo-training session report as the hub builds it, serialized so two reads compare field by field.</summary>
@@ -411,7 +411,7 @@ public sealed class SayAgainTests
     }
 
     private static List<PilotTransmission> Drain(SimulationEngine engine, double elapsedSeconds) =>
-        engine.World.DrainReadyPilotTransmissions(elapsedSeconds, rngSeed: 1);
+        engine.World.DrainReadyPilotTransmissions(elapsedSeconds, rngSeed: 1, studentPosition: engine.Scenario?.StudentPosition);
 
     private static void QueueProactive(AircraftState aircraft, string spoken) =>
         aircraft.PendingPilotTransmissions.Add(

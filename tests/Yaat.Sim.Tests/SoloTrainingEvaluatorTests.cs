@@ -884,7 +884,7 @@ public sealed class SoloTrainingEvaluatorTests
     {
         (AircraftState? a, AircraftState? b) = CreateClosingIfrPair();
         var evaluator = new SoloTrainingEvaluator();
-        evaluator.RecordControllerCommand(a, SingleCommand(new FrequencyChangeApprovedCommand()), scenarioElapsedSeconds: 5, [a, b]);
+        a.TunedPosition = TrackOwner.Elsewhere;
 
         List<SoloTrainingEvent> notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 

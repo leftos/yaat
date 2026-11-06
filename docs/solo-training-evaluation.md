@@ -27,7 +27,7 @@ state-mutators:
 |---|---|---|---|
 | `Evaluate(aircraft, elapsed, airspace, serviceContext)` | `SimulationEngine.TickSoloTrainingEvaluation` (spine step `StepId.SoloTrainingEvaluation`, `Spine/SpineOrder.cs`) | every sim-second, on every run kind | Samples every airborne pair + runway op, upserts findings, deactivates stale ones, returns newly-raised notices. |
 | `BuildReport(soloMode, elapsed, approachReport, debriefContext)` | `TrainingHub.GetSessionReport` | on demand (poll) | Tallies the five score buckets, grades, builds coaching notes and per-aircraft debriefs. |
-| `RecordControllerCommand(aircraft, command, elapsed, knownAircraft)` | `RoomEngine` (after a successful dispatch) | per accepted command | Captures **proofs** (RTIS / SAFAL / CWT / field-in-sight) that clear findings. |
+| `RecordControllerCommand(aircraft, command, elapsed, knownAircraft)` | `SimulationEngine.RecordStudentCommand` (after a successful dispatch) | per accepted command | Captures **proofs** (RTIS / SAFAL / CWT / field-in-sight) that clear findings. |
 | `Reset()` | `RecordingManager`, `ScenarioLifecycleService` | scenario load / rewind / restore | Clears all events, proofs, the tracker, and the debrief cache. |
 
 `Evaluate` and `RecordControllerCommand` write to the evaluator's mutable state (`_events`, the proof collections,
@@ -72,7 +72,7 @@ primary airport, then calls `SoloTrainingEvaluator.BuildReport`. That method:
 ## Data flow & cross-repo wiring
 
 ```
-RoomEngine.SendCommandAsync (accepted command, solo mode)
+SimulationEngine.RecordStudentCommand (accepted command, solo mode)
         └─ SoloTrainingEvaluator.RecordControllerCommand  → proofs
 
 SimulationEngine.TickSoloTrainingEvaluation (spine step, every tick, solo mode)
@@ -90,8 +90,7 @@ TrainingHub.GetSessionReport (poll)                                  │   ← R
 
 - `InitialContactEligibilityContext` — student TCP, position type,
   ARTCC, primary airport, and the initial-contact transfer catalog. Drives `IsStudentServiceRecipient`:
-  advisory/visual/wake findings only fire for aircraft that have made initial contact, have not left the student's
-  frequency, and are eligible to be the student's traffic.
+  advisory/visual/wake findings only fire for aircraft that have made initial contact, are not tuned away from the student's position (`AircraftState.IsTunedAwayFrom` against `StudentPosition`), and are eligible to be the student's traffic.
 - `WakeDirectiveCatalog` (`Data/WakeDirectiveCatalog.cs`) — per-ARTCC overrides that can *require* or *suppress* a
   wake advisory / interval (`SampleWakeAdvisoryProofs`).
 
@@ -200,8 +199,7 @@ issued the matching command. The constructors set the category to `AdvisoryVisua
 `RecordControllerCommand` is the proof capture. It walks the immediately-applied commands of an accepted
 compound and:
 
-- `ContactCommand` / `FrequencyChangeApprovedCommand` → sets `HasLeftStudentFrequency` (aircraft stops being a
-  student-service recipient).
+- `ContactCommand` / `FrequencyChangeApprovedCommand` → no proof: `ContactCommandHandler` tunes the pilot (`AircraftState.TunedPosition`), which stops the aircraft being a student-service recipient.
 - `ReportFieldAdvisoryCommand` → adds to `_fieldAdvisoryProofs`.
 - The advisory commands resolve through the public `TrafficAdvisoryMatcher`, which reads `TrafficAdvisoryCandidate` records, not `AircraftState`: the recipient is `TrafficAdvisoryCandidate.From(aircraft)` and the candidates are built once, lazily, from `knownAircraft`. A match's `Target` is a candidate.
 

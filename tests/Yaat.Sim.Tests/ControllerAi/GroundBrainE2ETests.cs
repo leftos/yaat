@@ -145,7 +145,7 @@ public class GroundBrainE2ETests
         Assert.NotNull(transfer);
         Assert.Equal("CT OAK_TWR", transfer.Command);
         AircraftState handed = engine.FindAircraft(AiTestFixture.Callsign)!;
-        Assert.False(handed.HasLeftStudentFrequency);
+        Assert.False(handed.IsTunedAwayFrom(engine.Scenario!.StudentPosition));
         Assert.Equal(CompletionReason.Active, handed.CompletionReason);
         Assert.Null(handed.CompletedAtSeconds);
     }

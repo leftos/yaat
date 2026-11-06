@@ -85,7 +85,7 @@ public class NimiRvSidDctDuringClimbTests
     {
         TestVnasData.EnsureInitialized();
         (InitialClimbPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildRvSidClimbHarness();
-        Assert.False(ac.HasLeftStudentFrequency);
+        Assert.False(ac.IsTunedAwayFrom(ctx.StudentPosition));
 
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("DCT FESIK");
         Assert.True(parsed.IsSuccess);

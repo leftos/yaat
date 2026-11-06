@@ -20,6 +20,9 @@ public class ContactCommandHandlerTests
     private static DispatchContext MakeCtx(ArtccConfigRoot? config, bool soloTrainingMode = true, bool rpoShowPilotSpeech = false) =>
         TestDispatch.Context(new Random(0), soloTrainingMode: soloTrainingMode, rpoShowPilotSpeech: rpoShowPilotSpeech, artccConfig: config);
 
+    /// <summary>The student working OAK_GND, so a pilot tuned to OAK_TWR has left the student's frequency.</summary>
+    private static TrackOwner StudentGround(ArtccConfigRoot config) => config.ResolvePosition(config.FindPositionByCallsign("OAK_GND", null)!.Id)!;
+
     private static PilotTransmission SingleTransmission(AircraftState ac) => Assert.Single(ac.PendingPilotTransmissions);
 
     // --- Explicit target: position callsign ---
@@ -440,13 +443,14 @@ public class ContactCommandHandlerTests
             soloTrainingMode: true,
             artccConfig: config,
             scenarioElapsedSeconds: 42,
-            isScenarioScripted: true
+            isScenarioScripted: true,
+            studentPosition: StudentGround(config)
         );
         CommandResult result = ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, ctx);
 
         Assert.True(result.Success);
         Assert.Contains("Oakland Tower", SingleTransmission(ac).SpeechText);
-        Assert.False(ac.HasLeftStudentFrequency);
+        Assert.False(ac.IsTunedAwayFrom(ctx.StudentPosition));
         Assert.Equal(CompletionReason.Active, ac.CompletionReason);
         Assert.Null(ac.CompletedAtSeconds);
         Assert.Null(ac.CompletionDetail);
@@ -467,12 +471,13 @@ public class ContactCommandHandlerTests
             soloTrainingMode: true,
             artccConfig: config,
             scenarioElapsedSeconds: 42,
-            isScenarioScripted: false
+            isScenarioScripted: false,
+            studentPosition: StudentGround(config)
         );
         CommandResult result = ContactCommandHandler.HandleContact(new ContactCommand("OAK_TWR"), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.True(ac.HasLeftStudentFrequency);
+        Assert.True(ac.IsTunedAwayFrom(ctx.StudentPosition));
         Assert.Equal(CompletionReason.HandedOff, ac.CompletionReason);
         Assert.Equal(42, ac.CompletedAtSeconds);
         Assert.Equal("OAK_TWR", ac.CompletionDetail);
@@ -481,12 +486,24 @@ public class ContactCommandHandlerTests
     [Fact]
     public void FrequencyChangeApproved_AiOrigin_LeavesStudentFrequencyAndCompletionUntouched()
     {
+        ArtccConfigRoot? config = TestArtccConfig.LoadZoa();
+        if (config is null)
+        {
+            return;
+        }
+
         AircraftState ac = MakeAircraft();
-        DispatchContext ctx = TestDispatch.Context(new Random(0), soloTrainingMode: true, scenarioElapsedSeconds: 42, isScenarioScripted: true);
+        DispatchContext ctx = TestDispatch.Context(
+            new Random(0),
+            soloTrainingMode: true,
+            scenarioElapsedSeconds: 42,
+            isScenarioScripted: true,
+            studentPosition: StudentGround(config)
+        );
         CommandResult result = ContactCommandHandler.HandleFrequencyChangeApproved(ac, ctx);
 
         Assert.True(result.Success);
-        Assert.False(ac.HasLeftStudentFrequency);
+        Assert.False(ac.IsTunedAwayFrom(ctx.StudentPosition));
         Assert.Equal(CompletionReason.Active, ac.CompletionReason);
     }
 

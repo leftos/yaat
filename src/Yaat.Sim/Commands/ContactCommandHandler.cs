@@ -6,9 +6,9 @@ namespace Yaat.Sim.Commands;
 
 /// <summary>
 /// Handles CT (contact next controller) and FCA (frequency change approved). Both are pilot-speech
-/// commands whose only state is the comms bookkeeping (the student-frequency flag and the handoff
-/// completion stamp, both student-origin only). Distinct from HOO/ACCEPT/DROP which are radar-side
-/// coordination actions invisible to the pilot (FAA 7110.65 §7-6-11).
+/// commands whose only state is the comms bookkeeping (the position the pilot is tuned to,
+/// <see cref="AircraftState.TunedPosition"/>, and the handoff completion stamp, both student-origin only).
+/// Distinct from HOO/ACCEPT/DROP which are radar-side coordination actions invisible to the pilot (FAA 7110.65 §7-6-11).
 ///
 /// <para>CT supports three argument forms for disambiguation:</para>
 /// <list type="bullet">
@@ -29,6 +29,7 @@ public static class ContactCommandHandler
         string facilityName;
         string handoffDetail;
         double? frequencyMhz;
+        TrackOwner tunedTo;
 
         if (cmd.Target is { Length: > 0 } target)
         {
@@ -46,6 +47,7 @@ public static class ContactCommandHandler
                     facilityName = ResolveFacilityName(found.Position);
                     frequencyMhz = found.Position.Frequency / 1_000_000.0;
                     handoffDetail = found.Position.Callsign;
+                    tunedTo = ctx.ArtccConfig?.ResolvePosition(found.Position.Id) ?? TrackOwner.Elsewhere;
                     break;
                 default:
                     return new CommandResult(false, $"unknown position {target}");
@@ -62,6 +64,7 @@ public static class ContactCommandHandler
             facilityName = pos is not null ? ResolveFacilityName(pos) : FacilityShortname.From(owner.Callsign);
             frequencyMhz = pos is not null ? pos.Frequency / 1_000_000.0 : null;
             handoffDetail = owner.Callsign;
+            tunedTo = owner;
         }
 
         string? targetType = AtcPositionTypeClassifier.Classify(handoffDetail);
@@ -74,7 +77,7 @@ public static class ContactCommandHandler
         PilotSpeechText canonicalSpeech = BuildContactReadback(aircraft, facilityName, frequencyMhz, PilotSpeechContext.Canonical);
         string warning = $"[Contact] {facilityName}" + (frequencyMhz is double f ? $" {f:0.000}" : "");
         bool toTowerPosition = string.Equals(targetType, "TWR", StringComparison.OrdinalIgnoreCase);
-        MarkFrequencyChange(aircraft, ctx, toTowerPosition);
+        MarkFrequencyChange(aircraft, ctx, toTowerPosition, tunedTo);
         RouteReadback(aircraft, ctx, pilotSpeech, canonicalSpeech, warning);
         StampHandoffCompletion(aircraft, ctx, handoffDetail);
         return new CommandResult(true, "");
@@ -92,7 +95,7 @@ public static class ContactCommandHandler
         PilotSpeechText pilotSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft, ctx.SpeechContextFor(aircraft));
         PilotSpeechText canonicalSpeech = PilotResponder.BuildFrequencyChangeApproved(aircraft, PilotSpeechContext.Canonical);
         // An FCA names no position: on the ground it counts as a transfer to the tower.
-        MarkFrequencyChange(aircraft, ctx, towardTheTower: true);
+        MarkFrequencyChange(aircraft, ctx, towardTheTower: true, TrackOwner.Elsewhere);
         RouteReadback(aircraft, ctx, pilotSpeech, canonicalSpeech, "[FCA] frequency change approved");
         StampHandoffCompletion(aircraft, ctx, detail: null);
         return new CommandResult(true, "");
@@ -124,18 +127,18 @@ public static class ContactCommandHandler
             ? PilotResponder.BuildContactReadback(aircraft, facilityName, freq, speechContext)
             : BuildContactReadbackNoFreq(aircraft, facilityName, speechContext);
 
-    private static void MarkFrequencyChange(AircraftState aircraft, DispatchContext ctx, bool towardTheTower)
+    private static void MarkFrequencyChange(AircraftState aircraft, DispatchContext ctx, bool towardTheTower, TrackOwner tunedTo)
     {
-        // Mark frequency change in both solo and RPO modes. Track ownership and comms
+        // Retune the pilot to tunedTo in both solo and RPO modes. Track ownership and comms
         // are independent (an auto-track to departure does not mean the pilot is on
         // departure's freq yet), so behavior that depends on "the controller has actually
         // handed comms off" — e.g. InitialClimbPhase releasing a radar-vectors SID heading
-        // hold — must key off this flag rather than Track.Owner. Only the student's own CT
+        // hold — must key off the tuned position rather than Track.Owner. Only the student's own CT
         // moves the pilot off the student's frequency: a scripted or AI-controller CT is
         // another position's transfer (an AI Ground sending the pilot to the student tower).
         if (!ctx.IsScenarioScripted)
         {
-            aircraft.HasLeftStudentFrequency = true;
+            aircraft.TunedPosition = tunedTo;
         }
 
         // The student's first transfer of a ground aircraft toward the tower (a CT to a tower position, or an FCA) starts the

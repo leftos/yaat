@@ -571,11 +571,11 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
     /// Manages the RV SID heading hold state machine, keyed off comms transfer rather than
     /// track ownership (the two are independent: a HOO or auto-track does not move comms,
     /// FAA 7110.65 §7-6-11). The controller must explicitly hand the aircraft off via CT/FCA
-    /// — which sets <see cref="AircraftState.HasLeftStudentFrequency"/> — before the heading
+    /// — which tunes the pilot away from the student (<see cref="AircraftState.IsTunedAwayFrom"/>) — before the heading
     /// hold releases:
     /// <list type="bullet">
     ///   <item>While the controller still has comms: fly the published heading indefinitely.</item>
-    ///   <item>After CT/FCA (HasLeftStudentFrequency flips true): start 5s post-handoff timer.</item>
+    ///   <item>After CT/FCA (the pilot is tuned away from the student): start 5s post-handoff timer.</item>
     ///   <item>After 5s: load nav route (pilot has retuned and is now flying the route).</item>
     /// </list>
     /// Any explicit nav/heading command (D, H, etc.) clears the phase via CanAcceptCommand
@@ -584,7 +584,7 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
     /// </summary>
     private void UpdateRvSidHeadingHold(PhaseContext ctx)
     {
-        if (!ctx.Aircraft.HasLeftStudentFrequency)
+        if (!ctx.Aircraft.IsTunedAwayFrom(ctx.StudentPosition))
         {
             // Controller still has comms — hold heading, reset any accidental timer.
             _rvSidHandoffElapsed = 0;

@@ -255,7 +255,7 @@ Solo training only (RPO and Class C unchanged), `src/Yaat.Sim/Pilot/ImplicitBrav
 
 - **Request.** When the first **lateral** Class B entry within 120 s (`FindFirstProjectedEntry` filtered to Bravo, so an earlier Charlie/Delta entry does not hide it) is into a volume the aircraft is not cleared into, the pilot calls `request clearance into the bravo.` (destination inside that Class B at the surface) or `…through the bravo.`, recorded as a `PilotPendingRequestKind.AirspaceEntry` request that `PilotRequestTracker` repeats every 120 s (90 s after STBY/ROGER).
 
-  Gated on initial contact, not having been sent off frequency (`HasLeftStudentFrequency`), an empty transmission queue and no other open request. A climb into a shelf from below stays silent (issue #154).
+  Gated on initial contact, not having been tuned away from the student (`AircraftState.IsTunedAwayFrom`), an empty transmission queue and no other open request. A climb into a shelf from below stays silent (issue #154).
 - **Implicit clearance.**
 
   In solo a heading/turn, DCT, pattern entry, MLT/MRT or approach clearance is a Bravo clearance (7110.65 §7-9-2 NOTE 1 says otherwise for real ops; deliberate sim convenience) when the pilot is waiting (open Bravo request or active Bravo hold, captured before dispatch in `ActionArms.Aviation`) and — for a heading/DCT — its level ray enters the waited-on Bravo within 300 s (pattern/approach grant unconditionally while waiting).

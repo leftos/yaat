@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 47;
+    public const int CurrentSchemaVersion = 48;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -396,6 +396,23 @@ public static class SnapshotSchemaMigrator
         //   transformation is needed. An older snapshot carries no AssignedSpeedTransmissionId, which restores null: "no speed
         //   accepted in any known transmission", so a restored queued clearance cancels the speed in force even where the old
         //   flag would have left it standing.
+
+        // V47→V48: AircraftSnapshotDto.HasLeftStudentFrequency became TunedPosition, the position the pilot is tuned to. An
+        //   aircraft that had left the student's frequency restores tuned to TrackOwner.Elsewhere, since the old flag never
+        //   recorded the target; one that had not (false or absent) restores with none, which reads as on the student's side.
+        //   The legacy member is nulled so a rewritten snapshot drops it.
+        if (snapshot.SchemaVersion < 48)
+        {
+            foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
+            {
+                if ((ac.LegacyHasLeftStudentFrequency == true) && (ac.TunedPosition is null))
+                {
+                    ac.TunedPosition = TrackOwner.Elsewhere.ToSnapshot();
+                }
+
+                ac.LegacyHasLeftStudentFrequency = null;
+            }
+        }
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

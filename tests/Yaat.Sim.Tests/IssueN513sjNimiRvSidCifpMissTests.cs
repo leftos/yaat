@@ -154,7 +154,7 @@ public class IssueN513sjNimiRvSidCifpMissTests
         );
 
         // Controller still has comms: holds runway heading, no route loaded.
-        Assert.False(ac.HasLeftStudentFrequency);
+        Assert.False(ac.IsTunedAwayFrom(ctx.StudentPosition));
         for (int i = 0; i < 60; i++)
         {
             climb.OnTick(ctx);
@@ -164,7 +164,7 @@ public class IssueN513sjNimiRvSidCifpMissTests
         Assert.Empty(ctx.Targets.NavigationRoute);
 
         // After comms handoff + 5s grace, the post-vectors route loads.
-        ac.HasLeftStudentFrequency = true;
+        ac.TunedPosition = TrackOwner.Elsewhere;
         for (int i = 0; i < 5; i++)
         {
             climb.OnTick(ctx);

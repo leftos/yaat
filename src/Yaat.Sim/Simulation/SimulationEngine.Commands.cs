@@ -121,6 +121,7 @@ public sealed partial class SimulationEngine
             PreserveConditionals = false,
             IsScenarioScripted = isScenarioScripted,
             FacilityHint = facilityHint ?? Scenario?.StudentPosition?.FacilityId,
+            StudentPosition = Scenario?.StudentPosition,
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
@@ -226,6 +227,7 @@ public sealed partial class SimulationEngine
 
             if (human)
             {
+                TuneOnHumanInstruction(aircraft, compound);
                 RecordStudentCommand(aircraft, compound, elapsedSeconds, soloTrainingMode);
             }
 
@@ -285,6 +287,48 @@ public sealed partial class SimulationEngine
         // transmission.
         World.RecordControllerTransmission(elapsedSeconds, ControllerAirtimeSeconds(compound, aircraft));
         QueueAppliedReadback(aircraft, compound, result, acknowledgedBefore, bravoGrant);
+    }
+
+    /// <summary>
+    /// The tuning a successful human instruction records at issue time.
+    /// <para>
+    /// In solo training, a compound whose immediately-applied commands carry a CT or FCA moves the pilot off the
+    /// student's frequency now, even when a reaction delay holds the handler back: while the compound waits on that
+    /// delay, an aircraft not yet tuned away is tuned to <see cref="TrackOwner.Elsewhere"/>, and the handler sets the real
+    /// target when the contact fires. In RPO the pilot is retuned only when the handler fires. Undelayed, the handler has
+    /// already tuned the pilot, and its target stands (a CT back to the student's own position reads as not tuned away).
+    /// </para>
+    /// <para>
+    /// Any other compound carrying a CT or FCA is left to the contact handler (a queued block tunes the pilot when it
+    /// fires). Otherwise an aircraft with no tuned position recorded is tuned to the student's position, when the room has
+    /// a student; a recorded position is never overwritten (a pilot the student sent away stays away).
+    /// </para>
+    /// </summary>
+    private void TuneOnHumanInstruction(AircraftState aircraft, CompoundCommand compound)
+    {
+        TrackOwner? student = Scenario?.StudentPosition;
+        if (SoloTrainingEvaluator.EnumerateImmediatelyAppliedCommands(compound).Any(c => c is ContactCommand or FrequencyChangeApprovedCommand))
+        {
+            bool heldByReactionDelay = aircraft.DeferredDispatches.Exists(d => d.IsReactionDelay && ReferenceEquals(d.Payload, compound));
+            if ((Scenario?.SoloTrainingMode == true) && heldByReactionDelay && !aircraft.IsTunedAwayFrom(student))
+            {
+                aircraft.TunedPosition = TrackOwner.Elsewhere;
+            }
+
+            return;
+        }
+
+        if ((aircraft.TunedPosition is not null) || (student is null))
+        {
+            return;
+        }
+
+        if (compound.Blocks.SelectMany(b => b.Commands).Any(c => c is ContactCommand or FrequencyChangeApprovedCommand))
+        {
+            return;
+        }
+
+        aircraft.TunedPosition = student;
     }
 
     /// <summary>
@@ -372,7 +416,7 @@ public sealed partial class SimulationEngine
             SpokenFormDraws.CanShortenCallsign(
                 aircraft.Callsign,
                 acknowledgedBefore,
-                aircraft.HasLeftStudentFrequency,
+                aircraft.IsTunedAwayFrom(scenario.StudentPosition),
                 OtherCallsignsOnFrequency(aircraft)
             ) && SpokenFormDraws.DrawShortCallsign(aircraft.Callsign, scenario.RngSeed, second);
         return new PilotSpeechContext(PilotPersonality.Varied, band, scenario.RngSeed, second)
@@ -394,7 +438,7 @@ public sealed partial class SimulationEngine
                 !ReferenceEquals(other, aircraft)
                 && !other.IsShadow
                 && (other.CompletionReason == CompletionReason.Active)
-                && !other.HasLeftStudentFrequency
+                && !other.IsTunedAwayFrom(Scenario?.StudentPosition)
             )
             .Select(other => other.Callsign);
 

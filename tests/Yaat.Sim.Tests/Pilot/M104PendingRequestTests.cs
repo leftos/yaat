@@ -106,7 +106,7 @@ public sealed class M104PendingRequestTests
         ac.Phases = phases;
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null));
 
         Assert.Equal(PilotPendingRequestResponseState.Superseded, ac.PendingPilotRequest!.ResponseState);
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -156,7 +156,7 @@ public sealed class M104PendingRequestTests
         ac.IsOnGround = false;
         PilotRequestTracker.RecordRequest(ac, kind, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
 
-        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130));
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null));
 
         Assert.Equal(PilotPendingRequestResponseState.Superseded, ac.PendingPilotRequest!.ResponseState);
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -169,7 +169,7 @@ public sealed class M104PendingRequestTests
         ac.IsOnGround = true;
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Takeoff, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
 
-        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130));
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null));
 
         Assert.Single(ac.PendingPilotTransmissions);
     }
@@ -182,7 +182,7 @@ public sealed class M104PendingRequestTests
         ac.IsOnGround = false;
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Approach, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
 
-        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130));
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130, studentPosition: null));
 
         Assert.Single(ac.PendingPilotTransmissions);
     }

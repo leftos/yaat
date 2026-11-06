@@ -118,6 +118,13 @@ public sealed record DispatchContext
     public required string? FacilityHint { get; init; }
 
     /// <summary>
+    /// The student's position (<see cref="Simulation.SimScenarioState.StudentPosition"/>), null when the room has no student or
+    /// the context is built outside an engine; read to ask whether the pilot has left the student's frequency
+    /// (<see cref="AircraftState.IsTunedAwayFrom"/>).
+    /// </summary>
+    public required TrackOwner? StudentPosition { get; init; }
+
+    /// <summary>
     /// The engine's ground layout for an airport id, which a destination change (<c>APT</c>) on an airborne aircraft not
     /// low over its current field switches it to; null where no engine supplies one (a test harness), and the layout then
     /// stays as it is.

@@ -83,6 +83,12 @@ public sealed record SoloTrainingServiceContext(
     Func<string?, bool> TowerIsSimulatedAt
 )
 {
+    /// <summary>
+    /// The student's position (<see cref="InitialContactEligibilityContext.StudentPosition"/>), against which a pilot's tuned
+    /// position says whether it has left the student's frequency (<see cref="AircraftState.IsTunedAwayFrom"/>).
+    /// </summary>
+    public TrackOwner? StudentPosition => InitialContactEligibility.StudentPosition;
+
     public static SoloTrainingServiceContext Empty { get; } =
         new(InitialContactEligibilityContext.Empty, WakeDirectiveCatalog.Empty, null, AsdexSafetyLogicSeed.Empty, NoSimulatedTower);
 
@@ -154,11 +160,7 @@ public sealed class SoloTrainingEvaluator
         var candidates = new Lazy<List<TrafficAdvisoryCandidate>>(() => [.. knownAircraft.Select(TrafficAdvisoryCandidate.From)]);
         foreach (ParsedCommand parsedCommand in EnumerateImmediatelyAppliedCommands(command))
         {
-            if (parsedCommand is ContactCommand or FrequencyChangeApprovedCommand)
-            {
-                aircraft.HasLeftStudentFrequency = true;
-            }
-            else if (parsedCommand is ReportFieldAdvisoryCommand)
+            if (parsedCommand is ReportFieldAdvisoryCommand)
             {
                 _fieldAdvisoryProofs.Add(NormalizeCallsign(aircraft.Callsign));
             }
@@ -1272,7 +1274,7 @@ public sealed class SoloTrainingEvaluator
 
     private static bool IsStudentServiceRecipient(AircraftState aircraft, SoloTrainingServiceContext serviceContext)
     {
-        if ((!aircraft.HasMadeInitialContact) || (aircraft.HasLeftStudentFrequency))
+        if ((!aircraft.HasMadeInitialContact) || (aircraft.IsTunedAwayFrom(serviceContext.StudentPosition)))
         {
             return false;
         }

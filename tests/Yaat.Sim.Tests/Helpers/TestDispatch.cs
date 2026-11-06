@@ -47,7 +47,8 @@ internal static class TestDispatch
         bool isScenarioScripted = false,
         ToweredAirports? toweredAirports = null,
         ActiveRunways? activeRunways = null,
-        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig>? asdexSafetyLogicConfigs = null
+        ImmutableSortedDictionary<string, AsdexSafetyLogicConfig>? asdexSafetyLogicConfigs = null,
+        TrackOwner? studentPosition = null
     ) =>
         new()
         {
@@ -71,6 +72,7 @@ internal static class TestDispatch
             PreserveConditionals = preserveConditionals,
             IsScenarioScripted = isScenarioScripted,
             FacilityHint = null,
+            StudentPosition = studentPosition,
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };

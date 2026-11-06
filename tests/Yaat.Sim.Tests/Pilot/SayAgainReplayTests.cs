@@ -27,7 +27,9 @@ public sealed class SayAgainReplayTests(ITestOutputHelper output)
         SimulationEngine engine = SayAgainTests.NewEngine(soloTrainingMode: true);
         SayAgainTests.AddAirborne(engine, "N123AB");
         Assert.True(engine.SendCommand("N123AB", "FH 270").Success);
-        PilotTransmission original = Assert.Single(engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1));
+        PilotTransmission original = Assert.Single(
+            engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1, studentPosition: engine.Scenario?.StudentPosition)
+        );
         Assert.True(engine.SendCommand("N123AB", command).Success);
         string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
 
@@ -37,7 +39,9 @@ public sealed class SayAgainReplayTests(ITestOutputHelper output)
 
         Assert.Equal(!callsignOnly, aircraft.PendingRepeat);
         Assert.Equal(callsignOnly, aircraft.PendingRepeatCallsignOnly);
-        PilotTransmission repeat = Assert.Single(restored.World.DrainReadyPilotTransmissions(30, rngSeed: 1));
+        PilotTransmission repeat = Assert.Single(
+            restored.World.DrainReadyPilotTransmissions(30, rngSeed: 1, studentPosition: restored.Scenario?.StudentPosition)
+        );
         Assert.True(repeat.IsRepeat);
         Assert.Equal(callsignOnly ? "N123AB" : original.Text, repeat.Text);
         Assert.False(aircraft.PendingRepeat || aircraft.PendingRepeatCallsignOnly);
@@ -51,13 +55,15 @@ public sealed class SayAgainReplayTests(ITestOutputHelper output)
         SimulationEngine engine = SayAgainTests.NewEngine(soloTrainingMode: true);
         AircraftState aircraft = SayAgainTests.AddAirborne(engine, Name);
         Assert.True(engine.SendCommand(Name, "FH 270").Success);
-        PilotTransmission original = Assert.Single(engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1));
+        PilotTransmission original = Assert.Single(
+            engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1, studentPosition: engine.Scenario?.StudentPosition)
+        );
         Assert.Equal(original.Text, aircraft.LastPilotTransmission!.Text);
         AircraftLastPilotTransmission last = aircraft.LastPilotTransmission!;
 
         Assert.True(engine.SendCommand(Name, "AGAIN").Success);
         // The read-back holds the frequency until t=11, so the repeat materialises behind it and waits, unaired.
-        Assert.Empty(engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1));
+        Assert.Empty(engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1, studentPosition: engine.Scenario?.StudentPosition));
         Assert.Equal(1, engine.World.ActiveFrequency.PendingCount);
         Assert.True(engine.World.ActiveFrequency.HasPendingFrom(Name));
         Assert.True(aircraft.PendingRepeat);
@@ -86,19 +92,23 @@ public sealed class SayAgainReplayTests(ITestOutputHelper output)
         AircraftState first = SayAgainTests.AddAirborne(engine, "N123AB");
         AircraftState second = SayAgainTests.AddAirborne(engine, "N456CD");
         SayAgainUnaddressedTests.QueueProactive(second, "tower, november four five six charlie delta, eight miles east, inbound landing.");
-        Assert.Single(engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1));
+        Assert.Single(engine.World.DrainReadyPilotTransmissions(10, rngSeed: 1, studentPosition: engine.Scenario?.StudentPosition));
         // The awaited call and the last to transmit are different aircraft, so a restore that lost the awaited call
         // would pick the other one.
         first.LastPilotTransmission = SayAgainUnaddressedTests.LastLine(first, "fly heading 270", atSeconds: 20);
         string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
 
         Assert.True(engine.SendCommand("", "AGAINU").Success);
-        PilotTransmission live = Assert.Single(engine.World.DrainReadyPilotTransmissions(70, rngSeed: 1));
+        PilotTransmission live = Assert.Single(
+            engine.World.DrainReadyPilotTransmissions(70, rngSeed: 1, studentPosition: engine.Scenario?.StudentPosition)
+        );
 
         SimulationEngine restored = SayAgainTests.NewEngine(soloTrainingMode: true);
         restored.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!);
         Assert.True(restored.SendCommand("", "AGAINU").Success);
-        PilotTransmission replayed = Assert.Single(restored.World.DrainReadyPilotTransmissions(70, rngSeed: 1));
+        PilotTransmission replayed = Assert.Single(
+            restored.World.DrainReadyPilotTransmissions(70, rngSeed: 1, studentPosition: restored.Scenario?.StudentPosition)
+        );
 
         Assert.Equal("N456CD", live.Callsign);
         Assert.Equal(live.Callsign, replayed.Callsign);

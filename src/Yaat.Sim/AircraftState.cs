@@ -329,14 +329,23 @@ public class AircraftState
     public bool HasControllerAcknowledgedInitialContact { get; set; }
 
     /// <summary>
-    /// Set whenever the controller issues CT or FCA — i.e. the aircraft has been told to
-    /// leave the controller's frequency. Set in both solo training and RPO modes; track
-    /// ownership transfers (HOO/auto-track) do NOT set this, because radar identity and
-    /// comms are independent (FAA 7110.65 §7-6-11). Snapshot-serialized so replays / rewinds
-    /// restore post-transfer state without re-firing dependent behavior (solo evaluator's
-    /// advisory scoring; InitialClimbPhase's radar-vectors SID release).
+    /// The position the pilot is tuned to, or null when nothing has recorded one (the pilot is on the student's side). A
+    /// human CT tunes it to the target (<see cref="TrackOwner.Elsewhere"/> when the target resolves to no position) and a
+    /// human FCA to <see cref="TrackOwner.Elsewhere"/>, in both solo training and RPO modes; a later human instruction to an
+    /// aircraft with nothing recorded tunes it to the student's position. A scripted or AI-controller command never tunes it,
+    /// and track ownership transfers (HOO/auto-track) do not either, because radar identity and comms are independent (FAA
+    /// 7110.65 §7-6-11). Snapshot-serialized so replays / rewinds restore post-transfer state without re-firing dependent
+    /// behavior (solo evaluator's advisory scoring; InitialClimbPhase's radar-vectors SID release).
     /// </summary>
-    public bool HasLeftStudentFrequency { get; set; }
+    public TrackOwner? TunedPosition { get; set; }
+
+    /// <summary>
+    /// Whether the pilot has left the student's frequency: tuned to a position (<see cref="TunedPosition"/>) that is not
+    /// <paramref name="studentPosition"/> by callsign, or tuned to any position when there is no student. Compared by
+    /// callsign, never by TCP, because tower-cab positions (OAK_GND, OAK_TWR) share one.
+    /// </summary>
+    public bool IsTunedAwayFrom(TrackOwner? studentPosition) =>
+        (TunedPosition is not null) && ((studentPosition is null) || !TunedPosition.IsSamePositionByCallsign(studentPosition));
 
     /// <summary>
     /// Scenario-elapsed seconds at which this aircraft entered the world. Stamped by
@@ -432,7 +441,7 @@ public class AircraftState
     /// <summary>
     /// A "say again" is waiting for <see cref="LastPilotTransmission"/> to be repeated. Cleared when the repeat is
     /// dequeued, when the frequency is emptied with nobody answering, or when the aircraft has left the student's
-    /// frequency (<see cref="HasLeftStudentFrequency"/>), which also drops a repeat already queued. Snapshot-serialized so
+    /// frequency (<see cref="IsTunedAwayFrom"/>), which also drops a repeat already queued. Snapshot-serialized so
     /// a rewind still owes the repeat.
     /// </summary>
     public bool PendingRepeat { get; set; }
@@ -540,7 +549,7 @@ public class AircraftState
             HasMadeInitialContact = dto.HasMadeInitialContact,
             AiInitialContactPositionIds = new SortedSet<string>(dto.AiInitialContactPositionIds ?? [], StringComparer.Ordinal),
             HasControllerAcknowledgedInitialContact = dto.HasControllerAcknowledgedInitialContact,
-            HasLeftStudentFrequency = dto.HasLeftStudentFrequency,
+            TunedPosition = dto.TunedPosition is null ? null : TrackOwner.FromSnapshot(dto.TunedPosition),
             SpawnedAtSeconds = dto.SpawnedAtSeconds,
             IsGeneratorArrival = dto.IsGeneratorArrival,
             IsGeneratedOverflight = dto.IsGeneratedOverflight,
@@ -656,7 +665,7 @@ public class AircraftState
             HasMadeInitialContact = HasMadeInitialContact,
             AiInitialContactPositionIds = AiInitialContactPositionIds.Count == 0 ? null : [.. AiInitialContactPositionIds],
             HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
-            HasLeftStudentFrequency = HasLeftStudentFrequency,
+            TunedPosition = TunedPosition?.ToSnapshot(),
             SpawnedAtSeconds = SpawnedAtSeconds,
             IsGeneratorArrival = IsGeneratorArrival,
             IsGeneratedOverflight = IsGeneratedOverflight,

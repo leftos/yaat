@@ -201,6 +201,7 @@ public sealed partial class SimulationEngine
                     PreserveConditionals = true,
                     IsScenarioScripted = d.IsScenarioScripted,
                     FacilityHint = Scenario?.StudentPosition?.FacilityId,
+                    StudentPosition = Scenario?.StudentPosition,
                     LayoutForAirport = ResolveAirportLayout,
                     SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
                 };

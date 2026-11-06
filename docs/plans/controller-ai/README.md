@@ -192,8 +192,8 @@ Future (noted, not planned): a nightly xUnit `[Trait("Category","Soak")]` wrappe
   shared `SimulationWorld.ActiveFrequency`, so every pilot and controller transmission competes for the same airtime
   and the readback gate is global. Before two AI positions talk to pilots at once (CA2), land a milestone that gives
   each aircraft a `TunedPosition` (set at spawn by the responsible position, by `CT`, by the AIM 4-3-14.a self-switch
-  to tower at the hold-short, by handoff + `CT`; snapshotted), keys `FrequencyState` per position (replacing the single
-  `HasLeftStudentFrequency` bool), and tags pilot and AI-controller transmissions with their frequency so the client
+  to tower at the hold-short, by handoff + `CT`; snapshotted), keys `FrequencyState` per position (replacing the student-scoped
+  `IsTunedAwayFrom` test), and tags pilot and AI-controller transmissions with their frequency so the client
   plays only what the human monitors (student: own position; instructor: a selectable monitor set) and AI
   instructions occupy airtime on their own frequency with the per-position voice. The same milestone adds **radio
   discipline** (user steer 2026-09-01): an exchange owns its frequency until it completes or times out — controller
@@ -282,7 +282,7 @@ Carried from the main plan at the 2026-09-05 reorganization: the review follow-u
 - The `FrequencyState` partition per answering position (an AI Ground's answer clearing the gate held for a pilot waiting on tower) is RADIO-02 in [11-radio-model.md](./11-radio-model.md) — not tracked here
 - [ ] Same-type AI positions at one airport (LC1/LC2, GC1/GC2 split by runway or area) need a runway/area predicate before multi-position staffing; `ResolveFor` takes the first by position id today
 - [ ] `AiPositionResolver` (CA0b): keep `_DEL` out of Ground by default so a taxi request is never addressed to "… Clearance Delivery", and give a `DEP` position its own "… Departure" call name (AIM TBL 4-2-1) instead of the `APP` fold
-- `HasLeftStudentFrequency` (`ContactCommandHandler.Route`) being one bool for a multi-position world is RADIO-07/08 in [11-radio-model.md](./11-radio-model.md) — not tracked here
+- `AircraftState.IsTunedAwayFrom` being student-scoped in a multi-position world is RADIO-07/08 in [11-radio-model.md](./11-radio-model.md) — not tracked here
 
 ### CA0b — review follow-ups (not blocking CA1)
 

@@ -493,9 +493,10 @@ public sealed class SimulationWorld
     /// <summary>
     /// Drains every aircraft's pending pilot transmissions into the frequency queue, then dequeues whatever may speak at
     /// <paramref name="elapsedSeconds"/>. <paramref name="rngSeed"/> is the scenario seed the frequency feeds a held
-    /// check-in's butt-in draw, so a replay keys the same pilot at the same second.
+    /// check-in's butt-in draw, so a replay keys the same pilot at the same second. <paramref name="studentPosition"/> is
+    /// the student's position, against which a pilot's tuned position says whether a pending say again is dropped.
     /// </summary>
-    public List<PilotTransmission> DrainReadyPilotTransmissions(double elapsedSeconds, int rngSeed)
+    public List<PilotTransmission> DrainReadyPilotTransmissions(double elapsedSeconds, int rngSeed, TrackOwner? studentPosition)
     {
         var result = new List<PilotTransmission>();
         lock (_lock)
@@ -513,7 +514,7 @@ public sealed class SimulationWorld
                 }
             }
 
-            MaterializePendingRepeats();
+            MaterializePendingRepeats(studentPosition);
 
             while (ActiveFrequency.TryDequeueReady(elapsedSeconds, rngSeed) is { } transmission)
             {
@@ -531,7 +532,7 @@ public sealed class SimulationWorld
     /// An aircraft that has left the student's frequency drops the request. Runs on every host as part of the drain, so a
     /// flag restored by a rewind re-materialises on the next drain.
     /// </summary>
-    private void MaterializePendingRepeats()
+    private void MaterializePendingRepeats(TrackOwner? studentPosition)
     {
         foreach (AircraftState ac in _aircraft)
         {
@@ -540,7 +541,7 @@ public sealed class SimulationWorld
                 continue;
             }
 
-            if (ac.HasLeftStudentFrequency)
+            if (ac.IsTunedAwayFrom(studentPosition))
             {
                 // A copy already waiting for airtime goes with the request.
                 ActiveFrequency.RemoveRepeatsFrom(ac.Callsign);

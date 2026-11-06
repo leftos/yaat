@@ -280,6 +280,7 @@ public class GroundViewModelArcApproachLegOverlayTests(ITestOutputHelper output)
             PreserveConditionals = false,
             IsScenarioScripted = false,
             FacilityHint = null,
+            StudentPosition = null,
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };

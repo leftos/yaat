@@ -65,7 +65,7 @@ public class S2Oak4RvSidCtoTests(ITestOutputHelper output)
         InitialClimbPhase? climb = ac.Phases?.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
         Assert.NotNull(climb);
         Assert.Equal(NimiRvHeadingMag, climb.SidDepartureHeadingMagnetic);
-        Assert.False(ac.HasLeftStudentFrequency);
+        Assert.False(ac.IsTunedAwayFrom(engine.Scenario?.StudentPosition));
         Assert.Empty(ac.Targets.NavigationRoute);
 
         output.WriteLine(

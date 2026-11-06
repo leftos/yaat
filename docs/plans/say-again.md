@@ -17,7 +17,7 @@ Say again is a command for students. It asks a pilot to repeat its last transmis
 - **No say-again exists today.** No command, no STT rule, and no pilot "say again" on an unmapped transcript.
 - **Models to copy.**
   - `AcknowledgePilotContact` (`STBY`/`ROGER`, `CommandRegistry.cs` ~:1211; STT rules `PhraseologyRules.cs` ~:285) is the argument-less student verb that talks to the pilot side.
-  - `ContactCommandHandler.Route` (~:112-132) splits solo from RPO, and its `HasLeftStudentFrequency` check applies here too.
+  - `ContactCommandHandler.Route` (~:112-132) splits solo from RPO, and its `IsTunedAwayFrom` check applies here too.
   - The `SAY*` report family (`CommandDispatcher.cs` ~:1035) writes terminal entries outside the frequency model, which is the wrong model for a repeat.
 - **Determinism.** A say-again is a recorded command, and `ApplyPostDispatch` runs on replay. A re-queue therefore replays identically, but only if the last transmission is snapshotted Sim state (a rewind restores from a snapshot). That means `AircraftSnapshotDto` plus a `SnapshotSchemaMigrator` step.
 - **Grounding.** 7110.65 Pilot/Controller Glossary "SAY AGAIN": "Used to request a repeat of the last transmission. Usually specifies transmission or portion thereof not understood or received; e.g., 'Say again all after ABRAM VOR.'" The local AIM has no "say again" phraseology beyond the glossary example.

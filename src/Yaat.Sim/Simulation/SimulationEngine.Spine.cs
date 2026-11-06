@@ -105,7 +105,7 @@ public sealed partial class SimulationEngine
     {
         if (Scenario is { } scenario && scenario.PilotContacts.AnyAnswering)
         {
-            host.OnPilotTransmissions(World.DrainReadyPilotTransmissions(scenario.ElapsedSeconds, scenario.RngSeed));
+            host.OnPilotTransmissions(World.DrainReadyPilotTransmissions(scenario.ElapsedSeconds, scenario.RngSeed, scenario.StudentPosition));
         }
         else
         {

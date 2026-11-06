@@ -20,7 +20,7 @@ Two independent reasons, both concrete, neither hypothetical:
    limitations list — it is latent only because exactly one AI position can talk today.
 2. **`CT` from an AI position never releases an RV-SID heading hold.**
    `InitialClimbPhase.UpdateRvSidHeadingHold` needs a transfer signal, and the signal it has
-   (`HasLeftStudentFrequency`) is student-scoped. An origin-neutral AI-issued `CT` never sets it, so
+   (`AircraftState.TunedPosition`, read through `IsTunedAwayFrom`) is student-scoped. An origin-neutral AI-issued `CT` never sets it, so
    the heading hold would never release once Local starts issuing `CT` itself. The fix is a transfer
    signal keyed on the aircraft's tuned position, which is this design.
 
@@ -109,7 +109,7 @@ audio for the wrong reason, and would break the moment a position is staffed.
 
 | Item | Persisted? | Why |
 |---|---|---|
-| `AircraftState.TunedPosition` | **Yes** — add to `AircraftSnapshotDto`, default null/empty, no migration transform | Control-flow state: it drives which position's `CT`/handoff releases the RV-SID heading hold and who the pilot's next proactive call addresses. A field that defaults cleanly, with old data correct under that default, needs no migration step per the project's snapshot rule — an old recording with no concept of multiple frequencies is correctly read as "everyone tuned to the one position that existed." Precedent: `HasLeftStudentFrequency`, added v5→v6 as a bare `bool` with no transform. `TunedPosition` generalizes that flag. |
+| `AircraftState.TunedPosition` | **Yes** — `AircraftSnapshotDto.TunedPosition`, null by default; schema 48 replaced the `HasLeftStudentFrequency` bool with it | Control-flow state: it drives which position's `CT`/handoff releases the RV-SID heading hold and who the pilot's next proactive call addresses. A field that defaults cleanly, with old data correct under that default, needs no migration step per the project's snapshot rule — an old recording with no concept of multiple frequencies is correctly read as "everyone tuned to the one position that existed." `TunedPosition` generalizes the `HasLeftStudentFrequency` flag it replaced (a true flag migrates to `TrackOwner.Elsewhere`). |
 | `World.Frequencies` / `FrequencyState` contents (queue, gate, activity meter) | **No** — transient, exactly like today's `ActiveFrequency` | Queue ordering and airtime-gate state are re-derived every tick from `PendingPilotTransmissions`, itself transient. Replay never runs the pilot-speech queue as a source of truth — it re-drives recorded commands, and pilot responses regenerate deterministically from the same inputs. |
 
 The governing rule, which is the line the codebase already draws between `Ground.LayoutAirportId`

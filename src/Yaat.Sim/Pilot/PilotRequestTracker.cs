@@ -115,7 +115,11 @@ public static class PilotRequestTracker
         }
     }
 
-    public static bool TryQueueFollowUp(AircraftState aircraft, double nowSeconds)
+    /// <summary>
+    /// Re-voices the aircraft's open request once its follow-up is due, or closes it as moot. <paramref name="studentPosition"/>
+    /// is the student's position, against which the pilot's tuned position is read.
+    /// </summary>
+    public static bool TryQueueFollowUp(AircraftState aircraft, double nowSeconds, TrackOwner? studentPosition)
     {
         PilotPendingRequest? pending = aircraft.PendingPilotRequest;
         if (pending is not { IsOpen: true })
@@ -123,7 +127,7 @@ public static class PilotRequestTracker
             return false;
         }
 
-        if (IsMoot(pending, aircraft))
+        if (IsMoot(pending, aircraft, studentPosition))
         {
             pending.ResponseState = PilotPendingRequestResponseState.Superseded;
             return false;
@@ -159,7 +163,7 @@ public static class PilotRequestTracker
     /// Whether an open request no longer needs its follow-up because the aircraft has moved past it, so it is closed
     /// rather than re-announced.
     /// </summary>
-    private static bool IsMoot(PilotPendingRequest request, AircraftState aircraft)
+    private static bool IsMoot(PilotPendingRequest request, AircraftState aircraft, TrackOwner? studentPosition)
     {
         // A ready-to-taxi / ready-for-departure call is only meaningful on the surface. Once the
         // aircraft is airborne the request is moot however it got resolved, so close it rather than
@@ -178,7 +182,7 @@ public static class PilotRequestTracker
 
         // A request for lower is moot once the pilot would not ask it: a descent authorised or queued, a climb, a
         // handoff, a hold, or an approach or landing clearance.
-        if ((request.Kind == PilotPendingRequestKind.Descent) && PilotProactive.ShouldNotAskForLower(aircraft))
+        if ((request.Kind == PilotPendingRequestKind.Descent) && PilotProactive.ShouldNotAskForLower(aircraft, studentPosition))
         {
             return true;
         }

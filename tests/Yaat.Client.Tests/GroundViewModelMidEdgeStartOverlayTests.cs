@@ -533,6 +533,7 @@ public class GroundViewModelMidEdgeStartOverlayTests
             PreserveConditionals = false,
             IsScenarioScripted = false,
             FacilityHint = null,
+            StudentPosition = null,
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
         };

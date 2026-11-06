@@ -414,6 +414,7 @@ public sealed partial class SimulationEngine
             // must not mark initial contact — the departure still checks in after takeoff.
             IsScenarioScripted = true,
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
+            StudentPosition = Scenario?.StudentPosition,
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
@@ -547,6 +548,7 @@ public sealed partial class SimulationEngine
             PreserveConditionals = false,
             IsScenarioScripted = true,
             FacilityHint = scenario.StudentPosition?.FacilityId,
+            StudentPosition = scenario.StudentPosition,
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
@@ -666,6 +668,7 @@ public sealed partial class SimulationEngine
             PreserveConditionals = false,
             IsScenarioScripted = true,
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
+            StudentPosition = Scenario?.StudentPosition,
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
