@@ -499,23 +499,65 @@
   },
   {
     "typeCode": "C135",
-    "note": "finalApproachSpeed 150 is the Eurocontrol APD Vat. No public source gives the type's Vmo/Mmo.",
+    "note": "Vmo 350 KEAS / Mmo 0.90 from KC-135 crew ops-limits study cards (T.O. 1C-135-1 clean limit). Secondary, military type with no public TCDS. Skybrary's M0.82 is a cruise figure, not the limit. finalApproachSpeed 150 is the Eurocontrol APD Vat.",
+    "vmo": 350,
+    "mmo": 0.9,
     "finalApproachSpeed": 150
   },
   {
     "typeCode": "K35E",
-    "note": "finalApproachSpeed 135 is the Eurocontrol APD Vat. No public source gives the type's Vmo/Mmo.",
+    "note": "Vmo 350 KEAS / Mmo 0.90 from KC-135 crew ops-limits study cards (T.O. 1C-135-1 clean limit). Secondary, military type with no public TCDS. Skybrary's M0.82 is a cruise figure, not the limit. finalApproachSpeed 135 is the Eurocontrol APD Vat.",
+    "vmo": 350,
+    "mmo": 0.9,
     "finalApproachSpeed": 135
   },
   {
     "typeCode": "C141",
-    "note": "finalApproachSpeed 140 is the Eurocontrol APD Vat. No public source gives the type's Vmo/Mmo.",
+    "note": "Vmo 350 KCAS / Mmo 0.825 inferred from the C-141 Dash-2 limitations (D/5-6), where every item is capped at 350 KCAS and M0.825. Secondary, military type with no public TCDS. finalApproachSpeed 140 is the Eurocontrol APD Vat.",
+    "vmo": 350,
+    "mmo": 0.825,
     "finalApproachSpeed": 140
   },
   {
     "typeCode": "F50",
-    "note": "finalApproachSpeed 120 is the Eurocontrol APD Vat. EASA TCDS A.036 refers the Vmo to the flight manual, so none is set.",
-    "finalApproachSpeed": 120
+    "note": "Vmo 224 KIAS (to 21,000 ft; tapers to 206 KIAS at 25,000 ft) from the Fokker 50 operating-manual limitations as quoted on airliners.net, matched by LunaJets. Secondary: EASA TCDS A.036 defers to the AFM. finalApproachSpeed 120 is the Eurocontrol APD Vat. climbSpeedFl240 200, climbSpeedFinal 195 and descentSpeedInitial 195 keep the climb and descent at or below SMAX (band - 10 kt) up to the 25,000 ft ceiling; descentSpeedFl100 and initialApproachSpeed 210 keep them under SMAX at 10,000 ft; holdingSpeed 180 is the Fokker 50's typical holding speed and stays under the band.",
+    "vmo": 224,
+    "finalApproachSpeed": 120,
+    "climbSpeedFl240": 200,
+    "climbSpeedFinal": 195,
+    "descentSpeedInitial": 195,
+    "descentSpeedFl100": 210,
+    "initialApproachSpeed": 210,
+    "holdingSpeed": 180,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 224 },
+      { "altitudeFt": 21000, "kias": 224 },
+      { "altitudeFt": 25000, "kias": 206 }
+    ]
+  },
+  {
+    "typeCode": "LJ60",
+    "note": "Vmo/Mmo from the Learjet 60/60XR crew limitations card (300 KIAS below 8,000 ft, 340 KIAS 8,000-20,000 ft, M0.81 to FL370, M0.78 above FL430 per Flight Safety Foundation). Secondary: FAA TCDS A10CE and EASA IM.A.212 give the limit only as a chart, not read.",
+    "vmo": 340,
+    "mmo": 0.81,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 300 },
+      { "altitudeFt": 8000, "kias": 300 },
+      { "altitudeFt": 8000, "kias": 340 },
+      { "altitudeFt": 20000, "kias": 340 }
+    ]
+  },
+  {
+    "typeCode": "GLF5",
+    "note": "Vmo 340 KIAS / Mmo 0.885 from AOPA Pilot's 1999 G-V report (Gulfstream specification table, GV-specific, not G550). Secondary: TCDS A12EA defers to the AFM.",
+    "vmo": 340,
+    "mmo": 0.885
+  },
+  {
+    "typeCode": "C5M",
+    "note": "Vmo 350 KCAS / Mmo 0.825 from C-5 aircrew MQF and ops-limits study cards (T.O. 1C-5-1 clean limit). Secondary, military type with no public TCDS.",
+    "vmo": 350,
+    "mmo": 0.825
   },
   {
     "typeCode": "R22",
@@ -555,5 +597,10 @@
     "typeCode": "EC35",
     "note": "Vne 155 kt from FAA TCDS H88EU (EC135).",
     "vmo": 155
+  },
+  {
+    "typeCode": "H60",
+    "note": "Vne 193 KIAS (structural, clean, light weight) from FM 1-113 Appendix A and the Sikorsky UH-60A spec sheet. The TM 1-1520-237-10 §5.19 chart lowers it with weight and density altitude. Secondary for the single figure.",
+    "vmo": 193
   }
 ]

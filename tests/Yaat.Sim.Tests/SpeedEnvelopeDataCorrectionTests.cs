@@ -53,6 +53,12 @@ public sealed class SpeedEnvelopeDataCorrectionTests
             { "D228", 199, null },
             { "DH8C", 243, null },
             { "DH8D", 245, 0.60 },
+            { "LJ60", 300, 0.81 },
+            { "GLF5", 340, 0.885 },
+            { "K35E", 350, 0.90 },
+            { "C135", 350, 0.90 },
+            { "C141", 350, 0.825 },
+            { "C5M", 350, 0.825 },
         };
 
     [Theory]
@@ -70,7 +76,20 @@ public sealed class SpeedEnvelopeDataCorrectionTests
         Assert.Equal(expectedIas, AircraftPerformance.MaxOperatingIasKts(type, CheckAltitudeFt)!.Value, 1);
     }
 
+    /// <summary>
+    /// A type whose certificate limits Vmo by altitude flies the band value there (the B463 band tests' accessor); F50's
+    /// 206 kt at 25,000 ft is the straight line from 224 kt at 21,000 ft to 206 kt at 25,000 ft, so 23,000 ft is 215 kt.
+    /// </summary>
     [Theory]
+    [InlineData("LJ60", 5_000, 300)]
+    [InlineData("LJ60", 15_000, 340)]
+    [InlineData("F50", 10_000, 224)]
+    [InlineData("F50", 23_000, 215)]
+    public void BandedTypes_FlyTheirBandAtTheCheckedAltitude(string type, double altitudeFt, double expectedKts) =>
+        Assert.Equal(expectedKts, AircraftPerformance.VmoAtKts(type, altitudeFt)!.Value, 0.5);
+
+    [Theory]
+    [InlineData("H60", 193)]
     [InlineData("R22", 98)]
     [InlineData("R44", 130)]
     [InlineData("B06", 130)]

@@ -195,7 +195,7 @@ public class MenuCatalogSpeedTests
 
     /// <summary>
     /// A Mach past the type's Mmo is refused, so no Mach chip above it is offered, though the rows otherwise reach 0.92: C560 and
-    /// C56X (the business-jet class's Mmo 0.755) span to M.76, and GLF5 (Mmo raised to its schedule's 0.84) to M.85. E145
+    /// C56X (the business-jet class's Mmo 0.755) span to M.76, and GLF5 (Mmo 0.885 from its override) to M.86. E145
     /// (Mmo 0.78) is a type whose rows already stop short of it.
     /// </summary>
     [AvaloniaTheory]
@@ -237,11 +237,11 @@ public class MenuCatalogSpeedTests
 
     /// <summary>
     /// A Mach row past the type's maximum here but flyable at its assigned altitude is one the pilot accepts, so it is offered
-    /// cleared there and not otherwise. GLF5 at FL250 cleared to FL370: its top rows' IAS at FL250 is past its maximum there
+    /// cleared there and not otherwise. BE40 at FL250 cleared to FL370: its top rows' IAS at FL250 is past its maximum there
     /// but within its schedule's knots ceiling, which is what lets such a row reach the Mach check at all.
     /// </summary>
     [AvaloniaTheory]
-    [InlineData("GLF5")]
+    [InlineData("BE40")]
     public void MachRowFlyableOnlyAtTheAssignedAltitude_IsOffered(string type)
     {
         AircraftModel cleared = Aircraft(type, 25_000);
