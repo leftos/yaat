@@ -409,10 +409,14 @@ public class PointMenuViewTests
         AssertOnlyMapSection(Labels(menu.Items));
     }
 
+    /// <summary>
+    /// The navigation-data load is held open: once it lands, the radar's fixes name the clicked point and the section gains
+    /// its FRD rows, so the test would be racing the load rather than asserting what the app shows before it finishes.
+    /// </summary>
     [AvaloniaFact]
     public void Map_NoMainViewModel_OpensOnlyTheViewSection()
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        (MainViewModel main, _) = GatedStartupLoads.Create();
         AircraftModel ac = Airborne(new LatLon(37.50, -121.70));
         main.Aircraft.Add(ac);
         main.Radar.SelectedAircraft = ac;
@@ -453,9 +457,13 @@ public class PointMenuViewTests
         return (view, main);
     }
 
+    /// <summary>
+    /// A radar view over a main view model whose navigation-data load is held open: the radar's fixes stay unloaded, so a
+    /// test's point section cannot pick up the FRD rows the load adds once it lands.
+    /// </summary>
     private static (RadarView View, MainViewModel Main) RadarHarness()
     {
-        var main = new MainViewModel(new FakeFilePickerService());
+        (MainViewModel main, _) = GatedStartupLoads.Create();
         main.Aircraft.Clear();
         var view = new RadarView { DataContext = main.Radar };
         var host = new Grid { DataContext = main };

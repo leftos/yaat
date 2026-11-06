@@ -20,42 +20,6 @@ public class MainViewModelLateNavDataRecenterTests
     private const double AreaLat = 38.07458;
     private const double AreaLon = -121.00386;
 
-    /// <summary>
-    /// The committed navigation data (<see cref="OfflineStartupLoads"/>), finishing its load only when the test opens
-    /// <see cref="Gate"/>.
-    /// </summary>
-    private sealed class GatedStartupLoads : IMainViewModelStartupLoads
-    {
-        public TaskCompletionSource Gate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public async Task<bool> EnsureNavigationDatabaseAsync()
-        {
-            await Gate.Task;
-            return await new OfflineStartupLoads().EnsureNavigationDatabaseAsync();
-        }
-
-        public Task InitializeVnasConfigAsync(VnasConfigService service) => Task.CompletedTask;
-
-        public bool RunsStartupUpdateCheck => false;
-    }
-
-    // StartupLoads is read once per constructor; it is put back before anything yields, so no other test's view model
-    // sees the gate.
-    private static (MainViewModel Vm, GatedStartupLoads Loads) CreateGated()
-    {
-        var loads = new GatedStartupLoads();
-        IMainViewModelStartupLoads previous = MainViewModel.StartupLoads;
-        MainViewModel.StartupLoads = loads;
-        try
-        {
-            return (new MainViewModel(new FakeFilePickerService()), loads);
-        }
-        finally
-        {
-            MainViewModel.StartupLoads = previous;
-        }
-    }
-
     private static void BootstrapOak(MainViewModel vm) =>
         vm.ApplyScenarioBootstrap(
             new ScenarioBootstrap
@@ -88,7 +52,7 @@ public class MainViewModelLateNavDataRecenterTests
     [AvaloniaFact]
     public async Task NavDataAfterBootstrap_RecentresMainRadarOnPrimaryAirport()
     {
-        (MainViewModel vm, GatedStartupLoads loads) = CreateGated();
+        (MainViewModel vm, GatedStartupLoads loads) = GatedStartupLoads.Create();
 
         BootstrapOakWithAreaFallback(vm);
 
@@ -103,7 +67,7 @@ public class MainViewModelLateNavDataRecenterTests
     [AvaloniaFact]
     public async Task NavDataAfterBootstrap_LeavesAPannedScopeAlone()
     {
-        (MainViewModel vm, GatedStartupLoads loads) = CreateGated();
+        (MainViewModel vm, GatedStartupLoads loads) = GatedStartupLoads.Create();
 
         BootstrapOakWithAreaFallback(vm);
         vm.Radar.CenterLat = 38.5;
@@ -119,7 +83,7 @@ public class MainViewModelLateNavDataRecenterTests
     [AvaloniaFact]
     public async Task NavDataAfterBootstrap_LeavesAZoomedScopeOnTheFallback()
     {
-        (MainViewModel vm, GatedStartupLoads loads) = CreateGated();
+        (MainViewModel vm, GatedStartupLoads loads) = GatedStartupLoads.Create();
 
         BootstrapOakWithAreaFallback(vm);
         vm.Radar.RangeNm = 20;
@@ -134,7 +98,7 @@ public class MainViewModelLateNavDataRecenterTests
     [AvaloniaFact]
     public async Task NavDataBetweenBootstrapAndVideoMaps_CentresTheMapsOnPrimaryAirport()
     {
-        (MainViewModel vm, GatedStartupLoads loads) = CreateGated();
+        (MainViewModel vm, GatedStartupLoads loads) = GatedStartupLoads.Create();
 
         BootstrapOak(vm);
         loads.Gate.SetResult();
