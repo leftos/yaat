@@ -49,20 +49,23 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
 
     private static List<Phase> Circuit(RunwayInfo rwy, string type, PatternEntryLeg leg) =>
         PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategorization.Categorize(type),
-            type,
-            windSpeedKt: 0,
-            PatternDirection.Right,
-            leg,
-            touchAndGo: false,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: null,
-            NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategorization.Categorize(type),
+                AircraftType = type,
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Right,
+                EntryLeg = leg,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(rwy.AirportId),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
     /// <summary>The right-traffic 28R geometry a <paramref name="type"/> flies (its downwind's waypoints).</summary>

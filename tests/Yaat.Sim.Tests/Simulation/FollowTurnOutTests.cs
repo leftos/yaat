@@ -95,20 +95,23 @@ public class FollowTurnOutTests(ITestOutputHelper output)
         AircraftState lead = MakeVfr(Leader, OffFinal(rwy, alongNm, 0.0), rwy.TrueHeading, rwy.ElevationFt + (318.0 * alongNm));
         engine.World.AddAircraft(lead);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Piston,
-            "C172",
-            windSpeedKt: 0,
-            direction,
-            PatternEntryLeg.Final,
-            touchAndGo: false,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: null,
-            NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Piston,
+                AircraftType = "C172",
+                WindSpeedKt = 0,
+                Direction = direction,
+                EntryLeg = PatternEntryLeg.Final,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(rwy.AirportId),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         lead.Phases = new PhaseList
         {

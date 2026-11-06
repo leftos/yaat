@@ -579,13 +579,16 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
 
         CommandResult entry = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Downwind,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         output.WriteLine($"entry: success={entry.Success} — {entry.Message}");

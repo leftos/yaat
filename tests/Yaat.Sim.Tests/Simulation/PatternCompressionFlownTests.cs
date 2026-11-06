@@ -104,12 +104,15 @@ public class PatternCompressionFlownTests
         ac.WindComponents = WindInterpolator.GetWindComponents(weather, ac.Altitude, 0, 0);
         ac.Phases.Add(new TakeoffPhase());
         DepartureClearanceHandler.ApplyClosedTraffic(
-            new ClosedTrafficDeparture(PatternDirection.Left, null, null),
             ac,
             ac.Phases,
-            rwy,
-            false,
-            ActiveRunways.Empty
+            new ApplyClosedTrafficRequest
+            {
+                Departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null),
+                FallbackRunway = rwy,
+                RemoveInitialClimb = false,
+                ActiveRunways = ActiveRunways.Empty,
+            }
         );
         ac.Phases.Start(Ctx(ac, rwy, layout, ActiveRunways.Empty));
         return (ac, rwy, layout);

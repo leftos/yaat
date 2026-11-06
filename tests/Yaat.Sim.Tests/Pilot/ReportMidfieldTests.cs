@@ -645,13 +645,16 @@ public class ReportMidfieldTests(ITestOutputHelper output)
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            "28R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Downwind,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         Assert.True(result.Success, result.Message);
         DownwindPhase reentered = Assert.IsType<DownwindPhase>(ac.Phases!.CurrentPhase);

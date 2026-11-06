@@ -103,20 +103,23 @@ public class ExtendedDownwindAltitudeTests
     private static void AttachCircuit(AircraftState ac, Koak28R koak, PatternEntryLeg entry)
     {
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            koak.Runway,
-            Cat,
-            "",
-            0,
-            Dir,
-            entry,
-            false,
-            null,
-            null,
-            null,
-            koak.AllRunways,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = koak.Runway,
+                Category = Cat,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = Dir,
+                EntryLeg = entry,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = koak.AllRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList
         {

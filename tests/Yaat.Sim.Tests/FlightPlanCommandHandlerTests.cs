@@ -281,13 +281,16 @@ public class FlightPlanCommandHandlerTests
 
         CommandResult entered = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            "30R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Downwind,
+                RunwayId = "30R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         Assert.True(entered.Success, entered.Message);
         Assert.NotNull(aircraft.Phases?.CurrentPhase);
@@ -361,13 +364,16 @@ public class FlightPlanCommandHandlerTests
 
         CommandResult entered = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Base,
-            "28L",
-            4,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28L",
+                FinalDistanceNm = 4,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(entered.Success, entered.Message);

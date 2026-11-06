@@ -1275,20 +1275,23 @@ public class FollowPatternSequencingAuditTests
     )
     {
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            rwy,
-            cat,
-            "",
-            0,
-            dir,
-            entry,
-            false,
-            null,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = cat,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = dir,
+                EntryLeg = entry,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList
         {

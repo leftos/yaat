@@ -18,46 +18,138 @@ public enum PatternEntryLeg
 }
 
 /// <summary>
+/// The inputs of a traffic pattern circuit built from a specific entry leg: the runway and the aircraft it is for,
+/// the wind its planning speeds carry, and the controller's and the airport's instructions.
+/// </summary>
+public sealed record PatternCircuitRequest
+{
+    /// <summary>The pattern runway.</summary>
+    public required RunwayInfo Runway { get; init; }
+
+    /// <summary>The aircraft's category, which sizes the pattern and its climb and descent profile.</summary>
+    public required AircraftCategory Category { get; init; }
+
+    /// <summary>ICAO type designator of the aircraft the pattern is built for.</summary>
+    public required string AircraftType { get; init; }
+
+    /// <summary>Wind speed (kt) at the aircraft, used to inflate the pattern's planning speeds; 0 when no weather is loaded.</summary>
+    public required double WindSpeedKt { get; init; }
+
+    /// <summary>Left or right turns.</summary>
+    public required PatternDirection Direction { get; init; }
+
+    /// <summary>The leg the entry starts from.</summary>
+    public required PatternEntryLeg EntryLeg { get; init; }
+
+    /// <summary>True ends the approach on a <see cref="TouchAndGoPhase"/> instead of a <see cref="LandingPhase"/>.</summary>
+    public required bool TouchAndGo { get; init; }
+
+    /// <summary>How far along final (nm) the entry starts; null for no adjustment.</summary>
+    public required double? FinalDistanceNm { get; init; }
+
+    /// <summary>The PSIZE or authored pattern width (nm); null for the category default.</summary>
+    public required double? PatternSizeNm { get; init; }
+
+    /// <summary>A controller-assigned pattern altitude (feet MSL), which outranks the airport's and the category's.</summary>
+    public required double? AltitudeOverrideFt { get; init; }
+
+    /// <summary>The airport's runways, which the circuit is deconflicted off and compressed clear of.</summary>
+    public required IReadOnlyList<RunwayInfo>? AirportRunways { get; init; }
+
+    /// <summary>
+    /// The authored ground runway of the pattern runway, for the published threshold displacement; null when no
+    /// airport map is loaded, in which case the pattern is built to the pavement threshold.
+    /// </summary>
+    public required GroundRunway? AuthoredRunway { get; init; }
+
+    /// <summary>The room's active runways; an airport that names none counts every runway.</summary>
+    public required ActiveRunways ActiveRunways { get; init; }
+
+    /// <summary>The PSIZE and controller speed that bound compression.</summary>
+    public required PatternCommanded Commanded { get; init; }
+}
+
+/// <summary>
+/// The inputs of the circuit an aircraft flies when it climbs out on one runway and flies another runway's pattern —
+/// a cross-runway closed-traffic departure or an in-pattern runway switch on the upwind leg.
+/// </summary>
+public sealed record RunwayTransitionCircuitRequest
+{
+    /// <summary>The runway the aircraft is actually flying, whose upwind climbs out into the pattern circuit.</summary>
+    public required RunwayInfo FlownRunway { get; init; }
+
+    /// <summary>The pattern (landing) runway, whose downwind, base and final the circuit flies.</summary>
+    public required RunwayInfo PatternRunway { get; init; }
+
+    /// <summary>The aircraft's category, which sizes the pattern and its climb and descent profile.</summary>
+    public required AircraftCategory Category { get; init; }
+
+    /// <summary>ICAO type designator of the aircraft the pattern is built for.</summary>
+    public required string AircraftType { get; init; }
+
+    /// <summary>Wind speed (kt) at the aircraft, used to inflate the pattern's planning speeds; 0 when no weather is loaded.</summary>
+    public required double WindSpeedKt { get; init; }
+
+    /// <summary>Left or right turns.</summary>
+    public required PatternDirection Direction { get; init; }
+
+    /// <summary>True ends the approach on a <see cref="TouchAndGoPhase"/> instead of a <see cref="LandingPhase"/>.</summary>
+    public required bool TouchAndGo { get; init; }
+
+    /// <summary>The PSIZE or authored pattern width (nm); null for the category default.</summary>
+    public required double? PatternSizeNm { get; init; }
+
+    /// <summary>A controller-assigned pattern altitude (feet MSL), which outranks the airport's and the category's.</summary>
+    public required double? AltitudeOverrideFt { get; init; }
+
+    /// <summary>The airport's runways, which the circuit is deconflicted off and compressed clear of.</summary>
+    public required IReadOnlyList<RunwayInfo>? AirportRunways { get; init; }
+
+    /// <summary>
+    /// The authored ground runway of the flown runway, for the published threshold displacement; null when no
+    /// airport map is loaded.
+    /// </summary>
+    public required GroundRunway? FlownAuthoredRunway { get; init; }
+
+    /// <summary>
+    /// The authored ground runway of the pattern runway, for the published threshold displacement; null when no
+    /// airport map is loaded.
+    /// </summary>
+    public required GroundRunway? PatternAuthoredRunway { get; init; }
+
+    /// <summary>The room's active runways; an airport that names none counts every runway.</summary>
+    public required ActiveRunways ActiveRunways { get; init; }
+
+    /// <summary>The PSIZE and controller speed that bound compression.</summary>
+    public required PatternCommanded Commanded { get; init; }
+}
+
+/// <summary>
 /// Builds phase sequences for traffic pattern circuits.
 /// </summary>
 public static class PatternBuilder
 {
     /// <summary>
     /// Build a pattern circuit starting from a specific entry leg.
-    /// When <paramref name="touchAndGo"/> is true, the approach ends
+    /// When <see cref="PatternCircuitRequest.TouchAndGo"/> is true, the approach ends
     /// with a TouchAndGoPhase instead of a LandingPhase.
     /// </summary>
-    public static List<Phase> BuildCircuit(
-        RunwayInfo runway,
-        AircraftCategory category,
-        string aircraftType,
-        double windSpeedKt,
-        PatternDirection direction,
-        PatternEntryLeg entryLeg,
-        bool touchAndGo,
-        double? finalDistanceNm,
-        double? patternSizeNm,
-        double? altitudeOverrideFt,
-        IReadOnlyList<RunwayInfo>? airportRunways,
-        GroundRunway? authoredRunway,
-        ActiveRunways activeRunways,
-        PatternCommanded commanded
-    )
+    public static List<Phase> BuildCircuit(PatternCircuitRequest request)
     {
         PatternWaypoints waypoints = PatternGeometry.Compute(
-            new PatternGeometryRequest(runway, category, aircraftType, windSpeedKt, direction)
+            new PatternGeometryRequest(request.Runway, request.Category, request.AircraftType, request.WindSpeedKt, request.Direction)
             {
-                SizeOverrideNm = patternSizeNm,
-                AltitudeOverrideFt = altitudeOverrideFt,
-                AirportRunways = airportRunways,
-                AuthoredRunway = authoredRunway,
-                ActiveRunways = activeRunways,
-                Commanded = commanded,
+                SizeOverrideNm = request.PatternSizeNm,
+                AltitudeOverrideFt = request.AltitudeOverrideFt,
+                AirportRunways = request.AirportRunways,
+                AuthoredRunway = request.AuthoredRunway,
+                ActiveRunways = request.ActiveRunways,
+                Commanded = request.Commanded,
             }
         );
         var phases = new List<Phase>();
 
-        switch (entryLeg)
+        switch (request.EntryLeg)
         {
             case PatternEntryLeg.Upwind:
                 phases.Add(new UpwindPhase { Waypoints = waypoints });
@@ -78,7 +170,7 @@ public static class PatternBuilder
                 break;
 
             case PatternEntryLeg.Base:
-                phases.Add(new BasePhase { Waypoints = waypoints, FinalDistanceNm = finalDistanceNm });
+                phases.Add(new BasePhase { Waypoints = waypoints, FinalDistanceNm = request.FinalDistanceNm });
                 break;
 
             case PatternEntryLeg.Final:
@@ -86,8 +178,8 @@ public static class PatternBuilder
         }
 
         phases.Add(new FinalApproachPhase());
-        Phase landingPhase = category == AircraftCategory.Helicopter ? new HelicopterLandingPhase() : new LandingPhase();
-        phases.Add(touchAndGo ? new TouchAndGoPhase() : landingPhase);
+        Phase landingPhase = request.Category == AircraftCategory.Helicopter ? new HelicopterLandingPhase() : new LandingPhase();
+        phases.Add(request.TouchAndGo ? new TouchAndGoPhase() : landingPhase);
 
         return phases;
     }
@@ -186,26 +278,29 @@ public static class PatternBuilder
     )
     {
         return BuildCircuit(
-            runway,
-            category,
-            aircraftType,
-            windSpeedKt,
-            direction,
-            PatternEntryLeg.Upwind,
-            touchAndGo,
-            null,
-            patternSizeNm,
-            altitudeOverrideFt,
-            airportRunways,
-            authoredRunway,
-            activeRunways,
-            commanded
+            new PatternCircuitRequest
+            {
+                Runway = runway,
+                Category = category,
+                AircraftType = aircraftType,
+                WindSpeedKt = windSpeedKt,
+                Direction = direction,
+                EntryLeg = PatternEntryLeg.Upwind,
+                TouchAndGo = touchAndGo,
+                FinalDistanceNm = null,
+                PatternSizeNm = patternSizeNm,
+                AltitudeOverrideFt = altitudeOverrideFt,
+                AirportRunways = airportRunways,
+                AuthoredRunway = authoredRunway,
+                ActiveRunways = activeRunways,
+                Commanded = commanded,
+            }
         );
     }
 
     /// <summary>
-    /// Build the circuit for an aircraft that climbs out on <paramref name="flownRunway"/> and flies
-    /// the pattern of <paramref name="patternRunway"/> — a cross-runway closed-traffic departure
+    /// Build the circuit for an aircraft that climbs out on <see cref="RunwayTransitionCircuitRequest.FlownRunway"/> and flies
+    /// the pattern of <see cref="RunwayTransitionCircuitRequest.PatternRunway"/> — a cross-runway closed-traffic departure
     /// (takeoff runway 33, make right traffic runway 28R) or an in-pattern runway switch on the
     /// upwind leg. Downwind/base/final always belong to the pattern (landing) runway; only the
     /// upwind belongs to the runway the aircraft is actually flying (AIM 4-3-2). Subsequent circuits
@@ -221,56 +316,44 @@ public static class PatternBuilder
     /// and a <see cref="MidfieldCrossingPhase"/> — with the initial turn biased toward the pattern
     /// side — connects to the pattern runway's downwind.</para>
     /// </summary>
-    public static List<Phase> BuildRunwayTransitionCircuit(
-        RunwayInfo flownRunway,
-        RunwayInfo patternRunway,
-        AircraftCategory category,
-        string aircraftType,
-        double windSpeedKt,
-        PatternDirection direction,
-        bool touchAndGo,
-        double? patternSizeNm,
-        double? altitudeOverrideFt,
-        IReadOnlyList<RunwayInfo>? airportRunways,
-        GroundRunway? flownAuthoredRunway,
-        GroundRunway? patternAuthoredRunway,
-        ActiveRunways activeRunways,
-        PatternCommanded commanded
-    )
+    public static List<Phase> BuildRunwayTransitionCircuit(RunwayTransitionCircuitRequest request)
     {
         PatternWaypoints patternWaypoints = PatternGeometry.Compute(
-            new PatternGeometryRequest(patternRunway, category, aircraftType, windSpeedKt, direction)
+            new PatternGeometryRequest(request.PatternRunway, request.Category, request.AircraftType, request.WindSpeedKt, request.Direction)
             {
-                SizeOverrideNm = patternSizeNm,
-                AltitudeOverrideFt = altitudeOverrideFt,
-                AirportRunways = airportRunways,
-                AuthoredRunway = patternAuthoredRunway,
-                ActiveRunways = activeRunways,
-                Commanded = commanded,
+                SizeOverrideNm = request.PatternSizeNm,
+                AltitudeOverrideFt = request.AltitudeOverrideFt,
+                AirportRunways = request.AirportRunways,
+                AuthoredRunway = request.PatternAuthoredRunway,
+                ActiveRunways = request.ActiveRunways,
+                Commanded = request.Commanded,
             }
         );
 
-        List<Phase> phases = RunwayGeometry.AreCloseParallels(flownRunway, patternRunway)
-            ? BuildParallelTransitionLegs(flownRunway, patternRunway, patternWaypoints)
+        List<Phase> phases = RunwayGeometry.AreCloseParallels(request.FlownRunway, request.PatternRunway)
+            ? BuildParallelTransitionLegs(request.FlownRunway, request.PatternRunway, patternWaypoints)
             : BuildCrossingTransitionLegs(
-                flownRunway,
-                category,
-                aircraftType,
-                windSpeedKt,
-                direction,
-                patternSizeNm,
-                altitudeOverrideFt,
-                airportRunways,
-                flownAuthoredRunway,
-                patternWaypoints,
-                activeRunways,
-                commanded
+                new CrossingTransitionLegsRequest
+                {
+                    FlownRunway = request.FlownRunway,
+                    Category = request.Category,
+                    AircraftType = request.AircraftType,
+                    WindSpeedKt = request.WindSpeedKt,
+                    Direction = request.Direction,
+                    PatternSizeNm = request.PatternSizeNm,
+                    AltitudeOverrideFt = request.AltitudeOverrideFt,
+                    AirportRunways = request.AirportRunways,
+                    FlownAuthoredRunway = request.FlownAuthoredRunway,
+                    PatternWaypoints = patternWaypoints,
+                    ActiveRunways = request.ActiveRunways,
+                    Commanded = request.Commanded,
+                }
             );
 
         phases.Add(new BasePhase { Waypoints = patternWaypoints });
         phases.Add(new FinalApproachPhase());
-        Phase landingPhase = category == AircraftCategory.Helicopter ? new HelicopterLandingPhase() : new LandingPhase();
-        phases.Add(touchAndGo ? new TouchAndGoPhase() : landingPhase);
+        Phase landingPhase = request.Category == AircraftCategory.Helicopter ? new HelicopterLandingPhase() : new LandingPhase();
+        phases.Add(request.TouchAndGo ? new TouchAndGoPhase() : landingPhase);
 
         return phases;
     }
@@ -289,51 +372,73 @@ public static class PatternBuilder
         ];
     }
 
-    private static List<Phase> BuildCrossingTransitionLegs(
-        RunwayInfo flownRunway,
-        AircraftCategory category,
-        string aircraftType,
-        double windSpeedKt,
-        PatternDirection direction,
-        double? patternSizeNm,
-        double? altitudeOverrideFt,
-        IReadOnlyList<RunwayInfo>? airportRunways,
-        GroundRunway? flownAuthoredRunway,
-        PatternWaypoints patternWaypoints,
-        ActiveRunways activeRunways,
-        PatternCommanded commanded
-    )
+    /// <summary>The inputs of the crossing-runway transition legs: both runways' geometry and the circuit they join.</summary>
+    private sealed record CrossingTransitionLegsRequest
+    {
+        public required RunwayInfo FlownRunway { get; init; }
+
+        public required AircraftCategory Category { get; init; }
+
+        public required string AircraftType { get; init; }
+
+        public required double WindSpeedKt { get; init; }
+
+        public required PatternDirection Direction { get; init; }
+
+        public required double? PatternSizeNm { get; init; }
+
+        public required double? AltitudeOverrideFt { get; init; }
+
+        public required IReadOnlyList<RunwayInfo>? AirportRunways { get; init; }
+
+        public required GroundRunway? FlownAuthoredRunway { get; init; }
+
+        public required PatternWaypoints PatternWaypoints { get; init; }
+
+        public required ActiveRunways ActiveRunways { get; init; }
+
+        public required PatternCommanded Commanded { get; init; }
+    }
+
+    private static List<Phase> BuildCrossingTransitionLegs(CrossingTransitionLegsRequest request)
     {
         // The upwind on the flown runway climbs out into the pattern runway's circuit, so it flies that circuit's compression
         // rather than a second decision of its own.
         PatternWaypoints flownWaypoints = PatternGeometry
             .Compute(
-                new PatternGeometryRequest(flownRunway, category, aircraftType, windSpeedKt, direction)
+                new PatternGeometryRequest(request.FlownRunway, request.Category, request.AircraftType, request.WindSpeedKt, request.Direction)
                 {
-                    SizeOverrideNm = patternSizeNm,
-                    AltitudeOverrideFt = altitudeOverrideFt,
-                    AirportRunways = airportRunways,
-                    AuthoredRunway = flownAuthoredRunway,
-                    ActiveRunways = activeRunways,
-                    Commanded = commanded with { NeverCompresses = true },
+                    SizeOverrideNm = request.PatternSizeNm,
+                    AltitudeOverrideFt = request.AltitudeOverrideFt,
+                    AirportRunways = request.AirportRunways,
+                    AuthoredRunway = request.FlownAuthoredRunway,
+                    ActiveRunways = request.ActiveRunways,
+                    Commanded = request.Commanded with { NeverCompresses = true },
                 }
             )
-            .WithCompressionOf(patternWaypoints);
+            .WithCompressionOf(request.PatternWaypoints);
 
         var crossing = new MidfieldCrossingPhase
         {
-            Waypoints = patternWaypoints,
-            InitialTurn = direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right,
+            Waypoints = request.PatternWaypoints,
+            InitialTurn = request.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right,
             // A departure into another runway's pattern never left the pattern: it climbs out on the
             // runway it used and crosses to the other downwind at traffic-pattern altitude. AIM
             // 4-3-3.a.2's 1,500 ft AGL crossing is an *entry* rule for arrivals joining from outside.
             CrossAtPatternAltitude = true,
         };
-        var downwind = new DownwindPhase { Waypoints = patternWaypoints };
+        var downwind = new DownwindPhase { Waypoints = request.PatternWaypoints };
 
         List<Phase> phases = [new UpwindPhase { Waypoints = flownWaypoints }];
         phases.AddRange(
-            BuildFieldCrossingPrefix(crossing, patternWaypoints, category, altitudeOverrideFt, flownRunway.AirportElevationFt, [downwind])
+            BuildFieldCrossingPrefix(
+                crossing,
+                request.PatternWaypoints,
+                request.Category,
+                request.AltitudeOverrideFt,
+                request.FlownRunway.AirportElevationFt,
+                [downwind]
+            )
         );
         phases.Add(downwind);
         return phases;

@@ -92,20 +92,23 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         AircraftState ac = MakeVfr(callsign, position, rwy.TrueHeading, 1000, rwy.AirportId);
         engine.World.AddAircraft(ac);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategorization.Categorize(ac.AircraftType),
-            ac.AircraftType,
-            windSpeedKt: 0,
-            direction,
-            leg,
-            touchAndGo: false,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: null,
-            NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategorization.Categorize(ac.AircraftType),
+                AircraftType = ac.AircraftType,
+                WindSpeedKt = 0,
+                Direction = direction,
+                EntryLeg = leg,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(rwy.AirportId),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = direction };
         foreach (Phase phase in circuit)

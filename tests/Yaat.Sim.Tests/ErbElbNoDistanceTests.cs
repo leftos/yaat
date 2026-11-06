@@ -122,13 +122,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);
@@ -157,13 +160,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);
@@ -191,13 +197,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);
@@ -225,13 +234,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: 3.0,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = 3.0,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);
@@ -267,13 +279,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: 3.0,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = 3.0,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);
@@ -310,13 +325,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: 3.0,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = 3.0,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);
@@ -354,13 +372,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.False(result.Success);
@@ -380,13 +401,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.False(result.Success);
@@ -416,13 +440,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.False(result.Success);
@@ -444,13 +471,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.False(result.Success);
@@ -476,13 +506,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);
@@ -505,13 +538,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);
@@ -537,13 +573,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.False(result.Success);
@@ -562,13 +601,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);
@@ -591,13 +633,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);
@@ -626,13 +671,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         var basePhase = (BasePhase)aircraft.Phases!.Phases[0];
@@ -654,13 +702,16 @@ public class ErbElbNoDistanceTests : IDisposable
 
         PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         var basePhase = (BasePhase)aircraft.Phases!.Phases[0];

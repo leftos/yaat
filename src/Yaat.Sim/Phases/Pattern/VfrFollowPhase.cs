@@ -938,20 +938,23 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     {
         double patternAltitudeFt = ClaimSatisfiedDeferral(ctx, runway) ?? altitudeFt;
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            runway,
-            ctx.Category,
-            ctx.Aircraft.AircraftType,
-            ctx.Aircraft.WindSpeedKts,
-            direction,
-            PatternEntryLeg.Downwind,
-            touchAndGo: false,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: patternAltitudeFt,
-            airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
-            ctx.ActiveRunways,
-            PatternCommanded.Of(ctx.Aircraft)
+            new PatternCircuitRequest
+            {
+                Runway = runway,
+                Category = ctx.Category,
+                AircraftType = ctx.Aircraft.AircraftType,
+                WindSpeedKt = ctx.Aircraft.WindSpeedKts,
+                Direction = direction,
+                EntryLeg = PatternEntryLeg.Downwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = patternAltitudeFt,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId),
+                AuthoredRunway = (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+                ActiveRunways = ctx.ActiveRunways,
+                Commanded = PatternCommanded.Of(ctx.Aircraft),
+            }
         );
         int downwindIndex = circuit.FindIndex(phase => phase is DownwindPhase);
         if (downwindIndex < 0)
@@ -1034,13 +1037,16 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         phases.AssignedRunway = patternReturn.Runway;
         CommandResult entry = Commands.PatternCommandHandler.TryEnterPattern(
             aircraft,
-            patternReturn.Direction,
-            ReturnEntryLeg(aircraft, patternReturn.Runway),
-            runwayId: null,
-            finalDistanceNm: null,
-            activeRunways: ctx.ActiveRunways,
-            warnRunwayCrossing: false,
-            groundLayout: ctx.GroundLayout
+            new EnterPatternRequest
+            {
+                RequestedDirection = patternReturn.Direction,
+                EntryLeg = ReturnEntryLeg(aircraft, patternReturn.Runway),
+                RunwayId = null,
+                FinalDistanceNm = null,
+                ActiveRunways = ctx.ActiveRunways,
+                WarnRunwayCrossing = false,
+                GroundLayout = ctx.GroundLayout,
+            }
         );
         if (!entry.Success)
         {
@@ -1160,20 +1166,23 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         double patternAltitudeFt = ClaimSatisfiedDeferral(ctx, leadRunway) ?? leadWaypoints.PatternAltitude;
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(leadRunway.AirportId);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            leadRunway,
-            ctx.Category,
-            ctx.Aircraft.AircraftType,
-            ctx.Aircraft.WindSpeedKts,
-            leadWaypoints.Direction,
-            PatternEntryLeg.Downwind,
-            touchAndGo: false,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: patternAltitudeFt,
-            airportRunways: airportRunways,
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(leadRunway.Designator),
-            ctx.ActiveRunways,
-            PatternCommanded.Of(ctx.Aircraft)
+            new PatternCircuitRequest
+            {
+                Runway = leadRunway,
+                Category = ctx.Category,
+                AircraftType = ctx.Aircraft.AircraftType,
+                WindSpeedKt = ctx.Aircraft.WindSpeedKts,
+                Direction = leadWaypoints.Direction,
+                EntryLeg = PatternEntryLeg.Downwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = patternAltitudeFt,
+                AirportRunways = airportRunways,
+                AuthoredRunway = (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(leadRunway.Designator),
+                ActiveRunways = ctx.ActiveRunways,
+                Commanded = PatternCommanded.Of(ctx.Aircraft),
+            }
         );
 
         // Replace the follower's phase list entirely (InstallJoinedCircuit carries any armed clearance over).
@@ -1264,20 +1273,23 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         double joinAltitudeFt = ClaimSatisfiedDeferral(ctx, runway) ?? BaseJoinAltitudeFt(ctx, join);
 
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            runway,
-            ctx.Category,
-            ctx.Aircraft.AircraftType,
-            ctx.Aircraft.WindSpeedKts,
-            waypoints.Direction,
-            PatternEntryLeg.Base,
-            touchAndGo: false,
-            finalDistanceNm: join.FinalDistanceNm,
-            patternSizeNm: null,
-            altitudeOverrideFt: joinAltitudeFt,
-            airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
-            ctx.ActiveRunways,
-            PatternCommanded.Of(ctx.Aircraft)
+            new PatternCircuitRequest
+            {
+                Runway = runway,
+                Category = ctx.Category,
+                AircraftType = ctx.Aircraft.AircraftType,
+                WindSpeedKt = ctx.Aircraft.WindSpeedKts,
+                Direction = waypoints.Direction,
+                EntryLeg = PatternEntryLeg.Base,
+                TouchAndGo = false,
+                FinalDistanceNm = join.FinalDistanceNm,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = joinAltitudeFt,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId),
+                AuthoredRunway = (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+                ActiveRunways = ctx.ActiveRunways,
+                Commanded = PatternCommanded.Of(ctx.Aircraft),
+            }
         );
         var entry = new PatternEntryPhase
         {
@@ -1344,20 +1356,23 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
         double joinAltitudeFt = ClaimSatisfiedDeferral(ctx, runway) ?? BaseJoinAltitudeFt(ctx, join);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            runway,
-            ctx.Category,
-            ctx.Aircraft.AircraftType,
-            ctx.Aircraft.WindSpeedKts,
-            join.Waypoints.Direction,
-            PatternEntryLeg.Base,
-            touchAndGo: false,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: joinAltitudeFt,
-            airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
-            ctx.ActiveRunways,
-            PatternCommanded.Of(ctx.Aircraft)
+            new PatternCircuitRequest
+            {
+                Runway = runway,
+                Category = ctx.Category,
+                AircraftType = ctx.Aircraft.AircraftType,
+                WindSpeedKt = ctx.Aircraft.WindSpeedKts,
+                Direction = join.Waypoints.Direction,
+                EntryLeg = PatternEntryLeg.Base,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = joinAltitudeFt,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId),
+                AuthoredRunway = (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+                ActiveRunways = ctx.ActiveRunways,
+                Commanded = PatternCommanded.Of(ctx.Aircraft),
+            }
         );
 
         Log.LogDebug(
@@ -1631,20 +1646,23 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         double? deferredAltitudeFt = ClaimSatisfiedDeferral(ctx, runway);
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            runway,
-            ctx.Category,
-            ctx.Aircraft.AircraftType,
-            ctx.Aircraft.WindSpeedKts,
-            direction,
-            PatternEntryLeg.Final,
-            touchAndGo: false,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: deferredAltitudeFt,
-            airportRunways: airportRunways,
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
-            ctx.ActiveRunways,
-            PatternCommanded.Of(ctx.Aircraft)
+            new PatternCircuitRequest
+            {
+                Runway = runway,
+                Category = ctx.Category,
+                AircraftType = ctx.Aircraft.AircraftType,
+                WindSpeedKt = ctx.Aircraft.WindSpeedKts,
+                Direction = direction,
+                EntryLeg = PatternEntryLeg.Final,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = deferredAltitudeFt,
+                AirportRunways = airportRunways,
+                AuthoredRunway = (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+                ActiveRunways = ctx.ActiveRunways,
+                Commanded = PatternCommanded.Of(ctx.Aircraft),
+            }
         );
 
         var entryPhase = new PatternEntryPhase
@@ -2203,20 +2221,23 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         FollowPatternReturn circuit = turnOut.Circuit;
         double patternAltitudeFt = ClaimSatisfiedDeferral(ctx, circuit.Runway) ?? ctx.Targets.AssignedAltitude ?? circuit.PatternAltitudeFt;
         List<Phase> legs = PatternBuilder.BuildCircuit(
-            circuit.Runway,
-            ctx.Category,
-            ctx.Aircraft.AircraftType,
-            ctx.Aircraft.WindSpeedKts,
-            circuit.Direction,
-            PatternEntryLeg.Base,
-            touchAndGo: false,
-            finalDistanceNm: frame.AlongNm,
-            patternSizeNm: null,
-            altitudeOverrideFt: patternAltitudeFt,
-            airportRunways: NavigationDatabase.Instance.GetRunways(circuit.Runway.AirportId),
-            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(circuit.Runway.Designator),
-            ctx.ActiveRunways,
-            PatternCommanded.Of(ctx.Aircraft)
+            new PatternCircuitRequest
+            {
+                Runway = circuit.Runway,
+                Category = ctx.Category,
+                AircraftType = ctx.Aircraft.AircraftType,
+                WindSpeedKt = ctx.Aircraft.WindSpeedKts,
+                Direction = circuit.Direction,
+                EntryLeg = PatternEntryLeg.Base,
+                TouchAndGo = false,
+                FinalDistanceNm = frame.AlongNm,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = patternAltitudeFt,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(circuit.Runway.AirportId),
+                AuthoredRunway = (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(circuit.Runway.Designator),
+                ActiveRunways = ctx.ActiveRunways,
+                Commanded = PatternCommanded.Of(ctx.Aircraft),
+            }
         );
         Log.LogDebug(
             "[VfrFollow] {Callsign}: {Lead} has passed, turning base to {Rwy} {Along:F2} nm out",

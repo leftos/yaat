@@ -85,20 +85,23 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
 
     private static List<Phase> RightCircuit(RunwayInfo rwy, PatternEntryLeg leg) =>
         PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategorization.Categorize("C172"),
-            "C172",
-            windSpeedKt: 0,
-            PatternDirection.Right,
-            leg,
-            touchAndGo: true,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: null,
-            NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategorization.Categorize("C172"),
+                AircraftType = "C172",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Right,
+                EntryLeg = leg,
+                TouchAndGo = true,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(rwy.AirportId),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
     /// <summary>
@@ -615,20 +618,23 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         lead.Phases = new PhaseList { AssignedRunway = rwy28L, TrafficDirection = PatternDirection.Left };
         foreach (
             Phase phase in PatternBuilder.BuildCircuit(
-                rwy28L,
-                AircraftCategorization.Categorize("C172"),
-                "C172",
-                windSpeedKt: 0,
-                PatternDirection.Left,
-                PatternEntryLeg.Downwind,
-                touchAndGo: true,
-                finalDistanceNm: null,
-                patternSizeNm: null,
-                altitudeOverrideFt: null,
-                NavigationDatabase.Instance.GetRunways("KOAK"),
-                authoredRunway: null,
-                activeRunways: ActiveRunways.Empty,
-                commanded: PatternCommanded.None
+                new PatternCircuitRequest
+                {
+                    Runway = rwy28L,
+                    Category = AircraftCategorization.Categorize("C172"),
+                    AircraftType = "C172",
+                    WindSpeedKt = 0,
+                    Direction = PatternDirection.Left,
+                    EntryLeg = PatternEntryLeg.Downwind,
+                    TouchAndGo = true,
+                    FinalDistanceNm = null,
+                    PatternSizeNm = null,
+                    AltitudeOverrideFt = null,
+                    AirportRunways = NavigationDatabase.Instance.GetRunways("KOAK"),
+                    AuthoredRunway = null,
+                    ActiveRunways = ActiveRunways.Empty,
+                    Commanded = PatternCommanded.None,
+                }
             )
         )
         {
@@ -1226,20 +1232,23 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         engine.World.AddAircraft(follower);
         follower.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Turboprop,
-            "PC12",
-            windSpeedKt: 0,
-            PatternDirection.Left,
-            PatternEntryLeg.Upwind,
-            touchAndGo: true,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: null,
-            NavigationDatabase.Instance.GetRunways(rwy.AirportId),
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Turboprop,
+                AircraftType = "PC12",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Upwind,
+                TouchAndGo = true,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = NavigationDatabase.Instance.GetRunways(rwy.AirportId),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         foreach (Phase phase in circuit)
         {
@@ -1478,20 +1487,23 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
             commandAltitudeMslFt: null
         );
         List<Phase> circuit = PatternBuilder.BuildRunwayTransitionCircuit(
-            flown,
-            patternRunway,
-            category,
-            "C172",
-            windSpeedKt: 0,
-            PatternDirection.Right,
-            touchAndGo: true,
-            sizeOverrideNm,
-            altitudeOverrideFt,
-            NavigationDatabase.Instance.GetRunways("KOAK"),
-            ac.Ground.Layout?.FindRunway(flown.Designator),
-            authoredPatternRunway,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new RunwayTransitionCircuitRequest
+            {
+                FlownRunway = flown,
+                PatternRunway = patternRunway,
+                Category = category,
+                AircraftType = "C172",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Right,
+                TouchAndGo = true,
+                PatternSizeNm = sizeOverrideNm,
+                AltitudeOverrideFt = altitudeOverrideFt,
+                AirportRunways = NavigationDatabase.Instance.GetRunways("KOAK"),
+                FlownAuthoredRunway = ac.Ground.Layout?.FindRunway(flown.Designator),
+                PatternAuthoredRunway = authoredPatternRunway,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         if (flownPatternAltitudeFt is { } flownAltitude)
         {

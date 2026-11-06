@@ -106,13 +106,16 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
         // pattern turn-direction onto the chain — the precondition for the bug.
         CommandResult erb1 = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            "28R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         Assert.True(erb1.Success, erb1.Message);
         Assert.IsType<LandingPhase>(Terminator(ac));
@@ -122,13 +125,16 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
         // to a touch-and-go. (Fails before the fix: terminal is TouchAndGoPhase.)
         CommandResult erb2 = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            "28R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         Assert.True(erb2.Success, erb2.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases.LandingClearance);
@@ -156,13 +162,16 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
 
         CommandResult erb = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            "28R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Base,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         Assert.True(erb.Success, erb.Message);
 

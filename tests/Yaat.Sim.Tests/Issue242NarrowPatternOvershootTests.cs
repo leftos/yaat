@@ -93,20 +93,23 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
         };
 
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            touchAndGo: false,
-            finalDistanceNm: null,
-            patternSizeNm: sizeNm,
-            altitudeOverrideFt: null,
-            airportRunways: null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Piston,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Downwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = sizeNm,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         // This aircraft was dropped inside its pattern by a cross-runway join, so its downwind is a
         // rejoin (as the wrong-side / cross-runway build paths mark it).

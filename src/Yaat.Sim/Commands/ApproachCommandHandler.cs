@@ -1266,20 +1266,23 @@ public static class ApproachCommandHandler
             );
 
             List<Phase> circuitPhases = PatternBuilder.BuildCircuit(
-                approachRunway,
-                category,
-                aircraft.AircraftType,
-                aircraft.WindSpeedKts,
-                direction,
-                PatternEntryLeg.Downwind,
-                false,
-                null,
-                patternSizeNm: null,
-                ifrPatternAltMsl,
-                airportRunways: null,
-                authoredRunway,
-                ctx.ActiveRunways,
-                PatternCommanded.Of(aircraft)
+                new PatternCircuitRequest
+                {
+                    Runway = approachRunway,
+                    Category = category,
+                    AircraftType = aircraft.AircraftType,
+                    WindSpeedKt = aircraft.WindSpeedKts,
+                    Direction = direction,
+                    EntryLeg = PatternEntryLeg.Downwind,
+                    TouchAndGo = false,
+                    FinalDistanceNm = null,
+                    PatternSizeNm = null,
+                    AltitudeOverrideFt = ifrPatternAltMsl,
+                    AirportRunways = null,
+                    AuthoredRunway = authoredRunway,
+                    ActiveRunways = ctx.ActiveRunways,
+                    Commanded = PatternCommanded.Of(aircraft),
+                }
             );
 
             // Check if the aircraft is already established on the downwind leg.

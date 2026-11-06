@@ -414,13 +414,16 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
 
         CommandResult entry = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Downwind,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         Assert.True(entry.Success, entry.Message);
 
@@ -608,13 +611,16 @@ public class LowApproachLevelOffTests(ITestOutputHelper output)
 
         CommandResult entry = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Right,
-            PatternEntryLeg.Final,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         Assert.True(entry.Success, entry.Message);
 

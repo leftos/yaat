@@ -257,7 +257,17 @@ public class PatternModifierArgumentGrammarTests
         ClosedTrafficDeparture ct = Assert.IsType<ClosedTrafficDeparture>(Assert.IsType<ClearedForTakeoffCommand>(parsed.Value).Departure);
 
         AircraftState ac = LinedUpOn(runway28R);
-        DepartureClearanceHandler.ApplyClosedTraffic(ct, ac, ac.Phases!, runway28R, removeInitialClimb: false, activeRunways: ActiveRunways.Empty);
+        DepartureClearanceHandler.ApplyClosedTraffic(
+            ac,
+            ac.Phases!,
+            new ApplyClosedTrafficRequest
+            {
+                Departure = ct,
+                FallbackRunway = runway28R,
+                RemoveInitialClimb = false,
+                ActiveRunways = ActiveRunways.Empty,
+            }
+        );
 
         Assert.Equal("33", ac.Phases?.PatternRunway?.Designator);
         Assert.Equal("33", ac.Phases?.AssignedRunway?.Designator);

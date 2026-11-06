@@ -116,13 +116,16 @@ public class EfParallelSidestepTests : IDisposable
         // Now issue EF 28L — parallel runway sidestep.
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            runwayId: "28L",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28L",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, $"sidestep should succeed but got: {result.Message}");
@@ -151,13 +154,16 @@ public class EfParallelSidestepTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            runwayId: "28L",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28L",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success);
@@ -180,13 +186,16 @@ public class EfParallelSidestepTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            runwayId: "28L",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28L",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.False(result.Success);
@@ -208,13 +217,16 @@ public class EfParallelSidestepTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.DoesNotContain("Sidestep", result.Message ?? "", StringComparison.OrdinalIgnoreCase);

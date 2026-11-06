@@ -301,20 +301,23 @@ public static class PhaseRunner
 
         List<Phase> nextCircuit = runwayTransition
             ? PatternBuilder.BuildRunwayTransitionCircuit(
-                flownRunway,
-                runway,
-                ctx.Category,
-                ctx.Aircraft.AircraftType,
-                ctx.Aircraft.WindSpeedKts,
-                dir,
-                nextTouchAndGo,
-                sizeOv,
-                altOv,
-                airportRunways,
-                patternLayout?.FindRunway(flownRunway.Designator),
-                authoredRunway,
-                ctx.ActiveRunways,
-                PatternCommanded.Of(ctx.Aircraft)
+                new RunwayTransitionCircuitRequest
+                {
+                    FlownRunway = flownRunway,
+                    PatternRunway = runway,
+                    Category = ctx.Category,
+                    AircraftType = ctx.Aircraft.AircraftType,
+                    WindSpeedKt = ctx.Aircraft.WindSpeedKts,
+                    Direction = dir,
+                    TouchAndGo = nextTouchAndGo,
+                    PatternSizeNm = sizeOv,
+                    AltitudeOverrideFt = altOv,
+                    AirportRunways = airportRunways,
+                    FlownAuthoredRunway = patternLayout?.FindRunway(flownRunway.Designator),
+                    PatternAuthoredRunway = authoredRunway,
+                    ActiveRunways = ctx.ActiveRunways,
+                    Commanded = PatternCommanded.Of(ctx.Aircraft),
+                }
             )
             : PatternBuilder.BuildNextCircuit(
                 runway,

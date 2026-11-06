@@ -211,12 +211,15 @@ public class PatternCompressionTests
     private static void ClearedForClosedTrafficAndTicked(AircraftState ac)
     {
         DepartureClearanceHandler.ApplyClosedTraffic(
-            new ClosedTrafficDeparture(PatternDirection.Left, null, null),
             ac,
             ac.Phases!,
-            Runway("KOAK", "28L"),
-            false,
-            ActiveRunways.Empty
+            new ApplyClosedTrafficRequest
+            {
+                Departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null),
+                FallbackRunway = Runway("KOAK", "28L"),
+                RemoveInitialClimb = false,
+                ActiveRunways = ActiveRunways.Empty,
+            }
         );
         PhaseContext ctx = Context(ac, false);
         ac.Phases!.Start(ctx);
@@ -572,12 +575,15 @@ public class PatternCompressionTests
     {
         AircraftState ac = HeldAboveItsCompressedSpeed(OnRunway28L("BE58"));
         DepartureClearanceHandler.ApplyClosedTraffic(
-            new ClosedTrafficDeparture(PatternDirection.Left, null, null),
             ac,
             ac.Phases!,
-            Runway("KOAK", "28L"),
-            false,
-            ActiveRunways.Empty
+            new ApplyClosedTrafficRequest
+            {
+                Departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null),
+                FallbackRunway = Runway("KOAK", "28L"),
+                RemoveInitialClimb = false,
+                ActiveRunways = ActiveRunways.Empty,
+            }
         );
         PhaseContext ctx = Context(ac, true, "TWR");
         ac.Phases!.Start(ctx);
@@ -643,12 +649,15 @@ public class PatternCompressionTests
         // The takeoff roll drops the speed target; the controller's speed still stands at the takeoff clearance.
         HeldAboveItsCompressedSpeed(ac);
         DepartureClearanceHandler.ApplyClosedTraffic(
-            new ClosedTrafficDeparture(PatternDirection.Left, null, null),
             ac,
             ac.Phases,
-            rwy,
-            false,
-            ActiveRunways.Empty
+            new ApplyClosedTrafficRequest
+            {
+                Departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null),
+                FallbackRunway = rwy,
+                RemoveInitialClimb = false,
+                ActiveRunways = ActiveRunways.Empty,
+            }
         );
         PhaseRunner.Tick(ac, ctx);
         PhaseRunner.Tick(ac, ctx);
@@ -661,12 +670,15 @@ public class PatternCompressionTests
     {
         AircraftState ac = HeldAboveItsCompressedSpeed(OnRunway28L("BE58"));
         DepartureClearanceHandler.ApplyClosedTraffic(
-            new ClosedTrafficDeparture(PatternDirection.Left, null, null),
             ac,
             ac.Phases!,
-            Runway("KOAK", "28L"),
-            false,
-            ActiveRunways.Empty
+            new ApplyClosedTrafficRequest
+            {
+                Departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null),
+                FallbackRunway = Runway("KOAK", "28L"),
+                RemoveInitialClimb = false,
+                ActiveRunways = ActiveRunways.Empty,
+            }
         );
         Assert.Equal("30", ac.Pattern.PendingRunwayCrossing?.CrossedRunway);
 
@@ -699,12 +711,15 @@ public class PatternCompressionTests
         RunwayInfo rwy = Runway("KOAK", "28L");
         AircraftState ac = HeldAboveItsCompressedSpeed(OnRunway28L("BE58"));
         DepartureClearanceHandler.ApplyClosedTraffic(
-            new ClosedTrafficDeparture(PatternDirection.Left, null, null),
             ac,
             ac.Phases!,
-            rwy,
-            false,
-            ActiveRunways.Empty
+            new ApplyClosedTrafficRequest
+            {
+                Departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null),
+                FallbackRunway = rwy,
+                RemoveInitialClimb = false,
+                ActiveRunways = ActiveRunways.Empty,
+            }
         );
         Assert.NotNull(ac.Pattern.PendingRunwayCrossing);
         PhaseContext cleared = Context(ac, false);
@@ -728,12 +743,15 @@ public class PatternCompressionTests
         RunwayInfo rwy = Runway("KOAK", "28L");
         AircraftState ac = HeldAboveItsCompressedSpeed(OnRunway28L("BE58"));
         DepartureClearanceHandler.ApplyClosedTraffic(
-            new ClosedTrafficDeparture(PatternDirection.Left, null, null),
             ac,
             ac.Phases!,
-            rwy,
-            false,
-            ActiveRunways.Empty
+            new ApplyClosedTrafficRequest
+            {
+                Departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null),
+                FallbackRunway = rwy,
+                RemoveInitialClimb = false,
+                ActiveRunways = ActiveRunways.Empty,
+            }
         );
         PhaseContext cleared = Context(ac, false);
         ac.Phases!.Start(cleared);
@@ -776,13 +794,16 @@ public class PatternCompressionTests
         AircraftState ac = OnRunway28L("PC12");
 
         DepartureClearanceHandler.ApplyPatternExitDeparture(
-            new PatternExitDeparture(PatternEntryLeg.Downwind, PatternDirection.Right),
             ac,
             ac.Phases!,
-            Runway("KOAK", "28L"),
-            null,
-            false,
-            ActiveRunways.Empty
+            new PatternExitDepartureRequest
+            {
+                Departure = new PatternExitDeparture(PatternEntryLeg.Downwind, PatternDirection.Right),
+                Runway = Runway("KOAK", "28L"),
+                AssignedAltitude = null,
+                RemoveInitialClimb = false,
+                ActiveRunways = ActiveRunways.Empty,
+            }
         );
 
         Assert.All(
@@ -818,12 +839,15 @@ public class PatternCompressionTests
         AircraftState ac = OnRunway28L("PC12");
         Assert.True(PatternCommandHandler.TrySetPatternSize(ac, 1.5, ActiveRunways.Empty, false, false, null).Success);
         DepartureClearanceHandler.ApplyClosedTraffic(
-            new ClosedTrafficDeparture(PatternDirection.Left, null, null),
             ac,
             ac.Phases!,
-            Runway("KOAK", "28L"),
-            false,
-            ActiveRunways.Empty
+            new ApplyClosedTrafficRequest
+            {
+                Departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null),
+                FallbackRunway = Runway("KOAK", "28L"),
+                RemoveInitialClimb = false,
+                ActiveRunways = ActiveRunways.Empty,
+            }
         );
         ac.Phases!.Start(Context(ac, false));
         Assert.Null(AirborneFollowHelper.PatternWaypointsOf(ac.Phases.CurrentPhase)!.CompressedDownwindSpeedKts);
@@ -844,20 +868,23 @@ public class PatternCompressionTests
         RunwayInfo pattern = Runway("KOAK", "28L");
 
         List<Phase> circuit = PatternBuilder.BuildRunwayTransitionCircuit(
-            flown,
-            pattern,
-            AircraftCategory.Turboprop,
-            "PC12",
-            0,
-            PatternDirection.Left,
-            true,
-            null,
-            null,
-            OakRunways,
-            null,
-            Authored28L(),
-            ActiveRunways.Empty,
-            PatternCommanded.None
+            new RunwayTransitionCircuitRequest
+            {
+                FlownRunway = flown,
+                PatternRunway = pattern,
+                Category = AircraftCategory.Turboprop,
+                AircraftType = "PC12",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                TouchAndGo = true,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = OakRunways,
+                FlownAuthoredRunway = null,
+                PatternAuthoredRunway = Authored28L(),
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         PatternWaypoints joined = circuit.OfType<DownwindPhase>().Single().Waypoints!;
@@ -879,13 +906,16 @@ public class PatternCompressionTests
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Left,
-            PatternEntryLeg.Crosswind,
-            null,
-            null,
-            ActiveRunways.Empty,
-            true,
-            new TestAirportGroundData().GetLayout("OAK")
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Crosswind,
+                RunwayId = null,
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = new TestAirportGroundData().GetLayout("OAK"),
+            }
         );
         Assert.True(result.Success, result.Message);
         ac.Phases!.Start(Context(ac, false));

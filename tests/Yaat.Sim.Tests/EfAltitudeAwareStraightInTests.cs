@@ -127,13 +127,16 @@ public class EfAltitudeAwareStraightInTests : IDisposable
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Final,
-            "28R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         Assert.True(result.Success, result.Message);
 

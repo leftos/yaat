@@ -92,20 +92,23 @@ public sealed class TouchdownSpeedCancelTests
     private static UpwindPhase UpwindLeg(RunwayInfo runway, AircraftCategory category, string type)
     {
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            runway,
-            category,
-            type,
-            windSpeedKt: 0,
-            PatternDirection.Left,
-            PatternEntryLeg.Upwind,
-            touchAndGo: false,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: null,
-            airportRunways: [runway],
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = runway,
+                Category = category,
+                AircraftType = type,
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Upwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = [runway],
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         return Assert.IsType<UpwindPhase>(circuit[0]);
     }

@@ -86,13 +86,16 @@ public class SingleDigitRunwayCommandTests
         // PT with the FAA form "8R" must resolve the 08R runway.
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            "8R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Downwind,
+                RunwayId = "8R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
 
         Assert.True(result.Success, result.Message);

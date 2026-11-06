@@ -98,20 +98,23 @@ public class FollowPatternTerminalLeadFlowAheadTests
         LatLon followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 1.0);
         AircraftState follower = Make(FollowerCallsign, "C172", followerPos, wp.DownwindHeading, wp.PatternAltitude, 90);
         List<Phase> followerCircuit = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            Dir,
-            PatternEntryLeg.Downwind,
-            false,
-            null,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Piston,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = Dir,
+                EntryLeg = PatternEntryLeg.Downwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         follower.Phases = new PhaseList
         {
@@ -162,20 +165,23 @@ public class FollowPatternTerminalLeadFlowAheadTests
 
         // A real helicopter pattern terminates in HelicopterLandingPhase (not LandingPhase).
         List<Phase> heliCircuit = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Helicopter,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            false,
-            null,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Helicopter,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Final,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         Assert.IsType<HelicopterLandingPhase>(heliCircuit[^1]);
 

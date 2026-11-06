@@ -108,13 +108,16 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
             // Mirror what the user typed. EF carries no L/R, so the dispatcher passes null.
             CommandResult result = PatternCommandHandler.TryEnterPattern(
                 aircraft,
-                requestedDirection: null,
-                PatternEntryLeg.Final,
-                "28L",
-                null,
-                activeRunways: ActiveRunways.Empty,
-                warnRunwayCrossing: true,
-                groundLayout: null
+                new EnterPatternRequest
+                {
+                    RequestedDirection = null,
+                    EntryLeg = PatternEntryLeg.Final,
+                    RunwayId = "28L",
+                    FinalDistanceNm = null,
+                    ActiveRunways = ActiveRunways.Empty,
+                    WarnRunwayCrossing = true,
+                    GroundLayout = null,
+                }
             );
             output.WriteLine($"TryEnterPattern(28L) -> Success={result.Success} Message='{result.Message}'");
 
@@ -177,13 +180,16 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
             CommandResult result = PatternCommandHandler.TryEnterPattern(
                 aircraft,
-                requestedDirection: null,
-                PatternEntryLeg.Final,
-                "28L",
-                null,
-                activeRunways: ActiveRunways.Empty,
-                warnRunwayCrossing: true,
-                groundLayout: null
+                new EnterPatternRequest
+                {
+                    RequestedDirection = null,
+                    EntryLeg = PatternEntryLeg.Final,
+                    RunwayId = "28L",
+                    FinalDistanceNm = null,
+                    ActiveRunways = ActiveRunways.Empty,
+                    WarnRunwayCrossing = true,
+                    GroundLayout = null,
+                }
             );
             Assert.True(result.Success, result.Message);
 
@@ -251,13 +257,16 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Final,
-            "28R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
@@ -290,13 +299,16 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Final,
-            "28R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
@@ -328,13 +340,16 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Final,
-            "28R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
@@ -362,13 +377,16 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Final,
-            "28R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
 
@@ -396,13 +414,16 @@ public class Issue284EnterFinalFromBaseTests(ITestOutputHelper output)
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Final,
-            "28R",
-            null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: null
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Final,
+                RunwayId = "28R",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = null,
+            }
         );
         output.WriteLine($"TryEnterPattern(28R) -> Success={result.Success} Message='{result.Message}'");
         Assert.True(result.Success, result.Message);

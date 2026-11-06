@@ -1586,81 +1586,101 @@ public static class CommandDispatcher
             case EnterLeftDownwindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Left,
-                    PatternEntryLeg.Downwind,
-                    runwayId: cmd.RunwayId,
-                    finalDistanceNm: null,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Left,
+                        EntryLeg = PatternEntryLeg.Downwind,
+                        RunwayId = cmd.RunwayId,
+                        FinalDistanceNm = null,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterRightDownwindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Right,
-                    PatternEntryLeg.Downwind,
-                    runwayId: cmd.RunwayId,
-                    finalDistanceNm: null,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Right,
+                        EntryLeg = PatternEntryLeg.Downwind,
+                        RunwayId = cmd.RunwayId,
+                        FinalDistanceNm = null,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterLeftCrosswindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Left,
-                    PatternEntryLeg.Crosswind,
-                    runwayId: cmd.RunwayId,
-                    finalDistanceNm: null,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Left,
+                        EntryLeg = PatternEntryLeg.Crosswind,
+                        RunwayId = cmd.RunwayId,
+                        FinalDistanceNm = null,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterRightCrosswindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Right,
-                    PatternEntryLeg.Crosswind,
-                    runwayId: cmd.RunwayId,
-                    finalDistanceNm: null,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Right,
+                        EntryLeg = PatternEntryLeg.Crosswind,
+                        RunwayId = cmd.RunwayId,
+                        FinalDistanceNm = null,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterLeftBaseCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Left,
-                    PatternEntryLeg.Base,
-                    runwayId: cmd.RunwayId,
-                    finalDistanceNm: cmd.FinalDistanceNm,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Left,
+                        EntryLeg = PatternEntryLeg.Base,
+                        RunwayId = cmd.RunwayId,
+                        FinalDistanceNm = cmd.FinalDistanceNm,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterRightBaseCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Right,
-                    PatternEntryLeg.Base,
-                    runwayId: cmd.RunwayId,
-                    finalDistanceNm: cmd.FinalDistanceNm,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Right,
+                        EntryLeg = PatternEntryLeg.Base,
+                        RunwayId = cmd.RunwayId,
+                        FinalDistanceNm = cmd.FinalDistanceNm,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterFinalCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    // EF has no L/R in its verb — let TryEnterPattern infer from runway
-                    // (28R parallel to 28L → Right, single runway → Left).
-                    requestedDirection: null,
-                    PatternEntryLeg.Final,
-                    runwayId: cmd.RunwayId,
-                    finalDistanceNm: null,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        // EF has no L/R in its verb — let TryEnterPattern infer from runway (28R parallel to 28L → Right, single runway → Left).
+                        RequestedDirection = null,
+                        EntryLeg = PatternEntryLeg.Final,
+                        RunwayId = cmd.RunwayId,
+                        FinalDistanceNm = null,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case PatternSizeCommand cmd:
                 return PatternCommandHandler.TrySetPatternSize(
@@ -3442,81 +3462,101 @@ public static class CommandDispatcher
             case EnterLeftDownwindCommand eld:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Left,
-                    PatternEntryLeg.Downwind,
-                    runwayId: eld.RunwayId,
-                    finalDistanceNm: null,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Left,
+                        EntryLeg = PatternEntryLeg.Downwind,
+                        RunwayId = eld.RunwayId,
+                        FinalDistanceNm = null,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterRightDownwindCommand erd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Right,
-                    PatternEntryLeg.Downwind,
-                    runwayId: erd.RunwayId,
-                    finalDistanceNm: null,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Right,
+                        EntryLeg = PatternEntryLeg.Downwind,
+                        RunwayId = erd.RunwayId,
+                        FinalDistanceNm = null,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterLeftCrosswindCommand elc:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Left,
-                    PatternEntryLeg.Crosswind,
-                    runwayId: elc.RunwayId,
-                    finalDistanceNm: null,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Left,
+                        EntryLeg = PatternEntryLeg.Crosswind,
+                        RunwayId = elc.RunwayId,
+                        FinalDistanceNm = null,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterRightCrosswindCommand erc:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Right,
-                    PatternEntryLeg.Crosswind,
-                    runwayId: erc.RunwayId,
-                    finalDistanceNm: null,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Right,
+                        EntryLeg = PatternEntryLeg.Crosswind,
+                        RunwayId = erc.RunwayId,
+                        FinalDistanceNm = null,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterLeftBaseCommand elb:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Left,
-                    PatternEntryLeg.Base,
-                    runwayId: elb.RunwayId,
-                    finalDistanceNm: elb.FinalDistanceNm,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Left,
+                        EntryLeg = PatternEntryLeg.Base,
+                        RunwayId = elb.RunwayId,
+                        FinalDistanceNm = elb.FinalDistanceNm,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterRightBaseCommand erb:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    PatternDirection.Right,
-                    PatternEntryLeg.Base,
-                    runwayId: erb.RunwayId,
-                    finalDistanceNm: erb.FinalDistanceNm,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        RequestedDirection = PatternDirection.Right,
+                        EntryLeg = PatternEntryLeg.Base,
+                        RunwayId = erb.RunwayId,
+                        FinalDistanceNm = erb.FinalDistanceNm,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
             case EnterFinalCommand ef:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
-                    // EF has no L/R in its verb — let TryEnterPattern infer from runway
-                    // (28R parallel to 28L → Right, single runway → Left).
-                    requestedDirection: null,
-                    PatternEntryLeg.Final,
-                    runwayId: ef.RunwayId,
-                    finalDistanceNm: null,
-                    activeRunways: ctx.ActiveRunways,
-                    warnRunwayCrossing: true,
-                    groundLayout: ctx.GroundLayout
+                    new EnterPatternRequest
+                    {
+                        // EF has no L/R in its verb — let TryEnterPattern infer from runway (28R parallel to 28L → Right, single runway → Left).
+                        RequestedDirection = null,
+                        EntryLeg = PatternEntryLeg.Final,
+                        RunwayId = ef.RunwayId,
+                        FinalDistanceNm = null,
+                        ActiveRunways = ctx.ActiveRunways,
+                        WarnRunwayCrossing = true,
+                        GroundLayout = ctx.GroundLayout,
+                    }
                 );
 
             // Pattern modification commands
@@ -5914,13 +5954,16 @@ public static class CommandDispatcher
         PatternDirection joinDirection = ChooseFollowJoinDirection(aircraft, establishedLead.Phases.TrafficDirection, leadRunway);
         CommandResult entryResult = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            joinDirection,
-            PatternEntryLeg.Downwind,
-            runwayId: leadRunway.Designator,
-            finalDistanceNm: null,
-            activeRunways: ctx.ActiveRunways,
-            warnRunwayCrossing: true,
-            groundLayout: ctx.GroundLayout
+            new EnterPatternRequest
+            {
+                RequestedDirection = joinDirection,
+                EntryLeg = PatternEntryLeg.Downwind,
+                RunwayId = leadRunway.Designator,
+                FinalDistanceNm = null,
+                ActiveRunways = ctx.ActiveRunways,
+                WarnRunwayCrossing = true,
+                GroundLayout = ctx.GroundLayout,
+            }
         );
         if (entryResult.Success)
         {
@@ -6515,13 +6558,16 @@ public static class CommandDispatcher
         PatternDirection joinDirection = ChooseFollowJoinDirection(aircraft, preferredDirection, queuedRunway);
         CommandResult entryResult = PatternCommandHandler.TryEnterPattern(
             aircraft,
-            joinDirection,
-            PatternEntryLeg.Downwind,
-            runwayId: queuedRunway.Designator,
-            finalDistanceNm: null,
-            activeRunways: ctx.ActiveRunways,
-            warnRunwayCrossing: true,
-            groundLayout: ctx.GroundLayout
+            new EnterPatternRequest
+            {
+                RequestedDirection = joinDirection,
+                EntryLeg = PatternEntryLeg.Downwind,
+                RunwayId = queuedRunway.Designator,
+                FinalDistanceNm = null,
+                ActiveRunways = ctx.ActiveRunways,
+                WarnRunwayCrossing = true,
+                GroundLayout = ctx.GroundLayout,
+            }
         );
         if (!entryResult.Success)
         {

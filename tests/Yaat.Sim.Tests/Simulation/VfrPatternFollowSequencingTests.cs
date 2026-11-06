@@ -98,20 +98,23 @@ public class VfrPatternFollowSequencingTests
         LatLon leadFinalPos = GeoMath.ProjectPoint(threshold, wp.DownwindHeading, 2.3);
         AircraftState lead = MakeVfr(LeadCallsign, leadFinalPos, wp.FinalHeading, altitude: thresholdElev + (2.3 * 318.0), ias: 75);
         List<Phase> leadCircuit = PatternBuilder.BuildCircuit(
-            rwy,
-            Cat,
-            "",
-            0,
-            Dir,
-            PatternEntryLeg.Final,
-            false,
-            null,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = Cat,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = Dir,
+                EntryLeg = PatternEntryLeg.Final,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         lead.Phases = new PhaseList
         {
@@ -130,20 +133,23 @@ public class VfrPatternFollowSequencingTests
         AircraftState follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, altitude: wp.PatternAltitude, ias: 90);
         follower.Approach.HasReportedTrafficInSight = true;
         List<Phase> followerCircuit = PatternBuilder.BuildCircuit(
-            rwy,
-            Cat,
-            "",
-            0,
-            Dir,
-            PatternEntryLeg.Downwind,
-            false,
-            null,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = Cat,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = Dir,
+                EntryLeg = PatternEntryLeg.Downwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         follower.Phases = new PhaseList
         {

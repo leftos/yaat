@@ -99,20 +99,23 @@ public class FollowPairTrajectoryTests
     )
     {
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            rwy,
-            cat,
-            "",
-            0,
-            dir,
-            entry,
-            false,
-            null,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = cat,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = dir,
+                EntryLeg = entry,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         ac.Phases = new PhaseList
         {
@@ -355,20 +358,23 @@ public class FollowPairTrajectoryTests
         LatLon pos = GeoMath.ProjectPoint(threshold, wp.FinalHeading.ToReciprocal(), finalNm);
         AircraftState lead = MakeVfr(LeadCallsign, "C172", pos, wp.FinalHeading, altitude: rwy.ElevationFt + (finalNm * 318.0), ias: ias);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Right,
-            PatternEntryLeg.Final,
-            false,
-            null,
-            null,
-            null,
-            allRunways,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Piston,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Final,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         lead.Phases = new PhaseList
         {

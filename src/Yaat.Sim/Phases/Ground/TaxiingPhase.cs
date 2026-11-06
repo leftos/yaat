@@ -3283,13 +3283,16 @@ public sealed class TaxiingPhase : Phase
                 // rwy is the departure runway here (AssignedRunway hasn't yet been overwritten to the
                 // pattern runway). The circuit apply resolves the pattern runway and cross-runway case.
                 Commands.DepartureClearanceHandler.ApplyCircuitDeparture(
-                    dep.Departure,
                     ctx.Aircraft,
                     phases,
-                    rwy,
-                    dep.AssignedAltitude,
-                    removeInitialClimb: false,
-                    activeRunways: ctx.ActiveRunways
+                    new ApplyCircuitDepartureRequest
+                    {
+                        Departure = dep.Departure,
+                        FallbackRunway = rwy,
+                        AssignedAltitude = dep.AssignedAltitude,
+                        RemoveInitialClimb = false,
+                        ActiveRunways = ctx.ActiveRunways,
+                    }
                 );
             }
         }

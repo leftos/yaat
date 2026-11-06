@@ -99,20 +99,23 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
 
         AircraftState ac = MakeDepartingPiston(rwy);
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            rwy,
-            cat,
-            "",
-            0,
-            PatternDirection.Right,
-            PatternEntryLeg.Upwind,
-            true,
-            null,
-            sizeOverrideNm,
-            altitudeOverrideFt,
-            allRunways,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = cat,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Upwind,
+                TouchAndGo = true,
+                FinalDistanceNm = null,
+                PatternSizeNm = sizeOverrideNm,
+                AltitudeOverrideFt = altitudeOverrideFt,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         foreach (Phase p in circuit)
         {
@@ -331,12 +334,15 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             }
 
             DepartureClearanceHandler.ApplyClosedTraffic(
-                new ClosedTrafficDeparture(PatternDirection.Right, null, null),
                 ac,
                 ac.Phases,
-                rwy28L,
-                removeInitialClimb: false,
-                activeRunways: ActiveRunways.Empty
+                new ApplyClosedTrafficRequest
+                {
+                    Departure = new ClosedTrafficDeparture(PatternDirection.Right, null, null),
+                    FallbackRunway = rwy28L,
+                    RemoveInitialClimb = false,
+                    ActiveRunways = ActiveRunways.Empty,
+                }
             );
 
             UpwindPhase? upwind = ac.Phases.Phases.OfType<UpwindPhase>().FirstOrDefault();
@@ -407,20 +413,23 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         ac.Ground.Layout = null;
 
         List<Phase> circuit = PatternBuilder.BuildCircuit(
-            rwy28L,
-            cat,
-            "",
-            0,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            true,
-            null,
-            0.5,
-            609,
-            allRunways,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy28L,
+                Category = cat,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Downwind,
+                TouchAndGo = true,
+                FinalDistanceNm = null,
+                PatternSizeNm = 0.5,
+                AltitudeOverrideFt = 609,
+                AirportRunways = allRunways,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         foreach (Phase p in circuit)
         {
@@ -492,13 +501,16 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(
             ac,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            runwayId: "28L",
-            finalDistanceNm: null,
-            activeRunways: ActiveRunways.Empty,
-            warnRunwayCrossing: true,
-            groundLayout: layout
+            new EnterPatternRequest
+            {
+                RequestedDirection = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Downwind,
+                RunwayId = "28L",
+                FinalDistanceNm = null,
+                ActiveRunways = ActiveRunways.Empty,
+                WarnRunwayCrossing = true,
+                GroundLayout = layout,
+            }
         );
         Assert.True(result.Success, result.Message);
 

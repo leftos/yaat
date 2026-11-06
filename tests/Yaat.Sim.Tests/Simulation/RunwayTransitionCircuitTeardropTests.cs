@@ -88,20 +88,23 @@ public class RunwayTransitionCircuitTeardropTests
         }
 
         return PatternBuilder.BuildRunwayTransitionCircuit(
-            flown,
-            pattern,
-            category,
-            aircraftType,
-            windSpeedKt: 0,
-            PatternDirection.Right,
-            touchAndGo: true,
-            patternSizeNm: null,
-            altitudeOverrideFt: null,
-            navDb.GetRunways("KOAK"),
-            flownAuthoredRunway: null,
-            patternAuthoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new RunwayTransitionCircuitRequest
+            {
+                FlownRunway = flown,
+                PatternRunway = pattern,
+                Category = category,
+                AircraftType = aircraftType,
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Right,
+                TouchAndGo = true,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = navDb.GetRunways("KOAK"),
+                FlownAuthoredRunway = null,
+                PatternAuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
     }
 }

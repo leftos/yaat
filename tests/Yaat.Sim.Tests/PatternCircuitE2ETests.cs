@@ -116,20 +116,23 @@ public class PatternCircuitE2ETests : IDisposable
 
         // Build a non-touch-and-go circuit (landing)
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Upwind,
-            false,
-            null,
-            null,
-            null,
-            null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Jet,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Upwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         foreach (Phase p in phases)
         {
@@ -169,20 +172,23 @@ public class PatternCircuitE2ETests : IDisposable
         ac.Position = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
 
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            false,
-            null,
-            null,
-            null,
-            null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Jet,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Downwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         foreach (Phase p in phases)
         {
@@ -226,20 +232,23 @@ public class PatternCircuitE2ETests : IDisposable
 
         // Build a touch-and-go circuit from downwind
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            true,
-            null,
-            null,
-            null,
-            null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Jet,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Downwind,
+                TouchAndGo = true,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         foreach (Phase p in phases)
         {
@@ -302,20 +311,23 @@ public class PatternCircuitE2ETests : IDisposable
 
         // Build circuit from final entry
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            false,
-            null,
-            null,
-            null,
-            null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Jet,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Final,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         foreach (Phase p in phases)
         {
@@ -475,20 +487,23 @@ public class PatternCircuitE2ETests : IDisposable
     {
         RunwayInfo rwy = DefaultRunway();
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Upwind,
-            false,
-            null,
-            null,
-            null,
-            null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Jet,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Upwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         Assert.Equal(6, phases.Count);
@@ -505,20 +520,23 @@ public class PatternCircuitE2ETests : IDisposable
     {
         RunwayInfo rwy = DefaultRunway();
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            false,
-            null,
-            null,
-            null,
-            null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Jet,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Downwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         Assert.Equal(4, phases.Count);
@@ -533,20 +551,23 @@ public class PatternCircuitE2ETests : IDisposable
     {
         RunwayInfo rwy = DefaultRunway();
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Base,
-            false,
-            null,
-            null,
-            null,
-            null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Jet,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Base,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         Assert.Equal(3, phases.Count);
@@ -560,20 +581,23 @@ public class PatternCircuitE2ETests : IDisposable
     {
         RunwayInfo rwy = DefaultRunway();
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            false,
-            null,
-            null,
-            null,
-            null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Jet,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Final,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         Assert.Equal(2, phases.Count);
@@ -586,20 +610,23 @@ public class PatternCircuitE2ETests : IDisposable
     {
         RunwayInfo rwy = DefaultRunway();
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            rwy,
-            AircraftCategory.Jet,
-            "",
-            0,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            true,
-            null,
-            null,
-            null,
-            null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Jet,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Left,
+                EntryLeg = PatternEntryLeg.Final,
+                TouchAndGo = true,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
 
         Assert.Equal(2, phases.Count);

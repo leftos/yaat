@@ -266,20 +266,23 @@ public class SaArmedForDownwindTests(ITestOutputHelper output)
         ac.Phases.LandingClearance = ClearanceType.ClearedTouchAndGo;
 
         List<Phase> phases = PatternBuilder.BuildCircuit(
-            oakRunway,
-            AircraftCategory.Piston,
-            "",
-            0,
-            PatternDirection.Right,
-            PatternEntryLeg.Upwind,
-            touchAndGo: true,
-            finalDistanceNm: null,
-            patternSizeNm: null,
-            altitudeOverrideFt: null,
-            airportRunways: null,
-            authoredRunway: null,
-            activeRunways: ActiveRunways.Empty,
-            commanded: PatternCommanded.None
+            new PatternCircuitRequest
+            {
+                Runway = oakRunway,
+                Category = AircraftCategory.Piston,
+                AircraftType = "",
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Upwind,
+                TouchAndGo = true,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = null,
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
         );
         foreach (Phase p in phases)
         {
