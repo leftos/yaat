@@ -35,12 +35,12 @@ public sealed class RouteChangeSpeedRevertTests
         TestVnasData.EnsureInitialized();
     }
 
-    private static AircraftState Airborne(double altitude, double ias, LatLon position, string destination = "KLAX")
+    private static AircraftState Airborne(double altitude, double ias, LatLon position, string destination = "KLAX", string type = "B738")
     {
         var ac = new AircraftState
         {
             Callsign = "SWA123",
-            AircraftType = "B738",
+            AircraftType = type,
             Position = position,
             TrueHeading = new TrueHeading(270),
             TrueTrack = new TrueHeading(270),
@@ -79,6 +79,17 @@ public sealed class RouteChangeSpeedRevertTests
         {
             FlightPhysics.Update(aircraft, 0.25);
         }
+    }
+
+    /// <summary>Flies <paramref name="aircraft"/> a second at a time until <paramref name="done"/> holds, failing otherwise.</summary>
+    private static void FlyUntil(AircraftState aircraft, Func<AircraftState, bool> done, string premise)
+    {
+        for (int second = 0; (second < 3_600) && !done(aircraft); second++)
+        {
+            FlySeconds(aircraft, 1);
+        }
+
+        Assert.True(done(aircraft), premise);
     }
 
     /// <summary>
@@ -258,6 +269,61 @@ public sealed class RouteChangeSpeedRevertTests
         Send(ac, "FH 270");
 
         Assert.Equal((double?)0.78, ac.Targets.TargetMach);
+    }
+
+    /// <summary>
+    /// YAAT-1686 (ruled in YAAT-1454): a plain DCT applies a pending Mach revert at once, above FL240 as the Mach the
+    /// crossing speed replaced, with no assignment left behind.
+    /// </summary>
+    [Fact]
+    public void MachCfixThenDct_HoldsTheMachAgain() => AssertAboveFl240HoldsTheMachAgain("DCT HEC");
+
+    /// <summary>YAAT-1686: the same for a constrained DCTF carrying an altitude and no speed.</summary>
+    [Fact]
+    public void MachCfixThenSpeedlessDctf_HoldsTheMachAgain() => AssertAboveFl240HoldsTheMachAgain("DCTF HEC/350");
+
+    /// <summary>
+    /// YAAT-1686: below FL240 a plain DCT applies the pending Mach revert as the IAS the handover gives it there, never the
+    /// crossing speed it replaced.
+    /// </summary>
+    [Fact]
+    public void MachCfixThenDct_BelowFl240_ResumesTheMachAsItsIas() => AssertBelowFl240ResumesTheMachAsItsIas("DCT HEC");
+
+    /// <summary>YAAT-1686: the same for a constrained DCTF carrying an altitude and no speed.</summary>
+    [Fact]
+    public void MachCfixThenSpeedlessDctf_BelowFl240_ResumesTheMachAsItsIas() => AssertBelowFl240ResumesTheMachAsItsIas("DCTF HEC/200");
+
+    private void AssertAboveFl240HoldsTheMachAgain(string routeChange)
+    {
+        AircraftState ac = Airborne(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000), EastOfPmd);
+        Send(ac, "MACH .78");
+        Send(ac, "CFIX PMD 350 250");
+        Assert.Equal((double?)0.78, ac.Targets.TargetMach);
+        Assert.Contains(ac.Targets.NavigationRoute, fix => fix.RevertMach is not null);
+
+        Send(ac, routeChange);
+
+        Assert.Equal((double?)0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.Null(ac.Targets.SpeedCeiling);
+    }
+
+    private void AssertBelowFl240ResumesTheMachAsItsIas(string routeChange)
+    {
+        AircraftState ac = Airborne(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000), position: EastOfPmd, type: "A320");
+        Send(ac, "MACH .78");
+        Send(ac, "CFIX PMD 200 250");
+        FlyUntil(ac, state => state.Altitude < 23_000, $"the aircraft never descended below FL230 before '{routeChange}'");
+        Assert.Contains(ac.Targets.NavigationRoute, fix => (fix.Name == "PMD") && (fix.RevertMach is not null));
+
+        Send(ac, routeChange);
+
+        double? assigned = ac.Targets.AssignedSpeed;
+        _output.WriteLine($"{routeChange} below FL240 at {ac.Altitude:F0} ft: target Mach {ac.Targets.TargetMach}, assigned {assigned}");
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.NotNull(assigned);
+        Assert.NotEqual((double?)CrossingSpeedKts, assigned);
+        Assert.Equal((double?)290, assigned);
     }
 
     /// <summary>

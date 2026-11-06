@@ -432,9 +432,10 @@ internal static class NavigationCommandHandler
         // goes first, where the handover drops it as flown and applies its reverts.
         NavigationTarget? existing = route.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
         // A crossing speed restated on a fix whose speed a controller already set, in any transmission, changes the
-        // crossing figure only: what the aircraft goes back to past the fix is still what the first crossing replaced
-        // A later speed instruction in between has already cleared the stamp (CancelEarlierCrossingSpeeds).
-        bool speedRestated = (speedRestriction is not null) && (existing?.SpeedTransmissionId is not null);
+        // crossing figure only: what the aircraft goes back to past the fix is still what the first crossing replaced.
+        // A fix whose crossing came outside a transmission carries no stamp but still holds its reverts, so it counts as a
+        // controller crossing too. A later speed instruction in between has already cleared both (CancelEarlierCrossingSpeeds).
+        bool speedRestated = (speedRestriction is not null) && (existing is not null) && FlightPhysics.IsControllerSetSpeed(existing);
         NavigationTarget fix = existing ?? new NavigationTarget { Name = cmd.FixName, Position = new LatLon(cmd.FixLat, cmd.FixLon) };
         if (existing is null)
         {

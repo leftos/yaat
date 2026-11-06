@@ -366,6 +366,39 @@ public sealed class SpeedEnvelopeCapTests
     }
 
     /// <summary>
+    /// YAAT-1686: a crossing speed restated outside any transmission (a queued block restored from a snapshot that predates
+    /// transmission ids) on a fix whose Mach revert carries no speed stamp keeps the Mach revert: the fix is still the
+    /// controller's crossing, flown at the new speed, and the Mach comes back past it.
+    /// </summary>
+    [Fact]
+    public void Mach_CrossingRestatedWithoutATransmission_OnAnUnstampedHolder_KeepsTheMachRevert()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+        DispatchContext noTransmission = TestDispatch.Context(new SerializableRandom(1));
+        Assert.Equal(0, noTransmission.TransmissionId);
+        Assert.True(NavigationCommandHandler.DispatchCrossFix(CrossFix("CFIX PMD 350 250"), ac, noTransmission).Success);
+        NavigationTarget pmd = Assert.Single(ac.Targets.NavigationRoute);
+        Assert.Null(pmd.SpeedTransmissionId);
+        Assert.Equal((double?)0.78, pmd.RevertMach);
+
+        // No speed targeted or assigned when the restate arrives, so the capture it would write is empty.
+        ac.Targets.AssignedSpeed = null;
+        ac.Targets.TargetSpeed = null;
+        Assert.True(NavigationCommandHandler.DispatchCrossFix(CrossFix("CFIX PMD 350 240"), ac, noTransmission).Success);
+
+        Assert.Equal((double?)0.78, pmd.RevertMach);
+        FlyUntilSequenced(ac, "PMD");
+        _output.WriteLine($"Sequenced PMD at {ac.IndicatedAirspeed:F1} KIAS, Mach {ac.Targets.TargetMach}, assigned {ac.Targets.AssignedSpeed}");
+        Assert.InRange(ac.IndicatedAirspeed, 238, 244);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    private static CrossFixCommand CrossFix(string text) =>
+        Assert.IsType<CrossFixCommand>(Assert.Single(Assert.Single(CommandParser.ParseCompound(text).Value!.Blocks).Commands));
+
+    /// <summary>
     /// YAAT-1422: a crossing speed issued on a fix before the one that holds the Mach revert leaves the revert where it is,
     /// on the route-order-last fix whose speed the controller set.
     /// </summary>
@@ -385,6 +418,72 @@ public sealed class SpeedEnvelopeCapTests
         Assert.Null(route[0].RevertMach);
         Assert.Equal((double?)0.78, route[1].RevertMach);
         Assert.Equal((bool?)true, route[1].RevertMachExplicit);
+    }
+
+    /// <summary>
+    /// YAAT-1446/YAAT-1686: a MACH in a later transmission than a crossing speed cancels that crossing; a CFIX then issued
+    /// on the earlier fix captures the Mach hold as its revert, so the aircraft crosses that fix at its speed and flies the
+    /// Mach past the later one.
+    /// </summary>
+    [Fact]
+    public void Mach_InALaterTransmissionAfterACrossing_CancelsTheCrossingAndKeepsTheMachPastBothFixes()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "DCT HEC PMD").Success);
+        Assert.True(Send(ac, "CFIX PMD 350 240").Success);
+        Assert.True(Send(ac, "MACH .78").Success);
+
+        List<NavigationTarget> route = ac.Targets.NavigationRoute;
+        NavigationTarget pmd = Assert.Single(route, fix => fix.Name == "PMD");
+        Assert.Null(pmd.SpeedRestriction);
+        Assert.Null(pmd.SpeedTransmissionId);
+        Assert.DoesNotContain(route, NavigationCommandHandler.HasSpeedRevert);
+
+        Assert.True(Send(ac, "CFIX HEC 350 250").Success);
+        Assert.Equal((double?)0.78, Assert.Single(ac.Targets.NavigationRoute, fix => fix.Name == "HEC").RevertMach);
+
+        FlyUntilSequenced(ac, "HEC");
+        _output.WriteLine($"Crossed HEC at {ac.IndicatedAirspeed:F0} KIAS, Mach {ac.Targets.TargetMach}");
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+
+        FlyUntilSequenced(ac, "PMD");
+        _output.WriteLine($"Crossed PMD at {ac.IndicatedAirspeed:F0} KIAS, Mach {ac.Targets.TargetMach}");
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// YAAT-1446/YAAT-1686: a MACH in the crossing's own transmission leaves the crossing standing and makes the Mach its
+    /// revert; a later CFIX on the earlier fix captures what the aircraft held then (the 240, with no speed to go back to),
+    /// and past the later fix the Mach comes back. The captured shape this test reads (an assigned speed with no
+    /// <c>RevertSpeed</c>) is the one YAAT-1918 leaves unapplied, so it will move when that defect is fixed.
+    /// </summary>
+    [Fact]
+    public void Mach_InTheCrossingsOwnTransmission_LeavesTheCrossingAndRevertsTheMachPastIt()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "DCT HEC PMD").Success);
+        Assert.True(Send(ac, "CFIX PMD 350 240, MACH .78").Success);
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal((double?)240, ac.Targets.AssignedSpeed);
+        NavigationTarget pmd = Assert.Single(ac.Targets.NavigationRoute, fix => fix.Name == "PMD");
+        Assert.Equal(240, pmd.SpeedRestriction?.SpeedKts);
+        Assert.Equal((double?)0.78, pmd.RevertMach);
+
+        Assert.True(Send(ac, "CFIX HEC 350 250").Success);
+        NavigationTarget hec = Assert.Single(ac.Targets.NavigationRoute, fix => fix.Name == "HEC");
+        Assert.Null(hec.RevertMach);
+        Assert.Equal((double?)240, hec.RevertAssignedSpeed);
+        Assert.Null(hec.RevertSpeed);
+        Assert.Equal((double?)0.78, pmd.RevertMach);
+
+        FlyUntilSequenced(ac, "HEC");
+
+        FlyUntilSequenced(ac, "PMD");
+        _output.WriteLine($"Crossed PMD at {ac.IndicatedAirspeed:F0} KIAS, Mach {ac.Targets.TargetMach}, assigned {ac.Targets.AssignedSpeed}");
+        Assert.InRange(ac.IndicatedAirspeed, 235, 245);
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
     }
 
     /// <summary>
@@ -418,6 +517,36 @@ public sealed class SpeedEnvelopeCapTests
         FlyUntilSequenced(ac, "PMD");
 
         _output.WriteLine($"Sequenced PMD at {ac.Altitude:F0} ft, Mach {ac.Targets.TargetMach}");
+        Assert.Equal(0.78, ac.Targets.TargetMach);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// YAAT-1422 (D2): the ruling holds with no altitude constraint at all: a constrained DCTF whose only constraint is a
+    /// speed still puts the Mach revert on that speed fix, and the Mach comes back past it.
+    /// </summary>
+    [Fact]
+    public void Mach_ConstrainedDctfSpeedOnAFixWithoutAltitude_RestoresTheMachPastIt_NoAltitudeConstraint()
+    {
+        AircraftState ac = A320At(altitude: 35_000, ias: WindInterpolator.MachToIas(0.78, 35_000));
+        Assert.True(Send(ac, "MACH .78").Success);
+
+        var direct = new ConstrainedForceDirectToCommand([RouteFix("HEC"), RouteFix("PMD")], [], new Dictionary<int, int> { [1] = 240 }, null);
+        CommandResult dct = CommandDispatcher.Dispatch(direct, ac, TestDispatch.Context(new SerializableRandom(1)));
+        Assert.True(dct.Success, dct.Message);
+
+        List<NavigationTarget> route = ac.Targets.NavigationRoute;
+        Assert.Equal(["HEC", "PMD"], route.Select(fix => fix.Name));
+        Assert.Null(route[0].AltitudeRestriction);
+        Assert.Null(route[0].SpeedRestriction);
+        Assert.Null(route[1].AltitudeRestriction);
+        Assert.Equal(240, route[1].SpeedRestriction?.SpeedKts);
+        Assert.Null(route[0].RevertMach);
+        Assert.Equal((double?)0.78, route[1].RevertMach);
+        Assert.False(NavigationCommandHandler.HasPlainRevert(route[1]));
+
+        FlyUntilSequenced(ac, "PMD");
+        _output.WriteLine($"Sequenced PMD at {ac.IndicatedAirspeed:F0} KIAS, Mach {ac.Targets.TargetMach}");
         Assert.Equal(0.78, ac.Targets.TargetMach);
         Assert.Null(ac.Targets.AssignedSpeed);
     }
