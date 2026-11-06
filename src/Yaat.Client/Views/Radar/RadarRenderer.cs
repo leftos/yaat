@@ -111,10 +111,14 @@ public sealed class RadarRenderer : IDisposable
     // color-independent, so a single font backs every color's label / restriction paint.
     private readonly SKFont _pathLabelFont = PlatformHelper.MonospaceFont(12);
     private readonly SKFont _pathRestrictionFont = PlatformHelper.MonospaceFont(10);
+
+    // Width of two spaces in the restriction font: the gap between a label line's tokens.
+    private readonly float _pathRestrictionTokenGap;
     private readonly SKPaint[] _pathLinePaints;
     private readonly SKPaint[] _pathWaypointPaints;
     private readonly SKPaint[] _pathLabelPaints;
     private readonly SKPaint[] _pathRestrictionPaints;
+    private readonly SKPaint[] _pathRestrictionLatentPaints;
     private readonly SKPaint[] _pathLeaderPaints;
     private readonly SKPaint[] _pathTailPaints;
 
@@ -140,6 +144,8 @@ public sealed class RadarRenderer : IDisposable
         _pathWaypointPaints = new SKPaint[colors.Length];
         _pathLabelPaints = new SKPaint[colors.Length];
         _pathRestrictionPaints = new SKPaint[colors.Length];
+        _pathRestrictionLatentPaints = new SKPaint[colors.Length];
+        _pathRestrictionTokenGap = _pathRestrictionFont.MeasureText("  ");
         _pathLeaderPaints = new SKPaint[colors.Length];
         _pathTailPaints = new SKPaint[colors.Length];
 
@@ -163,6 +169,9 @@ public sealed class RadarRenderer : IDisposable
             // Crossing altitude/speed labels — same route color, slightly smaller than the fix
             // name so they read as secondary detail hanging off the fix.
             _pathRestrictionPaints[i] = new SKPaint { Color = colors[i], IsAntialias = true };
+            // A latent restriction token (published on the route, not in force under the current
+            // clearance): the same route color at about 45% opacity.
+            _pathRestrictionLatentPaints[i] = new SKPaint { Color = colors[i].WithAlpha(115), IsAntialias = true };
             _pathLeaderPaints[i] = new SKPaint
             {
                 Color = colors[i].WithAlpha(150),
@@ -490,6 +499,23 @@ public sealed class RadarRenderer : IDisposable
         canvas.DrawText(text, x, baseline, SKTextAlign.Left, textFont, textPaint);
     }
 
+    private void DrawRestrictionTokens(SKCanvas canvas, IReadOnlyList<IReadOnlyList<NavRouteRestrictionToken>> lines, float x, float y, int paintIdx)
+    {
+        SKPaint activePaint = _pathRestrictionPaints[paintIdx];
+        SKPaint latentPaint = _pathRestrictionLatentPaints[paintIdx];
+        float ly = y;
+        foreach (IReadOnlyList<NavRouteRestrictionToken> line in lines)
+        {
+            float tx = x;
+            foreach (NavRouteRestrictionToken token in line)
+            {
+                canvas.DrawText(token.Text, tx, ly, SKTextAlign.Left, _pathRestrictionFont, token.Latent ? latentPaint : activePaint);
+                tx += _pathRestrictionFont.MeasureText(token.Text) + _pathRestrictionTokenGap;
+            }
+            ly += 11;
+        }
+    }
+
     private void DrawShownPaths(SKCanvas canvas, MapViewport vp, IReadOnlyList<ShownPathEntry> entries)
     {
         const float diamondSize = 5f;
@@ -506,7 +532,6 @@ public sealed class RadarRenderer : IDisposable
             SKPaint linePaint = _pathLinePaints[paintIdx];
             SKPaint wpPaint = _pathWaypointPaints[paintIdx];
             SKPaint labelPaint = _pathLabelPaints[paintIdx];
-            SKPaint restrictionPaint = _pathRestrictionPaints[paintIdx];
             SKPaint leaderPaint = _pathLeaderPaints[paintIdx];
             SKPaint tailPaint = _pathTailPaints[paintIdx];
 
@@ -545,15 +570,11 @@ public sealed class RadarRenderer : IDisposable
                 canvas.DrawText(wp.ResolvedName, wx + 8, wy - 4, SKTextAlign.Left, _pathLabelFont, labelPaint);
 
                 // Crossing restriction lines stacked under the fix name (e.g. "≥6000  250" or a
-                // window "≤17000" / "≥11000").
-                if (wp.RestrictionLines is { Count: > 0 } lines)
+                // window "≤17000" / "≥11000"), each line's tokens left to right two spaces apart; a
+                // latent token (published, not in force now) draws dimmed.
+                if (wp.RestrictionTokens is { Count: > 0 } lines)
                 {
-                    float ly = wy + 8;
-                    foreach (string line in lines)
-                    {
-                        canvas.DrawText(line, wx + 8, ly, SKTextAlign.Left, _pathRestrictionFont, restrictionPaint);
-                        ly += 11;
-                    }
+                    DrawRestrictionTokens(canvas, lines, wx + 8, wy + 8, paintIdx);
                 }
             }
 
@@ -996,6 +1017,7 @@ public sealed class RadarRenderer : IDisposable
             _pathWaypointPaints[i].Dispose();
             _pathLabelPaints[i].Dispose();
             _pathRestrictionPaints[i].Dispose();
+            _pathRestrictionLatentPaints[i].Dispose();
             _pathLeaderPaints[i].Dispose();
             _pathTailPaints[i].Dispose();
         }

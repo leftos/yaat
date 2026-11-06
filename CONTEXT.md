@@ -187,6 +187,10 @@ _Avoid_: active restriction (a restriction's speed applies whether or not its al
 The STAR or route fix a `CAPP` given while the aircraft is still on the STAR joins at (`PendingApproachInfo.ConnectingFix`), or the fix of a later direct that skips it. The approach's published altitudes bind only once the aircraft is past it; until then it keeps its last assigned altitude.
 _Avoid_: join fix
 
+**Latent restriction**:
+A published route altitude restriction the radar Show-nav-route overlay draws dimmed because it is on the route but does not bind now (`AltitudeRestrictionInForce.IsShownLatent`): it is not in force by its restriction source, or it is a published restriction above a climb via's "except maintain" top or below a descend via's bottom. Speeds are never latent.
+_Avoid_: inactive restriction, cancelled restriction (a maintain does not delete it, and a later via clearance makes it bind again)
+
 **Restriction source**:
 Who wrote a route altitude restriction (`CifpAltitudeRestriction.Source`, a `CifpAltitudeRestrictionSource`): Procedure (a SID's or STAR's published restriction, the default), Approach (a published approach-segment altitude inserted with an approach clearance), Atc (a controller's crossing, from a CFIX or constrained DCTF), or System (a point a phase inserts as the pilot's own plan: pattern entry, teardrop re-entry). It decides whether the altitude is in force.
 _Avoid_: crossing stamp (that one is the transmission id `CrossingTransmissionId`, which names the transmission, not the writer)

@@ -88,6 +88,33 @@ public class HubJsonContractTests
     public void ConflictAlertsChangedDto_ResolvesThroughYaatHubJsonContext() =>
         Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(ConflictAlertsChangedDto)));
 
+    // An aircraft update's nav-route fixes carry restriction tokens (text and latency per token, one list per label line)
+    // through the source-gen context and back; a fix from an older server, with lines only, reads with no tokens.
+    [Fact]
+    public void AircraftDto_NavRouteRestrictionTokens_RoundTripThroughYaatHubJsonContext()
+    {
+        const string json =
+            """{"Callsign":"UAL1","NavigationRoute":["""
+            + """{"Name":"SKUNK","Lat":37.9,"Lon":-122.4,"RestrictionLines":["≥8000  210"],"""
+            + """ "RestrictionTokens":[[{"Text":"≥8000","Latent":true},{"Text":"210","Latent":false}]]},"""
+            + """{"Name":"DOCKR","Lat":37.84,"Lon":-122.3,"RestrictionLines":["11000"]}]}""";
+
+        AircraftDto first = Assert.IsType<AircraftDto>(JsonSerializer.Deserialize(json, YaatHubJsonContext.Default.AircraftDto));
+        string written = JsonSerializer.Serialize(first, YaatHubJsonContext.Default.AircraftDto);
+        AircraftDto again = Assert.IsType<AircraftDto>(JsonSerializer.Deserialize(written, YaatHubJsonContext.Default.AircraftDto));
+
+        List<Yaat.Sim.NavRouteFixDto> route = Assert.IsType<List<Yaat.Sim.NavRouteFixDto>>(again.NavigationRoute);
+        List<List<Yaat.Sim.NavRouteRestrictionToken>> tokens = Assert.IsType<List<List<Yaat.Sim.NavRouteRestrictionToken>>>(
+            route[0].RestrictionTokens
+        );
+        Assert.Equal(
+            [new Yaat.Sim.NavRouteRestrictionToken("≥8000", true), new Yaat.Sim.NavRouteRestrictionToken("210", false)],
+            Assert.Single(tokens)
+        );
+        Assert.Null(route[1].RestrictionTokens);
+        Assert.Equal(["11000"], route[1].RestrictionLines);
+    }
+
     // The active-runways broadcast, the room-join field and the load result's session-setup prompt (both sections, the
     // assigned-runway counts included) and lowest worked level, in the server's wire shape.
     [Fact]

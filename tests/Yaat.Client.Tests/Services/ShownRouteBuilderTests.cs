@@ -54,7 +54,7 @@ public class ShownRouteBuilderTests
             Destination = Airport,
             ActiveStarId = "WNDSR2",
             DestinationRunway = RunwayDesignator,
-            NavRouteFixes = [new NavRouteFixDto("ENROU", 38.0, -122.5, null), new NavRouteFixDto("WNDSR", 37.85, -122.30, null)],
+            NavRouteFixes = [new NavRouteFixDto("ENROU", 38.0, -122.5, null, null), new NavRouteFixDto("WNDSR", 37.85, -122.30, null, null)],
         };
 
         (List<DrawnWaypoint>? waypoints, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
@@ -159,7 +159,7 @@ public class ShownRouteBuilderTests
             Destination = Airport,
             ActiveStarId = "WNDSR2",
             DestinationRunway = "1R",
-            NavRouteFixes = [new NavRouteFixDto("HOPTA", 37.78, -122.15, null)],
+            NavRouteFixes = [new NavRouteFixDto("HOPTA", 37.78, -122.15, null, null)],
         };
 
         (List<DrawnWaypoint> _, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
@@ -207,7 +207,7 @@ public class ShownRouteBuilderTests
             Destination = Airport,
             ActiveStarId = "WNDSR2",
             DestinationRunway = "1R",
-            NavRouteFixes = [new NavRouteFixDto("HOPTA", 37.78, -122.15, null)],
+            NavRouteFixes = [new NavRouteFixDto("HOPTA", 37.78, -122.15, null, null)],
         };
 
         (List<DrawnWaypoint> _, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
@@ -337,7 +337,7 @@ public class ShownRouteBuilderTests
         var ac = new AircraftModel
         {
             Callsign = "UAL101",
-            NavRouteFixes = [new NavRouteFixDto("ENROU", 38.0, -122.5, null), new NavRouteFixDto("WNDSR", 37.85, -122.30, null)],
+            NavRouteFixes = [new NavRouteFixDto("ENROU", 38.0, -122.5, null, null), new NavRouteFixDto("WNDSR", 37.85, -122.30, null, null)],
         };
 
         (List<DrawnWaypoint> _, VectorTail? tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
@@ -349,7 +349,7 @@ public class ShownRouteBuilderTests
     {
         // The overlay must draw the server-provided route positions directly — including synthetic
         // arc-densification vertices (empty name) that no navdb lookup could resolve — and carry each
-        // fix's pre-formatted crossing-restriction lines. No navDb resolution of names.
+        // fix's crossing-restriction tokens with their latency. No navDb resolution of names.
         var navDb = NavigationDatabase.ForTesting();
 
         var ac = new AircraftModel
@@ -357,10 +357,27 @@ public class ShownRouteBuilderTests
             Callsign = "UAL909",
             NavRouteFixes =
             [
-                new NavRouteFixDto("SKUNK", 37.90, -122.40, ["≥6000", "250"]),
-                new NavRouteFixDto("", 37.88, -122.36, null), // synthetic arc vertex
-                new NavRouteFixDto("", 37.86, -122.33, null), // synthetic arc vertex
-                new NavRouteFixDto("DOCKR", 37.84, -122.30, ["≤17000", "≥11000"]),
+                new NavRouteFixDto(
+                    "SKUNK",
+                    37.90,
+                    -122.40,
+                    ["≥6000  250"],
+                    [
+                        [Token("≥6000", latent: true), Token("250")],
+                    ]
+                ),
+                new NavRouteFixDto("", 37.88, -122.36, null, null), // synthetic arc vertex
+                new NavRouteFixDto("", 37.86, -122.33, null, null), // synthetic arc vertex
+                new NavRouteFixDto(
+                    "DOCKR",
+                    37.84,
+                    -122.30,
+                    ["≤17000", "≥11000"],
+                    [
+                        [Token("≤17000")],
+                        [Token("≥11000")],
+                    ]
+                ),
             ],
         };
 
@@ -373,17 +390,75 @@ public class ShownRouteBuilderTests
         Assert.Equal("SKUNK", waypoints[0].ResolvedName);
         Assert.Equal(37.90, waypoints[0].Lat, 6);
         Assert.Equal(-122.40, waypoints[0].Lon, 6);
-        Assert.Equal(["≥6000", "250"], waypoints[0].RestrictionLines);
+        Assert.Equal(["~≥6000~ 250"], RenderTokens(waypoints[0]));
 
         // Arc vertices preserved as bare points (empty name, no restriction).
         Assert.Equal("", waypoints[1].ResolvedName);
-        Assert.Null(waypoints[1].RestrictionLines);
+        Assert.Null(waypoints[1].RestrictionTokens);
         Assert.Equal("", waypoints[2].ResolvedName);
 
         // Window restriction preserved as two lines.
         Assert.Equal("DOCKR", waypoints[3].ResolvedName);
-        Assert.Equal(["≤17000", "≥11000"], waypoints[3].RestrictionLines);
+        Assert.Equal(["≤17000", "≥11000"], RenderTokens(waypoints[3]));
     }
+
+    /// <summary>A fix with label lines but no tokens (an older server's shape) draws no restriction label.</summary>
+    [Fact]
+    public void BuildPrimary_FixWithLinesButNoTokens_DrawsNoRestriction()
+    {
+        var ac = new AircraftModel { Callsign = "UAL910", NavRouteFixes = [new NavRouteFixDto("SKUNK", 37.90, -122.40, ["≥6000  250"], null)] };
+
+        (List<DrawnWaypoint>? waypoints, VectorTail? _) = ShownRouteBuilder.BuildPrimary(ac, NavigationDatabase.ForTesting());
+
+        DrawnWaypoint skunk = Assert.Single(waypoints);
+        Assert.Equal("SKUNK", skunk.ResolvedName);
+        Assert.Null(skunk.RestrictionTokens);
+    }
+
+    /// <summary>
+    /// The shown-path cache key moves when only a token's latency flips (same fix, same text), so the overlay redraws a
+    /// restriction that became active or latent.
+    /// </summary>
+    [Fact]
+    public void ShownPathFingerprint_ChangesWhenOnlyTokenLatencyFlips()
+    {
+        static AircraftModel Aircraft(bool latent) =>
+            new()
+            {
+                Callsign = "UAL911",
+                NavRouteFixes =
+                [
+                    new NavRouteFixDto(
+                        "SKUNK",
+                        37.90,
+                        -122.40,
+                        ["≥6000  250"],
+                        [
+                            [Token("≥6000", latent), Token("250")],
+                        ]
+                    ),
+                ],
+            };
+
+        Assert.NotEqual(
+            RadarViewModel.BuildShownPathFingerprint(Aircraft(latent: false)),
+            RadarViewModel.BuildShownPathFingerprint(Aircraft(latent: true))
+        );
+        Assert.Equal(
+            RadarViewModel.BuildShownPathFingerprint(Aircraft(latent: true)),
+            RadarViewModel.BuildShownPathFingerprint(Aircraft(latent: true))
+        );
+    }
+
+    private static NavRouteRestrictionToken Token(string text, bool latent = false) => new(text, latent);
+
+    /// <summary>Renders a waypoint's token lines one string per line, tokens joined by a space, a latent token as "~text~".</summary>
+    private static List<string> RenderTokens(DrawnWaypoint waypoint) =>
+        [
+            .. Assert
+                .IsAssignableFrom<IReadOnlyList<IReadOnlyList<NavRouteRestrictionToken>>>(waypoint.RestrictionTokens)
+                .Select(line => string.Join(" ", line.Select(t => t.Latent ? $"~{t.Text}~" : t.Text))),
+        ];
 
     [Fact]
     public void BuildExpectedApproach_NoTransition_PrependsFacReciprocalAnchor_AppendsRunwayThreshold()

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- The "Show nav route" overlay dims published altitude restrictions the current clearance does not bind; active altitudes and speeds draw as before.
+
 ### Fixed
 
 - A landing with no reachable exit stops on the runway and asks to back-taxi, instead of steering toward a ramp or parallel taxiway.

@@ -1665,7 +1665,7 @@ public partial class RadarViewModel(
         ShownShapes = shapes.Count > 0 ? shapes : null;
     }
 
-    private static string BuildShownPathFingerprint(AircraftModel ac)
+    internal static string BuildShownPathFingerprint(AircraftModel ac)
     {
         // Cache key must reflect every field ShownRouteBuilder reads. Otherwise toggling
         // EA / SID / STAR / DRWY / heading — or a CFIX that only changes a crossing restriction
@@ -1679,9 +1679,18 @@ public partial class RadarViewModel(
                 .Append(fix.Lat.ToString("F4", System.Globalization.CultureInfo.InvariantCulture))
                 .Append(',')
                 .Append(fix.Lon.ToString("F4", System.Globalization.CultureInfo.InvariantCulture));
-            if (fix.RestrictionLines is { } lines)
+            if (fix.RestrictionTokens is { } lines)
             {
-                sb.Append('[').Append(string.Join("/", lines)).Append(']');
+                sb.Append('[');
+                foreach (List<NavRouteRestrictionToken> line in lines)
+                {
+                    foreach (NavRouteRestrictionToken token in line)
+                    {
+                        sb.Append(token.Text).Append(token.Latent ? '~' : ' ');
+                    }
+                    sb.Append('/');
+                }
+                sb.Append(']');
             }
             sb.Append('>');
         }
@@ -1731,10 +1740,16 @@ public partial class RadarViewModel(
 /// <summary>
 /// A drawn waypoint on a radar route overlay. <see cref="ResolvedName"/> is empty for synthetic
 /// arc-densification vertices — those draw as bare polyline points (no diamond, label, or
-/// restriction). <see cref="RestrictionLines"/> holds the pre-formatted crossing altitude/speed
-/// label lines for a fix that carries one (null when unrestricted or in route-drawing mode).
+/// restriction). <see cref="RestrictionTokens"/> holds the crossing altitude/speed label lines for
+/// a fix that carries one, each line its tokens left to right, a latent token drawn dimmed (null
+/// when unrestricted, in route-drawing mode, or when the server sent no tokens).
 /// </summary>
-public record DrawnWaypoint(string ResolvedName, double Lat, double Lon, IReadOnlyList<string>? RestrictionLines = null);
+public record DrawnWaypoint(
+    string ResolvedName,
+    double Lat,
+    double Lon,
+    IReadOnlyList<IReadOnlyList<NavRouteRestrictionToken>>? RestrictionTokens = null
+);
 
 /// <summary>
 /// A flight path segment to render on the radar for a specific aircraft. One aircraft may

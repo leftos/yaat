@@ -12,6 +12,19 @@ namespace Yaat.Sim;
 ///
 /// <para><see cref="RestrictionLines"/> holds the pre-formatted crossing altitude/speed label lines
 /// (see <see cref="Data.Vnas.CrossingRestrictionLabel"/>) for a real fix that carries a controller
-/// (<c>CFIX</c>) or procedure-published restriction, or null when the fix is unrestricted.</para>
+/// (<c>CFIX</c>) or procedure-published restriction, or null when the fix is unrestricted. Older clients draw from it;
+/// it carries no latency.</para>
+///
+/// <para><see cref="RestrictionTokens"/> holds the same label lines as tokens (one inner list per line, its tokens left to
+/// right, from <see cref="Data.Vnas.CrossingRestrictionLabel.BuildTokenLines"/>), each marked latent when it is a published
+/// altitude restriction not in force under the current clearance; speed tokens are always active. Null when the fix is
+/// unrestricted; when an older server omits it, System.Text.Json supplies null for the missing constructor
+/// parameter.</para>
 /// </summary>
-public record NavRouteFixDto(string Name, double Lat, double Lon, List<string>? RestrictionLines);
+public record NavRouteFixDto(
+    string Name,
+    double Lat,
+    double Lon,
+    List<string>? RestrictionLines,
+    List<List<NavRouteRestrictionToken>>? RestrictionTokens
+);

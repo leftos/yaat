@@ -579,7 +579,7 @@ The Radar Display's **Show nav route** overlay (`ToggleShowPath` / `IsPathShown`
 **server-provided fix positions verbatim** — `ShownRouteBuilder` does not re-resolve fix names through the navigation database.
 Two wire channels feed it, both defined once in `Yaat.Sim` and carried on the training-hub aircraft DTO:
 
-- **`NavigationRoute` is `List<NavRouteFixDto>`** (`Name`, `Lat`, `Lon`, `RestrictionLines`), not a list of names. `AircraftModel` keeps the
+- **`NavigationRoute` is `List<NavRouteFixDto>`** (`Name`, `Lat`, `Lon`, `RestrictionLines`, `RestrictionTokens`), not a list of names. `AircraftModel` keeps the
   rich list as `NavRouteFixes` and derives the name-only `NavigationRoute` for `FixSuggester`, the context menu and the DataGrid.
   - **An empty `Name` is a synthetic arc-densification vertex** (RF/AF legs expanded to `ARCnn` points; `NavigationTarget.IsSyntheticArcName`
     recognizes the naming, the server-side DTO builder blanks it, `AircraftStatusDescriber` skips it). The overlay draws it as a bare polyline
@@ -587,17 +587,14 @@ Two wire channels feed it, both defined once in `Yaat.Sim` and carried on the tr
   - **Crossing restrictions are formatted server-side** into `RestrictionLines` by `Yaat.Sim.Data.Vnas.CrossingRestrictionLabel` (≥/≤ glyphs per
     AIM 5-4-5, `FL` at or above 18000, speed bare except an at-or-above floor `≥kts`, a window as two lines). Both the server route fingerprint
     and the client `BuildShownPathFingerprint` include the restriction text, so a CFIX-only change re-broadcasts and invalidates the overlay cache.
-- **`NavRouteShapes` is `List<NavRouteShapeDto>`** (`Kind`/`Points`/`Labels`), computed by `NavRouteOverlayProjector.BuildShapes` from the
+  - **`RestrictionTokens` carries the same lines with latency.** Each line is a list of `NavRouteRestrictionToken` (`Text`, `Latent`) from `CrossingRestrictionLabel.BuildTokenLines`; `RestrictionLines` is unchanged, so an older client still draws from it. It is null for an unrestricted fix or a synthetic arc vertex, and System.Text.Json supplies null when an older server omits it. A client that gets lines but no tokens draws no restriction label for that fix.
+  - **A latent altitude draws dimmed.** `DtoConverter.BuildNavigationRoute` marks an altitude latent through `AltitudeRestrictionInForce.IsShownLatent` (not in force by its source, or a published floor above a climb via's "except maintain" top, or a published ceiling below a descend via's bottom); speed tokens are never latent. `RadarRenderer.DrawRestrictionTokens` draws a line's tokens left to right two spaces apart, a latent one in the route colour at about 45% opacity. The server route fingerprint includes each altitude's latency, so a CM/DM, DVIA or CVIA re-sends the route for a stationary aircraft, and `BuildShownPathFingerprint` hashes the token latency.
+- **`NavRouteShapes` is `List<NavRouteShapeDto>`** (`Kind`/`Points`/`Labels`/`LabelLat`/`LabelLon`), computed by `NavRouteOverlayProjector.BuildShapes` from the
   aircraft's current phase for geometry the flat route cannot express: holding racetracks (`HoldingPatternPhase`), procedure turns
-  (`ProcedureTurnPhase`), and open-ended SID coded-leg vectors (`DepartureProcedurePhase.Legs`, dashed, each labeled via
-  `CrossingRestrictionLabel`). The client renders them as `ShownShapeEntry` in `RadarViewModel.RefreshShownPaths` → `RadarRenderer.DrawShownShapes`,
-  through the same `ShownPaths` plumbing. Only those three phase types are projected; coded-leg endpoints are nominal.
-  - **Published and active restrictions look the same.** The overlay draws a published SID/STAR crossing exactly like a controller-issued
-    `CFIX` one, but under AIM 5-2-9 / 5-4-1 a published crossing binds only under an active "climb via" / "descend via" clearance, AIM
-    5-2-9.10 cancels published SID *altitude* restrictions once ATC assigns an altitude (speed and lateral survive), and an ODP's crossings
-    (AIM 5-2-9.11) can never be cancelled. The overlay cannot read clearance state out of CIFP data, so distinguishing *active* from
-    *latent published* restrictions is open work; so is a racetrack for a hold that exists only as a route fix or as
-    `AirspaceBoundaryHoldPhase` / `VfrHoldPhase` (add cases to `NavRouteOverlayProjector.BuildShapes`).
+  (`ProcedureTurnPhase`), open-ended SID coded-leg vectors (`DepartureProcedurePhase.Legs`, dashed, each labeled via
+  `CrossingRestrictionLabel`), and the military route corridor (`MilitaryRoutePhase`, see [military-training-routes.md](military-training-routes.md)). The client renders them as `ShownShapeEntry` in `RadarViewModel.RefreshShownPaths` → `RadarRenderer.DrawShownShapes`,
+  through the same `ShownPaths` plumbing. Only those four phase types are projected; coded-leg endpoints are nominal.
+  - **Shape labels do not carry latency.** Under AIM 5-2-9 / 5-4-1 a published crossing binds only under an active "climb via" / "descend via" clearance, AIM 5-2-9.10 cancels published SID *altitude* restrictions once ATC assigns an altitude (speed and lateral survive), and an ODP's crossings (AIM 5-2-9.11) can never be cancelled. Only the fix labels on the flat route distinguish *latent* from active (above); the coded-leg labels on a shape draw as active. A racetrack for a hold that exists only as a route fix or as `AirspaceBoundaryHoldPhase` / `VfrHoldPhase` is open work (add cases to `NavRouteOverlayProjector.BuildShapes`).
 
 DME-arc legs with no charted turn direction take the minor (≤180°) arc via `GeoMath.ResolveArcTurnRight`; all three arc expanders
 (`DepartureClearanceHandler`, `ApproachCommandHandler`, `ProcedureLegResolver`) share it, so the overlay and the flown path agree.

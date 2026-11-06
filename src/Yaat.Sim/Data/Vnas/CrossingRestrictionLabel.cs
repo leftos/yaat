@@ -27,27 +27,48 @@ public static class CrossingRestrictionLabel
     /// Returns the ordered label lines for the given restrictions, or an empty list when the fix
     /// carries neither an altitude nor a speed restriction.
     /// </summary>
-    public static IReadOnlyList<string> BuildLines(CifpAltitudeRestriction? altitude, CifpSpeedRestriction? speed)
+    public static IReadOnlyList<string> BuildLines(CifpAltitudeRestriction? altitude, CifpSpeedRestriction? speed) =>
+        [.. BuildTokenLines(altitude, speed, altitudeLatent: false).Select(line => string.Join("  ", line.Select(t => t.Text)))];
+
+    /// <summary>
+    /// Returns the label lines as tokens, laid out as <see cref="BuildLines"/> lays out its lines (a line's tokens joined
+    /// with two spaces are that line), or an empty list when the fix carries neither restriction. Every altitude token
+    /// carries <paramref name="altitudeLatent"/>; every speed token is active.
+    /// </summary>
+    /// <param name="altitude">The fix's altitude restriction, or null.</param>
+    /// <param name="speed">The fix's speed restriction, or null.</param>
+    /// <param name="altitudeLatent">Whether the altitude restriction is published but not in force now.</param>
+    /// <returns>The ordered label lines, each its tokens left to right.</returns>
+    public static IReadOnlyList<IReadOnlyList<NavRouteRestrictionToken>> BuildTokenLines(
+        CifpAltitudeRestriction? altitude,
+        CifpSpeedRestriction? speed,
+        bool altitudeLatent
+    )
     {
         List<string> altLines = BuildAltitudeLines(altitude);
-        string? speedToken = FormatSpeed(speed);
+        string? speedText = FormatSpeed(speed);
+        NavRouteRestrictionToken? speedToken = speedText is null ? null : new NavRouteRestrictionToken(speedText, Latent: false);
 
         if (altLines.Count <= 1)
         {
-            string combined = altLines.Count == 1 ? altLines[0] : "";
+            var combined = new List<NavRouteRestrictionToken>(2);
+            if (altLines.Count == 1)
+            {
+                combined.Add(new NavRouteRestrictionToken(altLines[0], altitudeLatent));
+            }
             if (speedToken is not null)
             {
-                combined = combined.Length == 0 ? speedToken : $"{combined}  {speedToken}";
+                combined.Add(speedToken);
             }
-            return combined.Length == 0 ? [] : [combined];
+            return combined.Count == 0 ? [] : [combined];
         }
 
         // Window: two altitude lines (ceiling over floor); speed, if any, on its own line below.
-        var lines = new List<string>(altLines.Count + 1);
-        lines.AddRange(altLines);
+        var lines = new List<IReadOnlyList<NavRouteRestrictionToken>>(altLines.Count + 1);
+        lines.AddRange(altLines.Select(text => (IReadOnlyList<NavRouteRestrictionToken>)[new NavRouteRestrictionToken(text, altitudeLatent)]));
         if (speedToken is not null)
         {
-            lines.Add(speedToken);
+            lines.Add([speedToken]);
         }
         return lines;
     }

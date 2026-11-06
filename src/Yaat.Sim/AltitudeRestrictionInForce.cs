@@ -79,6 +79,51 @@ internal static class AltitudeRestrictionInForce
     }
 
     /// <summary>
+    /// Whether the nav-route overlay draws <paramref name="restriction"/> as latent (on the route but not binding now): it
+    /// is not in force by its source (<see cref="IsInForce"/>), or it is a published procedure restriction whose floor is
+    /// above a climb via's "except maintain" top (<see cref="AircraftProcedure.SidViaCeiling"/>) or whose ceiling is below
+    /// a descend via's bottom (<see cref="AircraftProcedure.StarViaFloor"/>), which the pilot does not fly to
+    /// (AIM 5-2-9.h.8 Example 4 NOTE; 7110.65 4-5-7.h.11 Example NOTE).
+    /// </summary>
+    /// <param name="aircraft">The aircraft flying the route.</param>
+    /// <param name="restriction">A route fix's altitude restriction.</param>
+    /// <returns>True when the overlay shows the restriction latent.</returns>
+    internal static bool IsShownLatent(AircraftState aircraft, CifpAltitudeRestriction restriction)
+    {
+        if (!IsInForce(aircraft, restriction))
+        {
+            return true;
+        }
+
+        if (restriction.Source != CifpAltitudeRestrictionSource.Procedure)
+        {
+            return false;
+        }
+
+        bool aboveTop = (aircraft.Procedure.SidViaCeiling is { } top) && (Floor(restriction) is { } floor) && (floor > top);
+        bool belowBottom = (aircraft.Procedure.StarViaFloor is { } bottom) && (Ceiling(restriction) is { } ceiling) && (ceiling < bottom);
+        return aboveTop || belowBottom;
+    }
+
+    /// <summary>The lowest altitude <paramref name="restriction"/> allows at its fix, or null when it sets no floor.</summary>
+    private static int? Floor(CifpAltitudeRestriction restriction) =>
+        restriction.Type switch
+        {
+            CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrAbove or CifpAltitudeRestrictionType.GlideSlopeIntercept =>
+                restriction.Altitude1Ft,
+            CifpAltitudeRestrictionType.Between => restriction.Altitude2Ft,
+            _ => null,
+        };
+
+    /// <summary>The highest altitude <paramref name="restriction"/> allows at its fix, or null when it sets no ceiling.</summary>
+    private static int? Ceiling(CifpAltitudeRestriction restriction) =>
+        restriction.Type switch
+        {
+            CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between => restriction.Altitude1Ft,
+            _ => null,
+        };
+
+    /// <summary>
     /// Whether a deferred approach clearance is held and the aircraft is past the fix the approach joins
     /// (<see cref="Phases.PendingApproachInfo.ConnectingFix"/>): that fix is no longer on the route, by a case-insensitive
     /// name match, whether it was sequenced or dropped by a direct. A clearance with no connecting fix (restored from a

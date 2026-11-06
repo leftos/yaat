@@ -156,7 +156,7 @@ internal static class ShownRouteBuilder
         var result = new List<DrawnWaypoint>(ac.NavRouteFixes.Count);
         foreach (NavRouteFixDto fix in ac.NavRouteFixes)
         {
-            result.Add(new DrawnWaypoint(fix.Name, fix.Lat, fix.Lon, fix.RestrictionLines));
+            result.Add(new DrawnWaypoint(fix.Name, fix.Lat, fix.Lon, fix.RestrictionTokens));
         }
         return result;
     }
