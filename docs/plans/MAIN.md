@@ -211,7 +211,7 @@
 - [ ] YAAT-1668 Move TryDepartureClearance and LineUpFromHoldShort to a request record (9 positional parameters)
 - [ ] YAAT-1278 Move the follower hold-line tests to the gear-aware IsInsideHoldLine and delete the bare-point wrapper
 - [ ] YAAT-1420 Read a hold-short stop's setback from the annotator instead of re-deriving it from its position (bend and turn-about windows)
-- [ ] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head · release vNext
+- [/] YAAT-1288 Reuse the lineup-bar shadow routes and judge side from the search head · release vNext
 - [ ] YAAT-1290 Pass a taxi class record instead of the category and wake-class pair in the lineup-bar and explicit-path APIs · release vNext
 - [ ] YAAT-1770 Hold-short hand-off tests: walk-back over a fillet segment, second restore, entry bar
 - [ ] YAAT-1773 Far-side gate test: a commanded SPD below the crossing floor sizes the look-ahead
@@ -1095,11 +1095,10 @@
 - [ ] YAAT-1736 Overlapping CRC alias reloads corrupt the alias table (903 of 15341 aliases until the next reload)
 - [ ] YAAT-1887 Filter the speed picker by the flown type for an aircraft with no flight plan (150-350 kt list today)
 
-### 2 Refinements and rulings (2/15 done)
+### 2 Refinements and rulings (3/15 done)
 - [ ] YAAT-99 Add the ATPA in-trail line to EuroScope tags; required view-model ctor params
 - [ ] YAAT-101 Nav-route overlay: tell active from latent restrictions; draw route-fix holds · release vNext
   - [ ] YAAT-1895 Nav-route overlay: dim latent published speed restrictions, judged fix by fix · release vNext
-  - [/] YAAT-1896 Nav-route overlay: draw queued holds dashed and VFR/boundary orbits as circles · release vNext
 - [ ] YAAT-102 Inspect Discord's SET_ACTIVITY response and add an AppLog capture seam
 - [ ] YAAT-105 Show the sim's Zulu clock on the Radar and Ground views, CRC-style
 - [ ] YAAT-340 Quick commands as an Import / Export hub item type
