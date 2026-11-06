@@ -22,9 +22,6 @@
 ## Bug reports and feature requests
 
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
-- [/] YAAT-1518 Keep the traffic callsign out of the pilot's RTIS 'negative contact, looking' answer · release vNext
-- [/] YAAT-1679 Read back 'at {taxiway}' when CTO RWY departs from a runway crossing hold · release vNext
-- [/] YAAT-1681 Runway-change warning says 'taxi clearance' when a CTO changed the runway · release vNext
 
 ## Context-menu quick commands (#471)
 
