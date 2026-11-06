@@ -186,12 +186,10 @@
 - [ ] YAAT-1809 Make the two G8 fouling judges (FollowingPhase, RunwayOccupancy) judge against the same bar
 - [ ] YAAT-1811 Far-side gate: a tail clearance spanning a cleared next-runway near bar hides it from the onward scan
 
-### 2 Refinements and rulings (0/18 done)
+### 2 Refinements and rulings (2/18 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
-- [/] YAAT-1407 Key the snapped-bar escape ceiling on the same taxiway's farthest painted bar, not the runway's · release vNext
 - [ ] YAAT-755 Use one readback for an aircraft stopped over a runway's hold line
 - [ ] YAAT-806 Cap a normal runway crossing near 20 kt for jets and turboprops
-- [/] YAAT-1300 Cap the occupied-runway go-around edge band at the judged bar's hold line, not only S · release vNext
 - [ ] YAAT-808 Decide whether a ramp fillet arc counts as a hold-short junction leg
 - [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S · release vNext
 - [ ] YAAT-944 Add the 10 ft margin to every runway crossing's tail clearance
@@ -264,7 +262,7 @@
 - [ ] YAAT-1291 Keep the landing straight-line exit fallback from taking a near-parallel taxiway as a high-speed exit (OAK 30 W at 3°)
 - [ ] YAAT-1293 Refused standard exit says 'no exit ahead' while the branch is still ahead
 
-### 2 Refinements and rulings (0/13 done)
+### 2 Refinements and rulings (0/14 done)
 - [ ] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates · release vNext
 - [ ] YAAT-1302 Bring a runway exit's tail-clear arrival to one sub-tick of braking before CompleteExit
 - [ ] YAAT-1303 Stop an expedited runway exit at the taxi rate once its tail is clear
@@ -278,6 +276,7 @@
 - [ ] YAAT-1283 Turn off at a crawl on reverse exits: cap the turn-off speed by the exit angle above 90°
 - [ ] YAAT-1297 Let a runway exit that rolls on into a stored taxi route keep rolling instead of planning a stop at its end
 - [ ] YAAT-1772 Vary each landing's touchdown point by a seeded random distance into the touchdown zone
+- [ ] YAAT-1899 LAHSO rollout coasts at 40 kt up to the hold-short line instead of braking early
 
 ### 3 Hygiene and tests (2/8 done)
 - [ ] YAAT-1348 Pin YAAT-1328's landing-planner exit skip, FindExitBehind skip and no-exit-fits fallback with tests
@@ -667,10 +666,9 @@
 - [ ] YAAT-1849 Restore the earlier SPD past a crossing when the SPD target was already reached
 - [ ] YAAT-1853 Slow to the holding speed 3 minutes before the hold fix
 
-### 2 Refinements and rulings (0/19 done)
+### 2 Refinements and rulings (1/19 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
-- [/] YAAT-1430 Refine the speed-envelope unable: 5 kt rounding, Mach answers in Mach, same-block altitude · release vNext
 - [ ] YAAT-1431 Check the profile schedule floor's Mach above the crossover against each type's Mmo · release vNext
 - [ ] YAAT-1435 Fly Vmo by altitude band for types whose TCDS bands it (DH8D, MD11, CL60, LJ35, GLEX, B463, E170, JS20, CRJ) · release vNext
 - [ ] YAAT-1436 Source the speed limits YAAT-1423 left unsourced (LJ60, GLF5, F50, KC-135, C-5M, C-141, H60 Vne) · release vNext
@@ -688,12 +686,13 @@
 - [ ] YAAT-1851 Make a same-transmission crossing and SPD agree under a follow, and rule on speeding up to slow down
 - [ ] YAAT-1888 Count a DVIA or CVIA later in the block when judging a speed at the block's altitude
 
-### 3 Hygiene and tests (0/5 done)
+### 3 Hygiene and tests (0/6 done)
 - [ ] YAAT-117 Split FlightPhysics.UpdateSpeed into layer helpers (complexity ≤8)
 - [ ] YAAT-1682 Split FlightPhysics.UpdateNavigation under the 100-line limit
 - [ ] YAAT-1687 Split ApplyConstrainedForceDirectTo and DispatchCrossFix under 100 lines
 - [ ] YAAT-1802 Split ApplyConstrainedForceDirectTo under the 100-line limit
 - [ ] YAAT-1804 Measure the per-tick cost of FinalGateRunway for every arrival with a route
+- [ ] YAAT-1897 Speed flyout: an unprofiled jet at FL650 gets knots but no Mach rows (non-monotonic SpeedValues)
 
 ### No milestone
 - [ ] YAAT-1523 Apply or refuse an SPD/MACH given beside CTO in a phase-handled block instead of dropping it silently
@@ -774,7 +773,7 @@
 - [ ] YAAT-1403 Keep approach transition and last STAR speed true after a later DCT or approach clearance (YAAT-1356 review)
 - [ ] YAAT-1886 Report the commanded descent rate on a pre-FAF continuous descent (ApproachNavigationPhase snaps VerticalSpeed to 0)
 
-### 2 Refinements and rulings (0/8 done)
+### 2 Refinements and rulings (0/9 done)
 - [ ] YAAT-193 Add the HOLDP EFC argument and release path
 - [ ] YAAT-915 Keep the route to the fix for HOLDP and DEPART instead of going direct
 - [ ] YAAT-913 Read charted enroute holds from CIFP
@@ -783,6 +782,7 @@
 - [ ] YAAT-938 Default approach and missed-approach hold legs to the altitude standard
 - [ ] YAAT-940 Re-time a standard-leg hold when its altitude crosses 14,000 ft
 - [ ] YAAT-1145 Clear circling approaches (CAPP VOR-A) instead of refusing them
+- [ ] YAAT-1898 Decide how fast a captured aircraft below the glidepath recovers to it
 
 ### 3 Hygiene and tests (0/3 done)
 - [ ] YAAT-147 Give ApproachGateDatabase a scoped override; fix the XRWY refusal wording
@@ -1090,9 +1090,12 @@
 - [ ] YAAT-1736 Overlapping CRC alias reloads corrupt the alias table (903 of 15341 aliases until the next reload)
 - [ ] YAAT-1887 Filter the speed picker by the flown type for an aircraft with no flight plan (150-350 kt list today)
 
-### 2 Refinements and rulings (0/12 done)
+### 2 Refinements and rulings (1/15 done)
 - [ ] YAAT-99 Add the ATPA in-trail line to EuroScope tags; required view-model ctor params
 - [ ] YAAT-101 Nav-route overlay: tell active from latent restrictions; draw route-fix holds · release vNext
+  - [/] YAAT-1894 Nav-route overlay: dim latent published altitude restrictions · release vNext
+  - [ ] YAAT-1895 Nav-route overlay: dim latent published speed restrictions, judged fix by fix · release vNext
+  - [ ] YAAT-1896 Nav-route overlay: draw queued holds dashed and VFR/boundary orbits as circles · release vNext
 - [ ] YAAT-102 Inspect Discord's SET_ACTIVITY response and add an AppLog capture seam
 - [ ] YAAT-105 Show the sim's Zulu clock on the Radar and Ground views, CRC-style
 - [ ] YAAT-340 Quick commands as an Import / Export hub item type
@@ -1102,9 +1105,8 @@
 - [ ] YAAT-843 Send the field and traffic in-sight flags for VFR aircraft
 - [ ] YAAT-1088 Name the fix in the Warp flyout's reading line (SFO · San Francisco VOR)
 - [ ] YAAT-1368 Offer Resume published speed (RPS) in the speed context menus beside RNS
-- [/] YAAT-1424 Offer only flyable speeds in the client's speed picker (MenuCatalog, SpeedFlyout read the Vmo/Mmo/minimum lookup) · release vNext
 
-### 3 Hygiene and tests (0/14 done)
+### 3 Hygiene and tests (0/15 done)
 - [ ] YAAT-98 Observe and log a throwing onSubmit in MenuPopups' text-entry popup
 - [ ] YAAT-104 Share one runway-ends helper between RunwayFlyout and Core
 - [ ] YAAT-211 Split RadarCanvas.OnPointerPressed into one helper per ladder rung
@@ -1119,6 +1121,7 @@
 - [ ] YAAT-1113 Group MenuSession's solo-training fields to bring it under five parameters
 - [ ] YAAT-1725 Convert [ObservableProperty] fields to partial properties across the client projects
 - [ ] YAAT-1726 Check MainWindow's multi-line Run text for doubled spaces
+- [ ] YAAT-1900 Remove NavRouteFixDto.RestrictionLines at the next Minimum-client bump
 
 ## Client-driver MCP and automation pipe
 
