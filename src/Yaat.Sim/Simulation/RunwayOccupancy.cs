@@ -237,13 +237,30 @@ public static class RunwayOccupancy
 
         var body = AircraftBody.Of(ac.AircraftType);
         (LatLon, double) pose = (ac.Position, ac.TrueHeading.Degrees);
-        GroundNode? farBar = CrossingFarBarOf(ac, runway, layout, ac.Position);
-        bool pastTheMarking =
-            (farBar is not null)
-                ? TailInsideTheMarking(layout, runway, body, pose, farBar)
-                : AnyPartPastTheMarking(layout, runway, body, PartsJudged(ac, runway, layout, body), pose);
+        (GroundNode? bar, bool farSide) = FoulingBar(ac, runway, layout);
+        bool pastTheMarking = farSide
+            ? TailInsideTheMarking(layout, runway, body, pose, bar)
+            : AnyPartPastTheMarking(layout, runway, body, PartsJudged(ac, runway, layout, body), pose, bar);
         return pastTheMarking && (IsStoppedOrRestricted(ac, runway, layout, body) || IsApproachingToHoldShort(ac, runway, layout, body));
     }
+
+    /// <summary>
+    /// The bar an aircraft off <paramref name="runway"/>'s pavement is judged <see cref="RunwayUseKind.Fouling"/> against
+    /// (<see cref="FoulsHoldLine"/>): on the far side of a crossing of this runway, the crossing's far bar
+    /// (<see cref="CrossingFarBarOf"/>); otherwise the nearest of the runway's bars on its main gear's side
+    /// (<see cref="RunwayHoldBars.NearestSameSideBar"/>). Null when that side has no bar.
+    /// </summary>
+    /// <param name="ac">The aircraft.</param>
+    /// <param name="runway">The runway.</param>
+    /// <param name="layout">The ground layout of the runway's airport.</param>
+    /// <returns>The judged bar, or null.</returns>
+    internal static GroundNode? FoulingBarOf(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout) => FoulingBar(ac, runway, layout).Bar;
+
+    /// <summary>The bar of <see cref="FoulingBarOf"/>, and whether it is a crossing's far bar.</summary>
+    private static (GroundNode? Bar, bool FarSide) FoulingBar(AircraftState ac, RunwayInfo runway, AirportGroundLayout layout) =>
+        CrossingFarBarOf(ac, runway, layout, ac.Position) is { } farBar
+            ? (farBar, true)
+            : (RunwayHoldBars.NearestSameSideBar(layout, runway, ac.Position), false);
 
     /// <summary>
     /// Whether an aircraft on the ground has a judged part (<see cref="PartsJudged"/>) past <paramref name="runway"/>'s holding
@@ -263,7 +280,14 @@ public static class RunwayOccupancy
 
         var body = AircraftBody.Of(ac.AircraftType);
         (LatLon, double) pose = (ac.Position, ac.TrueHeading.Degrees);
-        return AnyPartPastTheMarking(layout, runway, body, PartsJudged(ac, runway, layout, body), pose);
+        return AnyPartPastTheMarking(
+            layout,
+            runway,
+            body,
+            PartsJudged(ac, runway, layout, body),
+            pose,
+            RunwayHoldBars.NearestSameSideBar(layout, runway, ac.Position)
+        );
     }
 
     /// <summary>
@@ -313,7 +337,7 @@ public static class RunwayOccupancy
     {
         if (farBar is null)
         {
-            return AnyPartPastTheMarking(layout, runway, body, TailOnly, pose);
+            return AnyPartPastTheMarking(layout, runway, body, TailOnly, pose, RunwayHoldBars.NearestSameSideBar(layout, runway, pose.Position));
         }
 
         LatLon tail = body.PointOf(AircraftBodyPart.Tail, pose.Position, pose.HeadingDeg);
@@ -567,15 +591,17 @@ public static class RunwayOccupancy
     /// Whether any of <paramref name="parts"/> of <paramref name="body"/> at <paramref name="pose"/> (main-gear position, heading
     /// deg true) lies over <paramref name="runway"/>'s strict paved half-width (<see cref="IsOverStrictPavement"/>), whatever the
     /// bars, or more than <see cref="HoldLineFoulToleranceFt"/> past its holding position marking (<see cref="DepthPastMarkingFt"/>),
-    /// against the nearest of the runway's bars on the pose's side (<see cref="RunwayHoldBars.NearestSameSideBar"/>, found once for
-    /// the pose). Off the pavement, false when that side has no bar.
+    /// against <paramref name="bar"/>, the nearest of the runway's bars on the pose's side
+    /// (<see cref="RunwayHoldBars.NearestSameSideBar"/>, found once for the pose by the caller). Off the pavement, false when that
+    /// side has no bar.
     /// </summary>
     private static bool AnyPartPastTheMarking(
         AirportGroundLayout layout,
         RunwayInfo runway,
         AircraftBody body,
         AircraftBodyPart[] parts,
-        (LatLon Position, double HeadingDeg) pose
+        (LatLon Position, double HeadingDeg) pose,
+        GroundNode? bar
     )
     {
         if (AnyPartOverStrictPavement(body, parts, pose, runway))
@@ -583,7 +609,7 @@ public static class RunwayOccupancy
             return true;
         }
 
-        if (RunwayHoldBars.NearestSameSideBar(layout, runway, pose.Position) is not { } bar)
+        if (bar is null)
         {
             return false;
         }
@@ -785,7 +811,14 @@ public static class RunwayOccupancy
                 (holdShort is { IsCleared: false, Latitude: { } lat, Longitude: { } lon }) ? new LatLon(lat, lon) : segment.Edge.ToNode.Position;
             double headingDeg = GeoMath.BearingTo(segment.Edge.FromNode.Position, segment.Edge.ToNode.Position);
             LatLon position = uncleared ? NoseAt(stop, headingDeg, body) : stop;
-            return AnyPartPastTheMarking(layout, runway, body, PartsJudgedAt(body, (position, headingDeg), runway), (position, headingDeg));
+            return AnyPartPastTheMarking(
+                layout,
+                runway,
+                body,
+                PartsJudgedAt(body, (position, headingDeg), runway),
+                (position, headingDeg),
+                RunwayHoldBars.NearestSameSideBar(layout, runway, position)
+            );
         }
 
         return false;

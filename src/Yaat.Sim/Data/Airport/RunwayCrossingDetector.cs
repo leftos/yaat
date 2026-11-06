@@ -302,7 +302,7 @@ internal static class RunwayCrossingDetector
         if ((pair is { } snapped) && (placement.Bar is { } bar) && (bar.RunwayId is { } barRunway) && barRunway.Equals(rect.CombinedId))
         {
             bar.PaintSegmentIndex = snapped.SegmentIndex;
-            seating.SnappedBars.Add(new SnappedBar(bar, rect, snapped.PaintFt));
+            seating.SnappedBars.Add(new SnappedBar(bar, rect, snapped.PaintFt, crossing.Edge.TaxiwayName));
         }
     }
 
@@ -1638,9 +1638,14 @@ internal static class RunwayCrossingDetector
     /// than back down the branch to the bar and onto the runway, reaches another bar of the runway within the holding
     /// distance. OAK P ends at J, whose 28R bar is a few feet on. Runs once every runway's bars are placed, so the verdict
     /// does not depend on the order runways and taxiways were processed in; a fallback bar never counts as the bar a
-    /// route reaches. A dropped bar reverts to the node it was, keeping every node id.
+    /// route reaches. A dropped bar reverts to the node it was, keeping every node id. A route is judged against the ceiling
+    /// of the taxiway it walks along (<see cref="EscapeCeilingFt"/>, from <paramref name="paintByTaxiway"/>).
     /// </summary>
-    internal static void DropRedundantFallbackBars(AirportGroundLayout layout, List<FallbackBar> fallbackBars)
+    internal static void DropRedundantFallbackBars(
+        AirportGroundLayout layout,
+        List<FallbackBar> fallbackBars,
+        IReadOnlyDictionary<(RunwayIdentifier Runway, string Taxiway), double> paintByTaxiway
+    )
     {
         if (fallbackBars.Count == 0)
         {
@@ -1651,7 +1656,7 @@ internal static class RunwayCrossingDetector
         var fallbackIds = new HashSet<int>(fallbackBars.Select(fallback => fallback.Bar.Id));
         foreach (FallbackBar fallback in fallbackBars)
         {
-            if (!EveryRouteOutReachesBar(fallback, adjacency, fallbackIds))
+            if (!EveryRouteOutReachesBar(fallback, adjacency, fallbackIds, paintByTaxiway))
             {
                 Log.LogDebug(
                     "Hold-short dead-end bar #{Bar} for {Runway} kept: a route out of junction #{Junction} passes the holding distance without a bar",
@@ -1736,21 +1741,62 @@ internal static class RunwayCrossingDetector
     /// <summary>
     /// Shortest-path walk out of the fallback's junction, not back to its bar: true when every route stops at a bar of
     /// the runway (not another fallback bar), on the runway, or at a dead end before passing the holding distance or the
-    /// holding distance's worth of taxiing.
+    /// holding distance's worth of taxiing. A node is judged against the ceiling of the taxiway of every edge it is reached
+    /// along (the junction itself against the rule's), so a step along a painted taxiway raises the ceiling for that edge
+    /// alone; the distance budget is judged on the nearest arrival.
     /// </summary>
-    private static bool EveryRouteOutReachesBar(FallbackBar fallback, Dictionary<int, List<GroundEdge>> adjacency, HashSet<int> fallbackIds)
+    private static bool EveryRouteOutReachesBar(
+        FallbackBar fallback,
+        Dictionary<int, List<GroundEdge>> adjacency,
+        HashSet<int> fallbackIds,
+        IReadOnlyDictionary<(RunwayIdentifier Runway, string Taxiway), double> paintByTaxiway
+    )
     {
-        var bestFt = new Dictionary<int, double> { [fallback.Junction.Id] = 0 };
-        var frontier = new PriorityQueue<GroundNode, double>();
-        frontier.Enqueue(fallback.Junction, 0);
-        while (frontier.TryDequeue(out GroundNode? node, out double distFt))
+        var walk = new RouteWalk(fallback, fallbackIds, paintByTaxiway);
+        walk.Frontier.Enqueue((fallback.Junction, []), 0);
+        while (walk.Frontier.TryDequeue(out (GroundNode Node, IReadOnlyList<string> StepTaxiways) entry, out double distFt))
         {
-            if (distFt > bestFt[node.Id])
+            if (!walk.Expand(entry, distFt, adjacency))
             {
-                continue;
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The walk out of a fallback junction (<see cref="EveryRouteOutReachesBar"/>): the fallback bar and the paint its
+    /// runway's ceilings are raised by, the nearest distance known for each node reached, the frontier still to expand and
+    /// the fallback bars a route may not stop at.
+    /// </summary>
+    private sealed class RouteWalk(
+        FallbackBar fallback,
+        HashSet<int> fallbackIds,
+        IReadOnlyDictionary<(RunwayIdentifier Runway, string Taxiway), double> paintByTaxiway
+    )
+    {
+        public Dictionary<int, double> BestFt { get; } = new() { [fallback.Junction.Id] = 0 };
+
+        public PriorityQueue<(GroundNode Node, IReadOnlyList<string> StepTaxiways), double> Frontier { get; } = new();
+
+        /// <summary>
+        /// Judges one arrival and expands it: false when some route out of the junction passes the holding distance without a
+        /// bar (<see cref="ClassifyRouteNode"/>), else true.
+        /// </summary>
+        /// <param name="entry">The node dequeued and the taxiway names of the edge the walk reached it along.</param>
+        /// <param name="distFt">The distance along the walk to it (ft).</param>
+        /// <param name="adjacency">Each node's non-centerline edges.</param>
+        /// <returns>False when a route out escapes.</returns>
+        public bool Expand((GroundNode Node, IReadOnlyList<string> StepTaxiways) entry, double distFt, Dictionary<int, List<GroundEdge>> adjacency)
+        {
+            GroundNode node = entry.Node;
+            if (distFt > BestFt[node.Id])
+            {
+                return true;
             }
 
-            RouteNode verdict = ClassifyRouteNode(fallback, node, distFt, fallbackIds);
+            RouteNode verdict = ClassifyRouteNode(fallback, node, distFt, new RouteStep(entry.StepTaxiways, paintByTaxiway), fallbackIds);
             if (verdict == RouteNode.Escapes)
             {
                 return false;
@@ -1765,25 +1811,52 @@ internal static class RunwayCrossingDetector
                     node.Type,
                     distFt
                 );
-                continue;
+                return true;
             }
 
             foreach (GroundEdge edge in adjacency.GetValueOrDefault(node.Id, []))
             {
-                GroundNode next = (edge.Nodes[0].Id == node.Id) ? edge.Nodes[1] : edge.Nodes[0];
-                double nextFt = distFt + (edge.DistanceNm * GeoMath.FeetPerNm);
-                bool backToBar = (node.Id == fallback.Junction.Id) && (next.Id == fallback.Bar.Id);
-                if (backToBar || (bestFt.TryGetValue(next.Id, out double knownFt) && (knownFt <= nextFt)))
+                if (!Relax(node, edge, distFt))
                 {
-                    continue;
+                    return false;
                 }
-
-                bestFt[next.Id] = nextFt;
-                frontier.Enqueue(next, nextFt);
             }
+
+            return true;
         }
 
-        return true;
+        /// <summary>Relaxes one edge out of <paramref name="node"/>: false when the step shows a route past the ceiling.</summary>
+        /// <param name="node">The node the walk is expanding.</param>
+        /// <param name="edge">One of its edges.</param>
+        /// <param name="distFt">The distance along the walk to <paramref name="node"/> (ft).</param>
+        /// <returns>False when the node the edge leads to escapes.</returns>
+        private bool Relax(GroundNode node, GroundEdge edge, double distFt)
+        {
+            GroundNode next = edge.OtherNode(node);
+            bool backToBar = (node.Id == fallback.Junction.Id) && (next.Id == fallback.Bar.Id);
+            if (backToBar)
+            {
+                return true;
+            }
+
+            // Every edge judges the node it leads to, before the walk decides whether that arrival is the nearest one: a node
+            // first reached along a taxiway whose ceiling it stays inside still escapes along a later edge whose taxiway's
+            // ceiling it has passed, whichever arrival is nearest.
+            if (StepEscapes(fallback, next, edge, fallbackIds, paintByTaxiway))
+            {
+                return false;
+            }
+
+            double nextFt = distFt + (edge.DistanceNm * GeoMath.FeetPerNm);
+            if (BestFt.TryGetValue(next.Id, out double knownFt) && (knownFt <= nextFt))
+            {
+                return true;
+            }
+
+            BestFt[next.Id] = nextFt;
+            Frontier.Enqueue((next, StepTaxiways(edge)), nextFt);
+            return true;
+        }
     }
 
     internal enum RouteNode
@@ -1793,7 +1866,7 @@ internal static class RunwayCrossingDetector
         Escapes,
     }
 
-    internal static RouteNode ClassifyRouteNode(FallbackBar fallback, GroundNode node, double distFt, HashSet<int> fallbackIds)
+    internal static RouteNode ClassifyRouteNode(FallbackBar fallback, GroundNode node, double distFt, RouteStep step, HashSet<int> fallbackIds)
     {
         RunwayRectangle rect = fallback.Rect;
         if ((node.Id != fallback.Junction.Id) && IsOnRunway(node.Position, rect))
@@ -1802,54 +1875,111 @@ internal static class RunwayCrossingDetector
         }
 
         // The budget binds before the bar: a bar farther along than the holding distance is not the junction's marking.
-        // The holding distance here is the fallback's ceiling: the angle term's, S + W_twy / 2, since an angled bar sits out
-        // to it, raised to the farthest bar of the runway seated on paint.
-        double holdingFt = fallback.CeilingFt;
+        // The holding distance here is the ceiling of the taxiway the step walks along (EscapeCeilingFt): the angle term's,
+        // S + W_twy / 2, since an angled bar sits out to it, raised to the farthest bar of the runway seated on paint on that
+        // same taxiway. A far painted bar on another taxiway of the runway never raises it.
+        double holdingFt = EscapeCeilingFt(rect.CombinedId, step.Taxiways, step.PaintByTaxiway, fallback.CeilingFt);
         if (distFt > holdingFt)
         {
             return RouteNode.Escapes;
         }
 
-        bool isRunwayBar = (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } id) && id.Equals(rect.CombinedId);
-        if (isRunwayBar && !fallbackIds.Contains(node.Id))
+        if (IsRunwayBarOf(rect, node) && !fallbackIds.Contains(node.Id))
         {
             return RouteNode.Closed;
         }
 
+        // A node between S and an angled bar at D is still inside the holding area along its taxiway, so it escapes only past the ceiling.
+        return BeyondCeilingAcrossTrack(rect, node, holdingFt) ? RouteNode.Escapes : RouteNode.Open;
+    }
+
+    /// <summary>
+    /// Whether the walk's step to <paramref name="next"/> along <paramref name="edge"/> shows a route out of the junction past
+    /// the holding distance: the ceiling of that edge's taxiway (<see cref="EscapeCeilingFt"/>), judged on a node the walk
+    /// does not stop at short of it (on the runway or at a bar of it that is no fallback's).
+    /// </summary>
+    private static bool StepEscapes(
+        FallbackBar fallback,
+        GroundNode next,
+        GroundEdge edge,
+        HashSet<int> fallbackIds,
+        IReadOnlyDictionary<(RunwayIdentifier Runway, string Taxiway), double> paintByTaxiway
+    )
+    {
+        bool stopsFirst =
+            ((next.Id != fallback.Junction.Id) && IsOnRunway(next.Position, fallback.Rect))
+            || (IsRunwayBarOf(fallback.Rect, next) && !fallbackIds.Contains(next.Id));
+        if (stopsFirst)
+        {
+            return false;
+        }
+
+        double ceilingFt = EscapeCeilingFt(fallback.Rect.CombinedId, StepTaxiways(edge), paintByTaxiway, fallback.CeilingFt);
+        return BeyondCeilingAcrossTrack(fallback.Rect, next, ceilingFt);
+    }
+
+    /// <summary>Whether <paramref name="node"/> stands at or beyond <paramref name="ceilingFt"/> from the runway's centreline.</summary>
+    private static bool BeyondCeilingAcrossTrack(in RunwayRectangle rect, GroundNode node, double ceilingFt)
+    {
         double crossFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(node.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)) * GeoMath.FeetPerNm;
-        // A node between S and an angled bar at D is still inside the holding area along its taxiway, so it escapes only past the ceiling.
-        return (crossFt >= holdingFt - AirportGroundLayout.HoldingDistanceToleranceFt) ? RouteNode.Escapes : RouteNode.Open;
+        return crossFt >= ceilingFt - AirportGroundLayout.HoldingDistanceToleranceFt;
     }
+
+    /// <summary>Whether <paramref name="node"/> is a runway hold-short bar node of <paramref name="rect"/>'s runway.</summary>
+    private static bool IsRunwayBarOf(in RunwayRectangle rect, GroundNode node) =>
+        (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } id) && id.Equals(rect.CombinedId);
 
     /// <summary>The rule's holding-distance ceiling for a fallback bar, feet: the angle term's, S + W_twy / 2.</summary>
     internal static double RuleCeilingFt(in RunwayRectangle rect) =>
         (rect.HoldShortNm * GeoMath.FeetPerNm) + (HoldShortStandoff.TaxiwayWidthProxyFt(RunwayWidthFt(rect)) / 2.0);
 
     /// <summary>
-    /// The fallback bars with each one's ceiling raised to the largest D_paint among its runway's bars seated on paint, so
-    /// a route out of a fallback junction that reaches such a bar beyond S + W_twy / 2 is judged against it. With no bar
-    /// seated on paint every ceiling stays the rule's.
+    /// The farthest D_paint of each runway's bars seated on paint, per taxiway the bar was seated for (the key's taxiway upper
+    /// case; a bar with no taxiway name is left out), for <see cref="EscapeCeilingFt"/>.
     /// </summary>
-    internal static List<FallbackBar> RaiseCeilingsToSnappedBars(List<FallbackBar> fallbackBars, List<SnappedBar> snappedBars)
+    internal static Dictionary<(RunwayIdentifier Runway, string Taxiway), double> PaintFtByTaxiway(IEnumerable<SnappedBar> snappedBars)
     {
-        var raised = new List<FallbackBar>(fallbackBars.Count);
-        foreach (FallbackBar fallback in fallbackBars)
+        var paintByTaxiway = new Dictionary<(RunwayIdentifier Runway, string Taxiway), double>();
+        foreach (SnappedBar snapped in snappedBars.Where(snapped => snapped.Taxiway.Length > 0))
         {
-            double ceilingFt = fallback.CeilingFt;
-            foreach (SnappedBar snapped in snappedBars)
-            {
-                if (snapped.Rect.CombinedId.Equals(fallback.Rect.CombinedId))
-                {
-                    ceilingFt = Math.Max(ceilingFt, snapped.PaintFt);
-                }
-            }
-
-            raised.Add(fallback with { CeilingFt = ceilingFt });
+            (RunwayIdentifier, string) key = (snapped.Rect.CombinedId, snapped.Taxiway.ToUpperInvariant());
+            paintByTaxiway[key] = Math.Max(paintByTaxiway.GetValueOrDefault(key), snapped.PaintFt);
         }
 
-        return raised;
+        return paintByTaxiway;
     }
+
+    /// <summary>
+    /// The holding distance (ft) a step along a taxiway is judged against, out from <paramref name="runway"/>: the rule's
+    /// ceiling (<paramref name="ruleCeilingFt"/>, S + W_twy / 2) raised to the farthest bar of the runway seated on paint on
+    /// one of <paramref name="stepTaxiways"/> (<see cref="PaintFtByTaxiway"/>), so a route that reaches such a bar beyond the
+    /// rule's ceiling is judged against it. A far painted bar on another taxiway never raises it; an empty name matches nothing.
+    /// </summary>
+    internal static double EscapeCeilingFt(
+        RunwayIdentifier runway,
+        IReadOnlyList<string> stepTaxiways,
+        IReadOnlyDictionary<(RunwayIdentifier Runway, string Taxiway), double> paintByTaxiway,
+        double ruleCeilingFt
+    )
+    {
+        double ceilingFt = ruleCeilingFt;
+        foreach (string taxiway in stepTaxiways.Where(taxiway => taxiway.Length > 0))
+        {
+            if (paintByTaxiway.TryGetValue((runway, taxiway.ToUpperInvariant()), out double paintFt))
+            {
+                ceilingFt = Math.Max(ceilingFt, paintFt);
+            }
+        }
+
+        return ceilingFt;
+    }
+
+    /// <summary>
+    /// The taxiway names a step along <paramref name="edge"/> walks: each of a fillet arc's names (its joined display name,
+    /// "A - B", matches no bar), else the edge's own name.
+    /// </summary>
+    internal static IReadOnlyList<string> StepTaxiways(IGroundEdge edge) => (edge is GroundArc arc) ? arc.TaxiwayNames : [edge.TaxiwayName];
 
     /// <summary>Normalizes a bearing delta in degrees to the range (-180, 180].</summary>
     private static double NormalizeBearingDelta(double deltaDeg)
@@ -1966,8 +2096,9 @@ internal readonly record struct RunwayCrossingResult(
 
 /// <summary>
 /// A bar the dead-end fallback placed short of the holding distance on a taxiway that ends at a junction with another
-/// taxiway, and what the node was before, so the bar can be dropped. <see cref="CeilingFt"/> is the holding distance a
-/// route out of the junction is judged against (<see cref="RunwayCrossingDetector.RaiseCeilingsToSnappedBars"/>).
+/// taxiway, and what the node was before, so the bar can be dropped. <see cref="CeilingFt"/> is the rule's holding distance
+/// a route out of the junction is judged against, before the paint on the route's taxiway raises it
+/// (<see cref="RunwayCrossingDetector.EscapeCeilingFt"/>).
 /// </summary>
 internal readonly record struct FallbackBar(
     GroundNode Bar,
@@ -1978,8 +2109,18 @@ internal readonly record struct FallbackBar(
     double CeilingFt
 );
 
-/// <summary>A bar seated on a painted bar: its node, its runway's rectangle and D_paint, feet.</summary>
-internal readonly record struct SnappedBar(GroundNode Bar, RunwayRectangle Rect, double PaintFt);
+/// <summary>A bar seated on a painted bar: its node, its runway's rectangle, D_paint in feet and the taxiway it was seated for.</summary>
+internal readonly record struct SnappedBar(GroundNode Bar, RunwayRectangle Rect, double PaintFt, string Taxiway);
+
+/// <summary>
+/// A step of a route out of a fallback junction (<see cref="RunwayCrossingDetector.ClassifyRouteNode"/>): the taxiway names
+/// of the edge it arrived along (<see cref="RunwayCrossingDetector.StepTaxiways"/>, none at the junction) and the paint
+/// its ceiling is raised by (<see cref="RunwayCrossingDetector.PaintFtByTaxiway"/>).
+/// </summary>
+internal readonly record struct RouteStep(
+    IReadOnlyList<string> Taxiways,
+    IReadOnlyDictionary<(RunwayIdentifier Runway, string Taxiway), double> PaintByTaxiway
+);
 
 /// <summary>
 /// Where <see cref="RunwayCrossingDetector"/> seated a crossing's bar (null when it seated none) and the fallback bar it

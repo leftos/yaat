@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -187,16 +188,9 @@ public class OccupiedRunwayGoAroundTests
         return arrival.Phases.CurrentPhase is GoAroundPhase;
     }
 
-    /// <summary>A B738 held on a taxi with its nose <paramref name="nosePastFt"/> past runway 33's holding position marking.</summary>
-    private static AircraftState HeldFouler(RunwayInfo runway, GroundNode bar, double nosePastFt)
-    {
-        AircraftState fouler = RunwayOccupancyTests.SquareToTheMarking(runway, bar, "B738", facingRunway: true, nosePastFt, alongFt: 0);
-        fouler.Phases = new PhaseList();
-        fouler.Phases.Add(new TaxiingPhase());
-        fouler.Phases.CurrentPhase!.Status = PhaseStatus.Active;
-        fouler.Ground.Hold = HoldDirective.HoldPosition;
-        return fouler;
-    }
+    /// <summary>A B738 held on a taxi with its nose <paramref name="nosePastFt"/> past <paramref name="bar"/>'s holding position marking.</summary>
+    private static AircraftState HeldFouler(RunwayInfo runway, GroundNode bar, double nosePastFt) =>
+        Held(RunwayOccupancyTests.SquareToTheMarking(runway, bar, "B738", facingRunway: true, nosePastFt, alongFt: 0));
 
     [Fact]
     public void FoulerInsideTheEdgeBand_GoesAround()
@@ -465,16 +459,22 @@ public class OccupiedRunwayGoAroundTests
     {
         // Real layouts author hold lines well outside their runway safety area: OAK 28L (150 ft wide, band 150) authors 250 ft and
         // OAK 33 (75 ft wide, band 75) authors 175 ft, so the cap (hold line minus 25 ft) never binds. A hold line closer than the
-        // band exists in no bundled layout, so the cap branch itself is untested by real data.
+        // band exists in no bundled layout; the cap branch is covered on a cloned OAK layout (the ShortBar_* tests).
         if ((RunwayBarFixture.RunwayBar("OAK", "28L") is not { } large) || (RunwayBarFixture.RunwayBar("OAK", "33", "F") is not { } medium))
         {
             return;
         }
 
         Assert.Equal(150.0, large.Runway.WidthFt);
-        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(large.Runway, large.Layout));
+        Assert.Equal(
+            OccupiedRunwayGoAround.LargeRunwayEdgeBandFt,
+            OccupiedRunwayGoAround.GoAroundEdgeBandFt(large.Runway, large.Layout, judgedBar: null)
+        );
         Assert.Equal(75.0, medium.Runway.WidthFt);
-        Assert.Equal(OccupiedRunwayGoAround.MediumRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(medium.Runway, medium.Layout));
+        Assert.Equal(
+            OccupiedRunwayGoAround.MediumRunwayEdgeBandFt,
+            OccupiedRunwayGoAround.GoAroundEdgeBandFt(medium.Runway, medium.Layout, judgedBar: null)
+        );
     }
 
     [Fact]
@@ -503,7 +503,10 @@ public class OccupiedRunwayGoAroundTests
             HoldShortStandoffFt = 160.0,
         };
 
-        Assert.Equal(160.0 - OccupiedRunwayGoAround.EdgeBandHoldLineMarginFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(oak.Runway, layout));
+        Assert.Equal(
+            160.0 - OccupiedRunwayGoAround.EdgeBandHoldLineMarginFt,
+            OccupiedRunwayGoAround.GoAroundEdgeBandFt(oak.Runway, layout, judgedBar: null)
+        );
     }
 
     [Fact]
@@ -518,9 +521,9 @@ public class OccupiedRunwayGoAroundTests
         Assert.InRange(small.WidthFt, 1.0, 74.9);
         Assert.Equal(75.0, medium.WidthFt);
         Assert.True(large.WidthFt >= 100.0, $"OAK 28L is {large.WidthFt} ft wide");
-        Assert.Equal(OccupiedRunwayGoAround.SmallRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(small, layout: null));
-        Assert.Equal(OccupiedRunwayGoAround.MediumRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(medium, layout: null));
-        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(large, layout: null));
+        Assert.Equal(OccupiedRunwayGoAround.SmallRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(small, layout: null, judgedBar: null));
+        Assert.Equal(OccupiedRunwayGoAround.MediumRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(medium, layout: null, judgedBar: null));
+        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(large, layout: null, judgedBar: null));
     }
 
     [Fact]
@@ -532,10 +535,215 @@ public class OccupiedRunwayGoAroundTests
         }
 
         // A real OAK runway judged with the real SFO layout. SFO has a 28L of its own, but its metadata is not OAK's: the band is
-        // OAK 28L's width-class value, never capped by another airport's authored hold line. No bundled layout authors a hold line
-        // close enough for the cap to bind, so the cap branch is untested by real data.
+        // OAK 28L's width-class value, never capped by another airport's authored hold line.
         Assert.Equal(150.0, oak.Runway.WidthFt);
-        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(oak.Runway, sfo));
+        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(oak.Runway, sfo, judgedBar: null));
+    }
+
+    [Fact]
+    public void EdgeBand_BarOfAnotherRunway_KeepsTheWidthClassBand()
+    {
+        if ((new TestAirportGroundData().GetLayout("OAK") is not { } real) || (NavigationDatabase.Instance.GetRunway("OAK", "28R") is not { } runway))
+        {
+            return;
+        }
+
+        // No other OAK runway's bar lies within 175 ft of 28R's centreline (the nearest, on 15/33, is 345 ft out), so a clone moves
+        // the nearest one in to 160 ft, where its marking would cap 28R's band at 135 ft if it were taken as 28R's hold line. It
+        // is not one of 28R's bars, so the band is judged on S alone: the width-class 150 ft.
+        AirportGroundLayout layout = LayoutCloner.DeepClone(real);
+        GroundNode other = layout
+            .Nodes.Values.Where(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && !id.Overlaps(runway.Id))
+            .OrderBy(n => RunwayHoldBars.CentrelineFt(runway, n.Position))
+            .First();
+        LatLon foot = GeoMath.FootOfPerpendicular(other.Position, new LatLon(runway.Lat1, runway.Lon1), new LatLon(runway.Lat2, runway.Lon2)).Foot;
+        other.Relocate(GeoMath.ProjectPoint(foot, new TrueHeading(GeoMath.BearingTo(foot, other.Position)), ShortBarFt / GeoMath.FeetPerNm));
+
+        Assert.Equal(ShortBarFt, RunwayHoldBars.CentrelineFt(runway, other.Position), precision: 0);
+        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(runway, layout, other));
+    }
+
+    [Theory]
+    [InlineData("28R", OccupiedRunwayGoAround.LargeRunwayEdgeBandFt)]
+    [InlineData("28L", OccupiedRunwayGoAround.LargeRunwayEdgeBandFt)]
+    [InlineData("30", OccupiedRunwayGoAround.LargeRunwayEdgeBandFt)]
+    [InlineData("33", OccupiedRunwayGoAround.MediumRunwayEdgeBandFt)]
+    public void EdgeBand_OakSnappedLayout_EveryJudgedBarKeepsTheWidthClassBand(string designator, double bandFt)
+    {
+        // OAK's layout is seated on its tower-cab paint, and no bar's hold line sits nearer the centreline than S, so judging
+        // the band against any of a runway's bars leaves the runway safety area's half-width.
+        if (
+            (new TestAirportGroundData().GetLayout("OAK") is not { } layout)
+            || (NavigationDatabase.Instance.GetRunway("OAK", designator) is not { } runway)
+        )
+        {
+            return;
+        }
+
+        GroundNode[] bars = RunwayHoldBars.RunwayBars(layout, runway);
+        Assert.NotEmpty(bars);
+        Assert.All(bars, bar => Assert.Equal(bandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(runway, layout, bar)));
+    }
+
+    [Fact]
+    public void StopperBetweenTheStandoffAndThePaint_IsFouling_NoGoAround()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "28R", "P") is not { } oak)
+        {
+            return;
+        }
+
+        // OAK 28R's P paint sits well beyond S: a B738 held with its mains between S and the paint is past the marking it holds
+        // at, but its nose is outside the 150 ft band, so it is the controller's advisory, never a go-around.
+        GroundRunway ground = oak.Layout.Runways.Single(r => r.Id.Overlaps(oak.Runway.Id));
+        double standoffFt = Assert.IsType<double>(ground.HoldShortStandoffFt);
+        double paintFt = RunwayHoldBars.CentrelineFt(oak.Runway, oak.Bar.Position);
+        Assert.True(paintFt > standoffFt + 10.0, $"OAK 28R P bar at {paintFt:F1} ft, S {standoffFt:F1} ft");
+
+        double mainsFt = (standoffFt + paintFt) / 2.0;
+        double nosePastFt = paintFt - mainsFt + (AircraftLength.ResolveFt("B738") / 2.0);
+        AircraftState stopper = Held(RunwayOccupancyTests.SquareToTheRunway(oak.Runway, oak.Bar, "B738", facingRunway: true, nosePastFt, alongFt: 0));
+
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(stopper, oak.Runway, oak.Layout)?.Kind);
+        Assert.False(GoesAroundAtOak(oak.Runway, oak.Layout, stopper, "B738", out _));
+    }
+
+    [Fact]
+    public void NoseWithinTheToleranceOfThePaint_IsNotFouling()
+    {
+        if (RunwayBarFixture.RunwayBar("OAK", "28R", "P") is not { } oak)
+        {
+            return;
+        }
+
+        AircraftState held = HeldFouler(oak.Runway, oak.Bar, nosePastFt: RunwayOccupancy.HoldLineFoulToleranceFt - 1.0);
+
+        Assert.NotEqual(RunwayUseKind.Fouling, RunwayOccupancy.Classify(held, oak.Runway, oak.Layout)?.Kind);
+    }
+
+    [Theory]
+    [InlineData(15.0, false)]
+    [InlineData(30.0, true)]
+    public void ShortBar_BandStopsShortOfItsHoldLine(double nosePastFt, bool goesAround)
+    {
+        if ((new TestAirportGroundData().GetLayout("OAK") is not { } real) || (NavigationDatabase.Instance.GetRunway("OAK", "28R") is not { } runway))
+        {
+            return;
+        }
+
+        // The aviation ruling's discriminator: one 28R bar moved in to 160 ft, nearer than S. Its hold line caps the band at
+        // 160 - 25 = 135 ft, so a nose 15 ft past it (145 ft out) is an advisory and a nose 30 ft past it (130 ft out) a go-around.
+        AirportGroundLayout layout = LayoutCloner.DeepClone(real);
+        GroundNode bar = ShortBar(layout, runway, ShortBarFt);
+
+        Assert.Equal(
+            ShortBarFt - OccupiedRunwayGoAround.EdgeBandHoldLineMarginFt,
+            OccupiedRunwayGoAround.GoAroundEdgeBandFt(runway, layout, bar),
+            precision: 0
+        );
+        AircraftState fouler = HeldFouler(runway, bar, nosePastFt);
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(fouler, runway, layout)?.Kind);
+        Assert.Equal(goesAround, GoesAroundAtOak(runway, layout, fouler, "B738", out _));
+    }
+
+    [Fact]
+    public void ShortBar_TheSamePoseAgainstABarAtTheStandoff_KeepsTheFullBand()
+    {
+        if ((new TestAirportGroundData().GetLayout("OAK") is not { } real) || (NavigationDatabase.Instance.GetRunway("OAK", "28R") is not { } runway))
+        {
+            return;
+        }
+
+        // The pose 15 ft past the short bar (nose 145 ft out), across the centreline against a bar at S: that bar's hold line
+        // does not cap the band, so it stays 150 ft and the nose is inside it.
+        AirportGroundLayout layout = LayoutCloner.DeepClone(real);
+        GroundNode shortBar = ShortBar(layout, runway, ShortBarFt);
+        bool shortSide = RunwayHoldBars.IsRightOfCentreline(runway, shortBar.Position);
+        GroundNode other = AbeamBars(layout, runway)
+            .Where(b => RunwayHoldBars.IsRightOfCentreline(runway, b.Position) != shortSide)
+            .OrderBy(b => SquarenessDeg(runway, b))
+            .First();
+        double otherFt = RunwayHoldBars.CentrelineFt(runway, other.Position);
+        AircraftState fouler = Held(
+            RunwayOccupancyTests.SquareToTheRunway(runway, other, "B738", facingRunway: true, otherFt - (ShortBarFt - 15.0), alongFt: 0)
+        );
+
+        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(runway, layout, other));
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(fouler, runway, layout)?.Kind);
+        Assert.True(GoesAroundAtOak(runway, layout, fouler, "B738", out _));
+    }
+
+    [Fact]
+    public void FarSideCrosser_BandIsCappedOnItsTargetBar_NotTheNearestBar()
+    {
+        if ((new TestAirportGroundData().GetLayout("OAK") is not { } real) || (NavigationDatabase.Instance.GetRunway("OAK", "28R") is not { } runway))
+        {
+            return;
+        }
+
+        // A crosser stopped past 28R's far edge, its tail 145 ft out, inside the line of its target, a far-side bar at S. Its
+        // main gear stands on the short bar's taxiway (moved in to 160 ft), so the nearest same-side bar is the short one, whose
+        // hold line would cap the band at 135 ft. The crosser is judged fouling against its target, so the band is the target's:
+        // 150 ft, and the tail is inside it.
+        AirportGroundLayout layout = LayoutCloner.DeepClone(real);
+        GroundNode shortBar = ShortBar(layout, runway, ShortBarFt);
+        bool shortSide = RunwayHoldBars.IsRightOfCentreline(runway, shortBar.Position);
+        GroundNode target = AbeamBars(layout, runway)
+            .Where(b => (b.Id != shortBar.Id) && (RunwayHoldBars.IsRightOfCentreline(runway, b.Position) == shortSide))
+            .OrderBy(b => SquarenessDeg(runway, b))
+            .First();
+        GroundNode approach = AbeamBars(layout, runway).First(b => RunwayHoldBars.IsRightOfCentreline(runway, b.Position) != shortSide);
+        AircraftState crosser = RunwayOccupancyTests.SquareToTheRunway(runway, shortBar, "B738", facingRunway: false, ShortBarFt - 145.0, alongFt: 0);
+        crosser.Phases = new PhaseList { AssignedRunway = runway };
+        crosser.Phases.Add(new CrossingRunwayPhase(approach.Id, target.Id, "28R"));
+        crosser.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        crosser.Ground.Hold = HoldDirective.HoldPosition;
+
+        Assert.Same(shortBar, RunwayHoldBars.NearestSameSideBar(layout, runway, crosser.Position));
+        Assert.Same(target, RunwayOccupancy.FoulingBarOf(crosser, runway, layout));
+        Assert.Equal(OccupiedRunwayGoAround.LargeRunwayEdgeBandFt, OccupiedRunwayGoAround.GoAroundEdgeBandFt(runway, layout, target));
+        Assert.Equal(RunwayUseKind.Fouling, RunwayOccupancy.Classify(crosser, runway, layout)?.Kind);
+        Assert.True(GoesAroundAtOak(runway, layout, crosser, "B738", out _));
+    }
+
+    private const double ShortBarFt = 160.0;
+
+    /// <summary>A B738 held on a taxi where <paramref name="fouler"/> stands.</summary>
+    private static AircraftState Held(AircraftState fouler)
+    {
+        fouler.Phases = new PhaseList();
+        fouler.Phases.Add(new TaxiingPhase());
+        fouler.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        fouler.Ground.Hold = HoldDirective.HoldPosition;
+        return fouler;
+    }
+
+    /// <summary>The bars of <paramref name="runway"/> abeam its pavement (foot of perpendicular not off either end).</summary>
+    private static IEnumerable<GroundNode> AbeamBars(AirportGroundLayout layout, RunwayInfo runway)
+    {
+        var end1 = new LatLon(runway.Lat1, runway.Lon1);
+        var end2 = new LatLon(runway.Lat2, runway.Lon2);
+        return RunwayHoldBars.RunwayBars(layout, runway).Where(b => !GeoMath.FootOfPerpendicular(b.Position, end1, end2).Clamped);
+    }
+
+    /// <summary>How far (deg) the taxiway axis at <paramref name="bar"/> is from square to <paramref name="runway"/>.</summary>
+    private static double SquarenessDeg(RunwayInfo runway, GroundNode bar)
+    {
+        double offDeg = Math.Abs(GeoMath.SignedBearingDifference(RunwayHoldBars.TaxiwayAxisBearingDeg(runway, bar), runway.TrueHeading.Degrees));
+        return Math.Abs(90.0 - offDeg);
+    }
+
+    /// <summary>
+    /// The abeam bar of <paramref name="runway"/> on the taxiway most nearly square to it, moved in along the perpendicular to
+    /// <paramref name="distanceFt"/> from the centreline, on its own side, before any query reads its marking.
+    /// </summary>
+    private static GroundNode ShortBar(AirportGroundLayout layout, RunwayInfo runway, double distanceFt)
+    {
+        GroundNode bar = AbeamBars(layout, runway).OrderBy(b => SquarenessDeg(runway, b)).First();
+        LatLon foot = GeoMath.FootOfPerpendicular(bar.Position, new LatLon(runway.Lat1, runway.Lon1), new LatLon(runway.Lat2, runway.Lon2)).Foot;
+        // Relocate leaves the bar's edge lengths stale, harmless here: these tests read geometry only, never route along them.
+        bar.Relocate(GeoMath.ProjectPoint(foot, new TrueHeading(GeoMath.BearingTo(foot, bar.Position)), distanceFt / GeoMath.FeetPerNm));
+        return bar;
     }
 
     [Fact]

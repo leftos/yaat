@@ -380,7 +380,7 @@ public static class GeoJsonParser
         }
 
         // Step 5b: with every runway's bars in place, drop the dead-end fallback bars a joining taxiway's bar makes redundant.
-        RunwayCrossingDetector.DropRedundantFallbackBars(layout, RunwayCrossingDetector.RaiseCeilingsToSnappedBars(fallbackBars, snappedBars));
+        RunwayCrossingDetector.DropRedundantFallbackBars(layout, fallbackBars, RunwayCrossingDetector.PaintFtByTaxiway(snappedBars));
 
         // Step 6: Create parking nodes and connect each to its sidecar lead-in's taxiway vertex, else to the nearest taxiway
         Dictionary<string, StandLeadIn> leadInsByStand = UsableStandLeadIns(airportId, parkings, source.Inputs.StandLeadIns);

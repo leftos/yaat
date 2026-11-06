@@ -571,7 +571,85 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void RaiseCeilingsToSnappedBars_LetsARouteReachASnappedBarBeyondTheRuleCeiling()
+    public void EscapeCeiling_LetsARouteReachASnappedBarBeyondTheRuleCeiling()
+    {
+        BeyondTheRuleCeiling fixture = SnappedBarBeyondTheRuleCeiling();
+        var fallback = new FallbackBar(
+            fixture.Snapped,
+            fixture.Junction,
+            fixture.Rect,
+            GroundNodeType.TaxiwayIntersection,
+            Split: null,
+            fixture.RuleCeilingFt
+        );
+        var noPaint = new RouteStep([fixture.Taxiway], new Dictionary<(RunwayIdentifier Runway, string Taxiway), double>());
+        var paint = new RouteStep(
+            [fixture.Taxiway],
+            RunwayCrossingDetector.PaintFtByTaxiway([new SnappedBar(fixture.Snapped, fixture.Rect, fixture.PaintFt, fixture.Taxiway)])
+        );
+
+        Assert.Equal(RunwayCrossingDetector.RouteNode.Escapes, RunwayCrossingDetector.ClassifyRouteNode(fallback, fixture.Reach, 0.0, noPaint, []));
+        Assert.Equal(RunwayCrossingDetector.RouteNode.Open, RunwayCrossingDetector.ClassifyRouteNode(fallback, fixture.Reach, 0.0, paint, []));
+    }
+
+    [Fact]
+    public void EscapeCeiling_IsRaisedOnlyByPaintOnTheTaxiwayTheStepWalks()
+    {
+        // A step along the snapped bar's taxiway is raised to its paint; a step along any other real OAK taxiway keeps the
+        // rule's ceiling.
+        BeyondTheRuleCeiling fixture = SnappedBarBeyondTheRuleCeiling();
+        string other = fixture
+            .Layout.Edges.Select(edge => edge.TaxiwayName)
+            .Where(name => (name.Length > 0) && !name.Contains(' ') && !string.Equals(name, fixture.Taxiway, StringComparison.OrdinalIgnoreCase))
+            .Order(StringComparer.Ordinal)
+            .First();
+        var fallback = new FallbackBar(
+            fixture.Snapped,
+            fixture.Junction,
+            fixture.Rect,
+            GroundNodeType.TaxiwayIntersection,
+            Split: null,
+            fixture.RuleCeilingFt
+        );
+        Dictionary<(RunwayIdentifier Runway, string Taxiway), double> paint = RunwayCrossingDetector.PaintFtByTaxiway([
+            new SnappedBar(fixture.Snapped, fixture.Rect, fixture.PaintFt, fixture.Taxiway),
+        ]);
+        output.WriteLine($"snapped bar on {fixture.Taxiway}, other taxiway {other}");
+
+        Assert.Equal(
+            RunwayCrossingDetector.RouteNode.Escapes,
+            RunwayCrossingDetector.ClassifyRouteNode(fallback, fixture.Reach, 0.0, new RouteStep([other], paint), [])
+        );
+        Assert.Equal(
+            RunwayCrossingDetector.RouteNode.Open,
+            RunwayCrossingDetector.ClassifyRouteNode(fallback, fixture.Reach, 0.0, new RouteStep([fixture.Taxiway], paint), [])
+        );
+        // A bar with no taxiway name keys nothing, and a step with no name matches nothing: the rule's ceiling stands even
+        // when the paint is held under the empty name.
+        Assert.Empty(RunwayCrossingDetector.PaintFtByTaxiway([new SnappedBar(fixture.Snapped, fixture.Rect, fixture.PaintFt, "")]));
+        var unnamed = new Dictionary<(RunwayIdentifier Runway, string Taxiway), double> { [(fixture.Rect.CombinedId, "")] = fixture.PaintFt };
+        Assert.Equal(
+            RunwayCrossingDetector.RuleCeilingFt(fixture.Rect),
+            RunwayCrossingDetector.EscapeCeilingFt(fixture.Rect.CombinedId, [""], unnamed, fixture.RuleCeilingFt)
+        );
+    }
+
+    /// <summary>
+    /// A real OAK bar seated on paint beyond its runway's rule ceiling, its taxiway, a real node off the runway between the two
+    /// (the rule ceiling counts it as escaped, the snapped bar's does not) and a stand-in junction.
+    /// </summary>
+    private sealed record BeyondTheRuleCeiling(
+        AirportGroundLayout Layout,
+        GroundNode Snapped,
+        string Taxiway,
+        RunwayRectangle Rect,
+        double RuleCeilingFt,
+        double PaintFt,
+        GroundNode Reach,
+        GroundNode Junction
+    );
+
+    private BeyondTheRuleCeiling SnappedBarBeyondTheRuleCeiling()
     {
         AirportGroundLayout layout = ParseOak(OakMap(), FilletMode.None);
         foreach (GroundNode snapped in SnappedNodes(layout))
@@ -591,22 +669,17 @@ public class RunwayPaintSnapTests(ITestOutputHelper output)
                 )
                 .OrderBy(node => node.Id)
                 .FirstOrDefault();
-            if (reach is null)
+            if ((reach is null) || (RunwayHoldBars.BarTaxiwayName(snapped) is not { } taxiway))
             {
                 continue;
             }
 
             GroundNode junction = layout.Nodes.Values.First(node => (node.Id != reach.Id) && (node.Id != snapped.Id));
-            var fallback = new FallbackBar(snapped, junction, rect, GroundNodeType.TaxiwayIntersection, Split: null, ruleCeilingFt);
-            List<FallbackBar> raised = RunwayCrossingDetector.RaiseCeilingsToSnappedBars([fallback], [new SnappedBar(snapped, rect, paintFt)]);
             output.WriteLine(
                 $"{rect.CombinedId}: node #{reach.Id} at {CrossFt(rect, reach.Position):F1} ft, "
-                    + $"rule ceiling {ruleCeilingFt:F1} ft, snapped bar {paintFt:F1} ft"
+                    + $"rule ceiling {ruleCeilingFt:F1} ft, snapped bar on {taxiway} {paintFt:F1} ft"
             );
-
-            Assert.Equal(RunwayCrossingDetector.RouteNode.Escapes, RunwayCrossingDetector.ClassifyRouteNode(fallback, reach, 0.0, []));
-            Assert.Equal(RunwayCrossingDetector.RouteNode.Open, RunwayCrossingDetector.ClassifyRouteNode(raised[0], reach, 0.0, []));
-            return;
+            return new BeyondTheRuleCeiling(layout, snapped, taxiway, rect, ruleCeilingFt, paintFt, reach, junction);
         }
 
         throw new Xunit.Sdk.XunitException("no OAK snapped bar sits far enough beyond its runway's rule ceiling for a node between them");

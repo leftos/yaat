@@ -241,6 +241,24 @@ public static class RunwayHoldBars
     /// <returns>The beside line (ft from the centreline).</returns>
     internal static double BesideLineFt(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar) => MarkingAt(layout, runway, bar).BesideLineFt;
 
+    /// <summary>
+    /// How far (ft) from <paramref name="runway"/>'s centreline the nearest point of <paramref name="bar"/>'s holding position
+    /// marking lies: the painted line through the bar node square to the taxiway axis, half the taxiway width each side of the
+    /// node (the marking <see cref="DepthPastMarkingFt"/> judges against).
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="runway">The runway.</param>
+    /// <param name="bar">The bar.</param>
+    /// <returns>The distance (ft) of the marking's nearest point from the centreline.</returns>
+    internal static double MarkingNearestFt(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar)
+    {
+        BarMarking marking = MarkingAt(layout, runway, bar);
+        double halfWidthNm = marking.HalfWidthFt / GeoMath.FeetPerNm;
+        LatLon left = GeoMath.ProjectPoint(bar.Position, new TrueHeading(marking.TowardRunwayDeg - 90.0), halfWidthNm);
+        LatLon right = GeoMath.ProjectPoint(bar.Position, new TrueHeading(marking.TowardRunwayDeg + 90.0), halfWidthNm);
+        return Math.Min(CentrelineFt(runway, bar.Position), Math.Min(CentrelineFt(runway, left), CentrelineFt(runway, right)));
+    }
+
     private static BarMarking MarkingAt(AirportGroundLayout layout, RunwayInfo runway, GroundNode bar) =>
         SidesOf(layout, runway).Markings.GetOrAdd(bar.Id, static (_, args) => MarkingOf(args.layout, args.runway, args.bar), (layout, runway, bar));
 

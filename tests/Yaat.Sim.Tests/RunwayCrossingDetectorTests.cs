@@ -834,6 +834,141 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A walk out from a runway's pavement reaches a fallback junction whose routes out come to a node lying between the
+    /// rule's ceiling and the ceiling a painted bar raises on one of their taxiways: judged on the unpainted step as well as
+    /// the painted one, that node escapes whichever edge order the layout gives.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FindUnbarredEscapes_JudgesANodeOnEveryArrivingEdge_WhicheverEdgeOrderTheLayoutGives(bool reversed)
+    {
+        var scenario = EscapeBetweenTheRuleAndPaintCeilings.Build(reversed);
+
+        Assert.Contains(scenario.Escape, FindUnbarredEscapes(scenario.Layout, scenario.Rect));
+    }
+
+    /// <summary>
+    /// The generator's own walk over the same layout keeps the fallback bar whichever edge order the layout gives: the
+    /// node's escape along the unpainted step is judged even when the painted step reached it first, so a route out of the
+    /// junction is known to pass the holding distance without a bar.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FallbackBar_AscriptionToTheEscapingRouteOut_IsKeptWhicheverEdgeOrderTheLayoutGives(bool reversed)
+    {
+        var scenario = EscapeBetweenTheRuleAndPaintCeilings.Build(reversed);
+
+        RunwayCrossingDetector.DropRedundantFallbackBars(scenario.Layout, [scenario.Fallback], scenario.Paint);
+        Assert.Equal(GroundNodeType.RunwayHoldShort, scenario.Fallback.Bar.Type);
+    }
+
+    /// <summary>
+    /// A purpose-made layout for <see cref="FindUnbarredEscapes_JudgesANodeOnEveryArrivingEdge_WhicheverEdgeOrderTheLayoutGives"/>
+    /// and <see cref="FallbackBar_AscriptionToTheEscapingRouteOut_IsKeptWhicheverEdgeOrderTheLayoutGives"/>:
+    /// a runway, a fallback junction inside the rule's ceiling, a node between that ceiling and the painted bar's reached
+    /// from the junction along a painted taxiway and along an unpainted one, and the painted bar the ceiling comes from.
+    /// </summary>
+    private sealed record EscapeBetweenTheRuleAndPaintCeilings(
+        AirportGroundLayout Layout,
+        RunwayRectangle Rect,
+        GroundNode Escape,
+        FallbackBar Fallback,
+        Dictionary<(RunwayIdentifier Runway, string Taxiway), double> Paint
+    )
+    {
+        private const string PaintedTaxiway = "P";
+
+        public static EscapeBetweenTheRuleAndPaintCeilings Build(bool reversed)
+        {
+            GeoJsonParser.RunwayFeature rwy = NorthSouthRunway();
+            RunwayRectangle rect = RectWithoutNavData(rwy, 150.0, RunwayIdentifier.Parse("18/36"));
+            double ruleFt = RunwayCrossingDetector.RuleCeilingFt(rect);
+            double paintFt = ruleFt + 200.0;
+            double betweenFt = ruleFt + 100.0;
+
+            double midLat = (rwy.Coords[0].Lat + rwy.Coords[1].Lat) / 2.0;
+            double midLon = (rwy.Coords[0].Lon + rwy.Coords[1].Lon) / 2.0;
+            LatLon At(double alongFt, double crossFt)
+            {
+                (double alongLat, double alongLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(0.0), alongFt / FeetPerNm);
+                (double crossLat, double crossLon) = GeoMath.ProjectPoint(alongLat, alongLon, new TrueHeading(90.0), crossFt / FeetPerNm);
+                return new LatLon(crossLat, crossLon);
+            }
+
+            var layout = new AirportGroundLayout { AirportId = "TEST" };
+            GroundNode Add(int id, LatLon position, GroundNodeType type = GroundNodeType.TaxiwayIntersection)
+            {
+                var node = new GroundNode
+                {
+                    Id = id,
+                    Position = position,
+                    Type = type,
+                };
+                layout.Nodes[id] = node;
+                return node;
+            }
+
+            GroundNode onRunway = Add(1, At(0.0, 0.0));
+            GroundNode junction = Add(2, At(0.0, ruleFt - 150.0));
+            GroundNode south = Add(3, At(-50.0, ruleFt - 100.0));
+            GroundNode north = Add(4, At(150.0, ruleFt - 100.0));
+            GroundNode escape = Add(5, At(0.0, betweenFt));
+            GroundNode bar = Add(6, At(0.0, paintFt), GroundNodeType.RunwayHoldShort);
+            bar.RunwayId = rect.CombinedId;
+            bar.PaintSegmentIndex = 0;
+
+            List<(int From, int To, string Taxiway)> links =
+            [
+                (onRunway.Id, junction.Id, "A"),
+                (junction.Id, south.Id, "A"),
+                (junction.Id, north.Id, "B"),
+                (south.Id, escape.Id, PaintedTaxiway),
+                (north.Id, escape.Id, "Q"),
+                (onRunway.Id, bar.Id, PaintedTaxiway),
+            ];
+            if (reversed)
+            {
+                links.Reverse();
+            }
+
+            foreach ((int from, int to, string taxiway) in links)
+            {
+                layout.Edges.Add(
+                    new GroundEdge
+                    {
+                        Nodes = [layout.Nodes[from], layout.Nodes[to]],
+                        TaxiwayName = taxiway,
+                        DistanceNm = GeoMath.DistanceNm(layout.Nodes[from].Position, layout.Nodes[to].Position),
+                    }
+                );
+            }
+
+            layout.RebuildAdjacencyLists();
+
+            Assert.Equal(PaintedTaxiway, RunwayHoldBars.BarTaxiwayName(bar));
+            Assert.True(RunwayCrossingDetector.IsOnRunway(onRunway.Position, rect));
+            Assert.False(RunwayCrossingDetector.IsOnRunway(junction.Position, rect));
+            Assert.False(RunwayCrossingDetector.IsOnRunway(south.Position, rect));
+            Assert.False(RunwayCrossingDetector.IsOnRunway(north.Position, rect));
+            Assert.True(CrossTrackFt(rect, escape) > ruleFt);
+            Assert.True(CrossTrackFt(rect, escape) < (paintFt - AirportGroundLayout.HoldingDistanceToleranceFt));
+
+            Dictionary<(RunwayIdentifier Runway, string Taxiway), double> paint = RunwayCrossingDetector.PaintFtByTaxiway([
+                new SnappedBar(bar, rect, CrossTrackFt(rect, bar), PaintedTaxiway),
+            ]);
+            return new EscapeBetweenTheRuleAndPaintCeilings(
+                layout,
+                rect,
+                escape,
+                new FallbackBar(bar, junction, rect, GroundNodeType.TaxiwayIntersection, Split: null, ruleFt),
+                paint
+            );
+        }
+    }
+
+    /// <summary>
     /// The angle term never seats a bar where the taxiway to it touches another runway's holding area: on every committed
     /// layout, for a runway's bar that sits more than <see cref="AirportGroundLayout.HoldingDistanceToleranceFt"/> beyond
     /// its S (the term moved it), neither the bar nor any node on the taxiway path from the runway out to it touches
@@ -993,22 +1128,30 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         string.Join("/", node.Edges.Where(edge => !edge.IsRunwayCenterline).Select(edge => edge.TaxiwayName).Distinct());
 
     /// <summary>The nodes beyond the runway's holding distance that a walk out from its pavement reaches without a bar.</summary>
-    private static List<GroundNode> FindUnbarredEscapes(AirportGroundLayout layout, GroundRunway runway)
-    {
-        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
+    private static List<GroundNode> FindUnbarredEscapes(AirportGroundLayout layout, GroundRunway runway) =>
+        FindUnbarredEscapes(layout, RunwayCrossingDetector.BuildRunwayRectangle(runway));
 
+    private static List<GroundNode> FindUnbarredEscapes(AirportGroundLayout layout, RunwayRectangle rect)
+    {
         // An angled taxiway's bar sits out to S + W_twy / 2, the angle term's ceiling. A bar seated on the painted marking may sit
-        // farther out still, so the ceiling rises to the farthest painted bar of the runway, as RaiseCeilingsToSnappedBars does.
-        double ruleFt = (rect.HoldShortNm * FeetPerNm) + (HoldShortStandoff.TaxiwayWidthProxyFt(RunwayCrossingDetector.RunwayWidthFt(rect)) / 2.0);
-        double paintFt = layout
-            .Nodes.Values.Where(node => IsBarOf(node, rect) && (node.PaintSegmentIndex is not null))
-            .Select(node => CrossTrackFt(rect, node))
-            .DefaultIfEmpty(0.0)
-            .Max();
-        double holdingFt = Math.Max(ruleFt, paintFt);
-        double escapeFt = holdingFt + AirportGroundLayout.HoldingDistanceToleranceFt;
+        // farther out still, so a step along a taxiway is judged against the farthest painted bar of the runway on that same
+        // taxiway, by the generator's own rule (RunwayCrossingDetector.EscapeCeilingFt); a far bar on another taxiway never
+        // raises it. A painted bar's taxiway is the one the generator keys it on (RunwayHoldBars.BarTaxiwayName: the bar's own
+        // straight taxiway, a fillet arc never naming it), not every name at the bar.
+        double ruleFt = RunwayCrossingDetector.RuleCeilingFt(rect);
+        List<GroundNode> paintBars = [.. layout.Nodes.Values.Where(node => IsBarOf(node, rect) && (node.PaintSegmentIndex is not null))];
+        double holdingFt = Math.Max(ruleFt, paintBars.Select(node => CrossTrackFt(rect, node)).DefaultIfEmpty(0.0).Max());
+        Dictionary<(RunwayIdentifier Runway, string Taxiway), double> paintByTaxiway = RunwayCrossingDetector.PaintFtByTaxiway(
+            paintBars.SelectMany(bar =>
+                (RunwayHoldBars.BarTaxiwayName(bar) is { } taxiway) ? new[] { new SnappedBar(bar, rect, CrossTrackFt(rect, bar), taxiway) } : []
+            )
+        );
+        double EscapeFt(IGroundEdge step) =>
+            RunwayCrossingDetector.EscapeCeilingFt(rect.CombinedId, RunwayCrossingDetector.StepTaxiways(step), paintByTaxiway, ruleFt)
+            + AirportGroundLayout.HoldingDistanceToleranceFt;
         var start = layout.Nodes.Values.Where(node => RunwayCrossingDetector.IsOnRunway(node.Position, rect)).ToList();
         var visited = new HashSet<int>(start.Select(node => node.Id));
+        var escaped = new HashSet<int>();
         var queue = new Queue<GroundNode>(start);
         var escapes = new List<GroundNode>();
         while (queue.TryDequeue(out GroundNode? node))
@@ -1016,18 +1159,27 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
             foreach (IGroundEdge edge in node.Edges.Where(edge => !edge.IsRunwayCenterline))
             {
                 GroundNode next = edge.OtherNode(node);
-                if (!visited.Add(next.Id) || IsBarOf(next, rect) || IsBeyondRunwayEnds(rect, next, holdingFt))
+                if (IsBarOf(next, rect) || IsBeyondRunwayEnds(rect, next, holdingFt))
                 {
                     continue;
                 }
 
-                if (CrossTrackFt(rect, next) >= escapeFt)
+                // A node is judged against the ceiling of the taxiway of every edge it is reached along, not only the first: a
+                // step along a painted taxiway raises the ceiling for that edge alone, so both verdicts must be seen.
+                if (CrossTrackFt(rect, next) >= EscapeFt(edge))
                 {
-                    escapes.Add(next);
+                    if (escaped.Add(next.Id))
+                    {
+                        escapes.Add(next);
+                    }
+
                     continue;
                 }
 
-                queue.Enqueue(next);
+                if (visited.Add(next.Id))
+                {
+                    queue.Enqueue(next);
+                }
             }
         }
 

@@ -175,9 +175,17 @@ public static class OccupiedRunwayGoAround
     /// <see cref="RunwayCrossingDetector.HoldShortDistanceForWidth"/> reads as design groups), never nearer than
     /// <see cref="EdgeBandHoldLineMarginFt"/> to the runway's hold line where <paramref name="layout"/> knows it: the base
     /// separation its bars were seated at (<see cref="GroundRunway.HoldShortStandoffFt"/>), else the authored
-    /// <c>holdShortDistance</c> of a layout built before the standoff was stored.
+    /// <c>holdShortDistance</c> of a layout built before the standoff was stored. With <paramref name="judgedBar"/>, the bar the
+    /// occupant was judged fouling against, the hold line is the nearer of that and the bar's own marking
+    /// (<see cref="RunwayHoldBars.MarkingNearestFt"/>), so a bar painted nearer than S narrows the band and a farther one never
+    /// widens it (AIM 2-3-5.a.1, 4-3-21.b). A bar that is not one of <paramref name="runway"/>'s own is ignored: the band is
+    /// judged on S alone.
     /// </summary>
-    public static double GoAroundEdgeBandFt(RunwayInfo runway, AirportGroundLayout? layout)
+    /// <param name="runway">The runway.</param>
+    /// <param name="layout">The ground layout of the runway's airport; null, or another airport's, for none.</param>
+    /// <param name="judgedBar">The bar the occupant was judged fouling against; null for none.</param>
+    /// <returns>The band's half-width (ft from the centreline).</returns>
+    public static double GoAroundEdgeBandFt(RunwayInfo runway, AirportGroundLayout? layout, GroundNode? judgedBar)
     {
         double bandFt = runway.WidthFt switch
         {
@@ -188,13 +196,33 @@ public static class OccupiedRunwayGoAround
         AirportGroundLayout? ownLayout = ((layout is not null) && RunwayOccupancy.IsLayoutOf(layout, runway)) ? layout : null;
         GroundRunway? groundRunway = ownLayout?.Runways.FirstOrDefault(r => r.Id.Overlaps(runway.Id));
         double? holdLineFt = groundRunway?.HoldShortStandoffFt ?? groundRunway?.HoldShortDistanceFt;
+        if ((ownLayout is not null) && (judgedBar is not null))
+        {
+            if (RunwayOccupancy.IsBarOf(ownLayout, judgedBar.Id, runway))
+            {
+                double barLineFt = RunwayHoldBars.MarkingNearestFt(ownLayout, runway, judgedBar);
+                holdLineFt = (holdLineFt is { } standoffFt) ? Math.Min(standoffFt, barLineFt) : barLineFt;
+            }
+            else
+            {
+                Log.LogDebug("[OccupiedRunwayGoAround] ignoring bar {Id}: not a bar of {Runway}", judgedBar.Id, runway.Designator);
+            }
+        }
+
         return holdLineFt is { } lineFt ? Math.Min(bandFt, lineFt - EdgeBandHoldLineMarginFt) : bandFt;
     }
 
-    /// <summary>Some part of <paramref name="occupant"/> (<see cref="AircraftBody"/>) lies inside <see cref="GoAroundEdgeBandFt"/>.</summary>
+    /// <summary>
+    /// Some part of <paramref name="occupant"/> (<see cref="AircraftBody"/>) lies inside <see cref="GoAroundEdgeBandFt"/>, judged
+    /// against the bar the occupant was judged <see cref="RunwayUseKind.Fouling"/> against (<see cref="RunwayOccupancy.FoulingBarOf"/>:
+    /// a far-side crosser's target bar, else the nearest bar on its main gear's side of the centreline), none with no layout of
+    /// the runway's airport.
+    /// </summary>
     private static bool IsInsideEdgeBand(AircraftState occupant, RunwayInfo runway, AirportGroundLayout? layout)
     {
-        double bandFt = GoAroundEdgeBandFt(runway, layout);
+        GroundNode? judgedBar =
+            ((layout is not null) && RunwayOccupancy.IsLayoutOf(layout, runway)) ? RunwayOccupancy.FoulingBarOf(occupant, runway, layout) : null;
+        double bandFt = GoAroundEdgeBandFt(runway, layout, judgedBar);
         var body = AircraftBody.Of(occupant.AircraftType);
         double headingDeg = occupant.TrueHeading.Degrees;
         return AircraftBody.AllParts.Any(part => RunwayHoldBars.CentrelineFt(runway, body.PointOf(part, occupant.Position, headingDeg)) <= bandFt);

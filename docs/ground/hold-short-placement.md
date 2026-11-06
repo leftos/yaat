@@ -92,7 +92,7 @@ A minted node's edge fraction is clamped to `MinEdgeFraction` (0.01) … `MaxEdg
 
 **What a paint-paired bar changes.** The node records its segment in `GroundNode.PaintSegmentIndex` (the index among the videomap's segments in file order; omitted from the JSON when null, so no layout format bump).
 
-`MarkShortBars` always reads a paint-paired bar as its runway's hold line, whatever its cross-track. `DropRedundantFallbackBars` judges a fallback junction against a ceiling raised to the farthest D_paint among its runway's paint-paired bars (`RaiseCeilingsToSnappedBars`), so a route out of the junction that reaches such a bar still counts as reaching one.
+`MarkShortBars` always reads a paint-paired bar as its runway's hold line, whatever its cross-track. `DropRedundantFallbackBars` judges a fallback junction's escape check against a ceiling keyed on the taxiway each route step walks along (never the fallback's own dead-ended taxiway): max(S + W/2, the farthest painted bar of the runway on that taxiway), so a route that reaches such a bar still counts as reaching one. The generator and the test helper share `RunwayCrossingDetector.PaintFtByTaxiway`, `EscapeCeilingFt` and `StepTaxiways`.
 
 The videomap rides in the precompute key (`VideoMapHash`, [`PrecomputeCache/README.md`](../../src/Yaat.Sim/Data/PrecomputeCache/README.md)). `RunwayPaintSnapTests` pins the pairing and the placement on real layouts.
 

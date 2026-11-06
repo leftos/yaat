@@ -6,7 +6,9 @@ namespace Yaat.Sim.Tests.Helpers;
 /// Deep-clones graph topology for fillet comparison: nodes, edges, arcs, and runway
 /// centerline geometry. Each <see cref="IFilletArcGenerator"/> runs on an independent graph
 /// (fillet mutates nodes, edges, and arcs in place). Runway metadata used only by landing/
-/// pattern logic (<see cref="GroundRunway.TurnoffByEnd"/>, pattern fields) is not copied.
+/// pattern logic (<see cref="GroundRunway.TurnoffByEnd"/>, pattern fields) is not copied, and neither are a runway's threshold
+/// displacement and its authored <see cref="GroundRunway.HoldShortDistanceFt"/>: a cloned runway keeps its stored
+/// <see cref="GroundRunway.HoldShortStandoffFt"/> only.
 /// </summary>
 public static class LayoutCloner
 {
