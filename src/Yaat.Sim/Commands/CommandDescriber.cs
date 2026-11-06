@@ -483,6 +483,27 @@ public static class CommandDescriber
             return CommandDimension.All;
         }
 
+        // Force* are per-axis overrides — they teleport one axis (FHN heading, CMN/DMN altitude, SPDN speed)
+        // and set the same Assigned* targets their non-forced counterparts do (FH, CM/DM, SPD), clearing nothing
+        // else on the aircraft. Their TrackedCommandType is Immediate → None, which would otherwise send them
+        // through the None-dimension ClearConflictingBlocks fast path and wipe the ENTIRE queue (the N435C
+        // regression class). They are NOT sim-control bypasses (only WARP wipes phase/queue/route in the
+        // handler), so they must declare the real axis they seize so unrelated queued work survives.
+        if (command is ForceHeadingCommand)
+        {
+            return CommandDimension.Lateral;
+        }
+
+        if (command is ForceAltitudeCommand)
+        {
+            return CommandDimension.Vertical;
+        }
+
+        if (command is ForceSpeedCommand)
+        {
+            return CommandDimension.Speed;
+        }
+
         // Default: derive from TrackedCommandType
         return GetDimension(ClassifyCommand(command));
     }
