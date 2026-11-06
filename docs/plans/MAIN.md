@@ -189,12 +189,11 @@
 - [ ] YAAT-1906 TAXI {route} {rwy} from on the destination runway: stop saying 'holding short' and stop crossing to the far bar
 - [ ] YAAT-1915 Triage the unbarred runway escapes found in the newly committed vNAS layouts · release vNext+1
 
-### 2 Refinements and rulings (3/18 done)
+### 2 Refinements and rulings (4/18 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
 - [ ] YAAT-755 Use one readback for an aircraft stopped over a runway's hold line
 - [ ] YAAT-806 Cap a normal runway crossing near 20 kt for jets and turboprops
 - [ ] YAAT-808 Decide whether a ramp fillet arc counts as a hold-short junction leg
-- [ ] YAAT-1252 Clamp a dropped angle term to just outside the other runway's holding area instead of S · release vNext
 - [ ] YAAT-944 Add the 10 ft margin to every runway crossing's tail clearance
 - [ ] YAAT-1399 Decide whether route-incomplete holds get the firm-rate and unable handling of other holds (TaxiingPhase.cs:1054, :1138)
 - [ ] YAAT-1343 Refuse CROSS when there is no room past the far bar to clear the runway
@@ -241,8 +240,13 @@
 
 ## Runway exits and landing rollout
 
-### 1 Defects (4/25 done)
+### 1 Defects (6/33 done)
 - [ ] YAAT-31 LAHSO residuals: carry the limit past handoff, arc fit, ALD gate, CROSS release · release vNext
+  - [ ] YAAT-1926 LAHSO: keep the hold-short limit after the runway-exit hand-off and predict the overrun at the nose · release vNext
+  - [/] YAAT-1929 LAHSO: let CROSS release the hold after a LAHSO stop; pin CLANDF after LAHSO · release vNext
+  - [ ] YAAT-1940 LAHSO: brake continuously to the hold-short point instead of coasting at 40 kt (E75L at SFO 28R/1L) · release vNext
+  - [ ] YAAT-1942 CLANDF after LAHSO rolls through the hold-short point to the last exit · release vNext
+  - [ ] YAAT-1944 TAXI from the post-LAHSO hold rolls through the LAHSO runway with no hold-short (SFO 28R E across 1L) · release vNext
 - [ ] YAAT-353 Stop a landed aircraft re-accelerating on the exit route before the hold-bar stop (C172 OAK 28R H: +1 kt)
 - [ ] YAAT-364 C172 exiting OAK 28R at H stops with its tail 0.7 ft short of clearing the bar
 - [ ] YAAT-365 Check RunwayExitPhase's exit-preference reference compares survive a restore
@@ -263,9 +267,12 @@
 - [ ] YAAT-1291 Keep the landing straight-line exit fallback from taking a near-parallel taxiway as a high-speed exit (OAK 30 W at 3°)
 - [ ] YAAT-1293 Refused standard exit says 'no exit ahead' while the branch is still ahead
 - [ ] YAAT-1901 Let the runway-exit 'no exit found' warnings fire: they share a timer the trace log resets
+- [ ] YAAT-1941 Keep a helicopter's landing phase when LAHSO declines for it
 
-### 2 Refinements and rulings (0/16 done)
+### 2 Refinements and rulings (0/18 done)
 - [ ] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates · release vNext
+  - [ ] YAAT-1930 Count the runway vacated when the tail passes the hold bar · release vNext
+  - [ ] YAAT-1931 Re-measure the SFO landings and retune the same-runway arrival intervals · release vNext
 - [ ] YAAT-1302 Bring a runway exit's tail-clear arrival to one sub-tick of braking before CompleteExit
 - [ ] YAAT-1303 Stop an expedited runway exit at the taxi rate once its tail is clear
 - [ ] YAAT-1345 Let an auto exit take a short crossover when the stored taxi route already crosses the other runway there
@@ -282,13 +289,14 @@
 - [ ] YAAT-1902 EL/ER/EXIT are accepted and ignored on a runway with no exits in the graph
 - [ ] YAAT-1908 Go around a non-forced landing that would touch down with less runway left than a maximum-effort stop
 
-### 3 Hygiene and tests (2/8 done)
+### 3 Hygiene and tests (2/9 done)
 - [ ] YAAT-1348 Pin YAAT-1328's landing-planner exit skip, FindExitBehind skip and no-exit-fits fallback with tests
 - [ ] YAAT-1352 Pin the too-short exit skip in FindExitBehind and ResolveForcedCandidate
 - [ ] YAAT-1279 Make the exit-angle chain's edge choice independent of edge order (parallel edges, per-node rank)
 - [ ] YAAT-1294 Make the exit angle a plain double once every exit is measured (drop RunwayExitSpeed)
 - [ ] YAAT-1618 Loosen LandingExitDecelTests' 0.05 kt/s turn-off margin so a one-tick braking shift cannot cross it
 - [ ] YAAT-1882 Enter LandingPhase.State.FullStop or delete it: no code transitions into it
+- [ ] YAAT-1937 Pin the LAHSO turn-off-arc exit filter end to end on a layout with a straddling exit
 
 ## Taxi navigator: speed, braking and turns
 
@@ -603,7 +611,7 @@
 
 ## Command parser and queue
 
-### 1 Defects (0/18 done)
+### 1 Defects (0/19 done)
 - [ ] YAAT-1925 Command handlers: force-state verbs FHN/CMN/SPDN wipe the entire pending queue (None dimension trips the clear-everything fast path; not covered by #965)
 - [ ] YAAT-1864 Command pipeline: with the pilot-reaction delay on, a fresh immediate command fails to supersede a pending triggered queue block (#420 sibling for conditionals, not just WAIT/BEHIND)
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
@@ -622,6 +630,7 @@
 - [ ] YAAT-1385 Clear fix crossing stamps when a transmission is rewound, so the reused id never reads them as its own
 - [ ] YAAT-1450 Complete a ; block whose only speed effect is a Mach hold
 - [ ] YAAT-1889 Dry-run a queued or conditional block as a unit when it fires, so a refused altitude does not leave its speed half-applied
+- [ ] YAAT-1943 A speed given with CTO in one block is silently dropped (CTO, SPD 230) · release vNext
 
 ### 2 Refinements and rulings (0/5 done)
 - [ ] YAAT-88 Give the command queue a per-dispatch frontier for independent chains
@@ -675,13 +684,11 @@
 - [ ] YAAT-1917 Correct the C680 performance profile and source per-type Mmo for business jets on the BZJT class figure
 - [ ] YAAT-1918 Apply a speed revert that holds only RevertAssignedSpeed when its fix is sequenced
 
-### 2 Refinements and rulings (2/20 done)
+### 2 Refinements and rulings (4/23 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
-- [ ] YAAT-1435 Fly Vmo by altitude band for types whose TCDS bands it (DH8D, MD11, CL60, LJ35, GLEX, B463, E170, JS20, CRJ) · release vNext
 - [ ] YAAT-1436 Source the speed limits YAAT-1423 left unsourced (LJ60, GLF5, F50, KC-135, C-5M, C-141, H60 Vne) · release vNext
 - [ ] YAAT-1443 Give the types SMAX is most often given their own sourced Vmo/Vne (C208 flies the TP2M class's 250 kt) · release vNext
-- [ ] YAAT-1580 Do not count a refused conditional speed as restated for a later via clearance in the transmission · release vNext
 - [ ] YAAT-1584 Correct rotation speeds that stay on raw profile data when the approach speed comes from the ACD (PC12 Vr 110)
 - [ ] YAAT-1607 Advise unable when a climb puts an assigned speed above Vmo/Mmo
 - [ ] YAAT-1619 Clear the controller-issued speed flags when a phase ends a bound with its assignment; keep a controller ceiling above 200 through a procedure turn
@@ -694,6 +701,9 @@
 - [ ] YAAT-1851 Make a same-transmission crossing and SPD agree under a follow, and rule on speeding up to slow down
 - [ ] YAAT-1888 Count a DVIA or CVIA later in the block when judging a speed at the block's altitude
 - [ ] YAAT-1920 Rule and fix two physics gaps the shared published-speed judge exposed (crossing speed under DSR; resume before E)
+- [ ] YAAT-1936 Decide whether a speed is refused against the lowest Vmo between the present and cleared altitude
+- [ ] YAAT-1938 Slow ahead of a falling Vmo band under any assigned speed, not only SMAX
+- [ ] YAAT-1939 Fly GLEX Mmo by altitude above 35,000 ft (Mach bands)
 
 ### 3 Hygiene and tests (0/7 done)
 - [ ] YAAT-117 Split FlightPhysics.UpdateSpeed into layer helpers (complexity ≤8)
@@ -709,6 +719,7 @@
 - [ ] YAAT-1524 Decelerate at a descending rate, not the level-flight rate, when slowing for a fix in a descent
 - [ ] YAAT-1680 Fly the climb IAS schedule, not Vmo, while a Mach is held below the crossover
 - [ ] YAAT-1701 250 kt descent lead follow-ups: Class B shelf lead, idealised profile, missing tests, shared harness
+- [ ] YAAT-1932 Fly helicopter Vne by altitude from the flight manuals (R22, R44, B06, H60)
 
 ## SIDs, STARs and climb/descend via
 
@@ -957,12 +968,14 @@
 - [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C
 - [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick
 
-### 2 Refinements and rulings (2/12 done)
+### 2 Refinements and rulings (3/15 done)
 - [ ] YAAT-1545 Route each pilot report, check-in and readback to the position the pilot is tuned to, not a hardcoded Ground/Tower set · release vNext
+  - [ ] YAAT-1933 Add the per-aircraft tuned position and set it on every instruction, handoff and frequency change · release vNext
+  - [ ] YAAT-1934 Route each pilot report by the tuned position; delete the SoloPositions lists · release vNext
+  - [ ] YAAT-1935 Address the airborne check-in to the tuned position · release vNext
 - [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording
 - [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range
 - [ ] YAAT-1189 Decide what the simulated tower clears pattern traffic for
-- [ ] YAAT-1412 In solo sessions, a pilot checking in states an assigned speed or vector (AIM 4-4-12.l) · release vNext
 - [ ] YAAT-315 Solo call-up: ask for push-back at stands that need one, taxi elsewhere
 - [ ] YAAT-820 Voice RPO pilots' show-pilot-speech lines behind a preference
 - [ ] YAAT-971 Grade the field advisory's clock and miles in RFIS
@@ -1216,7 +1229,7 @@
 - [ ] YAAT-985 Run the desktop-gated UI tests the routed builder skips before a landing counts as green
 - [ ] YAAT-1478 Count soak completions per episode instead of reading the debrief's 500-record removal list
 
-### 3 Hygiene and tests (1/57 done)
+### 3 Hygiene and tests (2/57 done)
 - [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
 - [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
 - [ ] YAAT-152 Test SoakRunner option parsing (move it into Yaat.Server/Soak)
@@ -1265,7 +1278,6 @@
 - [ ] YAAT-1230 Remove wall-clock time assertions from the yaat and yaat-server tests
 - [ ] YAAT-1315 Install synthetic navdata in Client.UI tests through ScopedOverride, not SetInstance
 - [ ] YAAT-1376 Stop OakPreferLaterOnsideExitTests counting P's south-side bar as an on-side exit
-- [ ] YAAT-1416 Keep TaxiStartsOnOccupiedTaxiwayTests' FarSideBar walk on the stub's taxiway (OAK W2 bar 51 reaches W1 bar 41) · release vNext
 - [ ] YAAT-1457 Move the remaining OAK test selectors off node ids, ordinals and arc display names; add bug_bundle.py remap · release vNext
 - [ ] YAAT-1613 Share the client ground-route test setup and scope its navdata overrides
 - [ ] YAAT-1691 Refuse a pinned TestVnasData resolve after an unpinned one already ran
@@ -1399,4 +1411,4 @@
 - [say-again.md](say-again.md) — Say again
 - [stt-rule-gaps.md](stt-rule-gaps.md) — STT tuning
 - [taxi-append.md](taxi-append.md) — Taxi append
-- [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208, YAAT-1252
+- [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
