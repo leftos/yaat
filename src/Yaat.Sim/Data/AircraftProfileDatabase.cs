@@ -15,6 +15,7 @@ public static class AircraftProfileDatabase
     private static Dictionary<string, AircraftProfile> _lookup = new(StringComparer.OrdinalIgnoreCase);
     private static Dictionary<string, IReadOnlySet<string>> _overriddenFields = new(StringComparer.OrdinalIgnoreCase);
     private static Dictionary<string, (double? VmoKts, double? Mmo)> _speedEnvelopeOverrides = new(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, VmoBandPoint[]> _vmoBands = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> _siblingFallbackWarned = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Lock SiblingFallbackWarnedLock = new();
 
@@ -42,6 +43,7 @@ public static class AircraftProfileDatabase
         var lookup = new Dictionary<string, AircraftProfile>(baseProfiles, StringComparer.OrdinalIgnoreCase);
         var overriddenFields = new Dictionary<string, IReadOnlySet<string>>(StringComparer.OrdinalIgnoreCase);
         var speedEnvelopeOverrides = new Dictionary<string, (double? VmoKts, double? Mmo)>(StringComparer.OrdinalIgnoreCase);
+        var vmoBands = new Dictionary<string, VmoBandPoint[]>(StringComparer.OrdinalIgnoreCase);
 
         foreach (AircraftProfileOverride ov in overrides)
         {
@@ -56,6 +58,12 @@ public static class AircraftProfileDatabase
             if ((ov.Vmo is not null) || (ov.Mmo is not null))
             {
                 speedEnvelopeOverrides[type] = (ov.Vmo, ov.Mmo);
+            }
+
+            if (ov.VmoBands is not null)
+            {
+                ValidateVmoBands(ov);
+                vmoBands[type] = [.. ov.VmoBands];
             }
 
             AircraftProfile baseProfile;
@@ -88,6 +96,7 @@ public static class AircraftProfileDatabase
         _lookup = lookup;
         _overriddenFields = overriddenFields;
         _speedEnvelopeOverrides = speedEnvelopeOverrides;
+        _vmoBands = vmoBands;
         AircraftPerformance.ClearSpeedEnvelopeCache();
         FaaAircraftDatabase.ApplyOverrides(overrides);
         ClearSiblingFallbackWarnings();
@@ -124,6 +133,93 @@ public static class AircraftProfileDatabase
         string baseType = AircraftState.NormalizedBaseType(aircraftType);
         return _speedEnvelopeOverrides.GetValueOrDefault(baseType);
     }
+
+    /// <summary>
+    /// The Vmo-by-altitude points an override entry gives this exact type (<see cref="AircraftProfileOverride.VmoBands"/>),
+    /// or null when it gives none. No sibling fallback, like <see cref="SpeedEnvelopeOverride"/>. Callers must not modify
+    /// the array.
+    /// </summary>
+    internal static VmoBandPoint[]? VmoBands(string? aircraftType)
+    {
+        if (string.IsNullOrEmpty(aircraftType))
+        {
+            return null;
+        }
+
+        string baseType = AircraftState.NormalizedBaseType(aircraftType);
+        return _vmoBands.GetValueOrDefault(baseType);
+    }
+
+    /// <summary>
+    /// Checks an override's <see cref="AircraftProfileOverride.VmoBands"/>, throwing an
+    /// <see cref="InvalidOperationException"/> naming the type when it breaks a rule: at least one point, altitudes in
+    /// non-decreasing order with at most two points at one altitude, every KIAS above zero, <see cref="AircraftProfileOverride.Vmo"/>
+    /// equal to the largest KIAS, and the KIAS rising then falling, never rising again after a fall (so the lowest limit
+    /// between two altitudes is at one of them). Does nothing for an override with no bands.
+    /// </summary>
+    internal static void ValidateVmoBands(AircraftProfileOverride ov)
+    {
+        if (ov.VmoBands is not { } points)
+        {
+            return;
+        }
+
+        string type = ov.TypeCode;
+        if (points.Count == 0)
+        {
+            throw BandError(type, $"has no points");
+        }
+
+        bool fallen = false;
+        for (int i = 0; i < points.Count; i++)
+        {
+            if (points[i].Kias <= 0)
+            {
+                throw BandError(type, $"has a non-positive KIAS at {points[i].AltitudeFt:F0} ft");
+            }
+
+            if (i == 0)
+            {
+                continue;
+            }
+
+            CheckBandStep(type, points, i, ref fallen);
+        }
+
+        double max = points.Max(p => p.Kias);
+        if (ov.Vmo != max)
+        {
+            throw BandError(type, $"has a maximum of {max} kt but vmo is {(object?)ov.Vmo ?? "absent"}");
+        }
+    }
+
+    /// <summary>Checks the point at <paramref name="i"/> against the one before it for <see cref="ValidateVmoBands"/>.</summary>
+    private static void CheckBandStep(string type, IReadOnlyList<VmoBandPoint> points, int i, ref bool fallen)
+    {
+        VmoBandPoint prev = points[i - 1];
+        VmoBandPoint cur = points[i];
+        if (cur.AltitudeFt < prev.AltitudeFt)
+        {
+            throw BandError(type, $"goes down in altitude at {cur.AltitudeFt:F0} ft");
+        }
+
+        if ((i >= 2) && (cur.AltitudeFt == prev.AltitudeFt) && (points[i - 2].AltitudeFt == cur.AltitudeFt))
+        {
+            throw BandError(type, $"has more than two points at {cur.AltitudeFt:F0} ft");
+        }
+
+        if (cur.Kias < prev.Kias)
+        {
+            fallen = true;
+        }
+        else if ((cur.Kias > prev.Kias) && fallen)
+        {
+            throw BandError(type, $"rises again after a fall at {cur.AltitudeFt:F0} ft");
+        }
+    }
+
+    private static InvalidOperationException BandError(string type, FormattableString problem) =>
+        new($"Aircraft profile override {type}: vmoBands {FormattableString.Invariant(problem)}");
 
     /// <summary>
     /// Reset the per-type "used sibling fallback" warning set. Called when the

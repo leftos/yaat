@@ -213,9 +213,17 @@
   },
   {
     "typeCode": "CRJ9",
-    "note": "Vmo 335 KCAS / Mmo 0.85 from FAA TCDS A21EA-1 (CL-600-2D24, CRJ900): the band maxima (335 kt at 8,000-25,400 ft; 0.85 at 31,400-34,000 ft, 0.84 above). Replaces OpenAP's 320 / 0.82, which understates the TCDS.",
+    "note": "Vmo / Mmo from FAA TCDS A21EA-1 (CL-600-2D24, CRJ900). vmoBands: 330 kt to 8,000 ft, a step to 335 kt at 8,000 ft (330 at the step itself), 335 kt to 25,400 ft, then a straight line down to 315 kt at 28,300 ft (the TCDS's M0.80 stretch, which the line matches within 1 kt), 315 kt held above (the TCDS's 315 kt to 31,400 ft), where Mmo takes over; vmo 335 is the band maximum. Mmo 0.84: the TCDS gives 0.85 at 31,400-34,000 ft and 0.84 above, and one Mmo figure takes the lower so the type never flies past a limit. Replaces OpenAP's 320 / 0.82, which understates the TCDS. descentSpeedInitial 0.80 replaces the profile's 0.82, which flew within 10 kt of Mmo 0.84 above 39,400 ft; 0.80 keeps the descent 10 kt under it to the 41,000 ft ceiling.",
     "vmo": 335,
-    "mmo": 0.85
+    "mmo": 0.84,
+    "descentSpeedInitial": 0.80,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 330 },
+      { "altitudeFt": 8000, "kias": 330 },
+      { "altitudeFt": 8000, "kias": 335 },
+      { "altitudeFt": 25400, "kias": 335 },
+      { "altitudeFt": 28300, "kias": 315 }
+    ]
   },
   {
     "typeCode": "E145",
@@ -225,10 +233,16 @@
   },
   {
     "typeCode": "E170",
-    "note": "Vmo 320 KCAS / Mmo 0.82 from FAA TCDS A56NM (Embraer ERJ 170): 320 kt is the 10,000-28,887 ft band maximum. descentSpeedInitial 0.78 (Mach) replaces the profile's 1, which reads as 1 KIAS and dragged the descent speed toward 1 kt near the ceiling.",
+    "note": "Vmo / Mmo 0.82 from FAA TCDS A56NM (Embraer ERJ 170). vmoBands: 300 kt to 8,000 ft, increasing linearly to 320 kt at 10,000 ft (as the TCDS states), 320 kt to 28,887 ft (the Mmo crossover) and held above; vmo 320 is the band maximum. descentSpeedInitial 0.78 (Mach) replaces the profile's 1, which reads as 1 KIAS and dragged the descent speed toward 1 kt near the ceiling.",
     "vmo": 320,
     "mmo": 0.82,
-    "descentSpeedInitial": 0.78
+    "descentSpeedInitial": 0.78,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 300 },
+      { "altitudeFt": 8000, "kias": 300 },
+      { "altitudeFt": 10000, "kias": 320 },
+      { "altitudeFt": 28887, "kias": 320 }
+    ]
   },
   {
     "typeCode": "E190",
@@ -250,15 +264,28 @@
   },
   {
     "typeCode": "CL60",
-    "note": "Vmo 348 KCAS / Mmo 0.85 from FAA TCDS A21EA, section III (CL-600-2B16, Challenger 604 table): 348 kt is the 8,000-22,160 ft band maximum.",
+    "note": "Vmo / Mmo 0.85 from FAA TCDS A21EA, section III (CL-600-2B16, Challenger 604 table). vmoBands: 300 kt to 8,000 ft, a step to 348 kt at 8,000 ft (300 at the step itself), 348 kt to 22,160 ft, then a straight line down to 318 kt at 26,570 ft (the TCDS's M0.78 stretch), and 318 kt held above (the TCDS's 318 kt to 30,997 ft, where Mmo takes over); vmo 348 is the band maximum.",
     "vmo": 348,
-    "mmo": 0.85
+    "mmo": 0.85,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 300 },
+      { "altitudeFt": 8000, "kias": 300 },
+      { "altitudeFt": 8000, "kias": 348 },
+      { "altitudeFt": 22160, "kias": 348 },
+      { "altitudeFt": 26570, "kias": 318 }
+    ]
   },
   {
     "typeCode": "LJ35",
-    "note": "Vmo 350 KCAS / Mmo 0.81 from FAA TCDS A10CE (Model 35/36/35A): 350 kt is the 14,000-23,900 ft band maximum; 0.81 applies with the autopilot or Mach trim operating (0.73 without).",
+    "note": "Vmo / Mmo 0.81 from FAA TCDS A10CE (Model 35/36/35A). vmoBands: 300 kt to 14,000 ft, a step to 350 kt at 14,000 ft (300 at the step itself), 350 kt to 23,900 ft (the Mmo crossover) and held above; vmo 350 is the band maximum. Mmo 0.81 applies with the autopilot or Mach trim operating (0.73 without).",
     "vmo": 350,
-    "mmo": 0.81
+    "mmo": 0.81,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 300 },
+      { "altitudeFt": 14000, "kias": 300 },
+      { "altitudeFt": 14000, "kias": 350 },
+      { "altitudeFt": 23900, "kias": 350 }
+    ]
   },
   {
     "typeCode": "LJ45",
@@ -286,9 +313,14 @@
   },
   {
     "typeCode": "GLEX",
-    "note": "Vmo 340 KCAS / Mmo 0.89 from FAA TCDS T00003NY (BD-700-1A10, Global Express): 340 kt is the 8,000-30,267 ft band maximum.",
+    "note": "Vmo / Mmo 0.89 from FAA TCDS T00003NY (BD-700-1A10, Global Express). vmoBands: 300 kt to 8,000 ft, a step to 340 kt at 8,000 ft (300 at the step itself), 340 kt above (to the 30,267 ft Mmo crossover); vmo 340 is the band maximum.",
     "vmo": 340,
-    "mmo": 0.89
+    "mmo": 0.89,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 300 },
+      { "altitudeFt": 8000, "kias": 300 },
+      { "altitudeFt": 8000, "kias": 340 }
+    ]
   },
   {
     "typeCode": "GLF6",
@@ -305,19 +337,30 @@
   },
   {
     "typeCode": "DH8D",
-    "note": "Vmo 286 KIAS and Mmo 0.60 from FAA TCDS A13NM (DHC-8-400): 286 kt is the band maximum, at 18,000 ft; the bands give 275 kt at 20,000 ft and 248 kt at 25,000 ft, each about M0.599 (286/18,000, 275/20,000, 248/25,000), so Mmo 0.60. The Q400 flies DH8C's profile through the sibling map, and an override with profile fields merges onto that profile, so it carries its own descent speeds: descentSpeedFl100 250 (DH8C's profile figure, under the 286 kt band) and descentSpeedInitial 238 (248 - 10 at the 25,000 ft ceiling, M0.576), not DH8C's 233/204.",
+    "note": "Vmo and Mmo 0.60 from FAA TCDS A13NM (DHC-8-400). vmoBands: 245 kt to 8,000 ft, a straight line to 282 kt at 10,000 ft and on to 286 kt at 18,000 ft, held above; vmo 286 is the band maximum. The TCDS's 275 kt at 20,000 ft and 248 kt at 25,000 ft are each about M0.599 (as is 286/18,000), the Mmo 0.60 line, so the scalar Mmo carries them. The Q400 flies DH8C's profile through the sibling map, and an override with profile fields merges onto that profile, so it carries its own descent speeds: descentSpeedFl100 235 (245 - 10, the band at 8,000 ft: DH8C's profile 250 carried the line from the approach speed past 245 - 10 between 7,500 and 8,200 ft) and descentSpeedInitial 238 (248 - 10 at the 25,000 ft ceiling, M0.576), not DH8C's 233/204.",
     "vmo": 286,
     "mmo": 0.60,
     "descentSpeedInitial": 238,
-    "descentSpeedFl100": 250
+    "descentSpeedFl100": 235,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 245 },
+      { "altitudeFt": 8000, "kias": 245 },
+      { "altitudeFt": 10000, "kias": 282 },
+      { "altitudeFt": 18000, "kias": 286 }
+    ]
   },
   {
     "typeCode": "JS20",
-    "note": "Vmo 215 KIAS from FAA TCDS A21EU (Jetstream Series 200): the band maximum, up to 18,000 ft. TCDS gives no Mmo; the class M0.55 never binds below this Vmo up to the ceiling. finalApproachSpeed 105 is the Eurocontrol APD Vat. The descent speeds follow the TCDS Vmo bands: descentSpeedFl100 215 replaces the profile's 220, which flew past Vmo, and descentSpeedInitial 180 (the Vmo at 25,000 ft, the ceiling) replaces the profile's 1, which reads as 1 KIAS and dragged the descent speed toward 1 kt near the ceiling.",
+    "note": "Vmo from FAA TCDS A21EU (Jetstream Series 200). vmoBands: 215 kt to 18,000 ft, then a straight line down to 180 kt at 25,000 ft, the ceiling; vmo 215 is the band maximum. TCDS gives no Mmo; the class M0.55 never binds below this Vmo up to the ceiling. finalApproachSpeed 105 is the Eurocontrol APD Vat. The descent speeds fly 10 kt under the TCDS Vmo bands, as SMAX does: descentSpeedFl100 205 (215 - 10) replaces the profile's 220, which flew past Vmo, and descentSpeedInitial 170 (180 - 10, the Vmo at 25,000 ft, the ceiling) replaces the profile's 1, which reads as 1 KIAS and dragged the descent speed toward 1 kt near the ceiling.",
     "vmo": 215,
     "finalApproachSpeed": 105,
-    "descentSpeedInitial": 180,
-    "descentSpeedFl100": 215
+    "descentSpeedInitial": 170,
+    "descentSpeedFl100": 205,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 215 },
+      { "altitudeFt": 18000, "kias": 215 },
+      { "altitudeFt": 25000, "kias": 180 }
+    ]
   },
   {
     "typeCode": "A342",
@@ -351,21 +394,42 @@
   },
   {
     "typeCode": "CRJ1",
-    "note": "Vmo 335 KCAS / Mmo 0.85 from FAA TCDS A21EA-1, section I (CL-600-2B19, CRJ100/200): the band maxima (335 kt at 8,000-25,400 ft; 0.85 at 31,400-41,000 ft).",
+    "note": "Vmo / Mmo 0.85 from FAA TCDS A21EA-1, section I (CL-600-2B19, CRJ100/200). vmoBands: 330 kt to 8,000 ft, a step to 335 kt at 8,000 ft (330 at the step itself), 335 kt to 25,400 ft, then a straight line down to 315 kt at 28,300 ft (the TCDS's M0.80 stretch, which the line matches within 1 kt), 315 kt held above (the TCDS's 315 kt to 31,400 ft), where Mmo takes over (0.85 at 31,400-41,000 ft); vmo 335 is the band maximum.",
     "vmo": 335,
-    "mmo": 0.85
+    "mmo": 0.85,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 330 },
+      { "altitudeFt": 8000, "kias": 330 },
+      { "altitudeFt": 8000, "kias": 335 },
+      { "altitudeFt": 25400, "kias": 335 },
+      { "altitudeFt": 28300, "kias": 315 }
+    ]
   },
   {
     "typeCode": "CRJ2",
-    "note": "Vmo 335 KCAS / Mmo 0.85 from FAA TCDS A21EA-1, section I (CL-600-2B19, CRJ100/200): the band maxima (335 kt at 8,000-25,400 ft; 0.85 at 31,400-41,000 ft).",
+    "note": "Vmo / Mmo 0.85 from FAA TCDS A21EA-1, section I (CL-600-2B19, CRJ100/200). vmoBands: 330 kt to 8,000 ft, a step to 335 kt at 8,000 ft (330 at the step itself), 335 kt to 25,400 ft, then a straight line down to 315 kt at 28,300 ft (the TCDS's M0.80 stretch, which the line matches within 1 kt), 315 kt held above (the TCDS's 315 kt to 31,400 ft), where Mmo takes over (0.85 at 31,400-41,000 ft); vmo 335 is the band maximum.",
     "vmo": 335,
-    "mmo": 0.85
+    "mmo": 0.85,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 330 },
+      { "altitudeFt": 8000, "kias": 330 },
+      { "altitudeFt": 8000, "kias": 335 },
+      { "altitudeFt": 25400, "kias": 335 },
+      { "altitudeFt": 28300, "kias": 315 }
+    ]
   },
   {
     "typeCode": "CRJ7",
-    "note": "Vmo 335 KCAS / Mmo 0.85 from FAA TCDS A21EA-1, section II (CL-600-2C10, CRJ700): the band maxima (335 kt at 8,000-25,400 ft; 0.85 at 31,400-41,000 ft).",
+    "note": "Vmo / Mmo 0.85 from FAA TCDS A21EA-1, section II (CL-600-2C10, CRJ700). vmoBands: 330 kt to 8,000 ft, a step to 335 kt at 8,000 ft (330 at the step itself), 335 kt to 25,400 ft, then a straight line down to 315 kt at 28,300 ft (the TCDS's M0.80 stretch, which the line matches within 1 kt), 315 kt held above (the TCDS's 315 kt to 31,400 ft), where Mmo takes over (0.85 at 31,400-41,000 ft); vmo 335 is the band maximum.",
     "vmo": 335,
-    "mmo": 0.85
+    "mmo": 0.85,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 330 },
+      { "altitudeFt": 8000, "kias": 330 },
+      { "altitudeFt": 8000, "kias": 335 },
+      { "altitudeFt": 25400, "kias": 335 },
+      { "altitudeFt": 28300, "kias": 315 }
+    ]
   },
   {
     "typeCode": "B753",
@@ -375,9 +439,14 @@
   },
   {
     "typeCode": "MD11",
-    "note": "Vmo 365 KCAS / Mmo 0.87 from FAA TCDS A22WE (MD-11): 365 kt is the 10,000-25,670 ft band maximum.",
+    "note": "Vmo / Mmo 0.87 from FAA TCDS A22WE (MD-11). vmoBands: 350 kt at sea level, a straight line to 365 kt at 10,000 ft, 365 kt to 25,670 ft (the Mmo crossover) and held above; vmo 365 is the band maximum.",
     "vmo": 365,
-    "mmo": 0.87
+    "mmo": 0.87,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 350 },
+      { "altitudeFt": 10000, "kias": 365 },
+      { "altitudeFt": 25670, "kias": 365 }
+    ]
   },
   {
     "typeCode": "B74S",
@@ -409,10 +478,18 @@
   },
   {
     "typeCode": "B463",
-    "note": "Vmo 295 KIAS / Mmo 0.73 from FAA TCDS A49EU, section III (BAe 146-300A): 295 kt is the 8,000-23,900 ft band maximum. finalApproachSpeed 125 is the Eurocontrol APD Vat.",
+    "note": "Vmo / Mmo 0.73 from FAA TCDS A49EU, section III (BAe 146-300A). vmoBands: 250 kt to 8,000 ft, a step to 295 kt at 8,000 ft (250 at the step itself), 295 kt to 23,900 ft and held above it, where Mmo takes over near 26,730 ft; vmo 295 is the band maximum. finalApproachSpeed 125 is the Eurocontrol APD Vat. initialApproachSpeed 240 and descentSpeedFl100 240 (250 - 10, the band below 8,000 ft) replace the profile's 250 and 250, which held the descent at 250 kt below 8,000 ft, on the band itself.",
     "vmo": 295,
     "mmo": 0.73,
-    "finalApproachSpeed": 125
+    "finalApproachSpeed": 125,
+    "initialApproachSpeed": 240,
+    "descentSpeedFl100": 240,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 250 },
+      { "altitudeFt": 8000, "kias": 250 },
+      { "altitudeFt": 8000, "kias": 295 },
+      { "altitudeFt": 23900, "kias": 295 }
+    ]
   },
   {
     "typeCode": "D228",

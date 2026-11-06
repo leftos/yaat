@@ -2055,7 +2055,7 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `FH 270` | Fly heading 270 |
 | `CM 100` | Climb and maintain 10,000 ft |
 | `SPD 250` | Maintain 250 knots |
-| `SMAX` | Maintain maximum forward speed: the fastest the type can fly, following the altitude (a margin under Vmo low, under Mmo high). Unlike `SPD`, it is not held to 250 knots below 10,000 ft |
+| `SMAX` | Maintain maximum forward speed: the fastest the type can fly, following the altitude (a margin under Vmo low, under Mmo high; for a type whose Vmo varies with altitude, such as the Dash 8, the Vmo at the present altitude, slowing ahead of a lower band when climbing or descending into it). Unlike `SPD`, it is not held to 250 knots below 10,000 ft |
 | `CM 050, FH 090` | Climb to 5,000 **and** turn to 090 simultaneously |
 | `CM 100; LV 050 FH 270` | Climb to 10,000; at 5,000 ft, turn heading 270 |
 | `EXP 014` | Descend to 1,400 ft and expedite — the altitude is a clearance, so this both re-clears the aircraft and raises its vertical rate (descents roughly double, climbs gain ~15%, within per-category limits). A bare `EXP` expedites the climb or descent already in progress instead |

@@ -145,6 +145,15 @@ public sealed record AircraftProfileOverride
     public double? Mmo { get; init; }
 
     /// <summary>
+    /// Vmo (KIAS) by altitude, for a type whose type certificate limits it by altitude: points in altitude order, joined by
+    /// straight lines, the first value below the first point and the last above the last. Two points at one altitude are a
+    /// step, and at that altitude the lower value applies. <see cref="Vmo"/> stays the redline, the list's maximum; the
+    /// list rises then falls (<see cref="AircraftProfileDatabase.ValidateVmoBands"/>). Kept outside the profile merge.
+    /// </summary>
+    [JsonPropertyName("vmoBands")]
+    public IReadOnlyList<VmoBandPoint>? VmoBands { get; init; }
+
+    /// <summary>
     /// Merge this override onto <paramref name="baseProfile"/>. Returns the merged profile and
     /// the set of <see cref="AircraftProfile"/> property names that were overridden (so the
     /// correction adapter can treat exactly those fields as authoritative).
@@ -240,3 +249,11 @@ public sealed record AircraftProfileOverride
         return baseValue;
     }
 }
+
+/// <summary>One point of a type's Vmo by altitude (<see cref="AircraftProfileOverride.VmoBands"/>).</summary>
+/// <param name="AltitudeFt">Pressure altitude (ft) the point applies at.</param>
+/// <param name="Kias">Vmo (KIAS) at that altitude.</param>
+public readonly record struct VmoBandPoint(
+    [property: JsonPropertyName("altitudeFt")] double AltitudeFt,
+    [property: JsonPropertyName("kias")] double Kias
+);

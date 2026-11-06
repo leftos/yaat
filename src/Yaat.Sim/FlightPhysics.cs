@@ -452,7 +452,7 @@ public static class FlightPhysics
         return AtOrBelowHandOverAltitude(aircraft)
             || (
                 DescendingBelowHandOverAltitude(aircraft)
-                && (WindInterpolator.MachToIas(mach, aircraft.Altitude) >= MachHandOverThresholdKts(aircraft.AircraftType, cat))
+                && (WindInterpolator.MachToIas(mach, aircraft.Altitude) >= MachHandOverThresholdKts(aircraft.AircraftType, cat, aircraft.Altitude))
             );
     }
 
@@ -463,7 +463,7 @@ public static class FlightPhysics
     private static double RestoredMachIas(string aircraftType, double mach, double altitudeFt)
     {
         AircraftCategory cat = AircraftCategorization.Categorize(aircraftType);
-        double capped = Math.Min(SpeedMaxKts(aircraftType) ?? double.MaxValue, WindInterpolator.MachToIas(mach, altitudeFt));
+        double capped = Math.Min(SpeedMaxKts(aircraftType, altitudeFt) ?? double.MaxValue, WindInterpolator.MachToIas(mach, altitudeFt));
         return Math.Round(Math.Min(capped, DescentSpeedKts(aircraftType, cat)));
     }
 
@@ -2878,8 +2878,10 @@ public static class FlightPhysics
     /// speed a margin under its redline: Mmo less <see cref="SpeedMaxMarginMach"/> as a Mach hold
     /// (<see cref="ControlTargets.TargetMach"/>, no <see cref="ControlTargets.AssignedSpeed"/>) where that Mach's IAS
     /// equivalent is below Vmo less <see cref="SpeedMaxMarginKts"/>, that IAS as the assigned and target speed elsewhere,
-    /// and <see cref="HelicopterSpeedMaxFractionOfVne"/> of Vne for a helicopter. The fields are written only when the mode
-    /// changes, at the IAS/Mach crossover, not on every tick.
+    /// and <see cref="HelicopterSpeedMaxFractionOfVne"/> of Vne for a helicopter. The Vmo is the one at the aircraft's
+    /// altitude, led into a lower one ahead (<see cref="SpeedMaxAheadKts"/>). The fields are written only when they change:
+    /// at the IAS/Mach crossover, and as a banded type's limit moves with altitude (a step, or each knot along a sloped
+    /// band), not on every tick.
     /// </summary>
     internal static void HoldMaximumForwardSpeed(AircraftState aircraft)
     {
@@ -2888,7 +2890,7 @@ public static class FlightPhysics
             return;
         }
 
-        double? maxKts = SpeedMaxKts(aircraft.AircraftType);
+        double? maxKts = SpeedMaxAheadKts(aircraft);
         double? maxMach = AircraftPerformance.MaxOperatingMach(aircraft.AircraftType) is { } mmo ? Math.Round(mmo - SpeedMaxMarginMach, 2) : null;
         if ((maxMach is { } smaxMach) && ((maxKts is not { } ktsBound) || (WindInterpolator.MachToIas(smaxMach, aircraft.Altitude) < ktsBound)))
         {
@@ -2914,6 +2916,51 @@ public static class FlightPhysics
             aircraft.Targets.AssignedSpeed = assigned;
             aircraft.Targets.TargetSpeed = assigned;
         }
+    }
+
+    /// <summary>
+    /// The IAS SMAX holds now: <see cref="SpeedMaxKts"/> at the present altitude, or lower where the aircraft is climbing or
+    /// descending into a lower Vmo (a type whose Vmo is banded by altitude): the lowest over the altitude it covers while
+    /// slowing to it (<see cref="SpeedMaxLeadAltitudeFt"/>), so it reaches the lower limit already at it. A higher limit
+    /// ahead is taken up only once the aircraft is there. Null for a type with no known Vmo.
+    /// </summary>
+    private static double? SpeedMaxAheadKts(AircraftState aircraft)
+    {
+        if (SpeedMaxKts(aircraft.AircraftType, aircraft.Altitude) is not { } here)
+        {
+            return null;
+        }
+
+        double leadAltitude = SpeedMaxLeadAltitudeFt(aircraft, here);
+        return leadAltitude == aircraft.Altitude ? here : Math.Min(here, SpeedMaxKts(aircraft.AircraftType, leadAltitude) ?? here);
+    }
+
+    /// <summary>
+    /// The altitude the aircraft reaches, at its present vertical speed, in the time it takes to slow at its decel rate
+    /// from <paramref name="hereKts"/> (the SMAX speed at its present altitude) to the SMAX speed at the altitude it is
+    /// cleared to, no further than that altitude. Measured from the present SMAX speed rather than the IAS, so the lead does
+    /// not shrink as the aircraft slows. The present altitude when it is level or not headed for its cleared altitude. The
+    /// Vmo bands rise then fall, so the lowest limit between the present altitude and this one is at one of the two.
+    /// </summary>
+    private static double SpeedMaxLeadAltitudeFt(AircraftState aircraft, double hereKts)
+    {
+        double here = aircraft.Altitude;
+        double vs = aircraft.VerticalSpeed;
+        if ((aircraft.Targets.TargetAltitude is not { } cleared) || ((cleared - here) * vs <= 0))
+        {
+            return here;
+        }
+
+        double slowKts = Math.Max(0, hereKts - (SpeedMaxKts(aircraft.AircraftType, cleared) ?? hereKts));
+        if (slowKts <= 0)
+        {
+            return here;
+        }
+
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double seconds = slowKts / AircraftPerformance.DecelRate(aircraft.AircraftType, cat);
+        double lead = here + (vs / 60.0 * seconds);
+        return vs > 0 ? Math.Min(lead, cleared) : Math.Max(lead, cleared);
     }
 
     /// <summary>Feet below the cleared altitude at which a Mach hold counts as a descent.</summary>
@@ -2943,7 +2990,7 @@ public static class FlightPhysics
         }
 
         double machIas = WindInterpolator.MachToIas(mach, aircraft.Altitude);
-        if ((machIas < MachHandOverThresholdKts(aircraft.AircraftType, cat)) && (aircraft.Altitude > MachHandOverAltitudeFt))
+        if ((machIas < MachHandOverThresholdKts(aircraft.AircraftType, cat, aircraft.Altitude)) && (aircraft.Altitude > MachHandOverAltitudeFt))
         {
             return;
         }
@@ -3000,8 +3047,8 @@ public static class FlightPhysics
     /// The IAS equivalent a Mach's descent triggers the handover at: Vmo less <see cref="SpeedMaxMarginKts"/> or the
     /// profile's FL100 descent speed, whichever is lower.
     /// </summary>
-    private static double MachHandOverThresholdKts(string aircraftType, AircraftCategory cat) =>
-        Math.Min(SpeedMaxKts(aircraftType) ?? double.MaxValue, DescentSpeedKts(aircraftType, cat));
+    private static double MachHandOverThresholdKts(string aircraftType, AircraftCategory cat, double altitudeFt) =>
+        Math.Min(SpeedMaxKts(aircraftType, altitudeFt) ?? double.MaxValue, DescentSpeedKts(aircraftType, cat));
 
     /// <summary>The speed the type's profile is flown at in the descent (its FL100 descent speed), as <c>DescentSpeed</c> reads it.</summary>
     private static double DescentSpeedKts(string aircraftType, AircraftCategory cat) =>
@@ -3014,16 +3061,17 @@ public static class FlightPhysics
     /// Vmo less <see cref="SpeedMaxMarginKts"/>.
     /// </summary>
     private static double MachHandOverKts(string aircraftType, double mach, double altitudeFt) =>
-        Math.Round(Math.Min(SpeedMaxKts(aircraftType) ?? double.MaxValue, WindInterpolator.MachToIas(mach, altitudeFt)));
+        Math.Round(Math.Min(SpeedMaxKts(aircraftType, altitudeFt) ?? double.MaxValue, WindInterpolator.MachToIas(mach, altitudeFt)));
 
     /// <summary>
-    /// The IAS SMAX holds <paramref name="aircraftType"/> to below its IAS/Mach crossover: Vmo less
-    /// <see cref="SpeedMaxMarginKts"/>, or <see cref="HelicopterSpeedMaxFractionOfVne"/> of Vne for a helicopter, rounded to
-    /// the knot. Null for a type with no known Vmo.
+    /// The IAS SMAX holds <paramref name="aircraftType"/> to below its IAS/Mach crossover at <paramref name="altitudeFt"/>:
+    /// Vmo there (<see cref="AircraftPerformance.VmoAtKts"/>) less <see cref="SpeedMaxMarginKts"/>, or
+    /// <see cref="HelicopterSpeedMaxFractionOfVne"/> of Vne for a helicopter, rounded to the knot. Null for a type with no
+    /// known Vmo.
     /// </summary>
-    private static double? SpeedMaxKts(string aircraftType)
+    private static double? SpeedMaxKts(string aircraftType, double altitudeFt)
     {
-        if (AircraftPerformance.MaxOperatingSpeedKts(aircraftType) is not { } vmo)
+        if (AircraftPerformance.VmoAtKts(aircraftType, altitudeFt) is not { } vmo)
         {
             return null;
         }

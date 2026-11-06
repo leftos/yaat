@@ -7,7 +7,7 @@ namespace Yaat.Sim.Tests;
 
 /// <summary>
 /// YAAT-1423: the sourced per-type speed limits in AircraftProfileOverrides.json. Each type flies its own type
-/// certificate's Vmo/Mmo (the band maximum where the TCDS bands Vmo by altitude), each helicopter its own Vne, and a
+/// certificate's Vmo/Mmo (the Vmo at their altitude where the TCDS bands it, checked at 5,000 ft), each helicopter its own Vne, and a
 /// fixed-wing type with neither an FAA approach speed nor an override flies its profile landing speed as its approach
 /// speed and minimum. Figures: FAA TCDS via OpenAirDocs, Eurocontrol APD for the approach speeds.
 /// </summary>
@@ -21,13 +21,13 @@ public sealed class SpeedEnvelopeDataCorrectionTests
     public static TheoryData<string, double, double?> SourcedTypes =>
         new()
         {
-            { "CL60", 348, 0.85 },
-            { "LJ35", 350, 0.81 },
+            { "CL60", 300, 0.85 },
+            { "LJ35", 300, 0.81 },
             { "LJ45", 330, 0.81 },
             { "FA20", 390, 0.88 },
             { "FA50", 370, 0.86 },
             { "GLF3", 340, 0.85 },
-            { "GLEX", 340, 0.89 },
+            { "GLEX", 300, 0.89 },
             { "GLF6", 340, 0.925 },
             { "JS20", 215, null },
             { "A342", 330, 0.86 },
@@ -37,28 +37,29 @@ public sealed class SpeedEnvelopeDataCorrectionTests
             { "B762", 360, 0.86 },
             { "B763", 360, 0.86 },
             { "B764", 360, 0.86 },
-            { "CRJ1", 335, 0.85 },
-            { "CRJ2", 335, 0.85 },
-            { "CRJ7", 335, 0.85 },
-            { "CRJ9", 335, 0.85 },
+            { "CRJ1", 330, 0.85 },
+            { "CRJ2", 330, 0.85 },
+            { "CRJ7", 330, 0.85 },
+            { "CRJ9", 330, 0.84 },
             { "B752", 350, 0.86 },
             { "B753", 350, 0.86 },
-            { "MD11", 365, 0.87 },
-            { "E170", 320, 0.82 },
+            { "MD11", 357.5, 0.87 },
+            { "E170", 300, 0.82 },
             { "B74S", 375, 0.92 },
             { "L101", 375, 0.90 },
             { "F100", 320, 0.77 },
             { "F70", 320, 0.77 },
-            { "B463", 295, 0.73 },
+            { "B463", 250, 0.73 },
             { "D228", 199, null },
             { "DH8C", 243, null },
-            { "DH8D", 286, 0.60 },
+            { "DH8D", 245, 0.60 },
         };
 
     [Theory]
     [MemberData(nameof(SourcedTypes))]
     public void SourcedTypes_FlyTheirTcdsVmoAndMmo(string type, double vmoKts, double? mmo)
     {
+        // vmoKts is the TCDS Vmo at CheckAltitudeFt: for a type whose TCDS bands Vmo by altitude, the band there.
         // A turboprop whose TCDS gives no Mmo keeps its TP2M class Mmo.
         double expectedMach = mmo ?? TurbopropClassMmo;
         double? flownMach = AircraftPerformance.MaxOperatingMach(type);
@@ -152,14 +153,14 @@ public sealed class SpeedEnvelopeDataCorrectionTests
     }
 
     [Fact]
-    public void Js20_DescentSpeedAtCeiling_IsItsTcdsVmoThere()
+    public void Js20_DescentSpeedAtCeiling_Is10KtUnderItsTcdsVmoThere()
     {
-        // TCDS A21EU: Vmo 180 kt at 25,000 ft, the JS20's ceiling.
+        // TCDS A21EU: Vmo 180 kt at 25,000 ft, the JS20's ceiling; the descent flies 10 kt under it (descentSpeedInitial 170).
         AircraftProfile profile = AircraftProfileDatabase.Get("JS20")!;
 
         double atCeiling = AircraftPerformance.DescentSpeed("JS20", AircraftCategory.Turboprop, profile.Ceiling);
 
-        Assert.Equal(180, atCeiling, 1);
+        Assert.Equal(170, atCeiling, 1);
     }
 
     [Fact]

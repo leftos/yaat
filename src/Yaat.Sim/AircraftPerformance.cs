@@ -517,7 +517,9 @@ public static class AircraftPerformance
     /// </summary>
     public static double? MaxOperatingIasKts(string aircraftType, double altitudeFt)
     {
-        (double? vmo, double? mmo) = ResolveSpeedEnvelope(aircraftType);
+        SpeedEnvelope envelope = ResolveSpeedEnvelope(aircraftType);
+        double? vmo = VmoAt(envelope, altitudeFt);
+        double? mmo = envelope.Mmo;
         if ((vmo is null) && (mmo is null))
         {
             return null;
@@ -533,10 +535,54 @@ public static class AircraftPerformance
     }
 
     /// <summary>
-    /// Maximum operating speed, Vmo (Vne for a helicopter), in KIAS at every altitude, or null when the type has none.
+    /// Maximum operating speed, the redline Vmo (Vne for a helicopter; for a banded type, its band maximum, see
+    /// <see cref="VmoAtKts"/>), in KIAS, or null when the type has none.
     /// Unlike <see cref="MaxOperatingIasKts"/> it is not lowered by Mmo above the IAS/Mach crossover.
     /// </summary>
     public static double? MaxOperatingSpeedKts(string aircraftType) => ResolveSpeedEnvelope(aircraftType).Vmo;
+
+    /// <summary>
+    /// Vmo (Vne for a helicopter) in KIAS at <paramref name="altitudeFt"/>: for a type whose type certificate limits it by
+    /// altitude, its band there (<see cref="AircraftProfileOverride.VmoBands"/>), else <see cref="MaxOperatingSpeedKts"/>.
+    /// Not lowered by Mmo. Null when the type has no known Vmo.
+    /// </summary>
+    public static double? VmoAtKts(string aircraftType, double altitudeFt) => VmoAt(ResolveSpeedEnvelope(aircraftType), altitudeFt);
+
+    /// <summary>The Vmo of a resolved envelope at <paramref name="altitudeFt"/>: its band there, else its scalar Vmo.</summary>
+    private static double? VmoAt(SpeedEnvelope envelope, double altitudeFt) =>
+        envelope.Bands is { } bands ? BandValueAt(bands, altitudeFt) : envelope.Vmo;
+
+    /// <summary>
+    /// The value of <paramref name="bands"/> at <paramref name="altitudeFt"/>: the straight line between the points either
+    /// side, the first value below the first point and the last above the last, and the lower value at a step (two points
+    /// at one altitude). A walk over the array, allocation-free.
+    /// </summary>
+    internal static double BandValueAt(VmoBandPoint[] bands, double altitudeFt)
+    {
+        if (altitudeFt < bands[0].AltitudeFt)
+        {
+            return bands[0].Kias;
+        }
+
+        for (int i = 0; i < bands.Length; i++)
+        {
+            VmoBandPoint here = bands[i];
+            bool hasNext = i + 1 < bands.Length;
+            if (altitudeFt == here.AltitudeFt)
+            {
+                return (hasNext && (bands[i + 1].AltitudeFt == altitudeFt)) ? Math.Min(here.Kias, bands[i + 1].Kias) : here.Kias;
+            }
+
+            if (hasNext && (altitudeFt < bands[i + 1].AltitudeFt))
+            {
+                VmoBandPoint next = bands[i + 1];
+                double fraction = (altitudeFt - here.AltitudeFt) / (next.AltitudeFt - here.AltitudeFt);
+                return here.Kias + (fraction * (next.Kias - here.Kias));
+            }
+        }
+
+        return bands[^1].Kias;
+    }
 
     /// <summary>Maximum operating Mach number, or null when the type has none (helicopters, unknown types).</summary>
     public static double? MaxOperatingMach(string aircraftType) => ResolveSpeedEnvelope(aircraftType).Mmo;
@@ -622,7 +668,10 @@ public static class AircraftPerformance
 
     private const double ScheduleFloorStepFt = 100;
 
-    private static readonly ConcurrentDictionary<string, (double? Vmo, double? Mmo)> _speedEnvelopeCache = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>A type's resolved speed limits: its scalar Vmo (the redline), its Mmo, and its Vmo by altitude, if banded.</summary>
+    private readonly record struct SpeedEnvelope(double? Vmo, double? Mmo, VmoBandPoint[]? Bands);
+
+    private static readonly ConcurrentDictionary<string, SpeedEnvelope> _speedEnvelopeCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Forget every resolved Vmo/Mmo. Called whenever a table the resolution reads is replaced (the profiles, the
@@ -631,20 +680,22 @@ public static class AircraftPerformance
     internal static void ClearSpeedEnvelopeCache() => _speedEnvelopeCache.Clear();
 
     /// <summary>
-    /// Vmo and Mmo for the type, resolved once and remembered until a table they come from is replaced
+    /// Vmo, Mmo and any Vmo bands for the type, resolved once and remembered until a table they come from is replaced
     /// (<see cref="ClearSpeedEnvelopeCache"/>).
     /// </summary>
-    private static (double? Vmo, double? Mmo) ResolveSpeedEnvelope(string aircraftType) =>
+    private static SpeedEnvelope ResolveSpeedEnvelope(string aircraftType) =>
         _speedEnvelopeCache.GetOrAdd(aircraftType, static type => ComputeSpeedEnvelope(type));
 
     /// <summary>
     /// Vmo and Mmo for the type: an override figure (TCDS or OpenAP) first, then the class figure, each then raised to
     /// the type's profile schedule so the limit never falls below a speed the profile itself flies
-    /// (<see cref="ProfileScheduleFloor"/>).
+    /// (<see cref="ProfileScheduleFloor"/>). A type with Vmo bands (<see cref="AircraftProfileOverride.VmoBands"/>) keeps
+    /// its type-certificate Vmo unraised: its profile is held under the bands instead. Its Mmo is still raised.
     /// </summary>
-    private static (double? Vmo, double? Mmo) ComputeSpeedEnvelope(string aircraftType)
+    private static SpeedEnvelope ComputeSpeedEnvelope(string aircraftType)
     {
         (double? overrideVmo, double? overrideMmo) = AircraftProfileDatabase.SpeedEnvelopeOverride(aircraftType);
+        VmoBandPoint[]? bands = AircraftProfileDatabase.VmoBands(aircraftType);
         SpeedEnvelopeClass? cls = AircraftSpeedEnvelope.ClassFor(aircraftType);
         double? vmo = overrideVmo ?? cls?.VmoKts;
         double? mmo = overrideMmo ?? cls?.Mmo;
@@ -652,11 +703,12 @@ public static class AircraftPerformance
         AircraftProfile? p = AircraftProfileDatabase.Get(aircraftType);
         if ((p is null) || ((vmo is null) && (mmo is null)))
         {
-            return (vmo, mmo);
+            return new SpeedEnvelope(vmo, mmo, bands);
         }
 
         (double floorIas, double floorMach) = ProfileScheduleFloor(aircraftType, p);
-        return (vmo is { } v ? Math.Max(v, floorIas) : null, mmo is { } m ? Math.Max(m, floorMach) : null);
+        double? flooredVmo = ((vmo is { } v) && (bands is null)) ? Math.Max(v, floorIas) : vmo;
+        return new SpeedEnvelope(flooredVmo, mmo is { } m ? Math.Max(m, floorMach) : null, bands);
     }
 
     /// <summary>
