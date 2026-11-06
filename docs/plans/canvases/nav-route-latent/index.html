@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nav-route latent mock</title>
+<style>
+  :root {
+    --page: #111316;
+    --panel: #1b1e23;
+    --ink: #e6e6e6;
+    --muted: #9aa0a6;
+    --rule: #2c3138;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 16px 40px;
+    background: var(--page);
+    color: var(--ink);
+    font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+  }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 17px; margin: 32px 0 4px; border-top: 1px solid var(--rule); padding-top: 18px; }
+  p { margin: 4px 0; max-width: 1150px; }
+  .muted { color: var(--muted); }
+  code { font-family: Consolas, Menlo, "DejaVu Sans Mono", monospace; font-size: 13px; }
+  .lanes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+  }
+  figure { margin: 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 10px; }
+  figcaption { margin-bottom: 8px; }
+  figcaption b { font-size: 15px; }
+  figcaption span { display: block; color: var(--muted); font-size: 13px; }
+  svg { display: block; width: 600px; max-width: 100%; height: auto; background: #000; }
+  .scope-text { font-family: Consolas, Menlo, "DejaVu Sans Mono", monospace; white-space: pre; }
+  @media (max-width: 660px) {
+    .lanes { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<h1>YAAT-101: nav-route overlay, latent restrictions and route-fix holds</h1>
+<p>Scene: <code>AAL123</code> on a STAR at FL245, cleared <b>"descend and maintain one one thousand"</b> (not descend via), so every published <em>altitude</em> on the STAR is latent. ATC also said <b>"cross MIDDY at 7000"</b> (a <code>CFIX</code>), which is active. A hold at MIDDY (right turns, inbound on the arrival course, 1-minute legs) is queued for when the aircraft reaches the fix.</p>
+<p class="muted">Drawn from the real renderer: route colour is palette slot 0 <code>#FF6B6B</code>, 2 px non-antialiased lines, 5 px diamonds, fix name in 12 px monospace at (+8, -4), restriction lines in 10 px monospace from (+8, +8) stepping 11 px, dashed leader 1 px at alpha 150, dashed shapes [10, 5]. Scale 12 px/nm; racetrack radius and leg are to scale for 230 KIAS at 7000. Published <em>speeds</em> (<code>250</code>, <code>210</code>) are drawn active in every lane: a maintain clearance leaves published speeds in force, and whether a speed can ever be latent is a separate open decision. The aircraft symbol and datablock are schematic.</p>
+
+<h2>Question 1: how does a latent restriction label look?</h2>
+<p class="muted">Only the restriction labels change between lanes. The queued hold is not drawn here (today's code draws no upcoming hold; Question 2 covers it).</p>
+<div class="lanes" id="q1"></div>
+
+<h2>Question 2: how does an upcoming hold (at a fix ahead, not yet holding) look?</h2>
+<p class="muted">Labels drawn as today in every lane, so only the racetrack changes. Today an active hold (<code>HoldingPatternPhase</code>) draws solid; the racetrack's inbound leg lies on the route's last leg, as a hold on the arrival course does.</p>
+<div class="lanes" id="q2"></div>
+
+<h2>Question 3: VFR and airspace-boundary orbits (no inbound course or legs)</h2>
+<p class="muted">Scale 30 px/nm (a terminal-area zoom). <code>N123AB</code> (slot 0) was told to orbit at visual point VPBRG (<code>HFIX</code>, <code>VfrHoldPhase</code>) and is still proceeding to it. <code>N456CD</code> (slot 1, <code>#4ECDC4</code>) is orbiting outside the Class C boundary (grey) awaiting entry (<code>AirspaceBoundaryHoldPhase</code>, Orbit mode). Circle radius is the standard-rate radius at each aircraft's speed (100 and 120 KTAS, about 0.53 and 0.64 nm). The fix name keeps its usual (+8, -4) spot, so at this zoom the circle runs through its first letter; the real renderer would do the same unless the label moves.</p>
+<div class="lanes" id="q3"></div>
+
+<script>
+"use strict";
+
+const NS = "http://www.w3.org/2000/svg";
+const PALETTE = ["#FF6B6B", "#4ECDC4"];
+const SYMBOL = "rgb(0,176,255)";
+const VIDEO_MAP = "rgb(100,100,100)";
+const LATENT_OPACITY = 0.45;
+
+function el(name, attrs, parent) {
+  const node = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs)) {
+    node.setAttribute(k, String(v));
+  }
+  if (parent) {
+    parent.appendChild(node);
+  }
+  return node;
+}
+
+function line(g, x1, y1, x2, y2, color, opts = {}) {
+  return el("line", {
+    x1, y1, x2, y2,
+    stroke: color,
+    "stroke-width": opts.width ?? 2,
+    "stroke-opacity": opts.opacity ?? 1,
+    "stroke-dasharray": opts.dash ?? "none",
+    "shape-rendering": "crispEdges",
+  }, g);
+}
+
+function text(g, x, y, size, color, content) {
+  const t = el("text", { x, y, "font-size": size, fill: color, class: "scope-text" }, g);
+  if (content !== undefined) {
+    t.textContent = content;
+  }
+  return t;
+}
+
+function diamond(g, x, y, color) {
+  const s = 5;
+  line(g, x, y - s, x + s, y, color);
+  line(g, x + s, y, x, y + s, color);
+  line(g, x, y + s, x - s, y, color);
+  line(g, x - s, y, x, y - s, color);
+}
+
+function target(g, x, y, callsign, block2) {
+  el("circle", { cx: x, cy: y, r: 3.5, fill: SYMBOL }, g);
+  line(g, x + 4, y - 4, x + 14, y - 14, "#fff", { width: 1 });
+  text(g, x + 16, y - 24, 12, "#fff", callsign);
+  text(g, x + 16, y - 11, 12, "#fff", block2);
+}
+
+// A restriction line is a list of tokens joined by two spaces, as CrossingRestrictionLabel joins
+// altitude and speed. Each token knows whether it is latent.
+function renderTokens(tokens, mode) {
+  const out = [];
+  for (const tok of tokens) {
+    if (tok.latent && mode === "hide") {
+      continue;
+    }
+    const label = (tok.latent && mode === "paren") ? `(${tok.t})` : tok.t;
+    const opacity = (tok.latent && mode === "dim") ? LATENT_OPACITY : 1;
+    out.push({ label, opacity });
+  }
+  return out;
+}
+
+function restrictionLines(g, x, y, lines, mode, color) {
+  let ly = y + 8;
+  for (const tokens of lines) {
+    const parts = renderTokens(tokens, mode);
+    if (parts.length === 0) {
+      continue;
+    }
+    const t = text(g, x + 8, ly, 10, color);
+    parts.forEach((p, i) => {
+      const span = el("tspan", { "fill-opacity": p.opacity }, t);
+      span.textContent = (i > 0 ? "  " : "") + p.label;
+    });
+    ly += 11;
+  }
+}
+
+const A = (t) => ({ t, latent: false });
+const L = (t) => ({ t, latent: true });
+
+const ROUTE = {
+  aircraft: { x: 45, y: 48 },
+  fixes: [
+    { name: "HOMRR", x: 110, y: 70, lines: [[L("FL240")]] },
+    { name: "JAYCE", x: 260, y: 70, lines: [[L("≤11000")], [L("≥9000")]] },
+    { name: "KEVNN", x: 300, y: 190, lines: [[A("250")]] },
+    { name: "LUNRR", x: 450, y: 190, lines: [[L("≥8000"), A("210")]] },
+    { name: "MIDDY", x: 505, y: 300, lines: [[A("7000")]] },
+  ],
+};
+
+// Racetrack at the last fix: right turns, inbound along the last route leg. Radius and leg at
+// 12 px/nm: 230 KIAS at 7000 is about 253 KTAS, standard-rate radius 1.34 nm, 1-minute leg 4.2 nm.
+function racetrackPath(fix, from, radius, leg) {
+  const len = Math.hypot(fix.x - from.x, fix.y - from.y);
+  const h = { x: (fix.x - from.x) / len, y: (fix.y - from.y) / len };
+  const right = { x: -h.y, y: h.x };
+  const p = (bx, by, k, v) => [bx + k * v.x, by + k * v.y];
+  const [sx, sy] = p(fix.x, fix.y, -leg, h);
+  const [ax, ay] = p(fix.x, fix.y, 2 * radius, right);
+  const [ox, oy] = p(ax, ay, -leg, h);
+  const f = (n) => n.toFixed(1);
+  return `M${f(sx)},${f(sy)} L${fix.x},${fix.y} A${radius},${radius} 0 0 1 ${f(ax)},${f(ay)} `
+    + `L${f(ox)},${f(oy)} A${radius},${radius} 0 0 1 ${f(sx)},${f(sy)} Z`;
+}
+
+function drawRouteScene(svg, labelMode, holdMode) {
+  const color = PALETTE[0];
+  const g = el("g", {}, svg);
+  const { aircraft, fixes } = ROUTE;
+
+  line(g, aircraft.x, aircraft.y, fixes[0].x, fixes[0].y, color, { width: 1, opacity: 150 / 255, dash: "6 4" });
+  for (let i = 1; i < fixes.length; i++) {
+    line(g, fixes[i - 1].x, fixes[i - 1].y, fixes[i].x, fixes[i].y, color);
+  }
+
+  if (holdMode !== "none") {
+    const last = fixes[fixes.length - 1];
+    const prev = fixes[fixes.length - 2];
+    el("path", {
+      d: racetrackPath(last, prev, 16, 50),
+      fill: "none",
+      stroke: color,
+      "stroke-width": 2,
+      "stroke-dasharray": holdMode === "dashed" ? "10 5" : "none",
+    }, g);
+  }
+
+  for (const fx of fixes) {
+    diamond(g, fx.x, fx.y, color);
+    text(g, fx.x + 8, fx.y - 4, 12, color, fx.name);
+    restrictionLines(g, fx.x, fx.y, fx.lines, labelMode, color);
+  }
+
+  target(g, aircraft.x, aircraft.y, "AAL123", "245 B738");
+}
+
+function drawOrbitScene(svg, drawOrbits) {
+  const g = el("g", {}, svg);
+  // Class C outer boundary as a video-map arc.
+  el("circle", { cx: 560, cy: 330, r: 150, fill: "none", stroke: VIDEO_MAP, "stroke-width": 1 }, g);
+  el("circle", { cx: 560, cy: 330, r: 75, fill: "none", stroke: VIDEO_MAP, "stroke-width": 1 }, g);
+
+  // N123AB proceeding to VPBRG, where it will orbit.
+  const vfr = PALETTE[0];
+  const ac1 = { x: 70, y: 70 };
+  const fix = { x: 200, y: 170 };
+  line(g, ac1.x, ac1.y, fix.x, fix.y, vfr, { width: 1, opacity: 150 / 255, dash: "6 4" });
+  if (drawOrbits) {
+    el("circle", { cx: fix.x, cy: fix.y, r: 16, fill: "none", stroke: vfr, "stroke-width": 2, "stroke-dasharray": "10 5" }, g);
+  }
+  diamond(g, fix.x, fix.y, vfr);
+  text(g, fix.x + 8, fix.y - 4, 12, vfr, "VPBRG");
+  target(g, ac1.x, ac1.y, "N123AB", "035 C172");
+
+  // N456CD orbiting outside the Class C, centred on its reference position.
+  const ifr = PALETTE[1];
+  const ref = { x: 340, y: 230 };
+  const radius = 19.2;
+  if (drawOrbits) {
+    el("circle", { cx: ref.x, cy: ref.y, r: radius, fill: "none", stroke: ifr, "stroke-width": 2, "stroke-dasharray": "10 5" }, g);
+  }
+  target(g, ref.x, ref.y - radius, "N456CD", "045 PA28");
+}
+
+function lane(containerId, title, sub, draw) {
+  const fig = document.createElement("figure");
+  const cap = document.createElement("figcaption");
+  const b = document.createElement("b");
+  b.textContent = title;
+  const s = document.createElement("span");
+  s.textContent = sub;
+  cap.append(b, s);
+  const svg = el("svg", { viewBox: "0 0 600 380", width: 600, height: 380, role: "img", "aria-label": title });
+  draw(svg);
+  fig.append(cap, svg);
+  document.getElementById(containerId).appendChild(fig);
+}
+
+lane("q1", "1A: latent dimmed", "Latent altitudes in the route colour at 45% opacity; active restrictions as today.",
+  (svg) => drawRouteScene(svg, "dim", "none"));
+lane("q1", "1B: latent in parentheses", "Latent altitudes wrapped in ( ), same colour and opacity; active as today.",
+  (svg) => drawRouteScene(svg, "paren", "none"));
+lane("q1", "1C: latent hidden", "Only active restrictions drawn; latent altitudes are left off.",
+  (svg) => drawRouteScene(svg, "hide", "none"));
+lane("q1", "1D: as today (reference)", "No distinction: every restriction drawn alike.",
+  (svg) => drawRouteScene(svg, "today", "none"));
+
+lane("q2", "2A: upcoming hold dashed", "Racetrack in the overlay's dash pattern [10, 5]; turns solid once holding.",
+  (svg) => drawRouteScene(svg, "today", "dashed"));
+lane("q2", "2B: upcoming hold solid", "Racetrack drawn exactly like an active hold.",
+  (svg) => drawRouteScene(svg, "today", "solid"));
+lane("q2", "2C: not drawn until holding", "No racetrack until the aircraft enters the hold (today's behaviour).",
+  (svg) => drawRouteScene(svg, "today", "none"));
+
+lane("q3", "3A: orbit circle, dashed", "Standard-rate circle at the orbit point, dash pattern [10, 5].",
+  (svg) => drawOrbitScene(svg, true));
+lane("q3", "3B: nothing drawn", "No orbit geometry; the VFR fix shows as a plain route fix.",
+  (svg) => drawOrbitScene(svg, false));
+</script>
+</body>
+</html>
