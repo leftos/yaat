@@ -241,9 +241,8 @@
 
 ## Runway exits and landing rollout
 
-### 1 Defects (3/25 done)
+### 1 Defects (4/25 done)
 - [ ] YAAT-31 LAHSO residuals: carry the limit past handoff, arc fit, ALD gate, CROSS release · release vNext
-- [/] YAAT-76 Find the second stuck-exit cause in the #429 FAT replay with a layout · release vNext
 - [ ] YAAT-353 Stop a landed aircraft re-accelerating on the exit route before the hold-bar stop (C172 OAK 28R H: +1 kt)
 - [ ] YAAT-364 C172 exiting OAK 28R at H stops with its tail 0.7 ft short of clearing the bar
 - [ ] YAAT-365 Check RunwayExitPhase's exit-preference reference compares survive a restore
