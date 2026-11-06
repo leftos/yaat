@@ -1,0 +1,1121 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6896255, 39.1747578],
+          [-76.6890944, 39.1747277],
+          [-76.6817975, 39.174309],
+          [-76.6768692, 39.1740258],
+          [-76.6711901, 39.1737019],
+          [-76.6659636, 39.1734013],
+          [-76.6590404, 39.1730059],
+          [-76.6551399, 39.1727801],
+          [-76.6530378, 39.1726612],
+          [-76.6526757, 39.1726383]
+        ]
+      },
+      "properties": {
+        "type": "runway",
+        "name": "10 - 28",
+        "turnoff": "left"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6624003, 39.1642108],
+          [-76.6626068, 39.1644333],
+          [-76.6648011, 39.1668079],
+          [-76.6673382, 39.1695599],
+          [-76.6682728, 39.1705649],
+          [-76.6694593, 39.1718645],
+          [-76.6711901, 39.1737019],
+          [-76.6731452, 39.1758177],
+          [-76.6751743, 39.1780024],
+          [-76.6780628, 39.1811275],
+          [-76.6817912, 39.1851505],
+          [-76.6820058, 39.185375]
+        ]
+      },
+      "properties": {
+        "type": "runway",
+        "name": "33L - 15R",
+        "turnoff": "right"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6532391, 39.1762459],
+          [-76.6534256, 39.1764528],
+          [-76.6561896, 39.1794423],
+          [-76.6592278, 39.1827149],
+          [-76.6604054, 39.1839887],
+          [-76.6633453, 39.1871613],
+          [-76.6635035, 39.187338]
+        ]
+      },
+      "properties": {
+        "type": "runway",
+        "name": "33R - 15L",
+        "turnoff": "left"
+      }
+    },
+
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6665557, 39.1752129],
+          [-76.6647038, 39.1774377]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "A",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6652071, 39.1776704],
+          [-76.6647038, 39.1774377],
+          [-76.6640457, 39.177109]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "A1",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6701243, 39.1857665],
+          [-76.6683641, 39.1838645],
+          [-76.6659281, 39.1851996]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "AA",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6664404, 39.1858298],
+          [-76.6659281, 39.1851996],
+          [-76.6642543, 39.1834013],
+          [-76.6636643, 39.1833639],
+          [-76.6630903, 39.1833098],
+          [-76.662863, 39.1830581],
+          [-76.6608853, 39.1809119],
+          [-76.660255, 39.1801166],
+          [-76.656649, 39.1756086],
+          [-76.6565792, 39.1752635]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "B",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6633556, 39.1779372],
+          [-76.6624142, 39.1775484],
+          [-76.6565792, 39.1752635],
+          [-76.656675, 39.1742531]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "C",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.665893, 39.1744985],
+          [-76.6659636, 39.1734013],
+          [-76.6661727, 39.1709283],
+          [-76.6657543, 39.1704261],
+          [-76.6631889, 39.1676518],
+          [-76.660957, 39.165159]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "D",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.660957, 39.165159],
+          [-76.6620512, 39.1645425],
+          [-76.6626068, 39.1644333]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "D1",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6631889, 39.1676518],
+          [-76.6648011, 39.1668079]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "D2",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6657543, 39.1704261],
+          [-76.6673382, 39.1695599]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "D3",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6683773, 39.1753177],
+          [-76.6684202, 39.174644]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "E",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6868519, 39.1726147],
+          [-76.6886957, 39.1727187],
+          [-76.6895459, 39.1730286],
+          [-76.6896049, 39.1735574],
+          [-76.6895041, 39.1742074],
+          [-76.6890944, 39.1747277],
+          [-76.6894373, 39.1753133],
+          [-76.6892092, 39.1757024],
+          [-76.687987, 39.1757698],
+          [-76.6807363, 39.1769901],
+          [-76.6795816, 39.1771888],
+          [-76.6757621, 39.1778239],
+          [-76.6751743, 39.1780024],
+          [-76.6740262, 39.178654]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "F",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.681985, 39.1723078],
+          [-76.6817975, 39.174309],
+          [-76.6816792, 39.1754003],
+          [-76.6814486, 39.1760691],
+          [-76.6807363, 39.1769901]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "G",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6780628, 39.1811275],
+          [-76.6769135, 39.1817673],
+          [-76.6761974, 39.1821668],
+          [-76.6742903, 39.1832076],
+          [-76.6717326, 39.1805867]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "H",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6633453, 39.1871613],
+          [-76.66374, 39.1871915],
+          [-76.6640096, 39.1870142],
+          [-76.6641417, 39.1867406],
+          [-76.6643821, 39.1861237],
+          [-76.6645113, 39.1859744],
+          [-76.6659281, 39.1851996]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "J",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6595419, 39.184464],
+          [-76.6604054, 39.1839887],
+          [-76.6607793, 39.1837695],
+          [-76.6609604, 39.183599],
+          [-76.6610066, 39.1834093],
+          [-76.6598553, 39.1812821],
+          [-76.659583, 39.1808257]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "K",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6583548, 39.1831832],
+          [-76.6592278, 39.1827149]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "L",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6563795, 39.181055],
+          [-76.6561896, 39.1794423],
+          [-76.6560218, 39.1782261],
+          [-76.6561452, 39.1780286],
+          [-76.6565207, 39.1777937]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "M",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6625971, 39.1839291],
+          [-76.6636643, 39.1833639],
+          [-76.6656905, 39.1822482]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "N",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.662863, 39.1830581],
+          [-76.6650092, 39.1818771]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "N1",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.659583, 39.1808257],
+          [-76.660255, 39.1801166],
+          [-76.6624142, 39.1775484],
+          [-76.6641679, 39.1754658],
+          [-76.6649904, 39.174544],
+          [-76.665893, 39.1744985],
+          [-76.6684202, 39.174644],
+          [-76.6697909, 39.1747694],
+          [-76.6708369, 39.1752477],
+          [-76.6719818, 39.1764414],
+          [-76.6740262, 39.178654],
+          [-76.6769135, 39.1817673],
+          [-76.6802489, 39.185358],
+          [-76.6808283, 39.1857405],
+          [-76.6814452, 39.185543],
+          [-76.6817912, 39.1851505]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "P",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6633453, 39.1871613],
+          [-76.6632361, 39.1874693],
+          [-76.6626219, 39.1877978],
+          [-76.6595419, 39.184464],
+          [-76.6583548, 39.1831832],
+          [-76.6563795, 39.181055],
+          [-76.6524465, 39.1767906],
+          [-76.6530619, 39.1764332],
+          [-76.6534256, 39.1764528]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "Q",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6816792, 39.1754003],
+          [-76.6767435, 39.175113],
+          [-76.6746453, 39.1750221],
+          [-76.6731452, 39.1758177],
+          [-76.6719818, 39.1764414]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "R",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6770946, 39.1719779],
+          [-76.6768692, 39.1740258],
+          [-76.6767435, 39.175113]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "R1",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6645113, 39.1859744],
+          [-76.6625971, 39.1839291],
+          [-76.662198, 39.1836274],
+          [-76.659583, 39.1808257],
+          [-76.6565207, 39.1777937],
+          [-76.6545887, 39.1758557],
+          [-76.6540283, 39.1758919],
+          [-76.6535186, 39.1761747],
+          [-76.6534256, 39.1764528]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "S",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6761974, 39.1821668],
+          [-76.6753399, 39.1812256],
+          [-76.6732997, 39.1790306],
+          [-76.6704384, 39.175947],
+          [-76.6693655, 39.1753803],
+          [-76.6683773, 39.1753177],
+          [-76.6678581, 39.1752824],
+          [-76.6665557, 39.1752129],
+          [-76.665702, 39.1752224],
+          [-76.6650416, 39.175914],
+          [-76.6640457, 39.177109],
+          [-76.6633556, 39.1779372],
+          [-76.6608853, 39.1809119]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "T",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6743845, 39.1817541],
+          [-76.6753399, 39.1812256]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "T1",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6732997, 39.1790306],
+          [-76.6740262, 39.178654]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "T2",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6650416, 39.175914],
+          [-76.6641679, 39.1754658],
+          [-76.6623792, 39.1745933],
+          [-76.6589273, 39.1743823],
+          [-76.656675, 39.1742531],
+          [-76.6552009, 39.1741652]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "U",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6552009, 39.1741652],
+          [-76.6552721, 39.1732773],
+          [-76.6551399, 39.1727801]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "U1",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6589273, 39.1743823],
+          [-76.6590404, 39.1730059]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "U2",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6551399, 39.1727801],
+          [-76.6541088, 39.17178],
+          [-76.6533578, 39.1716136],
+          [-76.6528697, 39.1720295],
+          [-76.6530378, 39.1726612]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "V",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-76.6795816, 39.1771888],
+          [-76.680177, 39.1792543],
+          [-76.6839808, 39.1833215],
+          [-76.6846515, 39.1843667]
+        ]
+      },
+      "properties": {
+        "type": "taxiway",
+        "name": "W",
+        "circular": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6721604, 39.1803879] },
+      "properties": { "type": "parking", "name": "A6", "heading": 215 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6725175, 39.1806648] },
+      "properties": { "type": "parking", "name": "A8", "heading": 215 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6728796, 39.1810578] },
+      "properties": { "type": "parking", "name": "A10", "heading": 220 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6734808, 39.1803591] },
+      "properties": { "type": "parking", "name": "A11", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6732016, 39.180033] },
+      "properties": { "type": "parking", "name": "A9", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6729205, 39.1797273] },
+      "properties": { "type": "parking", "name": "A7", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6711631, 39.1778631] },
+      "properties": { "type": "parking", "name": "B2", "heading": 90 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6708457, 39.1775422] },
+      "properties": { "type": "parking", "name": "B4", "heading": 80 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6704736, 39.1771347] },
+      "properties": { "type": "parking", "name": "B6", "heading": 90 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6701395, 39.1767824] },
+      "properties": { "type": "parking", "name": "B8", "heading": 85 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6698208, 39.1764273] },
+      "properties": { "type": "parking", "name": "B10", "heading": 85 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6695271, 39.1761164] },
+      "properties": { "type": "parking", "name": "B12", "heading": 70 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6690443, 39.1760031] },
+      "properties": { "type": "parking", "name": "B14", "heading": 355 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6686312, 39.1761354] },
+      "properties": { "type": "parking", "name": "B15", "heading": 315 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.668599, 39.1764651] },
+      "properties": { "type": "parking", "name": "B13", "heading": 275 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6688217, 39.1767749] },
+      "properties": { "type": "parking", "name": "B11", "heading": 245 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6691221, 39.1770556] },
+      "properties": { "type": "parking", "name": "B9", "heading": 235 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6694131, 39.1773607] },
+      "properties": { "type": "parking", "name": "B7", "heading": 235 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6696549, 39.1776826] },
+      "properties": { "type": "parking", "name": "B5", "heading": 235 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6683581, 39.1783734] },
+      "properties": { "type": "parking", "name": "C2", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6679795, 39.1779873] },
+      "properties": { "type": "parking", "name": "C4", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6676509, 39.1776245] },
+      "properties": { "type": "parking", "name": "C6", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6673612, 39.1773043] },
+      "properties": { "type": "parking", "name": "C10", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6670643, 39.1769805] },
+      "properties": { "type": "parking", "name": "C12", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6666539, 39.176705] },
+      "properties": { "type": "parking", "name": "C14", "heading": 10 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6661705, 39.1768142] },
+      "properties": { "type": "parking", "name": "C15", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6658945, 39.177137] },
+      "properties": { "type": "parking", "name": "C13", "heading": 305 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6659562, 39.1775216] },
+      "properties": { "type": "parking", "name": "C11", "heading": 255 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.666255, 39.1778453] },
+      "properties": { "type": "parking", "name": "C9", "heading": 250 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6666694, 39.1782282] },
+      "properties": { "type": "parking", "name": "C7", "heading": 260 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6669858, 39.1786616] },
+      "properties": { "type": "parking", "name": "C5", "heading": 270 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6673215, 39.1790074] },
+      "properties": { "type": "parking", "name": "C3", "heading": 260 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6675783, 39.17932] },
+      "properties": { "type": "parking", "name": "C1", "heading": 250 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6669145, 39.1798543] },
+      "properties": { "type": "parking", "name": "D2", "heading": 25 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6663593, 39.1798189] },
+      "properties": { "type": "parking", "name": "D4", "heading": 20 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6659073, 39.1794676] },
+      "properties": { "type": "parking", "name": "D8", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6656096, 39.1791043] },
+      "properties": { "type": "parking", "name": "D10", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6652677, 39.1787789] },
+      "properties": { "type": "parking", "name": "D12", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6649122, 39.1784739] },
+      "properties": { "type": "parking", "name": "D14", "heading": 40 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6645193, 39.1782765] },
+      "properties": { "type": "parking", "name": "D16", "heading": 10 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6640915, 39.1785474] },
+      "properties": { "type": "parking", "name": "D15", "heading": 335 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6638112, 39.1788923] },
+      "properties": { "type": "parking", "name": "D13", "heading": 295 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6641633, 39.1793318] },
+      "properties": { "type": "parking", "name": "D11", "heading": 275 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6646018, 39.1797258] },
+      "properties": { "type": "parking", "name": "D7", "heading": 270 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6645983, 39.1802088] },
+      "properties": { "type": "parking", "name": "D20", "heading": 305 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.664178, 39.1805114] },
+      "properties": { "type": "parking", "name": "D22", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6637519, 39.1807359] },
+      "properties": { "type": "parking", "name": "D24", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6633419, 39.180985] },
+      "properties": { "type": "parking", "name": "D26", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6640053, 39.1816905] },
+      "properties": { "type": "parking", "name": "D29", "heading": 180 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6646131, 39.1813574] },
+      "properties": { "type": "parking", "name": "D25", "heading": 180 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.664994, 39.181109] },
+      "properties": { "type": "parking", "name": "D23", "heading": 160 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6654097, 39.1809395] },
+      "properties": { "type": "parking", "name": "D21", "heading": 160 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6663629, 39.1807597] },
+      "properties": { "type": "parking", "name": "D5", "heading": 215 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6666459, 39.1811204] },
+      "properties": { "type": "parking", "name": "D3", "heading": 240 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6670053, 39.1815632] },
+      "properties": { "type": "parking", "name": "D1", "heading": 235 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.667261, 39.1821067] },
+      "properties": { "type": "parking", "name": "E2", "heading": 285 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6669818, 39.182525] },
+      "properties": { "type": "parking", "name": "E4", "heading": 320 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6664103, 39.1828069] },
+      "properties": { "type": "parking", "name": "E6", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6658175, 39.1830261] },
+      "properties": { "type": "parking", "name": "E8", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6654055, 39.1832247] },
+      "properties": { "type": "parking", "name": "E10", "heading": 305 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6655115, 39.1836114] },
+      "properties": { "type": "parking", "name": "E12", "heading": 265 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6659768, 39.1840815] },
+      "properties": { "type": "parking", "name": "E9", "heading": 215 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6664248, 39.1841772] },
+      "properties": { "type": "parking", "name": "E7", "heading": 180 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6670611, 39.1837948] },
+      "properties": { "type": "parking", "name": "E5", "heading": 145 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6676905, 39.1833935] },
+      "properties": { "type": "parking", "name": "E3", "heading": 150 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6683987, 39.1830724] },
+      "properties": { "type": "parking", "name": "E1", "heading": 150 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6674239, 39.1861589] },
+      "properties": { "type": "parking", "name": "F10", "heading": 260 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6678812, 39.1866517] },
+      "properties": { "type": "parking", "name": "F11", "heading": 260 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6682661, 39.1871519] },
+      "properties": { "type": "parking", "name": "F12", "heading": 260 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6666805, 39.1873082] },
+      "properties": { "type": "parking", "name": "F15", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.666277, 39.186875] },
+      "properties": { "type": "parking", "name": "F16", "heading": 55 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6658483, 39.18641] },
+      "properties": { "type": "parking", "name": "F17", "heading": 35 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6647973, 39.1850686] },
+      "properties": { "type": "parking", "name": "F21", "heading": 30 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6644782, 39.1847121] },
+      "properties": { "type": "parking", "name": "F22", "heading": 30 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6641551, 39.1843638] },
+      "properties": { "type": "parking", "name": "F23", "heading": 30 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6638271, 39.18401] },
+      "properties": { "type": "parking", "name": "F24", "heading": 30 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6568234, 39.1852733] },
+      "properties": { "type": "parking", "name": "SIG1", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6571158, 39.1851132] },
+      "properties": { "type": "parking", "name": "SIG2", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6574027, 39.1849427] },
+      "properties": { "type": "parking", "name": "SIG3", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6562785, 39.1847657] },
+      "properties": { "type": "parking", "name": "SIG4", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6566325, 39.1845806] },
+      "properties": { "type": "parking", "name": "SIG5", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6569302, 39.1844102] },
+      "properties": { "type": "parking", "name": "SIG6", "heading": 325 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6771611, 39.1712722] },
+      "properties": { "type": "parking", "name": "G1", "heading": 185 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6778316, 39.1713222] },
+      "properties": { "type": "parking", "name": "G2", "heading": 185 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6785104, 39.1713632] },
+      "properties": { "type": "parking", "name": "G3", "heading": 185 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6792355, 39.1713657] },
+      "properties": { "type": "parking", "name": "G4", "heading": 185 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6799363, 39.1713842] },
+      "properties": { "type": "parking", "name": "G5", "heading": 185 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6806384, 39.1714256] },
+      "properties": { "type": "parking", "name": "G6", "heading": 185 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6828901, 39.1716478] },
+      "properties": { "type": "parking", "name": "G8", "heading": 225 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6837553, 39.171716] },
+      "properties": { "type": "parking", "name": "G9", "heading": 225 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6846467, 39.1717585] },
+      "properties": { "type": "parking", "name": "G10", "heading": 225 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6855238, 39.1718046] },
+      "properties": { "type": "parking", "name": "G11", "heading": 225 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-76.6863928, 39.1718711] },
+      "properties": { "type": "parking", "name": "G12", "heading": 225 }
+    }
+  ]
+}

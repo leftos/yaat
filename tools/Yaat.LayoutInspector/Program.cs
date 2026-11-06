@@ -87,6 +87,7 @@ public static class Program
             { HtmlOutputPath: not null } => new HtmlRenderCommand(),
             { DumpAll: true } => new DumpCommand(),
             { TickTable: true } or { TickSummary: true } => new TickTableCommand(),
+            { Arcs: true } => new ArcsCommand(),
             _ => new QueryCommand(),
         };
 

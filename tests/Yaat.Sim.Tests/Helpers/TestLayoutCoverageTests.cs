@@ -20,64 +20,32 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
     private const string TestDataDir = "TestData";
 
     /// <summary>
-    /// Fixtures that contain runway <c>LineString</c>s only. They give airborne traffic runway geometry
-    /// (thresholds, headings) at airports whose ground movement no test exercises; the parsed layout has
-    /// an empty node/edge graph, so any ground query against one degrades rather than bailing. Committing
-    /// the full vNAS map for each would add hundreds of KB for no coverage — but an airport must not be
-    /// added here to silence a failure. If a test needs to taxi there, commit the real map.
+    /// Fixtures that contain runway <c>LineString</c>s only: airports whose vNAS map has no taxi graph (FAT, RNO,
+    /// SJC) and hand-made snapshots (HWD, MER). They give airborne traffic runway geometry (thresholds, headings);
+    /// the parsed layout has an empty node/edge graph, so any ground query against one degrades rather than
+    /// bailing. An airport must not be added here to silence a failure. If a test needs to taxi there, commit
+    /// a real map with a taxi graph.
     /// </summary>
     private static readonly HashSet<string> RunwayOnlyFixtures = new(StringComparer.OrdinalIgnoreCase) { "FAT", "HWD", "MER", "RNO", "SJC" };
 
-    private const string Issue1144DegradedReason =
-        "issue1144-folg-head-on — a KOAK ground recording that also bundles other airports' layouts; its tests assert only KOAK ground traffic.";
-
-    private const string SfoGc28rtDegradedReason =
-        "sfo-gc-28rt — a KSFO ground recording that also bundles the scenario's other airports' layouts; every taxi command in it is at "
-        + "KSFO and its test asserts only KSFO ground traffic.";
-
     private const string KoakMultiAirportDegradedReason =
         "issue1356-oak-n7lj-cross-far-bar and issue1357-oak-cto-mlt-28l-occupancy — KOAK recordings whose scenarios also declare "
-        + "FAT and RNO (runway-only layouts) and KOA (no committed map); their traffic and their tests are at KOAK.";
+        + "FAT and RNO (runway-only layouts); their traffic and their tests are at KOAK.";
 
     private const string Yaat1527DegradedReason =
         "yaat1527-oak-followg-cross — the yaat1527 S1-OAK-7 recording declares it; its traffic and tests are at KOAK.";
 
-    private const string Issue1144SfoGc28rtAndYaat1527DegradedReason =
-        Issue1144DegradedReason + " " + SfoGc28rtDegradedReason + " " + Yaat1527DegradedReason;
-
     /// <summary>
-    /// Airports a recording's manifest declares a ground layout for, but whose fixture cannot support
-    /// ground movement (missing entirely, or runway-only). Replay of any aircraft there runs against a
-    /// degraded graph. Each entry records why that is tolerable; every one is currently a secondary
-    /// airport whose traffic only ever appears airborne in the asserting tests.
+    /// Airports a recording's manifest declares a ground layout for whose committed map is runway-only or
+    /// absent, so it cannot support ground movement. Replay of any aircraft there runs against a degraded
+    /// graph. Each entry records why that is tolerable; every one is a secondary airport whose traffic only
+    /// ever appears airborne in the asserting tests.
     /// </summary>
     private static readonly Dictionary<string, string> DeclaredButDegraded = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["APA"] = Yaat1527DegradedReason,
-        ["ASE"] =
-            "issue195-ase-lindz1 — asserts the LINDZ1 departure turn altitude; no committed map, documented in that test. " + Yaat1527DegradedReason,
-        ["BOI"] = Yaat1527DegradedReason,
-        ["BUR"] = Issue1144SfoGc28rtAndYaat1527DegradedReason,
-        ["BZN"] = Issue1144DegradedReason,
-        ["CVG"] = SfoGc28rtDegradedReason,
-        ["DEN"] = Issue1144SfoGc28rtAndYaat1527DegradedReason,
-        ["DFW"] = Yaat1527DegradedReason,
         ["FAT"] = KoakMultiAirportDegradedReason,
-        ["GEG"] = SfoGc28rtDegradedReason,
-        ["HOU"] = "issue187-star-dvia — IAH is primary; the KHOU traffic is asserted only on its departure altitude cap.",
-        ["KOA"] = KoakMultiAirportDegradedReason,
-        ["LAS"] = Issue1144SfoGc28rtAndYaat1527DegradedReason,
-        ["MSP"] = Yaat1527DegradedReason,
-        ["OMA"] = SfoGc28rtDegradedReason,
-        ["PDX"] = Issue1144SfoGc28rtAndYaat1527DegradedReason,
-        ["PHX"] = Issue1144SfoGc28rtAndYaat1527DegradedReason,
         ["RNO"] = KoakMultiAirportDegradedReason + " " + Yaat1527DegradedReason,
-        ["SAN"] = Issue1144SfoGc28rtAndYaat1527DegradedReason,
-        ["SAT"] = SfoGc28rtDegradedReason,
-        ["SDF"] = Yaat1527DegradedReason,
         ["SJC"] = "issue216-auto-handoff and multi-cfix-preset — both assert handoff/queue state on airborne traffic.",
-        ["SLC"] = Issue1144SfoGc28rtAndYaat1527DegradedReason,
-        ["SNA"] = Issue1144SfoGc28rtAndYaat1527DegradedReason,
     };
 
     /// <summary>

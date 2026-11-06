@@ -28,6 +28,7 @@ Commands/
   DumpCommand.cs            --dump: full layout JSON
   QueryCommand.cs           Default text/json query dispatch (--taxiway, --runway, etc.)
   TickTableCommand.cs       --tick-table / --tick-summary: JSON → stdout text table
+  ArcsCommand.cs            --arcs: every fillet arc, tightest effective radius first
 Tick/
   TickDataRow.cs            Shared record for one TickRecorder JSON tick event
   TickJsonReader.cs         TickRecorder JSON (TickRecording) → List<TickDataRow>
@@ -46,7 +47,7 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 
 **Data flow:** GeoJSON file -> `GeoJsonParser.Parse()` -> `AirportGroundLayout` -> `LayoutAnalyzer` wraps it -> `ICommand.Execute` reads options and produces output through a formatter or renderer.
 
-**Output modes are mutually exclusive:** `--html` → `HtmlRenderCommand`; `--dump` → `DumpCommand`; `--tick-table`/`--tick-summary` → `TickTableCommand`; otherwise → `QueryCommand` (text or `--json`).
+**Output modes are mutually exclusive:** `--html` → `HtmlRenderCommand`; `--dump` → `DumpCommand`; `--tick-table`/`--tick-summary` → `TickTableCommand`; `--arcs` → `ArcsCommand`; otherwise → `QueryCommand` (text or `--json`).
 
 ## Key Flags
 
@@ -65,6 +66,8 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 | `--dump` | Full airport JSON (pipe to file for grepping) |
 | `--no-fillets` | Parse without fillet arcs for comparison |
 | `--fillet-mode <m>` | Fillet generator: `standard` (default) or `none` (alias for `--no-fillets`) |
+| `--arcs` | List every fillet arc, tightest effective radius first: effective radius, tightest Bezier radius, turn, length, nodes, the taxiways at each end (`--json` too) |
+| `--arcs-max-radius <ft>` | Only arcs whose effective radius is at or below `<ft>`; implies `--arcs` |
 | `--videomap <path>` | Parse with this tower-cab videomap GeoJSON (the snapped hold-short bars the server builds), so the graph matches the server's; e.g. `tests/Yaat.Sim.Tests/TestData/TowerCabMaps/oak.geojson` |
 
 ### HTML render

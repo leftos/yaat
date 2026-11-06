@@ -1,0 +1,549 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -111.3566,
+                    47.48317
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "TERM",
+                "heading": 0
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -111.35657,
+                    47.49066
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "CARGO",
+                "heading": 0
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -111.35384,
+                    47.4862
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "GA",
+                "heading": 0
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -111.37743,
+                    47.47048
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "JET",
+                "heading": 0
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.38367,
+                        47.46943
+                    ],
+                    [
+                        -111.3744,
+                        47.47573
+                    ],
+                    [
+                        -111.37065,
+                        47.47827
+                    ],
+                    [
+                        -111.36757,
+                        47.48036
+                    ],
+                    [
+                        -111.36281,
+                        47.48359
+                    ],
+                    [
+                        -111.36013,
+                        47.48541
+                    ],
+                    [
+                        -111.35395,
+                        47.48959
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "runway",
+                "name": "3 - 21"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.37274,
+                        47.49536
+                    ],
+                    [
+                        -111.37276,
+                        47.47913
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "runway",
+                "name": "17 - 35"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.35275,
+                        47.48875
+                    ],
+                    [
+                        -111.35569,
+                        47.48667
+                    ],
+                    [
+                        -111.35682,
+                        47.48594
+                    ],
+                    [
+                        -111.35928,
+                        47.48396
+                    ],
+                    [
+                        -111.36102,
+                        47.4829
+                    ],
+                    [
+                        -111.36615,
+                        47.47945
+                    ],
+                    [
+                        -111.36922,
+                        47.47737
+                    ],
+                    [
+                        -111.373,
+                        47.47481
+                    ],
+                    [
+                        -111.37719,
+                        47.47195
+                    ],
+                    [
+                        -111.37801,
+                        47.47138
+                    ],
+                    [
+                        -111.38062,
+                        47.46961
+                    ],
+                    [
+                        -111.38174,
+                        47.46888
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.35275,
+                        47.48875
+                    ],
+                    [
+                        -111.35395,
+                        47.48959
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A1"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.35569,
+                        47.48667
+                    ],
+                    [
+                        -111.35682,
+                        47.48594
+                    ],
+                    [
+                        -111.36013,
+                        47.48541
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A2"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.35928,
+                        47.48396
+                    ],
+                    [
+                        -111.36281,
+                        47.48359
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A3"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.36615,
+                        47.47945
+                    ],
+                    [
+                        -111.36757,
+                        47.48036
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A4"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.36922,
+                        47.47737
+                    ],
+                    [
+                        -111.37065,
+                        47.47827
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A5"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.373,
+                        47.47481
+                    ],
+                    [
+                        -111.3744,
+                        47.47573
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A6"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.38174,
+                        47.46888
+                    ],
+                    [
+                        -111.38259,
+                        47.46878
+                    ],
+                    [
+                        -111.38367,
+                        47.46943
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A7"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.35566,
+                        47.49074
+                    ],
+                    [
+                        -111.35395,
+                        47.48959
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B1"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.37107,
+                        47.48157
+                    ],
+                    [
+                        -111.36944,
+                        47.4816
+                    ],
+                    [
+                        -111.36757,
+                        47.48036
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B4"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.37108,
+                        47.47974
+                    ],
+                    [
+                        -111.37107,
+                        47.48157
+                    ],
+                    [
+                        -111.37113,
+                        47.49511
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "C"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.37108,
+                        47.47974
+                    ],
+                    [
+                        -111.37189,
+                        47.47913
+                    ],
+                    [
+                        -111.37276,
+                        47.47913
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "C1"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.37113,
+                        47.49511
+                    ],
+                    [
+                        -111.37147,
+                        47.49535
+                    ],
+                    [
+                        -111.37274,
+                        47.49536
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "C3"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.35647,
+                        47.48351
+                    ],
+                    [
+                        -111.35569,
+                        47.48667
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "R1"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.35832,
+                        47.48339
+                    ],
+                    [
+                        -111.35928,
+                        47.48396
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "R2"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.37681,
+                        47.47171
+                    ],
+                    [
+                        -111.37719,
+                        47.47195
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "R4"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.3776,
+                        47.47114
+                    ],
+                    [
+                        -111.37801,
+                        47.47138
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "R5"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [
+                        -111.38016,
+                        47.46929
+                    ],
+                    [
+                        -111.38062,
+                        47.46961
+                    ]
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "R6"
+            }
+        }
+    ]
+}

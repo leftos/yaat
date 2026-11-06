@@ -9,7 +9,7 @@ Query the airport ground graph for debugging ground/taxi/exit bugs. Wraps `tools
 
 GeoJSON airport files come from:
 - The vNAS training-airports API, fetched on demand via `--airport <FAA>` (cached at `%LOCALAPPDATA%/yaat/cache/airports/`). Preferred — works in any worktree without sibling-repo dependencies.
-- `tests/Yaat.Sim.Tests/TestData/<icao>.geojson` (committed subset for tests: atl, aus, cos, fat, fll, hwd, iah, lax, mer, mia, msy, oak, rno, sea, sfo, sjc, SMF, plus the snapshots `issue172-sfo` and `sfo-b1short`). Pass these paths positionally when offline. `python tools/refresh-test-layouts.py` re-fetches the airport files from vNAS (snapshots are left alone; `--check` for a dry run).
+- `tests/Yaat.Sim.Tests/TestData/<icao>.geojson` (committed for tests: every airport in `TestData/layout-airports.txt`, plus a few runway-only maps and the snapshots `issue172-sfo` and `sfo-b1short`). Pass these paths positionally when offline. `python tools/refresh-test-layouts.py` re-fetches the airport files from vNAS (snapshots are left alone; `--check` for a dry run; `--all` adds the listed airports that have no fixture, `--force` refreshes the committed ones too).
 
 ## Usage
 
@@ -110,6 +110,8 @@ Most list-valued flags are **repeatable AND accept comma-separated values** — 
 | `--dump` | flag | Full airport JSON |
 | `--json` | flag | JSON output mode |
 | `--no-fillets` | flag | Parse without fillet arcs |
+| `--arcs` | flag | List every fillet arc, tightest effective radius first (effective and tightest Bezier radius, turn, length, nodes, the taxiways at each end); use it to find a map's sharpest fillets |
+| `--arcs-max-radius <ft>` | no | Only arcs at or below this effective radius; implies `--arcs` |
 | `--videomap <path>` | no | Parse with this tower-cab videomap GeoJSON (the snapped hold-short bars the server builds) |
 | `--debug-fillets` / `--debug-exits` | flag | Enable subsystem debug logging |
 | `--validate` | flag | Run graph validation checks |

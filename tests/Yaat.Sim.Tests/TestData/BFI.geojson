@@ -1,0 +1,730 @@
+ {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29736,
+                    47.52096
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "GA1",
+                "heading": 050
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29715,
+                    47.52069
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "GA2",
+                "heading": 050
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29686,
+                    47.52044
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "GA3",
+                "heading": 050
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29672,
+                    47.52022
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "GA4",
+                "heading": 050
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29675,
+                    47.52008
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "GA5",
+                "heading": 050
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29511,
+                    47.51625
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "MIL1",
+                "heading": 050
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29459,
+                    47.51571
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "MIL2",
+                "heading": 050
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29427,
+                    47.51535
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "MIL3",
+                "heading": 050
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.30579,
+                    47.53051
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "BOE1",
+                "heading": 020
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.30708,
+                    47.53122
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "BOE2",
+                "heading": 020
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.31013,
+                    47.53349
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "BOE3",
+                "heading": 045
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.31150,
+                    47.53557
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "BOE4",
+                "heading": 045
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.31485,
+                    47.54024
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "BOE5",
+                "heading": 160
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.31370,
+                    47.54020
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "BOE6",
+                "heading": 160
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.30113,
+                    47.53493
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "UPS1",
+                "heading": 040
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.30218,
+                    47.53568
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "UPS2",
+                "heading": 040
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.30487,
+                    47.53828
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "SIG1",
+                "heading": 220
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.30449,
+                    47.53791
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "SIG2",
+                "heading": 220
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.30458,
+                    47.53740
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "SIG3",
+                "heading": 220
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29677,
+                    47.52786
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "MA1",
+                "heading": 220
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29660,
+                    47.52770
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "MA2",
+                "heading": 220
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -122.29641,
+                    47.52742
+                ]
+            },
+            "properties": {
+                "type": "parking",
+                "name": "MA3",
+                "heading": 220
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.31130, 47.54048],
+                    [-122.30876, 47.53747],
+					[-122.30587, 47.53406],
+					[-122.30261, 47.53019],
+					[-122.30137, 47.52873],
+					[-122.30138, 47.52875],
+					[-122.29989, 47.52698],
+					[-122.29639, 47.52284],
+					[-122.29323, 47.51910],
+					[-122.29163, 47.51721],
+                ]
+            },
+            "properties": {
+                "type": "runway",
+                "name": "14R - 32L",
+                "threshold": "0 - 885",
+                "turnoff": "right"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-122.30743, 47.53799],
+                    [-122.30477, 47.53484],
+					[-122.30397, 47.53388],
+					[-122.30264, 47.53232],
+					[-122.30126, 47.53068],
+					[-122.30004, 47.52924],
+                ]
+            },
+            "properties": {
+                "type": "runway",
+                "name": "14L - 32R",
+                "threshold": "250 - 380",
+                "turnoff": "left"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.31230, 47.53991],
+					[-122.31310, 47.53963],
+					[-122.31281, 47.53916],
+					[-122.31200, 47.53827],
+					[-122.31153, 47.53784],
+					[-122.31102, 47.53723],
+					[-122.31038, 47.53636],
+					[-122.30940, 47.53519],
+					[-122.30899, 47.53478],
+					[-122.30850, 47.53413],
+					[-122.30764, 47.53310],
+					[-122.30683, 47.53217],
+					[-122.30622, 47.53188],
+					[-122.30576, 47.53204],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "BR"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.31130, 47.54048],
+					[-122.31230, 47.53991],
+					[-122.30984, 47.53702],
+					[-122.30698, 47.53357],
+					[-122.30576, 47.53204],
+					[-122.30371, 47.52972],
+					[-122.30100, 47.52651],
+					[-122.29940, 47.52455],
+					[-122.29750, 47.52233],
+					[-122.29621, 47.52065],
+					[-122.29442, 47.51866],
+					[-122.29277, 47.51660],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.31130, 47.54048],
+					[-122.31230, 47.53991],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B1"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.30876, 47.53747],
+					[-122.30984, 47.53702],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B2"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.30587, 47.53406],
+					[-122.30698, 47.53357],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B3"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.30261, 47.53019],
+					[-122.30371, 47.52972],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B4"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.29989, 47.52698],
+					[-122.30100, 47.52651],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B5"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.29940, 47.52455],
+					[-122.30004, 47.52428],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B6"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.29639, 47.52284],
+					[-122.29750, 47.52233],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B7"
+            }
+		},
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.29323, 47.51910],
+					[-122.29442, 47.51866],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B9"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.29163, 47.51721],
+					[-122.29277, 47.51660],
+					[-122.29342, 47.51627],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "B10"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.30969, 47.54111],
+					[-122.30840, 47.54022],
+					[-122.30702, 47.53856],
+					[-122.30672, 47.53820],
+					[-122.30534, 47.53659],
+					[-122.30414, 47.53558],
+					[-122.30285, 47.53395],
+					[-122.30217, 47.53317],
+					[-122.30042, 47.53106],
+					[-122.29917, 47.52962],
+					[-122.29825, 47.52852],
+					[-122.29869, 47.52738],
+					[-122.29522, 47.52330],
+					[-122.29402, 47.52197],
+					[-122.29221, 47.51980],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.31130, 47.54048],
+					[-122.30969, 47.54111],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A1"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.30876, 47.53747],
+					[-122.30743, 47.53799],
+					[-122.30672, 47.53820],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A2"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.30477, 47.53484],
+					[-122.30414, 47.53558],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A3"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.30587, 47.53406],
+					[-122.30397, 47.53388],
+					[-122.30285, 47.53395],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A4"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.30264, 47.53232],
+					[-122.30217, 47.53317],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A5"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.30261, 47.53019],
+					[-122.30126, 47.53068],
+					[-122.30042, 47.53106],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A7"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.30137, 47.52873],
+					[-122.30004, 47.52924],
+					[-122.29917, 47.52962],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A8"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.29989, 47.52698],
+					[-122.29869, 47.52738],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A9"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.29639, 47.52284],
+					[-122.29522, 47.52330],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A10"
+            }
+        },
+		{
+            "type": "Feature",
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+					[-122.29221, 47.51980],
+					[-122.29216, 47.51952],
+					[-122.29234, 47.51926],
+					[-122.29258, 47.51912],
+					[-122.29323, 47.51910],
+                ]
+            },
+            "properties": {
+                "type": "taxiway",
+                "name": "A11"
+            }
+        }
+    ]
+}

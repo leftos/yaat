@@ -138,6 +138,18 @@ public sealed record CliOptions
     public bool JsonOutput { get; init; }
     public bool DumpAll { get; init; }
 
+    /// <summary>
+    /// When set, list every fillet arc of the layout, tightest effective radius first (see <c>Commands/ArcsCommand</c>).
+    /// Set via <c>--arcs</c>, or implied by <c>--arcs-max-radius</c>.
+    /// </summary>
+    public bool Arcs { get; init; }
+
+    /// <summary>
+    /// The <c>--arcs</c> filter: only arcs whose effective radius is at or below this many feet. Null lists every arc. Set via
+    /// <c>--arcs-max-radius &lt;ft&gt;</c>.
+    /// </summary>
+    public double? ArcsMaxRadiusFt { get; init; }
+
     public FilletMode FilletMode { get; init; } = FilletMode.Standard;
     public bool DebugFillets { get; init; }
     public bool DebugExits { get; init; }
@@ -229,6 +241,8 @@ public sealed record CliOptions
         var pathDistanceNodes = new List<int>();
         bool jsonOutput = false;
         bool dumpAll = false;
+        bool arcs = false;
+        double? arcsMaxRadiusFt = null;
         FilletMode filletMode = FilletMode.Standard;
         string? videoMapPath = null;
         bool debugFillets = false;
@@ -354,6 +368,19 @@ public sealed record CliOptions
                 case "--dump":
                     dumpAll = true;
                     jsonOutput = true;
+                    break;
+                case "--arcs":
+                    arcs = true;
+                    break;
+                case "--arcs-max-radius" when i + 1 < args.Length:
+                    if (!double.TryParse(args[++i], NumberStyles.Float, CultureInfo.InvariantCulture, out double maxRadius))
+                    {
+                        error = "--arcs-max-radius expects a radius in feet";
+                        return false;
+                    }
+
+                    arcs = true;
+                    arcsMaxRadiusFt = maxRadius;
                     break;
                 case "--no-fillets":
                     filletMode = FilletMode.None;
@@ -558,6 +585,8 @@ public sealed record CliOptions
             PathDistanceNodes = pathDistanceNodes,
             JsonOutput = jsonOutput,
             DumpAll = dumpAll,
+            Arcs = arcs,
+            ArcsMaxRadiusFt = arcsMaxRadiusFt,
             FilletMode = filletMode,
             VideoMapPath = videoMapPath,
             DebugFillets = debugFillets,

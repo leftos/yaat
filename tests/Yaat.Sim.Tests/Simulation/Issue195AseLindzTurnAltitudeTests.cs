@@ -19,9 +19,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// (≈8249 ft MSL), already above the 400 ft floor, with the deferred-turn gate still armed because
 /// it has not yet crossed the DER. Ticking forward: pre-fix the turn (transition into
 /// <see cref="Yaat.Sim.Phases.Tower.DepartureProcedurePhase"/>, the VA leg) is delayed to ~864 ft
-/// AGL; post-fix it fires immediately at ~411 ft AGL. (Hybrid replay is used because the test
-/// ground-data has no ASE layout, so a full replay from t=0 cannot taxi the aircraft out — and the
-/// fix is localized to the airborne turn gate, so the frozen pre-snapshot taxi/takeoff is irrelevant.)
+/// AGL; post-fix it fires immediately at ~411 ft AGL. (Hybrid replay is used because the fix is
+/// localized to the airborne turn gate, so the frozen pre-snapshot taxi/takeoff is irrelevant.)
 /// </summary>
 public class Issue195AseLindzTurnAltitudeTests(ITestOutputHelper output)
 {

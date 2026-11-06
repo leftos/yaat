@@ -46,6 +46,8 @@ public static class UsageText
         Console.WriteLine("  --fillet-mode <m>        Fillet generator: standard (default) | none");
         Console.WriteLine("  --videomap <path>        Parse with this tower-cab videomap GeoJSON (the snapped hold-short bars the server builds)");
         Console.WriteLine("  --debug-fillets          Enable debug logging for fillet generation (FilletArcGenerator)");
+        Console.WriteLine("  --arcs                   List every fillet arc, tightest effective radius first (radii, turn, length, nodes, taxiways)");
+        Console.WriteLine("  --arcs-max-radius <ft>   With --arcs (implied): only arcs whose effective radius is at or below <ft>");
         Console.WriteLine("  --dump                   Dump everything (nodes, taxiways, runways, exits) as JSON");
         Console.WriteLine("  --json                   Output as JSON");
         Console.WriteLine("  --airport-code <ICAO>    Airport code for NavData runway widths");

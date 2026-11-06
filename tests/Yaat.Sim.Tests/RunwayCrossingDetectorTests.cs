@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Xunit;
@@ -825,12 +826,7 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
             }
         }
 
-        violations.Sort(StringComparer.Ordinal);
-        List<string> known = [.. KnownUnbarredEscapes.Order(StringComparer.Ordinal)];
-        Assert.True(
-            known.SequenceEqual(violations),
-            "Unbarred routes onto a runway:" + Environment.NewLine + string.Join(Environment.NewLine, violations)
-        );
+        AssertMatchesBaseline("Unbarred routes onto a runway", KnownUnbarredEscapes, violations);
     }
 
     /// <summary>
@@ -997,9 +993,37 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
             }
         }
 
+        AssertMatchesBaseline("Angled bars inside another runway's holding area", KnownAngledBarViolations, violations);
+    }
+
+    /// <summary>
+    /// Fails unless <paramref name="seen"/> holds exactly the lines of <paramref name="baseline"/>, duplicates counted; the
+    /// message lists only the difference: each line seen but not in the baseline, and each baseline line no longer seen.
+    /// </summary>
+    private static void AssertMatchesBaseline(string title, IEnumerable<string> baseline, IEnumerable<string> seen)
+    {
+        var remaining = baseline.GroupBy(line => line, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+        List<string> unexpected = [];
+        foreach (string line in seen.Order(StringComparer.Ordinal))
+        {
+            if (remaining.TryGetValue(line, out int count) && (count > 0))
+            {
+                remaining[line] = count - 1;
+            }
+            else
+            {
+                unexpected.Add(line);
+            }
+        }
+
+        List<string> gone =
+        [
+            .. remaining.Where(kv => kv.Value > 0).SelectMany(kv => Enumerable.Repeat(kv.Key, kv.Value)).Order(StringComparer.Ordinal),
+        ];
+        string nl = Environment.NewLine;
         Assert.True(
-            violations.Count == 0,
-            "Angled bars inside another runway's holding area:" + Environment.NewLine + string.Join(Environment.NewLine, violations)
+            (unexpected.Count == 0) && (gone.Count == 0),
+            $"{title}:{nl}Unexpected:{nl}{string.Join(nl, unexpected)}{nl}No longer seen:{nl}{string.Join(nl, gone)}"
         );
     }
 
@@ -1027,9 +1051,11 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
                 bool barTouches = RunwayCrossingDetector.TouchesHoldingArea(bar.Position, other);
                 if (barTouches || path.Any(step => RunwayCrossingDetector.SegmentTouchesHoldingArea(step.From.Position, step.To.Position, other)))
                 {
-                    yield return $"{airport} #{bar.Id}: bar of {runwayName} at {crossFt:F1} ft (S {baseFt:F1}) is {CrossTrackFt(other, bar):F1} ft "
-                        + $"from {otherName}; its path [{string.Join("→", path.Select(step => step.To.Id))}] touches its "
-                        + $"{other.HoldShortNm * FeetPerNm:F1} ft holding area";
+                    string steps = string.Join("→", path.Select(step => step.To.Id));
+                    CultureInfo inv = CultureInfo.InvariantCulture;
+                    yield return string.Create(inv, $"{airport} #{bar.Id}: bar of {runwayName} at {crossFt:F1} ft (S {baseFt:F1}) is ")
+                        + string.Create(inv, $"{CrossTrackFt(other, bar):F1} ft from {otherName}; its path [{steps}] touches its ")
+                        + string.Create(inv, $"{other.HoldShortNm * FeetPerNm:F1} ft holding area");
                 }
             }
         }
@@ -1067,7 +1093,9 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
     /// <summary>
     /// The unbarred escapes the committed layouts already had before junction fallback bars could be dropped (no dropped
     /// bar adds one). Each is a bar-placement gap of its own, and a fix that closes one removes it. An entry is added only for a
-    /// gap verified in the real layout data, citing the issue that tracks it (the HKY entries cite YAAT-60).
+    /// gap verified in the real layout data, citing the issue that tracks it (the HKY entries cite YAAT-60). The block
+    /// under the YAAT-1915 comment is an untriaged baseline taken when every vNAS taxi-graph layout was committed, not
+    /// verified gaps.
     /// </summary>
     private static readonly string[] KnownUnbarredEscapes =
     [
@@ -1122,6 +1150,230 @@ public class RunwayCrossingDetectorTests(ITestOutputHelper output)
         "mia 9 - 27: V/T - V",
         "sea 34R - 16L: J/J - H",
         "aus 18L - 36R: H/G - H/H - G",
+        // Found when every vNAS taxi-graph layout was committed; untriaged (data quirk vs detector gap), tracked by YAAT-1915:
+        "ABQ 12 - 30: C/F - C",
+        "ABQ 12 - 30: G",
+        "ABQ 12 - 30: G - RWY03/21",
+        "ABQ 12 - 30: RAMP/G - RAMP",
+        "ABQ 12 - 30: RAMP/G - RAMP",
+        "ABQ 12 - 30: RAMP/G - RAMP",
+        "ABQ 12 - 30: RAMP/G - RAMP",
+        "ABQ 3 - 21: F2/F2 - RAMP",
+        "ABQ 3 - 21: F4/F4 - RAMP",
+        "ABQ 3 - 21: F6/F6 - RAMP",
+        "ABQ 3 - 21: H",
+        "ABQ 3 - 21: RAMP",
+        "ABQ 8 - 26: M3/A8 - M3/M3 - A8",
+        "AGC 13 - 31: A3/A - A3",
+        "AGC 13 - 31: A3/B - A3",
+        "AGS 17 - 35: A1/A",
+        "AVL 17 - 35: B",
+        "AVL 17 - 35: B1",
+        "BFL 30L - 12R: H/H - G",
+        "BJC 3 - 21: A/A - B/A - R4",
+        "BJC 3 - 21: B - RWY12L/30R",
+        "BJC 3 - 21: B - RWY12R/30L",
+        "BJC 3 - 21: B2/B - B2",
+        "BJC 3 - 21: B2/B - B2/B2 - RAMP",
+        "BJC 3 - 21: D/D - B",
+        "BJC 3 - 21: RAMP/B - RAMP",
+        "BJC 3 - 21: RAMP/B - RAMP",
+        "BJC 3 - 21: RAMP/B2 - RAMP",
+        "BOS 4R - 22L: T/T - RWY15R/33L",
+        "BUF 14 - 32: D2",
+        "BUF 14 - 32: D3",
+        "CYS 13 - 31: C",
+        "DAY 36 - 18: V/C - V",
+        "DPA 33 - 15: A",
+        "DPA 33 - 15: H/E - H",
+        "FCM 28L - 10R: B - RWY36/18",
+        "FCM 28L - 10R: RAMP",
+        "FCM 28L - 10R: RAMP",
+        "FCM 28L - 10R: RAMP",
+        "FCM 28L - 10R: RAMP",
+        "FHB 4 - 22: A",
+        "FHB 4 - 22: A/A - B",
+        "FMN 5 - 23: B1",
+        "FMN 5 - 23: F/G - F",
+        "FMN 5 - 23: K",
+        "FMN 5 - 23: L",
+        "FMN 5 - 23: M",
+        "FMN 7 - 25: B/A - B",
+        "FMN 7 - 25: C/C - RWY05/23",
+        "FMN 7 - 25: H/A - H",
+        "FMN 7 - 25: J/A - J",
+        "FTW 17-35: RAMP",
+        "FTW 17-35: RAMP",
+        "HIO 13R - 31L: A6/A - A6",
+        "HIO 13R - 31L: A9/A",
+        "HNL 4L - 22R: D/D - RWY04R/22L",
+        "HNL 4L - 22R: F/F - RWY04R/22L",
+        "HNL 8L - 26R: S/S - A",
+        "HNL 8L - 26R: S/Z - S",
+        "HOU 4 - 22: Z",
+        "HXD 3 - 21: A",
+        "HXD 3 - 21: A",
+        "HXD 3 - 21: F",
+        "HXD 3 - 21: F",
+        "ISP 33L-15R: RAMP",
+        "ITO 3 - 21: C - RWY08/26",
+        "ITO 3 - 21: C - RWY08/26",
+        "ITO 3 - 21: I",
+        "ITO 3 - 21: I/C - I",
+        "ITO 3 - 21: J",
+        "ITO 3 - 21: J/C - J",
+        "ITO 3 - 21: RAMP/C - RAMP",
+        "ITO 3 - 21: RAMP/C - RAMP",
+        "JAX 14 - 32: M2/M2 - RAMP",
+        "JFK 4R - 22L: FA",
+        "JNU 8 - 26: RAMP",
+        "JNU 8 - 26: RAMP",
+        "JNU 8C - 26C: E/RWY08/26:link/RAMP",
+        "JNU 8C - 26C: RAMP/RWY08/26 - RAMP",
+        "LAF 10 - 28: C4/C",
+        "LAF 10 - 28: C4/C",
+        "LAF 5 - 23: B",
+        "LAS 1L - 19R: F",
+        "LAS 1L - 19R: F/F - H",
+        "LAS 1L - 19R: F/F - H",
+        "LAS 1L - 19R: H",
+        "LAS 1L - 19R: H/E - H",
+        "LAS 1L - 19R: H/F",
+        "LAS 1L - 19R: H/F - H",
+        "LAS 1L - 19R: H/F - H",
+        "LAS 1R - 19L: Y",
+        "LGA 4 - 22: AA/AA - P",
+        "LZU 7 - 25: ZHP/RAMP/ZHP - RAMP",
+        "MDW 22L - 4R: Y",
+        "MDW 22L - 4R: Y/Y1",
+        "MDW 22L - 4R: Y/Y1",
+        "MDW 31R - 13L: E/E3",
+        "MKE 19R - 1L: E/F - E",
+        "MKE 19R - 1L: F/E",
+        "MKE 25L - 7R: A5/A",
+        "MKE 25R - 7L: Z",
+        "MSP 4 - 22: R3/R3 - RAMP",
+        "OKC 35L - 17R: B",
+        "OPF 12 - 30: N/T/N - N1",
+        "OPF 12 - 30: N1",
+        "OPF 12 - 30: N1/T - N1",
+        "OPF 12 - 30: T/N",
+        "OPF 12 - 30: Y/Y - Y5",
+        "OPF 12 - 30: Y5/Y - Y5",
+        "ORD 22L - 4R: N/N - V",
+        "PAE 16L - 34R: D/D - G",
+        "PAE 16L - 34R: D/D - G",
+        "PAE 16L - 34R: L/L - G",
+        "PAE 16L - 34R: RAMP/G - RAMP",
+        "PAE 16L - 34R: RAMP/G - RAMP/G1 - RAMP",
+        "PAE 16L - 34R: RAMP/G1 - RAMP",
+        "PDK 34 - 16: B - RWY21R/03L",
+        "PDK 34 - 16: C/D - C/C - D",
+        "PDK 34 - 16: D - RWY21R/03L",
+        "PDK 34 - 16: K/K - B",
+        "PDK 34 - 16: RAMP/B - RAMP",
+        "PDK 34 - 16: RAMP/B - RAMP",
+        "PDK 34 - 16: RAMP/D - RAMP",
+        "PDK 34 - 16: RAMP/D - RAMP",
+        "PDK 34 - 16: RAMP/D - RAMP",
+        "PHX 8 - 26: B/S - B",
+        "PHX 8 - 26: S/S - B",
+        "PRC 12 - 30: E",
+        "PRC 12 - 30: F",
+        "PRC 12 - 30: F",
+        "PRC 3R - 21L: C",
+        "PRC 3R - 21L: D",
+        "PVD 16 - 34: T",
+        "PWK 12 - 30: E/E - RWY06/24",
+        "PWK 6 - 24: D",
+        "PWK 6 - 24: L4 - RWY16/34",
+        "RNT 16 - 34: RAMP/A - RAMP",
+        "RNT 16 - 34: RAMP/A - RAMP",
+        "RNT 16 - 34: RAMP/A - RAMP",
+        "RNT 16 - 34: RAMP/A - RAMP",
+        "RNT 16 - 34: RAMP/A - RAMP",
+        "RNT 16 - 34: RAMP/A - RAMP",
+        "RNT 16 - 34: RAMP/A - RAMP",
+        "RNT 16 - 34: RAMP/A3 - RAMP",
+        "RNT 16 - 34: RAMP/A3 - RAMP",
+        "RNT 16 - 34: RAMP/A4 - RAMP",
+        "ROC 04 - 22: A/A - RUNUP_A",
+        "ROC 04 - 22: A/A - RUNUP_A",
+        "ROC 04 - 22: A/RUNUP_A",
+        "ROC 04 - 22: D",
+        "ROC 07 - 25: G/F - G",
+        "ROC 07 - 25: M_LINK1",
+        "ROC 10 - 28: B_LINK1",
+        "ROC 10 - 28: D_LINK1",
+        "ROC 10 - 28: H_LINK1",
+        "ROC 10 - 28: H_LINK2",
+        "ROC 10 - 28: H_LINK2",
+        "SAN 9 - 27: B/B1",
+        "SAT 13R - 31L: Z",
+        "SAT 4 - 22: N",
+        "SIG 9 - 27: BG",
+        "SIG 9 - 27: RAMP/SG - RAMP",
+        "SIG 9 - 27: SG/SG - RAMP",
+        "SJU 10 - 28: A",
+        "SJU 10 - 28: B/H - B/A - B/B - RAMP",
+        "SJU 10 - 28: C/H - C/C - RAMP",
+        "SJU 10 - 28: J/RAMP",
+        "SJU 10 - 28: L/H - L",
+        "SJU 10 - 28: M/H - M",
+        "SJU 10 - 28: N3/H - N3/N3 - RAMP",
+        "SJU 10 - 28: P/H - P",
+        "SJU 10 - 28: RAMP",
+        "SJU 10 - 28: RAMP",
+        "SJU 10 - 28: RAMP",
+        "SJU 10 - 28: RAMP",
+        "SJU 10 - 28: RAMP",
+        "SJU 10 - 28: RAMP",
+        "SJU 10 - 28: RAMP",
+        "SJU 10 - 28: RAMP/A9 - RAMP",
+        "SJU 10 - 28: RAMP/H - RAMP",
+        "SJU 10 - 28: RAMP/H - RAMP",
+        "SJU 10 - 28: RAMP/H - RAMP",
+        "SJU 10 - 28: RAMP/H - RAMP",
+        "SJU 10 - 28: RAMP/H - RAMP",
+        "SJU 10 - 28: RAMP/H - RAMP",
+        "SJU 10 - 28: RAMP/H - RAMP",
+        "SJU 10 - 28: RAMP/H - RAMP",
+        "SJU 10 - 28: RAMP/N3 - RAMP",
+        "SJU 10 - 28: RAMP/N3 - RAMP",
+        "SLC 14 - 32: L",
+        "SLC 14 - 32: L1",
+        "TCL 12 - 30: D6",
+        "TCL 4 - 22: A/A5",
+        "TCL 4 - 22: A1/F",
+        "TCL 4 - 22: B/B5 - B",
+        "TPA 1L - 19R: V",
+        "TTD 7 - 25: RAMP",
+        "TTD 7 - 25: RAMP/A - RAMP",
+        "TTD 7 - 25: RAMP/A - RAMP",
+        "TTD 7 - 25: RAMP/A - RAMP",
+        "TTD 7 - 25: RAMP/A - RAMP",
+        "TTD 7 - 25: RAMP/B - RAMP",
+        "TTD 7 - 25: RAMP/B - RAMP",
+        "TUS 12 - 30: D/A - D",
+        "TUS 12 - 30: D/D - D3",
+        "TYS 5L - 23R: B8/B",
+        "TYS 5R - 23L: A",
+        "TYS 5R - 23L: A/A4 - A",
+        "TYS 5R - 23L: A4/A4 - A",
+        "UAO 17 - 35: A/A - A1",
+        "UAO 17 - 35: A/A1",
+        "VNY 9 - 27: B/B1",
+    ];
+
+    /// <summary>
+    /// The angled bars the committed layouts have inside another runway's holding area, each tracked by the issue its comment
+    /// names. A fix that moves one removes it; any other violation fails the sweep.
+    /// </summary>
+    private static readonly string[] KnownAngledBarViolations =
+    [
+        // Angled bars inside another runway's holding area, fixed by YAAT-1252 (clamp the dropped angle term):
+        "CRG #47: bar of 14 - 32 at 266.8 ft (S 250.4) is 231.7 ft from 5 - 23; its path [53→132] touches its 200.0 ft holding area",
+        "HPN #99: bar of 16 - 34 at 299.7 ft (S 284.4) is 301.5 ft from 11 - 29; its path [114→352→354] touches its 200.0 ft holding area",
     ];
 
     private static string DescribeTaxiways(GroundNode node) =>
