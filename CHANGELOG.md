@@ -18,6 +18,7 @@
 - The Assign speed flyout offers only speeds the pilot would accept on its type.
 - An aircraft holding at a bar painted closer to the runway than standard sends an arrival around only once it is well past that bar.
 - A landing at an airport whose map has runways but no taxiways rolls to a stop and completes, instead of waiting on the runway forever.
+- An aircraft established on the glidepath shows its descent as vertical speed, instead of 0.
 
 ## v0.18.1-beta [2026/11/05]
 

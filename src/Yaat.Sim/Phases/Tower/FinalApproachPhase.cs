@@ -358,6 +358,15 @@ public sealed class FinalApproachPhase : Phase
     /// </summary>
     private const double GsCaptureWindowFt = 50.0;
 
+    /// <summary>Seconds of closure toward the threshold the captured glidepath target leads the aircraft by: a judgement call.</summary>
+    private const double LookaheadSec = 10.0;
+
+    /// <summary>Least height, feet, the captured glidepath target sits below the aircraft (twice the altitude snap): a judgement call.</summary>
+    private const double MinLeadFt = 2.0 * FlightPhysics.AltitudeSnapFt;
+
+    /// <summary>Within this distance of the threshold the bearing to it is ill-conditioned, so the runway heading stands in.</summary>
+    private const double ThresholdBearingMinNm = 0.05;
+
     /// <summary>
     /// While a controller's altitude is held until established, the glideslope is captured only with the aircraft level at
     /// that altitude: within this many feet of it.
@@ -976,9 +985,34 @@ public sealed class FinalApproachPhase : Phase
 
         // A controller's altitude given outside the final approach fix is held until the glideslope is captured, climb included.
         double? heldAltitude = ApproachAltitudeHold.IsHeld(ctx.Aircraft) ? ctx.Targets.AssignedAltitude : null;
+
+        // The path height is a function of the straight-line distance to the threshold, so the rate it falls under the
+        // aircraft is the rate that distance shrinks: the groundspeed's component toward the threshold (from the aircraft
+        // before it, from the threshold once past it). A final joined from a turn closes far slower than its groundspeed,
+        // and the groundspeed rate would sink it below the path.
+        LatLon thresholdPosition = new(_thresholdLat, _thresholdLon);
+        bool pastThreshold = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, thresholdPosition, _runwayHeading) > 0;
+        double towardThresholdDeg =
+            (distNm < ThresholdBearingMinNm)
+                ? _runwayHeading.Degrees
+                : (
+                    pastThreshold
+                        ? GeoMath.BearingTo(thresholdPosition, ctx.Aircraft.Position)
+                        : GeoMath.BearingTo(ctx.Aircraft.Position, thresholdPosition)
+                );
+        double closureKts = Math.Max(
+            0.0,
+            (ctx.Aircraft.GroundSpeed * Math.Cos(ctx.Aircraft.TrueTrack.AbsAngleTo(new TrueHeading(towardThresholdDeg)) * Math.PI / 180.0))
+        );
+
         bool climbingToRestriction = false;
         if (_gsCaptured)
         {
+            // The target is the path a few seconds ahead, kept at least MinLeadFt below the aircraft: it only limits the
+            // descent, which DesiredVerticalRate flies, so the physics never snaps to a goal moving with the aircraft and
+            // reports the rate flown. An aircraft below the path never climbs back to it; it shallows its descent instead.
+            double pathAheadFt = CappedPathAheadFt(ctx, distNm, crossingHeightFt, closureKts, pastThreshold);
+
             // A pending low approach levels off at its floor before the threshold instead of following the
             // path down. Re-read every tick: a mid-final terminal swap (CLAND) lifts the clamp on the next tick.
             // An aircraft already below the category floor holds its own altitude and never climbs back up to it;
@@ -986,13 +1020,13 @@ public sealed class FinalApproachPhase : Phase
             LowApproachPhase? lowApproach = forceLanding ? null : PendingLowApproach(ctx.Aircraft.Phases);
             if (lowApproach is not null)
             {
-                double target = lowApproach.HoldAltitudeMsl(_thresholdElevation, ctx.Category, gsAltitude, ctx.Aircraft.Altitude);
+                double target = lowApproach.HoldAltitudeMsl(_thresholdElevation, ctx.Category, pathAheadFt, ctx.Aircraft.Altitude);
                 climbingToRestriction = (lowApproach.AtOrAboveFt is not null) && (ctx.Aircraft.Altitude < target - FlightPhysics.AltitudeSnapFt);
                 ctx.Targets.TargetAltitude = target;
             }
             else
             {
-                ctx.Targets.TargetAltitude = gsAltitude;
+                ctx.Targets.TargetAltitude = Math.Max(_thresholdElevation, pathAheadFt);
             }
         }
         else if (heldAltitude is { } held)
@@ -1005,10 +1039,13 @@ public sealed class FinalApproachPhase : Phase
             ctx.Targets.TargetAltitude = Math.Min(assigned, ctx.Aircraft.Altitude);
         }
 
-        // Descent rate: geometry-based convergence when above GS, gentle recovery when below
-        double standardFpm = GlideSlopeGeometry.RequiredDescentRate(ctx.Aircraft.GroundSpeed, _gsAngleDeg);
+        // Descent rate: geometry-based convergence when above GS, gentle recovery when below. The on-path rate is the
+        // closure toward the threshold, read only when captured; the ceiling stays groundspeed-based, so an aircraft
+        // high in a turn onto final can still descend.
+        double groundspeedFpm = GlideSlopeGeometry.RequiredDescentRate(ctx.Aircraft.GroundSpeed, _gsAngleDeg);
+        double standardFpm = GlideSlopeGeometry.RequiredDescentRate(closureKts, _gsAngleDeg);
         double deviation = ctx.Aircraft.Altitude - gsAltitude;
-        double maxFpm = distNm > 2.0 ? Math.Max(Math.Min(2500, standardFpm * 2.0), 200) : 1500;
+        double maxFpm = distNm > 2.0 ? Math.Max(Math.Min(2500, groundspeedFpm * 2.0), 200) : 1500;
 
         double fpm;
         if (!_gsCaptured)
@@ -1029,8 +1066,8 @@ public sealed class FinalApproachPhase : Phase
             double altToLose = ctx.Aircraft.Altitude - convergeGsAlt;
             double distToConverge = distNm - convergeDistNm;
 
-            // Time to convergence point at current groundspeed (minutes)
-            double gs = Math.Max(ctx.Aircraft.GroundSpeed, 60);
+            // Time to convergence point at the current closure toward the threshold (minutes)
+            double gs = Math.Max(closureKts, 60);
             double minutesToConverge = (distToConverge / gs) * 60.0;
 
             if (minutesToConverge > 0.01)
@@ -1052,7 +1089,10 @@ public sealed class FinalApproachPhase : Phase
         if (_gsCaptured)
         {
             // Climbing up to a low approach restriction flies the type's normal climb rate, not a descent rate.
-            ctx.Targets.DesiredVerticalRate = climbingToRestriction ? null : -Math.Clamp(fpm, 200, maxFpm);
+            // The 200 fpm floor holds only well above the path: on or below it the scaled path rate (0.5-1.0x) is already
+            // at least half the path rate, so a slow final keeps the path instead of sinking below it.
+            double minFpm = Math.Min(deviation > 50 ? 200 : 0, maxFpm);
+            ctx.Targets.DesiredVerticalRate = climbingToRestriction ? null : -Math.Clamp(fpm, minFpm, maxFpm);
         }
 
         // CLANDF: override the vertical and speed guidance with the forced-landing profile so the
@@ -1787,6 +1827,17 @@ public sealed class FinalApproachPhase : Phase
         );
         GoAroundHelper.Trigger(ctx, PilotResponder.BuildGoingAroundNotAligned(ctx.Aircraft, assignedRunway.Designator, xteFt));
         return true;
+    }
+
+    /// <summary>
+    /// Returns the glidepath altitude a fixed lead ahead along the closure, capped to stay at least <see cref="MinLeadFt"/> below the aircraft.
+    /// </summary>
+    private double CappedPathAheadFt(PhaseContext ctx, double distNm, double crossingHeightFt, double closureKts, bool pastThreshold)
+    {
+        double signedDistNm = pastThreshold ? -distNm : distNm;
+        double aheadNm = signedDistNm - (closureKts * LookaheadSec / 3600.0);
+        double pathAheadFt = GlideSlopeGeometry.AltitudeAtDistance(aheadNm, _thresholdElevation, crossingHeightFt, _gsAngleDeg);
+        return Math.Min(pathAheadFt, ctx.Aircraft.Altitude - MinLeadFt);
     }
 
     /// <summary>

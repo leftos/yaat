@@ -430,6 +430,8 @@ To see what happens inside a second, step it by hand: `BeginSecond()`, `TickPreP
 
 `GroundConflictDetector.DebugSink` receives the detector's `[Pair]` / `[SameEdgeTrailing]` / `[Convergence]` / `[ApplyMinLimit]` trace, which does not go through `ILogger`. It also fires while a recording replays, so `SimulationEngine.ReplayOneSubTick()` with the sink set shows the detector's view of a bug bundle one sub-tick at a time.
 
+A probe of a recording need not replay to the moment of interest in one call: `Replay(recording, 1)` followed by `ReplayOneSecond()` / `ReplayOneSubTick()` steps reproduces what `Replay(recording, T)` reaches, so it can start the engine at an early second and step to the target one (`GlidepathVerticalSpeedTests` samples a captured final each sub-tick).
+
 `TickRecorder` (`Helpers/TickRecorder.cs`) captures per-tick aircraft state to a JSON document (with embedded type/wingspan/length/color
 metadata) for visualization. Attach it to one or more aircraft, `Record(t)` each simulated second, then `WriteJson(".tmp/run.json")`:
 

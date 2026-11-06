@@ -118,7 +118,13 @@ public class LahsoRolloutTests(ITestOutputHelper output)
             AircraftType = aircraftType,
             Position = new LatLon(acLat, acLon),
             TrueHeading = runway28R.TrueHeading,
-            Altitude = runway28R.ElevationFt + 318, // ~3° glide slope at 1 nm
+            TrueTrack = runway28R.TrueHeading,
+            // Spawn on the sim's own glidepath at this point: a captured aircraft never climbs back to a path it is below.
+            Altitude = GlideSlopeGeometry.AltitudeAtDistance(
+                GeoMath.DistanceNm(new LatLon(acLat, acLon), LandingThreshold.Resolve(runway28R, layout)),
+                runway28R.ElevationFt,
+                AircraftCategorization.Categorize(aircraftType)
+            ),
             IndicatedAirspeed = approachSpeedKts,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan
