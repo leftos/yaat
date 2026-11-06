@@ -461,8 +461,8 @@ internal static class NavigationCommandHandler
         // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
         // But do set AssignedAltitude for the datablock display, unless this transmission's DVIA or CVIA already applied
         // and cleared it: both orders of "CFIX, DVIA" and of "CFIX, CVIA" then end with no assigned altitude. A cleared
-        // altitude that already meets the crossing's bound stays assigned (CrossingBoundMetByClearance). While a SID handover
-        // is pending only a floor above the cleared altitude is written (AssignsCrossingAltitude): any other crossing
+        // altitude that already meets the crossing's bound stays the altitude flown (CrossingBoundMetByClearance). While a
+        // SID handover is pending only a floor above the cleared altitude is written (AssignsCrossingAltitude): any other crossing
         // there gives no new altitude to maintain, and the handover reads the assigned altitude to choose the altitude it
         // holds after the coded legs.
         if ((!restatedWithVia) && AssignsCrossingAltitude(aircraft, altRestriction, handoverPending))
@@ -724,11 +724,11 @@ internal static class NavigationCommandHandler
     }
 
     /// <summary>
-    /// Whether <paramref name="aircraft"/>'s cleared altitude (<see cref="ControlTargets.AssignedAltitude"/>) already lies
+    /// Whether <paramref name="aircraft"/>'s cleared altitude (<see cref="ClearedAltitude"/>) already lies
     /// beyond <paramref name="restriction"/>'s bound: an at-or-above bound below it, an at-or-below bound above it, or a
     /// window it lies strictly inside. Such a bound does not move the aircraft: it keeps flying to the cleared altitude,
-    /// which stays assigned (AIM 4-4-10.a; 7110.65 4-5-7). A cleared altitude equal to the bound (as a CFIX that assigned
-    /// its own bound leaves it) is not met, and the planner plans the crossing itself. A plain "at" crossing is never met
+    /// which stays the altitude flown (AIM 4-4-10.a; 7110.65 4-5-7). A cleared altitude equal to the bound (as a CFIX that
+    /// assigned its own bound leaves it) is not met, and the planner plans the crossing itself. A plain "at" crossing is never met
     /// this way, nor is any bound with no cleared altitude, or under a descend or climb via, which flies to the depicted
     /// altitudes. Nor is a published approach floor in force below the cleared altitude (an at-or-above bound, or a window's
     /// lower bound with the cleared altitude above the window): once established on a segment of a cleared approach the
@@ -736,7 +736,24 @@ internal static class NavigationCommandHandler
     /// cleared altitude, or a window it lies strictly inside, still leaves it at the cleared altitude rather than climbing.
     /// </summary>
     internal static bool CrossingBoundMetByClearance(AircraftState aircraft, CifpAltitudeRestriction restriction) =>
-        BoundMetByCleared(aircraft, restriction, aircraft.Targets.AssignedAltitude);
+        BoundMetByCleared(aircraft, restriction, ClearedAltitude(aircraft));
+
+    /// <summary>
+    /// The altitude a crossing is judged against: the assigned altitude, else the TDLS "maintain" altitude a bare departure
+    /// clearance stored (<see cref="AircraftProcedure.SidInitialAltitudeFt"/>). The maintain counts only on an IFR flight,
+    /// outside a descend or climb via and with no active or pending approach clearance, which supersede it; null with none.
+    /// </summary>
+    internal static double? ClearedAltitude(AircraftState aircraft) =>
+        aircraft.Targets.AssignedAltitude
+        ?? (
+            (!aircraft.FlightPlan.IsVfr)
+            && (!AltitudeRestrictionInForce.ViaClearanceInForce(aircraft))
+            && (aircraft.Phases?.ActiveApproach is null)
+            && (aircraft.Approach.PendingClearance is null)
+            && (aircraft.Procedure.SidInitialAltitudeFt is { } maintain)
+                ? (double?)maintain
+                : null
+        );
 
     /// <summary>
     /// Whether <paramref name="cleared"/> already lies beyond <paramref name="restriction"/>'s bound, by the rules of
@@ -1849,6 +1866,9 @@ internal static class NavigationCommandHandler
         aircraft.Procedure.SidViaCeiling = exceptMaintain;
         aircraft.Procedure.ClimbViaTargetFt = target;
         aircraft.Procedure.ClimbViaTransmissionId = StampedTransmission(transmissionId);
+        // A via clearance is a newer altitude clearance: the TDLS maintain a bare departure clearance stored no longer
+        // governs after it, even once the via itself has ended (7110.65 4-5-7.h.11 NOTE 1).
+        aircraft.Procedure.SidInitialAltitudeFt = null;
         // Reset procedural speed memory; ApplyFirstConstrainedFix will repopulate
         // it from the next constrained fix in the route.
         aircraft.Procedure.LastProcedureSpeedKts = null;
@@ -2036,8 +2056,10 @@ internal static class NavigationCommandHandler
         aircraft.Procedure.SidViaCeiling = null;
         // SidViaMode switches descent planning off (FlightPhysics.UpdateDescentPlanning): a descend via leaves it.
         aircraft.Procedure.SidViaMode = false;
-        // The via clearance supersedes any altitude assigned before it (converse of 7110.65 4-5-7.h.11 NOTE 1).
+        // The via clearance supersedes any altitude assigned before it (converse of 7110.65 4-5-7.h.11 NOTE 1), and the
+        // TDLS maintain a bare departure clearance stored, which must not come back once the via ends.
         aircraft.Targets.AssignedAltitude = null;
+        aircraft.Procedure.SidInitialAltitudeFt = null;
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
         // Reset procedural speed memory; ApplyFirstConstrainedFix will repopulate
         // it from the next constrained fix in the route.
@@ -2136,8 +2158,9 @@ internal static class NavigationCommandHandler
     /// Copies <paramref name="byName"/>'s published restrictions onto the route fixes of the same name, each axis on its
     /// own. A crossing altitude a CFIX in this same transmission stamped stays, and so does a speed this transmission set:
     /// the controller restated them with the via clearance. The other axis takes the published restriction, so an
-    /// altitude-only CFIX still gets the fix's published speed. <paramref name="route"/> is the live route for a STAR and
-    /// the effective one for a SID (<see cref="EffectiveRoute"/>).
+    /// altitude-only CFIX still gets the fix's published speed. A fix that takes the published altitude back drops the
+    /// altitude reverts an earlier crossing left with it; a speed's reverts stay, as that axis has its own stamp.
+    /// <paramref name="route"/> is the live route for a STAR and the effective one for a SID (<see cref="EffectiveRoute"/>).
     /// </summary>
     private static void OverlayPublishedRestrictions(List<NavigationTarget> route, Dictionary<string, NavigationTarget> byName, int transmissionId)
     {
@@ -2152,6 +2175,8 @@ internal static class NavigationCommandHandler
             {
                 fix.AltitudeRestriction = source.AltitudeRestriction;
                 fix.CrossingTransmissionId = null;
+                fix.RevertAltitude = null;
+                fix.RevertAssignedAltitude = null;
             }
 
             if (!IsSpeedStampedBy(fix, transmissionId))

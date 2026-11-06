@@ -10,6 +10,7 @@
 ### Fixed
 
 - Aircraft without an assigned speed hold their climb or descent airspeed to the crossover, then fly Mach, instead of exceeding their own climb Mach.
+- A `CFIX` the departure's TDLS maintain already meets no longer assigns its crossing altitude, so the aircraft keeps flying the maintain.
 - A landing with no reachable exit stops on the runway and asks to back-taxi, instead of steering toward a ramp or parallel taxiway.
 - A taxiing aircraft restored partway round a turn, from a rewind or an older recording, keeps following the turn instead of veering off it.
 - A pilot who cannot see traffic answers "negative contact, looking" without naming the traffic's callsign on frequency.

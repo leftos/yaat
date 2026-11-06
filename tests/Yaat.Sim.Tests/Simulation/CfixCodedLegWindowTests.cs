@@ -561,10 +561,10 @@ public class CfixCodedLegWindowTests
         Assert.False(NavigationCommandHandler.HasSpeedRevert(PendingFix(rewound, "SEGUL")), "the crossing speed's revert outlived SEGUL");
     }
 
-    // ---- The constrained direct-to keeps its assignment rule in the window ----
+    // ---- The constrained direct-to judges its bound against the cleared altitude, the TDLS maintain included ----
 
     [Fact]
-    public void WindowDctf_UnmetBound_AssignsAsBeforeTheWindowBranch()
+    public void WindowDctf_AtOrBelowAboveTheMaintain_MetByMaintain_AssignsNothing()
     {
         Departure departure = StartInDeparturePhase(TdlsMaintainCoast9());
         AircraftState ac = departure.Aircraft;
@@ -574,7 +574,10 @@ public class CfixCodedLegWindowTests
         CommandResult result = DispatchConstrainedDirect(ac, "SAC", new ConstrainedFixAltitude(8000, CrossFixAltitudeType.AtOrBelow));
 
         Assert.True(result.Success, result.Message);
-        Assert.Equal(8000, ac.Targets.AssignedAltitude);
+        Assert.Null(ac.Targets.AssignedAltitude);
+
+        FlyFor(departure, 120);
+        Assert.True(ac.Altitude <= HoldFt + OvershootToleranceFt, $"climbed past the maintain: {ac.Altitude:F0}");
     }
 
     // ---- The assignment rule off a via ----

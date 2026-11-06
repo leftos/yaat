@@ -1991,7 +1991,7 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// The cleared altitude (<see cref="ControlTargets.AssignedAltitude"/>) when it already meets
+    /// The cleared altitude (<see cref="NavigationCommandHandler.ClearedAltitude"/>) when it already meets
     /// <paramref name="restriction"/>'s bound outside a descend or climb via
     /// (<see cref="NavigationCommandHandler.CrossingBoundMetByClearance"/>); otherwise null, and the restriction resolves as
     /// <see cref="ResolveAltitudeRestriction"/> says. A via clearance flies to the depicted altitudes and clears the
@@ -1999,7 +1999,7 @@ public static class FlightPhysics
     /// altitude, which the aircraft descends to once established on the approach (AIM 5-4-7.f; 7110.65 4-8-1.a.4).
     /// </summary>
     private static double? ClearedAltitudeMeetingBound(AircraftState aircraft, CifpAltitudeRestriction restriction) =>
-        NavigationCommandHandler.CrossingBoundMetByClearance(aircraft, restriction) ? aircraft.Targets.AssignedAltitude : null;
+        NavigationCommandHandler.CrossingBoundMetByClearance(aircraft, restriction) ? NavigationCommandHandler.ClearedAltitude(aircraft) : null;
 
     /// <summary>What a planner does with a restriction whose bound the cleared altitude may already meet.</summary>
     private enum ClearedAltitudePlan
