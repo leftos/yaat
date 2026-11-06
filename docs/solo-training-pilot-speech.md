@@ -160,8 +160,8 @@ callsign in traffic & follow calls). When a transmission lands in `PendingPilotT
 `RouteRpoTransmission` (two overloads) — that pick the channel from `(soloTrainingMode, rpoShowPilotSpeech, studentPositionType)`.
 The full mode → channel matrix (and how `RpoTerminal` is resolved per branch) is in
 [`pilot-phraseology.md`](pilot-phraseology.md#routing-the-forms-by-mode). The two well-known position
-lists are `PilotResponder.SoloPositionsTower` (`["TWR"]`) and `SoloPositionsTowerApproach`
-(`["TWR","APP"]`).
+lists are `PilotResponder.SoloPositionsTower` (`["TWR"]`), `SoloPositionsGround` (`["GND","TWR"]`) and
+`SoloPositionsTowerApproach` (`["TWR","APP"]`).
 
 Stored follow-up lines re-queued by `PilotRequestTracker` keep **both** forms on the pending
 request — `PilotPendingRequest.LastPilotLine` (terminal) and `LastPilotLineTts` (spoken), both

@@ -497,6 +497,226 @@ public class M102AirborneCheckInTests
         Assert.Equal("tower, november one two three alpha bravo one miles east, request transition.", line!.Tts);
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // Assigned heading and speed on initial contact: AIM 4-4-12.l has the
+    // pilot state an ATC-assigned speed ("level one two thousand, assigned
+    // two five zero knots"); a vector gets the same courtesy ("heading two
+    // seven zero"). The clause follows the altitude (or runway) clause and
+    // precedes the ATIS suffix, heading first when both stand.
+    // ─────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Ifr_Approach_AssignedSpeed_StatesIt()
+    {
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 12000);
+        ac.Targets.AssignedSpeed = 250;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        SimScenarioState sc = MakeScenario("APP");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("level one two thousand, assigned two five zero knots", line!.Tts);
+        Assert.Contains("level 12000, assigned 250 knots", line.Terminal);
+    }
+
+    [Fact]
+    public void Ifr_Approach_AssignedHeading_StatesIt()
+    {
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 12000);
+        ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
+        SimScenarioState sc = MakeScenario("APP");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("heading two seven zero", line!.Tts);
+        Assert.Contains("heading 270", line.Terminal);
+        Assert.True(
+            line.Tts.IndexOf("level one two thousand", StringComparison.Ordinal)
+                < line.Tts.IndexOf("heading two seven zero", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public void Ifr_Approach_HeadingAndSpeed_HeadingFirst()
+    {
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 12000);
+        ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
+        ac.Targets.AssignedSpeed = 250;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        SimScenarioState sc = MakeScenario("APP");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("heading two seven zero, assigned two five zero knots", line!.Tts);
+        Assert.Contains("heading 270, assigned 250 knots", line.Terminal);
+    }
+
+    [Fact]
+    public void Ifr_Approach_SpeedFloor_SaysOrGreater()
+    {
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 12000);
+        ac.Targets.AssignedSpeed = 210;
+        ac.Targets.SpeedFloor = 210;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        SimScenarioState sc = MakeScenario("APP");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("assigned two one zero knots or greater", line!.Tts);
+        Assert.Contains("assigned 210 knots or greater", line.Terminal);
+    }
+
+    [Fact]
+    public void Ifr_Approach_SpeedCeiling_SaysOrLess()
+    {
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 12000);
+        ac.Targets.AssignedSpeed = 250;
+        ac.Targets.SpeedCeiling = 250;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        SimScenarioState sc = MakeScenario("APP");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("assigned two five zero knots or less", line!.Tts);
+        Assert.Contains("assigned 250 knots or less", line.Terminal);
+    }
+
+    [Fact]
+    public void Ifr_Center_AssignedMach_StatesMach()
+    {
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 35000);
+        ac.Targets.TargetMach = 0.78;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        SimScenarioState sc = MakeScenario("CTR");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal("center, american one twenty three, flight level three five zero, assigned Mach point seven eight.", line!.Tts);
+        Assert.Equal("center, AAL123, FL350, assigned Mach .78.", line.Terminal);
+    }
+
+    [Fact]
+    public void Ifr_Center_SpeedMaxHeld_StatesMaximumForwardSpeed()
+    {
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 35000);
+        ac.Targets.SpeedMaxHeld = true;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        SimScenarioState sc = MakeScenario("CTR");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("assigned maximum forward speed", line!.Tts);
+        Assert.Contains("assigned maximum forward speed", line.Terminal);
+    }
+
+    [Fact]
+    public void Ifr_Approach_PresetSpeed_NotControllerIssued_StillStated()
+    {
+        // A scenario-preset speed and a previous controller's both count: the assignment
+        // stands in Targets whatever put it there.
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 12000);
+        ac.Targets.AssignedSpeed = 250;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        ac.Targets.SpeedCommandIsControllerIssued = false;
+        SimScenarioState sc = MakeScenario("APP");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("assigned two five zero knots", line!.Tts);
+    }
+
+    [Fact]
+    public void Ifr_Approach_NoExplicitSpeed_NoSpeedClause()
+    {
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 12000);
+        ac.Targets.AssignedSpeed = 250;
+        SimScenarioState sc = MakeScenario("APP");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.DoesNotContain("assigned", line!.Tts);
+        Assert.DoesNotContain("assigned", line.Terminal);
+    }
+
+    [Fact]
+    public void Ifr_Tower_AssignedHeading_StatesItAfterRunway()
+    {
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 2500, destinationRunway: "28R");
+        ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
+        SimScenarioState sc = MakeScenario("TWR");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("runway two eight right, heading two seven zero, with information Alpha", line!.Tts);
+        Assert.Contains("runway 28R, heading 270, with information Alpha", line.Terminal);
+    }
+
+    [Fact]
+    public void Vfr_Approach_AssignedHeading_StatesIt()
+    {
+        AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 3000, destination: "KOAK", bearingFromAirport: 270, distanceNm: 10);
+        ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
+        SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("heading two seven zero, request landing", line!.Tts);
+        Assert.Contains("heading 270, request landing", line.Terminal);
+    }
+
+    [Fact]
+    public void Vfr_Center_AssignedHeading_StatesIt()
+    {
+        AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 8500, destination: "KLAX", bearingFromAirport: 0, distanceNm: 15);
+        ac.Targets.AssignedMagneticHeading = new MagneticHeading(90);
+        SimScenarioState sc = MakeScenario("CTR", primaryAirport: "KOAK");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("heading zero nine zero", line!.Tts);
+        Assert.Contains("heading 090", line.Terminal);
+        Assert.True(
+            line.Tts.IndexOf("heading zero nine zero", StringComparison.Ordinal) < line.Tts.IndexOf("request transition", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public void Vfr_Tower_NoDestination_AssignedHeading_StatesIt()
+    {
+        AircraftState ac = MakeAircraft(
+            "N123AB",
+            isVfr: true,
+            altitude: 1500,
+            destination: "",
+            bearingFromAirport: 0,
+            distanceNm: 4,
+            headingDeg: 180
+        );
+        ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
+        SimScenarioState sc = MakeScenario("TWR", primaryAirport: "KOAK");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.EndsWith("VFR southbound at one thousand five hundred, heading two seven zero.", line!.Tts);
+        Assert.EndsWith("VFR southbound at 1500, heading 270.", line.Terminal);
+    }
+
+    [Fact]
+    public void Ifr_Approach_AssignedSpeed_BeforeAtis()
+    {
+        AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 12000);
+        ac.Targets.AssignedSpeed = 250;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        SimScenarioState sc = MakeScenario("APP");
+
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Contains("assigned two five zero knots", line!.Tts);
+        Assert.True(
+            line.Tts.IndexOf("assigned two five zero knots", StringComparison.Ordinal) < line.Tts.IndexOf("information", StringComparison.Ordinal)
+        );
+    }
+
     [Fact]
     public void Vfr_Tower_NoDestination_LowAltitude_OmitsAtAltitudeClause()
     {

@@ -300,5 +300,12 @@ The no-dest forms follow AIM 4-3-1's canonical phrase `"VFR [direction]bound at 
 and anchor position with `"of the field"` (Tower) or `"of [airport-spelled]"` (Approach/Center)
 so the position bearing is unambiguously separate from the direction-of-flight.
 
+An ATC-assigned heading or speed that stands is stated too (AIM 4-4-12.l), heading first, after the
+altitude/runway clause and before the ATIS suffix (IFR) or the intent (VFR); nothing is added when none
+stands. Examples: `"..., level one two thousand, heading two seven zero, assigned two five zero knots, with
+information Alpha."`, `"..., assigned maximum forward speed, ..."`, `"..., assigned Mach point seven eight, ..."`;
+a floor or ceiling reads "assigned two five zero knots or greater" / "or less". The terminal form digits:
+"heading 270", "assigned 250 knots", "assigned Mach .78".
+
 Skip cases: `StudentPositionType` null or unrecognized; `HasMadeInitialContact` already set;
 `SoloTrainingMode` off; aircraft on ground; airport position lookup returns null.

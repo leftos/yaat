@@ -3567,13 +3567,17 @@ public static partial class PilotResponder
     {
         string callsign = TerminalOwnCallsign(aircraft);
         string info = AtisInfoClause(atisLetter);
+        (string assignedTermPart, string assignedTtsPart) = AssignedVectorClause(aircraft);
         if (positionType == "TWR")
         {
             // Direct-to-tower IFR is rare. Mention destination runway if known; otherwise drop the runway clause.
             string? rwy = aircraft.Procedure.DestinationRunway;
             string rwyClauseTts = !string.IsNullOrEmpty(rwy) ? ", runway " + PhraseologyVerbalizer.SpellRunway(rwy) : "";
             string rwyClauseTerm = !string.IsNullOrEmpty(rwy) ? ", runway " + PhraseologyVerbalizer.CompactRunway(rwy) : "";
-            return new PilotSpeechText($"{facilityCallName}, {callsign}{rwyClauseTerm}{info}.", $"{facilityCallName}, {spoken}{rwyClauseTts}{info}.");
+            return new PilotSpeechText(
+                $"{facilityCallName}, {callsign}{rwyClauseTerm}{assignedTermPart}{info}.",
+                $"{facilityCallName}, {spoken}{rwyClauseTts}{assignedTtsPart}{info}."
+            );
         }
 
         (string? clauseTerm, string? clauseTts, bool isDeparture) = BuildVerticalStateClause(aircraft, altitudeFt);
@@ -3587,9 +3591,73 @@ public static partial class PilotResponder
         string clauseTtsPart = clauseTts.Length == 0 ? "" : ", " + clauseTts;
 
         return new PilotSpeechText(
-            $"{facilityCallName}, {callsign}{clauseTermPart}{atisSuffix}.",
-            $"{facilityCallName}, {spoken}{clauseTtsPart}{atisSuffix}."
+            $"{facilityCallName}, {callsign}{clauseTermPart}{assignedTermPart}{atisSuffix}.",
+            $"{facilityCallName}, {spoken}{clauseTtsPart}{assignedTtsPart}{atisSuffix}."
         );
+    }
+
+    /// <summary>
+    /// The assigned-heading and assigned-speed clause a pilot states on initial contact, each part already carrying
+    /// its leading ", " (and empty when nothing stands). AIM 4-4-12.l has the pilot state an ATC-assigned speed on
+    /// initial contact (e.g. "level one two thousand, assigned two five zero knots"); a vector takes the same
+    /// courtesy ("heading two seven zero"). Heading first when both stand.
+    /// </summary>
+    private static (string Term, string Tts) AssignedVectorClause(AircraftState aircraft)
+    {
+        (string speedTerm, string speedTts) = AssignedSpeedClause(aircraft.Targets);
+        if (aircraft.Targets.AssignedMagneticHeading is not { } heading)
+        {
+            return Claused(speedTerm, speedTts);
+        }
+
+        string headingTerm = "heading " + PhraseologyVerbalizer.HeadingNumber(heading);
+        string headingTts = "heading " + PhraseologyVerbalizer.HeadingDigits(heading);
+        if (speedTerm.Length == 0)
+        {
+            return Claused(headingTerm, headingTts);
+        }
+        return Claused(headingTerm + ", " + speedTerm, headingTts + ", " + speedTts);
+    }
+
+    /// <summary>A clause prefixed with the comma that joins it to the sentence, or empty when there is no clause.</summary>
+    private static (string Term, string Tts) Claused(string term, string tts) => term.Length == 0 ? ("", "") : (", " + term, ", " + tts);
+
+    /// <summary>
+    /// The assigned-speed clause of an initial contact for whatever speed assignment stands in
+    /// <see cref="ControlTargets"/>: "assigned 250 knots" with its floor ("or greater") and ceiling ("or less")
+    /// forms, "assigned maximum forward speed" under SMAX, and the Mach form ("assigned Mach .78"). Empty when no
+    /// explicit speed is in force, and for one that names neither speed nor Mach. A scenario-preset speed counts:
+    /// the pilot states what stands, whoever put it there.
+    /// </summary>
+    private static (string Term, string Tts) AssignedSpeedClause(ControlTargets targets)
+    {
+        if (!targets.HasExplicitSpeedCommand)
+        {
+            return ("", "");
+        }
+
+        if (targets.SpeedMaxHeld)
+        {
+            return ("assigned maximum forward speed", "assigned maximum forward speed");
+        }
+
+        if (targets.AssignedSpeed is { } speed)
+        {
+            int knots = (int)Math.Round(speed);
+            string bound =
+                (targets.SpeedFloor == speed) ? " or greater"
+                : (targets.SpeedCeiling == speed) ? " or less"
+                : "";
+            return ($"assigned {knots} knots{bound}", $"assigned {PhraseologyVerbalizer.SpeedWords(knots)} knots{bound}");
+        }
+
+        if (targets.TargetMach is { } mach)
+        {
+            string machText = mach.ToString(".00", System.Globalization.CultureInfo.InvariantCulture);
+            return ($"assigned Mach {machText}", $"assigned Mach {PhraseologyVerbalizer.MachWords(mach)}");
+        }
+
+        return ("", "");
     }
 
     /// <summary>
@@ -3718,6 +3786,8 @@ public static partial class PilotResponder
         string atAltTts = string.IsNullOrEmpty(altitudeWords) ? "" : " at " + altitudeWords;
         string atAltTerm = string.IsNullOrEmpty(altitudeCompact) ? "" : " at " + altitudeCompact;
 
+        (string assignedTermPart, string assignedTtsPart) = AssignedVectorClause(aircraft);
+
         if (noDest)
         {
             // AIM 4-3-1 form: "VFR [Xbound] at [altitude]" is the canonical activity phrase. Stating
@@ -3726,8 +3796,8 @@ public static partial class PilotResponder
             string heading = HeadingToBoundCardinal(aircraft.TrueHeading.Degrees);
             string positionAnchor = positionType == "TWR" ? "the field" : PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
             return new PilotSpeechText(
-                $"{facilityCallName}, {callsignTerm}, {distTerm} miles {direction} of {positionAnchor}, VFR {heading}{atAltTerm}.",
-                $"{facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading}{atAltTts}."
+                $"{facilityCallName}, {callsignTerm}, {distTerm} miles {direction} of {positionAnchor}, VFR {heading}{atAltTerm}{assignedTermPart}.",
+                $"{facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading}{atAltTts}{assignedTtsPart}."
             );
         }
 
@@ -3751,15 +3821,15 @@ public static partial class PilotResponder
         {
             string airportSpoken = PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
             return new PilotSpeechText(
-                $"{facilityCallName}, {callsignTerm}{atAltTerm}, {distTerm} miles {direction} of {airportSpoken}, {intent}.",
-                $"{facilityCallName}, {spoken}{atAltTts}, {distWords} miles {direction} of {airportSpoken}, {intent}."
+                $"{facilityCallName}, {callsignTerm}{atAltTerm}, {distTerm} miles {direction} of {airportSpoken}{assignedTermPart}, {intent}.",
+                $"{facilityCallName}, {spoken}{atAltTts}, {distWords} miles {direction} of {airportSpoken}{assignedTtsPart}, {intent}."
             );
         }
 
         string atisSuffix = inbound ? AtisInfoClause(atisLetter) : "";
         return new PilotSpeechText(
-            $"{facilityCallName}, {callsignTerm} {distTerm} miles {direction}{atAltTerm}, {intent}{atisSuffix}.",
-            $"{facilityCallName}, {spoken} {distWords} miles {direction}{atAltTts}, {intent}{atisSuffix}."
+            $"{facilityCallName}, {callsignTerm} {distTerm} miles {direction}{atAltTerm}{assignedTermPart}, {intent}{atisSuffix}.",
+            $"{facilityCallName}, {spoken} {distWords} miles {direction}{atAltTts}{assignedTtsPart}, {intent}{atisSuffix}."
         );
     }
 

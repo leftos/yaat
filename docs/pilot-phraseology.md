@@ -67,7 +67,9 @@ Three routers in `PilotResponder` send a `PilotSpeechText` to the right channel,
 
 `PendingPilotSpeech` is a `List<PilotSpeechText>`: it keeps both forms, the terminal, speech bubble and terminal history show the written `TerminalForRpo` line, and `Tts` rides along unused because RPO has no TTS consumer. Across every other branch: the spoken (`Tts`) and solo (`Terminal`) forms never carry the lead/target callsign; only the RPO-mode terminal branches resolve `TerminalForRpo`.
 
-The well-known solo position lists are `SoloPositionsTower` (`["TWR"]`) and `SoloPositionsTowerApproach` (`["TWR","APP"]`).
+The well-known solo position lists are `SoloPositionsTower` (`["TWR"]`), `SoloPositionsGround` (`["GND","TWR"]`) and `SoloPositionsTowerApproach` (`["TWR","APP"]`); `GroundNavigator` keeps a private `["GND","TWR"]` list of its own for the turn-about refusal. `HoldingShortPhase` uses both routers: the 5-arg `RouteRpoTransmission` for its hold-short calls and `RouteSoloOrRpoTransmission` with `SoloPositionsGround` for the follow-lead wait.
+
+An airborne first-contact call also states an assigned vector and speed that stand (`AssignedVectorClause`, `AssignedSpeedClause`), heading first, after the altitude or runway clause and before the ATIS suffix (IFR) or the intent (VFR): "heading 270" (spoken "heading two seven zero"), "assigned 250 knots" with " or greater" for a floor and " or less" for a ceiling, "assigned maximum forward speed" under SMAX, "assigned Mach .78" (spoken "Mach point seven eight"). Nothing is added when no explicit speed or heading stands; a scenario-preset one counts.
 
 ## Conventions
 
