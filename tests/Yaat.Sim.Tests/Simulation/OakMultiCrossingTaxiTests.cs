@@ -61,8 +61,7 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
             ["C", "B", "W"],
             out string? fail,
             opts,
-            category,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(category, WakeTurbulenceData.WakeClass.Large)
         );
 
         output.WriteLine($"failReason={fail ?? "(null)"}");

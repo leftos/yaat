@@ -118,8 +118,7 @@ public class OakDrawRouteFidelityTests
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
             },
-            cat,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(cat, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.True(resolved is not null, $"dense path failed to resolve: {fail}");
@@ -360,8 +359,7 @@ public class OakDrawRouteFidelityTests
                         ImpliedLeadTaxiway = null,
                         AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                     },
-                    cat,
-                    WakeTurbulenceData.WakeClass.Large
+                    new TaxiClass(cat, WakeTurbulenceData.WakeClass.Large)
                 );
                 if (resolved is null || !NodeIdSet(preview).SetEquals(NodeIdSet(resolved)))
                 {
@@ -427,8 +425,7 @@ public class OakDrawRouteFidelityTests
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationHintNode = parking,
             },
-            cat,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(cat, WakeTurbulenceData.WakeClass.Large)
         );
         Assert.True(resolved is not null, $"readable parking path failed: {fail}");
         Assert.Equal(parking.Id, resolved!.Segments[^1].ToNodeId);

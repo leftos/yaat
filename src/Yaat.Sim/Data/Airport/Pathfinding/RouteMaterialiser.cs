@@ -1153,8 +1153,8 @@ public static class RouteMaterialiser
     /// <summary>
     /// Pick the full-length lineup hold-short on <paramref name="runwayId"/>: the first bar of
     /// <see cref="OrderFullLengthLineupBars"/>, with <paramref name="startNode"/> giving the side of the runway
-    /// the aircraft is on and <paramref name="category"/> and <paramref name="wakeClass"/> the taxi routes the shadow
-    /// test searches (a bar with no ground route ranks with the shadowed bars). When the runway is unknown to nav-data,
+    /// the aircraft is on and <paramref name="taxiClass"/> the class the shadow test's taxi routes are searched for
+    /// (a bar with no ground route ranks with the shadowed bars). When the runway is unknown to nav-data,
     /// falls back to the hold-short nearest <paramref name="startNode"/>.
     /// </summary>
     public static GroundNode FindFullLengthLineupHoldShort(
@@ -1162,8 +1162,7 @@ public static class RouteMaterialiser
         GroundNode startNode,
         string runwayId,
         List<GroundNode> holdShortNodes,
-        AircraftCategory category,
-        WakeTurbulenceData.WakeClass wakeClass
+        TaxiClass taxiClass
     )
     {
         if (holdShortNodes.Count == 0)
@@ -1177,7 +1176,7 @@ public static class RouteMaterialiser
         }
 
         Func<GroundNode, bool>? ShadowTest() =>
-            TaxiPathfinder.LineupBarShadowTest(layout, startNode.Id, runwayId, category, wakeClass, unreachableIsShadowed: true, routes: null);
+            TaxiPathfinder.LineupBarShadowTest(layout, startNode.Id, runwayId, taxiClass, unreachableIsShadowed: true, routes: null);
         if (OrderFullLengthLineupBars(layout.AirportId, runwayId, startNode.Position, holdShortNodes, ShadowTest) is [GroundNode first, ..])
         {
             return first;

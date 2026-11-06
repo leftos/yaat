@@ -124,8 +124,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationHintNode = spot35,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
         output.WriteLine($"route: {route?.FormatTaxiwaySequence() ?? $"none ({failReason})"}");
 
@@ -568,8 +567,7 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
         output.WriteLine($"start #{start.Id}; route: {route?.FormatTaxiwaySequence() ?? $"none ({failReason})"}");
 

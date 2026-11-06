@@ -65,8 +65,7 @@ public class RunwayDestinationJunctionTests
 
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Piston,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Piston, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.NotNull(route);

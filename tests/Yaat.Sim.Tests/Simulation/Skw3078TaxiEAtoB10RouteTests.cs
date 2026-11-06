@@ -70,8 +70,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
                 DestinationHintNode = parkingNode,
                 DiagnosticLog = msg => output.WriteLine(msg),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(failReason);
@@ -168,8 +167,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationHintNode = parkingNode,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(failReason);
@@ -269,8 +267,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationHintNode = parkingNode,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(failReason);

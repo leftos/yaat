@@ -1438,8 +1438,7 @@ public partial class GroundViewModel : ObservableObject
             path,
             out _,
             PresetTaxiRowOptions(ac, preset),
-            CategoryFor(ac),
-            WakeClassFor(ac)
+            new TaxiClass(CategoryFor(ac), WakeClassFor(ac))
         );
         if ((route is not { Segments.Count: > 0 }) || (StandsAt(ac, route.Segments[^1].Edge.ToNode)))
         {

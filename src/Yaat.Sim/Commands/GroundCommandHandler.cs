@@ -8618,8 +8618,7 @@ public static partial class GroundCommandHandler
                     layout,
                     startNode.Id,
                     target.Target,
-                    AircraftCategory.Helicopter,
-                    WakeTurbulenceData.WakeClass.Small,
+                    new TaxiClass(AircraftCategory.Helicopter, WakeTurbulenceData.WakeClass.Small),
                     unreachableIsShadowed: false,
                     routes: null
                 )

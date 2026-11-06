@@ -64,8 +64,7 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(failReason);
@@ -115,8 +114,7 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(failReason);

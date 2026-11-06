@@ -298,8 +298,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
                 StartHeadingTrue = GeoMath.BearingTo(bar.Position, start.Position),
                 DiagnosticLog = diag.Add,
             },
-            AircraftCategory.Piston,
-            WakeTurbulenceData.WakeClass.Small
+            new TaxiClass(AircraftCategory.Piston, WakeTurbulenceData.WakeClass.Small)
         );
         Assert.True(viaProbe is not null, failReason);
 
@@ -1116,8 +1115,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("C172"),
                 StartHeadingTrue = GeoMath.BearingTo(start.Position, straightOver.Edges[0].ToNode.Position),
             },
-            AircraftCategory.Piston,
-            WakeTurbulenceData.WakeClass.Small
+            new TaxiClass(AircraftCategory.Piston, WakeTurbulenceData.WakeClass.Small)
         );
         Assert.True(route is not null, failReason);
         List<TaxiRouteSegment> leg = [.. route.Segments.TakeWhile(s => !s.Edge.Edge.MatchesTaxiway("F"))];
@@ -1230,8 +1228,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
                 StartHeadingTrue = GeoMath.BearingTo(start.Position, layout.Nodes[FieldXBar].Position),
                 DiagnosticLog = diag.Add,
             },
-            category,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(category, WakeTurbulenceData.WakeClass.Large)
         );
     }
 
@@ -1304,8 +1301,7 @@ public class StraightOverCrossingTests(ITestOutputHelper output)
                 StartHeadingTrue = GeoMath.BearingTo(start.Position, join.Position),
                 DiagnosticLog = diag.Add,
             },
-            AircraftCategory.Piston,
-            WakeTurbulenceData.WakeClass.Small
+            new TaxiClass(AircraftCategory.Piston, WakeTurbulenceData.WakeClass.Small)
         );
         Assert.True(route is not null, failReason);
         Assert.Contains(diag, l => l.StartsWith("[runway-crossing] L11→M11 straight-over not built: ", StringComparison.Ordinal));

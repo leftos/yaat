@@ -169,8 +169,7 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DiagnosticLog = s => diagLines.Add(s),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         foreach (string line in diagLines)

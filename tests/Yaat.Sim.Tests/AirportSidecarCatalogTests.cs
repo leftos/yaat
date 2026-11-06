@@ -240,8 +240,7 @@ public class AirportSidecarCatalogTests
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = route.DestinationRunway,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.NotNull(resolved);
@@ -280,8 +279,7 @@ public class AirportSidecarCatalogTests
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.True(resolved is null || failReason is not null, "Bogus taxiway must not resolve to a valid route");

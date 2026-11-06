@@ -111,8 +111,7 @@ public class Issue398SpotHoldShortRunwayCollisionTests(ITestOutputHelper output)
                 ["SK"],
                 out string? fail,
                 options,
-                AircraftCategory.Jet,
-                WakeTurbulenceData.WakeClass.Large
+                new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
             );
             Assert.True(route is not null, $"pathfinder failed: {fail}");
             return route;

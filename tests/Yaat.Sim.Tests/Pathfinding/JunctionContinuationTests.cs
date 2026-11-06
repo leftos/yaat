@@ -69,8 +69,7 @@ public class JunctionContinuationTests
 
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.NotNull(route);
@@ -125,8 +124,7 @@ public class JunctionContinuationTests
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.NotNull(route);
@@ -197,8 +195,7 @@ public class JunctionContinuationTests
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.NotNull(route);
@@ -386,8 +383,7 @@ public class JunctionContinuationTests
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.NotNull(route);

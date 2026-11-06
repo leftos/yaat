@@ -71,8 +71,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
                 PathTurnHints = [hint],
                 StartHeadingTrue = AcrossWHeadingDeg,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
     }
 
@@ -199,8 +198,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 PathTurnHints = [null, bHint],
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
     [Fact]
@@ -279,8 +277,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
                 PathTurnHints = [aHint, null],
                 StartHeadingTrue = 0.0,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
     [Fact]
@@ -347,8 +344,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
                 PathTurnHints = [aHint],
                 StartHeadingTrue = 0.0,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
     [Fact]
@@ -418,8 +414,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 PathTurnHints = [null, bHint],
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
     [Fact]

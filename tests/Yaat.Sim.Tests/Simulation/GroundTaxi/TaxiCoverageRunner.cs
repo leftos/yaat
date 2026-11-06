@@ -85,8 +85,7 @@ internal static class TaxiCoverageRunner
             holdShorts[0],
             runway.Designator,
             holdShorts,
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
     }
 

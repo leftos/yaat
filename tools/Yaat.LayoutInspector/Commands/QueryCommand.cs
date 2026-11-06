@@ -192,8 +192,7 @@ public sealed class QueryCommand : ICommand
                     StartHeadingTrue = options.PathfinderStartHeadingTrue,
                     DiagnosticLog = msg => diagLog.Add(msg),
                 },
-                AircraftCategory.Jet,
-                WakeTurbulenceData.WakeClass.Large
+                new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
             );
 
             // If a destination hint is set but the explicit walk didn't reach it,
@@ -387,8 +386,7 @@ public sealed class QueryCommand : ICommand
             startNode,
             runwayId,
             holdShortNodes,
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Console.WriteLine(
@@ -494,8 +492,7 @@ public sealed class QueryCommand : ICommand
                 AircraftLengthFt = LongestFallbackLengthFt,
                 DiagnosticLog = msg => diag.Add(msg),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         foreach (string line in diag)

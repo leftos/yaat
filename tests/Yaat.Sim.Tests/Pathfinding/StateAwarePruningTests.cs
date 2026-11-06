@@ -147,8 +147,7 @@ public class StateAwarePruningTests
             holdShorts[0],
             runway,
             holdShorts,
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         TaxiRoute? route = TaxiPathfinder.FindRoute(layout, lineup.Id, parkingNode.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);

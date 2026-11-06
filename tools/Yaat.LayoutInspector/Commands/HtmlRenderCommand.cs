@@ -61,8 +61,7 @@ public sealed class HtmlRenderCommand : ICommand
                     ExplicitHoldShorts =
                         options.PathfinderHoldShorts.Count > 0 ? [.. options.PathfinderHoldShorts.Select(HoldShortTarget.Parse)] : null,
                 },
-                AircraftCategory.Jet,
-                WakeTurbulenceData.WakeClass.Large
+                new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
             );
             if (pfRoute is not null)
             {

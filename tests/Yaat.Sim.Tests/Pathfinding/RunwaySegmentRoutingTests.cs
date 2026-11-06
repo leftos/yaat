@@ -89,8 +89,7 @@ public class RunwaySegmentRoutingTests
                 AircraftLengthFt = AircraftLength.ResolveFt("C172"),
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Piston,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Piston, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.NotNull(route);
@@ -137,8 +136,7 @@ public class RunwaySegmentRoutingTests
                 AircraftLengthFt = AircraftLength.ResolveFt("C172"),
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Piston,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Piston, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(route);
@@ -176,8 +174,7 @@ public class RunwaySegmentRoutingTests
                 AircraftLengthFt = AircraftLength.ResolveFt("C172"),
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Piston,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Piston, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.NotNull(route);

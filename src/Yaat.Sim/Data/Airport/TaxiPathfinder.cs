@@ -186,8 +186,7 @@ public static class TaxiPathfinder
         List<string> taxiwayNames,
         out string? failReason,
         ExplicitPathOptions options,
-        AircraftCategory category,
-        WakeTurbulenceData.WakeClass wakeClass
+        TaxiClass taxiClass
     )
     {
         TaxiRoute? route = ResolveExplicitPathDetailed(
@@ -196,8 +195,8 @@ public static class TaxiPathfinder
             taxiwayNames,
             out PathfindingFailure? failure,
             options,
-            category,
-            wakeClass
+            taxiClass.Category,
+            taxiClass.Wake
         );
         failReason = failure?.HumanMessage;
         return route;
@@ -300,7 +299,7 @@ public static class TaxiPathfinder
         // bar twice.
         var shadowRoutes = new Dictionary<int, TaxiRoute?>();
         Func<GroundNode, bool>? ShadowTest() =>
-            LineupBarShadowTest(layout, startNode.Id, runwayId, category, wakeClass, unreachableIsShadowed: true, shadowRoutes);
+            LineupBarShadowTest(layout, startNode.Id, runwayId, new TaxiClass(category, wakeClass), unreachableIsShadowed: true, shadowRoutes);
         List<GroundNode> candidates =
             RouteMaterialiser.OrderFullLengthLineupBars(layout.AirportId, runwayId, startNode.Position, holdShortNodes, ShadowTest)
             ?? [.. holdShortNodes.OrderBy(n => GeoMath.DistanceNm(startNode.Position, n.Position))];
@@ -364,8 +363,7 @@ public static class TaxiPathfinder
         AirportGroundLayout layout,
         int fromNodeId,
         string runwayId,
-        AircraftCategory category,
-        WakeTurbulenceData.WakeClass wakeClass,
+        TaxiClass taxiClass,
         bool unreachableIsShadowed,
         Dictionary<int, TaxiRoute?>? routes
     )
@@ -375,7 +373,7 @@ public static class TaxiPathfinder
             return null;
         }
 
-        var key = new LineupBarShadowCache.Key(fromNodeId, runwayId, category, wakeClass);
+        var key = new LineupBarShadowCache.Key(fromNodeId, runwayId, taxiClass.Category, taxiClass.Wake);
         return bar => RanksAsShadowed(LineupBarShadowCache.Reach(layout, key, bar.Id, routes), unreachableIsShadowed);
     }
 
@@ -814,7 +812,7 @@ public static class TaxiPathfinder
     /// <summary>
     /// Pick the canonical full-length lineup hold-short for a runway designator on
     /// <paramref name="startNode"/>'s side of the runway (<see cref="RouteMaterialiser.OrderFullLengthLineupBars"/>).
-    /// <paramref name="category"/> and <paramref name="wakeClass"/> are the aircraft's, for the taxi routes the order
+    /// <paramref name="taxiClass"/> is the aircraft's class, for the taxi routes the order
     /// searches. Falls back to the hold-short nearest <paramref name="startNode"/> when
     /// the runway is unknown to <see cref="NavigationDatabase"/>.
     /// </summary>
@@ -823,9 +821,8 @@ public static class TaxiPathfinder
         GroundNode startNode,
         string runwayId,
         List<GroundNode> holdShortNodes,
-        AircraftCategory category,
-        WakeTurbulenceData.WakeClass wakeClass
-    ) => RouteMaterialiser.FindFullLengthLineupHoldShort(layout, startNode, runwayId, holdShortNodes, category, wakeClass);
+        TaxiClass taxiClass
+    ) => RouteMaterialiser.FindFullLengthLineupHoldShort(layout, startNode, runwayId, holdShortNodes, taxiClass);
 
     /// <summary>
     /// Runs the A* auto-router with two-pass hard-gate semantics. Pass 1 hard-excludes avoided taxiways

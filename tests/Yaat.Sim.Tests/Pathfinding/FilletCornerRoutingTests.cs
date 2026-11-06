@@ -96,8 +96,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = "30",
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(failReason);
@@ -138,8 +137,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
                 PathTurnHints = [null, TurnDirection.Right],
                 StartHeadingTrue = SfoTSouthboundHeading,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(failReason);
@@ -175,8 +173,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
                 PathTurnHints = [null, TurnDirection.Left],
                 StartHeadingTrue = SfoTSouthboundHeading,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(failReason);

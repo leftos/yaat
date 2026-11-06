@@ -105,8 +105,7 @@ public sealed class TaxiingPhaseCompleteOnEntryTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 DestinationRunway = destinationRunway,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
         Assert.Null(failReason);
         Assert.NotNull(route);

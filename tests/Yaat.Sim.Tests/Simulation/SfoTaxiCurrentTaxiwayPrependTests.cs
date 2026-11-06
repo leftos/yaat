@@ -368,8 +368,7 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 StartHeadingTrue = Skw3398OnBPose.Heading.Degrees,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
         output.WriteLine($"as cleared from node {start.Id}: {asClearedFailure}");
         Assert.Null(asCleared);

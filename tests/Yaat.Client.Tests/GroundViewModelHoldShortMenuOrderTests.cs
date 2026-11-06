@@ -576,8 +576,7 @@ public class GroundViewModelHoldShortMenuOrderTests
                 AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
                 StartHeadingTrue = ac.Heading.Degrees,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
         Assert.True(server is not null, failReason);
 

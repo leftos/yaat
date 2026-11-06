@@ -1673,7 +1673,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
         if (FollowRoutePlanner.StartOf(layout, ctx.Aircraft, requireAhead: false, GroundTraffic(ctx)) is { } start)
         {
-            var taxiClass = FollowRoutePlanner.TaxiClass.Of(ctx.Aircraft);
+            var taxiClass = TaxiClass.Of(ctx.Aircraft);
             TaxiRouteSegment? leadIn = start.LeadIn;
             while ((goals.Count > 0) && (taxiClass.FindRoute(layout, start.Node.Id, NearestGoalRequest.To(goals)) is { } toBar))
             {

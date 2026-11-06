@@ -76,8 +76,7 @@ public class FirstHopHeadingBiasTests
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 StartHeadingTrue = headingTrue,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
     [Fact]
@@ -165,8 +164,7 @@ public class FirstHopHeadingBiasTests
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 StartHeadingTrue = 270.0,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(failReason);

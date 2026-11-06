@@ -4818,8 +4818,7 @@ public static class SegmentExpander
                         ctx.Layout,
                         head.HeadNodeId,
                         destinationRunway,
-                        ctx.Category,
-                        ctx.WakeClass,
+                        new TaxiClass(ctx.Category, ctx.WakeClass),
                         unreachableIsShadowed: true,
                         routes: null
                     )

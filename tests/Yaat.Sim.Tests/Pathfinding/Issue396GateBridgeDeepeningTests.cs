@@ -57,8 +57,7 @@ public class Issue396GateBridgeDeepeningTests
                 StartHeadingTrue = gate.TrueHeading?.Degrees,
                 DiagnosticLog = diag.Add,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
     }
 

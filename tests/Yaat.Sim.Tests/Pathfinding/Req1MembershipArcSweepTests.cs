@@ -112,8 +112,7 @@ public class Req1MembershipArcSweepTests
                             ImpliedLeadTaxiway = null,
                             AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                         },
-                        AircraftCategory.Jet,
-                        WakeTurbulenceData.WakeClass.Large
+                        new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
                     );
 
                     if (route is null)

@@ -313,8 +313,7 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
                 StartHeadingTrue = GeoMath.BearingTo(bar.Position, start.Position),
                 DiagnosticLog = diag.Add,
             },
-            AircraftCategory.Piston,
-            WakeTurbulenceData.WakeClass.Small
+            new TaxiClass(AircraftCategory.Piston, WakeTurbulenceData.WakeClass.Small)
         );
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -558,8 +557,10 @@ public class Issue1334OakDToFAcross33Tests(ITestOutputHelper output)
                 StartHeadingTrue = cmh.HeadingDeg,
                 DiagnosticLog = diag.Add,
             },
-            AircraftCategorization.Categorize(aircraftType),
-            WakeTurbulenceData.WakeClassForType(aircraftType, AircraftCategorization.Categorize(aircraftType))
+            new TaxiClass(
+                AircraftCategorization.Categorize(aircraftType),
+                WakeTurbulenceData.WakeClassForType(aircraftType, AircraftCategorization.Categorize(aircraftType))
+            )
         );
         Assert.True(route is not null, failReason);
         return diag;

@@ -101,8 +101,7 @@ public class GroundViewModelHoldShortMenuLocatedTests
                 ImpliedLeadTaxiway = null,
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
         Assert.True(direct is not null, $"direct resolve failed: {failReason}");
 

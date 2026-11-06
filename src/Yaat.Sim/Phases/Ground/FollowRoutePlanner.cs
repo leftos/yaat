@@ -863,23 +863,6 @@ public static class FollowRoutePlanner
     /// </summary>
     private sealed record LeadPath(List<DirectionalEdge> Edges, int AheadIndex);
 
-    /// <summary>The aircraft class a graph search runs for: its performance category and wake class.</summary>
-    internal readonly record struct TaxiClass(AircraftCategory Category, WakeTurbulenceData.WakeClass Wake)
-    {
-        public static TaxiClass Of(AircraftState aircraft)
-        {
-            AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
-            return new TaxiClass(category, WakeTurbulenceData.WakeClassForType(aircraft.AircraftType, category));
-        }
-
-        /// <summary>
-        /// The auto route from <paramref name="fromNodeId"/> to the cheapest goal of <paramref name="request"/> it reaches as the
-        /// request holds it (<see cref="NearestGoalRequest"/>); null when none.
-        /// </summary>
-        public GoalRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, NearestGoalRequest request) =>
-            TaxiPathfinder.FindRouteToNearestGoal(layout, fromNodeId, Category, Wake, request);
-    }
-
     /// <summary>
     /// The edge the lead taxis on, pointed the way it is going, and its route ahead of that edge (<see cref="OnRoute"/>); null
     /// while it pushes back or is parked, and while it is off every taxiway and every fillet arc of its route.

@@ -66,8 +66,7 @@ public class Issue172HoldShortDedupTests
                 AircraftLengthFt = AircraftLength.ResolveFt("B738"),
                 ExplicitHoldShorts = [HoldShortTarget.Parse("B")],
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Null(failReason);

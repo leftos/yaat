@@ -76,8 +76,7 @@ public class SfoDetourHonorsNamedTaxiwayTests
                 ExplicitHoldShorts = [HoldShortTarget.Parse("1L")],
                 StartHeadingTrue = StandHeadingDeg,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.True(

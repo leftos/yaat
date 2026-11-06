@@ -147,8 +147,7 @@ public static class AutoRouter
                 searchHead,
                 ctx.Destination.RunwayId,
                 holdShortNodes,
-                ctx.Category,
-                ctx.WakeClass
+                new TaxiClass(ctx.Category, ctx.WakeClass)
             );
         }
 

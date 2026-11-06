@@ -111,8 +111,7 @@ public class SfoSpot10JoinATests
                 StartHeadingTrue = StartHeadingTrue,
                 DiagnosticLog = diag.Add,
             },
-            AircraftCategory.Jet,
-            wakeClass
+            new TaxiClass(AircraftCategory.Jet, wakeClass)
         );
         foreach (string line in diag.Where(l => l.StartsWith("[bridge]", StringComparison.Ordinal)))
         {

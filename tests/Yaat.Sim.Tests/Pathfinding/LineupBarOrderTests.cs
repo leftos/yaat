@@ -104,7 +104,13 @@ public class LineupBarOrderTests(ITestOutputHelper output)
         AirportGroundLayout layout = Layout("SFO");
         GroundNode start = Outboard(Bar(layout, "SFO", "28R", "N", North), "SFO", "28R");
 
-        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, start, "28R", layout.GetRunwayHoldShortNodes("28R"), Jet, Large);
+        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(
+            layout,
+            start,
+            "28R",
+            layout.GetRunwayHoldShortNodes("28R"),
+            new TaxiClass(Jet, Large)
+        );
 
         Assert.Equal(Bar(layout, "SFO", "28R", "C", North).Id, result.Id);
     }
@@ -115,7 +121,13 @@ public class LineupBarOrderTests(ITestOutputHelper output)
         AirportGroundLayout layout = Layout("SFO");
         GroundNode start = Outboard(Bar(layout, "SFO", "28R", "N", South), "SFO", "28R");
 
-        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, start, "28R", layout.GetRunwayHoldShortNodes("28R"), Jet, Large);
+        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(
+            layout,
+            start,
+            "28R",
+            layout.GetRunwayHoldShortNodes("28R"),
+            new TaxiClass(Jet, Large)
+        );
 
         Assert.Equal(Bar(layout, "SFO", "28R", "C", South).Id, result.Id);
     }
@@ -131,7 +143,13 @@ public class LineupBarOrderTests(ITestOutputHelper output)
         AirportGroundLayout layout = Layout("OAK");
         GroundNode start = Outboard(Bar(layout, "OAK", "33", "L", West), "OAK", "33");
 
-        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, start, "33", layout.GetRunwayHoldShortNodes("33"), Jet, Large);
+        GroundNode result = RouteMaterialiser.FindFullLengthLineupHoldShort(
+            layout,
+            start,
+            "33",
+            layout.GetRunwayHoldShortNodes("33"),
+            new TaxiClass(Jet, Large)
+        );
 
         Assert.Equal(Bar(layout, "OAK", "33", "C", West).Id, result.Id);
         Assert.NotEqual(Bar(layout, "OAK", "33", "C", East).Id, result.Id);
@@ -167,10 +185,10 @@ public class LineupBarOrderTests(ITestOutputHelper output)
         List<GroundNode> bars = layout.GetRunwayHoldShortNodes("33");
         GroundNode originalStart = Oak33WestStart(layout, "taxiway");
         GroundNode head = Bar(layout, "OAK", "33", "C", East);
-        Assert.Equal(head.Id, RouteMaterialiser.FindFullLengthLineupHoldShort(layout, head, "33", bars, Jet, Large).Id);
+        Assert.Equal(head.Id, RouteMaterialiser.FindFullLengthLineupHoldShort(layout, head, "33", bars, new TaxiClass(Jet, Large)).Id);
         Assert.Equal(
             Bar(layout, "OAK", "33", "C", West).Id,
-            RouteMaterialiser.FindFullLengthLineupHoldShort(layout, originalStart, "33", bars, Jet, Large).Id
+            RouteMaterialiser.FindFullLengthLineupHoldShort(layout, originalStart, "33", bars, new TaxiClass(Jet, Large)).Id
         );
         var ctx = SearchContext.Compile(
             layout,
@@ -713,8 +731,7 @@ public class LineupBarOrderTests(ITestOutputHelper output)
             ["C"],
             out string? failReason,
             options,
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.True(route is not null, failReason);
@@ -748,8 +765,7 @@ public class LineupBarOrderTests(ITestOutputHelper output)
             ["C"],
             out string? failReason,
             options,
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.True(route is not null, failReason);
@@ -781,7 +797,13 @@ public class LineupBarOrderTests(ITestOutputHelper output)
         AirportGroundLayout layout = Layout("OAK");
         GroundNode start = NodeOnTaxiwayNear(layout, "K", AxisPoint(Axis("OAK", "33"), -111.0, -1680.0), 150.0);
 
-        GroundNode lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, start, "33", layout.GetRunwayHoldShortNodes("33"), Jet, Large);
+        GroundNode lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(
+            layout,
+            start,
+            "33",
+            layout.GetRunwayHoldShortNodes("33"),
+            new TaxiClass(Jet, Large)
+        );
         GroundNode? airTaxi = GroundCommandHandler.ResolveRunwayHoldShortNode(layout, new HoldShortTarget("33", null, false), start.Position);
 
         int eastBar = Bar(layout, "OAK", "33", "C", East).Id;

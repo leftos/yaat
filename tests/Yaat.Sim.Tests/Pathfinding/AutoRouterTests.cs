@@ -477,8 +477,7 @@ public class AutoRouterTests
             n0,
             "28R",
             [n1],
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
 
         Assert.Equal(n1.Id, result.Id);

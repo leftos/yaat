@@ -498,8 +498,7 @@ public class RouteMaterialiserTests
             n0,
             "28R",
             [],
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
         Assert.Equal(n0.Id, result.Id);
     }
@@ -517,8 +516,7 @@ public class RouteMaterialiserTests
             n0,
             "28R",
             [n1],
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
         Assert.Equal(n1.Id, result.Id);
     }
@@ -560,8 +558,7 @@ public class RouteMaterialiserTests
             n0,
             "28R",
             [nWest, nEast],
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
         Assert.Equal(nEast.Id, result.Id);
     }

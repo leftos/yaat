@@ -161,8 +161,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
                 ExplicitHoldShorts = [],
                 StartHeadingTrue = SfoYankeeRestHeadingDeg,
             },
-            AircraftCategory.Jet,
-            WakeTurbulenceData.WakeClass.Large
+            new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         );
         output.WriteLine($"route: {route?.FormatTaxiwaySequence()} warnings [{string.Join("; ", route?.Warnings ?? [])}] fail={failReason}");
 
@@ -1098,8 +1097,7 @@ public partial class Issue899DetourConnectorTests(ITestOutputHelper output)
                 StartHeadingTrue = start.HeadingDeg,
                 DiagnosticLog = diag.Add,
             },
-            AircraftCategory.Piston,
-            WakeTurbulenceData.WakeClass.Small
+            new TaxiClass(AircraftCategory.Piston, WakeTurbulenceData.WakeClass.Small)
         );
         output.WriteLine($"resolved: {resolved?.FormatTaxiwaySequence()} fail={failReason}");
         output.WriteLine($"bare route nodes: {string.Join(",", RouteNodeIds(resolved))}");

@@ -259,8 +259,7 @@ public class StateAwarePruningNecessityTests
                     holdShorts[0],
                     desig,
                     holdShorts,
-                    AircraftCategory.Jet,
-                    WakeTurbulenceData.WakeClass.Large
+                    new TaxiClass(AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
                 );
                 runwayEnds.Add((desig, lineup.Id));
             }
