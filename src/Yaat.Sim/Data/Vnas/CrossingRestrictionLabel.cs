@@ -28,26 +28,28 @@ public static class CrossingRestrictionLabel
     /// carries neither an altitude nor a speed restriction.
     /// </summary>
     public static IReadOnlyList<string> BuildLines(CifpAltitudeRestriction? altitude, CifpSpeedRestriction? speed) =>
-        [.. BuildTokenLines(altitude, speed, altitudeLatent: false).Select(line => string.Join("  ", line.Select(t => t.Text)))];
+        [.. BuildTokenLines(altitude, speed, altitudeLatent: false, speedLatent: false).Select(line => string.Join("  ", line.Select(t => t.Text)))];
 
     /// <summary>
     /// Returns the label lines as tokens, laid out as <see cref="BuildLines"/> lays out its lines (a line's tokens joined
     /// with two spaces are that line), or an empty list when the fix carries neither restriction. Every altitude token
-    /// carries <paramref name="altitudeLatent"/>; every speed token is active.
+    /// carries <paramref name="altitudeLatent"/> and the speed token <paramref name="speedLatent"/>.
     /// </summary>
     /// <param name="altitude">The fix's altitude restriction, or null.</param>
     /// <param name="speed">The fix's speed restriction, or null.</param>
     /// <param name="altitudeLatent">Whether the altitude restriction is published but not in force now.</param>
+    /// <param name="speedLatent">Whether the speed restriction is published but not in force now.</param>
     /// <returns>The ordered label lines, each its tokens left to right.</returns>
     public static IReadOnlyList<IReadOnlyList<NavRouteRestrictionToken>> BuildTokenLines(
         CifpAltitudeRestriction? altitude,
         CifpSpeedRestriction? speed,
-        bool altitudeLatent
+        bool altitudeLatent,
+        bool speedLatent
     )
     {
         List<string> altLines = BuildAltitudeLines(altitude);
         string? speedText = FormatSpeed(speed);
-        NavRouteRestrictionToken? speedToken = speedText is null ? null : new NavRouteRestrictionToken(speedText, Latent: false);
+        NavRouteRestrictionToken? speedToken = speedText is null ? null : new NavRouteRestrictionToken(speedText, speedLatent);
 
         if (altLines.Count <= 1)
         {

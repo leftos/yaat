@@ -450,6 +450,37 @@ public class ShownRouteBuilderTests
         );
     }
 
+    /// <summary>
+    /// The same for a speed token: a published speed turning latent under an ATC speed or DSR, with the altitude token and
+    /// the route unchanged, moves the shown-path cache key.
+    /// </summary>
+    [Fact]
+    public void ShownPathFingerprint_ChangesWhenOnlySpeedTokenLatencyFlips()
+    {
+        static AircraftModel Aircraft(bool speedLatent) =>
+            new()
+            {
+                Callsign = "UAL911",
+                NavRouteFixes =
+                [
+                    new NavRouteFixDto(
+                        "SKUNK",
+                        37.90,
+                        -122.40,
+                        ["≥6000  250"],
+                        [
+                            [Token("≥6000"), Token("250", speedLatent)],
+                        ]
+                    ),
+                ],
+            };
+
+        Assert.NotEqual(
+            RadarViewModel.BuildShownPathFingerprint(Aircraft(speedLatent: false)),
+            RadarViewModel.BuildShownPathFingerprint(Aircraft(speedLatent: true))
+        );
+    }
+
     private static NavRouteRestrictionToken Token(string text, bool latent = false) => new(text, latent);
 
     /// <summary>Renders a waypoint's token lines one string per line, tokens joined by a space, a latent token as "~text~".</summary>

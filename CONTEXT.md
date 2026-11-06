@@ -188,7 +188,7 @@ The STAR or route fix a `CAPP` given while the aircraft is still on the STAR joi
 _Avoid_: join fix
 
 **Latent restriction**:
-A published route altitude restriction the radar Show-nav-route overlay draws dimmed because it is on the route but does not bind now (`AltitudeRestrictionInForce.IsShownLatent`): it is not in force by its restriction source, or it is a published restriction above a climb via's "except maintain" top or below a descend via's bottom. Speeds are never latent.
+A published route altitude or speed restriction the radar Show-nav-route overlay draws dimmed because it is on the route but does not bind now. An altitude (`AltitudeRestrictionInForce.IsShownLatent`) is latent when it is not in force by its restriction source, or is a published restriction above a climb via's "except maintain" top or below a descend via's bottom. A published SID or STAR speed (`NavRouteSpeedLatency.LatentAlongRoute`, judged by `FlightPhysics.PublishedSpeedApplies`) is latent when an ATC speed or a delete-speed-restrictions is in force at that fix, judged fix by fix past crossings that revert or resume. A controller's crossing speed is never latent.
 _Avoid_: inactive restriction, cancelled restriction (a maintain does not delete it, and a later via clearance makes it bind again)
 
 **Restriction source**:

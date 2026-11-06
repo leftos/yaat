@@ -1791,6 +1791,20 @@ public static class FlightPhysics
         || (fix.RevertResume is not null);
 
     /// <summary>
+    /// Whether <paramref name="fix"/>'s speed restriction binds under the given speed state: it has one, the published
+    /// speeds are not deleted, and no ATC speed is in force unless the controller set the fix's speed itself. The rule
+    /// <see cref="ApplyFixSpeedConstraint"/> flies and the nav-route overlay shows for published speeds
+    /// (<see cref="NavRouteSpeedLatency"/>). The overlay never draws a controller-set speed latent, while under DSR this
+    /// rule keeps the physics from flying a controller crossing speed (YAAT-1920).
+    /// </summary>
+    /// <param name="fix">The route fix whose speed is judged.</param>
+    /// <param name="explicitSpeedInForce">Whether an ATC speed is in force (<see cref="ControlTargets.HasExplicitSpeedCommand"/>).</param>
+    /// <param name="speedRestrictionsDeleted">Whether DSR is in force (<see cref="AircraftProcedure.SpeedRestrictionsDeleted"/>).</param>
+    /// <returns>True when the fix's speed applies.</returns>
+    internal static bool PublishedSpeedApplies(NavigationTarget fix, bool explicitSpeedInForce, bool speedRestrictionsDeleted) =>
+        (fix.SpeedRestriction is not null) && !speedRestrictionsDeleted && !(explicitSpeedInForce && !IsControllerSetSpeed(fix));
+
+    /// <summary>
     /// Applies <paramref name="target"/>'s speed restriction: an "at or above" minimum as the floor, any other as the
     /// target speed and the last published speed. With <paramref name="slowdownLeftToPlanner"/>, a target below the
     /// present speed is left to <see cref="UpdateSpeedPlanning"/>, though still remembered as the last published speed.
@@ -1800,8 +1814,10 @@ public static class FlightPhysics
         // An ATC-assigned speed outranks a published one until ATC ends it (7110.65 5-7-1.c, 5-7-4; AIM 4-4-12.f), the
         // same rule UpdateSpeedPlanning and the speed stamp (SpeedTransmissionId) keep. A crossing speed a controller set is itself an ATC
         // assignment, issued after the speed in force, and still applies.
-        bool publishedUnderAssignedSpeed = aircraft.Targets.HasExplicitSpeedCommand && !IsControllerSetSpeed(target);
-        if ((target.SpeedRestriction is { } spd) && !aircraft.Procedure.SpeedRestrictionsDeleted && !publishedUnderAssignedSpeed)
+        if (
+            PublishedSpeedApplies(target, aircraft.Targets.HasExplicitSpeedCommand, aircraft.Procedure.SpeedRestrictionsDeleted)
+            && (target.SpeedRestriction is { } spd)
+        )
         {
             if (spd.Type == CifpSpeedRestrictionType.AtOrAbove)
             {
