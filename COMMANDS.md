@@ -169,6 +169,8 @@ The chain still queues (the `FH 090` flies once the hold ends), and *conditional
 
 **Commands that cannot be chained.** Sim-control and room-wide commands — `PAUSE`, `UNPAUSE`, `SIMRATE`, `SPAWN`, spawn/flight-plan creation, `TIMER`, `NOTE`/`RMK`, `CONSO`/`DECONSO`, the `…ALL` bulk commands, and similar — are rejected in a chain with *"{verb} cannot be part of a chained command"*. `DEL` and `DEST`/`APT` **do** chain (`CROSS 19R; DEL`, `AT 5000 APT OAK`).
 
+**A `,` sibling of a tower command is judged by the aircraft's phase.** In `CTO, SPD 230`, a sibling that the phase refuses does not fail the transmission: the takeoff clearance applies and the response adds `unable SPD 230: <reason>` (for example `Cleared for takeoff runway 28R, unable SPD 230: aircraft is lined up and waiting on the runway; only CTO/CTOC, CM/DM, or DEL apply`), and the rest of a `;` transmission still queues. A sibling the phase allows applies. Give a speed with a takeoff clearance as its own block (`CTO; SPD 230`).
+
 **`APT` at the front of a `,` block applies first.** `APT OAK, ELB 28L 4, CLAND` moves the flight plan before the pattern entry resolves its runway, so the entry finds 28L at OAK. The destination change stays applied even if the manoeuvre is then refused, and the response says so (`Destination changed to KOAK; but Runway 35L not found at OAK`). Every other command in a `,` block keeps its place.
 
 On an airborne aircraft `APT` also switches its ground layout to the new airport's, so the commands after it resolve names there (`APT OAK, LAND @HELI1` from a helicopter bound for KSFO lands at KOAK's HELI1); on the ground nothing moves.

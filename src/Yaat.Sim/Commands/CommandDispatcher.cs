@@ -2789,7 +2789,9 @@ public static class CommandDispatcher
     /// EF 28L, or CROSS after TAXI), collecting every per-command message so the RPO sees the full outcome — without this,
     /// CLAND's "Cleared to land 28L" would be silently dropped and the user would think only the EF took effect. A TAXI driver's
     /// route readback is read again once a <c>CROSS</c> or <c>RES</c> sibling pre-cleared a hold short on its route
-    /// (<see cref="BlockTaxiReadback"/>).
+    /// (<see cref="BlockTaxiReadback"/>). A sibling the phase gate refuses does not fail the transmission — the driver already
+    /// applied, and a failure would rewind it — so each refusal is reported as an "unable" advisory beside the driver's own
+    /// messages and the rest of the block and of the transmission stand.
     /// </summary>
     private static CommandResult ApplyTowerDriverSiblings(
         CommandResult towerResult,
@@ -2801,9 +2803,16 @@ public static class CommandDispatcher
     )
     {
         var messages = new List<string>();
+        var advisories = new List<string>();
         if (!string.IsNullOrEmpty(towerResult.Message))
         {
             messages.Add(towerResult.Message);
+        }
+
+        // The driver's own advisory (a procedure resolved from a retired AIRAC cycle, say) stays on the result.
+        if (!string.IsNullOrEmpty(towerResult.Advisory))
+        {
+            advisories.Add(towerResult.Advisory);
         }
 
         var taxiReadback = new BlockTaxiReadback();
@@ -2816,7 +2825,16 @@ public static class CommandDispatcher
             }
 
             ParsedCommand sibling = gateBlock.Commands[i];
-            CommandResult? subResult = ApplyParallelSibling(sibling, aircraft, currentPhase, ForBlockCommand(ctx, gateBlock.Commands, i));
+            SiblingOutcome outcome = ApplyParallelSibling(sibling, aircraft, currentPhase, ForBlockCommand(ctx, gateBlock.Commands, i));
+            if (outcome.GateRefusal is { } gateRefusal)
+            {
+                string unable = $"unable {CommandDescriber.DescribeNatural(sibling)}: {gateRefusal}";
+                messages.Add(unable);
+                advisories.Add(unable);
+                continue;
+            }
+
+            CommandResult? subResult = outcome.Result;
             if (subResult is null)
             {
                 continue;
@@ -2844,6 +2862,7 @@ public static class CommandDispatcher
         {
             Message = messages.Count <= 1 ? towerResult.Message : string.Join(", ", messages),
             PilotReadback = taxiReadback.Readback(towerResult.PilotReadback, gateBlock.Commands, aircraft),
+            Advisory = advisories.Count == 0 ? towerResult.Advisory : string.Join("; ", advisories),
         };
     }
 
@@ -2976,13 +2995,14 @@ public static class CommandDispatcher
     /// <summary>
     /// Applies one non-driver command of a parallel block after the driver was applied via the tower
     /// path. Transparent siblings never reach a tower handler, so route them through
-    /// <see cref="ApplyCommand"/> — otherwise <c>PUSH, SQ 0233</c> silently drops the squawk. Returns
-    /// null when the sibling has no handler in this context, preserving the skip-and-continue
-    /// behaviour for non-tower, non-transparent commands. An altitude assignment on an approach leg follows
+    /// <see cref="ApplyCommand"/> — otherwise <c>PUSH, SQ 0233</c> silently drops the squawk. A
+    /// non-transparent sibling the tower handlers have no arm for is judged at the phase gate like a
+    /// lone command (<see cref="JudgeSiblingAtPhaseGate"/>), so <c>CTO, SPD 230</c> reports the speed's
+    /// refusal instead of dropping it silently. An altitude assignment on an approach leg follows
     /// <see cref="ApproachAltitudeVerdict"/> as it would alone: held until established outside the final approach fix,
     /// cancelling the approach inside it.
     /// </summary>
-    private static CommandResult? ApplyParallelSibling(ParsedCommand sibling, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
+    private static SiblingOutcome ApplyParallelSibling(ParsedCommand sibling, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
         Phase phase = aircraft.Phases?.CurrentPhase ?? currentPhase;
         bool transparent = IsTransparentCommand(sibling);
@@ -2991,12 +3011,84 @@ public static class CommandDispatcher
         DispatchContext siblingCtx = transparent ? ctx with { ValidateDctFixes = false } : ctx;
         return ApproachAltitudeVerdict(sibling, aircraft, phase, siblingCtx) switch
         {
-            ApproachAltitudeOutcome.KeepAndHold => ApplyAndHoldApproachAltitude(sibling, aircraft, siblingCtx),
-            ApproachAltitudeOutcome.CancelApproach => CancelApproachAndApply(sibling, aircraft, siblingCtx),
+            ApproachAltitudeOutcome.KeepAndHold => SiblingOutcome.Applied(ApplyAndHoldApproachAltitude(sibling, aircraft, siblingCtx)),
+            ApproachAltitudeOutcome.CancelApproach => SiblingOutcome.Applied(CancelApproachAndApply(sibling, aircraft, siblingCtx)),
             _ => transparent
-                ? ApplyCommand(sibling, aircraft, siblingCtx)
-                : TryApplyTowerCommand(sibling, aircraft, phase, ctx, firedFromQueue: false),
+                ? SiblingOutcome.Applied(ApplyCommand(sibling, aircraft, siblingCtx))
+                : ApplyNonTransparentSibling(sibling, aircraft, phase, ctx),
         };
+    }
+
+    /// <summary>
+    /// A non-transparent sibling of a parallel block, decided the way a lone command is decided in
+    /// <see cref="DispatchWithPhase"/>: an unsupported verb is refused, a command that never reaches the phase gate
+    /// (<see cref="ReachesPhaseGate"/> — the phase-transparent RFIS/RTIS/REPORT/SafetyAlert/WakeAdvisory/NODEL family and
+    /// the sim-control WARP/WARPG bypass) applies without it, a tower handler claims the sibling when it has an arm for
+    /// it, and the phase gate otherwise.
+    /// </summary>
+    private static SiblingOutcome ApplyNonTransparentSibling(ParsedCommand sibling, AircraftState aircraft, Phase phase, DispatchContext ctx)
+    {
+        if (sibling is UnsupportedCommand unsupported)
+        {
+            return SiblingOutcome.Applied(new CommandResult(false, $"Command not yet supported: {unsupported.RawText}"));
+        }
+
+        if (!ReachesPhaseGate(sibling))
+        {
+            return SiblingOutcome.Applied(ApplyCommand(sibling, aircraft, ctx));
+        }
+
+        return TryApplyTowerCommand(sibling, aircraft, phase, ctx, firedFromQueue: false) is { } towerResult
+            ? SiblingOutcome.Applied(towerResult)
+            : JudgeSiblingAtPhaseGate(sibling, aircraft, phase, ctx);
+    }
+
+    /// <summary>
+    /// A non-transparent sibling of a parallel block that no tower handler claims, judged at the phase gate the way a
+    /// lone command is judged in <see cref="DispatchWithPhase"/>: a rejection is reported as a gate refusal, which the
+    /// tower path turns into an "unable" advisory that keeps the transmission standing; a command that clears the phase
+    /// is skipped as before; an allowed one applies with the caller's non-transparent context (so DCT-fix validation
+    /// stays on) and, once it applied, notifies the active phase as a lone command does
+    /// (<see cref="NotifyPhaseCommandAccepted"/>) — a turn that reduced the speed puts it back when it ends unless the
+    /// phase knows a speed was taken over mid-manoeuvre.
+    /// </summary>
+    private static SiblingOutcome JudgeSiblingAtPhaseGate(ParsedCommand sibling, AircraftState aircraft, Phase phase, DispatchContext ctx)
+    {
+        CommandAcceptance acceptance = phase.CanAcceptCommand(PhaseGateType(CommandDescriber.ToCanonicalType(sibling)));
+        if (acceptance.IsRejected)
+        {
+            string reason = acceptance.Reason ?? $"Cannot accept {CommandDescriber.DescribeNatural(sibling)} during {phase.Name}";
+            return SiblingOutcome.RefusedByGate(reason);
+        }
+
+        if (acceptance.ClearsThePhase)
+        {
+            return SiblingOutcome.Skipped;
+        }
+
+        CommandResult applied = ApplyCommand(sibling, aircraft, ctx);
+        if (applied.Success)
+        {
+            NotifyPhaseCommandAccepted(aircraft, sibling, aircraft.Phases?.CurrentPhase ?? phase, ctx);
+        }
+
+        return SiblingOutcome.Applied(applied);
+    }
+
+    /// <summary>
+    /// What one sibling of a parallel block did: the result to fold into the driver's (<see cref="Result"/>; null when
+    /// the sibling cleared the phase or has nothing to report), or a gate refusal (<see cref="GateRefusal"/>), which the
+    /// tower path reports as an "unable" advisory rather than failing the transmission — the driver already applied, and
+    /// a failure would rewind the transmission, roll back live traffic, skip the pilot's initial-contact flag and drop
+    /// the blocks after this one.
+    /// </summary>
+    private readonly record struct SiblingOutcome(CommandResult? Result, string? GateRefusal)
+    {
+        public static SiblingOutcome Skipped => new(null, null);
+
+        public static SiblingOutcome Applied(CommandResult? result) => new(result, null);
+
+        public static SiblingOutcome RefusedByGate(string reason) => new(null, reason);
     }
 
     /// <summary>
@@ -4318,7 +4410,8 @@ public static class CommandDispatcher
     /// speed it applied before the refusal: the next transmission takes the same id, and a CFIX in it must not read the
     /// earlier via clearance as its own, nor a via or approach clearance in it read the earlier speed as restated with it.
     /// The speed half is defensive: no current dispatch shape applies a speed and then refuses the transmission (a
-    /// phase-less dispatch dry-runs its first block before applying anything, and the tower path applies no speed sibling).
+    /// phase-less dispatch dry-runs its first block before applying anything, and a speed sibling of a tower driver either
+    /// applies — the transmission then stands — or is refused at the phase gate as an advisory, which keeps it standing).
     /// </summary>
     private static void RewindTransmission(AircraftState aircraft, int lastTransmissionId)
     {

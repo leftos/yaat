@@ -1416,10 +1416,12 @@ public class DescendViaSpeedResumeTests
     }
 
     /// <summary>
-    /// "CTO, SPD 230; CVIA" on an aircraft in a phase: the tower path takes the first block and queues the rest, and the
-    /// queued climb via keeps its transmission's id at enqueue just as it does rebuilt from a snapshot, so either leaves a
-    /// 230 stamped with that transmission standing. The tower path drops the SPD sibling of the CTO, so the departure the
-    /// climb via fires on stands in for the 230 the controller restated with it.
+    /// "CTO, SPD 230; CVIA" on an aircraft in a phase: the tower path takes the first block, refuses the 230 at the
+    /// lined-up gate (an "unable" advisory, the clearance itself standing) and queues the rest, and the queued climb via
+    /// keeps its transmission's id at enqueue just as it does rebuilt from a snapshot. The dispatch puts no speed in
+    /// force, so the 230 asserted below is the one <see cref="AssignedSpeedAfterClimbVia"/> seeds with that
+    /// transmission's stamp: the departure the climb via fires on stands in for the 230 the controller restated with the
+    /// clearance.
     /// </summary>
     [Fact]
     public void PhaseActiveCompound_SpeedBeforeCvia_EnqueueMatchesRebuild()

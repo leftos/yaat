@@ -2111,6 +2111,10 @@ UAL123 CM 5000; TAXI ZZ; SQ: Cannot find taxiway ZZ in layout. — rest of trans
 
 The reasoning matches a real amended clearance: the instructions after the failed one were premised on it, so silently running them anyway would do something you didn't ask for. Conditionals you issued on *separate* lines are not touched — only the remainder of the failed line is dropped. Re-issue the corrected chain when you see the warning.
 
+#### When the aircraft's phase refuses part of a step
+
+In a step led by a tower command, such as `CTO, SPD 230`, a command the aircraft's current phase will not take does not fail the line. The takeoff clearance still applies, and the response adds an `unable` note for the refused part, for example `Cleared for takeoff runway 28R, unable SPD 230: aircraft is lined up and waiting on the runway; only CTO/CTOC, CM/DM, or DEL apply`. Anything after a `;` still queues. To give a speed with a takeoff clearance, put it in its own step: `CTO; SPD 230`.
+
 #### Chaining behind a hold or a follow
 
 `HOLDP`, the VFR holds (`HPPL`, `HFIXR`, …), and `FOLLOW` keep going until *you* end them — there is no natural finish for the next step to wait for. So in `HOLDP OAK 180 1M R; FH 090`, the heading cannot fly until the hold ends, and YAAT tells you so the moment you send it:
