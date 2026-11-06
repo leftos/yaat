@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- `LAHSO` on a runway's second-named end, such as SFO 28R, measures the hold-short point and available distance from that landing end, not the far end.
 - After a `LAHSO` stop, `CROSS` releases the hold and an `EXIT` given while holding is kept for when it crosses.
 - Under `LAHSO`, a landing no longer picks a shallow high-speed exit whose turn-off would cross the hold-short marking before leaving the runway.
 - Types whose top speed varies with altitude (Dash 8 Q400, CRJ, Challenger 604, E170 and others) fly, refuse speeds and fly `SMAX` against the limit at their altitude.

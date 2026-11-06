@@ -104,7 +104,7 @@ public class LahsoEligibilityTests(ITestOutputHelper output)
         (AircraftState aircraft, CommandResult result) = run.Value;
         Assert.True(result.Success, result.Message);
         Assert.Null(aircraft.Phases!.LahsoHoldShort);
-        Assert.Equal("Cleared to land, Runway 28R; unable to hold short runway 1L: B738 needs 7,000 ft, 5,601 ft available", result.Message);
+        Assert.Equal("Cleared to land, Runway 28R; unable to hold short runway 1L: B738 needs 7,000 ft, 5,049 ft available", result.Message);
     }
 
     /// <summary>
@@ -114,8 +114,8 @@ public class LahsoEligibilityTests(ITestOutputHelper output)
     [Fact]
     public void Lahso_AcceptedThenDeclined_ClearsTheEarlierTarget()
     {
-        // An A320 (group 7, 6,000 ft) fits the longer distance to 1R but not the 5,601 ft to 1L.
-        (AircraftState aircraft, CommandResult result)? run = DispatchLahso("A320", 135, crossingRunway: "1R");
+        // A C510 (group 5, 4,500 ft) fits the 5,049 ft to 1L but not the 4,299 ft to 1R.
+        (AircraftState aircraft, CommandResult result)? run = DispatchLahso("C510", 105, crossingRunway: "1L");
         if (run is null)
         {
             return;
@@ -123,11 +123,11 @@ public class LahsoEligibilityTests(ITestOutputHelper output)
 
         (AircraftState aircraft, CommandResult accepted) = run.Value;
         Assert.True(accepted.Success, accepted.Message);
-        Assert.Equal("1R", aircraft.Phases!.LahsoHoldShort?.CrossingRunwayId);
+        Assert.Equal("1L", aircraft.Phases!.LahsoHoldShort?.CrossingRunwayId);
 
-        CommandResult declined = Dispatch(aircraft, "LAHSO 1L");
+        CommandResult declined = Dispatch(aircraft, "LAHSO 1R");
         Assert.True(declined.Success, declined.Message);
-        Assert.Equal("Cleared to land, Runway 28R; unable to hold short runway 1L: A320 needs 6,000 ft, 5,601 ft available", declined.Message);
+        Assert.Equal("Cleared to land, Runway 28R; unable to hold short runway 1R: C510 needs 4,500 ft, 4,299 ft available", declined.Message);
         Assert.Null(aircraft.Phases.LahsoHoldShort);
         Assert.Equal(ClearanceType.ClearedToLand, aircraft.Phases.LandingClearance);
     }
@@ -155,6 +155,40 @@ public class LahsoEligibilityTests(ITestOutputHelper output)
         Assert.Equal(CanonicalCommandType.LandAndHoldShort, result.PilotReadback.Command);
         Assert.Equal("cleared to land runway 28R, unable to hold short of runway 1L", result.PilotReadback.Speech.Terminal);
         Assert.Equal("cleared to land runway two eight right, unable to hold short of runway one left", result.PilotReadback.Speech.Tts);
+    }
+
+    /// <summary>
+    /// The hold-short distance measures from the landing end's threshold to the point set back from the crossing
+    /// centreline, whichever of the runway's two ends is named — SFO's layout names runways in the dash form.
+    /// </summary>
+    [Theory]
+    [InlineData("28R", "1L")]
+    [InlineData("10L", "1L")]
+    public void HoldShortDistance_OnSfo_StandsTheSetbackShortOfTheCrossingCentreline(string landingEnd, string crossingEnd)
+    {
+        TestVnasData.EnsureInitialized();
+
+        AirportGroundLayout? layout = GroundData.GetLayout("SFO");
+        Assert.NotNull(layout);
+        GroundRunway? landing = layout.FindGroundRunway(landingEnd);
+        Assert.NotNull(landing);
+        GroundRunway? crossing = layout.FindGroundRunway(crossingEnd);
+        Assert.NotNull(crossing);
+        (double Lat, double Lon, double DistFromStartNm)? intersection = RunwayIntersectionCalculator.FindIntersection(landing, crossing);
+        Assert.NotNull(intersection);
+        (LatLon Threshold, double LandingCourseDeg)? threshold = landing.LandingThresholdForEnd(landingEnd);
+        Assert.NotNull(threshold);
+
+        double expectedFt =
+            GeoMath.DistanceNm(threshold.Value.Threshold.Lat, threshold.Value.Threshold.Lon, intersection.Value.Lat, intersection.Value.Lon)
+                * GeoMath.FeetPerNm
+            - (crossing.WidthFt / 2.0 + 200.0);
+        double actualFt =
+            RunwayIntersectionCalculator.ComputeHoldShortDistanceNm(intersection.Value.DistFromStartNm, landingEnd, landing, crossing.WidthFt)
+            * GeoMath.FeetPerNm;
+
+        output.WriteLine($"{landingEnd} holding short of {crossingEnd}: expected {expectedFt:F0} ft, actual {actualFt:F0} ft");
+        Assert.InRange(actualFt, expectedFt - 10, expectedFt + 10);
     }
 
     /// <summary>

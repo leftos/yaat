@@ -164,13 +164,13 @@ public static class RunwayIntersectionCalculator
             );
         }
 
-        // Determine distance from the approach threshold
-        // GroundRunway.Coordinates go from one end to the other.
-        // The designator tells us which end we're approaching from.
-        // If the designator matches the "first" end, distance from threshold = intersectionDistNm.
-        // If it matches the "second" end, distance from threshold = totalLen - intersectionDistNm.
+        // Determine distance from the approach threshold.
+        // GroundRunway.Coordinates start at the runway's first end (Id.End1) and run to the other end, so
+        // landing on the first end measures the intersection from the start of the coordinates and landing
+        // on the second measures it from their far end.
+        bool isFirstEnd = landingRunway.Id.End1.Equals(RunwayIdentifier.NormalizeDesignator(landingDesignator), StringComparison.OrdinalIgnoreCase);
         double distFromThreshold;
-        if (IsFirstEndDesignator(landingDesignator, landingRunway.Name))
+        if (isFirstEnd)
         {
             distFromThreshold = intersectionDistNm;
         }
@@ -188,21 +188,5 @@ public static class RunwayIntersectionCalculator
         double displacementNm = landingRunway.ThresholdDisplacementForEnd(landingDesignator) / GeoMath.FeetPerNm;
 
         return distFromThreshold - setbackNm - displacementNm;
-    }
-
-    /// <summary>
-    /// Determines if a runway designator corresponds to the first end of a GroundRunway.
-    /// GroundRunway.Name is like "10R/28L" — the first designator is "10R", second is "28L".
-    /// </summary>
-    private static bool IsFirstEndDesignator(string designator, string runwayName)
-    {
-        int slashIdx = runwayName.IndexOf('/');
-        if (slashIdx < 0)
-        {
-            return true;
-        }
-
-        string firstEnd = runwayName[..slashIdx];
-        return firstEnd.Equals(designator, StringComparison.OrdinalIgnoreCase);
     }
 }
