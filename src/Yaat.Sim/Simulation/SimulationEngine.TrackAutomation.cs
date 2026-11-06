@@ -62,6 +62,8 @@ public sealed partial class SimulationEngine
     {
         SimScenarioState scenario = Scenario!;
         List<string> messages = loaded.AutoTrackMessages;
+        // The owner this function sets, which the pilot of an airborne spawn starts tuned to.
+        TrackOwner? spawnOwner = null;
 
         if (
             loaded.State.Track.Owner is null
@@ -83,6 +85,7 @@ public sealed partial class SimulationEngine
                     if (NavigationDatabase.Instance.AirportIdsMatchResolved(dep, airportId))
                     {
                         loaded.State.Track.Owner = atcPos.Owner;
+                        spawnOwner = atcPos.Owner;
                         matchedAirportId = airportId;
                         break;
                     }
@@ -103,6 +106,7 @@ public sealed partial class SimulationEngine
         AutoTrackConditions? autoTrack = loaded.AutoTrackConditions;
         if (autoTrack is null)
         {
+            TuneToSpawnOwner(loaded.State, spawnOwner, scenario);
             return;
         }
 
@@ -117,6 +121,7 @@ public sealed partial class SimulationEngine
         if (owner is not null)
         {
             loaded.State.Track.Owner = owner;
+            spawnOwner = owner;
             messages.Add($"[AutoTrack] Owned by " + $"{TrackEngine.FormatOwner(owner)} " + "(autoTrackConditions)");
         }
         else
@@ -195,6 +200,22 @@ public sealed partial class SimulationEngine
         {
             loaded.State.FlightPlan.AssignEramAltitude(cleared * 100);
             messages.Add($"[AutoTrack] ERAM assigned altitude set: {cleared}");
+        }
+
+        TuneToSpawnOwner(loaded.State, spawnOwner, scenario);
+    }
+
+    /// <summary>
+    /// The pilot of an airborne spawn starts tuned to the position that owns its track at spawn, when that is not the
+    /// student's; an on-ground spawn starts on the student's side (null) even when another position owns its track. With
+    /// no student position yet (a replay sets it later) the owner is stamped anyway, and
+    /// <see cref="AircraftState.IsTunedAwayFrom"/> compares at read time.
+    /// </summary>
+    private static void TuneToSpawnOwner(AircraftState state, TrackOwner? owner, SimScenarioState scenario)
+    {
+        if (!state.IsOnGround && (owner is not null) && !((scenario.StudentPosition is { } student) && owner.IsSamePositionByCallsign(student)))
+        {
+            state.TunedPosition = owner;
         }
     }
 

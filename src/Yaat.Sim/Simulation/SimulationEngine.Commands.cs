@@ -300,8 +300,7 @@ public sealed partial class SimulationEngine
     /// </para>
     /// <para>
     /// Any other compound carrying a CT or FCA is left to the contact handler (a queued block tunes the pilot when it
-    /// fires). Otherwise an aircraft with no tuned position recorded is tuned to the student's position, when the room has
-    /// a student; a recorded position is never overwritten (a pilot the student sent away stays away).
+    /// fires). No other instruction retunes the pilot: only a handoff the student accepts brings it back to the student.
     /// </para>
     /// </summary>
     private void TuneOnHumanInstruction(AircraftState aircraft, CompoundCommand compound)
@@ -314,21 +313,7 @@ public sealed partial class SimulationEngine
             {
                 aircraft.TunedPosition = TrackOwner.Elsewhere;
             }
-
-            return;
         }
-
-        if ((aircraft.TunedPosition is not null) || (student is null))
-        {
-            return;
-        }
-
-        if (compound.Blocks.SelectMany(b => b.Commands).Any(c => c is ContactCommand or FrequencyChangeApprovedCommand))
-        {
-            return;
-        }
-
-        aircraft.TunedPosition = student;
     }
 
     /// <summary>
