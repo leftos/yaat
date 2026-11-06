@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -23,8 +24,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// comparison fell back to the true final approach course and the magnetic variation alone (≈13°E) pushed
 /// the cut to 32.9°; and the controller's assigned heading, the third comparison, had already been cleared
 /// by the CAPP handler before the phase was installed. The aircraft crossed the localizer at t≈3105 and the
-/// approach clearance was dropped. The instructor's own correction is recorded at t≈3115, so this test
-/// stops before it.
+/// approach clearance was dropped. The instructor's own correction is recorded at t≈3115. Replayed onto an
+/// aircraft that has not captured yet, it turns it away from the course, so this test replays a copy of the
+/// recording without it and waits for the capture (ASA1054 joins final at t≈3134).
 /// </summary>
 public class Issue429FatApproachesTests
 {
@@ -32,8 +34,15 @@ public class Issue429FatApproachesTests
     private const string Callsign = "ASA1054";
     private const int ReplayStartSeconds = 3010;
 
-    // SPD 210 stands through DM 40 until the t=3017 CAPP (AIM 4-4-12.f), so ASA1054 reaches the localizer later; it joins final at t=3107.
-    private const int WatchEndSeconds = 3114;
+    // ASA1054's recorded CAPP; SPD 210 stands through DM 40 until it (AIM 4-4-12.f).
+    private const int CappSeconds = 3017;
+
+    // The instructor's FH 300 / CAPP at t=3115 recovered the live bust-through; replayed onto an aircraft that has not
+    // captured yet, it turns it away from the course, so the case replays without it and waits for the capture.
+    private const int InstructorCorrectionSeconds = 3115;
+
+    // InterceptCoursePhase's own 180 s timeout from the t=3017 CAPP, with margin.
+    private const int InterceptWatchEndSeconds = 3200;
     private const string LandingCallsign = "N200WM";
     private const int LandingReplayStartSeconds = 1390;
     private const int LandingWatchSeconds = 240;
@@ -73,13 +82,17 @@ public class Issue429FatApproachesTests
     [Fact]
     public void Asa1054_Capp_OnHeading260_JoinsFinal()
     {
-        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         SimulationEngine? engine = BuildEngine();
-        if (recording is null || engine is null)
+        if (!File.Exists(RecordingPath) || engine is null)
         {
             _output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
+
+        // A fresh instance, not RecordingLoader's: that one is cached and shared across the process.
+        using var archive = RecordingArchive.Open(RecordingPath);
+        SessionRecording recording = archive.ToBaseSessionRecording();
+        recording.Actions.RemoveAll(a => (a is RecordedCommand c) && (c.Callsign == Callsign) && (c.ElapsedSeconds >= InstructorCorrectionSeconds));
 
         // The spine drains PendingWarnings/PendingNotifications every second, so the refusal is only
         // observable on the engine's own events.
@@ -88,26 +101,19 @@ public class Issue429FatApproachesTests
         engine.TerminalEntryEmitted += entry => Record(refusals, entry.Callsign, entry.Message);
 
         engine.Replay(recording, ReplayStartSeconds);
-
         AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
-        string approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? "none";
-        string flown = $"hdg={aircraft.TrueHeading.Degrees:F0} alt={aircraft.Altitude:F0} approach={approachId}";
-        _output.WriteLine($"t={ReplayStartSeconds}: {flown} phases={FormatPhases(aircraft)}");
 
-        for (int t = ReplayStartSeconds + 1; t <= WatchEndSeconds; t++)
+        int t = ReplayStartSeconds;
+        while ((t < InterceptWatchEndSeconds) && ((t <= CappSeconds) || (aircraft.Phases?.CurrentPhase is InterceptCoursePhase)))
         {
             engine.ReplayOneSecond();
+            t++;
             aircraft = engine.FindAircraft(Callsign);
             Assert.NotNull(aircraft);
-
-            if (t % 20 == 0)
-            {
-                _output.WriteLine($"  t={t}: hdg={aircraft.TrueHeading.Degrees:F0} alt={aircraft.Altitude:F0} phases={FormatPhases(aircraft)}");
-            }
         }
 
-        _output.WriteLine($"t={WatchEndSeconds}: phases={FormatPhases(aircraft)} approach={aircraft.Phases?.ActiveApproach?.ApproachId ?? "none"}");
+        _output.WriteLine($"t={t}: phases={FormatPhases(aircraft)} approach={aircraft.Phases?.ActiveApproach?.ApproachId ?? "none"}");
 
         Assert.True(refusals.Count == 0, $"{Callsign} refused the intercept: {string.Join("; ", refusals)}");
         Assert.NotNull(aircraft.Phases?.ActiveApproach);

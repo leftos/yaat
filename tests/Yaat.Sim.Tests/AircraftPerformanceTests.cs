@@ -509,4 +509,22 @@ public sealed class AircraftPerformanceTests
         };
         Assert.Equal(0, AircraftPerformance.GustApproachAdditive(vrb));
     }
+
+    /// <summary>
+    /// A profile schedule that holds CAS to the crossover and then its own Mach flies no Mach past the class Mmo, so
+    /// the floor leaves these types' Mmo at the class figure.
+    /// </summary>
+    [Theory]
+    [InlineData("LJ55", 0.755)]
+    [InlineData("BE40", 0.755)]
+    [InlineData("B2", 0.82)]
+    public void ScheduleAboveTheCrossover_DoesNotRaiseTheClassMmo(string type, double classMmo)
+    {
+        double? classFigure = AircraftSpeedEnvelope.ClassFor(type)?.Mmo;
+        double? effective = AircraftPerformance.MaxOperatingMach(type);
+        Assert.True(classFigure is not null, $"{type} has no class Mmo");
+        Assert.True(effective is not null, $"{type} has no effective Mmo");
+        Assert.Equal(classMmo, classFigure.Value, 3);
+        Assert.Equal(classMmo, effective.Value, 3);
+    }
 }

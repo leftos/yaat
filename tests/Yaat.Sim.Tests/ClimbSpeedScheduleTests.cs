@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -260,5 +261,106 @@ public sealed class ClimbSpeedScheduleTests
 
         // Above 28k: 280 (Mach transition)
         Assert.Equal(280, CategoryPerformance.DefaultSpeed(AircraftCategory.Jet, 35000));
+    }
+
+    /// <summary>
+    /// Above the IAS/Mach crossover the climb and descent schedules fly the profile's Mach, never a higher one
+    /// (CAS is held to the crossover, then the Mach).
+    /// </summary>
+    [Fact]
+    public void ClimbAndDescentSchedules_AboveTheCrossover_FlyTheProfileMach()
+    {
+        // The base profiles and the override-only types, each read through its effective profile.
+        string data = Path.Combine(AppContext.BaseDirectory, "Data");
+        SortedSet<string> types = new(
+            AircraftProfileDatabase.LoadFromFile(Path.Combine(data, "AircraftProfiles.json")).Keys,
+            StringComparer.OrdinalIgnoreCase
+        );
+        foreach (AircraftProfileOverride ov in AircraftProfileDatabase.LoadOverridesFromFile(Path.Combine(data, "AircraftProfileOverrides.json")))
+        {
+            if (!string.IsNullOrWhiteSpace(ov.TypeCode))
+            {
+                types.Add(ov.TypeCode.Trim());
+            }
+        }
+
+        List<string> offenders = [];
+        foreach (string type in types)
+        {
+            if (AircraftProfileDatabase.Get(type) is { } p)
+            {
+                offenders.AddRange(MachOverruns(type, p, AircraftCategorization.Categorize(type)));
+            }
+        }
+
+        Assert.True(offenders.Count == 0, string.Join("\n", offenders.Take(20)) + $"\n({offenders.Count} in all)");
+    }
+
+    private static IEnumerable<string> MachOverruns(string type, AircraftProfile p, AircraftCategory cat)
+    {
+        bool climbMach = IsMach(p.ClimbSpeedFinal);
+        bool descentMach = IsMach(p.DescentSpeedInitial);
+        for (double alt = 10_000; alt <= p.Ceiling; alt += 100)
+        {
+            // Every 100 ft from FL240 up, and every 1,000 ft below it: a crossover can sit below FL240.
+            bool climbChecked = climbMach && ((alt >= 24_000) || (alt % 1_000 == 0));
+            if (climbChecked && (MachPast(AircraftPerformance.ClimbSpeed(type, cat, alt), alt, p.ClimbSpeedFinal) is { } climb))
+            {
+                yield return $"{type} climbs at M{climb:F3} at {alt:F0} ft, past its final climb M{p.ClimbSpeedFinal:F2}";
+            }
+
+            if (descentMach && (MachPast(AircraftPerformance.DescentSpeed(type, cat, alt), alt, p.DescentSpeedInitial) is { } descent))
+            {
+                yield return $"{type} descends at M{descent:F3} at {alt:F0} ft, past its descent M{p.DescentSpeedInitial:F2}";
+            }
+        }
+    }
+
+    private static bool IsMach(double value) => value is > 0 and < 1.0;
+
+    private static double? MachPast(double ias, double altitudeFt, double mach)
+    {
+        double flown = WindInterpolator.IasToMach(ias, altitudeFt);
+        return (flown > mach + 0.001) ? flown : null;
+    }
+
+    /// <summary>
+    /// The A320's "290/.78" schedule holds 290 KIAS between FL240 and the crossover in the climb, and between the
+    /// crossover and 10,000 ft in the descent, then flies M.78 above the crossover (BADA 3 constant-CAS/constant-Mach).
+    /// </summary>
+    [Theory]
+    [InlineData(26_000)]
+    [InlineData(28_000)]
+    public void A320Climb_BelowTheCrossover_HoldsItsCas(double altitudeFt) =>
+        Assert.Equal(290, AircraftPerformance.ClimbSpeed("A320", AircraftCategory.Jet, altitudeFt), 1.0);
+
+    [Theory]
+    [InlineData(15_000)]
+    [InlineData(25_000)]
+    public void A320Descent_BelowTheCrossover_HoldsItsCas(double altitudeFt) =>
+        Assert.Equal(290, AircraftPerformance.DescentSpeed("A320", AircraftCategory.Jet, altitudeFt), 1.0);
+
+    /// <summary>
+    /// Types whose crossover sits below FL240 fly their final climb Mach there, not the FL240 CAS.
+    /// </summary>
+    [Theory]
+    [InlineData("C680")]
+    [InlineData("E135")]
+    [InlineData("E145")]
+    public void Climb_CrossoverBelowFl240_FliesNoMachPastItsFinal(string type)
+    {
+        AircraftProfile? p = AircraftProfileDatabase.Get(type);
+        Assert.True(p is not null, $"{type} has no profile");
+        double ias = AircraftPerformance.ClimbSpeed(type, AircraftCategorization.Categorize(type), 23_000);
+        Assert.True(WindInterpolator.IasToMach(ias, 23_000) <= p.ClimbSpeedFinal + 0.001);
+    }
+
+    [Fact]
+    public void A320Climb_AboveTheCrossover_FliesItsFinalMach()
+    {
+        AircraftProfile? p = AircraftProfileDatabase.Get("A320");
+        Assert.True(p is not null, "A320 has no profile");
+        double mach = WindInterpolator.IasToMach(AircraftPerformance.ClimbSpeed("A320", AircraftCategory.Jet, 35_000), 35_000);
+        Assert.Equal(p.ClimbSpeedFinal, mach, 0.005);
     }
 }

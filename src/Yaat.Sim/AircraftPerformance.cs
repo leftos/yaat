@@ -32,8 +32,7 @@ public static class AircraftPerformance
     /// Resolve a speed value that may be Mach (values &lt; 1.0) to IAS at the given altitude.
     /// Values &gt;= 1.0 are treated as KIAS and returned as-is.
     /// </summary>
-    public static double ResolveSpeed(double value, double altitudeFt) =>
-        value > 0 && value < 1.0 ? WindInterpolator.MachToIas(value, altitudeFt) : value;
+    public static double ResolveSpeed(double value, double altitudeFt) => IsMach(value) ? WindInterpolator.MachToIas(value, altitudeFt) : value;
 
     /// <summary>
     /// Linear interpolation between altitude-based breakpoints.
@@ -157,17 +156,13 @@ public static class AircraftPerformance
             return CategoryPerformance.DefaultSpeed(cat, altitudeFt);
         }
 
-        FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
-        double correctedInitial = _correctionAdapter.ClimbSpeedInitial(p, acd);
+        double speed = ClimbScheduleIas(aircraftType, p, altitudeFt);
 
-        ReadOnlySpan<(double, double)> breakpoints =
-        [
-            (0, correctedInitial),
-            (15000, ResolveSpeed(p.ClimbSpeedFl150, 15000)),
-            (24000, ResolveSpeed(p.ClimbSpeedFl240, 24000)),
-            (p.Ceiling, ResolveSpeed(p.ClimbSpeedFinal, Math.Max(altitudeFt, 24000))),
-        ];
-        double speed = InterpolateByAltitude(altitudeFt, breakpoints);
+        // A Mach-final profile holds CAS to the crossover, then flies the Mach; the crossover can sit below FL240.
+        if (IsMach(p.ClimbSpeedFinal))
+        {
+            speed = Math.Min(speed, WindInterpolator.MachToIas(p.ClimbSpeedFinal, altitudeFt));
+        }
 
         if (altitudeFt < 10000 && !p.IsSpeedLimitWaived)
         {
@@ -188,6 +183,12 @@ public static class AircraftPerformance
             return CategoryPerformance.DefaultSpeed(cat, altitudeFt);
         }
 
+        // Above 10,000 ft a Mach-initial profile flies its Mach down to the crossover, then holds its FL100 CAS.
+        if ((altitudeFt > 10000) && IsMach(p.DescentSpeedInitial) && (p.DescentSpeedFl100 > 0))
+        {
+            return CasThenMach(p.DescentSpeedFl100, 10000, p.DescentSpeedInitial, altitudeFt);
+        }
+
         FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
         double correctedIas = _correctionAdapter.InitialApproachSpeed(p, acd);
 
@@ -195,7 +196,7 @@ public static class AircraftPerformance
         [
             (0, correctedIas),
             (10000, ResolveSpeed(p.DescentSpeedFl100, 10000)),
-            (p.Ceiling, ResolveSpeed(p.DescentSpeedInitial, Math.Max(altitudeFt, 24000))),
+            (p.Ceiling, ResolveSpeed(p.DescentSpeedInitial, altitudeFt)),
         ];
         double speed = InterpolateByAltitude(altitudeFt, breakpoints);
 
@@ -206,6 +207,39 @@ public static class AircraftPerformance
 
         return speed;
     }
+
+    /// <summary>
+    /// The climb schedule's band IAS before the Mach cap: a Mach-final profile holds its FL240 CAS above FL240,
+    /// otherwise the altitude breakpoints are interpolated.
+    /// </summary>
+    private static double ClimbScheduleIas(string aircraftType, AircraftProfile p, double altitudeFt)
+    {
+        if ((altitudeFt > 24000) && IsMach(p.ClimbSpeedFinal) && (p.ClimbSpeedFl240 > 0))
+        {
+            return ResolveSpeed(p.ClimbSpeedFl240, 24000);
+        }
+
+        FaaAircraftRecord? acd = FaaAircraftDatabase.Get(aircraftType);
+        double correctedInitial = _correctionAdapter.ClimbSpeedInitial(p, acd);
+
+        ReadOnlySpan<(double, double)> breakpoints =
+        [
+            (0, correctedInitial),
+            (15000, ResolveSpeed(p.ClimbSpeedFl150, 15000)),
+            (24000, ResolveSpeed(p.ClimbSpeedFl240, 24000)),
+            (p.Ceiling, ResolveSpeed(p.ClimbSpeedFinal, altitudeFt)),
+        ];
+        return InterpolateByAltitude(altitudeFt, breakpoints);
+    }
+
+    private static bool IsMach(double value) => (value > 0) && (value < 1.0);
+
+    /// <summary>
+    /// The constant-CAS/constant-Mach schedule (BADA 3): the band CAS until it reaches the Mach at the crossover
+    /// altitude, the Mach's IAS at the current altitude above it.
+    /// </summary>
+    private static double CasThenMach(double cas, double casAltitudeFt, double mach, double altitudeFt) =>
+        Math.Min(ResolveSpeed(cas, casAltitudeFt), WindInterpolator.MachToIas(mach, altitudeFt));
 
     /// <summary>
     /// Auto speed schedule: uses climb or descent speed profile based on whether the aircraft

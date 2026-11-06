@@ -304,7 +304,8 @@ public class DescendViaSupersedesEarlierAltitudeTests
 
     /// <summary>
     /// From FL260, "JARR OAKES3" then "DVIA": the published altitudes are in force, so GRUDG is crossed inside its
-    /// 20,000-23,000 window. Staged above the window, since a descend via never climbs to a floor.
+    /// 20,000-23,000 window. Staged above the window, since a descend via never climbs to a floor. The planner retargets
+    /// BANND on the sub-tick GRUDG sequences, so the passing second's reading carries up to one second of BANND's descent.
     /// </summary>
     [Fact]
     public void JarrThenDescendVia_CrossesGrudgInsideItsWindow()
@@ -320,9 +321,23 @@ public class DescendViaSupersedesEarlierAltitudeTests
         SendOk(harness, "JARR OAKES3");
         SendOk(harness, "DVIA");
 
-        TickUntilPassed(harness, "GRUDG", _ => { });
+        double lastAhead = aircraft.Altitude;
+        TickUntilPassed(
+            harness,
+            "GRUDG",
+            _ =>
+            {
+                if (aircraft.Targets.NavigationRoute.Exists(f => f.Name.Equals("GRUDG", StringComparison.OrdinalIgnoreCase)))
+                {
+                    lastAhead = aircraft.Altitude;
+                }
+            }
+        );
 
-        Assert.InRange(aircraft.Altitude, 20000 - LevelToleranceFt, 23000 + LevelToleranceFt);
+        double oneSecondPast = Math.Abs(aircraft.VerticalSpeed) / 60.0;
+        _output.WriteLine($"Last second with GRUDG ahead at {lastAhead:F0} ft; one second past it {oneSecondPast:F1} ft of descent");
+        Assert.InRange(lastAhead, 20000 - FlightPhysics.AltitudeSnapFt, 23000 + LevelToleranceFt);
+        Assert.InRange(aircraft.Altitude, 20000 - FlightPhysics.AltitudeSnapFt - oneSecondPast, 23000 + LevelToleranceFt);
     }
 
     /// <summary>
