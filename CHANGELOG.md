@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- After a `LAHSO` stop, `CROSS` releases the hold and an `EXIT` given while holding is kept for when it crosses.
 - Under `LAHSO`, a landing no longer picks a shallow high-speed exit whose turn-off would cross the hold-short marking before leaving the runway.
 - Types whose top speed varies with altitude (Dash 8 Q400, CRJ, Challenger 604, E170 and others) fly, refuse speeds and fly `SMAX` against the limit at their altitude.
 - The Learjet 60, Gulfstream V, Fokker 50, KC-135, C-5M, C-141 and UH-60 fly their published speed limits instead of their class's.

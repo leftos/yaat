@@ -6,15 +6,19 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// Aircraft has stopped on the runway after a LAHSO landing, holding short
-/// of the intersecting runway. Waits for CROSS, TAXI, or similar command
-/// to release. Similar to HoldingShortPhase but on a runway surface.
+/// Follows a LAHSO stop: the aircraft has stopped on the runway after a LAHSO landing, holding short
+/// of the intersecting runway. A CROSS of that runway (bare or naming it) releases it; an exit
+/// instruction is stored for after the crossing; a new TAXI or DEL replaces it. Similar to
+/// HoldingShortPhase but on a runway surface.
 /// </summary>
 public sealed class RunwayHoldingPhase(string crossingRunwayId) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("RunwayHoldingPhase");
 
     private readonly string _crossingRunwayId = crossingRunwayId;
+
+    /// <summary>The runway the aircraft holds short of.</summary>
+    public string CrossingRunwayId => _crossingRunwayId;
 
     public override string Name => $"Holding Short RWY {RunwayIdentifier.ToDisplayDesignator(_crossingRunwayId)}";
 
@@ -77,16 +81,21 @@ public sealed class RunwayHoldingPhase(string crossingRunwayId) : Phase
         {
             CanonicalCommandType.CrossRunway => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.ExitLeft => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.ExitRight => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.ExitTaxiway => CommandAcceptance.ClearsPhase,
+            // An exit is stored for after the crossing clearance, so the hold stands: accepted in place, not by clearing the phase.
+            CanonicalCommandType.ExitLeft or CanonicalCommandType.ExitRight or CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.GoAround => CommandAcceptance.Rejected(
-                "aircraft is on the runway holding (rejected landing); GA is not applicable on the ground"
+                $"aircraft is on the runway {HoldingAfterLahsoLanding()}; GA is not applicable on the ground"
             ),
-            _ => CommandAcceptance.Rejected("aircraft is on the runway after a rejected landing; only CROSS, EL/ER/EXIT, a new TAXI, or DEL apply"),
+            _ => CommandAcceptance.Rejected(
+                $"aircraft is on the runway {HoldingAfterLahsoLanding()}; only CROSS, EL/ER/EXIT, a new TAXI, or DEL apply"
+            ),
         };
     }
+
+    /// <summary>How the aircraft's situation reads in a rejected command's reason.</summary>
+    private string HoldingAfterLahsoLanding() =>
+        $"holding short of runway {RunwayIdentifier.ToDisplayDesignator(_crossingRunwayId)} after a LAHSO landing";
 
     protected override List<ClearanceRequirement> CreateRequirements() => [new ClearanceRequirement { Type = ClearanceType.RunwayCrossing }];
 }

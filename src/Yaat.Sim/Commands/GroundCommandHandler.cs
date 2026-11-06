@@ -6764,6 +6764,7 @@ public static partial class GroundCommandHandler
     {
         var holdPhase = aircraft.Phases?.CurrentPhase as HoldingShortPhase;
         bool releasesHold = CrossReleasesHold(holdPhase, cross);
+        bool releasesLahsoHold = aircraft.Phases?.CurrentPhase is RunwayHoldingPhase;
         // The hold ending a route cut short of a taxiway it never drives leads nowhere past it, so no CROSS releases it.
         if (releasesHold && holdPhase is { HoldShort.EndsNoDestinationRoute: true })
         {
@@ -6791,7 +6792,9 @@ public static partial class GroundCommandHandler
             return result;
         }
 
-        return WithExpediteEcho(cross, result);
+        // A release from the post-LAHSO runway hold read its own "without delay" (TryReleaseLahsoHold): there is no continuation
+        // readback here to echo it, and a second one must not be added.
+        return releasesLahsoHold ? result : WithExpediteEcho(cross, result);
     }
 
     /// <summary>
@@ -6898,6 +6901,12 @@ public static partial class GroundCommandHandler
         ActiveRunways activeRunways
     )
     {
+        // Stopped on the runway after a LAHSO landing: the hold is short of the intersecting runway, with no route behind it.
+        if (aircraft.Phases is { CurrentPhase: RunwayHoldingPhase runwayHold } phases)
+        {
+            return TryReleaseLahsoHold(aircraft, phases, runwayHold, cross);
+        }
+
         // Bare CROSS: clear the next uncleared hold-short on the route.
         if (cross.RunwayIds.Count == 0 && cross.HoldShorts.Count == 0)
         {
@@ -6924,6 +6933,61 @@ public static partial class GroundCommandHandler
 
         return TryCrossMultiple(aircraft, cross, layout, activeRunways);
     }
+
+    /// <summary>
+    /// CROSS to an aircraft held on the runway after a LAHSO stop (<see cref="RunwayHoldingPhase"/>). A bare CROSS, or one naming
+    /// the runway it holds short of (either end) and nothing else, is the crossing clearance: it satisfies the hold and voids the
+    /// LAHSO limit, so the runway exit that follows may take any exit past the point. A CROSS that carries hold-short targets, or
+    /// names any other runway, is refused: releasing the hold would drop the rest of the instruction.
+    /// </summary>
+    private static CommandResult TryReleaseLahsoHold(
+        AircraftState aircraft,
+        PhaseList phases,
+        RunwayHoldingPhase runwayHold,
+        CrossRunwayCommand cross
+    )
+    {
+        string crossing = runwayHold.CrossingRunwayId;
+        string display = RunwayIdentifier.ToDisplayDesignator(crossing);
+        if (cross.HoldShorts.Count > 0)
+        {
+            // A crossing that also names a hold short is a legal clearance YAAT cannot carry from the runway hold: the controller
+            // is told how to restate it, and the pilot is not made to refuse a clearance it was never given in a form it can take.
+            return new CommandResult(false, $"Unable, holding short of runway {display}; say crossing clearance without hold-short instructions");
+        }
+
+        if ((cross.RunwayIds.Count > 0) && !cross.RunwayIds.All(r => HoldShortAnnotator.TargetMatches(crossing, r)))
+        {
+            return RefuseHeldLahsoCross(aircraft, display, $"Unable, holding short of runway {display}");
+        }
+
+        // The crossing's EXP is the runway exit's own expedite, the field RunwayExitPhase reads for a max-effort exit and the one
+        // EXIT … EXP sets. A plain CROSS leaves a standing exit expedite alone.
+        if (cross.Expedite)
+        {
+            aircraft.Ground.IsExpeditingExit = true;
+        }
+
+        runwayHold.SatisfyClearance(ClearanceType.RunwayCrossing);
+        phases.LahsoHoldShort = null;
+        Log.LogDebug("[LAHSO] {Callsign}: cleared to cross runway {CrossRwy}", aircraft.Callsign, crossing);
+        // The release reads its own "without delay": the hold has no route for the crossing to carry it on, and a command naming
+        // several runways has no continuation readback of its own to say it (TryCrossRunway skips WithExpediteEcho for a release).
+        string expedite = cross.Expedite ? CommandDescriber.WithoutDelaySuffix : "";
+        // The pilot reads the crossing back itself, "cross runway one left" (7110.65 §3-7-2.a.3), with the expedite after it
+        // (§3-7-2.j): the hold has no route whose continuation would say it.
+        return CommandDispatcher.Ok($"Cross {display}{expedite}") with
+        {
+            PilotReadback = new HandlerReadback(
+                CanonicalCommandType.CrossRunway,
+                new PilotSpeechText($"cross runway {display}{expedite}", $"cross runway {PhraseologyVerbalizer.SpellRunway(display)}{expedite}")
+            ),
+        };
+    }
+
+    /// <summary>A CROSS refused while held, with the pilot's own "unable" beside the controller-facing text.</summary>
+    private static CommandResult RefuseHeldLahsoCross(AircraftState aircraft, string display, string message) =>
+        new(false, message) { PilotUnable = PilotResponder.BuildUnable(aircraft, $"holding short of runway {display}") };
 
     /// <summary>
     /// Multi-runway (and/or HS-modified) CROSS. If the aircraft is holding short of one of the
@@ -8973,7 +9037,50 @@ public static partial class GroundCommandHandler
         }
 
         aircraft.Ground.IsExpeditingExit = expediteStands;
-        return CommandDispatcher.Ok(ExitInstructionText(spoken, expedite));
+        CommandResult result = CommandDispatcher.Ok(ExitResultText(aircraft.Phases, spoken, expedite));
+        if (aircraft.Phases.CurrentPhase is not RunwayHoldingPhase runwayHold)
+        {
+            return result;
+        }
+
+        // Held on the runway after a LAHSO stop, the exit is stored, not flown now, so the pilot reads it back with the hold it
+        // leaves the aircraft in: "exit left at charlie, holding short of runway one left" (7110.65 §3-10-9.d).
+        ParsedCommand instruction = ExitInstructionCommand(spoken, noDelete, expediteStands);
+        string display = RunwayIdentifier.ToDisplayDesignator(runwayHold.CrossingRunwayId);
+        return result with
+        {
+            PilotReadback = new HandlerReadback(
+                CommandDescriber.ToCanonicalType(instruction),
+                new PilotSpeechText(
+                    $"{PhraseologyVerbalizer.VerbalizeTerminal(instruction)}, holding short of runway {display}",
+                    $"{PhraseologyVerbalizer.Verbalize(instruction)}, holding short of runway {PhraseologyVerbalizer.SpellRunway(display)}"
+                )
+            ),
+        };
+    }
+
+    /// <summary>
+    /// The exit instruction <paramref name="preference"/> stands for, rebuilt as the command the controller gave, so the pilot's
+    /// readback of a stored exit is the rule's own words ("exit left at charlie") rather than a second wording made up here.
+    /// </summary>
+    private static ParsedCommand ExitInstructionCommand(ExitPreference preference, bool noDelete, bool expedite) =>
+        preference.Side switch
+        {
+            ExitSide.Left => new ExitLeftCommand(noDelete, preference.Taxiway, expedite),
+            ExitSide.Right => new ExitRightCommand(noDelete, preference.Taxiway, expedite),
+            _ => new ExitTaxiwayCommand(preference.Taxiway ?? string.Empty, noDelete, expedite),
+        };
+
+    /// <summary>
+    /// The result of an accepted exit instruction. Held on the runway after a LAHSO stop, the exit is stored for after the
+    /// crossing clearance and the aircraft keeps holding, which the text says.
+    /// </summary>
+    private static string ExitResultText(PhaseList phases, ExitPreference spoken, bool expedite)
+    {
+        string text = ExitInstructionText(spoken, expedite);
+        return phases.CurrentPhase is RunwayHoldingPhase runwayHold
+            ? $"{text} stored; holding short of runway {RunwayIdentifier.ToDisplayDesignator(runwayHold.CrossingRunwayId)} until cleared to cross"
+            : text;
     }
 
     /// <summary>
