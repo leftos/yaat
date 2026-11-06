@@ -108,12 +108,13 @@ public class LahsoTests
         Assert.NotNull(ac.Phases!.LahsoHoldShort);
     }
 
+    // A group-1 type: the synthetic layout's ALD admits no jet.
     private static AircraftState MakeAircraft(RunwayInfo runway)
     {
         var ac = new AircraftState
         {
             Callsign = "OAK1",
-            AircraftType = "B738",
+            AircraftType = "C172",
             Position = new LatLon(37.0, -121.98),
             TrueHeading = new TrueHeading(280),
             Altitude = 1000,
@@ -266,7 +267,8 @@ public class LahsoTests
     [Fact]
     public void Lahso_DisplacedThreshold_ShortensTheDistanceButNotTheHoldShortPoint()
     {
-        const double displacementFt = 1000.0;
+        // 200 ft leaves the C172 clearing its 2,500 ft LAHSO minimum by about 90 ft on this layout.
+        const double displacementFt = 200.0;
         RunwayInfo runway = MakeLandingRunway();
 
         LahsoTarget undisplacedTarget = ClearLahso(runway, MakeCrossingLayout());

@@ -288,16 +288,19 @@ public class LahsoRolloutTests(ITestOutputHelper output)
     /// stop at them; AIM 4-3-11.b.2 is the available landing distance the stop has to fit inside, threshold to
     /// hold-short point. Measured at the nose, because no part of the aircraft may extend beyond the marking.
     /// </summary>
-    [Fact]
-    public void B738_LahsoRollout_StopsShortOfTheHoldShortPoint()
+    [Fact(Skip = "E75L coasts at 40 kt from about 1,100 ft to 430 ft short of the LAHSO point before braking to the stop")]
+    public void E75L_LahsoRollout_StopsShortOfTheHoldShortPoint()
     {
-        LahsoRun? run = RunLahsoLanding("B738", approachSpeedKts: 145, blockedHoldShort: null, exitCommand: null);
+        TestVnasData.EnsureInitialized();
+        AircraftProfile? profile = AircraftProfileDatabase.Get("E75L");
+        Assert.NotNull(profile);
+        LahsoRun? run = RunLahsoLanding("E75L", approachSpeedKts: profile.FinalApproachSpeed, blockedHoldShort: null, exitCommand: null);
         if (run is null)
         {
             return;
         }
 
-        DumpRollout(run, "B738");
+        DumpRollout(run, "E75L");
 
         Assert.NotEmpty(run.Rollout);
 

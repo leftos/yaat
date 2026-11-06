@@ -21,7 +21,7 @@ public class PhaseRunnerLahsoPendingChainTests(ITestOutputHelper output)
     private static readonly TestAirportGroundData GroundData = new();
 
     /// <summary>
-    /// SFO 28R on 1 nm final, cleared to land and hold short of 1L, with a phase queued behind the landing. A B738
+    /// SFO 28R on 1 nm final, cleared to land and hold short of 1L, with a phase queued behind the landing. An E75L
     /// has no exit before the 1L hold-short point and stops for LAHSO (see <c>LahsoRolloutTests</c>).
     /// </summary>
     [Fact]
@@ -149,7 +149,7 @@ public class PhaseRunnerLahsoPendingChainTests(ITestOutputHelper output)
         var aircraft = new AircraftState
         {
             Callsign = "TST001",
-            AircraftType = "B738",
+            AircraftType = "E75L",
             Position = new LatLon(acLat, acLon),
             TrueHeading = runway28R.TrueHeading,
             Altitude = runway28R.ElevationFt + 318,
@@ -202,7 +202,7 @@ public class PhaseRunnerLahsoPendingChainTests(ITestOutputHelper output)
         );
 
         Assert.Equal(PhaseStatus.Completed, landing.Status);
-        Assert.True(landing.StoppedForLahso, "the B738 should have completed its landing as a LAHSO stop");
+        Assert.True(landing.StoppedForLahso, "the E75L should have completed its landing as a LAHSO stop");
         return aircraft;
     }
 }

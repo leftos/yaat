@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Serialization;
 
 namespace Yaat.Sim.Data.Faa;
@@ -115,6 +116,14 @@ public sealed record FaaAircraftRecord
 
     [JsonPropertyName("lahso")]
     public string? Lahso { get; init; }
+
+    /// <summary>
+    /// The type's LAHSO group (<see cref="Lahso"/> read as a number, <c>1</c>–<c>10</c>), the group JO 7110.118C para 14.b
+    /// Table 1 gives the landing distance minima for (<see cref="LahsoGroupMinima"/>); null when the column is blank or not a
+    /// number, which para 14.b reads as ineligible for LAHSO.
+    /// </summary>
+    [JsonIgnore]
+    public int? LahsoGroup => int.TryParse(Lahso?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int group) ? group : null;
 
     [JsonPropertyName("faaRegistry")]
     public string? FaaRegistry { get; init; }

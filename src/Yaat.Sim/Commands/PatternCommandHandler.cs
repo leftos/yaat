@@ -3,6 +3,7 @@ using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
@@ -5304,10 +5305,6 @@ internal static class PatternCommandHandler
             );
         }
 
-        // Compute the hold-short lat/lon on the landing runway centerline. Anchored at the landing
-        // threshold, matching the datum ComputeHoldShortDistanceNm measured from.
-        LatLon holdShortPoint = GeoMath.ProjectPoint(LandingThreshold.Resolve(runway, groundLayout), runway.TrueHeading, holdShortDistNm);
-
         if (IsTooHighToLandFromLowApproach(aircraft, runway, groundLayout))
         {
             return TooHighToLandFromLowApproach(aircraft);
@@ -5318,16 +5315,16 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Cannot clear LAHSO — no pending approach (assign an approach or pattern entry first)");
         }
 
-        // Set LAHSO target
-        aircraft.Phases.LahsoHoldShort = new LahsoTarget
+        LahsoEligibility eligibility = JudgeLahso(aircraft.AircraftType, runway, holdShortDistNm);
+        // A decline also clears the target an earlier accepted LAHSO set: the crew now holds short of nothing.
+        aircraft.Phases.LahsoHoldShort = null;
+        if (eligibility.Eligible)
         {
-            Lat = holdShortPoint.Lat,
-            Lon = holdShortPoint.Lon,
-            DistFromThresholdNm = holdShortDistNm,
-            CrossingRunwayId = lahso.CrossingRunwayId,
-        };
+            SetLahsoTarget(aircraft.Phases, lahso, runway, groundLayout, holdShortDistNm);
+        }
 
-        // LAHSO includes landing clearance per 7110.65 §3-10-5.b
+        // LAHSO includes landing clearance per 7110.65 §3-10-5.b; a declined hold-short keeps it as a plain landing clearance
+        // (AIM 4-3-11.b.3: the pilot in command may decline).
         aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
         aircraft.Phases.ClearedRunwayId = runway.Designator;
         aircraft.Phases.TrafficDirection = null;
@@ -5335,10 +5332,75 @@ internal static class PatternCommandHandler
         aircraft.Pattern.TrafficDirection = null;
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, runway, ctx);
+        if (!eligibility.Eligible)
+        {
+            return DeclinedLahsoResult(lahso, aircraft, runway, eligibility.Reason);
+        }
+
         return CommandDispatcher.Ok(
             $"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}, "
                 + $"hold short runway {RunwayIdentifier.ToDisplayDesignator(lahso.CrossingRunwayId)}"
         );
+    }
+
+    /// <summary>
+    /// Whether <paramref name="aircraftType"/> can accept a hold-short <paramref name="holdShortDistNm"/> from the landing threshold
+    /// of <paramref name="runway"/> (<see cref="LahsoGroupMinima.Judge"/>). The available landing distance is that distance capped at
+    /// the runway's landing distance available (JO 7110.118C para 10.b).
+    /// </summary>
+    private static LahsoEligibility JudgeLahso(string aircraftType, RunwayInfo runway, double holdShortDistNm)
+    {
+        double availableLandingDistanceFt = Math.Min(
+            holdShortDistNm * GeoMath.FeetPerNm,
+            RunwayLandability.LandingDistanceAvailableFt(NavigationDatabase.Instance, runway)
+        );
+        return LahsoGroupMinima.Judge(aircraftType, availableLandingDistanceFt, runway.AirportElevationFt);
+    }
+
+    /// <summary>
+    /// Sets <see cref="PhaseList.LahsoHoldShort"/> at <paramref name="holdShortDistNm"/> from the landing threshold — the datum
+    /// <see cref="RunwayIntersectionCalculator.ComputeHoldShortDistanceNm"/> measured from.
+    /// </summary>
+    private static void SetLahsoTarget(
+        PhaseList phases,
+        LandAndHoldShortCommand lahso,
+        RunwayInfo runway,
+        AirportGroundLayout groundLayout,
+        double holdShortDistNm
+    )
+    {
+        LatLon holdShortPoint = GeoMath.ProjectPoint(LandingThreshold.Resolve(runway, groundLayout), runway.TrueHeading, holdShortDistNm);
+        phases.LahsoHoldShort = new LahsoTarget
+        {
+            Lat = holdShortPoint.Lat,
+            Lon = holdShortPoint.Lon,
+            DistFromThresholdNm = holdShortDistNm,
+            CrossingRunwayId = lahso.CrossingRunwayId,
+        };
+    }
+
+    /// <summary>
+    /// The result of a hold-short the crew declined: a successful command, since the landing clearance stands, with the pilot's
+    /// "cleared to land runway {rwy}, unable to hold short of runway {X}" as its readback (the callsign is appended as for any
+    /// readback) and the reason on the instructor line.
+    /// </summary>
+    private static CommandResult DeclinedLahsoResult(LandAndHoldShortCommand lahso, AircraftState aircraft, RunwayInfo runway, string? reason)
+    {
+        string crossing = lahso.CrossingRunwayId;
+        var speech = new PilotSpeechText(
+            $"cleared to land runway {PhraseologyVerbalizer.CompactRunway(runway.Designator)}, "
+                + $"unable to hold short of runway {PhraseologyVerbalizer.CompactRunway(crossing)}",
+            $"cleared to land runway {PhraseologyVerbalizer.SpellRunway(runway.Designator)}, "
+                + $"unable to hold short of runway {PhraseologyVerbalizer.SpellRunway(crossing)}"
+        );
+        return new CommandResult(
+            true,
+            $"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}; "
+                + $"unable to hold short runway {RunwayIdentifier.ToDisplayDesignator(crossing)}: {reason}"
+        )
+        {
+            PilotReadback = new HandlerReadback(CanonicalCommandType.LandAndHoldShort, speech),
+        };
     }
 
     internal static CommandResult TryCancelLandingClearance(AircraftState aircraft)
