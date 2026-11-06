@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -193,6 +194,35 @@ public class AutoDeleteTickTests
         engine.World.AddAircraft(arrival);
 
         Assert.Null(engine.World.GroundLayout);
+
+        Assert.Same(arrival, Assert.Single(engine.TickAutoDelete()));
+        Assert.Null(engine.World.FindAircraft("N200WM"));
+    }
+
+    /// <summary>
+    /// A runway-only map carries runway records and no taxi graph, so an arrival holding on its pavement can no
+    /// more taxi than one at a layout-less airport: the stuck-after-landing delete removes it whatever the mode,
+    /// <c>Parked</c> included, whose own case needs the arrival to have reached parking.
+    /// </summary>
+    [Fact]
+    public void TickAutoDelete_Parked_RunwayOnlyLayoutArrivalHoldingAfterExit_IsRemoved()
+    {
+        TestVnasData.EnsureInitialized();
+        SimulationEngine engine = EngineWithMode("Parked");
+        engine.Scenario!.PrimaryAirportId = "KFAT";
+        AirportGroundLayout? fat = new TestAirportGroundData().GetLayout("FAT");
+        Assert.NotNull(fat);
+        Assert.Empty(fat.Nodes);
+        Assert.NotEmpty(fat.Runways);
+        engine.World.GroundLayout = fat;
+
+        AircraftState arrival = Aircraft("N200WM");
+        arrival.IsOnGround = true;
+        arrival.FlightPlan.Departure = "KSFO";
+        arrival.FlightPlan.Destination = "KFAT";
+        arrival.Phases = new Yaat.Sim.Phases.PhaseList();
+        arrival.Phases.Add(new Yaat.Sim.Phases.Ground.HoldingAfterExitPhase());
+        engine.World.AddAircraft(arrival);
 
         Assert.Same(arrival, Assert.Single(engine.TickAutoDelete()));
         Assert.Null(engine.World.FindAircraft("N200WM"));

@@ -932,6 +932,9 @@ public sealed class AirportGroundLayout
     public List<GroundArc> Arcs { get; init; } = [];
     public List<GroundRunway> Runways { get; init; } = [];
 
+    /// <summary>True when the layout has a taxi graph; a runway-only layout carries runway records and no nodes.</summary>
+    public bool HasTaxiGraph => Nodes.Count > 0;
+
     /// <summary>
     /// Find the runway whose two-end name (e.g. "10L - 28R") matches the given designator on either end.
     /// Returns null when no runway in the layout names this end.

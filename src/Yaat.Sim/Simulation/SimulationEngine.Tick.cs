@@ -1118,10 +1118,11 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            // Delete aircraft holding after exit at airports with no ground layout — they can't taxi.
-            // Check the world-level layout (airport has data?) not the per-aircraft cache (may be null).
+            // Delete aircraft holding after exit at airports with no taxi graph — they can't taxi.
+            // Check the world-level layout (does it have a taxi graph?) not the per-aircraft cache (may be null).
             // Respect "Never" mode — if the user explicitly disabled auto-delete, don't force it.
-            bool stuckAfterLanding = (ac.Phases?.CurrentPhase is HoldingAfterExitPhase) && (World.GroundLayout is null) && !modeDisabled;
+            bool stuckAfterLanding =
+                (ac.Phases?.CurrentPhase is HoldingAfterExitPhase) && (World.GroundLayout is not { HasTaxiGraph: true }) && !modeDisabled;
 
             // Only auto-delete arrivals: aircraft whose destination matches this airport. Departures
             // repositioning between parking spots should never be auto-deleted.

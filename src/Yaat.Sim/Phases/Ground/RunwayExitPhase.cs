@@ -239,7 +239,11 @@ public sealed class RunwayExitPhase : Phase
         // Infer a side toward where the arrival parks, else from the runway layout (the same side LandingPhase infers). For
         // default (no preference), merge directly. For taxiway-only (EXIT K), store separately — TryFindExitAhead uses it
         // as a soft tiebreaker so taxiways that only exist on one side still work.
-        if ((_lastResolvedPreference?.Side is null) && (ctx.GroundLayout is not null) && (ctx.Aircraft.Phases?.AssignedRunway is { } assignedRunway))
+        if (
+            (_lastResolvedPreference?.Side is null)
+            && (ctx.GroundLayout is { HasTaxiGraph: true })
+            && (ctx.Aircraft.Phases?.AssignedRunway is { } assignedRunway)
+        )
         {
             _inferredSide = ArrivalExitSide.Resolve(ctx.Aircraft, assignedRunway, ctx.GroundLayout, _runwayHeading);
             Log.LogDebug(
@@ -254,9 +258,9 @@ public sealed class RunwayExitPhase : Phase
             }
         }
 
-        if (ctx.GroundLayout is null)
+        if (ctx.GroundLayout is not { HasTaxiGraph: true })
         {
-            Log.LogDebug("[Exit] {Callsign}: no ground layout, rolling out to a stop on the runway", ctx.Aircraft.Callsign);
+            Log.LogDebug("[Exit] {Callsign}: no taxi graph, rolling out to a stop on the runway", ctx.Aircraft.Callsign);
             return;
         }
 
@@ -323,9 +327,9 @@ public sealed class RunwayExitPhase : Phase
             return false;
         }
 
-        if (ctx.GroundLayout is null)
+        if (ctx.GroundLayout is not { HasTaxiGraph: true })
         {
-            return TickStopWithoutLayout(ctx);
+            return TickStopWithoutTaxiGraph(ctx);
         }
 
         WarnIfRestorePathRejected(ctx);
@@ -427,14 +431,14 @@ public sealed class RunwayExitPhase : Phase
     }
 
     /// <summary>
-    /// Rollout at an airport with no ground layout. There is no exit graph to search, so there is no exit to
-    /// find and nowhere to taxi: the aircraft rolls out to a stop on the runway, holding the rollout heading,
-    /// and the phase completes there. Completing is the point — it starts the queued
-    /// <see cref="HoldingAfterExitPhase"/>, which is what the engine's layout-less auto-delete keys on to
-    /// remove an aircraft that can never leave the pavement. Writes the same control targets as
-    /// <see cref="TickRolling"/> except for the speed, and lets FlightPhysics brake the aircraft.
+    /// Rollout at an airport with no taxi graph (no layout at all, or a runway-only one). There is no exit
+    /// graph to search, so there is no exit to find and nowhere to taxi: the aircraft rolls out to a stop on
+    /// the runway, holding the rollout heading, and the phase completes there. Completing is the point — it
+    /// starts the queued <see cref="HoldingAfterExitPhase"/>, which is what the engine's no-taxi-graph
+    /// auto-delete keys on to remove an aircraft that can never leave the pavement. Writes the same control
+    /// targets as <see cref="TickRolling"/> except for the speed, and lets FlightPhysics brake the aircraft.
     /// </summary>
-    private bool TickStopWithoutLayout(PhaseContext ctx)
+    private bool TickStopWithoutTaxiGraph(PhaseContext ctx)
     {
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.TargetSpeed = 0;

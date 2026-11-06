@@ -673,11 +673,11 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
   every iteration with no early exit get faster.
 - **A recording replay silently runs with `GroundLayout == null` if the destination airport's geojson is missing from `TestData/`.**
   `TestAirportGroundData.GetLayout` returns null for a missing file (no download fallback), and the replay runs anyway — a landed aircraft
-  falls into `RunwayExitPhase`'s layout-less analog-rollout fallback (`StartExitNavigation` bails on null `ctx.GroundLayout`, `TickRolling`
-  steers along runway heading), which can drift off the field and trip the pure-pursuit **orbit** guard (`ThrowOnOrbit=true` →
+  falls into `RunwayExitPhase`'s no-taxi-graph path (rolls to a stop on the runway and completes), which can drift off the field and trip the pure-pursuit **orbit** guard (`ThrowOnOrbit=true` →
   `InvalidOperationException`) — often on an *incidental* ground aircraft, not the one the test asserts on, so a bisect falsely pins the orbit
   to an unrelated commit. Diagnose by printing `engine.World.GroundLayout?.AirportId` (null); fix by committing the map: `curl -sS -o
   tests/Yaat.Sim.Tests/TestData/<faa>.geojson https://data-api.vnas.vatsim.net/api/training/airports/<FAA>/map`.
+- **`TestData/fat.geojson` (and `rno`, `hwd`, `sjc`, `mer`) are runway-only maps, not stand-ins for "no layout".** They carry runways but no taxiways, so `AirportGroundLayout.HasTaxiGraph` is false and a landing there takes the no-taxi-graph path. A test that needs a layout-less replay uses `NullGroundData`.
 - **A `TestData/*.geojson` refresh can flip a borderline taxi route via coordinate-precision truncation.** A vNAS re-download can
   re-serialize coordinates at truncated precision (geometry identical to sub-meter, but every feature differs textually and fillet/spot nodes
   renumber + shift). A sub-meter shift can flip a marginal route so `SegmentExpander` rejects it ("Cannot reach destination from end of taxi

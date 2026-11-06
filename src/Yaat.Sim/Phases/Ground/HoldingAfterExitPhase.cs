@@ -82,11 +82,11 @@ public sealed class HoldingAfterExitPhase : Phase
         string rwy = _runwayId ?? ctx.Aircraft.Phases?.AssignedRunway?.Designator ?? "unknown";
         string twy = _exitTaxiway ?? ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
 
-        // With no layout there was no exit to take: RunwayExitPhase rolled the aircraft to a stop on the
+        // With no taxi graph there was no exit to take: RunwayExitPhase rolled the aircraft to a stop on the
         // runway itself, so the pilot has nothing to report clear of.
-        if ((_exitTaxiway is null) && (ctx.GroundLayout is null))
+        if ((_exitTaxiway is null) && (ctx.GroundLayout is not { HasTaxiGraph: true }))
         {
-            Log.LogDebug("[Exit] {Callsign}: no ground layout, holding on the runway — no clear-of-runway call", ctx.Aircraft.Callsign);
+            Log.LogDebug("[Exit] {Callsign}: no taxi graph, holding on the runway — no clear-of-runway call", ctx.Aircraft.Callsign);
         }
         else if (_heldShortOfRunway is { } otherRunway)
         {

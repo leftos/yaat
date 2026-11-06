@@ -139,7 +139,7 @@ The pilot picks the first comfortable forward exit (AIM 4-3-21.1 "exit at the fi
 
 A **standard** 60–90° exit qualifies only if it needs at most the routine `RolloutDecelRate` (jet 3.6 / turboprop 3.0 / piston 2.5) — a crew rolls past a 90° exit it cannot make at routine braking for the next high-speed one (SFO 19L: H, not F1).
 
-When no exit qualifies, the landing searches once more at the category's firm rate (`CategoryPerformance.FirmBrakingRate`: jet 5.0 / turboprop 5.0 / piston 4.0 / helicopter 3.0 kt/s) and takes the earliest exit it can make that way (a CRJ9 on OAK 28R exits at C1 instead of stopping on the runway); only when even that fails does `RunwayExitPhase`'s "no exit found… braking to stop" path run.
+When no exit qualifies, the landing searches once more at the category's firm rate (`CategoryPerformance.FirmBrakingRate`: jet 5.0 / turboprop 5.0 / piston 4.0 / helicopter 3.0 kt/s) and takes the earliest exit it can make that way (a CRJ9 on OAK 28R exits at C1 instead of stopping on the runway); only when even that fails does `RunwayExitPhase`'s "no exit found… braking to stop" path run (that warning does not fire today; booked as YAAT-1901).
 
 Every rollout, forced or not, takes only exits off the runway's centerline graph; with none it can make, it stops on the runway and the no-exit handling takes over (§ Stopped on the runway with no exit ahead).
 
@@ -386,15 +386,15 @@ Two contracts of the handoff to the navigator (`StartExitNavigation`):
 - **The exit route's speed ceiling is `min(coastSpeed, TaxiSpeed × expedite multiplier)`**, not coast speed. The turn itself is governed by the junction arc's `MaxSafeSpeedKts` and back-propagated braking; the taxi-speed ceiling is what prevents the old slow-turn-then-surge profile (accelerate back toward 40 kt coast on the exit straight, then brake hard for the hold-short). Once off the runway the aircraft is taxiing — it only ever decelerates from the turn-off speed to the hold-short.
 - **The analog-rolling heading hold is cleared** (`Targets.TargetTrueHeading` / `TurnRateOverride` → null). `TickRolling` steers via the persistent `ControlTargets`; the navigator steers by writing `TrueHeading` directly. Leaving the hold in place makes FlightPhysics turn the aircraft back toward the runway heading every substep, fighting the navigator's exit turn to a standstill (a false pure-pursuit "orbit").
 
-### No ground layout: stop on the runway and complete
+### No taxi graph: stop on the runway and complete
 
-Airports without a vNAS ground map (KFAT in the #429 bundle) have nothing to search: `TryFindExitAhead` returns immediately. `OnTick` takes
-a dedicated branch when `ctx.GroundLayout is null` — hold the runway heading, command zero speed at the taxi braking rate, and **return
+Airports with no taxi graph (`AirportGroundLayout.HasTaxiGraph` false: no layout at all, or a runway-only map such as KFAT's in the #429 bundle, which has runways but no taxiways) have nothing to search: `TryFindExitAhead` returns immediately, and no exit side is inferred. `OnTick` takes
+a dedicated branch when `ctx.GroundLayout is not { HasTaxiGraph: true }` (`TickStopWithoutTaxiGraph`) — hold the runway heading, command zero speed at the taxi braking rate, and **return
 `true` once the aircraft is stationary** so the `HoldingAfterExitPhase` that `PhaseRunner` queued behind the exit actually starts. That
 handoff is what `SimulationEngine.TickAutoDelete` keys on: its `stuckAfterLanding` arm (any non-disabled mode) and its `OnLanding` arm both
-require `HoldingAfterExitPhase`, so before this branch existed a layout-less arrival coasted to the runway-end backstop, braked to 0 kt and
+require `HoldingAfterExitPhase`, so before this branch existed an arrival with no taxi graph coasted to the runway-end backstop, braked to 0 kt and
 sat in `RunwayExitPhase` for the rest of the session — never deleted under *On landing*. `HoldingAfterExitPhase.OnStart` skips its
-"clear of runway … at …" transmission on this path (no exit taxiway, no layout): the aircraft is stopped *on* the runway, and under mode
+"clear of runway … at …" transmission on this path (no exit taxiway, no taxi graph): the aircraft is stopped *on* the runway, and under mode
 `Never` it stays there awaiting an instruction rather than claiming to be clear.
 
 ### Stopped on the runway with no exit ahead

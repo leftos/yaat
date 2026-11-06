@@ -284,7 +284,7 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
 
   (`SimulationEngine.TickDeferredAutoTrack` claims a departure only once it first appears on STARS — i.e. crosses the acquisition floor, `FieldElevationResolver.IsBelowDisplayFloor` — so a track is never owned before it is displayed; `TickFlightPlanCreatorAutoTrack` runs before it so an explicit VP/DA controller wins over scenario `AutoTrackAirportIds` for the aircraft they just filed for.)
 
-`TickAutoDelete` removes, each second: an aircraft whose queued `DEL` fired (`Ground.PendingAutoDelete`, which overrides `AutoDeleteExempt`); a landed aircraft stuck at a layout-less airport; a generated overflight past its exit radius (stamped `CompletionReason.Transited`).
+`TickAutoDelete` removes, each second: an aircraft whose queued `DEL` fired (`Ground.PendingAutoDelete`, which overrides `AutoDeleteExempt`); a landed aircraft stuck at an airport with no taxi graph (no layout, or a runway-only map); a generated overflight past its exit radius (stamped `CompletionReason.Transited`).
 
 It also removes an airborne departure filed from the primary airport farther than the session's `DepartureAutoDeleteDistanceNm` from the airport reference point (stamped `Departed` unless already stamped, e.g. `HandedOff`), and whatever the effective `OnLanding`/`Parked` mode selects.
 

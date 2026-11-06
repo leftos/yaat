@@ -160,41 +160,123 @@ public class Issue429FatApproachesTests
     /// entered <see cref="RunwayExitPhase"/> and stayed there at a standstill for the rest of the session:
     /// the queued <see cref="HoldingAfterExitPhase"/> never started, so the engine's auto-delete (in
     /// <c>OnLanding</c> mode since t=1320) never matched and seven landings piled up on the runway.
+    /// The case uses <see cref="NullGroundData"/> because <c>TestData/fat.geojson</c> is a runway-only map,
+    /// not a layout-less one.
     /// </summary>
     [Fact]
     public void N200wm_LandsAtLayoutlessFat_IsAutoDeleted()
     {
-        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
-        SimulationEngine? engine = BuildEngineWith(new NullGroundData());
-        if (recording is null || engine is null)
+        LandingWatch? watch = ReplayLanding(new NullGroundData());
+        if (watch is null)
         {
-            _output.WriteLine("Recording or NavData not available, skipping");
             return;
         }
 
-        engine.Replay(recording, LandingReplayStartSeconds);
-
-        AircraftState? aircraft = engine.World.FindAircraft(LandingCallsign);
-        Assert.NotNull(aircraft);
         _output.WriteLine(
-            $"t={LandingReplayStartSeconds}: autoDelete={engine.Scenario?.EffectiveAutoDeleteMode ?? "none"} "
-                + $"layout={(engine.World.GroundLayout is null ? "none" : "present")} phases={FormatPhases(aircraft)}"
+            $"t={LandingReplayStartSeconds}: autoDelete={watch.Engine.Scenario?.EffectiveAutoDeleteMode ?? "none"} "
+                + $"layout={(watch.Engine.World.GroundLayout is null ? "none" : "present")} phases={FormatPhases(watch.AircraftAtHandOff)}"
         );
-        Assert.Equal("OnLanding", engine.Scenario?.EffectiveAutoDeleteMode);
+        Assert.Equal("OnLanding", watch.Engine.Scenario?.EffectiveAutoDeleteMode);
+
+        _output.WriteLine(
+            $"t={LandingReplayStartSeconds + LandingWatchSeconds}: {LandingCallsign}="
+                + $"{(watch.Left is { } left ? FormatPhases(left) : "deleted")}, "
+                + $"worst standstill in the exit phase: {watch.WorstCallsign} {watch.WorstStandstill}s"
+        );
+
+        Assert.Null(watch.Left);
+        Assert.True(
+            watch.WorstStandstill <= MaxStandstillSecondsInExit,
+            $"{watch.WorstCallsign} sat in RunwayExitPhase at a standstill for {watch.WorstStandstill}s"
+        );
+    }
+
+    /// <summary>
+    /// The harness's <c>TestData/fat.geojson</c> carries FAT's two runways and no taxi graph, so a landed
+    /// arrival there has no more exit to taxi to than one at a layout-less airport: N200WM rolls to a stop on
+    /// the runway, the exit completes, no "clear of runway" call is made, and the arrival is auto-deleted under
+    /// <c>OnLanding</c>.
+    /// </summary>
+    [Fact]
+    public void N200wm_LandsAtFatWithARunwayOnlyLayout_IsAutoDeletedWithoutAClearOfRunwayCall()
+    {
+        LandingWatch? watch = ReplayLanding(new TestAirportGroundData());
+        if (watch is null)
+        {
+            return;
+        }
+
+        AirportGroundLayout? layout = watch.Engine.World.GroundLayout;
+        Assert.NotNull(layout);
+        Assert.Empty(layout.Nodes);
+        Assert.NotEmpty(layout.Runways);
+        Assert.Equal("OnLanding", watch.Engine.Scenario?.EffectiveAutoDeleteMode);
+
+        _output.WriteLine(
+            $"t={LandingReplayStartSeconds + LandingWatchSeconds}: {LandingCallsign}="
+                + $"{(watch.Left is { } left ? FormatPhases(left) : "deleted")}, "
+                + $"worst standstill in the exit phase: {watch.WorstCallsign} {watch.WorstStandstill}s"
+        );
+
+        Assert.Null(watch.Left);
+        Assert.True(
+            watch.WorstStandstill <= MaxStandstillSecondsInExit,
+            $"{watch.WorstCallsign} sat in RunwayExitPhase at a standstill for {watch.WorstStandstill}s"
+        );
+        Assert.Empty(watch.ClearOfRunwayCalls);
+    }
+
+    private sealed record LandingWatch(
+        SimulationEngine Engine,
+        AircraftState AircraftAtHandOff,
+        AircraftState? Left,
+        int WorstStandstill,
+        string WorstCallsign,
+        IReadOnlyList<string> ClearOfRunwayCalls
+    );
+
+    /// <summary>
+    /// Replays the recording from the landing hand-off against <paramref name="groundData"/>, then advances one
+    /// second at a time for <see cref="LandingWatchSeconds"/>, recording the longest run any aircraft spent in
+    /// <see cref="RunwayExitPhase"/> at a standstill and every "clear of runway" line a pilot said. Returns null
+    /// when the recording or the navdata is unavailable.
+    /// </summary>
+    private LandingWatch? ReplayLanding(IAirportGroundData groundData)
+    {
+        SessionRecording? recording = RecordingLoader.Load(RecordingPath);
+        SimulationEngine? engine = BuildEngineWith(groundData);
+        if ((recording is null) || (engine is null))
+        {
+            _output.WriteLine("Recording or NavData not available, skipping");
+            return null;
+        }
+
+        var clearOfRunwayCalls = new List<string>();
+        engine.WarningEmitted += (callsign, warning) =>
+        {
+            if (
+                callsign.Equals(LandingCallsign, StringComparison.OrdinalIgnoreCase)
+                && warning.Contains("clear of runway", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                clearOfRunwayCalls.Add(warning);
+            }
+        };
+
+        engine.Replay(recording, LandingReplayStartSeconds);
+        AircraftState? aircraftAtHandOff = engine.World.FindAircraft(LandingCallsign);
+        Assert.NotNull(aircraftAtHandOff);
 
         var standstillRun = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         int worstStandstill = 0;
         string worstCallsign = "none";
-
         for (int t = LandingReplayStartSeconds + 1; t <= LandingReplayStartSeconds + LandingWatchSeconds; t++)
         {
             engine.ReplayOneSecond();
 
             foreach (AircraftState ac in engine.World.GetSnapshot())
             {
-                bool stuck = (ac.Phases?.CurrentPhase is RunwayExitPhase) && (ac.GroundSpeed < 1);
-                int run = stuck ? standstillRun.GetValueOrDefault(ac.Callsign) + 1 : 0;
-                standstillRun[ac.Callsign] = run;
+                int run = UpdateStandstillRun(ac, standstillRun);
                 if (run > worstStandstill)
                 {
                     worstStandstill = run;
@@ -203,14 +285,23 @@ public class Issue429FatApproachesTests
             }
         }
 
-        _output.WriteLine(
-            $"t={LandingReplayStartSeconds + LandingWatchSeconds}: {LandingCallsign}="
-                + $"{(engine.World.FindAircraft(LandingCallsign) is { } left ? FormatPhases(left) : "deleted")}, "
-                + $"worst standstill in the exit phase: {worstCallsign} {worstStandstill}s"
+        return new LandingWatch(
+            engine,
+            aircraftAtHandOff,
+            engine.World.FindAircraft(LandingCallsign),
+            worstStandstill,
+            worstCallsign,
+            clearOfRunwayCalls
         );
+    }
 
-        Assert.Null(engine.World.FindAircraft(LandingCallsign));
-        Assert.True(worstStandstill <= MaxStandstillSecondsInExit, $"{worstCallsign} sat in RunwayExitPhase at a standstill for {worstStandstill}s");
+    /// <summary>The running length of <paramref name="aircraft"/>'s standstill in the runway exit, this second included.</summary>
+    private static int UpdateStandstillRun(AircraftState aircraft, Dictionary<string, int> standstillRun)
+    {
+        bool stuck = (aircraft.Phases?.CurrentPhase is RunwayExitPhase) && (aircraft.GroundSpeed < 1);
+        int run = stuck ? standstillRun.GetValueOrDefault(aircraft.Callsign) + 1 : 0;
+        standstillRun[aircraft.Callsign] = run;
+        return run;
     }
 
     private static void Record(List<string> refusals, string callsign, string message)
@@ -221,11 +312,6 @@ public class Issue429FatApproachesTests
         }
     }
 
-    /// <summary>
-    /// The recorded session had no ground layout for KFAT: layouts come from the vNAS airport map, and the
-    /// harness's <c>TestData/fat.geojson</c> stands in for a map the client never had. Replaying the recording
-    /// against this provider reproduces the recorded condition — an airport the engine has no ground data for.
-    /// </summary>
     private static string FormatPhases(AircraftState aircraft)
     {
         if (aircraft.Phases is null)

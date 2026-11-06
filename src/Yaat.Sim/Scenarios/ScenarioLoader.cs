@@ -640,7 +640,7 @@ public static class ScenarioLoader
             .Classify(
                 ac.AircraftId,
                 ac.PresetCommands,
-                new InitialCallupSpawn(IsRunwaySpawn: true, HasTaxiGraph: state.Ground.Layout is { Nodes.Count: > 0 })
+                new InitialCallupSpawn(IsRunwaySpawn: true, HasTaxiGraph: state.Ground.Layout is { HasTaxiGraph: true })
             )
             .Plan;
 
@@ -776,7 +776,7 @@ public static class ScenarioLoader
         InitialCallupDecision callup = InitialCallupClassifier.Classify(
             ac.AircraftId,
             ac.PresetCommands,
-            new InitialCallupSpawn(IsRunwaySpawn: false, HasTaxiGraph: (layout.Nodes.Count > 0))
+            new InitialCallupSpawn(IsRunwaySpawn: false, HasTaxiGraph: layout.HasTaxiGraph)
         );
         state.Ground.InitialCallup = callup.Plan;
         state.Ground.PresetTaxiStop = callup.TaxiStop;
@@ -805,7 +805,7 @@ public static class ScenarioLoader
         InitialCallupDecision callup = InitialCallupClassifier.Classify(
             ac.AircraftId,
             ac.PresetCommands,
-            new InitialCallupSpawn(IsRunwaySpawn: false, HasTaxiGraph: (layout is not null) && (layout.Nodes.Count > 0))
+            new InitialCallupSpawn(IsRunwaySpawn: false, HasTaxiGraph: layout is { HasTaxiGraph: true })
         );
         state.Ground.InitialCallup = callup.Plan;
         state.Ground.PresetTaxiStop = callup.TaxiStop;

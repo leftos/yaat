@@ -273,6 +273,9 @@ Where a runway exit or `CLRWY` stops the aircraft's reference point past the vac
 Stopped or moving with the tail still inside the vacated runway's holding position marking, because the exit's stop was cut back at another runway's bar: the aircraft is not clear of the runway and stays an occupant of it (`RunwayTailClearance.Stop.TailInsideLine`, `RunwayOccupancy.IsTailInsideRunwayState`, docs/landing-and-runway-exit.md "Crossovers too short to clear").
 _Avoid_: stopped inside the holding distance (that is a named exit whose own bar is short of the standoff)
 
+**Taxi graph**:
+An airport layout's taxiway network (`AirportGroundLayout.HasTaxiGraph`: it has nodes). An airport has none when there is no layout at all or the map carries runway features only (FAT, RNO, SJC): a landing there rolls to a stop on the runway and the aircraft is auto-deleted, and the call-up classification is `None`.
+
 **Wingtip-clearance floor**:
 The least distance from a taxiway hold-short holder's nose to the centreline of the taxiway it holds short of: the half-span of the widest aircraft the airport can take, judged by its widest runway, plus 25 ft (`HoldShortAnnotator.WingtipClearanceFloorFt`, docs/ground/hold-short-placement.md).
 _Avoid_: setback (the setback is where the aircraft's centre stops; the floor is a minimum the nose must keep)
