@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -151,6 +152,91 @@ public class LineupBarOrderTests(ITestOutputHelper output)
         Assert.NotNull(route);
         Assert.NotEmpty(route.Segments);
         Assert.Equal(Bar(layout, "OAK", "33", "C", East).Id, route.Segments[^1].ToNodeId);
+    }
+
+    /// <summary>
+    /// A search to OAK 33 that resumes mid-route judges the bar pick from its head, not from where the taxi began. The taxi
+    /// began on C west of the runway, whose pick is C's west bar; the head has reached C's east bar, the full-length bar on
+    /// its own side, so the search has nothing left to taxi and costs nothing, rather than searching across the runway to the
+    /// west bar (a cost the caller would score this tail by).
+    /// </summary>
+    [Fact]
+    public void AutoRouter_Oak33_ResumedAtCEastBar_ForATaxiBegunWest_HoldsThere()
+    {
+        AirportGroundLayout layout = Layout("OAK");
+        List<GroundNode> bars = layout.GetRunwayHoldShortNodes("33");
+        GroundNode originalStart = Oak33WestStart(layout, "taxiway");
+        GroundNode head = Bar(layout, "OAK", "33", "C", East);
+        Assert.Equal(head.Id, RouteMaterialiser.FindFullLengthLineupHoldShort(layout, head, "33", bars, Jet, Large).Id);
+        Assert.Equal(
+            Bar(layout, "OAK", "33", "C", West).Id,
+            RouteMaterialiser.FindFullLengthLineupHoldShort(layout, originalStart, "33", bars, Jet, Large).Id
+        );
+        var ctx = SearchContext.Compile(
+            layout,
+            originalStart.Id,
+            waypointSequence: [],
+            destinationRunway: "33",
+            destinationParking: null,
+            destinationSpot: null,
+            destinationNodeId: null,
+            explicitHoldShorts: null,
+            category: Jet,
+            wakeClass: Large,
+            preference: RoutePreference.FewestTurns,
+            diagnosticLog: null,
+            waypointTurnHints: null,
+            startHeadingTrue: null,
+            startPose: null,
+            aircraftLengthFt: null
+        );
+
+        (TaxiRoute? route, PathfindingFailure? failure, double cost) = AutoRouter.RunWithCost(
+            ctx,
+            PartialRoute.StartAt(head.Id),
+            maxExpansions: 200_000
+        );
+
+        Assert.True(route is not null, failure?.HumanMessage);
+        Assert.True(route.Segments.Count == 0, $"the resumed search taxis on to #{route.Segments.LastOrDefault()?.ToNodeId}");
+        Assert.True(cost == 0.0, $"the resumed search costs {cost:F3}: it searched for a route to another bar");
+    }
+
+    /// <summary>
+    /// A resumed search whose head node is not on the layout fails naming that head, rather than silently searching from
+    /// the aircraft's original start as if the head had been found.
+    /// </summary>
+    [Fact]
+    public void AutoRouter_ResumedRouteHeadMissingFromLayout_FailsNamingTheHead()
+    {
+        AirportGroundLayout layout = Layout("OAK");
+        GroundNode start = Oak33WestStart(layout, "taxiway");
+        var ctx = SearchContext.Compile(
+            layout,
+            start.Id,
+            waypointSequence: [],
+            destinationRunway: "33",
+            destinationParking: null,
+            destinationSpot: null,
+            destinationNodeId: null,
+            explicitHoldShorts: null,
+            category: Jet,
+            wakeClass: Large,
+            preference: RoutePreference.FewestTurns,
+            diagnosticLog: null,
+            waypointTurnHints: null,
+            startHeadingTrue: null,
+            startPose: null,
+            aircraftLengthFt: null
+        );
+        int missingHead = layout.Nodes.Keys.Max() + 1;
+
+        (TaxiRoute? route, PathfindingFailure? failure, _) = AutoRouter.RunWithCost(ctx, PartialRoute.StartAt(missingHead), maxExpansions: 200_000);
+
+        Assert.Null(route);
+        Assert.NotNull(failure);
+        Assert.Equal(FailureKind.StartNodeUnreachable, failure.Kind);
+        Assert.Contains(missingHead.ToString(CultureInfo.InvariantCulture), failure.HumanMessage, StringComparison.Ordinal);
     }
 
     /// <summary>An air taxi to 28R from south of the runway ends at C's south bar, never across the runway.</summary>
@@ -842,6 +928,29 @@ public class LineupBarOrderTests(ITestOutputHelper output)
         Assert.True(afterFirst > before, "the first call ran no route search, so the shadow test never ran");
         Assert.Equal(afterFirst, afterSecond);
         Assert.Equal(first.Id, second?.Id);
+    }
+
+    /// <summary>
+    /// TAXIAUTO to OAK 33 from the south end of K, a start with no side, runs the shadow test's route search to each bar
+    /// once and takes the route to the bar it picks from that search, rather than searching it again, on a layout no
+    /// earlier test has warmed.
+    /// </summary>
+    [Fact]
+    public void TaxiAuto_Oak33_StartAtSouthEndOfK_SearchesEachBarOnce()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = TestAirportGroundData.LoadUncached("OAK");
+        Assert.NotNull(layout);
+        GroundNode start = NodeOnTaxiwayNear(layout, "K", AxisPoint(Axis("OAK", "33"), -111.0, -1680.0), 150.0);
+        int bars = layout.GetRunwayHoldShortNodes("33").Count(b => b.Id != start.Id);
+
+        int before = TaxiPathfinder.LineupBarShadowCache.RouteSearchesOnThisThread;
+        TaxiRoute? route = TaxiPathfinder.FindRunwayRoute(layout, start, "33", Jet, Large);
+        int searches = TaxiPathfinder.LineupBarShadowCache.RouteSearchesOnThisThread - before;
+
+        Assert.NotNull(route);
+        Assert.NotEmpty(route.Segments);
+        Assert.Equal(bars, searches);
     }
 
     /// <summary>

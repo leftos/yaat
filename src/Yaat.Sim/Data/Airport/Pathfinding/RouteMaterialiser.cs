@@ -1177,7 +1177,7 @@ public static class RouteMaterialiser
         }
 
         Func<GroundNode, bool>? ShadowTest() =>
-            TaxiPathfinder.LineupBarShadowTest(layout, startNode.Id, runwayId, category, wakeClass, unreachableIsShadowed: true);
+            TaxiPathfinder.LineupBarShadowTest(layout, startNode.Id, runwayId, category, wakeClass, unreachableIsShadowed: true, routes: null);
         if (OrderFullLengthLineupBars(layout.AirportId, runwayId, startNode.Position, holdShortNodes, ShadowTest) is [GroundNode first, ..])
         {
             return first;

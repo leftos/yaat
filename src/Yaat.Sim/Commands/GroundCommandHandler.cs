@@ -8620,7 +8620,8 @@ public static partial class GroundCommandHandler
                     target.Target,
                     AircraftCategory.Helicopter,
                     WakeTurbulenceData.WakeClass.Small,
-                    unreachableIsShadowed: false
+                    unreachableIsShadowed: false,
+                    routes: null
                 )
                 : null;
         return RouteMaterialiser.OrderFullLengthLineupBars(layout.AirportId, target.Target, start, candidates, ShadowTest) is [GroundNode first, ..]

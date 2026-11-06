@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Yaat.Sim.Data.Airport.Pathfinding;
 
 /// <summary>The goal node a goal-set search reached (<see cref="AutoRouter.RunToGoals"/>) and the route to it.</summary>
@@ -103,15 +105,13 @@ public static class AutoRouter
             );
         }
 
-        if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? startNode))
+        if (!TryResolveStart(ctx, startOverride, out GroundNode? startNode, out GroundNode? searchHead, out PathfindingFailure? startFailure))
         {
-            return (
-                null,
-                new PathfindingFailure(FailureKind.StartNodeUnreachable, $"Start node {ctx.StartNodeId} not found in layout.", null, null, null),
-                0.0
-            );
+            return (null, startFailure, 0.0);
         }
 
+        // The bar pick's side and shadow, and the trivial-route check, judge from the search head: the resumed route's
+        // head when one is given, else the start node.
         GroundNode? destinationNode = ResolveDestinationNode(ctx);
 
         // For runway destinations, find the full-length lineup hold-short.
@@ -144,7 +144,7 @@ public static class AutoRouter
 
             destinationNode = RouteMaterialiser.FindFullLengthLineupHoldShort(
                 ctx.Layout,
-                startNode,
+                searchHead,
                 ctx.Destination.RunwayId,
                 holdShortNodes,
                 ctx.Category,
@@ -168,9 +168,9 @@ public static class AutoRouter
         }
 
         // Trivial case: start is already at the destination.
-        if (ctx.StartNodeId == destinationNode.Id)
+        if (searchHead.Id == destinationNode.Id)
         {
-            ctx.DiagnosticLog?.Invoke($"[auto] trivial route — start == destination node {ctx.StartNodeId}");
+            ctx.DiagnosticLog?.Invoke($"[auto] trivial route — start == destination node {searchHead.Id}");
             TaxiRoute emptyRoute = RouteMaterialiser.Materialise([], ctx, []);
             return (emptyRoute, null, 0.0);
         }
@@ -183,6 +183,55 @@ public static class AutoRouter
             maxExpansions
         );
         return (search.Route, search.Failure, search.Cost);
+    }
+
+    /// <summary>
+    /// The aircraft's start node and the node its search starts from — its own start, or the resumed route's head when
+    /// <paramref name="startOverride"/> is given: false, with <paramref name="failure"/> set, when either is not on the
+    /// layout, so a resumed search never silently falls back to the aircraft's original start.
+    /// </summary>
+    private static bool TryResolveStart(
+        SearchContext ctx,
+        PartialRoute? startOverride,
+        [NotNullWhen(true)] out GroundNode? startNode,
+        [NotNullWhen(true)] out GroundNode? searchHead,
+        out PathfindingFailure? failure
+    )
+    {
+        searchHead = null;
+        failure = null;
+        if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out startNode))
+        {
+            failure = new PathfindingFailure(
+                FailureKind.StartNodeUnreachable,
+                $"Start node {ctx.StartNodeId} not found in layout.",
+                null,
+                null,
+                null
+            );
+            return false;
+        }
+
+        if (startOverride is null)
+        {
+            searchHead = startNode;
+            return true;
+        }
+
+        if (ctx.Layout.Nodes.TryGetValue(startOverride.HeadNodeId, out GroundNode? head))
+        {
+            searchHead = head;
+            return true;
+        }
+
+        failure = new PathfindingFailure(
+            FailureKind.StartNodeUnreachable,
+            $"Resumed route head {startOverride.HeadNodeId} not found in layout.",
+            null,
+            null,
+            null
+        );
+        return false;
     }
 
     /// <summary>

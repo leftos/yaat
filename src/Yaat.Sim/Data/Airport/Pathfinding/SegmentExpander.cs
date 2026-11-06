@@ -4820,7 +4820,8 @@ public static class SegmentExpander
                         destinationRunway,
                         ctx.Category,
                         ctx.WakeClass,
-                        unreachableIsShadowed: true
+                        unreachableIsShadowed: true,
+                        routes: null
                     )
             );
             if (ordered is [GroundNode bestHs, ..])

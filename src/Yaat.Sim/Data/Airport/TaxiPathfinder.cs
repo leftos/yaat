@@ -296,7 +296,11 @@ public static class TaxiPathfinder
 
         SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category, wakeClass, startPose: null);
 
-        Func<GroundNode, bool>? ShadowTest() => LineupBarShadowTest(layout, startNode.Id, runwayId, category, wakeClass, unreachableIsShadowed: true);
+        // The shadow test's route to each bar it searched, kept for this call only, so the candidate loop never searches a
+        // bar twice.
+        var shadowRoutes = new Dictionary<int, TaxiRoute?>();
+        Func<GroundNode, bool>? ShadowTest() =>
+            LineupBarShadowTest(layout, startNode.Id, runwayId, category, wakeClass, unreachableIsShadowed: true, shadowRoutes);
         List<GroundNode> candidates =
             RouteMaterialiser.OrderFullLengthLineupBars(layout.AirportId, runwayId, startNode.Position, holdShortNodes, ShadowTest)
             ?? [.. holdShortNodes.OrderBy(n => GeoMath.DistanceNm(startNode.Position, n.Position))];
@@ -309,9 +313,12 @@ public static class TaxiPathfinder
 
         TaxiRoute? fallbackRoute = null;
 
+        // Every candidate search goes through SearchCandidateRoute, so the shadow store's search counter sees it.
         foreach (GroundNode? targetHs in candidates)
         {
-            TaxiRoute? routeToTarget = FindRoute(layout, startNode.Id, targetHs.Id, category, wakeClass);
+            TaxiRoute? routeToTarget = shadowRoutes.TryGetValue(targetHs.Id, out TaxiRoute? searched)
+                ? searched
+                : SearchCandidateRoute(layout, startNode.Id, targetHs.Id, category, wakeClass);
             if (routeToTarget is null)
             {
                 continue;
@@ -328,6 +335,19 @@ public static class TaxiPathfinder
         return fallbackRoute;
     }
 
+    /// <summary>The taxi route from a start to a candidate bar the shadow test did not search, counted as a route search.</summary>
+    private static TaxiRoute? SearchCandidateRoute(
+        AirportGroundLayout layout,
+        int startNodeId,
+        int barId,
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
+    )
+    {
+        LineupBarShadowCache.CountRouteSearch();
+        return FindRoute(layout, startNodeId, barId, category, wakeClass);
+    }
+
     /// <summary>
     /// The shadow test <see cref="RouteMaterialiser.OrderFullLengthLineupBars"/> takes for a start on the ground graph: a
     /// bar is shadowed when the shortest taxi route from <paramref name="fromNodeId"/> to it (<see cref="FindRoute"/>)
@@ -336,13 +356,18 @@ public static class TaxiPathfinder
     /// so it ranks last) and as clear otherwise (an air taxi needs no ground route). Each bar's result is cached per
     /// layout (<see cref="LineupBarShadowCache"/>). Null when the start node is not in <paramref name="layout"/>.
     /// </summary>
+    /// <param name="routes">
+    /// When given, receives the route each searched bar's result came from (null for a bar with no route), keyed by bar
+    /// node id; a result read from the cache adds nothing. The cache keeps only the results.
+    /// </param>
     public static Func<GroundNode, bool>? LineupBarShadowTest(
         AirportGroundLayout layout,
         int fromNodeId,
         string runwayId,
         AircraftCategory category,
         WakeTurbulenceData.WakeClass wakeClass,
-        bool unreachableIsShadowed
+        bool unreachableIsShadowed,
+        Dictionary<int, TaxiRoute?>? routes
     )
     {
         if (!layout.Nodes.ContainsKey(fromNodeId))
@@ -351,7 +376,7 @@ public static class TaxiPathfinder
         }
 
         var key = new LineupBarShadowCache.Key(fromNodeId, runwayId, category, wakeClass);
-        return bar => RanksAsShadowed(LineupBarShadowCache.Reach(layout, key, bar.Id), unreachableIsShadowed);
+        return bar => RanksAsShadowed(LineupBarShadowCache.Reach(layout, key, bar.Id, routes), unreachableIsShadowed);
     }
 
     /// <summary>
@@ -379,7 +404,12 @@ public static class TaxiPathfinder
         Unreachable,
     }
 
-    private static LineupBarReach SearchLineupBarReach(AirportGroundLayout layout, LineupBarShadowCache.Key key, int barId)
+    private static LineupBarReach SearchLineupBarReach(
+        AirportGroundLayout layout,
+        LineupBarShadowCache.Key key,
+        int barId,
+        Dictionary<int, TaxiRoute?>? routes
+    )
     {
         if (barId == key.StartNodeId)
         {
@@ -388,6 +418,7 @@ public static class TaxiPathfinder
 
         LineupBarShadowCache.CountRouteSearch();
         TaxiRoute? route = FindRoute(layout, key.StartNodeId, barId, key.Category, key.WakeClass);
+        routes?[barId] = route;
         if (route is null)
         {
             return LineupBarReach.Unreachable;
@@ -414,14 +445,17 @@ public static class TaxiPathfinder
         [ThreadStatic]
         private static int _routeSearchesOnThread;
 
-        /// <summary>How many taxi route searches the shadow test has run on the calling thread: a cached result runs none.</summary>
+        /// <summary>
+        /// How many taxi route searches the shadow test and <see cref="FindRunwayRoute"/>'s candidate loop have run on the
+        /// calling thread: a cached result runs none.
+        /// </summary>
         public static int RouteSearchesOnThisThread => _routeSearchesOnThread;
 
         internal readonly record struct Key(int StartNodeId, string RunwayId, AircraftCategory Category, WakeTurbulenceData.WakeClass WakeClass);
 
         internal static void CountRouteSearch() => _routeSearchesOnThread++;
 
-        internal static LineupBarReach Reach(AirportGroundLayout layout, Key key, int barId)
+        internal static LineupBarReach Reach(AirportGroundLayout layout, Key key, int barId, Dictionary<int, TaxiRoute?>? routes)
         {
             Store store = Stores.GetValue(layout, static _ => new Store());
             if (store.TryGet(key, barId, out LineupBarReach cached))
@@ -429,7 +463,7 @@ public static class TaxiPathfinder
                 return cached;
             }
 
-            LineupBarReach reach = SearchLineupBarReach(layout, key, barId);
+            LineupBarReach reach = SearchLineupBarReach(layout, key, barId, routes);
             store.Set(key, barId, reach);
             return reach;
         }
