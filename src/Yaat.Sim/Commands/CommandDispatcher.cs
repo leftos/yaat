@@ -2869,14 +2869,7 @@ public static class CommandDispatcher
     /// CM (not the VFR at-or-above / at-or-below form <see cref="FlightCommandHandler"/> applies as a restriction), DM, a forced
     /// altitude, and an expedite that carries its own altitude.
     /// </summary>
-    private static bool IsApproachAltitudeAssignment(ParsedCommand cmd) =>
-        cmd switch
-        {
-            ClimbMaintainCommand climb => climb.Modifier == AltitudeAssignmentModifier.None,
-            DescendMaintainCommand or ForceAltitudeCommand => true,
-            ExpediteCommand { Altitude: not null } => true,
-            _ => false,
-        };
+    private static bool IsApproachAltitudeAssignment(ParsedCommand cmd) => AssignedAltitudeOf(cmd) is not null;
 
     /// <summary>Applies an altitude assignment the approach keeps, then holds it until established.</summary>
     private static CommandResult ApplyAndHoldApproachAltitude(ParsedCommand cmd, AircraftState aircraft, DispatchContext ctx)
@@ -3237,13 +3230,29 @@ public static class CommandDispatcher
 
     /// <summary>
     /// <paramref name="blockCtx"/> for command <paramref name="index"/> of a block's <paramref name="commands"/>: a CROSS earlier
-    /// in the block adds its crossings, and a takeoff or line-up clearance later in the block counts as following.
+    /// in the block adds its crossings, a takeoff or line-up clearance later in the block counts as following, and an altitude
+    /// assignment later in the block is the altitude a speed is judged at (<see cref="DispatchContext.AltitudeAssignedLaterInBlock"/>).
     /// </summary>
     private static DispatchContext ForBlockCommand(DispatchContext blockCtx, List<ParsedCommand> commands, int index) =>
         blockCtx with
         {
             CrossingsClearedInTransmission = WithCrossings(blockCtx.CrossingsClearedInTransmission, commands.Take(index)),
             CrossFeedsFollowingClearance = blockCtx.CrossFeedsFollowingClearance || commands.Skip(index + 1).Any(IsTakeoffOrLineUp),
+            AltitudeAssignedLaterInBlock = commands.Skip(index + 1).Select(AssignedAltitudeOf).FirstOrDefault(altitude => altitude is not null),
+        };
+
+    /// <summary>
+    /// The altitude <paramref name="cmd"/> assigns when it is an altitude assignment: CM (not the VFR at-or-above / at-or-below
+    /// form), DM, a forced altitude, or an expedite that carries its own altitude. Null otherwise.
+    /// </summary>
+    private static int? AssignedAltitudeOf(ParsedCommand cmd) =>
+        cmd switch
+        {
+            ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.None } climb => climb.Altitude,
+            DescendMaintainCommand descend => descend.Altitude,
+            ForceAltitudeCommand forced => forced.Altitude,
+            ExpediteCommand { Altitude: { } expedite } => expedite,
+            _ => null,
         };
 
     /// <summary>

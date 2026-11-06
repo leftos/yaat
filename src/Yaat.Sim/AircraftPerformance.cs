@@ -538,6 +538,54 @@ public static class AircraftPerformance
         return ApproachSpeed(aircraftType, cat);
     }
 
+    /// <summary>
+    /// The fastest IAS (kt) a controller speed is accepted at: the higher of the type's maximum
+    /// (<see cref="MaxOperatingIasKts"/>) at <paramref name="altitudeFt"/> and at <paramref name="otherAltitudeFt"/> (the
+    /// altitude it is cleared to). Null when the type has no known maximum, which refuses nothing. The speed unable and the
+    /// client's speed picker both judge by it, so the picker offers what the pilot accepts.
+    /// </summary>
+    public static double? MaxAcceptedIasKts(string aircraftType, double altitudeFt, double? otherAltitudeFt)
+    {
+        if (MaxOperatingIasKts(aircraftType, altitudeFt) is not { } maxHere)
+        {
+            return null;
+        }
+
+        return otherAltitudeFt is { } other ? Math.Max(maxHere, MaxOperatingIasKts(aircraftType, other) ?? maxHere) : maxHere;
+    }
+
+    /// <summary>
+    /// The slowest IAS (kt) a controller speed is accepted at, given the fastest, <paramref name="maxAcceptedKts"/>: the type's
+    /// final approach speed (<see cref="MinOperatingIasKts"/>), or 0 for a helicopter (the radar-speed floor is its only
+    /// minimum) and for a type whose minimum sits above that fastest, which is told only the fastest.
+    /// </summary>
+    public static double MinAcceptedIasKts(string aircraftType, double maxAcceptedKts)
+    {
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraftType);
+        if (cat == AircraftCategory.Helicopter)
+        {
+            return 0;
+        }
+
+        double min = MinOperatingIasKts(aircraftType, cat);
+        return min > maxAcceptedKts ? 0 : min;
+    }
+
+    /// <summary>
+    /// Whether the type can fly <paramref name="mach"/> at <paramref name="altitudeFt"/>: its IAS there lies between
+    /// <see cref="MinAcceptedIasKts"/> and <see cref="MaxOperatingIasKts"/> there. False for a type with no known maximum.
+    /// </summary>
+    public static bool IsMachFlyableAt(string aircraftType, double mach, double altitudeFt)
+    {
+        if (MaxOperatingIasKts(aircraftType, altitudeFt) is not { } max)
+        {
+            return false;
+        }
+
+        double ias = WindInterpolator.MachToIas(mach, altitudeFt);
+        return (ias <= max) && (ias >= MinAcceptedIasKts(aircraftType, max));
+    }
+
     private const double ScheduleFloorStepFt = 100;
 
     private static readonly ConcurrentDictionary<string, (double? Vmo, double? Mmo)> _speedEnvelopeCache = new(StringComparer.OrdinalIgnoreCase);

@@ -248,7 +248,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   `BuildUnableSpeedLimit(aircraft, SpeedLimitKind, figure)` (a controller speed past the type's Vmo/Mmo or below its final approach speed, set on `CommandResult.PilotUnable` by `FlightCommandHandler.RefuseUnflyableSpeed` — AIM 4-4-12.h and 7110.65 §5-7-3.a NOTE 2: a pilot unable to comply with a speed adjustment advises ATC, and the line names the speed they *can* fly).
 
-  Three forms: *unable, 290 knots is the fastest we can do.* (spoken *…, unable, two niner zero knots is the fastest we can do.*), *unable, Mach .82 is the fastest we can do.* when Mmo governs above the IAS/Mach crossover (spoken *…, unable, Mach point eight two is the fastest we can do.*), and *unable, 140 knots is the slowest we can do.* The figure is floored so it is always one the aircraft can fly, and the aircraft keeps its speed.
+  Three forms: *unable, 290 knots is the fastest we can do.* (spoken *…, unable, two niner zero knots is the fastest we can do.*), *unable, Mach .82 is the fastest we can do.* when Mmo governs above the IAS/Mach crossover or when the refused command was a `MACH` past Mmo (spoken *…, unable, Mach point eight two is the fastest we can do.*), and *unable, 140 knots is the slowest we can do.* The knots figure is rounded to a multiple of 5 kt (the fastest down, the slowest up) and the Mach figure floored to the hundredth, so it is always one the aircraft can fly, and the aircraft keeps its speed.
 
   `BuildMaximumForwardSpeed` (`SMAX`, 7110.65 §5-7-2 "MAINTAIN MAXIMUM FORWARD SPEED": the pilot reads back the instruction, which has no number: *maximum forward speed.* in both the terminal and spoken forms).
 

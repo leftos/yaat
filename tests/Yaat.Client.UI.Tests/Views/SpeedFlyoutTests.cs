@@ -39,6 +39,7 @@ public class SpeedFlyoutTests
         {
             Callsign = Callsign,
             FiledAircraftType = type,
+            BaseAircraftType = type,
             AltitudeFeet = altitude,
             IndicatedAirspeedKnots = ias,
             AssignedSpeed = assigned,
@@ -83,7 +84,7 @@ public class SpeedFlyoutTests
     {
         using OpenedFlyout open = OpenStrip(MenuIds.SpeedAssign, Aircraft("C172", 3_500, 100, null), new RecordingMenuHost(""));
 
-        Assert.Equal(Tens(70, 130), open.Panel.KnotChips.Select(chip => chip.Content as string));
+        Assert.Equal(Tens(70, 120), open.Panel.KnotChips.Select(chip => chip.Content as string));
         Assert.Empty(open.Panel.MachChips);
         Assert.False(open.Panel.MachGroup.IsVisible);
         Assert.Equal("Assign speed · now 100 kt", open.Panel.Title);
@@ -303,6 +304,25 @@ public class SpeedFlyoutTests
         Assert.False(open.Menu.IsOpen);
     }
 
+    /// <summary>
+    /// A388 at FL700 gives the layout with Mach chips and no knots chip: the knots floor outruns the knots ceiling while the
+    /// jet baseline still lists Mach rows from M.70. Up from the first Mach chip lands on Final approach speed rather than off
+    /// the panel.
+    /// </summary>
+    [AvaloniaFact]
+    public void Keyboard_UpFromTheFirstMachRow_WithNoKnots_ReachesFinalApproach()
+    {
+        using OpenedFlyout open = OpenStrip(MenuIds.SpeedAssign, Aircraft("A388", 70_000, 250, null), new RecordingMenuHost(""));
+        Assert.Empty(open.Panel.KnotChips);
+        Assert.Equal("M.70", open.Panel.MachChips[0].Content as string);
+        open.Panel.MachChips[0].Focus(NavigationMethod.Directional);
+        Layout(open);
+
+        Press(open, Key.Up);
+
+        AssertFocused(open.Panel.FinalApproachRow, "Up from the first Mach row with no knots above it does not reach Final approach speed");
+    }
+
     /// <summary>Up from Final approach speed reaches Resume normal speed, and Up from it returns to the box.</summary>
     [AvaloniaFact]
     public void Keyboard_UpFromTheRows_ReturnsToTheBox()
@@ -336,7 +356,7 @@ public class SpeedFlyoutTests
     public void Keyboard_DownFromTheLastKnotsRow_WithNoMach_KeepsFocus()
     {
         using OpenedFlyout open = OpenStrip(MenuIds.SpeedAssign, Aircraft("C172", 3_500, 100, null), new RecordingMenuHost(""));
-        Button last = open.Panel.KnotChip(130);
+        Button last = open.Panel.KnotChip(120);
         last.Focus(NavigationMethod.Directional);
         Layout(open);
 

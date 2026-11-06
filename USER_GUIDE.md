@@ -1136,7 +1136,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
   **Left 360s at fix…** and **Right 360s at fix…** (the holds block of All Commands › Approach; VFR aircraft in the air, and an IFR aircraft only with VFR commands for IFR set to All) open a flyout titled "Left 360s at fix" or "Right 360s at fix" with a Left 360s / Right 360s toggle. The Fix box takes a fix or an FRD and the command is `HFIXL SUNOL` or `HFIXR SUNOL`.
 
-  **Assign speed** opens a flyout (see the quick commands above) with **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, with the type's approach speed), then knots chips in tens from the type's approach speed up to a little above its schedule speeds at the aircraft's altitude, never above 250 kt below 10,000 ft unless the type is exempt.
+  **Assign speed** opens a flyout (see the quick commands above) with **Resume normal speed** (`RNS`) and **Final approach speed** (`RFAS`, with the type's approach speed), then knots chips in tens from the type's approach speed up to a little above its schedule speeds at the aircraft's altitude, never above 250 kt below 10,000 ft unless the type is exempt. Only speeds the pilot would accept are offered: none past what the type can fly at its present or assigned altitude, and no Mach past its Mmo.
 
   At or above FL240 a jet also gets Mach chips around its cruise Mach, such as M.74 to M.81 for a B738 at FL350; picking one sends `MACH .78`.
 

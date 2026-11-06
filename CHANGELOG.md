@@ -9,6 +9,9 @@
 - A pilot who cannot see traffic answers "negative contact, looking" without naming the traffic's callsign on frequency.
 - A takeoff clearance to an aircraft holding at an intersection departure point is read back with its taxiway: "cleared for takeoff runway 28R at J".
 - The runway-change warning says whether the takeoff, line up and wait, or taxi clearance named the other runway.
+- A pilot unable to fly an assigned speed names its limit rounded to 5 kt, and an unflyable `MACH` is answered in Mach.
+- A speed given with an altitude in the same command block (`SPD 280, DM 110`) is judged at that altitude, not the present one.
+- The Assign speed flyout offers only speeds the pilot would accept on its type.
 
 ## v0.18.1-beta [2026/11/05]
 

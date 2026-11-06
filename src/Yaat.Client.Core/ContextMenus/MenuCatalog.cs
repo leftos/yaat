@@ -1365,8 +1365,11 @@ public static class MenuCatalog
     /// The speeds the Assign speed flyout offers. A filed type gets every tenth knot from its approach speed rounded up through
     /// its knots ceiling — the highest of its cruise, climb and descent speeds at the aircraft's altitude and the profile's
     /// FL150/FL240 climb and FL100 descent knots, plus 20 kt (10 for a piston), floored to ten, capped at 250 below 10,000 ft
-    /// unless the type waives the limit — then, at or above FL240, the Mach values its profile spans. Without a filed type the
-    /// knots stay 150-350.
+    /// unless the type waives the limit — then, at or above FL240, the Mach values its profile spans. Only a speed the pilot
+    /// accepts is offered: one the type can fly at its present altitude or at its assigned altitude, as the sim judges it
+    /// (<see cref="AircraftPerformance.MaxOperatingIasKts"/>, <see cref="AircraftPerformance.MaxOperatingMach"/> and
+    /// <see cref="AircraftPerformance.MinOperatingIasKts"/>), so no knots past the higher of the two maxima and no Mach past
+    /// Mmo. Without a filed type the knots stay 150-350.
     /// </summary>
     internal static SpeedChoices SpeedValues(IMenuAircraft? aircraft)
     {
@@ -1378,15 +1381,63 @@ public static class MenuCatalog
         string type = aircraft.FiledAircraftType;
         AircraftCategory category = AircraftCategorization.Categorize(type);
         double altitude = Math.Max(aircraft.AltitudeFeet, 0);
+
+        // The pilot's acceptance is judged on the type the sim flies, as the speed unable judges it.
+        string flown = string.IsNullOrEmpty(aircraft.BaseAircraftType) ? type : aircraft.BaseAircraftType;
+        double? maxAccepted = AircraftPerformance.MaxAcceptedIasKts(flown, altitude, aircraft.AssignedAltitude);
         int ceiling = KnotsCeiling(type, category, altitude);
-        IReadOnlyList<double> machs = MachValues(type, category, altitude, ceiling);
+        IReadOnlyList<double> machs =
+        [
+            .. MachValues(type, category, altitude, ceiling).Where(mach => IsMachAccepted(flown, mach, altitude, aircraft.AssignedAltitude)),
+        ];
+
+        // The Mach rows are drawn against the schedule's ceiling, not the one floored to the maximum below, so a row the type
+        // flies between the two (B738 M.81 at FL350, 275.7 KIAS) is kept rather than dropped by the flooring.
+        if (maxAccepted is { } max)
+        {
+            ceiling = Math.Min(ceiling, FloorToTen(max));
+        }
+
         if (machs.Count > 0)
         {
             ceiling = Math.Min(ceiling, FloorToTen(WindInterpolator.MachToIas(machs[^1], altitude)));
         }
 
-        int floor = (int)(Math.Ceiling(AircraftPerformance.ApproachSpeed(type, category) / 10.0) * 10);
+        int floor = KnotsFloor(type, category, flown, maxAccepted);
         return new SpeedChoices(SpeedRange(floor, ceiling), [.. machs.Select(mach => (int)Math.Round(mach * 100, MidpointRounding.AwayFromZero))]);
+    }
+
+    /// <summary>
+    /// The picker's knots floor (kt), rounded up to ten: the slowest the pilot accepts on the flown type
+    /// (<see cref="AircraftPerformance.MinAcceptedIasKts"/>), else, for a helicopter, a type with no known maximum or one told
+    /// only its fastest, the filed type's approach speed.
+    /// </summary>
+    private static int KnotsFloor(string type, AircraftCategory category, string flown, double? maxAccepted)
+    {
+        double min = (maxAccepted is { } max) ? AircraftPerformance.MinAcceptedIasKts(flown, max) : 0;
+        double floor = (min > 0) ? min : AircraftPerformance.ApproachSpeed(type, category);
+        return (int)(Math.Ceiling(floor / 10.0) * 10);
+    }
+
+    /// <summary>
+    /// Whether the pilot accepts <paramref name="mach"/> on <paramref name="flown"/>, as the sim's Mach unable judges it: never
+    /// past Mmo, else when the type can fly it at <paramref name="altitude"/> or at <paramref name="assignedAltitude"/>
+    /// (<see cref="AircraftPerformance.IsMachFlyableAt"/>). A type with no known maximum is refused nothing.
+    /// </summary>
+    private static bool IsMachAccepted(string flown, double mach, double altitude, double? assignedAltitude)
+    {
+        if ((AircraftPerformance.MaxOperatingMach(flown) is { } mmo) && (mach > mmo))
+        {
+            return false;
+        }
+
+        if (AircraftPerformance.MaxOperatingIasKts(flown, altitude) is null)
+        {
+            return true;
+        }
+
+        return AircraftPerformance.IsMachFlyableAt(flown, mach, altitude)
+            || ((assignedAltitude is { } assigned) && AircraftPerformance.IsMachFlyableAt(flown, mach, assigned));
     }
 
     /// <summary>The filed type's final approach speed rounded to the knot; null without a filed type or a positive speed.</summary>

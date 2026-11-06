@@ -244,7 +244,9 @@ internal static class FlightCommandHandler
 
         // A speed the type can fly neither here nor at its assigned altitude is refused before anything changes, so the
         // aircraft keeps its current speed. One it can fly at the assigned altitude is accepted, and the cap holds it there.
-        if (RefuseUnflyableSpeed(aircraft, ctx, effectiveSpeed, cmd.Modifier, aircraft.Targets.AssignedAltitude) is { } unflyable)
+        // An altitude assigned later in the same block stands in for the assigned one: a comma block carries no "then", so
+        // the order is the pilot's (AIM 4-4-12.e; 7110.65 §5-7-2.c).
+        if (RefuseUnflyableSpeed(aircraft, ctx, effectiveSpeed, cmd.Modifier, AltitudeToJudgeSpeedAt(aircraft, ctx)) is { } unflyable)
         {
             return unflyable;
         }
@@ -376,9 +378,7 @@ internal static class FlightCommandHandler
             return null;
         }
 
-        double maxAnywhere = otherAltitudeFt is { } other
-            ? Math.Max(maxHere, AircraftPerformance.MaxOperatingIasKts(aircraft.AircraftType, other) ?? maxHere)
-            : maxHere;
+        double maxAnywhere = AircraftPerformance.MaxAcceptedIasKts(aircraft.AircraftType, aircraft.Altitude, otherAltitudeFt) ?? maxHere;
         if ((modifier != SpeedModifier.Ceiling) && (iasKts > maxAnywhere))
         {
             return RefuseAsFastest(aircraft, maxHere);
@@ -388,31 +388,46 @@ internal static class FlightCommandHandler
     }
 
     /// <summary>
-    /// The unable for a speed below the type's final approach speed, or null. A helicopter can fly any slow speed (the
-    /// radar-speed floor in ApplySpeed is its only minimum), and a type whose minimum sits above its maximum
-    /// (<paramref name="maxIasKts"/>) at every altitude checked is told only the fastest.
+    /// The unable for a speed below the slowest the type accepts (<see cref="AircraftPerformance.MinAcceptedIasKts"/>), or
+    /// null: a helicopter, and a type whose minimum sits above its maximum (<paramref name="maxIasKts"/>) at every altitude
+    /// checked, have none.
     /// </summary>
     private static CommandResult? RefuseBelowMinimum(AircraftState aircraft, double iasKts, double maxIasKts)
     {
-        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        if (cat == AircraftCategory.Helicopter)
-        {
-            return null;
-        }
-
-        double min = AircraftPerformance.MinOperatingIasKts(aircraft.AircraftType, cat);
-        if ((min > maxIasKts) || (iasKts >= min))
-        {
-            return null;
-        }
-
-        return SpeedLimitRefusal(aircraft, PilotResponder.SpeedLimitKind.SlowestKnots, Math.Ceiling(min / 10) * 10);
+        double min = AircraftPerformance.MinAcceptedIasKts(aircraft.AircraftType, maxIasKts);
+        return iasKts >= min ? null : SpeedLimitRefusal(aircraft, PilotResponder.SpeedLimitKind.SlowestKnots, SlowestNamedKts(min));
     }
 
     /// <summary>
+    /// The altitude other than the present one a controller speed is judged at: the altitude assigned later in the speed's
+    /// own block (<see cref="DispatchContext.AltitudeAssignedLaterInBlock"/>, <c>SPD 300, DM 240</c>), else the altitude the
+    /// aircraft is assigned. A comma block carries no "then", so the order is the pilot's (AIM 4-4-12.e; 7110.65 §5-7-2.c).
+    /// </summary>
+    private static double? AltitudeToJudgeSpeedAt(AircraftState aircraft, DispatchContext ctx) =>
+        ctx.AltitudeAssignedLaterInBlock ?? aircraft.Targets.AssignedAltitude;
+
+    /// <summary>
+    /// The knots step a named limit is rounded to: ATC assigns speeds in 5 kt steps (7110.65 §5-7-1.a.7; AIM 4-4-12.b), and
+    /// the pilot names a speed it can fly when unable (AIM 4-4-12.h).
+    /// </summary>
+    private const double NamedSpeedStepKts = 5;
+
+    /// <summary>
+    /// The fastest speed named in an unable: <paramref name="maxIasKts"/> floored to a multiple of 5 kt, so it is one the
+    /// type can fly. The epsilon keeps a figure already on the step (335) from flooring to the one below through float error.
+    /// </summary>
+    internal static double FastestNamedKts(double maxIasKts) => Math.Floor((maxIasKts / NamedSpeedStepKts) + 1e-9) * NamedSpeedStepKts;
+
+    /// <summary>
+    /// The slowest speed named in an unable: <paramref name="minIasKts"/> raised to a multiple of 5 kt, so it is one the
+    /// type can fly. The epsilon keeps a figure already on the step (140) from rising to the one above through float error.
+    /// </summary>
+    internal static double SlowestNamedKts(double minIasKts) => Math.Ceiling((minIasKts / NamedSpeedStepKts) - 1e-9) * NamedSpeedStepKts;
+
+    /// <summary>
     /// The unable naming the fastest speed the type can fly at its present altitude, <paramref name="maxIasKts"/>. Named
-    /// as a Mach number when Mmo is the term that governs there (the aircraft is above its IAS/Mach crossover), floored to
-    /// the hundredth; otherwise in knots, floored to a multiple of ten, so the named figure is always one it can fly.
+    /// as a Mach number when Mmo is the term that governs there (the aircraft is above its IAS/Mach crossover); otherwise
+    /// in knots, floored to a multiple of 5 kt (<see cref="FastestNamedKts"/>), so the named figure is always one it can fly.
     /// </summary>
     private static CommandResult RefuseAsFastest(AircraftState aircraft, double maxIasKts)
     {
@@ -421,12 +436,16 @@ internal static class FlightCommandHandler
             && (WindInterpolator.MachToIas(mmo, aircraft.Altitude) <= maxIasKts)
         )
         {
-            // The epsilon keeps a figure already on the hundredth (0.82) from flooring to the one below through float error.
-            return SpeedLimitRefusal(aircraft, PilotResponder.SpeedLimitKind.FastestMach, Math.Floor((mmo * 100) + 1e-9) / 100);
+            return RefuseAsFastestMach(aircraft, mmo);
         }
 
-        return SpeedLimitRefusal(aircraft, PilotResponder.SpeedLimitKind.FastestKnots, Math.Floor(maxIasKts / 10) * 10);
+        return SpeedLimitRefusal(aircraft, PilotResponder.SpeedLimitKind.FastestKnots, FastestNamedKts(maxIasKts));
     }
+
+    /// <summary>The unable naming Mmo, <paramref name="mmo"/>, floored to the hundredth, as the fastest Mach the type can fly.</summary>
+    private static CommandResult RefuseAsFastestMach(AircraftState aircraft, double mmo) =>
+        // The epsilon keeps a figure already on the hundredth (0.82) from flooring to the one below through float error.
+        SpeedLimitRefusal(aircraft, PilotResponder.SpeedLimitKind.FastestMach, Math.Floor((mmo * 100) + 1e-9) / 100);
 
     private static CommandResult SpeedLimitRefusal(AircraftState aircraft, PilotResponder.SpeedLimitKind kind, double figure)
     {
@@ -853,25 +872,25 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyMach(MachCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        // Past Mmo is past the maximum whatever the altitude; otherwise the Mach number's IAS equivalent here is checked
-        // against both ends, since a Mach hold low down can run past Vmo or sit below the final approach speed.
-        // A Mach number is checked at the present altitude alone: its IAS equivalent changes with the altitude.
+        // Past Mmo is past the maximum whatever the altitude, and is answered in Mach below the crossover too. A convention:
+        // AIM 4-4-12.b sets ATC's frame, and the pilot answers in it. Otherwise the Mach number's IAS equivalent here is checked against both ends, since a
+        // Mach hold low down can run past Vmo or sit below the final approach speed.
         if (
             !ctx.IsScenarioScripted
             && !aircraft.IsOnGround
-            && (AircraftPerformance.MaxOperatingIasKts(aircraft.AircraftType, aircraft.Altitude) is { } max)
             && (AircraftPerformance.MaxOperatingMach(aircraft.AircraftType) is { } mmo)
             && (cmd.MachNumber > mmo)
         )
         {
-            return RefuseAsFastest(aircraft, max);
+            return RefuseAsFastestMach(aircraft, mmo);
         }
 
-        // As with SPD, a Mach number the type can fly at its assigned altitude is accepted even when it cannot fly it here.
+        // As with SPD, a Mach number the type can fly at its assigned altitude (or the one its own block assigns) is accepted
+        // even when it cannot fly it here.
         double machIas = WindInterpolator.MachToIas(cmd.MachNumber, aircraft.Altitude);
         if (
             (RefuseUnflyableSpeed(aircraft, ctx, machIas, SpeedModifier.None, otherAltitudeFt: null) is { } unflyable)
-            && !IsMachFlyableAt(aircraft, cmd.MachNumber, aircraft.Targets.AssignedAltitude)
+            && !IsMachFlyableAt(aircraft, cmd.MachNumber, AltitudeToJudgeSpeedAt(aircraft, ctx))
         )
         {
             return unflyable;
@@ -965,22 +984,11 @@ internal static class FlightCommandHandler
     internal static void EndSpeedMaxHold(AircraftState aircraft) => aircraft.Targets.SpeedMaxHeld = false;
 
     /// <summary>
-    /// True when <paramref name="mach"/>'s IAS equivalent at <paramref name="altitudeFt"/> is within the type's limits
-    /// there: no faster than <see cref="AircraftPerformance.MaxOperatingIasKts"/> and, except for a helicopter, no slower
-    /// than its final approach speed. False with no altitude or no known maximum.
+    /// True when the type can fly <paramref name="mach"/> at <paramref name="altitudeFt"/>
+    /// (<see cref="AircraftPerformance.IsMachFlyableAt"/>, the client's speed picker's judge too). False with no altitude.
     /// </summary>
-    private static bool IsMachFlyableAt(AircraftState aircraft, double mach, double? altitudeFt)
-    {
-        if ((altitudeFt is not { } altitude) || (AircraftPerformance.MaxOperatingIasKts(aircraft.AircraftType, altitude) is not { } max))
-        {
-            return false;
-        }
-
-        double ias = WindInterpolator.MachToIas(mach, altitude);
-        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        double min = cat == AircraftCategory.Helicopter ? 0 : AircraftPerformance.MinOperatingIasKts(aircraft.AircraftType, cat);
-        return (ias <= max) && (ias >= min);
-    }
+    private static bool IsMachFlyableAt(AircraftState aircraft, double mach, double? altitudeFt) =>
+        (altitudeFt is { } altitude) && AircraftPerformance.IsMachFlyableAt(aircraft.AircraftType, mach, altitude);
 
     internal static CommandResult ApplyForceSpeed(ForceSpeedCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {

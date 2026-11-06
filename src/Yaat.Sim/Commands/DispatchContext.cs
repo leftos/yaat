@@ -171,6 +171,14 @@ public sealed record DispatchContext
     public bool CrossFeedsFollowingClearance { get; internal init; }
 
     /// <summary>
+    /// The altitude (feet) the first altitude assignment later in the command's own block assigns (a CM, DM, forced altitude
+    /// or expedite to an altitude), or null when none follows. A speed or Mach in the block is judged against it in place of
+    /// the altitude assigned before the block: a comma block carries no "then", so the order is the pilot's (AIM 4-4-12.e;
+    /// 7110.65 §5-7-2.c).
+    /// </summary>
+    public int? AltitudeAssignedLaterInBlock { get; internal init; }
+
+    /// <summary>
     /// The session clock at this dispatch: the record's mirror of <see cref="Simulation.SimScenarioState.SimTimeUtc"/>,
     /// for the verbs whose answer carries a time of day.
     /// </summary>

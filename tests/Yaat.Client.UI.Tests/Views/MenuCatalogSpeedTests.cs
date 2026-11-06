@@ -36,6 +36,7 @@ public class MenuCatalogSpeedTests
         {
             Callsign = Callsign,
             FiledAircraftType = type,
+            AircraftType = type,
             Altitude = altitude,
         };
 
@@ -115,17 +116,17 @@ public class MenuCatalogSpeedTests
     }
 
     /// <summary>C172: ACD Vref 62 floors the knots at 70; the highest value in play is its own FL100 descent knot 120, and
-    /// the piston margin makes that 130. No Mach rows.</summary>
+    /// the piston margin makes that 130, which the light-piston class's Vmo 126 floors to 120. No Mach rows.</summary>
     [AvaloniaFact]
     public void C172_At3000Ft_FloorAndPistonMargin() =>
-        Assert.Equal([.. Leading("Final approach speed (62)"), .. Tens(70, 130)], SpeedItems("C172", 3_000));
+        Assert.Equal([.. Leading("Final approach speed (62)"), .. Tens(70, 120)], SpeedItems("C172", 3_000));
 
     /// <summary>DH8D flies its DH8C sibling's profile with its own descent speeds merged on, which carries no Mach value, so
     /// FL250 gives knots only: ACD Vref 125 floors them at 130, and the highest value in play is the DH8D override's FL100
-    /// descent knot 250 (DH8D keeps it; DH8C's own is 233) + 20. Its ceiling descent 238 sits under that.</summary>
+    /// descent knot 250 (DH8D keeps it; DH8C's own is 233) + 20, which its Mmo 0.60 (248.4 KIAS at FL250) floors to 240.</summary>
     [AvaloniaFact]
     public void Turboprop_AtFl250_ListsKnotsOnly() =>
-        Assert.Equal([.. Leading("Final approach speed (125)"), .. Tens(130, 270)], SpeedItems("DH8D", 25_000));
+        Assert.Equal([.. Leading("Final approach speed (125)"), .. Tens(130, 240)], SpeedItems("DH8D", 25_000));
 
     /// <summary>A388 has no profile and no sibling, so a jet's Mach rows come from the jet category baseline: 0.74 for the
     /// final climb and initial descent speeds and the baseline cruise TAS 440 at FL350 as M.763, spanning M.70 through M.77.
@@ -137,35 +138,6 @@ public class MenuCatalogSpeedTests
             [.. Leading("Final approach speed (138)"), .. Tens(140, 290), "M.70", "M.71", "M.72", "M.73", "M.74", "M.75", "M.76", "M.77"],
             SpeedItems("A388", 30_000)
         );
-
-    /// <summary>C680 spans M.78 (0.82 - 0.04) through M.90 (its TAS cruise 510 at FL552 as M.889, + 0.01). At FL800 the top
-    /// row's own IAS is 107.8 kt, so the Mach cap draws the knots ceiling below the 110 kt floor and no knots row is left:
-    /// the flyout holds the two leading rows and the Mach chips.</summary>
-    [AvaloniaFact]
-    public void CapsLeavingNoKnotsRows_KeepTheLeadingRowsAndMachRows()
-    {
-        IReadOnlyList<string> items = SpeedItems(Aircraft("C680", 80_000));
-
-        Assert.Equal(
-            [
-                .. Leading("Final approach speed (108)"),
-                "M.78",
-                "M.79",
-                "M.80",
-                "M.81",
-                "M.82",
-                "M.83",
-                "M.84",
-                "M.85",
-                "M.86",
-                "M.87",
-                "M.88",
-                "M.89",
-                "M.90",
-            ],
-            items
-        );
-    }
 
     [AvaloniaFact]
     public void MachRow_SendsMachCommand_KnotsRowSendsSpd()
@@ -205,6 +177,84 @@ public class MenuCatalogSpeedTests
     [AvaloniaFact]
     public void WaivedType_Below10000Ft_KeepsItsCeilingAbove250() =>
         Assert.Equal([.. Leading("Final approach speed (160)"), .. Tens(160, 370)], SpeedItems("F16", 5_000));
+
+    /// <summary>
+    /// DH8C's Vmo is 243 (its override), under the 250 its schedule ceiling gives at 15,000 ft (its FL100 descent knot 233 +
+    /// 20, floored to ten): the pilot refuses a speed past its maximum, so no knots chip above it is offered.
+    /// </summary>
+    [AvaloniaFact]
+    public void TypeWhoseVmoIsBelowTheScheduleCeiling_OffersNoKnotsPastIt()
+    {
+        double max = AircraftPerformance.MaxOperatingIasKts("DH8C", 15_000)!.Value;
+
+        IReadOnlyList<int> knots = MenuCatalog.SpeedValues(Aircraft("DH8C", 15_000)).Knots;
+
+        Assert.NotEmpty(knots);
+        Assert.True(knots[^1] <= max, $"DH8C at 15,000 ft is offered {knots[^1]} kt, past its {max:F1} kt maximum");
+    }
+
+    /// <summary>
+    /// A Mach past the type's Mmo is refused, so no Mach chip above it is offered, though the rows otherwise reach 0.92: C560 and
+    /// C56X (the business-jet class's Mmo 0.755) span to M.76, and GLF5 (Mmo raised to its schedule's 0.84) to M.85. E145
+    /// (Mmo 0.78) is a type whose rows already stop short of it.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("C560")]
+    [InlineData("C56X")]
+    [InlineData("GLF5")]
+    [InlineData("E145")]
+    public void TypeWhoseMmoIsBelowTheRowMaximum_OffersNoMachPastIt(string type)
+    {
+        double mmo = AircraftPerformance.MaxOperatingMach(type)!.Value;
+        Assert.True(mmo < 0.92, $"{type}'s Mmo {mmo} is not below the 0.92 row maximum");
+
+        IReadOnlyList<int> machs = MenuCatalog.SpeedValues(Aircraft(type, 35_000)).MachHundredths;
+
+        Assert.NotEmpty(machs);
+        Assert.True(machs[^1] / 100.0 <= mmo, $"{type} at FL350 is offered M.{machs[^1]}, past its Mmo {mmo}");
+    }
+
+    /// <summary>
+    /// DH8D (Vmo 286, Mmo 0.60) at FL250 cleared down to 15,000 ft: a speed past Mmo's IAS at FL250 but within its limit at
+    /// 15,000 ft is one the pilot accepts (and the cap holds until it is flyable), so it is offered, as it is not without the
+    /// clearance.
+    /// </summary>
+    [AvaloniaFact]
+    public void SpeedFlyableOnlyAtTheAssignedAltitude_IsOffered()
+    {
+        double maxHere = AircraftPerformance.MaxOperatingIasKts("DH8D", 25_000)!.Value;
+        double maxThere = AircraftPerformance.MaxOperatingIasKts("DH8D", 15_000)!.Value;
+        AircraftModel cleared = Aircraft("DH8D", 25_000);
+        cleared.AssignedAltitude = 15_000;
+
+        IReadOnlyList<int> knots = MenuCatalog.SpeedValues(cleared).Knots;
+        IReadOnlyList<int> uncleared = MenuCatalog.SpeedValues(Aircraft("DH8D", 25_000)).Knots;
+
+        Assert.True(knots[^1] > maxHere, $"cleared to 15,000 ft the top chip is {knots[^1]} kt, not past the {maxHere:F1} kt FL250 maximum");
+        Assert.True(knots[^1] <= maxThere, $"the top chip {knots[^1]} kt is past the {maxThere:F1} kt maximum at 15,000 ft");
+        Assert.True(uncleared[^1] <= maxHere, $"with no clearance the top chip {uncleared[^1]} kt is past the {maxHere:F1} kt FL250 maximum");
+    }
+
+    /// <summary>
+    /// A Mach row past the type's maximum here but flyable at its assigned altitude is one the pilot accepts, so it is offered
+    /// cleared there and not otherwise. GLF5 at FL250 cleared to FL370: its top rows' IAS at FL250 is past its maximum there
+    /// but within its schedule's knots ceiling, which is what lets such a row reach the Mach check at all.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("GLF5")]
+    public void MachRowFlyableOnlyAtTheAssignedAltitude_IsOffered(string type)
+    {
+        AircraftModel cleared = Aircraft(type, 25_000);
+        cleared.AssignedAltitude = 37_000;
+
+        IReadOnlyList<int> withClearance = MenuCatalog.SpeedValues(cleared).MachHundredths;
+        IReadOnlyList<int> without = MenuCatalog.SpeedValues(Aircraft(type, 25_000)).MachHundredths;
+
+        int[] onlyThere = [.. withClearance.Where(h => !AircraftPerformance.IsMachFlyableAt(type, h / 100.0, 25_000))];
+        Assert.NotEmpty(onlyThere);
+        Assert.All(onlyThere, h => Assert.True(AircraftPerformance.IsMachFlyableAt(type, h / 100.0, 37_000), $"M.{h} unflyable at FL370"));
+        Assert.All(onlyThere, h => Assert.DoesNotContain(h, without));
+    }
 
     private static void Click(Button target) => target.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 

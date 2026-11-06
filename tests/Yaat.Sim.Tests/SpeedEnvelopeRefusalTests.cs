@@ -138,7 +138,9 @@ public sealed class SpeedEnvelopeRefusalTests
         AircraftState ac = Airborne(A320, altitude: 5_000, ias: 220);
         double? targetBefore = ac.Targets.TargetSpeed;
         double? assignedBefore = ac.Targets.AssignedSpeed;
-        int slowest = (int)(Math.Ceiling(AircraftPerformance.MinOperatingIasKts(A320, AircraftCategory.Jet) / 10) * 10);
+        // The A320's FAA ACD approach speed is 136, named raised to the 5 kt step.
+        Assert.Equal(136, AircraftPerformance.MinOperatingIasKts(A320, AircraftCategory.Jet));
+        const int slowest = 140;
 
         CommandResult result = Send(ac, "SPD 100");
 
@@ -146,6 +148,139 @@ public sealed class SpeedEnvelopeRefusalTests
         Assert.Contains("slowest", result.Message);
         Assert.Contains($"{slowest} knots", result.Message);
         Assert.Contains($"{PhraseologyVerbalizer.SpeedWords(slowest)} knots is the slowest we can do", result.PilotUnable!.Tts);
+    }
+
+    /// <summary>
+    /// The CRJ200's Vmo is 335 (FAA TCDS A21EA-1). The fastest is named floored to 5 kt, not 10, so the pilot offers 335
+    /// rather than 330 (7110.65 §5-7-1.a.7; AIM 4-4-12.h NOTE).
+    /// </summary>
+    [Fact]
+    public void SpeedPastVmo335_IsUnableNaming335()
+    {
+        Assert.Equal(335, AircraftPerformance.MaxOperatingSpeedKts("CRJ2"));
+        AircraftState ac = Airborne("CRJ2", altitude: 15_000, ias: 280);
+
+        CommandResult result = Send(ac, "SPD 345");
+
+        AssertRefusedKeepingSpeed(ac, result, null, null);
+        Assert.Contains("335 knots is the fastest", result.Message);
+        Assert.Contains("three three five knots is the fastest we can do", result.PilotUnable!.Tts);
+    }
+
+    /// <summary>The named fastest is floored to 5 kt and the named slowest raised to 5 kt, so either is a speed the type can fly.</summary>
+    [Theory]
+    [InlineData(335, 335)]
+    [InlineData(337, 335)]
+    public void FastestNamed_IsFlooredToFiveKnots(double vmo, double named) => Assert.Equal(named, FlightCommandHandler.FastestNamedKts(vmo));
+
+    [Theory]
+    [InlineData(142, 145)]
+    [InlineData(140, 140)]
+    public void SlowestNamed_IsRaisedToFiveKnots(double minimum, double named) => Assert.Equal(named, FlightCommandHandler.SlowestNamedKts(minimum));
+
+    /// <summary>The A321's final approach speed is 142 (FAA ACD): the slowest is named rounded up to 5 kt, 145 rather than 150.</summary>
+    [Fact]
+    public void SpeedBelowMinimum142_IsUnableNaming145()
+    {
+        Assert.Equal(142, AircraftPerformance.MinOperatingIasKts("A321", AircraftCategory.Jet));
+        AircraftState ac = Airborne("A321", altitude: 5_000, ias: 220);
+
+        CommandResult result = Send(ac, "SPD 120");
+
+        AssertRefusedKeepingSpeed(ac, result, null, null);
+        Assert.Contains("145 knots is the slowest", result.Message);
+    }
+
+    /// <summary>A Mach past Mmo below the crossover is still answered in Mach, the frame it was asked in (AIM 4-4-12.b).</summary>
+    [Fact]
+    public void MachPastMmo_BelowCrossover_IsUnableNamingMach()
+    {
+        AircraftState ac = Airborne(A320, altitude: 20_000, ias: 300);
+
+        CommandResult result = Send(ac, "MACH .86");
+
+        AssertRefusedKeepingSpeed(ac, result, null, null);
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Contains("Mach .82 is the fastest", result.Message);
+        Assert.DoesNotContain("knots", result.Message);
+    }
+
+    /// <summary>
+    /// SPD 300 with DM 240 in the same block: a comma block carries no "then", so the order is the pilot's (AIM 4-4-12.e;
+    /// 7110.65 §5-7-2.c), and the speed is judged against FL240, where the A320 flies it, not the FL350 it is at with no
+    /// altitude assigned yet, where it cannot.
+    /// </summary>
+    [Fact]
+    public void SpeedBeforeADescentInTheSameBlock_IsJudgedAtTheBlocksAltitude()
+    {
+        AircraftState ac = Airborne(A320, altitude: 35_000, ias: 260);
+
+        CommandResult result = Send(ac, "SPD 300, DM 240");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(300, ac.Targets.AssignedSpeed);
+        Assert.Equal(24_000, ac.Targets.AssignedAltitude);
+    }
+
+    /// <summary>
+    /// The A320 at FL200: Mach .80 is past its Vmo in IAS there and flyable at FL330. Alone it is refused; with CM 330 in the
+    /// same block it is judged at FL330 and accepted.
+    /// </summary>
+    [Theory]
+    [InlineData("MACH .80, CM 330", true)]
+    [InlineData("MACH .80", false)]
+    public void MachBeforeAClimbInTheSameBlock_IsJudgedAtTheBlocksAltitude(string text, bool accepted)
+    {
+        AircraftState ac = Airborne(A320, altitude: 20_000, ias: 300);
+
+        CommandResult result = Send(ac, text);
+
+        Assert.Equal(accepted, result.Success);
+        Assert.Equal(accepted ? 0.80 : (double?)null, ac.Targets.TargetMach);
+    }
+
+    /// <summary>DM 240 first, then SPD 300: the descent is assigned before the speed is judged, so it is accepted.</summary>
+    [Fact]
+    public void DescentBeforeTheSpeedInTheSameBlock_IsAccepted()
+    {
+        AircraftState ac = Airborne(A320, altitude: 35_000, ias: 260);
+
+        CommandResult result = Send(ac, "DM 240, SPD 300");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(300, ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// SPD 300; DM 240 sequences the speed first ("then"), so the speed is judged before the descent exists and is refused at
+    /// FL350, with nothing applied.
+    /// </summary>
+    [Fact]
+    public void SpeedThenADescentInALaterBlock_IsStillRefused()
+    {
+        AircraftState ac = Airborne(A320, altitude: 35_000, ias: 260);
+
+        CommandResult result = Send(ac, "SPD 300; DM 240");
+
+        Assert.False(result.Success, result.Message);
+        Assert.Null(ac.Targets.AssignedSpeed);
+    }
+
+    /// <summary>
+    /// Cleared to FL240 already, SPD 300 with CM 370 in the same block is judged at FL370, which replaces FL240, and is refused:
+    /// the A320 flies 300 at neither FL350 nor FL370.
+    /// </summary>
+    [Fact]
+    public void LaterAltitudeInTheBlock_ReplacesTheAssignedOne()
+    {
+        AircraftState ac = Airborne(A320, altitude: 35_000, ias: 260);
+        Assert.True(Send(ac, "DM 240").Success);
+
+        CommandResult result = Send(ac, "SPD 300, CM 370");
+
+        Assert.False(result.Success, result.Message);
+        Assert.Null(ac.Targets.AssignedSpeed);
+        Assert.Equal(24_000, ac.Targets.AssignedAltitude);
     }
 
     [Fact]
