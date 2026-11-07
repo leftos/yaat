@@ -14,6 +14,7 @@
 - `LAHSO` on a runway's second-named end, such as SFO 28R, measures the hold-short point and available distance from that landing end, not the far end.
 - A `LAHSO` landing keeps its hold-short after turning toward an exit, never stops on the crossing runway, and calls "unable to hold short" when it cannot stop.
 - Under `LAHSO`, a landing brakes evenly to the hold-short point instead of coasting at 40 kt and braking hard at the end.
+- `SMAX` holds piston airplanes under their maximum cruising speed at any altitude, and common GA, turboprop and helicopter types fly their published limits.
 - After a `LAHSO` stop, `CROSS` releases the hold and an `EXIT` given while holding is kept for when it crosses.
 - Under `LAHSO`, a landing no longer picks a shallow high-speed exit whose turn-off would cross the hold-short marking before leaving the runway.
 - Types whose top speed varies with altitude (Dash 8 Q400, CRJ, Challenger 604, E170 and others) fly, refuse speeds and fly `SMAX` against the limit at their altitude.

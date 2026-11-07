@@ -59,7 +59,56 @@ public sealed class SpeedEnvelopeDataCorrectionTests
             { "C135", 350, 0.90 },
             { "C141", 350, 0.825 },
             { "C5M", 350, 0.825 },
+            { "C208", 175, null },
+            { "PC12", 240, 0.48 },
+            { "TBM7", 271, null },
+            { "TBM8", 271, null },
+            { "TBM9", 270, null },
+            { "KODI", 180, null },
+            { "P46T", 188, null },
+            { "P180", 260, 0.70 },
+            { "B190", 248, 0.48 },
+            { "B350", 263, 0.58 },
+            { "BE20", 260, 0.52 },
         };
+
+    /// <summary>
+    /// YAAT-1443: a piston stores its Vno (top of the green arc; pistons have no Vmo) and has no Mmo, so SMAX holds Vno less
+    /// the margin at every altitude. Each figure is the stored one, unraised by the profile floor, except M20P (below).
+    /// </summary>
+    public static TheoryData<string, double> PistonTypes =>
+        new()
+        {
+            { "C172", 129 },
+            { "C182", 140 },
+            { "P28A", 121 },
+            { "SR22", 179 },
+            { "SR20", 164 },
+            // M20P stores Vno 174 KIAS, but its profile cruise (237 KTAS, a turbo Mooney's figure; YAAT-1956 fixes it)
+            // floor-raises the unbanded Vmo to 174.7 kt, a raise of under 1 kt that YAAT-1443 accepts.
+            { "M20P", 174.7 },
+            { "BE36", 165 },
+            { "BE58", 195 },
+            { "PA34", 166 },
+            { "PA31", 188 },
+            { "C310", 181 },
+            { "DA42", 155 },
+            { "DA62", 160 },
+            { "C421", 201 },
+            { "C210", 165 },
+            { "BE33", 165 },
+            { "C152", 111 },
+            { "C180", 139 },
+            { "AA5", 143 },
+        };
+
+    [Theory]
+    [MemberData(nameof(PistonTypes))]
+    public void Pistons_FlyTheirVno_WithNoMmo(string type, double vnoKts)
+    {
+        Assert.Equal(vnoKts, AircraftPerformance.MaxOperatingIasKts(type, CheckAltitudeFt)!.Value, 1);
+        Assert.Null(AircraftPerformance.MaxOperatingMach(type));
+    }
 
     [Theory]
     [MemberData(nameof(SourcedTypes))]
@@ -85,6 +134,8 @@ public sealed class SpeedEnvelopeDataCorrectionTests
     [InlineData("LJ60", 15_000, 340)]
     [InlineData("F50", 10_000, 224)]
     [InlineData("F50", 23_000, 215)]
+    [InlineData("S22T", 10_000, 179)]
+    [InlineData("S22T", 21_250, 165.5)]
     public void BandedTypes_FlyTheirBandAtTheCheckedAltitude(string type, double altitudeFt, double expectedKts) =>
         Assert.Equal(expectedKts, AircraftPerformance.VmoAtKts(type, altitudeFt)!.Value, 0.5);
 
@@ -97,10 +148,58 @@ public sealed class SpeedEnvelopeDataCorrectionTests
     [InlineData("S76", 155)]
     [InlineData("AS50", 155)]
     [InlineData("EC35", 155)]
+    [InlineData("EC45", 150)]
+    [InlineData("A139", 167)]
+    [InlineData("A109", 168)]
+    [InlineData("R66", 140)]
+    [InlineData("B429", 155)]
+    [InlineData("EC30", 155)]
+    [InlineData("AS65", 175)]
+    [InlineData("B412", 140)]
+    [InlineData("S92", 165)]
     public void Helicopters_FlyTheirOwnVne(string type, double vneKts)
     {
         Assert.Null(AircraftPerformance.MaxOperatingMach(type));
         Assert.Equal(vneKts, AircraftPerformance.MaxOperatingIasKts(type, CheckAltitudeFt)!.Value, 1);
+    }
+
+    /// <summary>
+    /// YAAT-1443: each helicopter given a sourced Vne is categorized a helicopter, so SMAX holds 0.9 × Vne rather than the
+    /// fixed-wing Vne less 10 kt (an unknown type falls back to Jet).
+    /// </summary>
+    [Theory]
+    [InlineData("EC45")]
+    [InlineData("A139")]
+    [InlineData("A109")]
+    [InlineData("R66")]
+    [InlineData("B429")]
+    [InlineData("EC30")]
+    [InlineData("AS65")]
+    [InlineData("B412")]
+    [InlineData("S92")]
+    public void SourcedHelicopters_AreCategorizedHelicopter(string type) =>
+        Assert.Equal(AircraftCategory.Helicopter, AircraftCategorization.Categorize(type));
+
+    /// <summary>
+    /// YAAT-1443: KODI borrows TBM7's profile through the sibling map; its override holds the climb, cruise and descent
+    /// at or under Vmo 180 less the 10 kt SMAX margin at every altitude to the ceiling, so SMAX never slows it.
+    /// </summary>
+    [Fact]
+    public void Kodi_ProfileSchedule_StaysUnderVmoLessTheMargin()
+    {
+        AircraftProfile profile = AircraftProfileDatabase.Get("KODI")!;
+        for (double alt = 0; alt <= profile.Ceiling; alt += 500)
+        {
+            double climb = AircraftPerformance.ClimbSpeed("KODI", AircraftCategory.Turboprop, alt);
+            double descent = AircraftPerformance.DescentSpeed("KODI", AircraftCategory.Turboprop, alt);
+            double cruise = AircraftPerformance.DefaultSpeed("KODI", AircraftCategory.Turboprop, alt, targetAltitude: null);
+            Assert.True(
+                Math.Max(climb, Math.Max(descent, cruise)) <= 170,
+                $"at {alt} ft: climb {climb:F1}, descent {descent:F1}, cruise {cruise:F1}"
+            );
+        }
+
+        Assert.True(profile.HoldingSpeed <= 170, $"holding {profile.HoldingSpeed}");
     }
 
     [Fact]

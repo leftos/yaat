@@ -959,6 +959,25 @@ public sealed class SpeedMaxCommandTests
         Assert.InRange(ac.IndicatedAirspeed, smaxKts - SpeedSnapKts, smaxKts + SpeedSnapKts);
     }
 
+    /// <summary>
+    /// YAAT-1443: a piston has no Mmo, so SMAX holds its Vno (BE58: 195 KIAS, FAA TCDS 3A16) less the 10 kt margin at
+    /// 12,000 ft, where the old GA class M0.24 would have held it near 130 kt.
+    /// </summary>
+    [Fact]
+    public void Smax_PistonTwinAt12000_HoldsVnoLessTheMargin()
+    {
+        const double expectedKts = 185;
+        AircraftState ac = Airborne("BE58", altitude: 12_000, ias: 150);
+
+        Assert.True(Send(ac, "SMAX").Success);
+        FlySeconds(ac, 120, _ => { });
+
+        Assert.True(ac.Targets.SpeedMaxHeld);
+        Assert.Null(ac.Targets.TargetMach);
+        Assert.Equal(expectedKts, Assert.IsType<double>(ac.Targets.AssignedSpeed));
+        Assert.InRange(ac.IndicatedAirspeed, expectedKts - SpeedSnapKts, expectedKts + SpeedSnapKts);
+    }
+
     [Fact]
     public void Smax_RefusedOnTheGround()
     {

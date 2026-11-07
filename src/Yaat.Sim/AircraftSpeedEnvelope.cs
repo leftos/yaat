@@ -31,8 +31,9 @@ public static class AircraftSpeedEnvelope
         new("J4H", 365, 0.92),
         // pybada src/aircraft/BADA3/DUMMY/TP2M__.OPF: twin turboprop.
         new("TP2M", 250, 0.55),
-        // pybada src/aircraft/BADA3/DUMMY/GA____.OPF: light piston.
-        new("GA", 126, 0.24),
+        // pybada src/aircraft/BADA3/DUMMY/GA____.OPF: light piston, Vmo 126. Its M0.24 is dropped: pistons have no Mmo
+        // (Part 23 piston limits are Vno/Vne); AIM 4-4-12.b restricts Mach assignments to aircraft with Mach meters.
+        new("GA", 126, null),
         // pybada src/aircraft/BADAH/DUMMY/DUMH/DUMH.xml: helicopter, Vne 150 and no Mmo.
         new("DUMH", 150, null),
     ];

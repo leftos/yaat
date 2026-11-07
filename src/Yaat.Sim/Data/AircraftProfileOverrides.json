@@ -595,12 +595,250 @@
   },
   {
     "typeCode": "EC35",
-    "note": "Vne 155 kt from FAA TCDS H88EU (EC135).",
+    "note": "Vne 155 kt from FAA TCDS H88EU (EC135 P1/T1/P2/T2/P2+/T2+). The EC135 P3/T3 is 150 kt.",
     "vmo": 155
   },
   {
     "typeCode": "H60",
-    "note": "Vne 193 KIAS (structural, clean, light weight) from FM 1-113 Appendix A and the Sikorsky UH-60A spec sheet. The TM 1-1520-237-10 §5.19 chart lowers it with weight and density altitude. Secondary for the single figure.",
+    "note": "Vne 193 KIAS power on from FAA TCDS H5NE (Sikorsky S-70A/S-70M). The Rotorcraft Flight Manual lowers it with gross weight and pressure altitude.",
     "vmo": 193
+  },
+  {
+    "typeCode": "EC45",
+    "note": "Max. Vne 150 kt IAS from FAA TCDS H13EU (MBB-BK 117 C-2/D-2/D-3); the RFM lowers it with OAT and altitude.",
+    "vmo": 150
+  },
+  {
+    "typeCode": "A139",
+    "note": "Vne 167 KIAS power on from FAA TCDS R00002RD (AB139/AW139); power off/OEI 147 KIAS.",
+    "vmo": 167
+  },
+  {
+    "typeCode": "A109",
+    "note": "Vne 168 KIAS power on from FAA TCDS H7EU (A109E; A109S/AW109SP the same); power off/OEI 128 KIAS.",
+    "vmo": 168
+  },
+  {
+    "typeCode": "R66",
+    "note": "Vne 140 KIAS power on (at sea level, takeoff gross weight under 2,200 lb) from FAA TCDS R00015LA (Robinson R66); 130 KIAS from 2,200 to 2,700 lb.",
+    "vmo": 140
+  },
+  {
+    "typeCode": "B429",
+    "note": "Vne 155 KIAS (basic) from FAA TCDS R00003RD (Bell 429).",
+    "vmo": 155
+  },
+  {
+    "typeCode": "EC30",
+    "note": "Vne 155 kt power on (at sea level) from FAA TCDS H9EU (EC130 B4/T2); power off 125 kt.",
+    "vmo": 155
+  },
+  {
+    "typeCode": "AS65",
+    "note": "Vne 175 KIAS (at sea level, 6,614 lb) from FAA TCDS H10EU (AS365 N2/N3). The figure comes from reading a garbled TCDS table; both readings of its column order and the TCDS's EC155 sections agree on 175.",
+    "vmo": 175
+  },
+  {
+    "typeCode": "B412",
+    "note": "Vne 140 KIAS (maximum; varies with altitude and temperature) from FAA TCDS H4SW (412/412EP).",
+    "vmo": 140
+  },
+  {
+    "typeCode": "S92",
+    "note": "Vne 165 KIAS power on from FAA TCDS R00024BO (S-92A); power off 120 KIAS.",
+    "vmo": 165
+  },
+  {
+    "typeCode": "C172",
+    "note": "Vno 129 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS 3A12 (172R/172S); Vne 163 KIAS not used.",
+    "vmo": 129
+  },
+  {
+    "typeCode": "C182",
+    "note": "Vno 140 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS 3A13 (182S/T182T, 182T); Vne 175 KIAS not used.",
+    "vmo": 140
+  },
+  {
+    "typeCode": "P28A",
+    "note": "Vno 121 KCAS (top of green arc; pistons have no Vmo) from FAA TCDS 2A13 (PA-28-181 Archer; the TCDS gives CAS only); Vne 148 KCAS not used.",
+    "vmo": 121
+  },
+  {
+    "typeCode": "SR22",
+    "note": "Vno 179 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS A00009CH (SR22 S/N 3915 on); Vne 208 KIAS not used.",
+    "vmo": 179
+  },
+  {
+    "typeCode": "SR20",
+    "note": "Vno 164 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS A00009CH (SR20 S/N 2220, 2339 on); Vne 201 KIAS not used.",
+    "vmo": 164
+  },
+  {
+    "typeCode": "S22T",
+    "note": "Vno from FAA TCDS A00009CH (SR22T S/N 0442 on): 179 KCAS from sea level to 17,500 ft, reducing linearly to 152 KCAS at 25,000 ft (top of green arc; pistons have no Vmo); vmo 179 is the band maximum. The banding keeps the Vno unraised by the C206 sibling profile.",
+    "vmo": 179,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 179 },
+      { "altitudeFt": 17500, "kias": 179 },
+      { "altitudeFt": 25000, "kias": 152 }
+    ]
+  },
+  {
+    "typeCode": "M20P",
+    "note": "Vno 174 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS 2A3 (M20J S/N 24-0171 on, or with SB M20-198; the M20R, also ICAO M20P, is the same); Vne 195 KIAS not used. The profile cruise (237 KTAS) floor-raises it to about 175 kt until YAAT-1956 corrects the profile.",
+    "vmo": 174
+  },
+  {
+    "typeCode": "BE36",
+    "note": "Vno 165 KCAS (167 KIAS; top of green arc; pistons have no Vmo) from FAA TCDS 3A15 (G36); Vne 203 KCAS not used.",
+    "vmo": 165
+  },
+  {
+    "typeCode": "BE58",
+    "note": "Vno 195 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS 3A16 (58/G58); Vne 223 KIAS not used.",
+    "vmo": 195
+  },
+  {
+    "typeCode": "PA34",
+    "note": "Vno 166 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS A7SO (PA-34-220T Seneca III/IV); Vne 205 KIAS not used.",
+    "vmo": 166
+  },
+  {
+    "typeCode": "PA31",
+    "note": "Vno 188 KCAS (top of green arc; pistons have no Vmo) from FAA TCDS A20SO (PA-31; the -350 is 187); Vne 236 KCAS not used.",
+    "vmo": 188
+  },
+  {
+    "typeCode": "C310",
+    "note": "Vno 181 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS 3A10 (310R S/N 310R0501 to 310R2140); Vne 223 KIAS not used.",
+    "vmo": 181
+  },
+  {
+    "typeCode": "DA42",
+    "note": "Vno 155 KEAS (top of green arc; pistons have no Vmo) from FAA TCDS A57CE (DA 42/DA 42 NG/DA 42 M-NG); KEAS is within a few knots of KCAS at these altitudes. Vne 192 KCAS not used.",
+    "vmo": 155
+  },
+  {
+    "typeCode": "DA62",
+    "note": "Vno 160 KEAS (top of green arc; pistons have no Vmo) from FAA TCDS A57CE (DA 62); KEAS is within a few knots of KCAS at these altitudes. Vne 201 KCAS not used.",
+    "vmo": 160
+  },
+  {
+    "typeCode": "C421",
+    "note": "Vno 201 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS A7CE (421C); Vne 240 KIAS not used. 421B is 200 KCAS. vmoBands hold 201 flat to the 31,000 ft profile ceiling so the profile (a copy of C441's turboprop figures; YAAT-1956 sources it) does not raise it.",
+    "vmo": 201,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 201 },
+      { "altitudeFt": 31000, "kias": 201 }
+    ]
+  },
+  {
+    "typeCode": "C210",
+    "note": "Vno 165 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS 3A21 (210N, S/N 21062954 on); Vne 200 KIAS not used. T210N is 168, P210N 167. The profile's descentSpeedFl100 and initialApproachSpeed are 155 (165 - 10) so the profile does not fly past the TCDS limit.",
+    "vmo": 165
+  },
+  {
+    "typeCode": "BE33",
+    "note": "Vno 165 KCAS (167 KIAS; top of green arc; pistons have no Vmo) from FAA TCDS 3A15 (F33A); Vne 195 KCAS not used. The profile's descentSpeedFl100 and initialApproachSpeed are 155 (165 - 10) so the profile does not fly past the TCDS limit.",
+    "vmo": 165
+  },
+  {
+    "typeCode": "C152",
+    "note": "Vno 111 KIAS (top of green arc; pistons have no Vmo) from FAA TCDS 3A19 (152); Vne 149 KIAS not used.",
+    "vmo": 111
+  },
+  {
+    "typeCode": "C180",
+    "note": "Vno 139 kt (160 mph; top of green arc; pistons have no Vmo) from FAA TCDS 5A6, all 180 models (TIAS to 180H, IAS 180J/K); Vne 160-169 kt not used. descentSpeedFl100 129 (139 - 10) replaces the P28R sibling profile's 140 so the profile does not fly past the TCDS limit.",
+    "vmo": 139,
+    "descentSpeedFl100": 129
+  },
+  {
+    "typeCode": "AA5",
+    "note": "Vno 143 KCAS (165 mph; top of green arc; pistons have no Vmo) from FAA TCDS A16EA (AA-5B/AG-5B Tiger); Vne 174 KCAS not used. AA-5/AA-5A are 130 KCAS. descentSpeedFl100 133 (143 - 10) replaces the SR22 sibling profile's 140 so the profile does not fly past the TCDS limit.",
+    "vmo": 143,
+    "descentSpeedFl100": 133
+  },
+  {
+    "typeCode": "C208",
+    "note": "Vmo 175 KIAS from FAA TCDS A37CE (208 Caravan, 208B Grand Caravan, all variants). TCDS gives no Mmo; the class M0.55 stands (it never binds below this Vmo).",
+    "vmo": 175
+  },
+  {
+    "typeCode": "PC12",
+    "note": "Vmo 240 KEAS / Mmo 0.48 from FAA TCDS A78EU (PC-12 and the /45, /47, /47E, /47G, which inherit the base figures). Stored as given; KEAS sits a few knots under KCAS, so the figure is conservative, and Mmo 0.48 binds above about 15,000 ft. descentSpeedInitial 166 (176 - 10, the M0.48 IAS at the 30,000 ft ceiling) replaces the profile's 0, which held the 210 kt descent to the ceiling, so the profile does not fly past the TCDS limit.",
+    "vmo": 240,
+    "mmo": 0.48,
+    "descentSpeedInitial": 166
+  },
+  {
+    "typeCode": "TBM7",
+    "note": "Vmo 271 KCAS from FAA TCDS A60EU (TBM 700 without MOD70-0357-71). TCDS gives no Mmo; the class M0.55 stands. descentSpeedInitial 193 (203 - 10, the M0.55 IAS at the 30,000 ft ceiling) replaces the profile's 0, which held the 240 kt descent to the ceiling, so the profile does not fly past the limit.",
+    "vmo": 271,
+    "descentSpeedInitial": 193
+  },
+  {
+    "typeCode": "TBM8",
+    "note": "Vmo 271 KCAS from FAA TCDS A60EU (TBM 850, the TBM 700N under MOD 70-0188-00, without MOD70-0357-71). TCDS gives no Mmo; the class M0.55 stands. descentSpeedInitial 193 (203 - 10, the M0.55 IAS at the 30,000 ft ceiling of the TBM7 sibling profile) replaces that profile's 0, which held the 240 kt descent to the ceiling, so the profile does not fly past the limit.",
+    "vmo": 271,
+    "descentSpeedInitial": 193
+  },
+  {
+    "typeCode": "TBM9",
+    "note": "Vmo 270 KCAS from FAA TCDS A60EU (TBM 700 with MOD70-0357-71: TBM 900/910/930/940). The TBM 960 is not named in the TCDS; its figure is by inheritance, unsourced. TCDS gives no Mmo; the class M0.55 stands. descentSpeedInitial 193 (203 - 10, the M0.55 IAS at the 30,000 ft ceiling of the TBM7 sibling profile) replaces that profile's 0, which held the 240 kt descent to the ceiling, so the profile does not fly past the limit.",
+    "vmo": 270,
+    "descentSpeedInitial": 193
+  },
+  {
+    "typeCode": "KODI",
+    "note": "Vmo 180 KCAS (182 KIAS) from FAA TCDS A00007SE (Kodiak 100; the Kodiak 200 is 190 KCAS). TCDS gives no Mmo; the class M0.55 stands. vmoBands hold 180 flat to 25,000 ft so the TBM7 sibling profile does not raise it. descentSpeedFl100, initialApproachSpeed and holdingSpeed 170 (180 - 10) replace TBM7's 240/240/220, which flew past Vmo; KODI's own profile is booked separately (YAAT-1956). climbSpeedFl150 and climbSpeedFl240 170 and a cruise of 174 KTAS at 12,000 ft (about 145 KCAS) replace TBM7's 200/200 and 290 KTAS at 24,000 ft, which flew past Vmo; they are unsourced placeholders under Vmo - 10 until YAAT-1956 sources a profile.",
+    "vmo": 180,
+    "climbSpeedFl150": 170,
+    "climbSpeedFl240": 170,
+    "cruiseSpeed": 174,
+    "cruiseAltitude": 12000,
+    "descentSpeedFl100": 170,
+    "initialApproachSpeed": 170,
+    "holdingSpeed": 170,
+    "vmoBands": [
+      { "altitudeFt": 0, "kias": 180 },
+      { "altitudeFt": 25000, "kias": 180 }
+    ]
+  },
+  {
+    "typeCode": "P46T",
+    "note": "Vmo 188 KIAS from FAA TCDS A25SO (PA-46-500TP Meridian/M500). TCDS gives no Mmo for the 500TP; the class M0.55 stands. The M600/M700 (250 KCAS / M0.55) are not the figure stored here. The profile's descentSpeedFl100, initialApproachSpeed and holdingSpeed are 178 (188 - 10) so the profile floor does not raise the Vmo.",
+    "vmo": 188
+  },
+  {
+    "typeCode": "P180",
+    "note": "Vmo 260 KIAS / Mmo 0.70 from FAA TCDS A59EU (P-180 Avanti, S/N 1063 on, and S/N 1034-1062 with SB 80-0159; earlier S/Ns are M0.67). descentSpeedInitial 194 (204 - 10, the M0.70 IAS at the 41,000 ft ceiling) replaces the profile's 0, which held the 250 kt descent to the ceiling, so the profile does not fly past the TCDS limit.",
+    "vmo": 260,
+    "mmo": 0.70,
+    "descentSpeedInitial": 194
+  },
+  {
+    "typeCode": "B190",
+    "note": "Vmo 248 KIAS / Mmo 0.48 from FAA TCDS A24CE (1900D). The TCDS's 'up to 13,200 ft' is the M0.48 crossover, so the Vmo is scalar and Mmo carries the rest. descentSpeedInitial 186 (196 - 10, the M0.48 IAS at the 25,000 ft ceiling) replaces the profile's 0, which held the descent speed to the ceiling, and climbSpeedFinal M0.46 (Mmo - 0.02) caps the 210 kt climb held above FL240, so the profile does not fly past the TCDS limit.",
+    "vmo": 248,
+    "mmo": 0.48,
+    "climbSpeedFinal": 0.46,
+    "descentSpeedInitial": 186
+  },
+  {
+    "typeCode": "B350",
+    "note": "Vmo 263 KIAS / Mmo 0.58 from FAA TCDS A24CE (B300/B300C King Air 350). The TCDS's '263 to 194 knots (0.58 Mach) 21,000 ft. up to 35,000 ft' is the Mmo line, so the Vmo is scalar and Mmo carries the rest. descentSpeedInitial 182 (192 - 10, the M0.58 IAS at the 35,000 ft ceiling) replaces the profile's 0, which held the descent speed to the ceiling, and climbSpeedFinal M0.56 (Mmo - 0.02) caps the 230 kt climb held above FL240, so the profile does not fly past the TCDS limit.",
+    "vmo": 263,
+    "mmo": 0.58,
+    "climbSpeedFinal": 0.56,
+    "descentSpeedInitial": 182
+  },
+  {
+    "typeCode": "BE20",
+    "note": "Vmo 260 KCAS / Mmo 0.52 from FAA TCDS A24CE, section I (200/B200, S/N BB-199 on). The TCDS's 'up to 15,000 ft' is the M0.52 crossover, so the Vmo is scalar and Mmo carries the rest. descentSpeedInitial 161 (171 - 10, the M0.52 IAS at the 35,000 ft ceiling) replaces the profile's 0, which held the 250 kt descent to the ceiling, and climbSpeedFinal M0.50 (Mmo - 0.02) caps the 230 kt climb held above FL240, so the profile does not fly past the TCDS limit.",
+    "vmo": 260,
+    "mmo": 0.52,
+    "climbSpeedFinal": 0.50,
+    "descentSpeedInitial": 161
   }
 ]

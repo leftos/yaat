@@ -279,7 +279,7 @@ public class VectorCancelsQueuedPatternEntryTests(ITestOutputHelper output)
         SpawnAirborneOverOak(engine, "TST108");
 
         Assert.True(engine.SendCommand("TST108", "DCT VPCOL; CAPP I28R").Success);
-        Assert.True(engine.SendCommand("TST108", "CFIX VPCOL 15 180").Success);
+        Assert.True(engine.SendCommand("TST108", "CFIX VPCOL 15 150").Success);
 
         AircraftState? ac = engine.FindAircraft("TST108");
         Assert.NotNull(ac);
