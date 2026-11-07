@@ -1253,6 +1253,10 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     // its pavement edges. Not `required`: absent on older snapshots, where null (no voided clearance) is what those builds knew.
     public string? VoidedLahsoCrossingRunwayId { get; init; }
 
+    // The aircraft's tail has passed the landing runway's holding position marking and the vacate side effects have run (V50).
+    // Not `required`: absent on older snapshots, where false lets the restored exit run them once more, at the latch or the stop.
+    public bool Vacated { get; init; }
+
     /// <summary>
     /// Through V45 the "unable to exit" latch lived here (the pilot had already reported it was stopped with no exit ahead). Read only
     /// so <see cref="SnapshotSchemaMigrator"/> can move a true one onto <see cref="PhaseListDto.ReportedNoExitAhead"/>, then nulled, so

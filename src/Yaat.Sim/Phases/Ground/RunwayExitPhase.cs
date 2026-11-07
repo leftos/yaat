@@ -114,6 +114,9 @@ public sealed class RunwayExitPhase : Phase
 
     /// <summary>The cut-back stop leaves the tail inside the landing runway's marking. Set with the route.</summary>
     private bool _stopTailInsideLine;
+
+    // Latched the first tick the whole aircraft is past the landing runway's holding position marking — see Vacated.
+    private bool _vacated;
     private GroundNavigator? _navigator;
 
     // Latched once the turn-off is physically under way — see TurnStarted.
@@ -178,6 +181,14 @@ public sealed class RunwayExitPhase : Phase
     /// False until the exit route is built.
     /// </summary>
     public bool StopsTailInsideRunwayLine => _stopTailInsideLine;
+
+    /// <summary>
+    /// The aircraft has vacated the landing runway: latched the first tick its tail is past the runway's holding position marking
+    /// (AIM 4-3-21.b), by the test <see cref="Simulation.RunwayOccupancy.IsVacating"/> makes, whatever its speed. Never set for an
+    /// exit that stops inside the runway's holding distance or with its tail inside the runway's line
+    /// (<see cref="StopsTailInsideRunwayLine"/>).
+    /// </summary>
+    public bool Vacated => _vacated;
 
     /// <summary>
     /// The bearing of the exit path's last edge, from the node before the hold-short to the hold-short
@@ -1895,6 +1906,9 @@ public sealed class RunwayExitPhase : Phase
             _turnStarted = true;
         }
 
+        // Judged on the pose the tick starts from, before the navigator steers: the one RunwayOccupancy sees between ticks.
+        TryLatchVacated(ctx);
+
         // A stored taxi route the exit joins: the route end is not a stop, the aircraft rolls on into the route at taxi speed.
         bool isLastSegment = IsExitStopSegment(ctx);
         ApplyExitDecelRate(ctx);
@@ -2002,23 +2016,98 @@ public sealed class RunwayExitPhase : Phase
     private double ExitMaxSpeedKts(PhaseContext ctx) =>
         Math.Min(_coastSpeed, ExitTaxiCeilingKts(ctx.Category, ctx.Aircraft.AircraftType, ctx.Aircraft.Ground.IsExpeditingExit));
 
+    /// <summary>
+    /// Latches <see cref="Vacated"/> the first tick the whole aircraft is past the landing runway's holding position marking — the
+    /// moment the runway counts as vacated (AIM 4-3-21.b), whatever the speed — and runs the vacate side effects then
+    /// (<see cref="RunVacateSideEffects"/>), not at the stop. The test is <see cref="Simulation.RunwayOccupancy.IsVacating"/>, tolerance
+    /// included, so "vacated" here and "still vacating" there never disagree. An exit that stops inside the runway's holding
+    /// distance or with its tail inside the runway's line never latches: it does not clear the runway, and its stop
+    /// (<see cref="CompleteExit"/>) behaves as before.
+    /// </summary>
+    private void TryLatchVacated(PhaseContext ctx)
+    {
+        if (_vacated || !ctx.Aircraft.IsOnGround || IsStoppedInsideHoldingDistance(ctx))
+        {
+            return;
+        }
+
+        if (
+            (ctx.GroundLayout is not { } layout)
+            || (ctx.Aircraft.Phases is not { AssignedRunway: { } runway } phases)
+            || !phases.RunsOn(runway)
+            || !Simulation.RunwayOccupancy.IsLayoutOf(layout, runway)
+        )
+        {
+            return;
+        }
+
+        if (Simulation.RunwayOccupancy.IsVacating(ctx.Aircraft, AircraftBody.Of(ctx.Aircraft.AircraftType), runway, layout))
+        {
+            return;
+        }
+
+        _vacated = true;
+        RunVacateSideEffects(ctx);
+        Log.LogDebug(
+            "[Exit] {Callsign}: tail past {Rwy}'s holding position marking on {Twy} at {Gs:F1} kts, runway vacated",
+            ctx.Aircraft.Callsign,
+            _runwayId,
+            ctx.Aircraft.Ground.CurrentTaxiway ?? _exitTaxiway,
+            ctx.Aircraft.GroundSpeed
+        );
+    }
+
+    /// <summary>
+    /// What vacating the landing runway ends: the landing's given-up exits, its "unable to exit" call and no-exit reach test, and its
+    /// LAHSO clearance are cleared; the taxi-in call is armed (made once clear of the landing runway, AIM 4-3-21.c); and the exit's
+    /// hold-short is marked occupied so same-tick aircraft see it. Run once per exit: at the <see cref="Vacated"/> latch, else at
+    /// the stop.
+    /// </summary>
+    private void RunVacateSideEffects(PhaseContext ctx)
+    {
+        ClearLandingRunwayState(ctx);
+        ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
+        MarkHoldShortOccupied(ctx);
+    }
+
+    /// <summary>
+    /// The landing state that ends with clearing its runway: the given-up exits (a later runway exit starts with none), the "unable to
+    /// exit" call and the no-exit reach test (a later landing calls afresh and searches as on the normal path), and the LAHSO
+    /// clearance, kept through the exit and now complied with (AIM 4-3-11.b.6).
+    /// </summary>
+    private static void ClearLandingRunwayState(PhaseContext ctx)
+    {
+        if (ctx.Aircraft.Phases is not { } phases)
+        {
+            return;
+        }
+
+        phases.GivenUpExitTaxiways.Clear();
+        phases.ReportedNoExitAhead = false;
+        phases.NoExitReachTestActive = false;
+        phases.LahsoHoldShort = null;
+    }
+
+    /// <summary>Marks the exit's hold-short occupied so same-tick aircraft see it.</summary>
+    private void MarkHoldShortOccupied(PhaseContext ctx)
+    {
+        if (_holdShortNode is not null)
+        {
+            ctx.MarkHoldShortNodeOccupied?.Invoke(_holdShortNode.Id);
+        }
+    }
+
     private bool CompleteExit(PhaseContext ctx)
     {
         // The runway exit is done — drop the expedite flag so it doesn't bleed
         // into a subsequent taxi (which has its own EXP).
         ctx.Aircraft.Ground.IsExpeditingExit = false;
 
-        // The landing's given-up exits end with its runway exit: a later runway exit of this aircraft starts with none.
-        ctx.Aircraft.Phases?.GivenUpExitTaxiways.Clear();
-
-        // So do its "unable to exit" call and its no-exit reach test: a later landing calls afresh and searches as on the normal path.
-        if (ctx.Aircraft.Phases is { } phases)
+        // An exit that latched Vacated has run the vacate side effects already; one that did not runs them here, as the stop is
+        // reached, in the order they always ran.
+        if (!_vacated)
         {
-            phases.ReportedNoExitAhead = false;
-            phases.NoExitReachTestActive = false;
-
-            // Clear of the runway: the LAHSO clearance, kept through the exit, has been complied with (AIM 4-3-11.b.6).
-            phases.LahsoHoldShort = null;
+            ClearLandingRunwayState(ctx);
         }
 
         // A taxi route stored behind the exit (a TAXI on the rollout) starts here, the aircraft rolling on into it; one the exit
@@ -2034,7 +2123,7 @@ public sealed class RunwayExitPhase : Phase
 
         // The taxi-in call is made once clear of the landing runway (AIM 4-3-21.c); an aircraft stopped short of clearing it owes none.
         bool stoppedNotClear = IsStoppedInsideHoldingDistance(ctx);
-        if (!stoppedNotClear)
+        if (!stoppedNotClear && !_vacated)
         {
             ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
         }
@@ -2053,10 +2142,9 @@ public sealed class RunwayExitPhase : Phase
             return true;
         }
 
-        // Mark this hold-short as occupied so same-tick aircraft see it
-        if (_holdShortNode is not null)
+        if (!_vacated)
         {
-            ctx.MarkHoldShortNodeOccupied?.Invoke(_holdShortNode.Id);
+            MarkHoldShortOccupied(ctx);
         }
 
         // Insert HoldingAfterExitPhase; a stop with the nose at another runway's line and the tail still inside this one's holds
@@ -2297,6 +2385,7 @@ public sealed class RunwayExitPhase : Phase
             TurnOffDecelRate = _turnOffDecelRate,
             BacktrackPending = _backtrackPending,
             VoidedLahsoCrossingRunwayId = _voidedLahsoCrossingRunwayId,
+            Vacated = _vacated,
             StopTailInsideLine = _stopTailInsideLine,
             StopHeldShortOfBarNodeId = _stopHeldShortOfBar?.Id,
             Navigator = _navigator?.ToSnapshot() ?? _restoredNavigator,
@@ -2349,6 +2438,7 @@ public sealed class RunwayExitPhase : Phase
             _turnOffDecelRate = dto.TurnOffDecelRate,
             _backtrackPending = dto.BacktrackPending,
             _voidedLahsoCrossingRunwayId = dto.VoidedLahsoCrossingRunwayId,
+            _vacated = dto.Vacated,
             _stopTailInsideLine = dto.StopTailInsideLine ?? false,
             _restoreSegmentIndex = Math.Max(dto.ExitWaypointIndex, 0),
             Status = (PhaseStatus)dto.Status,
