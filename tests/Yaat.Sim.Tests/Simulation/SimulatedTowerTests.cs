@@ -63,7 +63,7 @@ public class SimulatedTowerTests
     }
 
     [Fact]
-    public void StudentCtoBetweenTicks_IsNotClearedTwice()
+    public void StudentCtoAfterTheTransfer_IsNotHeard_AndTheSimTowerClearsOnce()
     {
         if (LoadAtTheBar("OAK_GND", "GND", AtcPositionLevel.Ground) is not { } run)
         {
@@ -78,11 +78,13 @@ public class SimulatedTowerTests
             run.Engine.TickOneSecond();
         }
 
+        // The pilot is on the tower frequency now: the student's CTO is not heard.
         CommandResult cto = run.Engine.SendCommand(Callsign, "CTO");
-        Assert.True(cto.Success, cto.Message);
+        Assert.False(cto.Success);
+        Assert.Null(cto.Message);
         run.Engine.TickOneSecond();
 
-        Assert.False(SimTowerCleared(run), "the simulated tower cleared a departure the student had just cleared");
+        Assert.True(SimTowerCleared(run), "the simulated tower did not clear the transferred departure");
         Assert.Single(run.Aircraft.Phases!.Phases, p => p is TakeoffPhase);
     }
 

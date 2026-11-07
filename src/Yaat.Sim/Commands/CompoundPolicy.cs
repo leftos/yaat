@@ -73,6 +73,52 @@ public static class CompoundPolicy
         cmd is CreateFlightPlanCommand or CreateAbbreviatedFlightPlanCommand or SetRemarksCommand;
 
     /// <summary>
+    /// True for a command the pilot must hear to act on: every instruction whose registry definition produces a pilot
+    /// "unable" (<see cref="CommandDefinition.ProducesPilotUnable"/>), the transponder instructions, the Class B
+    /// clearance, a contact or frequency change (<c>CT</c>, <c>FCA</c>), <c>ROGER</c>/<c>STBY</c>, and the <c>SAY*</c>
+    /// queries. Not the verbatim <c>SAY</c> broadcast (the instructor scripting a pilot line), not <c>AGAIN</c>/<c>AGAINU</c>
+    /// (the pilot-repeat path answers an away pilot itself), and never a track, flight-plan, <c>ASSUME</c> or
+    /// <c>SHOWAT</c> entry.
+    /// </summary>
+    public static bool IsRadioInstruction(ParsedCommand cmd)
+    {
+        if (
+            (cmd is SayCommand or SayAgainCommand or SayAgainUnaddressedCommand or AssumeCommand or ShowQueuedCommand)
+            || TrackEngine.IsTrackCommand(cmd)
+            || IsFlightPlanCommand(cmd)
+        )
+        {
+            return false;
+        }
+
+        if (
+            cmd
+            is ContactCommand
+                or FrequencyChangeApprovedCommand
+                or AcknowledgePilotContactCommand
+                or ClearedBravoAirspaceCommand
+                or SquawkCommand
+                or SquawkVfrCommand
+                or SquawkNormalCommand
+                or SquawkStandbyCommand
+                or IdentCommand
+                or RandomSquawkCommand
+                or SaySpeedCommand
+                or SayMachCommand
+                or SayExpectedApproachCommand
+                or SayAltitudeCommand
+                or SayHeadingCommand
+                or SayPositionCommand
+                or SayExitFixEstimateCommand
+        )
+        {
+            return true;
+        }
+
+        return CommandRegistry.Get(CommandDescriber.ToCanonicalType(cmd))?.ProducesPilotUnable == true;
+    }
+
+    /// <summary>
     /// Returns the first rejection-set command in a genuinely multi-command compound, or null.
     /// A line the single-command parser accepts whole is not a chain — a free-text command
     /// (NOTE/RMK/...) legitimately swallows ';' into its text, and the server's single-command

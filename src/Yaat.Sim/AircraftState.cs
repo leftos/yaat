@@ -329,12 +329,12 @@ public class AircraftState
     public bool HasControllerAcknowledgedInitialContact { get; set; }
 
     /// <summary>
-    /// The position the pilot is tuned to, or null when nothing has recorded one (the pilot is on the student's side). A
-    /// human CT tunes it to the target (<see cref="TrackOwner.Elsewhere"/> when the target resolves to no position) and a
-    /// human FCA to <see cref="TrackOwner.Elsewhere"/>, in both solo training and RPO modes; a later human instruction to an
-    /// aircraft with nothing recorded tunes it to the student's position. A scripted or AI-controller command never tunes it,
-    /// and track ownership transfers (HOO/auto-track) do not either, because radar identity and comms are independent (FAA
-    /// 7110.65 §7-6-11). Snapshot-serialized so replays / rewinds restore post-transfer state without re-firing dependent
+    /// The position the pilot is tuned to, or null when nothing has recorded one (the pilot is on the student's side). Set
+    /// by a human CT (to the target, <see cref="TrackOwner.Elsewhere"/> when the target resolves to no position) and a human
+    /// FCA (to <see cref="TrackOwner.Elsewhere"/>), in both solo training and RPO modes; by the airborne spawn stamp; and,
+    /// in solo training, cleared back to the student when the student accepts a handoff from another position. A student
+    /// instruction never retunes it: one given to a pilot tuned elsewhere is not heard. A scripted or AI-controller command
+    /// never tunes it. Snapshot-serialized so replays / rewinds restore post-transfer state without re-firing dependent
     /// behavior (solo evaluator's advisory scoring; InitialClimbPhase's radar-vectors SID release).
     /// </summary>
     public TrackOwner? TunedPosition { get; set; }

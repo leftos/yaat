@@ -43,6 +43,11 @@ internal static class ActionArms
         }
 
         CompoundCommand compound = parse.Value!;
+        if (TryRefuseNotOnFrequency(ctx, compound, out CommandResult refused))
+        {
+            return refused;
+        }
+
         DispatchOrigin origin = ctx.Origin;
         SimScenarioState? scenario = engine.Scenario;
         double? delay = scenario is null
@@ -99,6 +104,33 @@ internal static class ActionArms
 
         engine.ApplyPostDispatch(aircraft, compound, result, origin, capture);
         return result;
+    }
+
+    /// <summary>
+    /// In solo training, a student instruction to a pilot tuned to another position is not heard: when any command in
+    /// the compound is one the pilot must hear (<see cref="CompoundPolicy.IsRadioInstruction"/>), nothing applies, no
+    /// read-back or "unable" is queued, and the instructor gets a pending warning naming the position the pilot is on. The
+    /// refusal carries no message, so the host prints no error line of its own. AI and scripted origins, RPO rooms and a
+    /// solo room with no student position are untouched; a student instruction never retunes the pilot.
+    /// </summary>
+    private static bool TryRefuseNotOnFrequency(ArmContext ctx, CompoundCommand compound, out CommandResult refused)
+    {
+        refused = new CommandResult(false, null);
+        AircraftState aircraft = ctx.Aircraft!;
+        if (
+            (ctx.Origin != DispatchOrigin.Human)
+            || (ctx.Engine.Scenario is not { SoloTrainingMode: true, StudentPosition: { } student })
+            || (!aircraft.IsTunedAwayFrom(student))
+            || (!compound.Blocks.Any(block => block.Commands.Any(CompoundPolicy.IsRadioInstruction)))
+        )
+        {
+            return false;
+        }
+
+        TrackOwner tuned = aircraft.TunedPosition!;
+        string where = ((tuned == TrackOwner.Elsewhere) || string.IsNullOrEmpty(tuned.Callsign)) ? "" : $" (on {tuned.Callsign})";
+        aircraft.PendingWarnings.Add($"{aircraft.Callsign} is not on your frequency{where}");
+        return true;
     }
 
     /// <summary>
