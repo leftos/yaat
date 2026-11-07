@@ -1015,10 +1015,11 @@ public sealed class LandingPhase : Phase
 
         bool forced = ctx.Aircraft.Phases?.ForceLanding == true;
 
-        // A LAHSO hold-short point outranks the forced rollout: its own stop logic already keeps the aircraft short.
-        bool forcedRollout = forced && !_hasLahso;
+        // A LAHSO hold-short point outranks the forced rollout: its own stop logic already keeps the aircraft short, and a
+        // voided clearance (a predicted overrun) keeps the planned overrun braking and the crossing-runway keep-out.
+        bool forcedRollout = forced && !_hasLahso && !IsLahsoVoided;
 
-        ResolveRolloutCandidate(ctx, plan, forced);
+        ResolveRolloutCandidate(ctx, plan, forcedRollout);
 
         // The forced rollout judges its own candidate — TickForcedRollout gives up one it can no longer make, a
         // passed one included, and keeps braking to its stop — so the missed-exit path, which ends in State.Unable
@@ -2272,7 +2273,7 @@ public sealed class LandingPhase : Phase
 
             // The forced rollout completed — stopped on the runway or handed off to the exit — so the runway exit
             // finishes it as one (PhaseList.ForcedRollout). A command that cleared the phase leaves the aircraft to it.
-            phases.ForcedRollout = (endStatus == PhaseStatus.Completed) && !_hasLahso;
+            phases.ForcedRollout = (endStatus == PhaseStatus.Completed) && !_hasLahso && !IsLahsoVoided;
         }
     }
 

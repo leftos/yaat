@@ -1062,6 +1062,111 @@ public class LahsoPastHandoffTests(ITestOutputHelper output)
         Assert.DoesNotContain(lines, l => l.Contains("no exit ahead", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// YAAT-1942: a forced landing (<c>CLANDF</c>) issued after a LAHSO clearance stays a planned rollout. The forced exit search
+    /// never runs while the clearance is live — it has no LAHSO filter and commits the last exit on the runway, well past the point —
+    /// and once a predicted overrun voids the clearance the rollout keeps the planned braking and the crossing-runway keep-out, so the
+    /// aircraft never back-tracks across 1L and the runway exit it hands off to is never a forced one (which would commit an exit
+    /// behind the aircraft and re-cross the LAHSO runway).
+    /// </summary>
+    [Fact]
+    public void Clandf_AfterLahso_StaysAPlannedRollout_AndNeverBacktracksAcross1L()
+    {
+        Setup? setup = Spawn("E75L", 140);
+        if (setup is null)
+        {
+            return;
+        }
+
+        CommandResult clandf = setup.Engine.SendCommand(Callsign, "CLANDF");
+        Assert.True(clandf.Success, $"CLANDF failed: {clandf.Message}");
+        Assert.True(setup.Aircraft.Phases?.ForceLanding == true, "the forced landing must be in force");
+
+        LandingPhase landing = setup.Aircraft.Phases!.Phases.OfType<LandingPhase>().Single();
+        double limitNm = LandingPhase.LahsoStopLimitNm(setup.Target.DistFromThresholdNm, setup.Aircraft.AircraftType);
+        (double nearEdgeFt, double farEdgeFt) = CrossingEdgesAlongFt(setup);
+        output.WriteLine($"hold-short point {setup.HoldShortFt:F0} ft; 1L pavement {nearEdgeFt:F0}-{farEdgeFt:F0} ft");
+        DrainLines(setup);
+
+        var lines = new List<string>();
+        bool sawLanding = false;
+        bool sawOverrunCall = false;
+        double previousAlongFt = setup.AlongFt;
+        Phase? current = null;
+        for (int t = 1; t <= 420; t++)
+        {
+            setup.Engine.TickOneSecond();
+            lines.AddRange(DrainLines(setup));
+            current = setup.Aircraft.Phases?.CurrentPhase;
+            sawLanding = sawLanding || (current is LandingPhase);
+
+            // While the clearance is live, any committed exit has to turn off at or before the hold-short point; the forced search
+            // commits the last exit on the runway (past 1L) and so defeats the stop at the point.
+            if ((setup.Aircraft.Phases?.LahsoHoldShort is not null) && (landing.CandidateExit is { } candidate))
+            {
+                double branchNm = GeoMath.AlongTrackDistanceNm(candidate.BranchPointNode.Position, setup.Threshold, setup.Runway.TrueHeading);
+                double angle = setup.Layout.MeasureExitAngle(
+                    candidate.Path,
+                    candidate.HoldShortNode,
+                    candidate.TaxiwayName,
+                    setup.Runway.TrueHeading
+                );
+                Assert.True(
+                    LandingPhase.TurnOffFitsBefore(branchNm, angle, setup.Runway.WidthFt, limitNm),
+                    $"t+{t}s: the landing committed {candidate.TaxiwayName} at {branchNm * GeoMath.FeetPerNm:F0} ft, past the 1L hold-short limit"
+                );
+            }
+
+            sawOverrunCall = sawOverrunCall || lines.Any(l => l.Contains("unable to hold short of runway 1L", StringComparison.OrdinalIgnoreCase));
+
+            // A voided clearance keeps rolling forward: the back-track (an exit behind the aircraft) is the re-crossing of 1L.
+            if (sawOverrunCall && (current is LandingPhase or RunwayExitPhase))
+            {
+                Assert.True(
+                    setup.AlongFt >= previousAlongFt - 0.5,
+                    $"t+{t}s: the centroid moved back from {previousAlongFt:F0} to {setup.AlongFt:F0} ft in {current.Name}"
+                );
+            }
+
+            previousAlongFt = setup.AlongFt;
+            AssertNotRestingOnTheCrossingRunway(setup, current, t, nearEdgeFt, farEdgeFt);
+
+            if (sawLanding && (current is not LandingPhase))
+            {
+                Assert.False(setup.Aircraft.Phases?.ForcedRollout == true, $"t+{t}s: the runway exit was handed a forced rollout in {current?.Name}");
+            }
+
+            if ((current is RunwayHoldingPhase) && (setup.Aircraft.GroundSpeed < 0.5))
+            {
+                break;
+            }
+
+            if (sawLanding && (current is not LandingPhase and not RunwayExitPhase and not RunwayHoldingPhase))
+            {
+                break;
+            }
+        }
+
+        foreach (string line in lines)
+        {
+            output.WriteLine($"  line: {line}");
+        }
+        output.WriteLine($"ended in {current?.Name} at {setup.AlongFt:F0} ft along; 1L pavement {nearEdgeFt:F0}-{farEdgeFt:F0} ft");
+
+        if (current is RunwayHoldingPhase)
+        {
+            Assert.True(
+                setup.NoseAlongFt <= setup.HoldShortFt,
+                $"the runway hold rests with the nose {setup.NoseAlongFt - setup.HoldShortFt:F0} ft past the hold-short point"
+            );
+            Assert.False(sawOverrunCall, "the hold at the point is under the live clearance, not a voided one");
+            return;
+        }
+
+        Assert.True(sawOverrunCall, $"left the runway with no overrun call (ended in {current?.Name})");
+        Assert.True(setup.AlongFt > farEdgeFt, $"the exit taken rests at {setup.AlongFt:F0} ft along, not beyond 1L's pavement ({farEdgeFt:F0} ft)");
+    }
+
     /// <summary>1L's pavement along 28R (ft from the landing threshold): its centreline crossing ± half its width over the crossing angle.</summary>
     private static (double NearFt, double FarFt) CrossingEdgesAlongFt(Setup setup)
     {
