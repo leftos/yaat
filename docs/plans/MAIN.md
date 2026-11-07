@@ -240,11 +240,8 @@
 
 ## Runway exits and landing rollout
 
-### 1 Defects (7/33 done)
+### 1 Defects (11/34 done)
 - [ ] YAAT-31 LAHSO residuals: carry the limit past handoff, arc fit, ALD gate, CROSS release · release vNext
-  - [/] YAAT-1926 LAHSO: keep the hold-short limit after the runway-exit hand-off and predict the overrun at the nose · release vNext
-  - [/] YAAT-1940 LAHSO: brake continuously to the hold-short point instead of coasting at 40 kt (E75L at SFO 28R/1L) · release vNext
-  - [ ] YAAT-1942 CLANDF after LAHSO rolls through the hold-short point to the last exit · release vNext
   - [ ] YAAT-1944 TAXI from the post-LAHSO hold rolls through the LAHSO runway with no hold-short (SFO 28R E across 1L) · release vNext
 - [ ] YAAT-353 Stop a landed aircraft re-accelerating on the exit route before the hold-bar stop (C172 OAK 28R H: +1 kt)
 - [ ] YAAT-364 C172 exiting OAK 28R at H stops with its tail 0.7 ft short of clearing the bar
@@ -690,10 +687,9 @@
 - [ ] YAAT-1917 Correct the C680 performance profile and source per-type Mmo for business jets on the BZJT class figure
 - [ ] YAAT-1918 Apply a speed revert that holds only RevertAssignedSpeed when its fix is sequenced
 
-### 2 Refinements and rulings (5/23 done)
+### 2 Refinements and rulings (6/23 done)
 - [ ] YAAT-189 Model 14 CFR 91.117(b) 200 kt near Class C/D airports
 - [ ] YAAT-490 Add A388 and DH8D performance profiles so the speed picker offers their real speeds
-- [ ] YAAT-1443 Give the types SMAX is most often given their own sourced Vmo/Vne (C208 flies the TP2M class's 250 kt) · release vNext
 - [ ] YAAT-1584 Correct rotation speeds that stay on raw profile data when the approach speed comes from the ACD (PC12 Vr 110)
 - [ ] YAAT-1607 Advise unable when a climb puts an assigned speed above Vmo/Mmo
 - [ ] YAAT-1619 Clear the controller-issued speed flags when a phase ends a bound with its assignment; keep a controller ceiling above 200 through a procedure turn
@@ -727,6 +723,8 @@
 - [ ] YAAT-1932 Fly helicopter Vne by altitude from the flight manuals (R22, R44, B06, H60)
 - [ ] YAAT-1946 Cap the holding speed at SMAX for the holding altitude, not only the AIM caps
 - [ ] YAAT-1947 Give helicopters an SMAX from their level-flight maximum, not 0.9 x Vne
+- [ ] YAAT-1956 Give M20P, C421 and KODI sourced performance profiles (borrowed cruise and descent figures)
+- [ ] YAAT-1957 Refuse a Mach assignment to a piston airplane (no Mach meter, AIM 4-4-12.b)
 
 ## SIDs, STARs and climb/descend via
 
@@ -977,7 +975,7 @@
 
 ### 2 Refinements and rulings (4/15 done)
 - [ ] YAAT-1545 Route each pilot report, check-in and readback to the position the pilot is tuned to, not a hardcoded Ground/Tower set · release vNext
-  - [ ] YAAT-1934 Route each pilot report by the tuned position; delete the SoloPositions lists · release vNext
+  - [/] YAAT-1934 Route each pilot report by the tuned position; delete the SoloPositions lists · release vNext
   - [ ] YAAT-1935 Address the airborne check-in to the tuned position · release vNext
 - [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording
 - [ ] YAAT-1183 Count human CRC controllers as online in the solo student's worked range
@@ -995,6 +993,8 @@
 - [ ] YAAT-1503 Key the RTIS 'looking' answer before later readbacks; stop the pilot echoing 'report traffic in sight'
 - [ ] YAAT-1512 Tell the sim when the student holds push-to-talk so no pilot keys over them
 - [ ] YAAT-1513 Re-call after an unanswered airborne check-in ('how do you hear')
+- [ ] YAAT-1958 Apply auto-track (and the tuned-position stamp) on the Sim-side replay load
+- [ ] YAAT-1959 Tune the pilot to an ERAM student who converts a pointout into ownership
 
 ## Server: CRC, ERAM, vEDST and rooms
 
@@ -1235,7 +1235,7 @@
 - [ ] YAAT-985 Run the desktop-gated UI tests the routed builder skips before a landing counts as green
 - [ ] YAAT-1478 Count soak completions per episode instead of reading the debrief's 500-record removal list
 
-### 3 Hygiene and tests (2/57 done)
+### 3 Hygiene and tests (3/58 done)
 - [ ] YAAT-82 Make OakS1_TaxiPathPlusParking keep T; remove test order-dependence (server)
 - [ ] YAAT-491 Adopt the user-level predictive-CI toolkit in yaat
 - [ ] YAAT-152 Test SoakRunner option parsing (move it into Yaat.Server/Soak)
@@ -1284,13 +1284,13 @@
 - [ ] YAAT-1230 Remove wall-clock time assertions from the yaat and yaat-server tests
 - [ ] YAAT-1315 Install synthetic navdata in Client.UI tests through ScopedOverride, not SetInstance
 - [ ] YAAT-1376 Stop OakPreferLaterOnsideExitTests counting P's south-side bar as an on-side exit
-- [/] YAAT-1457 Move the remaining OAK test selectors off node ids, ordinals and arc display names; add bug_bundle.py remap · release vNext
 - [ ] YAAT-1613 Share the client ground-route test setup and scope its navdata overrides
 - [ ] YAAT-1691 Refuse a pinned TestVnasData resolve after an unpinned one already ran
 - [ ] YAAT-1695 Delete the Yaat.Sim.Tests.TestVnasData wrapper that shadows the real class
 - [ ] YAAT-1779 test-all watchdog: ticking descendants, a stall report that shows its signals, run the case scripts
 - [ ] YAAT-1812 Radar re-centre follow-ups: RestoreSettings fallback marker, scenario unload, LiveTrafficClock forwarding
 - [ ] YAAT-1833 Make every client UI test that reads a normalized airport id mark nav-db readiness itself
+- [ ] YAAT-1954 Select OAK bar #355 in RunwayHoldBarsMarkingTests by meaning, not node id
 
 ### No milestone
 - [ ] YAAT-1703 Refuse RestoreFromSnapshot with no scenario loaded instead of freezing the aircraft
@@ -1405,6 +1405,7 @@
 - [controller-ai/02-positions-and-handoffs.md](controller-ai/02-positions-and-handoffs.md) — YAAT-804, YAAT-1539
 - [controller-ai/04-ground-brain.md](controller-ai/04-ground-brain.md) — YAAT-1182, YAAT-1246, Controller-AI coaching
 - [controller-ai/07-soak-runner.md](controller-ai/07-soak-runner.md) — YAAT-327
+- [controller-ai/11-radio-model.md](controller-ai/11-radio-model.md) — YAAT-1934
 - [controller-ai/README.md](controller-ai/README.md) — YAAT-514, YAAT-704
 - [controller-ai/coaching/README.md](controller-ai/coaching/README.md) — Controller-AI coaching
 - [controller-ai/coaching/ground-lessons.md](controller-ai/coaching/ground-lessons.md) — YAAT-1246
