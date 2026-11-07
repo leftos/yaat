@@ -140,6 +140,9 @@ public sealed class RunwayExitPhase : Phase
     private bool _noExitStopLogged;
     private bool _excursionLogged;
 
+    // The crossing runway of a LAHSO clearance voided by the overrun call (snapshotted).
+    private string? _voidedLahsoCrossingRunwayId;
+
     // Segment the exit route was on when the snapshot was taken. The route itself is built from the live ground
     // layout and is not serialized, so the first tick after a restore rebuilds it — and without this the rebuild
     // would restart at segment 0, the virtual approach leg to the branch node, which points backward once the
@@ -229,6 +232,25 @@ public sealed class RunwayExitPhase : Phase
     public double? TurnOffDecelRate => _turnOffDecelRate;
 
     /// <summary>
+    /// True once the phase has ended stopped short of a LAHSO hold-short point with no exit before it to take (the no-exit stop bound
+    /// by the LAHSO point, <see cref="NoExitStopPlan.StopStep.AtLahsoPoint"/>): <see cref="PhaseRunner"/> then holds the aircraft
+    /// there in <see cref="Tower.RunwayHoldingPhase"/>, as after a landing's own LAHSO stop. Set on the tick the phase completes and
+    /// read by the runner on the same tick, so it is not snapshotted.
+    /// </summary>
+    public bool StoppedForLahso { get; private set; }
+
+    /// <summary>
+    /// The crossing runway of a LAHSO clearance the overrun call voided (<see cref="Tower.LandingPhase.CallLahsoOverrun"/>), made in this
+    /// phase or carried from the landing at the hand-off: the no-exit stop never brings the aircraft to rest with its nose or tail
+    /// between that runway's pavement edges (AIM 4-3-21.b). Null otherwise. Snapshotted.
+    /// </summary>
+    public string? VoidedLahsoCrossingRunwayId
+    {
+        get => _voidedLahsoCrossingRunwayId;
+        internal set => _voidedLahsoCrossingRunwayId = value;
+    }
+
+    /// <summary>
     /// The runway being exited. Captured in <see cref="OnStart"/> from the
     /// aircraft's assigned runway. Used by the client info text to render
     /// "Exiting runway {id} via {taxiway}".
@@ -270,43 +292,7 @@ public sealed class RunwayExitPhase : Phase
             return;
         }
 
-        // If LandingPhase committed a resolved exit, honor it — but only if
-        // the hold-short isn't currently occupied. LandingPhase plans without
-        // regard to occupancy so the pilot continues to brake for the commanded
-        // exit, only deciding to skip at the last moment. RunwayExitPhase is
-        // that last moment: if another aircraft is now claiming the committed
-        // hold-short, drop the commit and fall through to a fresh analog search
-        // that excludes occupied nodes.
-        ResolvedExitInfo? committed = ctx.Aircraft.Phases?.ResolvedExit;
-        if (committed is not null)
-        {
-            ctx.Aircraft.Phases!.ResolvedExit = null;
-
-            bool occupied = ctx.OccupiedHoldShortNodes?.Contains(committed.HoldShortNode.Id) ?? false;
-            if (!occupied)
-            {
-                _holdShortNode = committed.HoldShortNode;
-                _exitTaxiway = committed.TaxiwayName;
-                _exitPath = committed.Path;
-                _turnOffDecelRate = RolloutBraking.CaptureTurnOffRate(committed.SelectionDecelRate, ctx.Category);
-                ctx.JoinExitSegmentOccupants?.Invoke();
-
-                Log.LogDebug(
-                    "[Exit] {Callsign}: using committed exit {Twy}, path=[{Path}]",
-                    ctx.Aircraft.Callsign,
-                    _exitTaxiway,
-                    string.Join("→", _exitPath.Select(n => n.Id))
-                );
-            }
-            else
-            {
-                Log.LogDebug(
-                    "[Exit] {Callsign}: committed exit {Twy} is now occupied, falling back to analog search",
-                    ctx.Aircraft.Callsign,
-                    committed.TaxiwayName
-                );
-            }
-        }
+        TryUseCommittedExit(ctx);
 
         if (_holdShortNode is null)
         {
@@ -321,6 +307,58 @@ public sealed class RunwayExitPhase : Phase
             _runwayHeading.Degrees,
             _holdShortNode?.Id.ToString() ?? "searching"
         );
+    }
+
+    /// <summary>
+    /// If LandingPhase committed a resolved exit, honors it — but only if the hold-short isn't currently occupied. LandingPhase plans
+    /// without regard to occupancy so the pilot continues to brake for the commanded exit, only deciding to skip at the last moment.
+    /// RunwayExitPhase is that last moment: if another aircraft is now claiming the committed hold-short, or the exit turns off past
+    /// the LAHSO stop limit, the commit is dropped and <see cref="OnStart"/> falls through to a fresh analog search that excludes
+    /// occupied nodes.
+    /// </summary>
+    private void TryUseCommittedExit(PhaseContext ctx)
+    {
+        ResolvedExitInfo? committed = ctx.Aircraft.Phases?.ResolvedExit;
+        if (committed is null)
+        {
+            return;
+        }
+
+        ctx.Aircraft.Phases!.ResolvedExit = null;
+
+        bool occupied = ctx.OccupiedHoldShortNodes?.Contains(committed.HoldShortNode.Id) ?? false;
+        bool pastLahsoLimit = !occupied && !CommittedExitFitsLahsoLimit(ctx, committed);
+        if (pastLahsoLimit)
+        {
+            Log.LogDebug(
+                "[Exit] {Callsign}: committed exit {Twy} turns off past the LAHSO stop limit, falling back to the search",
+                ctx.Aircraft.Callsign,
+                committed.TaxiwayName
+            );
+        }
+        else if (!occupied)
+        {
+            _holdShortNode = committed.HoldShortNode;
+            _exitTaxiway = committed.TaxiwayName;
+            _exitPath = committed.Path;
+            _turnOffDecelRate = RolloutBraking.CaptureTurnOffRate(committed.SelectionDecelRate, ctx.Category);
+            ctx.JoinExitSegmentOccupants?.Invoke();
+
+            Log.LogDebug(
+                "[Exit] {Callsign}: using committed exit {Twy}, path=[{Path}]",
+                ctx.Aircraft.Callsign,
+                _exitTaxiway,
+                string.Join("→", _exitPath.Select(n => n.Id))
+            );
+        }
+        else
+        {
+            Log.LogDebug(
+                "[Exit] {Callsign}: committed exit {Twy} is now occupied, falling back to analog search",
+                ctx.Aircraft.Callsign,
+                committed.TaxiwayName
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -479,9 +517,17 @@ public sealed class RunwayExitPhase : Phase
             TryFindExitAhead(ctx);
         }
 
-        // Stopped with no free exit ahead (the no-exit stop below, or a forced landing that stopped short of its end).
+        // Stopped with no free exit ahead (the no-exit stop below, or a forced landing that stopped short of its end). Stopped at a
+        // LAHSO hold-short point with none before it, the phase ends and PhaseRunner holds the aircraft there (AIM 4-3-11.b.6).
         if ((_holdShortNode is null) && !IsRolling(ctx.Aircraft))
         {
+            if (IsStoppedShortOfLahsoPoint(ctx))
+            {
+                StoppedForLahso = true;
+                Log.LogDebug("[Exit] {Callsign}: stopped short of the LAHSO hold-short point with no exit before it", ctx.Aircraft.Callsign);
+                return true;
+            }
+
             return TickStoppedWithoutExit(ctx);
         }
 
@@ -553,7 +599,77 @@ public sealed class RunwayExitPhase : Phase
     /// landing (<see cref="PhaseList.NoExitReachTestActive"/>); null before the runway is known.
     /// </summary>
     private ExitAheadSearch? PhaseSearch(PhaseContext ctx) =>
-        _runwayId is null ? null : new ExitAheadSearch(_runwayId, _runwayHeading, _lastResolvedPreference, _inferredSide, JudgesReach(ctx.Aircraft));
+        _runwayId is null
+            ? null
+            : new ExitAheadSearch(_runwayId, _runwayHeading, _lastResolvedPreference, _inferredSide, JudgesReach(ctx.Aircraft))
+            {
+                LahsoStopLimitNm = LahsoStopLimitNmFor(ctx.Aircraft),
+            };
+
+    /// <summary>
+    /// The LAHSO stop limit <paramref name="aircraft"/>'s exits are judged against while its clearance stands
+    /// (<see cref="PhaseList.LahsoHoldShort"/>, kept until it is clear of the runway): the landing's own limit
+    /// (<see cref="Tower.LandingPhase.LahsoStopLimitNm(double, string)"/>), so both phases judge an exit by one rule; null without LAHSO.
+    /// </summary>
+    private static double? LahsoStopLimitNmFor(AircraftState aircraft) =>
+        aircraft.Phases?.LahsoHoldShort is { } lahso ? Tower.LandingPhase.LahsoStopLimitNm(lahso.DistFromThresholdNm, aircraft.AircraftType) : null;
+
+    /// <summary>
+    /// True when an exit branching at <paramref name="branchNode"/> at <paramref name="exitAngleDeg"/> leaves the assigned runway by
+    /// <paramref name="stopLimitNm"/> from its landing threshold: the landing's own judge (<see cref="Tower.LandingPhase.TurnOffFitsBefore"/>,
+    /// the branch point plus the turn-off arc's run-on). True without an assigned runway, which has nothing to measure from.
+    /// </summary>
+    private static bool TurnOffFitsLahsoLimit(AircraftState aircraft, AirportGroundLayout layout, LahsoExitGeometry exit, double stopLimitNm)
+    {
+        if (aircraft.Phases?.AssignedRunway is not { } runway)
+        {
+            return true;
+        }
+
+        // Measured against the runway's true heading, never the aircraft's: the landing measures the same exit from its plan's
+        // runway heading, and a degree or two of crab must not turn one phase's verdict into the other's.
+        LatLon threshold = LandingThreshold.Resolve(runway, layout);
+        GroundNode branchNode = exit.Path[0];
+        double exitAngleDeg = layout.MeasureExitAngle(exit.Path, exit.HoldShort, exit.Taxiway, runway.TrueHeading);
+        double branchFromThresholdNm = GeoMath.AlongTrackDistanceNm(branchNode.Position, threshold, runway.TrueHeading);
+        return Tower.LandingPhase.TurnOffFitsBefore(branchFromThresholdNm, exitAngleDeg, runway.WidthFt, stopLimitNm);
+    }
+
+    /// <summary>The exit a LAHSO judgement measures: its path from the branch point, its hold-short bar and its taxiway.</summary>
+    private readonly record struct LahsoExitGeometry(IReadOnlyList<GroundNode> Path, GroundNode HoldShort, string Taxiway);
+
+    /// <summary>
+    /// <see cref="TurnOffFitsLahsoLimit"/> for a candidate of a centreline walk, its angle measured against the runway's true heading
+    /// whatever heading the walk ran on; true without LAHSO. The runway exit's judge of an exit against the LAHSO limit, the same rule
+    /// the landing applies (<see cref="Tower.LandingPhase.TurnOffFitsBefore"/>).
+    /// </summary>
+    internal static bool FitsLahsoLimit(
+        AircraftState aircraft,
+        AirportGroundLayout layout,
+        AirportGroundLayout.CenterlineExitResult candidate,
+        double? stopLimitNm
+    ) =>
+        (stopLimitNm is not { } limit)
+        || TurnOffFitsLahsoLimit(aircraft, layout, new LahsoExitGeometry(candidate.Path, candidate.HoldShort, candidate.Taxiway), limit);
+
+    /// <summary>
+    /// True when the exit the landing committed (<paramref name="committed"/>) turns off within the LAHSO stop limit, or there is no
+    /// limit. The landing only hands off such an exit; this is the runway exit's own check of the same rule.
+    /// </summary>
+    private static bool CommittedExitFitsLahsoLimit(PhaseContext ctx, ResolvedExitInfo committed)
+    {
+        if ((LahsoStopLimitNmFor(ctx.Aircraft) is not { } limit) || (ctx.GroundLayout is not { } layout) || (committed.Path.Count == 0))
+        {
+            return true;
+        }
+
+        return TurnOffFitsLahsoLimit(
+            ctx.Aircraft,
+            layout,
+            new LahsoExitGeometry(committed.Path, committed.HoldShortNode, committed.TaxiwayName),
+            limit
+        );
+    }
 
     /// <summary>Whether <paramref name="aircraft"/>'s exit searches judge reach: once the no-exit stop has engaged on this landing.</summary>
     private static bool JudgesReach(AircraftState aircraft) => aircraft.Phases?.NoExitReachTestActive == true;
@@ -571,7 +687,14 @@ public sealed class RunwayExitPhase : Phase
         ExitPreference? Preference,
         ExitSide? InferredSide,
         bool JudgeReach
-    );
+    )
+    {
+        /// <summary>
+        /// The LAHSO stop limit (nm from the landing threshold, <see cref="LahsoStopLimitNmFor"/>) every exit the search takes must
+        /// turn off by, in every stage of the relaxation — a hard limit, never relaxed; null without LAHSO.
+        /// </summary>
+        public required double? LahsoStopLimitNm { get; init; }
+    }
 
     /// <summary>One pass of the search's relaxation: the preference it walks under, and whether it passes by an exit too short.</summary>
     private readonly record struct SearchPass(ExitPreference? Preference, bool SkipTooShort);
@@ -592,7 +715,10 @@ public sealed class RunwayExitPhase : Phase
 
         ExitPreference? preference = aircraft.Phases.RequestedExit;
         ExitSide? inferred = preference?.Side is null ? arrivalSide : null;
-        return new ExitAheadSearch(runway.Designator, heading, WithInferredSide(preference, inferred), inferred, JudgesReach(aircraft));
+        return new ExitAheadSearch(runway.Designator, heading, WithInferredSide(preference, inferred), inferred, JudgesReach(aircraft))
+        {
+            LahsoStopLimitNm = LahsoStopLimitNmFor(aircraft),
+        };
     }
 
     /// <summary>
@@ -748,36 +874,120 @@ public sealed class RunwayExitPhase : Phase
     /// </summary>
     private void ApplyNoExitStop(PhaseContext ctx)
     {
-        if ((ctx.Aircraft.Phases is not { AssignedRunway: { } runway } phases) || (ctx.GroundLayout is not { } layout))
+        if (ComputeNoExitStop(ctx) is not { } plan)
         {
             return;
         }
 
-        phases.NoExitReachTestActive = true;
-        LatLon threshold = LandingThreshold.Resolve(runway, layout);
-        double alongFt = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, threshold, runway.TrueHeading) * GeoMath.FeetPerNm;
-        if (!_noExitLastExitResolved)
+        if (ReplanAfterLahsoOverrun(ctx, plan) is not { } binding)
         {
-            _noExitLastTurnEntryAlongFt = NoExitStopPlan.LastExitTurnEntryAlongFt(layout, runway, threshold, ctx.Aircraft.Position, ctx.Category);
-            _noExitLastExitResolved = true;
+            return;
         }
 
-        double landingDistanceFt = Tower.ForcedLandingProfile.LandingDistanceFt(runway, layout);
-        double noseLimitAlongFt = landingDistanceFt - (AircraftLength.ResolveFt(ctx.Aircraft.AircraftType) / 2.0);
-        NoExitStopPlan.StopStep stop = NoExitStopPlan.Compute(
-            ctx.Category,
-            ctx.Aircraft.GroundSpeed,
-            alongFt,
-            new NoExitStopPlan.StopDatums(landingDistanceFt, noseLimitAlongFt, _noExitLastTurnEntryAlongFt)
-        );
+        (NoExitStopPlan.StopStep stop, double alongFt, PhaseList phases) = binding;
+        phases.NoExitReachTestActive = true;
         ctx.Targets.TargetSpeed = stop.TargetSpeedKts;
         ctx.Targets.DesiredDecelRate = stop.DecelRateKtsPerSec;
         LogNoExitStop(ctx, stop, alongFt);
 
-        if (stop.FinalStop && !phases.ReportedNoExitAhead)
+        // The call follows the binding stop: at the LAHSO point the clearance is the approval to stop there, and the hold that
+        // follows makes the "holding short" call (Tower.RunwayHoldingPhase); only the plan's own stop asks for a back-taxi.
+        if (stop.FinalStop && !stop.AtLahsoPoint && !phases.ReportedNoExitAhead)
         {
             ReportNoExitAhead(ctx, _runwayId, _runwayHeading, PhaseExitAheadOccupied(ctx), stopped: false);
         }
+    }
+
+    /// <summary>
+    /// The no-exit stop to fly this tick: <paramref name="plan"/> itself, unless it is bound by the LAHSO point with even max effort
+    /// unable to stop the nose by it — the predicted overrun (AIM 4-3-11.b.6), handled by the landing's one shared call; the clearance
+    /// is void and the stop is planned again without it, off the crossing runway. Null when that replanning has no runway or layout.
+    /// </summary>
+    private (NoExitStopPlan.StopStep Stop, double AlongFt, PhaseList Phases)? ReplanAfterLahsoOverrun(
+        PhaseContext ctx,
+        (NoExitStopPlan.StopStep Stop, double AlongFt, PhaseList Phases) plan
+    )
+    {
+        if (!plan.Stop.AtLahsoPoint || !plan.Stop.Excursion || (plan.Phases.LahsoHoldShort is not { } lahso))
+        {
+            return plan;
+        }
+
+        Tower.LandingPhase.CallLahsoOverrun(ctx, lahso, "Exit");
+        _voidedLahsoCrossingRunwayId = lahso.CrossingRunwayId;
+        _noExitLastExitResolved = false;
+        return ComputeNoExitStop(ctx);
+    }
+
+    /// <summary>
+    /// One tick of the no-exit stop (<see cref="NoExitStopPlan.Compute"/>) from where the aircraft is: the step, the centroid's
+    /// distance along from the landing threshold (ft) and the phase list; null without an assigned runway or a layout. Under a LAHSO
+    /// clearance the hold-short point is a datum too: the last exit is the last one that turns off before it, the stop point is the
+    /// nearer of the plan's and the LAHSO stop point, and the nose limit is the nearer of the runway end's and the point's.
+    /// </summary>
+    private (NoExitStopPlan.StopStep Stop, double AlongFt, PhaseList Phases)? ComputeNoExitStop(PhaseContext ctx)
+    {
+        if ((ctx.Aircraft.Phases is not { AssignedRunway: { } runway } phases) || (ctx.GroundLayout is not { } layout))
+        {
+            return null;
+        }
+
+        LatLon threshold = LandingThreshold.Resolve(runway, layout);
+        double alongFt = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, threshold, runway.TrueHeading) * GeoMath.FeetPerNm;
+        double? lahsoLimitNm = LahsoStopLimitNmFor(ctx.Aircraft);
+        if (!_noExitLastExitResolved)
+        {
+            _noExitLastTurnEntryAlongFt = NoExitStopPlan.LastExitTurnEntryAlongFt(
+                new NoExitStopPlan.LastExitQuery(layout, runway, threshold, ctx.Aircraft.Position, ctx.Category),
+                lahsoLimitNm is null ? null : candidate => FitsLahsoLimit(ctx.Aircraft, layout, candidate, lahsoLimitNm)
+            );
+            _noExitLastExitResolved = true;
+        }
+
+        double landingDistanceFt = Tower.ForcedLandingProfile.LandingDistanceFt(runway, layout);
+        double noseOffsetFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType) / 2.0;
+        double noseLimitAlongFt = landingDistanceFt - noseOffsetFt;
+        if (phases.LahsoHoldShort is { } lahso)
+        {
+            noseLimitAlongFt = Math.Min(noseLimitAlongFt, (lahso.DistFromThresholdNm * GeoMath.FeetPerNm) - noseOffsetFt);
+        }
+
+        NoExitStopPlan.StopStep stop = NoExitStopPlan.Compute(
+            ctx.Category,
+            ctx.Aircraft.GroundSpeed,
+            alongFt,
+            new NoExitStopPlan.StopDatums(
+                landingDistanceFt,
+                noseLimitAlongFt,
+                _noExitLastTurnEntryAlongFt,
+                lahsoLimitNm * GeoMath.FeetPerNm,
+                VoidedLahsoKeepOutAlongFt(runway, threshold, noseOffsetFt)
+            )
+        );
+        return (stop, alongFt, phases);
+    }
+
+    /// <summary>
+    /// The stretch along the runway (ft from the landing threshold) the centroid must not rest in after a voided LAHSO clearance:
+    /// the voided crossing runway's pavement (<see cref="Tower.LandingPhase.CrossingKeepOutAlongFt"/>); null without one.
+    /// </summary>
+    private (double StartFt, double EndFt)? VoidedLahsoKeepOutAlongFt(RunwayInfo runway, LatLon threshold, double noseOffsetFt) =>
+        _voidedLahsoCrossingRunwayId is { } crossing ? Tower.LandingPhase.CrossingKeepOutAlongFt(runway, threshold, crossing, noseOffsetFt) : null;
+
+    /// <summary>
+    /// True when the aircraft, stopped with no exit, rests short of a standing LAHSO hold-short point and the no-exit stop is bound by
+    /// that point: the hold that follows (<see cref="PhaseRunner"/>) is then the LAHSO hold. Judged by the landing's own rule
+    /// (<see cref="Tower.LandingPhase.IsNoseShortOfLahsoPoint"/>): a nose past the point never enters it.
+    /// </summary>
+    private bool IsStoppedShortOfLahsoPoint(PhaseContext ctx)
+    {
+        if ((ctx.Aircraft.Phases?.LahsoHoldShort is not { } lahso) || (ComputeNoExitStop(ctx) is not { Stop.AtLahsoPoint: true } plan))
+        {
+            return false;
+        }
+
+        double noseAlongFt = plan.AlongFt + (AircraftLength.ResolveFt(ctx.Aircraft.AircraftType) / 2.0);
+        return Tower.LandingPhase.IsNoseShortOfLahsoPoint(lahso.DistFromThresholdNm - (noseAlongFt / GeoMath.FeetPerNm));
     }
 
     /// <summary>Logs once that the no-exit stop engaged, and once that even max-effort braking cannot keep it on the pavement.</summary>
@@ -790,7 +1000,9 @@ public sealed class RunwayExitPhase : Phase
                 "[Exit] {Callsign}: no exit available, planning a stop at {StopFt:F0} ft along ({Datum}), {DistFt:F0} ft ahead at {Gs:F0} kts",
                 ctx.Aircraft.Callsign,
                 stop.StopAlongFt,
-                stop.AtLastExit ? "short of the last exit" : "runway end less margin",
+                stop.AtLahsoPoint ? "short of the LAHSO hold-short point"
+                    : stop.AtLastExit ? "short of the last exit"
+                    : "runway end less margin",
                 stop.StopAlongFt - alongFt,
                 ctx.Aircraft.GroundSpeed
             );
@@ -1024,7 +1236,7 @@ public sealed class RunwayExitPhase : Phase
         HashSet<string> refusedOffSide
     )
     {
-        if (ctx.GroundLayout is null)
+        if (ctx.GroundLayout is not { } layout)
         {
             return null;
         }
@@ -1033,7 +1245,7 @@ public sealed class RunwayExitPhase : Phase
         bool skipTooShort = pass.SkipTooShort;
         bool isExplicit = (preference?.Taxiway is not null) || (preference?.Side is not null);
         ExitSide? instructedSide = ctx.Aircraft.Phases?.RequestedExit?.Side;
-        return ctx.GroundLayout.FindOnSidePreferredExit(
+        return layout.FindOnSidePreferredExit(
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
             search.RunwayHeading,
@@ -1052,6 +1264,13 @@ public sealed class RunwayExitPhase : Phase
                         && RunwayTailClearance.IsTooShortForAutomaticExit(candidate, ctx.Aircraft)
                     )
                 )
+                {
+                    return AirportGroundLayout.CandidateVerdict.Skip;
+                }
+
+                // Under a LAHSO clearance an exit turning off past the hold-short point can never be taken (AIM 4-3-11.b.6),
+                // whatever the preference or the stage of the relaxation.
+                if (!FitsLahsoLimit(ctx.Aircraft, layout, candidate, search.LahsoStopLimitNm))
                 {
                     return AirportGroundLayout.CandidateVerdict.Skip;
                 }
@@ -1171,6 +1390,13 @@ public sealed class RunwayExitPhase : Phase
     /// </summary>
     public ExitInstructionVerdict EvaluateRetarget(AircraftState aircraft, ExitPreference newPreference, bool expedite)
     {
+        // Under a LAHSO clearance a taxiway that leaves the runway only past the hold-short point is refused whatever the state,
+        // rather than accepted and then silently passed over by the limited search (AIM 4-3-11.b.6).
+        if (RefuseBeyondLahsoPoint(aircraft.Ground.Layout, aircraft, newPreference) is { } beyond)
+        {
+            return beyond;
+        }
+
         if (_state != ExitState.FollowingExitPath)
         {
             // Still tracking the centerline with no route handed over — OnTick's own preference re-check
@@ -1178,18 +1404,9 @@ public sealed class RunwayExitPhase : Phase
             return new ExitInstructionVerdict(true, null);
         }
 
-        if ((_exitTaxiway is null) || (_exitPath is not { Count: > 0 }))
+        if (CommittedExitVerdict(aircraft) is { } verdict)
         {
-            // FollowingExitPath with nothing resolved behind it — a restore whose stored nodes no longer
-            // exist. There is no turn to protect, and refusing here would assert one that isn't happening.
-            return new ExitInstructionVerdict(true, null);
-        }
-
-        if (_turnStarted || IsInsideTurnLead(aircraft))
-        {
-            // Names the exit the aircraft will actually take: the controller's next crossing decision
-            // depends on knowing where this arrival turns off (7110.65 §3-7-2.a.7.b.2).
-            return new ExitInstructionVerdict(false, $"Unable, already turning off at {_exitTaxiway}");
+            return verdict;
         }
 
         if (aircraft.Ground.Layout is not { } layout)
@@ -1206,6 +1423,30 @@ public sealed class RunwayExitPhase : Phase
     }
 
     /// <summary>
+    /// The verdict for a re-target while a resolved exit is being followed, or null when the retarget may proceed: nothing resolved
+    /// behind the path (a restore whose stored nodes no longer exist) has no turn to protect, and an aircraft already turning off
+    /// refuses in the name of the taxiway it will take.
+    /// </summary>
+    private ExitInstructionVerdict? CommittedExitVerdict(AircraftState aircraft)
+    {
+        if ((_exitTaxiway is null) || (_exitPath is not { Count: > 0 }))
+        {
+            // FollowingExitPath with nothing resolved behind it — a restore whose stored nodes no longer
+            // exist. There is no turn to protect, and refusing here would assert one that isn't happening.
+            return new ExitInstructionVerdict(true, null);
+        }
+
+        if (_turnStarted || IsInsideTurnLead(aircraft))
+        {
+            // Names the exit the aircraft will actually take: the controller's next crossing decision
+            // depends on knowing where this arrival turns off (7110.65 §3-7-2.a.7.b.2).
+            return new ExitInstructionVerdict(false, $"Unable, already turning off at {_exitTaxiway}");
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// The refusal for a re-target whose search found nothing: the crew's plain "unable {twy}" when a connection of the named
     /// taxiway is ahead but the crew cannot use it (past the braking limit, or inside the turn lead), "no {twy} ahead" when no
     /// connection of it lies ahead at all — and rather than "{twy} is behind us": the search returns nothing both when the taxiway
@@ -1216,7 +1457,7 @@ public sealed class RunwayExitPhase : Phase
     {
         if (newPreference.Taxiway is { } taxiway)
         {
-            if (IsAnyConnectionAhead(layout, aircraft, newPreference))
+            if (IsAnyConnectionAhead(layout, aircraft, newPreference, lahsoStopLimitNm: null))
             {
                 PilotSpeechText unable = Pilot.PilotResponder.BuildUnableToExit(aircraft, taxiway);
                 return new ExitInstructionVerdict(false, unable.Terminal) { PilotUnable = unable };
@@ -1228,6 +1469,25 @@ public sealed class RunwayExitPhase : Phase
 
         string what = (newPreference.Side == ExitSide.Left) ? "no left exit ahead" : "no right exit ahead";
         return new ExitInstructionVerdict(false, $"Unable, {what}");
+    }
+
+    /// <summary>
+    /// The refusal of an instruction naming a taxiway that, under a LAHSO clearance, leaves the runway only past the hold-short point:
+    /// "unable, beyond the hold short point", the crew saying why rather than an "unable {twy}" that would read as a braking limit.
+    /// <see cref="IsAnyConnectionAhead"/> without the limit finds the taxiway there, with it finds none. Null when the instruction
+    /// names no taxiway, there is no limit or layout, or a connection fits.
+    /// </summary>
+    private ExitInstructionVerdict? RefuseBeyondLahsoPoint(AirportGroundLayout? layout, AircraftState aircraft, ExitPreference preference)
+    {
+        if ((preference.Taxiway is null) || (layout is null) || (LahsoStopLimitNmFor(aircraft) is not { } lahsoLimit))
+        {
+            return null;
+        }
+
+        bool beyond =
+            IsAnyConnectionAhead(layout, aircraft, preference, lahsoStopLimitNm: null)
+            && !IsAnyConnectionAhead(layout, aircraft, preference, lahsoLimit);
+        return beyond ? new ExitInstructionVerdict(false, "Unable, beyond the hold short point") : null;
     }
 
     /// <summary>
@@ -1278,6 +1538,7 @@ public sealed class RunwayExitPhase : Phase
         double leadFt = TurnLeadDistanceFt(aircraft, category);
 
         double brakingLimit = RetargetBrakingLimit(category, expedite);
+        double? lahsoLimit = LahsoStopLimitNmFor(aircraft);
 
         return layout.FindOnSidePreferredExit(
             aircraft.Position.Lat,
@@ -1291,7 +1552,7 @@ public sealed class RunwayExitPhase : Phase
             filter: candidate =>
             {
                 bool namedByThisInstruction = string.Equals(preference.Taxiway, candidate.Taxiway, StringComparison.OrdinalIgnoreCase);
-                if (!namedByThisInstruction && IsGivenUp(aircraft, candidate.Taxiway))
+                if ((!namedByThisInstruction && IsGivenUp(aircraft, candidate.Taxiway)) || !FitsLahsoLimit(aircraft, layout, candidate, lahsoLimit))
                 {
                     return AirportGroundLayout.CandidateVerdict.Skip;
                 }
@@ -1345,8 +1606,10 @@ public sealed class RunwayExitPhase : Phase
     /// True when any connection of the taxiway <paramref name="preference"/> names lies ahead of the aircraft on this runway,
     /// whatever its energy state and however close: the line between the crew's "unable {twy}" (it is there, they cannot use
     /// it) and "unable, no {twy} ahead". The taxiway name is a hard constraint of the search, so only its connections count.
+    /// With <paramref name="lahsoStopLimitNm"/> only a connection turning off within that LAHSO limit counts; null ignores the limit
+    /// (as the landing's refusal probe does), so a connection past the point reads as there.
     /// </summary>
-    private bool IsAnyConnectionAhead(AirportGroundLayout layout, AircraftState aircraft, ExitPreference preference)
+    private bool IsAnyConnectionAhead(AirportGroundLayout layout, AircraftState aircraft, ExitPreference preference, double? lahsoStopLimitNm)
     {
         if (_runwayId is null)
         {
@@ -1363,7 +1626,12 @@ public sealed class RunwayExitPhase : Phase
             searchPref.Side ?? _inferredSide,
             excludeBranchPoints: null,
             excludeHoldShortNodes: null,
-            filter: null,
+            filter: lahsoStopLimitNm is null
+                ? null
+                : candidate =>
+                    FitsLahsoLimit(aircraft, layout, candidate, lahsoStopLimitNm)
+                        ? AirportGroundLayout.CandidateVerdict.Accept
+                        : AirportGroundLayout.CandidateVerdict.Skip,
             maxIterations: AirportGroundLayout.DefaultMaxIterations
         )
             is not null;
@@ -1748,6 +2016,9 @@ public sealed class RunwayExitPhase : Phase
         {
             phases.ReportedNoExitAhead = false;
             phases.NoExitReachTestActive = false;
+
+            // Clear of the runway: the LAHSO clearance, kept through the exit, has been complied with (AIM 4-3-11.b.6).
+            phases.LahsoHoldShort = null;
         }
 
         // A taxi route stored behind the exit (a TAXI on the rollout) starts here, the aircraft rolling on into it; one the exit
@@ -2025,6 +2296,7 @@ public sealed class RunwayExitPhase : Phase
             TurnStarted = _turnStarted,
             TurnOffDecelRate = _turnOffDecelRate,
             BacktrackPending = _backtrackPending,
+            VoidedLahsoCrossingRunwayId = _voidedLahsoCrossingRunwayId,
             StopTailInsideLine = _stopTailInsideLine,
             StopHeldShortOfBarNodeId = _stopHeldShortOfBar?.Id,
             Navigator = _navigator?.ToSnapshot() ?? _restoredNavigator,
@@ -2076,6 +2348,7 @@ public sealed class RunwayExitPhase : Phase
             _turnStarted = dto.TurnStarted,
             _turnOffDecelRate = dto.TurnOffDecelRate,
             _backtrackPending = dto.BacktrackPending,
+            _voidedLahsoCrossingRunwayId = dto.VoidedLahsoCrossingRunwayId,
             _stopTailInsideLine = dto.StopTailInsideLine ?? false,
             _restoreSegmentIndex = Math.Max(dto.ExitWaypointIndex, 0),
             Status = (PhaseStatus)dto.Status,

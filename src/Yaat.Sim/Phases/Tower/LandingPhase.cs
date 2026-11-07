@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
@@ -60,6 +61,15 @@ public sealed class LandingPhase : Phase
     /// short of the point: no part of the aircraft may extend beyond the marking (AIM 2-3-5.a.1).
     /// </summary>
     private const double LahsoStopMarginNm = 50.0 / GeoMath.FeetPerNm;
+
+    /// <summary>Speed (kts) at or below which a LAHSO stop counts as made.</summary>
+    private const double LahsoStoppedSpeedKts = 0.5;
+
+    /// <summary>
+    /// How far short of its stop target (the point less <see cref="LahsoStopMarginNm"/>) the nose may come to rest and the LAHSO stop
+    /// still count as made: the continuous stop brings it to rest a hair either side of the target, never hundreds of feet short.
+    /// </summary>
+    private const double LahsoStopToleranceNm = 25.0 / GeoMath.FeetPerNm;
 
     // --- Stabilization gate (FSF ALAR Briefing Note 7.1; FAA InFO 11009 endorses FSF criteria) ---
 
@@ -150,6 +160,16 @@ public sealed class LandingPhase : Phase
     private bool _canGoAround;
     private double _lahsoHoldShortDistNm;
     private bool _hasLahso;
+
+    /// <summary>
+    /// The voided clearance's crossing runway (<see cref="VoidedLahsoCrossingRunwayId"/>), looked up once and kept; not snapshotted,
+    /// derived again once after a restore (<see cref="_voidedLahsoCrossingResolved"/> false).
+    /// </summary>
+    private string? _voidedLahsoCrossingRunwayId;
+    private bool _voidedLahsoCrossingResolved;
+
+    /// <summary>This phase's log prefix for the shared overrun call (<see cref="CallLahsoOverrun"/>).</summary>
+    private const string PhaseLogPrefix = "Landing";
 
     /// <summary>
     /// Half the airframe's length (nm), resolved from the aircraft type on first use. Derived from the type the
@@ -982,22 +1002,12 @@ public sealed class LandingPhase : Phase
         // LAHSO: the landing roll has to end short of the hold-short point — exit before it, or stop at it
         // (AIM 2-3-5.a.2, AIM 4-3-11.b.6). Measured along the runway from the landing threshold — the datum the
         // hold-short distance was computed against; the great-circle distance under-reads off centerline and
-        // brakes late. The stop target is set back far enough that the nose, not the centroid, stays clear.
-        double lahsoStopDistNm = 0;
-        if (_hasLahso)
+        // brakes late. The datum is the nose (the centroid plus half the airframe): the overrun prediction tests it against
+        // the point itself, the stop target holds it the tick margin short.
+        (double lahsoStopDistNm, double? stopNoseToHoldShortNm) = EvaluateLahsoRollout(ctx, plan);
+        if (stopNoseToHoldShortNm is { } noseToHoldShortNm)
         {
-            double alongFromThreshold = GeoMath.AlongTrackDistanceNm(
-                ctx.Aircraft.Position,
-                new LatLon(plan.ThresholdLat, plan.ThresholdLon),
-                plan.RunwayHeading
-            );
-            double distToHoldShort = _lahsoHoldShortDistNm - alongFromThreshold;
-            lahsoStopDistNm = distToHoldShort - LahsoSetbackNm(ctx.Aircraft);
-
-            if (lahsoStopDistNm <= 0)
-            {
-                return TickLahsoStop(ctx, distToHoldShort);
-            }
+            return TickLahsoStop(ctx, noseToHoldShortNm);
         }
 
         // Coast speed: decelerate to this speed and hold it while searching for exits
@@ -1027,6 +1037,122 @@ public sealed class LandingPhase : Phase
     }
 
     /// <summary>
+    /// One rollout tick's LAHSO judgement: the distance (nm) left to the stop target (the nose the tick margin short of the point; 0
+    /// without LAHSO or once the clearance is void), and the nose's distance to the point when the stop at it is to be flown now
+    /// (<see cref="TickLahsoStop"/>), else null. A predicted overrun (<see cref="IsPredictedLahsoOverrun"/>) voids the clearance here,
+    /// unless a committed exit before the point is still makeable (<see cref="CommittedExitClearsLahso"/>).
+    /// </summary>
+    private (double StopDistNm, double? StopNoseToHoldShortNm) EvaluateLahsoRollout(PhaseContext ctx, LandingPlan plan)
+    {
+        if (!_hasLahso)
+        {
+            return (0, null);
+        }
+
+        double alongFromThreshold = AlongFromThresholdNm(plan, ctx.Aircraft.Position);
+        double noseToHoldShortNm = _lahsoHoldShortDistNm - alongFromThreshold - NoseOffsetNm(ctx.Aircraft);
+        if (TryVoidLahsoForPredictedOverrun(ctx, plan, noseToHoldShortNm))
+        {
+            return (0, null);
+        }
+
+        double stopDistNm = noseToHoldShortNm - LahsoStopMarginNm;
+        return (stopDistNm, ((stopDistNm <= 0) || IsContinuousLahsoStopMade(ctx, stopDistNm)) ? noseToHoldShortNm : null);
+    }
+
+    /// <summary>
+    /// Voids the clearance (<see cref="VoidLahso"/>) when an overrun of the point is predicted (<see cref="IsPredictedLahsoOverrun"/>)
+    /// and no committed exit before it settles the clearance (<see cref="CommittedExitClearsLahso"/>); true when it did.
+    /// </summary>
+    private bool TryVoidLahsoForPredictedOverrun(PhaseContext ctx, LandingPlan plan, double noseToHoldShortNm)
+    {
+        if (
+            (ctx.Aircraft.Phases?.LahsoHoldShort is not { } target)
+            || CommittedExitClearsLahso(ctx, plan)
+            || !IsPredictedLahsoOverrun(ctx, noseToHoldShortNm)
+        )
+        {
+            return false;
+        }
+
+        VoidLahso(ctx, target);
+        return true;
+    }
+
+    /// <summary>
+    /// The overrun handling in this landing: the one shared call (<see cref="CallLahsoOverrun"/>), and the voided clearance's crossing
+    /// runway kept for the no-exit stop and the hand-off (<see cref="VoidedLahsoCrossingRunwayId"/>), taken from the clearance as the
+    /// call fires.
+    /// </summary>
+    private void VoidLahso(PhaseContext ctx, LahsoTarget target)
+    {
+        _hasLahso = false;
+        _voidedLahsoCrossingRunwayId = target.CrossingRunwayId;
+        _voidedLahsoCrossingResolved = true;
+        CallLahsoOverrun(ctx, target, PhaseLogPrefix);
+    }
+
+    /// <summary>
+    /// With no exit to take, the continuous stop (<see cref="ApplyLahsoCeiling"/>) brings the aircraft to rest within a hair of the
+    /// stop target rather than past it: that is the stop made, the nose no more than <see cref="LahsoStopToleranceNm"/> short of the
+    /// target. A rest far short of it is not, and the rollout carries on to the point.
+    /// </summary>
+    private bool IsContinuousLahsoStopMade(PhaseContext ctx, double stopDistNm) =>
+        (_candidateExit is null) && (ctx.Aircraft.IndicatedAirspeed <= LahsoStoppedSpeedKts) && (stopDistNm <= LahsoStopToleranceNm);
+
+    /// <summary>
+    /// The one judge of whether an aircraft at rest under a LAHSO clearance enters the post-LAHSO hold
+    /// (<see cref="PhaseRunner"/>, <see cref="RunwayHoldingPhase"/>), shared by this landing's stop and the runway exit's no-exit
+    /// stop: the nose (<paramref name="noseToHoldShortNm"/>, its distance to the hold-short point) is not past the point, however far
+    /// short it rests (AIM 4-3-11.b.6). A nose past it is the overrun (<see cref="CallLahsoOverrun"/>), never the hold.
+    /// </summary>
+    internal static bool IsNoseShortOfLahsoPoint(double noseToHoldShortNm) => noseToHoldShortNm >= 0;
+
+    /// <summary>
+    /// True while the committed exit (<see cref="_candidateExit"/>) settles the LAHSO clearance on its own (AIM 4-3-11.b.6, AIM
+    /// 2-3-5.a.2): unclaimed, its turn-off leaving the runway within the LAHSO stop limit (<see cref="TurnOffFitsBefore"/>), and its
+    /// turn-off speed reachable by the turn-entry point at no more than the max-effort rate. While it does, no overrun of the point is
+    /// predicted; once it does not (lost, occupied, or out of reach), the prediction runs against the point.
+    /// </summary>
+    private bool CommittedExitClearsLahso(PhaseContext ctx, LandingPlan plan)
+    {
+        if ((_candidateExit is not { } candidate) || IsHoldShortOccupied(ctx, candidate) || (LahsoStopLimitNm(ctx.Aircraft) is not { } limitNm))
+        {
+            return false;
+        }
+
+        LatLon threshold = new(plan.ThresholdLat, plan.ThresholdLon);
+        double branchFromThresholdNm = GeoMath.AlongTrackDistanceNm(candidate.BranchPointNode.Position, threshold, plan.RunwayHeading);
+        double exitAngle = ctx.GroundLayout is { } layout
+            ? layout.MeasureExitAngle(candidate.Path, candidate.HoldShortNode, candidate.TaxiwayName, plan.RunwayHeading)
+            : 90.0;
+        return TurnOffFitsBefore(branchFromThresholdNm, exitAngle, ctx.Aircraft.Phases?.AssignedRunway?.WidthFt ?? 0, limitNm)
+            && CanReachTurnOffAtMaxEffort(ctx, plan, candidate, branchFromThresholdNm);
+    }
+
+    /// <summary>
+    /// True when <paramref name="candidate"/>'s turn-off speed is reachable by its turn-entry point at no more than the max-effort
+    /// rate: already at or below it with the branch (<paramref name="branchFromThresholdNm"/> from the threshold) still ahead, or the
+    /// deceleration over the distance to the turn-entry point within the rate.
+    /// </summary>
+    private bool CanReachTurnOffAtMaxEffort(PhaseContext ctx, LandingPlan plan, ResolvedExitInfo candidate, double branchFromThresholdNm)
+    {
+        if (ctx.Aircraft.GroundSpeed <= candidate.TurnOffSpeed)
+        {
+            return branchFromThresholdNm > AlongFromThresholdNm(plan, ctx.Aircraft.Position);
+        }
+
+        double distToTurnEntryNm =
+            GeoMath.AlongTrackDistanceNm(candidate.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading)
+            - CandidateTurnEntryLeadNm(ctx, plan, candidate);
+        return (distToTurnEntryNm > 0)
+            && (
+                RolloutBraking.DecelOverDistanceKtsPerSec(ctx.Aircraft.GroundSpeed, candidate.TurnOffSpeed, distToTurnEntryNm)
+                <= CategoryPerformance.ExpediteExitDecelRate(ctx.Category)
+            );
+    }
+
+    /// <summary>
     /// Re-resolves the candidate from scratch when the controller changed the exit preference mid-rollout.
     /// </summary>
     private void ApplyExitPreferenceChange(AircraftState aircraft)
@@ -1047,7 +1173,9 @@ public sealed class LandingPhase : Phase
     /// </summary>
     private bool TickPlannedRollout(PhaseContext ctx, LandingPlan plan, double coastSpeed, double lahsoStopDistNm)
     {
-        if (NoExitStopGround(ctx) is { } ground)
+        // After the overrun call the crew brakes at max effort down to coast speed before any stop on the remaining runway is planned.
+        bool overrunBraking = IsLahsoOverrunBraking(ctx, coastSpeed);
+        if (!overrunBraking && (NoExitStopGround(ctx) is { } ground))
         {
             return TickNoExitStop(ctx, plan, ground);
         }
@@ -1056,7 +1184,17 @@ public sealed class LandingPhase : Phase
 
         if (_hasLahso)
         {
-            (targetSpeed, decelRateOverride) = ApplyLahsoCeiling(ctx, plan, targetSpeed, decelRateOverride, lahsoStopDistNm);
+            (targetSpeed, decelRateOverride) = ApplyLahsoCeiling(
+                ctx,
+                plan,
+                (targetSpeed, decelRateOverride),
+                lahsoStopDistNm,
+                stopIsThePlan: _candidateExit is null
+            );
+        }
+        else if (overrunBraking)
+        {
+            decelRateOverride = Math.Max(decelRateOverride, CategoryPerformance.ExpediteExitDecelRate(ctx.Category));
         }
 
         ctx.Targets.TargetSpeed = targetSpeed;
@@ -1146,11 +1284,8 @@ public sealed class LandingPhase : Phase
         if (!_noExitLastExitResolved)
         {
             _noExitLastTurnEntryAlongFt = NoExitStopPlan.LastExitTurnEntryAlongFt(
-                ground.Layout,
-                ground.Runway,
-                threshold,
-                ctx.Aircraft.Position,
-                ctx.Category
+                new NoExitStopPlan.LastExitQuery(ground.Layout, ground.Runway, threshold, ctx.Aircraft.Position, ctx.Category),
+                qualifies: null
             );
             _noExitLastExitResolved = true;
         }
@@ -1161,7 +1296,13 @@ public sealed class LandingPhase : Phase
             ctx.Category,
             ctx.Aircraft.GroundSpeed,
             alongFt,
-            new NoExitStopPlan.StopDatums(landingDistanceFt, landingDistanceFt - noseOffsetFt, _noExitLastTurnEntryAlongFt)
+            new NoExitStopPlan.StopDatums(
+                landingDistanceFt,
+                landingDistanceFt - noseOffsetFt,
+                _noExitLastTurnEntryAlongFt,
+                null,
+                VoidedLahsoKeepOutAlongFt(ground.Runway, threshold, noseOffsetFt)
+            )
         );
         ctx.Targets.TargetSpeed = stop.TargetSpeedKts;
         ctx.Targets.DesiredDecelRate = stop.DecelRateKtsPerSec;
@@ -1192,6 +1333,107 @@ public sealed class LandingPhase : Phase
             stop.StopAlongFt
         );
         return true;
+    }
+
+    /// <summary>
+    /// After a voided LAHSO clearance (<see cref="IsLahsoVoided"/>), the stretch the centroid must not come to rest in: the crossing
+    /// runway's pavement (<see cref="VoidedLahsoCrossingRunwayId"/>, <see cref="CrossingKeepOutAlongFt"/>); null otherwise.
+    /// </summary>
+    private (double StartFt, double EndFt)? VoidedLahsoKeepOutAlongFt(RunwayInfo runway, LatLon threshold, double noseOffsetFt) =>
+        VoidedLahsoCrossingRunwayId(runway, threshold) is { } crossing ? CrossingKeepOutAlongFt(runway, threshold, crossing, noseOffsetFt) : null;
+
+    /// <summary>True once a predicted overrun voided this landing's LAHSO clearance (<see cref="CallLahsoOverrun"/>).</summary>
+    private bool IsLahsoVoided => !_hasLahso && (_lahsoHoldShortDistNm > 0);
+
+    /// <summary>
+    /// The crossing runway of the voided LAHSO clearance: taken from the clearance when the call fires (<see cref="VoidLahso"/>) and
+    /// kept; a restored phase, which does not carry it, derives it once from the snapshotted hold-short distance
+    /// (<see cref="FindVoidedLahsoCrossingRunwayId"/>). Null without a voided clearance or such a runway.
+    /// </summary>
+    private string? VoidedLahsoCrossingRunwayId(RunwayInfo runway, LatLon threshold)
+    {
+        if (!IsLahsoVoided)
+        {
+            return null;
+        }
+
+        if (!_voidedLahsoCrossingResolved)
+        {
+            _voidedLahsoCrossingRunwayId = FindVoidedLahsoCrossingRunwayId(runway, threshold);
+            _voidedLahsoCrossingResolved = true;
+        }
+
+        return _voidedLahsoCrossingRunwayId;
+    }
+
+    /// <summary>
+    /// The voided clearance's crossing runway for the runway exit the runner adds once this landing completes
+    /// (<see cref="PhaseRunner"/>): its no-exit stop keeps off that runway too. Null without a voided clearance, an assigned runway
+    /// or a layout.
+    /// </summary>
+    internal string? VoidedLahsoCrossingRunwayIdForHandOff(PhaseContext ctx) =>
+        (ctx.Aircraft.Phases?.AssignedRunway is { } runway) && (ctx.GroundLayout is { } layout)
+            ? VoidedLahsoCrossingRunwayId(runway, LandingThreshold.Resolve(runway, layout))
+            : null;
+
+    /// <summary>
+    /// The restore-time derivation behind <see cref="VoidedLahsoCrossingRunwayId"/>: of the other runways at the airport, the one
+    /// whose centreline crosses <paramref name="runway"/> nearest the hold-short point, either side of it (the nav-data intersection
+    /// and the hold-short distance are not one datum: at SFO 28R the 1L centreline reads some 260 ft short of the 1L point).
+    /// </summary>
+    private string? FindVoidedLahsoCrossingRunwayId(RunwayInfo runway, LatLon threshold)
+    {
+        string? nearest = null;
+        double nearestNm = double.MaxValue;
+        foreach (RunwayInfo other in NavigationDatabase.Instance.GetRunways(runway.AirportId))
+        {
+            if ((other.Id == runway.Id) || (RunwayIntersectionCalculator.FindIntersection(runway, other) is not { } crossing))
+            {
+                continue;
+            }
+
+            double alongNm = GeoMath.AlongTrackDistanceNm(new LatLon(crossing.Lat, crossing.Lon), threshold, runway.TrueHeading);
+            double offNm = Math.Abs(alongNm - _lahsoHoldShortDistNm);
+            if (offNm < nearestNm)
+            {
+                (nearest, nearestNm) = (other.Designator, offNm);
+            }
+        }
+
+        return nearest;
+    }
+
+    /// <summary>
+    /// The stretch along <paramref name="runway"/> (ft from <paramref name="threshold"/>) a centroid must stay out of for neither the
+    /// nose nor the tail (<paramref name="noseOffsetFt"/> either side) to rest on runway <paramref name="crossingRunwayId"/>'s pavement:
+    /// its centreline crossing ± half its width over the sine of the crossing angle (AIM 4-3-21.b). Null when the runway is unknown,
+    /// does not cross, or runs within a few degrees of parallel.
+    /// </summary>
+    internal static (double StartFt, double EndFt)? CrossingKeepOutAlongFt(
+        RunwayInfo runway,
+        LatLon threshold,
+        string crossingRunwayId,
+        double noseOffsetFt
+    )
+    {
+        if (
+            (NavigationDatabase.Instance.GetRunway(runway.AirportId, crossingRunwayId) is not { } crossing)
+            || (RunwayIntersectionCalculator.FindIntersection(runway, crossing) is not { } intersection)
+        )
+        {
+            return null;
+        }
+
+        double sin = Math.Abs(Math.Sin((crossing.TrueHeading.Degrees - runway.TrueHeading.Degrees) * (Math.PI / 180.0)));
+        if (sin < 0.1)
+        {
+            return null;
+        }
+
+        double centreFt =
+            GeoMath.AlongTrackDistanceNm(new LatLon(intersection.Lat, intersection.Lon), threshold, runway.TrueHeading) * GeoMath.FeetPerNm;
+        double halfFt = (crossing.WidthFt / 2.0 / sin) + noseOffsetFt;
+        return (centreFt - halfFt, centreFt + halfFt);
     }
 
     /// <summary>
@@ -1430,8 +1672,8 @@ public sealed class LandingPhase : Phase
         // A LAHSO lander hands off only with a candidate RunwayExitPhase will actually honour: one the resolver has
         // restricted to an exit whose turn-off leaves the runway before the hold-short point, that carries a real path,
         // and whose hold-short is unclaimed. RunwayExitPhase drops a committed exit that fails either of the last two
-        // and re-searches the centerline with no knowledge of the hold-short point, which would put the exit back past
-        // it. Without such a candidate the aircraft stays in rollout under the LAHSO ceiling and stops at the point.
+        // and re-searches the centerline under the same LAHSO limit; keeping the rollout here instead lets the landing
+        // make its own stop at the point. Without such a candidate the aircraft stays in rollout under the LAHSO ceiling.
         bool lahsoAllowsHandoff = !_hasLahso || ((_candidateExit is { Path.Count: >= 2 }) && !IsHoldShortOccupied(ctx, _candidateExit));
 
         return lahsoAllowsHandoff && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed);
@@ -1473,61 +1715,177 @@ public sealed class LandingPhase : Phase
     }
 
     /// <summary>
-    /// The LAHSO fallback (AIM 4-3-11.b.6): no room left to the hold-short point, so stop on the runway. Returns
-    /// true once stopped, which is what makes <see cref="PhaseRunner"/> hold the aircraft there instead of exiting.
-    /// A stop taken with the point already behind the aircraft is an overrun and says so in the log.
+    /// True when, after touchdown and with the clearance still standing, the crew can no longer stop the nose by the LAHSO
+    /// hold-short point: the deceleration that brings the nose to rest at the point itself (zero margin — the 50 ft
+    /// <see cref="LahsoStopMarginNm"/> is a tick guard, not part of this test) exceeds the category's max-effort
+    /// <see cref="CategoryPerformance.ExpediteExitDecelRate"/>, or the nose is already at or past the point while still moving.
     /// </summary>
-    private bool TickLahsoStop(PhaseContext ctx, double distToHoldShortNm)
+    private static bool IsPredictedLahsoOverrun(PhaseContext ctx, double noseToHoldShortNm)
     {
-        // Braking effort: firm while the aircraft is still short of the marking and only inside the setback,
-        // maximum effort once the point itself is behind it — an overrun onto a crossing runway is the one
-        // place max-effort braking belongs, and the category rate caps what the aircraft can actually do.
-        double maxRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
-        ctx.Targets.TargetSpeed = 0;
-        ctx.Targets.DesiredDecelRate = distToHoldShortNm <= 0 ? maxRate : CategoryPerformance.FirmBrakingRate(ctx.Category);
-
-        if (ctx.Aircraft.IndicatedAirspeed > 0.5)
+        if ((ctx.Aircraft.Phases?.LahsoHoldShort is null) || (ctx.Aircraft.GroundSpeed <= LahsoStoppedSpeedKts))
         {
             return false;
         }
 
-        StoppedForLahso = true;
-        if (distToHoldShortNm < 0)
-        {
-            Log.LogWarning(
-                "[Landing] {Callsign}: LAHSO overrun — stopped {OverrunFt:F0}ft past the hold-short point",
-                ctx.Aircraft.Callsign,
-                -distToHoldShortNm * GeoMath.FeetPerNm
+        return (noseToHoldShortNm <= 0)
+            || (
+                RolloutBraking.DecelOverDistanceKtsPerSec(ctx.Aircraft.GroundSpeed, 0, noseToHoldShortNm)
+                > CategoryPerformance.ExpediteExitDecelRate(ctx.Category)
             );
-        }
-        else
+    }
+
+    /// <summary>
+    /// The predicted LAHSO overrun (<see cref="IsPredictedLahsoOverrun"/> here, the no-exit stop's excursion past the point in
+    /// <see cref="RunwayExitPhase"/>), handled once by this one handler for both phases: the crew calls "unable to hold short of
+    /// runway {X}" (AIM 4-3-11.b.6, notify the controller promptly), the instructor gets a warning line, and the clearance is void —
+    /// <see cref="PhaseList.LahsoHoldShort"/> is cleared, so the exit search takes the first available exit beyond the point and no
+    /// stop is planned at it. <see cref="_lahsoHoldShortDistNm"/> stays set with <see cref="_hasLahso"/> false, which is what
+    /// <see cref="IsLahsoOverrunBraking"/> reads (both snapshotted), so the max-effort braking survives a restore.
+    /// </summary>
+    internal static void CallLahsoOverrun(PhaseContext ctx, LahsoTarget target, string phaseLogPrefix)
+    {
+        string crossing = target.CrossingRunwayId;
+        if (ctx.Aircraft.Phases is { } phases)
         {
-            Log.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
+            phases.LahsoHoldShort = null;
         }
 
+        string display = RunwayIdentifier.ToDisplayDesignator(crossing);
+        Log.LogWarning(
+            "[{Phase}] {Callsign}: LAHSO overrun predicted — unable to hold short of runway {Rwy} at {Gs:F0} kts; max-effort braking, clearance void",
+            phaseLogPrefix,
+            ctx.Aircraft.Callsign,
+            display,
+            ctx.Aircraft.GroundSpeed
+        );
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            BuildUnableToHoldShortOfRunway(ctx.Aircraft, crossing),
+            Pilot.PilotResponder.SoloPositionsTower
+        );
+        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to hold short of RWY {display}");
+    }
+
+    /// <summary>
+    /// The crew's call that it cannot stop short of a LAHSO hold-short point after touchdown: "unable to hold short of runway 1L"
+    /// (spoken "{callsign}, unable to hold short of runway one left"). Not the taxi "…, stopping" form: this aircraft cannot stop short.
+    /// </summary>
+    private static Pilot.PilotSpeechText BuildUnableToHoldShortOfRunway(AircraftState aircraft, string crossingRunwayId)
+    {
+        string spoken = Pilot.PilotResponder.SpokenReadbackCallsign(aircraft, default);
+        return new Pilot.PilotSpeechText(
+            $"unable to hold short of runway {Pilot.PhraseologyVerbalizer.CompactRunway(crossingRunwayId)}.",
+            $"{spoken}, unable to hold short of runway {Pilot.PhraseologyVerbalizer.SpellRunway(crossingRunwayId)}."
+        );
+    }
+
+    /// <summary>
+    /// True after a predicted LAHSO overrun voided the clearance (<see cref="CallLahsoOverrun"/>) while the aircraft is still above
+    /// <paramref name="coastSpeed"/>: the crew keeps braking at the max-effort rate down to it, then the normal rollout and exit
+    /// logic runs.
+    /// </summary>
+    private bool IsLahsoOverrunBraking(PhaseContext ctx, double coastSpeed) =>
+        !_hasLahso && (_lahsoHoldShortDistNm > 0) && (ctx.Aircraft.IndicatedAirspeed > coastSpeed);
+
+    /// <summary>
+    /// The LAHSO fallback (AIM 4-3-11.b.6): no room left to the hold-short point, so stop on the runway. Returns
+    /// true once stopped, which is what makes <see cref="PhaseRunner"/> hold the aircraft there instead of exiting.
+    /// <paramref name="noseToHoldShortNm"/> is the nose's distance to the point. A stop with the nose past the point
+    /// (<see cref="IsNoseShortOfLahsoPoint"/>) never enters the hold: it is the overrun, handled by the one shared call
+    /// (<see cref="VoidLahso"/>), and the rollout carries on with the clearance void.
+    /// </summary>
+    private bool TickLahsoStop(PhaseContext ctx, double noseToHoldShortNm)
+    {
+        // Braking effort: firm while that still stops the nose short of the marking, harder up to maximum effort when only that
+        // keeps it short, maximum effort once the point itself is behind the nose — an overrun onto a crossing runway is the one
+        // place max-effort braking belongs, and the category rate caps what the aircraft can actually do.
+        double maxRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        double firmRate = CategoryPerformance.FirmBrakingRate(ctx.Category);
+        ctx.Targets.TargetSpeed = 0;
+        ctx.Targets.DesiredDecelRate =
+            noseToHoldShortNm <= 0
+                ? maxRate
+                : Math.Clamp(
+                    RolloutBraking.DecelOverDistanceKtsPerSec(ctx.Aircraft.GroundSpeed, 0, noseToHoldShortNm),
+                    firmRate,
+                    Math.Max(firmRate, maxRate)
+                );
+
+        if (ctx.Aircraft.IndicatedAirspeed > LahsoStoppedSpeedKts)
+        {
+            return false;
+        }
+
+        if (!IsNoseShortOfLahsoPoint(noseToHoldShortNm))
+        {
+            Log.LogWarning(
+                "[Landing] {Callsign}: LAHSO overrun — nose stopped {OverrunFt:F0}ft past the hold-short point",
+                ctx.Aircraft.Callsign,
+                -noseToHoldShortNm * GeoMath.FeetPerNm
+            );
+            // With the limit already gone (a CROSS released it) there is nothing to void: the landing ends and the normal exit follows.
+            if (ctx.Aircraft.Phases?.LahsoHoldShort is not { } target)
+            {
+                return true;
+            }
+
+            VoidLahso(ctx, target);
+            return false;
+        }
+
+        StoppedForLahso = true;
+        Log.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
         return true;
     }
 
     /// <summary>
-    /// Caps the rollout plan to what still stops inside <paramref name="stopDistNm"/>. The speed ceiling is
-    /// planned at the rate the rollout brakes at anyway, so the slow-down starts early and stays comfortable —
-    /// a crew flying LAHSO front-loads the braking rather than holding coast speed up to the line and standing
-    /// on the brakes. The published rate is what the remaining distance requires, never below what the exit
-    /// planner already asked for and never above the category's max-effort rate, which is the only thing this
-    /// can lower the planner's rate to.
+    /// Caps the rollout plan to what still stops inside <paramref name="stopDistNm"/>.
+    /// <para>
+    /// When the stop is the plan (<paramref name="stopIsThePlan"/>: no exit before the point to brake for), the aircraft coasts
+    /// until the rate that brings the nose to rest at the stop target reaches the softest rollout rate
+    /// (<see cref="MinSoftBrakingRateKtsPerSec"/>) and the rate the planned rollout is braking at; from then on the target is zero
+    /// at the rate the stop needs, capped at the category's max-effort rate, so the aircraft slows continuously to rest at the stop
+    /// target with no coast plateau inside it. <paramref name="planned"/> is the rollout's own target speed and rate.
+    /// </para>
+    /// <para>
+    /// Otherwise (an exit before the point to brake for) the speed ceiling is planned at the rate the rollout brakes at
+    /// anyway, so the slow-down starts early and stays comfortable. The published rate is what the remaining distance requires,
+    /// never below what the exit planner already asked for and never above the category's max-effort rate, which is the only
+    /// thing this can lower the planner's rate to.
+    /// </para>
     /// </summary>
     private static (double TargetSpeed, double DecelRate) ApplyLahsoCeiling(
         PhaseContext ctx,
         LandingPlan plan,
-        double targetSpeed,
-        double decelRateOverride,
-        double stopDistNm
+        (double TargetSpeed, double DecelRate) planned,
+        double stopDistNm,
+        bool stopIsThePlan
     )
     {
+        (double targetSpeed, double decelRateOverride) = planned;
         double maxRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, 0, stopDistNm, ctx.Category);
+        if (stopIsThePlan)
+        {
+            // Coast until stopping at the target needs the softest rollout rate, then brake continuously at the rate it needs. Below
+            // the plan's speed the stop has begun, and half the floor keeps a tick's rounding from dropping it back to the plan.
+            double neededRate = RolloutBraking.DecelOverDistanceKtsPerSec(ctx.Aircraft.GroundSpeed, 0, stopDistNm);
+            double plannedRate = targetSpeed < ctx.Aircraft.IndicatedAirspeed ? decelRateOverride : 0;
+            bool stopBegun = ctx.Aircraft.IndicatedAirspeed < targetSpeed;
+            double takeOverRate = stopBegun ? MinSoftBrakingRateKtsPerSec / 2.0 : MinSoftBrakingRateKtsPerSec;
+            if (neededRate >= Math.Max(takeOverRate, plannedRate))
+            {
+                return (0, Math.Min(neededRate, maxRate));
+            }
+
+            return planned;
+        }
+
         double planningRate = Math.Min(plan.DefaultDecel, maxRate);
         double cappedSpeed = Math.Min(targetSpeed, RolloutBraking.MaxEntrySpeedKts(stopDistNm, planningRate));
-        double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, 0, stopDistNm, ctx.Category);
         double cappedRate = Math.Min(Math.Max(decelRateOverride, requiredDecel), maxRate);
         return (cappedSpeed, cappedRate);
     }
@@ -1553,14 +1911,9 @@ public sealed class LandingPhase : Phase
             {
                 ctx.Aircraft.Phases.ResolvedExit = _candidateExit;
 
-                // Exiting before the hold-short point satisfies the LAHSO clearance (AIM 4-3-11.b.6), so the
-                // landing is no longer a hold: PhaseRunner keys the runway-hold chain on this target being set.
-                // Tied to the commitment above, which the handoff gate requires of a LAHSO lander — the two can
-                // never disagree about whether the aircraft is leaving the runway before the point.
-                if (_hasLahso)
-                {
-                    ctx.Aircraft.Phases.LahsoHoldShort = null;
-                }
+                // A LAHSO lander keeps Phases.LahsoHoldShort through the hand-off: the clearance binds until the aircraft is
+                // clear of the runway (RunwayExitPhase.CompleteExit), so every runway-exit search and retarget stays inside
+                // the limit and the crossing-traffic permission (7110.65 §3-7-2.g.3) holds through the normal exit.
             }
         }
 

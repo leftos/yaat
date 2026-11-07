@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 48;
+    public const int CurrentSchemaVersion = 49;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -413,6 +413,10 @@ public static class SnapshotSchemaMigrator
                 ac.LegacyHasLeftStudentFrequency = null;
             }
         }
+
+        // V48→V49: RunwayExitPhaseDto.VoidedLahsoCrossingRunwayId added, the crossing runway of a LAHSO clearance voided by the
+        //   predicted-overrun call, whose pavement the rollout must not come to rest on. No data transformation: an older snapshot
+        //   reads null, no voided clearance, which is all a pre-V49 build knew of one.
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

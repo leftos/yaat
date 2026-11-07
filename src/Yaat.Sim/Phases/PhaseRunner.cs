@@ -37,6 +37,11 @@ public static class PhaseRunner
         TerminatorKind kind = ClassifyTerminator(current);
         StampLandingScore(aircraft, ctx, kind);
 
+        if (TryHoldBeforeAdvance(aircraft, ctx, phases, current))
+        {
+            return;
+        }
+
         phases.AdvanceToNext(ctx);
 
         if (TryHandlePostLahso(aircraft, ctx, phases, current))
@@ -47,7 +52,7 @@ public static class PhaseRunner
         // The persistent MLT/MRT intent, which the auto-cycle prefers over the transient PhaseList.TrafficDirection.
         PatternDirection? persistentDir = aircraft.Pattern.TrafficDirection;
 
-        if (TryHandleFullStopExit(aircraft, ctx, phases, kind))
+        if (TryHandleFullStopExit(aircraft, ctx, phases, current, kind))
         {
             return;
         }
@@ -59,6 +64,13 @@ public static class PhaseRunner
         // The list is settled (plain advance, or a new circuit appended), so offer queued blocks to the new current phase.
         FlightPhysics.NotifyPhaseAdvanced(aircraft);
     }
+
+    /// <summary>
+    /// A runway exit that stopped at a LAHSO point holds there before the exit chain's next phase starts: that phase would otherwise
+    /// make its own call ("clear of the runway") for an aircraft still on it.
+    /// </summary>
+    private static bool TryHoldBeforeAdvance(AircraftState aircraft, PhaseContext ctx, PhaseList phases, Phase current) =>
+        (current is RunwayExitPhase { StoppedForLahso: true }) && TryHandlePostLahso(aircraft, ctx, phases, current);
 
     /// <summary>
     /// Starts the pursuit a climb that accepted FOLLOW of a lead with no runway was holding off
@@ -102,19 +114,29 @@ public static class PhaseRunner
     }
 
     /// <summary>
-    /// After a LAHSO landing, hold on the runway instead of exiting: rebuild the tail of the list as
-    /// RunwayHoldingPhase → RunwayExitPhase → HoldingAfterExitPhase and offer queued blocks to it.
+    /// After a LAHSO stop short of the hold-short point, hold on the runway instead of exiting (AIM 4-3-11.b.6), whichever phase
+    /// brought the aircraft to rest — the landing (<see cref="LandingPhase.StoppedForLahso"/>, after the list advanced) or the runway
+    /// exit with no exit before the point (<see cref="RunwayExitPhase.StoppedForLahso"/>, before it advances): rebuild the tail of
+    /// the list as RunwayHoldingPhase → RunwayExitPhase → HoldingAfterExitPhase and offer queued blocks to it.
     /// </summary>
     private static bool TryHandlePostLahso(AircraftState aircraft, PhaseContext ctx, PhaseList phases, Phase current)
     {
-        if ((current is not LandingPhase { StoppedForLahso: true }) || (phases.LahsoHoldShort is not { } lahsoTarget))
+        bool stoppedForLahso = current is LandingPhase { StoppedForLahso: true } or RunwayExitPhase { StoppedForLahso: true };
+        if (!stoppedForLahso || (phases.LahsoHoldShort is not { } lahsoTarget))
         {
             return false;
         }
 
+        // The runway exit has not been advanced past: it completes here, and the exit chain queued behind it is skipped unstarted.
+        if (current.Status == PhaseStatus.Active)
+        {
+            current.Status = PhaseStatus.Completed;
+            current.OnEnd(ctx, PhaseStatus.Completed);
+        }
+
         // The aircraft is stopped on the runway short of the hold-short point and holds there whatever the
-        // chain queued after the landing: end the phase AdvanceToNext just started and skip the rest, so the
-        // hold chain goes in exactly as it does when the landing was the last phase (a no-op then).
+        // chain queued after it: end the phase AdvanceToNext just started (after a landing) and skip the rest, so the
+        // hold chain goes in exactly as it does when the stopping phase was the last one (a no-op then).
         phases.Clear(ctx);
 
         phases.Phases.Add(new RunwayHoldingPhase(lahsoTarget.CrossingRunwayId));
@@ -131,9 +153,11 @@ public static class PhaseRunner
 
     /// <summary>
     /// A full-stop terminator that completed the list exits the runway regardless of pattern state: append
-    /// RunwayExitPhase → HoldingAfterExitPhase and offer queued blocks to the first of them.
+    /// RunwayExitPhase → HoldingAfterExitPhase and offer queued blocks to the first of them. After a landing whose LAHSO clearance
+    /// the overrun call voided, the runway exit carries the crossing runway (<see cref="RunwayExitPhase.VoidedLahsoCrossingRunwayId"/>)
+    /// so its no-exit stop keeps off it too (AIM 4-3-21.b).
     /// </summary>
-    private static bool TryHandleFullStopExit(AircraftState aircraft, PhaseContext ctx, PhaseList phases, TerminatorKind kind)
+    private static bool TryHandleFullStopExit(AircraftState aircraft, PhaseContext ctx, PhaseList phases, Phase completed, TerminatorKind kind)
     {
         if (!kind.FullStop || !phases.IsComplete)
         {
@@ -145,7 +169,13 @@ public static class PhaseRunner
         // (MLT/MRT intent) is left intact for any future re-spawn / re-clearance.
         phases.TrafficDirection = null;
 
-        phases.Phases.Add(new RunwayExitPhase());
+        var runwayExit = new RunwayExitPhase();
+        if (completed is LandingPhase landing)
+        {
+            runwayExit.VoidedLahsoCrossingRunwayId = landing.VoidedLahsoCrossingRunwayIdForHandOff(ctx);
+        }
+
+        phases.Phases.Add(runwayExit);
         phases.Phases.Add(new HoldingAfterExitPhase());
 
         StartPendingPhase(ctx, phases);

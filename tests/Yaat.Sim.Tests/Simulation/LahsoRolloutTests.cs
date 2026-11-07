@@ -51,6 +51,9 @@ public class LahsoRolloutTests(ITestOutputHelper output)
         public required bool SawRunwayExit { get; init; }
         public required bool StoppedForLahso { get; init; }
         public required bool LahsoTargetClearedAtEnd { get; init; }
+
+        /// <summary>Whether the LAHSO target was still set on the first tick of the runway exit; null when it never started.</summary>
+        public required bool? LahsoTargetSetAtHandOff { get; init; }
         public required bool EndedInRunwayHold { get; init; }
         public required string FinalPhase { get; init; }
         public required string? CandidateExit { get; init; }
@@ -186,6 +189,7 @@ public class LahsoRolloutTests(ITestOutputHelper output)
         bool sawRunwayHolding = false;
         bool sawRunwayExit = false;
         bool touchedDown = false;
+        bool? lahsoSetAtHandOff = null;
         IReadOnlySet<int> occupiedAfterFirstTick = new HashSet<int>();
 
         for (int t = 1; t <= 420; t++)
@@ -209,6 +213,11 @@ public class LahsoRolloutTests(ITestOutputHelper output)
             }
 
             sawRunwayHolding = sawRunwayHolding || (current is RunwayHoldingPhase);
+            if ((current is RunwayExitPhase) && (lahsoSetAtHandOff is null))
+            {
+                lahsoSetAtHandOff = aircraft.Phases.LahsoHoldShort is not null;
+            }
+
             sawRunwayExit = sawRunwayExit || (current is RunwayExitPhase);
 
             if ((current is RunwayHoldingPhase) && (aircraft.GroundSpeed < 0.5))
@@ -231,6 +240,7 @@ public class LahsoRolloutTests(ITestOutputHelper output)
             SawRunwayExit = sawRunwayExit,
             StoppedForLahso = landingPhase.StoppedForLahso,
             LahsoTargetClearedAtEnd = aircraft.Phases.LahsoHoldShort is null,
+            LahsoTargetSetAtHandOff = lahsoSetAtHandOff,
             EndedInRunwayHold = aircraft.Phases.CurrentPhase is RunwayHoldingPhase,
             FinalPhase = aircraft.Phases.CurrentPhase?.Name ?? "none",
             CandidateExit = landingPhase.CandidateExit?.TaxiwayName,
@@ -288,7 +298,7 @@ public class LahsoRolloutTests(ITestOutputHelper output)
     /// stop at them; AIM 4-3-11.b.2 is the available landing distance the stop has to fit inside, threshold to
     /// hold-short point. Measured at the nose, because no part of the aircraft may extend beyond the marking.
     /// </summary>
-    [Fact(Skip = "E75L coasts at 40 kt from about 1,100 ft to 430 ft short of the LAHSO point before braking to the stop")]
+    [Fact]
     public void E75L_LahsoRollout_StopsShortOfTheHoldShortPoint()
     {
         TestVnasData.EnsureInitialized();
@@ -373,7 +383,8 @@ public class LahsoRolloutTests(ITestOutputHelper output)
 
     /// <summary>
     /// AIM 4-3-11.b.6: exiting before the hold-short point is the preferred branch. A light aircraft that can make
-    /// a turnoff ahead of the point takes it and the LAHSO hold is cleared — it never rolls up to the line.
+    /// a turnoff ahead of the point takes it — it never rolls up to the line. The clearance binds until the aircraft is clear of
+    /// the runway: the target is still set when the runway exit takes over and is cleared once the exit completes.
     /// </summary>
     [Fact]
     public void LightAircraft_LahsoRollout_ExitsBeforeThePoint_AndClearsTheLahsoTarget()
@@ -402,7 +413,8 @@ public class LahsoRolloutTests(ITestOutputHelper output)
         Assert.True(run.SawRunwayExit, $"the aircraft should have handed off to the runway exit, ended in {run.FinalPhase}");
         Assert.False(run.SawRunwayHolding, "an aircraft that exits before the point must never enter the LAHSO runway hold");
         Assert.False(run.StoppedForLahso, "an aircraft that exits before the point never stops for LAHSO");
-        Assert.True(run.LahsoTargetClearedAtEnd, "the LAHSO target must be cleared once the aircraft commits to an exit");
+        Assert.True(run.LahsoTargetSetAtHandOff, "the LAHSO target must still be set when the runway exit takes over");
+        Assert.True(run.LahsoTargetClearedAtEnd, "the LAHSO target must be cleared once the aircraft is clear of the runway");
         Assert.Equal("Holding After Exit", run.FinalPhase);
     }
 

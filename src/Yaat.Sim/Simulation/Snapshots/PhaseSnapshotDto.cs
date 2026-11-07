@@ -1249,6 +1249,10 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     // A backtrack exit committed whose route is not yet built: the heading flips to the reciprocal when it is.
     public bool BacktrackPending { get; init; }
 
+    // The crossing runway of a LAHSO clearance voided by the predicted-overrun call (V49): the rollout must not come to rest between
+    // its pavement edges. Not `required`: absent on older snapshots, where null (no voided clearance) is what those builds knew.
+    public string? VoidedLahsoCrossingRunwayId { get; init; }
+
     /// <summary>
     /// Through V45 the "unable to exit" latch lived here (the pilot had already reported it was stopped with no exit ahead). Read only
     /// so <see cref="SnapshotSchemaMigrator"/> can move a true one onto <see cref="PhaseListDto.ReportedNoExitAhead"/>, then nulled, so

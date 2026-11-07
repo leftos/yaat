@@ -4,8 +4,9 @@ namespace Yaat.Sim.Phases;
 
 /// <summary>
 /// The stop on the remaining runway a rollout plans when it has no exit it can take (every exit ahead occupied, or none ahead at
-/// all), outside LAHSO and a forced landing. One law shared by <see cref="Tower.LandingPhase"/>, which runs it from the moment it
-/// knows there is no exit, and <see cref="Ground.RunwayExitPhase"/>, which runs it while rolling with no exit. It is a pure function
+/// all), outside a forced landing. One law shared by <see cref="Tower.LandingPhase"/>, which runs it from the moment it
+/// knows there is no exit (outside LAHSO, whose landing stops at its own point), and <see cref="Ground.RunwayExitPhase"/>, which runs it
+/// while rolling with no exit, a LAHSO limit carried past the hand-off included (<see cref="StopDatums.LahsoStopAlongFt"/>). It is a pure function
 /// of the aircraft's speed and position and the runway's geometry, recomputed every tick, so it carries no state across a hand-off
 /// or a snapshot.
 /// <para>
@@ -35,7 +36,8 @@ public static class NoExitStopPlan
     /// <summary>
     /// One tick of the stop: the speed target and braking rate to publish, the stop point (ft along from the landing threshold)
     /// and whether it is the last exit's, whether the final stop to it has begun (the target is below the standard-exit speed), and
-    /// whether even the max-effort rate cannot keep the nose on the pavement.
+    /// whether even the max-effort rate cannot keep the nose on the pavement (short of the LAHSO point under LAHSO), and whether the
+    /// stop point is the LAHSO stop point (<paramref name="AtLahsoPoint"/>, <see cref="StopDatums.LahsoStopAlongFt"/>).
     /// </summary>
     public readonly record struct StopStep(
         double TargetSpeedKts,
@@ -43,16 +45,27 @@ public static class NoExitStopPlan
         double StopAlongFt,
         bool AtLastExit,
         bool FinalStop,
-        bool Excursion
+        bool Excursion,
+        bool AtLahsoPoint
     );
 
     /// <summary>
     /// The runway the stop plans on, along-track from the landing threshold (ft): the end of the landing distance
     /// (<paramref name="LandingDistanceFt"/>), the farthest the centroid may go with the nose still on the pavement
-    /// (<paramref name="NoseLimitAlongFt"/>: the landing distance less half the airframe length), and the last exit's turn-entry
-    /// point (<paramref name="LastExitTurnEntryAlongFt"/>, <see cref="LastExitTurnEntryAlongFt"/>; null when there is none).
+    /// (<paramref name="NoseLimitAlongFt"/>: the landing distance less half the airframe length; under LAHSO the nearer of that and
+    /// the hold-short point less half the airframe length), the last exit's turn-entry point (<paramref name="LastExitTurnEntryAlongFt"/>,
+    /// <see cref="LastExitTurnEntryAlongFt"/>; null when there is none), and under a LAHSO clearance the centroid's stop point short of
+    /// the hold-short point (<paramref name="LahsoStopAlongFt"/>; null without LAHSO), and after a LAHSO clearance was voided by the
+    /// overrun call the stretch the centroid must not come to rest in (<paramref name="KeepOutAlongFt"/>: the crossing runway's
+    /// pavement widened by half the airframe each side, so neither nose nor tail rests on it; null otherwise).
     /// </summary>
-    public readonly record struct StopDatums(double LandingDistanceFt, double NoseLimitAlongFt, double? LastExitTurnEntryAlongFt);
+    public readonly record struct StopDatums(
+        double LandingDistanceFt,
+        double NoseLimitAlongFt,
+        double? LastExitTurnEntryAlongFt,
+        double? LahsoStopAlongFt,
+        (double StartFt, double EndFt)? KeepOutAlongFt
+    );
 
     /// <summary>
     /// The plan for an aircraft of <paramref name="category"/> at <paramref name="groundSpeedKts"/> with its centroid
@@ -62,10 +75,49 @@ public static class NoExitStopPlan
     {
         double floorKts = CategoryPerformance.StandardExitSpeed(category);
         (double stopAlongFt, bool atLastExit) = StopPoint(category, groundSpeedKts, alongFt, datums);
+        bool atLahsoPoint = false;
+
+        // A LAHSO clearance never lets the stop pass the hold-short point (AIM 4-3-11.b.6): the stop point is the nearer of the
+        // plan's and the LAHSO stop point, so a plan giving up on the last exit falls back to the LAHSO point, not the runway end.
+        if ((datums.LahsoStopAlongFt is { } lahsoStopFt) && (lahsoStopFt < stopAlongFt))
+        {
+            (stopAlongFt, atLastExit, atLahsoPoint) = (lahsoStopFt, false, true);
+        }
+
+        double noseLimitAlongFt = datums.NoseLimitAlongFt;
+        if (KeepOff(category, groundSpeedKts, alongFt, datums, stopAlongFt) is { } moved)
+        {
+            (stopAlongFt, atLastExit, noseLimitAlongFt) = (moved.StopAlongFt, false, Math.Min(noseLimitAlongFt, moved.NoseLimitAlongFt));
+        }
+
         double toStopFt = stopAlongFt - alongFt;
         double target = Math.Min(floorKts, RolloutBraking.MaxEntrySpeedKts(toStopFt / GeoMath.FeetPerNm, RoutineRate(category)));
-        (double rate, bool excursion) = BrakingRate(category, groundSpeedKts, toStopFt, datums.NoseLimitAlongFt - alongFt);
-        return new StopStep(target, rate, stopAlongFt, atLastExit, target < floorKts, excursion);
+        (double rate, bool excursion) = BrakingRate(category, groundSpeedKts, toStopFt, noseLimitAlongFt - alongFt);
+        return new StopStep(target, rate, stopAlongFt, atLastExit, target < floorKts, excursion, atLahsoPoint);
+    }
+
+    /// <summary>
+    /// After a voided LAHSO clearance the stop never rests on the crossing runway (AIM 4-3-21.b): a stop point
+    /// (<paramref name="stopAlongFt"/>) inside the keep-out (<see cref="StopDatums.KeepOutAlongFt"/>) moves short of it while max
+    /// effort still stops there, the nose then limited to its start, else beyond it (no new nose limit: +∞). Null when the stop point
+    /// is not inside a keep-out.
+    /// </summary>
+    private static (double StopAlongFt, double NoseLimitAlongFt)? KeepOff(
+        AircraftCategory category,
+        double groundSpeedKts,
+        double alongFt,
+        StopDatums datums,
+        double stopAlongFt
+    )
+    {
+        if ((datums.KeepOutAlongFt is not { } keepOut) || (stopAlongFt <= keepOut.StartFt) || (stopAlongFt >= keepOut.EndFt))
+        {
+            return null;
+        }
+
+        double shortFt = keepOut.StartFt - alongFt;
+        bool canStopShort = (shortFt > 0) && (StopRate(groundSpeedKts, shortFt) <= CategoryPerformance.ExpediteExitDecelRate(category));
+        return canStopShort ? (keepOut.StartFt, keepOut.StartFt) : (keepOut.EndFt, double.PositiveInfinity);
     }
 
     /// <summary>
@@ -154,20 +206,29 @@ public static class NoExitStopPlan
         RolloutBraking.DecelOverDistanceKtsPerSec(groundSpeedKts, 0, distFt / GeoMath.FeetPerNm);
 
     /// <summary>
-    /// The turn-entry point (ft along from <paramref name="threshold"/>) of the last forward exit ahead of
-    /// <paramref name="position"/> off <paramref name="runway"/> (along its true heading), occupied or not, from the layout's
-    /// uninstructed exit walk (an exit doubling back past <see cref="BackExitAngleDeg"/> left out); null when there is none ahead. The
-    /// turn-entry point is the branch less <see cref="RolloutBraking.TurnEntryLeadNm"/> at the exit's turn-off speed for
-    /// <paramref name="category"/>.
+    /// Where <see cref="LastExitTurnEntryAlongFt"/> looks: the <paramref name="Layout"/> and <paramref name="Runway"/> rolled on, the
+    /// landing <paramref name="Threshold"/> distances are measured from, the aircraft's <paramref name="Position"/>, and its
+    /// <paramref name="Category"/> (for the turn-off speed and lead).
     /// </summary>
-    public static double? LastExitTurnEntryAlongFt(
-        AirportGroundLayout layout,
-        RunwayInfo runway,
-        LatLon threshold,
-        LatLon position,
-        AircraftCategory category
-    )
+    public readonly record struct LastExitQuery(
+        AirportGroundLayout Layout,
+        RunwayInfo Runway,
+        LatLon Threshold,
+        LatLon Position,
+        AircraftCategory Category
+    );
+
+    /// <summary>
+    /// The turn-entry point (ft along from the query's threshold) of the last forward exit ahead of the query's position off its
+    /// runway (along the runway's true heading), occupied or not, from the layout's uninstructed exit walk (an exit doubling back past
+    /// <see cref="BackExitAngleDeg"/> left out); null when there is none ahead. The turn-entry point is the branch less
+    /// <see cref="RolloutBraking.TurnEntryLeadNm"/> at the exit's turn-off speed for the query's category. With
+    /// <paramref name="qualifies"/> only an exit it accepts counts (under LAHSO, one whose turn-off fits before the hold-short point:
+    /// an exit past it can never be taken, so it is never the last exit either); null accepts every forward exit.
+    /// </summary>
+    public static double? LastExitTurnEntryAlongFt(LastExitQuery query, Func<AirportGroundLayout.CenterlineExitResult, bool>? qualifies)
     {
+        (AirportGroundLayout layout, RunwayInfo runway, LatLon threshold, LatLon position, AircraftCategory category) = query;
         string runwayDesignator = runway.Designator;
         TrueHeading runwayHeading = runway.TrueHeading;
         double? lastFt = null;
@@ -184,7 +245,9 @@ public static class NoExitStopPlan
                 excludeBranchPoints: null,
                 excludeHoldShortNodes: found,
                 filter: candidate =>
-                    candidate.ExitAngle > BackExitAngleDeg ? AirportGroundLayout.CandidateVerdict.Skip : AirportGroundLayout.CandidateVerdict.Accept,
+                    ((candidate.ExitAngle > BackExitAngleDeg) || ((qualifies is not null) && !qualifies(candidate)))
+                        ? AirportGroundLayout.CandidateVerdict.Skip
+                        : AirportGroundLayout.CandidateVerdict.Accept,
                 maxIterations: AirportGroundLayout.DefaultMaxIterations
             );
             if ((exit is not { } hit) || !found.Add(hit.HoldShort.Id))

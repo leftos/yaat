@@ -3198,7 +3198,7 @@ public class LandingExitDecelTests
                 AircraftCategory.Jet,
                 speedKts,
                 alongFt,
-                new NoExitStopPlan.StopDatums(LandingDistanceFt, LandingDistanceFt - NoseOffsetFt, LastTurnEntryAlongFt)
+                new NoExitStopPlan.StopDatums(LandingDistanceFt, LandingDistanceFt - NoseOffsetFt, LastTurnEntryAlongFt, null, null)
             );
             Assert.True(
                 plan.AtLastExit && (plan.StopAlongFt == exitStopFt),
@@ -3317,7 +3317,13 @@ public class LandingExitDecelTests
     [Fact]
     public void NoExitStopPlan_RunwayEndStop_SlowingTooLateForTheLastExit_NeverSwitchesToIt()
     {
-        var datums = new NoExitStopPlan.StopDatums(PlanLandingDistanceFt, PlanLandingDistanceFt - PlanNoseOffsetFt, PlanLastTurnEntryAlongFt);
+        var datums = new NoExitStopPlan.StopDatums(
+            PlanLandingDistanceFt,
+            PlanLandingDistanceFt - PlanNoseOffsetFt,
+            PlanLastTurnEntryAlongFt,
+            null,
+            null
+        );
         double speedKts = 30.0;
         double alongFt = 6_810.0;
         double lowestTargetKts = double.MaxValue;
@@ -3342,7 +3348,13 @@ public class LandingExitDecelTests
     [Fact]
     public void NoExitStopPlan_RunwayEndStop_SlowingEarlyEnough_SwitchesToTheLastExitAndHolds()
     {
-        var datums = new NoExitStopPlan.StopDatums(PlanLandingDistanceFt, PlanLandingDistanceFt - PlanNoseOffsetFt, PlanLastTurnEntryAlongFt);
+        var datums = new NoExitStopPlan.StopDatums(
+            PlanLandingDistanceFt,
+            PlanLandingDistanceFt - PlanNoseOffsetFt,
+            PlanLastTurnEntryAlongFt,
+            null,
+            null
+        );
         double firm = CategoryPerformance.FirmBrakingRate(AircraftCategory.Jet);
         double speedKts = 40.0;
         double alongFt = 6_700.0;
@@ -3370,12 +3382,18 @@ public class LandingExitDecelTests
     [Fact]
     public void NoExitStopPlan_PastTheStopPoint_TargetsZero()
     {
-        var datums = new NoExitStopPlan.StopDatums(PlanLandingDistanceFt, PlanLandingDistanceFt - PlanNoseOffsetFt, PlanLastTurnEntryAlongFt);
+        var datums = new NoExitStopPlan.StopDatums(
+            PlanLandingDistanceFt,
+            PlanLandingDistanceFt - PlanNoseOffsetFt,
+            PlanLastTurnEntryAlongFt,
+            null,
+            null
+        );
         double exitStopFt = PlanLastTurnEntryAlongFt - NoExitStopPlan.LastExitSetbackFt;
         NoExitStopPlan.StopStep atExit = NoExitStopPlan.Compute(AircraftCategory.Jet, 3.0, exitStopFt + 5.0, datums);
         Assert.True(atExit.AtLastExit && (atExit.TargetSpeedKts == 0), $"past the last exit's stop point: {atExit}");
 
-        var noLastExit = new NoExitStopPlan.StopDatums(PlanLandingDistanceFt, PlanLandingDistanceFt - PlanNoseOffsetFt, null);
+        var noLastExit = new NoExitStopPlan.StopDatums(PlanLandingDistanceFt, PlanLandingDistanceFt - PlanNoseOffsetFt, null, null, null);
         double runwayEndStopFt = PlanLandingDistanceFt - NoExitRunwayEndMarginFt;
         NoExitStopPlan.StopStep atEnd = NoExitStopPlan.Compute(AircraftCategory.Jet, 3.0, runwayEndStopFt + 5.0, noLastExit);
         Assert.True(!atEnd.AtLastExit && (atEnd.TargetSpeedKts == 0), $"past the runway-end stop point: {atEnd}");
