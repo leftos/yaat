@@ -38,6 +38,7 @@
 - An aircraft established on the glidepath shows its descent as vertical speed, instead of 0.
 - `TAXI C 33` to an aircraft whose nose is already past its 33 bar holds it in place, instead of crossing the runway's end to the far bar.
 - `TAXI C D 33` and `TAXI C 33 HS C` from the aircraft's own 33 bar hold there with a note, instead of saying it cannot reach D or C.
+- `FHN`, `CMN`, `DMN` and `SPDN` replace only queued commands for their own heading, altitude or speed, instead of clearing the whole queue.
 
 ## v0.18.1-beta [2026/11/05]
 
