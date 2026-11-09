@@ -74,6 +74,8 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 
 **Every feature touching aviation must be reviewed by `aviation-sim-expert`** (via `Agent` with `subagent_type: "aviation-sim-expert"`, through the `aviation-review-gate` skill, which carries the standard local-references preamble). This is not optional.
 
+**Fable escalation**: `aviation-sim-expert` is allowed on Fable under `~/.claude/skills/orchestrator/model-escalation.md`, with its triggers and budget check.
+
 **Scope:** flight physics, pilot AI, ATC logic, radio comms, aircraft performance, airspace rules, phase transitions, command dispatch, ground ops, conflict detection, trigger conditions, any automatic aircraft behavior.
 
 **Do not guess aviation details.** Use FAA 7110.65, AIM, ICAO Doc 4444 as authorities.
