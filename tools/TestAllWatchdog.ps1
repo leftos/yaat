@@ -20,8 +20,12 @@
 # by far less than work, while a host waiting on child processes that do the work, or whose threads
 # the machine is holding, looks idle without being hung. The clock is reset when the tree's CPU rises
 # past the tolerance over its baseline, when the set of live processes under the host changes, or
-# while the host has a thread the machine is holding; a host that shows none of those for the idle
-# threshold is stalled.
+# while the host, a process under it, or one above it below the root that made no CPU progress since
+# the last poll has a thread the machine is holding; a host that shows none of those for the idle
+# threshold is stalled. Held threads count across that span because an MTP host waits for the
+# `dotnet test` driver's reply to each result it sends, so a starved driver or child leaves an idle
+# host that only looks hung; an ancestor whose CPU rises is serving a sibling host, not starved.
+# Ancestors' pauses extend one idle window by at most one more, so a hung host is cut within two.
 #
 # On a stall it prints the host, the tree and each suite log's tail, dumps the host with dotnet-dump
 # (Heap, its own timeout, and the partial dump deleted when the attach is cut short), prints the
@@ -256,7 +260,8 @@ function Get-TestHostKey {
 
 # The test hosts under the test-all process: the leaf processes that run the tests, selected by name.
 # The `dotnet test` driver and the suite jobs idle on purpose, so they are not hosts. Each host also
-# carries its tree figures and the count of its threads the machine is holding, for Test-StalledHost.
+# carries its tree figures and the count of threads the machine is holding in it and in the processes
+# it may be waiting on, for Test-StalledHost.
 function Find-TestHost {
     param(
         [Parameter(Mandatory)][int]$RootPid,
@@ -264,30 +269,205 @@ function Find-TestHost {
         [Parameter(Mandatory)][string]$ProcessNamePattern
     )
     # A process with no threads is a snapshot clone (ManagedStackCaptureTests), live or killed, never a host.
-    $hosts = @(Get-TestAllProcessTree -RootPid $RootPid -ProcessNamePattern $ProcessNamePattern |
-            Where-Object { ($_.Threads -gt 0) -and ($_.Name -match $HostNamePattern) })
+    $tree = @(Get-TestAllProcessTree -RootPid $RootPid -ProcessNamePattern $ProcessNamePattern)
+    $byId = @{}
+    foreach ($node in $tree) {
+        $byId[$node.Id] = $node
+    }
+    $hosts = @($tree | Where-Object { ($_.Threads -gt 0) -and ($_.Name -match $HostNamePattern) })
+    # One poll's held counts by pid|startTicks: hosts under one driver share their ancestors, and each
+    # thread read takes a whole-system snapshot, so each process is read once per poll. The cache is
+    # this call's own and is dropped with it, so no count crosses polls.
+    $heldCache = @{}
     foreach ($hostProcess in $hosts) {
-        $startTicks = $hostProcess.StartTime.Ticks
-        $hostProcess.HeldThreads = Get-TestAllHeldThreadCount -ProcessId $hostProcess.Id -StartTimeTicks $startTicks
+        $ancestors = @(Get-TestAllAncestor -HostProcess $hostProcess -ById $byId -HeldCache $heldCache)
+        $hostProcess.HeldThreads = Get-TestAllWaitedOnHeldThreadCount -HostProcess $hostProcess -Ancestors $ancestors -HeldCache $heldCache
+        $hostProcess | Add-Member -NotePropertyName Ancestors -NotePropertyValue $ancestors -Force
     }
     return $hosts
+}
+
+# Get-TestAllHeldThreadCount read at most once per pid|startTicks per $HeldCache.
+function Get-TestAllCachedHeldThreadCount {
+    param(
+        [Parameter(Mandatory)][hashtable]$HeldCache,
+        [Parameter(Mandatory)][int]$ProcessId,
+        [Parameter(Mandatory)][long]$StartTimeTicks
+    )
+
+    $key = '{0}|{1}' -f $ProcessId, $StartTimeTicks
+    if (-not $HeldCache.ContainsKey($key)) {
+        $HeldCache[$key] = Get-TestAllHeldThreadCount -ProcessId $ProcessId -StartTimeTicks $StartTimeTicks
+    }
+    return $HeldCache[$key]
+}
+
+# How many threads the machine is holding in a host and in the processes it may be waiting on: its
+# descendants (TreeKeys) and $Ancestors, the records Get-TestAllAncestor gave for it.
+function Get-TestAllWaitedOnHeldThreadCount {
+    param(
+        [Parameter(Mandatory)][object]$HostProcess,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Ancestors,
+        [Parameter(Mandatory)][hashtable]$HeldCache
+    )
+
+    $held = Get-TestAllCachedHeldThreadCount -HeldCache $HeldCache -ProcessId $HostProcess.Id -StartTimeTicks $HostProcess.StartTime.Ticks
+    foreach ($key in @($HostProcess.TreeKeys -split ',' | Where-Object { $_.Length -gt 0 })) {
+        $parts = $key -split '\|'
+        $held += Get-TestAllCachedHeldThreadCount -HeldCache $HeldCache -ProcessId ([int]$parts[0]) -StartTimeTicks ([long]$parts[1])
+    }
+    foreach ($ancestor in $Ancestors) {
+        $held += $ancestor.HeldThreads
+    }
+    return $held
+}
+
+# A host's ancestors below the root, each as its key, its own CPU seconds and the count of its threads
+# the machine is holding. They are followed by ParentId through $ById, the walk's own records, which
+# never hold the root, so the chain stops beneath it; a record that started after the process it would
+# be the parent of is a reused pid and ends the chain too.
+function Get-TestAllAncestor {
+    param(
+        [Parameter(Mandatory)][object]$HostProcess,
+        [Parameter(Mandatory)][hashtable]$ById,
+        [Parameter(Mandatory)][hashtable]$HeldCache
+    )
+
+    $ancestors = [System.Collections.Generic.List[object]]::new()
+    $seen = @{}
+    $seen[$HostProcess.Id] = $true
+    $child = $HostProcess
+    while ($ById.ContainsKey($child.ParentId) -and (-not $seen.ContainsKey($child.ParentId))) {
+        $ancestor = $ById[$child.ParentId]
+        if ($ancestor.StartTime -gt $child.StartTime) {
+            break
+        }
+        $seen[$ancestor.Id] = $true
+        $ancestors.Add([pscustomobject]@{
+                Key         = Get-TestHostKey -HostProcess $ancestor
+                CpuSeconds  = $ancestor.CpuSeconds
+                HeldThreads = Get-TestAllCachedHeldThreadCount -HeldCache $HeldCache -ProcessId $ancestor.Id -StartTimeTicks $ancestor.StartTime.Ticks
+            })
+        $child = $ancestor
+    }
+    return @($ancestors)
+}
+
+# The held threads that pause a host's clock, split in two: Own, those in the host and under it, and
+# Ancestor, those in each ancestor whose CPU did not rise past $CpuToleranceSeconds since the previous
+# poll. An ancestor whose CPU rose is serving other work (the `dotnet test` driver answering a sibling
+# host), not starved, so its held threads say nothing about this host. An ancestor first seen at this
+# poll counts as starved. Records each ancestor's CPU in $Tracked for the next poll; a host record with
+# no Ancestors (a synthetic one) has all its held threads as its own.
+function Get-TestAllPausingHeldThreads {
+    param(
+        [Parameter(Mandatory)][object]$HostProcess,
+        [Parameter(Mandatory)][hashtable]$Tracked,
+        [Parameter(Mandatory)][double]$CpuToleranceSeconds
+    )
+
+    $ancestorsProperty = $HostProcess.PSObject.Properties['Ancestors']
+    $ancestors = if ($null -eq $ancestorsProperty) { @() } else { @($ancestorsProperty.Value) }
+    $own = $HostProcess.HeldThreads
+    $starved = 0
+    $cpuByKey = @{}
+    foreach ($ancestor in $ancestors) {
+        $cpuByKey[$ancestor.Key] = $ancestor.CpuSeconds
+        $own -= $ancestor.HeldThreads
+        $previous = $Tracked.AncestorCpu[$ancestor.Key]
+        if (($null -eq $previous) -or (($ancestor.CpuSeconds - $previous) -le $CpuToleranceSeconds)) {
+            $starved += $ancestor.HeldThreads
+        }
+    }
+    $Tracked.AncestorCpu = $cpuByKey
+    return [pscustomobject]@{ Own = $own; Ancestor = $starved }
+}
+
+# How far a held poll moves a host's idle clock on: the whole $Interval when the host or a process
+# under it is held, with no limit; when only starved ancestors are held, the interval up to what is
+# left of $CapSeconds of ancestor pauses ($Tracked.AncestorPause, cleared when the clock resets), so a
+# host blocked in its own wait is cut within the idle window plus the cap however its ancestors
+# behave. $null when nothing held pauses it.
+function Get-TestAllIdlePause {
+    param(
+        [Parameter(Mandatory)][object]$Held,
+        [Parameter(Mandatory)][hashtable]$Tracked,
+        [Parameter(Mandatory)][timespan]$Interval,
+        [Parameter(Mandatory)][int]$CapSeconds
+    )
+
+    if ($Held.Own -gt 0) {
+        return $Interval
+    }
+    $left = [timespan]::FromSeconds($CapSeconds) - $Tracked.AncestorPause
+    if (($Held.Ancestor -le 0) -or ($left -le [timespan]::Zero)) {
+        return $null
+    }
+    $grant = if ($Interval -lt $left) { $Interval } else { $left }
+    $Tracked.AncestorPause += $grant
+    return $grant
+}
+
+# Moves one known host's idle clock ($Tracked, its entry in Test-StalledHost's state) on to $Now and
+# returns whether the host has now shown no progress for $IdleSeconds. A negative
+# $AncestorPauseCapSeconds caps ancestor pauses at one idle window.
+function Update-TestAllHostClock {
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)][object]$HostProcess,
+        [Parameter(Mandatory)][hashtable]$Tracked,
+        [Parameter(Mandatory)][datetime]$Now,
+        [Parameter(Mandatory)][int]$IdleSeconds,
+        [Parameter(Mandatory)][double]$CpuToleranceSeconds,
+        [Parameter(Mandatory)][int]$AncestorPauseCapSeconds
+    )
+
+    $held = Get-TestAllPausingHeldThreads -HostProcess $HostProcess -Tracked $Tracked -CpuToleranceSeconds $CpuToleranceSeconds
+    $treeGrew = (($HostProcess.TreeCpuSeconds - $Tracked.BaselineTreeCpuSeconds) -gt $CpuToleranceSeconds)
+    $treeChanged = ($HostProcess.TreeKeys -ne $Tracked.TreeKeys)
+    if ($treeGrew -or $treeChanged) {
+        $Tracked.BaselineTreeCpuSeconds = $HostProcess.TreeCpuSeconds
+        $Tracked.TreeKeys = $HostProcess.TreeKeys
+        $Tracked.Since = $Now
+        $Tracked.LastPoll = $Now
+        $Tracked.AncestorPause = [timespan]::Zero
+        return $false
+    }
+    $ancestorCap = if ($AncestorPauseCapSeconds -lt 0) { $IdleSeconds } else { $AncestorPauseCapSeconds }
+    $interval = $Now - $Tracked.LastPoll
+    $pause = Get-TestAllIdlePause -Held $held -Tracked $Tracked -Interval $interval -CapSeconds $ancestorCap
+    $Tracked.LastPoll = $Now
+    if ($null -ne $pause) {
+        # The machine held this host for the pause: the idle clock moves on by it, and the baseline
+        # and keys stay as they were. A pause short of the interval (the ancestor cap ran out) still
+        # leaves the rest of the interval as idle time to judge.
+        $Tracked.Since = $Tracked.Since.Add($pause)
+        if ($pause -eq $interval) {
+            return $false
+        }
+    }
+    return (($Now - $Tracked.Since).TotalSeconds -ge $IdleSeconds)
 }
 
 # Tracks each host's progress in $State (keyed by pid and start time, one clock per host) and returns
 # the first host that has shown no progress for $IdleSeconds. Progress is the tree's CPU rising past
 # $CpuToleranceSeconds over its baseline, or a set of live processes under the host that changed since
-# the last walk; either resets the clock. A poll that finds a thread the machine is holding pauses the
+# the last walk; either resets the clock. A poll that finds a thread the machine is holding (in the
+# host, under it, or in an ancestor that made no CPU progress since the previous poll) pauses the
 # clock for the interval since the last poll instead of resetting it, since the host has yet to show
-# what it does once the machine lets it run. A host that shows no progress and no held thread for the
-# idle threshold is stalled; one that exits is dropped from the state. The clock is injectable for
-# the case table, and test-all.ps1 never passes it.
+# what it does once the machine lets it run; pauses from ancestors alone add up to at most
+# $AncestorPauseCapSeconds between resets, one idle window when it is not given (test-all never
+# gives it). A host that shows no progress and no held thread for the idle threshold is stalled; one
+# that exits is dropped from the state. The clock is injectable for the case table, and test-all.ps1
+# never passes it.
 function Test-StalledHost {
     param(
         [Parameter(Mandatory)][hashtable]$State,
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Hosts,
         [Parameter(Mandatory)][int]$IdleSeconds,
         [Parameter(Mandatory)][double]$CpuToleranceSeconds,
-        [scriptblock]$Clock = { [datetime]::UtcNow }
+        [scriptblock]$Clock = { [datetime]::UtcNow },
+        [int]$AncestorPauseCapSeconds = -1
     )
 
     $now = & $Clock
@@ -301,28 +481,21 @@ function Test-StalledHost {
                 TreeKeys               = $hostProcess.TreeKeys
                 Since                  = $now
                 LastPoll               = $now
+                AncestorCpu            = @{}
+                AncestorPause          = [timespan]::Zero
             }
+            $null = Get-TestAllPausingHeldThreads -HostProcess $hostProcess -Tracked $State[$key] -CpuToleranceSeconds $CpuToleranceSeconds
             continue
         }
-        $tracked = $State[$key]
-        $treeGrew = (($hostProcess.TreeCpuSeconds - $tracked.BaselineTreeCpuSeconds) -gt $CpuToleranceSeconds)
-        $treeChanged = ($hostProcess.TreeKeys -ne $tracked.TreeKeys)
-        if ($treeGrew -or $treeChanged) {
-            $tracked.BaselineTreeCpuSeconds = $hostProcess.TreeCpuSeconds
-            $tracked.TreeKeys = $hostProcess.TreeKeys
-            $tracked.Since = $now
-            $tracked.LastPoll = $now
-            continue
+        $clockArgs = @{
+            HostProcess             = $hostProcess
+            Tracked                 = $State[$key]
+            Now                     = $now
+            IdleSeconds             = $IdleSeconds
+            CpuToleranceSeconds     = $CpuToleranceSeconds
+            AncestorPauseCapSeconds = $AncestorPauseCapSeconds
         }
-        if ($hostProcess.HeldThreads -gt 0) {
-            # The machine held this host for the interval since the last poll: the idle clock moves on
-            # by that interval, and the baseline and keys stay as they were.
-            $tracked.Since = $tracked.Since.Add($now - $tracked.LastPoll)
-            $tracked.LastPoll = $now
-            continue
-        }
-        $tracked.LastPoll = $now
-        if (($now - $tracked.Since).TotalSeconds -ge $IdleSeconds) {
+        if (Update-TestAllHostClock @clockArgs) {
             return $hostProcess
         }
     }

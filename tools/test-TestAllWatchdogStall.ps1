@@ -5,10 +5,13 @@
 # process; case B has its threads held by the machine; case C, the control, is blocked in its own
 # wait with no child and must still read STALLED; case D sleeps in Thread.Sleep, which is the host's
 # own timer, not the machine holding it, and must read STALLED too; case E drives the idle clock by
-# hand to show a poll with held threads pauses it rather than resetting it. Every wait is on a named
-# event or a process handle with a hang guard, and no case reads the wall clock. Test-StalledHost is
-# called with IdleSeconds 0 except in case E, so each verdict rests only on the progress it saw
-# between two walks.
+# hand to show a poll with held threads pauses it rather than resetting it; cases F and G wait on a
+# parent and on a child the machine holds, and must not read STALLED; cases H, I and J drive the
+# clock by hand for a host whose ancestor has a held thread at every poll, which pauses the clock only
+# while that ancestor's CPU stays under the progress bar, and for one idle window at most. Every wait
+# is on a named event, a process handle, or a poll until the host has no held thread, each with a hang
+# guard, and no case reads the wall clock. Test-StalledHost is called with IdleSeconds 0 except in
+# cases E, H, I and J, so each of the other verdicts rests only on the progress it saw between two walks.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
     Justification = 'The case results are the script''s console output, as in test-all.ps1.')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
@@ -58,7 +61,53 @@ function Start-CommandHost([string]$command) {
 function Get-Verdict([hashtable]$state, [System.Diagnostics.Process]$fake, [string]$hostNamePattern = $hostPattern) {
     $hosts = @(Find-TestHost -RootPid $PID -HostNamePattern $hostNamePattern -ProcessNamePattern $walkPattern | Where-Object Id -EQ $fake.Id)
     if ($hosts.Count -ne 1) { throw "the walk found $($hosts.Count) hosts with pid $($fake.Id)" }
-    return Test-StalledHost -State $state -Hosts $hosts -IdleSeconds 0 -CpuToleranceSeconds 0.5
+    # The ancestor pause cap is lifted, so a verdict here never rests on how long a walk took (the
+    # pauses granted between two polls are the time between them); cases I and J pin the cap.
+    return Test-StalledHost -State $state -Hosts $hosts -IdleSeconds 0 -CpuToleranceSeconds 0.5 -AncestorPauseCapSeconds ([int]::MaxValue)
+}
+# Waits until the walk's record of $p shows no held thread, the figure the verdict reads, so a verdict
+# cannot rest on a thread the machine happens to be holding at the poll (load would make it vacuous).
+function Wait-HostSettled([System.Diagnostics.Process]$p, [string]$what, [string]$hostNamePattern = $hostPattern) {
+    $guard = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($true) {
+        $hosts = @(Find-TestHost -RootPid $PID -HostNamePattern $hostNamePattern -ProcessNamePattern $walkPattern | Where-Object Id -EQ $p.Id)
+        if ($hosts.Count -ne 1) { throw "$($what): the walk found $($hosts.Count) hosts with pid $($p.Id)" }
+        if ($hosts[0].HeldThreads -eq 0) { return }
+        if ($guard.ElapsedMilliseconds -gt $hangGuardMs) { throw "hung: $what" }
+        Start-Sleep -Milliseconds 100
+    }
+}
+function Suspend-CaseProcess([System.Diagnostics.Process]$p, [string]$case) {
+    $status = [WatchdogCase1767.Nt]::NtSuspendProcess($p.Handle)
+    if ($status -ne 0) { throw ('{0}: NtSuspendProcess failed 0x{1:X8}' -f $case, $status) }
+}
+# Drives Test-StalledHost on an injected clock, one poll every 10 s, for a synthetic host whose one
+# ancestor has a held thread at every poll and whose CPU rises by $cpuStep between polls. Returns the
+# second of the first poll that called the host stalled, or $null when none of $polls polls did.
+function Get-AncestorCaseStallSecond([double]$cpuStep, [int]$polls) {
+    $clockState = [pscustomobject]@{ Now = [datetime]::new(2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc) }
+    $clock = { $clockState.Now }.GetNewClosure()
+    $ancestor = [pscustomobject]@{ Key = '4343|1'; CpuSeconds = 5.0; HeldThreads = 1 }
+    $synthetic = [pscustomobject]@{
+        Name           = 'Synthetic.Tests'
+        Id             = 4244
+        StartTime      = $clockState.Now.AddMinutes(-5)
+        CpuSeconds     = 1.0
+        Threads        = 4
+        HeldThreads    = 1
+        TreeCpuSeconds = 10.0
+        TreeKeys       = ''
+        Ancestors      = @($ancestor)
+    }
+    $state = @{}
+    for ($poll = 0; $poll -lt $polls; $poll++) {
+        if ($null -ne (Test-StalledHost -State $state -Hosts @($synthetic) -IdleSeconds 90 -CpuToleranceSeconds 0.5 -Clock $clock)) {
+            return $poll * 10
+        }
+        $clockState.Now = $clockState.Now.AddSeconds(10)
+        $ancestor.CpuSeconds += $cpuStep
+    }
+    return $null
 }
 function Get-ThreadStateText([System.Diagnostics.Process]$p) {
     $p.Refresh()
@@ -113,7 +162,9 @@ $hold
 `$proc = [System.Diagnostics.Process]::GetCurrentProcess()
 `$null = `$ready.Set()
 `$null = `$go.WaitOne()
-while (`$proc.TotalProcessorTime.TotalSeconds -lt 1) { `$proc.Refresh() }
+`$proc.Refresh()
+`$baseline = `$proc.TotalProcessorTime.TotalSeconds
+while ((`$proc.TotalProcessorTime.TotalSeconds - `$baseline) -lt 1) { `$proc.Refresh() }
 `$null = `$spun.Set()
 $hold2
 "@
@@ -138,7 +189,7 @@ $hold2
     $hostB = Start-FakeHost '/c pause'
     $started += $hostB
     $stateB = @{}
-    $null = [WatchdogCase1767.Nt]::NtSuspendProcess($hostB.Handle)
+    Suspend-CaseProcess $hostB 'case B'
     $null = Get-Verdict $stateB $hostB
     $verdictB = Get-Verdict $stateB $hostB
     Write-Host "case B: host pid $($hostB.Id) threads [$(Get-ThreadStateText $hostB)], verdict $(if ($verdictB) { 'STALLED' } else { 'not stalled' })"
@@ -152,6 +203,7 @@ $hold2
     $started += $hostC
     $stateC = @{}
     $null = Get-Verdict $stateC $hostC
+    Wait-HostSettled $hostC 'case C: the host never settled in its wait'
     $verdictC = Get-Verdict $stateC $hostC
     Write-Host "case C: host pid $($hostC.Id) threads [$(Get-ThreadStateText $hostC)], verdict $(if ($verdictC) { 'STALLED' } else { 'not stalled' })"
     if ($null -eq $verdictC) {
@@ -167,6 +219,7 @@ $hold2
     Wait-CaseEvent $slept 'case D: the sleeping host never set its event'
     $stateD = @{}
     $null = Get-Verdict -state $stateD -fake $hostD -hostNamePattern '^pwsh$'
+    Wait-HostSettled $hostD 'case D: the host never settled in its sleep' '^pwsh$'
     $verdictD = Get-Verdict -state $stateD -fake $hostD -hostNamePattern '^pwsh$'
     Write-Host "case D: host pid $($hostD.Id) threads [$(Get-ThreadStateText $hostD)], verdict $(if ($verdictD) { 'STALLED' } else { 'not stalled' })"
     if ($null -eq $verdictD) {
@@ -220,6 +273,101 @@ $hold2
         }
     } catch {
         $failures += "case E: the idle clock could not be driven: $($_.Exception.Message)"
+    }
+
+    # Case F (YAAT-1964): the host waits on its parent, as an MTP test host waits on the `dotnet test`
+    # driver's reply to each result it sends, and the machine holds the parent. The host itself is
+    # idle in its own wait; the process it waits on is starved, so the host is not stalled.
+    $readyF = New-CaseEvent 'readyF'
+    $events += $readyF
+    $parentScript = @"
+`$psi = [System.Diagnostics.ProcessStartInfo]::new('$fakeHost', '/c pause')
+`$psi.UseShellExecute = `$false
+`$psi.RedirectStandardInput = `$true
+`$h = [System.Diagnostics.Process]::Start(`$psi)
+`$null = [System.Threading.EventWaitHandle]::OpenExisting('$($readyF.Name)').Set()
+`$h.WaitForExit()
+"@
+    Set-Content -Path (Join-Path $folder 'parentF.ps1') -Value $parentScript
+    $parentF = Start-CommandHost "& '$folder\parentF.ps1'"
+    $started += $parentF
+    Wait-CaseEvent $readyF 'case F: the parent never started its host'
+    $hostF = @(Get-TestAllProcessTree -RootPid $parentF.Id -ProcessNamePattern $walkPattern | Where-Object Name -EQ 'Fake.Tests')
+    if ($hostF.Count -ne 1) { throw "case F: the walk found $($hostF.Count) hosts under the parent" }
+    $hostFProcess = Get-Process -Id $hostF[0].Id
+    $started += $hostFProcess
+    Wait-HostSettled $hostFProcess 'case F: the host never settled in its wait'
+    Suspend-CaseProcess $parentF 'case F'
+    try {
+        $stateF = @{}
+        $null = Get-Verdict $stateF $hostFProcess
+        $verdictF = Get-Verdict $stateF $hostFProcess
+        Write-Host "case F: host pid $($hostFProcess.Id) threads [$(Get-ThreadStateText $hostFProcess)], parent pid $($parentF.Id) threads [$(Get-ThreadStateText $parentF)], verdict $(if ($verdictF) { 'STALLED' } else { 'not stalled' })"
+        if ($null -ne $verdictF) {
+            $failures += "case F: a host waiting on a parent whose threads the machine holds was called STALLED"
+        }
+    } finally {
+        $null = [WatchdogCase1767.Nt]::NtResumeProcess($parentF.Handle)
+    }
+
+    # Case G (YAAT-1964): the host waits on a child the machine holds, with no CPU and no new process
+    # between the walks, as a test host waits on a starved launch script. Not stalled.
+    $readyG = New-CaseEvent 'readyG'; $releaseG = New-CaseEvent 'releaseG'
+    $events += $readyG, $releaseG
+    $childG = @"
+`$null = [System.Threading.EventWaitHandle]::OpenExisting('$($readyG.Name)').Set()
+[System.Threading.EventWaitHandle]::OpenExisting('$($releaseG.Name)').WaitOne() | Out-Null
+"@
+    Set-Content -Path (Join-Path $folder 'childG.ps1') -Value $childG
+    $hostG = Start-FakeHost "/c `"`"$pwshExe`" -NoProfile -File `"$folder\childG.ps1`"`""
+    $started += $hostG
+    Wait-CaseEvent $readyG 'case G: the child never came up'
+    $childGNode = @(Get-TestAllProcessTree -RootPid $hostG.Id -ProcessNamePattern '^pwsh$')
+    if ($childGNode.Count -ne 1) { throw "case G: the walk found $($childGNode.Count) pwsh children under the host" }
+    $childGProcess = Get-Process -Id $childGNode[0].Id
+    $started += $childGProcess
+    Wait-HostSettled $hostG 'case G: the host never settled in its wait'
+    Suspend-CaseProcess $childGProcess 'case G'
+    try {
+        $stateG = @{}
+        $null = Get-Verdict $stateG $hostG
+        $verdictG = Get-Verdict $stateG $hostG
+        Write-Host "case G: host pid $($hostG.Id) threads [$(Get-ThreadStateText $hostG)], child pid $($childGProcess.Id) threads [$(Get-ThreadStateText $childGProcess)], verdict $(if ($verdictG) { 'STALLED' } else { 'not stalled' })"
+        if ($null -ne $verdictG) {
+            $failures += "case G: a host waiting on a child whose threads the machine holds was called STALLED"
+        }
+    } finally {
+        $null = [WatchdogCase1767.Nt]::NtResumeProcess($childGProcess.Handle)
+    }
+
+    # Case H (clock): the host's ancestor has a held thread at every poll but its CPU rises past the
+    # tolerance each time, as a `dotnet test` driver serving a sibling host does. It is not starved, so
+    # it does not pause the clock: a host idle in its own wait is still called stalled at 90 s.
+    $stallSecondH = Get-AncestorCaseStallSecond -cpuStep 1.0 -polls 10
+    Write-Host "case H: a host under a held ancestor whose CPU rises is $(if ($null -ne $stallSecondH) { "STALLED at $($stallSecondH) s" } else { 'not stalled by 90 s' })"
+    if (($null -eq $stallSecondH) -or ($stallSecondH -gt 90)) {
+        $failures += "case H: a host whose held ancestor kept making CPU progress was not called STALLED within 90 s"
+    }
+
+    # Case I (clock): the same ancestor with its CPU standing still, as a starved driver's does, pauses
+    # the clock until its pauses add up to one idle window: the host is not stalled at 175 s, and is
+    # stalled by 185 s, one window of pause plus one window of its own idle time.
+    $stallSecondI = Get-AncestorCaseStallSecond -cpuStep 0.0 -polls 20
+    Write-Host "case I: a host under a held ancestor whose CPU stands still is $(if ($null -ne $stallSecondI) { "STALLED at $($stallSecondI) s" } else { 'not stalled by 190 s' })"
+    if (($null -ne $stallSecondI) -and ($stallSecondI -le 175)) {
+        $failures += "case I: a host whose held ancestor made no CPU progress was called STALLED at $($stallSecondI) s, before the pause cap was used"
+    }
+    if (($null -eq $stallSecondI) -or ($stallSecondI -gt 185)) {
+        $failures += "case I: a host whose held ancestor made no CPU progress was not called STALLED by 185 s (the ancestor pause cap is one window)"
+    }
+
+    # Case J (clock): the ancestor's CPU rises 0.1 s per poll, under the 0.5 s progress bar, as a
+    # driver relaying a sibling's results on a sliver of a core may. Its pauses are capped at one
+    # window, so the host is cut by 180 s, and not before its own 90 s.
+    $stallSecondJ = Get-AncestorCaseStallSecond -cpuStep 0.1 -polls 20
+    Write-Host "case J: a host under a held ancestor whose CPU creeps is $(if ($null -ne $stallSecondJ) { "STALLED at $($stallSecondJ) s" } else { 'not stalled by 190 s' })"
+    if (($null -eq $stallSecondJ) -or ($stallSecondJ -lt 90) -or ($stallSecondJ -gt 180)) {
+        $failures += "case J: a host whose held ancestor's CPU crept under the progress bar was not called STALLED between 90 s and 180 s (got $(if ($null -ne $stallSecondJ) { "$($stallSecondJ) s" } else { 'none' }))"
     }
 } finally {
     foreach ($e in $events) { if ($e.Name -like '*release*') { $null = $e.Handle.Set() } }
