@@ -324,7 +324,13 @@ public partial class CommandInputController : ObservableObject
         int argStartIndex = parsed.VerbIndex + 1;
         if (parsed.Tokens.Length == argStartIndex && !parsed.HasTrailingSpace)
         {
-            bool hasSpaceAfterVerb = parsed.StrippedFragment.Length > parsed.Verb!.Length && parsed.StrippedFragment.TrimStart().Contains(' ');
+            // The verb is the last (and only post-condition) token with no arg after it. Show
+            // signature help only once a space follows the verb — i.e. the fragment ends in
+            // whitespace. Testing StrippedFragment.Contains(' ') was wrong: for a
+            // callsign-prefixed command with no condition peel (e.g. "UAL1 FH") the callsign↔verb
+            // space satisfied it, popping the hint a keystroke early and inconsistently with the
+            // bare-verb case ("FH").
+            bool hasSpaceAfterVerb = parsed.StrippedFragment.Length > 0 && char.IsWhiteSpace(parsed.StrippedFragment[^1]);
             if (!hasSpaceAfterVerb)
             {
                 SignatureHelp.Dismiss();
