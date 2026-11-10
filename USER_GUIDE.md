@@ -753,7 +753,7 @@ Below that, a hold / squawk-standby / auto-yield status line and any instructor 
 
 **Auto-delete on hold-short.** For busy tower / local scenarios where landing aircraft pile up at the post-runway hold-short, type `ONHS DEL` against the landing aircraft. The auto-delete fires the moment the aircraft transitions into the *Holding After Exit* phase (i.e., it has rolled out, taken the runway exit, and stopped at the next intersecting taxiway).
 
-The pilot still calls "clear of runway" before the delete runs. While the auto-delete is armed, the radar / Tower Cab datablock shows a trailing `*` on the callsign. Issue `NODEL` to cancel — that strips every queued delete and also re-arms `AutoDeleteExempt` so scenario-level auto-delete will leave the aircraft alone too.
+The pilot calls "clear of runway" only once stopped, a few seconds after the delete fires on entering that phase, so the delete normally removes the aircraft first. While the auto-delete is armed, the radar / Tower Cab datablock shows a trailing `*` on the callsign. Issue `NODEL` to cancel — that strips every queued delete and also re-arms `AutoDeleteExempt` so scenario-level auto-delete will leave the aircraft alone too.
 
 **Auto-delete after a runway crossing.** An arrival that vacated between two parallels (e.g. SFO 19L exit G) still has to cross the parallel before it is out of the way, so `ONHS DEL` fires too early.
 
@@ -2251,7 +2251,7 @@ SPD 180 AXMUL
 
 Both forms mean maintain 180 knots until AXMUL, then resume normal speed. The second form is the ATCTrainer-style alias.
 
-YAAT automatically cancels ATC speed assignments at 5 NM final, and new speed assignments inside that boundary are rejected, including a `CFIX` or constrained `DCTF` that carries a speed. A crossing speed you gave on a fix inside the boundary is cancelled there too, and a crossing speed's return to the earlier speed is not applied in a hold or inside the boundary. Use `RNS` when you want to cancel a speed assignment earlier; on a STAR the aircraft then holds the last published speed it crossed until the next published restriction, and `RPS` does the same and also undoes `DSR`. A `DVIA`, `CVIA` or approach clearance cancels a speed you assigned before it too, unless you give a speed anywhere in the same transmission (`SPD 250, DVIA`). While a SID or STAR is active, a minimum the aircraft crossed at a published "at or above" speed survives those and `RNS`/`RPS`; a heading or direct command ends it.
+YAAT automatically cancels ATC speed assignments at 5 NM final, and new speed assignments inside that boundary are rejected, including a `CFIX` or constrained `DCTF` that carries a speed. A crossing speed you gave on a fix inside the boundary is cancelled there too, and a crossing speed's return to the earlier speed is not applied in a hold or inside the boundary. Use `RNS` when you want to cancel a speed assignment earlier; on a STAR the aircraft then holds the last published speed it crossed until the next published restriction, and `RPS` does the same and also undoes `DSR`. A `DVIA`, `CVIA` or approach clearance cancels a speed you assigned before it too, unless a speed in force when it fires was applied in the same transmission or later (`SPD 250, DVIA`); a speed still queued or refused does not count. While a SID or STAR is active, a minimum the aircraft crossed at a published "at or above" speed survives those and `RNS`/`RPS`; a heading or direct command ends it.
 
 #### Queue and phase clearing
 
@@ -2261,9 +2261,9 @@ When a new command replaces queued work, YAAT clears only conflicting control su
 
 | New command | Clears pending | Preserves pending |
 |-------------|----------------|-------------------|
-| Heading, turn, `DCT`, hold | Lateral blocks | Altitude and speed blocks |
-| `CM`, `DM`, `CVIA`, `DVIA` | Vertical blocks | Lateral and speed blocks |
-| `SPD`, `RNS`, `RPS`, `RFAS`, `MACH` | Speed blocks | Lateral and altitude blocks |
+| Heading, turn, `FHN`, `DCT`, hold | Lateral blocks | Altitude and speed blocks |
+| `CM`, `DM`, `CMN`, `DMN`, `CVIA`, `DVIA` | Vertical blocks | Lateral and speed blocks |
+| `SPD`, `SPDN`, `RNS`, `RPS`, `RFAS`, `MACH` | Speed blocks | Lateral and altitude blocks |
 | Tower/ground phase commands | Usually all flight-control dimensions | Status/display commands |
 
 This means adjusting speed does not cancel a turn, and issuing a heading does not cancel a previously queued altitude trigger unless that queued block also contained lateral work. If a queued block is dropped, YAAT adds a terminal warning naming the lost block. Note that the supersede-on-conflict behavior applies only to **immediate** commands; commands gated by a precondition (`AT`/`ONHO`/`WAIT`/`BEHIND`/…) are additive and never cancel each other (see below).

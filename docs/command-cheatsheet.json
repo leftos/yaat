@@ -50,7 +50,7 @@
         { "verb": "EXP", "aliases": [], "description": "Expedite to [alt] (or taxi/runway exit if on ground)" },
         { "verb": "NORM", "aliases": [], "description": "Normal rate" },
         { "verb": "MACH", "aliases": ["m"], "description": "Maintain Mach number" },
-        { "verb": "SMAX", "aliases": ["bfs", "maxspd"], "description": "Maximum forward speed (a margin under Vmo, Mmo high up); lifts 91.117 limits" }
+        { "verb": "SMAX", "aliases": ["bfs", "maxspd"], "description": "Maximum forward speed (a margin under the type's top speed (Vmo/Vno; Mmo high up)); lifts 91.117 limits" }
       ],
       "notes": []
     },

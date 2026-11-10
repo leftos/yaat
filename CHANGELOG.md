@@ -1,21 +1,27 @@
 # Changelog
 
-## Unreleased
+## v0.18.2-beta [2026/11/09]
+
+### Highlights
+
+- `LAHSO` landings brake evenly to the hold-short point and stop there; a pilot whose type can't hold short declines it.
+- "Show nav route" dims altitude and speed restrictions the current clearance doesn't bind, and draws queued holds and orbits dashed.
+- Aircraft fly their type's published speed limits, including limits that change with altitude, and `SMAX` follows them.
+- A landing counts as clear of the runway once its tail passes the exit's hold bar, so following arrivals are cleared sooner.
 
 ### Added
 
-- A pilot given `LAHSO` declines the hold-short when the runway is too short for its type's FAA LAHSO group, landing instead without it.
+- A pilot given `LAHSO` declines the hold-short, landing without it, when its type has no FAA LAHSO group or the group needs more runway.
 - The "Show nav route" overlay dims published altitude and speed restrictions the current clearance does not bind, judged fix by fix; controller crossings never dim.
 - The "Show nav route" overlay draws a hold queued at a fix ahead as a dashed racetrack, and VFR and airspace-boundary orbits as dashed circles.
-- In solo training, a pilot checking in states its assigned heading and speed: "level one two thousand, heading two seven zero, assigned two five zero knots".
+- In solo training, a pilot's first airborne call states its assigned heading and speed: "level one two thousand, heading two seven zero, assigned two five zero knots".
 - A bare `TAXI` to a turn-off behind an aircraft on a runway is answered "confirm back-taxi"; naming the runway first (`TAXI 28R L`) approves it.
 
 ### Fixed
 
 - Automatic arrival spacing behind an airborne same-runway leader allows the sim's measured runway occupancy: 75 s behind a jet or turboprop, 70 s behind a piston.
 - Signature help for a command typed after a callsign (`UAL1 FH`) appears only once a space follows the command, as it does without one.
-- A landing counts as clear of the runway, and the pilot reports clear, the moment its tail passes the exit's hold bar, even while still moving.
-- An arrival on a shallow high-speed exit, such as SFO 28R Q or OAK 30 W5, stays a runway occupant until its tail passes that exit's hold bar.
+- A landing counts as clear of the runway once its tail passes the exit's hold bar, even on a shallow high-speed exit such as SFO 28R Q; the pilot calls clear once stopped.
 - With automatic pull-up to the parallel runway, an exiting arrival taxis straight on to the parallel's hold-short, braking evenly, instead of stopping past the exit bar first.
 - A `TAXI` to an aircraft holding on a runway starts where it stands and follows the runway to its turn-off, instead of jumping to a nearby taxiway.
 - After a `LAHSO` stop, a `TAXI` whose route crosses the LAHSO runway is held until `CROSS`, the pilot reading back the hold short.

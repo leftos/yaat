@@ -248,6 +248,7 @@ Solo pilots make calls when the scenario and phase call for them. Common example
 - An aircraft already taxiing, at its stand after arriving, or scripted to taxi to the runway or to parking never calls ready to taxi.
 - With a radar (APP/CTR) student, IFR departures lined up at untowered fields ask for their release and wait in the Releases flyout until `REL` or `HFROFF`. Unscripted runway departures at towered fields, or VFR departures at untowered ones, depart unprompted. Under any other student position, an IFR departure at an untowered field never departs on its own: it waits lined up for a takeoff clearance.
 - Airborne arrivals or VFR inbound aircraft call with position and request.
+- An airborne pilot's first call states its altitude and any assigned heading and speed ("level one two thousand, heading two seven zero, assigned two five zero knots").
 - VFR pattern aircraft request closed traffic and may remind tower if landing clearance is still missing.
 - A pattern aircraft whose circuit would cross another active runway and cannot be compressed clear of it says once, per pattern runway and side, "be advised our downwind will take us across runway three zero." It flies the normal pattern and does not refuse; separate the traffic yourself or vector it.
 - Aircraft clear of the runway report clear and name the parking they picked ("clear of runway 28R at W, taxi to gate 29"), then ask again every two minutes until someone issues a taxi clearance.
