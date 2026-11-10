@@ -960,6 +960,34 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// <c>PUSH $7A</c> off F5 and off F8: the planner's stand log never names the pusher's own stand as an empty stand the
+    /// kept plan enters, since the push-off starts on that stand.
+    /// </summary>
+    [Theory]
+    [InlineData("F5", "7A")]
+    [InlineData("F8", "7A")]
+    public void Push_PlannerStandLog_NeverNamesThePushersOwnStand(string stand, string spotName)
+    {
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState pusher = SfoGroundHarness.SpawnParked(ground, PusherCallsign, AircraftType, stand);
+        using var tap = new CapturingSimLogProvider(LogLevel.Debug, PlannerLogCapacity);
+        using (ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap)))
+        {
+            SimLog.InitializeForTest(factory);
+            CommandResult result = ground.Engine.SendCommand(pusher.Callsign, $"PUSH ${spotName}");
+            Assert.True(result.Success, $"{AircraftType} 'PUSH ${spotName}' off {stand} was refused: {result.Message}");
+        }
+
+        List<string> plannerMessages = [.. tap.Drain().Where(r => r.Category == "TugMovePlanner").Select(r => r.Message)];
+        Assert.DoesNotContain(plannerMessages, m => m.Contains($"enters the footprint of empty stand {stand}:", StringComparison.Ordinal));
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+    }
+
     /// <summary>Planner log records captured for one plan: every candidate logs a line or two, and a plan builds a few hundred.</summary>
     private const int PlannerLogCapacity = 20000;
 

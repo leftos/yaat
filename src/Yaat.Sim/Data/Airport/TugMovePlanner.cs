@@ -2362,7 +2362,8 @@ internal sealed class TugPlanBuilder
     /// <summary>
     /// Logs, for the candidate kept, each empty stand whose footprint its outline enters and why no candidate staying out
     /// of it won: the stand push-off every template starts with enters it, or — among the candidates built — how many
-    /// stay out of it.
+    /// stay out of it. Leaves out the stands no candidate is ranked down for (<see cref="_excludedStands"/>), except the
+    /// stand push-off's own, which carries that reason, and the stand the aircraft pushes off, where that push-off starts.
     /// </summary>
     private void LogStandEntries(ResolvedTugGoal goal, TugCandidate kept, TugLazyPools pools)
     {
@@ -2371,8 +2372,14 @@ internal sealed class TugPlanBuilder
             return;
         }
 
-        IReadOnlySet<string> none = new HashSet<string>();
-        foreach (string stand in _emptyStands!.Entered(kept.Traces, none).Order(StringComparer.OrdinalIgnoreCase))
+        var excluded = new HashSet<string>(_excludedStands, StringComparer.OrdinalIgnoreCase);
+        excluded.ExceptWith(_pushOffStands);
+        if (_request.StandName is { } ownStand)
+        {
+            excluded.Add(ownStand);
+        }
+
+        foreach (string stand in _emptyStands!.Entered(kept.Traces, excluded).Order(StringComparer.OrdinalIgnoreCase))
         {
             string reason = _pushOffStands.Contains(stand) ? "the stand push-off every candidate starts with enters it" : StandLossReason(pools);
             Log.LogDebug(
