@@ -38,10 +38,18 @@ public class TugMovePlannerTests
     /// <summary>How far off an edge's line a point may lie and still be on that taxiway's pavement, feet.</summary>
     private const double CorridorFt = TugPlanBuilder.OnTaxiwayCorridorFt;
 
+    /// <summary>The SFO node where stand F8's lead-in meets taxilane T7A, 61 ft on the ramp side of spot 7A (YAAT-1987).</summary>
+    private const int F8LeadInT7AJunction = 543;
+
+    /// <summary>The OAK node where gate 32's lead-in meets TE (YAAT-1987).</summary>
+    private const int Gate32LeadInTeJunction = 244;
+
+    /// <summary>How far (ft) a stand's lead-in walk may run to the taxiway it meets, as the planner walks it.</summary>
+    private const double LeadInWalkFt = 400.0;
+
     /// <summary>
-    /// The most a bare <c>PUSH</c> onto a taxiway alongside may run, feet, when the capture of its centreline already
-    /// lands in the taxiway's corridor: the stand push-off plus the S-curve, with room to spare. Measured at OAK
-    /// gate 32, where the capture takes 372 ft and carrying on to the edge's nearest point took 430 ft.
+    /// The most a bare <c>PUSH</c> onto a taxiway may run, feet: the stand push-off and the push onto the taxiway, with
+    /// room to spare, so the push stops on the taxiway rather than running along it.
     /// </summary>
     private const double OnceOnTheTaxiwayPathFt = 400.0;
 
@@ -784,6 +792,38 @@ public class TugMovePlannerTests
     }
 
     /// <summary>
+    /// A bare <c>PUSH T</c> off OAK stand 14 with a B738: T is a movement-area taxiway, not a ramp taxilane, even though
+    /// stand 14's lead-in reaches T at a straight edge where the push back along the lead-in would fit. The lead-in push
+    /// is never planned for it, so the push keeps today's plan, onto T alongside and stopping at the capture.
+    /// </summary>
+    [Fact]
+    public void PushT_FromOakStand14_MovementAreaTaxiway_KeepsTheAlongsidePush()
+    {
+        if (LoadOak() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = layout.FindParkingByName("14") ?? throw new InvalidOperationException("OAK layout carries no parking named 14");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "T") ?? throw new InvalidOperationException("no taxiway T exit near stand 14");
+        (GroundNode junction, GroundNode leadInFrom) =
+            LeadInReach(stand, "T") ?? throw new InvalidOperationException("stand 14's lead-in reaches no straight T edge");
+        double leadInNoseDeg = GeoMath.BearingTo(junction.Position, leadInFrom.Position);
+
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, Narrowbody, TugGoal.StraightBackTo(exit, "T")));
+
+        double offJunctionFt = FeetBetween(plan.End.Position, junction.Position);
+        double noseOffLeadInDeg = AbsDiffDeg(plan.End.NoseTrueDeg, leadInNoseDeg);
+        _output.WriteLine(
+            $"stand 14 PUSH T: {plan.TaxiwayApproach}, {plan.Moves.Count} move(s), ended {offJunctionFt:F1} ft from node {junction.Id}, "
+                + $"nose {plan.End.NoseTrueDeg:F1}° ({noseOffLeadInDeg:F2}° off the lead-in's {leadInNoseDeg:F1}°)"
+        );
+        Assert.Equal(TugTaxiwayApproach.Alongside, plan.TaxiwayApproach);
+        AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push);
+        Assert.True(offJunctionFt > 5.0, $"the lead-in push was planned: ended {offJunctionFt:F1} ft from node {junction.Id}");
+    }
+
+    /// <summary>
     /// SFO taxiway F reaches a runway holding position about 100 ft from its junction with AF. A B738 standing on F 30 ft
     /// past the bar, nose toward the runway, is towed straight back onto AF: it leaves the runway safety area, never
     /// moving deeper into it, so the move is planned.
@@ -1051,6 +1091,110 @@ public class TugMovePlannerTests
     }
 
     /// <summary>
+    /// A bare <c>PUSH T7A</c> off SFO stand F8 with a CRJ2 (YAAT-1987): F8's lead-in reaches T7A at node 543, on a straight
+    /// T7A edge, so the push turns the tail to T7A and pushes straight back along the lead-in onto that junction (about
+    /// 251 ft) rather than straight back along the stand heading to the first T7A edge on the ray (about 300 ft, ending
+    /// with the right wingtip on A's centreline). The swept outline stays clear of A's object-free area (an ADG IV
+    /// half-width of 129.5 ft) and its 5 ft planning margin.
+    /// </summary>
+    [Fact]
+    public void F8BarePushT7A_PushesAlongTheLeadInOntoT7A()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = Parking(layout, "F8");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "T7A") ?? throw new InvalidOperationException("no taxiway T7A exit near F8");
+        (GroundNode junction, GroundNode leadInFrom) =
+            LeadInReach(stand, "T7A") ?? throw new InvalidOperationException("F8's lead-in reaches no straight T7A edge");
+        Assert.Equal(F8LeadInT7AJunction, junction.Id);
+        TugRequest request = StandStart(stand, "CRJ2", TugGoal.StraightBackTo(exit, "T7A"));
+
+        TugPlan plan = PlanOrFail(layout, request);
+
+        AssertKinds(plan, [.. plan.Moves.Select(m => PushbackLegKind.Push)]);
+        double offJunctionFt = FeetBetween(plan.End.Position, junction.Position);
+        double leadInNoseDeg = GeoMath.BearingTo(junction.Position, leadInFrom.Position);
+        double noseOffLeadInDeg = AbsDiffDeg(plan.End.NoseTrueDeg, leadInNoseDeg);
+        double fromAlphaFt = ClosestSweptFt(plan.Moves, request, layout.AllEdges.Where(e => (e is GroundEdge) && e.MatchesTaxiway("A")));
+        _output.WriteLine(
+            $"F8 PUSH T7A: {plan.Moves.Sum(m => m.PathLengthFt):F0} ft over {plan.Moves.Count} move(s), ended {offJunctionFt:F1} ft from node "
+                + $"{junction.Id}, nose {plan.End.NoseTrueDeg:F1}° ({noseOffLeadInDeg:F2}° off the lead-in's {leadInNoseDeg:F1}°); "
+                + $"outline at least {fromAlphaFt:F1} ft from A's centreline"
+        );
+        Assert.True(offJunctionFt <= 5.0, $"ended {offJunctionFt:F1} ft from node {junction.Id}, where F8's lead-in meets T7A");
+        Assert.True(
+            noseOffLeadInDeg <= 2.0,
+            $"ended with the nose {noseOffLeadInDeg:F2}° off the lead-in's {leadInNoseDeg:F1}° back from node {junction.Id}"
+        );
+        Assert.True(fromAlphaFt >= 134.5, $"the swept outline came within {fromAlphaFt:F1} ft of A's centreline");
+        Assert.Equal(TugTaxiwayApproach.Across, plan.TaxiwayApproach);
+    }
+
+    /// <summary>
+    /// A forced <c>PUSHF T7A</c> off SFO stand F8 with a CRJ2 (YAAT-1987): the ruling that turns the tail to the taxilane
+    /// covers a bare <c>PUSH</c>, so a forced push keeps today's candidates. F8's push is the straight push along the
+    /// stand heading, not one ending at node 543 where the lead-in meets T7A.
+    /// </summary>
+    [Fact]
+    public void F8ForcedPushT7A_PushesStraightNotAlongTheLeadIn()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = Parking(layout, "F8");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "T7A") ?? throw new InvalidOperationException("no taxiway T7A exit near F8");
+        GroundNode junction = layout.Nodes[F8LeadInT7AJunction];
+        TugRequest request = StandStart(stand, "CRJ2", TugGoal.StraightBackTo(exit, "T7A")) with { Forced = true };
+
+        TugPlan plan = PlanOrFail(layout, request);
+
+        double offJunctionFt = FeetBetween(plan.End.Position, junction.Position);
+        double standDeg = Assert.NotNull(stand.TrueHeading).Degrees;
+        _output.WriteLine(
+            $"F8 forced PUSH T7A: {plan.Moves.Sum(m => m.PathLengthFt):F0} ft over {plan.Moves.Count} move(s), ended {offJunctionFt:F1} ft "
+                + $"from node {junction.Id}, nose {plan.End.NoseTrueDeg:F1}° against the stand's {standDeg:F1}°"
+        );
+        Assert.True(
+            AbsDiffDeg(plan.End.NoseTrueDeg, standDeg) <= 2.0,
+            $"the forced push ended nose {plan.End.NoseTrueDeg:F1}°, not on the stand's {standDeg:F1}°"
+        );
+        Assert.True(offJunctionFt > 5.0, $"the forced push ended {offJunctionFt:F1} ft from node {junction.Id}: the lead-in push was taken");
+    }
+
+    /// <summary>
+    /// The closest any sample of the plan's flown path comes to any of <paramref name="edges"/>, feet, each sample's
+    /// outline measured as <see cref="ClosestSweptClearanceFt"/> measures it and each edge as a degenerate outline.
+    /// </summary>
+    private static double ClosestSweptFt(IEnumerable<TugMoveTrace> moves, TugRequest request, IEnumerable<IGroundEdge> edges)
+    {
+        var frame = new GroundOutlineFrame(request.Start.Position);
+        List<GroundOutline> lines =
+        [
+            .. edges
+                .Select(e => new OutlineSegment(frame.ToLocal(e.Nodes[0].Position), frame.ToLocal(e.Nodes[1].Position)))
+                .Select(s => new GroundOutline(s, s, s)),
+        ];
+        return moves
+            .SelectMany(m =>
+                m.Samples.Select(pose =>
+                    GroundOutline.At(
+                        frame.ToLocal(pose.Position),
+                        pose.NoseTrueDeg,
+                        GroundOutlineSize.Of(request.Footprint, towedNoseFirst: m.Move.Kind == PushbackLegKind.Pull)
+                    )
+                )
+            )
+            .SelectMany(outline => lines.Select(line => GroundOutline.Clearance(outline, line)))
+            .DefaultIfEmpty(double.PositiveInfinity)
+            .Min();
+    }
+
+    /// <summary>
     /// A bare <c>PUSH T5B</c> off SFO stand C3: C3's lead-in turns onto T5B's end through a fillet, but the push ray meets
     /// T5B's line extended past that end about 116 ft out, beyond the fillet's corner (about 57 ft) and well off the
     /// lead-in's pavement — not the filleted end, so T5B is still not behind the aircraft.
@@ -1198,15 +1342,81 @@ public class TugMovePlannerTests
     }
 
     /// <summary>
-    /// A bare <c>PUSH TE</c> off OAK gate 32: the capture of TE's centreline already leaves the aircraft in TE's
-    /// pavement corridor, so the push is done there rather than carrying on down the line to the captured edge's
-    /// nearest point (user, 2026-09-16). TE bends at the alley merge, so the aircraft ends abeam one piece of it with
-    /// the nose along the other: the assertions take any straight TE edge whose extent the end lies in the corridor
-    /// of, not <see cref="AssertEndsOnTaxiwayLine"/>'s nearest edge, which at a bend need not be the one the nose is
-    /// along.
+    /// A bare <c>PUSH TE</c> off OAK gate 26 with a B763, a design group IV type: gate 26's lead-in reaches TE at a
+    /// straight edge, but for this aircraft the only candidate turning the tail to it carries a pull leg — a push, then a
+    /// reversal into a pull onto the junction — and the push back along the lead-in holds pushes alone. It falls through
+    /// to the straight, alongside and filleted-end pushes, so the plan does not end at TE's junction node with the nose
+    /// back along the lead-in.
     /// </summary>
     [Fact]
-    public void PushTe_FromOakGate32_StopsOnceOnTe()
+    public void PushTe_FromOakGate26_NeedingAPull_FallsThroughToTheOtherPushes()
+    {
+        if (LoadOak() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = layout.FindParkingByName("26") ?? throw new InvalidOperationException("OAK layout carries no parking named 26");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "TE") ?? throw new InvalidOperationException("no taxiway TE exit near gate 26");
+        (GroundNode junction, GroundNode leadInFrom) =
+            LeadInReach(stand, "TE") ?? throw new InvalidOperationException("gate 26's lead-in reaches no straight TE edge");
+        double leadInNoseDeg = GeoMath.BearingTo(junction.Position, leadInFrom.Position);
+
+        const string GroupFour = "B763";
+        Assert.Equal(AirplaneDesignGroup.IV, AirplaneDesignGroups.GroupForType(GroupFour));
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, GroupFour, TugGoal.StraightBackTo(exit, "TE")));
+
+        double offJunctionFt = FeetBetween(plan.End.Position, junction.Position);
+        double noseOffLeadInDeg = AbsDiffDeg(plan.End.NoseTrueDeg, leadInNoseDeg);
+        _output.WriteLine(
+            $"gate 26 PUSH TE: {plan.TaxiwayApproach}, {plan.Moves.Count} move(s), ended {offJunctionFt:F1} ft from node {junction.Id}, "
+                + $"nose {plan.End.NoseTrueDeg:F1}° ({noseOffLeadInDeg:F2}° off the lead-in's {leadInNoseDeg:F1}°)"
+        );
+        AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push);
+        Assert.True(
+            (offJunctionFt > 5.0) || (noseOffLeadInDeg > 2.0),
+            $"the lead-in push was planned: ended {offJunctionFt:F1} ft from node {junction.Id} on {plan.End.NoseTrueDeg:F1}°, "
+                + $"{noseOffLeadInDeg:F2}° off the lead-in's {leadInNoseDeg:F1}°"
+        );
+    }
+
+    /// <summary>
+    /// A bare <c>PUSH TE</c> off OAK gate 22 with a B738: TE runs closer than <see cref="TugPlanBuilder.AcrossAngleDeg"/>
+    /// to the push without any straight TE edge crossing it, so the push is onto TE alongside, and the capture of TE's
+    /// centreline already leaves the aircraft within the corridor of TE's extent — abeam a straight TE edge, between that
+    /// edge's ends. The push stops there and names no stop: it does not carry on along the line to the edge's nearest point.
+    /// </summary>
+    [Fact]
+    public void PushTe_FromOakGate22_StopsAlongsideAtTheCapture()
+    {
+        if (LoadOak() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = layout.FindParkingByName("22") ?? throw new InvalidOperationException("OAK layout carries no parking named 22");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "TE") ?? throw new InvalidOperationException("no taxiway TE exit near gate 22");
+
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, Narrowbody, TugGoal.StraightBackTo(exit, "TE")));
+
+        Assert.Equal(TugTaxiwayApproach.Alongside, plan.TaxiwayApproach);
+        AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push);
+        AssertEndsInTheTaxiwayCorridor(layout, plan, "TE");
+        _output.WriteLine(
+            $"gate 22 PUSH TE: {plan.Moves.Count} move(s), {plan.Moves.Sum(m => m.PathLengthFt):F0} ft, nose "
+                + $"{plan.End.NoseTrueDeg:F1}°, stop {plan.Moves[^1].Move.StopAt}"
+        );
+        Assert.Null(plan.Moves[^1].Move.StopAt);
+    }
+
+    /// <summary>
+    /// A bare <c>PUSH TE</c> off OAK gate 32 (YAAT-1987, owner ruling "everywhere it fits"): gate 32's lead-in reaches TE
+    /// at node 244, on a straight TE edge, so the push turns the tail to TE and pushes back along the lead-in onto that
+    /// junction, ending with the nose back along the lead-in, rather than capturing TE alongside. It still stops
+    /// once on TE: one push-off and one push, inside the distance a bare push onto a taxiway may run.
+    /// </summary>
+    [Fact]
+    public void PushTe_FromOakGate32_PushesAlongTheLeadInOntoTe()
     {
         if (LoadOak() is not { } layout)
         {
@@ -1220,20 +1430,22 @@ public class TugMovePlannerTests
         TugPlan plan = PlanOrFail(layout, StandStart(stand, Narrowbody, TugGoal.StraightBackTo(exit, "TE")));
 
         AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push);
-        AssertEndsInTheTaxiwayCorridor(layout, plan, "TE");
-        (IGroundEdge? capturedEdge, double behindFt) = NearestAlongsideEdge(layout, stand, "TE");
-        double capturedLineDeg = GeoMath.BearingTo(capturedEdge.Nodes[0].Position, capturedEdge.Nodes[1].Position);
-        double noseOffLineDeg = OffLineDeg(plan.End.NoseTrueDeg, capturedLineDeg);
+        (GroundNode junction, GroundNode leadInFrom) =
+            LeadInReach(stand, "TE") ?? throw new InvalidOperationException("gate 32's lead-in reaches no straight TE edge");
+        Assert.Equal(Gate32LeadInTeJunction, junction.Id);
+        double offJunctionFt = FeetBetween(plan.End.Position, junction.Position);
+        double leadInNoseDeg = GeoMath.BearingTo(junction.Position, leadInFrom.Position);
+        double noseOffLeadInDeg = GeoMath.AbsBearingDifference(plan.End.NoseTrueDeg, leadInNoseDeg);
         double pathFt = plan.Moves.Sum(m => m.PathLengthFt);
         _output.WriteLine(
-            $"captured TE edge {capturedEdge.Nodes[0].Id}-{capturedEdge.Nodes[1].Id} on {capturedLineDeg:F1}°, its nearest point "
-                + $"{behindFt:F1} ft behind gate 32: ended with the nose {noseOffLineDeg:F2}° off it"
+            $"gate 32 PUSH TE: ended {offJunctionFt:F1} ft from node {junction.Id}, nose {plan.End.NoseTrueDeg:F1}° "
+                + $"({noseOffLeadInDeg:F2}° off the lead-in's {leadInNoseDeg:F1}°), total path {pathFt:F1} ft"
         );
-        Assert.True(noseOffLineDeg <= 1.0, $"ended with the nose {noseOffLineDeg:F2}° off the taxiway TE centreline the push captured");
-        _output.WriteLine($"gate 32 PUSH TE total path {pathFt:F1} ft");
+        Assert.True(offJunctionFt <= 5.0, $"ended {offJunctionFt:F1} ft from node {junction.Id}, where gate 32's lead-in meets TE");
+        Assert.True(noseOffLeadInDeg <= 2.0, $"ended with the nose {noseOffLeadInDeg:F2}° off the lead-in's {leadInNoseDeg:F1}°");
         Assert.True(
             pathFt < OnceOnTheTaxiwayPathFt,
-            $"the push ran {pathFt:F1} ft, past the {OnceOnTheTaxiwayPathFt:F0} ft the capture itself takes"
+            $"the push ran {pathFt:F1} ft, past the {OnceOnTheTaxiwayPathFt:F0} ft a bare push onto a taxiway may run"
         );
     }
 
@@ -2461,6 +2673,45 @@ public class TugMovePlannerTests
     }
 
     private static double AbsDiffDeg(double a, double b) => new TrueHeading(a).AbsAngleTo(new TrueHeading(b));
+
+    /// <summary>
+    /// Where <paramref name="stand"/>'s lead-in reaches a straight edge of <paramref name="taxiway"/>: the nearest node
+    /// carrying one and the lead-in node it arrives from, walked over ramp edges alone within <see cref="LeadInWalkFt"/>,
+    /// as the planner walks it. Null when the walk reaches none.
+    /// </summary>
+    private static (GroundNode Node, GroundNode From)? LeadInReach(GroundNode stand, string taxiway)
+    {
+        var settled = new HashSet<int>();
+        var queue = new PriorityQueue<(GroundNode Node, GroundNode? From), double>();
+        queue.Enqueue((stand, null), 0.0);
+        while (queue.TryDequeue(out (GroundNode Node, GroundNode? From) at, out double pathFt))
+        {
+            if ((pathFt > LeadInWalkFt) || !settled.Add(at.Node.Id))
+            {
+                continue;
+            }
+
+            if ((at.From is { } from) && at.Node.Edges.OfType<GroundEdge>().Any(e => e.MatchesTaxiway(taxiway)))
+            {
+                return (at.Node, from);
+            }
+
+            foreach (IGroundEdge edge in at.Node.Edges)
+            {
+                GroundNode other = edge.OtherNode(at.Node);
+                if (IsRampEdge(edge) && (other.Type != GroundNodeType.Parking))
+                {
+                    queue.Enqueue((other, at.Node), pathFt + (edge.DistanceNm * GeoMath.FeetPerNm));
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Whether an edge is the ramp's own: named for the ramp alone, as the planner's lead-in walk takes them.</summary>
+    private static bool IsRampEdge(IGroundEdge edge) =>
+        edge is GroundArc arc ? arc.TaxiwayNames.All(n => string.Equals(n, "RAMP", StringComparison.OrdinalIgnoreCase)) : edge.IsRamp;
 
     /// <summary>How far a heading is off a line, whichever way along the line: 0° to 90°.</summary>
     private static double OffLineDeg(double headingDeg, double lineDeg) =>

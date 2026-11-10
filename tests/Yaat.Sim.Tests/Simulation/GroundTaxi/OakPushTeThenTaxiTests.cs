@@ -16,6 +16,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// so taxiing on toward T, U or spot E is a 117° or 104° right turn: a corner, short of the 135° at which the
 /// navigator treats an entry as a reversal. The controller's <c>TAXI T U W RWY 30</c>, <c>TAXI $E</c> and
 /// <c>TAXI TE $E</c> were refused "no room to turn around on TE" while <c>TAXIAUTO 30</c> flew the same corner.
+/// Gates 29, 31 and 32 now push along their lead-ins onto TE and are held on a TE node.
 /// </summary>
 public class OakPushTeThenTaxiTests(ITestOutputHelper output)
 {
@@ -137,43 +138,79 @@ public class OakPushTeThenTaxiTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The bearing of TE toward T from <paramref name="aircraft"/>, held mid-way along a TE edge: toward that edge's end
-    /// whose walk along TE meets T (<see cref="TeLeadsToT"/>).
+    /// The bearing of TE toward T from <paramref name="aircraft"/>, held on TE where its taxi starts: mid-way along a TE
+    /// edge, toward that edge's end whose walk along TE meets T (<see cref="TeFeetToT"/>); or on a TE node — where a bare
+    /// <c>PUSH TE</c> along a stand's lead-in ends — toward the far end of the TE edge leaving it whose walk
+    /// meets T.
     /// </summary>
     private static double TeTowardTDeg(AirportGroundLayout layout, AircraftState aircraft)
     {
-        GroundEdge onTe = Assert.IsType<GroundEdge>(layout.FindMidEdgeTaxiStart(aircraft.Position));
-        Assert.Equal("TE", onTe.TaxiwayName);
-        GroundNode towardT = Assert.Single(onTe.Nodes, n => TeLeadsToT(n, onTe));
-        return GeoMath.BearingTo(aircraft.Position, towardT.Position);
+        if (layout.FindMidEdgeTaxiStart(aircraft.Position) is { } onTe)
+        {
+            Assert.Equal("TE", onTe.TaxiwayName);
+            GroundNode towardT = onTe.Nodes.MinBy(n => TeFeetToT(n, onTe.OtherNode(n)))!;
+            Assert.True(
+                double.IsFinite(TeFeetToT(towardT, onTe.OtherNode(towardT))),
+                $"neither end of TE edge {onTe.Nodes[0].Id}-{onTe.Nodes[1].Id} leads to T"
+            );
+            return GeoMath.BearingTo(aircraft.Position, towardT.Position);
+        }
+
+        GroundNode atNode = TeNodeAt(layout, aircraft.Position);
+        GroundEdge leaving = atNode
+            .Edges.OfType<GroundEdge>()
+            .Where(e => e.MatchesTaxiway("TE"))
+            .MinBy(e => (e.DistanceNm * GeoMath.FeetPerNm) + TeFeetToT(e.OtherNode(atNode), atNode))!;
+        Assert.True(double.IsFinite(TeFeetToT(leaving.OtherNode(atNode), atNode)), $"no TE edge leaving node {atNode.Id} leads to T");
+        return GeoMath.BearingTo(aircraft.Position, leaving.OtherNode(atNode).Position);
     }
 
     /// <summary>
-    /// Whether a walk from <paramref name="end"/> over TE's edges, away from <paramref name="onTe"/>, reaches a node an edge
-    /// named T leaves.
+    /// How far (ft) a walk along TE from <paramref name="start"/>, never back through <paramref name="behind"/>, runs to the
+    /// nearest node an edge named T leaves; infinite when it reaches none. A TE node can lead to T both ways round, so the
+    /// shorter way is the one toward T.
     /// </summary>
-    private static bool TeLeadsToT(GroundNode end, GroundEdge onTe)
+    private static double TeFeetToT(GroundNode start, GroundNode behind)
     {
-        HashSet<int> visited = [end.Id, onTe.OtherNode(end).Id];
-        Queue<GroundNode> frontier = new([end]);
-        while (frontier.TryDequeue(out GroundNode? node))
+        HashSet<int> settled = [behind.Id];
+        var queue = new PriorityQueue<GroundNode, double>();
+        queue.Enqueue(start, 0.0);
+        while (queue.TryDequeue(out GroundNode? node, out double feet))
         {
-            if (node.Edges.Any(e => e.MatchesTaxiway("T")))
+            if (!settled.Add(node.Id))
             {
-                return true;
+                continue;
             }
 
-            foreach (IGroundEdge edge in node.Edges.Where(e => !ReferenceEquals(e, onTe) && e.MatchesTaxiway("TE")))
+            if (node.Edges.Any(e => e.MatchesTaxiway("T")))
             {
-                GroundNode next = edge.OtherNode(node);
-                if (visited.Add(next.Id))
-                {
-                    frontier.Enqueue(next);
-                }
+                return feet;
+            }
+
+            foreach (IGroundEdge edge in node.Edges.Where(e => e.MatchesTaxiway("TE")))
+            {
+                queue.Enqueue(edge.OtherNode(node), feet + (edge.DistanceNm * GeoMath.FeetPerNm));
             }
         }
 
-        return false;
+        return double.PositiveInfinity;
+    }
+
+    /// <summary>
+    /// The TE node the aircraft is held on: the nearest node carrying a straight TE edge, within
+    /// <see cref="AirportGroundLayout.AtNodeToleranceFt"/>.
+    /// </summary>
+    private static GroundNode TeNodeAt(AirportGroundLayout layout, LatLon position)
+    {
+        GroundNode node = layout
+            .Nodes.Values.Where(n => n.Edges.OfType<GroundEdge>().Any(e => e.MatchesTaxiway("TE")))
+            .MinBy(n => GeoMath.DistanceNm(n.Position, position))!;
+        double offFt = GeoMath.DistanceNm(node.Position, position) * GeoMath.FeetPerNm;
+        Assert.True(
+            offFt <= AirportGroundLayout.AtNodeToleranceFt,
+            $"held {offFt:F1} ft from the nearest TE node {node.Id}: neither mid-edge on TE nor on a TE node"
+        );
+        return node;
     }
 
     /// <summary>

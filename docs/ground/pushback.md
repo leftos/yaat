@@ -57,7 +57,7 @@ The reference point travels along the aircraft's own axis: the main gear cannot 
 | `Stand(node)` | `PUSH @gate`, `PUSHM @gate`, `#parking/helipad node` | the stand's own heading; **takes no facing** | the node |
 | `AtNode(node, facing?)` | `PUSHM #node` | as given, or whatever the move leaves | the node |
 | `TaxiwayLine(exit, twy, facing)` | `PUSH <twy> <facing-twy>`, `PUSH <twy> FACE/TAIL` | `<facing-twy>`: along the taxiway, nose toward its junction with the facing taxiway (`FacingTaxiwayName`), either direction; `FACE/TAIL`: the taxiway's edge direction nearest the hint | `<facing-twy>` with the junction near: nose tip one routine turn radius short of the junction; otherwise floating — stops once lined up (rule 7) |
-| `StraightBackTo(exit, twy)` | bare `PUSH <twy>` | the stand heading (across, or filleted end) or along the taxiway (alongside) | see below |
+| `StraightBackTo(exit, twy)` | bare `PUSH <twy>` | the lead-in's bearing (lead-in junction), the stand heading (across, or filleted end) or along the taxiway (alongside) | see below |
 | `Facing(deg)` | `PUSH FACE/TAIL` | as given | — |
 | `Clear()` | bare `PUSH` | the stand heading | `SimplePushbackDistanceNm` back |
 
@@ -110,6 +110,7 @@ SFO C9 `PUSHM $5A $5B` takes the fallback, since `PUSH $5B` comes no closer than
 4. **`Facing`.** Push-off, `Push TurnTo(F)` (`Tight` over 135°), then a straight push for whatever remains of the simple pushback distance.
 5. **`Clear`.** `Push Straight(SimplePushbackDistanceNm)`.
 6. **`StraightBackTo`** — a bare `PUSH <twy>` splits on one angle, `AcrossAngleDeg` = 45° (a judgement call; the two measured cases are OAK gate 25 `PUSH TE`, whose TE edge meets the push at 31.5° 645 ft back, and SFO B12 `PUSH A`, crossing A at 76° 417 ft back):
+   - **Lead-in junction** (tried first): the aircraft is on its stand, X is a ramp taxilane (a movement-area taxiway skips this stage), the request is not `PUSHF`, and the stand's own `RAMP` lead-in (at most 400 ft, through no other stand or taxiway) reaches a node carrying a straight edge of X → push-off, then a push along the lead-in onto that junction node, held there with the nose on the bearing from the lead-in's previous node to the junction (the tail faces X, so it does not reach into X's lane). The candidates are the faced-node-goal candidates, ranked and judged as for a faced goal, kept only when clear of every protected taxiway's object-free area, passing the bare push's own checks, and made of pushes alone: a candidate that needs a pull falls through to the stages below. Read back as across (SFO SKW5564 `PUSH A` from spot 7A; OAK gates 29, 31 and 32 take it where it fits).
    - **Across**: the push ray crosses a straight centreline edge of the taxiway at ≥ 45° within 2,000 ft → push straight back to it; the nose keeps the stand heading.
    - **Alongside**: otherwise, a straight edge running within 45° of the push direction whose nearest point is behind the aircraft and within 2,000 ft → push-off, then a push onto that edge's line.
 
@@ -528,7 +529,7 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 | `Cannot find taxiway '<X>' near aircraft` | `GroundCommandHandler.ResolvePushToTaxiway` |
 | `Cannot find facing taxiway '<F>' near <X>` | `GroundCommandHandler.ResolvePushToTaxiway` |
 | `Cannot find spot '<name>'` / `Cannot find parking '<name>'` | `GroundCommandHandler` stand and spot goal resolution |
-| `Unable, taxiway X is not behind the aircraft` | `TugMovePlanner` (`TryStraightBackCandidate`: no Across, Alongside or filleted-end candidate), rule 6 |
+| `Unable, taxiway X is not behind the aircraft` | `TugMovePlanner` (`TryStraightBackCandidate`: no lead-in junction, Across, Alongside or filleted-end candidate), rule 6 |
 | `Unable, <goal> is ahead of the nose — the aircraft has to be pushed back off the stand first` | `TugMovePlanner`, a node goal off a stand |
 | `Unable, cannot line up on <goal> from here` | `TugMovePlanner`, no candidate survives |
 | `Unable, <hint> is passed through; only the last point takes a facing` | `TugMovePlanner`, a `PUSHM` hint with a facing |

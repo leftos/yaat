@@ -3683,7 +3683,9 @@ internal sealed class TugPlanBuilder
 
     /// <summary>
     /// A bare <c>PUSH &lt;taxiway&gt;</c>, onto a straight centreline edge of the goal's taxiway (fillet and junction
-    /// arcs are not the taxiway's centreline) or, failing that, onto its filleted end, in this order: a straight push
+    /// arcs are not the taxiway's centreline) or, failing that, onto its filleted end, in this order: off a stand whose
+    /// lead-in reaches the taxiway at a node on a straight edge of it, a push that turns the tail to the taxiway and
+    /// pushes back along the lead-in onto that junction (<see cref="LeadInJunctionCandidate"/>); else a straight push
     /// until the reference point reaches the first such edge the push ray crosses at <see cref="AcrossAngleDeg"/> or more
     /// (<see cref="StraightBackCandidate"/>); else, when such an edge runs closer than
     /// <see cref="AcrossAngleDeg"/> to the push direction with its nearest point behind the aircraft, a push onto the
@@ -3700,6 +3702,13 @@ internal sealed class TugPlanBuilder
         double pushTravelDeg = _end.TravelTrueDeg(PushbackLegKind.Push);
         bool IsCentreline(IGroundEdge edge) => (edge is GroundEdge) && edge.MatchesTaxiway(taxiway);
         refusal = string.Empty;
+        if (LeadInJunctionCandidate(goal, taxiway, standPushOff) is { } leadIn)
+        {
+            leadIn.TaxiwayApproach = TugTaxiwayApproach.Across;
+            candidates = [leadIn];
+            return true;
+        }
+
         if (StraightBackCandidate(goal, pushTravelDeg, IsCentreline) is { } straight)
         {
             straight.TaxiwayApproach = TugTaxiwayApproach.Across;
@@ -3724,6 +3733,133 @@ internal sealed class TugPlanBuilder
         candidates = [];
         refusal = $"Unable, {goal.Goal.Label} is not behind the aircraft";
         return false;
+    }
+
+    /// <summary>
+    /// Off a stand whose own lead-in reaches <paramref name="taxiway"/> at a node on a straight edge of it
+    /// (<see cref="LeadInJunction"/>): the push onto that junction node with the nose back along the lead-in's last edge,
+    /// so the tail faces the taxiway — the faced-goal candidates (<see cref="FacedCandidates"/>) judged and ranked as a
+    /// faced node goal's are (<see cref="Choose"/>), kept only when clear of every protected taxiway's object-free area
+    /// (<see cref="IsClear"/>) and passing the bare push's own checks. Null — the push falls through to the straight,
+    /// alongside and filleted-end candidates — when the request is forced, the taxiway is a movement-area taxiway rather
+    /// than a ramp taxilane, the aircraft is not on its stand, the lead-in does not reach it, or no candidate of pushes
+    /// alone (<see cref="PushesOnly"/>) passes. The nose heading is the bearing from the lead-in's previous node to the
+    /// junction, an arc's chord rather than its tangent.
+    /// </summary>
+    private TugCandidate? LeadInJunctionCandidate(ResolvedTugGoal goal, string taxiway, TugMove? standPushOff)
+    {
+        if (_request.Forced)
+        {
+            return null;
+        }
+
+        if (_movementArea.IsMovementArea(taxiway))
+        {
+            Log.LogDebug(
+                "Tug {Subject}: {Taxiway} is a movement-area taxiway, not a ramp taxilane; "
+                    + "falling through to the straight, alongside and filleted-end pushes",
+                goal.Subject,
+                taxiway
+            );
+            return null;
+        }
+
+        if ((standPushOff is null) || (StandAtStart() is not { } stand) || (LeadInJunction(goal.Subject, stand, taxiway) is not { } junction))
+        {
+            return null;
+        }
+
+        ResolvedTugGoal faced = goal with
+        {
+            Shape = TugGoalShape.Faced,
+            FacingTrueDeg = junction.NoseTrueDeg,
+            Stop = junction.Node.Position,
+            Staging = null,
+        };
+        TugChoiceTally tally = Choose(faced, FacedCandidates(faced, standPushOff), offStand: true);
+        PrepareKeep(faced, offStand: true);
+        List<TugCandidate> passing = [.. tally.Survivors.Where(c => PassesLeadInChecks(goal, c))];
+        TugCandidate? best = BestClear(faced, offStand: true, passing);
+        Log.LogDebug(
+            "Tug {Subject}: the push along the lead-in onto {Taxiway} node {Node}, nose {NoseDeg:F1}°: {Verdict}",
+            goal.Subject,
+            taxiway,
+            junction.Node.Id,
+            junction.NoseTrueDeg,
+            best is null
+                ? $"no candidate passes ({tally.Survivors.Count} survived judging, {passing.Count} of them clear and passing the push's checks); "
+                    + "falling through to the straight, alongside and filleted-end pushes"
+                : $"taken, {best.Template} ({best.Describe()}), {best.PathLengthFt:F0} ft"
+        );
+        return best;
+    }
+
+    /// <summary>Whether a candidate passes the lead-in push's checks: pushes alone, clear, and not dropped as judged.</summary>
+    private bool PassesLeadInChecks(ResolvedTugGoal goal, TugCandidate candidate) =>
+        PushesOnly(candidate) && IsClear(candidate) && !Judge(goal, candidate, offStand: true).Dropped;
+
+    /// <summary>A candidate of pushes alone: the push back along the lead-in holds no pull leg.</summary>
+    private static bool PushesOnly(TugCandidate candidate) => candidate.Traces.All(t => t.Move.Kind == PushbackLegKind.Push);
+
+    /// <summary>
+    /// Where <paramref name="stand"/>'s own lead-in reaches <paramref name="taxiway"/>: walked as
+    /// <see cref="LeadInFillets"/> walks it — ramp edges alone, within <see cref="LeadInWalkFt"/> of path, through no
+    /// other stand and no other taxiway — to the nearest node carrying a straight edge of the taxiway, with the nose
+    /// heading back along the lead-in's last edge there. A lead-in that meets the taxiway only
+    /// through a fillet (the taxiway's filleted end) never reaches such a node, since the fillet is not a ramp edge.
+    /// Null when the walk reaches none.
+    /// </summary>
+    private static (GroundNode Node, double NoseTrueDeg)? LeadInJunction(string subject, GroundNode stand, string taxiway)
+    {
+        var settled = new HashSet<int>();
+        var queue = new PriorityQueue<(GroundNode Node, GroundNode? From), double>();
+        queue.Enqueue((stand, null), 0.0);
+        while (queue.TryDequeue(out (GroundNode Node, GroundNode? From) at, out double pathFt))
+        {
+            if ((pathFt > LeadInWalkFt) || !settled.Add(at.Node.Id))
+            {
+                continue;
+            }
+
+            if ((at.From is { } from) && at.Node.Edges.OfType<GroundEdge>().Any(e => e.MatchesTaxiway(taxiway)))
+            {
+                double noseDeg = GeoMath.BearingTo(at.Node.Position, from.Position);
+                Log.LogDebug(
+                    "Tug {Subject}: stand {Stand}'s lead-in reaches {Taxiway} at node {Node} after {WalkFt:F1} ft, nose back along it {NoseDeg:F1}°",
+                    subject,
+                    stand.Name,
+                    taxiway,
+                    at.Node.Id,
+                    pathFt,
+                    noseDeg
+                );
+                return (at.Node, noseDeg);
+            }
+
+            EnqueueLeadInNeighbours(queue, at.Node, pathFt);
+        }
+
+        Log.LogDebug(
+            "Tug {Subject}: stand {Stand}'s lead-in reaches no straight {Taxiway} edge within {WalkFt:F0} ft",
+            subject,
+            stand.Name,
+            taxiway,
+            LeadInWalkFt
+        );
+        return null;
+    }
+
+    /// <summary>The lead-in walk's next nodes from <paramref name="node"/>: along ramp edges alone, never into another stand.</summary>
+    private static void EnqueueLeadInNeighbours(PriorityQueue<(GroundNode Node, GroundNode? From), double> queue, GroundNode node, double pathFt)
+    {
+        foreach (IGroundEdge edge in node.Edges)
+        {
+            GroundNode other = edge.OtherNode(node);
+            if (IsRampOnly(edge) && (other.Type != GroundNodeType.Parking))
+            {
+                queue.Enqueue((other, node), pathFt + (edge.DistanceNm * GeoMath.FeetPerNm));
+            }
+        }
     }
 
     /// <summary>

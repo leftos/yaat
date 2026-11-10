@@ -252,10 +252,11 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Gate 26's group-II <c>PUSH TE</c> — the stand push-off, then a line move onto TE with a floating stop — re-flown for
-    /// a BE95, the group's smallest member, ends 68.9 ft from the stored end, against half a BE95's length of 12.9 ft, but
+    /// Gate 26's group-IV <c>PUSH TE</c> — the stand push-off, then a line move onto TE with a floating stop — re-flown for
+    /// a BE95, group II's smallest member, ends about 105 ft from the stored end, against half a BE95's length of 12.9 ft, but
     /// on TE: the end slides along the line with the turn radius, and <c>PUSH TE</c> names no stop, so it is flyable. The
-    /// test prints the measured slide.
+    /// test prints the measured slide. Constructed: group IV's stored plan flown with a group-II BE95; the floating-line
+    /// rule does not depend on the aircraft.
     /// </summary>
     [Fact]
     public void FloatingLineSlide_IsFlyable()
@@ -263,7 +264,8 @@ public class PushTargetLiveCheckTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         AirportGroundLayout layout = PushTargetPlannerTests.Oak();
         PushbackPose start = StartOf(Stand(layout, "26"));
-        PrecomputedPushTarget target = Target(PushTargetPlannerFixtures.OakEntries.Value, "26", "II", "TE");
+        // Group II's PUSH TE pushes along the lead-in onto TE, so group IV's plan carries the floating line.
+        PrecomputedPushTarget target = Target(PushTargetPlannerFixtures.OakEntries.Value, "26", "IV", "TE");
         Assert.True(PushTargetLiveCheck.EndsOnAFloatingLine(target));
         AircraftFootprint footprint = PinnedFootprint(SmallGroupTwoType);
         TugSimulation flown = Refly(target, start, footprint);
