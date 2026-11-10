@@ -15,12 +15,15 @@ namespace Yaat.Sim.Simulation;
 /// (pairing follower with leader on the same runway, the §5-7-1.b.4 window, and stamping
 /// <see cref="ControlTargets.SpeedCeiling"/>); these helpers compute the numbers and are unit-tested directly.
 ///
-/// <para><b>Calibration.</b> The airborne-leader constants are calibrated to <i>this sim's own</i> runway
-/// occupancy, measured threshold-crossing to runway-clear across 14 SFO landings: 58.9–77.3 s, mean 68.7 s. The
-/// dominant variable is exit distance rather than category (28R, exit far down, ran 71–77 s; 28L, exit at E, ran
-/// 59–64 s — the same E75L type was 75.8 s on 28R against 61.7 s on 28L). If runway occupancy is retuned — the
-/// vacate is the slow part, several arrivals braking to 5–8 kt while still inside 250 ft of the centerline — these
-/// constants must be retuned with it. The landed-leader regime reads live state instead and self-corrects.</para>
+/// <para><b>Calibration.</b> The airborne-leader constants are calibrated to <i>this sim's own</i> runway occupancy:
+/// threshold crossing to the leader clear of the runway, with its tail past the exit's holding position marking
+/// (AIM 2-3-5.a.1, the exit's vacate latch). The measurement covers the committed recordings, with duplicate sessions
+/// counted once and desynced or stalled landings left out. Mean + 1σ was Jet 74.1 s (n=209), Turboprop 83.9 s (n=33,
+/// all at OAK) and Piston 69.0 s (n=95), rounded up to 5 s. Turboprop is held equal to jet rather than above it: its
+/// sample is small, at one airport, and its spread comes from exit choice, while a turboprop lands slower and rolls out
+/// shorter than a jet. The values are judgement calls: 7110.65 §3-10-3.a.1 sets the condition (the leader "clear of the
+/// runway") but no time. Exit distance, not category, dominates a single landing. If runway occupancy is retuned, these
+/// constants must be re-measured with it. The landed-leader regime reads live state instead and self-corrects.</para>
 ///
 /// <para><b>Clear of the runway.</b> AIM 2-3-5.a.1 and AIM 4-3-21.b: an aircraft exiting is not clear until <i>all
 /// parts</i> of it have crossed the holding position marking. Both regimes therefore measure to
@@ -44,9 +47,10 @@ namespace Yaat.Sim.Simulation;
 /// string, AircraftCategory)"/> returns zero for a non-wake pair and leaves the radar minimum to its caller, so the
 /// required interval floors the separation at <see cref="TerminalRadarFloorNm"/> the way
 /// <c>SimulationEngine.ApplyArrivalSpacing</c> does. §5-5-4.a.1/b.1 is 3 NM; §5-5-4.j's 2.5 NM relief requires a
-/// documented average runway occupancy of 50 s or less and this sim measures 68.7 s, so 3 NM binds. The consequence
-/// is that the radar floor, not the category constant, governs a jet pair: 3 NM at a 144-kt Vref is 75 s, above the
-/// 70 s <see cref="JetIntervalSeconds"/>.</para>
+/// documented average runway occupancy of 50 s or less and this sim's occupancy is well above that, so 3 NM binds.
+/// The consequence is that the radar floor, not the category constant, governs most pairs: 3 NM at a 144-kt Vref is
+/// 75 s, equal to the 75 s <see cref="JetIntervalSeconds"/>, so a constant binds only when the follower's Vref is above
+/// 144 kt.</para>
 ///
 /// <para><b>Speed floors.</b> §5-7-3.c.1 floors an arrival speed adjustment below 10,000 ft at 210 kt for a turbojet
 /// (170 kt within 20 flying miles of the threshold), §5-7-3.c.2 at 200 kt for a reciprocating or turboprop aircraft
@@ -70,13 +74,13 @@ namespace Yaat.Sim.Simulation;
 public static class SameRunwayArrivalProtection
 {
     /// <summary>Threshold interval behind an airborne jet leader (s) — see the calibration note on the class.</summary>
-    public const double JetIntervalSeconds = 70.0;
+    public const double JetIntervalSeconds = 75.0;
 
     /// <summary>Threshold interval behind an airborne turboprop leader (s).</summary>
-    public const double TurbopropIntervalSeconds = 60.0;
+    public const double TurbopropIntervalSeconds = 75.0;
 
     /// <summary>Threshold interval behind an airborne piston leader (s). Also the default for any other category.</summary>
-    public const double PistonIntervalSeconds = 50.0;
+    public const double PistonIntervalSeconds = 70.0;
 
     /// <summary>Terminal radar separation minimum (NM), §5-5-4.a.1/b.1 — see the separation-floor note on the class.</summary>
     public const double TerminalRadarFloorNm = 3.0;

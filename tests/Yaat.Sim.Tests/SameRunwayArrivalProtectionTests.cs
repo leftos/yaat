@@ -40,10 +40,10 @@ public class SameRunwayArrivalProtectionTests
     ) => new(category, groundSpeedKts, distanceToThresholdNm, vrefKts, scheduledKts);
 
     [Theory]
-    [InlineData(AircraftCategory.Jet, 70.0)]
-    [InlineData(AircraftCategory.Turboprop, 60.0)]
-    [InlineData(AircraftCategory.Piston, 50.0)]
-    [InlineData(AircraftCategory.Helicopter, 50.0)]
+    [InlineData(AircraftCategory.Jet, 75.0)]
+    [InlineData(AircraftCategory.Turboprop, 75.0)]
+    [InlineData(AircraftCategory.Piston, 70.0)]
+    [InlineData(AircraftCategory.Helicopter, 70.0)]
     public void AirborneLeader_UsesPerCategoryConstant(AircraftCategory leaderCategory, double expectedSeconds) =>
         Assert.Equal(expectedSeconds, SameRunwayArrivalProtection.AirborneLeaderIntervalSeconds(leaderCategory), 3);
 
@@ -51,16 +51,16 @@ public class SameRunwayArrivalProtectionTests
     public void RadarFloor_BindsOverAZeroWakeRequirement()
     {
         // WakeTurbulenceData returns 0 nm for a non-wake pair and leaves the radar minimum to its caller. §5-5-4.a.1
-        // is 3 NM, which at a 144-kt Vref is 75 s — above the 70 s airborne jet constant, so the floor is what binds.
+        // is 3 NM, which at a 136-kt Vref is 79.4 s — above the 75 s airborne jet constant, so the floor is what binds.
         double required = SameRunwayArrivalProtection.RequiredThresholdIntervalSeconds(
             AircraftCategory.Jet,
             rollout: null,
             wakeSeparationNm: 0.0,
-            followerVrefKts: 144.0
+            followerVrefKts: 136.0
         );
 
-        Assert.Equal(75.0, required, 3);
-        Assert.True(required > SameRunwayArrivalProtection.JetIntervalSeconds, "3 NM at 144 kt must outrun the 70 s jet constant");
+        Assert.Equal(SameRunwayArrivalProtection.TerminalRadarFloorNm / 136.0 * 3600.0, required, 3);
+        Assert.True(required > SameRunwayArrivalProtection.JetIntervalSeconds, "3 NM at 136 kt must outrun the 75 s jet constant");
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class SameRunwayArrivalProtectionTests
     [Fact]
     public void LandedLeader_OccupancyMayUndercutTheConstantButNeverTheRadarFloor()
     {
-        // A jet nearly at its exit needs far less than the 70 s airborne constant — but the required interval is still
+        // A jet nearly at its exit needs far less than the 75 s airborne constant — but the required interval is still
         // floored by 3 NM of radar separation, so the refinement can only ever tighten spacing down to that.
         SameRunwayArrivalProtection.LeaderRollout rollout = Rollout(
             brakingLegNm: 0.05,
@@ -135,7 +135,7 @@ public class SameRunwayArrivalProtectionTests
             followerVrefKts: 140.0
         );
 
-        Assert.True(occupancy < SameRunwayArrivalProtection.JetIntervalSeconds, $"occupancy {occupancy:F1}s should undercut the 70 s constant");
+        Assert.True(occupancy < SameRunwayArrivalProtection.JetIntervalSeconds, $"occupancy {occupancy:F1}s should undercut the 75 s constant");
         Assert.Equal(SameRunwayArrivalProtection.TerminalRadarFloorNm / 140.0 * 3600.0, required, 3);
     }
 

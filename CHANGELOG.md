@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- Automatic arrival spacing behind an airborne same-runway leader allows the sim's measured runway occupancy: 75 s behind a jet or turboprop, 70 s behind a piston.
 - Signature help for a command typed after a callsign (`UAL1 FH`) appears only once a space follows the command, as it does without one.
 - A landing counts as clear of the runway, and the pilot reports clear, the moment its tail passes the exit's hold bar, even while still moving.
 - An arrival on a shallow high-speed exit, such as SFO 28R Q or OAK 30 W5, stays a runway occupant until its tail passes that exit's hold bar.
