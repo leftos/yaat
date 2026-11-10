@@ -8,6 +8,7 @@
 - The "Show nav route" overlay dims published altitude and speed restrictions the current clearance does not bind, judged fix by fix; controller crossings never dim.
 - The "Show nav route" overlay draws a hold queued at a fix ahead as a dashed racetrack, and VFR and airspace-boundary orbits as dashed circles.
 - In solo training, a pilot checking in states its assigned heading and speed: "level one two thousand, heading two seven zero, assigned two five zero knots".
+- A bare `TAXI` to a turn-off behind an aircraft on a runway is answered "confirm back-taxi"; naming the runway first (`TAXI 28R L`) approves it.
 
 ### Fixed
 
@@ -15,6 +16,8 @@
 - A landing counts as clear of the runway, and the pilot reports clear, the moment its tail passes the exit's hold bar, even while still moving.
 - An arrival on a shallow high-speed exit, such as SFO 28R Q or OAK 30 W5, stays a runway occupant until its tail passes that exit's hold bar.
 - With automatic pull-up to the parallel runway, an exiting arrival taxis straight on to the parallel's hold-short, braking evenly, instead of stopping past the exit bar first.
+- A `TAXI` to an aircraft holding on a runway starts where it stands and follows the runway to its turn-off, instead of jumping to a nearby taxiway.
+- After a `LAHSO` stop, a `TAXI` whose route crosses the LAHSO runway is held until `CROSS`, the pilot reading back the hold short.
 - `LAHSO` on a runway's second-named end, such as SFO 28R, measures the hold-short point and available distance from that landing end, not the far end.
 - A `LAHSO` landing keeps its hold-short after turning toward an exit, never stops on the crossing runway, and calls "unable to hold short" when it cannot stop.
 - Under `LAHSO`, a landing brakes evenly to the hold-short point instead of coasting at 40 kt and braking hard at the end.

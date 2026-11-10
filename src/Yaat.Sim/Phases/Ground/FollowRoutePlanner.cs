@@ -564,7 +564,12 @@ public static class FollowRoutePlanner
 
         GroundNode? start =
             TrailStartNode(layout, aircraft, requireAhead)
-            ?? layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, otherGroundAircraft()));
+            ?? layout.FindTaxiStartNode(
+                aircraft.Position,
+                aircraft.TrueHeading,
+                TaxiStartTraffic.Of(aircraft, otherGroundAircraft()),
+                RunwayTaxiStart.Of(aircraft)
+            );
         return (start is null) ? null : new RouteStart(start, LeadInSegment(start, aircraft));
     }
 

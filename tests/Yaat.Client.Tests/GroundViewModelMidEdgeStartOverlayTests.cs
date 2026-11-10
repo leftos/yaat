@@ -400,6 +400,46 @@ public class GroundViewModelMidEdgeStartOverlayTests
         Assert.DoesNotContain(missing?.Segments ?? [], s => VirtualNode.IsVirtualEdge(s.Edge.Edge) && (s.ToNodeId == farEnd.Id));
     }
 
+    /// <summary>
+    /// An E75L holding in position on the SFO 28R centreline 4947 ft from its landing threshold, cleared <c>TAXI 28R L</c>: L
+    /// leaves 28R behind it, so the simulation turns it about on the runway toward the centreline node behind and sends
+    /// <see cref="TaxiTurnAboutShape.FromFarEnd"/>. The overlay draws that turn about: the route from the sent target, and no
+    /// segment on the centreline edge the aircraft stands on.
+    /// </summary>
+    [Fact]
+    public void RunwayCentreline_Taxi28RL_OverlayDrawsTheTurnAbout()
+    {
+        TestVnasData.EnsureInitialized();
+        if ((LoadSfoLayout() is not { } layout) || (NavigationDatabase.Instance.GetRunway("SFO", "28R") is not { } runway))
+        {
+            return; // test data absent — skip
+        }
+
+        LatLon threshold = LandingThreshold.Resolve(runway, layout);
+        LatLon rest = GeoMath.ProjectPoint(threshold, runway.TrueHeading, 4947.0 / GeoMath.FeetPerNm);
+        AircraftModel aircraft = SimulatedTaxi(layout, rest, runway.TrueHeading, ("E75L", "28R"), "TAXI 28R L");
+        Assert.Equal(TaxiTurnAboutShape.FromFarEnd, aircraft.TaxiTurnAboutShape);
+        int targetId = Assert.NotNull(aircraft.TaxiTurnAboutTargetNodeId);
+        GroundEdge occupied = Assert.IsType<GroundEdge>(layout.FindOccupiedRunwayCenterlineEdge(rest, "28R"));
+        GroundViewModel vm = MakeViewModel();
+        vm.SetDomainLayoutForTesting(layout);
+
+        TaxiRoute? drawn = vm.ResolveRemainingRoute(aircraft);
+
+        Assert.NotNull(drawn);
+        TaxiRouteSegment firstOnGraph = drawn!.Segments.First(s => !VirtualNode.IsVirtualEdge(s.Edge.Edge));
+        Assert.Equal(targetId, firstOnGraph.FromNodeId);
+        Assert.DoesNotContain(drawn.Segments, s => ReferenceEquals(s.Edge.Edge, occupied));
+    }
+
+    private static AirportGroundLayout? LoadSfoLayout()
+    {
+        string path = Path.Combine("TestData", "sfo.geojson");
+        return File.Exists(path)
+            ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", new LayoutInputs([], VideoMap: null), FilletMode.Standard)
+            : null;
+    }
+
     /// <summary>A node id no layout holds.</summary>
     private const int MissingNodeId = int.MaxValue;
 

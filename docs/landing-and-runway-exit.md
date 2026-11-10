@@ -315,7 +315,13 @@ The pilot's obligation is AIM 4-3-11.b.6 — exit at the first convenient taxiwa
 
 After an overrun call the crossing runway travels with the voided clearance (`RunwayExitPhase.VoidedLahsoCrossingRunwayId`, snapshotted; a restored landing derives it again from the hold-short distance): the no-exit stop never brings the aircraft to rest with its nose or tail between that runway's pavement edges (AIM 4-3-21.b), stopping short of the strip while max effort allows, else beyond it.
 
-Known gaps are open in YAAT-31 (LAHSO residuals): a `TAXI` from the hold onto a taxiway leaving beyond the crossing runway has no hold-short for that runway.
+**A `TAXI` from the hold.** The aircraft stands at rest on the runway, so the route starts where it stands on the runway centreline and runs along the runway to the turn-off (`RunwayTaxiStart`, [ground/pathfinder.md](ground/pathfinder.md)); the bar of the runway it stands on counts as already crossed. A route whose first turn-off is behind it is a back-taxi, approved only with the runway named first (`TAXI 28R L`).
+
+- **A route that enters the crossing runway is stored, not flown.** `TryTaxiCore` judges the route geometrically against the crossing runway's pavement (`TryStoreTaxiAtLahsoHold`); one that enters it is kept on `PhaseList.TaxiRoute` and the aircraft keeps holding. The pilot reads it back with the hold short ("taxi via E, hold short of runway 1L"; a `TAXIAUTO`: "taxi to parking B2, holding short of runway 1L"). A later `EXIT` or `TAXI` replaces the stored route.
+- **`CROSS` of that runway starts it.** `TryReleaseLahsoHold` releases the hold and `StartTaxiStoredAtLahsoHold` starts the stored route from where the aircraft stands (`CROSS … EXP` expedited). A `TAXI … CROSS 1L` runs at once, as does a `TAXI` given once the crossing is cleared and a route that never enters the runway (which also ends the hold).
+- **Known gap (YAAT-1979).** A `TAXI` stored on the rollout that reaches the hold is left to `RunwayExitPhase` after `CROSS` (`AcceptStoredTaxi`), and the exit then drops it.
+
+Other known gaps are open in YAAT-31 (LAHSO residuals).
 
 ## Forced landing (CLANDF)
 

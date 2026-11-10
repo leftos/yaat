@@ -1567,8 +1567,14 @@ public class HoldInsideStoppingDistanceOfBarTests
         double taxiStopFt = StoppingDistanceFt(aircraft.GroundSpeed, CategoryPerformance.TaxiDecelRate(category));
         double firmStopFt = StoppingDistanceFt(aircraft.GroundSpeed, CategoryPerformance.ExpediteExitDecelRate(category));
         bool startsAtBar =
-            (rig.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, []))?.Id == rig.ClearedBar.NodeId)
-            && KeepsNoApproachLeg(aircraft, rig);
+            (
+                rig.Layout.FindTaxiStartNode(
+                    aircraft.Position,
+                    aircraft.TrueHeading,
+                    TaxiStartTraffic.Of(aircraft, []),
+                    RunwayTaxiStart.Of(aircraft)
+                )?.Id == rig.ClearedBar.NodeId
+            ) && KeepsNoApproachLeg(aircraft, rig);
         double centrePastNodeFt = rig.Line.NosePastFt(aircraft) - (AircraftLength.ResolveFt(aircraft.AircraftType) / 2.0);
         return new Approach(toStopFt, taxiStopFt, firmStopFt, startsAtBar, centrePastNodeFt);
     }

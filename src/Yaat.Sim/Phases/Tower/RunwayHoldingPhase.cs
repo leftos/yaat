@@ -8,7 +8,9 @@ namespace Yaat.Sim.Phases.Tower;
 /// <summary>
 /// Follows a LAHSO stop: the aircraft has stopped on the runway after a LAHSO landing, holding short
 /// of the intersecting runway. A CROSS of that runway (bare or naming it) releases it; an exit
-/// instruction is stored for after the crossing; a new TAXI or DEL replaces it. Similar to
+/// instruction is stored for after the crossing; a TAXI whose route enters that runway is stored
+/// (<see cref="PhaseList.TaxiRoute"/>) and starts on the CROSS, while one whose route never enters it
+/// runs at once and ends the hold (the TAXI handler decides); DEL replaces it. Similar to
 /// HoldingShortPhase but on a runway surface.
 /// </summary>
 public sealed class RunwayHoldingPhase(string crossingRunwayId) : Phase
@@ -80,7 +82,9 @@ public sealed class RunwayHoldingPhase(string crossingRunwayId) : Phase
         return cmd switch
         {
             CanonicalCommandType.CrossRunway => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
+            // A TAXI is accepted in place: the handler stores one whose route enters the runway held short of (the hold stands)
+            // and installs any other on a fresh phase list, which ends the hold.
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.Allowed,
             // An exit is stored for after the crossing clearance, so the hold stands: accepted in place, not by clearing the phase.
             CanonicalCommandType.ExitLeft or CanonicalCommandType.ExitRight or CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,

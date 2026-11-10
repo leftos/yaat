@@ -2295,7 +2295,7 @@ public sealed class GroundNavigator
     /// </summary>
     private static bool ChordStaysOnPavement(PhaseContext ctx, GroundNode nodeAhead, LatLon end)
     {
-        double boundFt = JunctionPavementBoundFt(ctx.Aircraft.AircraftType, ctx.Category);
+        double boundFt = JunctionPavementBoundFt(ctx);
         if (ChordStaysOnJunctionPavement(nodeAhead, ctx.Aircraft.Position, end, boundFt, TurnAboutFitOf(ctx).RadiusFt))
         {
             return true;
@@ -2583,7 +2583,7 @@ public sealed class GroundNavigator
         double overrunFt = taxiStopFt - ToNodeAheadFt(ctx, nodeAhead, forwardDeg);
         double continuationFt = next.DistanceNm * GeoMath.FeetPerNm;
         LatLon stopPoint = GeoMath.ProjectPoint(ctx.Aircraft.Position, new TrueHeading(forwardDeg), taxiStopFt / GeoMath.FeetPerNm);
-        double boundFt = JunctionPavementBoundFt(ctx.Aircraft.AircraftType, ctx.Category);
+        double boundFt = JunctionPavementBoundFt(ctx);
         bool stays =
             (overrunFt < continuationFt)
             && StopStaysOnJunctionPavement(nodeAhead, ctx.Aircraft.Position, stopPoint, boundFt, TurnAboutFitOf(ctx).RadiusFt);
@@ -2685,8 +2685,16 @@ public sealed class GroundNavigator
     /// (<see cref="StaysOnJunctionPavement"/>) with its main gear still on the pavement: its taxiway half-width
     /// (<see cref="TurnAboutFitResult.HalfWidthFt"/>), less half its main-gear width where the FAA record gives one.
     /// </summary>
-    public static double JunctionPavementBoundFt(string aircraftType, AircraftCategory category) =>
+    internal static double JunctionPavementBoundFt(string aircraftType, AircraftCategory category) =>
         TurnAboutFit.Evaluate(aircraftType, category).HalfWidthFt - ((MainGearWidthFt(aircraftType) ?? 0.0) / 2.0);
+
+    /// <summary>
+    /// <see cref="JunctionPavementBoundFt(string, AircraftCategory)"/> for the aircraft of <paramref name="ctx"/>: a junction's
+    /// pavement is bounded by the type's taxiway half-width wherever the aircraft stands, a runway node's taxiway stubs
+    /// included. Only the turn about on a runway centreline edge itself is judged against the runway's half-width
+    /// (<see cref="TurnAboutFitOf"/>).
+    /// </summary>
+    public static double JunctionPavementBoundFt(PhaseContext ctx) => JunctionPavementBoundFt(ctx.Aircraft.AircraftType, ctx.Category);
 
     /// <summary>
     /// Whether every one of <paramref name="samples"/> lies within <paramref name="boundFt"/> of the pavement at
@@ -2745,7 +2753,7 @@ public sealed class GroundNavigator
     /// </summary>
     private static bool ArcsStayOnPavement(PhaseContext ctx, TaxiwayTurnAboutPlan plan, List<(LatLon A, LatLon B)> pavement)
     {
-        double boundFt = JunctionPavementBoundFt(ctx.Aircraft.AircraftType, ctx.Category);
+        double boundFt = JunctionPavementBoundFt(ctx);
         IEnumerable<LatLon> samples = (plan.Jog is { } jog ? ArcSamples(jog) : []).Concat(ArcSamples(plan.Reversal));
         bool stays = SamplesStayOnPavement(samples, pavement, boundFt);
         Log.LogDebug(
@@ -3154,10 +3162,16 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// The turn-about fit of the aircraft's type (<see cref="TurnAboutFit"/>): the radius its turn about is drawn on and the
-    /// half-width its pavement checks use, the same geometry the taxi gate decided on. The layout carries no taxiway design
-    /// group, so the checks assume a taxiway of the type's own group.
+    /// half-width its pavement checks use, the same geometry the taxi gate decided on.
     /// </summary>
-    private static TurnAboutFitResult TurnAboutFitOf(PhaseContext ctx) => TurnAboutFit.Evaluate(ctx.Aircraft.AircraftType, ctx.Category);
+    private static TurnAboutFitResult TurnAboutFitOf(PhaseContext ctx) =>
+        TurnAboutFit.EvaluateAt(
+            ctx.Aircraft.AircraftType,
+            ctx.Category,
+            ctx.GroundLayout,
+            ctx.Aircraft.Position,
+            ctx.Aircraft.Phases?.AssignedRunway?.Designator
+        );
 
     /// <summary>A bend (deg) at the turn about's aim node sharper than this, against the reversal's sense, may be cut instead.</summary>
     private const double ReAimMinBendDeg = 90.0;

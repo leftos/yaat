@@ -1474,8 +1474,15 @@ public partial class GroundViewModel : ObservableObject
                 Callsign = ac.Callsign,
                 AircraftType = ac.AircraftType,
                 OtherGroundAircraft = ServerWorldCandidates(),
-            }
+            },
+            RunwayStartOf(ac)
         );
+
+    /// <summary>
+    /// The server's rule for a taxi start on a runway centreline (<see cref="RunwayTaxiStart"/>), from the phase name and
+    /// assigned runway the server sends for <paramref name="ac"/>.
+    /// </summary>
+    private static RunwayTaxiStart RunwayStartOf(AircraftModel ac) => RunwayTaxiStart.Of(ac.CurrentPhase, ac.AssignedRunway);
 
     /// <summary>Whether <paramref name="ac"/> stands at <paramref name="node"/>: under 25 ft away, 0 ft once rounded to 50 ft.</summary>
     private static bool StandsAt(AircraftModel ac, GroundNode node) =>
@@ -3688,9 +3695,9 @@ public partial class GroundViewModel : ObservableObject
     /// Where the overlay resolves the route from, and whether that route opens with the turn about the simulation sent
     /// (<see cref="AircraftModel.TaxiTurnAboutShape"/>), which starts behind the aircraft by design. The overlay draws
     /// exactly the shape it is sent and reads neither shape off the heading: both are placed by the sent target node
-    /// (<see cref="AircraftModel.TaxiTurnAboutTargetNodeId"/>) and the straight edge the aircraft stands mid-way along
-    /// (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>), which ends at that target while the turn about is still
-    /// ahead of it. <see cref="TaxiTurnAboutShape.FromFarEnd"/> resolves from the target;
+    /// (<see cref="AircraftModel.TaxiTurnAboutTargetNodeId"/>) and the straight taxi or runway centreline edge the aircraft stands
+    /// mid-way along (<see cref="AirportGroundLayout.FindMidEdgeStart"/>, the server's judge), which ends at that target while the
+    /// turn about is still ahead of it. <see cref="TaxiTurnAboutShape.FromFarEnd"/> resolves from the target;
     /// <see cref="TaxiTurnAboutShape.InPlace"/> resolves from that edge's other end, the node ahead whose route reverses
     /// over the edge. Otherwise, with no turn about sent, or once the aircraft is off that edge, it resolves from
     /// <paramref name="start"/> with no turn about. That edge check passes on any straight edge ending at the target,
@@ -3710,7 +3717,7 @@ public partial class GroundViewModel : ObservableObject
             return (start, false);
         }
 
-        if ((layout.FindMidEdgeTaxiStart(ac.Position) is not { } occupied) || !occupied.Nodes.Contains(target))
+        if ((layout.FindMidEdgeStart(ac.Position, RunwayStartOf(ac)) is not { } occupied) || !occupied.Nodes.Contains(target))
         {
             return (start, false);
         }

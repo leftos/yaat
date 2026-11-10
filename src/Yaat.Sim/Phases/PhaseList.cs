@@ -150,7 +150,10 @@ public sealed class PhaseList
     /// <summary>
     /// The taxi route a TAXI sent on the landing rollout stores behind the rollout's exit: set when the TAXI is accepted, started
     /// (and cleared) when the runway exit completes (<c>GroundCommandHandler.TryStartStoredTaxiRoute</c>), dropped when the exit is
-    /// given up or another exit is instructed. Null otherwise; the active route is <see cref="AircraftGroundOps.AssignedTaxiRoute"/>.
+    /// given up or another exit is instructed. Held on the runway after a LAHSO stop (<see cref="Tower.RunwayHoldingPhase"/>), it
+    /// is a TAXI whose route enters the runway held short of: started (and cleared) by the CROSS that releases the hold
+    /// (<c>GroundCommandHandler.StartTaxiStoredAtLahsoHold</c>), replaced by a later TAXI or EXIT. Null otherwise; the active route
+    /// is <see cref="AircraftGroundOps.AssignedTaxiRoute"/>.
     /// </summary>
     public TaxiRoute? TaxiRoute { get; set; }
 

@@ -3209,6 +3209,22 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// The pilot's query of a taxi whose turn-off <paramref name="taxiway"/> lies behind it on <paramref name="runway"/>, the runway
+    /// it stands on, when the clearance does not name that runway: "confirm back-taxi on runway 28R to L?", or with no
+    /// <paramref name="taxiway"/> to name "confirm back-taxi on runway 28R?". The aircraft stays held.
+    /// </summary>
+    public static PilotSpeechText BuildConfirmBackTaxi(AircraftState aircraft, string runway, string? taxiway)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string toTerminal = (taxiway is null) ? "" : $" to {taxiway}";
+        string toSpoken = (taxiway is null) ? "" : $" to {PhraseologyVerbalizer.SpellTaxiway(taxiway)}";
+        return new PilotSpeechText(
+            $"confirm back-taxi on runway {RunwayIdentifier.ToDisplayDesignator(runway)}{toTerminal}?",
+            $"{spoken}, confirm back-taxi on runway {PhraseologyVerbalizer.SpellRunway(runway)}{toSpoken}?"
+        );
+    }
+
+    /// <summary>
     /// The pilot's query of a takeoff clearance naming <paramref name="runway"/> while held short of <paramref name="taxiway"/>, which
     /// never reaches that runway: "confirm runway 33? we're holding short of E for 28R", naming the assigned runway when there is one.
     /// The aircraft stays held.

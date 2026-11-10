@@ -956,7 +956,19 @@ public static class PhraseologyVerbalizer
         IReadOnlyCollection<string> ExpeditedRunways,
         IReadOnlyCollection<HoldShortPoint> UnclearedBars,
         RunwayEndChooser UnnamedEnd
-    );
+    )
+    {
+        /// <summary>
+        /// Cleared bars the walk passes without reading a crossing: the bar of the runway the aircraft stands on and leaves.
+        /// </summary>
+        public IReadOnlyCollection<HoldShortPoint> SilentBars { get; init; } = [];
+
+        /// <summary>
+        /// The runway an approved back-taxi already names ("back-taxi on runway 28R, …"), so the route's leading leg on it is
+        /// not said again and the next leg leads the route ("taxi via L"). Null when the readback approves no back-taxi.
+        /// </summary>
+        public string? BackTaxiRunway { get; init; }
+    }
 
     /// <summary>
     /// What picks the end of a runway a readback names that the clearance did not: the aircraft reading back, the airport's
@@ -999,6 +1011,16 @@ public static class PhraseologyVerbalizer
         RenderRouteToFirstStop(inputs, null, false, spoken ? Spoken : Terminal);
 
     /// <summary>
+    /// The hold short <see cref="RenderRouteToFirstStop(TaxiRouteReadbackInputs, bool)"/> stops at, by the same walk from the
+    /// same start: the first uncleared hold short that stops the aircraft, the destination runway's own bar skipped. Null when
+    /// the walk reaches the route's end, or a bar of <see cref="TaxiRouteReadbackInputs.UnclearedBars"/> ends it.
+    /// </summary>
+    internal static HoldShortPoint? RouteReadbackStop(TaxiRouteReadbackInputs inputs) => WalkToFirstStop(inputs, WalkStart(inputs), false, []).Stop;
+
+    /// <summary>The segment a route readback's walk starts on: <see cref="TaxiRouteReadbackInputs.StartSegment"/>, at least 0.</summary>
+    private static int WalkStart(TaxiRouteReadbackInputs inputs) => Math.Max(0, inputs.StartSegment);
+
+    /// <summary>
     /// <see cref="RenderRouteToFirstStop(TaxiRouteReadbackInputs, bool)"/>, with <paramref name="released"/>, the bar a
     /// clearance has just released and the hold short phase has not yet marked cleared, read as cleared. With
     /// <paramref name="stopAtDestinationRunway"/>, an uncleared destination runway bar is a stop like any other: a continuation
@@ -1011,7 +1033,7 @@ public static class PhraseologyVerbalizer
         CaptureFormatter fmt
     )
     {
-        int start = Math.Max(0, inputs.StartSegment);
+        int start = WalkStart(inputs);
         List<RunwayCrossing> crossings = StartNodeCrossings(inputs, start, released);
         int startCrossings = crossings.Count;
         (HoldShortPoint? stop, int lastSegment, bool endsAtUnclearedBar) = WalkToFirstStop(inputs, start, stopAtDestinationRunway, crossings);
@@ -1225,6 +1247,16 @@ public static class PhraseologyVerbalizer
             }
         }
 
+        // An approved back-taxi already names the runway of the route's leading leg ("back-taxi on runway 28R, taxi via L").
+        if (
+            (said is [{ IsRunway: true } lead, ..])
+            && (inputs.BackTaxiRunway is { } backTaxi)
+            && RunwayIdentifier.Parse(lead.Name).Contains(backTaxi)
+        )
+        {
+            said.RemoveAt(0);
+        }
+
         var parts = new List<string>(said.Count);
         foreach (TaxiRouteFormatter.TaxiwayLeg leg in said)
         {
@@ -1311,7 +1343,7 @@ public static class PhraseologyVerbalizer
     /// </summary>
     private static void AddCrossing(List<RunwayCrossing> crossings, HoldShortPoint hs, TaxiRouteReadbackInputs inputs)
     {
-        if (!IsRunwayTarget(hs.TargetName!))
+        if (!IsRunwayTarget(hs.TargetName!) || inputs.SilentBars.Any(bar => ReferenceEquals(bar, hs)))
         {
             return;
         }

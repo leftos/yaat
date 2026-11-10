@@ -65,7 +65,8 @@ public class SfoYankeeConnectorChoiceTests
                 Callsign = "TEST",
                 AircraftType = "B738",
                 OtherGroundAircraft = [],
-            }
+            },
+            RunwayTaxiStart.Of(phaseName: null, assignedRunway: null)
         );
         Assert.NotNull(startNode);
 

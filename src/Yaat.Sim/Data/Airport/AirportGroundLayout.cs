@@ -1015,6 +1015,7 @@ public sealed class AirportGroundLayout
         _nodesByTaxiway = index;
         Volatile.Write(ref _searchMemo, null);
         Volatile.Write(ref _lastWalkStart, null);
+        Volatile.Write(ref _runwayCenterlines, null);
     }
 
     /// <summary>
@@ -1376,6 +1377,149 @@ public sealed class AirportGroundLayout
         }
 
         return FindOccupiedTaxiEdge(position);
+    }
+
+    /// <summary>
+    /// The runway centreline edge an aircraft stands mid-way along: within <see cref="AtNodeToleranceFt"/> of no taxi node,
+    /// and on the edge (<see cref="FindOccupiedRunwayCenterlineEdge"/>, <paramref name="preferredRunway"/>'s inside an
+    /// intersection). Null otherwise.
+    /// </summary>
+    private GroundEdge? FindMidRunwayCenterlineStart(LatLon position, string? preferredRunway) =>
+        HasTaxiNodeWithin(position, AtNodeToleranceFt / GeoMath.FeetPerNm) ? null : FindOccupiedRunwayCenterlineEdge(position, preferredRunway);
+
+    /// <summary>
+    /// The straight edge an aircraft stands mid-way along, the one judge of it for the server's taxi
+    /// (<c>GroundCommandHandler.MidEdgeEndingAt</c>) and the client's turn-about drawing: the taxi edge
+    /// (<see cref="FindMidEdgeTaxiStart"/>), else — unless <paramref name="runwayStart"/> keeps the rollout's start — the runway
+    /// centreline edge (<see cref="FindMidRunwayCenterlineStart"/>). Null otherwise.
+    /// </summary>
+    public GroundEdge? FindMidEdgeStart(LatLon position, RunwayTaxiStart runwayStart) =>
+        FindMidEdgeTaxiStart(position) ?? (runwayStart.FromCenterline ? FindMidRunwayCenterlineStart(position, runwayStart.AssignedRunway) : null);
+
+    /// <summary>
+    /// On a runway between two of its centreline nodes (<see cref="FindMidRunwayCenterlineStart"/>): the end of that
+    /// centreline edge ahead (<see cref="TaxiEdgeEndpointAhead"/>), so the taxi starts on the runway the aircraft stands on
+    /// rather than at the nearest node off it. Null off every runway centreline.
+    /// </summary>
+    private GroundNode? FindRunwayCenterlineStart(LatLon position, TrueHeading heading, string? preferredRunway) =>
+        (FindMidRunwayCenterlineStart(position, preferredRunway) is { } edge) ? TaxiEdgeEndpointAhead(position, heading, edge) : null;
+
+    /// <summary>
+    /// Half the width (ft) of the runway whose centreline edge <paramref name="position"/> lies on
+    /// (<see cref="FindOccupiedRunwayCenterlineEdge"/>), or null off every runway centreline and on a taxi edge's pavement
+    /// (<see cref="FindOccupiedTaxiEdge"/>): a taxiway stub inside the runway's width is held to its own width.
+    /// </summary>
+    internal double? RunwayHalfWidthFtAt(LatLon position, string? preferredRunway) =>
+        ((FindOccupiedTaxiEdge(position) is null) && (OccupiedRunwayCenterline(position, preferredRunway) is { } centreline))
+            ? centreline.WidthFt / 2.0
+            : null;
+
+    /// <summary>Runway width (ft) used when the layout's runway record carries none.</summary>
+    private const double DefaultRunwayWidthFt = 150.0;
+
+    /// <summary>
+    /// The straight runway centreline edge <paramref name="position"/> lies on: the perpendicular from the position falls
+    /// strictly inside the edge, within half the runway's width (the layout's record for the runway, else
+    /// <see cref="DefaultRunwayWidthFt"/>) of it. Where two runways' centrelines qualify (inside their intersection), one of
+    /// <paramref name="preferredRunway"/> (the aircraft's assigned runway) wins; else the nearest. Null when there is none.
+    /// </summary>
+    public GroundEdge? FindOccupiedRunwayCenterlineEdge(LatLon position, string? preferredRunway) =>
+        OccupiedRunwayCenterline(position, preferredRunway)?.Edge;
+
+    /// <summary>
+    /// The runway centreline edge <paramref name="position"/> lies on, with its runway's width
+    /// (<see cref="FindOccupiedRunwayCenterlineEdge"/>). Null when there is none.
+    /// </summary>
+    private RunwayCenterline? OccupiedRunwayCenterline(LatLon position, string? preferredRunway) =>
+        RunwayCenterlineEdgesAt(position)
+            .OrderBy(c => ((preferredRunway is { Length: > 0 } preferred) && c.Centreline.Edge.MatchesRunway(preferred)) ? 0 : 1)
+            .ThenBy(c => c.OffFt)
+            .Select(c => c.Centreline)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// Every straight runway centreline edge <paramref name="position"/> lies on (<see cref="OnRunwayEdgeOffsetFt"/>), with its offset (ft).
+    /// </summary>
+    private IEnumerable<(RunwayCenterline Centreline, double OffFt)> RunwayCenterlineEdgesAt(LatLon position)
+    {
+        foreach (RunwayCenterline centreline in RunwayCenterlines())
+        {
+            if (OnRunwayEdgeOffsetFt(position, centreline) is { } offFt)
+            {
+                yield return (centreline, offFt);
+            }
+        }
+    }
+
+    /// <summary>A straight runway centreline edge and the width (ft) of its runway (<see cref="RunwayWidthFtOf"/>).</summary>
+    private sealed record RunwayCenterline(GroundEdge Edge, double WidthFt);
+
+    private RunwayCenterline[]? _runwayCenterlines;
+
+    /// <summary>
+    /// Every straight runway centreline edge of the node adjacency lists, once each, in their order, with its runway's width:
+    /// built on first use and kept until <see cref="RebuildAdjacencyLists"/> rebuilds the lists. The layout has no
+    /// build-complete point to fill it at, and only its builders and loaders change it, all before it is first queried.
+    /// </summary>
+    private RunwayCenterline[] RunwayCenterlines()
+    {
+        RunwayCenterline[]? cached = Volatile.Read(ref _runwayCenterlines);
+        if (cached is not null)
+        {
+            return cached;
+        }
+
+        var seen = new HashSet<IGroundEdge>();
+        var built = new List<RunwayCenterline>();
+        foreach (IGroundEdge edge in Nodes.Values.SelectMany(n => n.Edges))
+        {
+            if (seen.Add(edge) && (edge is GroundEdge { IsRunwayCenterline: true } straight))
+            {
+                built.Add(new RunwayCenterline(straight, RunwayWidthFtOf(straight)));
+            }
+        }
+
+        RunwayCenterline[] centrelines = [.. built];
+        Volatile.Write(ref _runwayCenterlines, centrelines);
+        return centrelines;
+    }
+
+    /// <summary>
+    /// Distance (ft) from <paramref name="position"/> to <paramref name="centreline"/>'s edge when the perpendicular foot falls
+    /// strictly inside the edge and within half the runway's width of it; else null.
+    /// </summary>
+    private static double? OnRunwayEdgeOffsetFt(LatLon position, RunwayCenterline centreline)
+    {
+        GroundEdge edge = centreline.Edge;
+        (double footLat, double footLon, _, bool clamped) = GeoMath.FootOfPerpendicular(
+            position.Lat,
+            position.Lon,
+            edge.Nodes[0].Position.Lat,
+            edge.Nodes[0].Position.Lon,
+            edge.Nodes[1].Position.Lat,
+            edge.Nodes[1].Position.Lon
+        );
+        if (clamped)
+        {
+            return null;
+        }
+
+        double offFt = GeoMath.DistanceNm(position.Lat, position.Lon, footLat, footLon) * GeoMath.FeetPerNm;
+        return (offFt <= (centreline.WidthFt / 2.0)) ? offFt : null;
+    }
+
+    /// <summary>The width (ft) of the runway <paramref name="edge"/> is a centreline of, else <see cref="DefaultRunwayWidthFt"/>.</summary>
+    private double RunwayWidthFtOf(IGroundEdge edge)
+    {
+        foreach (GroundRunway runway in Runways)
+        {
+            if ((runway.WidthFt > 0.0) && (edge.MatchesRunway(runway.Id.End1) || edge.MatchesRunway(runway.Id.End2)))
+            {
+                return runway.WidthFt;
+            }
+        }
+
+        return DefaultRunwayWidthFt;
     }
 
     /// <summary>
@@ -3229,13 +3373,13 @@ public sealed class AirportGroundLayout
     /// </summary>
     private static bool IsParallelRunway(string landingRunwayDesignator, RunwayIdentifier candidate)
     {
-        if (RunwayDesignatorHeading(landingRunwayDesignator) is not { } landingHeading)
+        if (RunwayIdentifier.DesignatorHeadingDeg(landingRunwayDesignator) is not { } landingHeading)
         {
             return false;
         }
 
-        return IsParallelHeading(landingHeading, RunwayDesignatorHeading(candidate.End1))
-            || IsParallelHeading(landingHeading, RunwayDesignatorHeading(candidate.End2));
+        return IsParallelHeading(landingHeading, RunwayIdentifier.DesignatorHeadingDeg(candidate.End1))
+            || IsParallelHeading(landingHeading, RunwayIdentifier.DesignatorHeadingDeg(candidate.End2));
     }
 
     private static bool IsParallelHeading(double landingHeading, double? candidateHeading)
@@ -3248,26 +3392,6 @@ public sealed class AirportGroundLayout
         const double toleranceDeg = 20.0;
         double diff = Math.Abs(landingHeading - heading) % 360.0;
         return (diff <= toleranceDeg) || (Math.Abs(diff - 180.0) <= toleranceDeg) || (diff >= 360.0 - toleranceDeg);
-    }
-
-    /// <summary>
-    /// Magnetic heading (degrees) implied by a runway designator's leading number (e.g. "28L" → 280).
-    /// Returns null when no leading digits are present.
-    /// </summary>
-    private static double? RunwayDesignatorHeading(string designator)
-    {
-        int numLen = 0;
-        while (numLen < designator.Length && char.IsAsciiDigit(designator[numLen]))
-        {
-            numLen++;
-        }
-
-        if (numLen == 0)
-        {
-            return null;
-        }
-
-        return (int.Parse(designator[..numLen]) % 36) * 10.0;
     }
 
     /// <summary>
@@ -4855,22 +4979,25 @@ public sealed class AirportGroundLayout
 
     /// <summary>
     /// The graph node a taxi from <paramref name="position"/>, facing <paramref name="heading"/>, starts at: the node of
-    /// <see cref="PickTaxiStart"/>. Null when the layout has no node. TAXI, FOLLOWG and the client's route previews all start
-    /// here.
+    /// <see cref="PickTaxiStart"/>. Null when the layout has no node. FOLLOWG and the client's route previews start here, and
+    /// TAXI at <see cref="PickTaxiStart"/>, each with the aircraft's <see cref="RunwayTaxiStart.Of(AircraftState)"/> rule.
     /// </summary>
     /// <param name="position">Where the aircraft stands.</param>
     /// <param name="heading">Its nose heading.</param>
     /// <param name="traffic">The aircraft itself and the other aircraft on the ground the caller can see.</param>
+    /// <param name="runwayStart">How a start on a runway centreline is treated (<see cref="RunwayTaxiStart"/>).</param>
     /// <returns>The start node, or null when the layout has no node.</returns>
-    public GroundNode? FindTaxiStartNode(LatLon position, TrueHeading heading, TaxiStartTraffic traffic) =>
-        PickTaxiStart(position, heading, traffic)?.Node;
+    public GroundNode? FindTaxiStartNode(LatLon position, TrueHeading heading, TaxiStartTraffic traffic, RunwayTaxiStart runwayStart) =>
+        PickTaxiStart(position, heading, traffic, runwayStart)?.Node;
 
     /// <summary>
     /// The graph node a taxi from <paramref name="position"/>, facing <paramref name="heading"/>, starts at, and the parked
     /// or held aircraft that still blocks it when no clear start was found.
     /// <para>
     /// In order: the parking node the aircraft stands at (<see cref="FindAtParkingStart"/>); on a taxiway's pavement, the
-    /// end of the edge or fillet arc ahead (<see cref="FindPavementStart"/>); else the nearest non-parking node within
+    /// end of the edge or fillet arc ahead (<see cref="FindPavementStart"/>); between two runway centreline nodes, unless
+    /// <paramref name="runwayStart"/> keeps the rollout's start, the centreline node ahead (<see cref="FindRunwayCenterlineStart"/>);
+    /// else the nearest non-parking node within
     /// <see cref="AlignedStartMaxDistFt"/> that is not behind the aircraft and has a taxi edge aligned with its heading
     /// (<see cref="FindNearestAlignedNode"/>), which keeps a post-pushback pose resting between nodes off the wrong branch
     /// (issue #161); else the absolute nearest node.
@@ -4894,14 +5021,28 @@ public sealed class AirportGroundLayout
     /// <param name="position">Where the aircraft stands.</param>
     /// <param name="heading">Its nose heading.</param>
     /// <param name="traffic">The aircraft itself and the other aircraft on the ground the caller can see.</param>
+    /// <param name="runwayStart">
+    /// Whether an aircraft between two runway centreline nodes starts at the centreline node ahead
+    /// (<see cref="FindRunwayCenterlineStart"/>), and which runway wins inside an intersection; a rollout keeps the
+    /// nearest-node start it plans from (<see cref="RunwayTaxiStart"/>).
+    /// </param>
     /// <returns>
     /// The start node, and the blocker the start was kept with ("stand 23, SWA2436", or a callsign) or null when nothing blocks
     /// it; null when the layout has no node.
     /// </returns>
-    public (GroundNode Node, string? Blocker)? PickTaxiStart(LatLon position, TrueHeading heading, TaxiStartTraffic traffic)
+    public (GroundNode Node, string? Blocker)? PickTaxiStart(
+        LatLon position,
+        TrueHeading heading,
+        TaxiStartTraffic traffic,
+        RunwayTaxiStart runwayStart
+    )
     {
         double atNodeNm = AtNodeToleranceFt / GeoMath.FeetPerNm;
-        if ((FindAtParkingStart(position, atNodeNm) ?? FindPavementStart(position, heading, atNodeNm)) is { } onSurface)
+        GroundNode? onSurfaceStart =
+            FindAtParkingStart(position, atNodeNm)
+            ?? FindPavementStart(position, heading, atNodeNm)
+            ?? (runwayStart.FromCenterline ? FindRunwayCenterlineStart(position, heading, runwayStart.AssignedRunway) : null);
+        if (onSurfaceStart is { } onSurface)
         {
             return (onSurface, null);
         }

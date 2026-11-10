@@ -158,7 +158,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         bool rampEndAhead = follower.TrueHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(follower.Position, ramp.RampEnd.Position))) <= 90.0;
         GroundNode? expected = rampEndAhead
             ? ramp.RampEnd
-            : run.Layout.FindTaxiStartNode(follower.Position, follower.TrueHeading, TaxiStartTraffic.Of(follower, []));
+            : run.Layout.FindTaxiStartNode(follower.Position, follower.TrueHeading, TaxiStartTraffic.Of(follower, []), RunwayTaxiStart.Of(follower));
         FollowRoutePlanner.RouteStart start = Assert.NotNull(FollowRoutePlanner.StartOf(run.Layout, follower, requireAhead: true, () => []));
         output.WriteLine($"trail end #{ramp.RampEnd.Id} ahead: {rampEndAhead}; start #{start.Node.Id}");
         Assert.Equal(expected?.Id, start.Node.Id);
@@ -283,7 +283,16 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             AircraftState aircraft = PushFrom(candidate, stand);
             if (
                 (TravelledTowardEnd(candidate.Layout, aircraft) is { } behind)
-                && (candidate.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, []))?.Id != behind.Id)
+                && (
+                    candidate
+                        .Layout.FindTaxiStartNode(
+                            aircraft.Position,
+                            aircraft.TrueHeading,
+                            TaxiStartTraffic.Of(aircraft, []),
+                            RunwayTaxiStart.Of(aircraft)
+                        )
+                        ?.Id != behind.Id
+                )
             )
             {
                 found = (candidate.Layout, aircraft);
@@ -301,7 +310,12 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         GroundNode end = Assert.IsType<GroundNode>(TravelledTowardEnd(setup.Layout, pushed));
         double offFt = GeoMath.DistanceToSegmentFt(pushed.Position, newest.Nodes[0].Position, newest.Nodes[1].Position);
         double toEndDeg = pushed.TrueHeading.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(pushed.Position, end.Position)));
-        GroundNode? pick = setup.Layout.FindTaxiStartNode(pushed.Position, pushed.TrueHeading, TaxiStartTraffic.Of(pushed, []));
+        GroundNode? pick = setup.Layout.FindTaxiStartNode(
+            pushed.Position,
+            pushed.TrueHeading,
+            TaxiStartTraffic.Of(pushed, []),
+            RunwayTaxiStart.Of(pushed)
+        );
         output.WriteLine($"trail end #{end.Id} {toEndDeg:F0} deg off the nose, {offFt:F1} ft off the edge; taxi start pick #{pick?.Id}");
 
         Assert.True(offFt <= TaxiEdgeLocator.OnTaxiwayMaxOffsetFt, "the pushed aircraft is off its newest trail edge");
@@ -393,7 +407,12 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
         TaxiTrailEdge newest = Assert.IsType<TaxiTrailEdge>(departure.Ground.TaxiEdgeTrail.Newest);
         GroundEdge edge = Assert.IsType<GroundEdge>(newest.Resolve(setup.Layout));
         double offFt = GeoMath.DistanceToSegmentFt(departure.Position, edge.Nodes[0].Position, edge.Nodes[1].Position);
-        GroundNode? pick = setup.Layout.FindTaxiStartNode(departure.Position, departure.TrueHeading, TaxiStartTraffic.Of(departure, []));
+        GroundNode? pick = setup.Layout.FindTaxiStartNode(
+            departure.Position,
+            departure.TrueHeading,
+            TaxiStartTraffic.Of(departure, []),
+            RunwayTaxiStart.Of(departure)
+        );
         output.WriteLine(
             $"{departure.Phases?.CurrentPhase?.Name} {departure.GroundSpeed:F1} kt, "
                 + $"{offFt:F0} ft off #{newest.NodeA}-#{newest.NodeB}; pick {pick?.Id}"
@@ -486,7 +505,7 @@ public class FollowRoutePlannerTests(ITestOutputHelper output)
             $"on the #{rampEnd.Id}->#{onB.Id} chord, {offCFt:F1} ft off C #{junction.Id}->#{cFar.Id}; came off #{rampEdge.OtherNode(rampEnd).Id}"
         );
         AircraftState follower = FollowCornerGeometry.Spawn(FollowCornerGeometry.AirportId, "N2FOL", "C172", at, heading);
-        Assert.Equal(cFar.Id, run.Layout.FindTaxiStartNode(at, heading, TaxiStartTraffic.Of(follower, []))?.Id);
+        Assert.Equal(cFar.Id, run.Layout.FindTaxiStartNode(at, heading, TaxiStartTraffic.Of(follower, []), RunwayTaxiStart.Of(follower))?.Id);
         return new FilletChord(follower, cFar, rampEdge);
     }
 

@@ -57,7 +57,8 @@ public class RampLaneRepositionTests
                 Callsign = "TEST",
                 AircraftType = "B738",
                 OtherGroundAircraft = [],
-            }
+            },
+            RunwayTaxiStart.Of(phaseName: null, assignedRunway: null)
         );
         Assert.NotNull(start);
         TaxiRoute? route = TaxiPathfinder.ResolveExplicitPathDetailed(

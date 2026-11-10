@@ -27,7 +27,10 @@ public static partial class GroundCommandHandler
     /// <summary>The refusal of a rollout TAXI whose route never leaves the landing runway.</summary>
     private const string AlongTheLandingRunwayRefusal = "Cannot taxi along the landing runway during the rollout; issue TAXI after the runway exit";
 
-    /// <summary>A rollout TAXI: the resolve inputs, the working command, and the route resolved from the aircraft on the runway.</summary>
+    /// <summary>
+    /// A TAXI to store until the aircraft can take it: the resolve inputs, the working command, and the route resolved from the
+    /// aircraft on the runway. A rollout TAXI is one, and so is a TAXI to the LAHSO hold (<see cref="TryStoreTaxiAtLahsoHold"/>).
+    /// </summary>
     private sealed record RolloutTaxiRequest(TaxiResolveInputs Inputs, TaxiCommand Taxi, TaxiRoute RouteFromAircraft, TaxiResolution Resolved);
 
     /// <summary>The route a rollout TAXI stores, and what its readback needs.</summary>
@@ -508,8 +511,7 @@ public static partial class GroundCommandHandler
         // As TryTaxiCore sets it: the taxiways the controller named, so an exit taxiway the clearance left implied is not among them.
         SetClearanceTaxiways(route, inputs.AsCleared, inputs.Options.IsTaxiAuto);
 
-        aircraft.Phases!.TaxiRoute = route;
-        aircraft.Phases.StoredTaxiDestinationRunway = stored.Taxi.DestinationRunway;
+        StoreTaxiRoute(aircraft.Phases!, route, stored.Taxi.DestinationRunway);
         Log.LogInformation(
             "[TryTaxi] {Callsign}: taxi stored behind the rollout exit {Exit}: {Summary}",
             aircraft.Callsign,
@@ -541,6 +543,203 @@ public static partial class GroundCommandHandler
         string message = $"{ExitInstructionText(exitClause, expedite: false)}, {char.ToLowerInvariant(taxiMessage[0])}{taxiMessage[1..]}";
         Log.LogDebug("[TryTaxi] {Callsign}: implied exit {Taxiway}", aircraft.Callsign, exitClause.Taxiway);
         return CommandDispatcher.Ok(message) with { EffectiveCommand = stored.EffectiveCommand, PilotReadback = new HandlerReadback(type, speech) };
+    }
+
+    /// <summary>The one write of a stored taxi route: <see cref="PhaseList.TaxiRoute"/> and the destination runway its TAXI named.</summary>
+    private static void StoreTaxiRoute(PhaseList phases, TaxiRoute route, string? destinationRunway)
+    {
+        phases.TaxiRoute = route;
+        phases.StoredTaxiDestinationRunway = destinationRunway;
+    }
+
+    /// <summary>
+    /// A TAXI to an aircraft held on the runway after a LAHSO stop (<see cref="RunwayHoldingPhase"/>) whose route enters the
+    /// runway held short of (<see cref="RouteEntersRunway(AirportGroundLayout, LatLon, TaxiRoute, string)"/>) and carries no
+    /// <c>CROSS</c> of it: stored on <see cref="PhaseList.TaxiRoute"/> for the <c>CROSS</c> that releases the hold
+    /// (<see cref="StartTaxiStoredAtLahsoHold"/>), the hold kept, and read back with it (<see cref="LahsoHoldTaxiReadback"/>).
+    /// The latest instruction wins: a stored TAXI or a stored exit is replaced. Null when the aircraft is not so held, or the
+    /// route never enters that runway, or the TAXI clears the crossing itself: the caller installs it, which ends the hold.
+    /// </summary>
+    private static CommandResult? TryStoreTaxiAtLahsoHold(RolloutTaxiRequest request, HoldShortPoint? leftRunwayBar)
+    {
+        TaxiResolveInputs inputs = request.Inputs;
+        AircraftState aircraft = inputs.Aircraft;
+        if (aircraft.Phases is not { CurrentPhase: RunwayHoldingPhase hold } phases)
+        {
+            return null;
+        }
+
+        string crossing = hold.CrossingRunwayId;
+        if ((request.Taxi.CrossRunways ?? []).Any(r => HoldShortAnnotator.TargetMatches(crossing, r)))
+        {
+            Log.LogDebug("[TryTaxi] {Callsign}: the TAXI clears runway {Runway}; runs at once from the LAHSO hold", aircraft.Callsign, crossing);
+            return null;
+        }
+
+        // Cleared to cross already (a CROSS earlier in the block, or before the hold's next tick ends it): nothing to wait for.
+        if (hold.Requirements.Any(static r => r.IsSatisfied))
+        {
+            Log.LogDebug("[TryTaxi] {Callsign}: already cleared to cross runway {Runway}; runs at once", aircraft.Callsign, crossing);
+            return null;
+        }
+
+        if (!RouteEntersRunway(inputs.Layout, aircraft.Position, request.RouteFromAircraft, crossing))
+        {
+            return null;
+        }
+
+        // The latest instruction wins: a stored TAXI or a stored exit, with that exit's expedite, is replaced.
+        phases.ClearStoredTaxiRoute();
+        phases.RequestedExit = null;
+        aircraft.Ground.IsExpeditingExit = false;
+        return AcceptTaxiAtLahsoHold(request, phases, RunwayIdentifier.ToDisplayDesignator(crossing), leftRunwayBar);
+    }
+
+    /// <summary>
+    /// Stores the route of a TAXI given at the LAHSO hold (<see cref="TryStoreTaxiAtLahsoHold"/>), with the start a TAXI makes that
+    /// does not wait for the route — the expedite restated, <c>NoDelete</c> taken, the cleared taxiways set — and reads it back
+    /// with the hold the aircraft stays in.
+    /// </summary>
+    private static CommandResult AcceptTaxiAtLahsoHold(RolloutTaxiRequest request, PhaseList phases, string display, HoldShortPoint? leftRunwayBar)
+    {
+        TaxiResolveInputs inputs = request.Inputs;
+        AircraftState aircraft = inputs.Aircraft;
+        TaxiRoute route = request.RouteFromAircraft;
+        if (!request.Taxi.Expedite)
+        {
+            EndRouteExpedite(aircraft);
+        }
+
+        aircraft.Ground.IsExpeditingTaxi = request.Taxi.Expedite;
+        if (request.Taxi.NoDelete)
+        {
+            aircraft.Ground.AutoDeleteExempt = true;
+            aircraft.Ground.NoDeleteRequested = true;
+        }
+
+        aircraft.Ground.AssignedTaxiRoute = null;
+        SetClearanceTaxiways(route, inputs.AsCleared, inputs.Options.IsTaxiAuto);
+        StoreTaxiRoute(phases, route, request.Taxi.DestinationRunway);
+        Log.LogDebug(
+            "[TryTaxi] {Callsign}: taxi stored at the LAHSO hold until cleared to cross runway {Runway}: {Summary}",
+            aircraft.Callsign,
+            display,
+            route.ToSummary()
+        );
+
+        TaxiResolution resolved = request.Resolved;
+        var readbackInputs = new TaxiReadbackInputs(resolved.OccupiedTaxiway, resolved.EndsShort, !inputs.Options.IsTaxiAuto, null, null);
+        string taxiText = BuildTaxiReadback(route, inputs.Layout, request.Taxi, readbackInputs);
+        string message = WithResponseNotes(
+            $"{taxiText} stored; holding short of runway {display} until cleared to cross",
+            ResponseWarnings(route, inputs.Layout, inputs.Traffic),
+            null,
+            null
+        );
+        CanonicalCommandType type = inputs.Options.IsTaxiAuto ? CanonicalCommandType.TaxiAuto : CanonicalCommandType.Taxi;
+        var readbackSource = new TaxiRouteReadbackSource(
+            route,
+            inputs.Layout,
+            inputs.AsCleared,
+            resolved.EndsShort,
+            aircraft,
+            inputs.Options.ActiveRunways
+        )
+        {
+            LeftRunwayBar = leftRunwayBar,
+        };
+        return CommandDispatcher.Ok(message) with
+        {
+            EffectiveCommand = resolved.EffectiveCommand,
+            PilotReadback = new HandlerReadback(type, LahsoHoldTaxiReadback(readbackSource, taxiText, display)),
+            TaxiRouteReadback = inputs.Options.IsTaxiAuto ? null : readbackSource,
+        };
+    }
+
+    /// <summary>
+    /// The pilot's readback of a TAXI stored at the LAHSO hold: the route read back as any taxi route is
+    /// (<see cref="RouteReadback"/>), then the hold the aircraft stays in (", holding short of runway 1L", spoken "…, holding short
+    /// of runway one left") unless the route readback already says it: it does when the bar its walk stops at
+    /// (<see cref="PhraseologyVerbalizer.RouteReadbackStop"/>) names the held runway (<see cref="HoldShortAnnotator.TargetMatches"/>),
+    /// whatever the bar's reason. The clearance in the rule's own words, else the controller-facing <paramref name="taxiText"/>,
+    /// stands in when the route reads back nothing, and the hold follows it.
+    /// </summary>
+    private static PilotSpeechText LahsoHoldTaxiReadback(TaxiRouteReadbackSource source, string taxiText, string display)
+    {
+        string spelled = PhraseologyVerbalizer.SpellRunway(display);
+        // A TAXIAUTO names no taxiways (its route has no clearance taxiways set), so no route readback reads it: its command does.
+        PhraseologyVerbalizer.TaxiRouteReadbackInputs? inputs = source.Route.ClearanceTaxiways is null
+            ? null
+            : RouteReadbackInputs(source, new RouteReadbackCrossings([], [], []));
+        PilotSpeechText route = inputs is null ? CommandReadback(source.AsCleared, taxiText) : RenderRouteReadback(source, inputs).Speech;
+        if (
+            (inputs is not null)
+            && (PhraseologyVerbalizer.RouteReadbackStop(inputs) is { } stop)
+            && HoldShortAnnotator.TargetMatches(stop.TargetName, display)
+        )
+        {
+            return route;
+        }
+
+        return new PilotSpeechText($"{route.Terminal}, holding short of runway {display}", $"{route.Tts}, holding short of runway {spelled}");
+    }
+
+    /// <summary>The clearance as the rule words it, else <paramref name="taxiText"/> lower-cased at its start.</summary>
+    private static PilotSpeechText CommandReadback(TaxiCommand asCleared, string taxiText)
+    {
+        string terminal = PhraseologyVerbalizer.VerbalizeTerminal(asCleared) ?? LowerFirst(taxiText);
+        return new PilotSpeechText(terminal, PhraseologyVerbalizer.Verbalize(asCleared) ?? terminal);
+    }
+
+    /// <summary>
+    /// Whether the stored route (<see cref="PhaseList.TaxiRoute"/>) begins at the aircraft on the runway it stands on, as a TAXI given
+    /// at the LAHSO hold builds it (the runway-centreline start): its first segment starts within
+    /// <see cref="AirportGroundLayout.AtNodeToleranceFt"/> of the aircraft, on its assigned runway's pavement. A route a TAXI stored
+    /// on the rollout starts at an exit's hold-short node instead, and is joined from the runway exit after the release.
+    /// </summary>
+    private static bool StoredRouteStartsAtAircraft(AircraftState aircraft, AirportGroundLayout? layout)
+    {
+        if ((layout is null) && (aircraft.Phases?.TaxiRoute is not null))
+        {
+            Log.LogWarning(
+                "[TryTaxi] {Callsign}: no ground layout, so the taxi route stored at the LAHSO hold is not started there",
+                aircraft.Callsign
+            );
+        }
+
+        if (
+            (layout is null)
+            || (aircraft.Phases is not { TaxiRoute.Segments: [{ } first, ..] } phases)
+            || (phases.AssignedRunway?.Designator is not { Length: > 0 } standingRunway)
+        )
+        {
+            return false;
+        }
+
+        LatLon start = first.Edge.FromNode.Position;
+        double fromAircraftFt = GeoMath.DistanceNm(aircraft.Position, start) * GeoMath.FeetPerNm;
+        return (fromAircraftFt <= AirportGroundLayout.AtNodeToleranceFt) && TaxiPathfinder.IsOnRunwayPavement(layout, start, standingRunway);
+    }
+
+    /// <summary>
+    /// Starts the route a TAXI stored at the LAHSO hold (<see cref="TryStoreTaxiAtLahsoHold"/>) as the <c>CROSS</c> releases the
+    /// hold: from where the aircraft stands, as a TAXI from the runway starts, by the stored-route start
+    /// (<see cref="InstallStoredTaxiRoute"/>), the stored route cleared. No runway exit runs in between. The caller has checked
+    /// that the route starts there (<see cref="StoredRouteStartsAtAircraft"/>).
+    /// </summary>
+    private static void StartTaxiStoredAtLahsoHold(AircraftState aircraft, AirportGroundLayout layout, ActiveRunways activeRunways)
+    {
+        if (aircraft.Phases is not { TaxiRoute: { } route } phases)
+        {
+            return;
+        }
+
+        string? destinationRunway = phases.StoredTaxiDestinationRunway;
+        phases.ClearStoredTaxiRoute();
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, activeRunways, layout);
+        phases.Clear(ctx);
+        InstallStoredTaxiRoute(ctx, layout, route, destinationRunway);
+        Log.LogDebug("[TryTaxi] {Callsign}: stored taxi route started from the LAHSO hold: {Summary}", aircraft.Callsign, route.ToSummary());
     }
 
     /// <summary>
@@ -663,14 +862,29 @@ public static partial class GroundCommandHandler
             aircraft.Position,
             RunwayCrossingEnd.TailOverNamer(aircraft.Position, layout, ctx.ActiveRunways, aircraft.Phases?.AssignedRunway)
         );
-        DepartureRunwayAssignment prior = CaptureDepartureRunwayAssignment(aircraft);
-        RunwayInfo? detectedRunway = destinationRunway is not null
-            ? CommandDispatcher.ResolveRunway(aircraft, destinationRunway)
-            : DetectRunwayFromRoute(route, layout, aircraft);
 
         // The exit is the landing list's last phase: the phase runner ends it there, and nothing after it starts. The taxi runs on
         // a fresh list, as a TAXI issued once the exit is complete gets (TryTaxiCore), so none of the landing's state survives.
         phases.ReplaceUpcoming([]);
+        InstallStoredTaxiRoute(ctx, layout, route, destinationRunway);
+        Log.LogInformation("[TryTaxi] {Callsign}: stored taxi route started from the exit: {Summary}", aircraft.Callsign, route.ToSummary());
+        return true;
+    }
+
+    /// <summary>
+    /// The taxi start of a stored route (<see cref="PhaseList.TaxiRoute"/>), shared by the runway exit's start
+    /// (<see cref="TryStartStoredTaxiRoute"/>) and the LAHSO hold's (<see cref="StartTaxiStoredAtLahsoHold"/>): the route assigned,
+    /// the departure runway assigned (<paramref name="destinationRunway"/>, the one the clearance named, else the one the route ends
+    /// at), a GIVEWAY given for the route kept, the commanded taxi speed reset, the current taxiway set to the route's first, and a
+    /// fresh phase list with a <see cref="TaxiingPhase"/> started. The caller has already ended the phases before it.
+    /// </summary>
+    private static void InstallStoredTaxiRoute(PhaseContext ctx, AirportGroundLayout layout, TaxiRoute route, string? destinationRunway)
+    {
+        AircraftState aircraft = ctx.Aircraft;
+        DepartureRunwayAssignment prior = CaptureDepartureRunwayAssignment(aircraft);
+        RunwayInfo? detectedRunway = destinationRunway is not null
+            ? CommandDispatcher.ResolveRunway(aircraft, destinationRunway)
+            : DetectRunwayFromRoute(route, layout, aircraft);
         aircraft.Ground.AssignedTaxiRoute = route;
         aircraft.Ground.AwaitingTaxiInCall = false;
         if (aircraft.Ground.Hold?.Kind != HoldKind.GiveWay)
@@ -685,8 +899,6 @@ public static partial class GroundCommandHandler
         PhaseList taxiPhases = InstallFreshTaxiPhaseList(aircraft, detectedRunway, prior, DepartureRunwayClearance.Taxi);
         taxiPhases.Add(new TaxiingPhase());
         taxiPhases.Start(ctx);
-        Log.LogInformation("[TryTaxi] {Callsign}: stored taxi route started from the exit: {Summary}", aircraft.Callsign, route.ToSummary());
-        return true;
     }
 
     /// <summary>
@@ -859,6 +1071,73 @@ public static partial class GroundCommandHandler
         }
 
         return null;
+    }
+
+    /// <summary>The spacing (ft) at which <see cref="PolylineEntersRunway"/> samples each leg.</summary>
+    private const double RouteSampleStepFt = 25.0;
+
+    /// <summary>
+    /// Whether <paramref name="route"/>, the leg from <paramref name="aircraftPosition"/> to its first node included, has a point
+    /// on <paramref name="runwayId"/>'s pavement (<see cref="PolylineEntersRunway"/>). Each segment is judged along its chord,
+    /// from node to node: a fillet arc stays within a few feet of it.
+    /// </summary>
+    private static bool RouteEntersRunway(AirportGroundLayout layout, LatLon aircraftPosition, TaxiRoute route, string runwayId)
+    {
+        List<LatLon> polyline = [aircraftPosition];
+        if (route.Segments.Count > 0)
+        {
+            polyline.Add(route.Segments[0].Edge.FromNode.Position);
+            polyline.AddRange(route.Segments.Select(s => s.Edge.ToNode.Position));
+        }
+
+        return PolylineEntersRunway(layout, polyline, runwayId);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="polyline"/>, sampled every <see cref="RouteSampleStepFt"/> along each leg and at every vertex, has
+    /// a point on <paramref name="runwayId"/>'s pavement: the runway rectangle of
+    /// <see cref="RunwayCrossingDetector.IsOnRunway(LatLon, in RunwayRectangle)"/>, so a point in the holding area only does not count.
+    /// False, with a warning, when the layout has no such runway.
+    /// </summary>
+    internal static bool PolylineEntersRunway(AirportGroundLayout layout, IReadOnlyList<LatLon> polyline, string runwayId)
+    {
+        if (layout.FindRunway(runwayId) is not { } runway)
+        {
+            Log.LogWarning("[TryTaxi] runway {Runway} is not in the {Airport} layout; a route is judged not to enter it", runwayId, layout.AirportId);
+            return false;
+        }
+
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
+        for (int i = 0; i < polyline.Count; i++)
+        {
+            if (
+                RunwayCrossingDetector.IsOnRunway(polyline[i], rect)
+                || ((i + 1 < polyline.Count) && LegEntersRunway(polyline[i], polyline[i + 1], rect))
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a point sampled every <see cref="RouteSampleStepFt"/> strictly between the leg's ends lies on <paramref name="rect"/>.
+    /// </summary>
+    private static bool LegEntersRunway(LatLon from, LatLon to, in RunwayRectangle rect)
+    {
+        double lengthFt = GeoMath.DistanceNm(from, to) * GeoMath.FeetPerNm;
+        var heading = new TrueHeading(GeoMath.BearingTo(from, to));
+        for (double alongFt = RouteSampleStepFt; alongFt < lengthFt; alongFt += RouteSampleStepFt)
+        {
+            if (RunwayCrossingDetector.IsOnRunway(GeoMath.ProjectPoint(from, heading, alongFt / GeoMath.FeetPerNm), rect))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Every node the route passes.</summary>

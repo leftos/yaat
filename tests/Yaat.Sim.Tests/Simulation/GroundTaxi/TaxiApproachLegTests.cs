@@ -301,7 +301,12 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         double downFDeg = GeoMath.BearingTo(junction.Position, ground.Layout.Nodes[SfoFAtENodeId].Position);
         AircraftState aircraft = MakeAircraft(ground.Layout, junction.Position, downFDeg);
         aircraft.Ground.CurrentTaxiway = "E";
-        GroundNode? start = ground.Layout.FindTaxiStartNode(aircraft.Position, aircraft.TrueHeading, TaxiStartTraffic.Of(aircraft, []));
+        GroundNode? start = ground.Layout.FindTaxiStartNode(
+            aircraft.Position,
+            aircraft.TrueHeading,
+            TaxiStartTraffic.Of(aircraft, []),
+            RunwayTaxiStart.Of(aircraft)
+        );
         Assert.NotNull(start);
         Assert.DoesNotContain(start.Edges, e => e.MatchesTaxiway("E"));
 

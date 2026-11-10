@@ -27,6 +27,9 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 
      No distance bound applies, so the start is on the taxiway the aircraft is on however long the edge, and a nearer node on a parallel taxiway (KOAK C/D, KSFO B/A) never takes it;
    - within 15 ft of no taxi node, on no straight edge but on a fillet arc (past a straight edge's end): the arc's end node nearest the heading, never the node it entered the arc by;
+   - within 15 ft of no taxi node and between two runway centreline nodes (`FindRunwayCenterlineStart`; the perpendicular inside the edge and within half the runway's width): the centreline node ahead, so the route starts on the runway the aircraft stands on, not at a snapped off-runway node. `RunwayTaxiStart` (from the phase name and assigned runway) skips this tier for the landing rollout (`Landing`, `Runway Exit`), which keeps the nearest-node start it plans from; inside an intersection the assigned runway's centreline wins. The bar of that runway is carried as already crossed and is not read out as a crossing.
+
+     A route whose first turn-off is behind the aircraft is a back-taxi: `TAXI 28R L` (runway named first) approves it, a bare `TAXI L` is answered "confirm back-taxi on runway two eight right to Lima?" and the aircraft keeps holding. A turn about on a runway is judged by the runway's half-width (`TurnAboutFit.EvaluateAt`, `EvaluateOnRunway`), not the type's taxiway half-width; a refusal says "Unable, no room to turn around on runway 28R, request a route ahead";
    - otherwise the nearest non-parking node within 100 ft that is not behind the aircraft and has a taxi edge aligned with the heading, else the absolute nearest node.
 
    **A start through a parked aircraft is replaced.** The last bullet's start is a free-space leg.

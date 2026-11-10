@@ -119,8 +119,13 @@ public class TaxiStartOccupiedStandTests
         AircraftState parked = ParkedAt(layout, "SWA2436", "B732", OccupiedStand, 47.0);
         var heading = new TrueHeading(StalledPushHeadingDeg);
 
-        GroundNode? alone = layout.FindTaxiStartNode(taxiing.Position, heading, TaxiStartTraffic.Of(taxiing, []));
-        GroundNode? beside = layout.FindTaxiStartNode(taxiing.Position, heading, TaxiStartTraffic.Of(taxiing, [NeighbourCandidate.From(parked)]));
+        GroundNode? alone = layout.FindTaxiStartNode(taxiing.Position, heading, TaxiStartTraffic.Of(taxiing, []), RunwayTaxiStart.Of(taxiing));
+        GroundNode? beside = layout.FindTaxiStartNode(
+            taxiing.Position,
+            heading,
+            TaxiStartTraffic.Of(taxiing, [NeighbourCandidate.From(parked)]),
+            RunwayTaxiStart.Of(taxiing)
+        );
 
         Assert.Equal(stand.Id, alone?.Id);
         Assert.NotNull(beside);
@@ -139,7 +144,12 @@ public class TaxiStartOccupiedStandTests
         AircraftState parked = ParkedAt(layout, "SWA2436", "B732", OccupiedStand, 47.0);
         var heading = new TrueHeading(StalledPushHeadingDeg);
 
-        GroundNode? beside = layout.FindTaxiStartNode(taxiing.Position, heading, TaxiStartTraffic.Of(taxiing, [NeighbourCandidate.From(parked)]));
+        GroundNode? beside = layout.FindTaxiStartNode(
+            taxiing.Position,
+            heading,
+            TaxiStartTraffic.Of(taxiing, [NeighbourCandidate.From(parked)]),
+            RunwayTaxiStart.Of(taxiing)
+        );
 
         Assert.NotNull(beside);
         Assert.False(
@@ -163,7 +173,12 @@ public class TaxiStartOccupiedStandTests
         List<AircraftState> blockersAhead = HeldOnTaxiNodesWithin(layout, taxiing, AirportGroundLayout.OccupiedStandStartSearchFt, aheadOnly: true);
         List<NeighbourCandidate> traffic = [NeighbourCandidate.From(parked), .. blockersAhead.Select(NeighbourCandidate.From)];
 
-        GroundNode? start = layout.FindTaxiStartNode(taxiing.Position, new TrueHeading(StalledPushHeadingDeg), TaxiStartTraffic.Of(taxiing, traffic));
+        GroundNode? start = layout.FindTaxiStartNode(
+            taxiing.Position,
+            new TrueHeading(StalledPushHeadingDeg),
+            TaxiStartTraffic.Of(taxiing, traffic),
+            RunwayTaxiStart.Of(taxiing)
+        );
 
         Assert.NotNull(start);
         double offNoseDeg = GeoMath.AbsBearingDifference(GeoMath.BearingTo(taxiing.Position, start.Position), StalledPushHeadingDeg);
@@ -189,7 +204,8 @@ public class TaxiStartOccupiedStandTests
         GroundNode? start = layout.FindTaxiStartNode(
             taxiing.Position,
             new TrueHeading(StalledPushHeadingDeg),
-            TaxiStartTraffic.Of(taxiing, [NeighbourCandidate.From(holder)])
+            TaxiStartTraffic.Of(taxiing, [NeighbourCandidate.From(holder)]),
+            RunwayTaxiStart.Of(taxiing)
         );
 
         Assert.Equal(stand.Id, start?.Id);

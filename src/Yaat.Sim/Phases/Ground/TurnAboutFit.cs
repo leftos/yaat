@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -91,18 +92,64 @@ public static class TurnAboutFit
     {
         if (record is null)
         {
-            return ByCategory(category);
+            return ByCategory(category, NarrowestHalfWidthFt);
         }
 
         if (TdgHalfWidthFt(record.Tdg) is not { } halfWidthFt)
         {
             WarnUnrecognisedTdg(record);
-            return ByCategory(category);
+            return ByCategory(category, NarrowestHalfWidthFt);
         }
 
+        return ByRecordAt(record, category, halfWidthFt, NarrowestHalfWidthFt);
+    }
+
+    /// <summary>
+    /// The fit of <paramref name="aircraftType"/> turning about on a runway: the rules of <see cref="EvaluateRecord"/>, held
+    /// against <paramref name="runwayHalfWidthFt"/> instead of the type's TDG half-width — the category and missing-gear
+    /// fallbacks included.
+    /// </summary>
+    internal static TurnAboutFitResult EvaluateOnRunway(string? aircraftType, AircraftCategory category, double runwayHalfWidthFt)
+    {
+        FaaAircraftRecord? record = FaaAircraftDatabase.Get(aircraftType);
+        return (record is null) ? ByCategory(category, runwayHalfWidthFt) : ByRecordAt(record, category, runwayHalfWidthFt, runwayHalfWidthFt);
+    }
+
+    /// <summary>
+    /// The fit of an aircraft of <paramref name="aircraftType"/> standing at <paramref name="position"/>: on a runway
+    /// centreline edge (<see cref="AirportGroundLayout.RunwayHalfWidthFtAt"/>, <paramref name="assignedRunway"/>'s inside an
+    /// intersection) by <see cref="EvaluateOnRunway"/>, against that runway's half-width; anywhere else, a taxiway stub inside
+    /// the runway's width included, by <see cref="Evaluate"/>. The one judge for the taxi gate and the turn about's drawing.
+    /// </summary>
+    public static TurnAboutFitResult EvaluateAt(
+        string? aircraftType,
+        AircraftCategory category,
+        AirportGroundLayout? layout,
+        LatLon position,
+        string? assignedRunway
+    ) =>
+        (layout?.RunwayHalfWidthFtAt(position, assignedRunway) is { } runwayHalfWidthFt)
+            ? EvaluateOnRunway(aircraftType, category, runwayHalfWidthFt)
+            : Evaluate(aircraftType, category);
+
+    /// <summary>
+    /// The fit of the type <paramref name="record"/> describes against <paramref name="halfWidthFt"/>; a broken ACD row (a
+    /// non-jet whose wheelbase is at least <see cref="BrokenRowWheelbaseRatio"/> of its length) by category, against
+    /// <paramref name="categoryHalfWidthFt"/>.
+    /// </summary>
+    private static TurnAboutFitResult ByRecordAt(FaaAircraftRecord record, AircraftCategory category, double halfWidthFt, double categoryHalfWidthFt)
+    {
         if ((record.MainGearWidthFt is not { } gearWidthFt) || (record.WheelbaseFt is not { } wheelbaseFt))
         {
             return ByMissingGear(record, category, halfWidthFt);
+        }
+
+        bool brokenRow =
+            (category != AircraftCategory.Jet) && (record.LengthFt is { } lengthFt) && ((wheelbaseFt / lengthFt) >= BrokenRowWheelbaseRatio);
+        if (brokenRow)
+        {
+            WarnBrokenRow(record);
+            return ByCategory(category, categoryHalfWidthFt);
         }
 
         return ByWheelbaseRatio(record, category, gearWidthFt, wheelbaseFt, halfWidthFt) ?? ByGear(gearWidthFt, wheelbaseFt, halfWidthFt);
@@ -120,7 +167,7 @@ public static class TurnAboutFit
     }
 
     /// <summary>
-    /// The fit of a non-jet with a known wheelbase judged by its wheelbase-to-length ratio: a broken row by category, a
+    /// The fit of a non-jet with a known wheelbase and a usable ACD row judged by its wheelbase-to-length ratio: a
     /// taildragger by <see cref="ByTaildragger"/>. Null when the tricycle rule applies — a jet, a record with no length,
     /// or a ratio below <see cref="TaildraggerWheelbaseRatio"/>.
     /// </summary>
@@ -137,14 +184,7 @@ public static class TurnAboutFit
             return null;
         }
 
-        double wheelbaseToLength = wheelbaseFt / lengthFt;
-        if (wheelbaseToLength >= BrokenRowWheelbaseRatio)
-        {
-            WarnBrokenRow(record);
-            return ByCategory(category);
-        }
-
-        if (wheelbaseToLength >= TaildraggerWheelbaseRatio)
+        if ((wheelbaseFt / lengthFt) >= TaildraggerWheelbaseRatio)
         {
             return ByTaildragger(gearWidthFt, wheelbaseFt, halfWidthFt);
         }
@@ -177,12 +217,15 @@ public static class TurnAboutFit
         return new TurnAboutFitResult(Math.Max(outerTyreFt, noseFt) <= halfWidthFt, radiusFt, halfWidthFt);
     }
 
-    /// <summary>The fit of a type the database does not describe usably: pistons and helicopters fit, jets and turboprops do not.</summary>
-    private static TurnAboutFitResult ByCategory(AircraftCategory category) =>
+    /// <summary>
+    /// The fit of a type the database does not describe usably: pistons and helicopters fit, jets and turboprops do not, against
+    /// <paramref name="halfWidthFt"/>.
+    /// </summary>
+    private static TurnAboutFitResult ByCategory(AircraftCategory category, double halfWidthFt) =>
         new(
             (category == AircraftCategory.Piston) || (category == AircraftCategory.Helicopter),
             CategoryPerformance.TightTurnFloorRadiusFt(category),
-            NarrowestHalfWidthFt
+            halfWidthFt
         );
 
     /// <summary>

@@ -3638,7 +3638,8 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
                 Callsign = "TEST",
                 AircraftType = "B738",
                 OtherGroundAircraft = [],
-            }
+            },
+            RunwayTaxiStart.Of(phaseName: null, assignedRunway: null)
         );
         output.WriteLine($"taxi start: {(start is null ? "none" : $"node {start.Id}")}");
         Assert.NotNull(start);

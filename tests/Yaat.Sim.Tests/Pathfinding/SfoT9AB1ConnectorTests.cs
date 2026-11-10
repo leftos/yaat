@@ -90,7 +90,8 @@ public class SfoT9AB1ConnectorTests
                 Callsign = "TEST",
                 AircraftType = "B738",
                 OtherGroundAircraft = [],
-            }
+            },
+            RunwayTaxiStart.Of(phaseName: null, assignedRunway: null)
         );
         Assert.NotNull(startNode);
 

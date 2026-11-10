@@ -201,8 +201,8 @@ public sealed class TaxiRoute
     private static string EndTravelledToward(TaxiRouteSegment seg, RunwayIdentifier id)
     {
         double travelBearing = GeoMath.BearingTo(seg.Edge.FromNode.Position, seg.Edge.ToNode.Position);
-        double? end1 = DesignatorHeading(id.End1);
-        double? end2 = DesignatorHeading(id.End2);
+        double? end1 = RunwayIdentifier.DesignatorHeadingDeg(id.End1);
+        double? end2 = RunwayIdentifier.DesignatorHeadingDeg(id.End2);
         if ((end1 is null) || (end2 is null))
         {
             return id.End1;
@@ -213,23 +213,6 @@ public sealed class TaxiRoute
             <= Math.Abs(GeoMath.SignedBearingDifference(end2.Value, travelBearing))
             ? id.End1
             : id.End2;
-    }
-
-    /// <summary>Approximate magnetic heading a runway designator encodes ("28R" → 280°); null when it has no number.</summary>
-    private static double? DesignatorHeading(string designator)
-    {
-        int digits = 0;
-        foreach (char c in designator)
-        {
-            if (!char.IsAsciiDigit(c))
-            {
-                break;
-            }
-
-            digits = (digits * 10) + (c - '0');
-        }
-
-        return digits is > 0 and <= 36 ? digits * 10.0 : null;
     }
 
     /// <summary>

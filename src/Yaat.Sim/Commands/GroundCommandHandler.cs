@@ -381,47 +381,18 @@ public static partial class GroundCommandHandler
         // marking the new route holds short as written; HOLD and HS still stop it.
         // An aircraft between a runway's bars, leaving it by a cleared bar and not yet clear of it, keeps that runway cleared too.
         // Subsequent crossings still require explicit clearance.
-        string? priorRwy = aircraft.Phases?.CurrentPhase switch
-        {
-            HoldingShortPhase priorHold when priorHold.HoldShort.TargetName is { Length: > 0 } heldRwy => heldRwy,
-            CrossingRunwayPhase crossing
-                when (crossing.RunwayId is { Length: > 0 } crossingRwyId) && (crossing.NosePastNearMarkingFt(aircraft, groundLayout) > 0.0) =>
-                crossingRwyId,
-            TaxiingPhase when TaxiingPhase.CrossingUnderwayRunway(aircraft, groundLayout) is { } underwayRwy => underwayRwy,
-            RunwayExitPhase exitPhase when exitPhase.RunwayId is { Length: > 0 } exitRwy => exitRwy,
-            HoldingAfterExitPhase afterExit when afterExit.RunwayId is { Length: > 0 } afterExitRwy => afterExitRwy,
-            _ => null,
-        };
-        string? implicitCrossLabel = null;
-        if (priorRwy is not null)
-        {
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: runway crossing carried over to the new route: {PriorRwy} (phase {Phase})",
-                aircraft.Callsign,
-                priorRwy,
-                aircraft.Phases?.CurrentPhase?.GetType().Name ?? "none"
-            );
-            HoldShortPoint? firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
-            if (firstCrossing is not null && firstCrossing.TargetName is { Length: > 0 } crossingRwy)
-            {
-                if (RunwayIdentifier.Parse(crossingRwy).Overlaps(RunwayIdentifier.Parse(priorRwy)))
-                {
-                    firstCrossing.IsCleared = true;
-                    implicitCrossLabel = crossingRwy;
-                    Log.LogInformation(
-                        "[TryTaxi] {Callsign}: implicit cross of {Rwy} at node {NodeId} (already at/exiting {PriorRwy})",
-                        aircraft.Callsign,
-                        crossingRwy,
-                        firstCrossing.NodeId,
-                        priorRwy
-                    );
-                }
-            }
-        }
+        (string? implicitCrossLabel, HoldShortPoint? leftRunwayBar) = CarryPriorRunwayCrossing(aircraft, groundLayout, route);
 
         TaxiRouteAutoCross.Apply(route, options.AutoCrossRunwayMode, options.ActiveRunways.For(groundLayout.AirportId));
         ApplyCrossKeywords(route, taxi);
         PrefixClearOfRunwayAdvisory(route);
+
+        // Held on the runway after a LAHSO stop, a TAXI whose route enters the runway held short of is stored until CROSS
+        // (GroundCommandHandler.RolloutTaxi.cs); one that never enters it, or carries CROSS of it, is installed below.
+        if (TryStoreTaxiAtLahsoHold(new RolloutTaxiRequest(inputs, taxi, route, resolved), leftRunwayBar) is { } storedAtHold)
+        {
+            return storedAtHold;
+        }
 
         // Auto-detect runway from final node when no explicit destination runway; a CROSS at a taxiway hold keeps the one it has.
         RunwayInfo? detectedRunway = null;
@@ -618,7 +589,10 @@ public static partial class GroundCommandHandler
             msg += $" (blocked by {startBlocker})";
         }
 
-        var readbackSource = new TaxiRouteReadbackSource(route, groundLayout, asCleared, resolved.EndsShort, aircraft, options.ActiveRunways);
+        var readbackSource = new TaxiRouteReadbackSource(route, groundLayout, asCleared, resolved.EndsShort, aircraft, options.ActiveRunways)
+        {
+            LeftRunwayBar = leftRunwayBar,
+        };
         return CommandDispatcher.Ok(msg) with
         {
             EffectiveCommand = effectiveCommand,
@@ -629,6 +603,63 @@ public static partial class GroundCommandHandler
             // An unable answer is no route readback, so no CROSS or RES of the block reads it again.
             TaxiRouteReadback = (options.IsTaxiAuto || (unableEndHold is not null)) ? null : readbackSource,
         };
+    }
+
+    /// <summary>
+    /// The implicit first-crossing clearance <see cref="TryTaxiCore"/> carries over to a new route: the runway the aircraft is
+    /// holding short of, crossing past its entry marking, landing on or exiting, or standing on, whose carried crossing on
+    /// <paramref name="route"/> (<see cref="CarriedCrossing"/>) is cleared. Returns the crossing the readback states, and — when the
+    /// aircraft stands on that runway and leaves it — the bar it leaves by, cleared and unread, in its place. Both null otherwise.
+    /// </summary>
+    private static (string? ImplicitCrossLabel, HoldShortPoint? LeftRunwayBar) CarryPriorRunwayCrossing(
+        AircraftState aircraft,
+        AirportGroundLayout groundLayout,
+        TaxiRoute route
+    )
+    {
+        string? priorRwy = aircraft.Phases?.CurrentPhase switch
+        {
+            HoldingShortPhase priorHold when priorHold.HoldShort.TargetName is { Length: > 0 } heldRwy => heldRwy,
+            CrossingRunwayPhase crossing
+                when (crossing.RunwayId is { Length: > 0 } crossingRwyId) && (crossing.NosePastNearMarkingFt(aircraft, groundLayout) > 0.0) =>
+                crossingRwyId,
+            TaxiingPhase when TaxiingPhase.CrossingUnderwayRunway(aircraft, groundLayout) is { } underwayRwy => underwayRwy,
+            RunwayExitPhase exitPhase when exitPhase.RunwayId is { Length: > 0 } exitRwy => exitRwy,
+            HoldingAfterExitPhase afterExit when afterExit.RunwayId is { Length: > 0 } afterExitRwy => afterExitRwy,
+            RunwayHoldingPhase
+            or HoldingInPositionPhase
+                when (aircraft.Phases?.AssignedRunway?.Designator is { Length: > 0 } standingRwy)
+                    && TaxiPathfinder.IsOnRunwayPavement(groundLayout, aircraft.Position, standingRwy) => standingRwy,
+            _ => null,
+        };
+        string? implicitCrossLabel = null;
+        HoldShortPoint? leftRunwayBar = null;
+        if (priorRwy is not null)
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: runway crossing carried over to the new route: {PriorRwy} (phase {Phase})",
+                aircraft.Callsign,
+                priorRwy,
+                aircraft.Phases?.CurrentPhase?.GetType().Name ?? "none"
+            );
+            if (CarriedCrossing(route, groundLayout, aircraft, priorRwy) is { TargetName: { Length: > 0 } crossingRwy } firstCrossing)
+            {
+                firstCrossing.IsCleared = true;
+                // Standing on the runway, the aircraft leaves it rather than crosses it: the bar stays cleared, unread.
+                bool leavesStandingRunway = StandsOnRunway(aircraft);
+                leftRunwayBar = leavesStandingRunway ? firstCrossing : null;
+                implicitCrossLabel = leavesStandingRunway ? null : crossingRwy;
+                Log.LogInformation(
+                    "[TryTaxi] {Callsign}: implicit cross of {Rwy} at node {NodeId} (already at/exiting {PriorRwy})",
+                    aircraft.Callsign,
+                    crossingRwy,
+                    firstCrossing.NodeId,
+                    priorRwy
+                );
+            }
+        }
+
+        return (implicitCrossLabel, leftRunwayBar);
     }
 
     /// <summary>A TAXI resolved from where the aircraft stands, before anything is installed.</summary>
@@ -696,7 +727,7 @@ public static partial class GroundCommandHandler
         }
 
         var traffic = TaxiStartTraffic.Of(aircraft, NeighbourCandidate.OnGround(options.ListAircraft?.Invoke()));
-        if (groundLayout.PickTaxiStart(aircraft.Position, aircraft.TrueHeading, traffic) is not { } taxiStart)
+        if (groundLayout.PickTaxiStart(aircraft.Position, aircraft.TrueHeading, traffic, RunwayTaxiStart.Of(aircraft)) is not { } taxiStart)
         {
             Log.Log(
                 logLevels.Failure,
@@ -875,7 +906,14 @@ public static partial class GroundCommandHandler
         bool EndsShort,
         AircraftState Aircraft,
         ActiveRunways ActiveRunways
-    );
+    )
+    {
+        /// <summary>
+        /// The bar of the runway the aircraft stood on when cleared, carried as cleared and left unread: it leaves that runway, it
+        /// does not cross it (<see cref="PhraseologyVerbalizer.TaxiRouteReadbackInputs.SilentBars"/>). Null otherwise.
+        /// </summary>
+        public HoldShortPoint? LeftRunwayBar { get; init; }
+    }
 
     /// <summary>
     /// The TAXI route readback read again from <paramref name="source"/>'s route as it stands now, after the rest of its block
@@ -997,12 +1035,30 @@ public static partial class GroundCommandHandler
 
     /// <summary>
     /// The TAXI pilot readback read off the route as cleared and auto-crossed (<see cref="PhraseologyVerbalizer.RenderTaxiRouteReadback"/>):
-    /// it stops at the first hold short that stops the aircraft and reads the crossings before it. The taxiways said are
-    /// the ones the clearance named and the route's implied lanes, as in the controller's message, which keeps the full
-    /// route. Null, so the readback comes from the command, for a route with no segments and a drawn route of node
-    /// references alone, which is not voiced.
+    /// it stops at the first hold short that stops the aircraft and reads the crossings before it. Null, so the readback
+    /// comes from the command, when the route is not read back (<see cref="RouteReadbackInputs"/>).
     /// </summary>
-    private static HandlerReadback? RouteReadback(TaxiRouteReadbackSource source, RouteReadbackCrossings rebuild)
+    private static HandlerReadback? RouteReadback(TaxiRouteReadbackSource source, RouteReadbackCrossings rebuild) =>
+        RouteReadbackInputs(source, rebuild) is { } inputs ? RenderRouteReadback(source, inputs) : null;
+
+    /// <summary>
+    /// The TAXI route readback of <paramref name="source"/> read with <paramref name="inputs"/>
+    /// (<see cref="RouteReadbackInputs"/>): the route, then the issued taxiways past its end unless it ends short, opened with
+    /// the back-taxi it approves.
+    /// </summary>
+    private static HandlerReadback RenderRouteReadback(TaxiRouteReadbackSource source, PhraseologyVerbalizer.TaxiRouteReadbackInputs inputs)
+    {
+        IReadOnlyList<string> beyondRoute = source.EndsShort ? [] : IssuedTaxiwaysBeyondRoute(source.Route, source.Layout, source.AsCleared.Path);
+        PilotSpeechText speech = PhraseologyVerbalizer.RenderTaxiRouteReadback(source.AsCleared, inputs, beyondRoute);
+        return new HandlerReadback(CanonicalCommandType.Taxi, WithBackTaxi(speech, inputs.BackTaxiRunway));
+    }
+
+    /// <summary>
+    /// What a TAXI route readback reads off <paramref name="source"/>'s route. The taxiways said are the ones the clearance
+    /// named and the route's implied lanes, as in the controller's message, which keeps the full route. Null, so the readback
+    /// comes from the command, for a route with no segments and a drawn route of node references alone, which is not voiced.
+    /// </summary>
+    private static PhraseologyVerbalizer.TaxiRouteReadbackInputs? RouteReadbackInputs(TaxiRouteReadbackSource source, RouteReadbackCrossings rebuild)
     {
         TaxiRoute route = source.Route;
         AirportGroundLayout layout = source.Layout;
@@ -1025,7 +1081,7 @@ public static partial class GroundCommandHandler
             .. asCleared.DestinationRunway is { } rwy ? [rwy] : Array.Empty<string>(),
             .. rebuild.NamedRunways,
         ];
-        var inputs = new PhraseologyVerbalizer.TaxiRouteReadbackInputs(
+        return new PhraseologyVerbalizer.TaxiRouteReadbackInputs(
             route,
             0,
             NamedOrImplied(route, named),
@@ -1034,9 +1090,45 @@ public static partial class GroundCommandHandler
             rebuild.ExpeditedRunways,
             rebuild.UnclearedBars,
             new PhraseologyVerbalizer.RunwayEndChooser(source.Aircraft, layout, source.ActiveRunways)
-        );
-        IReadOnlyList<string> beyondRoute = source.EndsShort ? [] : IssuedTaxiwaysBeyondRoute(route, layout, asCleared.Path);
-        return new HandlerReadback(CanonicalCommandType.Taxi, PhraseologyVerbalizer.RenderTaxiRouteReadback(asCleared, inputs, beyondRoute));
+        )
+        {
+            SilentBars = source.LeftRunwayBar is { } leftBar ? [leftBar] : [],
+            BackTaxiRunway = BackTaxiRunway(asCleared, route, source),
+        };
+    }
+
+    /// <summary>
+    /// <paramref name="speech"/> opened with the back-taxi it approves on <paramref name="backTaxiRunway"/> ("back-taxi on runway
+    /// 28R, …"; the route readback already leaves out its leading leg on that runway,
+    /// <see cref="PhraseologyVerbalizer.TaxiRouteReadbackInputs.BackTaxiRunway"/>); unchanged when it approves none.
+    /// </summary>
+    private static PilotSpeechText WithBackTaxi(PilotSpeechText speech, string? backTaxiRunway) =>
+        backTaxiRunway is null
+            ? speech
+            : speech with
+            {
+                Terminal = $"back-taxi on runway {RunwayIdentifier.ToDisplayDesignator(backTaxiRunway)}, {speech.Terminal}",
+                Tts = $"back-taxi on runway {PhraseologyVerbalizer.SpellRunway(backTaxiRunway)}, {speech.Tts}",
+            };
+
+    /// <summary>
+    /// The runway a TAXI approves a back-taxi on: the one the clearance names first, when the aircraft stands on it and the route
+    /// turns the aircraft about there (<see cref="TaxiRoute.TurnAboutShape"/>). Null otherwise.
+    /// </summary>
+    private static string? BackTaxiRunway(TaxiCommand asCleared, TaxiRoute route, TaxiRouteReadbackSource source)
+    {
+        if ((asCleared.Path is not [{ } first, ..]) || !CommandParser.IsRunwayArg(first))
+        {
+            return null;
+        }
+
+        // Mid-edge the turn about opens with a free-space leg (TurnAboutShape); at a centreline node the route's first segment
+        // reverses along the runway (ReversingRunwayEdge, the query's own test).
+        GroundEdge? reversed =
+            (route.TurnAboutShape != TaxiTurnAboutShape.None)
+                ? source.Layout.FindOccupiedRunwayCenterlineEdge(source.Aircraft.Position, first)
+                : ReversingRunwayEdge(source.Aircraft, route);
+        return ((reversed is not null) && reversed.MatchesRunway(first)) ? first : null;
     }
 
     /// <summary>A taxiway the clearance named (<paramref name="named"/>) or one of the route's implied lanes: the ones a readback says.</summary>
@@ -1376,7 +1468,8 @@ public static partial class GroundCommandHandler
     /// or no route resolves from there, the clearance is re-planned from the edge's other endpoint, and that route wins when it resolves and does not
     /// drive the edge: the aircraft turns about on the taxiway. When its heading is less than <see cref="GroundNavigator.ReversalEntryThresholdDeg"/>
     /// off the bearing to the edge's other endpoint, the turn toward that endpoint is a corner, not a reversal, and any type takes that route on any
-    /// clearance. At a reversal, a type whose gear does not fit a turn about on a taxiway of its design group (<see cref="TurnAboutFit"/>) does not
+    /// clearance. At a reversal, a type whose gear does not fit a turn about where it stands (<see cref="TurnAboutFit"/>: on a runway centreline,
+    /// within the runway's half-width; elsewhere, on a taxiway of its design group) does not
     /// turn about on a controller's clearance: where that route would win it refuses for want of room to turn around, whether the endpoint ahead
     /// resolved a route or none. An aircraft holding after a pushback, or still under tow, is never refused that way: it turns about on the ramp it
     /// was pushed over (<see cref="TurnAboutVerdictFor"/>). A clearance no controller issued (<see cref="TaxiCoreOptions.ControllerIssued"/>) is
@@ -1391,7 +1484,8 @@ public static partial class GroundCommandHandler
     {
         if (MidEdgeEndingAt(inputs, startNode) is not { } occupied)
         {
-            return ResolveTaxiRouteFrom(inputs, taxi, startNode);
+            TaxiResolution plain = ResolveTaxiRouteFrom(inputs, taxi, startNode);
+            return AtNodeBackTaxiQuery(inputs, taxi, plain.Route) ?? plain;
         }
 
         TaxiResolution resolved = ResolveFromEitherEnd(inputs with { FailureLogLevel = LogLevel.Debug }, taxi, startNode, occupied);
@@ -1443,13 +1537,140 @@ public static partial class GroundCommandHandler
             return KeepRouteAhead(inputs, taxi, fromStart, occupied, otherEnd);
         }
 
+        // The back-taxi query comes before any fit verdict: a bare TAXI is queried whether or not the type has room to turn.
+        if (BackTaxiQuery(inputs, taxi, occupied, turned) is { } query)
+        {
+            return query;
+        }
+
         if (verdict == TurnAboutVerdict.Refuse)
         {
-            return NoRoomToTurnAround(inputs.Aircraft, taxi, occupied.TaxiwayName);
+            return NoRoomToTurnAroundOn(inputs, taxi, occupied);
         }
 
         ReportTurnAbout(inputs.Aircraft, turned, occupied, otherEnd, TaxiTurnAboutShape.FromFarEnd);
         return fromOtherEnd;
+    }
+
+    /// <summary>
+    /// On a runway centreline edge, a route that reverses along it from where the aircraft stands is a back-taxi: the clearance
+    /// approves it by naming the runway the aircraft stands on first ("TAXI 28R L"); otherwise the pilot queries it ("confirm
+    /// back-taxi on runway 28R to L?", or with no taxiway to name "confirm back-taxi on runway 28R?") and nothing changes. Null
+    /// when the edge is not a runway centreline or the clearance names the runway.
+    /// </summary>
+    private static TaxiResolution? BackTaxiQuery(TaxiResolveInputs inputs, TaxiCommand taxi, GroundEdge runwayEdge, TaxiRoute route)
+    {
+        // A clearance no controller issued (TAXIAUTO, a scenario's TAXI) cannot name the runway first: it keeps its turn-about rules.
+        if (!inputs.Options.ControllerIssued || !runwayEdge.IsRunwayCenterline || ((taxi.Path.Count > 0) && runwayEdge.MatchesRunway(taxi.Path[0])))
+        {
+            return null;
+        }
+
+        string runway = StandingRunwayEnd(inputs, runwayEdge);
+        string? turnOff = BackTaxiTurnOff(taxi, route);
+        if (turnOff is null)
+        {
+            Log.LogWarning("[TryTaxi] {Callsign}: back-taxi on {Runway} names no taxiway to turn off on", inputs.Aircraft.Callsign, runway);
+        }
+
+        PilotSpeechText query = PilotResponder.BuildConfirmBackTaxi(inputs.Aircraft, runway, turnOff);
+        Log.Log(
+            inputs.FailureLogLevel,
+            "[TryTaxi] {Callsign}: turn-off {TurnOff} is behind on {Runway}; querying the back-taxi",
+            inputs.Aircraft.Callsign,
+            turnOff ?? "(none)",
+            runway
+        );
+        return TaxiResolution.Refused(taxi, new CommandResult(false, query.Terminal) { PilotUnable = query });
+    }
+
+    /// <summary>
+    /// The taxiway a back-taxi turns off on: the clearance's first taxiway, else the route's first straight taxi edge's; never
+    /// a runway's own name. Null when there is none.
+    /// </summary>
+    private static string? BackTaxiTurnOff(TaxiCommand taxi, TaxiRoute route) =>
+        taxi.Path.FirstOrDefault(p => !p.StartsWith('#') && !CommandParser.IsRunwayArg(p))
+        ?? route
+            .Segments.FirstOrDefault(s => (s.Edge.Edge is GroundEdge { IsRunwayCenterline: false, IsRamp: false }) && (s.TaxiwayName.Length > 0))
+            ?.TaxiwayName;
+
+    /// <summary>
+    /// At rest on a runway centreline node (within <see cref="AirportGroundLayout.AtNodeToleranceFt"/> of the route's first
+    /// node), not on the rollout (<see cref="RunwayTaxiStart"/>): a route whose first segment runs along that runway's
+    /// centreline at least <see cref="GroundNavigator.ReversalEntryThresholdDeg"/> off the aircraft's heading reverses along the
+    /// runway, a back-taxi (<see cref="BackTaxiQuery"/>). Null otherwise.
+    /// </summary>
+    private static TaxiResolution? AtNodeBackTaxiQuery(TaxiResolveInputs inputs, TaxiCommand taxi, TaxiRoute? route) =>
+        ((route is not null) && (ReversingRunwayEdge(inputs.Aircraft, route) is { } runwayEdge))
+            ? BackTaxiQuery(inputs, taxi, runwayEdge, route)
+            : null;
+
+    /// <summary>
+    /// The runway centreline edge <paramref name="route"/>'s first segment reverses along from where <paramref name="aircraft"/>
+    /// stands, off the rollout (<see cref="RunwayTaxiStart"/>): the segment starts within
+    /// <see cref="AirportGroundLayout.AtNodeToleranceFt"/> of the aircraft and runs at least
+    /// <see cref="GroundNavigator.ReversalEntryThresholdDeg"/> off its heading. The one test of a back-taxi from a centreline
+    /// node, for the query (<see cref="AtNodeBackTaxiQuery"/>) and the readback (<see cref="WithBackTaxi"/>). Null otherwise.
+    /// </summary>
+    private static GroundEdge? ReversingRunwayEdge(AircraftState aircraft, TaxiRoute route)
+    {
+        if (
+            (route.Segments is not [{ Edge.Edge: GroundEdge { IsRunwayCenterline: true } runwayEdge } first, ..])
+            || !RunwayTaxiStart.Of(aircraft).FromCenterline
+        )
+        {
+            return null;
+        }
+
+        double fromNodeFt = GeoMath.DistanceNm(aircraft.Position, first.Edge.FromNode.Position) * GeoMath.FeetPerNm;
+        double offHeadingDeg = GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, first.Edge.DepartureBearing);
+        bool reverses = (fromNodeFt <= AirportGroundLayout.AtNodeToleranceFt) && (offHeadingDeg >= GroundNavigator.ReversalEntryThresholdDeg);
+        return reverses ? runwayEdge : null;
+    }
+
+    /// <summary>
+    /// The end of the runway <paramref name="occupied"/> is a centreline of that the aircraft faces: its assigned runway when that
+    /// is this runway, else the end whose designator bearing is nearest the aircraft's heading — the ends of the layout's runway
+    /// record, else those the edge's name carries (<see cref="EdgeRunwayEnds"/>).
+    /// </summary>
+    private static string StandingRunwayEnd(TaxiResolveInputs inputs, GroundEdge occupied)
+    {
+        AircraftState aircraft = inputs.Aircraft;
+        if ((aircraft.Phases?.AssignedRunway?.Designator is { Length: > 0 } assigned) && occupied.MatchesRunway(assigned))
+        {
+            return assigned;
+        }
+
+        GroundRunway? runway = inputs.Layout.Runways.FirstOrDefault(r => occupied.MatchesRunway(r.Id.End1) || occupied.MatchesRunway(r.Id.End2));
+        (string end1, string end2) = (runway is null) ? EdgeRunwayEnds(occupied) : (runway.Id.End1, runway.Id.End2);
+        double OffHeadingDeg(string end) => GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, DesignatorBearingDeg(end));
+        return (OffHeadingDeg(end1) <= OffHeadingDeg(end2)) ? end1 : end2;
+    }
+
+    /// <summary>
+    /// The two runway ends a centreline edge's name carries ("RWY10L/28R" → 10L, 28R); the one end twice when it names one.
+    /// </summary>
+    private static (string End1, string End2) EdgeRunwayEnds(GroundEdge edge)
+    {
+        string[] ends = edge
+            .TaxiwayName.Replace("RWY", "", StringComparison.OrdinalIgnoreCase)
+            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return (ends.Length >= 2) ? (ends[0], ends[1]) : (ends.FirstOrDefault() ?? edge.TaxiwayName, ends.FirstOrDefault() ?? edge.TaxiwayName);
+    }
+
+    /// <summary>
+    /// The bearing (deg) a runway designator names (<see cref="RunwayIdentifier.DesignatorHeadingDeg"/>): "28R" → 280. One with no
+    /// runway number is logged and taken as 0°.
+    /// </summary>
+    private static double DesignatorBearingDeg(string designator)
+    {
+        if (RunwayIdentifier.DesignatorHeadingDeg(designator) is { } headingDeg)
+        {
+            return headingDeg;
+        }
+
+        Log.LogWarning("[TryTaxi] runway designator '{Designator}' carries no runway number; its bearing is taken as 0°", designator);
+        return 0.0;
     }
 
     /// <summary>What a turn about on the taxiway the aircraft stands mid-way along is open to, by aircraft and clearance.</summary>
@@ -1482,8 +1703,9 @@ public static partial class GroundCommandHandler
     /// whole way, so the ramp it was pushed over is pavement to turn on. When the aircraft's
     /// heading is less than <see cref="GroundNavigator.ReversalEntryThresholdDeg"/> off the bearing to
     /// <paramref name="otherEnd"/>, turning toward it is a corner the navigator flies, not a reversal, so every type turns
-    /// on every clearance. At a reversal the verdict goes by whether the type's gear fits a turn about on a taxiway of its
-    /// design group (<see cref="TurnAboutFit"/>) and who issued the clearance.
+    /// on every clearance. At a reversal the verdict goes by whether the type's gear fits a turn about where it stands
+    /// (<see cref="TurnAboutFit"/>: on a runway centreline, within the runway's half-width; elsewhere, on a taxiway of its
+    /// design group) and who issued the clearance.
     /// </summary>
     private static (TurnAboutVerdict Verdict, string Reason) TurnAboutVerdictFor(TaxiResolveInputs inputs, GroundNode otherEnd)
     {
@@ -1504,7 +1726,11 @@ public static partial class GroundCommandHandler
             return (TurnAboutVerdict.TurnAbout, $"corner {offOtherEndDeg:F0}°");
         }
 
-        if (TurnAboutFit.Evaluate(aircraft.AircraftType, inputs.Category).Fits)
+        if (
+            TurnAboutFit
+                .EvaluateAt(aircraft.AircraftType, inputs.Category, inputs.Layout, aircraft.Position, aircraft.Phases?.AssignedRunway?.Designator)
+                .Fits
+        )
         {
             return (TurnAboutVerdict.TurnAbout, $"reversal {offOtherEndDeg:F0}°, gear fits");
         }
@@ -1543,9 +1769,14 @@ public static partial class GroundCommandHandler
             return fromStart;
         }
 
+        if (BackTaxiQuery(inputs, taxi, occupied, ahead) is { } query)
+        {
+            return query;
+        }
+
         if (TurnAboutVerdictFor(inputs, otherEnd).Verdict == TurnAboutVerdict.Refuse)
         {
-            return NoRoomToTurnAround(inputs.Aircraft, taxi, occupied.TaxiwayName);
+            return NoRoomToTurnAroundOn(inputs, taxi, occupied);
         }
 
         ReportTurnAbout(inputs.Aircraft, ahead, occupied, otherEnd, TaxiTurnAboutShape.InPlace);
@@ -1580,6 +1811,41 @@ public static partial class GroundCommandHandler
         (route.Segments is [{ } first, ..])
         && (first.ToNodeId == otherEnd.Id)
         && (VirtualNode.IsVirtualEdge(first.Edge.Edge) || ReferenceEquals(first.Edge.Edge, occupied));
+
+    /// <summary>
+    /// The refusal of a type whose turn about does not fit on <paramref name="occupied"/>: on a runway centreline it names the
+    /// runway end the aircraft stands on (<see cref="StandingRunwayEnd"/>), "no room to turn around on runway 28R", spoken
+    /// "… on runway two eight right …"; on a taxiway it names the taxiway (<see cref="NoRoomToTurnAround"/>).
+    /// </summary>
+    private static TaxiResolution NoRoomToTurnAroundOn(TaxiResolveInputs inputs, TaxiCommand taxi, GroundEdge occupied)
+    {
+        if (!occupied.IsRunwayCenterline)
+        {
+            return NoRoomToTurnAround(inputs.Aircraft, taxi, occupied.TaxiwayName);
+        }
+
+        string runway = StandingRunwayEnd(inputs, occupied);
+        string reason = NoRoomToTurnAroundReason($"runway {runway}");
+        string spokenReason = NoRoomToTurnAroundReason($"runway {PhraseologyVerbalizer.SpellRunway(runway)}");
+        var unable = new PilotSpeechText(
+            PilotResponder.BuildUnable(inputs.Aircraft, reason).Terminal,
+            PilotResponder.BuildUnable(inputs.Aircraft, spokenReason).Tts
+        );
+        return TaxiResolution.Refused(taxi, new CommandResult(false, reason) { PilotUnable = unable });
+    }
+
+    /// <summary>
+    /// Whether an exit instruction for <paramref name="preference"/> replaces the stored taxi route. A route stored behind the
+    /// rollout's exit (a TAXI on the rollout) is the plan for the exit it was given with: an instruction naming another turn-off
+    /// replaces it, and the aircraft exits there and holds clear for a new TAXI. Held on the runway after a LAHSO stop, any exit
+    /// instruction replaces a stored TAXI: the latest instruction wins.
+    /// </summary>
+    private static bool ExitReplacesStoredTaxiRoute(PhaseList phases, ExitPreference preference) =>
+        (phases.TaxiRoute is not null)
+        && (
+            (phases.CurrentPhase is RunwayHoldingPhase)
+            || !string.Equals(preference.Taxiway, phases.RequestedExit?.Taxiway, StringComparison.OrdinalIgnoreCase)
+        );
 
     /// <summary>The refusal, terminal and spoken, of a type whose gear does not fit, asked to turn about on <paramref name="taxiway"/>.</summary>
     private static TaxiResolution NoRoomToTurnAround(AircraftState aircraft, TaxiCommand taxi, string taxiway) =>
@@ -1639,14 +1905,41 @@ public static partial class GroundCommandHandler
     public static string NoRoomToTurnAroundReason(string taxiway) => $"Unable, no room to turn around on {taxiway}, request a route ahead";
 
     /// <summary>
-    /// The straight taxi edge the aircraft stands mid-way along (<see cref="AirportGroundLayout.FindMidEdgeTaxiStart"/>)
-    /// when <paramref name="startNode"/> is one of its ends, so the other end is worth planning from; null otherwise.
+    /// The straight taxi edge — else, off the rollout, the runway centreline edge — the aircraft stands mid-way along
+    /// (<see cref="AirportGroundLayout.FindMidEdgeStart"/>, the judge the client's turn-about drawing shares) when
+    /// <paramref name="startNode"/> is one of its ends, so the other end is worth planning from; null otherwise.
     /// </summary>
     private static GroundEdge? MidEdgeEndingAt(TaxiResolveInputs inputs, GroundNode startNode) =>
-        (inputs.Layout.FindMidEdgeTaxiStart(inputs.Aircraft.Position) is { } occupied)
+        (inputs.Layout.FindMidEdgeStart(inputs.Aircraft.Position, RunwayTaxiStart.Of(inputs.Aircraft)) is { } occupied)
         && ((occupied.Nodes[0] == startNode) || (occupied.Nodes[1] == startNode))
             ? occupied
             : null;
+
+    /// <summary>Whether the aircraft stands on its runway holding (<see cref="RunwayHoldingPhase"/>, <see cref="HoldingInPositionPhase"/>).</summary>
+    private static bool StandsOnRunway(AircraftState aircraft) => aircraft.Phases?.CurrentPhase is RunwayHoldingPhase or HoldingInPositionPhase;
+
+    /// <summary>
+    /// The runway-crossing hold short of <paramref name="route"/> a TAXI carries over as cleared for <paramref name="priorRwy"/>,
+    /// the runway the aircraft is at or on: standing on it (<see cref="StandsOnRunway"/>), the crossing of that runway where the
+    /// route leaves it (<see cref="HoldShortAnnotator.IsBarLeavingRunway"/>), past any other runway's crossing; otherwise the
+    /// route's first crossing when it is of that runway. Null when there is none.
+    /// </summary>
+    internal static HoldShortPoint? CarriedCrossing(TaxiRoute route, AirportGroundLayout layout, AircraftState aircraft, string priorRwy)
+    {
+        bool IsOfPriorRunway(HoldShortPoint h) =>
+            (h.Reason == HoldShortReason.RunwayCrossing)
+            && (h.TargetName is { Length: > 0 } target)
+            && RunwayIdentifier.Parse(target).Overlaps(RunwayIdentifier.Parse(priorRwy));
+        if (!StandsOnRunway(aircraft))
+        {
+            HoldShortPoint? first = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
+            return ((first is not null) && IsOfPriorRunway(first)) ? first : null;
+        }
+
+        return route.HoldShortPoints.FirstOrDefault(h =>
+            IsOfPriorRunway(h) && route.Segments.Any(s => (s.ToNodeId == h.NodeId) && HoldShortAnnotator.IsBarLeavingRunway(layout, s))
+        );
+    }
 
     /// <summary>
     /// True when <paramref name="route"/> drives <paramref name="edge"/>, the edge the aircraft stands on, before it first
@@ -6771,7 +7064,8 @@ public static partial class GroundCommandHandler
             return new CommandResult(false, HoldingShortPhase.RouteIncompleteMessage(holdPhase.HoldShort.TargetName));
         }
 
-        List<HoldShortPoint> targets = CrossingTargets(aircraft, cross, releasesHold ? holdPhase : null);
+        // A release from the post-LAHSO runway hold clears no bar of a stored route, so it marks none expedited either.
+        List<HoldShortPoint> targets = releasesLahsoHold ? [] : CrossingTargets(aircraft, cross, releasesHold ? holdPhase : null);
         List<HoldShortPoint> marked = [];
         if (cross.Expedite)
         {
@@ -6901,10 +7195,21 @@ public static partial class GroundCommandHandler
         ActiveRunways activeRunways
     )
     {
-        // Stopped on the runway after a LAHSO landing: the hold is short of the intersecting runway, with no route behind it.
+        // Stopped on the runway after a LAHSO landing: the hold is short of the intersecting runway, with no route of its own
+        // behind it; a TAXI may have stored one at the hold or on the rollout.
         if (aircraft.Phases is { CurrentPhase: RunwayHoldingPhase runwayHold } phases)
         {
-            return TryReleaseLahsoHold(aircraft, phases, runwayHold, cross);
+            // A TAXI stored at the hold starts now, from where the aircraft stands (GroundCommandHandler.RolloutTaxi.cs); a route
+            // stored on the rollout is joined from the runway exit after the release, as before.
+            AirportGroundLayout? heldLayout = ResolvedLayout(aircraft, layout);
+            bool startsStoredRoute = StoredRouteStartsAtAircraft(aircraft, heldLayout);
+            CommandResult release = TryReleaseLahsoHold(aircraft, phases, runwayHold, cross, startsStoredRoute);
+            if (release.Success && startsStoredRoute)
+            {
+                StartTaxiStoredAtLahsoHold(aircraft, heldLayout!, activeRunways);
+            }
+
+            return release;
         }
 
         // Bare CROSS: clear the next uncleared hold-short on the route.
@@ -6938,13 +7243,16 @@ public static partial class GroundCommandHandler
     /// CROSS to an aircraft held on the runway after a LAHSO stop (<see cref="RunwayHoldingPhase"/>). A bare CROSS, or one naming
     /// the runway it holds short of (either end) and nothing else, is the crossing clearance: it satisfies the hold and voids the
     /// LAHSO limit, so the runway exit that follows may take any exit past the point. A CROSS that carries hold-short targets, or
-    /// names any other runway, is refused: releasing the hold would drop the rest of the instruction.
+    /// names any other runway, is refused: releasing the hold would drop the rest of the instruction. The hold has no route of
+    /// its own; a route stored at it starts from the aircraft on the release (<paramref name="startsStoredRoute"/>), and one
+    /// stored on the rollout is joined from the runway exit that follows.
     /// </summary>
     private static CommandResult TryReleaseLahsoHold(
         AircraftState aircraft,
         PhaseList phases,
         RunwayHoldingPhase runwayHold,
-        CrossRunwayCommand cross
+        CrossRunwayCommand cross,
+        bool startsStoredRoute
     )
     {
         string crossing = runwayHold.CrossingRunwayId;
@@ -6962,8 +7270,13 @@ public static partial class GroundCommandHandler
         }
 
         // The crossing's EXP is the runway exit's own expedite, the field RunwayExitPhase reads for a max-effort exit and the one
-        // EXIT … EXP sets. A plain CROSS leaves a standing exit expedite alone.
-        if (cross.Expedite)
+        // EXIT … EXP sets. A release that starts a stored route (startsStoredRoute) runs no exit: its EXP is the route's
+        // expedite. A plain CROSS leaves a standing expedite alone.
+        if (cross.Expedite && startsStoredRoute)
+        {
+            aircraft.Ground.IsExpeditingTaxi = true;
+        }
+        else if (cross.Expedite)
         {
             aircraft.Ground.IsExpeditingExit = true;
         }
@@ -6971,11 +7284,12 @@ public static partial class GroundCommandHandler
         runwayHold.SatisfyClearance(ClearanceType.RunwayCrossing);
         phases.LahsoHoldShort = null;
         Log.LogDebug("[LAHSO] {Callsign}: cleared to cross runway {CrossRwy}", aircraft.Callsign, crossing);
-        // The release reads its own "without delay": the hold has no route for the crossing to carry it on, and a command naming
-        // several runways has no continuation readback of its own to say it (TryCrossRunway skips WithExpediteEcho for a release).
+        // The release reads its own "without delay": the hold's crossing is no hold short on a route that would carry it, and a
+        // command naming several runways has no continuation readback of its own to say it (TryCrossRunway skips
+        // WithExpediteEcho for a release).
         string expedite = cross.Expedite ? CommandDescriber.WithoutDelaySuffix : "";
         // The pilot reads the crossing back itself, "cross runway one left" (7110.65 §3-7-2.a.3), with the expedite after it
-        // (§3-7-2.j): the hold has no route whose continuation would say it.
+        // (§3-7-2.j): no route continuation says it, not even a stored route's, whose readback came with its TAXI.
         return CommandDispatcher.Ok($"Cross {display}{expedite}") with
         {
             PilotReadback = new HandlerReadback(
@@ -9017,12 +9331,7 @@ public static partial class GroundCommandHandler
             aircraft.Phases.GivenUpExitTaxiways.Remove(revivedTaxiway);
         }
 
-        // A taxi route stored behind the rollout's exit (a TAXI on the rollout) is the plan for the exit it was given with: an
-        // instruction naming another turn-off replaces it, and the aircraft exits there and holds clear for a new TAXI.
-        if (
-            (aircraft.Phases.TaxiRoute is not null)
-            && !string.Equals(preference.Taxiway, aircraft.Phases.RequestedExit?.Taxiway, StringComparison.OrdinalIgnoreCase)
-        )
+        if (ExitReplacesStoredTaxiRoute(aircraft.Phases, preference))
         {
             Log.LogInformation("[Exit] {Callsign}: new exit instruction replaces the stored taxi route", aircraft.Callsign);
             aircraft.Phases.ClearStoredTaxiRoute();

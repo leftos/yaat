@@ -179,6 +179,27 @@ public readonly partial struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     public static string NormalizeDesignator(string designator) => Normalize(designator);
 
     /// <summary>
+    /// The magnetic heading (degrees, 0–350) a runway designator's leading runway number encodes: "28R" → 280, "36" → 0. Null
+    /// when the designator has no leading runway number (1–36).
+    /// </summary>
+    public static double? DesignatorHeadingDeg(string designator)
+    {
+        int number = 0;
+        int digits = 0;
+        while ((digits < designator.Length) && char.IsAsciiDigit(designator[digits]))
+        {
+            number = (number * 10) + (designator[digits] - '0');
+            digits++;
+            if (number > 36)
+            {
+                return null;
+            }
+        }
+
+        return number is >= 1 and <= 36 ? (number % 36) * 10.0 : null;
+    }
+
+    /// <summary>
     /// Strips the leading zero from zero-padded single-digit runway designators for display,
     /// the inverse of <see cref="NormalizeDesignator"/>. FAA convention omits the leading zero,
     /// so this is the form shown to users (UI labels, command results, TTS): "08R" → "8R",
