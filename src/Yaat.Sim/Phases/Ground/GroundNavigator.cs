@@ -816,13 +816,13 @@ public sealed class GroundNavigator
     /// <param name="BearingDeg">The heading (deg true) held straight while braking.</param>
     /// <param name="PivotKts">The turn about's pivot speed (<see cref="CategoryPerformance.TurnAboutSpeedKts"/>).</param>
     /// <param name="DecelRateKts">The brake rate (kts/s): the gentlest of <see cref="RollingTurnAboutBrakeRates"/> that leaves room.</param>
-    private sealed record TurnAboutBrakeLeg(LatLon EndPoint, double BearingDeg, double PivotKts, double DecelRateKts);
+    internal sealed record TurnAboutBrakeLeg(LatLon EndPoint, double BearingDeg, double PivotKts, double DecelRateKts);
 
     /// <summary>
     /// How far above its pivot speed (kts) a rolling aircraft's turn about may begin: the physics overshoot within one
     /// sub-tick. The brake leg ends, and the turn about begins, once the speed is down to the pivot speed plus this.
     /// </summary>
-    private const double TurnSpeedOvershootKts = 0.2;
+    internal const double TurnSpeedOvershootKts = 0.2;
 
     /// <summary>How near (ft) the brake leg's end point the aircraft must be, at its pivot speed, for the turn about to begin.</summary>
     private const double BrakeEndToleranceFt = 1.0;
@@ -1373,8 +1373,10 @@ public sealed class GroundNavigator
     ///
     /// <para>
     /// A reversal on a taxiway — free-space leg or painted edge alike — is built ahead of both as a turn about centred on
-    /// the centreline (<see cref="BuildTaxiwayTurnAbout"/>), at the tight-turn radius and its own pivot speed; the
-    /// comfortable-radius arcs above stay for reversals on ramps, aprons and stand lead-ins.
+    /// the centreline (<see cref="BuildTaxiwayTurnAbout"/>), at the tight-turn radius and its own pivot speed; a same-edge
+    /// reversal on a ramp taxilane is turned about at the reversal node when the room allows
+    /// (<see cref="RampLaneTurnAboutSite"/>); the comfortable-radius arcs above stay for other reversals on ramps, aprons and
+    /// stand lead-ins, and for a ramp-lane reversal the turn about cannot be solved for.
     /// </para>
     ///
     /// <para>
@@ -1385,7 +1387,7 @@ public sealed class GroundNavigator
     ///
     /// <para>
     /// Null when a rolling aircraft has no room to turn about on its taxiway: it stops and holds instead, and says unable
-    /// (<see cref="HoldUnableToTurnAbout"/>). A rolling turn about never falls back to the arcs below. Null too when an
+    /// (<see cref="HoldUnableToTurnAbout"/>). A rolling turn about on a taxiway never falls back to the arcs below. Null too when an
     /// aircraft at rest would carry a part past a runway's hold line on its turn about or on the arc built here: it holds where
     /// it stands and says unable (<see cref="HoldUnableFromRest"/>).
     /// </para>
@@ -1464,8 +1466,8 @@ public sealed class GroundNavigator
         // whose short way runs into the route's own next turn is taken the other way instead, so the two
         // sweeps cancel rather than compounding into one loop round the compass.
         double dthetaDeg = GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, seg.Edge.DepartureBearing);
-        bool reversalFlip = ShouldReverseAgainstShortWay(dthetaDeg, SignedTurnAfterEntry(route, seg));
-        bool rightTurn = (dthetaDeg > 0) != reversalFlip;
+        bool rightTurn = ReversalTurnsRight(route, seg, ctx, CurrentPose(ctx), roundingRadiusFt);
+        bool reversalFlip = rightTurn != (dthetaDeg > 0);
 
         // A reversal is aimed at a node, in that chosen direction: its half turn cannot end ON the outgoing
         // centerline, only parallel to it a diameter away.
@@ -1638,6 +1640,11 @@ public sealed class GroundNavigator
             return null;
         }
 
+        if (RampLaneTurnAboutSite(route, seg, ctx) is { } ramp)
+        {
+            return (SolveTurnAboutAt(route, seg, ctx, ramp.Site) is { } onRamp) ? (onRamp, ramp.Brake) : null;
+        }
+
         if (IsAtPivotSpeed(ctx))
         {
             return (SolveTurnAboutFromRest(route, seg, ctx) is { } fromRest) ? (fromRest, null) : null;
@@ -1702,7 +1709,7 @@ public sealed class GroundNavigator
     }
 
     /// <summary>The aircraft's turn-about pivot speed (kts) on its turn-about radius (<see cref="CategoryPerformance.TurnAboutSpeedKts"/>).</summary>
-    private static double PivotKts(PhaseContext ctx) => CategoryPerformance.TurnAboutSpeedKts(ctx.Category, TurnAboutFitOf(ctx).RadiusFt);
+    internal static double PivotKts(PhaseContext ctx) => CategoryPerformance.TurnAboutSpeedKts(ctx.Category, TurnAboutFitOf(ctx).RadiusFt);
 
     /// <summary>
     /// Whether the aircraft is at or under its pivot speed (plus <see cref="TurnSpeedOvershootKts"/>): it turns about from where
@@ -2045,8 +2052,8 @@ public sealed class GroundNavigator
         TurnAboutPose pose = site.Pose;
         double dthetaDeg = GeoMath.SignedBearingDifference(pose.HeadingDeg, seg.Edge.DepartureBearing);
         double nextTurnDeg = SignedTurnAfterEntry(route, seg);
-        bool reversalFlip = ShouldReverseAgainstShortWay(dthetaDeg, nextTurnDeg) != site.Mirror;
-        bool rightTurn = (dthetaDeg > 0) != reversalFlip;
+        bool rightTurn = ReversalTurnsRight(route, seg, ctx, pose, radiusFt) != site.Mirror;
+        bool reversalFlip = rightTurn != (dthetaDeg > 0);
 
         PathPrimitiveSlowTurn? jog =
             (ctx.Category == AircraftCategory.Helicopter) ? null : BuildTurnAboutJog(edge, ctx, pose, seg.FromNodeId, rightTurn);
@@ -3461,6 +3468,194 @@ public sealed class GroundNavigator
         && (nextTurnDeg != 0.0)
         && (Math.Sign(nextTurnDeg) == Math.Sign(dthetaDeg))
         && (((2.0 * Math.Abs(dthetaDeg)) + Math.Abs(nextTurnDeg)) > 360.0);
+
+    /// <summary>
+    /// Which way a reversal from <paramref name="pose"/> onto <paramref name="seg"/> turns, true for right: the way the
+    /// anti-loop guard sweeps it (<see cref="ShouldReverseAgainstShortWay"/>) whenever that fires; else, for a reversal back
+    /// over the ramp-lane edge it arrived on, toward the side with clearly more room (<see cref="RampLaneReversalTurnsRight"/>);
+    /// else the short way.
+    /// </summary>
+    private static bool ReversalTurnsRight(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx, TurnAboutPose pose, double radiusFt)
+    {
+        double dthetaDeg = GeoMath.SignedBearingDifference(pose.HeadingDeg, seg.Edge.DepartureBearing);
+        bool againstShortWay = ShouldReverseAgainstShortWay(dthetaDeg, SignedTurnAfterEntry(route, seg));
+        bool? byRoom = againstShortWay ? null : RampLaneReversalTurnsRight(route, seg, ctx, pose, radiusFt);
+        return byRoom ?? ((dthetaDeg > 0) != againstShortWay);
+    }
+
+    /// <summary>
+    /// Which way a reversal back over the ramp-taxilane edge it arrived on (<see cref="RampLaneReversalEdge"/>) turns: toward
+    /// the side with more room, the side whose point one turning radius (<paramref name="radiusFt"/>) out from
+    /// <paramref name="pose"/> lies further from the nearest centreline of any other taxiway or taxilane
+    /// (<see cref="RampLaneReposition.NearestOtherCentrelineFt"/>) — a turn about between two parallel ramp lanes swings away
+    /// from the neighbouring lane, not into it (SFO T7A beyond spot 7A, with T7 to the east). Null — the short way
+    /// decides — when the entry is not such a reversal, or the two sides' room differs by no more than the aircraft's
+    /// half-span.
+    /// </summary>
+    /// <returns>True to turn right, false to turn left, or null.</returns>
+    private static bool? RampLaneReversalTurnsRight(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx, TurnAboutPose pose, double radiusFt)
+    {
+        double dthetaDeg = GeoMath.SignedBearingDifference(pose.HeadingDeg, seg.Edge.DepartureBearing);
+        if ((Math.Abs(dthetaDeg) < ReversalEntryThresholdDeg) || (RampLaneReversalEdge(route, seg, ctx) is not { } reversal))
+        {
+            return null;
+        }
+
+        AirportGroundLayout layout = reversal.Layout;
+        double rightRoomFt = SideRoomFt(layout, pose.Position, pose.HeadingDeg + 90.0, radiusFt, seg.TaxiwayName);
+        double leftRoomFt = SideRoomFt(layout, pose.Position, pose.HeadingDeg + 270.0, radiusFt, seg.TaxiwayName);
+        double halfSpanFt = AircraftFootprint.ResolveWingspanFt(ctx.Aircraft.AircraftType) / 2.0;
+        bool decides = Math.Abs(rightRoomFt - leftRoomFt) > halfSpanFt;
+        bool right = rightRoomFt > leftRoomFt;
+        Log.LogDebug(
+            "[Nav] {Callsign} reversal back over ramp lane {Lane}: {RightRoom:F0} ft to the nearest other centreline on the right, "
+                + "{LeftRoom:F0} ft on the left, a {Radius:F0} ft turning radius out; {Verdict}",
+            ctx.Aircraft.Callsign,
+            seg.TaxiwayName,
+            rightRoomFt,
+            leftRoomFt,
+            radiusFt,
+            decides ? $"turns {(right ? "right" : "left")}, the side with more room" : $"within the {halfSpanFt:F0} ft half-span: the short way"
+        );
+        return decides ? right : null;
+    }
+
+    /// <summary>
+    /// The ramp-taxilane edge a reversal at <paramref name="seg"/>'s start runs back over, and its layout: the route's
+    /// previous segment arrived along that same straight edge (its ends swapped), and the edge is a ramp taxilane. Null for
+    /// anything else — a corner onto a ramp lane from another edge, a route's first segment, an arc.
+    /// </summary>
+    private static (GroundEdge Edge, AirportGroundLayout Layout, TaxiRouteSegment Arrived)? RampLaneReversalEdge(
+        TaxiRoute route,
+        TaxiRouteSegment seg,
+        PhaseContext ctx
+    )
+    {
+        if ((route.CurrentSegmentIndex == 0) || (seg.Edge.Edge is not GroundEdge edge) || (ctx.GroundLayout is not { } layout))
+        {
+            return null;
+        }
+
+        TaxiRouteSegment arrived = route.Segments[route.CurrentSegmentIndex - 1];
+        bool backOverIt = (arrived.FromNodeId == seg.ToNodeId) && (arrived.ToNodeId == seg.FromNodeId) && (arrived.Edge.Edge is GroundEdge);
+        return (backOverIt && RampLaneReposition.IsRampTaxilane(layout, edge.TaxiwayName)) ? (edge, layout, arrived) : null;
+    }
+
+    /// <summary>
+    /// Where a mid-route reversal back over a ramp-taxilane edge (<see cref="RampLaneReversalEdge"/>) turns about with the
+    /// turn-about solver (<see cref="SolveTurnAboutAt"/>) rather than the comfortable-radius arc, and the brake leg that
+    /// carries the aircraft there: the aircraft stands on that edge (within <see cref="AirportGroundLayout.OnTaxiEdgeMaxOffsetFt"/>
+    /// of it), and the type's wingtip circle — its turn-about radius (<see cref="TurnAboutFitOf"/>) plus its half-span —
+    /// centred on the reversal node clears the nearest centreline of any other taxiway or taxilane
+    /// (<see cref="RampLaneReposition.NearestOtherCentrelineFt"/>). A ramp is apron, so the type's design-group half-width
+    /// does not bound the turn; the room does. The turn about is solved at the reversal node, facing on along the edge it
+    /// arrived on — where a spot line-up from past the spot measured the run back from — and the aircraft brakes
+    /// along the edge to its pivot speed by that node first (<see cref="TryRampLaneBrakeLeg"/>). Null — today's arc — otherwise.
+    /// </summary>
+    private static (TurnAboutSite Site, TurnAboutBrakeLeg? Brake)? RampLaneTurnAboutSite(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx)
+    {
+        if (RampLaneReversalEdge(route, seg, ctx) is not { } reversal)
+        {
+            return null;
+        }
+
+        (GroundEdge edge, AirportGroundLayout layout, TaxiRouteSegment arrived) = reversal;
+        LatLon position = ctx.Aircraft.Position;
+        GroundNode node = seg.Edge.FromNode;
+        double reachFt = TurnAboutFitOf(ctx).RadiusFt + (AircraftFootprint.ResolveWingspanFt(ctx.Aircraft.AircraftType) / 2.0);
+        double roomFt = RampLaneReposition.NearestOtherCentrelineFt(layout, node.Position, edge.TaxiwayName);
+        bool onEdge =
+            GeoMath.DistanceToSegmentFt(position, edge.Nodes[0].Position, edge.Nodes[1].Position) <= AirportGroundLayout.OnTaxiEdgeMaxOffsetFt;
+        bool fits = onEdge && (roomFt >= reachFt);
+        Log.LogDebug(
+            "[Nav] {Callsign} reversal at ramp-lane node {Node} on {Lane}: {Room:F0} ft to the nearest other centreline, wingtip circle "
+                + "{Reach:F1} ft, {ToNode:F0} ft from the node, {Where} the edge: {Verdict}",
+            ctx.Aircraft.Callsign,
+            seg.FromNodeId,
+            edge.TaxiwayName,
+            roomFt,
+            reachFt,
+            GeoMath.DistanceNm(position, node.Position) * GeoMath.FeetPerNm,
+            onEdge ? "on" : "off",
+            fits ? "ramp-lane turn about at the node" : "comfortable-radius arc"
+        );
+        if (!fits || !TryRampLaneBrakeLeg(ctx, node, arrived.Edge.ArrivalBearing, out TurnAboutBrakeLeg? brake))
+        {
+            return null;
+        }
+
+        var site = new TurnAboutSite
+        {
+            Edge = edge,
+            ReturnNodeId = seg.ToNodeId,
+            Pose = new TurnAboutPose(node.Position, arrived.Edge.ArrivalBearing),
+            Pavement = null,
+            MayReAim = false,
+            Mirror = false,
+        };
+        return (site, brake);
+    }
+
+    /// <summary>
+    /// The brake leg that carries an aircraft on along a ramp lane to the reversal node <paramref name="node"/> at its pivot
+    /// speed (<see cref="PivotKts"/>), braking at the gentlest of <see cref="RollingTurnAboutBrakeRates"/> that reaches it by the
+    /// node, as a rolling turn about at the node ahead does (<see cref="PlanTurnAboutAtNodeAhead"/>): a null leg when the
+    /// aircraft is at the node (within <see cref="BrakeEndToleranceFt"/>, not past it) at its pivot speed. False, logged, when
+    /// it has overrun the node, is at the node above its pivot speed, or no rate reaches the pivot speed by the node.
+    /// </summary>
+    internal static bool TryRampLaneBrakeLeg(PhaseContext ctx, GroundNode node, double forwardDeg, out TurnAboutBrakeLeg? leg)
+    {
+        leg = null;
+        double toNodeFt = ToNodeAheadFt(ctx, node, forwardDeg);
+        double pivotKts = PivotKts(ctx);
+        if (toNodeFt <= BrakeEndToleranceFt)
+        {
+            if ((toNodeFt >= -BrakeEndToleranceFt) && IsAtPivotSpeed(ctx))
+            {
+                return true;
+            }
+
+            Log.LogDebug(
+                "[Nav] {Callsign}: {ToNode:F1} ft from ramp-lane node {Node} at {Speed:F1} kt, pivot {Pivot:F2} kt: "
+                    + "overrun or above pivot speed at the ramp-lane node: comfortable-radius arc",
+                ctx.Aircraft.Callsign,
+                toNodeFt,
+                node.Id,
+                ctx.Aircraft.IndicatedAirspeed,
+                pivotKts
+            );
+            return false;
+        }
+
+        double speedKts = ctx.Aircraft.IndicatedAirspeed;
+        double[] byTheNode = [.. RollingTurnAboutBrakeRates(ctx.Category).Where(r => BrakeToPivotFt(speedKts, pivotKts, r) <= toNodeFt)];
+        if (byTheNode.Length == 0)
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: at {Speed:F1} kt, {ToNode:F0} ft short of ramp-lane node {Node}, no brake rate reaches {Pivot:F2} kt by it",
+                ctx.Aircraft.Callsign,
+                speedKts,
+                toNodeFt,
+                node.Id,
+                pivotKts
+            );
+            return false;
+        }
+
+        leg = new TurnAboutBrakeLeg(node.Position, forwardDeg, pivotKts, byTheNode[0]);
+        return true;
+    }
+
+    /// <summary>
+    /// How far the point <paramref name="radiusFt"/> out from <paramref name="position"/> on <paramref name="sideDeg"/>
+    /// lies from the nearest centreline other than <paramref name="lane"/>, feet.
+    /// </summary>
+    private static double SideRoomFt(AirportGroundLayout layout, LatLon position, double sideDeg, double radiusFt, string lane) =>
+        RampLaneReposition.NearestOtherCentrelineFt(
+            layout,
+            GeoMath.ProjectPoint(position, new TrueHeading(sideDeg % 360.0), radiusFt / GeoMath.FeetPerNm),
+            lane
+        );
 
     /// <summary>
     /// Anchor a free-space leg's line on the aircraft's own position. The leg runs from a virtual node fixed

@@ -3444,6 +3444,28 @@ public partial class GroundViewModel : ObservableObject
             return resolved;
         }
 
+        // Starting from the destination spot itself the pathfinder resolves nothing, yet an aircraft on a past-spot
+        // line-up's run-in there still finishes it: offer the line-up an empty resolved route. Only the client rebuilds
+        // from there; the server always plans from a resolved route.
+        if (
+            (route is null)
+            && (request.Destination is { } spot)
+            && (spot.Id == start.Id)
+            && (
+                TryClientSpotLineUp(
+                    ac,
+                    new TaxiRoute { Segments = [], HoldShortPoints = [] },
+                    spot,
+                    ParseRouteTaxiways(ac.TaxiRoute),
+                    request.Category
+                ) is
+                { } runIn
+            )
+        )
+        {
+            return runIn;
+        }
+
         return RecoveredRemainingRoute(ac, request, start, route, failure);
     }
 

@@ -26,6 +26,7 @@
 - At SFO, a clearance naming G and L, A and F, C and Z, or S and Z next to each other may route through the short connector between them (GL, AF, CZ, ZS).
 - Two taxiing aircraft whose paths cross judge each other by the route ahead, not the nose; when both would stop, the one with the other on its right holds.
 - Aircraft taxiing along a nearly straight taxiway no longer brake at small bends beside a junction (SFO C, SFO A).
+- An aircraft given a spot line-up from past the spot turns about beyond the spot and lines up, instead of looping behind it.
 
 ## v0.18.2-beta [2026/11/09]
 

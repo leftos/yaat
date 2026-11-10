@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -1287,10 +1288,19 @@ public static class RampLaneReposition
     /// so no runway holding position and no movement-area taxiway (see <see cref="CrossesForeignPavement"/>) — and the
     /// approach point itself off the movement area — and each passes a wingtip buffer clear of every other aircraft on
     /// the ground and of every occupied stand. An aircraft already on a join's run-in finishes it rather than being sent
-    /// back out to the approach point. Null — keep the resolved route — when the clearance names a taxiway beyond the
-    /// spot lane's family, when the route already arrives toward the movement-area end, when the aircraft is on the lane
-    /// between the spot and that end, when the spot's lane does not have exactly one such end, or when no ramp-side join
-    /// fits the turn and the straight inside the guards; each is logged at Debug.</para>
+    /// back out to the approach point.</para>
+    ///
+    /// <para>An aircraft standing past the spot on the lane's exit side, at any distance off the lane, lines up from past
+    /// the spot instead (<see cref="TryPlanFromPastTheSpot"/>): it joins the lane on the exit side, taxis along it
+    /// past the spot to the first ramp-side lane node where its turn about fits, turns about there toward the side with
+    /// room, and comes back down the lane onto the spot. An aircraft on the lane between the spot and its movement-area end,
+    /// or one the client rebuilds from the spot itself with an empty resolved route, gets only the run-in exception: the
+    /// past-spot line-up when it is already on that line-up's run-in, else nothing.</para>
+    ///
+    /// <para>Null — keep the resolved route — when the clearance names a taxiway beyond the spot lane's family, when the
+    /// route already arrives toward the movement-area end, when the aircraft is on the lane between the spot and that end
+    /// (or the route is empty) and not on a past-spot run-in, when the spot's lane does not have exactly one such end, or
+    /// when no ramp-side join fits the turn and the straight inside the guards; each is logged at Debug.</para>
     /// </summary>
     /// <param name="layout">The airport the route was resolved on.</param>
     /// <param name="request">The aircraft, its resolved route and the spot it ends at.</param>
@@ -1299,7 +1309,11 @@ public static class RampLaneReposition
     {
         GroundNode spot = request.Spot;
         TaxiRoute route = request.Route;
-        if ((spot.Type != GroundNodeType.Spot) || (route.Segments.Count == 0) || (route.Segments[^1].ToNodeId != spot.Id))
+
+        // An empty resolved route — the client rebuilding from the spot itself, where the pathfinder has nothing to
+        // resolve — is planned only for an aircraft already on a past-spot line-up's run-in.
+        bool emptyRoute = route.Segments.Count == 0;
+        if ((spot.Type != GroundNodeType.Spot) || (!emptyRoute && (route.Segments[^1].ToNodeId != spot.Id)))
         {
             return null;
         }
@@ -1311,7 +1325,7 @@ public static class RampLaneReposition
 
         HashSet<string> family = LaneFamily(layout, ends.Lane);
         double halfSpanFt = AircraftFootprint.ResolveWingspanFt(request.AircraftType) / 2.0;
-        if (LineUpRefusal(request, ends, family, halfSpanFt) is { } refusal)
+        if (LineUpRefusal(request, ends, family) is { } refusal)
         {
             Log.LogDebug("[SpotLineUp] {Callsign} to {Spot}: {Refusal}; keeping the route as resolved", request.Callsign, spot.Name, refusal);
             return null;
@@ -1321,6 +1335,11 @@ public static class RampLaneReposition
         double minimumRunFt = turnRadiusFt + (request.AircraftLengthFt / 2.0) + (LineUpStraightFuselages * request.AircraftLengthFt);
         List<LineUpJoin> joins = FindLineUpJoins(layout, request, ends, minimumRunFt);
         var planning = new LineUpPlanning(layout, request, family, halfSpanFt, LineUpApproachRadii * turnRadiusFt);
+        if (TryDecideFromPastTheSpot(planning, new LineUpLane(ends, joins, minimumRunFt, turnRadiusFt), emptyRoute, out TaxiRoute? pastSpot))
+        {
+            return pastSpot;
+        }
+
         if ((TryRejoinRunIn(planning, joins) ?? TryPlanFromApproach(planning, joins)) is { } lineUp)
         {
             return lineUp;
@@ -1354,13 +1373,46 @@ public static class RampLaneReposition
         double OffsetFt
     );
 
+    /// <summary>The spot's lane as one line-up sees it.</summary>
+    /// <param name="Ends">The lane's ends either side of the spot.</param>
+    /// <param name="Joins">The ramp-side lane nodes a line-up can join, nearest the spot first.</param>
+    /// <param name="MinimumRunFt">The least run of lane back to the spot a join must leave, feet.</param>
+    /// <param name="TurnRadiusFt">The category's main-gear turn radius, feet.</param>
+    private sealed record LineUpLane(SpotLaneEnds Ends, List<LineUpJoin> Joins, double MinimumRunFt, double TurnRadiusFt);
+
+    /// <summary>
+    /// Whether the aircraft's place on the exit side of the spot decides the line-up, and how (<paramref name="route"/>):
+    /// the past-spot line-up when it plans (<see cref="TryPlanFromPastTheSpot"/>), or null — keep the resolved route — for
+    /// an aircraft on the lane between the spot and its movement-area end (<see cref="IsOnExitStretch"/>) or with an
+    /// <paramref name="emptyRoute"/>, which re-planning past the spot would turn round: those plan only a past-spot
+    /// line-up whose run-in they are already on. False — the ramp-side joins decide — otherwise.
+    /// </summary>
+    private static bool TryDecideFromPastTheSpot(LineUpPlanning planning, LineUpLane lane, bool emptyRoute, out TaxiRoute? route)
+    {
+        SpotLineUpRequest request = planning.Request;
+        bool runInOnly = emptyRoute || IsOnExitStretch(request.Position, request.Spot, lane.Ends, planning.HalfSpanFt);
+        route = TryPlanFromPastTheSpot(planning, lane, runInOnly);
+        if ((route is not null) || !runInOnly)
+        {
+            return route is not null;
+        }
+
+        Log.LogDebug(
+            "[SpotLineUp] {Callsign} to {Spot}: {Reason} and not on a past-spot line-up's run-in; keeping the route as resolved",
+            request.Callsign,
+            request.Spot.Name,
+            emptyRoute ? "no route resolved" : $"the aircraft is on {lane.Ends.Lane} between the spot and the movement area"
+        );
+        return true;
+    }
+
     /// <summary>
     /// Why a line-up is not planned for this clearance, or null when it may be: the clearance names a taxiway beyond the
     /// spot lane's family (the #454 rule — every named taxiway is taxied for real), the resolved route already arrives
-    /// toward the movement area, or the aircraft is already on the lane between the spot and its movement-area end —
-    /// re-planning that one past the spot would turn it round.
+    /// toward the movement area. An aircraft on the lane between the spot and its movement-area end is refused after the
+    /// past-spot line-up has had its chance to finish its own run-in (<see cref="TryPlanSpotLineUp"/>).
     /// </summary>
-    private static string? LineUpRefusal(SpotLineUpRequest request, SpotLaneEnds ends, HashSet<string> family, double halfSpanFt)
+    private static string? LineUpRefusal(SpotLineUpRequest request, SpotLaneEnds ends, HashSet<string> family)
     {
         if (request.ClearedTaxiways.FirstOrDefault(t => !family.Contains(t)) is { } named)
         {
@@ -1370,11 +1422,6 @@ public static class RampLaneReposition
         if (ArrivesToward(request.Route, ends.ExitBearingDeg))
         {
             return $"the route already arrives along {ends.Lane} toward the movement area";
-        }
-
-        if (IsOnExitStretch(request.Position, request.Spot, ends, halfSpanFt))
-        {
-            return $"the aircraft is on {ends.Lane} between the spot and the movement area";
         }
 
         return null;
@@ -1441,20 +1488,211 @@ public static class RampLaneReposition
         foreach (LineUpJoin join in joins)
         {
             LatLon approach = ApproachPoint(position, join.Join, join.Tail.Segments[0].Edge.DepartureBearing, planning.OffsetFt);
-            var inbound = new TrueHeading(GeoMath.BearingTo(approach, join.Join.Position));
-            double crossFt = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position, approach, inbound)) * GeoMath.FeetPerNm;
-            double alongFt = GeoMath.AlongTrackDistanceNm(position, approach, inbound) * GeoMath.FeetPerNm;
-            bool onRunIn =
-                (crossFt <= planning.HalfSpanFt)
-                && (alongFt > 0.0)
-                && (alongFt < DistanceFt(approach, join.Join.Position) - AirportGroundLayout.AtNodeToleranceFt);
-            if (onRunIn && (FindObstacle(planning, position, join.Join.Position) is null))
+            if (IsOnRunIn(planning, approach, join.Join) && (FindObstacle(planning, position, join.Join.Position) is null))
             {
                 return BuildSpotLineUp(planning.Request, null, join);
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The aircraft is on the straight in from <paramref name="approach"/> to <paramref name="join"/>: within its
+    /// half-span of it, past the approach point and short of the join.
+    /// </summary>
+    private static bool IsOnRunIn(LineUpPlanning planning, LatLon approach, GroundNode join)
+    {
+        LatLon position = planning.Request.Position;
+        var inbound = new TrueHeading(GeoMath.BearingTo(approach, join.Position));
+        double crossFt = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position, approach, inbound)) * GeoMath.FeetPerNm;
+        double alongFt = GeoMath.AlongTrackDistanceNm(position, approach, inbound) * GeoMath.FeetPerNm;
+        return (crossFt <= planning.HalfSpanFt)
+            && (alongFt > 0.0)
+            && (alongFt < DistanceFt(approach, join.Position) - AirportGroundLayout.AtNodeToleranceFt);
+    }
+
+    /// <summary>
+    /// The line-up for an aircraft standing past the spot on its exit side — between the spot and the lane's
+    /// movement-area end, at any distance off the lane: it joins the lane on the exit side, taxis along it
+    /// into the ramp past the spot, turns about at the first ramp-side join where its turn about fits
+    /// (<see cref="FindTurnAbout"/>), and lines up back along the lane onto the spot, the line-up's own nose-at-spot
+    /// stop. It never loops out toward the movement area to come back in from the ramp side.
+    ///
+    /// <para>The lane is joined one main-gear turn radius out from the spot (or where the aircraft stands abeam,
+    /// if nearer), so the quarter turn onto the lane rolls out at the spot; the drive to it is the ramp-side line-up's:
+    /// an approach point <see cref="LineUpPlanning.OffsetFt"/> out on the lane's perpendicular there, then straight in,
+    /// with every guard of <see cref="IsDrivableApproach"/> and <see cref="FindObstacle"/>. The join and the approach
+    /// point both lie no further toward the movement area than the aircraft itself, so the drive never closes on the
+    /// taxiway the lane exits onto.</para>
+    ///
+    /// <para>Null — leaving the ramp-side line-up to plan — when the aircraft is not past the spot on the exit side, the
+    /// type has no join to turn about at, the lane walk out to it leaves the lane, or the drive to the lane is refused;
+    /// each is logged at Debug. With <paramref name="runInOnly"/> — the aircraft stands within its half-span of the lane
+    /// between the spot and the movement area — only a line-up whose run-in it is already on is planned.</para>
+    /// </summary>
+    private static TaxiRoute? TryPlanFromPastTheSpot(LineUpPlanning planning, LineUpLane lane, bool runInOnly)
+    {
+        SpotLineUpRequest request = planning.Request;
+        SpotLaneEnds ends = lane.Ends;
+        double alongFt = AlongExitFt(request.Position, request.Spot, ends);
+        if ((alongFt <= 0.0) || (alongFt >= ends.ExitSide[^1].RunFt))
+        {
+            return null;
+        }
+
+        Log.LogDebug(
+            "[SpotLineUp] {Callsign} stands {Along:F0} ft past {Spot} toward the movement area and {Off:F0} ft off {Lane}: "
+                + "past the spot on its exit side: planning the join and turn about beyond the spot",
+            request.Callsign,
+            alongFt,
+            request.Spot.Name,
+            DistanceToLaneFt(request.Position, request.Spot, ends.ExitSide),
+            ends.Lane
+        );
+        if (
+            (FindTurnAbout(planning, ends.Lane, lane.Joins, lane.MinimumRunFt) is not { } turn)
+            || (OutboundAlongLane(planning.Layout, request, ends.Lane, turn) is not { } outbound)
+            || (PastSpotLead(planning, ends, Math.Min(lane.TurnRadiusFt, alongFt), runInOnly) is not { } lead)
+        )
+        {
+            return null;
+        }
+
+        TaxiRoute route = AssembleLineUp(request, [.. lead, .. outbound.Segments], turn);
+        Log.Log(
+            request.PlanLogLevel,
+            "[SpotLineUp] {Callsign} lining up on {Spot} from past it: {Legs} leg(s) of {Ft:F0} ft onto {Lane}, {Out:F0} ft along it "
+                + "to node {Turn} to turn about, then {Summary}",
+            request.Callsign,
+            request.Spot.Name,
+            lead.Count,
+            lead.Sum(l => l.Edge.DistanceNm) * GeoMath.FeetPerNm,
+            ends.Lane,
+            outbound.TotalDistanceFt,
+            turn.Join.Id,
+            turn.Tail.ToSummary()
+        );
+        return route;
+    }
+
+    /// <summary>How far <paramref name="position"/> lies along the spot's lane from the spot toward its movement-area end, feet.</summary>
+    private static double AlongExitFt(LatLon position, GroundNode spot, SpotLaneEnds ends) =>
+        GeoMath.AlongTrackDistanceNm(position, spot.Position, new TrueHeading(ends.ExitBearingDeg)) * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// Where a line-up from past the spot turns about: the first ramp-side join, nearest the spot, at which the type's
+    /// turn about fits — its wingtip circle, the type's turn-about radius (<see cref="TurnAboutFit.EvaluateAt"/>, the
+    /// radius the navigator draws the turn about on) plus its half-span, centred on the node, stays clear of every other
+    /// taxiway's centreline (<see cref="NearestOtherCentrelineFt"/>). Every join already leaves the
+    /// <paramref name="minimumRunFt"/> of lane back to the spot that the turn's roll-out and the straight pull need. A
+    /// ramp is apron, not a taxiway of the type's design group, so the design group's half-width does not bound it.
+    /// Null when the turn about fits at none.
+    /// </summary>
+    private static LineUpJoin? FindTurnAbout(LineUpPlanning planning, string lane, List<LineUpJoin> joins, double minimumRunFt)
+    {
+        SpotLineUpRequest request = planning.Request;
+        foreach (LineUpJoin join in joins)
+        {
+            TurnAboutFitResult fit = TurnAboutFit.EvaluateAt(request.AircraftType, request.Category, planning.Layout, join.Join.Position, null);
+            double reachFt = fit.RadiusFt + planning.HalfSpanFt;
+            double roomFt = NearestOtherCentrelineFt(planning.Layout, join.Join.Position, lane);
+            if (roomFt >= reachFt)
+            {
+                Log.LogDebug(
+                    "[SpotLineUp] turn about at node {Node}: the nearest node past {Spot} on the ramp side with {Run:F0} ft of lane back "
+                        + "to the spot (at least the {Min:F0} ft a roll-out and a straight pull need) whose nearest other centreline, "
+                        + "{Room:F0} ft off, clears a {Type}'s {Reach:F1} ft wingtip circle (turn-about radius {Radius:F1} ft)",
+                    join.Join.Id,
+                    request.Spot.Name,
+                    join.RunFt,
+                    minimumRunFt,
+                    roomFt,
+                    request.AircraftType,
+                    reachFt,
+                    fit.RadiusFt
+                );
+                return join;
+            }
+        }
+
+        Log.LogDebug(
+            "[SpotLineUp] a {Type} fits a turn about at none of the {Count} node(s) past {Spot} on the ramp side",
+            request.AircraftType,
+            joins.Count,
+            request.Spot.Name
+        );
+        return null;
+    }
+
+    /// <summary>
+    /// The distance from <paramref name="position"/> to the nearest straight centreline of any taxiway or taxilane
+    /// other than <paramref name="lane"/> — apron (RAMP) edges are no centreline — in feet; infinity when there is none.
+    /// </summary>
+    internal static double NearestOtherCentrelineFt(AirportGroundLayout layout, LatLon position, string lane)
+    {
+        double nearestFt = double.PositiveInfinity;
+        foreach (GroundEdge edge in layout.Edges)
+        {
+            if (edge.MatchesTaxiway(lane) || edge.TaxiwayName.Equals("RAMP", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            nearestFt = Math.Min(nearestFt, GeoMath.DistanceToSegmentFt(position, edge.Nodes[0].Position, edge.Nodes[1].Position));
+        }
+
+        return nearestFt;
+    }
+
+    /// <summary>The lane route from the spot out to <paramref name="turn"/>'s node; null, logged, when it leaves the lane.</summary>
+    private static TaxiRoute? OutboundAlongLane(AirportGroundLayout layout, SpotLineUpRequest request, string lane, LineUpJoin turn)
+    {
+        TaxiRoute? outbound = TaxiPathfinder.FindRoute(layout, request.Spot.Id, turn.Join.Id, request.Category, request.WakeClass);
+        if ((outbound is null) || (outbound.Segments.Count == 0) || outbound.Segments.Any(s => !s.Edge.Edge.MatchesTaxiway(lane)))
+        {
+            Log.LogDebug("[SpotLineUp] no route along {Lane} from {Spot} out to node {Node}", lane, request.Spot.Name, turn.Join.Id);
+            return null;
+        }
+
+        return outbound;
+    }
+
+    /// <summary>
+    /// The drive from where the aircraft stands onto the lane <paramref name="joinFt"/> out from the spot toward the
+    /// movement area, then down the lane onto the spot: through the approach point on the lane's perpendicular there, or
+    /// straight in when the aircraft is already on that run-in. Null, logged, when the drive is refused or passes another
+    /// aircraft.
+    /// </summary>
+    private static List<TaxiRouteSegment>? PastSpotLead(LineUpPlanning planning, SpotLaneEnds ends, double joinFt, bool runInOnly)
+    {
+        SpotLineUpRequest request = planning.Request;
+        LatLon joinPoint = GeoMath.ProjectPoint(request.Spot.Position, new TrueHeading(ends.ExitBearingDeg), joinFt / GeoMath.FeetPerNm);
+        GroundNode join = VirtualNode.Create(joinPoint.Lat, joinPoint.Lon);
+        GroundNode start = VirtualNode.Create(request.Position.Lat, request.Position.Lon);
+        LatLon approach = ApproachPoint(request.Position, join, (ends.ExitBearingDeg + 180.0) % 360.0, planning.OffsetFt);
+        List<TaxiRouteSegment> lead;
+        if (IsOnRunIn(planning, approach, join))
+        {
+            lead = [VirtualNode.CreateSegment(start, join, "RAMP")];
+        }
+        else if (
+            !runInOnly
+            && IsDrivableApproach(planning.Layout, request.Position, approach, join, planning.Family)
+            && ((FindObstacle(planning, request.Position, approach) ?? FindObstacle(planning, approach, joinPoint)) is null)
+        )
+        {
+            GroundNode approachNode = VirtualNode.Create(approach.Lat, approach.Lon);
+            lead = [VirtualNode.CreateSegment(start, approachNode, "RAMP"), VirtualNode.CreateSegment(approachNode, join, "RAMP")];
+        }
+        else
+        {
+            Log.LogDebug("[SpotLineUp] the drive onto {Lane} {Join:F0} ft past {Spot} is refused or blocked", ends.Lane, joinFt, request.Spot.Name);
+            return null;
+        }
+
+        lead.Add(VirtualNode.CreateSegment(join, request.Spot, ends.Lane));
+        return lead;
     }
 
     /// <summary>
@@ -1613,25 +1851,7 @@ public static class RampLaneReposition
             legs.Add(VirtualNode.CreateSegment(start, join.Join, "RAMP"));
         }
 
-        TaxiRoute resolved = request.Route;
-        var tailNodes = join.Tail.HoldShortPoints.Select(h => h.NodeId).ToHashSet();
-        List<TaxiRouteSegment> segments = [.. legs, .. join.Tail.Segments];
-        var route = new TaxiRoute
-        {
-            Segments = segments,
-            HoldShortPoints =
-            [
-                .. join.Tail.HoldShortPoints,
-                .. resolved.HoldShortPoints.Where(h => (h.Reason == HoldShortReason.ExplicitHoldShort) && !tailNodes.Contains(h.NodeId)),
-            ],
-            Warnings = [.. resolved.Warnings, .. join.Tail.Warnings.Where(w => !resolved.Warnings.Contains(w))],
-            ImpliedLanes = [.. resolved.ImpliedLanes.Concat(join.Tail.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase)],
-            ClearanceTaxiways = resolved.ClearanceTaxiways,
-            MandatoryConnectorCount = join.Tail.MandatoryConnectorCount,
-            DestinationSpot = request.Spot.Name,
-            // The lane starts where the tail does, after however many free-space legs lead to it.
-            SpotLineUpPullFromSegment = segments.Count - join.Tail.Segments.Count,
-        };
+        TaxiRoute route = AssembleLineUp(request, legs, join);
         Log.Log(
             request.PlanLogLevel,
             "[SpotLineUp] {Callsign} lining up on {Spot} to leave the ramp: {Legs} free-space leg(s) of {Ft:F0} ft to node {Join}, "
@@ -1645,6 +1865,34 @@ public static class RampLaneReposition
             join.Tail.ToSummary()
         );
         return route;
+    }
+
+    /// <summary>
+    /// The line-up route: <paramref name="lead"/>, then <paramref name="join"/>'s lane tail onto the spot, where the
+    /// pull starts. The resolved route's explicit hold-shorts and warnings carry over — the clearance's own instructions
+    /// survive the re-plan.
+    /// </summary>
+    private static TaxiRoute AssembleLineUp(SpotLineUpRequest request, List<TaxiRouteSegment> lead, LineUpJoin join)
+    {
+        TaxiRoute resolved = request.Route;
+        var tailNodes = join.Tail.HoldShortPoints.Select(h => h.NodeId).ToHashSet();
+        List<TaxiRouteSegment> segments = [.. lead, .. join.Tail.Segments];
+        return new TaxiRoute
+        {
+            Segments = segments,
+            HoldShortPoints =
+            [
+                .. join.Tail.HoldShortPoints,
+                .. resolved.HoldShortPoints.Where(h => (h.Reason == HoldShortReason.ExplicitHoldShort) && !tailNodes.Contains(h.NodeId)),
+            ],
+            Warnings = [.. resolved.Warnings, .. join.Tail.Warnings.Where(w => !resolved.Warnings.Contains(w))],
+            ImpliedLanes = [.. resolved.ImpliedLanes.Concat(join.Tail.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase)],
+            ClearanceTaxiways = resolved.ClearanceTaxiways,
+            MandatoryConnectorCount = join.Tail.MandatoryConnectorCount,
+            DestinationSpot = request.Spot.Name,
+            // The pull starts where the tail does, after however many segments lead to it.
+            SpotLineUpPullFromSegment = segments.Count - join.Tail.Segments.Count,
+        };
     }
 
     /// <summary>

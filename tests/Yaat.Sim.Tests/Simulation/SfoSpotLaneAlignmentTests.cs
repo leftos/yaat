@@ -219,12 +219,12 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
 
     /// <summary>
     /// A <c>TAXI … $spot</c> given on the ramp is a line-up to leave it (#456). SKW5590, pushed off F8 onto the
-    /// apron west of T7A's north end, is cleared <c>TAXI T7A $7A</c>: it swings round on the ramp, joins T7A on
-    /// the ramp side of the spot and comes up the lane, stopping nose-on-mark facing taxiway A — never swinging
-    /// out over A to turn back in.
+    /// apron west of T7A's north end — past spot 7A on the lane's exit side — is cleared <c>TAXI T7A $7A</c>: it joins
+    /// T7A on the exit side, taxis past 7A into the ramp, turns about there on the side away from T7, and comes back up
+    /// the lane, stopping nose-on-mark facing taxiway A — never swinging out over A to turn back in (YAAT-40).
     /// </summary>
     [Fact]
-    public void TaxiT7aToSpot7A_FromTheRamp_LinesUpFacingTaxiwayA()
+    public void TaxiT7aToSpot7A_FromPastTheSpotOnTheRamp_TurnsAboutAndLinesUpFacingTaxiwayA()
     {
         SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
         if (built is null)
@@ -270,11 +270,17 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
         Assert.True(stopped > 0, "SKW5590 never came to rest at spot 7A");
         double peakDecelKtsPerSec = trace.Zip(trace.Skip(1), (a, b) => a.SpeedKts - b.SpeedKts).DefaultIfEmpty(0.0).Max();
         output.WriteLine($"speeds {string.Join(" ", trace.Select(t => $"{t.SpeedKts:F1}"))}; peak deceleration {peakDecelKtsPerSec:F2} kt/s");
-        AssertRestingOnSpotFacing(aircraft, spot7A, "T7A", junction, LineUpHeadingToleranceDeg);
-        AssertQuarterTurnLineUp(
+        AssertRestingOnSpotFacing(aircraft, spot7A, "T7A", junction, PastSpotLineUpHeadingToleranceDeg);
+        double offLaneFt = SfoGroundHarness.DistanceToTaxiwayFt(ground.Layout, "T7A", aircraft.Position);
+        output.WriteLine($"rests {offLaneFt:F1} ft off T7A's centreline");
+        Assert.True(offLaneFt <= PastSpotLineUpOffsetToleranceFt, $"SKW5590 rests {offLaneFt:F1} ft off T7A's centreline");
+        AssertNeverCloserToTaxiway(ground.Layout, trace, "CRJ7", "A");
+        double exitDeg = GeoMath.BearingTo(spot7A.Position, junction.Position);
+        AssertTurnsAboutBeyondSpotClearOf(ground.Layout, trace, spot7A, exitDeg, "CRJ7", "T7");
+        AssertTurnAboutStartsAtPivotSpeed(ground.Layout, trace, spot7A, exitDeg, "CRJ7");
+        AssertOneTurnAboutAndAPull(
             trace,
-            spot7A,
-            GeoMath.BearingTo(spot7A.Position, junction.Position),
+            exitDeg,
             FaaAircraftDatabase.Get("CRJ7")?.LengthFt ?? throw new InvalidOperationException("no FAA length for CRJ7")
         );
     }
@@ -593,26 +599,532 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
         SfoGround ground = built.Value;
         GroundNode? spot7A = ground.Layout.FindSpotNodeByName("7A");
         Assert.True(spot7A is not null, "SFO layout has no spot named '7A'");
-        AircraftState aircraft = SpawnOffGraph(ground, "SKW5590", "CRJ7", Skw5590Pose, new HoldingAfterPushbackPhase());
-        TaxiRoute route = AssignTaxi(ground, aircraft, "TAXI T7A $7A");
+        // The ramp-side line-up, planned from the resolved junction-to-spot route: a line-up from past the spot passes every
+        // lane node of its pull on its way out, so a truncation at one would cut it on the way out rather than on the pull.
+        (LatLon Position, TrueHeading Heading) pose = RampSidePose(ground.Layout, spot7A);
+        double lengthFt = FaaAircraftDatabase.Get("CRJ7")?.LengthFt ?? throw new InvalidOperationException("no FAA length for CRJ7");
+        TaxiRoute route =
+            RampLaneReposition.TryPlanSpotLineUp(ground.Layout, LineUpRequest(pose.Position, JunctionToSpot(ground.Layout, spot7A), spot7A, lengthFt))
+            ?? throw new InvalidOperationException("no line-up planned from the ramp side of 7A");
         Assert.True(route.SpotLineUpPullFromSegment is not null, "no line-up planned");
         int pullFrom = route.SpotLineUpPullFromSegment.Value;
         Assert.Equal(route.Segments.Count - pullFrom, route.Segments.Skip(pullFrom).Count(s => s.FromNodeId >= 0));
 
         double firstDeg = route.Segments[0].Edge.DepartureBearing;
-        LatLon behind = GeoMath.ProjectPoint(Skw5590Pose.Position, new TrueHeading((firstDeg + 180.0) % 360.0), 80.0 / GeoMath.FeetPerNm);
-        TaxiRoute prepended = TaxiApproachLeg.Prepend(
-            ground.Layout,
-            behind,
-            new TrueHeading(firstDeg),
-            route,
-            AircraftLength.ResolveFt(aircraft.AircraftType)
-        );
+        LatLon behind = GeoMath.ProjectPoint(pose.Position, new TrueHeading((firstDeg + 180.0) % 360.0), 80.0 / GeoMath.FeetPerNm);
+        TaxiRoute prepended = TaxiApproachLeg.Prepend(ground.Layout, behind, new TrueHeading(firstDeg), route, AircraftLength.ResolveFt("CRJ7"));
         Assert.Equal(route.Segments.Count + 1, prepended.Segments.Count);
         Assert.Equal(pullFrom + 1, prepended.SpotLineUpPullFromSegment);
 
         Assert.Equal(pullFrom, route.TruncateAt(spot7A.Id).SpotLineUpPullFromSegment);
         Assert.Null(route.TruncateAt(route.Segments[pullFrom - 1].ToNodeId).SpotLineUpPullFromSegment);
+    }
+
+    /// <summary>
+    /// A pose on the ramp side of spot 7A, off T7A: abeam a point 100 ft beyond 7A into the ramp, 60 ft west of the lane,
+    /// nosed toward the lane at 45° into the ramp.
+    /// </summary>
+    private static (LatLon Position, TrueHeading Heading) RampSidePose(AirportGroundLayout layout, GroundNode spot)
+    {
+        double intoRampDeg = (GeoMath.BearingTo(spot.Position, LaneJunctionWithA(layout, "T7A").Position) + 180.0) % 360.0;
+        LatLon abeam = GeoMath.ProjectPoint(spot.Position, new TrueHeading(intoRampDeg), 100.0 / GeoMath.FeetPerNm);
+        LatLon position = GeoMath.ProjectPoint(abeam, new TrueHeading((intoRampDeg + 90.0) % 360.0), 60.0 / GeoMath.FeetPerNm);
+        return (position, new TrueHeading((intoRampDeg + 315.0) % 360.0));
+    }
+
+    /// <summary>
+    /// The ramp side of the spot keeps today's line-up (#456): for a CRJ7 off T7A on the ramp side of 7A, the line-up
+    /// planned from the resolved junction-to-spot route joins T7A on the ramp side with one quarter turn off a straight run
+    /// in and pulls up the lane onto the spot, with no turn about and no leg back into the ramp along the lane.
+    /// </summary>
+    [Fact]
+    public void TryPlanSpotLineUp_FromTheRampSideOfTheSpot_KeepsTheQuarterTurnJoin()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
+        if (built is null)
+        {
+            return;
+        }
+
+        SfoGround ground = built.Value;
+        GroundNode spot7A = ground.Layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("SFO layout has no spot named '7A'");
+        GroundNode junction = LaneJunctionWithA(ground.Layout, "T7A");
+        double exitDeg = GeoMath.BearingTo(spot7A.Position, junction.Position);
+        (LatLon Position, TrueHeading Heading) pose = RampSidePose(ground.Layout, spot7A);
+        double lengthFt = FaaAircraftDatabase.Get("CRJ7")?.LengthFt ?? throw new InvalidOperationException("no FAA length for CRJ7");
+
+        // From the resolved junction-to-spot route, the line-up planned is the ramp-side join: no leg back into the ramp.
+        TaxiRoute? lineUp = RampLaneReposition.TryPlanSpotLineUp(
+            ground.Layout,
+            LineUpRequest(pose.Position, JunctionToSpot(ground.Layout, spot7A), spot7A, lengthFt)
+        );
+        Assert.NotNull(lineUp);
+        DumpSegments(lineUp);
+        Assert.NotNull(lineUp.SpotLineUpPullFromSegment);
+        Assert.DoesNotContain(
+            lineUp.Segments,
+            s => s.Edge.Edge.MatchesTaxiway("T7A") && (GeoMath.AbsBearingDifference(s.Edge.ArrivalBearing, (exitDeg + 180.0) % 360.0) <= 15.0)
+        );
+
+        // The join is today's quarter turn: a straight run in across the apron, turned onto the lane no sharper than a quarter turn.
+        int pullFrom = lineUp.SpotLineUpPullFromSegment.Value;
+        TaxiRouteSegment runIn = lineUp.Segments[pullFrom - 1];
+        double joinTurnDeg = GeoMath.AbsBearingDifference(runIn.Edge.ArrivalBearing, lineUp.Segments[pullFrom].Edge.DepartureBearing);
+        output.WriteLine($"run in on {runIn.TaxiwayName} arriving {runIn.Edge.ArrivalBearing:F0}, turned {joinTurnDeg:F0}° onto T7A");
+        Assert.Equal("RAMP", runIn.TaxiwayName);
+        Assert.True(joinTurnDeg <= MaxLastTurnDeg, $"the join turns {joinTurnDeg:F0}° onto T7A, sharper than a quarter turn");
+    }
+
+    /// <summary>
+    /// The past-spot line-up planned from <see cref="Skw5590Pose"/> (CRJ7, the resolved junction-to-spot route), and its
+    /// run-in: the second free-space leg, from the approach point to the join on T7A.
+    /// </summary>
+    private static (TaxiRoute Plan, TaxiRouteSegment RunIn) PastSpotPlan(AirportGroundLayout layout, GroundNode spot, double lengthFt)
+    {
+        TaxiRoute plan =
+            RampLaneReposition.TryPlanSpotLineUp(layout, LineUpRequest(Skw5590Pose.Position, JunctionToSpot(layout, spot), spot, lengthFt))
+            ?? throw new InvalidOperationException("no line-up planned from past 7A");
+        return (plan, plan.Segments[1]);
+    }
+
+    /// <summary>
+    /// A re-plan three quarters along the past-spot line-up's run-in — the run-in ends on T7A between 7A and A, inside its
+    /// half-span of the lane — finishes the run-in rather than being refused as on the lane's exit stretch.
+    /// </summary>
+    [Fact]
+    public void TryPlanSpotLineUp_PartwayAlongThePastSpotRunIn_ContinuesTheRunIn()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
+        if (built is null)
+        {
+            return;
+        }
+
+        AirportGroundLayout layout = built.Value.Layout;
+        GroundNode spot7A = layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("SFO layout has no spot named '7A'");
+        double lengthFt = FaaAircraftDatabase.Get("CRJ7")?.LengthFt ?? throw new InvalidOperationException("no FAA length for CRJ7");
+        (_, TaxiRouteSegment runIn) = PastSpotPlan(layout, spot7A, lengthFt);
+        LatLon approach = runIn.Edge.FromNode.Position;
+        LatLon join = runIn.Edge.ToNode.Position;
+        double runInDeg = GeoMath.BearingTo(approach, join);
+        LatLon partway = GeoMath.ProjectPoint(approach, new TrueHeading(runInDeg), DistanceFt(approach, join) * 0.75 / GeoMath.FeetPerNm);
+
+        TaxiRoute? replanned = RampLaneReposition.TryPlanSpotLineUp(layout, LineUpRequest(partway, JunctionToSpot(layout, spot7A), spot7A, lengthFt));
+
+        Assert.NotNull(replanned);
+        DumpSegments(replanned);
+        TaxiRouteSegment first = replanned.Segments[0];
+        Assert.True(GeoMath.AbsBearingDifference(first.Edge.DepartureBearing, runInDeg) < 10.0, "the re-plan does not carry on along the run-in");
+        Assert.True(DistanceFt(first.Edge.ToNode.Position, join) < 1.0, "the re-plan's first leg does not end at the run-in's join");
+    }
+
+    /// <summary>
+    /// An empty resolved route — what the client rebuilds from the spot itself — still finishes a past-spot run-in the
+    /// aircraft is on, and plans nothing anywhere else (here, the pose the past-spot line-up starts from).
+    /// </summary>
+    [Fact]
+    public void TryPlanSpotLineUp_EmptyResolvedRoute_ContinuesOnlyThePastSpotRunIn()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
+        if (built is null)
+        {
+            return;
+        }
+
+        AirportGroundLayout layout = built.Value.Layout;
+        GroundNode spot7A = layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("SFO layout has no spot named '7A'");
+        double lengthFt = FaaAircraftDatabase.Get("CRJ7")?.LengthFt ?? throw new InvalidOperationException("no FAA length for CRJ7");
+        (_, TaxiRouteSegment runIn) = PastSpotPlan(layout, spot7A, lengthFt);
+        LatLon approach = runIn.Edge.FromNode.Position;
+        LatLon join = runIn.Edge.ToNode.Position;
+        double runInDeg = GeoMath.BearingTo(approach, join);
+        LatLon partway = GeoMath.ProjectPoint(approach, new TrueHeading(runInDeg), DistanceFt(approach, join) * 0.75 / GeoMath.FeetPerNm);
+        var empty = new TaxiRoute { Segments = [], HoldShortPoints = [] };
+
+        TaxiRoute? onRunIn = RampLaneReposition.TryPlanSpotLineUp(layout, LineUpRequest(partway, empty, spot7A, lengthFt));
+        Assert.NotNull(onRunIn);
+        Assert.True(
+            GeoMath.AbsBearingDifference(onRunIn.Segments[0].Edge.DepartureBearing, runInDeg) < 10.0,
+            "the re-plan does not carry on along the run-in"
+        );
+        Assert.True(DistanceFt(onRunIn.Segments[0].Edge.ToNode.Position, join) < 1.0, "the re-plan's first leg does not end at the run-in's join");
+
+        Assert.Null(RampLaneReposition.TryPlanSpotLineUp(layout, LineUpRequest(Skw5590Pose.Position, empty, spot7A, lengthFt)));
+    }
+
+    /// <summary>An aircraft on T7A's centreline between 7A and A is still on the exit stretch: no line-up is planned.</summary>
+    [Fact]
+    public void TryPlanSpotLineUp_OnTheLaneBetweenTheSpotAndA_IsRefused()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
+        if (built is null)
+        {
+            return;
+        }
+
+        AirportGroundLayout layout = built.Value.Layout;
+        GroundNode spot7A = layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("SFO layout has no spot named '7A'");
+        double lengthFt = FaaAircraftDatabase.Get("CRJ7")?.LengthFt ?? throw new InvalidOperationException("no FAA length for CRJ7");
+        double exitDeg = GeoMath.BearingTo(spot7A.Position, LaneJunctionWithA(layout, "T7A").Position);
+        LatLon onLane = GeoMath.ProjectPoint(spot7A.Position, new TrueHeading(exitDeg), 50.0 / GeoMath.FeetPerNm);
+
+        Assert.Null(RampLaneReposition.TryPlanSpotLineUp(layout, LineUpRequest(onLane, JunctionToSpot(layout, spot7A), spot7A, lengthFt)));
+    }
+
+    /// <summary>SKW5564 at bundle t=530: the YAAT-40 pose, out of F8 on the apron west of T7A, past 7A toward A, nosed 252.5°.</summary>
+    private static readonly (LatLon Position, TrueHeading Heading) Skw5564Pose = (
+        new LatLon(37.62091236476985, -122.3858047162556),
+        new TrueHeading(252.54943320077086)
+    );
+
+    /// <summary>How far a line-up from past the spot may rest off the lane's heading toward the exit, degrees.</summary>
+    private const double PastSpotLineUpHeadingToleranceDeg = 2.0;
+
+    /// <summary>How far a line-up from past the spot may rest off the lane's centreline, feet.</summary>
+    private const double PastSpotLineUpOffsetToleranceFt = 2.0;
+
+    /// <summary>
+    /// The least a turn about beyond 7A may bring a wingtip to T7's centreline: the owner's measured two-clearance path
+    /// (<c>TAXI T7A #542</c> then <c>TAXI T7A $7A</c>) came 33.5 ft from it.
+    /// </summary>
+    private const double TurnAboutT7ClearanceFt = 33.5;
+
+    /// <summary>How far the turn about's heading may sit off the lane into the ramp and still count as having turned about.</summary>
+    private const double TurnedAboutBandDeg = 30.0;
+
+    /// <summary>How far off a lane's centreline the aircraft still counts as taxiing along the lane, feet.</summary>
+    private const double OnLaneFt = 10.0;
+
+    /// <summary>The ramp lane a mid-lane spot sits on: the name of its straight edges.</summary>
+    private static string LaneOf(GroundNode spot) => spot.Edges.First(e => e is GroundEdge).TaxiwayName;
+
+    /// <summary>
+    /// YAAT-40: SKW5564, a CRJ2 out of F8 and standing past spot 7A on the apron beside T7A, is cleared
+    /// <c>TAXI T7A $7A</c>. It joins T7A, taxis past 7A into the ramp, turns about on the ramp side beyond the spot,
+    /// toward the side away from T7, and lines up along T7A toward 7A — never closer to A than it starts, and with no
+    /// loop out toward A.
+    /// </summary>
+    [Fact]
+    public void TaxiT7aToSpot7A_FromPastTheSpot_TurnsAboutBeyondItAndLinesUp()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All);
+        if (built is null)
+        {
+            return;
+        }
+
+        SfoGround ground = built.Value;
+        AirportGroundLayout layout = ground.Layout;
+        GroundNode spot7A = layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("SFO layout has no spot named '7A'");
+        GroundNode junction = LaneJunctionWithA(layout, "T7A");
+        double exitDeg = GeoMath.BearingTo(spot7A.Position, junction.Position);
+        DumpLaneNodes(layout, spot7A, "T7A", exitDeg);
+
+        AircraftState aircraft = SpawnOffGraph(ground, "SKW5564", "CRJ2", Skw5564Pose, new HoldingAfterPushbackPhase());
+        TaxiRoute route = AssignTaxi(ground, aircraft, "TAXI T7A $7A");
+        DumpSegments(route);
+        output.WriteLine($"route {route.TotalDistanceFt:F0} ft; spot 7A is node {spot7A.Id}; T7A meets A at node {junction.Id}");
+
+        var trace = new List<(LatLon Position, double HeadingDeg, double SpeedKts)> { (aircraft.Position, aircraft.TrueHeading.Degrees, 0.0) };
+        int stopped = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (aircraft.GroundSpeed < AtRestKts) && (aircraft.Phases?.CurrentPhase is HoldingInPositionPhase),
+            400,
+            _ => trace.Add((aircraft.Position, aircraft.TrueHeading.Degrees, aircraft.GroundSpeed))
+        );
+        Assert.True(stopped > 0, "SKW5564 never came to rest at spot 7A");
+
+        double offLaneFt = SfoGroundHarness.DistanceToTaxiwayFt(layout, "T7A", aircraft.Position);
+        output.WriteLine($"rests {offLaneFt:F1} ft off T7A's centreline");
+        AssertRestingOnSpotFacing(aircraft, spot7A, "T7A", junction, PastSpotLineUpHeadingToleranceDeg);
+        Assert.True(offLaneFt <= PastSpotLineUpOffsetToleranceFt, $"SKW5564 rests {offLaneFt:F1} ft off T7A's centreline");
+
+        AssertNeverCloserToTaxiway(layout, trace, "CRJ2", "A");
+        AssertTurnsAboutBeyondSpotClearOf(layout, trace, spot7A, exitDeg, "CRJ2", "T7");
+        AssertTurnAboutStartsAtPivotSpeed(layout, trace, spot7A, exitDeg, "CRJ2");
+        AssertOneTurnAboutAndAPull(
+            trace,
+            exitDeg,
+            FaaAircraftDatabase.Get("CRJ2")?.LengthFt ?? throw new InvalidOperationException("no FAA length for CRJ2")
+        );
+    }
+
+    /// <summary>
+    /// How far over its pivot speed a turn about may start, kts: the overshoot the turn-about tests allow
+    /// (<c>TaxiStartsOnOccupiedTaxiwayTests.TurnSpeedOvershootKts</c>).
+    /// </summary>
+    private const double TurnSpeedOvershootKts = 0.2;
+
+    /// <summary>How far the heading leaves the lane's bearing into the ramp before the turn about counts as begun, degrees.</summary>
+    private const double TurnAboutStartDeg = 5.0;
+
+    /// <summary>
+    /// Asserts the turn about beyond the spot begins — the first second the heading leaves the lane's bearing into the ramp
+    /// by more than <see cref="TurnAboutStartDeg"/>, after taxiing into the ramp along the lane past the spot — at no more
+    /// than the type's pivot speed on its turn-about radius (<see cref="CategoryPerformance.TurnAboutSpeedKts"/>) plus
+    /// <see cref="TurnSpeedOvershootKts"/>.
+    /// </summary>
+    private void AssertTurnAboutStartsAtPivotSpeed(
+        AirportGroundLayout layout,
+        List<(LatLon Position, double HeadingDeg, double SpeedKts)> trace,
+        GroundNode spot,
+        double exitDeg,
+        string type
+    )
+    {
+        double intoRampDeg = (exitDeg + 180.0) % 360.0;
+        int intoRamp = trace.FindIndex(t =>
+            (AlongLaneFt(t.Position, spot, exitDeg) < 0.0)
+            && (GeoMath.AbsBearingDifference(t.HeadingDeg, intoRampDeg) <= TurnAboutStartDeg)
+            && (SfoGroundHarness.DistanceToTaxiwayFt(layout, LaneOf(spot), t.Position) <= OnLaneFt)
+        );
+        Assert.True(intoRamp >= 0, "the aircraft never taxied into the ramp along the lane past the spot");
+        int start = trace.FindIndex(intoRamp, t => GeoMath.AbsBearingDifference(t.HeadingDeg, intoRampDeg) > TurnAboutStartDeg);
+        Assert.True(start > 0, "the aircraft never turned about past the spot");
+
+        AircraftCategory category = AircraftCategorization.Categorize(type);
+        double radiusFt = TurnAboutFit.EvaluateAt(type, category, layout, trace[start].Position, null).RadiusFt;
+        double pivotKts = CategoryPerformance.TurnAboutSpeedKts(category, radiusFt);
+        output.WriteLine(
+            $"turn about begins at t={start}s at {trace[start].SpeedKts:F2} kt (pivot {pivotKts:F2} kt on its {radiusFt:F1} ft radius), "
+                + $"{trace[start - 1].SpeedKts:F2} kt a second before"
+        );
+        Assert.True(
+            trace[start].SpeedKts <= (pivotKts + TurnSpeedOvershootKts),
+            $"the turn about begins at {trace[start].SpeedKts:F2} kt, above the {pivotKts:F2} kt pivot speed plus {TurnSpeedOvershootKts:F1} kt"
+        );
+    }
+
+    /// <summary>How far a line-up's lined-up pull may sit off the lane's heading toward the exit, degrees.</summary>
+    private const double LineUpHeadingToleranceDeg = 10.0;
+
+    /// <summary>
+    /// The most a line-up may turn in one continuous turn: the solver's turn about — a 60° jog against its sense, then a
+    /// reversal of about 260° that rolls out on the lane — passes, a 360° loop round the compass does not.
+    /// </summary>
+    private const double MaxContinuousTurnDeg = 300.0;
+
+    /// <summary>A heading change slower than this in a second is a straight, and ends a continuous turn.</summary>
+    private const double TurningDegPerSecond = 1.0;
+
+    /// <summary>The signed continuous turns of a per-second trace, degrees: each run of same-sense turning seconds summed.</summary>
+    private static List<double> ContinuousTurns(List<(LatLon Position, double HeadingDeg, double SpeedKts)> trace)
+    {
+        var turns = new List<double>();
+        double current = 0.0;
+        for (int i = 1; i < trace.Count; i++)
+        {
+            double delta = GeoMath.SignedBearingDifference(trace[i - 1].HeadingDeg, trace[i].HeadingDeg);
+            bool turning = Math.Abs(delta) >= TurningDegPerSecond;
+            if (turning && ((current == 0.0) || (Math.Sign(current) == Math.Sign(delta))))
+            {
+                current += delta;
+                continue;
+            }
+
+            if (current != 0.0)
+            {
+                turns.Add(current);
+            }
+
+            current = turning ? delta : 0.0;
+        }
+
+        if (current != 0.0)
+        {
+            turns.Add(current);
+        }
+
+        return turns;
+    }
+
+    /// <summary>
+    /// Asserts a line-up's per-second trace has no continuous turn over <see cref="MaxContinuousTurnDeg"/> — one turn about
+    /// passes, a loop fails — and ends lined up within <see cref="LineUpHeadingToleranceDeg"/> of the lane toward the exit
+    /// for at least half a fuselage before the stop, at no more than <see cref="TaxiingPhase.SpotLineUpPullSpeedKts"/>.
+    /// </summary>
+    private void AssertOneTurnAboutAndAPull(List<(LatLon Position, double HeadingDeg, double SpeedKts)> trace, double exitDeg, double lengthFt)
+    {
+        List<double> turns = ContinuousTurns(trace);
+        double linedUpFt = 0.0;
+        double linedUpMaxKts = 0.0;
+        for (int i = trace.Count - 1; (i > 0) && (GeoMath.AbsBearingDifference(trace[i].HeadingDeg, exitDeg) <= LineUpHeadingToleranceDeg); i--)
+        {
+            linedUpFt += DistanceFt(trace[i - 1].Position, trace[i].Position);
+            linedUpMaxKts = Math.Max(linedUpMaxKts, trace[i].SpeedKts);
+        }
+
+        output.WriteLine(
+            $"turns [{string.Join(", ", turns.Select(t => $"{t:F0}"))}], lined up {linedUpFt:F0} ft (half fuselage {lengthFt / 2.0:F0}) "
+                + $"at up to {linedUpMaxKts:F1} kts"
+        );
+        Assert.True(turns.Count > 0, "the trace never turned");
+        Assert.True(turns.Max(Math.Abs) <= MaxContinuousTurnDeg, $"a continuous turn of {turns.Max(Math.Abs):F0}° — a loop");
+        Assert.True(linedUpFt >= lengthFt / 2.0, $"lined up for only {linedUpFt:F0} ft before stopping");
+        Assert.True(linedUpMaxKts <= TaxiingPhase.SpotLineUpPullSpeedKts, $"the lined-up pull runs at up to {linedUpMaxKts:F1} kts");
+    }
+
+    /// <summary>
+    /// Writes the spot's lane nodes with their run along the lane from the spot (positive toward the exit) and their
+    /// straight edges.
+    /// </summary>
+    private void DumpLaneNodes(AirportGroundLayout layout, GroundNode spot, string lane, double exitDeg)
+    {
+        foreach (GroundNode node in layout.GetNodesOnTaxiway(lane).OrderBy(n => AlongLaneFt(n.Position, spot, exitDeg)))
+        {
+            string edges = string.Join(", ", node.Edges.Select(e => $"{e.TaxiwayName}{(e is GroundEdge ? "" : " (arc)")}->{e.OtherNode(node).Id}"));
+            output.WriteLine($"  {lane} node {node.Id} ({node.Type}): {AlongLaneFt(node.Position, spot, exitDeg):F0} ft along, [{edges}]");
+        }
+    }
+
+    /// <summary>How far <paramref name="position"/> lies along the lane from <paramref name="spot"/>, feet: positive toward the exit.</summary>
+    private static double AlongLaneFt(LatLon position, GroundNode spot, double exitDeg) =>
+        GeoMath.AlongTrackDistanceNm(position, spot.Position, new TrueHeading(exitDeg)) * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// The outline's extreme points at a pose — nose, tail, both wingtips and both tailplane tips — whose distances to a
+    /// straight centreline bound every other point of the outline's straight pieces.
+    /// </summary>
+    private static List<LatLon> OutlineTips(LatLon position, double headingDeg, string type)
+    {
+        var footprint = AircraftFootprint.FromType(type);
+        double halfLengthNm = footprint.LengthFt / 2.0 / GeoMath.FeetPerNm;
+        double halfSpanNm = footprint.WingspanFt / 2.0 / GeoMath.FeetPerNm;
+        double halfTailplaneNm = GroundOutline.TailplaneSpanFraction * footprint.WingspanFt / GeoMath.FeetPerNm;
+        LatLon tail = GeoMath.ProjectPoint(position, new TrueHeading((headingDeg + 180.0) % 360.0), halfLengthNm);
+        var left = new TrueHeading((headingDeg + 270.0) % 360.0);
+        var right = new TrueHeading((headingDeg + 90.0) % 360.0);
+        return
+        [
+            GeoMath.ProjectPoint(position, new TrueHeading(headingDeg), halfLengthNm),
+            tail,
+            GeoMath.ProjectPoint(position, left, halfSpanNm),
+            GeoMath.ProjectPoint(position, right, halfSpanNm),
+            GeoMath.ProjectPoint(tail, left, halfTailplaneNm),
+            GeoMath.ProjectPoint(tail, right, halfTailplaneNm),
+        ];
+    }
+
+    /// <summary>The closest the outline at a pose comes to a straight edge of <paramref name="taxiway"/>, feet.</summary>
+    private static double OutlineToTaxiwayFt(AirportGroundLayout layout, LatLon position, double headingDeg, string type, string taxiway) =>
+        OutlineTips(position, headingDeg, type).Min(p => SfoGroundHarness.DistanceToTaxiwayFt(layout, taxiway, p));
+
+    /// <summary>Asserts the traced outline never comes closer to <paramref name="taxiway"/>'s centreline than it starts.</summary>
+    private void AssertNeverCloserToTaxiway(
+        AirportGroundLayout layout,
+        List<(LatLon Position, double HeadingDeg, double SpeedKts)> trace,
+        string type,
+        string taxiway
+    )
+    {
+        double startFt = OutlineToTaxiwayFt(layout, trace[0].Position, trace[0].HeadingDeg, type, taxiway);
+        (double closestFt, int second) = trace
+            .Select((t, i) => (OutlineToTaxiwayFt(layout, t.Position, t.HeadingDeg, type, taxiway), i))
+            .MinBy(c => c.Item1);
+        output.WriteLine($"outline starts {startFt:F1} ft from {taxiway}'s centreline; closest {closestFt:F1} ft at t={second}s");
+        Assert.True(
+            closestFt >= startFt - 0.5,
+            $"the outline comes {closestFt:F1} ft from {taxiway}'s centreline at t={second}s, closer than the {startFt:F1} ft it starts at"
+        );
+    }
+
+    /// <summary>
+    /// Asserts the trace turns about beyond the spot on the lane's ramp side — it heads into the ramp along the lane there
+    /// and reaches deeper into the ramp than where it rests — with every wingtip on the ramp side of the spot at least
+    /// <see cref="TurnAboutT7ClearanceFt"/> from <paramref name="neighbour"/>'s centreline.
+    /// </summary>
+    private void AssertTurnsAboutBeyondSpotClearOf(
+        AirportGroundLayout layout,
+        List<(LatLon Position, double HeadingDeg, double SpeedKts)> trace,
+        GroundNode spot,
+        double exitDeg,
+        string type,
+        string neighbour
+    )
+    {
+        double intoRampDeg = (exitDeg + 180.0) % 360.0;
+        var rampSide = trace
+            .Select((t, i) => (t.Position, t.HeadingDeg, Second: i))
+            .Where(t => AlongLaneFt(t.Position, spot, exitDeg) < 0.0)
+            .ToList();
+        Assert.True(rampSide.Count > 0, "the trace never reaches the ramp side of the spot");
+        double deepestFt = rampSide.Min(t => AlongLaneFt(t.Position, spot, exitDeg));
+        double restFt = AlongLaneFt(trace[^1].Position, spot, exitDeg);
+        bool headedIntoRamp = rampSide.Any(t =>
+            (GeoMath.AbsBearingDifference(t.HeadingDeg, intoRampDeg) <= TurnedAboutBandDeg)
+            && (SfoGroundHarness.DistanceToTaxiwayFt(layout, LaneOf(spot), t.Position) <= OnLaneFt)
+        );
+        double halfSpanFt = AircraftFootprint.FromType(type).WingspanFt / 2.0;
+        (double wingtipFt, int second) = rampSide
+            .Select(t =>
+                (
+                    new[] { 90.0, 270.0 }.Min(side =>
+                        SfoGroundHarness.DistanceToTaxiwayFt(
+                            layout,
+                            neighbour,
+                            GeoMath.ProjectPoint(t.Position, new TrueHeading((t.HeadingDeg + side) % 360.0), halfSpanFt / GeoMath.FeetPerNm)
+                        )
+                    ),
+                    t.Second
+                )
+            )
+            .MinBy(c => c.Item1);
+        output.WriteLine(
+            $"deepest {-deepestFt:F0} ft into the ramp past the spot, rests {-restFt:F0} ft; headed into the ramp: {headedIntoRamp}; "
+                + $"closest wingtip to {neighbour} {wingtipFt:F1} ft at t={second}s"
+        );
+        Assert.True(
+            headedIntoRamp,
+            $"the aircraft never taxied into the ramp along the lane past the spot (within {OnLaneFt:F0} ft of it, "
+                + $"{TurnedAboutBandDeg:F0}° of {intoRampDeg:F0})"
+        );
+        Assert.True(
+            deepestFt < restFt - 1.0,
+            $"the aircraft reached no deeper than where it rests ({-deepestFt:F0} ft): no turn about beyond the spot"
+        );
+        Assert.True(
+            wingtipFt >= TurnAboutT7ClearanceFt,
+            $"a wingtip comes {wingtipFt:F1} ft from {neighbour}'s centreline at t={second}s on the ramp side of the spot "
+                + $"(never closer than {TurnAboutT7ClearanceFt:F1} ft expected)"
+        );
+        (LatLon Position, double HeadingDeg, int Second) deepest = rampSide.MinBy(t => AlongLaneFt(t.Position, spot, exitDeg));
+        AssertNoseAtDeepestPointAwayFrom(layout, (deepest.Position, deepest.HeadingDeg), spot, exitDeg, neighbour);
+    }
+
+    /// <summary>How far off a quarter turn from the lane the nose may point at the turn about's deepest point, degrees.</summary>
+    private const double DeepestNoseBandDeg = 45.0;
+
+    /// <summary>
+    /// Asserts the nose at the turn about's deepest point into the ramp points across the spot's lane, about a quarter turn
+    /// off it (within <see cref="DeepestNoseBandDeg"/>), toward the side away from <paramref name="neighbour"/> (SFO 7A:
+    /// west, away from T7) — the side the turn about swings to. The deepest point itself lies on the centreline, where the
+    /// turn-about circle's apex sits, so only the nose tells the sides apart.
+    /// </summary>
+    private void AssertNoseAtDeepestPointAwayFrom(
+        AirportGroundLayout layout,
+        (LatLon Position, double HeadingDeg) deepest,
+        GroundNode spot,
+        double exitDeg,
+        string neighbour
+    )
+    {
+        var lane = new TrueHeading(exitDeg);
+        GroundNode nearest =
+            layout.GetNodesOnTaxiway(neighbour).MinBy(n => DistanceFt(n.Position, spot.Position))
+            ?? throw new InvalidOperationException($"no {neighbour} node");
+        double neighbourOffFt = GeoMath.SignedCrossTrackDistanceNm(nearest.Position, spot.Position, lane) * GeoMath.FeetPerNm;
+        double noseOffLaneDeg = GeoMath.SignedBearingDifference(exitDeg, deepest.HeadingDeg);
+        double quarterOffDeg = Math.Abs(Math.Abs(noseOffLaneDeg) - 90.0);
+        // The side of the lane a nose noseOffLaneDeg off the exit bearing points to: right (positive cross-track) for a right offset.
+        output.WriteLine(
+            $"nose at the deepest point {deepest.HeadingDeg:F0}°, {noseOffLaneDeg:F0}° off {LaneOf(spot)} toward the exit; "
+                + $"{neighbour} lies {neighbourOffFt:F0} ft off the lane"
+        );
+        Assert.True(quarterOffDeg <= DeepestNoseBandDeg, $"the nose at the deepest point is {noseOffLaneDeg:F0}° off the lane, not across it");
+        Assert.True(
+            Math.Sign(noseOffLaneDeg) == -Math.Sign(neighbourOffFt),
+            $"the nose at the deepest point points {noseOffLaneDeg:F0}° off the lane, toward {neighbour}'s side"
+        );
     }
 
     /// <summary>The resolved route SKW5590's clearance gives before any line-up: from T7A's junction with A down to spot 7A.</summary>
@@ -704,85 +1216,8 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     private static double ClosestLegApproachFt(IEnumerable<TaxiRouteSegment> legs, LatLon point) =>
         legs.Min(l => GeoMath.DistanceToSegmentFt(point, l.Edge.FromNode.Position, l.Edge.ToNode.Position));
 
-    /// <summary>How far a line-up's resting heading, and its lined-up pull, may sit off the lane toward the exit.</summary>
-    private const double LineUpHeadingToleranceDeg = 10.0;
-
-    /// <summary>The most a line-up may turn in one continuous turn: no loop round the compass.</summary>
-    private const double MaxContinuousTurnDeg = 200.0;
-
     /// <summary>The most the last turn before a line-up stops may be: a quarter turn onto the lane, not a reversal.</summary>
     private const double MaxLastTurnDeg = 110.0;
-
-    /// <summary>A heading change slower than this in a second is a straight, and ends a continuous turn.</summary>
-    private const double TurningDegPerSecond = 1.0;
-
-    /// <summary>How far either side of the lane's inbound bearing a heading counts as having turned back into the ramp.</summary>
-    private const double LoopBandDeg = 20.0;
-
-    /// <summary>
-    /// Asserts the per-second trace of a line-up is one smooth quarter turn onto the lane and a slow straight pull:
-    /// no continuous turn over <see cref="MaxContinuousTurnDeg"/>, a last turn no sharper than
-    /// <see cref="MaxLastTurnDeg"/>, lined up within <see cref="LineUpHeadingToleranceDeg"/> for at least half a
-    /// fuselage before the stop at no more than <see cref="TaxiingPhase.SpotLineUpPullSpeedKts"/>, and no heading back into the ramp
-    /// once the aircraft has crossed the lane's line.
-    /// </summary>
-    private void AssertQuarterTurnLineUp(
-        List<(LatLon Position, double HeadingDeg, double SpeedKts)> trace,
-        GroundNode spot,
-        double exitDeg,
-        double lengthFt
-    )
-    {
-        var turns = new List<double>();
-        double current = 0.0;
-        for (int i = 1; i < trace.Count; i++)
-        {
-            double delta = GeoMath.SignedBearingDifference(trace[i - 1].HeadingDeg, trace[i].HeadingDeg);
-            bool turning = Math.Abs(delta) >= TurningDegPerSecond;
-            if (turning && ((current == 0.0) || (Math.Sign(current) == Math.Sign(delta))))
-            {
-                current += delta;
-                continue;
-            }
-
-            if (current != 0.0)
-            {
-                turns.Add(current);
-            }
-
-            current = turning ? delta : 0.0;
-        }
-
-        if (current != 0.0)
-        {
-            turns.Add(current);
-        }
-
-        double linedUpFt = 0.0;
-        double linedUpMaxKts = 0.0;
-        for (int i = trace.Count - 1; (i > 0) && (GeoMath.AbsBearingDifference(trace[i].HeadingDeg, exitDeg) <= LineUpHeadingToleranceDeg); i--)
-        {
-            linedUpFt += DistanceFt(trace[i - 1].Position, trace[i].Position);
-            linedUpMaxKts = Math.Max(linedUpMaxKts, trace[i].SpeedKts);
-        }
-
-        var exitHeading = new TrueHeading(exitDeg);
-        int startSide = Math.Sign(GeoMath.SignedCrossTrackDistanceNm(trace[0].Position, spot.Position, exitHeading));
-        int crossed = trace.FindIndex(t => Math.Sign(GeoMath.SignedCrossTrackDistanceNm(t.Position, spot.Position, exitHeading)) != startSide);
-        double inboundDeg = (exitDeg + 180.0) % 360.0;
-        bool loops = (crossed >= 0) && trace.Skip(crossed).Any(t => GeoMath.AbsBearingDifference(t.HeadingDeg, inboundDeg) <= LoopBandDeg);
-
-        output.WriteLine(
-            $"turns [{string.Join(", ", turns.Select(t => $"{t:F0}"))}], lined up {linedUpFt:F0} ft (half fuselage {lengthFt / 2.0:F0}) "
-                + $"at up to {linedUpMaxKts:F1} kts, crossed the lane line at t={crossed}, loops={loops}"
-        );
-        Assert.True(turns.Count > 0, "the trace never turned");
-        Assert.True(turns.Max(Math.Abs) <= MaxContinuousTurnDeg, $"a continuous turn of {turns.Max(Math.Abs):F0}° — a loop");
-        Assert.True(Math.Abs(turns[^1]) <= MaxLastTurnDeg, $"the last turn is {Math.Abs(turns[^1]):F0}°, sharper than a quarter turn");
-        Assert.True(linedUpFt >= lengthFt / 2.0, $"lined up for only {linedUpFt:F0} ft before stopping");
-        Assert.True(linedUpMaxKts <= TaxiingPhase.SpotLineUpPullSpeedKts, $"the lined-up pull runs at up to {linedUpMaxKts:F1} kts");
-        Assert.False(loops, "the aircraft turned back into the ramp after crossing the lane's line");
-    }
 
     /// <summary>
     /// The same clearance from the movement area keeps the arrival it has always had: an aircraft on taxiway A

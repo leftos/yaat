@@ -205,9 +205,11 @@ public class GroundViewModelApproachLegOverlayTests
     }
 
     /// <summary>
-    /// Partway along the line-up's run-in the overlay draws the rest of the run-in and the pull — not a leg back out to
-    /// the approach point it has already passed. Earlier on the run-in, until the aircraft is off the T7A–RAMP fillet
-    /// (about 0.65 of a real CRJ7's run-in), the overlay re-plans from the taxi-start node, as YAAT-196 records.
+    /// Partway along the line-up's run-in the overlay draws the rest of the line-up — not a leg back out to the approach
+    /// point it has already passed. From SKW5590's pose past 7A the line-up joins T7A on the exit side, runs out past 7A to
+    /// node 542, turns about and comes back down the lane (YAAT-40): eight segments before the pull — the crossing, the
+    /// run-in, then the lane onto 7A and out to 542. The fractions 0.7 and 0.75 both lie on that run-in, past the T7A–RAMP
+    /// fillet (about 0.65 of a real CRJ7's run-in); earlier on it the overlay re-plans from the taxi-start node, as YAAT-196 records.
     /// </summary>
     [Theory]
     [InlineData(0.7)]
@@ -221,9 +223,11 @@ public class GroundViewModelApproachLegOverlayTests
         }
 
         TaxiRoute server = ServerRoute(layout, Skw5590Position, new TrueHeading(254.0));
+        // The pull starts at segment 8: the line-up goes past 7A and turns about at node 542 (YAAT-40).
         Assert.True(
-            server.SpotLineUpPullFromSegment is 2,
-            $"expected a crossing and a run-in ahead of the pull, got {server.SpotLineUpPullFromSegment}"
+            server.SpotLineUpPullFromSegment is 8,
+            "expected eight segments ahead of the pull (a crossing, the run-in, the lane onto 7A and on past it out to node 542), "
+                + $"got {server.SpotLineUpPullFromSegment}"
         );
         TaxiRouteSegment runIn = server.Segments[1];
         LatLon approach = runIn.Edge.FromNode.Position;
