@@ -17,11 +17,19 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 public class ResolvedRouteCutRollInTests(ITestOutputHelper output)
 {
     /// <summary>
-    /// How far off the stand heading the parked aircraft may rest. Measured, not published: this run parks 2.8° off
-    /// (the aircraft leaves the gate on a short route and is still settling on the roll-in), where a straight cut from
-    /// T5A parked SKW3398 43° off D1's heading in issue #454.
+    /// How far off the stand heading the parked aircraft may rest: the roll-in arc is fitted to the aircraft's live pose
+    /// so the straight is flown lined up, where a straight cut from T5A once parked SKW3398 43° off D1's heading.
     /// </summary>
-    private const double ParkedHeadingToleranceDeg = 5.0;
+    private const double ParkedHeadingToleranceDeg = 1.0;
+
+    /// <summary>How far past the stand heading, in the corner's own turn sense, the roll-in may swing before it settles on it.</summary>
+    private const double MaxOvershootDeg = 1.0;
+
+    /// <summary>How far outside the roll-in line, opposite the corner's turn sense, the roll-in arc may swing.</summary>
+    private const double MaxWideFt = 2.0;
+
+    /// <summary>Share of the roll-in's length the aircraft must already be within the parked tolerance of the stand heading.</summary>
+    private const double MinLinedUpShare = 0.75;
 
     [Fact]
     public void TaxiToStandTheLongWayRound_CutsAcrossAndRollsInOnStandHeading()
@@ -57,16 +65,61 @@ public class ResolvedRouteCutRollInTests(ITestOutputHelper output)
         Assert.InRange(rollInFt, AircraftLength.ResolveFt("E75L") - 1.0, AircraftLength.ResolveFt("E75L") + 1.0);
         Assert.True(route.TotalDistanceFt < 1000.0, $"the cut route is {route.TotalDistanceFt:F0} ft; the graph's long way round is 1,612 ft");
 
-        int parkedAt = SfoGroundHarness.TickUntil(ground.Engine, () => aircraft.Phases?.CurrentPhase is AtParkingPhase, 400, null);
-        double errorDeg = GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, standHeading);
-        double offStandFt = GeoMath.DistanceNm(aircraft.Position, d1.Position) * GeoMath.FeetPerNm;
-        output.WriteLine(
-            $"SKW3398 at D1 after {parkedAt}s: heading {aircraft.TrueHeading.Degrees:F1}° (stand {standHeading:F1}°), {offStandFt:F0} ft off the stand"
+        double turnSense = Math.Sign(GeoMath.SignedBearingDifference(crossing.Edge.ArrivalBearing, standHeading));
+        var rollInLine = new TrueHeading(standHeading);
+        LatLon approach = rollIn.Edge.FromNode.Position;
+        double overshootDeg = double.MinValue;
+        double wideFt = double.MinValue;
+        double linedUpFromFt = double.NaN;
+        int samples = 0;
+        int rollInIndex = route.Segments.Count - 1;
+        AircraftState? parked = SubTickDriver.TickSubTicksUntil(
+            ground.Engine,
+            "SKW3398",
+            ac => ac.Phases?.CurrentPhase is AtParkingPhase,
+            400,
+            ac =>
+            {
+                if (route.CurrentSegmentIndex != rollInIndex)
+                {
+                    return;
+                }
+
+                samples++;
+                double errorDeg = GeoMath.SignedBearingDifference(standHeading, ac.TrueHeading.Degrees);
+                double offLineFt = GeoMath.SignedCrossTrackDistanceNm(ac.Position, approach, rollInLine) * GeoMath.FeetPerNm;
+                double alongFt = GeoMath.AlongTrackDistanceNm(ac.Position, approach, rollInLine) * GeoMath.FeetPerNm;
+                overshootDeg = Math.Max(overshootDeg, turnSense * errorDeg);
+                wideFt = Math.Max(wideFt, -turnSense * offLineFt);
+                if (Math.Abs(errorDeg) > ParkedHeadingToleranceDeg)
+                {
+                    linedUpFromFt = double.NaN;
+                }
+                else if (double.IsNaN(linedUpFromFt))
+                {
+                    linedUpFromFt = alongFt;
+                }
+            }
         );
-        Assert.True(parkedAt > 0, $"SKW3398 never parked at D1: {aircraft.Phases?.CurrentPhase?.Name}");
+        Assert.NotNull(parked);
+        double parkedErrorDeg = GeoMath.AbsBearingDifference(parked.TrueHeading.Degrees, standHeading);
+        double stopAlongFt = GeoMath.AlongTrackDistanceNm(parked.Position, approach, rollInLine) * GeoMath.FeetPerNm;
+        double linedUpFt = double.IsNaN(linedUpFromFt) ? 0.0 : stopAlongFt - linedUpFromFt;
+        output.WriteLine(
+            $"SKW3398 at D1: heading {parked.TrueHeading.Degrees:F1}° (stand {standHeading:F1}°), "
+                + $"{parkedErrorDeg:F2}° at the stop, overshoot {overshootDeg:F2}°, {wideFt:F2} ft wide, "
+                + $"{linedUpFt:F1} of {rollInFt:F1} ft lined up, {samples} sub-tick samples"
+        );
+        Assert.True(samples > 0, "the roll-in segment was never sampled");
         Assert.True(
-            errorDeg <= ParkedHeadingToleranceDeg,
-            $"SKW3398 parked at {aircraft.TrueHeading.Degrees:F1}°, {errorDeg:F1}° off the stand heading"
+            parkedErrorDeg <= ParkedHeadingToleranceDeg,
+            $"SKW3398 parked at {parked.TrueHeading.Degrees:F1}°, {parkedErrorDeg:F2}° off the stand heading"
+        );
+        Assert.True(overshootDeg <= MaxOvershootDeg, $"the roll-in overshot the stand heading by {overshootDeg:F2}°");
+        Assert.True(wideFt <= MaxWideFt, $"the roll-in swung {wideFt:F2} ft outside the roll-in line");
+        Assert.True(
+            linedUpFt / rollInFt >= MinLinedUpShare,
+            $"the roll-in was within {ParkedHeadingToleranceDeg:F1}° for only {linedUpFt:F1} of its {rollInFt:F1} ft"
         );
     }
 

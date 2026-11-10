@@ -1461,6 +1461,10 @@ public sealed class GroundNavigator
         {
             roundingRadiusFt = OffsetLineNodeTurnRadiusFt(ctx, seg, headingDelta, roundingRadiusFt, line);
         }
+        else if (RollInLineTurnRadiusFt(route, seg, ctx, headingDelta, roundingRadiusFt) is { } rollInRadiusFt)
+        {
+            roundingRadiusFt = rollInRadiusFt;
+        }
 
         // Which way round to turn. The short way is right for anything that is really a corner; a reversal
         // whose short way runs into the route's own next turn is taken the other way instead, so the two
@@ -1542,6 +1546,43 @@ public sealed class GroundNavigator
 
         HoldUnableFromRest(ctx, footprint, crossing);
         return true;
+    }
+
+    /// <summary>
+    /// For the stand roll-in — the route's last segment, a virtual edge into a parking or helipad node — the radius that
+    /// makes the entry arc tangent to the roll-in line from the aircraft's live pose: T′ = |cross-track| / |sin(heading −
+    /// line)|, r = T′ / tan(δ/2), clamped between the category's tight-turn floor and the planned radius. Null for any
+    /// other segment, a reversal, or an aircraft not closing on the line.
+    /// </summary>
+    private static double? RollInLineTurnRadiusFt(
+        TaxiRoute route,
+        TaxiRouteSegment seg,
+        PhaseContext ctx,
+        double deflectionDeg,
+        double plannedRadiusFt
+    )
+    {
+        bool isRollIn =
+            (route.CurrentSegmentIndex == route.Segments.Count - 1)
+            && VirtualNode.IsVirtualEdge(seg.Edge.Edge)
+            && (seg.Edge.ToNode.Type is GroundNodeType.Parking or GroundNodeType.Helipad);
+        if (!isRollIn || (deflectionDeg >= ReversalEntryThresholdDeg))
+        {
+            return null;
+        }
+
+        double lineBearing = seg.Edge.DepartureBearing;
+        double offFt =
+            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, seg.Edge.FromNode.Position, new TrueHeading(lineBearing)) * GeoMath.FeetPerNm;
+        double closingSin = Math.Sin(GeoMath.SignedBearingDifference(lineBearing, ctx.Aircraft.TrueHeading.Degrees) * Math.PI / 180.0);
+        if ((offFt * closingSin) >= 0.0)
+        {
+            return null;
+        }
+
+        double tangentFt = Math.Abs(offFt / closingSin);
+        double fitFt = tangentFt / Math.Tan(deflectionDeg * 0.5 * Math.PI / 180.0);
+        return Math.Clamp(fitFt, CategoryPerformance.TightTurnFloorRadiusFt(ctx.Category), plannedRadiusFt);
     }
 
     /// <summary>

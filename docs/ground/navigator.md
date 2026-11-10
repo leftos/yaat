@@ -610,6 +610,10 @@ The incoming arrival threshold (`StraightArrivalThresholdNm`) relaxes its `0.45�
 
 A node turn laid from a turn about's offset line replaces both: its arrival point and its radius are fitted to the offset ([After a turn about on a taxiway](#after-a-turn-about-on-a-taxiway)).
 
+**The stand roll-in fits its entry arc to the aircraft's pose.** On the route's last segment, a virtual edge into a parking or helipad node (the roll-in leg of [pathfinder.md](./pathfinder.md)), `RollInLineTurnRadiusFt` replaces the planned radius with the one that makes the entry arc end tangent to the roll-in line from where the aircraft stands: tangent length T′ = |cross-track| / |sin(heading − line)|, r = T′ / tan(δ/2), clamped between the category's tight-turn floor and the planned radius. It stands down (planned radius) for a reversal and for an aircraft not closing on the line. Every other corner is unchanged.
+
+The generic arc exits on the outgoing centreline only when the arrival lands exactly at the tangent point; an arrival a sub-tick early or late leaves it off the line, which is why the roll-in re-fits from the live pose and the stand is flown lined up.
+
 ### After a turn about on a taxiway
 
 **Re-aim past the bend.** Before rolling a reversal out on the edge's bearing, `SolveTaxiwayTurnAbout` tries `ReAimPastTheBend` at the node `FindAimNode` found a turning diameter from the jog's exit. `ReAimBoundFt` admits it only when a leg follows that node and the node is no bar (`IsBarNode`): a cut past a bar would drive through the hold short without arriving at it.

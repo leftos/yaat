@@ -28,6 +28,7 @@
 - Two taxiing aircraft whose paths cross judge each other by the route ahead, not the nose; when both would stop, the one with the other on its right holds.
 - Aircraft taxiing along a nearly straight taxiway no longer brake at small bends beside a junction (SFO C, SFO A).
 - An aircraft given a spot line-up from past the spot turns about beyond the spot and lines up, instead of looping behind it.
+- An aircraft taxiing into a stand turns onto the lead-in line and rolls in lined up, instead of swinging wide past the stand heading.
 
 ## v0.18.2-beta [2026/11/09]
 
