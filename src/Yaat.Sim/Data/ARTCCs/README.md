@@ -453,9 +453,10 @@ Parking areas a flight-plan remark may name instead of a stand (`/V/ PARKING SIG
 |-------|------|----------|-------------|
 | `parkingAreas[].area` | string | Yes | The area as remarks name it; case and spaces are ignored. `{n}` stands for a number the remark gives (`Plot {n}` matches `PLOT 9`) |
 | `parkingAreas[].stands` | string[] | Yes | Layout stand names the area covers: exact names, or a prefix ending in `*`. `{n}` carries the remark's number into the pattern |
+| `parkingAreas[].maxAdg` | string | No | The largest Airplane Design Group the area's stands take, `"I"` to `"VI"`. Replaces YAAT's estimate from the layout's stand spacing for those stands, above or below it |
 | `parkingAreas[].notes` | string | No | Informational only |
 
-An entry with a blank area, no stands, a blank stand, a `*` anywhere but at a stand's end, or a `{n}` in a stand whose area has none warns and is skipped. The first matching area wins; an area no entry matches gives no side.
+An entry with a blank area, no stands, a blank stand, a `*` anywhere but at a stand's end, or a `{n}` in a stand whose area has none warns and is skipped. A `maxAdg` that is not I to VI warns and is ignored: the area loads without it. The first matching area wins; an area no entry matches gives no side.
 
 SFO sets 28R GA and cargo arrivals to exit right. West-field cargo plots (2, 6, 9, 11, 12) lie left of 28R, so scenario authors give those flights a parking remark.
 

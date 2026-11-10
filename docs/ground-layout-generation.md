@@ -286,6 +286,19 @@ public sealed class GroundNode
 
 **Node IDs**: Sequential integers assigned during parsing in order: spot nodes → taxiway nodes → intersection nodes → runway hold-short nodes → parking nodes → helipad nodes → tangent nodes (fillet) → merged/coincident nodes.
 
+### Stand fit
+
+File: `src/Yaat.Sim/Data/Airport/StandFit.cs`
+
+`StandFit.MaxWingspanFt` estimates the largest wingspan a Parking node takes from the layout's stand spacing, and `Fits` compares an aircraft's wingspan to it.
+
+- **Neighbours**: another Parking node within 300 ft that sits beside the stand (its offset along the stand's heading no larger than its offset across it). Alternates of the stand do not count, so alternates never cap each other: two stands under 35 ft apart, or two whose names differ only by trailing letters (`9-4`, `9-4A`) under 150 ft apart. A stand with no heading counts every neighbour in range at its full distance.
+- **Span**: the smallest lateral gap to a counting neighbour, taken as shared by two aircraft of the same span, less the wingtip clearance of the design group the span falls in (10 ft for ADG I and II, 15 ft for III, 25 ft for IV to VI), capped at that group's wingspan ceiling. Never below ADG I's ceiling.
+- **No neighbour**: the airport's ceiling, the design group of its widest runway. The estimate never exceeds that ceiling.
+- **Override**: a sidecar `parkingAreas[].maxAdg` replaces the estimate for the area's stands, above or below it (an override above the airport ceiling is logged and used). See [`ARTCC_CUSTOMIZATION.md`](../ARTCC_CUSTOMIZATION.md).
+
+The clearances are ICAO Annex 14 stand clearances by code letter, which share ADG I to VI's span bands: industry practice, not an FAA figure.
+
 ### IGroundEdge Interface
 
 Common interface for straight and curved edges:

@@ -206,6 +206,13 @@ public sealed class ParkingAreaEntry
     [JsonPropertyName("stands")]
     public List<string>? Stands { get; set; }
 
+    /// <summary>
+    /// The largest Airplane Design Group the covered stands take, <c>"I"</c> to <c>"VI"</c>. Optional; when given it replaces
+    /// the estimate from the layout's stand spacing (<see cref="StandFit"/>), above or below it.
+    /// </summary>
+    [JsonPropertyName("maxAdg")]
+    public string? MaxAdg { get; set; }
+
     /// <summary>Facility rationale. Informational only.</summary>
     [JsonPropertyName("notes")]
     public string? Notes { get; set; }
@@ -219,6 +226,12 @@ public sealed record ParkingAreaAlias(string Area, IReadOnlyList<string> Stands,
 {
     /// <summary>The placeholder an area carries for the number a remark gives (<c>"PLOT{N}"</c>), as normalized from <c>{n}</c>.</summary>
     public const string NumberToken = "{N}";
+
+    /// <summary>
+    /// The largest Airplane Design Group the area's stands take, from the entry's <c>maxAdg</c>, overriding the estimate from
+    /// the layout's stand spacing (<see cref="StandFit"/>); null when the entry gives none or an invalid one.
+    /// </summary>
+    public AirplaneDesignGroup? MaxAdg { get; init; }
 }
 
 /// <summary>

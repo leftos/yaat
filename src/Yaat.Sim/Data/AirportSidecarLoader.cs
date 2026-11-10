@@ -431,7 +431,8 @@ public static class AirportSidecarLoader
     /// <summary>
     /// The <c>parkingAreas</c> section, in file order: each area upper-cased with its whitespace removed, each stand pattern
     /// trimmed and upper-cased. An entry with a blank area, no stands, a blank stand, a <c>*</c> anywhere but at a stand's end,
-    /// or a <c>{n}</c> in a stand its area does not carry is warned and skipped.
+    /// or a <c>{n}</c> in a stand its area does not carry is warned and skipped. A <c>maxAdg</c> that is not I to VI is warned
+    /// about and the entry loads without it.
     /// </summary>
     private static List<ParkingAreaAlias> ParseParkingAreas(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
     {
@@ -447,10 +448,27 @@ public static class AirportSidecarLoader
                 continue;
             }
 
-            areas.Add(new ParkingAreaAlias(area, stands, entry.Notes));
+            areas.Add(new ParkingAreaAlias(area, stands, entry.Notes) { MaxAdg = ParseMaxAdg(entry, i, filePath, result) });
         }
 
         return areas;
+    }
+
+    /// <summary>A parking area entry's <c>maxAdg</c> as a design group: null when absent, and null with a warning when not I to VI.</summary>
+    private static AirplaneDesignGroup? ParseMaxAdg(ParkingAreaEntry entry, int index, string filePath, AirportSidecarLoadResult result)
+    {
+        if (entry.MaxAdg is null)
+        {
+            return null;
+        }
+
+        if (AirplaneDesignGroups.TryParseRoman(entry.MaxAdg.Trim(), out AirplaneDesignGroup group))
+        {
+            return group;
+        }
+
+        result.Warnings.Add($"{filePath}: parkingAreas[{index}] ({entry.Area}): maxAdg '{entry.MaxAdg}' is not I to VI, loading the area without it");
+        return null;
     }
 
     /// <summary>What is wrong with a normalized parking area and its stand patterns, or null when they are usable.</summary>

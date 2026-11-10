@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
@@ -174,6 +175,49 @@ public class ExitDirectionSidecarTests
         Assert.Equal(["ATN"], airport.CargoOperators);
         ParkingAreaAlias area = Assert.Single(airport.ParkingAreas);
         Assert.Equal(("PLOT{N}", "{N}-*"), (area.Area, Assert.Single(area.Stands)));
+    }
+
+    /// <summary>A parking area's <c>maxAdg</c> parses to its design group, and is null on an area without one.</summary>
+    [Fact]
+    public void LoadAll_ParkingAreaMaxAdg_ParsesAndIsNullWhenAbsent()
+    {
+        AirportSidecarLoadResult result = LoadSidecar(
+            """
+            {
+              "airportId": "KTST",
+              "parkingAreas": [
+                { "area": "Signature", "stands": ["SIG*"], "maxAdg": "III" },
+                { "area": "Plot {n}", "stands": ["{n}-*"] }
+              ]
+            }
+            """
+        );
+
+        Assert.Empty(result.Warnings);
+        IReadOnlyList<ParkingAreaAlias> areas = Assert.Single(result.Airports).ParkingAreas;
+        Assert.Equal(2, areas.Count);
+        Assert.Equal(AirplaneDesignGroup.III, areas[0].MaxAdg);
+        Assert.Null(areas[1].MaxAdg);
+    }
+
+    /// <summary>A <c>maxAdg</c> that is not I to VI is warned about, naming the entry, and the area loads without it.</summary>
+    [Theory]
+    [InlineData("VII")]
+    [InlineData("3")]
+    [InlineData("")]
+    public void LoadAll_InvalidParkingAreaMaxAdg_WarnsAndLoadsTheAreaWithoutIt(string maxAdg)
+    {
+        AirportSidecarLoadResult result = LoadSidecar(
+            $$"""
+            { "airportId": "KTST", "parkingAreas": [ { "area": "Signature", "stands": ["SIG*"], "maxAdg": "{{maxAdg}}" } ] }
+            """
+        );
+
+        string warning = Assert.Single(result.Warnings);
+        Assert.Contains("parkingAreas[0] (Signature): maxAdg", warning, StringComparison.Ordinal);
+        ParkingAreaAlias area = Assert.Single(Assert.Single(result.Airports).ParkingAreas);
+        Assert.Equal("SIGNATURE", area.Area);
+        Assert.Null(area.MaxAdg);
     }
 
     /// <summary>The <c>gaOperators</c> section mirrors <c>cargoOperators</c>: trimmed, upper-cased, de-duplicated.</summary>
