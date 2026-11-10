@@ -54,7 +54,7 @@ public class Sfo28rArrivalOccupancyTests(ITestOutputHelper output)
     /// reverse). It measures the straight line to the hold-short rather than the curved exit path, which is the
     /// standing optimism the class documents, so a few seconds either way is the model, not a defect.
     /// </summary>
-    private const double MaxPredictionErrorSeconds = 4.0;
+    internal const double MaxPredictionErrorSeconds = 4.0;
 
     /// <summary>
     /// Regression pin, not a target: UAL2627's E exit off 28L is a 70° standard-angle turn, and the fillet's

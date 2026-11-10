@@ -634,6 +634,18 @@ public sealed class TaxiingPhaseDto : PhaseDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? SaidFarSideBlockedNodeId { get; init; }
+
+    /// <summary>
+    /// The speed (kts) a pull-up handed off at speed from a runway exit holds its taxi to until the parallel runway's bar
+    /// (<see cref="PullUpCapBarNodeId"/>) is cleared or behind it. Null when there is no such cap, and in snapshots written before
+    /// the field existed.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? PullUpCapKts { get; init; }
+
+    /// <summary>The parallel runway bar's node <see cref="PullUpCapKts"/> holds until; null with no cap.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PullUpCapBarNodeId { get; init; }
 }
 
 public sealed class GroundNavigatorDto
@@ -1252,6 +1264,14 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     // The crossing runway of a LAHSO clearance voided by the predicted-overrun call (V49): the rollout must not come to rest between
     // its pavement edges. Not `required`: absent on older snapshots, where null (no voided clearance) is what those builds knew.
     public string? VoidedLahsoCrossingRunwayId { get; init; }
+
+    // The aircraft's tail has passed the landing runway's holding position marking and the vacate side effects have run (V50).
+    // Not `required`: absent on older snapshots, where false lets the restored exit run them once more, at the latch or the stop.
+    public bool Vacated { get; init; }
+
+    // The speed (kts) the exit route's end leads on to a pull-up to the parallel runway's hold-short at, planned when the route was
+    // built (V50). Not `required`: absent on older snapshots, where null (the exit's end is a stop) is what those builds flew.
+    public double? PullUpReachKts { get; init; }
 
     /// <summary>
     /// Through V45 the "unable to exit" latch lived here (the pilot had already reported it was stopped with no exit ahead). Read only

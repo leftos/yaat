@@ -389,6 +389,7 @@ public static class SameRunwayArrivalProtection
             RunwayExitPhase { TargetHoldShortNode: { } holdShort } exit => ExitRollout(
                 aircraft,
                 Math.Max(0.0, tailClearance - PastHoldShortNm(aircraft, holdShort, exit.HoldShortApproachHeading)),
+                (exit.PlannedHandOffKts(aircraft) is { } handOffKts) ? (handOffKts, exit.CeilingKts(aircraft)) : null,
                 elapsed
             ),
             _ => null,
@@ -421,8 +422,8 @@ public static class SameRunwayArrivalProtection
     /// The vacate of an aircraft already on its exit path: steady, then the stop. <see cref="RunwayExitPhase"/> caps
     /// its navigator at <see cref="CategoryPerformance.TaxiSpeed"/> — bumped by
     /// <see cref="CategoryPerformance.GroundExpediteMultiplier"/> on an expedited exit, never for a Super/Heavy — and that navigator brakes to
-    /// the hold-short stop at <see cref="CategoryPerformance.TaxiDecelRate"/>
-    /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/> when expediting), so the remainder is one leg held at
+    /// the hold-short stop at <see cref="RunwayExitPhase.ExitEndBrakeRate"/> (the category taxi rate, the expedite rate when
+    /// expediting), the one rate both use, so the remainder is one leg held at
     /// the ceiling and a final v²/2a of braking. The steady speed is never above the speed the leader is doing now:
     /// a slower one is not sped up to the ceiling (re-acceleration at <see cref="CategoryPerformance.TaxiAccelRate"/>
     /// is deliberately not modelled — it would only ever read the leader clear sooner, and §3-10-3.a.1 is the
@@ -431,25 +432,43 @@ public static class SameRunwayArrivalProtection
     /// still above the ceiling: v²/2a from there covers both the bleed down to the ceiling and the stop, and at a
     /// constant rate the two together take the same time however the steady leg sits between them. A remainder
     /// already inside that stopping distance has no steady leg left — it is all braking, from the present speed.
+    ///
+    /// <para>An exit that hands straight off to a pull-up to the parallel runway (<paramref name="pullUp"/>: the hand-off speed,
+    /// <see cref="RunwayExitPhase.PlannedHandOffKts"/>, and the exit's ceiling, <see cref="RunwayExitPhase.CeilingKts"/>, the two the
+    /// exit flies) does not stop: it holds the exit's ceiling and its braking leg ends at the hand-off speed as the tail passes the
+    /// bar, (v² − v<sub>h</sub>²)/2a at the same rate, never above the speed the leader is doing now.</para>
     /// </summary>
-    private static LeaderRollout ExitRollout(AircraftState aircraft, double remainderNm, double elapsedSeconds)
+    private static LeaderRollout ExitRollout(
+        AircraftState aircraft,
+        double remainderNm,
+        (double HandOffKts, double CeilingKts)? pullUp,
+        double elapsedSeconds
+    )
     {
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool expediting = aircraft.Ground.IsExpeditingExit;
         double ceiling =
-            CategoryPerformance.TaxiSpeed(category)
-            * (expediting ? CategoryPerformance.GroundExpediteMultiplier(CategoryPerformance.IsSuperOrHeavy(aircraft.AircraftType, category)) : 1.0);
-        double decelRate = expediting ? CategoryPerformance.ExpediteExitDecelRate(category) : CategoryPerformance.TaxiDecelRate(category);
+            pullUp?.CeilingKts
+            ?? (
+                CategoryPerformance.TaxiSpeed(category)
+                * (
+                    expediting
+                        ? CategoryPerformance.GroundExpediteMultiplier(CategoryPerformance.IsSuperOrHeavy(aircraft.AircraftType, category))
+                        : 1.0
+                )
+            );
+        double decelRate = RunwayExitPhase.ExitEndBrakeRate(category, expediting);
         double entry = Math.Max(0.0, aircraft.GroundSpeed);
         double steady = Math.Min(entry, ceiling);
-        double stoppingNm = entry * entry / (2.0 * decelRate) / 3600.0;
+        double endSpeed = Math.Min(Math.Max(0.0, pullUp?.HandOffKts ?? 0.0), entry);
+        double stoppingNm = ((entry * entry) - (endSpeed * endSpeed)) / (2.0 * decelRate) / 3600.0;
 
         if (stoppingNm >= remainderNm)
         {
             return new LeaderRollout(
                 BrakingLegNm: remainderNm,
                 BrakingEntrySpeedKts: entry,
-                BrakingExitSpeedKts: 0.0,
+                BrakingExitSpeedKts: endSpeed,
                 SteadyLegNm: 0.0,
                 SteadySpeedKts: steady,
                 ElapsedSinceThresholdSeconds: elapsedSeconds
@@ -459,7 +478,7 @@ public static class SameRunwayArrivalProtection
         return new LeaderRollout(
             BrakingLegNm: stoppingNm,
             BrakingEntrySpeedKts: entry,
-            BrakingExitSpeedKts: 0.0,
+            BrakingExitSpeedKts: endSpeed,
             SteadyLegNm: remainderNm - stoppingNm,
             SteadySpeedKts: steady,
             ElapsedSinceThresholdSeconds: elapsedSeconds

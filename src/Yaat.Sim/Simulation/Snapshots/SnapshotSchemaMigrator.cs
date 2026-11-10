@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 49;
+    public const int CurrentSchemaVersion = 50;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -417,6 +417,14 @@ public static class SnapshotSchemaMigrator
         // V48→V49: RunwayExitPhaseDto.VoidedLahsoCrossingRunwayId added, the crossing runway of a LAHSO clearance voided by the
         //   predicted-overrun call, whose pavement the rollout must not come to rest on. No data transformation: an older snapshot
         //   reads null, no voided clearance, which is all a pre-V49 build knew of one.
+
+        // V49→V50: RunwayExitPhaseDto.Vacated added, latched when the exit's tail passes the landing runway's holding position
+        //   marking. No data transformation: an older snapshot reads false, and the restored exit runs the vacate side effects
+        //   at the latch or at its stop, as a pre-V50 build ran them at the stop. TaxiingPhaseDto.PullUpCapKts and PullUpCapBarNodeId
+        //   added, the speed cap a pull-up handed off at speed from a runway exit holds to before the parallel runway's bar. No data
+        //   transformation: an older snapshot reads null, no cap. RunwayExitPhaseDto.PullUpReachKts added, the pull-up speed the
+        //   exit's route end leads on to, planned at the route build. No data transformation: an older snapshot reads null, and the
+        //   restored exit stops at its end, as a pre-V50 build did.
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

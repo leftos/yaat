@@ -215,7 +215,7 @@ The property applies to every project in the build, so the probe's item group ca
 
 A probe run routes like any other: the gate sends a gitignored `.targets` or `.props` named by a `-p:` value to the builder with the files it names, followed through imports. Three things keep the run on this machine: a wildcard in the targets file (`Include="*.cs"`, so name each file), a project reference to an ignored project, and more than 64 MiB of files in all. A probe that fails routed is a report to gate's inbox. If a later run shows probe types, rebuild the test project so they leave `bin/obj`.
 
-Name the `.targets` file by an absolute path, and keep it in a gitignored folder such as `.tmp/`. A relative `-p:CustomAfterMicrosoftCommonTargets=.tmp/...` compiles nothing (MSBuild resolves it beside `Microsoft.Common.targets`): the run reports zero tests, exit 0. An absolute path to an untracked but not ignored folder is routed to a builder where the path does not exist, again zero tests. Check that the run's `total:` is non-zero.
+A gitignored probe `.targets` that names its `.cs` by `"$(MSBuildThisFileDirectory)…"` routes through the gate as is, with no `--local` needed. Name the `.targets` file by an absolute path, and keep it in a gitignored folder such as `.tmp/`. A relative `-p:CustomAfterMicrosoftCommonTargets=.tmp/...` compiles nothing (MSBuild resolves it beside `Microsoft.Common.targets`): the run reports zero tests, exit 0. An absolute path to an untracked but not ignored folder is routed to a builder where the path does not exist, again zero tests. Check that the run's `total:` is non-zero.
 
 Two local builds, one of a yaat test project and one of a yaat-server test project, cannot run at once: both write `Yaat.Sim.dll` and collide with CS2012. Run them in sequence.
 
@@ -428,6 +428,8 @@ tailwind-vs-calm roll-distance ratio reads 1.07 instead of 1.14, which looks exa
 0.25 s like `GroundWindFrameTests`, and don't tighten assert tolerances below one sub-tick of acceleration.
 
 `LandingExitDecelTests` is the rig for a runway exit's brake-to-rest stop, which only holds on sub-ticks (the navigator publishes the stop segment's speed on the arrival sub-tick): `FlyFromExitStart` restores a `RunwayExitPhase` at the start of an exit's first edge (an arc's entry speed, or a quarter along a straight at taxi speed) and steps phase-then-physics at `1 / SimulationEngine.PhysicsSubTickRate` until the exit completes. `CtxFor` builds that context with the field elevation from navdata (`GetAirportElevation`, the runway's own only for a synthetic runway), since a wrong elevation shifts the ground-speed/IAS conversion the stop depends on. `FlyC172Exit` stages a real exit by flying a short-final landing with `EXIT H` until the phase commits it, so the path and hold-short node are the sim's own. `SubTickStopCurveKts(rate, distNm)` is the closed-form speed from which braking at `rate` on sub-ticks stops `distNm` ahead, for starting an aircraft exactly on the stop curve.
+
+A per-second braking assertion (speed never rising, never dropping faster than a rate) exempts the second in which the stop completes as well as the hold-take second: the last braking sub-tick of a stop flown at a lower rate fires the firm rate (`GroundStopBraking.ChooseStopBraking`), so whether that second looks like braking depends on where the sub-ticks fall.
 
 ## Debugging aircraft movement — `TickRecorder`
 

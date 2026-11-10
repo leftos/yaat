@@ -702,6 +702,8 @@ An uncleared bar's painted stop puts the centre at the stop and the nose at the 
 
 It judges the first uncleared bar ahead by `GroundStopBraking.ChooseStopBraking` against the painted stop: the led taxi-rate curve when the taxi rate makes the stop; when only the firm rate (`CategoryPerformance.ExpediteExitDecelRate`) does, that rate published as `DesiredDecelRate` and the led curve at it; when not even the firm rate does, the firm rate and a zero target.
 
+`ChooseStopBraking` judges the stop with a continuous model from the speed before the sub-tick. Against a stop flown on the sub-ticked curve at a lower rate (the pull-up cap's, `TaxiingPhase.PullUpStopCapKts`), it fires the firm rate on the last braking sub-tick, so expect one firm sub-tick at the end of such a stop. `BrakeForUnclearedBar` logs its firm override at debug when it changes.
+
 An un-held tick applies it as `CapAtUnclearedBar`. A target physics already cleared on arrival at its goal (`FlightPhysics.ArriveAtGoal`) is capped from the current speed, never raised to the cap. A route-incomplete end keeps the navigator's routine braking; the cap skips it. A bar already called unmakeable (`HoldShortPoint.Unable`) is not braked for by `BrakeForUnclearedBar`; once its stop has moved (`StopMoved`), `UnableStopCapKts` caps the target at the moved stop's sub-ticked curve (`CurveKts`) at the rate the plan chose, since the navigator publishes no speed on a node-arrival sub-tick.
 
 A makeable taxiway bar whose stop the wingtip-envelope window moved to the firm-rate stop (`TaxiingPhase.MoveWindowBarToBrakingDistance`, [hold-short-placement.md](./hold-short-placement.md) § Feasibility) is flown the same way, at the firm rate and on the sub-ticked curve, though it is not `Unable`.

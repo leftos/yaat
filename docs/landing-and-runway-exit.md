@@ -363,6 +363,12 @@ An exit is clear of the runway only when the whole aircraft is past the holding 
 
   An instructed exit (`ExitSearch.Instructed`, a named taxiway) stops there; `HoldingAfterExitPhase.StoppedInsideHoldingDistance` (snapshotted) suppresses the "clear of runway" call, `RunwayOccupancy` counts the aircraft `OnSurface`, and the parallel-runway pull-up is skipped (AIM 4-3-21.b, 2-3-5.a.1).
 
+### Vacating at the tail
+
+The landing runway is vacated the moment the aircraft's tail passes the exit's holding position marking, whatever the speed, not when the aircraft comes to rest (`RunwayExitPhaseDto.Vacated`). A per-tick latch in `RunwayExitPhase` uses `RunwayOccupancy`'s own tail-past-bar predicate; the pilot's "clear of the runway" call and the held-bar occupied mark move to that latch, and the completion side effects run once, at the latch or at the stop, whichever comes first.
+
+`RunwayOccupancy.LeavingBarOf` judges an aircraft in its runway-exit phase against its own exit's hold-short, so a shallow high-speed exit (SFO 28R T/Q, OAK 30 W4/W5) counts as vacating until its tail passes that bar; occupancy used to release such an exit 400+ ft early.
+
 ### Crossovers too short to clear
 
 A crossover between parallel runways (SFO 28R-28L) can be shorter than the aircraft: the nose reaches the other runway's holding position marking before the tail is `RunwayTailClearance.PastBarFt` (half the length plus 10 ft) past the vacated runway's bar. `RunwayTailClearance.StopPastBar` builds the stop, cut back by `VirtualNode.OffsetPastShortOfOtherRunways` so the nose stays at or short of that bar (`RunwayHoldBars.DepthPastMarkingFt` judges the paint). Its `Stop.TailInsideLine` is true when the tail is left inside the vacated runway's marking, or within `RunwayTailClearance.TailClearToleranceFt` (2.8 ft: the navigator's stop threshold plus 1 ft) of it. This is a tail-inside stop: the aircraft is not clear of the runway it left.
@@ -503,7 +509,7 @@ GroundNavigator handles the actual turn through the exit. It uses:
 
 Where SFO 28R's runway occupancy goes (S1-SFO-2 bundle, E75L): ~6 s threshold → touchdown, ~41 s rollout to the E/T branch at ~6,200 ft — vNAS marks L and P `noTurnoff` on both 28s, so E/T is the first permitted exit whatever the brake rate — then the exit leg. T's 28R hold bar is 279 ft off the centerline but ~1,010 ft along the 33° exit, so "clear" is a 1,050 ft taxi plus half a fuselage.
 
-E off 28L (70°) is bound by its fillet's 12.1-kt arc cap through the turn and clears its 566 ft leg in ~26 s. The phase completes only when the aircraft has *stopped* half a fuselage past the bar — ~3 s after the tail is actually clear — even when `AutoPullUpToParallel` then rolls it on; that and the rollout-braking retune are backlog items in Linear (team YAAT). `Sfo28rArrivalOccupancyTests` pins the two vacates.
+E off 28L (70°) is bound by its fillet's 12.1-kt arc cap through the turn and clears its 566 ft leg in ~26 s. The runway counts as vacated the moment the tail passes the bar, not when the aircraft has stopped half a fuselage past it (see *Vacating at the tail* below); the rollout-braking retune is a backlog item in Linear (team YAAT). `Sfo28rArrivalOccupancyTests` pins the two vacates.
 
 ## Parallel-Runway Auto-Pull-Up (issue #175)
 
@@ -518,6 +524,7 @@ When an aircraft vacates **between two parallel runways** — e.g. lands OAK 28L
 
   The existing taxi machinery then drives the pull-up, stops short of the parallel, inserts the `HoldingShortPhase`, and — once a `CROSS` clears it — runs the `CrossingRunwayPhase` across and holds clear on the far side. No virtual nodes are added to the route (a negative `VirtualNode` id would drop the whole route on snapshot restore).
 - **Gating**: the `AutoPullUpToParallel` scenario setting (opt-out, on by default for live sessions via the client preference; off in `SimScenarioState` so pre-feature recordings replay faithfully). Independent of `AutoCrossRunwayMode` — the pull-up **always** requires an explicit `CROSS`/`CROSS <rwy>`; it never auto-crosses the parallel.
+- **At speed, no stop**: with the setting on, the exit hands straight to the `TaxiingPhase` at the hand-off speed `v = min(exit ceiling, sqrt(2·a·d))` (`RunwayExitPhase.PlannedHandOffKts`; `d` the along-route distance from the exit's stop point, tail just past the landing runway's bar, to the parallel bar's stop, nose at the bar, less a small buffer; `a = min(3 kt/s, the category taxi decel)`), planned when the route was built (`RunwayExitPhaseDto.PullUpReachKts`). The taxi is then capped at `max(ground speed at hand-off, v)` until the parallel bar is cleared or behind (`TaxiingPhase.PullUpCapKts`, `PullUpCapBarNodeId`). While the cap is live the taxi brakes on the sub-ticked curve at that rate from the hand-off sub-tick on, skipping route segments already passed, and on every sub-tick through `PullUpStopCapKts`. After the hand-off an `EXIT`/`EL`/`ER` is refused, as for any taxiing aircraft. `SameRunwayArrivalProtection` predicts the pull-up exit's vacate from the same `PlannedHandOffKts`. `TaxiingPhase` logs the hand-off braking, an advance past a passed node and a firm brake at a bar at debug, on change.
 - **Known limitation (YAAT-834)**: after the `CROSS`, the crossing currently stops with the main gear on the parallel runway's far bar and the tail still inside the hold line.
 - **Exit capacity**: see the next section for how many aircraft a sidecar lets stand between the two runways.
 - **Solo phraseology**: the synthesized pull-up hold-short carries `HoldShortReason.RunwayCrossing`, so it never triggers the solo-mode "ready for departure" report — that report fires only for `HoldShortReason.DestinationRunway` (the aircraft's assigned departure runway). A landed aircraft crossing a parallel is not a departure; it still surfaces a controller-facing "holding short runway <parallel>" reminder.

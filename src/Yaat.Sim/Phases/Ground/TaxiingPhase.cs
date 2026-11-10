@@ -94,6 +94,12 @@ public sealed class TaxiingPhase : Phase
     // the hold is taken or the bar is cleared. Snapshotted.
     private int? _passedStartBarNodeId;
 
+    // A pull-up a runway exit handed off at speed holds its taxi to this speed (kts) until the parallel runway's bar
+    // (_pullUpCapBarNodeId) is cleared or no longer ahead, so it never speeds up toward the bar it brakes for; then the cap is
+    // dropped for good. Null when there is no such cap. Snapshotted.
+    private double? _pullUpCapKts;
+    private int? _pullUpCapBarNodeId;
+
     // Set when this phase completes to hand off to a still-moving CrossingRunwayPhase
     // (pre-cleared crossing), so OnEnd does not brake the aircraft to a stop. Transient —
     // set and consumed within the same completing tick, never snapshotted.
@@ -102,6 +108,11 @@ public sealed class TaxiingPhase : Phase
     // The cleared crossing bar the last BrakeForUnclearedBar braked for because the crossing's far side was blocked
     // (RunwayCrossingFarSideGate). Transient: recomputed on every call, never snapshotted.
     private HoldShortPoint? _farSideBlockedBar;
+
+    // Node of the bar the firm-braking debug line was logged for in the firm episode under way, so it is logged once per episode
+    // rather than every sub-tick; reset on any sub-tick that does not publish the firm rate, so a second episode at the same bar
+    // logs again. Logging only: transient, never snapshotted.
+    private int? _loggedFirmBrakingNodeId;
 
     // Node of the crossing bar the "holding short, traffic ahead" call was made at, so it is said once per bar. Snapshotted.
     private int? _saidFarSideBlockedNodeId;
@@ -115,7 +126,23 @@ public sealed class TaxiingPhase : Phase
     /// </summary>
     private const double FarSideReachSeconds = 2.0;
 
+    public TaxiingPhase() { }
+
+    /// <summary>
+    /// A taxi handed off at speed from a runway exit's pull-up: held to <paramref name="pullUpCapKts"/> (the ground speed at the
+    /// hand-off, or the exit's planned hand-off speed when that is higher) until the bar at <paramref name="pullUpCapBarNodeId"/>
+    /// is cleared or behind it.
+    /// </summary>
+    public TaxiingPhase(double pullUpCapKts, int pullUpCapBarNodeId)
+    {
+        _pullUpCapKts = pullUpCapKts;
+        _pullUpCapBarNodeId = pullUpCapBarNodeId;
+    }
+
     public override string Name => "Taxiing";
+
+    /// <summary>The pull-up speed cap (kts) in force; null when none (see the pull-up constructor).</summary>
+    public double? PullUpCapKts => _pullUpCapKts;
 
     internal double NavMaxSpeedKts => _nav.MaxSpeedKts;
 
@@ -148,6 +175,7 @@ public sealed class TaxiingPhase : Phase
         ctx.Aircraft.IsOnGround = true;
         _nav.MaxSpeedKts = ctx.Aircraft.Ground.CommandedTaxiSpeedKts ?? CategoryPerformance.TaxiSpeed(ctx.Category);
         _nav.RouteEndSpeedKts = RouteEndSpeedKts(ctx, route);
+        BrakeFromPullUpHandOff(ctx, route);
         SetupCurrentSegment(ctx, route);
 
         Log.LogDebug(
@@ -208,6 +236,7 @@ public sealed class TaxiingPhase : Phase
         bool superOrHeavy = CategoryPerformance.IsSuperOrHeavy(ctx.Aircraft.AircraftType, ctx.Category);
         double? commandedKts = ctx.Aircraft.Ground.CommandedTaxiSpeedKts;
         _nav.MaxSpeedKts = CategoryPerformance.TaxiSpeedCap(ctx.Category, commandedKts, expedite, superOrHeavy);
+        ApplyPullUpCap(ctx, route);
         ctx.Targets.DesiredAccelRate = CategoryPerformance.TaxiAccelOverride(ctx.Category, commandedKts, expedite, superOrHeavy);
 
         // A spot line-up pulls up its lane onto the spot slowly; the spot-approach crawl below still takes over.
@@ -420,7 +449,159 @@ public sealed class TaxiingPhase : Phase
             Navigator = _nav.ToSnapshot(),
             PassedStartBarNodeId = _passedStartBarNodeId,
             SaidFarSideBlockedNodeId = _saidFarSideBlockedNodeId,
+            PullUpCapKts = _pullUpCapKts,
+            PullUpCapBarNodeId = _pullUpCapBarNodeId,
         };
+
+    /// <summary>
+    /// Holds the navigator's speed cap to the pull-up's (<see cref="_pullUpCapKts"/>) while its parallel runway bar is neither
+    /// cleared nor behind the aircraft; the first tick it is either, the cap is dropped for good.
+    /// </summary>
+    private void ApplyPullUpCap(PhaseContext ctx, TaxiRoute route)
+    {
+        if ((_pullUpCapKts is not { } capKts) || (_pullUpCapBarNodeId is not { } barNodeId))
+        {
+            return;
+        }
+
+        if (IsHoldShortCleared(route, barNodeId) || !IsNodeAhead(route, barNodeId))
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: pull-up bar {NodeId} cleared or passed, speed cap {Cap:F1}kt lifted",
+                ctx.Aircraft.Callsign,
+                barNodeId,
+                capKts
+            );
+            _pullUpCapKts = null;
+            _pullUpCapBarNodeId = null;
+            return;
+        }
+
+        _nav.MaxSpeedKts = Math.Min(_nav.MaxSpeedKts, capKts);
+    }
+
+    /// <summary>
+    /// For a pull-up handed off at speed (<see cref="_pullUpCapKts"/> set), brakes from the hand-off sub-tick on: first advances
+    /// the route past each leading segment whose end node the aircraft has already passed (<see cref="AdvancePastPassedNodes"/>),
+    /// so the first tick is not a node arrival, on which the navigator publishes no speed; then publishes the pull-up's speed cap
+    /// (<see cref="PullUpStopCapKts"/>, the one copy of its braking curve, at-rest case included) and the pull-up rate
+    /// (<see cref="RunwayExitPhase.PullUpBrakeRate"/>). Skips the braking with no layout or with the bar no longer ahead and uncleared.
+    /// Does nothing on any other taxi start.
+    /// </summary>
+    private void BrakeFromPullUpHandOff(PhaseContext ctx, TaxiRoute route)
+    {
+        if ((_pullUpCapKts is null) || (_pullUpCapBarNodeId is not { } barNodeId))
+        {
+            return;
+        }
+
+        AdvancePastPassedNodes(ctx, route);
+        if (PullUpStopCapKts(ctx, route) is not { } targetKts)
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: pull-up bar {NodeId} not ahead and uncleared, or no layout; no braking at the hand-off",
+                ctx.Aircraft.Callsign,
+                barNodeId
+            );
+            return;
+        }
+
+        double rate = RunwayExitPhase.PullUpBrakeRate(ctx.Category);
+        ctx.Targets.TargetSpeed = targetKts;
+        ctx.Targets.DesiredDecelRate = rate;
+        Log.LogDebug(
+            "[Taxi] {Callsign}: pull-up hand-off brakes to {Target:F2}kt at {Rate:F1}kt/s for bar {NodeId}'s stop",
+            ctx.Aircraft.Callsign,
+            targetKts,
+            rate,
+            barNodeId
+        );
+    }
+
+    /// <summary>
+    /// Advances the route past each leading segment whose end node the aircraft is already past along the segment's arrival
+    /// bearing, with the bookkeeping a node arrival does (<see cref="ArriveAtNode"/>: the taxiway, the AT-ground triggers);
+    /// stops at the first segment whose end node it has not passed, whose end node carries a hold-short, cleared or not (a
+    /// cleared crossing bar's arrival hands off to <see cref="CrossingRunwayPhase"/>), or that is the route's last.
+    /// </summary>
+    private static void AdvancePastPassedNodes(PhaseContext ctx, TaxiRoute route)
+    {
+        while ((route.CurrentSegmentIndex < (route.Segments.Count - 1)) && (route.CurrentSegment is { } seg) && HasPassedEndNode(ctx, route, seg))
+        {
+            ctx.Aircraft.Ground.CurrentTaxiway = seg.TaxiwayName;
+            FlightPhysics.NotifyGroundEntityReached(ctx.Aircraft, arrivedNodeId: seg.ToNodeId, newTaxiwayName: seg.TaxiwayName);
+            route.CurrentSegmentIndex += 1;
+            Log.LogDebug(
+                "[Taxi] {Callsign}: pull-up hand-off already past node {NodeId}, advance to segment {Next}/{Total}",
+                ctx.Aircraft.Callsign,
+                seg.ToNodeId,
+                route.CurrentSegmentIndex,
+                route.Segments.Count
+            );
+        }
+    }
+
+    /// <summary>Whether the aircraft is past <paramref name="seg"/>'s end node, which carries no hold-short.</summary>
+    private static bool HasPassedEndNode(PhaseContext ctx, TaxiRoute route, TaxiRouteSegment seg) =>
+        (route.GetHoldShortAt(seg.ToNodeId) is null)
+        && (GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, seg.Edge.ToNode.Position, new TrueHeading(seg.Edge.ArrivalBearing)) > 0);
+
+    /// <summary>
+    /// The pull-up's parallel runway bar (<see cref="_pullUpCapBarNodeId"/>) while the pull-up cap is live and the bar is ahead
+    /// and uncleared; null otherwise.
+    /// </summary>
+    private HoldShortPoint? PullUpBarAhead(TaxiRoute route) =>
+        (
+            (_pullUpCapKts is not null)
+            && (_pullUpCapBarNodeId is { } barNodeId)
+            && IsNodeAhead(route, barNodeId)
+            && (route.GetHoldShortAt(barNodeId) is { IsCleared: false } bar)
+        )
+            ? bar
+            : null;
+
+    /// <summary>
+    /// The speed cap (kts) the pull-up's parallel runway bar sets while the pull-up cap is live (<see cref="PullUpBarAhead"/>): the
+    /// sub-ticked curve (<see cref="GroundNavigator.CurveKts"/>) at the pull-up rate (<see cref="RunwayExitPhase.PullUpBrakeRate"/>)
+    /// onto the bar's stop, measured as <see cref="UnableStopCapKts"/> measures it, the curve the navigator plans at
+    /// <see cref="PullUpStopRate"/>. Applied every sub-tick, it brakes the one the navigator arrives at a node on and publishes
+    /// no speed. Held to the present ground speed when rolling (above <see cref="StoppedGroundSpeedKts"/>), as
+    /// <see cref="UnableStopCapKts"/> is. Null with no layout or no such bar.
+    /// </summary>
+    private double? PullUpStopCapKts(PhaseContext ctx, TaxiRoute route)
+    {
+        if ((ctx.GroundLayout is not { } layout) || (PullUpBarAhead(route) is not { } bar))
+        {
+            return null;
+        }
+
+        double toStopNm = Math.Max(0.0, AlongRouteDistanceToHoldShortFt(layout, route, ctx.Aircraft.Position, bar)) / GeoMath.FeetPerNm;
+        double curveKts = GroundNavigator.CurveKts(0.0, toStopNm, RunwayExitPhase.PullUpBrakeRate(ctx.Category), ctx.DeltaSeconds);
+        double groundSpeedKts = ctx.Aircraft.GroundSpeed;
+        return groundSpeedKts > StoppedGroundSpeedKts ? Math.Min(groundSpeedKts, curveKts) : curveKts;
+    }
+
+    /// <summary>
+    /// The rate (kts/s) the navigator plans its stops at while the pull-up cap is live: the pull-up's braking rate
+    /// (<see cref="RunwayExitPhase.PullUpBrakeRate"/>), the one the exit planned the hand-off speed on, so the taxi flies that
+    /// curve onto the parallel runway's bar, planned on the sub-ticked physics (<see cref="ApplyStopBrakeRate"/>); null (the
+    /// category taxi rate) once the cap is dropped.
+    /// </summary>
+    private double? PullUpStopRate(PhaseContext ctx) => (_pullUpCapKts is not null) ? RunwayExitPhase.PullUpBrakeRate(ctx.Category) : null;
+
+    /// <summary>Whether a segment from the route's current one on ends at <paramref name="nodeId"/>.</summary>
+    private static bool IsNodeAhead(TaxiRoute route, int nodeId)
+    {
+        for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
+        {
+            if (route.Segments[i].ToNodeId == nodeId)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public static TaxiingPhase FromSnapshot(TaxiingPhaseDto dto)
     {
@@ -435,6 +616,8 @@ public sealed class TaxiingPhase : Phase
             _saidFarSideBlockedNodeId = dto.SaidFarSideBlockedNodeId,
             _timeSinceLastLog = dto.TimeSinceLastLog,
             _passedStartBarNodeId = dto.PassedStartBarNodeId,
+            _pullUpCapKts = dto.PullUpCapKts,
+            _pullUpCapBarNodeId = dto.PullUpCapBarNodeId,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };
@@ -965,7 +1148,8 @@ public sealed class TaxiingPhase : Phase
     /// Sets the brake rate the navigator plans and publishes its speed profile with: the firm rate
     /// (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>) while the first uncleared bar ahead has been flagged unable or had
     /// its stop moved to the envelope window's firm stop, and the taxi rate cannot make that stop; the category taxi rate
-    /// otherwise. The bar is skipped by
+    /// otherwise. While the pull-up cap is live the non-firm rate is the pull-up rate (<see cref="PullUpStopRate"/>), except
+    /// that a moved stop is flown at the taxi rate. The bar is skipped by
     /// <see cref="BrakeForUnclearedBar"/> once it is unable, so nothing else publishes a rate for it, and without this
     /// the navigator would plan a taxi-rate curve to a stop placed at the firm distance and brake through it. An unable
     /// bar's stop is planned on the sub-ticked curve (<see cref="GroundNavigator.PlansStopsOnSubTicks"/>) at either rate:
@@ -988,12 +1172,13 @@ public sealed class TaxiingPhase : Phase
     private void ApplyStopBrakeRate(PhaseContext ctx, TaxiRoute route, (int SegmentIndex, HoldShortPoint Bar)? firstAhead, bool stopMovedNow)
     {
         bool fliesMovedStop = firstAhead is { Bar.Unable: true } or { Bar.StopMoved: true };
+        double firmRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
         bool firm =
             (firstAhead is { Bar: { } bar })
             && fliesMovedStop
-            && (stopMovedNow || !TaxiRateMakesTheMovedStop(ctx, route, bar, _nav.DecelRateKts is null ? TaxiCurveSlackFt(ctx) : 0.0));
-        _nav.DecelRateKts = firm ? CategoryPerformance.ExpediteExitDecelRate(ctx.Category) : null;
-        _nav.PlansStopsOnSubTicks = fliesMovedStop;
+            && (stopMovedNow || !TaxiRateMakesTheMovedStop(ctx, route, bar, _nav.DecelRateKts == firmRate ? 0.0 : TaxiCurveSlackFt(ctx)));
+        _nav.DecelRateKts = firm ? firmRate : (fliesMovedStop ? null : PullUpStopRate(ctx));
+        _nav.PlansStopsOnSubTicks = fliesMovedStop || (_pullUpCapKts is not null);
     }
 
     /// <summary>
@@ -1428,9 +1613,22 @@ public sealed class TaxiingPhase : Phase
     /// </summary>
     private void CapAtUnclearedBar(PhaseContext ctx, TaxiRoute route)
     {
-        if ((BrakeForUnclearedBar(ctx, route) ?? UnableStopCapKts(ctx, route)) is { } barCapKts)
+        double? barCapKts = BrakeForUnclearedBar(ctx, route) ?? UnableStopCapKts(ctx, route);
+        if ((PullUpStopCapKts(ctx, route) is { } pullUpKts) && ((barCapKts is not { } other) || (pullUpKts < other)))
         {
-            ctx.Targets.TargetSpeed = Math.Min(ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed, barCapKts);
+            // The pull-up's curve binds: brake at the pull-up rate, never lowering a harder rate already published (the firm
+            // rate BrakeForUnclearedBar set, or the navigator's own).
+            barCapKts = pullUpKts;
+            double pullUpRate = RunwayExitPhase.PullUpBrakeRate(ctx.Category);
+            if ((ctx.Targets.DesiredDecelRate ?? CategoryPerformance.TaxiDecelRate(ctx.Category)) < pullUpRate)
+            {
+                ctx.Targets.DesiredDecelRate = pullUpRate;
+            }
+        }
+
+        if (barCapKts is { } capKts)
+        {
+            ctx.Targets.TargetSpeed = Math.Min(ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed, capKts);
         }
     }
 
@@ -1494,6 +1692,8 @@ public sealed class TaxiingPhase : Phase
     private double? BrakeForUnclearedBar(PhaseContext ctx, TaxiRoute route)
     {
         _farSideBlockedBar = null;
+        int? loggedFirmNodeId = _loggedFirmBrakingNodeId;
+        _loggedFirmBrakingNodeId = null;
         if (PassedStartBar(ctx, route) is { } startBar)
         {
             BrakeFirmPastStartBar(ctx, route, startBar);
@@ -1529,6 +1729,19 @@ public sealed class TaxiingPhase : Phase
 
         double firmRate = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
         ctx.Targets.DesiredDecelRate = firmRate;
+        _loggedFirmBrakingNodeId = bar.NodeId;
+        if (loggedFirmNodeId != bar.NodeId)
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: firm braking at {Rate:F1}kt/s for bar {NodeId}, {Gs:F2}kt with {ToStopFt:F1}ft to its stop",
+                ctx.Aircraft.Callsign,
+                firmRate,
+                bar.NodeId,
+                ctx.Aircraft.GroundSpeed,
+                toStopFt
+            );
+        }
+
         if (braking == GroundStopBraking.StopBraking.MaxEffort)
         {
             return GroundStopBraking.StopCurveKts(ctx, toStopFt, firmRate);

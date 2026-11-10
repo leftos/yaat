@@ -114,6 +114,9 @@ public sealed class RunwayExitPhase : Phase
 
     /// <summary>The cut-back stop leaves the tail inside the landing runway's marking. Set with the route.</summary>
     private bool _stopTailInsideLine;
+
+    // Latched the first tick the whole aircraft is past the landing runway's holding position marking — see Vacated.
+    private bool _vacated;
     private GroundNavigator? _navigator;
 
     // Latched once the turn-off is physically under way — see TurnStarted.
@@ -123,6 +126,23 @@ public sealed class RunwayExitPhase : Phase
     /// The exit route reaches the taxi route stored behind it, so its end is rolled through, not stopped at (set when the route is built).
     /// </summary>
     private bool _rollsIntoStoredRoute;
+
+    /// <summary>
+    /// The speed (kts) the exit route's end leads on to a pull-up to the parallel runway's hold-short at — see
+    /// <see cref="PullUpReachKts"/>; null when its end is a stop. Planned when the route is first built and snapshotted, so the
+    /// route rebuild after a restore keeps it rather than planning it again; dropped for good when the hand-off fails or the
+    /// scenario setting is turned off (<see cref="DropPullUpWhenSettingOff"/>).
+    /// </summary>
+    private double? _pullUpReachKts;
+
+    /// <summary>
+    /// Braking rate (kts/s) a pull-up handed off at speed plans its stop at the parallel runway's bar with, the category taxi rate
+    /// when lower. No FAA document gives taxi braking rates; this is a modelling judgement.
+    /// </summary>
+    private const double PullUpBrakeRateKtsPerSec = 3.0;
+
+    /// <summary>Room (ft) the pull-up's braking curve leaves short of the parallel runway's bar stop. A modelling judgement.</summary>
+    private const double PullUpStopBufferFt = 10.0;
 
     // The braking rate the committed exit was chosen with — see TurnOffDecelRate.
     private double? _turnOffDecelRate;
@@ -178,6 +198,14 @@ public sealed class RunwayExitPhase : Phase
     /// False until the exit route is built.
     /// </summary>
     public bool StopsTailInsideRunwayLine => _stopTailInsideLine;
+
+    /// <summary>
+    /// The aircraft has vacated the landing runway: latched the first tick its tail is past the runway's holding position marking
+    /// (AIM 4-3-21.b), by the test <see cref="Simulation.RunwayOccupancy.IsVacating"/> makes, whatever its speed. Never set for an
+    /// exit that stops inside the runway's holding distance or with its tail inside the runway's line
+    /// (<see cref="StopsTailInsideRunwayLine"/>).
+    /// </summary>
+    public bool Vacated => _vacated;
 
     /// <summary>
     /// The bearing of the exit path's last edge, from the node before the hold-short to the hold-short
@@ -363,11 +391,17 @@ public sealed class RunwayExitPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        // A give-way never stops the aircraft on the runway it is leaving: it waits for the taxi.
-        if (ctx.Aircraft.Ground.IsImmobile && !ctx.Aircraft.HasGiveWayPendingOnLandingRunway)
+        DropPullUpWhenSettingOff(ctx);
+
+        // Judged on the pose the tick starts from, the one RunwayOccupancy sees between ticks, and while held too: a held aircraft
+        // rolling past the bar vacates the runway all the same.
+        if (_state == ExitState.FollowingExitPath)
         {
-            ctx.Targets.TargetSpeed = 0;
-            ctx.Targets.DesiredDecelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+            TryLatchVacated(ctx);
+        }
+
+        if (HoldsImmobile(ctx))
+        {
             return false;
         }
 
@@ -380,39 +414,9 @@ public sealed class RunwayExitPhase : Phase
 
         if (_state == ExitState.FollowingExitPath)
         {
-            // A snapshot restore brings back the state, the waypoint nodes and the navigator, but the exit route is
-            // built from the live ground layout and is not serialized — so it comes back null. TickFollowingExitPath
-            // reads a null route as "exit complete", which would end the phase without CompleteExit's cleanup.
-            // Rebuild it here, mirroring the sibling navigator-owning phases that defer their route build to the
-            // first tick after restore. The rebuild resumes on the segment the route was on, so an aircraft already
-            // past the branch node keeps following the exit instead of turning back onto the runway.
-            if (_exitRoute is null)
+            if ((_exitRoute is null) && !RebuildExitRouteAfterRestore(ctx))
             {
-                int resumeIndex = ResumeSegmentIndexAfterRestore(ctx);
-                _restoreSegmentIndex = 0;
-                if (!StartExitNavigation(ctx, resumeIndex))
-                {
-                    // Rebuild failed (layout gone, or an edge on the stored path no longer exists). Fall back to the
-                    // centerline search rather than silently declaring the exit complete — same recovery the
-                    // build-time failure path takes. A rejected restored path was already logged and cleared at the
-                    // top of this tick; only the navigator the phase came back with is left to drop, so a later exit
-                    // build starts a fresh one and a later snapshot does not carry it on.
-                    if (_restoredNavigator is { } staleNavigator)
-                    {
-                        Log.LogWarning(
-                            "[Exit] {Callsign}: exit route could not be rebuilt after a restore (stored path {Path}); dropping the "
-                                + "restored navigator toward node {NodeId} and falling back to the centerline",
-                            ctx.Aircraft.Callsign,
-                            string.Join("→", _exitPath?.Select(node => node.Id) ?? []),
-                            staleNavigator.TargetNodeId
-                        );
-                    }
-
-                    _restoredNavigator = null;
-                    _state = ExitState.RollingOnCenterline;
-                    ClearCommittedExit();
-                    return TickRolling(ctx);
-                }
+                return TickRolling(ctx);
             }
 
             // A late EL/ER/EXIT that arrived while the aircraft is committed but still tracking the
@@ -424,6 +428,68 @@ public sealed class RunwayExitPhase : Phase
             }
         }
 
+        return TickSeekingExit(ctx);
+    }
+
+    /// <summary>
+    /// Holds the aircraft where it is under a HOLD (or a give-way not on the runway it is leaving, which waits for the taxi instead):
+    /// true when held.
+    /// </summary>
+    private static bool HoldsImmobile(PhaseContext ctx)
+    {
+        if (!ctx.Aircraft.Ground.IsImmobile || ctx.Aircraft.HasGiveWayPendingOnLandingRunway)
+        {
+            return false;
+        }
+
+        ctx.Targets.TargetSpeed = 0;
+        ctx.Targets.DesiredDecelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+        return true;
+    }
+
+    /// <summary>
+    /// A snapshot restore brings back the state, the waypoint nodes and the navigator, but the exit route is built from the live
+    /// ground layout and is not serialized — so it comes back null. TickFollowingExitPath reads a null route as "exit complete",
+    /// which would end the phase without CompleteExit's cleanup. Rebuild it here, mirroring the sibling navigator-owning phases
+    /// that defer their route build to the first tick after restore. The rebuild resumes on the segment the route was on, so an
+    /// aircraft already past the branch node keeps following the exit instead of turning back onto the runway. False when the
+    /// rebuild failed and the phase fell back to the centreline.
+    /// </summary>
+    private bool RebuildExitRouteAfterRestore(PhaseContext ctx)
+    {
+        int resumeIndex = ResumeSegmentIndexAfterRestore(ctx);
+        _restoreSegmentIndex = 0;
+        if (StartExitNavigation(ctx, resumeIndex, restored: true))
+        {
+            return true;
+        }
+
+        // Rebuild failed (layout gone, or an edge on the stored path no longer exists). Fall back to the centerline search rather
+        // than silently declaring the exit complete — same recovery the build-time failure path takes. A rejected restored path
+        // was already logged and cleared at the top of this tick; only the navigator the phase came back with is left to drop, so
+        // a later exit build starts a fresh one and a later snapshot does not carry it on.
+        if (_restoredNavigator is { } staleNavigator)
+        {
+            Log.LogWarning(
+                "[Exit] {Callsign}: exit route could not be rebuilt after a restore (stored path {Path}); dropping the "
+                    + "restored navigator toward node {NodeId} and falling back to the centerline",
+                ctx.Aircraft.Callsign,
+                string.Join("→", _exitPath?.Select(node => node.Id) ?? []),
+                staleNavigator.TargetNodeId
+            );
+        }
+
+        // Back on the centreline the aircraft occupies the runway again; its next exit latches afresh.
+        _restoredNavigator = null;
+        _vacated = false;
+        _state = ExitState.RollingOnCenterline;
+        ClearCommittedExit();
+        return false;
+    }
+
+    /// <summary>Rolling on the centreline: looks for an exit ahead, and once one is found hands its route to the navigator.</summary>
+    private bool TickSeekingExit(PhaseContext ctx)
+    {
         // Re-check preference if changed mid-phase
         ExitPreference? currentPref = ctx.Aircraft.Phases?.RequestedExit;
         if (currentPref != _lastResolvedPreference && _holdShortNode is null)
@@ -435,7 +501,7 @@ public sealed class RunwayExitPhase : Phase
         // Exit found — build route with virtual approach segment and hand to navigator
         if (_holdShortNode is not null && _state == ExitState.RollingOnCenterline)
         {
-            if (StartExitNavigation(ctx, resumeSegmentIndex: 0))
+            if (StartExitNavigation(ctx, resumeSegmentIndex: 0, restored: false))
             {
                 return TickFollowingExitPath(ctx);
             }
@@ -1763,7 +1829,8 @@ public sealed class RunwayExitPhase : Phase
     /// virtual approach leg down the runway. Non-zero only on the tick that rebuilds the route after a snapshot
     /// restore, where it is the segment the live route was on.
     /// </param>
-    private bool StartExitNavigation(PhaseContext ctx, int resumeSegmentIndex)
+    /// <param name="restored">The rebuild after a snapshot restore: the pull-up plan is the snapshot's, not planned again.</param>
+    private bool StartExitNavigation(PhaseContext ctx, int resumeSegmentIndex, bool restored)
     {
         if (_exitPath is null || _exitPath.Count < 2 || _exitTaxiway is null || ctx.GroundLayout is null)
         {
@@ -1771,31 +1838,7 @@ public sealed class RunwayExitPhase : Phase
             return false;
         }
 
-        var segments = new List<TaxiRouteSegment>();
-        GroundNode branchNode = _exitPath[0];
-
-        // Virtual approach segment: [aircraft position → branch node].
-        // Always added — gives the navigator inbound bearing context for turn
-        // anticipation at the branch node, whether the aircraft is far away
-        // (analog search) or right at the branch (committed exit from LandingPhase).
-        //
-        // Resuming past it, the aircraft's position is no longer a valid anchor: the leg would run backward, and
-        // GroundNavigator reads its arrival bearing as the corner's incoming tangent, which is what turned a
-        // restored aircraft around and taxied it back onto the runway. Anchor it on the centerline behind the
-        // branch instead, reproducing the geometry the live route had.
-        LatLon approachFrom =
-            resumeSegmentIndex > 0
-                ? GeoMath.ProjectPoint(branchNode.Position, _runwayHeading.ToReciprocal(), RestoredApproachSegmentNm)
-                : ctx.Aircraft.Position;
-        GroundNode virtualFromNode = VirtualNode.Create(approachFrom.Lat, approachFrom.Lon);
-        double distToBranch = GeoMath.DistanceNm(approachFrom, branchNode.Position);
-        var approachEdge = new GroundEdge
-        {
-            Nodes = [virtualFromNode, branchNode],
-            TaxiwayName = $"RWY{_runwayId}",
-            DistanceNm = Math.Max(distToBranch, 0.001),
-        };
-        segments.Add(new TaxiRouteSegment { TaxiwayName = _exitTaxiway, Edge = approachEdge.Directed(virtualFromNode, branchNode) });
+        var segments = new List<TaxiRouteSegment> { ApproachSegment(ctx, _exitPath[0], _exitTaxiway, resumeSegmentIndex) };
 
         // Past the branch taxiway's own bar, or where the path leaves the branch taxiway at its end, the path continues onto
         // the joining taxiway; those segments carry their own taxiway so the aircraft reads as on it.
@@ -1837,13 +1880,57 @@ public sealed class RunwayExitPhase : Phase
             CurrentSegmentIndex = Math.Min(resumeSegmentIndex, segments.Count - 1),
         };
 
+        StartNavigatorOnExitRoute(ctx, _exitRoute, _exitPath, _exitTaxiway, restored);
+        return true;
+    }
+
+    /// <summary>
+    /// The exit route's virtual approach segment, [aircraft position → branch node]. Always added — gives the navigator inbound
+    /// bearing context for turn anticipation at the branch node, whether the aircraft is far away (analog search) or right at the
+    /// branch (committed exit from LandingPhase).
+    ///
+    /// <para>Resuming past it, the aircraft's position is no longer a valid anchor: the leg would run backward, and GroundNavigator
+    /// reads its arrival bearing as the corner's incoming tangent, which is what turned a restored aircraft around and taxied it
+    /// back onto the runway. Anchor it on the centerline behind the branch instead, reproducing the geometry the live route
+    /// had.</para>
+    /// </summary>
+    private TaxiRouteSegment ApproachSegment(PhaseContext ctx, GroundNode branchNode, string exitTaxiway, int resumeSegmentIndex)
+    {
+        LatLon approachFrom =
+            resumeSegmentIndex > 0
+                ? GeoMath.ProjectPoint(branchNode.Position, _runwayHeading.ToReciprocal(), RestoredApproachSegmentNm)
+                : ctx.Aircraft.Position;
+        GroundNode virtualFromNode = VirtualNode.Create(approachFrom.Lat, approachFrom.Lon);
+        double distToBranch = GeoMath.DistanceNm(approachFrom, branchNode.Position);
+        var approachEdge = new GroundEdge
+        {
+            Nodes = [virtualFromNode, branchNode],
+            TaxiwayName = $"RWY{_runwayId}",
+            DistanceNm = Math.Max(distToBranch, 0.001),
+        };
+        return new TaxiRouteSegment { TaxiwayName = exitTaxiway, Edge = approachEdge.Directed(virtualFromNode, branchNode) };
+    }
+
+    /// <summary>
+    /// Hands the built exit route to the navigator (the snapshot's, after a restore) and enters <see cref="ExitState.FollowingExitPath"/>.
+    /// What the route's end leads to is derived here, before the navigator plans it: a pull-up to the parallel runway
+    /// (<see cref="PullUpReachKts"/>, planned on a fresh build and kept from the snapshot on a <paramref name="restored"/> one) or a
+    /// stored taxi route the exit rolls on into.
+    /// </summary>
+    private void StartNavigatorOnExitRoute(PhaseContext ctx, TaxiRoute exitRoute, List<GroundNode> exitPath, string exitTaxiway, bool restored)
+    {
+        if (!restored)
+        {
+            _pullUpReachKts = PullUpReachKts(ctx);
+        }
+
         // The route rebuild after a restore takes the navigator from the snapshot, so the set-up below resumes the primitive
         // it was playing at the progress it had reached (GroundNavigator.TryResumeRestoredPlayback).
         _navigator = _restoredNavigator is { } savedNavigator ? GroundNavigator.FromSnapshot(savedNavigator) : new GroundNavigator();
         _restoredNavigator = null;
         ApplyExitDecelRate(ctx);
 
-        _navigator.SetupSegment(_exitRoute, ctx, _ => true);
+        _navigator.SetupSegment(exitRoute, ctx, _ => true);
 
         // The route to a backtrack exit is built: from here the aircraft travels on the reciprocal heading.
         if (_backtrackPending)
@@ -1862,7 +1949,7 @@ public sealed class RunwayExitPhase : Phase
 
         _state = ExitState.FollowingExitPath;
         _committedPreference = ctx.Aircraft.Phases?.RequestedExit;
-        ctx.Aircraft.Ground.CurrentTaxiway = _exitTaxiway;
+        ctx.Aircraft.Ground.CurrentTaxiway = exitTaxiway;
         _rollsIntoStoredRoute =
             (ctx.GroundLayout is not null)
             && (ctx.Aircraft.Phases?.TaxiRoute is { } stored)
@@ -1870,19 +1957,26 @@ public sealed class RunwayExitPhase : Phase
             && (Commands.GroundCommandHandler.JoinStoredRoute(stored, join) is not null);
 
         Log.LogDebug(
-            "[Exit] {Callsign}: following exit path, {SegCount} segments on {Twy}, maxSpeed={Speed:F0}kts, path=[virtual→{Path}]",
+            "[Exit] {Callsign}: following exit path, {SegCount} segments on {Twy}, maxSpeed={Speed:F0}kts, pull-up reach {Reach}, "
+                + "path=[virtual→{Path}]",
             ctx.Aircraft.Callsign,
-            segments.Count,
-            _exitTaxiway,
-            ExitMaxSpeedKts(ctx),
-            string.Join("→", _exitPath.Select(n => n.Id))
+            exitRoute.Segments.Count,
+            exitTaxiway,
+            CeilingKts(ctx.Aircraft),
+            _pullUpReachKts,
+            string.Join("→", exitPath.Select(n => n.Id))
         );
-        return true;
     }
 
     private bool TickFollowingExitPath(PhaseContext ctx)
     {
         if (_exitRoute is null || _navigator is null)
+        {
+            return true;
+        }
+
+        // Once the runway is vacated, an exit whose end leads on to a pull-up hands straight to the taxi at its current speed.
+        if (_vacated && (PullUpHandOffKts(ctx) is not null) && !ctx.Aircraft.Ground.IsImmobile && StartPullUpAtSpeed(ctx))
         {
             return true;
         }
@@ -1935,10 +2029,11 @@ public sealed class RunwayExitPhase : Phase
     /// effort to the route-end stop. Otherwise the in-route slowdowns (<see cref="GroundNavigator.SlowdownDecelRateKts"/>) continue
     /// the rollout's braking: the approach leg down the runway at the rate the exit was chosen with
     /// (<see cref="TurnOffDecelRate"/>), the first exit edge, where the turn arc is flown, at that rate but no more than the
-    /// category taxi rate, and the rest of the route at the taxi rate. The route-end stop — the tail-clear point past the bar,
-    /// not the bar itself — is planned in every mode, at the taxi rate unless expedited, on the braking curve the sub-ticked
-    /// physics flies (<see cref="GroundNavigator.PlansStopsOnSubTicks"/>), so the aircraft comes to rest there; an exit that rolls
-    /// on into a stored taxi route keeps the continuous curve. The speed ceiling is <see cref="ExitMaxSpeedKts"/>, re-read every
+    /// category taxi rate, and the rest of the route at the taxi rate. The route end — the tail-clear point past the bar, not the
+    /// bar itself — is braked for at <see cref="ExitEndBrakeRate"/> (the taxi rate unless expedited): to rest on the braking curve
+    /// the sub-ticked physics flies (<see cref="GroundNavigator.PlansStopsOnSubTicks"/>) when it is a stop, to the speed that puts
+    /// the planned hand-off speed at the latch when it leads on to a pull-up (<see cref="RouteEndSpeedForHandOffKts"/>), and not
+    /// at all when the exit rolls on into a stored taxi route. The speed ceiling is <see cref="CeilingKts"/>, re-read every
     /// tick so an <c>EXP</c> raises it at once.
     /// </summary>
     private void ApplyExitDecelRate(PhaseContext ctx)
@@ -1948,12 +2043,15 @@ public sealed class RunwayExitPhase : Phase
             return;
         }
 
-        _navigator.PlansStopsOnSubTicks = !RollsOnIntoStoredRoute(ctx);
-        _navigator.MaxSpeedKts = ExitMaxSpeedKts(ctx);
+        bool expediting = ctx.Aircraft.Ground.IsExpeditingExit;
+        double? handOffKts = PullUpHandOffKts(ctx);
+        _navigator.PlansStopsOnSubTicks = !RollsOnIntoStoredRoute(ctx) && (handOffKts is null);
+        _navigator.RouteEndSpeedKts = (handOffKts is { } plannedKts) ? RouteEndSpeedForHandOffKts(plannedKts, ctx.Category, expediting) : 0.0;
+        _navigator.MaxSpeedKts = CeilingKts(ctx.Aircraft);
 
-        if (ctx.Aircraft.Ground.IsExpeditingExit)
+        if (expediting)
         {
-            _navigator.DecelRateKts = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+            _navigator.DecelRateKts = ExitEndBrakeRate(ctx.Category, expediting);
             _navigator.SlowdownDecelRateKts = null;
             return;
         }
@@ -1990,17 +2088,258 @@ public sealed class RunwayExitPhase : Phase
     /// on into a stored taxi route (<see cref="RollsOnIntoStoredRoute"/>).
     /// </summary>
     private bool IsExitStopSegment(PhaseContext ctx) =>
-        (_exitRoute is { } route) && (route.CurrentSegmentIndex + 1 >= route.Segments.Count) && !RollsOnIntoStoredRoute(ctx);
+        (_exitRoute is { } route)
+        && (route.CurrentSegmentIndex + 1 >= route.Segments.Count)
+        && !RollsOnIntoStoredRoute(ctx)
+        && (PullUpHandOffKts(ctx) is null);
 
     /// <summary>
-    /// The exit maneuver's speed ceiling (kts): the exit's taxi ceiling (<see cref="ExitTaxiCeilingKts"/>), not the
-    /// runway-rollout coast speed, and never above the coast speed. Once the aircraft turns off onto the exit taxiway it is
-    /// taxiing, so it should not accelerate past taxi speed toward coast on the straight to the hold-short and then brake hard
-    /// (the slow-turn-then-surge profile). The turn itself is governed by the junction arc's cornering speed (a rapid exit is
-    /// taken at its design speed).
+    /// The speed (kts) the exit hands straight off to a pull-up to the parallel runway's hold-short at: <see cref="PlannedHandOffKts"/>,
+    /// the same judge the vacate predictor uses, and null while the <c>AutoPullUpToParallel</c> scenario setting is off.
     /// </summary>
-    private double ExitMaxSpeedKts(PhaseContext ctx) =>
-        Math.Min(_coastSpeed, ExitTaxiCeilingKts(ctx.Category, ctx.Aircraft.AircraftType, ctx.Aircraft.Ground.IsExpeditingExit));
+    private double? PullUpHandOffKts(PhaseContext ctx) => ctx.AutoPullUpToParallel ? PlannedHandOffKts(ctx.Aircraft) : null;
+
+    /// <summary>
+    /// Drops the pull-up plan for good the first tick the <c>AutoPullUpToParallel</c> scenario setting reads off (it can change
+    /// mid-exit), held or not: the exit plans its stop at once and the vacate predictor, which reads the plan, sees the stop too.
+    /// </summary>
+    private void DropPullUpWhenSettingOff(PhaseContext ctx)
+    {
+        if (ctx.AutoPullUpToParallel || (_pullUpReachKts is null))
+        {
+            return;
+        }
+
+        Log.LogDebug("[Exit] {Callsign}: automatic pull-up turned off mid-exit; stopping past the bar instead", ctx.Aircraft.Callsign);
+        _pullUpReachKts = null;
+    }
+
+    /// <summary>
+    /// The speed (kts) this exit brakes to at its hand-off to a pull-up to the parallel runway's hold-short, the vacate passing the
+    /// bar at it rather than stopping: the pull-up's reach speed held to the exit's ceiling. Null when the exit's end is a stop: no
+    /// pull-up was planned when the route was built (the scenario setting off, or no reachable parallel crossing), or a stored taxi
+    /// route waits behind the exit (it wins). The one judge of the hand-off: the exit flies it and
+    /// <see cref="Simulation.SameRunwayArrivalProtection.TryBuildRollout"/> predicts the vacate from it.
+    /// </summary>
+    /// <param name="aircraft">The aircraft flying this exit.</param>
+    public double? PlannedHandOffKts(AircraftState aircraft) =>
+        ((_pullUpReachKts is { } reachKts) && (aircraft.Phases?.TaxiRoute is null)) ? Math.Min(CeilingKts(aircraft), reachKts) : null;
+
+    /// <summary>
+    /// The exit's speed ceiling (kts) for <paramref name="aircraft"/>, which <see cref="PlannedHandOffKts"/> holds the hand-off to:
+    /// the exit's taxi ceiling (<see cref="ExitTaxiCeilingKts"/>), never above the rollout's coast speed. It is also the exit
+    /// maneuver's navigator speed cap: once the aircraft turns off onto the exit taxiway it is taxiing, so it should not
+    /// accelerate past taxi speed toward coast on the straight to the hold-short and then brake hard (the slow-turn-then-surge
+    /// profile). The turn itself is governed by the junction arc's cornering speed (a rapid exit is taken at its design speed).
+    /// </summary>
+    /// <param name="aircraft">The aircraft flying this exit.</param>
+    public double CeilingKts(AircraftState aircraft) =>
+        Math.Min(
+            _coastSpeed,
+            ExitTaxiCeilingKts(AircraftCategorization.Categorize(aircraft.AircraftType), aircraft.AircraftType, aircraft.Ground.IsExpeditingExit)
+        );
+
+    /// <summary>
+    /// The highest speed (kts) from which the aircraft, at the exit route's end, still stops at the parallel runway's bar on one
+    /// braking curve: v = √(2·a·d), a the lower of <see cref="PullUpBrakeRateKtsPerSec"/> and the category taxi rate, d the
+    /// along-route distance from the exit's stop point to the bar's stop (nose at the bar) less <see cref="PullUpStopBufferFt"/>.
+    /// Null when the exit's end leads on to no pull-up: it does not clear the landing runway, no parallel crossing is reachable
+    /// from it, or there is no room (d ≤ 0), which keeps the stop at the exit's end.
+    /// </summary>
+    private double? PullUpReachKts(PhaseContext ctx)
+    {
+        if (
+            _stopTailInsideLine
+            || IsStoppedInsideHoldingDistance(ctx)
+            || (_exitRoute is not { } exitRoute)
+            || (PlanParallelCrossing(ctx) is not { } plan)
+        )
+        {
+            return null;
+        }
+
+        double exitStopFt = exitRoute.Segments[^1].Edge.DistanceNm * GeoMath.FeetPerNm;
+        double roomFt = BarStopAlongFt(plan, ctx.Aircraft.AircraftType) - exitStopFt - PullUpStopBufferFt;
+        if (roomFt <= 0.0)
+        {
+            Log.LogDebug(
+                "[Exit] {Callsign}: no room to pull up to {Rwy} at speed ({Room:F0} ft); stopping first",
+                ctx.Aircraft.Callsign,
+                plan.ParallelRunwayId,
+                roomFt
+            );
+            return null;
+        }
+
+        return Math.Sqrt(2.0 * PullUpBrakeRate(ctx.Category) * roomFt * 3600.0 / GeoMath.FeetPerNm);
+    }
+
+    /// <summary>
+    /// The braking rate (kts/s) a pull-up handed off at speed is planned at: <see cref="PullUpBrakeRateKtsPerSec"/>, or the category
+    /// taxi rate when lower. The one rate of the pull-up's braking curve: the exit plans the hand-off speed with it and the taxi it
+    /// hands off to brakes for the parallel runway's bar at it while its pull-up cap is live.
+    /// </summary>
+    /// <param name="category">The aircraft's category.</param>
+    public static double PullUpBrakeRate(AircraftCategory category) =>
+        Math.Min(PullUpBrakeRateKtsPerSec, CategoryPerformance.TaxiDecelRate(category));
+
+    /// <summary>
+    /// The speed (kts) the exit route's end is planned at so the braking curve reaches <paramref name="handOffKts"/> where the
+    /// hand-off happens, the latch, not at the route end: the latch fires with the tail
+    /// <see cref="Simulation.RunwayOccupancy.HoldLineFoulToleranceFt"/> inside the marking, the route ends with it
+    /// <see cref="RunwayTailClearance.MarginFt"/> past, and the navigator's curve to the route end runs between the two at the rate
+    /// it brakes for the route end with, <see cref="ExitEndBrakeRate"/>.
+    /// </summary>
+    private static double RouteEndSpeedForHandOffKts(double handOffKts, AircraftCategory category, bool expediting)
+    {
+        double latchToEndFt = RunwayTailClearance.MarginFt + Simulation.RunwayOccupancy.HoldLineFoulToleranceFt;
+        double squared = (handOffKts * handOffKts) - (2.0 * ExitEndBrakeRate(category, expediting) * latchToEndFt * 3600.0 / GeoMath.FeetPerNm);
+        return Math.Sqrt(Math.Max(0.0, squared));
+    }
+
+    /// <summary>
+    /// The braking rate (kts/s) the exit's navigator brakes for its route end with — to rest, or to the hand-off speed of a pull-up —
+    /// and the rate <see cref="Simulation.SameRunwayArrivalProtection.TryBuildRollout"/> models that leg at: the category taxi rate,
+    /// or <see cref="CategoryPerformance.ExpediteExitDecelRate"/> on an expedited exit.
+    /// </summary>
+    /// <param name="category">The aircraft's category.</param>
+    /// <param name="expediting">The exit is expedited (<c>EXP</c>).</param>
+    public static double ExitEndBrakeRate(AircraftCategory category, bool expediting) =>
+        expediting ? CategoryPerformance.ExpediteExitDecelRate(category) : CategoryPerformance.TaxiDecelRate(category);
+
+    /// <summary>
+    /// How far (ft) along the pull-up route from its start, the landing runway's bar, the parallel runway's bar stop lies: the
+    /// near bar's node less half the aircraft's length, where <see cref="HoldShortAnnotator.ComputeHoldShortPositions"/> puts a
+    /// runway bar's stop (nose at the bar).
+    /// </summary>
+    private static double BarStopAlongFt(ParallelCrossingPlan plan, string aircraftType)
+    {
+        double alongNm = 0.0;
+        foreach (TaxiRouteSegment segment in plan.Segments)
+        {
+            alongNm += segment.Edge.DistanceNm;
+            if (segment.ToNodeId == plan.NearHoldShort.Id)
+            {
+                break;
+            }
+        }
+
+        return (alongNm * GeoMath.FeetPerNm) - (AircraftLength.ResolveFt(aircraftType) / 2.0);
+    }
+
+    /// <summary>
+    /// Hands the exit straight to the pull-up's taxi at its current speed: no stop, no hold after the exit. On failure the pull-up
+    /// is dropped and the exit falls back to its stop (<see cref="CompleteExit"/>).
+    /// </summary>
+    private bool StartPullUpAtSpeed(PhaseContext ctx)
+    {
+        if (TryStartParallelCrossing(ctx, handsOffAtSpeed: true))
+        {
+            ctx.Aircraft.Ground.IsExpeditingExit = false;
+            return true;
+        }
+
+        Log.LogWarning(
+            "[Exit] {Callsign}: pull-up to the parallel runway could not start at the hand-off; stopping at the exit instead",
+            ctx.Aircraft.Callsign
+        );
+        _pullUpReachKts = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Latches <see cref="Vacated"/> the first tick the whole aircraft is past the landing runway's holding position marking — the
+    /// moment the runway counts as vacated (AIM 4-3-21.b), whatever the speed — and runs the vacate side effects then
+    /// (<see cref="RunVacateSideEffects"/>), not at the stop. The test is <see cref="Simulation.RunwayOccupancy.IsVacating"/>, tolerance
+    /// included, so "vacated" here and "still vacating" there never disagree. An exit that stops inside the runway's holding
+    /// distance or with its tail inside the runway's line never latches: it does not clear the runway, and its stop
+    /// (<see cref="CompleteExit"/>) behaves as before.
+    /// </summary>
+    private void TryLatchVacated(PhaseContext ctx)
+    {
+        if (_vacated || !ctx.Aircraft.IsOnGround || IsStoppedInsideHoldingDistance(ctx))
+        {
+            return;
+        }
+
+        if (
+            (ctx.GroundLayout is not { } layout)
+            || (LatchRunway(ctx) is not { } runway)
+            || Simulation.RunwayOccupancy.IsVacating(ctx.Aircraft, AircraftBody.Of(ctx.Aircraft.AircraftType), runway, layout)
+        )
+        {
+            return;
+        }
+
+        _vacated = true;
+        RunVacateSideEffects(ctx);
+        Log.LogDebug(
+            "[Exit] {Callsign}: tail past {Rwy}'s holding position marking on {Twy} at {Gs:F1} kts, runway vacated",
+            ctx.Aircraft.Callsign,
+            _runwayId,
+            ctx.Aircraft.Ground.CurrentTaxiway ?? _exitTaxiway,
+            ctx.Aircraft.GroundSpeed
+        );
+    }
+
+    /// <summary>
+    /// The landing runway the vacate latch judges: the aircraft's assigned runway, when it runs on it and it belongs to the
+    /// ground layout. Null when there is no layout or no such runway.
+    /// </summary>
+    private static RunwayInfo? LatchRunway(PhaseContext ctx)
+    {
+        if (
+            (ctx.GroundLayout is not { } layout)
+            || (ctx.Aircraft.Phases is not { AssignedRunway: { } runway } phases)
+            || !phases.RunsOn(runway)
+            || !Simulation.RunwayOccupancy.IsLayoutOf(layout, runway)
+        )
+        {
+            return null;
+        }
+
+        return runway;
+    }
+
+    /// <summary>
+    /// What vacating the landing runway ends: the landing's given-up exits, its "unable to exit" call and no-exit reach test, and its
+    /// LAHSO clearance are cleared; the taxi-in call is armed (made once clear of the landing runway, AIM 4-3-21.c); and the exit's
+    /// hold-short is marked occupied so same-tick aircraft see it. Called only by the latch; <see cref="CompleteExit"/> runs the
+    /// same pieces inline when the latch never fired.
+    /// </summary>
+    private void RunVacateSideEffects(PhaseContext ctx)
+    {
+        ClearLandingRunwayState(ctx);
+        ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
+        MarkHoldShortOccupied(ctx);
+    }
+
+    /// <summary>
+    /// The landing state that ends with clearing its runway: the given-up exits (a later runway exit starts with none), the "unable to
+    /// exit" call and the no-exit reach test (a later landing calls afresh and searches as on the normal path), and the LAHSO
+    /// clearance, kept through the exit and now complied with (AIM 4-3-11.b.6).
+    /// </summary>
+    private static void ClearLandingRunwayState(PhaseContext ctx)
+    {
+        if (ctx.Aircraft.Phases is not { } phases)
+        {
+            return;
+        }
+
+        phases.GivenUpExitTaxiways.Clear();
+        phases.ReportedNoExitAhead = false;
+        phases.NoExitReachTestActive = false;
+        phases.LahsoHoldShort = null;
+    }
+
+    /// <summary>Marks the exit's hold-short occupied so same-tick aircraft see it.</summary>
+    private void MarkHoldShortOccupied(PhaseContext ctx)
+    {
+        if (_holdShortNode is not null)
+        {
+            ctx.MarkHoldShortNodeOccupied?.Invoke(_holdShortNode.Id);
+        }
+    }
 
     private bool CompleteExit(PhaseContext ctx)
     {
@@ -2008,17 +2347,11 @@ public sealed class RunwayExitPhase : Phase
         // into a subsequent taxi (which has its own EXP).
         ctx.Aircraft.Ground.IsExpeditingExit = false;
 
-        // The landing's given-up exits end with its runway exit: a later runway exit of this aircraft starts with none.
-        ctx.Aircraft.Phases?.GivenUpExitTaxiways.Clear();
-
-        // So do its "unable to exit" call and its no-exit reach test: a later landing calls afresh and searches as on the normal path.
-        if (ctx.Aircraft.Phases is { } phases)
+        // An exit that latched Vacated has run the vacate side effects already; one that did not runs them here, as the stop is
+        // reached, in the order they always ran.
+        if (!_vacated)
         {
-            phases.ReportedNoExitAhead = false;
-            phases.NoExitReachTestActive = false;
-
-            // Clear of the runway: the LAHSO clearance, kept through the exit, has been complied with (AIM 4-3-11.b.6).
-            phases.LahsoHoldShort = null;
+            ClearLandingRunwayState(ctx);
         }
 
         // A taxi route stored behind the exit (a TAXI on the rollout) starts here, the aircraft rolling on into it; one the exit
@@ -2029,12 +2362,50 @@ public sealed class RunwayExitPhase : Phase
             return true;
         }
 
+        if (TryHandOffMovingAtRouteEnd(ctx))
+        {
+            return true;
+        }
+
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
+        return StopAtExit(ctx);
+    }
 
+    /// <summary>
+    /// An exit that reaches its route end still moving with a pull-up planned — a give-way kept it rolling while it could not hand
+    /// off, or the route end came within the tick before the latch — hands off at speed there, before any speed snap. The taxi-in
+    /// call is armed as at the stop when the latch never fired.
+    /// </summary>
+    private bool TryHandOffMovingAtRouteEnd(PhaseContext ctx)
+    {
+        if (
+            (PullUpHandOffKts(ctx) is null)
+            || (ctx.Aircraft.GroundSpeed < FlightPhysics.StationaryGroundSpeedKts)
+            || IsStoppedInsideHoldingDistance(ctx)
+            || !StartPullUpAtSpeed(ctx)
+        )
+        {
+            return false;
+        }
+
+        if (!_vacated)
+        {
+            ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The exit's stop: the taxi-in call armed if the latch never fired, the pull-up to a parallel runway started from rest when
+    /// one is reachable, else the exit's bar marked occupied and the hold after the exit inserted.
+    /// </summary>
+    private bool StopAtExit(PhaseContext ctx)
+    {
         // The taxi-in call is made once clear of the landing runway (AIM 4-3-21.c); an aircraft stopped short of clearing it owes none.
         bool stoppedNotClear = IsStoppedInsideHoldingDistance(ctx);
-        if (!stoppedNotClear)
+        if (!stoppedNotClear && !_vacated)
         {
             ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
         }
@@ -2048,17 +2419,22 @@ public sealed class RunwayExitPhase : Phase
         // auto-pull-up there (and hold short pending an explicit CROSS) instead of stopping at
         // the landing runway's exit hold-short. An aircraft stopped at a bar inside the landing
         // runway's holding distance has not vacated it, so it holds there instead.
-        if (!stoppedNotClear && TryStartParallelCrossing(ctx))
+        if (!stoppedNotClear && TryStartParallelCrossing(ctx, handsOffAtSpeed: false))
         {
             return true;
         }
 
-        // Mark this hold-short as occupied so same-tick aircraft see it
-        if (_holdShortNode is not null)
+        if (!_vacated)
         {
-            ctx.MarkHoldShortNodeOccupied?.Invoke(_holdShortNode.Id);
+            MarkHoldShortOccupied(ctx);
         }
 
+        InsertHoldingAfterExit(ctx);
+        return true;
+    }
+
+    private void InsertHoldingAfterExit(PhaseContext ctx)
+    {
         // Insert HoldingAfterExitPhase; a stop with the nose at another runway's line and the tail still inside this one's holds
         // short of that runway, not clear of this one.
         string? heldShortOfRunway =
@@ -2075,8 +2451,6 @@ public sealed class RunwayExitPhase : Phase
             ctx.Aircraft.Position.Lon,
             ctx.Aircraft.TrueHeading.Degrees
         );
-
-        return true;
     }
 
     /// <summary>Where this exit ends, for joining a stored taxi route from it; null before the exit path is known.</summary>
@@ -2113,59 +2487,26 @@ public sealed class RunwayExitPhase : Phase
     /// Returns true when the auto-pull-up was started; false to fall through to the normal
     /// hold-after-exit behavior. Gated on the <c>AutoPullUpToParallel</c> scenario setting.
     /// </summary>
-    private bool TryStartParallelCrossing(PhaseContext ctx)
+    private bool TryStartParallelCrossing(PhaseContext ctx, bool handsOffAtSpeed)
     {
-        if (
-            !ctx.AutoPullUpToParallel
-            || ctx.GroundLayout is null
-            || _holdShortNode is null
-            || _exitTaxiway is null
-            || _runwayId is null
-            || _exitPath is null
-            || _exitPath.Count < 2
-        )
+        if ((ctx.GroundLayout is not { } layout) || (_runwayId is null) || (_exitTaxiway is null) || (PlanParallelCrossing(ctx) is not { } plan))
         {
             return false;
         }
 
-        // The taxiway the aircraft holds on: the exit taxiway, or the joining taxiway when the exit continued past a
-        // short bar. The pull-up to a parallel runway walks forward on it.
-        string holdTaxiway = _exitRoute?.Segments[^1].TaxiwayName ?? _exitTaxiway;
-        GroundNode comeFromNode = _exitPath[^2];
-        (
-            GroundNode NearHoldShort,
-            GroundNode FarHoldShort,
-            string ParallelRunwayId,
-            List<GroundNode> PullUpPath,
-            List<GroundNode> CrossingPath
-        )? crossing = ctx.GroundLayout.FindParallelRunwayCrossing(_holdShortNode, comeFromNode, holdTaxiway, _runwayId);
-        if (crossing is not { } xing)
-        {
-            return false;
-        }
-
-        // Combined node path: pull-up (landingHS → parallel near HS) then crossing (near → far HS).
-        var fullPath = new List<GroundNode>(xing.PullUpPath);
-        fullPath.AddRange(xing.CrossingPath.Skip(1));
-
-        List<TaxiRouteSegment>? segments = BuildRouteSegments(fullPath, holdTaxiway);
-        if (segments is null)
-        {
-            Log.LogWarning("[Exit] {Callsign}: could not build parallel-crossing route, holding after exit instead", ctx.Aircraft.Callsign);
-            return false;
-        }
-
+        List<TaxiRouteSegment> segments = plan.Segments;
+        string holdTaxiway = plan.HoldTaxiway;
         var holdShorts = new List<HoldShortPoint>();
-        HoldShortAnnotator.AddImplicitRunwayHoldShorts(ctx.GroundLayout, segments, holdShorts, StartPose.Of(ctx.Aircraft));
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts, StartPose.Of(ctx.Aircraft));
 
         var route = new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
         double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
         HoldShortAnnotator.ComputeHoldShortPositions(
-            ctx.GroundLayout,
+            layout,
             route,
             lengthFt,
             ctx.Aircraft.Position,
-            RunwayCrossingEnd.TailOverNamer(ctx.Aircraft.Position, ctx.GroundLayout, ctx.ActiveRunways, ctx.Aircraft.Phases?.AssignedRunway)
+            RunwayCrossingEnd.TailOverNamer(ctx.Aircraft.Position, layout, ctx.ActiveRunways, ctx.Aircraft.Phases?.AssignedRunway)
         );
 
         ctx.Aircraft.Ground.AssignedTaxiRoute = route;
@@ -2182,18 +2523,88 @@ public sealed class RunwayExitPhase : Phase
             Pilot.PilotResponder.SoloPositionsTower
         );
 
-        ctx.Aircraft.Phases?.InsertAfterCurrent(new TaxiingPhase());
+        // Handed off at speed, the taxi never exceeds the hand-off speed until the parallel bar: the speed it has, or the planned one
+        // when it has less (released from a HOLD past the bar, or slowed for a give-way), so it still reaches the bar.
+        TaxiingPhase taxi = handsOffAtSpeed
+            ? new TaxiingPhase(Math.Max(ctx.Aircraft.GroundSpeed, PlannedHandOffKts(ctx.Aircraft) ?? 0.0), plan.NearHoldShort.Id)
+            : new TaxiingPhase();
+        ctx.Aircraft.Phases?.InsertAfterCurrent(taxi);
 
         Log.LogDebug(
-            "[Exit] {Callsign}: auto pull-up between parallels — {Land} exit → hold short {Parallel} via {Twy}, route=[{Path}]",
+            "[Exit] {Callsign}: auto pull-up between parallels — {Land} exit → hold short {Parallel} via {Twy} at {Gs:F1} kts, route=[{Path}]",
             ctx.Aircraft.Callsign,
             _runwayId,
-            xing.ParallelRunwayId,
+            plan.ParallelRunwayId,
             _exitTaxiway,
-            string.Join("→", fullPath.Select(n => n.Id))
+            ctx.Aircraft.GroundSpeed,
+            string.Join("→", plan.FullPath.Select(n => n.Id))
         );
 
         return true;
+    }
+
+    /// <summary>A parallel runway's crossing reachable from the exit's bar, and the pull-up route to and across it.</summary>
+    /// <param name="NearHoldShort">The parallel runway's bar the pull-up holds short at.</param>
+    /// <param name="ParallelRunwayId">The parallel runway.</param>
+    /// <param name="HoldTaxiway">The taxiway the pull-up walks forward on.</param>
+    /// <param name="FullPath">The node path: pull-up (landing bar → near bar), then the crossing (near → far bar).</param>
+    /// <param name="Segments">The route segments along <paramref name="FullPath"/>.</param>
+    private sealed record ParallelCrossingPlan(
+        GroundNode NearHoldShort,
+        string ParallelRunwayId,
+        string HoldTaxiway,
+        List<GroundNode> FullPath,
+        List<TaxiRouteSegment> Segments
+    );
+
+    /// <summary>
+    /// The pull-up from the exit's bar to a parallel runway's hold-short reachable on the same taxiway with no intervening
+    /// taxiway intersection (issue #175), a pure layout query; null when the scenario setting is off, the exit is not yet known,
+    /// no such crossing exists, or its route cannot be built. Fresh segments on every call.
+    /// </summary>
+    private ParallelCrossingPlan? PlanParallelCrossing(PhaseContext ctx)
+    {
+        if (!ctx.AutoPullUpToParallel || (ctx.GroundLayout is not { } layout) || (_exitTaxiway is null))
+        {
+            return null;
+        }
+
+        // The taxiway the aircraft holds on: the exit taxiway, or the joining taxiway when the exit continued past a
+        // short bar. The pull-up to a parallel runway walks forward on it.
+        string holdTaxiway = _exitRoute?.Segments[^1].TaxiwayName ?? _exitTaxiway;
+        if (FindParallelCrossingFromExit(layout, holdTaxiway) is not { } xing)
+        {
+            return null;
+        }
+
+        var fullPath = new List<GroundNode>(xing.PullUpPath);
+        fullPath.AddRange(xing.CrossingPath.Skip(1));
+        if (BuildRouteSegments(fullPath, holdTaxiway) is not { } segments)
+        {
+            Log.LogWarning("[Exit] {Callsign}: could not build parallel-crossing route, holding after exit instead", ctx.Aircraft.Callsign);
+            return null;
+        }
+
+        return new ParallelCrossingPlan(xing.NearHoldShort, xing.ParallelRunwayId, holdTaxiway, fullPath, segments);
+    }
+
+    /// <summary>
+    /// The parallel runway crossing reachable from the exit's bar on <paramref name="holdTaxiway"/>; null before the exit is known.
+    /// </summary>
+    private (
+        GroundNode NearHoldShort,
+        GroundNode FarHoldShort,
+        string ParallelRunwayId,
+        List<GroundNode> PullUpPath,
+        List<GroundNode> CrossingPath
+    )? FindParallelCrossingFromExit(AirportGroundLayout layout, string holdTaxiway)
+    {
+        if ((_holdShortNode is null) || (_runwayId is null) || (_exitPath is not { Count: >= 2 } exitPath))
+        {
+            return null;
+        }
+
+        return layout.FindParallelRunwayCrossing(_holdShortNode, exitPath[^2], holdTaxiway, _runwayId);
     }
 
     /// <summary>
@@ -2297,6 +2708,8 @@ public sealed class RunwayExitPhase : Phase
             TurnOffDecelRate = _turnOffDecelRate,
             BacktrackPending = _backtrackPending,
             VoidedLahsoCrossingRunwayId = _voidedLahsoCrossingRunwayId,
+            Vacated = _vacated,
+            PullUpReachKts = _pullUpReachKts,
             StopTailInsideLine = _stopTailInsideLine,
             StopHeldShortOfBarNodeId = _stopHeldShortOfBar?.Id,
             Navigator = _navigator?.ToSnapshot() ?? _restoredNavigator,
@@ -2349,6 +2762,8 @@ public sealed class RunwayExitPhase : Phase
             _turnOffDecelRate = dto.TurnOffDecelRate,
             _backtrackPending = dto.BacktrackPending,
             _voidedLahsoCrossingRunwayId = dto.VoidedLahsoCrossingRunwayId,
+            _vacated = dto.Vacated,
+            _pullUpReachKts = dto.PullUpReachKts,
             _stopTailInsideLine = dto.StopTailInsideLine ?? false,
             _restoreSegmentIndex = Math.Max(dto.ExitWaypointIndex, 0),
             Status = (PhaseStatus)dto.Status,

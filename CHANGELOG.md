@@ -12,6 +12,9 @@
 ### Fixed
 
 - Signature help for a command typed after a callsign (`UAL1 FH`) appears only once a space follows the command, as it does without one.
+- A landing counts as clear of the runway, and the pilot reports clear, the moment its tail passes the exit's hold bar, even while still moving.
+- An arrival on a shallow high-speed exit, such as SFO 28R Q or OAK 30 W5, stays a runway occupant until its tail passes that exit's hold bar.
+- With automatic pull-up to the parallel runway, an exiting arrival taxis straight on to the parallel's hold-short, braking evenly, instead of stopping past the exit bar first.
 - `LAHSO` on a runway's second-named end, such as SFO 28R, measures the hold-short point and available distance from that landing end, not the far end.
 - A `LAHSO` landing keeps its hold-short after turning toward an exit, never stops on the crossing runway, and calls "unable to hold short" when it cannot stop.
 - Under `LAHSO`, a landing brakes evenly to the hold-short point instead of coasting at 40 kt and braking hard at the end.
