@@ -258,6 +258,8 @@ The rebuild reads the named runway ends and an expedited `CROSS`'s "without dela
 | **Contact** | `ContactCommandHandler` | CT / FCA — pure pilot-speech, **no flight-control mutation**. Resolves a target position to a frequency via `ctx.ArtccConfig`, queues a pilot readback, sets `aircraft.TunedPosition` (a resolvable target's position, the track owner for a bare CT, else `TrackOwner.Elsewhere`; a student command only, never a scripted or AI-origin one), and stamps `CompletedAtSeconds`/`CompletionReason = HandedOff` on the first CT/FCA. |
 | **Flight plan** | `FlightPlanCommandHandler` | `TryChangeDestination` (APT/DEST) only — canonicalizes the airport via `NavigationDatabase.TryResolveAirport`, rejects unknowns, and clears arrival-procedure state when the destination actually changes. Dispatched from `RoomEngine.SendCommandAsync`'s intercept for the bare interactive form, and from `ApplyCommand`'s arm for preset/conditional forms. |
 
+**A later maintain that omits earlier crossings cancels only the `Atc`-sourced ones (decided, not built yet).** When a later altitude or speed instruction drops crossings from the route it replaces, it cancels the crossings a controller set (source `Atc`) and leaves the procedure's own published restrictions in force: the controller's maintain supersedes the controller's earlier crossings, never the chart's.
+
 ## VFR / IFR gating is classification here, enforcement in the client
 
 **The dispatcher does not gate on flight rules.** It applies whatever it is given to whatever aircraft

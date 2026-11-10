@@ -50,6 +50,8 @@ Builders push entries via `PilotResponder.QueueSoloPilotTransmission` (Readback/
    - A solo SAY-channel answer counts as airtime from the second it is emitted when its callsign names an aircraft (`SimulationEngine.RecordSoloSayAnswer`); a scenario timer reminder, global or naming an aircraft, never counts (`ProcessTimers` emits it without metering).
    - A queued but unspoken call does not count.
 
+   **The student's push-to-talk is airtime too.** The sim must know when the student holds push-to-talk, so no pilot keys over a human transmission: a pilot line waits while the student is on the air, as it waits for another pilot's line. The airtime gate above covers only transmissions the sim itself queues or records, so this is a rule the gate is to follow, not a state the client reports today.
+
    `FrequencyState.GetLoadBand` trims the window and returns the three-way `FrequencyLoadBand`. `SimulationEngine.ApplyPostDispatch` reads the band into the `PilotSpeechContext` the readback builders take (see Activity-aware readback shortening).
 
    The recorded intervals are snapshotted (`StateSnapshotDto.FrequencyTransmissions`, restored by `Restore`), so a rewind or restore resumes in the load band the run was in: see [snapshots-and-replay.md](snapshots-and-replay.md). `SimulationEngine.LoadScenario` clears the whole active frequency (queue, gates and meter), so a reload replayed from zero never keeps lines, gates or intervals from later in the run.
@@ -200,6 +202,8 @@ Resolution order: an AI position of the wanted type covering the aircraft first;
 Else, for a **ground** call only, an AI local position covering the airport — a tower working the cab alone works ground too, and is addressed by the generic word like a tower-only student; else null — nobody to call, so no call and no `PilotPendingRequest`, which is the pre-roster instructor-mode behavior.
 
 Coverage for a **tower-cab** AI position (GND/TWR) is the airport the call is physically made at, never the filed destination — an OAK departure filed to SFO calls Oakland Ground even with AI SFO Ground staffed; radar-role AI positions match the destination/current/primary candidates (`PilotInitialContactEligibility.CandidateAirportIds`).
+
+**The addressee is the position the pilot is tuned to.** Pilot reports, check-ins and readbacks go to the position the aircraft is tuned to (`AircraftState.TunedPosition`, see CONTEXT.md "Tuned position"), not to a hardcoded GND/TWR set, so a pilot handed to a radar or an AI position calls that position. The rule is the roster's design target; the sites in the table above still name their wanted type.
 
 Where the site asks for the SOP check, it applies to **every** candidate (`PilotInitialContactEligibility.CanInitiateWith(aircraft, position, type, ctx)`): an arrival still owned by approach with no handoff inbound does not call the tower whoever staffs it — the transferring controller hands the pilot over (7110.65 §2-1-17), the pilot never self-initiates with the next position.
 

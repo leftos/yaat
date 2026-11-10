@@ -323,6 +323,14 @@ After an overrun call the crossing runway travels with the voided clearance (`Ru
 
 Other known gaps are open in YAAT-31 (LAHSO residuals).
 
+### TAXI from line-up-and-wait
+
+Decided, not built yet: today a `TAXI` from line-up-and-wait follows the stored-TAXI path only after a LAHSO stop.
+
+A `TAXI` to an aircraft lined up and waiting cancels the line-up-and-wait: the aircraft is no longer positioned for takeoff and the taxi clearance replaces the position instruction (7110.65 3-9-4). A route that crosses a runway from there needs `CROSS` for that runway (3-7-2.c), like any taxi route that crosses one.
+
+The crossing is found geometrically, by judging the route against the runway pavement as the LAHSO hold above does, not by counting hold-short bars: the aircraft stands on a runway, so the bar of the runway it stands on is already behind it and a bar test would miss the runway it is leaving.
+
 ## Forced landing (CLANDF)
 
 `CLANDF` sets `Phases.ForceLanding`: the aircraft lands and stops on the runway from any energy state, including when the command arrives after it has already passed the threshold.

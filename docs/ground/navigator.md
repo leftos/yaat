@@ -444,6 +444,8 @@ When a new segment begins with the aircraft heading far off the segment's first 
 
 A turn about on a taxiway rolls slower, at its own pivot speed (below).
 
+Decided, not built yet: a back-taxi leg, the roll along a runway against its landing direction, is capped at about 15 kt, and the turn about at its end runs at walking pace: the aircraft is on an active runway with no room to hurry, and a back-taxi is a slow, deliberate movement, not a normal taxi leg.
+
 One gate: **heading delta > `GroundNavigator.EntryAlignmentThresholdDeg` = 45°**, lowered to 20° at an unfilleted straight→straight kink (issue #213). It fires regardless of segment length — a bend tighter than the main-gear turn radius cannot be tracked by pure pursuit at any allowed speed (the orbit radius `v/ω` exceeds the short-segment scale even at the slow-turn floor), so it must be rounded.
 
 Normal fillet-smoothed corners stay below the threshold by construction; only wrong-way starts, post-pushback U-turns, and mid-route corners where pure-pursuit diverges produce deltas this large.

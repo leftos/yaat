@@ -307,6 +307,8 @@ Because `AnnotateHoldShorts` keeps exactly one `HoldShortPoint` per crossed runw
 
   A departure taxis *up to* its runway and holds; it never crosses its own departure runway, so first-match is the lineup. Taking the *last* match instead would extend the route across the runway to the far-side bar of the same crossing (both physical sides share the combined `28R/10L` id) — which gridlocks following traffic.
 
+  The authority is AIM 4-3-18.a.6: a taxi clearance to the departure runway does not authorize the aircraft to enter or cross that runway, so the route stops at the bar and entering takes its own clearance (`LUAW`, `CTO`, or `CROSS` for a runway the aircraft is only crossing).
+
   The truncation reads segment ends, so a bar the route *starts* on is no segment's end. `DestinationLineupStartBar` handles it: when the first segment starts at a bar of the destination runway in the runway's departure half (short of the midpoint between its threshold and far end, `LiesInDepartureHalf`) and the bar holds the aircraft (`HoldShortAnnotator.StartBarHolds` from the start pose, or `RouteMaterialiser.HoldsAtPassedBar`, else `FirstLegLeadsTowardRunway`), the route is cut to zero segments with one `DestinationRunway` hold at the start node (`EnsureDestinationHold`). OAK `TAXI C 33` from C's west bar holds there instead of walking C across 33's end to the far bar; `TAXI C 15` from the same bar lies past 15's far end and routes on as before.
 
   **A nose already past the bar** still holds (`HoldsAtPassedBar`): while no part of the aircraft is on the runway pavement (`TaxiPathfinder.IsOnRunwayPavement`) and the main gear is within `AtRunwayHoldShortRadiusFt` of the bar, the route is the same zero-segment hold and carries `RouteMaterialiser.AlreadyPastHoldLineWarning` ("already past the 33 hold-short line — holding in place, clear of the runway"), the one text `FindAdjacentRunwayRoute` also uses; `GroundCommandHandler` then replies "Already at runway 33 — holding in place (runway 33 assigned)" instead of "holding short". An aircraft standing on the runway keeps the old answers. A hold at the start bar also changes what the clearance's other tokens say: `HoldAtDestinationRunwayDisplay` lets `SegmentExpander` note a named taxiway the start node does not touch as "D not taxied — already holding short of runway 33" instead of refusing it as unreachable (an unknown taxiway is still refused), and `AddUnboundHoldShortWarnings` reports an `HS C` on the taxiway the aircraft stands on as "HS C not applied — already on C, holding short of runway 33". `TaxiingPhase.IsHoldAtStartOnly` is what keeps such a route from moving the aircraft. A runway nav data cannot resolve is not taken as a departure half and logs `[RouteMaterialiser] Runway … is unknown to nav data` once.
@@ -366,6 +368,10 @@ a backward arrival bearing onto the head, after which *every* forward waypoint n
 gate rejects, and `ResolveSequence` resets `VisitedNodeIds` per hop so nothing notices the
 concatenation circling. OAK N16390 resolved a 48-node drawn route into 544 segments across ten laps of
 `C → J → K → F → C` before this was fixed; the same route now resolves to 44 segments.
+
+**Node ids must be stable across parses.** A drawn route and a hand-typed `#id` name a node by its id, so a generated ground-graph node keeps the same id on every parse of the same map: the id is encoded from the node's position, not drawn from the parse-order counter. A counter id shifts whenever an upstream node appears or disappears and silently retargets every saved `#id` path.
+
+This is the rule the generator follows; node numbering in the layout parser is still sequential (see [ground-layout-generation.md](../ground-layout-generation.md)), so ids are stable only while the map is unchanged.
 
 **Loud failure.** `GroundCommandHandler.IsPlausibleNodeRefResolution` rejects a *dense* node path (all
 tokens nodes, all consecutive pairs edge-adjacent) that resolves to more than `2 × nodes + 20`
@@ -579,6 +585,8 @@ It is only that, never "always prefer a candidate that reaches the from-taxiway"
 **Curated connectors are threaded as named tokens and preferred over a blind detour.** The blind bridge above minimizes cost with no notion of *the* real connector, so it can pick a numbered ramp lane (which escapes the letter penalty) over the physically-correct letter connector.
 
 For pairs where a specific taxiway is the real-world bridge, curate it per-airport in the ARTCC sidecar as an `ImplicitConnectorEntry { connector, between }` (`src/Yaat.Sim/Data/ARTCCs/<id>/Airports/<icao>.json`) — SFO `L`/`F` bridge via `LF`, and `A`/`B1` (B1 is a stub off `Q`) bridge via `Q`. It is authorized only when the controller clears the two `between` taxiways adjacent.
+
+Every SFO two-letter connector (a taxiway named by two letters, `LF` the model) is a curated implicit connector: a pair it joins is bridged by that connector, never by a blind detour onto a numbered ramp lane. The sidecar lists only the connectors entered so far, so a two-letter connector missing from it is a data gap to fill, not a case for the detour.
 
 `SegmentExpander.Run` resolves the clearance both as-cleared and with each applicable connector threaded in (`BuildConnectorVariants`), then keeps the route that honors the clearance with the **fewest mandatory blind-detour insertions** (`IsBetterRoute`; `TaxiRoute.MandatoryConnectorCount`, distance breaks ties).
 

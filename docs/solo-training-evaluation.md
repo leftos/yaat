@@ -91,6 +91,8 @@ TrainingHub.GetSessionReport (poll)                                  │   ← R
 - `InitialContactEligibilityContext` — student TCP, position type,
   ARTCC, primary airport, and the initial-contact transfer catalog. Drives `IsStudentServiceRecipient`:
   advisory/visual/wake findings only fire for aircraft that have made initial contact, are not tuned away from the student's position (`AircraftState.IsTunedAwayFrom` against `StudentPosition`), and are eligible to be the student's traffic.
+
+  Track ownership and comms stay distinct when judging the student: who owns the track says whose traffic an aircraft is, `TunedPosition` says whose frequency it is on, and neither stands in for the other. Decided, not built yet: an aircraft spawns tuned to its track owner by default, so a spawn the student owns starts on the student's frequency, and a later handoff moves the owner without retuning the pilot until the frequency change is made.
 - `WakeDirectiveCatalog` (`Data/WakeDirectiveCatalog.cs`) — per-ARTCC overrides that can *require* or *suppress* a
   wake advisory / interval (`SampleWakeAdvisoryProofs`).
 
