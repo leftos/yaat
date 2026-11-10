@@ -78,9 +78,11 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
 
     /// <summary>
     /// The farthest (ft) before 1L's far bar a <see cref="LongFollowerType"/>'s centre is when the HOLD of
-    /// <see cref="HoldOvershootingTheNewStop_DoesNotReportHoldingShort"/> comes.
+    /// <see cref="HoldOvershootingTheNewStop_DoesNotReportHoldingShort"/> comes. At the 30 kt taxi cap one physics sub-tick covers
+    /// about 12.7 ft, so the first sub-tick inside this distance leaves the centre at least
+    /// <see cref="OvershootHoldNearestFt"/> before the bar.
     /// </summary>
-    private const double OvershootHoldFarthestFt = 80.0;
+    private const double OvershootHoldFarthestFt = 55.0;
 
     private const string OakRecordingPath = "TestData/yaat1527-oak-followg-cross-recording.yaat-bug-report-bundle.zip";
     private const string OakFollower = "N9671E";
@@ -875,7 +877,8 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
 
     /// <summary>
     /// A <see cref="LongFollowerType"/> following across 1L and 1R, cleared across both, given a HOLD at the follow's speed with its
-    /// centre <see cref="OvershootHoldNearestFt"/> to <see cref="OvershootHoldFarthestFt"/> ft before 1L's far bar: the crossing it is
+    /// centre <see cref="OvershootHoldNearestFt"/> to <see cref="OvershootHoldFarthestFt"/> ft before 1L's far bar, between two physics
+    /// sub-ticks since a whole second at the taxi cap steps farther than the band where both checks hold: the crossing it is
     /// held on plans its stop with the nose short of 1R's near bar, but braking from there it comes to rest with its nose past that
     /// bar, judged as a <c>CLRWY</c> judges it (<see cref="ClearRunwayPhase.IsNosePastBar"/>). Not holding short of 1R, its hold
     /// records no held-short runway and the pilot never says it is holding short of one.
@@ -890,18 +893,23 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
 
         (SfoGround ground, AircraftState follower, AircraftState leader, TaxiRoute? route) = staged;
         (GroundNode farBar, TrueHeading onward) = OneLeftFarBarOn(route);
-        int beforeAt = SfoGroundHarness.TickUntil(
+        double beforeFt = double.NaN;
+        List<string> lines = [];
+        int beforeAt = StepSubTicksUntil(
             ground.Engine,
             () => CentrePastFt(follower, farBar, onward) >= -OvershootHoldFarthestFt,
             StageBudgetSeconds,
+            () =>
+            {
+                beforeFt = -CentrePastFt(follower, farBar, onward);
+                Output.WriteLine($"HOLD with the centre {beforeFt:F1} ft before 1L's far bar #{farBar.Id} at {follower.IndicatedAirspeed:F1} kt");
+                lines = CapturePilotLines(ground, follower);
+                AssertSent(ground, Follower, "HOLD");
+            },
             second => LogFollow(second, follower, leader)
         );
         Assert.True(beforeAt >= 0, $"the follower's centre never got within {OvershootHoldFarthestFt} ft of 1L's far bar #{farBar.Id}");
-        double beforeFt = -CentrePastFt(follower, farBar, onward);
-        Output.WriteLine($"HOLD with the centre {beforeFt:F1} ft before 1L's far bar #{farBar.Id} at {follower.IndicatedAirspeed:F1} kt");
         Assert.True(beforeFt >= OvershootHoldNearestFt, $"the centre was only {beforeFt:F1} ft before 1L's far bar #{farBar.Id} at the HOLD");
-        List<string> lines = CapturePilotLines(ground, follower);
-        AssertSent(ground, Follower, "HOLD");
         int restAt = SfoGroundHarness.TickUntil(
             ground.Engine,
             () => (follower.Phases?.CurrentPhase is HoldingInPositionPhase) && (follower.IndicatedAirspeed < StoppedKts),
@@ -1260,6 +1268,41 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
     /// </summary>
     private static double CentrePastFt(AircraftState follower, GroundNode farBar, TrueHeading onward) =>
         GeoMath.AlongTrackDistanceNm(follower.Position, farBar.Position, onward) * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// Steps <paramref name="engine"/> a physics sub-tick at a time, whole seconds through the spine's segments, for at most
+    /// <paramref name="budgetSeconds"/>, until <paramref name="condition"/> holds after a sub-tick; then calls <paramref name="onMet"/>
+    /// once there, between that sub-tick and the next, and completes the second. Returns the second it was met in, or -1.
+    /// </summary>
+    private static int StepSubTicksUntil(SimulationEngine engine, Func<bool> condition, int budgetSeconds, Action onMet, Action<int> onSecond)
+    {
+        for (int second = 1; second <= budgetSeconds; second++)
+        {
+            engine.BeginSecond();
+            engine.OpenSecond(engine.BareHost);
+            engine.RunPrePhysics(engine.BareHost);
+            bool met = false;
+            for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
+            {
+                engine.RunPhysicsSubTick(1.0 / SimulationEngine.PhysicsSubTickRate, sub);
+                if (!met && condition())
+                {
+                    met = true;
+                    onMet();
+                }
+            }
+
+            engine.RunPostPhysics(engine.BareHost);
+            engine.RunEndOfSecond(engine.BareHost);
+            onSecond(second);
+            if (met)
+            {
+                return second;
+            }
+        }
+
+        return -1;
+    }
 
     /// <summary>Ticks until <paramref name="follower"/>'s centre is <see cref="CentrePastTheSliceEndFt"/> past 1L's far bar.</summary>
     private void TickUntilTheCentreIsPastTheSliceEnd(

@@ -6,6 +6,7 @@
 
 - An aircraft taxiing to a ramp spot along a final leg that curves stops with its nose at the spot marking, not short of it.
 - `TAXI TAXI A F 28L` is refused as "TAXI given twice" instead of "Cannot find taxiway TAXI in layout".
+- At SFO, a clearance naming G and L, A and F, C and Z, or S and Z next to each other may route through the short connector between them (GL, AF, CZ, ZS).
 
 ## v0.18.2-beta [2026/11/09]
 

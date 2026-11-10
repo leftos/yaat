@@ -10,6 +10,26 @@
       "connector": "Q",
       "between": ["A", "B1"],
       "notes": "Q is the connector bridging taxiway A and the B1 stub; A and B1 do not meet directly. Authorized implicitly only when the controller routes A adjacent to B1 (TAXI A B1 / TAXI B1 A)."
+    },
+    {
+      "connector": "GL",
+      "between": ["G", "L"],
+      "notes": "GL is the short connector bridging taxiways G and L. Authorized implicitly only when the controller routes G adjacent to L (TAXI G L / TAXI L G)."
+    },
+    {
+      "connector": "AF",
+      "between": ["A", "F"],
+      "notes": "AF is the short connector bridging taxiways A and F. Authorized implicitly only when the controller routes A adjacent to F (TAXI A F / TAXI F A)."
+    },
+    {
+      "connector": "CZ",
+      "between": ["C", "Z"],
+      "notes": "CZ is the short connector bridging taxiways C and Z. Authorized implicitly only when the controller routes C adjacent to Z (TAXI C Z / TAXI Z C)."
+    },
+    {
+      "connector": "ZS",
+      "between": ["S", "Z"],
+      "notes": "ZS is the short connector bridging taxiways S and Z. Authorized implicitly only when the controller routes S adjacent to Z (TAXI S Z / TAXI Z S)."
     }
   ],
   "oneWayEdges": [
