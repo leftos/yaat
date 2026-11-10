@@ -578,6 +578,10 @@ When the aimed segment is a fillet (`GroundArc`), the arc rolls out on the strai
 
 The straight arrives on the fillet's to-node through the ordinary straight arrival, so the owning phase's node arrival still fires. SFO gate E2 (SKW5707 in `5d33df162626.zip`, a `TAXI T7B $7B` fired mid-push): the arc aimed past the free-space leg to the T7B–RAMP fillet's far end, and the fillet became current with the aircraft ~50 ft from its start and ~27 ft abeam it; played as its Bézier, that tripped I8 (pin: `NodeAimedEntryOntoFilletTests`).
 
+**An arc aimed past a leg is only safe when its roll-out line runs along the segment it hands over to.** A free-space arc whose exit tangent is more than `EntryAlignmentThresholdDeg` off an aimed painted straight hands over to a straight that turns again, arrives abeam its end node and starts the next fillet off its curve (OAK stand 4: a 62 ft RAMP straight before a 15 ft fillet, aim node 906 moved to 900, pin: `OakPushedNearReversalOpeningTests`).
+
+`GroundNavigator.AimPastAStraightTheArcCannotFly`, called from the free-space branch of `BuildEntryAlignmentArc`, walks the aim on to the next node `FindAimNode` would pick, until the aimed segment is a fillet (flown as the aimed line) or a straight the arc rolls out along. It keeps `FindAimNode`'s stops and walks at most `MaxAimWalkCandidates` nodes past today's aim, because every leg it cuts across is retired without a node arrival. It never walks past a bar, and when a stop, the cap or the route's end ends it first, today's aim and arc stand.
+
 **A free-space first leg is aimed at its node, not at its bearing.**
 
 When the route's **first** segment's from-node is virtual — the approach leg `TaxiApproachLeg` prepends to a route whose first graph node the aircraft is not standing on (a plain `PUSH` leaves it ~100 ft out on the apron), or a ramp-lane cut — the arc's exit tangent is solved to pass *through a route node ahead* (`FindAimNode`, above — the leg's own to-node when the arc cannot overshoot it, otherwise the first node beyond that it cannot) via `PathPrimitiveBuilder.SlowTurnToPoint`.

@@ -1257,6 +1257,95 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
+    /// The most nodes <see cref="AimPastAStraightTheArcCannotFly"/> walks past today's aim. Every leg the walk cuts across is
+    /// retired without a node arrival, so the AT-ground and AT-taxiway triggers on its nodes never fire; the cap keeps that
+    /// to the short opening legs the walk exists for.
+    /// </summary>
+    private const int MaxAimWalkCandidates = 2;
+
+    /// <summary>
+    /// The free-space entry arc's aim, moved past a painted straight the arc rolls out more than
+    /// <see cref="EntryAlignmentThresholdDeg"/> across. <see cref="FindAimNode"/> picks its node by distance alone, so a
+    /// just-pushed aircraft nearly reversed from its route aims at the far end of a short first straight: once the arc has
+    /// retired the legs before it (<see cref="TryRetireLegsTheArcAimedPast"/>), the straight's own setup turns again onto
+    /// its bearing, arrives tens of feet abeam its end node and starts the next fillet that far off its curve (OAK stand 4:
+    /// the 62 ft RAMP straight 907→906 before the 15 ft <c>TC - RAMP</c> fillet). The walk moves on to the next node
+    /// <see cref="FindAimNode"/> would pick after it, until the aimed segment is a fillet (flown as the aimed line by
+    /// <see cref="InstallAimedLineOverFillet"/>) or a straight the arc rolls out along.
+    ///
+    /// <para>
+    /// It keeps <see cref="FindAimNode"/>'s stops: never past a bar, never inside the turning diameter, never an arc
+    /// sweeping past <see cref="PathPrimitiveBuilder.MaxAimSweepDeg"/>. A bar is kept as the aim only when the arc rolls out
+    /// along the straight ending at it. It walks at most <see cref="MaxAimWalkCandidates"/> nodes, since every leg it cuts
+    /// across is retired without a node arrival. When a stop, the cap or the route's end ends it before a node qualifies,
+    /// <paramref name="aim"/> and <paramref name="arc"/> are returned unchanged. An aim on the current free-space leg itself
+    /// is never walked: it hands over through the ordinary swap.
+    /// </para>
+    /// </summary>
+    private ((int SegmentIndex, double Lat, double Lon) Aim, PathPrimitiveSlowTurn Arc) AimPastAStraightTheArcCannotFly(
+        TaxiRoute route,
+        PhaseContext ctx,
+        (int SegmentIndex, double Lat, double Lon) aim,
+        PathPrimitiveSlowTurn arc,
+        double radiusFt
+    )
+    {
+        (int SegmentIndex, double Lat, double Lon) candidate = aim;
+        PathPrimitiveSlowTurn candidateArc = arc;
+        int walked = 0;
+        while (ExitOffAimedStraightDeg(candidate.SegmentIndex, candidateArc) > EntryAlignmentThresholdDeg)
+        {
+            // A bar is never walked past, and an off-angle straight ending at one is no aim to keep: today's aim stands.
+            if (
+                IsBarNode(route, ctx, route.Segments[candidate.SegmentIndex].ToNodeId)
+                || (walked >= MaxAimWalkCandidates)
+                || (FindAimNode(route, ctx, candidate.SegmentIndex + 1, ctx.Aircraft.Position, 2.0 * radiusFt) is not { } next)
+                || (
+                    PathPrimitiveBuilder.SlowTurnToPoint(
+                        fromLat: ctx.Aircraft.Position.Lat,
+                        fromLon: ctx.Aircraft.Position.Lon,
+                        fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
+                        radiusFt: radiusFt,
+                        targetLat: next.Lat,
+                        targetLon: next.Lon,
+                        maxSpeedKts: arc.MaxSpeedKts,
+                        toNodeId: arc.ToNodeId
+                    )
+                    is not { } nextArc
+                )
+            )
+            {
+                return (aim, arc);
+            }
+
+            candidate = next;
+            candidateArc = nextArc;
+            walked++;
+        }
+
+        if (candidate.SegmentIndex != aim.SegmentIndex)
+        {
+            Log.LogDebug(
+                "[Nav] {Callsign}: entry arc aim moved past a straight it cannot fly, {OldNode} → {NewNode} ({Delta:F0}° off it)",
+                ctx.Aircraft.Callsign,
+                route.Segments[aim.SegmentIndex].ToNodeId,
+                route.Segments[candidate.SegmentIndex].ToNodeId,
+                ExitOffAimedStraightDeg(aim.SegmentIndex, arc)
+            );
+        }
+
+        return (candidate, candidateArc);
+
+        // How far the arc's exit is off the aimed segment's straight; zero for the current leg and for a fillet.
+        double ExitOffAimedStraightDeg(int segmentIndex, PathPrimitiveSlowTurn solved)
+        {
+            TaxiRouteSegment aimed = route.Segments[segmentIndex];
+            bool walkable = (segmentIndex > route.CurrentSegmentIndex) && (aimed.Edge.Edge is not GroundArc);
+            return walkable ? new TrueHeading(solved.ExitTangentBearingDeg).AbsAngleTo(new TrueHeading(aimed.Edge.DepartureBearing)) : 0.0;
+        }
+    }
+
+    /// <summary>
     /// The entry-alignment slow-turn for a segment the aircraft begins <paramref name="headingDelta"/>° off its
     /// first tangent, which aim built it ("node", "node-ahead", "node-reversal" or "bearing"), and whether the
     /// reversal tie-break turned it against its short way.
@@ -1321,21 +1410,28 @@ public sealed class GroundNavigator
         if (_segmentFromIsVirtual)
         {
             double freeSpaceRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(ctx.Category);
-            if (FindAimNode(route, ctx, route.CurrentSegmentIndex, ctx.Aircraft.Position, 2.0 * freeSpaceRadiusFt) is { } aimNode)
+            if (FindAimNode(route, ctx, route.CurrentSegmentIndex, ctx.Aircraft.Position, 2.0 * freeSpaceRadiusFt) is { } firstAim)
             {
                 PathPrimitiveSlowTurn? aimed = PathPrimitiveBuilder.SlowTurnToPoint(
                     fromLat: ctx.Aircraft.Position.Lat,
                     fromLon: ctx.Aircraft.Position.Lon,
                     fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
                     radiusFt: freeSpaceRadiusFt,
-                    targetLat: aimNode.Lat,
-                    targetLon: aimNode.Lon,
+                    targetLat: firstAim.Lat,
+                    targetLon: firstAim.Lon,
                     maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, freeSpaceRadiusFt),
                     toNodeId: seg.FromNodeId
                 );
 
                 if (aimed is not null)
                 {
+                    ((int SegmentIndex, double Lat, double Lon) aimNode, aimed) = AimPastAStraightTheArcCannotFly(
+                        route,
+                        ctx,
+                        firstAim,
+                        aimed,
+                        freeSpaceRadiusFt
+                    );
                     if (HeldAtAHoldLine(route, ctx, aimed, headingDelta))
                     {
                         return null;
