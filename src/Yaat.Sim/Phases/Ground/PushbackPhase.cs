@@ -440,6 +440,12 @@ public sealed class PushbackPhase : Phase
         PublishTugRates(ctx);
         ctx.Targets.TargetSpeed = Move.DwellBefore ? 0 : CategoryPerformance.PushbackSpeed(ctx.Category);
 
+        // The move steers on its first sub-tick, which physics moves before the next OnTick runs.
+        if (!Move.DwellBefore && CanSteer(ctx) && (aircraft.IndicatedAirspeed > AtRestKts) && !TugKinematics.IsComplete(pose, Move, _progress))
+        {
+            Drive(ctx, pose);
+        }
+
         Log.LogDebug(
             "[Push] {Callsign}: started {Kind} {Shape} (tight={Tight}, creep={Creep}, dwell={Dwell}, stand={Stand}), nose={Nose:F1}, "
                 + "plannedEnd=({EndLat:F6},{EndLon:F6}), pos=({Lat:F6},{Lon:F6})",
@@ -491,7 +497,7 @@ public sealed class PushbackPhase : Phase
         // A controller hold brakes the tug rather than freezing it: physics sheds the speed at the towbar rate along
         // the headings the last driven tick left set, and the feet that takes are recorded above as the move's own.
         // Nothing else runs while the hold is in force.
-        if (aircraft.Ground.IsImmobile)
+        if (!CanSteer(ctx))
         {
             PublishTugRates(ctx);
             ctx.Targets.TargetSpeed = 0;
@@ -612,6 +618,15 @@ public sealed class PushbackPhase : Phase
     }
 
     /// <summary>
+    /// Whether the aircraft is free to be steered: no controller hold has the tug braking and no snapshot restore is
+    /// still owed. <see cref="OnTick"/> adds the dwell to this, which counts time as it is asked; <see cref="OnStart"/>
+    /// adds the move's own dwell instead, so a reversal is not steered before it starts.
+    /// </summary>
+    /// <param name="ctx">The phase context.</param>
+    /// <returns>True when nothing stops this tick from driving the tug.</returns>
+    private bool CanSteer(PhaseContext ctx) => !_progressPending && !ctx.Aircraft.Ground.IsImmobile;
+
+    /// <summary>
     /// Waits out a reversal: holds the aircraft stopped and counts the time it has been stopped. False once the
     /// dwell is over, or when the move has none.
     /// </summary>
@@ -634,9 +649,8 @@ public sealed class PushbackPhase : Phase
 
     /// <summary>
     /// Sets this tick's speed and steers the direction of travel by the distance physics is about to move the
-    /// aircraft. That distance is taken at the slower of the current speed and the new target: physics moves the
-    /// speed toward the target before it moves the aircraft, so the aircraft covers at least that much and never
-    /// turns tighter than the radius, speeding up or braking.
+    /// aircraft. That distance is <see cref="StepFt"/>'s prediction of the airspeed physics integrates this sub-tick, so
+    /// the turn matches the radius over the step actually flown, speeding up or braking.
     ///
     /// <para>The speed depends on the steer angle the step implies (<see cref="MoveSpeedKts"/>), and the step on the
     /// speed, so the step is first probed at the straight-ahead speed: its turn gives the steer angle, the steer angle
@@ -730,12 +744,43 @@ public sealed class PushbackPhase : Phase
     private double TravelTurnDeg(PushbackPose pose, double travelDeg) =>
         new TrueHeading(pose.TravelTrueDeg(Move.Kind)).SignedAngleTo(new TrueHeading(travelDeg));
 
-    /// <summary>The distance physics will move the aircraft this tick toward a target speed, feet.</summary>
+    /// <summary>
+    /// The distance physics will move the aircraft this sub-tick: the airspeed after this sub-tick's tow acceleration
+    /// or braking toward the target, clamped to the speed limit; zero at rest.
+    ///
+    /// <para>Physics moves the airspeed toward the target before it moves the aircraft (<c>FlightPhysics.UpdateSpeed</c>
+    /// then <c>UpdatePosition</c>), at <see cref="CategoryPerformance.TugAccelRate"/> or
+    /// <see cref="CategoryPerformance.TugDecelRate"/> as <see cref="PublishTugRates"/> published them. A step taken at any
+    /// other speed misjudges the turn: too short and the aircraft drifts wide of its plan (the old
+    /// <c>min(current, target)</c> on every braking step), too long and it turns tighter than the radius.</para>
+    /// </summary>
+    /// <param name="ctx">The phase context.</param>
+    /// <param name="targetKts">The speed this step is aimed at, knots.</param>
+    /// <returns>The step's length, feet.</returns>
     private static double StepFt(PhaseContext ctx, double targetKts)
     {
         AircraftState aircraft = ctx.Aircraft;
-        double stepKts = Math.Min(Math.Min(aircraft.IndicatedAirspeed, targetKts), aircraft.Ground.SpeedLimit ?? double.PositiveInfinity);
-        return Math.Max(0.0, stepKts) * ctx.DeltaSeconds / 3600.0 * GeoMath.FeetPerNm;
+        if (aircraft.IndicatedAirspeed <= AtRestKts)
+        {
+            return 0.0;
+        }
+
+        double limitKts = aircraft.Ground.SpeedLimit ?? double.PositiveInfinity;
+        double goalKts = Math.Min(targetKts, limitKts);
+        double speedKts = aircraft.IndicatedAirspeed;
+        double accelKts = CategoryPerformance.TugAccelRate(ctx.Category) * ctx.DeltaSeconds;
+        double decelKts = CategoryPerformance.TugDecelRate(ctx.Category) * ctx.DeltaSeconds;
+        if (goalKts > speedKts)
+        {
+            speedKts = Math.Min(goalKts, speedKts + accelKts);
+        }
+        else
+        {
+            speedKts = Math.Max(goalKts, speedKts - decelKts);
+        }
+
+        speedKts = Math.Min(speedKts, limitKts);
+        return Math.Max(0.0, speedKts) * ctx.DeltaSeconds / 3600.0 * GeoMath.FeetPerNm;
     }
 
     /// <summary>

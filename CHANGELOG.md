@@ -29,6 +29,7 @@
 - Aircraft taxiing along a nearly straight taxiway no longer brake at small bends beside a junction (SFO C, SFO A).
 - An aircraft given a spot line-up from past the spot turns about beyond the spot and lines up, instead of looping behind it.
 - An aircraft taxiing into a stand turns onto the lead-in line and rolls in lined up, instead of swinging wide past the stand heading.
+- A pushback flies the path the tug planned, instead of swinging wide in its turns and running past the lane where it should stop.
 
 ## v0.18.2-beta [2026/11/09]
 

@@ -69,20 +69,20 @@ public class SfoSixAlleyChoreographyTests
     /// <summary>
     /// How long the arrival may sit at a zero trail limit while the pusher is still reversing on the other
     /// outer lane. Trailing a mover abreast on 5.6 ft of lateral margin may cost a pause (measured with the push
-    /// timing here: a trail cap down to about 5 kt and no zero-cap second), but a wait that runs past this is no
+    /// timing here: a positive trail cap and no zero-cap second), but a wait that runs past this is no
     /// longer the tail settling, it is a hold.
     /// </summary>
     private const int MaxHoldWhilePushRollsSeconds = 10;
 
     /// <summary>
     /// How long after the push the arrival is cleared to taxi in the concurrent run. From the 28L bar the arrival
-    /// reaches the alley about 55 s after its clearance, and the D15 push onto 6B runs along the T6B lane until it
-    /// creeps onto the mark at t≈114 s, so a clearance 25 s into the push brings the arrival up T6A abeam the pusher
-    /// at t≈80 s while it is still rolling on the other lane (measured: trail-capped to about 5 kt, parked t=93 s).
-    /// Cleared at 40 s the arrival closed only after the push had finished (t=105 s); anything from 20 to 28 s gives
-    /// the trail cap.
+    /// reaches the alley about 55 s after its clearance, and the D15 push onto 6B is still rolling along the T6B lane
+    /// when it gets there, so a clearance 30 s into the push brings the arrival up T6A alongside the pusher at
+    /// t≈85 s while it is still rolling on the other lane (measured: trail-capped to a positive limit and never to a
+    /// stop, closest approach 193 ft, parked t=99 s, push finished t=121 s). Cleared at 25 s the arrival closed
+    /// without a cap (closest approach 225 ft).
     /// </summary>
-    private const int ArrivalClearanceSeconds = 25;
+    private const int ArrivalClearanceSeconds = 30;
     private const int PushBudgetSeconds = 200;
     private const int ArrivalBudgetSeconds = 240;
     private const int ChoreographyBudgetSeconds = 400;
@@ -157,8 +157,8 @@ public class SfoSixAlleyChoreographyTests
     /// on the two outer lanes: the D-pier pusher makes its final push along T6B and creeps onto spot 6B while the
     /// arrival taxis up T6A to its gate on the E pier. Nothing crosses the
     /// arrival's lane, so what the push costs it is the trail limit — capped while the B738 is rolling
-    /// abreast at ~140 ft; on that 5.6 ft of lateral margin the cap may briefly reach a stop (measured here: capped,
-    /// slowed to about 5 kt, never stopped). Any such wait is bounded (<see cref="MaxHoldWhilePushRollsSeconds"/>) and it belongs to the rolling push: once
+    /// abreast (closest approach about 193 ft); on that 5.6 ft of lateral margin the cap may briefly reach a stop
+    /// (measured here: capped, never stopped). Any such wait is bounded (<see cref="MaxHoldWhilePushRollsSeconds"/>) and it belongs to the rolling push: once
     /// the pusher has come to rest, the arrival is never capped to a stop by it again — a stopped neighbour a
     /// lane away costs nothing at all, which is <see cref="PushLong_ArrivalNeverSlowed"/>. It is never annotated
     /// as auto-yielding either: this is trailing, not giving way. Both then reach their marks, and the pair

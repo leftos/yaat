@@ -202,7 +202,7 @@ An alley push is ramp traffic; the object-free area is the zone either side of a
   Swing is the largest absolute running sum of the nose's signed turn, sample to sample, from the end of the push-off, so a rotation past 180° is not folded back. Then the ranking: candidates within `ClearanceMarginFt` of the least peak penetration are tied; among them the swings within 5° of the least are tied; then the least exposure (penetration × feet flown), then the shortest path. A `TugFoulsTaxiwayWarning` names the taxiway and the part of the outline reaching in deepest.
 
   The clearance never refuses a push. Worked example, B738 SFO F8 → 7A (no candidate clears A; the push-off alone puts the tail 8.5 ft in): push-off 65 ft, stepped push turn to 343° 79 ft, push onto T7A 145 ft, creep pull 27 ft onto 7A; 19.4 ft into A's zone plus the margin (14.4 ft into the object-free area itself), 88° of swing before 7A. The fallback it replaced swung the aircraft 179° in a three-point turn.
-- The 5 ft margin is the worst the flown closest approach fell short of the planned one over the push review cases (SFO F8 → 7A: 131.6 ft planned, 126.6 ft flown at one-second sampling), rounded up.
+- The 5 ft margin is the bound the flown path keeps to the planner's simulated trace: the worst measured deviation is 1.19 ft on the reference point, and SFO F8 → 7A comes 0.40 ft closer to taxiway A than planned. The margin is that figure rounded up with headroom.
 
 **No layout**: `Plan` accepts a null layout for `Clear` and `Facing` goals only and skips the flown-path check, so a bare `PUSH` and `PUSH FACE` work at an airport with no ground map.
 
@@ -296,7 +296,7 @@ The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores,
 
 `InstallTugMove` clears whatever the aircraft was doing and installs one `PushbackPhase` per planned move, then the terminus phase. The phase keeps the name "Pushback" (client menu gates key on it).
 
-- **Movement.** Each sub-tick `TugKinematics.SteerTravel` turns the direction of travel by at most the distance physics is about to move the aircraft divided by the radius. On a push `Ground.PushbackTrueHeading` is the travel and `TrueHeading` its reciprocal, for the whole move, dwell included; on a pull `PushbackTrueHeading` is null and `TrueHeading` is the travel. Every reader keeps its "set ⇒ tail-first" assumption.
+- **Movement.** Each sub-tick `TugKinematics.SteerTravel` turns the direction of travel by at most the distance physics is about to move the aircraft divided by the radius. That distance is the airspeed after this sub-tick's tow acceleration or braking toward the target, clamped to the speed limit — zero at rest, so a standing aircraft never rotates — because physics changes the speed before it moves the aircraft. A move steers on its first sub-tick (`OnStart`), not the second, unless it opens with a dwell, a hold or a pending restore. Together these keep the flown push within the planner's simulated trace. On a push `Ground.PushbackTrueHeading` is the travel and `TrueHeading` its reciprocal, for the whole move, dwell included; on a pull `PushbackTrueHeading` is null and `TrueHeading` is the travel. Every reader keeps its "set ⇒ tail-first" assumption.
 
   `Ground.TowbarTrueHeading` is the tug's pose for the ground view: the true heading from the nose gear out along the towbar to the tug.
 
