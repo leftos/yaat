@@ -328,7 +328,7 @@
 - [ ] YAAT-656 Brake at the firm rate when taxi braking cannot make the next fillet's speed
 - [ ] YAAT-1883 Solve the mid-curve entry alignment turn toward the tangent the gate judged, not the curve's start bearing
 
-### 2 Refinements and rulings (0/9 done)
+### 2 Refinements and rulings (0/11 done)
 - [ ] YAAT-33 Scale MainGearTurnRadiusFt by type wheelbase
 - [ ] YAAT-49 Re-validate the reroute rate after the fillet floor; corner speed, sample gaps
 - [ ] YAAT-736 Turn-about footprint leads: end-of-runway circle, GA body model, follower re-saying unable
@@ -338,13 +338,16 @@
 - [ ] YAAT-1455 Turn onto the next centreline after an exact hold-short arrival at a sharp unfilleted corner
 - [ ] YAAT-1609 Turn large jets no tighter than their gear allows at taxi corners
 - [ ] YAAT-1968 Cap a back-taxi along a runway at walking-pace turn and about 15 kt
+- [ ] YAAT-1972 Refuse a ground turn about for skid helicopters
+- [ ] YAAT-1974 Judge a rolling turn about on a runway one way at the gate and the navigator
 
-### 3 Hygiene and tests (0/5 done)
+### 3 Hygiene and tests (0/6 done)
 - [ ] YAAT-71 Feed NavTickDiag the real braking/arc caps, or delete the fields
 - [ ] YAAT-404 Split TaxiingPhase.OnTick under the 100-line limit
 - [ ] YAAT-470 Split GroundNavigator.BuildEntryAlignmentArc and TickStraight under the size limits
 - [ ] YAAT-740 Test a from-rest turn about whose taxi-rate stop stays short of the hold line
 - [ ] YAAT-1313 Test PublishSegmentSpeed's turn-about and slow-turn paths on exit arrival
+- [ ] YAAT-1973 Split TaxiingPhase.OnTick under the function size limit
 
 ## Ground traffic: follow, give-way and conflicts
 
