@@ -89,6 +89,12 @@ public sealed class TaxiingPhase : Phase
     // Logging only: not snapshotted.
     private bool _loggedPastHoldLine;
 
+    // The bar a CTOC re-armed inside the firm stopping distance (MarkCancelledTakeoffUnable), with its painted stop as it was
+    // placed before the stop was moved, the along-route distance to it at the cancel and the firm stopping distance then: read
+    // once, when the hold is taken past it, for the instructor warning (WarnIfCancelledTakeoffOverran). Transient: not
+    // snapshotted, so a restore between the cancel and the stop loses only that warning.
+    private CancelledTakeoffOverrun? _cancelledTakeoffOverrun;
+
     // Node of the uncleared runway bar the route starts on whose marking the nose was found past (PassedStartBar): latched so
     // the firm-rate stop it starts is never let go part-way as the aircraft slows and moves away from the node. Cleared when
     // the hold is taken or the bar is cleared. Snapshotted.
@@ -207,6 +213,7 @@ public sealed class TaxiingPhase : Phase
         }
 
         JudgeHoldShortAtCrossingHandoff(ctx, route);
+        DropClearedCancelledTakeoffOverrun();
         PrepareUnableStop(ctx, route);
 
         if (!_initialized)
@@ -1234,7 +1241,7 @@ public sealed class TaxiingPhase : Phase
     /// <param name="category">Aircraft category, which sets the firm brake rate.</param>
     /// <param name="subTickSeconds">The physics sub-tick length (s), dt.</param>
     /// <returns>The flown stopping distance in feet.</returns>
-    private static double MovedStopDistanceFt(double groundSpeedKts, AircraftCategory category, double subTickSeconds)
+    internal static double MovedStopDistanceFt(double groundSpeedKts, AircraftCategory category, double subTickSeconds)
     {
         double speedFtPerSec = groundSpeedKts * GroundStopBraking.FeetPerSecondPerKt;
         return HoldShortBrakingDistanceFt(groundSpeedKts, category) + (speedFtPerSec * subTickSeconds / 2.0);
@@ -1384,6 +1391,7 @@ public sealed class TaxiingPhase : Phase
         }
 
         WarnIfStationaryPastRunwayLine(ctx, bar, alongFt);
+        WarnIfCancelledTakeoffOverran(ctx, route, bar);
         _nav.SayPendingTurnAboutUnable(ctx);
         TakeSetBackHold(ctx, route, bar, barSegmentIndex);
         return true;
@@ -1414,9 +1422,109 @@ public sealed class TaxiingPhase : Phase
         }
 
         WarnIfStationaryPastRunwayLine(ctx, bar, alongFt);
+        WarnIfCancelledTakeoffOverran(ctx, route, bar);
         _nav.SayPendingTurnAboutUnable(ctx);
         TakeSetBackHold(ctx, route, bar, barSegmentIndex);
         return true;
+    }
+
+    /// <summary>
+    /// The bar a <c>CTOC</c> re-armed and <see cref="HoldShortPoint.Unable"/> flagged: its painted stop as placed, the along-route
+    /// distance (ft) to it at the cancel and the firm stopping distance (ft) then.
+    /// </summary>
+    private readonly record struct CancelledTakeoffOverrun(HoldShortPoint Bar, LatLon PaintedStop, double CancelFt, double StopFt);
+
+    /// <summary>
+    /// Records a bar a <c>CTOC</c> re-armed inside the firm stopping distance, already flagged <see cref="HoldShortPoint.Unable"/>
+    /// by the dispatcher: its painted stop (before <see cref="MoveUnmakeableBarToBrakingDistance"/> moves it), the along-route
+    /// distance to it now and the firm stopping distance now (<see cref="MovedStopDistanceFt"/>), for the warning raised when the
+    /// hold is taken past it (<see cref="WarnIfCancelledTakeoffOverran"/>). A bar whose stop has already moved
+    /// (<see cref="HoldShortPoint.StopMoved"/>) no longer carries its painted stop: the one an earlier record for the same bar
+    /// kept is used, and with none the bar is not recorded, so a moved stop is never taken for the painted one.
+    /// </summary>
+    internal void MarkCancelledTakeoffUnable(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        AircraftState aircraft,
+        HoldShortPoint bar,
+        double subTickSeconds
+    )
+    {
+        if (PaintedStopOf(bar) is not { } paintedStop)
+        {
+            return;
+        }
+
+        double cancelFt = AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, PaintedBar(bar, paintedStop));
+        double stopFt = MovedStopDistanceFt(aircraft.GroundSpeed, AircraftCategorization.Categorize(aircraft.AircraftType), subTickSeconds);
+        _cancelledTakeoffOverrun = new CancelledTakeoffOverrun(bar, paintedStop, cancelFt, stopFt);
+    }
+
+    /// <summary>
+    /// <paramref name="bar"/>'s painted stop: its own point while its stop has not moved, else the one this phase's record for the
+    /// same bar kept. Null when neither is known.
+    /// </summary>
+    private LatLon? PaintedStopOf(HoldShortPoint bar)
+    {
+        if (bar.StopMoved)
+        {
+            return (_cancelledTakeoffOverrun is { } existing) && ReferenceEquals(existing.Bar, bar) ? existing.PaintedStop : null;
+        }
+
+        return (bar.Latitude is { } lat) && (bar.Longitude is { } lon) ? new LatLon(lat, lon) : null;
+    }
+
+    /// <summary>A copy of <paramref name="bar"/> placed at <paramref name="paintedStop"/>, to measure against its painted stop.</summary>
+    private static HoldShortPoint PaintedBar(HoldShortPoint bar, LatLon paintedStop) =>
+        new()
+        {
+            NodeId = bar.NodeId,
+            Reason = bar.Reason,
+            TargetName = bar.TargetName,
+            Latitude = paintedStop.Lat,
+            Longitude = paintedStop.Lon,
+        };
+
+    /// <summary>
+    /// Forgets the overrun record (<see cref="MarkCancelledTakeoffUnable"/>) once its bar is cleared again — a fresh <c>CTO</c> or
+    /// <c>LUAW</c> while the aircraft brakes — so a later hold there never warns with the cancelled clearance's figures. Run every
+    /// tick, before any hold is taken.
+    /// </summary>
+    private void DropClearedCancelledTakeoffOverrun()
+    {
+        if (_cancelledTakeoffOverrun is { Bar.IsCleared: true })
+        {
+            _cancelledTakeoffOverrun = null;
+        }
+    }
+
+    /// <summary>
+    /// Warns the instructor, once, when the hold of a bar a <c>CTOC</c> re-armed inside the stopping distance
+    /// (<see cref="MarkCancelledTakeoffUnable"/>) is taken with the nose past its painted marking: how far past, measured along the
+    /// route from the painted stop (<see cref="PastHoldShortPointFt"/>), whether the nose is on the runway's pavement
+    /// (<see cref="TaxiPathfinder.IsOnRunwayPavement"/>), and the cancel distance against the stopping distance. Nothing is scored.
+    /// </summary>
+    private void WarnIfCancelledTakeoffOverran(PhaseContext ctx, TaxiRoute route, HoldShortPoint bar)
+    {
+        if ((_cancelledTakeoffOverrun is not { } overrun) || !ReferenceEquals(overrun.Bar, bar) || (ctx.GroundLayout is not { } layout))
+        {
+            return;
+        }
+
+        _cancelledTakeoffOverrun = null;
+        double pastFt = PastHoldShortPointFt(layout, route, ctx.Aircraft.Position, PaintedBar(bar, overrun.PaintedStop));
+        if (!(pastFt > 0.0))
+        {
+            return;
+        }
+
+        string runway = RunwayIdentifier.ToDisplayDesignator(ctx.Aircraft.Phases?.AssignedRunway?.Designator ?? bar.TargetName ?? "");
+        bool onRunway = TaxiPathfinder.IsOnRunwayPavement(layout, ctx.Aircraft.Position, runway);
+        ctx.Aircraft.PendingWarnings.Add(
+            $"{ctx.Aircraft.Callsign} could not stop short of runway {runway} after its takeoff clearance was cancelled: "
+                + $"nose {pastFt:F0} ft past the hold line{(onRunway ? ", on the runway" : "")} "
+                + $"(cancelled {overrun.CancelFt:F0} ft out, needed {overrun.StopFt:F0} ft)"
+        );
     }
 
     /// <summary>
@@ -2727,6 +2835,7 @@ public sealed class TaxiingPhase : Phase
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
+            WarnIfCancelledTakeoffOverran(ctx, route, holdShort);
             var holdPhase = new HoldingShortPhase(holdShort, ArrivalAt(ctx, route, holdShort));
             List<Phase> resumePhases = BuildResumePhases(ctx, route, holdShort, advancePastCurrentSegment: true);
 

@@ -435,7 +435,7 @@ An aircraft YAAT cannot place in a situation shows no quick commands; use All Co
   An IFR departure's flyout is Cleared for takeoff, Fly heading, Fly runway heading and the Custom box; with "VFR commands for IFR aircraft" set to All, the VFR rows follow the altitude box under the IFR rows.
 
   Each row shows the command it sends, updating as you type; a row whose heading or fix box is empty or unreadable shows "···", fades and sends nothing, and Enter in a heading or fix box sends that row (fix boxes suggest fixes as the command bar does). Glyphs are pattern purple, turned to the departure runway.
-- **Cancel takeoff clearance** shows only once the aircraft is cleared for takeoff (taxiing with the clearance included) and only until it reaches V1.
+- **Cancel takeoff clearance** shows only once the aircraft is cleared for takeoff (taxiing with the clearance included) and only until it reaches V1. Sent to a taxiing aircraft already too close to stop short of the runway hold line, it answers "unable to hold short … stopping", brakes as hard as it can and rests just past the line, and you get an amber warning with how far past it stopped.
 - **Cleared approach** hides once the aircraft is cleared for an approach; after a go-around or missed approach it comes back once you assign an altitude.
 - **Report field in sight…** hides for an IFR aircraft once the pilot has reported the field in sight, and comes back if the pilot loses sight of the field, goes around or the approach is reset. It opens a flyout (the strip icon's, and All Commands › Pilot reports) where you give the field advisory, in RPO and in solo training alike; with no destination field for the aircraft the entry is disabled (`· no destination field`) and the strip icon is faded.
 

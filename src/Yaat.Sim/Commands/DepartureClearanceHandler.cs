@@ -2582,6 +2582,54 @@ internal static class DepartureClearanceHandler
         }
     }
 
+    /// <summary>
+    /// The answer to a <c>CTOC</c> given to a taxiing aircraft whose re-armed bar it can no longer stop short of: the first
+    /// uncleared bar ahead that the cancelled clearance had pre-cleared (<paramref name="reArmedNodeIds"/>), judged as the
+    /// dispatcher judges any bar armed under a moving aircraft (<see cref="TaxiingPhase.IsHoldShortUnmakeable"/>). An unmakeable
+    /// bar is flagged <see cref="HoldShortPoint.Unable"/> — the unable call, so the taxi brakes at the firm rate onto the stop it
+    /// can make and no held-beyond report follows — and the taxi is told to warn the instructor when it comes to rest past it
+    /// (<see cref="TaxiingPhase.MarkCancelledTakeoffUnable"/>). The pilot answers "takeoff clearance cancelled, unable to hold short
+    /// of runway two eight right, stopping". Null when the bar is makeable, or there is none to judge.
+    /// </summary>
+    private static CommandResult? UnableToStopForCancelledTakeoff(
+        AircraftState aircraft,
+        TaxiingPhase taxiing,
+        TaxiRoute? route,
+        IEnumerable<int>? reArmedNodeIds,
+        AirportGroundLayout? layout
+    )
+    {
+        if ((route is null) || (reArmedNodeIds is null) || (layout is null))
+        {
+            return null;
+        }
+
+        HoldShortPoint? bar = route
+            .Segments.Skip(Math.Max(0, route.CurrentSegmentIndex))
+            .Select(segment => route.GetHoldShortAt(segment.ToNodeId))
+            .FirstOrDefault(hs => (hs is { IsCleared: false, Latitude: not null, Longitude: not null }) && reArmedNodeIds.Contains(hs.NodeId));
+        double subTickSeconds = 1.0 / SimulationEngine.PhysicsSubTickRate;
+        if ((bar is null) || !TaxiingPhase.IsHoldShortUnmakeable(layout, route, aircraft, bar, subTickSeconds))
+        {
+            return null;
+        }
+
+        bar.Unable = true;
+        taxiing.MarkCancelledTakeoffUnable(layout, route, aircraft, bar, subTickSeconds);
+        string runway = aircraft.Phases?.AssignedRunway?.Designator ?? RunwayIdentifier.ToDisplayDesignator(bar.TargetName ?? "");
+        var speech = new PilotSpeechText(
+            $"Takeoff clearance cancelled, unable to hold short of runway {PhraseologyVerbalizer.CompactRunway(runway)}, stopping",
+            $"takeoff clearance cancelled, unable to hold short of runway {PhraseologyVerbalizer.SpellRunway(runway)}, stopping"
+        );
+        Log.LogInformation(
+            "[CTOC] {Callsign}: hold short of {Target} re-armed inside the firm stopping distance at {Gs:F1} kt — unable",
+            aircraft.Callsign,
+            bar.TargetName,
+            aircraft.GroundSpeed
+        );
+        return new CommandResult(true, speech.Terminal) { PilotReadback = new HandlerReadback(CanonicalCommandType.CancelTakeoffClearance, speech) };
+    }
+
     internal static CommandResult TryCancelTakeoff(AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
         if (currentPhase is LinedUpAndWaitingPhase luawCancel)
@@ -2602,7 +2650,7 @@ internal static class DepartureClearanceHandler
         {
             return CancelTakeoffDuringLineUp(aircraft, lineup);
         }
-        if (currentPhase is TaxiingPhase && aircraft.Phases?.DepartureClearance is { Type: ClearanceType.ClearedForTakeoff } stored)
+        if ((currentPhase is TaxiingPhase taxiing) && (aircraft.Phases?.DepartureClearance is { Type: ClearanceType.ClearedForTakeoff } stored))
         {
             // CTO was issued mid-taxi and stored for the taxi phase to consume
             // at the runway. Revert the hold-shorts that storage pre-cleared
@@ -2624,7 +2672,8 @@ internal static class DepartureClearanceHandler
             aircraft.Phases.DepartureClearance = null;
             aircraft.Phases.LineUpIntersectionTaxiway = null;
             aircraft.Targets.AssignedAltitude = null;
-            return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold short{CommandDispatcher.RunwayLabel(aircraft)}");
+            return UnableToStopForCancelledTakeoff(aircraft, taxiing, route, stored.PreClearedHoldShortNodeIds, ctx.GroundLayout)
+                ?? CommandDispatcher.Ok($"Takeoff clearance cancelled, hold short{CommandDispatcher.RunwayLabel(aircraft)}");
         }
         if (currentPhase is TakeoffPhase rollingTakeoff && aircraft.IsOnGround)
         {

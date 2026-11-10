@@ -251,6 +251,8 @@ Without it the segment in progress keeps the junction node as its target and the
 
 **Feasibility.** `IsHoldShortUnmakeable` compares `AlongRouteDistanceToHoldShortFt` (the remainder of the current segment plus whole segments to the bar's node, less the bar's setback) with the stop the aircraft flies at the firm rate: `MovedStopDistanceFt` (v²/2a at `CategoryPerformance.ExpediteExitDecelRate`, plus v·dt/2 for the sub-ticked physics) plus `GroundNavigator.SetBackStopMarginFt` (2 ft), the margin the firm curve onto a painted stop reaches zero short of it.
 
+A `CTOC` given to a taxiing aircraft with a stored takeoff clearance re-arms the bars that clearance pre-cleared, and `DepartureClearanceHandler.TryCancelTakeoff` judges the first one ahead on receipt with `IsHoldShortUnmakeable`, as an `HS` is. An unmakeable bar is flagged unable, so the taxi brakes at the firm rate and no held-beyond report is made; the pilot answers "unable to hold short of runway 28R, stopping", and the instructor is warned once when the aircraft rests past the line.
+
 A bar judged makeable is one the firm rate does stop at. It applies only above `StoppedGroundSpeedKts` (2 kt): a stopped aircraft whose stop is already behind it holds where it stands.
 
 A taxiway bar is unable only when the firm-rate stop lies past the crossed taxiway's **wingtip envelope** as well: `HoldShortAnnotator.EnvelopeEntryAheadFt` is the along-route distance at which the nose first comes within `WingtipClearanceFloorFt` of the centreline the floor measures against (the floor's own nose walk-back with the setback set to the floor alone), and `TaxiingPhase.IsHoldShortUnmakeable` compares the flown stop with the further of the placed stop and that entry.

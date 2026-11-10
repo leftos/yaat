@@ -67,6 +67,12 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     private const double LateCancelDistFt = 40.0;
 
     /// <summary>
+    /// The phase an aircraft rests in after a <c>CTOC</c> it could not stop short of the bar for: the Unable-bar hold flow
+    /// (a hold taken beyond the bar after the unable call), as measured: the runway bar's <see cref="HoldingShortPhase"/>.
+    /// </summary>
+    private const string UnableRestPhaseName = "Holding Short 28R";
+
+    /// <summary>
     /// Slack (ft) allowed against the bar's own distance from the centerline before an aircraft counts as past
     /// the holding position — the same margin <c>SfoCtoIntersectionDepartureE2ETests</c> uses, covering the
     /// difference between the bar node and the aircraft's centroid.
@@ -383,12 +389,156 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
             $"the aircraft was still doing {final.IasKts:F2} kt {final.DistToBarFt:F0} ft from the bar (phase={final.Phase}) — "
                 + "a cancelled takeoff clearance re-arms the stop at the bar"
         );
+        CancelWatch cancel = run.Cancel!;
+        Assert.StartsWith("Takeoff clearance cancelled, hold short", cancel.Message);
+        Assert.DoesNotContain(cancel.Warnings, w => w.Contains("could not stop short", StringComparison.Ordinal));
     }
+
+    /// <summary>
+    /// A <c>CTOC</c> 10 ft along the route from the bar's stop, inside the ~27 ft a BE36 needs to stop from 12 kt at its firm
+    /// rate (<see cref="CategoryPerformance.ExpediteExitDecelRate"/>, 4.5 kt/s): the pilot answers unable, brakes at that rate,
+    /// comes to rest just past the marking and the instructor is warned how far.
+    /// </summary>
+    [Fact]
+    public void CancelledTenFeetFromTheBar_BE36_SaysUnableStopsJustPastAndWarns() => AssertCancelInsideStoppingDistance("BE36", 10.0);
+
+    /// <summary>The same as <see cref="CancelledTenFeetFromTheBar_BE36_SaysUnableStopsJustPastAndWarns"/> 15 ft out.</summary>
+    [Fact]
+    public void CancelledFifteenFeetFromTheBar_BE36_SaysUnableStopsJustPastAndWarns() => AssertCancelInsideStoppingDistance("BE36", 15.0);
+
+    /// <summary>A B738 still accelerating at ~7 kt needs ~8 ft at its firm rate (7.5 kt/s): a <c>CTOC</c> 5 ft out is unable.</summary>
+    [Fact]
+    public void CancelledFiveFeetFromTheBar_B738_SaysUnableAndWarns() => AssertCancelInsideStoppingDistance("B738", 5.0);
+
+    /// <summary>
+    /// A <c>CTOC</c> inside the firm stopping distance of the 28R bar: the readback is the unable form and the only unable
+    /// transmission, the aircraft rests past the bar's placed stop by less than its firm stopping distance from the cancel speed,
+    /// and exactly one instructor warning says how far it stopped past the marking.
+    /// </summary>
+    private void AssertCancelInsideStoppingDistance(string aircraftType, double cancelAtFt)
+    {
+        TaxiRun? run = RunTaxiToBar(
+            new TaxiRunSpec(AircraftType: aircraftType, ClearForTakeoff: true, CancelAtDistToBarFt: cancelAtFt, MaxSeconds: 60)
+        );
+        if (run is null)
+        {
+            return;
+        }
+
+        CancelWatch cancel = run.Cancel!;
+        Assert.NotNull(cancel.AtFt);
+        TaxiSample final = run.Samples[^1];
+        double fpsPerKt = GeoMath.FeetPerNm / 3600.0;
+        double firmRateFps = CategoryPerformance.ExpediteExitDecelRate(AircraftCategorization.Categorize(aircraftType)) * fpsPerKt;
+        double cancelFps = cancel.IasKts * fpsPerKt;
+        double firmStopFt = cancelFps * cancelFps / (2.0 * firmRateFps);
+        output.WriteLine(
+            $"CTOC at {cancel.AtFt:F1} ft, {cancel.IasKts:F1} kt (firm stop {firmStopFt:F1} ft): {cancel.Message}; "
+                + $"rest {cancel.PastStopFt:F1} ft past the placed stop, phase={final.Phase}; "
+                + $"warnings: {string.Join(" | ", cancel.Warnings)}; speech: {string.Join(" | ", cancel.Speech)}"
+        );
+
+        Assert.Equal("Takeoff clearance cancelled, unable to hold short of runway 28R, stopping", cancel.Message);
+        Assert.True(final.IasKts < 0.5, $"still doing {final.IasKts:F2} kt (phase={final.Phase})");
+        Assert.True(
+            cancel.PastStopFt < firmStopFt,
+            $"rested {cancel.PastStopFt:F1} ft past the placed stop, more than the {firmStopFt:F1} ft firm stop"
+        );
+        Assert.Equal(UnableRestPhaseName, final.Phase);
+        Assert.Single(
+            cancel.Speech.Concat(cancel.Warnings).Append(cancel.Message ?? ""),
+            s => s.Contains("unable to hold short", StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.True(cancel.PastStopFt > 0, $"rested {cancel.PastStopFt:F1} ft past the placed stop — short of it, no overrun to warn of");
+        System.Text.RegularExpressions.Match warning = Assert.Single(cancel.Warnings.Select(w => OverrunWarning.Match(w)), m => m.Success);
+        Assert.Single(cancel.Warnings, w => w.Contains("could not stop short", StringComparison.Ordinal));
+        double noseFt = double.Parse(warning.Groups["nose"].Value, System.Globalization.CultureInfo.InvariantCulture);
+        double cancelledFt = double.Parse(warning.Groups["cancelled"].Value, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(noseFt, cancel.PastStopFt - 1.0, cancel.PastStopFt + 1.0);
+        Assert.InRange(cancelledFt, cancel.AtFt!.Value - 1.0, cancel.AtFt.Value + 1.0);
+    }
+
+    /// <summary>
+    /// A <c>CTOC</c> inside the stopping distance, then a fresh <c>CTO</c> while the aircraft brakes (the bar cleared again), then a
+    /// second <c>CTOC</c> a sub-tick later, again inside the stopping distance: the first cancel's overrun is forgotten with the
+    /// re-clear, and the second cancel finds the stop already moved with no painted stop on record, so no warning is raised.
+    /// </summary>
+    [Fact]
+    public void CancelledInsideStoppingDistance_ReclearedAndCancelledAgain_RaisesNoOverrunWarning()
+    {
+        TaxiRun? run = RunTaxiToBar(
+            new TaxiRunSpec(AircraftType: "BE36", ClearForTakeoff: true, CancelAtDistToBarFt: 10.0, MaxSeconds: 60) { Recancel = true }
+        );
+        if (run is null)
+        {
+            return;
+        }
+
+        CancelWatch cancel = run.Cancel!;
+        TaxiSample final = run.Samples[^1];
+        output.WriteLine(
+            $"first: {cancel.Message}; second: {cancel.SecondCancelMessage}; rest {cancel.PastStopFt:F1} ft past the placed stop, "
+                + $"phase={final.Phase}; warnings: {string.Join(" | ", cancel.Warnings)}"
+        );
+
+        Assert.Equal("Takeoff clearance cancelled, unable to hold short of runway 28R, stopping", cancel.Message);
+        // Measured: the second cancel, a sub-tick after the CTO, is still inside the stopping distance of the moved stop.
+        Assert.Equal("Takeoff clearance cancelled, unable to hold short of runway 28R, stopping", cancel.SecondCancelMessage);
+        Assert.DoesNotContain(cancel.Warnings, w => w.Contains("could not stop short", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A <c>CTOC</c> inside the stopping distance, then a fresh <c>CTO</c> and a second <c>CTOC</c> on the same sub-tick, so no taxi
+    /// tick sees the bar cleared and the first cancel's record survives: the second cancel finds the stop already moved and keeps
+    /// that record's painted stop, so the one warning measures from the painted stop with the second cancel's distance to it.
+    /// </summary>
+    [Fact]
+    public void CancelledAgainInOneSubTickWithTheReclear_WarnsFromThePaintedStop()
+    {
+        TaxiRun? run = RunTaxiToBar(
+            new TaxiRunSpec(AircraftType: "BE36", ClearForTakeoff: true, CancelAtDistToBarFt: 10.0, MaxSeconds: 60)
+            {
+                Recancel = true,
+                RecancelInOneSubTick = true,
+            }
+        );
+        if (run is null)
+        {
+            return;
+        }
+
+        CancelWatch cancel = run.Cancel!;
+        output.WriteLine(
+            $"first: {cancel.Message} at {cancel.AtFt:F1} ft; second: {cancel.SecondCancelMessage} at {cancel.SecondAtFt:F1} ft; "
+                + $"rest {cancel.PastStopFt:F1} ft past the placed stop; warnings: {string.Join(" | ", cancel.Warnings)}"
+        );
+
+        Assert.NotNull(cancel.SecondAtFt);
+        Assert.Single(cancel.Warnings, w => w.Contains("could not stop short", StringComparison.Ordinal));
+        System.Text.RegularExpressions.Match warning = Assert.Single(cancel.Warnings.Select(w => OverrunWarning.Match(w)), m => m.Success);
+        double noseFt = double.Parse(warning.Groups["nose"].Value, System.Globalization.CultureInfo.InvariantCulture);
+        double cancelledFt = double.Parse(warning.Groups["cancelled"].Value, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(noseFt, cancel.PastStopFt - 1.0, cancel.PastStopFt + 1.0);
+        Assert.InRange(cancelledFt, cancel.SecondAtFt.Value - 1.0, cancel.SecondAtFt.Value + 1.0);
+    }
+
+    /// <summary>The instructor warning a cancelled takeoff clearance's overrun raises, with its three figures captured.</summary>
+    private static readonly System.Text.RegularExpressions.Regex OverrunWarning = new(
+        @"^TEST1 could not stop short of runway 28R after its takeoff clearance was cancelled: nose (?<nose>\d+) ft past the hold line"
+            + @"(, on the runway)? \(cancelled (?<cancelled>\d+) ft out, needed (?<needed>\d+) ft\)$"
+    );
 
     /// <summary>One taxi run to the 28R bar: which aircraft, whether it gets a takeoff clearance two seconds in,
     /// whether that clearance is cancelled again (null = never; otherwise the distance-to-bar in feet at which
     /// <c>CTOC</c> is issued), and how many seconds to run.</summary>
-    private sealed record TaxiRunSpec(string AircraftType, bool ClearForTakeoff, double? CancelAtDistToBarFt, int MaxSeconds);
+    private sealed record TaxiRunSpec(string AircraftType, bool ClearForTakeoff, double? CancelAtDistToBarFt, int MaxSeconds)
+    {
+        /// <summary>True to re-clear and cancel again just after the first cancel (<see cref="CancelWatch.Recancel"/>).</summary>
+        public bool Recancel { get; init; }
+
+        /// <summary>True to send that re-clear and second cancel on one sub-tick (<see cref="CancelWatch.RecancelInOneSubTick"/>).</summary>
+        public bool RecancelInOneSubTick { get; init; }
+    }
 
     /// <summary>One second of a taxi run: the phase, the speed, the distance to the bar node and the distance
     /// from the 28R centerline (the measure a runway incursion shows up in).</summary>
@@ -400,6 +550,9 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
     /// </summary>
     private sealed record TaxiRun(List<TaxiSample> Samples, double? CancelledAtDistToBarFt, double BarCrossFt)
     {
+        /// <summary>What the <c>CTOC</c> watch saw; null on a run that never cancels.</summary>
+        public CancelWatch? Cancel { get; init; }
+
         /// <summary>
         /// The last second the aircraft was still taxiing — the speed it arrives at the bar with.
         /// <see cref="TaxiingPhase.OnEnd"/> hands the speed on to the line-up, but the phase after the hand-off
@@ -454,12 +607,23 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
         }
 
         var samples = new List<TaxiSample>();
-        double? cancelledAtFt = null;
+        CancelWatch? watch = spec.CancelAtDistToBarFt is { } trigger
+            ? new CancelWatch(trigger, groundData.GetLayout("SFO")!) { Recancel = spec.Recancel, RecancelInOneSubTick = spec.RecancelInOneSubTick }
+            : null;
+        watch?.Subscribe(engine);
         bool cleared = false;
 
         for (int t = 1; t <= spec.MaxSeconds; t++)
         {
-            engine.TickOneSecond();
+            if (watch is null)
+            {
+                engine.TickOneSecond();
+            }
+            else
+            {
+                TickSecondWatchingCancel(engine, watch, t);
+            }
+
             AircraftState? ac = engine.FindAircraft("TEST1");
             if (ac is null)
             {
@@ -469,27 +633,16 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
             if (spec.ClearForTakeoff && !cleared && t >= 2)
             {
                 cleared = ClearForTakeoff(engine, ac, t);
+                watch?.Arm(ac);
             }
+
+            watch?.MeasurePast(ac);
 
             double distFt = GeoMath.DistanceNm(ac.Position, BarPose) * GeoMath.FeetPerNm;
             double crossFt = CrossFt(ac.Position, runway);
             string phase = ac.Phases?.CurrentPhase?.Name ?? "(none)";
             samples.Add(new TaxiSample(t, phase, ac.IndicatedAirspeed, distFt, crossFt));
             output.WriteLine($"[t={t}] phase={phase} ias={ac.IndicatedAirspeed:F2}kt distToBar={distFt:F0}ft cross={crossFt:F0}ft");
-
-            if (
-                cleared
-                && (cancelledAtFt is null)
-                && (spec.CancelAtDistToBarFt is { } trigger)
-                && (distFt <= trigger)
-                && (ac.IndicatedAirspeed > FlowingIasKts)
-            )
-            {
-                CommandResult cancel = engine.SendCommand("TEST1", "CTOC");
-                output.WriteLine($"[t={t}] CTOC at {distFt:F0}ft out, {ac.IndicatedAirspeed:F2}kt: success={cancel.Success} {cancel.Message}");
-                Assert.True(cancel.Success, $"CTOC approaching the bar should succeed: {cancel.Message}");
-                cancelledAtFt = distFt;
-            }
 
             if (phase == TakeoffPhaseName)
             {
@@ -498,7 +651,187 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
         }
 
         Assert.NotEmpty(samples);
-        return new TaxiRun(samples, cancelledAtFt, CrossFt(BarPose, runway));
+        return new TaxiRun(samples, watch?.AtFt, CrossFt(BarPose, runway)) { Cancel = watch };
+    }
+
+    /// <summary>
+    /// One sim-second stepped by its physics sub-ticks (<see cref="SimulationEngine.PhysicsSubTickRate"/>), the composition
+    /// docs/test-harness.md describes, so the <c>CTOC</c> lands on the sub-tick its trigger distance is reached on rather than
+    /// a second late, when the taxi has already handed the aircraft to the line-up.
+    /// </summary>
+    private void TickSecondWatchingCancel(SimulationEngine engine, CancelWatch watch, int second)
+    {
+        engine.BeginSecond();
+        engine.TickPrePhysics();
+        for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
+        {
+            engine.TickPhysics(1.0 / SimulationEngine.PhysicsSubTickRate);
+            if (engine.FindAircraft("TEST1") is { } ac && watch.ShouldCancel(ac, out double toStopFt))
+            {
+                CommandResult cancel = engine.SendCommand("TEST1", "CTOC");
+                output.WriteLine(
+                    $"[t={second}.{sub}] CTOC at {toStopFt:F1}ft along the route, {ac.IndicatedAirspeed:F2}kt: "
+                        + $"success={cancel.Success} {cancel.Message}"
+                );
+                Assert.True(cancel.Success, $"CTOC approaching the bar should succeed: {cancel.Message}");
+                watch.Record(toStopFt, cancel.Message, ac.IndicatedAirspeed);
+            }
+            else if (watch.NextRecancelCommand() is { } command)
+            {
+                SendRecancel(engine, watch, command, $"{second}.{sub}");
+                if (watch.RecancelInOneSubTick && (watch.NextRecancelCommand() is { } then))
+                {
+                    SendRecancel(engine, watch, then, $"{second}.{sub}");
+                }
+            }
+        }
+
+        engine.TickPostPhysics();
+    }
+
+    /// <summary>Sends one command of a <see cref="CancelWatch.Recancel"/> run and records it.</summary>
+    private void SendRecancel(SimulationEngine engine, CancelWatch watch, string command, string when)
+    {
+        CommandResult result = engine.SendCommand("TEST1", command);
+        output.WriteLine($"[t={when}] {command}: success={result.Success} {result.Message}");
+        Assert.True(result.Success, $"{command} after the first cancel should succeed: {result.Message}");
+        watch.RecordRecancel(command, result.Message, engine.FindAircraft("TEST1")!);
+    }
+
+    /// <summary>
+    /// Watches a taxi run for the moment to cancel the takeoff clearance: while the aircraft is still in
+    /// <see cref="TaxiingPhase"/>, flowing, and within <paramref name="triggerFt"/> along the route of the destination bar's
+    /// stop point as it was placed (copied when the clearance is given, before any stop is moved). Records the cancel, the
+    /// instructor warnings and the pilot transmissions, and where the aircraft rests against that placed stop.
+    /// </summary>
+    private sealed class CancelWatch(double triggerFt, AirportGroundLayout layout)
+    {
+        private HoldShortPoint? _placedStop;
+
+        /// <summary>The along-route distance (ft) from the stop point at the cancel; null until it is issued.</summary>
+        public double? AtFt { get; private set; }
+
+        /// <summary>The <c>CTOC</c> result's message.</summary>
+        public string? Message { get; private set; }
+
+        /// <summary>The indicated airspeed (kt) at the cancel.</summary>
+        public double IasKts { get; private set; }
+
+        /// <summary>How far (ft) past the placed stop the aircraft last stood, along the route; negative while short of it.</summary>
+        public double PastStopFt { get; private set; } = double.NegativeInfinity;
+
+        /// <summary>Every instructor warning emitted for the aircraft.</summary>
+        public List<string> Warnings { get; } = [];
+
+        /// <summary>Every pilot transmission's terminal text emitted for the aircraft.</summary>
+        public List<string> Speech { get; } = [];
+
+        public void Subscribe(SimulationEngine engine)
+        {
+            engine.WarningEmitted += (callsign, warning) => Add(Warnings, callsign, warning);
+            engine.PilotSpeechEmitted += (callsign, speech) => Add(Speech, callsign, speech.Terminal);
+        }
+
+        /// <summary>Copies the destination bar's placed stop point once the takeoff clearance is stored.</summary>
+        public void Arm(AircraftState ac)
+        {
+            HoldShortPoint bar = ac.Ground.AssignedTaxiRoute!.HoldShortPoints[^1];
+            _placedStop = new HoldShortPoint
+            {
+                NodeId = bar.NodeId,
+                Reason = bar.Reason,
+                TargetName = bar.TargetName,
+                Latitude = bar.Latitude,
+                Longitude = bar.Longitude,
+            };
+        }
+
+        public bool ShouldCancel(AircraftState ac, out double toStopFt)
+        {
+            toStopFt = double.PositiveInfinity;
+            if (
+                (_placedStop is null)
+                || (AtFt is not null)
+                || (ac.Phases?.CurrentPhase is not TaxiingPhase)
+                || (ac.Ground.AssignedTaxiRoute is not { } route)
+                || (ac.IndicatedAirspeed <= FlowingIasKts)
+            )
+            {
+                return false;
+            }
+
+            toStopFt = -TaxiingPhase.PastHoldShortPointFt(layout, route, ac.Position, _placedStop);
+            return toStopFt <= triggerFt;
+        }
+
+        /// <summary>
+        /// True to clear the aircraft for takeoff again on the sub-tick after the first cancel, while it brakes, and cancel that
+        /// clearance on the sub-tick after.
+        /// </summary>
+        public bool Recancel { get; init; }
+
+        /// <summary>The second <c>CTOC</c>'s message on a <see cref="Recancel"/> run; null until it is issued.</summary>
+        public string? SecondCancelMessage { get; private set; }
+
+        /// <summary>
+        /// True to send the <see cref="Recancel"/> run's <c>CTO</c> and second <c>CTOC</c> on the same sub-tick, so no taxi tick
+        /// sees the bar cleared in between.
+        /// </summary>
+        public bool RecancelInOneSubTick { get; init; }
+
+        /// <summary>The along-route distance (ft) to the placed stop at the second <c>CTOC</c>; null until it is issued.</summary>
+        public double? SecondAtFt { get; private set; }
+
+        private int _recancelStep;
+
+        /// <summary>The next command of a <see cref="Recancel"/> run (<c>CTO</c>, then <c>CTOC</c>) once the first cancel is in.</summary>
+        public string? NextRecancelCommand()
+        {
+            if (!Recancel || (AtFt is null) || (_recancelStep >= 2))
+            {
+                return null;
+            }
+
+            _recancelStep++;
+            return _recancelStep == 1 ? "CTO" : "CTOC";
+        }
+
+        public void RecordRecancel(string command, string? message, AircraftState ac)
+        {
+            if (command != "CTOC")
+            {
+                return;
+            }
+
+            SecondCancelMessage = message;
+            if ((_placedStop is not null) && (ac.Ground.AssignedTaxiRoute is { } route))
+            {
+                SecondAtFt = -TaxiingPhase.PastHoldShortPointFt(layout, route, ac.Position, _placedStop);
+            }
+        }
+
+        public void Record(double toStopFt, string? message, double iasKts)
+        {
+            AtFt = toStopFt;
+            Message = message;
+            IasKts = iasKts;
+        }
+
+        public void MeasurePast(AircraftState ac)
+        {
+            if ((_placedStop is not null) && (ac.Ground.AssignedTaxiRoute is { } route))
+            {
+                PastStopFt = TaxiingPhase.PastHoldShortPointFt(layout, route, ac.Position, _placedStop);
+            }
+        }
+
+        private static void Add(List<string> into, string callsign, string text)
+        {
+            if (callsign == "TEST1")
+            {
+                into.Add(text);
+            }
+        }
     }
 
     /// <summary>
