@@ -111,6 +111,10 @@
 #                     (unknown room, server unreachable, or password unset). Ignores all
 #                     build/deploy flags.
 #
+# -WaitForEmptyRooms, -StatusOnly, -KillRoom and -BuildImageOnly never deploy, so none of them
+# ever posts the "Deployment failed" Discord notice: each fails with a local message and a
+# nonzero exit code instead.
+#
 # -NoCache  (-BuildOnDroplet only) Pass --no-cache to docker compose build, forcing
 #           every layer to rebuild from scratch (including the wasm-tools workload
 #           install in the Dockerfile, which adds ~1-3 minutes). Off by
@@ -210,6 +214,12 @@ if (Test-Path $envFile) {
       $adminPassword = $Matches[1]
     }
   }
+}
+
+# A report to a dead console is swallowed on purpose: the error being reported is the one
+# that matters, so the report itself must not throw.
+function Write-HostSafe {
+  try { Write-Host @args } catch { }
 }
 
 function Send-DiscordStatus {
@@ -393,7 +403,7 @@ function Invoke-WaitForEmptyRoom {
       Write-Host ("  {0} room(s) active: {1}" -f $count, (Format-RoomsSummary $status.rooms)) -ForegroundColor Yellow
     }
     catch {
-      Write-Host "⚠ Could not query $serverUrl/admin/status ($_) — retrying in ${PollSec}s..." -ForegroundColor Yellow
+      Write-HostSafe "⚠ Could not query $serverUrl/admin/status ($_) — retrying in ${PollSec}s..." -ForegroundColor Yellow
     }
 
     Start-Sleep -Seconds $PollSec
@@ -694,7 +704,7 @@ if ($KillRoom) {
     exit 0
   }
   catch {
-    Write-Host "⚠ Could not close room $KillRoom via $serverUrl ($_)" -ForegroundColor Yellow
+    Write-HostSafe "⚠ Could not close room $KillRoom via $serverUrl ($_)" -ForegroundColor Yellow
     exit 2
   }
 }
@@ -707,8 +717,21 @@ if ($StatusOnly) {
     exit 0
   }
   catch {
-    Write-Host "⚠ Could not query $serverUrl/admin/status ($_)" -ForegroundColor Yellow
+    Write-HostSafe "⚠ Could not query $serverUrl/admin/status ($_)" -ForegroundColor Yellow
     exit 2
+  }
+}
+
+# The wait mode runs outside the main try/catch too, so a wait failure never sends a false
+# "Deployment failed" Discord alert. Exit 0 = the rooms emptied, 1 = the wait failed.
+if ($WaitForEmptyRooms) {
+  try {
+    Invoke-WaitForEmptyRoom -PollSec $PollSeconds
+    exit 0
+  }
+  catch {
+    Write-HostSafe "❌ Could not wait for empty rooms on $serverUrl ($_)" -ForegroundColor Red
+    exit 1
   }
 }
 
@@ -730,11 +753,6 @@ if ($BuildImageOnly) {
 }
 
 try {
-  if ($WaitForEmptyRooms) {
-    Invoke-WaitForEmptyRoom -PollSec $PollSeconds
-    return
-  }
-
   if ($RebootOnly) {
     Invoke-ServerReboot
     if ($followLogs) { Show-ServerLog }
@@ -882,6 +900,6 @@ catch {
   $failTitle = if ($RebootOnly) { "Reboot failed" } else { "Deployment failed" }
   $failVerb = if ($RebootOnly) { "reboot" } else { "deployment" }
   Send-DiscordStatus -Title $failTitle -Description "``$serverUrl`` $failVerb failed.`nError: $_" -Color 16711680
-  Write-Host "❌ Error: $_" -ForegroundColor Red
+  Write-HostSafe "❌ Error: $_" -ForegroundColor Red
   exit 1
 }
