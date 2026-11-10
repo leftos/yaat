@@ -277,7 +277,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
         cmd switch
         {
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
-            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto or CanonicalCommandType.ReRouteTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected("aircraft is pulling clear of the runway; only HOLD or a new TAXI apply until it stops"),
         };

@@ -175,6 +175,7 @@ public static partial class PilotResponder
     )
     {
         HandlerReadback? pilotReadback = result.PilotReadback;
+        compound = WithReRouteAsTaxi(compound, result.ReRouteAppliedAs);
         TaxiCommand? issuedTaxi = compound.Blocks.SelectMany(b => b.Commands).OfType<TaxiCommand>().FirstOrDefault();
         if (result.EffectiveCommand is not TaxiCommand effectiveTaxi || issuedTaxi is null)
         {
@@ -209,6 +210,26 @@ public static partial class PilotResponder
             Terminal = terminalPrefix + readback.Terminal,
             Tts = ttsPrefix + readback.Tts,
             RpoTerminal = readback.RpoTerminal is null ? null : terminalPrefix + readback.RpoTerminal,
+        };
+    }
+
+    /// <summary>
+    /// <paramref name="compound"/> with its first <c>RTAXI</c> replaced by <paramref name="appliedAs"/>, the TAXI it ran
+    /// (<see cref="CommandResult.ReRouteAppliedAs"/>), so the RTAXI reads back exactly as that TAXI: its handler readback, an
+    /// "unable" for a dropped taxiway, and a CROSS the route readback covers. Unchanged when no RTAXI ran.
+    /// </summary>
+    internal static CompoundCommand WithReRouteAsTaxi(CompoundCommand compound, TaxiCommand? appliedAs)
+    {
+        if ((appliedAs is null) || (compound.Blocks.SelectMany(b => b.Commands).OfType<ReRouteTaxiCommand>().FirstOrDefault() is not { } issued))
+        {
+            return compound;
+        }
+
+        return new CompoundCommand([
+            .. compound.Blocks.Select(b => new ParsedBlock(b.Condition, [.. b.Commands.Select(c => ReferenceEquals(c, issued) ? appliedAs : c)])),
+        ])
+        {
+            SourceText = compound.SourceText,
         };
     }
 

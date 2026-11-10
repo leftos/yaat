@@ -89,7 +89,7 @@ public sealed class HoldingAfterPushbackPhase : Phase
             // pushed out is the one a ramp controller repositions. It clears this phase itself once its plan
             // holds, and its first leg turns on the aircraft not being on a stand, which clearing here would cost.
             CanonicalCommandType.PushbackMulti or CanonicalCommandType.ForcedPushbackMulti => CommandAcceptance.Allowed,
-            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto or CanonicalCommandType.ReRouteTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,

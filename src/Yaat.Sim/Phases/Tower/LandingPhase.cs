@@ -3397,6 +3397,7 @@ public sealed class LandingPhase : Phase
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Taxi => CommandAcceptance.Allowed,
             CanonicalCommandType.TaxiAuto => CommandAcceptance.Allowed,
+            CanonicalCommandType.ReRouteTaxi => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.GoAround => _canGoAround
                 ? CommandAcceptance.Allowed

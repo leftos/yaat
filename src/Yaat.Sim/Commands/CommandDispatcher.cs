@@ -48,6 +48,13 @@ public record CommandResult(
     public HandlerReadback? PilotReadback { get; init; }
 
     /// <summary>
+    /// The TAXI an <c>RTAXI</c> ran (<see cref="GroundCommandHandler.TryReRouteTaxi"/>): its path with the kept destination. The
+    /// readback reads it in place of the issued <see cref="ReRouteTaxiCommand"/>, so an RTAXI reads back exactly as that TAXI does
+    /// (<see cref="Pilot.PilotResponder.BuildReadbackAsApplied"/>). Null for any other result.
+    /// </summary>
+    public TaxiCommand? ReRouteAppliedAs { get; init; }
+
+    /// <summary>
     /// What a TAXI's route readback (<see cref="PilotReadback"/>) is read from, so a block that goes on to pre-clear a hold short
     /// on the route can read it again from the route's final state (<see cref="BlockTaxiReadback"/>); null for any other result.
     /// </summary>
@@ -678,7 +685,7 @@ public static class CommandDispatcher
         if (shouldClearPhases)
         {
             string src = compound.SourceText ?? CommandDescriber.DescribeNatural(compound.Blocks[0].Commands[0]);
-            ClearPhaseChain(aircraft, src);
+            ClearPhaseChainForBlock(aircraft, compound.Blocks[0].Commands, src);
         }
 
         // Conditional incoming commands are purely additive: append the triggered block
@@ -718,6 +725,7 @@ public static class CommandDispatcher
         // (e.g. phases prevented the queue from advancing), so we target the first new block
         // by index rather than using CurrentBlock.
         HandlerReadback? firstBlockReadback = null;
+        TaxiCommand? firstBlockReRouteAs = null;
         if (firstNewBlockIdx < aircraft.Queue.Blocks.Count)
         {
             CommandBlock firstNewBlock = aircraft.Queue.Blocks[firstNewBlockIdx];
@@ -734,6 +742,7 @@ public static class CommandDispatcher
 
                 // A handler-built readback (the pilot's runway for an airport-level CVA) rides out with the transmission's result.
                 firstBlockReadback = applyResult.PilotReadback;
+                firstBlockReRouteAs = applyResult.ReRouteAppliedAs;
 
                 // ApplyBlock may update NaturalDescription (e.g. implied CAPP resolving approach ID)
                 if (messages.Count > 0)
@@ -817,7 +826,7 @@ public static class CommandDispatcher
         WarnIndefiniteHoldChain(compound, aircraft);
 
         string fullMessage = string.Join(" ; then ", messages);
-        return new CommandResult(true, fullMessage) { PilotReadback = firstBlockReadback };
+        return new CommandResult(true, fullMessage) { PilotReadback = firstBlockReadback, ReRouteAppliedAs = firstBlockReRouteAs };
     }
 
     /// <summary>
@@ -891,6 +900,7 @@ public static class CommandDispatcher
         {
             CanonicalCommandType.Taxi
             or CanonicalCommandType.TaxiAuto
+            or CanonicalCommandType.ReRouteTaxi
             or CanonicalCommandType.PushbackMulti
             or CanonicalCommandType.ForcedPushbackMulti => true,
             CanonicalCommandType.Pushback or CanonicalCommandType.ForcedPushback => phaseBeforeDispatch is not PushbackPhase,
@@ -2817,6 +2827,7 @@ public static class CommandDispatcher
 
         var taxiReadback = new BlockTaxiReadback();
         taxiReadback.Observe(towerResult);
+        TaxiCommand? siblingReRouteAs = null;
         for (int i = 0; i < gateBlock.Commands.Count; i++)
         {
             if (i == driverIdx)
@@ -2855,6 +2866,8 @@ public static class CommandDispatcher
                 messages.Add(subResult.Message);
             }
 
+            // A sibling RTAXI's applied TAXI rides out with the transmission's result, so the pilot reads the route back.
+            siblingReRouteAs ??= subResult.ReRouteAppliedAs;
             taxiReadback.Observe(subResult);
         }
 
@@ -2863,6 +2876,7 @@ public static class CommandDispatcher
             Message = messages.Count <= 1 ? towerResult.Message : string.Join(", ", messages),
             PilotReadback = taxiReadback.Readback(towerResult.PilotReadback, gateBlock.Commands, aircraft),
             Advisory = advisories.Count == 0 ? towerResult.Advisory : string.Join("; ", advisories),
+            ReRouteAppliedAs = towerResult.ReRouteAppliedAs ?? siblingReRouteAs,
         };
     }
 
@@ -3843,6 +3857,8 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, taxiDispatch);
             case TaxiAutoCommand autoTaxi:
                 return GroundCommandHandler.TryTaxiAuto(aircraft, autoTaxi, groundLayout, taxiDispatch);
+            case ReRouteTaxiCommand reRoute:
+                return GroundCommandHandler.TryReRouteTaxi(aircraft, reRoute, groundLayout, taxiDispatch);
             case HoldPositionCommand:
                 return GroundCommandHandler.TryHoldPosition(aircraft, ctx.ActiveRunways);
             // Bare RES to an aircraft rolling free on a taxi route — not held, not stalled by the ground conflict detector —
@@ -4066,6 +4082,44 @@ public static class CommandDispatcher
         aircraft.Phases = null;
         ReleaseChainControlState(aircraft, clearedGoAround);
 
+        if (clearedSummary is not null)
+        {
+            aircraft.PendingWarnings.Add($"{aircraft.Callsign} {clearedSummary} cancelled by {cancelledBy}");
+        }
+    }
+
+    /// <summary>
+    /// Clears the phase chain before <paramref name="commands"/> apply: <see cref="ClearPhaseChainKeepingDepartureClearance"/> when
+    /// they hold an <c>RTAXI</c>, otherwise <see cref="ClearPhaseChain"/>. Both the dispatch of a transmission's first block and a
+    /// queued or conditional block firing (<c>ApplyBlockCommand</c>) clear through here.
+    /// </summary>
+    private static void ClearPhaseChainForBlock(AircraftState aircraft, IReadOnlyList<ParsedCommand> commands, string cancelledBy)
+    {
+        if (commands.Any(c => c is ReRouteTaxiCommand))
+        {
+            ClearPhaseChainKeepingDepartureClearance(aircraft, cancelledBy);
+        }
+        else
+        {
+            ClearPhaseChain(aircraft, cancelledBy);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="ClearPhaseChain"/> for an <c>RTAXI</c>: the chain is cleared as for a TAXI, with the same warning, but a takeoff or
+    /// line-up clearance stored on the route is left on an empty <see cref="PhaseList"/>, for the re-route to keep when its new
+    /// route reaches the same runway entry (<see cref="GroundCommandHandler.TryReRouteTaxi"/>).
+    /// </summary>
+    private static void ClearPhaseChainKeepingDepartureClearance(AircraftState aircraft, string cancelledBy)
+    {
+        if (aircraft.Phases?.DepartureClearance is not { } stored)
+        {
+            ClearPhaseChain(aircraft, cancelledBy);
+            return;
+        }
+
+        string? clearedSummary = PhaseClearSummary.Build(aircraft.Phases);
+        ReplacePhaseChain(aircraft, new PhaseList { DepartureClearance = stored });
         if (clearedSummary is not null)
         {
             aircraft.PendingWarnings.Add($"{aircraft.Callsign} {clearedSummary} cancelled by {cancelledBy}");
@@ -4966,7 +5020,7 @@ public static class CommandDispatcher
 
         // Mirror the phase-clear sequence DispatchCompoundCore performs once validation succeeds. We are already past
         // validation here (the block was enqueued via the same dispatcher); the command then applies against the cleared state.
-        ClearPhaseChain(ac, CommandDescriber.DescribeNatural(cmd));
+        ClearPhaseChainForBlock(ac, [cmd], CommandDescriber.DescribeNatural(cmd));
         return ApplyCommand(cmd, ac, ctx);
     }
 
@@ -4998,6 +5052,7 @@ public static class CommandDispatcher
             var messages = new List<string>();
             DispatchContext current = ctx with { TransmissionId = block.TransmissionId };
             HandlerReadback? readback = null;
+            TaxiCommand? reRouteAs = null;
             var taxiReadback = new BlockTaxiReadback();
 
             for (int index = 0; index < captured.Count; index++)
@@ -5023,6 +5078,7 @@ public static class CommandDispatcher
                 }
 
                 readback ??= result.PilotReadback;
+                reRouteAs ??= result.ReRouteAppliedAs;
                 taxiReadback.Observe(result);
 
                 // An APT that switched an airborne aircraft's layout: the rest of the block resolves names there.
@@ -5034,7 +5090,7 @@ public static class CommandDispatcher
 
             CheckVectoringWarning(ac, captured, hadProcedure, hadProcedureAltitudes);
             string? msg = messages.Count > 0 ? string.Join(", ", messages) : null;
-            return new CommandResult(true, msg) { PilotReadback = taxiReadback.Readback(readback, captured, ac) };
+            return new CommandResult(true, msg) { PilotReadback = taxiReadback.Readback(readback, captured, ac), ReRouteAppliedAs = reRouteAs };
         };
     }
 

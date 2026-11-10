@@ -177,6 +177,7 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
         "ReportTrafficRelativeCommand",
         "RepositionMoveCommand",
         "RepositionToLocationCommand",
+        "ReRouteTaxiCommand",
         "ResumeCommand",
         "RetractPointoutCommand",
         "SafetyAlertCommand",

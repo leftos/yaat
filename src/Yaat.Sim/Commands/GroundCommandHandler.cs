@@ -210,6 +210,14 @@ public static partial class GroundCommandHandler
         /// takes the route it has.
         /// </summary>
         public bool ControllerIssued => !IsTaxiAuto && !IsScenarioScripted;
+
+        /// <summary>
+        /// The taxi is an <c>RTAXI</c> (<see cref="TryReRouteTaxi"/>): an aircraft holding short of a runway the new route crosses stays
+        /// held until a <c>CROSS</c>, so no implicit crossing is carried from that hold (<see cref="CarryPriorRunwayCrossing"/>). A bar a
+        /// <c>CROSS</c> has already released (<see cref="HoldIsCleared"/>) carries as it does for a TAXI, and so does a crossing under way
+        /// or past the entry marking, and leaving a runway after landing. False for every TAXI and TAXIAUTO.
+        /// </summary>
+        public bool KeepsHeldCrossing { get; init; }
     }
 
     /// <summary>What the TAXI readback needs beyond the route, the layout and the clearance.</summary>
@@ -435,7 +443,12 @@ public static partial class GroundCommandHandler
         // marking the new route holds short as written; HOLD and HS still stop it.
         // An aircraft between a runway's bars, leaving it by a cleared bar and not yet clear of it, keeps that runway cleared too.
         // Subsequent crossings still require explicit clearance.
-        (string? implicitCrossLabel, HoldShortPoint? leftRunwayBar) = CarryPriorRunwayCrossing(aircraft, groundLayout, route);
+        (string? implicitCrossLabel, HoldShortPoint? leftRunwayBar) = CarryPriorRunwayCrossing(
+            aircraft,
+            groundLayout,
+            route,
+            options.KeepsHeldCrossing
+        );
 
         TaxiRouteAutoCross.Apply(route, options.AutoCrossRunwayMode, options.ActiveRunways.For(groundLayout.AirportId));
         ApplyCrossKeywords(route, taxi);
@@ -669,15 +682,19 @@ public static partial class GroundCommandHandler
     /// holding short of, crossing past its entry marking, landing on or exiting, or standing on, whose carried crossing on
     /// <paramref name="route"/> (<see cref="CarriedCrossing"/>) is cleared. Returns the crossing the readback states, and — when the
     /// aircraft stands on that runway and leaves it — the bar it leaves by, cleared and unread, in its place. Both null otherwise.
+    /// With <paramref name="keepsHeldCrossing"/> (an <c>RTAXI</c>) a hold short nobody has released carries nothing: the aircraft
+    /// stays held until CROSS. A hold a CROSS has already released (<see cref="HoldIsCleared"/>) carries as it does for a TAXI.
     /// </summary>
     private static (string? ImplicitCrossLabel, HoldShortPoint? LeftRunwayBar) CarryPriorRunwayCrossing(
         AircraftState aircraft,
         AirportGroundLayout groundLayout,
-        TaxiRoute route
+        TaxiRoute route,
+        bool keepsHeldCrossing
     )
     {
         string? priorRwy = aircraft.Phases?.CurrentPhase switch
         {
+            HoldingShortPhase priorHold when keepsHeldCrossing && !HoldIsCleared(priorHold) => null,
             HoldingShortPhase priorHold when priorHold.HoldShort.TargetName is { Length: > 0 } heldRwy => heldRwy,
             CrossingRunwayPhase crossing
                 when (crossing.RunwayId is { Length: > 0 } crossingRwyId) && (crossing.NosePastNearMarkingFt(aircraft, groundLayout) > 0.0) =>
@@ -720,6 +737,14 @@ public static partial class GroundCommandHandler
 
         return (implicitCrossLabel, leftRunwayBar);
     }
+
+    /// <summary>
+    /// Whether a <c>CROSS</c> has already released <paramref name="hold"/>: its <see cref="ClearanceType.RunwayCrossing"/> requirement
+    /// is satisfied, which is what the hold ends on at its next tick. Read before the tick, an <c>RTAXI</c> beside the CROSS sees the
+    /// bar as cleared and carries the crossing as a TAXI does.
+    /// </summary>
+    private static bool HoldIsCleared(HoldingShortPhase hold) =>
+        hold.Requirements.Any(static req => (req.Type == ClearanceType.RunwayCrossing) && req.IsSatisfied);
 
     /// <summary>A TAXI resolved from where the aircraft stands, before anything is installed.</summary>
     /// <param name="Inputs">What the resolution ran on.</param>
@@ -3030,6 +3055,211 @@ public static partial class GroundCommandHandler
         );
 
         return TryTaxiCore(aircraft, taxi, groundLayout, TaxiCoreOptions.For(dispatch, isTaxiAuto: true));
+    }
+
+    /// <summary>What an <c>RTAXI</c> is refused with when the aircraft holds no taxi route.</summary>
+    internal const string ReRouteNotClearedRefusal = "RTAXI rejected: not cleared to taxi; use TAXI";
+
+    /// <summary>What an <c>RTAXI</c> is refused with when the route it would re-route names no destination.</summary>
+    internal const string ReRouteNoDestinationRefusal =
+        "RTAXI rejected: route has no destination to keep; give one with TAXI <path> <runway/@gate/$spot>";
+
+    /// <summary>
+    /// The destination an <c>RTAXI</c> keeps from the aircraft's taxi route: its runway (the runway of the route's
+    /// <see cref="HoldShortReason.DestinationRunway"/> hold), its parking stand or its spot. Exactly one is set.
+    /// </summary>
+    private sealed record KeptTaxiDestination(string? Runway, string? Parking, string? Spot)
+    {
+        /// <summary>
+        /// The node of the route's runway entry (its <see cref="HoldShortReason.DestinationRunway"/> hold);
+        /// null for a stand or spot.
+        /// </summary>
+        public int? EntryNodeId { get; private init; }
+
+        /// <summary>The destination as TAXI writes it: <c>28L</c>, <c>@B9</c>, <c>$7A</c>.</summary>
+        public string Display =>
+            (Runway is { } runway) ? RunwayIdentifier.ToDisplayDesignator(runway)
+            : (Parking is { } parking) ? $"@{parking}"
+            : $"${Spot}";
+
+        /// <summary>The destination <paramref name="route"/> ends at, or null when it names none.</summary>
+        public static KeptTaxiDestination? Of(TaxiRoute route)
+        {
+            if (route.DestinationParking is { } parking)
+            {
+                return new KeptTaxiDestination(null, parking, null);
+            }
+
+            if (route.DestinationSpot is { } spot)
+            {
+                return new KeptTaxiDestination(null, null, spot);
+            }
+
+            return (DestinationRunwayHold(route) is { TargetName: { } runway } entry)
+                ? new KeptTaxiDestination(runway, null, null) { EntryNodeId = entry.NodeId }
+                : null;
+        }
+    }
+
+    /// <summary>The <see cref="HoldShortReason.DestinationRunway"/> hold of <paramref name="route"/>, or null when it has none.</summary>
+    private static HoldShortPoint? DestinationRunwayHold(TaxiRoute route) =>
+        route.HoldShortPoints.FirstOrDefault(h => (h.Reason == HoldShortReason.DestinationRunway) && (h.TargetName is not null));
+
+    /// <summary>
+    /// <c>RTAXI &lt;path&gt;</c>: a re-route that keeps the destination of the aircraft's taxi route. Builds the TAXI a controller
+    /// would have typed — the RTAXI's path, HS, CROSS and EXP with the kept runway, stand or spot, and NODEL kept — and runs it
+    /// through <see cref="TryTaxi(AircraftState, TaxiCommand, AirportGroundLayout?, TaxiDispatch)"/>, so routing, the
+    /// replace-plan rule, warnings and the readback are TAXI's own. A takeoff or line-up clearance stored on the old route is
+    /// kept when the new route reaches the same runway entry, and voided with a warning when it does not.
+    /// </summary>
+    /// <param name="aircraft">The aircraft re-routed.</param>
+    /// <param name="reRoute">The command as issued.</param>
+    /// <param name="groundLayout">The airport ground layout, or null when the aircraft has none.</param>
+    /// <param name="dispatch">How the RTAXI reached the handler.</param>
+    internal static CommandResult TryReRouteTaxi(
+        AircraftState aircraft,
+        ReRouteTaxiCommand reRoute,
+        AirportGroundLayout? groundLayout,
+        TaxiDispatch dispatch
+    )
+    {
+        if (ReRouteKeptDestination(aircraft, reRoute.Route, out string? refusal) is not { } kept)
+        {
+            return CommandDispatcher.OperatorGuidanceRefusal(refusal ?? ReRouteNotClearedRefusal);
+        }
+
+        Log.LogDebug("[TryReRouteTaxi] {Callsign}: keeps destination {Destination}", aircraft.Callsign, kept.Display);
+
+        var stored = new StoredDepartureClearance(aircraft.Phases?.DepartureClearance, aircraft.Procedure.DepartureRunway, kept.EntryNodeId);
+        TaxiCommand typed = reRoute.Route;
+        var taxi = new TaxiCommand(
+            typed.Path,
+            typed.HoldShorts,
+            typed.Expedite,
+            kept.Runway,
+            typed.NoDelete || aircraft.Ground.NoDeleteRequested,
+            kept.Parking,
+            typed.CrossRunways,
+            kept.Spot,
+            typed.PathTurnHints
+        );
+
+        // A hold at a bar of a runway the new route still crosses stays held until CROSS: no implicit crossing is carried from it.
+        // One a CROSS in this block has already released carries as it does for a TAXI (HoldIsCleared).
+        TaxiCoreOptions options = TaxiCoreOptions.For(dispatch, isTaxiAuto: false) with
+        {
+            KeepsHeldCrossing = true,
+        };
+        CommandResult result = TryTaxiCore(aircraft, taxi, groundLayout, options);
+        if (!result.Success)
+        {
+            // As a failed TAXI leaves it: no phase list, not the empty one the dispatcher kept the stored clearance on.
+            if (aircraft.Phases is { CurrentPhase: null, Phases.Count: 0 })
+            {
+                aircraft.Phases = null;
+            }
+
+            return result;
+        }
+
+        CarryStoredDepartureClearance(aircraft, stored);
+        return result with { ReRouteAppliedAs = taxi };
+    }
+
+    /// <summary>
+    /// The destination an <c>RTAXI</c> of <paramref name="typed"/> keeps for <paramref name="aircraft"/>, or null with the
+    /// <paramref name="refusal"/> when there is no taxi route, it names no destination, the taxi is complete, or the RTAXI names a
+    /// different destination.
+    /// </summary>
+    private static KeptTaxiDestination? ReRouteKeptDestination(AircraftState aircraft, TaxiCommand typed, out string? refusal)
+    {
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        KeptTaxiDestination? kept = (route is null) ? null : KeptTaxiDestination.Of(route);
+        refusal =
+            (route is null) ? ReRouteNotClearedRefusal
+            : (kept is null) ? ReRouteNoDestinationRefusal
+            : route.IsComplete ? $"RTAXI rejected: taxi to {kept.Display} complete; use TAXI"
+            : DifferentDestinationRefusal(kept, typed);
+        if (refusal is null)
+        {
+            return kept;
+        }
+
+        Log.LogDebug("[TryReRouteTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, refusal);
+        return null;
+    }
+
+    /// <summary>
+    /// A takeoff or line-up clearance stored on the route an <c>RTAXI</c> replaces, the runway it was issued for, and the node of
+    /// that route's runway entry (its <see cref="HoldShortReason.DestinationRunway"/> hold); each null when there is none.
+    /// </summary>
+    private sealed record StoredDepartureClearance(DepartureClearanceInfo? Clearance, string? Runway, int? EntryNodeId);
+
+    /// <summary>
+    /// The refusal for a trailing destination <paramref name="typed"/> names that is not the <paramref name="kept"/> one, or null when
+    /// it names none or the same one (a redundant restatement).
+    /// </summary>
+    private static string? DifferentDestinationRefusal(KeptTaxiDestination kept, TaxiCommand typed)
+    {
+        string? named =
+            (typed.DestinationRunway is { } runway) ? RunwayIdentifier.ToDisplayDesignator(runway)
+            : (typed.DestinationParking is { } parking) ? $"@{parking}"
+            : (typed.DestinationSpot is { } spot) ? $"${spot}"
+            : null;
+        if ((named is null) || NamesKeptDestination(kept, typed))
+        {
+            return null;
+        }
+
+        string path = string.Join(" ", typed.Path);
+        return ((kept.Runway is not null) && (typed.DestinationRunway is not null))
+            ? $"RTAXI keeps runway {kept.Display}; use TAXI {path} {named} to change the runway"
+            : $"RTAXI keeps {kept.Display}; use TAXI {path} {named} to change the destination";
+    }
+
+    /// <summary>Whether the trailing destination of <paramref name="typed"/> is the <paramref name="kept"/> one.</summary>
+    private static bool NamesKeptDestination(KeptTaxiDestination kept, TaxiCommand typed)
+    {
+        if ((kept.Runway is { } runway) && (typed.DestinationRunway is { } typedRunway))
+        {
+            return HoldShortAnnotator.TargetMatches(runway, typedRunway);
+        }
+
+        return ((kept.Parking is not null) && string.Equals(kept.Parking, typed.DestinationParking, StringComparison.OrdinalIgnoreCase))
+            || ((kept.Spot is not null) && string.Equals(kept.Spot, typed.DestinationSpot, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// After an <c>RTAXI</c> installed its route: the takeoff or line-up clearance <paramref name="stored"/> on the old route is put back
+    /// when the new route's runway entry (its <see cref="HoldShortReason.DestinationRunway"/> hold) is the old one's
+    /// (<see cref="StoredDepartureClearance.EntryNodeId"/>), and is otherwise void, with a warning naming the runway it was issued for.
+    /// </summary>
+    private static void CarryStoredDepartureClearance(AircraftState aircraft, StoredDepartureClearance stored)
+    {
+        if ((stored.Clearance is not { } clearance) || (aircraft.Phases is not { } phases))
+        {
+            return;
+        }
+
+        int? entryNodeId = (aircraft.Ground.AssignedTaxiRoute is { } route) ? DestinationRunwayHold(route)?.NodeId : null;
+        if ((stored.EntryNodeId is not null) && (entryNodeId == stored.EntryNodeId))
+        {
+            phases.DepartureClearance = clearance;
+            Log.LogDebug(
+                "[TryReRouteTaxi] {Callsign}: same entry node {Node}, stored {Clearance} kept",
+                aircraft.Callsign,
+                entryNodeId,
+                clearance.Type
+            );
+            return;
+        }
+
+        string kind = (clearance.Type == ClearanceType.LineUpAndWait) ? "line up and wait" : "takeoff";
+        string runway = (stored.Runway is { } issuedFor) ? RunwayIdentifier.ToDisplayDesignator(issuedFor) : "(unknown)";
+        string warning =
+            $"RTAXI reaches runway {runway} at a different entry: the {kind} clearance issued for {runway} is void and must be re-issued";
+        aircraft.PendingWarnings.Add(warning);
+        Log.LogDebug("[TryReRouteTaxi] {Callsign}: {Warning}", aircraft.Callsign, warning);
     }
 
     /// <summary>

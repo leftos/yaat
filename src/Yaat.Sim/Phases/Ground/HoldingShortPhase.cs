@@ -534,7 +534,7 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
             CanonicalCommandType.CrossRunway => EndsItsRoute ? CommandAcceptance.Rejected(RejectionMessage()) : CommandAcceptance.ClearsPhase,
             CanonicalCommandType.LineUpAndWait => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedForTakeoff => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto or CanonicalCommandType.ReRouteTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedTakeoffPresent => CommandAcceptance.ClearsPhase,

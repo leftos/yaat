@@ -24,15 +24,25 @@ internal static class ParsedCommandDummyFactory
     /// Provides minimal valid constructor arguments. Returns null when no
     /// constructor argument set can be synthesized (callers must fail loudly).
     /// </summary>
-    public static ParsedCommand? CreateDummy(Type type)
+    public static ParsedCommand? CreateDummy(Type type) => CreateDummy(type, depth: 0);
+
+    /// <summary>Deepest nesting of a command built as another's argument; a record holding its own type stops there.</summary>
+    private const int MaxNestedCommandDepth = 4;
+
+    private static ParsedCommand? CreateDummy(Type type, int depth)
     {
+        if (depth > MaxNestedCommandDepth)
+        {
+            return null;
+        }
+
         ConstructorInfo? ctor = type.GetConstructors().OrderBy(c => c.GetParameters().Length).FirstOrDefault();
         if (ctor is null)
         {
             return null;
         }
 
-        object?[] args = [.. ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType))];
+        object?[] args = [.. ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType, depth))];
 
         try
         {
@@ -44,7 +54,7 @@ internal static class ParsedCommandDummyFactory
         }
     }
 
-    private static object? MakeDummyArg(Type paramType)
+    private static object? MakeDummyArg(Type paramType, int depth)
     {
         if (paramType == typeof(string))
         {
@@ -104,6 +114,12 @@ internal static class ParsedCommandDummyFactory
         if (paramType == typeof(CrossFixAltitudeType))
         {
             return CrossFixAltitudeType.At;
+        }
+
+        // A command that wraps another (RTAXI's typed TAXI) gets a dummy of that command, not null.
+        if (typeof(ParsedCommand).IsAssignableFrom(paramType) && !paramType.IsAbstract)
+        {
+            return CreateDummy(paramType, depth + 1);
         }
 
         if (paramType == typeof(PlannedAltitude))

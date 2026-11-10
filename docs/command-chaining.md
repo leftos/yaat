@@ -193,7 +193,7 @@ accepted. `LV`, `ATFN`, `ONHS` and `OTG` never reach this case: each refuses a m
    queue still has one cursor for independent chains, so the fresh compound's chained tail now waits behind
    an unmet survivor trigger instead — the per-dispatch scoping that closes both sides is a MAIN.md Backlog item.
 
-   A single-block fresh taxi or pushback clearance (`TAXI`, `TAXIAUTO`, `PUSH`, `PUSHM`, forced forms) given during a phase supersedes like a multi-block compound for ground work: it drops queued `Ground` blocks and cancels pending or expired `WAIT` / `GIVEWAY` deferrals carrying surface work, and the `lost:` warning names the cancelled deferrals. Deferrals with no ground axis stay. `HOLD`, `RES`, a lone `HS` / `CROSS`, `AIRTAXI`, `FOLLOWG` and a mid-push `PUSH FACE` / `PUSH TAIL` keep the chain.
+   A single-block fresh taxi or pushback clearance (`TAXI`, `TAXIAUTO`, `RTAXI`, `PUSH`, `PUSHM`, forced forms) given during a phase supersedes like a multi-block compound for ground work: it drops queued `Ground` blocks and cancels pending or expired `WAIT` / `GIVEWAY` deferrals carrying surface work, and the `lost:` warning names the cancelled deferrals. Deferrals with no ground axis stay. `HOLD`, `RES`, a lone `HS` / `CROSS`, `AIRTAXI`, `FOLLOWG` and a mid-push `PUSH FACE` / `PUSH TAIL` keep the chain.
 
    Note the word `None` means opposite things on the two sides: an *incoming* `None` trips the
    clear-everything fast path in `ClearConflictingBlocks`, while a *queued* `None` means nothing

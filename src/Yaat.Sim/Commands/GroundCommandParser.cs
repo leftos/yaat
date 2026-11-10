@@ -551,6 +551,29 @@ internal static class GroundCommandParser
         return ParseTaxiTokens(tokens, detectTrailingRunway: true);
     }
 
+    private const string ReRouteTaxiNeedsPathMessage = "RTAXI requires a path";
+
+    /// <summary>
+    /// Parses RTAXI path [HS …] [CROSS …] [EXP]: the TAXI grammar (<see cref="ParseTaxiTokens"/>), wrapped as a re-route that
+    /// keeps the aircraft's taxi destination. A path is required; a trailing destination is kept for the handler to compare.
+    /// </summary>
+    internal static PR ParseReRouteTaxi(string? arg)
+    {
+        string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        if (tokens.Length == 0)
+        {
+            return PR.Fail(ReRouteTaxiNeedsPathMessage);
+        }
+
+        PR parsed = ParseTaxiTokens(tokens, detectTrailingRunway: true);
+        if ((!parsed.IsSuccess) || (parsed.Value is not TaxiCommand taxi))
+        {
+            return parsed;
+        }
+
+        return (taxi.Path.Count == 0) ? PR.Fail(ReRouteTaxiNeedsPathMessage) : PR.Ok(new ReRouteTaxiCommand(taxi));
+    }
+
     private const string RepeatedTaxiMessage = "TAXI given twice: send the route once, after a single TAXI";
 
     /// <summary>

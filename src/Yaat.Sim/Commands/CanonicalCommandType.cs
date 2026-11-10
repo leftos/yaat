@@ -314,4 +314,7 @@ public enum CanonicalCommandType
     AsdexUnsuspend,
     AsdexInhibitAlerts,
     AsdexEnableAllAlerts,
+
+    // Ground re-route that keeps the taxi destination (RTAXI); appended last so no stored value shifts
+    ReRouteTaxi,
 }

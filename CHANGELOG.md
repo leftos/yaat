@@ -9,6 +9,7 @@
 - In solo training, a pilot's not-clear, ground-follow and tower reports (going around, short final, unable to exit, rejected takeoff) are spoken only when it is on the student's or an AI controller's frequency.
 - `TAXI … @GATE` and `TAXIAUTO @GATE` taxi an arrival to the gate its flight-plan remarks name, reading back the gate itself.
 - The Ground View datablock shows `GATE F14` under the type line when the flight-plan remarks name a gate, until the aircraft parks there.
+- `RTAXI {taxiways}` re-routes a taxiing aircraft along new taxiways to the same destination; the pilot reads back the full taxi clearance.
 
 ### Changed
 

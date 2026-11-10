@@ -113,6 +113,7 @@ public static class CommandDescriber
             PushbackMultiCommand => CanonicalCommandType.PushbackMulti,
             TaxiCommand => CanonicalCommandType.Taxi,
             TaxiAutoCommand => CanonicalCommandType.TaxiAuto,
+            ReRouteTaxiCommand => CanonicalCommandType.ReRouteTaxi,
             HoldPositionCommand => CanonicalCommandType.HoldPosition,
             ResumeCommand => CanonicalCommandType.Resume,
             CrossRunwayCommand => CanonicalCommandType.CrossRunway,
@@ -810,7 +811,7 @@ public static class CommandDescriber
             ClearedTakeoffPresentCommand ctopp => FormatCtoppCanonical(ctopp),
             PushbackCommand push => FormatPushCanonical(push),
             PushbackMultiCommand push => FormatPushMultiCanonical(push),
-            TaxiCommand taxi => FormatTaxiCanonical(taxi),
+            TaxiCommand taxi => FormatTaxiCanonical(taxi, "TAXI"),
             HoldPositionCommand => "HOLD",
             ResumeCommand resume => FormatResumeCanonical(resume),
             CrossRunwayCommand cross => FormatCrossCanonical(cross),
@@ -968,6 +969,7 @@ public static class CommandDescriber
             AsdexEnableAllAlertsCommand => "ASDXALERTS",
             CancelIfrCommand => "CIFR",
             TaxiAutoCommand cmd => FormatTaxiAutoCanonical(cmd),
+            ReRouteTaxiCommand cmd => FormatReRouteTaxiCanonical(cmd),
             TimerCommand cmd => FormatTimerCanonical(cmd),
             BookmarkCommand cmd => FormatBookmarkCanonical(cmd),
             // Sim control
@@ -1065,6 +1067,9 @@ public static class CommandDescriber
         string duration = $"{seconds / 60}:{seconds % 60:D2}";
         return string.IsNullOrWhiteSpace(timer.Message) ? $"TIMER {duration}" : $"TIMER {duration} {timer.Message}";
     }
+
+    /// <summary>The TAXI canonical of the re-route's typed taxi, under the RTAXI verb, so <c>ParseReRouteTaxi</c> round-trips it.</summary>
+    private static string FormatReRouteTaxiCanonical(ReRouteTaxiCommand cmd) => FormatTaxiCanonical(cmd.Route, "RTAXI");
 
     private static string FormatTaxiAutoCanonical(TaxiAutoCommand cmd)
     {
@@ -1446,6 +1451,7 @@ public static class CommandDescriber
             AsdexEnableAllAlertsCommand => "Enable all ASDE-X alerts",
             CancelIfrCommand => "Cancel IFR",
             TaxiAutoCommand cmd => DescribeTaxiAutoNatural(cmd),
+            ReRouteTaxiCommand cmd => $"Re-route: {FormatTaxiNatural(cmd.Route)}",
             // Strip / separator / blank / TDLS
             StripMoveCommand => "Move flight strip",
             StripScanCommand => "Scan flight strip",
@@ -1674,6 +1680,7 @@ public static class CommandDescriber
                 or PushbackMultiCommand
                 or TaxiCommand
                 or TaxiAutoCommand
+                or ReRouteTaxiCommand
                 or TaxiAllCommand
                 or HoldPositionCommand
                 or ResumeCommand
@@ -2539,9 +2546,9 @@ public static class CommandDescriber
     /// (the parking sigil must precede <c>CROSS</c>, whose mode would otherwise consume it;
     /// <c>NODEL</c> is position-independent).
     /// </summary>
-    private static string FormatTaxiCanonical(TaxiCommand taxi)
+    private static string FormatTaxiCanonical(TaxiCommand taxi, string verb)
     {
-        var parts = new List<string> { "TAXI" };
+        var parts = new List<string> { verb };
         parts.AddRange(TaxiPathTokensWithHints(taxi));
         if (taxi.DestinationSpot is not null)
         {

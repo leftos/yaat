@@ -854,6 +854,24 @@ public static class CommandRegistry
                     Mod("EXP", null, false),
                 ]
             ),
+            Cmd(
+                ReRouteTaxi,
+                "Re-route Taxi",
+                "Ground",
+                CommandDimension.Ground,
+                false,
+                ["RTAXI"],
+                [O(null, [Rep("route", "taxiway names")], "Re-route taxi via route, keeping the taxi destination")],
+                [
+                    Mod("RWY", "runway", false),
+                    Mod("HS", "taxiway/runway/$spot", true),
+                    Mod("CROSS", "runway", true),
+                    Mod("NODEL", null, false),
+                    Mod("@", "parking", false),
+                    Mod("$", "spot", false),
+                    Mod("EXP", null, false),
+                ]
+            ),
             Bare(HoldPosition, "Hold Position", "Ground", CommandDimension.Ground, false, ["HOLD", "HP"]),
             Cmd(
                 Resume,

@@ -742,6 +742,14 @@ public record TaxiCommand(
 /// </summary>
 public record TaxiAutoCommand(string? DestinationRunway, string? DestinationParking, string? DestinationSpot, bool Expedite) : ParsedCommand;
 
+/// <summary>
+/// A re-route that keeps the taxi destination: <c>RTAXI &lt;path&gt; [HS …] [CROSS …] [EXP]</c>. <see cref="Route"/> is the
+/// taxi as typed, parsed by the TAXI grammar; a trailing runway, <c>@parking</c> or <c>$spot</c> it names is only checked against
+/// the destination the aircraft's route keeps. The handler builds the TAXI a controller would have typed (the path, the kept
+/// destination and the RTAXI's own HS / CROSS / EXP) and runs it as a TAXI.
+/// </summary>
+public record ReRouteTaxiCommand(TaxiCommand Route) : ParsedCommand;
+
 public record HoldPositionCommand : ParsedCommand;
 
 /// <summary>

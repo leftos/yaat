@@ -81,7 +81,7 @@ public sealed class RunwayHoldingPhase(string crossingRunwayId) : Phase
             CanonicalCommandType.CrossRunway => CommandAcceptance.ClearsPhase,
             // A TAXI is accepted in place: the handler stores one whose route enters the runway held short of (the hold stands)
             // and installs any other on a fresh phase list, which ends the hold.
-            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.Allowed,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto or CanonicalCommandType.ReRouteTaxi => CommandAcceptance.Allowed,
             // An exit is stored for after the crossing clearance, so the hold stands: accepted in place, not by clearing the phase.
             CanonicalCommandType.ExitLeft or CanonicalCommandType.ExitRight or CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,

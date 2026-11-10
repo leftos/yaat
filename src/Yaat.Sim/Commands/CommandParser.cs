@@ -933,6 +933,7 @@ public static class CommandParser
             GiveWay => GroundCommandParser.ParseGiveWay(arg),
             TaxiAll => GroundCommandParser.ParseTaxiAll(arg),
             TaxiAuto => GroundCommandParser.ParseTaxiAuto(arg),
+            ReRouteTaxi => GroundCommandParser.ParseReRouteTaxi(arg),
             BreakConflict when arg is null => PR.Ok(new BreakConflictCommand()),
             ClearRunway when arg is null => PR.Ok(new ClearRunwayCommand()),
             CanonicalCommandType.Go when arg is null => PR.Ok(new GoCommand()),

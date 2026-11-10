@@ -437,6 +437,7 @@ public static class RecordedCommandClassifier
                 or SquawkVfrCommand
                 or StopAndGoCommand
                 or TaxiAutoCommand
+                or ReRouteTaxiCommand
                 or TaxiCommand
                 or TouchAndGoCommand
                 or TurnBaseCommand

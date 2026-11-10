@@ -987,6 +987,11 @@ public static class PhraseologyRules
             new(["taxi", "via", "{path...}", "to", "spot", "{spot...}"], "TAXI {path} ${spot}", Taxi),
             .. ParkingSynonymRules(),
             .. ParkingRunwayClauseRules(),
+            // A re-route: "amended / new / revised taxi instructions" then a route with no destination keeps the aircraft's
+            // destination (RTAXI). STT-only: the pilot reads an RTAXI back as the full TAXI it ran.
+            new(["amended", "taxi", "instructions", "taxi", "via", "{path...}"], "RTAXI {path}", ReRouteTaxi, SttOnly: true),
+            new(["new", "taxi", "instructions", "taxi", "via", "{path...}"], "RTAXI {path}", ReRouteTaxi, SttOnly: true),
+            new(["revised", "taxi", "instructions", "taxi", "via", "{path...}"], "RTAXI {path}", ReRouteTaxi, SttOnly: true),
             new(["taxi", "via", "{path...}"], "TAXI {path}", Taxi),
             new(["taxi", "to?", "runway", "{rwy}", "via", "{path...}"], "TAXI {path} {rwy}", Taxi),
             new(["runway", "{rwy}", "taxi", "via", "{path...}"], "TAXI {path} {rwy}", Taxi),

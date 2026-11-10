@@ -285,7 +285,10 @@ public sealed partial class SimulationEngine
         // One controller transmission per successful dispatch, however many commands it chained, recorded
         // before the read-back below reads the load band, so the read-back's band counts the controller's
         // transmission.
-        World.RecordControllerTransmission(elapsedSeconds, ControllerAirtimeSeconds(compound, aircraft));
+        World.RecordControllerTransmission(
+            elapsedSeconds,
+            ControllerAirtimeSeconds(compound, result, aircraft, Scenario?.ActiveRunways ?? ActiveRunways.Empty)
+        );
         QueueAppliedReadback(aircraft, compound, result, acknowledgedBefore, bravoGrant);
     }
 
@@ -431,10 +434,23 @@ public sealed partial class SimulationEngine
     /// How long the controller spoke to issue <paramref name="compound"/>: the airtime of its canonical spoken read-back,
     /// the instruction as issued in the pilot's words, or the one-second minimum when it verbalizes to nothing.
     /// </summary>
-    private double ControllerAirtimeSeconds(CompoundCommand compound, AircraftState aircraft) =>
-        FrequencyState.EstimateAirtimeSeconds(
-            PilotResponder.BuildReadback(compound, aircraft, Scenario?.ActiveRunways ?? ActiveRunways.Empty)?.Tts ?? string.Empty
-        );
+    /// <param name="compound">The compound the controller issued.</param>
+    /// <param name="result">The dispatch's result.</param>
+    /// <param name="aircraft">The aircraft addressed.</param>
+    /// <param name="activeRunways">The room's active runways.</param>
+    internal static double ControllerAirtimeSeconds(
+        CompoundCommand compound,
+        CommandResult result,
+        AircraftState aircraft,
+        ActiveRunways activeRunways
+    )
+    {
+        // An RTAXI is spoken as the TAXI it ran (the result's ReRouteAppliedAs), else as its own typed route.
+        TaxiCommand? reRouteAsTaxi =
+            result.ReRouteAppliedAs ?? compound.Blocks.SelectMany(b => b.Commands).OfType<ReRouteTaxiCommand>().FirstOrDefault()?.Route;
+        CompoundCommand spoken = PilotResponder.WithReRouteAsTaxi(compound, reRouteAsTaxi);
+        return FrequencyState.EstimateAirtimeSeconds(PilotResponder.BuildReadback(spoken, aircraft, activeRunways)?.Tts ?? string.Empty);
+    }
 
     private static void QueueSoloUnableIfNeeded(AircraftState aircraft, CommandResult result)
     {

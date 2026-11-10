@@ -357,6 +357,23 @@ public class PhraseologyMapperTests
     // synonyms, "BEHIND (traffic)" as an alternate to FOLLOW, and "HOLD FOR (reason)" /
     // "ACROSS RUNWAY (number)" as alternate forms. Shipping all of these as STT synonyms.
 
+    // A re-route: an amended / new / revised taxi instructions preface before a route with no destination is RTAXI,
+    // which keeps the aircraft's taxi destination.
+    [Theory]
+    [InlineData("amended taxi instructions, taxi via bravo charlie", "RTAXI B C")]
+    [InlineData("new taxi instructions, taxi via bravo charlie", "RTAXI B C")]
+    [InlineData("revised taxi instructions, taxi via bravo charlie", "RTAXI B C")]
+    public void ReRouteTaxiPreface_DestinationlessRoute_MapsToRtaxi(string transcript, string expected)
+    {
+        MapContext ctx = MapContext.Empty with
+        {
+            TaxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "B", "C" },
+        };
+        MapResult? result = PhraseologyMapper.Map(transcript, ctx);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
     [Theory]
     [InlineData("continue taxiing via bravo charlie", "TAXI B C")]
     [InlineData("proceed via bravo charlie", "TAXI B C")]

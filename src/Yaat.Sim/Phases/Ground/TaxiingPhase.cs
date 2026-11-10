@@ -429,7 +429,7 @@ public sealed class TaxiingPhase : Phase
     {
         return cmd switch
         {
-            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto or CanonicalCommandType.ReRouteTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
             CanonicalCommandType.CrossRunway => CommandAcceptance.Allowed,
