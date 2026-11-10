@@ -845,6 +845,8 @@ Any other taxiway the route drives that you didn't clear is flagged: `[taxiing v
 
 **A gate or spot with no taxiways named.** `TAXI $1` or `TAXI @B2` to an aircraft inside the ramp (at a gate, or pushed back) keeps it inside the ramp: it follows the ramp taxilanes, may cut once straight across the apron between them when that stays clear of other aircraft and occupied stands, and may take one one-way ramp lane (flagged as above).
 
+**The gate in the flight-plan remarks.** `TAXI … @GATE` and `TAXIAUTO @GATE` taxi the aircraft to the stand its flight-plan remarks name (`/V/ GATE E8, 28R` → E8), reading back exactly as `@E8` typed by hand; a real stand named GATE on the layout still takes the token. With no gate in the remarks, or only a parking area, the command is refused in the terminal (`No gate in SWA123's flight plan remarks; name the stand with @`) and the pilot says nothing. `TAXIALL @GATE` sends each parked aircraft to its own remark stand.
+
 When the ramp alone doesn't reach the spot or gate, the TAXI is refused with `Unable, need a route to spot 1. To auto-route it: TAXIAUTO $1` — name the taxiways, or use `TAXIAUTO` to let the aircraft find its own way. From the movement area, the same `TAXI` auto-routes and flags every taxiway it drives that you didn't name. `TAXIAUTO` is never confined to the ramp and flags nothing.
 
 **Starting from the middle of a taxiway.** A `TAXI` to an aircraft standing on a taxiway starts on that taxiway, heading whichever way its route goes. When the route lies behind it, an aircraft whose gear fits the taxiway's width turns around where it stands, and the ground view draws the turn: small props such as a C172 or C208 do.

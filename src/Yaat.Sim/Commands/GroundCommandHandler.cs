@@ -257,6 +257,52 @@ public static partial class GroundCommandHandler
     /// <summary>Resolves one candidate command to a route, or to null with the failure.</summary>
     private delegate TaxiRoute? TaxiRouteResolver(TaxiCommand command, out PathfindingFailure? failure);
 
+    /// <summary>The destination token that names the flight-plan remark's stand in place of a stand id (<c>@GATE</c>).</summary>
+    private const string RemarkGateAlias = "GATE";
+
+    /// <summary>
+    /// Replaces the <see cref="RemarkGateAlias"/> destination with the stand the aircraft's flight-plan remarks name, so a
+    /// clearance to <c>@GATE</c> resolves, reads back and logs exactly as one to the named stand does. A real stand called
+    /// <c>GATE</c> on the layout keeps the token for itself; a remark naming no stand is refused.
+    /// </summary>
+    /// <param name="aircraft">The aircraft the clearance is for.</param>
+    /// <param name="taxi">The command as issued.</param>
+    /// <param name="groundLayout">The layout the command resolves on.</param>
+    /// <returns>The command to resolve, and the refusal when the remarks name no stand.</returns>
+    private static (TaxiCommand Command, CommandResult? Refusal) ResolveRemarkGate(
+        AircraftState aircraft,
+        TaxiCommand taxi,
+        AirportGroundLayout groundLayout
+    )
+    {
+        if (!string.Equals(taxi.DestinationParking, RemarkGateAlias, StringComparison.OrdinalIgnoreCase))
+        {
+            return (taxi, null);
+        }
+
+        if ((groundLayout.FindHelipadByName(RemarkGateAlias) ?? groundLayout.FindParkingByName(RemarkGateAlias)) is not null)
+        {
+            return (taxi, null);
+        }
+
+        if (FlightPlanParking.Parse(aircraft.FlightPlan.Remarks) is not { } remark)
+        {
+            string noGate = $"No gate in {aircraft.Callsign}'s flight plan remarks; name the stand with @";
+            Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, noGate);
+            return (taxi, CommandDispatcher.OperatorGuidanceRefusal(noGate));
+        }
+
+        if (remark.Stand is not { Length: > 0 } stand)
+        {
+            string noStand = $"{aircraft.Callsign}'s remarks name parking area {remark.Area}, not a gate; name the stand with @";
+            Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, noStand);
+            return (taxi, CommandDispatcher.OperatorGuidanceRefusal(noStand));
+        }
+
+        Log.LogDebug("[TryTaxi] {Callsign}: @GATE is the remark stand {Stand}", aircraft.Callsign, stand);
+        return (taxi with { DestinationParking = stand }, null);
+    }
+
     private static CommandResult TryTaxiCore(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, TaxiCoreOptions options)
     {
         if (!aircraft.IsOnGround)
@@ -284,6 +330,14 @@ public static partial class GroundCommandHandler
             );
             return new CommandResult(false, "No airport ground layout available");
         }
+
+        (TaxiCommand remarkGateCommand, CommandResult? remarkGateRefusal) = ResolveRemarkGate(aircraft, taxi, groundLayout);
+        if (remarkGateRefusal is { } gateRefusal)
+        {
+            return gateRefusal;
+        }
+
+        taxi = remarkGateCommand;
 
         TaxiPreparation preparation = ResolveTaxiFromPosition(aircraft, taxi, groundLayout, options, ClearanceLogLevels);
         if (preparation.Prepared is not { } prepared)
