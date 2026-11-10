@@ -140,7 +140,7 @@
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (14/63 done)
+### 1 Defects (14/64 done)
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-1669 Refuse a bare CTO at a runway-crossing hold short instead of departing the crossing runway
@@ -190,6 +190,7 @@
 - [ ] YAAT-1915 Triage the unbarred runway escapes found in the newly committed vNAS layouts · release vNext
 - [ ] YAAT-1966 Cancel line-up-and-wait on a TAXI, and store a TAXI from it that crosses a runway until CROSS
 - [ ] YAAT-1996 Release a FOLLOWG follower stuck at 0 kt in Crossing Runway after a HOLD that overshoots between SFO 1L and 1R
+- [ ] YAAT-2005 Reset Unable and the moved stop when a CTO or LUAW re-clears a hold-short bar
 
 ### 2 Refinements and rulings (4/19 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
@@ -302,10 +303,8 @@
 
 ## Taxi navigator: speed, braking and turns
 
-### 1 Defects (3/26 done)
+### 1 Defects (5/26 done)
 - [ ] YAAT-1746 Publish the line-up's straight-segment speed, not the arc speed, on non-arc segments
-- [ ] YAAT-54 Brake max-effort on a late CTOC and warn when the aircraft overruns the bar · release vNext
-- [ ] YAAT-73 Fix TAXI-after-PUSH route opening geometry (177° entry-align turn) · release vNext
 - [ ] YAAT-1304 Break an exact 180-degree reversal's turn direction deterministically across platforms
 - [ ] YAAT-912 Make the rolling turn-about verdict independent of where the aircraft stands within a second
 - [ ] YAAT-1308 Keep corner limits above the setup ceiling when a ground phase raises its ceiling mid-segment
@@ -494,7 +493,7 @@
 
 ## Ground commands: grammar and readbacks
 
-### 1 Defects (0/19 done)
+### 1 Defects (0/22 done)
 - [ ] YAAT-55 Warn when a re-TAXI drops a stored takeoff or landing clearance
 - [ ] YAAT-634 Apply a stored takeoff clearance only where the taxi ends at its runway
 - [ ] YAAT-666 Let controller-AI rules and PilotResponder see a TAXI stored on the landing rollout
@@ -514,8 +513,11 @@
 - [ ] YAAT-832 Keep NODEL in the LAND command's canonical form
 - [ ] YAAT-833 End LAND @NAME at a taxiway spot holding in position, not parked
 - [ ] YAAT-1318 Keep a block's TAXI readback and run order the same whichever of TAXI and CROSS comes first
+- [ ] YAAT-2002 Keep cleared M1 in the readback of TAXI M4 M1 M2 $2 at SFO (reads '[... M1 omitted]')
+- [ ] YAAT-2003 Resolve @GATE where taxi route previews resolve, so a deferred GIVEWAY … TAXI @GATE previews the real route
+- [ ] YAAT-2006 Surface route warnings from TAXIALL and the implicit TAXI of a CTO/LUAW at a taxiway hold short
 
-### 2 Refinements and rulings (1/16 done)
+### 2 Refinements and rulings (2/19 done)
 - [ ] YAAT-51 Offer standalone TAXI modifiers at slot 1; test cross-command alias collisions
 - [ ] YAAT-869 Read back a bare CROSS EXP with "without delay"
 - [ ] YAAT-1222 Solo refuses TAXIAUTO: the student issues the taxi route
@@ -531,6 +533,8 @@
 - [ ] YAAT-1970 Stop reading out the runway being left as a crossing in a TAXI from the runway exit
 - [ ] YAAT-1984 Add a command that re-routes a taxiing aircraft to its current destination · release vNext
 - [ ] YAAT-1986 Taxi to the flight-plan-remark gate with @GATE, and add TTP (taxi to parking, destination implied) · release vNext
+  - [ ] YAAT-2001 Resolve a parking-area remark to a free stand for @GATE and TTP; hold near the area when it is full · release vNext
+- [ ] YAAT-2000 Say gate and name the destination first in taxi readbacks to a stand or spot · release vNext
 
 ### 3 Hygiene and tests (0/5 done)
 - [ ] YAAT-59 GroundCommandHandler leftovers: split TryTaxiCore, cut Resolve*Route params
@@ -1077,13 +1081,12 @@
 
 ## Scenarios, spawning and fleets
 
-### 1 Defects (1/7 done)
+### 1 Defects (2/7 done)
 - [ ] YAAT-109 Fix scenario-export gaps: intersection line-up, CM modifiers, shadow on runway
 - [ ] YAAT-1591 Check the generator's fallback callsigns against the callsigns in use
 - [ ] YAAT-182 Add a per-airport non-gate denylist for arrival parking picks
 - [ ] YAAT-183 Keep layout placeholder names out of arrival parking pools
 - [ ] YAAT-184 Pick an operating airline for a typed ADD from airline-fleets data
-- [ ] YAAT-1988 Warn when a preset TAXI to an SFO ramp spot runs against the one-way lane (JAL57, KLM606 at spot 1) · release vNext
 
 ### 2 Refinements and rulings (0/3 done)
 - [ ] YAAT-615 Park SFO GA arrivals on the side of 28R they exit toward
@@ -1126,7 +1129,7 @@
 - [ ] YAAT-1736 Overlapping CRC alias reloads corrupt the alias table (903 of 15341 aliases until the next reload)
 - [ ] YAAT-1887 Filter the speed picker by the flown type for an aircraft with no flight plan (150-350 kt list today)
 
-### 2 Refinements and rulings (5/17 done)
+### 2 Refinements and rulings (6/17 done)
 - [ ] YAAT-99 Add the ATPA in-trail line to EuroScope tags; required view-model ctor params
 - [ ] YAAT-102 Inspect Discord's SET_ACTIVITY response and add an AppLog capture seam
 - [ ] YAAT-105 Show the sim's Zulu clock on the Radar and Ground views, CRC-style
@@ -1138,7 +1141,6 @@
 - [ ] YAAT-1088 Name the fix in the Warp flyout's reading line (SFO · San Francisco VOR)
 - [ ] YAAT-1368 Offer Resume published speed (RPS) in the speed context menus beside RNS
 - [ ] YAAT-1919 Let the nav-route speed-latency walk read queued AT-fix speed blocks (SPD until E, AT N SPD)
-- [ ] YAAT-1985 Show a flight-plan-remark gate in the Ground View datablock · release vNext
 
 ### 3 Hygiene and tests (0/15 done)
 - [ ] YAAT-98 Observe and log a throwing onSubmit in MenuPopups' text-entry popup
@@ -1160,6 +1162,7 @@
 ### No milestone
 - [ ] YAAT-1907 Nav-route overlay: draw a pending hold-in-lieu of a procedure turn dashed
 - [ ] YAAT-1910 Nav-route overlay: draw an HPP orbit circle (store where the orbit began)
+- [ ] YAAT-2007 Regenerate the Ground View user-guide screenshots for the GATE datablock line
 
 ## Client-driver MCP and automation pipe
 
