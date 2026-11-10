@@ -66,6 +66,94 @@ public class GroundDataBlockLayoutTests
     }
 
     [Fact]
+    public void GateLine_ShowsRemarkStand()
+    {
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
+        var baseline = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        ac.Remarks = "/V/ GATE F14, 28R";
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("GATE F14", layout.GateLine);
+        Assert.Equal("", layout.Line3);
+        Assert.Equal(baseline.LineCount + 1, layout.LineCount);
+        Assert.Equal(baseline.LineHeight, layout.Rect.Bottom - baseline.Rect.Bottom, precision: 3);
+    }
+
+    [Fact]
+    public void GateLine_AbsentForAreaRemark()
+    {
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
+        var baseline = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        ac.Remarks = "/V/ PARKING SIGNATURE, 28R";
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("", layout.GateLine);
+        Assert.Equal(baseline.LineCount, layout.LineCount);
+    }
+
+    [Fact]
+    public void GateLine_AbsentWithoutRemark()
+    {
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
+        var baseline = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        ac.Remarks = "/v/";
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("", layout.GateLine);
+        Assert.Equal(baseline.LineCount, layout.LineCount);
+    }
+
+    [Fact]
+    public void GateLine_HiddenOnceParkedAtTheStand()
+    {
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
+        var baseline = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        ac.Remarks = "/V/ GATE F14, 28R";
+        ac.ParkingSpot = "f14";
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("", layout.GateLine);
+        Assert.Equal(baseline.LineCount, layout.LineCount);
+    }
+
+    [Fact]
+    public void GateLine_WidestLine_WidensTheBlock()
+    {
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
+        ac.AsdexFix = "";
+        ac.Remarks = "/v/";
+        var baseline = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        ac.Remarks = "/v/ Parking Plot 9 (9-5A), 28R";
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("GATE 9-5A", layout.GateLine);
+        Assert.True(layout.Rect.Width > baseline.Rect.Width);
+    }
+
+    [Fact]
+    public void GateLine_ShownWhenParkedAtAnotherStand()
+    {
+        AircraftModel ac = CreateModel();
+        TextStyle style = CreateStyle();
+        ac.Remarks = "/V/ GATE F14, 28R";
+        ac.ParkingSpot = "F12";
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("GATE F14", layout.GateLine);
+    }
+
+    [Fact]
     public void Line1_AppendsRunwayAndOrdinal_WhenInDepartureLine()
     {
         AircraftModel ac = CreateModel();

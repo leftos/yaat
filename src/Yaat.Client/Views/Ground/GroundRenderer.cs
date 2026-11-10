@@ -26,6 +26,13 @@ internal readonly struct DataBlockLayout
     public readonly float LineHeight;
     public readonly string Line1;
     public readonly string Line2;
+
+    /// <summary>
+    /// Flight-plan gate line <c>"GATE {stand}"</c> from the remarks, drawn directly after line 2 and before the
+    /// altitude line. Empty when the remarks name no stand or the aircraft is parked at it.
+    /// </summary>
+    public readonly string GateLine;
+
     public readonly string Line3;
 
     /// <summary>
@@ -49,6 +56,7 @@ internal readonly struct DataBlockLayout
         float lineHeight,
         string line1,
         string line2,
+        string gateLine,
         string line3,
         string squawkLine,
         string line4,
@@ -62,6 +70,7 @@ internal readonly struct DataBlockLayout
         LineHeight = lineHeight;
         Line1 = line1;
         Line2 = line2;
+        GateLine = gateLine;
         Line3 = line3;
         SquawkLine = squawkLine;
         Line4 = line4;
@@ -97,6 +106,8 @@ internal readonly struct DataBlockLayout
         string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
         string cwtType = RadarDatablockLayout.FormatCwtType(cwt, ac.AircraftType);
         string line2 = string.IsNullOrEmpty(fix) ? cwtType : (cwtType.Length > 0 ? $"{cwtType} {fix}" : fix);
+        // Flight-plan gate from the remarks, its own line directly under the type/fix line.
+        string gateLine = ac.GateLine;
         string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
         // Beacon-code mismatch: reported code + assigned code on their own line, sharing the radar's
         // gate (discrete code assigned, codes differ, Mode C, no emergency code, no SQVFR latch) so a
@@ -115,35 +126,29 @@ internal readonly struct DataBlockLayout
         // Instructor note — always-on amber line at the bottom of the block when set.
         string line5 = ac.HasNote ? ac.Note : "";
 
-        float w1 = style.Measure(line1);
-        float w2 = style.Measure(line2);
-        float w3 = line3.Length > 0 ? style.Measure(line3) : 0;
-        float wSquawk = squawkLine.Length > 0 ? style.Measure(squawkLine) : 0;
-        float w4 = line4.Length > 0 ? style.Measure(line4) : 0;
-        float w5 = line5.Length > 0 ? style.Measure(line5) : 0;
-        float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, wSquawk)), MathF.Max(w4, w5));
+        (float textW, int lineCount) = MeasureBlock(style, line1, line2, [gateLine, line3, squawkLine, line4, line5]);
         float lineH = style.LineHeight;
-        int lineCount = 2;
-        if (line3.Length > 0)
-        {
-            lineCount++;
-        }
-        if (squawkLine.Length > 0)
-        {
-            lineCount++;
-        }
-        if (line4.Length > 0)
-        {
-            lineCount++;
-        }
-        if (line5.Length > 0)
-        {
-            lineCount++;
-        }
 
         var rect = new SKRect(blockX - Pad, blockY - style.Size - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
 
-        return new DataBlockLayout(rect, blockX, blockY, lineH, line1, line2, line3, squawkLine, line4, line5, lineCount);
+        return new DataBlockLayout(rect, blockX, blockY, lineH, line1, line2, gateLine, line3, squawkLine, line4, line5, lineCount);
+    }
+
+    /// <summary>Widest drawn line's width and the number of drawn lines: lines 1-2 always, plus each non-empty optional line.</summary>
+    private static (float TextW, int LineCount) MeasureBlock(TextStyle style, string line1, string line2, ReadOnlySpan<string> optionalLines)
+    {
+        float textW = MathF.Max(style.Measure(line1), style.Measure(line2));
+        int lineCount = 2;
+        foreach (string line in optionalLines)
+        {
+            if (line.Length == 0)
+            {
+                continue;
+            }
+            textW = MathF.Max(textW, style.Measure(line));
+            lineCount++;
+        }
+        return (textW, lineCount);
     }
 
     public static readonly SKPoint DefaultOffset = new(30, -25);
@@ -2678,6 +2683,20 @@ public sealed class GroundRenderer : IDisposable
         canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, SKTextAlign.Left, _dataBlockTextFont, _dataBlockTextPaint);
         canvas.DrawText(layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, SKTextAlign.Left, _dataBlockTextFont, _dataBlockTextPaint);
         int row = 2;
+        // Flight-plan gate, directly under the type/fix line: the stand this arrival is going to.
+        if (layout.GateLine.Length > 0)
+        {
+            canvas.DrawText(
+                layout.GateLine,
+                layout.TextX,
+                layout.TextY + layout.LineHeight * row,
+                SKTextAlign.Left,
+                _dataBlockTextFont,
+                _dataBlockTextPaint
+            );
+            row++;
+        }
+
         if (layout.Line3.Length > 0)
         {
             canvas.DrawText(

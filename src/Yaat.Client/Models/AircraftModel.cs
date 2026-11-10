@@ -1038,6 +1038,27 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
 
     public bool HasRemarks => !string.IsNullOrEmpty(Remarks);
 
+    /// <summary>
+    /// Gate the remarks name as a stand (<c>/V/ GATE F14, 28R</c>), shown on the ground datablock as <c>GATE F14</c>
+    /// until the aircraft is parked at that stand. Empty when the remarks name no stand, or name only an area
+    /// (<c>PARKING SIGNATURE</c>).
+    /// </summary>
+    public string GateLine =>
+        ((_gateRemark.Length > 0) && !string.Equals(ParkingSpot, _gateStand, StringComparison.OrdinalIgnoreCase)) ? _gateRemark : "";
+
+    // Parsed once when Remarks changes, never per frame: the stand a remark names and the line it renders as.
+    private string _gateStand = "";
+    private string _gateRemark = "";
+
+    partial void OnRemarksChanged(string value)
+    {
+        _gateStand = FlightPlanParking.Parse(value)?.Stand ?? "";
+        _gateRemark = (_gateStand.Length > 0) ? $"GATE {_gateStand}" : "";
+        OnPropertyChanged(nameof(GateLine));
+    }
+
+    partial void OnParkingSpotChanged(string value) => OnPropertyChanged(nameof(GateLine));
+
     /// <summary>Instructor freetext note, shown as an extra datablock line on radar + ground.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNote))]

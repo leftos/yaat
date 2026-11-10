@@ -8,6 +8,7 @@
 - In solo training, a pilot moves to the student's frequency when the student accepts its handoff, when it checks in with the student, or when it is told to contact the student.
 - In solo training, a pilot's not-clear and ground-follow reports are spoken only when it is on the student's or an AI controller's frequency.
 - `TAXI … @GATE` and `TAXIAUTO @GATE` taxi an arrival to the gate its flight-plan remarks name, reading back the gate itself.
+- The Ground View datablock shows `GATE F14` under the type line when the flight-plan remarks name a gate, until the aircraft parks there.
 
 ### Fixed
 
