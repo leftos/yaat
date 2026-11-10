@@ -17,6 +17,8 @@ When the user asks about airport topology, runway exits, taxiway routing, node c
 
 In every command below `<geojson>` is either a positional path (e.g. `tests/Yaat.Sim.Tests/TestData/oak.geojson`) or `--airport <FAA>` (e.g. `--airport OAK`) which downloads and caches the layout under `%LOCALAPPDATA%/yaat/cache/airports/`. The two forms are mutually exclusive.
 
+Gate each inspector call as its own command, as below. Never bundle several calls (with `echo` labels) into one `pwsh -Command` under a single gate: the gate cannot see the commands inside, so the run cannot route to a builder and holds this PC.
+
 ### Common Queries
 
 **Find all exits from a runway:**
