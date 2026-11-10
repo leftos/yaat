@@ -148,17 +148,8 @@ internal static class RejectedTakeoff
         return true;
     }
 
-    private static void Route(PhaseContext ctx, Pilot.PilotSpeechText speech)
-    {
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-            ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            speech,
-            Pilot.PilotResponder.SoloPositionsTower
-        );
-    }
+    private static void Route(PhaseContext ctx, Pilot.PilotSpeechText speech) =>
+        Pilot.PilotResponder.RouteByTunedPosition(ctx.Aircraft, Pilot.PilotReportRouting.From(ctx), speech);
 
     /// <summary>
     /// The nearest aircraft ahead on <paramref name="runway"/> the departure may not roll toward,

@@ -137,13 +137,10 @@ public sealed class RejectedTakeoffPhase(double rollElapsedSeconds) : Phase
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             Log.LogDebug("[RejectedTakeoff] {Callsign}: stopped on the runway", ctx.Aircraft.Callsign);
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            Pilot.PilotResponder.RouteByTunedPosition(
                 ctx.Aircraft,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildStoppedOnRunway(ctx.Aircraft),
-                Pilot.PilotResponder.SoloPositionsTower
+                Pilot.PilotReportRouting.From(ctx),
+                Pilot.PilotResponder.BuildStoppedOnRunway(ctx.Aircraft)
             );
             return true;
         }

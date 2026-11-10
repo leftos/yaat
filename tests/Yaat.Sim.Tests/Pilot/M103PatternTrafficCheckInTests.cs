@@ -2,11 +2,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -76,7 +78,14 @@ public class M103PatternTrafficCheckInTests
         return ac;
     }
 
-    private static PhaseContext Ctx(AircraftState ac, RunwayInfo? rwy = null, bool soloMode = true, bool autoClearedToLand = false, double dt = 1.0)
+    private static PhaseContext Ctx(
+        AircraftState ac,
+        RunwayInfo? rwy = null,
+        bool soloMode = true,
+        bool autoClearedToLand = false,
+        double dt = 1.0,
+        TrackOwner? studentPosition = null
+    )
     {
         RunwayInfo runway = rwy ?? DefaultRunway();
         return new PhaseContext
@@ -90,8 +99,22 @@ public class M103PatternTrafficCheckInTests
             FieldElevation = runway.ElevationFt,
             Logger = NullLogger.Instance,
             SoloTrainingMode = soloMode,
+            StudentPosition = studentPosition,
             AutoClearedToLand = autoClearedToLand,
         };
+    }
+
+    /// <summary>The ZOA tower position the student works; null when the test data is absent.</summary>
+    private static TrackOwner? StudentTower()
+    {
+        ArtccConfigRoot? zoa = TestArtccConfig.LoadZoa();
+        if (zoa is null)
+        {
+            return null;
+        }
+
+        PositionConfig? position = zoa.FindPositionByCallsign("OAK_TWR", facilityHint: null);
+        return position is null ? null : zoa.ResolvePosition(position.Id);
     }
 
     private static string? SinglePilotLine(AircraftState ac) => ac.PendingPilotTransmissions.SingleOrDefault()?.SpeechText;
@@ -364,12 +387,15 @@ public class M103PatternTrafficCheckInTests
         bool soloMode = true,
         bool isPatternTraffic = true,
         bool cleared = false,
-        double distNm = 0.8
+        double distNm = 0.8,
+        TrackOwner? tunedPosition = null,
+        TrackOwner? studentPosition = null
     )
     {
         AircraftState ac = MakeAircraft(callsign: "N123AB", isVfr: isVfr, altitude: 300, ias: 75);
         // Already announced upstream (e.g., via PatternEntryPhase or M10.1.2) — short-final is a reminder, not initial contact.
         ac.HasMadeInitialContact = true;
+        ac.TunedPosition = tunedPosition;
 
         RunwayInfo rwy = DefaultRunway();
         // Distance from threshold along reversed-runway direction (i.e., on final, approaching from upwind direction = 100° → aircraft is east of threshold? No.
@@ -389,7 +415,7 @@ public class M103PatternTrafficCheckInTests
         }
 
         var phase = new FinalApproachPhase { SkipInterceptCheck = true };
-        PhaseContext ctx = Ctx(ac, rwy, soloMode: soloMode);
+        PhaseContext ctx = Ctx(ac, rwy, soloMode: soloMode, studentPosition: studentPosition);
         phase.OnStart(ctx);
         return (phase, ac, ctx);
     }
@@ -423,11 +449,19 @@ public class M103PatternTrafficCheckInTests
     }
 
     [Fact]
-    public void FinalApproach_NonPatternVfrUncleared_FiresControllerWarningNotPilotSpeech()
+    public void FinalApproach_NonPatternVfrUnclearedTunedElsewhere_FiresControllerWarning()
     {
-        // VFR aircraft on straight-in arrival (not pattern traffic) — pilot speech is gated by _isPatternTraffic.
-        // Falls through to the existing warning channel.
-        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(isPatternTraffic: false);
+        if (StudentTower() is not { } student)
+        {
+            return;
+        }
+
+        // A pilot tuned away from the student is not heard (YAAT-1934): the reminder is the controller-facing warning.
+        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(
+            isPatternTraffic: false,
+            tunedPosition: TrackOwner.Elsewhere,
+            studentPosition: student
+        );
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -435,14 +469,55 @@ public class M103PatternTrafficCheckInTests
     }
 
     [Fact]
-    public void FinalApproach_IfrPatternUncleared_FiresControllerWarningNotPilotSpeech()
+    public void FinalApproach_NonPatternVfrUnclearedOnTheStudentsSide_IsSpoken()
     {
-        // IFR pattern aircraft — gated by IsVfr; falls through to warning.
-        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(isVfr: false);
+        if (StudentTower() is not { } student)
+        {
+            return;
+        }
+
+        // A pilot on the student's side is heard (YAAT-1934) even on a straight-in arrival.
+        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(isPatternTraffic: false, studentPosition: student);
+        phase.OnTick(ctx);
+
+        Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Empty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void FinalApproach_IfrPatternUnclearedTunedElsewhere_FiresControllerWarning()
+    {
+        if (StudentTower() is not { } student)
+        {
+            return;
+        }
+
+        // A pilot tuned away from the student is not heard (YAAT-1934): the reminder is the controller-facing warning.
+        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(
+            isVfr: false,
+            tunedPosition: TrackOwner.Elsewhere,
+            studentPosition: student
+        );
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.NotEmpty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void FinalApproach_IfrPatternUnclearedOnTheStudentsSide_IsSpoken()
+    {
+        if (StudentTower() is not { } student)
+        {
+            return;
+        }
+
+        // A pilot on the student's side is heard (YAAT-1934) even on an IFR pattern aircraft.
+        (FinalApproachPhase? phase, AircraftState? ac, PhaseContext? ctx) = BuildShortFinal(isVfr: false, studentPosition: student);
+        phase.OnTick(ctx);
+
+        Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Empty(ac.PendingWarnings);
     }
 
     [Fact]

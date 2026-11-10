@@ -615,11 +615,15 @@ public class TowerPhaseTests
         FinalApproachPhase phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
         PhaseContext ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "APP");
         ac.Phases!.Start(ctx);
+        // The spawn-on-final check-in queues its own call; the uncleared reminder is what this pins.
+        ac.PendingPilotTransmissions.Clear();
 
         phase.OnTick(ctx);
 
         Assert.Same(phase, ac.Phases.CurrentPhase);
-        Assert.Single(ac.PendingPilotTransmissions);
+        PilotTransmission reminder = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Contains("short final", reminder.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(ac.PendingWarnings);
 
         ac.Altitude = 300;
         phase.OnTick(ctx);

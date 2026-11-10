@@ -846,13 +846,10 @@ public sealed class FinalApproachPhase : Phase
             phasesForSTurn.InsertAfterCurrent([sTurn, resume]);
 
             string leadCallsign = ctx.Aircraft.Approach.FollowingCallsign!;
-            PilotResponder.RouteSoloOrRpoTransmission(
+            PilotResponder.RouteByTunedPosition(
                 ctx.Aircraft,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                PilotResponder.BuildSTurnsForSpacing(ctx.Aircraft, leadCallsign),
-                PilotResponder.SoloPositionsTowerApproach
+                PilotReportRouting.From(ctx),
+                PilotResponder.BuildSTurnsForSpacing(ctx.Aircraft, leadCallsign)
             );
             Log.LogDebug("[FinalApproach] {Callsign}: S-turn for spacing behind {Lead} at {Dist:F1}nm", ctx.Aircraft.Callsign, leadCallsign, distNm);
             return true;
@@ -1135,13 +1132,10 @@ public sealed class FinalApproachPhase : Phase
             if (withinMinimumsBuffer && !hasLandingClearance && !_noClearanceWarningIssued)
             {
                 _noClearanceWarningIssued = true;
-                PilotResponder.RouteSoloOrRpoTransmission(
+                PilotResponder.RouteByTunedPosition(
                     ctx.Aircraft,
-                    ctx.SoloTrainingMode,
-                    ctx.RpoShowPilotSpeech,
-                    ctx.StudentPositionType,
-                    PilotResponder.BuildApproachingMinimumsNoLandingClearance(ctx.Aircraft),
-                    PilotResponder.SoloPositionsTowerApproach
+                    PilotReportRouting.From(ctx),
+                    PilotResponder.BuildApproachingMinimumsNoLandingClearance(ctx.Aircraft)
                 );
             }
 
@@ -1169,8 +1163,9 @@ public sealed class FinalApproachPhase : Phase
             }
 
             // Warn at 1nm if no landing clearance (only when auto-CTL is off).
-            // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
-            // every other aircraft (IFR, non-pattern, RPO mode) keeps the controller-facing warning.
+            // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech; every other aircraft routes
+            // it with RouteByTunedPosition: in solo, spoken when on the student's side or an AI-staffed position, else the
+            // controller-facing warning; in RPO mode, the RPO routing.
             if ((distNm <= NoClearanceWarningDistNm) && !hasLandingClearance && !ctx.AutoClearedToLand && !_noClearanceWarningIssued)
             {
                 _noClearanceWarningIssued = true;
@@ -1187,13 +1182,10 @@ public sealed class FinalApproachPhase : Phase
                 else
                 {
                     string runwayId = ctx.Runway?.Designator ?? "the runway";
-                    PilotResponder.RouteSoloOrRpoTransmission(
+                    PilotResponder.RouteByTunedPosition(
                         ctx.Aircraft,
-                        ctx.SoloTrainingMode,
-                        ctx.RpoShowPilotSpeech,
-                        ctx.StudentPositionType,
-                        PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId),
-                        PilotResponder.SoloPositionsTower
+                        PilotReportRouting.From(ctx),
+                        PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId)
                     );
                 }
             }

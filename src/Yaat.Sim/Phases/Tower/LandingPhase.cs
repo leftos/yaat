@@ -1759,13 +1759,10 @@ public sealed class LandingPhase : Phase
             display,
             ctx.Aircraft.GroundSpeed
         );
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+        Pilot.PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            BuildUnableToHoldShortOfRunway(ctx.Aircraft, crossing),
-            Pilot.PilotResponder.SoloPositionsTower
+            Pilot.PilotReportRouting.From(ctx),
+            BuildUnableToHoldShortOfRunway(ctx.Aircraft, crossing)
         );
         ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to hold short of RWY {display}");
     }
@@ -2394,13 +2391,10 @@ public sealed class LandingPhase : Phase
             return;
         }
 
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+        Pilot.PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildUnableToExit(ctx.Aircraft, taxiway),
-            Pilot.PilotResponder.SoloPositionsTower
+            Pilot.PilotReportRouting.From(ctx),
+            Pilot.PilotResponder.BuildUnableToExit(ctx.Aircraft, taxiway)
         );
         _unableBroadcast = true;
     }

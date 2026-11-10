@@ -18,9 +18,9 @@ namespace Yaat.Sim.Phases.Tower;
 internal static class GoAroundHelper
 {
     /// <summary>
-    /// Trigger a go-around from any predecessor phase. Adds a warning, picks
-    /// the appropriate missed-approach phase sequence, and advances the
-    /// phase list to the new <see cref="GoAroundPhase"/>.
+    /// Trigger a go-around from any predecessor phase. Routes the going-around call by the pilot's tuned position (in
+    /// solo, spoken when on the student's side or an AI-staffed position, else a warning; the RPO routing in an RPO room),
+    /// picks the appropriate missed-approach phase sequence, and advances the phase list to the new <see cref="GoAroundPhase"/>.
     /// </summary>
     public static void Trigger(PhaseContext ctx, string reason) => Trigger(ctx, Pilot.PilotResponder.BuildGoingAround(ctx.Aircraft, reason));
 
@@ -37,14 +37,7 @@ internal static class GoAroundHelper
             return;
         }
 
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-            ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            speech,
-            Pilot.PilotResponder.SoloPositionsTower
-        );
+        Pilot.PilotResponder.RouteByTunedPosition(ctx.Aircraft, Pilot.PilotReportRouting.From(ctx), speech);
 
         ctx.Aircraft.Phases.TrafficDirection = ResolvePatternIntent(ctx.Aircraft);
 
