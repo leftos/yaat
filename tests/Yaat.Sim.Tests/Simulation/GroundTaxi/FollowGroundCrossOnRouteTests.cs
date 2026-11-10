@@ -843,11 +843,6 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
         // With no active runways listed, the ends named are the nearest.
         Assert.Contains("holding short of runway 19L at F, not clear of runway 19R.", lines);
         AssertNoseShortOfOneRight(ground, follower, AircraftLength.ResolveFt(LongFollowerType));
-        HoldingInPositionPhase hold = Assert.IsType<HoldingInPositionPhase>(follower.Phases?.CurrentPhase);
-        Assert.Contains("GND", hold.NotClearReportPositions);
-        (_, AircraftState restored) = Restored(ground);
-        HoldingInPositionPhase restoredHold = Assert.IsType<HoldingInPositionPhase>(restored.Phases?.CurrentPhase);
-        Assert.Equal(hold.NotClearReportPositions, restoredHold.NotClearReportPositions);
     }
 
     /// <summary>
@@ -2051,7 +2046,6 @@ public class FollowGroundCrossOnRouteTests(ITestOutputHelper output) : FollowGro
         Assert.Equal(liveHold.HeldShortOfRunway, restoredHold.HeldShortOfRunway);
         Assert.Equal(liveHold.TailInsideRunway, restoredHold.TailInsideRunway);
         Assert.Equal(liveHold.EndsBrokenOffFollow, restoredHold.EndsBrokenOffFollow);
-        Assert.Equal(liveHold.NotClearReportPositions, restoredHold.NotClearReportPositions);
     }
 
     /// <summary>

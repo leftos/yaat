@@ -2242,16 +2242,7 @@ public static partial class PilotResponder
                 studentPositionType is { Length: > 0 } st && soloRelevantPositions.Contains(st, StringComparer.OrdinalIgnoreCase);
             if (studentIsRelevant)
             {
-                aircraft.PendingPilotTransmissions.Add(
-                    new PilotTransmission(
-                        aircraft.Callsign,
-                        text.Terminal,
-                        text.Tts,
-                        SourceResponse,
-                        PilotTransmissionKind.Proactive,
-                        FrequencyState.EstimateAirtimeSeconds(text.Tts)
-                    )
-                );
+                QueueProactiveTransmission(aircraft, text);
             }
             else
             {
@@ -2263,6 +2254,42 @@ public static partial class PilotResponder
             return;
         }
 
+        RouteRpoReport(aircraft, rpoShowPilotSpeech, text);
+    }
+
+    /// <summary>
+    /// Routes a sim-initiated pilot report to whoever the pilot is tuned to (<see cref="AircraftState.TunedPosition"/>). In solo
+    /// training it is spoken (queued into <see cref="AircraftState.PendingPilotTransmissions"/>) when the pilot is on the student's
+    /// side (<see cref="AircraftState.IsTunedAwayFrom"/> false) or tuned to an AI-staffed position of
+    /// <see cref="PilotReportRouting.Contacts"/> (matched by callsign); tuned anywhere else, nobody in the room hears it, so it is
+    /// shown as a terminal warning and not spoken. An RPO room keeps <see cref="RouteSoloOrRpoTransmission"/>'s routing:
+    /// <see cref="AircraftState.PendingPilotSpeech"/> with <see cref="PilotReportRouting.RpoShowPilotSpeech"/>, else a warning in the
+    /// <see cref="PilotSpeechText.TerminalForRpo"/> form.
+    /// </summary>
+    public static void RouteByTunedPosition(AircraftState aircraft, PilotReportRouting routing, PilotSpeechText text)
+    {
+        if (!routing.SoloTrainingMode)
+        {
+            RouteRpoReport(aircraft, routing.RpoShowPilotSpeech, text);
+        }
+        else if (!aircraft.IsTunedAwayFrom(routing.StudentPosition) || IsTunedToAiStaffedPosition(aircraft, routing.Contacts))
+        {
+            QueueProactiveTransmission(aircraft, text);
+        }
+        else
+        {
+            aircraft.PendingWarnings.Add(text.Terminal);
+        }
+    }
+
+    /// <summary>Whether the pilot is tuned to a position the controller AI staffs in <paramref name="contacts"/>, matched by callsign.</summary>
+    private static bool IsTunedToAiStaffedPosition(AircraftState aircraft, PilotContactRoster contacts) =>
+        (aircraft.TunedPosition is { } tuned)
+        && contacts.Positions.Any(p => (p.Agent != PilotAnsweringAgent.Student) && (p.Owner is { } owner) && tuned.IsSamePositionByCallsign(owner));
+
+    /// <summary>An RPO room's pilot report: pilot speech when the room shows it, else a warning in the RPO form.</summary>
+    private static void RouteRpoReport(AircraftState aircraft, bool rpoShowPilotSpeech, PilotSpeechText text)
+    {
         if (rpoShowPilotSpeech)
         {
             aircraft.PendingPilotSpeech.Add(text);
@@ -2272,6 +2299,19 @@ public static partial class PilotResponder
             aircraft.PendingWarnings.Add(text.TerminalForRpo);
         }
     }
+
+    /// <summary>Queues <paramref name="text"/> as a proactive pilot transmission, spoken and shown by the frequency drain.</summary>
+    private static void QueueProactiveTransmission(AircraftState aircraft, PilotSpeechText text) =>
+        aircraft.PendingPilotTransmissions.Add(
+            new PilotTransmission(
+                aircraft.Callsign,
+                text.Terminal,
+                text.Tts,
+                SourceResponse,
+                PilotTransmissionKind.Proactive,
+                FrequencyState.EstimateAirtimeSeconds(text.Tts)
+            )
+        );
 
     /// <summary>
     /// Routes a sim-initiated pilot readback for visual-acquisition events (RTIS / RFIS)

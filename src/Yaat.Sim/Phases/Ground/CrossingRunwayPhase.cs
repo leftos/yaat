@@ -297,8 +297,9 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// An aircraft that has come to rest mid-crossing with part of it still inside the far holding-position marking, not for a
     /// controller's HOLD, says once per crossing, <see cref="NotClearCallDelaySeconds"/> after coming to rest, that it is holding
     /// position not clear of the runway with traffic ahead (<see cref="PilotResponder.BuildHoldingPositionNotClearTrafficAhead"/>,
-    /// the end a pilot names it by, <see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest; AIM 2-3-5.a, 4-3-18.b), routed to a student on ground
-    /// or as an RPO's pilot speech or warning. Moving again, or a HOLD, restarts the wait; a GIVEWAY does not, since it does not
+    /// the end a pilot names it by, <see cref="RunwayCrossingEnd.Spoken"/>: the active end, else the nearest; AIM 2-3-5.a, 4-3-18.b): a transmission to
+    /// the position the pilot is tuned to in solo training (<see cref="PilotResponder.RouteByTunedPosition"/>), else the RPO's
+    /// pilot speech or warning. Moving again, or a HOLD, restarts the wait; a GIVEWAY does not, since it does not
     /// stop the aircraft on the runway.
     /// </summary>
     private void TickNotClearCall(PhaseContext ctx)
@@ -323,13 +324,10 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         _saidNotClear = true;
         string runway = RunwayCrossingEnd.Spoken(ctx.Aircraft, _runwayId, ctx.GroundLayout, ctx.ActiveRunways);
         Log.LogDebug("[Crossing] {Callsign}: at rest not clear of runway {Rwy}, traffic ahead", ctx.Aircraft.Callsign, runway);
-        PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            PilotResponder.BuildHoldingPositionNotClearTrafficAhead(ctx.Aircraft, runway),
-            PilotResponder.SoloPositionsGround
+            PilotReportRouting.From(ctx),
+            PilotResponder.BuildHoldingPositionNotClearTrafficAhead(ctx.Aircraft, runway)
         );
     }
 
@@ -524,7 +522,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// <summary>
     /// Replaces the break-off hold (<see cref="HoldingInPositionPhase.EndsBrokenOffFollow"/>) next after this crossing with one that
     /// records where the aircraft came to rest
-    /// (<see cref="HoldingInPositionPhase.AfterFollowBreakOff(string, string, IReadOnlyCollection{string})"/>): the crossed
+    /// (<see cref="HoldingInPositionPhase.AfterFollowBreakOff(string, string)"/>): the crossed
     /// runway, its end nearest the aircraft, when the tail is still inside its far holding-position marking
     /// (<see cref="IsNotClearOfFarMarking"/>), and the other runway whose bar set where the slice ends (<see cref="_heldShortBar"/>)
     /// when the nose came to rest short of that bar (<see cref="IsNoseShortOfHeldShortBar"/>): braking from a HOLD can carry it past
@@ -559,7 +557,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             heldShort ?? "no runway",
             tailEnd ?? "no runway"
         );
-        phases.Phases[next] = HoldingInPositionPhase.AfterFollowBreakOff(heldShort, tailEnd, PilotResponder.SoloPositionsGround);
+        phases.Phases[next] = HoldingInPositionPhase.AfterFollowBreakOff(heldShort, tailEnd);
     }
 
     /// <summary>

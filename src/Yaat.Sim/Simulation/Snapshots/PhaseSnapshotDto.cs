@@ -588,12 +588,6 @@ public sealed class HoldingInPositionPhaseDto : PhaseDto
     /// the default) for any other hold in position.
     /// </summary>
     public bool? EndsBrokenOffFollow { get; init; }
-
-    /// <summary>
-    /// The student positions the hold's not-clear report is routed to in solo training, written whenever
-    /// <see cref="TailInsideRunway"/> is set; null (no positions, the default) otherwise.
-    /// </summary>
-    public List<string>? NotClearReportPositions { get; init; }
 }
 
 public sealed class HoldingAfterPushbackPhaseDto : PhaseDto;

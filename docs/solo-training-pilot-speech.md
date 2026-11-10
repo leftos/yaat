@@ -165,6 +165,8 @@ The full mode → channel matrix (and how `RpoTerminal` is resolved per branch) 
 lists are `PilotResponder.SoloPositionsTower` (`["TWR"]`), `SoloPositionsGround` (`["GND","TWR"]`) and
 `SoloPositionsTowerApproach` (`["TWR","APP"]`).
 
+`PilotResponder.RouteByTunedPosition(aircraft, PilotReportRouting, text)` (`Pilot/PilotReportRouting.cs`) is the fourth router, for sim-initiated reports that follow the pilot's tuning rather than a position list: the not-clear and holding calls of `CrossingRunwayPhase`, `ClearRunwayPhase`, `HoldingInPositionPhase` and `FollowingPhase` (the follow's holding-short / not-clear call, lost-traffic call and no-route call). `PilotReportRouting.From(ctx)` carries `(SoloTrainingMode, RpoShowPilotSpeech, StudentPosition, Contacts)`. In solo training the report is spoken (`PendingPilotTransmissions`) when the pilot is not tuned away from the student (`AircraftState.IsTunedAwayFrom`) or is tuned to an AI-staffed position of the `PilotContactRoster`; tuned to any other position nobody in the room hears it, so it is only a terminal warning, which the instructor sees. An RPO room keeps the `RouteSoloOrRpoTransmission` routing. The legacy `RouteSoloOrRpoTransmission` overload and the `SoloPositions*` lists remain for the sites not yet converted.
+
 Stored follow-up lines re-queued by `PilotRequestTracker` keep **both** forms on the pending
 request — `PilotPendingRequest.LastPilotLine` (terminal) and `LastPilotLineTts` (spoken), both
 snapshot-serialized — and re-queue through the `PilotSpeechText` overload, so a reminder reads

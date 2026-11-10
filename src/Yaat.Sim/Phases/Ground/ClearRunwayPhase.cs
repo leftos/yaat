@@ -192,7 +192,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
     /// <summary>
     /// When the stop was cut back at another runway's line and the tail is still inside the runway being cleared, the aircraft
     /// has not cleared it: it holds in position short of the other runway with its tail inside this one
-    /// (<see cref="HoldingInPositionPhase(string, string, IReadOnlyCollection{string})"/>), its assigned runway the one it is still on, and the pilot reports
+    /// (<see cref="HoldingInPositionPhase(string, string)"/>), its assigned runway the one it is still on, and the pilot reports
     /// holding short of the other runway, not clear of this one; only not clear of this one when the nose is already past the
     /// other runway's marking.
     /// </summary>
@@ -247,7 +247,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
             ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway",
             clearedEnd
         );
-        phases.ReplaceUpcoming([new HoldingInPositionPhase(otherEnd, clearedEnd, PilotResponder.SoloPositionsTower)]);
+        phases.ReplaceUpcoming([new HoldingInPositionPhase(otherEnd, clearedEnd)]);
     }
 
     /// <summary>

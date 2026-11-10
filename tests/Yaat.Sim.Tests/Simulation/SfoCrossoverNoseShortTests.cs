@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -208,7 +210,7 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
     [Fact]
     public void HoldingInPositionShortOfAnotherRunway_SnapshotRoundTrip_KeepsBothRunways()
     {
-        var hold = new HoldingInPositionPhase("28L", "28R", PilotResponder.SoloPositionsTower);
+        var hold = new HoldingInPositionPhase("28L", "28R");
 
         HoldingInPositionPhaseDto dto = Assert.IsType<HoldingInPositionPhaseDto>(hold.ToSnapshot());
         var restored = HoldingInPositionPhase.FromSnapshot(dto);
@@ -218,6 +220,80 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
         Assert.Equal("28R", restored.TailInsideRunway);
         Assert.Null(plain.HeldShortOfRunway);
         Assert.Null(plain.TailInsideRunway);
+    }
+
+    /// <summary>
+    /// A schema-50 snapshot of a <c>CLRWY</c>'s hold that still carries the removed <c>NotClearReportPositions</c> member migrates to
+    /// schema 51 and restores the hold short of 28L with its tail inside 28R.
+    /// </summary>
+    [Fact]
+    public void HoldingInPositionShortOfAnotherRunway_V50SnapshotWithNotClearReportPositions_MigratesAndRestoresTheHold()
+    {
+        SimulationEngine engine = BuildEngine();
+        AirportGroundLayout layout = SfoLayout();
+        AircraftState aircraft = SpawnTailOver28ROnK(engine, layout, SegmentFor(layout, "K"), "B772", pastBarFt: 0.0);
+        CommandResult result = engine.SendCommand("UAL1", "CLRWY");
+        Assert.True(result.Success, $"CLRWY failed: {result.Message}");
+        RunUntil(engine, aircraft, phase => phase is not ClearRunwayPhase, settleSeconds: 5);
+        AssertHeldShortOf28LTailInside28R(aircraft);
+
+        // Rewrite the snapshot as schema 50 wrote it: the hold carries the student positions its not-clear report went to.
+        JsonNode json = JsonNode.Parse(JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default))!;
+        json["SchemaVersion"] = 50;
+        JsonObject phaseList = json["Aircraft"]!.AsArray().Single(a => (string?)a!["Callsign"] == "UAL1")!["Phases"]!.AsObject();
+        JsonObject holdJson = phaseList["Phases"]!.AsArray().Single(p => (string?)p!["$type"] == "HoldingInPosition")!.AsObject();
+        holdJson["NotClearReportPositions"] = new JsonArray("GND", "TWR");
+        StateSnapshotDto legacy = JsonSerializer.Deserialize<StateSnapshotDto>(json.ToJsonString(), RecordingJsonOptions.Default)!;
+
+        SnapshotSchemaMigrator.Migrate(legacy);
+
+        Assert.Equal(51, legacy.SchemaVersion);
+        var restored = PhaseList.FromSnapshot(legacy.Aircraft.Single(a => a.Callsign == "UAL1").Phases!, layout);
+        HoldingInPositionPhase hold = Assert.IsType<HoldingInPositionPhase>(restored.CurrentPhase);
+        Assert.Equal("28L", hold.HeldShortOfRunway);
+        Assert.Equal("28R", hold.TailInsideRunway);
+    }
+
+    /// <summary>
+    /// In solo training with a Ground student, a <c>CLRWY</c>'s hold short of 28L with its tail inside 28R makes its not-clear
+    /// report to the student: the pilot is on the student's frequency (<see cref="AircraftState.TunedPosition"/> null), so the
+    /// report is spoken, not shown as a warning, whatever the student's position type.
+    /// </summary>
+    [Fact]
+    public void ClearRunwayOnK_B772_SoloGroundStudentOnFrequency_SpeaksTheNotClearReport()
+    {
+        SimulationEngine engine = BuildEngine();
+        Assert.NotNull(engine.Scenario);
+        engine.Scenario.SoloTrainingMode = true;
+        engine.Scenario.StudentPosition = TrackOwner.CreateNonNas("SFO_GND");
+        engine.Scenario.StudentPositionType = "GND";
+        AirportGroundLayout layout = SfoLayout();
+        AircraftState aircraft = SpawnTailOver28ROnK(engine, layout, SegmentFor(layout, "K"), "B772", pastBarFt: 0.0);
+        Assert.Null(aircraft.TunedPosition);
+        var warnings = new List<string>();
+        var spoken = new List<string>();
+        engine.WarningEmitted += (callsign, line) =>
+        {
+            if (callsign == aircraft.Callsign)
+            {
+                warnings.Add(line);
+            }
+        };
+        engine.TerminalEntryEmitted += entry =>
+        {
+            if ((entry.Callsign == aircraft.Callsign) && (entry.Kind == "SayPilot"))
+            {
+                spoken.Add(entry.Message);
+            }
+        };
+
+        CommandResult result = engine.SendCommand("UAL1", "CLRWY");
+        Assert.True(result.Success, $"CLRWY failed: {result.Message}");
+        RunUntil(engine, aircraft, phase => phase is not ClearRunwayPhase, settleSeconds: 15);
+
+        AssertHeldShortOf28LTailInside28R(aircraft);
+        Assert.DoesNotContain(warnings, line => line.Contains(NotClearReport, StringComparison.OrdinalIgnoreCase));
+        Assert.Single(spoken, line => line.Contains(NotClearReport, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

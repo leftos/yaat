@@ -56,14 +56,16 @@ The visual's pattern side and follow tail are comma-led captures (`{side}`, `{fo
 
 ## Routing the forms by mode
 
-Three routers in `PilotResponder` send a `PilotSpeechText` to the right channel, `RouteRpoTransmission` in two overloads. The mode — not the channel — decides whether the callsign diagnostic is shown.
+Four routers in `PilotResponder` send a `PilotSpeechText` to the right channel, `RouteRpoTransmission` in two overloads; `RouteByTunedPosition` is the fifth entry, below the table. The mode — not the channel — decides whether the callsign diagnostic is shown.
 
 | Router | Used by | Solo | RPO + `RpoShowPilotSpeech` | RPO default |
 |--------|---------|------|-----------------------------|-------------|
-| `RouteSoloOrRpoTransmission` | pattern reports, follow events, going-around, boundary holds (position-gated) | `PendingPilotTransmissions` (`Terminal`+`Tts`) if the student position is relevant, else warning `Terminal` | `PendingPilotSpeech` (whole `PilotSpeechText`, shown as `TerminalForRpo`) | `PendingWarnings` (`TerminalForRpo`) |
+| `RouteSoloOrRpoTransmission` | pattern reports, VFR follow events, going-around, boundary holds (position-gated) | `PendingPilotTransmissions` (`Terminal`+`Tts`) if the student position is relevant, else warning `Terminal` | `PendingPilotSpeech` (whole `PilotSpeechText`, shown as `TerminalForRpo`) | `PendingWarnings` (`TerminalForRpo`) |
 | `RouteRpoSayReadback` | RTIS/RFIS in-sight readbacks | `QueueSoloPilotReadback` (`Terminal`+`Tts`) | `PendingPilotSpeech` (whole `PilotSpeechText`, shown as `TerminalForRpo`) | `PendingPilotReadbacks` (`TerminalForRpo`) |
 | `RouteRpoTransmission(aircraft, solo, rpoShow, text)` (4-arg) | follow break-off, server maintain-contact loop | `PendingWarnings` (`Terminal`) | `PendingPilotSpeech` (whole `PilotSpeechText`, shown as `TerminalForRpo`) | `PendingWarnings` (`TerminalForRpo`) |
 | `RouteRpoTransmission(aircraft, solo, rpoShow, text, warningText)` (5-arg) | `ContactCommandHandler`, `HoldingShortPhase`, `DownwindPhase` (a bespoke warning) | `PendingWarnings` (`warningText`) | `PendingPilotSpeech` (whole `PilotSpeechText`, shown as `TerminalForRpo`) | `PendingWarnings` (`warningText`) |
+
+`RouteByTunedPosition(aircraft, PilotReportRouting, text)` routes by who the pilot is tuned to instead of a position list. In solo training the report goes to `PendingPilotTransmissions` (`Terminal`+`Tts`) when the pilot is on the student's frequency (`AircraftState.IsTunedAwayFrom` false) or tuned to an AI-staffed position of the `PilotContactRoster`; tuned to any other position it is a warning `Terminal` only, which only the instructor sees. RPO rooms route as `RouteSoloOrRpoTransmission` does. Used by the crossing, `CLRWY`, hold-in-position and follow reports below; sites not yet converted still use the position lists.
 
 `PendingPilotSpeech` is a `List<PilotSpeechText>`: it keeps both forms, the terminal, speech bubble and terminal history show the written `TerminalForRpo` line, and `Tts` rides along unused because RPO has no TTS consumer. Across every other branch: the spoken (`Tts`) and solo (`Terminal`) forms never carry the lead/target callsign; only the RPO-mode terminal branches resolve `TerminalForRpo`.
 
@@ -296,7 +298,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
   either way: neither carries its designator, which lives in aircraft state.
 - **Follow / sequencing** (all `RpoTerminal`) — `BuildUnableToMaintainSeparation`, `BuildSequenceTightTurningBase`, `BuildSTurnsForSpacing` (also said, at most once a minute, when a free-pursuit follower starts an S-turn excursion for spacing: "S-turning for spacing behind the traffic", AIM §4-3-5).
 
-  `BuildUnableNoRouteToFollow` is a taxi follower's (`FOLLOWG`) one call when its plan at runtime finds no taxi route onto its traffic's path and it holds: Terminal "Unable to follow traffic, no taxi route to its path, request taxi instructions", Tts "{callsign}, unable, no route to follow traffic, request taxi.", RpoTerminal "Unable to follow {lead}, no taxi route to its path, request taxi instructions". Said once per follow, to a solo student on ground or tower (`SoloPositionsGround`).
+  `BuildUnableNoRouteToFollow` is a taxi follower's (`FOLLOWG`) one call when its plan at runtime finds no taxi route onto its traffic's path and it holds: Terminal "Unable to follow traffic, no taxi route to its path, request taxi instructions", Tts "{callsign}, unable, no route to follow traffic, request taxi.", RpoTerminal "Unable to follow {lead}, no taxi route to its path, request taxi instructions". Said once per follow, routed by tuned position (`RouteByTunedPosition`).
 
   The same call is made, once, when a running follow's re-plan after the lead's re-route finds the follower ahead of its lead, and when the follower holds standing on the lead's route ahead of it (waiting for it to pass); a first plan that finds the follower ahead holds silently.
 
@@ -306,7 +308,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   A departure-runway bar keeps the hold short's own refusal ("issue CTO or LUAW"), and a lead-gone stop or the end of a finished `TAXI` is no break-off.
 
-  `BuildLostTrafficHolding` is a taxi follower's one call when its lead is lost with no legal way back onto its assigned route and nothing left to drive, as it holds in position: Terminal "Lost sight of traffic, holding position, request taxi instructions", Tts "{callsign}, lost the traffic, holding, request taxi.", RpoTerminal "Lost sight of {lead}, holding position, request taxi instructions". Said once, to a solo student on ground or tower (`SoloPositionsGround`).
+  `BuildLostTrafficHolding` is a taxi follower's one call when its lead is lost with no legal way back onto its assigned route and nothing left to drive, as it holds in position: Terminal "Lost sight of traffic, holding position, request taxi instructions", Tts "{callsign}, lost the traffic, holding, request taxi.", RpoTerminal "Lost sight of {lead}, holding position, request taxi instructions". Said once, routed by tuned position (`RouteByTunedPosition`).
 
   A follower unjoinable for a reason other than the unable call — a route lost to a backward start, or a first plan ahead of its lead — has said nothing, so it still says this once its lead is gone. A follower with no assigned route left to lose, and one that has said `BuildUnableNoRouteToFollow` — it cannot follow at all — says this one nothing; one holding after saying `BuildHoldingShortNotClear` does not either.
 
@@ -316,13 +318,13 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   `BuildHoldingShortNotClearOfRunwayText` is the same report with the taxiway the aircraft stands on: Terminal "holding short of runway {other} at {taxiway}, not clear of runway {crossed}.", Tts "{callsign}, holding short of runway {other} at {taxiway}, not clear of runway {crossed}.".
 
-  It is said by an exit that stops at another runway's bar with its tail inside the vacated runway (`HoldingAfterExitPhase`, to Tower), by a `CLRWY` cut back at the other runway's bar (`HoldingInPositionPhase`, to Tower), and by the hold a `HOLD` leaves a crossing or a broken-off `FOLLOWG` follow in (`HoldingInPositionPhase.AfterFollowBreakOff`, to a Ground or Tower solo student, `SoloPositionsGround`), when its nose rests short of the other runway's bar.
+  It is said by an exit that stops at another runway's bar with its tail inside the vacated runway (`HoldingAfterExitPhase`, to Tower), by a `CLRWY` cut back at the other runway's bar (`HoldingInPositionPhase`), and by the hold a `HOLD` leaves a crossing or a broken-off `FOLLOWG` follow in (`HoldingInPositionPhase.AfterFollowBreakOff`), when its nose rests short of the other runway's bar.
 
-  `BuildHoldingPositionNotClear` is likewise said by a `CLRWY` or a break-off hold whose nose is past the other runway's bar, or with no other runway (to the same positions). The break-off hold makes its own not-clear call, which a `HOLD` does not silence as it does the traffic-ahead call below. A crossing's tail still inside the crossed runway reports it, and one clear of it is silent.
+  `BuildHoldingPositionNotClear` is likewise said by a `CLRWY` or a break-off hold whose nose is past the other runway's bar, or with no other runway. Every one of these reports except the exit's is routed by tuned position (`RouteByTunedPosition`): spoken when the pilot is on the student's frequency or tuned to an AI-staffed position, otherwise an instructor-only terminal warning; a `CLRWY` hold with a GND student is therefore spoken. The exit's still goes to Tower. The break-off hold makes its own not-clear call, which a `HOLD` does not silence as it does the traffic-ahead call below. A crossing's tail still inside the crossed runway reports it, and one clear of it is silent.
 
   A nose counts as past the bar by `ClearRunwayPhase.IsNosePastBar` with `NosePastBarSlackFt` (3.82 ft), the check `CLRWY` uses. Runway ends are named by the active-end rule (active end first, else the nearest end).
 
-  Each runway is named by `RunwayCrossingEnd.Spoken` (its active end, else the end nearest the aircraft), as the hold-short texts name one — the crew reports the runway it cannot clear (AIM 4-3-21.b). Either goes to a solo student on ground or tower (`SoloPositionsGround`), once per hold, and stands in for `BuildLostTrafficHolding` in that hold: one line, the runway one.
+  Each runway is named by `RunwayCrossingEnd.Spoken` (its active end, else the end nearest the aircraft), as the hold-short texts name one — the crew reports the runway it cannot clear (AIM 4-3-21.b). Either is routed by tuned position, once per hold, and stands in for `BuildLostTrafficHolding` in that hold: one line, the runway one.
 
   `BuildHoldingShortTrafficAhead` is the one call of an aircraft cleared across a runway that holds at the near line because the far side lacks room (`RunwayCrossingFarSideGate`): Terminal "Holding short of runway {X}, traffic ahead", Tts "{callsign}, holding short of runway {X}, traffic ahead.". The runway is named by `RunwayCrossingEnd.Spoken` (its active end, else the end nearest the aircraft), and no form names the traffic.
 
@@ -334,7 +336,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   It is made only for a real wait (the merge ahead of the lead, or the lead moving below 1 kt), judged again each second while the wait lasts and said at most once per wait; the short wait for a lead moving away to clear its tail past the merge is silent. Routed as a solo or RPO transmission, with the warning "{callsign} cleared across RWY {X}, holding for the follow traffic".
 
-  `BuildHoldingPositionNotClearTrafficAhead` is the not-clear call of an aircraft brought to rest on the runway by traffic with part of it inside the far marking: Terminal "Holding position, not clear of runway {X}, traffic ahead", Tts "{callsign}, holding position, not clear of {X}, traffic ahead.".
+  `BuildHoldingPositionNotClearTrafficAhead` is the not-clear call of an aircraft brought to rest on the runway by traffic with part of it inside the far marking: Terminal "Holding position, not clear of runway {X}, traffic ahead", Tts "{callsign}, holding position, not clear of {X}, traffic ahead.". Routed by tuned position (`RouteByTunedPosition`).
 
   Said once per crossing, about three seconds after it stops; a GIVEWAY does not silence it, a HOLD does (a HOLD that ends the crossing at rest makes the break-off hold's own not-clear call instead, above).
 

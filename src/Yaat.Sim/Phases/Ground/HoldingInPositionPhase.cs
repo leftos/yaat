@@ -29,18 +29,16 @@ public sealed class HoldingInPositionPhase : Phase
     /// The other runway whose holding position marking the nose stopped at; null when the nose is already past it.
     /// </param>
     /// <param name="tailInsideRunway">The cleared runway whose holding position marking the tail is still inside.</param>
-    /// <param name="notClearReportPositions">The student positions the not-clear report is routed to in solo training.</param>
-    public HoldingInPositionPhase(string? heldShortOfRunway, string tailInsideRunway, IReadOnlyCollection<string> notClearReportPositions)
+    public HoldingInPositionPhase(string? heldShortOfRunway, string tailInsideRunway)
     {
         HeldShortOfRunway = heldShortOfRunway;
         TailInsideRunway = tailInsideRunway;
-        NotClearReportPositions = notClearReportPositions;
     }
 
     /// <summary>
     /// The other runway a <c>CLRWY</c>'s cut-back stop holds the nose short of, with the tail inside
     /// <see cref="TailInsideRunway"/>'s holding position marking, or whose bar set where a crossing that ends at rest stops, when its
-    /// nose came to rest short of that bar (<see cref="AfterFollowBreakOff(string, string, IReadOnlyCollection{string})"/>); null for
+    /// nose came to rest short of that bar (<see cref="AfterFollowBreakOff(string, string)"/>); null for
     /// any other hold in position, including a <c>CLRWY</c> hold or a crossing's whose nose was past the other runway's marking
     /// (<see cref="TailInsideRunway"/> set alone).
     /// </summary>
@@ -48,17 +46,9 @@ public sealed class HoldingInPositionPhase : Phase
 
     /// <summary>
     /// The runway a <c>CLRWY</c> was clearing, or a crossing that ends at rest crossed
-    /// (<see cref="AfterFollowBreakOff(string, string, IReadOnlyCollection{string})"/>), whose holding position marking the tail is
-    /// still inside; null otherwise.
+    /// (<see cref="AfterFollowBreakOff(string, string)"/>), whose holding position marking the tail is still inside; null otherwise.
     /// </summary>
     public string? TailInsideRunway { get; private init; }
-
-    /// <summary>
-    /// The student positions the not-clear report a hold with <see cref="TailInsideRunway"/> set makes is routed to in solo training:
-    /// the tower's for a <c>CLRWY</c>'s hold, the ground's and tower's for a crossing's or follow's that ends at rest, as the crossing's
-    /// own not-clear call. Empty for any other hold in position. Snapshotted.
-    /// </summary>
-    public IReadOnlyCollection<string> NotClearReportPositions { get; private init; } = [];
 
     /// <summary>
     /// True for the hold a <c>HOLD</c> that broke off a <c>FOLLOWG</c> follow ends in (<see cref="AfterFollowBreakOff()"/>): with
@@ -79,18 +69,12 @@ public sealed class HoldingInPositionPhase : Phase
     /// </summary>
     /// <param name="heldShortOfRunway">The other runway whose bar the nose stopped at; null when no other runway's bar stopped it.</param>
     /// <param name="tailInsideRunway">The crossed runway whose holding position marking the tail is still inside; null when clear of it.</param>
-    /// <param name="notClearReportPositions">The student positions the not-clear report is routed to in solo training.</param>
-    public static HoldingInPositionPhase AfterFollowBreakOff(
-        string? heldShortOfRunway,
-        string? tailInsideRunway,
-        IReadOnlyCollection<string> notClearReportPositions
-    ) =>
+    public static HoldingInPositionPhase AfterFollowBreakOff(string? heldShortOfRunway, string? tailInsideRunway) =>
         new()
         {
             EndsBrokenOffFollow = true,
             HeldShortOfRunway = heldShortOfRunway,
             TailInsideRunway = tailInsideRunway,
-            NotClearReportPositions = tailInsideRunway is null ? [] : notClearReportPositions,
         };
 
     public override string Name => "Holding In Position";
@@ -115,16 +99,17 @@ public sealed class HoldingInPositionPhase : Phase
 
         if (TailInsideRunway is { } cleared)
         {
-            ReportNotClear(ctx, HeldShortOfRunway, cleared, NotClearReportPositions);
+            ReportNotClear(ctx, HeldShortOfRunway, cleared);
         }
     }
 
     /// <summary>
     /// The pilot reports holding short of <paramref name="other"/>, not clear of <paramref name="cleared"/>; holding position, not
     /// clear of <paramref name="cleared"/> (<see cref="PilotResponder.BuildHoldingPositionNotClear(AircraftState, string)"/>) when
-    /// <paramref name="other"/> is null (the nose is past its marking). Routed to <paramref name="positions"/> in solo training.
+    /// <paramref name="other"/> is null (the nose is past its marking). Routed to the position the pilot is tuned to
+    /// (<see cref="PilotResponder.RouteByTunedPosition"/>).
     /// </summary>
-    private static void ReportNotClear(PhaseContext ctx, string? other, string cleared, IReadOnlyCollection<string> positions)
+    private static void ReportNotClear(PhaseContext ctx, string? other, string cleared)
     {
         string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
         Log.LogDebug(
@@ -134,15 +119,12 @@ public sealed class HoldingInPositionPhase : Phase
             taxiway,
             cleared
         );
-        PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
+            PilotReportRouting.From(ctx),
             other is null
                 ? PilotResponder.BuildHoldingPositionNotClear(ctx.Aircraft, cleared)
-                : PilotResponder.BuildHoldingShortNotClearOfRunwayText(ctx.Aircraft, other, taxiway, cleared),
-            positions
+                : PilotResponder.BuildHoldingShortNotClearOfRunwayText(ctx.Aircraft, other, taxiway, cleared)
         );
     }
 
@@ -222,7 +204,6 @@ public sealed class HoldingInPositionPhase : Phase
             HeldShortOfRunway = HeldShortOfRunway,
             TailInsideRunway = TailInsideRunway,
             EndsBrokenOffFollow = EndsBrokenOffFollow ? true : null,
-            NotClearReportPositions = TailInsideRunway is null ? null : [.. NotClearReportPositions],
         };
 
     public static HoldingInPositionPhase FromSnapshot(HoldingInPositionPhaseDto dto)
@@ -234,7 +215,6 @@ public sealed class HoldingInPositionPhase : Phase
             HeldShortOfRunway = dto.HeldShortOfRunway,
             TailInsideRunway = dto.TailInsideRunway,
             EndsBrokenOffFollow = dto.EndsBrokenOffFollow ?? false,
-            NotClearReportPositions = dto.NotClearReportPositions ?? [],
         };
         phase.RestoreRequirements(dto.Requirements);
         return phase;

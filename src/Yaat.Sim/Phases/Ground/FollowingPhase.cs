@@ -768,9 +768,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         );
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
-        ctx.Aircraft.Phases?.InsertAfterCurrent(
-            HoldingInPositionPhase.AfterFollowBreakOff(heldShortOfRunway: null, tailInside, PilotResponder.SoloPositionsGround)
-        );
+        ctx.Aircraft.Phases?.InsertAfterCurrent(HoldingInPositionPhase.AfterFollowBreakOff(heldShortOfRunway: null, tailInside));
         return true;
     }
 
@@ -1335,8 +1333,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
     /// <summary>
     /// The pilot says once, on the transition into the hold a clearing route ran out short of (<see cref="DriveClearingRoute"/>),
     /// that it is holding short of the runway its way on enters and not clear of the one behind, or, with no such runway, that it
-    /// is holding in position and not clear of the one behind: a transmission to a solo student on ground or tower, else the
-    /// RPO's terminal (<see cref="PilotResponder.BuildHoldingShortNotClear"/>,
+    /// is holding in position and not clear of the one behind: a transmission to the position the pilot is tuned to in solo
+    /// training (<see cref="PilotResponder.RouteByTunedPosition"/>), else the RPO's terminal (<see cref="PilotResponder.BuildHoldingShortNotClear"/>,
     /// <see cref="PilotResponder.BuildHoldingPositionNotClear"/>). Each runway is named as <see cref="OwnOrSpokenEnd"/> names it. Nothing when the cleared runway cannot be read, or once said — and a follow that has said
     /// this says no lost-traffic call for that hold (<see cref="SayLostTrafficHolding"/>): one line per hold, the runway one,
     /// which is the one safety turns on.
@@ -1350,15 +1348,12 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
         _saidHeldShortNotClear = true;
         string clearedEnd = OwnOrSpokenEnd(ctx, cleared, layout);
-        PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
+            PilotReportRouting.From(ctx),
             RunwayAheadAtTheHold(layout, cleared, clearing.Segments[^1]) is { } next
                 ? PilotResponder.BuildHoldingShortNotClear(ctx.Aircraft, OwnOrSpokenEnd(ctx, next, layout), clearedEnd)
-                : PilotResponder.BuildHoldingPositionNotClear(ctx.Aircraft, clearedEnd),
-            PilotResponder.SoloPositionsGround
+                : PilotResponder.BuildHoldingPositionNotClear(ctx.Aircraft, clearedEnd)
         );
     }
 
@@ -2430,8 +2425,9 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     /// <summary>
     /// The lead is lost with no legal way back onto an assigned route and nothing left to clear: the pilot says once that it has
-    /// lost the traffic, is holding in position and wants taxi instructions — a transmission to a solo student on ground or
-    /// tower, else the RPO's terminal (<see cref="PilotResponder.BuildLostTrafficHolding"/>). A follower with no assigned
+    /// lost the traffic, is holding in position and wants taxi instructions — a transmission to the position the pilot is tuned
+    /// to in solo training (<see cref="PilotResponder.RouteByTunedPosition"/>), else the RPO's terminal
+    /// (<see cref="PilotResponder.BuildLostTrafficHolding"/>). A follower with no assigned
     /// route left says nothing (it holds silently), one that has already said it cannot follow (<see cref="_saidUnableNoRoute"/>)
     /// or has said the runway call for this hold (<see cref="_saidHeldShortNotClear"/>) says nothing either, and neither does one
     /// that has already said this.
@@ -2444,28 +2440,23 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         }
 
         _saidLostTraffic = true;
-        PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            PilotResponder.BuildLostTrafficHolding(ctx.Aircraft, _targetCallsign),
-            PilotResponder.SoloPositionsGround
+            PilotReportRouting.From(ctx),
+            PilotResponder.BuildLostTrafficHolding(ctx.Aircraft, _targetCallsign)
         );
     }
 
     /// <summary>
-    /// The pilot says it cannot follow, with no taxi route onto its traffic's path, and asks for taxi instructions: to a solo
-    /// student on ground or tower, else in the RPO's terminal naming the lead.
+    /// The pilot says it cannot follow, with no taxi route onto its traffic's path, and asks for taxi instructions: to the position
+    /// the pilot is tuned to in solo training (<see cref="PilotResponder.RouteByTunedPosition"/>), else in the RPO's terminal naming
+    /// the lead.
     /// </summary>
     private void SayUnableNoRouteToFollow(PhaseContext ctx) =>
-        PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            PilotResponder.BuildUnableNoRouteToFollow(ctx.Aircraft, _targetCallsign),
-            PilotResponder.SoloPositionsGround
+            PilotReportRouting.From(ctx),
+            PilotResponder.BuildUnableNoRouteToFollow(ctx.Aircraft, _targetCallsign)
         );
 
     /// <summary>
