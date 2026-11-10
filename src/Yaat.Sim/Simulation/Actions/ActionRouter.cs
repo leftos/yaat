@@ -447,6 +447,7 @@ public sealed class ActionRouter
                 IssuedAtUtc = ctx?.IssuedAtUtc,
                 StripId = ctx?.StripId,
                 Accepted = result.Success,
+                IssuedByStudent = input.IssuedByStudent,
             };
             _engine.RecordAction(toRecord);
         }

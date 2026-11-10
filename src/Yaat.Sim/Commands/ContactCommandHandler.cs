@@ -7,7 +7,8 @@ namespace Yaat.Sim.Commands;
 /// <summary>
 /// Handles CT (contact next controller) and FCA (frequency change approved). Both are pilot-speech
 /// commands whose only state is the comms bookkeeping (the position the pilot is tuned to,
-/// <see cref="AircraftState.TunedPosition"/>, and the handoff completion stamp, both student-origin only).
+/// <see cref="AircraftState.TunedPosition"/>, and the handoff completion stamp, both student-origin only, except that a
+/// scripted or AI contact to the student's position puts the pilot on the student's frequency).
 /// Distinct from HOO/ACCEPT/DROP which are radar-side coordination actions invisible to the pilot (FAA 7110.65 §7-6-11).
 ///
 /// <para>CT supports three argument forms for disambiguation:</para>
@@ -135,10 +136,17 @@ public static class ContactCommandHandler
         // handed comms off" — e.g. InitialClimbPhase releasing a radar-vectors SID heading
         // hold — must key off the tuned position rather than Track.Owner. Only the student's own CT
         // moves the pilot off the student's frequency: a scripted or AI-controller CT is
-        // another position's transfer (an AI Ground sending the pilot to the student tower).
+        // another position's transfer. One naming the student's position (an AI Ground sending the
+        // pilot to the student tower) puts the pilot on the student's frequency; any other leaves it. The student is matched
+        // by callsign alone: a config can list the student's callsign under two facilities (ZOA's OAK_TWR under NCT and
+        // O90), and a contact resolving to the other facility's entry is still the student's position.
         if (!ctx.IsScenarioScripted)
         {
             aircraft.TunedPosition = tunedTo;
+        }
+        else if ((ctx.StudentPosition is { } student) && string.Equals(tunedTo.Callsign, student.Callsign, StringComparison.OrdinalIgnoreCase))
+        {
+            aircraft.TunedPosition = null;
         }
 
         // The student's first transfer of a ground aircraft toward the tower (a CT to a tower position, or an FCA) starts the

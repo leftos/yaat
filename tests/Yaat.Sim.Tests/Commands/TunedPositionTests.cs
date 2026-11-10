@@ -1,7 +1,9 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Tests.ControllerAi;
 using Yaat.Sim.Tests.Helpers;
 
@@ -9,9 +11,9 @@ namespace Yaat.Sim.Tests.Commands;
 
 /// <summary>
 /// <see cref="AircraftState.TunedPosition"/>: the position the pilot is tuned to. A CT tunes it to the target, an FCA to
-/// <see cref="TrackOwner.Elsewhere"/>; a human instruction to an aircraft with nothing recorded tunes it to the student's
-/// position; an AI-controller instruction never does. "Left the student's frequency" is a tuned position that is not
-/// the student's (<see cref="AircraftState.IsTunedAwayFrom"/>).
+/// <see cref="TrackOwner.Elsewhere"/>; no other instruction, human or AI-controller, tunes it. A handoff the student accepts
+/// from another position in solo training tunes it back to the student (null). "Left the student's frequency" is a tuned
+/// position that is not the student's (<see cref="AircraftState.IsTunedAwayFrom"/>).
 /// </summary>
 public class TunedPositionTests
 {
@@ -74,14 +76,175 @@ public class TunedPositionTests
     }
 
     [Fact]
-    public void HumanInstruction_AfterSpawn_TunesToTheStudent()
+    public void StudentInstruction_ToAPilotOnTheStudentsSide_LeavesItUntuned()
     {
         (SimulationEngine engine, AircraftState aircraft, TrackOwner? student) = Engine(StudentCallsign);
 
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "SQ 4321").Success);
 
-        Assert.Equal(student, aircraft.TunedPosition);
+        Assert.Null(aircraft.TunedPosition);
         Assert.False(aircraft.IsTunedAwayFrom(student));
+    }
+
+    private static readonly TrackOwner TowerStudent = TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "T");
+    private static readonly TrackOwner Nct4U = TrackOwner.CreateStars("NCT_4U", "NCT", 4, "U");
+    private static readonly TrackOwner Nct4Q = TrackOwner.CreateStars("NCT_4Q", "NCT", 4, "Q");
+    private static readonly Tcp TowerTcp = new(3, "T", "tcp-oak-twr", null);
+    private static readonly Tcp Nct4UTcp = new(4, "U", "tcp-nct-4u", null);
+
+    /// <summary>The parked aircraft tracked by NCT 4U and tuned to it, the student working OAK_TWR.</summary>
+    private (SimulationEngine Engine, AircraftState Aircraft) HandedInEngine(bool solo)
+    {
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, Zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.StudentPosition = TowerStudent;
+        scenario.StudentTcp = TowerTcp;
+        scenario.SoloTrainingMode = solo;
+        AircraftState aircraft = engine.FindAircraft(AiTestFixture.Callsign)!;
+        aircraft.Track.Owner = Nct4U;
+        aircraft.TunedPosition = Nct4U;
+        return (engine, aircraft);
+    }
+
+    /// <summary>NCT 4U hands the aircraft to the student (a bare <c>HO</c>, as an RPO would) and the student takes it.</summary>
+    private static void HandOffAndAccept(SimulationEngine engine, AircraftState aircraft, string how)
+    {
+        SimScenarioState scenario = engine.Scenario!;
+        if (how == "CONVERT")
+        {
+            aircraft.Track.Pointout = new StarsPointout(TowerTcp, Nct4UTcp) { InitiatedAt = scenario.ElapsedSeconds };
+            Assert.True(TrackEngine.HandleConvertPointout(aircraft, TowerStudent, scenario).Success);
+            return;
+        }
+
+        if (how == "QTCONVERT")
+        {
+            var noSession = new EramEntryContext(null, Scenario: null, Redirect: null, new EramConflictState(), SweptPosition: null);
+            Assert.True(EramEntryEngine.Apply(aircraft, "PO ZOA 44 ZOA 45", noSession).Success);
+            var student = new EramEntryContext(TowerStudent, scenario, Redirect: null, new EramConflictState(), SweptPosition: null);
+            CommandResult converted = EramEntryEngine.Apply(aircraft, "POCONVERT ZOA 44 ZOA 45", student);
+            Assert.True(converted.Success, converted.Message);
+            return;
+        }
+
+        CommandResult handoff = engine.SendCommand(AiTestFixture.Callsign, "HO");
+        Assert.True(handoff.Success, handoff.Message);
+        Assert.Same(TowerStudent, aircraft.Track.HandoffPeer);
+
+        CommandResult accepted =
+            how == "ACCEPTALL"
+                ? TrackEngine.DispatchGlobal(new AcceptAllHandoffsCommand(), engine.World, scenario, TowerStudent)
+                : engine.SendCommand(AiTestFixture.Callsign, "ACCEPT");
+        Assert.True(accepted.Success, accepted.Message);
+        Assert.True(aircraft.Track.Owner!.IsSamePositionByCallsign(TowerStudent));
+    }
+
+    [Theory]
+    [InlineData("ACCEPT")]
+    [InlineData("ACCEPTALL")]
+    [InlineData("CONVERT")]
+    [InlineData("QTCONVERT")]
+    public void StudentAccept_OfAHandoffFromAnotherPosition_TunesToTheStudent(string how)
+    {
+        (SimulationEngine engine, AircraftState aircraft) = HandedInEngine(solo: true);
+        Assert.True(aircraft.IsTunedAwayFrom(TowerStudent));
+
+        HandOffAndAccept(engine, aircraft, how);
+
+        Assert.Null(aircraft.TunedPosition);
+        Assert.False(aircraft.IsTunedAwayFrom(TowerStudent));
+    }
+
+    [Fact]
+    public void StudentAccept_OfAPilotTunedElsewhere_TunesToTheStudent()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = HandedInEngine(solo: true);
+        aircraft.TunedPosition = TrackOwner.Elsewhere;
+
+        HandOffAndAccept(engine, aircraft, "ACCEPT");
+
+        Assert.Null(aircraft.TunedPosition);
+    }
+
+    /// <summary>
+    /// A scripted or AI contact handing the pilot to the student's position (matched by callsign) puts the pilot on the
+    /// student's frequency, so the student's next instruction is heard.
+    /// </summary>
+    [Fact]
+    public void ScriptedContact_ToTheStudentsPosition_TunesToTheStudent()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = HandedInEngine(solo: true);
+        engine.Scenario!.StudentPosition = Position("OAK_TWR");
+        engine.Scenario.CommandRunDelayMinSeconds = 0;
+        engine.Scenario.CommandRunDelayMaxSeconds = 0;
+
+        CommandResult contact = engine.DispatchAiCommand(TestAiPositions.OakGround(Zoa), AiTestFixture.Callsign, "CT OAK_TWR");
+
+        Assert.True(contact.Success, contact.Message);
+        Assert.Null(aircraft.TunedPosition);
+        CommandResult squawk = engine.IssueAsStudent(AiTestFixture.Callsign, "SQ 4321");
+        Assert.True(squawk.Success, squawk.Message);
+    }
+
+    /// <summary>
+    /// ZOA lists OAK_TWR under both NCT and O90. The NCT-side AI ground's contact resolves OAK_TWR to the NCT entry; a
+    /// student working the O90 entry is still that tower, so the pilot is put on the student's frequency.
+    /// </summary>
+    [Fact]
+    public void ScriptedContact_ToTheStudentsCallsignUnderAnotherFacility_TunesToTheStudent()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = HandedInEngine(solo: true);
+        AiPositionConfig ground = TestAiPositions.OakGround(Zoa);
+        TrackOwner o90Tower = Zoa.FindPositionsByCallsign("OAK_TWR")
+            .Select(p => Zoa.ResolvePosition(p.Id))
+            .OfType<TrackOwner>()
+            .Single(o => string.Equals(o.FacilityId, "O90", StringComparison.OrdinalIgnoreCase));
+        Assert.False(string.Equals(o90Tower.FacilityId, ground.Identity.FacilityId, StringComparison.OrdinalIgnoreCase));
+        engine.Scenario!.StudentPosition = o90Tower;
+        engine.Scenario.CommandRunDelayMinSeconds = 0;
+        engine.Scenario.CommandRunDelayMaxSeconds = 0;
+
+        CommandResult contact = engine.DispatchAiCommand(ground, AiTestFixture.Callsign, "CT OAK_TWR");
+
+        Assert.True(contact.Success, contact.Message);
+        Assert.Null(aircraft.TunedPosition);
+    }
+
+    /// <summary>A scripted or AI contact to any other position leaves the pilot's tuning alone.</summary>
+    [Fact]
+    public void ScriptedContact_ToAnotherPosition_KeepsTheTunedPosition()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = HandedInEngine(solo: true);
+        engine.Scenario!.StudentPosition = Position("OAK_TWR");
+        engine.Scenario.CommandRunDelayMinSeconds = 0;
+        engine.Scenario.CommandRunDelayMaxSeconds = 0;
+
+        CommandResult contact = engine.DispatchAiCommand(TestAiPositions.OakGround(Zoa), AiTestFixture.Callsign, "CT OAK_GND");
+
+        Assert.True(contact.Success, contact.Message);
+        Assert.Same(Nct4U, aircraft.TunedPosition);
+    }
+
+    [Fact]
+    public void Accept_OutsideSoloTraining_DoesNotTune()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = HandedInEngine(solo: false);
+
+        HandOffAndAccept(engine, aircraft, "ACCEPT");
+
+        Assert.Same(Nct4U, aircraft.TunedPosition);
+    }
+
+    [Fact]
+    public void Accept_ByANonStudentPosition_DoesNotTune()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = HandedInEngine(solo: true);
+        aircraft.Track.HandoffPeer = Nct4Q;
+
+        Assert.True(engine.SendCommand(AiTestFixture.Callsign, "ACCEPT").Success);
+
+        Assert.Same(Nct4Q, aircraft.Track.Owner);
+        Assert.Same(Nct4U, aircraft.TunedPosition);
     }
 
     [Fact]
@@ -111,6 +274,27 @@ public class TunedPositionTests
 
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "SQ 4321").Success);
 
+        Assert.Equal(Position("OAK_TWR"), aircraft.TunedPosition);
+        Assert.True(aircraft.IsTunedAwayFrom(student));
+    }
+
+    /// <summary>
+    /// In solo training, the student's contact is heard and moves the pilot to the tower; the student's next instruction
+    /// is then not heard, and the pilot stays on the contact's position.
+    /// </summary>
+    [Fact]
+    public void StudentInstruction_AfterAContact_InSolo_IsNotHeardAndKeepsTheContactsPosition()
+    {
+        (SimulationEngine engine, AircraftState aircraft, TrackOwner? student) = Engine(StudentCallsign);
+        engine.Scenario!.SoloTrainingMode = true;
+        uint codeBefore = aircraft.Transponder.AssignedCode;
+        Assert.True(engine.IssueAsStudent(AiTestFixture.Callsign, "CT OAK_TWR").Success);
+
+        CommandResult squawk = engine.IssueAsStudent(AiTestFixture.Callsign, "SQ 4321");
+
+        Assert.False(squawk.Success);
+        Assert.Null(squawk.Message);
+        Assert.Equal(codeBefore, aircraft.Transponder.AssignedCode);
         Assert.Equal(Position("OAK_TWR"), aircraft.TunedPosition);
         Assert.True(aircraft.IsTunedAwayFrom(student));
     }
@@ -156,7 +340,7 @@ public class TunedPositionTests
         Assert.True(aircraft.IsTunedAwayFrom(student));
         CommandResult again = engine.SendCommand(AiTestFixture.Callsign, "AGAIN");
         Assert.False(again.Success);
-        Assert.Contains("is no longer on your frequency", again.Message);
+        Assert.Equal($"{AiTestFixture.Callsign} is not on your frequency", again.Message);
     }
 
     [Fact]
@@ -188,7 +372,7 @@ public class TunedPositionTests
         List<TerminalEntry> entries = [];
         engine.TerminalEntryEmitted += entries.Add;
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "SQ 4321").Success);
-        Assert.Equal(student, aircraft.TunedPosition);
+        Assert.Null(aircraft.TunedPosition);
 
         Assert.True(engine.SendCommand(AiTestFixture.Callsign, "WAIT 5 AGAIN").Success);
         Assert.NotEmpty(aircraft.DeferredDispatches);

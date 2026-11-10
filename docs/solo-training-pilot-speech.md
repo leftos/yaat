@@ -203,7 +203,7 @@ Else, for a **ground** call only, an AI local position covering the airport — 
 
 Coverage for a **tower-cab** AI position (GND/TWR) is the airport the call is physically made at, never the filed destination — an OAK departure filed to SFO calls Oakland Ground even with AI SFO Ground staffed; radar-role AI positions match the destination/current/primary candidates (`PilotInitialContactEligibility.CandidateAirportIds`).
 
-**The addressee is the position the pilot is tuned to.** Pilot reports, check-ins and readbacks go to the position the aircraft is tuned to (`AircraftState.TunedPosition`, see CONTEXT.md "Tuned position"), not to a hardcoded GND/TWR set, so a pilot handed to a radar or an AI position calls that position. The rule is the roster's design target; the sites in the table above still name their wanted type.
+**The addressee is the position the pilot is tuned to.** Pilot reports, check-ins and readbacks go to the position the aircraft is tuned to (`AircraftState.TunedPosition`, see CONTEXT.md "Tuned position"), not to a hardcoded GND/TWR set, so a pilot handed to a radar or an AI position calls that position. The rule is the roster's design target; the sites in the table above still name their wanted type. Decided, not built yet: routing pilot reports by the tuned position (the tuning itself, and the not-heard refusal for a pilot tuned elsewhere, are built).
 
 Where the site asks for the SOP check, it applies to **every** candidate (`PilotInitialContactEligibility.CanInitiateWith(aircraft, position, type, ctx)`): an arrival still owned by approach with no handoff inbound does not call the tower whoever staffs it — the transferring controller hands the pilot over (7110.65 §2-1-17), the pilot never self-initiates with the next position.
 
@@ -366,6 +366,14 @@ A `CTO` preset (`DispatchSinglePreset` / `ProcessTimedPresets`) and, in solo roo
 Both pass `DispatchContext.IsScenarioScripted = true`, so they do **not** set `HasMadeInitialContact`.
 
 A runway-spawn CTO-preset departure (or a released held departure) handed to a non-tower student via auto-track therefore still makes its airborne check-in. The flag rides through deferral on `DeferredDispatch.IsScenarioScripted` (so a preset `WAIT … ; CTO` firing on the ground stays scripted), and across a snapshot restore on a queued `CommandBlock.IsScenarioScripted` (so a preset queued behind a trigger and restored by a rewind still neither sets `HasMadeInitialContact` nor marks its speed controller-issued); live and reaction-delay deferrals default to non-scripted. Live and replayed *controller* commands pass `IsScenarioScripted = false` and keep the suppression.
+
+## A student instruction to a pilot tuned elsewhere is not heard
+
+In solo training, `ActionArms.TryRefuseNotOnFrequency` refuses a student instruction to a pilot tuned to another position (`AircraftState.IsTunedAwayFrom(StudentPosition)`): nothing applies, no readback or "unable" is queued, and the instructor gets the terminal warning `{callsign} is not on your frequency (on {position})` (`PilotRepeat.NotOnFrequencyMessage`; it ends at "frequency" when the pilot is tuned `TrackOwner.Elsewhere` or to a position with no callsign). The warning is queued with `EmitTerminal`, so it follows the command's echo whether the sim is paused or live. The refusal itself carries no message, so the host prints no error line. `AGAIN` to such a pilot answers with the same text.
+
+The refusal covers a compound holding any command `CompoundPolicy.IsRadioInstruction` accepts: every instruction whose registry definition `ProducesPilotUnable`, plus CT/FCA, ROGER/STBY, the SAY* queries, squawk and ident, CLBRV, RFIS, RTIS, SAFAL, CWT and CIFR. Exempt (`IsNeverARadioInstruction`): the verbatim `SAY`, RFISF/RTISF, `APT`, scope, track and strip entries, and sim controls. A student instruction never retunes the pilot; only the events in CONTEXT.md "Tuned position" do.
+
+Who the student is, is the host's call, not the sim's: yaat-server decides it once per issued command (`StudentIssuer`, CONTEXT.md "Student"), carries it on `ActionInput.IssuedByStudent` and records it on `RecordedCommand.IssuedByStudent`. A replay reads the verdict back through `BakedDraws.IssuedByStudent` (`ArmContext.IssuedByStudent`) instead of deciding again, because the CRC sessions are gone; null (older recordings, the standalone engine, AI and scripted dispatch) is heard. With no CRC session at the student position nothing is refused.
 
 ## "Unable" routing on rejected commands
 

@@ -73,6 +73,82 @@ public static class CompoundPolicy
         cmd is CreateFlightPlanCommand or CreateAbbreviatedFlightPlanCommand or SetRemarksCommand;
 
     /// <summary>
+    /// True for a command the pilot must hear to act on: every instruction whose registry definition produces a pilot
+    /// "unable" (<see cref="CommandDefinition.ProducesPilotUnable"/>), plus the radio instructions that never answer
+    /// "unable" (<see cref="IsHeardWithoutAnUnable"/>). Never one of <see cref="IsNeverARadioInstruction"/>.
+    /// </summary>
+    public static bool IsRadioInstruction(ParsedCommand cmd)
+    {
+        if (IsNeverARadioInstruction(cmd))
+        {
+            return false;
+        }
+
+        return IsHeardWithoutAnUnable(cmd) || (CommandRegistry.Get(CommandDescriber.ToCanonicalType(cmd))?.ProducesPilotUnable == true);
+    }
+
+    /// <summary>
+    /// The commands that are not radio instructions: a command the parser could not resolve (the dispatcher answers it
+    /// with its own error), the verbatim <c>SAY</c> broadcast (the instructor scripting a pilot line),
+    /// <c>AGAIN</c>/<c>AGAINU</c> (the pilot-repeat path answers an away pilot itself), <c>ASSUME</c>, <c>SHOWAT</c>, a
+    /// destination change (<c>APT</c>, a flight-plan edit), and every track or flight-plan entry.
+    /// </summary>
+    private static bool IsNeverARadioInstruction(ParsedCommand cmd) =>
+        (
+            cmd
+            is UnsupportedCommand
+                or SayCommand
+                or SayAgainCommand
+                or SayAgainUnaddressedCommand
+                or AssumeCommand
+                or ShowQueuedCommand
+                or ChangeDestinationCommand
+        )
+        || TrackEngine.IsTrackCommand(cmd)
+        || IsFlightPlanCommand(cmd);
+
+    /// <summary>
+    /// The radio instructions whose registry definition produces no pilot "unable": a contact or frequency change
+    /// (<c>CT</c>, <c>FCA</c>), <c>ROGER</c>/<c>STBY</c>, the Class B clearance, the transponder instructions, the
+    /// <c>SAY*</c> queries, the traffic, field, safety and wake advisories (<c>RTIS</c>, <c>RFIS</c>, <c>SAFAL</c>,
+    /// <c>CWT</c>) and the IFR cancellation (<c>CIFR</c>).
+    /// </summary>
+    private static bool IsHeardWithoutAnUnable(ParsedCommand cmd) => IsTransferOrTransponder(cmd) || IsQueryOrAdvisory(cmd);
+
+    private static bool IsTransferOrTransponder(ParsedCommand cmd) =>
+        cmd
+            is ContactCommand
+                or FrequencyChangeApprovedCommand
+                or AcknowledgePilotContactCommand
+                or ClearedBravoAirspaceCommand
+                or CancelIfrCommand
+                or SquawkCommand
+                or SquawkVfrCommand
+                or SquawkNormalCommand
+                or SquawkStandbyCommand
+                or IdentCommand
+                or RandomSquawkCommand;
+
+    private static bool IsQueryOrAdvisory(ParsedCommand cmd) =>
+        cmd
+            is SaySpeedCommand
+                or SayMachCommand
+                or SayExpectedApproachCommand
+                or SayAltitudeCommand
+                or SayHeadingCommand
+                or SayPositionCommand
+                or SayExitFixEstimateCommand
+                or ReportFieldInSightCommand
+                or ReportFieldAdvisoryCommand
+                or ReportTrafficInSightCommand
+                or ReportTrafficAdvisoryCommand
+                or ReportTrafficRelativeCommand
+                or ReportTrafficPatternCommand
+                or ReportTrafficLandmarkCommand
+                or SafetyAlertCommand
+                or WakeAdvisoryCommand;
+
+    /// <summary>
     /// Returns the first rejection-set command in a genuinely multi-command compound, or null.
     /// A line the single-command parser accepts whole is not a chain — a free-text command
     /// (NOTE/RMK/...) legitimately swallows ';' into its text, and the server's single-command

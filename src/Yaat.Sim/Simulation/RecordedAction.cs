@@ -74,6 +74,14 @@ public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, str
     /// warning. Null on recordings written before rejections were recorded — every such command was accepted.
     /// </summary>
     public bool? Accepted { get; init; }
+
+    /// <summary>
+    /// Whether the host decided at issue time that the issuer was the solo-training student — the CID of a hub
+    /// connection matched a CRC session at the student position — so a replay reaches the same not-heard verdict without
+    /// re-deriving it. Null when no host decided it (the standalone engine, AI, CRC wire commands) and for recordings
+    /// written before the field existed; null replays as heard.
+    /// </summary>
+    public bool? IssuedByStudent { get; init; }
 }
 
 /// <summary>

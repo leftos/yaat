@@ -225,7 +225,7 @@ public sealed class SayAgainTests
         CommandResult result = engine.SendCommand(Callsign, "AGAIN");
 
         Assert.False(result.Success);
-        Assert.Equal($"{Callsign} is no longer on your frequency", result.Message);
+        Assert.Equal($"{Callsign} is not on your frequency", result.Message);
         Assert.False(aircraft.PendingRepeat);
     }
 

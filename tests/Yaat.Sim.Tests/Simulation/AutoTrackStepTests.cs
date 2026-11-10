@@ -172,6 +172,63 @@ public class AutoTrackStepTests
         Assert.Equal(30, queued.FireAtSeconds);
     }
 
+    [Fact]
+    public void AirborneSpawn_OwnedByAnotherPosition_IsTunedToItsOwner()
+    {
+        if (Engine(ColdCallScenario(0, Say, HandoffJson), []) is not { } engine)
+        {
+            return;
+        }
+
+        LoadedAircraft loaded = ColdCallAircraft(engine, 0, Handoff);
+        Assert.False(loaded.State.IsOnGround);
+
+        engine.ApplyAutoTrackConditions(loaded);
+
+        Assert.Equal(Nct4U, loaded.State.TunedPosition);
+        Assert.True(loaded.State.IsTunedAwayFrom(Student));
+    }
+
+    [Fact]
+    public void GroundSpawn_OwnedByAnotherPosition_StaysOnTheStudent()
+    {
+        if (Engine([]) is not { } engine)
+        {
+            return;
+        }
+
+        var loaded = new LoadedAircraft
+        {
+            State = engine.FindAircraft(AiTestFixture.Callsign)!,
+            SpawnDelaySeconds = 0,
+            AutoTrackConditions = new AutoTrackConditions { PositionId = "POS-4U", HandoffDelay = 30 },
+        };
+        Assert.True(loaded.State.IsOnGround);
+
+        engine.ApplyAutoTrackConditions(loaded);
+
+        Assert.True(loaded.State.Track.Owner!.MatchesPosition(Nct4U));
+        Assert.Null(loaded.State.TunedPosition);
+    }
+
+    [Fact]
+    public void AirborneSpawn_OwnedByTheStudent_StaysOnTheStudent()
+    {
+        if (Engine(ColdCallScenario(0, Say, HandoffJson), []) is not { } engine)
+        {
+            return;
+        }
+
+        engine.Scenario!.StudentPosition = Nct4U;
+        LoadedAircraft loaded = ColdCallAircraft(engine, 0, Handoff);
+        Assert.False(loaded.State.IsOnGround);
+
+        engine.ApplyAutoTrackConditions(loaded);
+
+        Assert.True(loaded.State.Track.Owner!.MatchesPosition(Nct4U));
+        Assert.Null(loaded.State.TunedPosition);
+    }
+
     [Theory]
     [InlineData(1403)]
     [InlineData(0)]
@@ -361,6 +418,7 @@ public class AutoTrackStepTests
 
         Assert.NotNull(generated);
         Assert.NotNull(generated!.Track.Owner);
+        Assert.Equal(generated.Track.Owner, generated.TunedPosition);
 
         RecordedAircraftSpawn? record = scenario
             .ActionLog.OfType<RecordedAircraftSpawn>()

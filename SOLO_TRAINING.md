@@ -201,6 +201,8 @@ The pilot you just instructed reads back before any other pilot keys up; two ins
 
 A readback of two or more instructions always stays terse. The terminal always shows the full readback; only the spoken one shortens. Once you have acknowledged an N-number pilot's call, it may read back with a short callsign ("november three alpha bravo"). Speeds are read digit by digit.
 
+**Pilots tuned to another position.** Each pilot is tuned to one position. An aircraft spawned airborne starts on its track owner's frequency and one spawned on the ground on yours. A pilot you send away with `CT` or `FCA` stays away until you accept a handoff of it from another position, it makes its initial call to you, or a scripted or AI controller hands it to you. An instruction you give a pilot who is tuned elsewhere is not heard: there is no readback and nothing changes, and the terminal warns `N123AB is not on your frequency (on OAK_TWR)` after your command. This applies to every radio instruction (including `CT`, `FCA`, `ROGER`, `STBY`, the `SAY` queries, squawk and ident, and the traffic and field advisories) but not to scope, track and strip entries, `APT` or the verbatim `SAY`. It applies only to commands you issue as the student, meaning a YAAT connection signed in with the VATSIM account of a CRC session at your position; with no CRC session at your position nothing is refused. `AGAIN` to such a pilot gets the same warning.
+
 You can type canonical commands:
 
 ```

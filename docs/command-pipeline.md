@@ -59,12 +59,15 @@ Sim replay, a server reconstruction and the bare test engine take:
 ```
 SendCommandAsync(connectionId, callsign, command, initials)
   ↓ "** " force-override prefix; aircraft-assignment enforcement (room policy)
+  ↓ IsStudentConnection (StudentIssuer): is the issuer the student? -> ActionInput.IssuedByStudent, recorded on RecordedCommand.IssuedByStudent
   ↓ IssueLive → ActiveSim.Actions.Issue(ActionInput, LiveRoomHost)
   │    (a command typed during tape playback first takes control: the tape is cut at the current second)
   │    ↓ ExtractAsPrefix → strips "AS <tcp>", returns asOverrideTcp
   │    ↓ refuse a chain with a non-compoundable verb; split a scoped-special compound into units
   │    ↓ RecordedCommandClassifier.Classify → ArmTable.For(kind)
   │    ↓ resolve the scope (Aircraft: FindAircraft, else "Aircraft 'X' not found") and the identity
+  │    ↓ ActionArms aviation arm, solo training: a radio instruction from the student (ArmContext.IssuedByStudent) to a pilot tuned elsewhere
+  │      is not heard (TryRefuseNotOnFrequency: nothing applies, a terminal warning follows the echo; solo-training-pilot-speech.md)
   │    ↓ run the row: a Sim body (ActionArms, StripCommandHandler, TdlsCommandHandler, CoordinationCommandHandler, BookmarkCommandHandler,
   │      TransportCommandHandler — IActionHost has no body slot); the body notifies the host's consumers
   │    ↓ record the text with its verdict (RecordedCommand.Accepted), accepted or not

@@ -200,9 +200,30 @@ public static partial class TrackEngine
         ac.Track.HandoffInitiatedAt = null;
         ac.Track.HandoffRedirectedBy = null;
         ac.Track.HandoffAccepted = true;
+        TuneToStudentOnAccept(ac, previousOwner, ac.Track.Owner, scenario);
         MarkPreviousOwnerRetained(ac, previousOwner, scenario);
         MarkRecentHandoffAccepted(ac, previousOwner, wasForced: false, scenario);
         return new CommandResult(true, $"Accepted {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// In solo training, a handoff the student accepts from another position (automatic, AI or an RPO's <c>HO</c>), or a
+    /// pointout the student converts to a track (STARS <see cref="HandleConvertPointout"/>, the ERAM <c>QT</c> convert in
+    /// <see cref="EramEntryEngine"/>), moves the pilot onto the student's frequency: <see cref="AircraftState.TunedPosition"/> becomes null, whatever it was
+    /// (<see cref="TrackOwner.Elsewhere"/> included). Compared by callsign, never by TCP, because tower-cab positions share
+    /// one. RPO rooms keep the pilot's tuning.
+    /// </summary>
+    internal static void TuneToStudentOnAccept(AircraftState aircraft, TrackOwner? previousOwner, TrackOwner newOwner, SimScenarioState scenario)
+    {
+        if (
+            scenario.SoloTrainingMode
+            && (scenario.StudentPosition is { } student)
+            && newOwner.IsSamePositionByCallsign(student)
+            && ((previousOwner is null) || !previousOwner.IsSamePositionByCallsign(student))
+        )
+        {
+            aircraft.TunedPosition = null;
+        }
     }
 
     /// <summary>
@@ -962,6 +983,7 @@ public static partial class TrackEngine
         ac.Track.HandoffInitiatedAt = null;
         ac.Track.HandoffRedirectedBy = null;
         ac.Track.HandoffAccepted = true;
+        TuneToStudentOnAccept(ac, previousOwner, newOwner, scenario);
         MarkPreviousOwnerRetained(ac, previousOwner, scenario);
         MarkRecentHandoffAccepted(ac, previousOwner, wasForced: false, scenario);
         return new CommandResult(true, $"Converted pointout to handoff; {ac.Callsign} now tracked by {FormatOwner(newOwner)}");
@@ -1116,6 +1138,7 @@ public static partial class TrackEngine
                     ac.Track.HandoffInitiatedAt = null;
                     ac.Track.HandoffRedirectedBy = null;
                     ac.Track.HandoffAccepted = true;
+                    TuneToStudentOnAccept(ac, previousOwner, ac.Track.Owner, scenario);
                     MarkPreviousOwnerRetained(ac, previousOwner, scenario);
                     MarkRecentHandoffAccepted(ac, previousOwner, wasForced: false, scenario);
                     count++;

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- In solo training, an instruction the student gives a pilot still on another position's frequency is not heard: no readback, and the instructor sees "not on your frequency".
+- In solo training, a pilot moves to the student's frequency when the student accepts its handoff, when it checks in with the student, or when it is told to contact the student.
+
 ### Fixed
 
 - An aircraft taxiing to a ramp spot along a final leg that curves stops with its nose at the spot marking, not short of it.

@@ -45,6 +45,8 @@ A handful of cross-phase one-shot booleans and debrief timestamps also live at t
 `HasMadeInitialContact`, `HasControllerAcknowledgedInitialContact`, `TunedPosition`, `IsClearedIntoBravo`, `HasAnnouncedLinedUpReady`,
 `NoLandingClearanceWarningActive`, `SpawnedAtSeconds`, `CompletedAtSeconds`, `CompletionReason`, `CompletionDetail`, `PendingPilotRequest`, `LastPilotTransmission`, `PendingRepeat`, `PendingRepeatCallsignOnly`.
 
+`TunedPosition` (a `TrackOwner?`; null reads as the student's side) is written by the student's CT/FCA, the airborne or ground spawn stamp, the student's handoff accept and `**` convert, the ERAM `QT` convert, the pilot's initial call and a scripted or AI contact naming the student; the full rules are CONTEXT.md "Tuned position", and a student instruction to a pilot tuned elsewhere is not heard ([solo-training-pilot-speech.md](solo-training-pilot-speech.md)).
+
 `LastPilotTransmission` (an `AircraftLastPilotTransmission`: text, spoken text, kind, source kind, canonical airtime, the second it went on air) is the latest line the aircraft spoke, null until it transmits; it is separate from `PilotPendingRequest.LastPilotLine`, which belongs to an open request. `PendingRepeat` marks a repeat of that line as owed, `PendingRepeatCallsignOnly` the callsign alone (at most one of the two is set). See [solo-training-pilot-speech.md](solo-training-pilot-speech.md) for where each is written.
 
 ### The sixteen satellites + `ControlTargets`

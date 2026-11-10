@@ -45,6 +45,12 @@ public sealed class ArmContext
     /// <summary>True when the action comes from a recording — its draws are in <see cref="ActionInput.Baked"/>.</summary>
     public bool IsRecorded => Input.Baked is not null;
 
+    /// <summary>
+    /// The host's issue-time verdict that the issuer is the solo-training student: the recorded one for an action from
+    /// a recording, else the fresh action's. Null (no host decided it) is never the student.
+    /// </summary>
+    public bool? IssuedByStudent => Input.Baked is { } baked ? baked.IssuedByStudent : Input.IssuedByStudent;
+
     public double? ReactionDelaySeconds { get; set; }
     public int? SpawnJitterSeconds { get; set; }
     public AircraftSnapshotDto? SpawnedAircraft { get; set; }

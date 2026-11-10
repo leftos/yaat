@@ -465,6 +465,7 @@ public static partial class EramEntryEngine
         // Converting a track the acting sector already owns hands nothing over: no previous owner to mark.
         if ((previousOwner is not null) && !previousOwner.MatchesPosition(identity))
         {
+            TrackEngine.TuneToStudentOnAccept(ac, previousOwner, identity, scenario);
             TrackEngine.MarkPreviousOwnerRetained(ac, previousOwner, scenario);
             TrackEngine.MarkRecentHandoffAccepted(ac, previousOwner, wasForced: forced, scenario);
         }

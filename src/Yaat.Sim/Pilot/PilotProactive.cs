@@ -35,7 +35,8 @@ public static class PilotProactive
     /// gate fails: solo mode off, on the ground, already made initial contact, student
     /// position is GND or unknown, primary airport unknown, or the airport lookup returns null.
     /// On success, queues the check-in line into <see cref="AircraftState.PendingPilotTransmissions"/>
-    /// and sets <see cref="AircraftState.HasMadeInitialContact"/> so subsequent ticks no-op.
+    /// and sets <see cref="AircraftState.HasMadeInitialContact"/> so subsequent ticks no-op, and puts the pilot on the
+    /// student's frequency (<see cref="AircraftState.TunedPosition"/> null).
     /// </summary>
     public static void TickAirborneCheckIn(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)
     {
@@ -91,8 +92,10 @@ public static class PilotProactive
             return;
         }
 
+        // The check-in is the pilot's initial call to the student: it is now on the student's frequency.
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: true);
         aircraft.HasMadeInitialContact = true;
+        aircraft.TunedPosition = null;
     }
 
     public static void TickArrivalApproachRequest(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)

@@ -31,7 +31,9 @@ public sealed record PilotAnsweringPosition(
 
     /// <summary>
     /// Latches the aircraft's initial-contact one-shot for this addressee. Contact with the human student sets
-    /// <see cref="AircraftState.HasMadeInitialContact"/>; contact with an AI position adds only its position id to
+    /// <see cref="AircraftState.HasMadeInitialContact"/> and puts the pilot on the student's frequency
+    /// (<see cref="AircraftState.TunedPosition"/> null): the transfer of communications, not the accept, moves the pilot
+    /// (7110.65 2-1-17.a, 5-4-5.i). Contact with an AI position adds only its position id to
     /// <see cref="AircraftState.AiInitialContactPositionIds"/>, so a departure handled by AI Ground and AI Local still
     /// checks in with a student radar position later (the same rule scripted clearances follow), and a fresh AI
     /// facility still gets its own call (AIM 4-2-3.a.1.1).
@@ -41,6 +43,7 @@ public sealed record PilotAnsweringPosition(
         if (Agent == PilotAnsweringAgent.Student)
         {
             aircraft.HasMadeInitialContact = true;
+            aircraft.TunedPosition = null;
         }
         else if (PositionId is { Length: > 0 } positionId)
         {

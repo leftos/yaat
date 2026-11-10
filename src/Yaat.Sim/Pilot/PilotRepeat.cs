@@ -28,7 +28,7 @@ public static class PilotRepeat
 
         if (aircraft.IsTunedAwayFrom(ctx.StudentPosition))
         {
-            return new CommandResult(false, $"{aircraft.Callsign} is no longer on your frequency");
+            return new CommandResult(false, NotOnFrequencyMessage(aircraft));
         }
 
         if (aircraft.PendingRepeat || aircraft.PendingRepeatCallsignOnly)
@@ -44,6 +44,18 @@ public static class PilotRepeat
 
         aircraft.PendingRepeat = true;
         return CommandDispatcher.Ok("Say again");
+    }
+
+    /// <summary>
+    /// What the instructor is told when the pilot is tuned to another position: "{callsign} is not on your frequency (on
+    /// {position})", without the position when the pilot is tuned elsewhere or to one with no callsign (the not-heard
+    /// refusal and a say again both say it).
+    /// </summary>
+    public static string NotOnFrequencyMessage(AircraftState aircraft)
+    {
+        string message = $"{aircraft.Callsign} is not on your frequency";
+        TrackOwner? tuned = aircraft.TunedPosition;
+        return ((tuned != TrackOwner.Elsewhere) && (tuned?.Callsign is { Length: > 0 } position)) ? $"{message} (on {position})" : message;
     }
 
     /// <summary>The refusal of a say again of any form outside solo training, where no pilot speaks.</summary>

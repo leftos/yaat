@@ -11,6 +11,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
@@ -63,7 +64,7 @@ public class SimulatedTowerTests
     }
 
     [Fact]
-    public void StudentCtoBetweenTicks_IsNotClearedTwice()
+    public void StudentCtoAfterTheTransfer_IsNotHeard_AndTheSimTowerClearsOnce()
     {
         if (LoadAtTheBar("OAK_GND", "GND", AtcPositionLevel.Ground) is not { } run)
         {
@@ -78,11 +79,38 @@ public class SimulatedTowerTests
             run.Engine.TickOneSecond();
         }
 
-        CommandResult cto = run.Engine.SendCommand(Callsign, "CTO");
-        Assert.True(cto.Success, cto.Message);
+        // The pilot is on the tower frequency now: the student's CTO is not heard.
+        CommandResult cto = run.Engine.IssueAsStudent(Callsign, "CTO");
+        Assert.False(cto.Success);
+        Assert.Null(cto.Message);
         run.Engine.TickOneSecond();
 
-        Assert.False(SimTowerCleared(run), "the simulated tower cleared a departure the student had just cleared");
+        Assert.True(SimTowerCleared(run), "the simulated tower did not clear the transferred departure");
+        Assert.Single(run.Aircraft.Phases!.Phases, p => p is TakeoffPhase);
+    }
+
+    /// <summary>
+    /// A CTO the student gives while the pilot is still on the student's frequency is heard, so the departure is cleared
+    /// before its transfer and the simulated tower never clears it a second time.
+    /// </summary>
+    [Fact]
+    public void StudentCtoBeforeTheTransfer_IsHeard_AndTheSimTowerDoesNotClear()
+    {
+        if (LoadAtTheBar("OAK_GND", "GND", AtcPositionLevel.Ground) is not { } run)
+        {
+            return;
+        }
+
+        CommandResult cto = run.Engine.IssueAsStudent(Callsign, "CTO");
+        Assert.True(cto.Success, cto.Message);
+        double stamp = Transfer(run);
+        int delay = SimulationEngine.SimulatedTowerCtoDelaySeconds(Callsign);
+        while (run.Engine.Scenario!.ElapsedSeconds < stamp + delay + 5)
+        {
+            run.Engine.TickOneSecond();
+        }
+
+        Assert.False(SimTowerCleared(run), "the simulated tower cleared a departure the student had already cleared");
         Assert.Single(run.Aircraft.Phases!.Phases, p => p is TakeoffPhase);
     }
 
