@@ -140,7 +140,7 @@
 
 ## Hold shorts and runway crossings
 
-### 1 Defects (14/62 done)
+### 1 Defects (14/63 done)
 - [ ] YAAT-410 Start-node hold aims the centre, not the nose; ILS/approach holds; firm taxi stop rate
 - [ ] YAAT-435 Let a re-route's stop lie behind the aircraft by under 3 ft on segment 0
 - [ ] YAAT-1669 Refuse a bare CTO at a runway-crossing hold short instead of departing the crossing runway
@@ -189,6 +189,7 @@
 - [ ] YAAT-1906 TAXI {route} {rwy} from on the destination runway: stop saying 'holding short' and stop crossing to the far bar
 - [ ] YAAT-1915 Triage the unbarred runway escapes found in the newly committed vNAS layouts · release vNext
 - [ ] YAAT-1966 Cancel line-up-and-wait on a TAXI, and store a TAXI from it that crosses a runway until CROSS
+- [ ] YAAT-1996 Release a FOLLOWG follower stuck at 0 kt in Crossing Runway after a HOLD that overshoots between SFO 1L and 1R
 
 ### 2 Refinements and rulings (4/19 done)
 - [ ] YAAT-697 Amend the readback when an unable hold short becomes makeable again
@@ -301,13 +302,10 @@
 
 ## Taxi navigator: speed, braking and turns
 
-### 1 Defects (1/26 done)
+### 1 Defects (3/26 done)
 - [ ] YAAT-1746 Publish the line-up's straight-segment speed, not the arc speed, on non-arc segments
 - [ ] YAAT-54 Brake max-effort on a late CTOC and warn when the aircraft overruns the bar · release vNext
-- [ ] YAAT-68 Stop near-collinear split nodes saw-toothing taxi speed (SFO C) · release vNext
-- [ ] YAAT-69 Stop the nose at a spot by along-route distance, not straight-line · release vNext
 - [ ] YAAT-73 Fix TAXI-after-PUSH route opening geometry (177° entry-align turn) · release vNext
-- [ ] YAAT-77 Repro or retire the stuck-in-LineUpPhase smell (N784ME) · release vNext
 - [ ] YAAT-1304 Break an exact 180-degree reversal's turn direction deterministically across platforms
 - [ ] YAAT-912 Make the rolling turn-about verdict independent of where the aircraft stands within a second
 - [ ] YAAT-1308 Keep corner limits above the setup ceiling when a ground phase raises its ceiling mid-segment
@@ -327,8 +325,9 @@
 - [ ] YAAT-656 Brake at the firm rate when taxi braking cannot make the next fillet's speed
 - [ ] YAAT-1883 Solve the mid-curve entry alignment turn toward the tangent the gate judged, not the curve's start bearing
 - [ ] YAAT-1975 Measure taxi stop distances from the aircraft when it is past its segment's end node, and brake on node-arrival sub-ticks
+- [ ] YAAT-1993 Arm the nose-at-spot stop early enough when the last two legs are shorter than half the aircraft
 
-### 2 Refinements and rulings (0/11 done)
+### 2 Refinements and rulings (0/12 done)
 - [ ] YAAT-33 Scale MainGearTurnRadiusFt by type wheelbase
 - [ ] YAAT-49 Re-validate the reroute rate after the fillet floor; corner speed, sample gaps
 - [ ] YAAT-736 Turn-about footprint leads: end-of-runway circle, GA body model, follower re-saying unable
@@ -340,6 +339,7 @@
 - [ ] YAAT-1968 Cap a back-taxi along a runway at walking-pace turn and about 15 kt
 - [ ] YAAT-1972 Refuse a ground turn about for skid helicopters
 - [ ] YAAT-1974 Judge a rolling turn about on a runway one way at the gate and the navigator
+- [ ] YAAT-1994 Stop corner-capping opposite-sign centreline jogs (LAX RWY06R/24L node 347 at 10.4 kt)
 
 ### 3 Hygiene and tests (0/6 done)
 - [ ] YAAT-71 Feed NavTickDiag the real braking/arc caps, or delete the fields
@@ -351,9 +351,7 @@
 
 ## Ground traffic: follow, give-way and conflicts
 
-### 1 Defects (0/22 done)
-- [ ] YAAT-50 Armed FOLLOWG leftovers: RES at bars, follow readbacks, repeat crossings · release vNext
-- [ ] YAAT-72 Read the route's first segment for crossing "closing", not the nose heading · release vNext
+### 1 Defects (1/22 done)
 - [ ] YAAT-911 Stop a taxiing aircraft before it drives head-on into a stopped follower
 - [ ] YAAT-325 GIVEWAY to traffic that is just starting to taxi releases at once
 - [ ] YAAT-660 Ground conflict prediction ignores a ground expedite before the first navigator tick
@@ -374,6 +372,7 @@
 - [ ] YAAT-1388 Brake a ground yielder at the firm rate instead of an unfloored dead stop when a conflict rule binds
 - [ ] YAAT-1391 Stop a follower planning a head-on merge at the end of its lead's route (OAK TAXI B R, 048° against 228°)
 - [ ] YAAT-1470 TaxiRoute.RemainingDistanceFt reads a node overshoot as distance left
+- [ ] YAAT-1995 Stop a turning arrival's sweeping nose from head-on-holding a tow on the parallel SFO alley lane
 
 ### 2 Refinements and rulings (0/9 done)
 - [ ] YAAT-34 Ground-speed realism: follow stop distance by weight class, static takeoffs
@@ -394,11 +393,10 @@
 
 ## Pushback, tug moves and stands
 
-### 1 Defects (0/15 done)
+### 1 Defects (1/15 done)
 - [ ] YAAT-40 Stop spot line-up from past the spot looping behind the spot (SKW5564) · release vNext
 - [ ] YAAT-74 Fix #454/#461 review findings: stand roll-in, heading, TAXI cost, connector · release vNext
 - [ ] YAAT-178 Bring PushbackPhase's flown path within the planner's 5 ft margin · release vNext
-- [ ] YAAT-180 Pass ranking exclusions to TugMovePlanner.LogStandEntries · release vNext
 - [ ] YAAT-1245 Push holds indefinitely for an aircraft parked at a neighbouring stand
 - [ ] YAAT-348 CWT F length fallback overstates turboprops (AN26, DH8D, C130): pick by category
 - [ ] YAAT-701 Make push-plan seeds deterministic under read errors and sidecar reloads
@@ -431,7 +429,7 @@
 
 ## Taxi routing and airport layouts
 
-### 1 Defects (1/35 done)
+### 1 Defects (2/35 done)
 - [ ] YAAT-43 A cleared first taxiway must be driven, or the TAXI refused (SFO M4 M1)
 - [ ] YAAT-44 Confine TryTaxiCore's zero-segment re-route to the ramp
 - [ ] YAAT-60 Fix 33 taxiway routes that reach a runway without a hold-short bar
@@ -465,7 +463,6 @@
 - [ ] YAAT-1459 Keep stand lead-ins off nodes the videomap bar seating turned into runway bars
 - [ ] YAAT-1612 Make GroundArc.IsRamp independent of the fillet's name order
 - [ ] YAAT-1623 TAXI F 28L from SFO's L/F hold short routes west and around via A, T, B, E instead of east onto F
-- [ ] YAAT-1983 Add every SFO two-letter connector (GL, AF, BC, CZ, ZS) to the sidecar's implicit connectors · release vNext
 
 ### 2 Refinements and rulings (0/12 done)
 - [ ] YAAT-95 Warn at ATXI issue time for each runway the direct air-taxi path crosses
@@ -518,7 +515,7 @@
 - [ ] YAAT-833 End LAND @NAME at a taxiway spot holding in position, not parked
 - [ ] YAAT-1318 Keep a block's TAXI readback and run order the same whichever of TAXI and CROSS comes first
 
-### 2 Refinements and rulings (0/16 done)
+### 2 Refinements and rulings (1/16 done)
 - [ ] YAAT-51 Offer standalone TAXI modifiers at slot 1; test cross-command alias collisions
 - [ ] YAAT-869 Read back a bare CROSS EXP with "without delay"
 - [ ] YAAT-1222 Solo refuses TAXIAUTO: the student issues the taxi route
@@ -532,7 +529,6 @@
 - [ ] YAAT-1384 Refuse a TAXI that needs a turn-about with the turn-about reason, not 'unreachable'
 - [ ] YAAT-1393 Tell the instructor a route continues past a plain HS X cut (TAXI D C HS E RWY 28R)
 - [ ] YAAT-1970 Stop reading out the runway being left as a crossing in a TAXI from the runway exit
-- [ ] YAAT-1982 Refuse a repeated TAXI verb with its own message instead of "Cannot find taxiway TAXI in layout" · release vNext
 - [ ] YAAT-1984 Add a command that re-routes a taxiing aircraft to its current destination · release vNext
 - [ ] YAAT-1986 Taxi to the flight-plan-remark gate with @GATE, and add TTP (taxi to parking, destination implied) · release vNext
 
@@ -979,7 +975,7 @@
 - [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C
 - [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick
 
-### 2 Refinements and rulings (4/15 done)
+### 2 Refinements and rulings (5/16 done)
 - [ ] YAAT-1545 Route each pilot report, check-in and readback to the position the pilot is tuned to, not a hardcoded Ground/Tower set · release vNext
   - [ ] YAAT-1934 Route each pilot report by the tuned position; delete the SoloPositions lists · release vNext
   - [ ] YAAT-1935 Address the airborne check-in to the tuned position · release vNext
@@ -1001,6 +997,8 @@
 - [ ] YAAT-1513 Re-call after an unanswered airborne check-in ('how do you hear')
 - [ ] YAAT-1958 Apply auto-track (and the tuned-position stamp) on the Sim-side replay load
 - [ ] YAAT-1959 Tune the pilot to an ERAM student who converts a pointout into ownership
+- [ ] YAAT-1992 Score only the student's own commands in solo evaluation, by the recorded issuer flag
+- [ ] YAAT-1998 Read a CRC session's secondary positions from PositionRegistry in StudentIssuer
 
 ## Server: CRC, ERAM, vEDST and rooms
 
@@ -1310,7 +1308,7 @@
 
 ## Docs, agent tooling and repo hygiene
 
-### 1 Defects (2/13 done)
+### 1 Defects (3/13 done)
 - [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
 - [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 - [ ] YAAT-1550 Make GuideCapture's load-weather and connected-empty scenes wait for their shown state before capturing
@@ -1321,15 +1319,13 @@
 - [ ] YAAT-1207 Keep a resolved Discord thread name within 100 characters when the emoji is added
 - [ ] YAAT-1210 Retry refused Discord archive and close-rename writes instead of dropping them
 - [ ] YAAT-1211 Close the cron-versus-webhook races in the Discord thread rename
-- [ ] YAAT-1991 Don't post "Deployment failed" from the deploy script's room-wait and status modes · release vNext
 
 ### 2 Refinements and rulings (0/3 done)
 - [ ] YAAT-1645 Brief rule: find and prove a red-first test's staging before dispatch
 - [ ] YAAT-1962 Add a geometric-consistency row to the overlay's case-table check
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (2/69 done)
-- [ ] YAAT-1961 Groom the plan with plan-doc-hygiene: 23 commits since its stamp · release vNext
+### 3 Hygiene and tests (3/69 done)
 - [ ] YAAT-57 Re-cite docs/ground/pathfinder.md by symbol, not line
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
 - [ ] YAAT-63 Fix the LAHSO section of docs/landing-and-runway-exit.md: CANCLAND → CLC
@@ -1403,6 +1399,7 @@
 - [ ] YAAT-1531 Have bug_bundle.py install register a new fixture with the layout-coverage list and the routing census
 - [ ] YAAT-1549 Make BuildMinimalContext's ground layout argument required
 - [ ] YAAT-1683 Remove counts and path:line references from durable docs (use symbols, headings, test names)
+- [ ] YAAT-1999 Split ApplyAutoTrackConditions under the 100-line limit
 
 ## Backlog
 
