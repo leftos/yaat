@@ -238,10 +238,11 @@ public static class PhraseologyVerbalizer
         // template's "runway?" literal is spoken unconditionally, so a taxiway HS target would be
         // read back as a runway ("hold short of runway charlie") — the direct clause picks the
         // "runway" word per target type (AIM 2-3-5.a.3 vs 7110.65 §3-7-2.b). A parking / spot
-        // destination is direct-rendered too: the destination clause has to sit between the route
-        // and any cross / hold-short clause (7110.65 §3-7-2.a.2.b: route first, then the hold-short),
-        // and a rule template per {destination} × {cross} × {hold-short} shape would otherwise be
-        // needed to keep the mandatory crossing / hold-short readback.
+        // destination is direct-rendered for two reasons: the clause leads the readback, directly after
+        // "taxi" (AIM 4-3-18.d.3), which a rule template would need a variant of per {destination} ×
+        // {cross} × {hold-short} shape to keep the mandatory crossing / hold-short readback; and the
+        // noun is chosen per name ("gate" for a gate-shaped stand, else "parking"), while the rule
+        // templates only ever say "parking".
         if (
             cmd is TaxiCommand taxiDirect
             && (
@@ -862,10 +863,12 @@ public static class PhraseologyVerbalizer
     /// <summary>
     /// Renders a TAXI readback whose path includes a runway segment with FAA-correct connectors
     /// (7110.65 §3-7-2.a, §3-1-3.b): the taxiway route is introduced with "via", a runway taxied along
-    /// is introduced with "on" — "taxi via bravo, on runway two eight right, golf, delta" (and, runway
-    /// first, "taxi on runway two eight right, golf, delta"). Trailing cross/hold-short clauses are set off
-    /// with a comma, the pause a pilot puts between the route and its restrictions ("…charlie, hold short
-    /// of runway two eight right"); the destination runway leads, matching the rule-driven forms.
+    /// is introduced with "on" — "taxi to gate bravo one two via bravo, on runway two eight right,
+    /// golf, delta" (and, runway first, "taxi on runway two eight right, golf, delta"). The destination
+    /// comes directly after "taxi", before the route (AIM 4-3-18.d.3 "taxi to Page via taxiways echo
+    /// three, echo one, and echo niner"). Trailing cross/hold-short clauses are set off with a comma,
+    /// the pause a pilot puts between the route and its restrictions ("…charlie, hold short of runway
+    /// two eight right"); the destination runway leads, matching the rule-driven forms.
     /// </summary>
     private static string RenderTaxiAlongRunway(TaxiCommand taxi, CaptureFormatter fmt)
     {
@@ -894,11 +897,8 @@ public static class PhraseologyVerbalizer
             firstSegment = false;
         }
 
-        string body = parts.Count == 0 ? "taxi" : $"taxi {string.Join(fmt.TaxiSeparator, parts)}";
-
-        // Destination before the runway clauses: 7110.65 §3-7-2.a states the route "and then" the
-        // hold short instructions, and AIM 4-4-7.b.2 has the pilot read them back in that sequence.
-        body += RenderTaxiDestinationClause(taxi, fmt);
+        string route = string.Join(fmt.TaxiSeparator, parts);
+        string body = TaxiBody(taxi, route, sayDestination: true, fmt);
 
         if (taxi.CrossRunways is { Count: > 0 } cross)
         {
@@ -925,8 +925,21 @@ public static class PhraseologyVerbalizer
     }
 
     /// <summary>
-    /// " to spot seven alpha" / " to parking bravo one two", or empty (7110.65 §3-7-2.a "TAXI TO (location)").
-    /// A spot wins over a parking name, matching <c>CommandDescriber</c>'s canonical form.
+    /// The readback body: "taxi" followed by the destination clause when <paramref name="sayDestination"/>
+    /// ("taxi to gate bravo one two"), then the route with its leading "via" or "on" — "taxi to gate bravo one
+    /// two via alpha, bravo" (AIM 4-3-18.d.3 "taxi to Page via taxiways …").
+    /// </summary>
+    private static string TaxiBody(TaxiCommand taxi, string route, bool sayDestination, CaptureFormatter fmt)
+    {
+        string destination = sayDestination ? RenderTaxiDestinationClause(taxi, fmt) : "";
+        return route.Length == 0 ? $"taxi{destination}" : $"taxi{destination} {route}";
+    }
+
+    /// <summary>
+    /// " to gate bravo one two" / " to parking cargo one" / " to spot seven alpha", or empty (7110.65 §3-7-2.a
+    /// "TAXI TO (location)"). A parking name that <see cref="ArrivalParkingPicker.IsGateName"/> accepts says "gate",
+    /// every other parking name "parking"; a spot wins over a parking name, matching <c>CommandDescriber</c>'s
+    /// canonical form. The clause leads the readback, directly after "taxi" (AIM 4-3-18.d.3).
     /// </summary>
     private static string RenderTaxiDestinationClause(TaxiCommand taxi, CaptureFormatter fmt)
     {
@@ -935,7 +948,13 @@ public static class PhraseologyVerbalizer
             return $" to spot {fmt.Spot(spot)}";
         }
 
-        return taxi.DestinationParking is { Length: > 0 } parking ? $" to parking {fmt.Parking(parking)}" : "";
+        if (taxi.DestinationParking is not { Length: > 0 } parking)
+        {
+            return "";
+        }
+
+        string noun = ArrivalParkingPicker.IsGateName(parking) ? "gate" : "parking";
+        return $" to {noun} {fmt.Parking(parking)}";
     }
 
     /// <summary>
@@ -1189,10 +1208,11 @@ public static class PhraseologyVerbalizer
 
     /// <summary>
     /// The TAXI readback read off the resolved route (<see cref="RenderRouteToFirstStop"/>) in both forms: the runway
-    /// assignment first ("runway three zero, …"), then the route, the issued taxiways past the route's end
-    /// (<paramref name="issuedBeyondRoute"/>) and the destination when nothing stops the aircraft first, the crossings
-    /// ("cross runway two eight left and runway two eight right"), "without delay", and the hold short. An expedited TAXI's
-    /// one trailing "without delay" covers every crossing, so each joins as a plain one.
+    /// assignment first ("runway three zero, …"), then "taxi" with the destination directly after it when nothing stops
+    /// the aircraft first, the route, the issued taxiways past the route's end
+    /// (<paramref name="issuedBeyondRoute"/>), the crossings ("cross runway two eight left and runway two eight right"),
+    /// "without delay", and the hold short. An expedited TAXI's one trailing "without delay" covers every crossing, so
+    /// each joins as a plain one.
     /// </summary>
     public static PilotSpeechText RenderTaxiRouteReadback(
         TaxiCommand taxi,
@@ -1209,11 +1229,8 @@ public static class PhraseologyVerbalizer
     {
         TaxiRouteClauses clauses = RenderRouteToFirstStop(inputs, null, false, fmt);
         string route = RouteWithIssuedTail(clauses, inputs, issuedBeyondRoute, fmt);
-        string body = route.Length == 0 ? "taxi" : $"taxi {route}";
-        if ((clauses.HoldShort is null) && !clauses.EndsAtUnclearedBar)
-        {
-            body += RenderTaxiDestinationClause(taxi, fmt);
-        }
+        bool sayDestination = (clauses.HoldShort is null) && !clauses.EndsAtUnclearedBar;
+        string body = TaxiBody(taxi, route, sayDestination, fmt);
 
         List<RunwayCrossing> crossings = [.. clauses.StartCrossings, .. clauses.Crossings];
         foreach (string clause in CrossingClauses(taxi.Expedite ? [.. crossings.Select(c => c with { Expedite = false })] : crossings))

@@ -10,6 +10,10 @@
 - `TAXI … @GATE` and `TAXIAUTO @GATE` taxi an arrival to the gate its flight-plan remarks name, reading back the gate itself.
 - The Ground View datablock shows `GATE F14` under the type line when the flight-plan remarks name a gate, until the aircraft parks there.
 
+### Changed
+
+- A pilot's taxi readback to a stand or spot names it first and says "gate" for a gate: "taxi to gate foxtrot one four via alpha, bravo".
+
 ### Fixed
 
 - An aircraft cleared to taxi just after a pushback turns straight onto its route instead of jumping sideways when its route opens with a short ramp line.

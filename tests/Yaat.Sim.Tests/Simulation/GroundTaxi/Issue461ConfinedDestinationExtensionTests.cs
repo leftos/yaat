@@ -293,6 +293,75 @@ public class Issue461ConfinedDestinationExtensionTests(ITestOutputHelper output)
         Assert.True(result.Success, result.Message);
         SfoGroundHarness.DumpRoute(output, Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute));
         Assert.StartsWith("Taxi via T A", result.Message);
+
+        string readback = Assert.IsType<HandlerReadback>(result.PilotReadback).Speech.Tts;
+        output.WriteLine($"readback: {readback}");
+        Assert.StartsWith("taxi to gate echo eight via", readback);
+    }
+
+    /// <summary>
+    /// The route readback cut by a hold short that stops the aircraft before the stand never says the destination
+    /// (7110.65 3-7-2.b: the route and the hold short, nothing past the stop): <c>TAXI A @E8</c> with an explicit
+    /// <c>HS T7B</c> at the alley A leaves for the ramp reads the route and ends at that hold short.
+    /// </summary>
+    [Fact]
+    public void RouteToAGate_StoppedByAHoldShort_LeavesTheDestinationOut()
+    {
+        if (OnTNearE8() is not { } run)
+        {
+            return;
+        }
+
+        CommandResult result = run.Ground.Engine.SendCommand(run.Aircraft.Callsign, "TAXI A @E8 HS T7B");
+        output.WriteLine($"TAXI A @E8 HS T7B: {result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+        SfoGroundHarness.DumpRoute(output, Assert.IsType<TaxiRoute>(run.Aircraft.Ground.AssignedTaxiRoute));
+
+        string readback = Assert.IsType<HandlerReadback>(result.PilotReadback).Speech.Tts;
+        output.WriteLine($"readback: {readback}");
+        Assert.DoesNotContain("to gate", readback);
+        Assert.EndsWith("hold short of taxiway tango seven bravo", readback);
+    }
+
+    /// <summary>
+    /// The route readback with nothing stopping the aircraft first names the spot directly after "taxi"
+    /// (AIM 4-3-18.d.3 "taxi to Page via taxiways …"), then the resolved route.
+    /// </summary>
+    [Fact]
+    public void RouteToASpot_SaysTheSpotFirst()
+    {
+        if (OnTNearE8() is not { } run)
+        {
+            return;
+        }
+
+        CommandResult result = run.Ground.Engine.SendCommand(run.Aircraft.Callsign, "TAXI A $7A");
+        output.WriteLine($"TAXI A $7A: {result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+        SfoGroundHarness.DumpRoute(output, Assert.IsType<TaxiRoute>(run.Aircraft.Ground.AssignedTaxiRoute));
+
+        string readback = Assert.IsType<HandlerReadback>(result.PilotReadback).Speech.Tts;
+        output.WriteLine($"readback: {readback}");
+        Assert.StartsWith("taxi to spot seven alpha via", readback);
+    }
+
+    /// <summary>UAL733's pose: standing on the bit of T it occupies, no reported current taxiway, from which <c>TAXI A</c> resolves.</summary>
+    private (SfoGround Ground, AircraftState Aircraft)? OnTNearE8()
+    {
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.All) is not { } ground)
+        {
+            return null;
+        }
+
+        AircraftState aircraft = SfoGroundHarness.SpawnAt(
+            ground,
+            "UAL733",
+            "A320",
+            (VirtualNode.Create(37.62094280885291, -122.38247885498703), new TrueHeading(208.98)),
+            new HoldingInPositionPhase()
+        );
+        Assert.Null(aircraft.Ground.CurrentTaxiway);
+        return (ground, aircraft);
     }
 
     /// <summary>

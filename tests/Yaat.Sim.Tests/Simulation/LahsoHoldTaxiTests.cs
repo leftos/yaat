@@ -475,7 +475,7 @@ public class LahsoHoldTaxiTests(ITestOutputHelper output)
         command switch
         {
             $"TAXI {TaxiwayPastHold}" => ("taxi via E, hold short of runway 1L", "taxi via echo, hold short of runway one left"),
-            "TAXIAUTO @B2" => ("taxi to parking B2, holding short of runway 1L", "taxi to parking bravo two, holding short of runway one left"),
+            "TAXIAUTO @B2" => ("taxi to gate B2, holding short of runway 1L", "taxi to gate bravo two, holding short of runway one left"),
             _ => throw new ArgumentOutOfRangeException(nameof(command), command, "no stored readback pinned"),
         };
 
