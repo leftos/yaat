@@ -835,6 +835,8 @@ On a chord chain the short legs drive that cap down even though each per-bend an
 
 Curved ramp taxiways (SFO CG/SIG, curved apron sections) **do** arrive as chord chains from the fillet generator, so this feasibility cap is load-bearing for realistic speeds through such sections (a 50 ft-radius / 90° apron curve should taxi at ~9 kt per 0.13 g lateral-accel, not 30 kt full speed). The gate applies across the whole angle range (lowered to a 1° near-collinear epsilon) so even shallow chord-chain bends get capped. Guarded by `GroundNavigatorCornerSpeedTests`.
 
+A gentle bend beside a split node is not a chord chain: the fillet generator keeps a straight-through pair under its 15° collinear threshold as a bare vertex but may still cut a tangent node a few feet beside it, and that stub would set `L`. So for a turn under 15° whose adjacent segments are straight, `CornerLegsNm` extends each leg across the further straight segments whose own node turns 1° or less, stopping at an arc, a node turning more, or the route end; a real chord chain's neighbours turn more than 1°, so it keeps its short legs and its cap. `AdaptiveCornerRadiusFt` still sizes the rounding arc from the raw legs. Guarded by `StandstillAccelerationProfileTests.Taxi_B738_Ksfo_through_C_gentle_bend_never_brakes`.
+
 ### Short-connector transit (steady speed across a lane change)
 
 `DetectShortConnector` (`GroundNavigator.cs`, called from `BuildSpeedConstraints`) recognizes a *short connector*: the current **straight** segment sits in a straight run bracketed on both ends by a turn (a `GroundArc` neighbor, or a `> ConnectorCornerThresholdDeg = 30°` heading change between straights) whose total length is `≤ ShortConnectorMaxLenFt = 250 ft`.

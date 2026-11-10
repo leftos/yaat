@@ -45,9 +45,9 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
 
     /// <summary>
     /// Recording second the deferral is judged at: airborne, still climbing below <see cref="IfrTurnAglFloor"/>.
-    /// Measured liftoff is t=861 and the 400 ft AGL crossing t=894, so this sits mid-way between them.
+    /// Measured: the 400 ft AGL crossing is at t=847; at t=830 N152SP is in its takeoff, 193 ft AGL on heading 292.3°.
     /// </summary>
-    private const int SampleSecond = 877;
+    private const int SampleSecond = 830;
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

@@ -329,12 +329,6 @@ public class FollowGroundAtRunwayBarWaitTests(ITestOutputHelper output) : Follow
         );
         Assert.True(pastAt > 0, $"{Leader} never stood past the merge with its tail not clear of it");
 
-        // One second on, the leader is far enough past the merge that, held from taxi speed, its tail stops with room for the
-        // follower beyond 1R's far marking: the far-side gate (AIM 4-3-18.b) does not take the hold, and the wait for the
-        // follow's lead does.
-        ground.Engine.TickOneSecond();
-        Assert.True(LeaderPastTheMergeTailNotClear(ground, follower, leader), $"{Leader} cleared the merge a second after it passed it");
-
         List<string> said = [];
         void Collect(string callsign, string warning)
         {
@@ -344,9 +338,23 @@ public class FollowGroundAtRunwayBarWaitTests(ITestOutputHelper output) : Follow
             }
         }
 
-        ground.Engine.WarningEmitted += Collect;
-        AssertSent(ground, Follower, "CROSS 1R");
-        AssertSent(ground, Leader, "HOLD");
+        // Once its tail is within HoldTailMarginFt of the merge, the leader is far enough past it that, held from taxi speed, its
+        // tail stops with room for the follower beyond 1R's far marking: the far-side gate (AIM 4-3-18.b) does not take the hold,
+        // and the wait for the follow's lead does. Stepped a sub-tick at a time, since a whole second at taxi speed overshoots it.
+        int marginAt = StepSubTicksUntil(
+            ground.Engine,
+            () => LeaderTailMarginFt(ground, follower, leader) >= -HoldTailMarginFt,
+            DepartureBarBudgetSeconds,
+            () =>
+            {
+                Output.WriteLine($"HOLD with {Leader}'s tail {LeaderTailMarginFt(ground, follower, leader):F1} ft past the merge");
+                Assert.True(LeaderPastTheMergeTailNotClear(ground, follower, leader), $"{Leader} cleared the merge before the HOLD");
+                ground.Engine.WarningEmitted += Collect;
+                AssertSent(ground, Follower, "CROSS 1R");
+                AssertSent(ground, Leader, "HOLD");
+            }
+        );
+        Assert.True(marginAt > 0, $"{Leader}'s tail never came within {HoldTailMarginFt} ft of the merge");
         ground.Engine.TickOneSecond();
         LogFollow(1, follower, leader);
         Assert.True(hold.IsWaitingForLead, "the follower released at 1R is not waiting for its leader's tail to clear the merge");
@@ -366,5 +374,52 @@ public class FollowGroundAtRunwayBarWaitTests(ITestOutputHelper output) : Follow
             [$"Holding short of runway 1R, waiting for {Leader} to pass", $"{Follower} cleared across RWY 1R, holding for the follow traffic"],
             said
         );
+    }
+
+    /// <summary>How far (ft) short of the merge the leader's tail may still be when it is held, in the stopped-tail case.</summary>
+    private const double HoldTailMarginFt = 80.0;
+
+    /// <summary>
+    /// How far (ft) <paramref name="leader"/>'s tail stands past the merge of <paramref name="follower"/>'s follow, negative while
+    /// short of it; negative infinity when the follow plans no merge behind the leader or the leader is off its path from it.
+    /// </summary>
+    private static double LeaderTailMarginFt(SfoGround ground, AircraftState follower, AircraftState leader) =>
+        (FollowRoutePlanner.Plan(ground.Layout, follower, leader, () => []) is FollowRoutePlan.Joinable { MergeAheadOfLead: false } plan)
+        && (FollowRoutePlanner.LocateOnPath(ground.Layout, plan.LeadPathFromMerge, leader) is { } at)
+            ? FollowRoutePlanner.PathOffsetFt(plan.LeadPathFromMerge, at) - (AircraftLength.ResolveFt(leader.AircraftType) / 2.0)
+            : double.NegativeInfinity;
+
+    /// <summary>
+    /// Steps <paramref name="engine"/> a physics sub-tick at a time, whole seconds through the spine's segments, for at most
+    /// <paramref name="budgetSeconds"/>, until <paramref name="condition"/> holds after a sub-tick; then calls <paramref name="onMet"/>
+    /// once there, between that sub-tick and the next, and completes the second. Returns the second it was met in, or -1.
+    /// </summary>
+    private static int StepSubTicksUntil(SimulationEngine engine, Func<bool> condition, int budgetSeconds, Action onMet)
+    {
+        for (int second = 1; second <= budgetSeconds; second++)
+        {
+            engine.BeginSecond();
+            engine.OpenSecond(engine.BareHost);
+            engine.RunPrePhysics(engine.BareHost);
+            bool met = false;
+            for (int sub = 0; sub < SimulationEngine.PhysicsSubTickRate; sub++)
+            {
+                engine.RunPhysicsSubTick(1.0 / SimulationEngine.PhysicsSubTickRate, sub);
+                if (!met && condition())
+                {
+                    met = true;
+                    onMet();
+                }
+            }
+
+            engine.RunPostPhysics(engine.BareHost);
+            engine.RunEndOfSecond(engine.BareHost);
+            if (met)
+            {
+                return second;
+            }
+        }
+
+        return -1;
     }
 }

@@ -604,8 +604,11 @@ public class FollowGroundOnGraphTests(ITestOutputHelper output)
                 int second = end.Second;
                 double before = run.Seconds[second - 1].SpeedKts;
                 double after = run.Seconds[second].SpeedKts;
+
+                // A follower already braking before the replan may keep braking at the rate it had.
+                double previousLossKts = (second >= 2) ? run.Seconds[second - 2].SpeedKts - before : 0.0;
                 Assert.True(
-                    after >= before - subTickDecelKts - 1e-9,
+                    after >= before - Math.Max(subTickDecelKts, previousLossKts) - 0.01,
                     $"t={second}: the follower slowed from {before:F2} to {after:F2} kt across the route end at t={end.Second}"
                 );
             }

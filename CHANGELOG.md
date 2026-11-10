@@ -13,6 +13,7 @@
 - `TAXI TAXI A F 28L` is refused as "TAXI given twice" instead of "Cannot find taxiway TAXI in layout".
 - At SFO, a clearance naming G and L, A and F, C and Z, or S and Z next to each other may route through the short connector between them (GL, AF, CZ, ZS).
 - Two taxiing aircraft whose paths cross judge each other by the route ahead, not the nose; when both would stop, the one with the other on its right holds.
+- Aircraft taxiing along a nearly straight taxiway no longer brake at small bends beside a junction (SFO C, SFO A).
 
 ## v0.18.2-beta [2026/11/09]
 

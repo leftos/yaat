@@ -46,6 +46,9 @@ public class Issue1357CrossRunwayTouchAndGoOccupancyTests(ITestOutputHelper outp
     // N172SP on final, before its rollout picks an exit (it lands 28R at t≈561 and exited at E in the recording).
     private const int N172SpOnFinalTime = 550;
 
+    // The earliest second N172SP's TAXI C B 28R is re-issued, once it is holding after its exit at E.
+    private const int N172SpReTaxiEarliestTime = 598;
+
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
     private SimulationEngine? BuildEngine()
@@ -159,8 +162,18 @@ public class Issue1357CrossRunwayTouchAndGoOccupancyTests(ITestOutputHelper outp
         engine.Replay(recording, N172SpOnFinalTime);
         CommandResult exitE = engine.SendCommand("N172SP", "EXIT E");
         Assert.True(exitE.Success, $"EXIT E refused: {exitE.Message}");
+        bool reTaxied = false;
         for (int t = N172SpOnFinalTime; t <= N172SpTakeoffClearanceTime; t++)
         {
+            // The recorded TAXI C B 28R now lands while N172SP is still rolling out, so it is re-issued once it holds after the exit.
+            if (!reTaxied && (t >= N172SpReTaxiEarliestTime) && (engine.FindAircraft("N172SP")?.Phases?.CurrentPhase is HoldingAfterExitPhase))
+            {
+                CommandResult taxi = engine.SendCommand("N172SP", "TAXI C B 28R");
+                Assert.True(taxi.Success, $"t={t}: TAXI C B 28R refused: {taxi.Message}");
+                output.WriteLine($"t={t}: N172SP re-issued TAXI C B 28R");
+                reTaxied = true;
+            }
+
             engine.ReplayOneSecond();
         }
 

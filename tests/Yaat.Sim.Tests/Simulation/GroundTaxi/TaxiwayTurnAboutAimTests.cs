@@ -1318,6 +1318,10 @@ public class TaxiwayTurnAboutAimTests(ITestOutputHelper output)
         var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         engine.Replay(recording, TaxiCommandSecond - 1);
         AircraftState aircraft = engine.FindAircraft(N152sp) ?? throw new InvalidOperationException("N152SP is not in the replay");
+
+        // The recording's taxi was issued from here, 4.0 ft short of node 366; the replay now arrives faster, its stub cap gone.
+        aircraft.Position = new LatLon(37.72923805852486, -122.21368729789909);
+        aircraft.TrueHeading = new TrueHeading(132.42087186571268);
         if (aircraftType is not null)
         {
             aircraft.AircraftType = aircraftType;

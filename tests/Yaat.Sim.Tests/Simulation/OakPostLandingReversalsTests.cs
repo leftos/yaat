@@ -302,11 +302,6 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
                 $"N436MS at t=614: phase={ac.Phases?.CurrentPhase?.Name} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) gs={ac.GroundSpeed:F1}"
             );
 
-            // N9225L's recorded TAXI D @NEW1 holds it short of C on E, the exit N436MS takes; the controller clears it on
-            // with the taxiway it was missing so N436MS is not stuck behind it.
-            CommandResult release = engine.SendCommand("N9225L", "TAXI C D @NEW1");
-            Assert.True(release.Success, $"N9225L TAXI C D @NEW1 failed: {release.Message}");
-
             CommandResult taxi = engine.SendCommand("N436MS", "TAXI C @JSX1");
             Assert.True(taxi.Success, $"TAXI C @JSX1 failed after replay: {taxi.Message}");
 

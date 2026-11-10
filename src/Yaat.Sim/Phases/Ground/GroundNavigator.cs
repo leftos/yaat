@@ -5134,7 +5134,8 @@ public sealed class GroundNavigator
             int nextIdx = route.CurrentSegmentIndex + 1;
             TaxiRouteSegment nextSeg = route.Segments[nextIdx];
             double turnAngle = SingleCornerTurnAngle(route, route.CurrentSegmentIndex);
-            _currentNodeRequiredSpeed = CornerSpeed(ctx.Category, turnAngle, seg.Edge.DistanceNm, nextSeg.Edge.DistanceNm);
+            (double intoNm, double outNm) = CornerLegsNm(route, route.CurrentSegmentIndex, turnAngle);
+            _currentNodeRequiredSpeed = CornerSpeed(ctx.Category, turnAngle, intoNm, outNm);
             _nextSegmentBearing = nextSeg.Edge.DepartureBearing;
             _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
             _nextSegmentIsShort = nextSeg.Edge.DistanceNm < NodeArrivalThresholdNm;
@@ -5254,7 +5255,8 @@ public sealed class GroundNavigator
             if (nextNextIdx < route.Segments.Count)
             {
                 double futureTurnAngle = SingleCornerTurnAngle(route, i);
-                reqSpeed = CornerSpeed(ctx.Category, futureTurnAngle, futureSeg.Edge.DistanceNm, route.Segments[nextNextIdx].Edge.DistanceNm);
+                (double intoNm, double outNm) = CornerLegsNm(route, i, futureTurnAngle);
+                reqSpeed = CornerSpeed(ctx.Category, futureTurnAngle, intoNm, outNm);
             }
             else
             {
@@ -5380,6 +5382,61 @@ public sealed class GroundNavigator
         TaxiRouteSegment thisSeg = route.Segments[turnNodeSegIdx];
         TaxiRouteSegment nextSeg = route.Segments[nextIdx];
         return GeoMath.AbsBearingDifference(thisSeg.Edge.ArrivalBearing, nextSeg.Edge.DepartureBearing);
+    }
+
+    /// <summary>
+    /// The legs a gentle bend's turn-rate cap is sized from: the straight run either side of the bend, so a
+    /// split node (a fillet tangent cut) a few feet off the bend does not read as the bend's whole room. A bend
+    /// at or above the fillet collinearity threshold, or one whose adjacent segment is an arc, keeps its raw legs.
+    /// </summary>
+    private static (double IntoNm, double OutNm) CornerLegsNm(TaxiRoute route, int turnNodeSegIdx, double turnAngleDeg)
+    {
+        int nextIdx = turnNodeSegIdx + 1;
+        double intoNm = route.Segments[turnNodeSegIdx].Edge.DistanceNm;
+        if (nextIdx >= route.Segments.Count)
+        {
+            return (intoNm, 0);
+        }
+
+        double outNm = route.Segments[nextIdx].Edge.DistanceNm;
+        if (turnAngleDeg >= FilletConstants.CollinearThresholdDeg)
+        {
+            return (intoNm, outNm);
+        }
+
+        if ((route.Segments[turnNodeSegIdx].Edge.Edge is GroundArc) || (route.Segments[nextIdx].Edge.Edge is GroundArc))
+        {
+            return (intoNm, outNm);
+        }
+
+        return (intoNm + CollinearRunNm(route, turnNodeSegIdx - 1, -1), outNm + CollinearRunNm(route, nextIdx + 1, 1));
+    }
+
+    /// <summary>
+    /// Straight run (nm) from segment <paramref name="startIdx"/>, walking by <paramref name="step"/> (+1 forward
+    /// along the route, −1 backward): it sums each straight segment until the node it crosses turns more than
+    /// <see cref="NearCollinearAngleDeg"/>, the segment is an arc, or the route ends.
+    /// </summary>
+    private static double CollinearRunNm(TaxiRoute route, int startIdx, int step)
+    {
+        double nm = 0;
+        for (int j = startIdx; (j >= 0) && (j < route.Segments.Count); j += step)
+        {
+            int nodeIdx = step < 0 ? j : j - 1;
+            if (route.Segments[j].Edge.Edge is GroundArc)
+            {
+                break;
+            }
+
+            if (SingleCornerTurnAngle(route, nodeIdx) > NearCollinearAngleDeg)
+            {
+                break;
+            }
+
+            nm += route.Segments[j].Edge.DistanceNm;
+        }
+
+        return nm;
     }
 
     private void UpdateDiag(PhaseContext ctx, double distNm, double bearingDeg, double targetSpeed, bool onArc)

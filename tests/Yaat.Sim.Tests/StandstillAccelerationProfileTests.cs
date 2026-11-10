@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
@@ -326,8 +327,8 @@ public sealed class StandstillAccelerationProfileTests
         Assert.True(firstMoving is 1 or 2, $"expected motion on the first or second tick after dispatch; got t={firstMoving}");
 
         // Physics is the only integrator: 1.0 kt/s (0.51 m/s²) from the standstill, so the first five
-        // seconds of motion are 1, 2, 3, 4, 5 kt. The taxiway C kink caps measured on this route only
-        // bite above 12 kt, so nothing intervenes this early.
+        // seconds of motion are 1, 2, 3, 4, 5 kt. The route from node 571 has no bend over 1°, so no
+        // corner constraint intervenes.
         for (int i = 0; i <= 4; i++)
         {
             double expected = i + 1;
@@ -348,6 +349,58 @@ public sealed class StandstillAccelerationProfileTests
 
         _output.WriteLine($"maximum IAS within {seconds}s: {maxIas:F2} kt at t={maxAt}s");
         Assert.Equal(30.0, maxIas, 0.01);
+    }
+
+    /// <summary>
+    /// A B738 given <c>TAXI C 10L</c> from a standstill on SFO taxiway C west of node 571, where C's centerline bends 6.8°
+    /// 38 ft short of the C3 fillet's tangent cut, then runs straight on. A gentle bend on a straight taxiway is no corner:
+    /// the roll climbs at 1.0 kt/s to the 30 kt straight-taxi target and never brakes.
+    /// </summary>
+    [Fact]
+    public void Taxi_B738_Ksfo_through_C_gentle_bend_never_brakes()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            _output.WriteLine("SKIP: navdata or SFO layout not available");
+            return;
+        }
+
+        // The C/CZ fillet's tangent cut on taxiway C, ~427 ft west of node 571 at ~111.5° true: the roll reaches the bend at ~22 kt.
+        const double spawnLat = 37.630463;
+        const double spawnLon = -122.394173;
+        int spawnHdgMag = (int)Math.Round(MagneticDeclination.TrueToMagnetic(111.5, spawnLat, spawnLon, MagneticDeclination.EvaluationDateUtc));
+        engine.LoadScenario(BuildScenarioJson(spawnLat, spawnLon, spawnHdgMag), rngSeed: 42, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+
+        const int seconds = 60;
+        double[] ias = new double[seconds + 1];
+        for (int t = 1; t <= seconds; t++)
+        {
+            engine.TickOneSecond();
+            AircraftState? ac = engine.FindAircraft("TEST1");
+            Assert.NotNull(ac);
+            ias[t] = ac.IndicatedAirspeed;
+            if (t == 1)
+            {
+                // The route must cross the bend, or the test proves nothing: node 571 sits at the sibling test's spawn point.
+                TaxiRoute? route = ac.ActiveOrStoredTaxiRoute;
+                Assert.NotNull(route);
+                var bend = new LatLon(37.630031, -122.392799);
+                Assert.Contains(route.Segments, s => GeoMath.DistanceNm(s.Edge.ToNode.Position, bend) * GeoMath.FeetPerNm < 5.0);
+            }
+
+            _output.WriteLine($"{t} | {ias[t]:F2}");
+        }
+
+        for (int t = 2; t <= seconds; t++)
+        {
+            Assert.True(
+                ias[t] >= ias[t - 1] - 0.01,
+                $"the roll braked on straight taxiway C: {ias[t - 1]:F2} kt at t={t - 1}s fell to {ias[t]:F2} kt at t={t}s"
+            );
+        }
+
+        Assert.Equal(30.0, ias.Max(), 0.01);
     }
 
     // -------------------------------------------------------------------------
