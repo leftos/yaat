@@ -5,6 +5,7 @@
 ### Fixed
 
 - An aircraft taxiing to a ramp spot along a final leg that curves stops with its nose at the spot marking, not short of it.
+- `TAXI TAXI A F 28L` is refused as "TAXI given twice" instead of "Cannot find taxiway TAXI in layout".
 
 ## v0.18.2-beta [2026/11/09]
 

@@ -542,8 +542,24 @@ internal static class GroundCommandParser
             return PR.Fail("TAXI requires a path");
         }
 
-        return ParseTaxiTokens(arg.Split(' ', StringSplitOptions.RemoveEmptyEntries), detectTrailingRunway: true);
+        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (RepeatedTaxiFailure(tokens) is { } repeatedTaxi)
+        {
+            return repeatedTaxi;
+        }
+
+        return ParseTaxiTokens(tokens, detectTrailingRunway: true);
     }
+
+    private const string RepeatedTaxiMessage = "TAXI given twice: send the route once, after a single TAXI";
+
+    /// <summary>
+    /// A leading TAXI inside a taxi route would be read as a taxiway name and fail later as
+    /// "Cannot find taxiway TAXI in layout."; refuse it with the message instead. Only the leading
+    /// token is checked, since KA and other real taxiways look like command words.
+    /// </summary>
+    private static PR? RepeatedTaxiFailure(string[] tokens) =>
+        (tokens.Length > 0) && tokens[0].Equals("TAXI", StringComparison.OrdinalIgnoreCase) ? PR.Fail(RepeatedTaxiMessage) : null;
 
     /// <summary>
     /// Parses RWY {runway} [TAXI] path [HS runway...].
@@ -576,6 +592,11 @@ internal static class GroundCommandParser
         {
             // Standalone RWY {runway} — assign runway without taxi
             return PR.Ok(new AssignRunwayCommand(destRunway));
+        }
+
+        if (RepeatedTaxiFailure(remaining) is { } repeatedTaxi)
+        {
+            return repeatedTaxi;
         }
 
         PR result = ParseTaxiTokens(remaining, detectTrailingRunway: false);
