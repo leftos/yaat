@@ -754,6 +754,21 @@ public sealed class TaxiingPhase : Phase
             : null;
 
     /// <summary>
+    /// How far (ft) <paramref name="position"/> has to go along <paramref name="route"/> to its end node, the segment in progress
+    /// measured along its arc when it is one and straight to its end node otherwise, then each later segment by its length.
+    /// </summary>
+    private static double AlongRouteDistanceToEndFt(TaxiRoute route, LatLon position)
+    {
+        int current = Math.Max(0, route.CurrentSegmentIndex);
+        DirectionalEdge inProgress = route.Segments[current].Edge;
+        double inProgressFt =
+            (inProgress.Edge is GroundArc arc)
+                ? arc.Locate(inProgress.ToNode, position).AlongFt
+                : GeoMath.DistanceNm(position, inProgress.ToNode.Position) * GeoMath.FeetPerNm;
+        return inProgressFt + route.PrefixDistanceFt(route.Segments.Count) - route.PrefixDistanceFt(current + 1);
+    }
+
+    /// <summary>
     /// Ground speed (kts) at or below which this phase counts an aircraft as stopped. A stopped aircraft cannot overrun a
     /// bar, so it never reads one back as unmakeable.
     /// </summary>
@@ -2912,22 +2927,22 @@ public sealed class TaxiingPhase : Phase
         }
 
         double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
-        double halfLenNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
-        double distToSpotNm = GeoMath.DistanceNm(ctx.Aircraft.Position, spotNode.Position);
+        double alongToSpotFt = AlongRouteDistanceToEndFt(route, ctx.Aircraft.Position);
 
         bool flyingOpeningAlignment = (route.CurrentSegmentIndex == 0) && _nav.IsEntryAligning;
-        if ((distToSpotNm <= halfLenNm) && !flyingOpeningAlignment)
+        if ((alongToSpotFt <= lengthFt / 2.0) && !flyingOpeningAlignment)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
             route.CurrentSegmentIndex = route.Segments.Count;
             TaxiRouteSegment lastLeg = route.Segments[^1];
             Log.LogDebug(
-                "[Taxi] {Callsign}: nose-at-spot stop at {Spot} — centroid {Dist:F0}ft from spot node (half-length {Half:F0}ft), "
-                    + "hdg {Hdg:F0} against last leg {Leg} bearing {LegBrg:F0}",
+                "[Taxi] {Callsign}: nose-at-spot stop at {Spot} — centroid {Along:F0}ft along the route from spot node "
+                    + "({Dist:F0}ft straight, half-length {Half:F0}ft), hdg {Hdg:F0} against last leg {Leg} bearing {LegBrg:F0}",
                 ctx.Aircraft.Callsign,
                 route.DestinationSpot,
-                distToSpotNm * GeoMath.FeetPerNm,
+                alongToSpotFt,
+                GeoMath.DistanceNm(ctx.Aircraft.Position, spotNode.Position) * GeoMath.FeetPerNm,
                 lengthFt / 2.0,
                 ctx.Aircraft.TrueHeading.Degrees,
                 lastLeg.TaxiwayName,
@@ -2937,7 +2952,7 @@ public sealed class TaxiingPhase : Phase
         }
 
         // Within one fuselage of the spot: slow to a parking crawl so the stop above lands cleanly.
-        if (distToSpotNm <= 2.0 * halfLenNm)
+        if (alongToSpotFt <= lengthFt)
         {
             _nav.MaxSpeedKts = Math.Min(_nav.MaxSpeedKts, SpotApproachSpeedKts);
         }
