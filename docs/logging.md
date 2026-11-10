@@ -239,6 +239,7 @@ Other rules for freeze/crash triage:
   is still null it returns a `NullLogger` *permanently*. A `static readonly ILogger Log = AppLog.CreateLogger<T>()` field captured before
   `AppLog.Initialize` runs would log to nothing forever. This is safe in `Yaat.Client` only because those types (Avalonia windows, services) are not
   class-loaded until after `Program.cs` has run `AppLog.Initialize`. Unlike `SimLog`, there is no `DeferredLogger` safety net here.
+- **The `[TryTaxi] … route resolved` server log line never lists route warnings.** A TAXI's warnings (`Taxiing M1 against one-way direction`, `M1 not in clearance`, an occupied stand) reach the RPO on the result line or the amber warning line (`GroundCommandHandler.RouteWarningsFor`), so a bundle's silence about them in that log line is not evidence the route carried none.
 - **Only the last three sessions are retained** (`yaat-client.log.1` … `.3`). A user who relaunches four times after a failure has
   overwritten the interesting log; ask for it early. Note the rotation is per *launch*, not per day or per size.
 - **AsyncLocal resolution depends on `ExecutionContext` flow.** Code that breaks the context (a raw `new Thread`, certain `Task.Run` continuations on

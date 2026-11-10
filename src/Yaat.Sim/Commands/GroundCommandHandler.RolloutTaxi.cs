@@ -530,7 +530,7 @@ public static partial class GroundCommandHandler
         );
         string taxiMessage = WithResponseNotes(
             BuildTaxiReadback(route, inputs.Layout, stored.Taxi, readbackInputs),
-            ResponseWarnings(route, inputs.Layout, inputs.Traffic),
+            RouteWarningsFor(aircraft, route, inputs.Layout, inputs.Traffic, inputs.Options.ResultReachesController),
             crossLabel,
             null
         );
@@ -632,7 +632,7 @@ public static partial class GroundCommandHandler
         string taxiText = BuildTaxiReadback(route, inputs.Layout, request.Taxi, readbackInputs);
         string message = WithResponseNotes(
             $"{taxiText} stored; holding short of runway {display} until cleared to cross",
-            ResponseWarnings(route, inputs.Layout, inputs.Traffic),
+            RouteWarningsFor(aircraft, route, inputs.Layout, inputs.Traffic, inputs.Options.ResultReachesController),
             null,
             null
         );

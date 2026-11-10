@@ -161,7 +161,7 @@ The `oneWayEdges` section of the sidecar declares taxiway spans that may only be
 
 `SearchContext.WakeClass` carries the class into every search, and `TaxiPathfinder`'s public methods all take it. A search with no aircraft behind it (the runway-exit walk, LayoutInspector, client route fallbacks) uses `OneWayResolver.AircraftlessWakeClass`, `Large`: a supers-only closure does not bind it, and a constraint binding everyone, or everyone but supers, does.
 
-SFO's Terminal 1 south ramp is the worked case: M1's ramp portion is one-way inbound (NW) with supers exempt, M2 is one-way outbound (SE), and a second M2 entry with `block: both` exempting Small, Large and Heavy keeps supers off M2 entirely, so a super uses M1 both ways.
+SFO's Terminal 1 south ramp is the worked case: M1's ramp portion is one-way inbound (NW) with supers exempt, M2 is one-way outbound (SE), and a second M2 entry with `block: both` exempting Small, Large and Heavy keeps supers off M2 entirely, so a super uses M1 both ways. M4 joins M1 at the NW end of the inbound span, so any route from M4 SE along M1 (to spot 1, or toward M3, A or B) runs against the lane and warns `Taxiing M1 against one-way direction`.
 
 `OneWayResolver.GetOneWayLaneTaxiways(layout)` names every taxiway carried by any constraint span, whatever its direction or exemptions; these are the airport's **one-way lanes**, the only uncleared taxiways the resolver may imply (see *The destination extension is confined* below, step 2's start leg, and the ramp-confined route).
 

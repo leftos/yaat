@@ -512,7 +512,6 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        TaxiRoute? routeBeforeTimed = aircraft.Ground.AssignedTaxiRoute;
         CommandResult timedOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, BuildTimedPresetContext(aircraft));
         // A scripted clearance still answers whatever the pilot last asked for, so the pending
         // request closes and stops following up. Scripted commands emit no read-back and are not
@@ -520,7 +519,7 @@ public sealed partial class SimulationEngine
         PilotRequestTracker.ApplyControllerResponse(aircraft, compound, Scenario!.ElapsedSeconds);
 
         EmitTerminal("System", preset.Callsign, $"[Preset] {preset.Command}");
-        ReportPresetOutcome(aircraft, preset.Command, timedOutcome, routeBeforeTimed);
+        ReportPresetOutcome(aircraft, preset.Command, timedOutcome);
     }
 
     private DispatchContext BuildTimedPresetContext(AircraftState aircraft)
@@ -672,41 +671,28 @@ public sealed partial class SimulationEngine
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
-        TaxiRoute? routeBefore = aircraft.Ground.AssignedTaxiRoute;
         CommandResult presetOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
         EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
-        ReportPresetOutcome(aircraft, command, presetOutcome, routeBefore);
+        ReportPresetOutcome(aircraft, command, presetOutcome);
     }
 
     /// <summary>
     /// Tells the instructor what a scripted preset actually did. A preset that fails when it fires — a TAXI
     /// whose route cannot be resolved from the gate, a DVIA with no STAR — used to leave only a server-log
     /// line behind the optimistic "[Preset] …" echo, so the instructor saw an aircraft that never moved and
-    /// no reason (issue #396). A TAXI that succeeded with route advisories (a dropped unreachable lead-out
-    /// lane, an unhonored turn hint) echoes each advisory as its own warning line — the response message a
-    /// controller-issued TAXI carries them in is never shown for a scripted one. Only a route this dispatch
-    /// installed is echoed (<paramref name="routeBefore"/> is the route object from before the dispatch): a
-    /// deferred "WAIT 5 TAXI …" returns success immediately with the old route still assigned.
+    /// no reason (issue #396). A TAXI's route advisories are not echoed here: a preset's result reaches no
+    /// controller, so its handler puts them on the amber line (<see cref="AircraftState.PendingWarnings"/>).
     /// </summary>
-    private void ReportPresetOutcome(AircraftState aircraft, string command, CommandResult outcome, TaxiRoute? routeBefore)
+    private void ReportPresetOutcome(AircraftState aircraft, string command, CommandResult outcome)
     {
-        if (!outcome.Success)
-        {
-            _logger.LogWarning("[Preset] {Callsign}: \"{Command}\" could not apply — {Message}", aircraft.Callsign, command, outcome.Message);
-            EmitTerminal("Warning", aircraft.Callsign, $"[Preset] could not apply: {outcome.Message}");
-            return;
-        }
-
-        if (aircraft.Ground.AssignedTaxiRoute is not { Warnings.Count: > 0 } route || ReferenceEquals(route, routeBefore))
+        if (outcome.Success)
         {
             return;
         }
 
-        foreach (string warning in route.Warnings)
-        {
-            EmitTerminal("Warning", aircraft.Callsign, $"[Preset] {warning}");
-        }
+        _logger.LogWarning("[Preset] {Callsign}: \"{Command}\" could not apply — {Message}", aircraft.Callsign, command, outcome.Message);
+        EmitTerminal("Warning", aircraft.Callsign, $"[Preset] could not apply: {outcome.Message}");
     }
 
     public void DispatchPresetCommands(LoadedAircraft loaded)

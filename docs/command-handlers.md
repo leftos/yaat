@@ -349,7 +349,7 @@ evaluation owns this" — so a missing handler arm behind `AT`/`LV` is never cau
 
 The closure takes `(AircraftState, bool firedFromQueue)`: the dispatcher's `ApplyBlock` passes false, `FlightPhysics.ApplyBlock` true, and the bool reaches `TryApplyTowerCommand`.
 
-`ResultReachesController(ctx, firedFromQueue)` is false for a scripted command, a deferred payload firing (`PreserveConditionals`: `WAIT`, `BEHIND`, the pilot's reaction delay) and a queued block firing; the `TAXI`/`TAXIAUTO` handler (`TaxiDispatch.ResultReachesController`) then sends the push turn-about warning through `PendingWarnings` instead of the result line.
+`ResultReachesController(ctx, firedFromQueue)` is false for a scripted command, a deferred payload firing (`PreserveConditionals`: `WAIT`, `BEHIND`, the pilot's reaction delay) and a queued block firing; the `TAXI`/`TAXIAUTO` handler (`TaxiDispatch.ResultReachesController`) then sends the push turn-about warning and the route's own warnings (`GroundCommandHandler.RouteWarningsFor`: one-way, not-in-clearance, occupied stand) through `PendingWarnings` instead of the result line. A scenario preset's success therefore echoes no `[Preset] <warning>` line; `ReportPresetOutcome` reports only a failure.
 
 **Track commands are excluded from the closure.** `TrackEngine.IsTrackCommand` verbs (`HO`/`TRACK`/`DROP`/`ACCEPT`/…)
 have no arm in `ApplyCommand`, so a triggered `AT FIX HO 2B` would hit the no-dispatcher-arm fallback. `CreateBlock`

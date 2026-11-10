@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -537,6 +538,119 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
         Assert.Contains(route.Segments, s => s.ToNodeId == spot1.Id);
         Assert.True(DrivesStraight(route, "M1"), "the cleared M1 must be driven");
         Assert.Contains("Taxiing M1 against one-way direction", route.Warnings);
+    }
+
+    /// <summary>The one-way warning the M1 leg to spot 1 earns.</summary>
+    private const string M1AgainstOneWay = "Taxiing M1 against one-way direction";
+
+    /// <summary>
+    /// YAAT-1988: JAL57 (B789) at A2 runs PUSH M4, then WAIT 30 TAXI M4 M1 $1. Spot 1 lies SE of the M4/M1 junction, so the
+    /// route runs against M1's inbound lane; the deferred scripted TAXI answers no one, so the warning must reach the RPO on its own line.
+    /// </summary>
+    [Fact]
+    public void PresetPushM4ThenWaitTaxiM4M1Spot1_B789FromA2_RunsAgainstM1_AndWarnsTheRpo()
+    {
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "JAL57", "B789", "A2");
+        List<string> rpoWarnings = CollectRpoWarnings(ground, aircraft.Callsign);
+        ground.Engine.DispatchPresetCommands(
+            new LoadedAircraft
+            {
+                State = aircraft,
+                PresetCommands = [new PresetCommand { Command = "PUSH M4" }, new PresetCommand { Command = "WAIT 30 TAXI M4 M1 $1" }],
+            }
+        );
+        int taxiAt = SfoGroundHarness.TickUntil(ground.Engine, () => aircraft.Phases?.CurrentPhase is TaxiingPhase, 600, null);
+        Assert.True(taxiAt > 0, "the preset TAXI never fired");
+        SfoGroundHarness.TickUntil(ground.Engine, () => false, 2, null);
+
+        AssertAgainstM1ToSpot1AndWarned(ground, aircraft, rpoWarnings);
+    }
+
+    /// <summary>The same TAXI as an immediate preset after a live push already warns the RPO once; pins that the fix does not double it.</summary>
+    [Fact]
+    public void PushM4Live_ThenImmediatePresetTaxiM4M1Spot1_B789FromA2_WarnsTheRpoOnce()
+    {
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "JAL57", "B789", "A2");
+        Assert.True(ground.Engine.SendCommand(aircraft.Callsign, "PUSH M4").Success);
+        SfoGroundHarness.TickUntil(ground.Engine, () => aircraft.Phases?.CurrentPhase is HoldingAfterPushbackPhase, 600, null);
+        List<string> rpoWarnings = CollectRpoWarnings(ground, aircraft.Callsign);
+        ground.Engine.DispatchPresetCommands(
+            new LoadedAircraft { State = aircraft, PresetCommands = [new PresetCommand { Command = "TAXI M4 M1 $1" }] }
+        );
+        SfoGroundHarness.TickUntil(ground.Engine, () => false, 2, null);
+
+        AssertAgainstM1ToSpot1AndWarned(ground, aircraft, rpoWarnings);
+    }
+
+    /// <summary>
+    /// A human TAXI answers the controller on its result line, so the same one-way warning stays there and no amber line repeats it.
+    /// </summary>
+    [Fact]
+    public void HumanPushM4ThenTaxiM4M1Spot1_B789FromA2_KeepsTheWarningOnTheResultLineOnly()
+    {
+        if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "JAL57", "B789", "A2");
+        Assert.True(ground.Engine.SendCommand(aircraft.Callsign, "PUSH M4").Success);
+        SfoGroundHarness.TickUntil(ground.Engine, () => aircraft.Phases?.CurrentPhase is HoldingAfterPushbackPhase, 600, null);
+        List<string> rpoWarnings = CollectRpoWarnings(ground, aircraft.Callsign);
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, "TAXI M4 M1 $1");
+        Assert.True(result.Success, result.Message);
+        SfoGroundHarness.TickUntil(ground.Engine, () => false, 2, null);
+
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        GroundNode spot1 = Assert.IsType<GroundNode>(ground.Layout.FindSpotNodeByName("1"));
+        Assert.Contains(route.Segments, s => s.ToNodeId == spot1.Id);
+        Assert.True(DrivesAgainstOneWay(ground.Layout, route, WakeTurbulenceData.WakeClass.Heavy), "M1 to spot 1 runs against the inbound lane");
+        Assert.Contains(M1AgainstOneWay, route.Warnings);
+        Assert.Contains(M1AgainstOneWay, result.Message);
+        output.WriteLine($"RPO warnings: {string.Join(" | ", rpoWarnings)}");
+        Assert.DoesNotContain(rpoWarnings, w => w.Contains(M1AgainstOneWay, StringComparison.Ordinal));
+    }
+
+    /// <summary>Asserts the route reaches spot 1 against M1's inbound lane, warns on it, and the RPO saw that warning exactly once.</summary>
+    private static void AssertAgainstM1ToSpot1AndWarned(SfoGround ground, AircraftState aircraft, List<string> rpoWarnings)
+    {
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        GroundNode spot1 = Assert.IsType<GroundNode>(ground.Layout.FindSpotNodeByName("1"));
+        Assert.Contains(route.Segments, s => s.ToNodeId == spot1.Id);
+        Assert.True(DrivesAgainstOneWay(ground.Layout, route, WakeTurbulenceData.WakeClass.Heavy), "M1 to spot 1 runs against the inbound lane");
+        Assert.Contains(M1AgainstOneWay, route.Warnings);
+        Assert.Single(rpoWarnings, w => w.Contains(M1AgainstOneWay, StringComparison.Ordinal));
+    }
+
+    /// <summary>Every warning line the RPO sees for <paramref name="callsign"/>: terminal Warning entries and amber PendingWarnings.</summary>
+    private static List<string> CollectRpoWarnings(SfoGround ground, string callsign)
+    {
+        List<string> warnings = [];
+        ground.Engine.TerminalEntryEmitted += e =>
+        {
+            if ((e.Kind == "Warning") && (e.Callsign == callsign))
+            {
+                warnings.Add(e.Message);
+            }
+        };
+        ground.Engine.WarningEmitted += (cs, warning) =>
+        {
+            if (cs == callsign)
+            {
+                warnings.Add(warning);
+            }
+        };
+        return warnings;
     }
 
     /// <summary>

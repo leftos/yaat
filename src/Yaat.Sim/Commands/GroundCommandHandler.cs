@@ -632,7 +632,12 @@ public static partial class GroundCommandHandler
             );
         }
 
-        msg = WithResponseNotes(msg, ResponseWarnings(route, groundLayout, traffic), implicitCrossLabel, pushBackNote);
+        msg = WithResponseNotes(
+            msg,
+            RouteWarningsFor(aircraft, route, groundLayout, traffic, options.ResultReachesController),
+            implicitCrossLabel,
+            pushBackNote
+        );
         if (pushTurnAboutNote is not null)
         {
             msg += $" ({pushTurnAboutNote})";
@@ -5186,6 +5191,36 @@ public static partial class GroundCommandHandler
         }
 
         return [.. route.Warnings, $"stand {standName} occupied by {occupant}"];
+    }
+
+    /// <summary>
+    /// The warnings a TAXI / TAXIAUTO response carries (<see cref="ResponseWarnings"/>): on the response line when the result
+    /// reaches the controller who issued it, else on the aircraft's amber line (<see cref="AircraftState.PendingWarnings"/>),
+    /// which the client prefixes with the callsign. A scripted, deferred or queued TAXI answers no one, so its warnings would
+    /// otherwise be lost.
+    /// </summary>
+    /// <param name="aircraft">The aircraft cleared to taxi.</param>
+    /// <param name="route">The route it is cleared on.</param>
+    /// <param name="layout">The airport it is on.</param>
+    /// <param name="traffic">The aircraft and the other aircraft on the ground.</param>
+    /// <param name="resultReachesController">The response line reaches the controller who issued the TAXI.</param>
+    /// <returns>The warnings to append to the response line: all of them, or none when they went to the amber line.</returns>
+    private static IReadOnlyList<string> RouteWarningsFor(
+        AircraftState aircraft,
+        TaxiRoute route,
+        AirportGroundLayout layout,
+        TaxiStartTraffic traffic,
+        bool resultReachesController
+    )
+    {
+        IReadOnlyList<string> warnings = ResponseWarnings(route, layout, traffic);
+        if (resultReachesController)
+        {
+            return warnings;
+        }
+
+        aircraft.PendingWarnings.AddRange(warnings);
+        return [];
     }
 
     /// <summary>
