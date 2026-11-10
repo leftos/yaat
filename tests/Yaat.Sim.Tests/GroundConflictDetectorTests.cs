@@ -6023,6 +6023,95 @@ public class GroundConflictDetectorTests
     }
 
     /// <summary>
+    /// Two routed movers whose noses disagree with their routes, each closing on the other along its route with off-nose angles
+    /// within 30° of each other and neither following: the off-nose rule does not decide, so the holder is the one with the other
+    /// on its right judged on the route directions (<c>AAA1</c>) — the nose-based reading would hold <c>ZZZ1</c>.
+    /// </summary>
+    [Fact]
+    public void MutualStop_NosesDisagreeWithRoutes_RightHandRuleOnTheRoutesHolds()
+    {
+        var aPos = new LatLon(BaseLat, BaseLon);
+        LatLon bPos = GeoMath.ProjectPoint(aPos, new TrueHeading(45.0), 90.0 / FtPerNm);
+
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+        GroundNode aFrom = new()
+        {
+            Id = 0,
+            Position = aPos,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        GroundNode aTo = new()
+        {
+            Id = 1,
+            Position = GeoMath.ProjectPoint(aPos, new TrueHeading(65.0), 400.0 / FtPerNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        GroundNode bFrom = new()
+        {
+            Id = 2,
+            Position = bPos,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        GroundNode bTo = new()
+        {
+            Id = 3,
+            Position = GeoMath.ProjectPoint(bPos, new TrueHeading(205.0), 400.0 / FtPerNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var edgeA = new GroundEdge
+        {
+            Nodes = [aFrom, aTo],
+            TaxiwayName = "A",
+            DistanceNm = 400.0 / FtPerNm,
+        };
+        var edgeB = new GroundEdge
+        {
+            Nodes = [bFrom, bTo],
+            TaxiwayName = "B",
+            DistanceNm = 400.0 / FtPerNm,
+        };
+        aFrom.Edges.Add(edgeA);
+        aTo.Edges.Add(edgeA);
+        bFrom.Edges.Add(edgeB);
+        bTo.Edges.Add(edgeB);
+        layout.Nodes[0] = aFrom;
+        layout.Nodes[1] = aTo;
+        layout.Nodes[2] = bFrom;
+        layout.Nodes[3] = bTo;
+        layout.Edges.AddRange([edgeA, edgeB]);
+        layout.RebuildAdjacencyLists();
+
+        AircraftState a = MakeAircraft(
+            "ZZZ1",
+            aPos,
+            heading: 5.0,
+            gs: 8.0,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", edgeA)),
+            phase: new TaxiingPhase()
+        );
+        AircraftState b = MakeAircraft(
+            "AAA1",
+            bPos,
+            heading: 265.0,
+            gs: 8.0,
+            taxiRoute: MakeRoute(MakeSeg(2, 3, "B", edgeB)),
+            phase: new TaxiingPhase()
+        );
+
+        Assert.Equal(65.0, GroundConflictDetector.ClosingDirectionDeg(a) ?? double.NaN, 1.0);
+        Assert.Equal(205.0, GroundConflictDetector.ClosingDirectionDeg(b) ?? double.NaN, 1.0);
+
+        var log = new List<string>();
+        GroundConflictDetector.ApplySpeedLimits([a, b], layout, 0, log.Add);
+        log.ForEach(_output.WriteLine);
+
+        Assert.Same(a, GroundConflictDetector.ChooseMutualStopHolder(a, a.TrueHeading.Degrees, b, b.TrueHeading.Degrees));
+        Assert.Contains(log, line => line.Contains("mutual stop: AAA1 holds", StringComparison.Ordinal));
+        Assert.Equal(0.0, b.Ground.SpeedLimit);
+        Assert.True((a.Ground.SpeedLimit is null) || (a.Ground.SpeedLimit > 0), $"ZZZ1 must proceed, got limit={a.Ground.SpeedLimit}");
+    }
+
+    /// <summary>
     /// Two followers closing head-on, neither in the other's lead chain: the follower rule needs exactly one of the pair
     /// following, so it does not apply and the callsign tie-break decides — the ordinal-higher callsign holds, in either list
     /// order, where it is the first or the second of the pair.
@@ -6545,5 +6634,68 @@ public class GroundConflictDetectorTests
             north.Ground.SpeedLimit is null || north.Ground.SpeedLimit > 0,
             $"NORTH should proceed, got limit={north.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
         );
+    }
+
+    [Fact]
+    public void ParkedNeighbor_NoseTurnedAway_RouteLeavesAt78Deg_MoverNotStopped()
+    {
+        // Oak576 shape: inside a parked B738's stop ring (61 ft), nose 337° (PRK 173° off it), route leaving at 228.3° — 78° off
+        // the bearing to PRK and passing it at ~60 ft. Read from the route this stops the mover mid-pivot for good.
+        AircraftState parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon), heading: 47, gs: 0, phase: new AtParkingPhase());
+        LatLon moverPos = GeoMath.ProjectPoint(parked.Position, new TrueHeading(330.6), 61.0 / FtPerNm);
+        var from = new GroundNode
+        {
+            Id = 20,
+            Position = moverPos,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var to = new GroundNode
+        {
+            Id = 21,
+            Position = GeoMath.ProjectPoint(moverPos, new TrueHeading(228.3), 300.0 / FtPerNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        AircraftState mover = MakeAircraft("MOV", moverPos, heading: 337, gs: 0, taxiRoute: MakeRoute(MakeGeoSeg(from, to)));
+
+        GroundConflictDetector.ApplySpeedLimits([parked, mover], null);
+
+        Assert.Null(mover.Ground.SpeedLimit);
+    }
+
+    [Fact]
+    public void Crossing_ArrivalTurningOffBesideATowOnTheParallelLane_NoHeadOnHold()
+    {
+        // SFO six-alley shape: E75L on 207.6° with its route turning to 246.7° 20 ft ahead (look-ahead ≈232°), an E75L tow on
+        // 27.6° at 5 kt 278 ft away on bearing 176° — 146 ft abeam the arrival's lane against the 127 ft needed. Anti-parallel
+        // lanes with room: a pass, not a head-on.
+        LatLon aPos = new(BaseLat, BaseLon);
+        LatLon corner = GeoMath.ProjectPoint(aPos, new TrueHeading(207.6), 20.0 / FtPerNm);
+        var n0 = new GroundNode
+        {
+            Id = 30,
+            Position = aPos,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var n1 = new GroundNode
+        {
+            Id = 31,
+            Position = corner,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var n2 = new GroundNode
+        {
+            Id = 32,
+            Position = GeoMath.ProjectPoint(corner, new TrueHeading(246.7), 200.0 / FtPerNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        AircraftState arrival = MakeAircraft("ARR", aPos, heading: 207.6, gs: 9, taxiRoute: MakeRoute(MakeGeoSeg(n0, n1), MakeGeoSeg(n1, n2)));
+        arrival.AircraftType = "E75L";
+        AircraftState tow = MakeAircraft("TOW", GeoMath.ProjectPoint(aPos, new TrueHeading(176.0), 278.0 / FtPerNm), heading: 27.6, gs: 5);
+        tow.AircraftType = "E75L";
+
+        GroundConflictDetector.ApplySpeedLimits([arrival, tow], new AirportGroundLayout { AirportId = "TEST" });
+
+        Assert.Null(tow.Ground.SpeedLimit);
+        Assert.Null(arrival.Ground.SpeedLimit);
     }
 }

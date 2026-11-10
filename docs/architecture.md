@@ -1580,6 +1580,8 @@ GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit
                                # 300 ft ring both stand down and neither aircraft holds. DebugSink logs the
                                # specific hold kind so the controller GIVEWAY relationship is observable
                                # ("ControllerGiveWay A→B" pair line).
+                               # A crossing pair's closing direction is the bearing to a point ahead along the route the aircraft drives
+                               # (ClosingDirectionDeg), not its nose; a mutual stop's last tie-break is the aircraft with the other on its right (ICAO Annex 2 3.2.2.7.1).
                                # MeetCandidates / MeetPointsOf: where each on-ground aircraft's driven route meets the others' (the first junction both reach within
                                # ConvergenceLookaheadFt, FindSharedUpcomingNode, no ETA test; pairs whose route starts are over MeetPairRangeFt apart skipped), the
                                # per-aircraft GroundMeetPointDto list TickSituation stores as AircraftSituationState.MeetPoints; read-only

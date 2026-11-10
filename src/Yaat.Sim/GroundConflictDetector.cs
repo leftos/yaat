@@ -24,13 +24,14 @@
 //     is suppressed for this pair this tick.
 //   • Crossing          — close in space, no shared route node, not same-edge.
 //     Resolved to one-holds-one-goes (ResolveCrossing): an aircraft on the
-//     runway surface has priority; a yielder keeps its heading-based closing
+//     runway surface has priority; a yielder keeps its route-based closing
 //     pin even when stopped (no self-pin crawl); if both would stop,
 //     ChooseMutualStopHolder picks the holder: a live-traffic shadow is never
 //     held; the aircraft with the other clearly more dead ahead holds;
 //     otherwise a FOLLOWG follower facing an aircraft that is not following
-//     keeps its place and the other holds; else a deterministic callsign
-//     tie-break. Head-on fallback (both stop) applies only to near-anti-parallel
+//     keeps its place and the other holds; else the aircraft with the other on
+//     its right holds (ICAO Annex 2 3.2.2.7.1), a near head-on pair keeping the
+//     callsign tie-break. Head-on fallback (both stop) applies only to near-anti-parallel
 //     approaches (>= HeadOnMinHeadingDiffDeg); oblique crossings use the holder
 //     arbitration.
 //
@@ -166,9 +167,17 @@ public static class GroundConflictDetector
     // equivalent of FOLLOW/BEHIND sequencing (7110.65 3-7-2.a). Only trust it when the two
     // off-nose angles differ by at least this margin; below it the geometry is effectively
     // symmetric (a true perpendicular crossing / near head-on) with no follow relationship, so the
-    // deterministic callsign tie-break stands. Purely a function of positions+headings+callsigns,
+    // right-hand tie-break stands. Purely a function of positions+directions+callsigns,
     // so it is deterministic and cannot oscillate.
     private const double FollowerLeadOffNoseMarginDeg = 30.0;
+
+    /// <summary>Near head-on for the crossing holder tie-break: within this many degrees of reciprocal, the right-hand rule gives
+    /// way to the callsign order, since ICAO's head-on rule names no single holder.</summary>
+    private const double HeadOnTieBreakDeg = 15.0;
+
+    /// <summary>Floor on the closing direction's look-ahead along a route: half the aircraft's length, but never less than this,
+    /// so a short aircraft still reads past a stub or fillet arc.</summary>
+    private const double ClosingLookAheadFloorFt = 50.0;
 
     public static Action<string>? DebugSink { get; set; }
     public static bool WingspanLateralCheckEnabled { get; set; } = true;
@@ -2758,11 +2767,12 @@ public static class GroundConflictDetector
     /// <item>An aircraft on the runway surface has priority — a plain ground crosser
     /// yields. Never strand an aircraft clearing the runway — it continues until the whole aircraft is past
     /// the hold line, into a ramp area if that is where it is going (AIM 4-3-21.b).</item>
-    /// <item>Closing direction uses the aircraft's heading even when it is momentarily
-    /// stopped (a taxiing/exiting aircraft that has braked for the conflict), so its
-    /// hold stays latched instead of clearing and re-pinning each tick. Genuinely
-    /// parked/held aircraft contribute no closing direction — they remain passable
-    /// obstacles.</item>
+    /// <item>Closing direction comes from the path the aircraft will drive (the heading against a parked or held obstacle
+    /// and for the head-on fallback), not its heading
+    /// (<see cref="ClosingDirectionDeg"/>), and holds even when it is momentarily stopped (a
+    /// taxiing/exiting aircraft that has braked for the conflict), so its hold stays latched
+    /// instead of clearing and re-pinning each tick. Genuinely parked/held aircraft contribute no
+    /// closing direction — they remain passable obstacles.</item>
     /// <item>If both would have to stop for each other (a crossing collision course),
     /// pick ONE holder (<see cref="ChooseMutualStopHolder"/>) and let the other proceed,
     /// instead of stopping both into a slow-motion gridlock.</item>
@@ -2778,10 +2788,10 @@ public static class GroundConflictDetector
         Action<string>? diagnosticLog
     )
     {
-        // Heading-based closing direction: a non-parked aircraft keeps a direction
+        // Route-based closing direction: a non-parked aircraft keeps a direction
         // even at gs=0 so a yielder that has braked for the conflict stays pinned.
-        double? closeDirA = IsParkedOrHeld(a) ? null : a.TrueHeading.Degrees;
-        double? closeDirB = IsParkedOrHeld(b) ? null : b.TrueHeading.Degrees;
+        double? closeDirA = ClosingDirectionDeg(a);
+        double? closeDirB = ClosingDirectionDeg(b);
 
         // Rule 1: the higher-ranked aircraft (a runway user, else one vacating a runway) proceeds; the other yields.
         var sideA = new CrossingSide(a, stateA, closeDirA, RankOf(a));
@@ -2791,12 +2801,8 @@ public static class GroundConflictDetector
             return;
         }
 
-        (double Limit, string Reason, double? RoomFt, StopClosure Closure)? limitForA = closeDirA is { } da
-            ? ComputeClosingLimit(a, da, b, stateB, distFt, diagnosticLog)
-            : null;
-        (double Limit, string Reason, double? RoomFt, StopClosure Closure)? limitForB = closeDirB is { } db
-            ? ComputeClosingLimit(b, db, a, stateA, distFt, diagnosticLog)
-            : null;
+        (double Limit, string Reason, double? RoomFt, StopClosure Closure)? limitForA = ClosingLimitFor(sideA, sideB, distFt, diagnosticLog);
+        (double Limit, string Reason, double? RoomFt, StopClosure Closure)? limitForB = ClosingLimitFor(sideB, sideA, distFt, diagnosticLog);
 
         diagnosticLog?.Invoke(
             $"  [Crossing] {a.Callsign}(dir={closeDirA?.ToString("F0") ?? "none"},gs={a.GroundSpeed:F1})"
@@ -2828,12 +2834,27 @@ public static class GroundConflictDetector
             }
         }
 
-        // Head-on fallback: two aircraft actually moving toward each other.
-        if (closeDirA is { } da3 && closeDirB is { } db3 && a.GroundSpeed > 0 && b.GroundSpeed > 0)
+        // Head-on fallback: two aircraft actually moving toward each other, so current motion — the headings give it, not the route.
+        if ((closeDirA is not null) && (closeDirB is not null) && (a.GroundSpeed > 0) && (b.GroundSpeed > 0))
         {
-            ResolveHeadOn(a, da3, b, db3, distFt, arbitrate: routesKnown);
+            ResolveHeadOn(a, a.TrueHeading.Degrees, b, b.TrueHeading.Degrees, distFt, arbitrate: routesKnown);
         }
     }
+
+    /// <summary>
+    /// The closing limit for <paramref name="mover"/> against <paramref name="other"/>: against a parked or held obstacle the
+    /// mover's heading decides, since the route look-ahead already reads its route, and against a routed one the mover's own
+    /// closing direction stands.
+    /// </summary>
+    private static (double Limit, string Reason, double? RoomFt, StopClosure Closure)? ClosingLimitFor(
+        CrossingSide mover,
+        CrossingSide other,
+        double distFt,
+        Action<string>? log
+    ) =>
+        (mover.Dir is { } dir)
+            ? ComputeClosingLimit(mover.Ac, (other.Dir is null) ? mover.Ac.TrueHeading.Degrees : dir, other.Ac, other.State, distFt, log)
+            : null;
 
     /// <summary>One aircraft of a crossing pair: its movement state, closing direction (null when parked or held) and rank.</summary>
     private readonly record struct CrossingSide(AircraftState Ac, MovementState State, double? Dir, RunwayRank Rank);
@@ -3049,7 +3070,7 @@ public static class GroundConflictDetector
     /// True when the aircraft is parked, holding, lining up, or under any controller
     /// hold — and genuinely at rest (a passable obstacle). A taxiing or runway-exiting
     /// aircraft momentarily stopped for a conflict is NOT — it is yielding and keeps
-    /// its heading-based closing direction. Conversely, a stationary-named phase that
+    /// its closing direction. Conversely, a stationary-named phase that
     /// is actually rolling (a lining-up aircraft, a held aircraft still decelerating)
     /// is a mover, not an obstacle (#407, #409).
     /// </summary>
@@ -3455,6 +3476,85 @@ public static class GroundConflictDetector
     }
 
     /// <summary>
+    /// The direction a crossing pair is resolved on: the path the aircraft will drive, not its nose. A push reads the reverse of
+    /// the heading (a pull the heading); a routed aircraft reads the bearing to a point half its length (floored at
+    /// <see cref="ClosingLookAheadFloorFt"/>) ahead along the route it drives, so a nose turned across the taxiway it is leaving
+    /// does not count as closing. Null when it is a passable obstacle (parked or held, the just-pushed aircraft awaiting TAXI
+    /// included by its Holding After Pushback phase); a routeless mover — one stopped for a conflict too — keeps its heading, so
+    /// its pin stays latched.
+    /// </summary>
+    internal static double? ClosingDirectionDeg(AircraftState ac)
+    {
+        if (IsParkedOrHeld(ac))
+        {
+            return null;
+        }
+
+        if (ac.Phases?.CurrentPhase is PushbackPhase push)
+        {
+            return PushbackPose.FlipForKind(ac.TrueHeading.Degrees, push.Kind);
+        }
+
+        return (FollowingPhase.DrivenRouteOf(ac) is { IsComplete: false } route) && (LookAheadPoint(ac, route) is { } point)
+            ? GeoMath.BearingTo(ac.Position, point)
+            : ac.TrueHeading.Degrees;
+    }
+
+    /// <summary>The point <c>max(half the aircraft's length, ClosingLookAheadFloorFt)</c> ahead along the route it drives, or null
+    /// when that point is within a foot of the aircraft and so names no direction.</summary>
+    private static LatLon? LookAheadPoint(AircraftState ac, TaxiRoute route)
+    {
+        if (AheadAlongRoute(ac, route) is not { } point)
+        {
+            return null;
+        }
+
+        return (GeoMath.DistanceNm(ac.Position, point) * GeoMath.FeetPerNm > 1.0) ? point : null;
+    }
+
+    /// <summary>The point <c>max(half the aircraft's length, ClosingLookAheadFloorFt)</c> ahead along the route's polyline from its
+    /// position, interpolated on the leg where the distance is reached, and the route's last node once the polyline runs out first.
+    /// Read off the node positions, so a short stub or a fillet arc does not turn the first leg's own chord into the direction.</summary>
+    private static LatLon? AheadAlongRoute(AircraftState ac, TaxiRoute route)
+    {
+        if ((route.CurrentSegment is not { } segment) || !RunsAheadOf(ac, segment.Edge))
+        {
+            return null;
+        }
+
+        double remainingFt = Math.Max(AircraftLength.ResolveFt(ac.AircraftType) / 2.0, ClosingLookAheadFloorFt);
+        LatLon from = ac.Position;
+        for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
+        {
+            LatLon to = route.Segments[i].Edge.ToNode.Position;
+            double legFt = GeoMath.DistanceNm(from, to) * GeoMath.FeetPerNm;
+            if (legFt >= remainingFt)
+            {
+                return GeoMath.ProjectPoint(from, new TrueHeading(GeoMath.BearingTo(from, to)), remainingFt / GeoMath.FeetPerNm);
+            }
+
+            remainingFt -= legFt;
+            from = to;
+        }
+
+        return route.Segments[^1].Edge.ToNode.Position;
+    }
+
+    /// <summary>Whether the route's current leg describes where the aircraft is and runs ahead of it. A degenerate leg, or one whose
+    /// far node lies behind the aircraft, is a route index that has not caught up with the pose: it names no direction to read.</summary>
+    private static bool RunsAheadOf(AircraftState ac, DirectionalEdge leg)
+    {
+        LatLon from = leg.FromNode.Position;
+        LatLon to = leg.ToNode.Position;
+        if (GeoMath.DistanceNm(from, to) * GeoMath.FeetPerNm < 1.0)
+        {
+            return false;
+        }
+
+        return HeadingDifference(GeoMath.BearingTo(ac.Position, to), GeoMath.BearingTo(from, to)) <= 90.0;
+    }
+
+    /// <summary>
     /// Picks which aircraft to HOLD when two same-priority movers would each stop for the other, in this order:
     /// <list type="number">
     /// <item>A live-traffic shadow is never the holder: the simulated aircraft is.</item>
@@ -3465,12 +3565,15 @@ public static class GroundConflictDetector
     /// collision avoidance (AIM 4-3-18.b).</item>
     /// <item>Otherwise, with exactly one of the pair in <see cref="FollowingPhase"/>, the follower keeps its place in its chain
     /// and the other aircraft holds.</item>
-    /// <item>Otherwise the geometry is effectively symmetric and a deterministic callsign tie-break decides.</item>
+    /// <item>Otherwise the aircraft with the other on its right holds, the other keeping clear of it (ICAO Annex 2 3.2.2.7.1: when
+    /// two aircraft converge, the one that has the other on its right gives way). A near head-on pair — closing directions within
+    /// <see cref="HeadOnTieBreakDeg"/> of reciprocal — keeps the callsign order, since ICAO's head-on rule ("each shall stop") names
+    /// no single holder.</item>
     /// </list>
     /// <paramref name="dirA"/>/<paramref name="dirB"/> are the movement (closing) directions the caller already resolved.
     /// Deterministic; no oscillation.
     /// </summary>
-    private static AircraftState ChooseMutualStopHolder(AircraftState a, double dirA, AircraftState b, double dirB)
+    internal static AircraftState ChooseMutualStopHolder(AircraftState a, double dirA, AircraftState b, double dirB)
     {
         // A shadow cannot be held (it moves as the real aircraft did): the simulated aircraft is always the holder.
         if (a.IsShadow != b.IsShadow)
@@ -3494,8 +3597,39 @@ public static class GroundConflictDetector
             return aFollowing ? b : a;
         }
 
-        return string.CompareOrdinal(a.Callsign, b.Callsign) >= 0 ? a : b;
+        return RightHandHolder(a, dirA, b, dirB);
     }
+
+    /// <summary>
+    /// Rule 4 of <see cref="ChooseMutualStopHolder"/>: the aircraft with the other on its right holds (ICAO Annex 2 3.2.2.7.1),
+    /// while a pair closing within <see cref="HeadOnTieBreakDeg"/> of reciprocal keeps the callsign order.
+    /// </summary>
+    private static AircraftState RightHandHolder(AircraftState a, double dirA, AircraftState b, double dirB)
+    {
+        if (HeadingDifference(dirA, dirB) >= (180.0 - HeadOnTieBreakDeg))
+        {
+            return CallsignHolder(a, b);
+        }
+
+        bool aSeesBOnItsRight = OnItsRight(a, dirA, b);
+        bool bSeesAOnItsRight = OnItsRight(b, dirB, a);
+        if (aSeesBOnItsRight == bSeesAOnItsRight)
+        {
+            return CallsignHolder(a, b);
+        }
+
+        return aSeesBOnItsRight ? a : b;
+    }
+
+    /// <summary>Whether <paramref name="other"/> lies to the right of <paramref name="self"/> along its closing direction, rather
+    /// than dead ahead of it or behind it.</summary>
+    private static bool OnItsRight(AircraftState self, double dirDeg, AircraftState other)
+    {
+        double relativeDeg = (GeoMath.BearingTo(self.Position, other.Position) - dirDeg + 360.0) % 360.0;
+        return (relativeDeg > 0.0) && (relativeDeg < 180.0);
+    }
+
+    private static AircraftState CallsignHolder(AircraftState a, AircraftState b) => (string.CompareOrdinal(a.Callsign, b.Callsign) >= 0) ? a : b;
 
     /// <summary>Whether <paramref name="ac"/> is driving a <c>FOLLOWG</c> follow.</summary>
     private static bool IsFollowing(AircraftState ac) => ac.Phases?.CurrentPhase is FollowingPhase;
