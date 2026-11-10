@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 51;
+    public const int CurrentSchemaVersion = 52;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -429,6 +429,10 @@ public static class SnapshotSchemaMigrator
         // V50→V51: HoldingInPositionPhaseDto.NotClearReportPositions removed: a hold's not-clear report now goes to the position the
         //   pilot is tuned to, not to a list of student position types. No data transformation: the deserializer ignores the member
         //   an older snapshot still carries, and a rewritten snapshot drops it.
+
+        // V51→V52: AircraftSnapshotDto.AirborneCheckInHeldWarned added, latched when the instructor is warned that an airborne
+        //   check-in is held because the pilot is tuned to another position. No data transformation: an older snapshot reads
+        //   false, so a held aircraft restored from a pre-V52 snapshot warns once, then latches.
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

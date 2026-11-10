@@ -340,6 +340,12 @@ public class AircraftState
     public TrackOwner? TunedPosition { get; set; }
 
     /// <summary>
+    /// The instructor has been warned once that this aircraft's airborne check-in is held because the pilot is tuned to another
+    /// position. Snapshot-serialized so a restored session does not warn again.
+    /// </summary>
+    public bool AirborneCheckInHeldWarned { get; set; }
+
+    /// <summary>
     /// Whether the pilot has left the student's frequency: tuned to a position (<see cref="TunedPosition"/>) that is not
     /// <paramref name="studentPosition"/> by callsign, or tuned to any position when there is no student. Compared by
     /// callsign, never by TCP, because tower-cab positions (OAK_GND, OAK_TWR) share one.
@@ -550,6 +556,7 @@ public class AircraftState
             AiInitialContactPositionIds = new SortedSet<string>(dto.AiInitialContactPositionIds ?? [], StringComparer.Ordinal),
             HasControllerAcknowledgedInitialContact = dto.HasControllerAcknowledgedInitialContact,
             TunedPosition = dto.TunedPosition is null ? null : TrackOwner.FromSnapshot(dto.TunedPosition),
+            AirborneCheckInHeldWarned = dto.AirborneCheckInHeldWarned,
             SpawnedAtSeconds = dto.SpawnedAtSeconds,
             IsGeneratorArrival = dto.IsGeneratorArrival,
             IsGeneratedOverflight = dto.IsGeneratedOverflight,
@@ -666,6 +673,7 @@ public class AircraftState
             AiInitialContactPositionIds = AiInitialContactPositionIds.Count == 0 ? null : [.. AiInitialContactPositionIds],
             HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
             TunedPosition = TunedPosition?.ToSnapshot(),
+            AirborneCheckInHeldWarned = AirborneCheckInHeldWarned,
             SpawnedAtSeconds = SpawnedAtSeconds,
             IsGeneratorArrival = IsGeneratorArrival,
             IsGeneratedOverflight = IsGeneratedOverflight,

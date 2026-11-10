@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -987,5 +988,172 @@ public class M102AirborneCheckInTests
 
         Assert.Single(ac.PendingPilotTransmissions);
         Assert.True(ac.HasMadeInitialContact);
+    }
+
+    private static readonly TrackOwner ApproachStudent = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
+
+    private static readonly TrackOwner UnstaffedCenter = TrackOwner.CreateStars("ZOA_CTR", "ZOA", 1, "C");
+
+    /// <summary>An APP-student solo scenario whose SOP gate passes (nobody owns the track), the pilot tuned to <paramref name="tuned"/>.</summary>
+    private static (AircraftState Aircraft, SimScenarioState Scenario) TunedSetup(TrackOwner? tuned)
+    {
+        AircraftState ac = MakeAircraft("AAL123", altitude: 6000);
+        ac.TunedPosition = tuned;
+        SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
+        sc.StudentPosition = ApproachStudent;
+        return (ac, sc);
+    }
+
+    private static readonly LatLon SfoPos = new(37.6189, -122.3750);
+
+    /// <summary>
+    /// An SFO_TWR-student solo scenario on the real ZOA initial-contact catalog, the track owned by SFO_B_APP (unstaffed) and
+    /// no handoff yet; the caller sets the tuned position.
+    /// </summary>
+    private static (AircraftState Aircraft, SimScenarioState Scenario, TrackOwner Tower, TrackOwner Approach) SfoTowerSetup(ArtccConfigRoot zoa)
+    {
+        TrackOwner tower = zoa.ResolvePosition(zoa.FindPositionByCallsign("SFO_TWR", null)!.Id)!;
+        TrackOwner approach = zoa.ResolvePosition(zoa.FindPositionByCallsign("SFO_B_APP", null)!.Id)!;
+        AircraftState ac = MakeAircraft("AAL123", altitude: 3000);
+        ac.Track.Owner = approach;
+        SimScenarioState sc = MakeScenario("TWR", primaryAirport: "SFO");
+        sc.StudentPosition = tower;
+        sc.ArtccId = "ZOA";
+        sc.InitialContactTransfers = NavigationDatabase.Instance.InitialContactTransfers;
+        return (ac, sc, tower, approach);
+    }
+
+    private static void AssertHeldWithOneWarning(AircraftState ac, string expectedWarning, TrackOwner tuned)
+    {
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Equal(expectedWarning, Assert.Single(ac.PendingWarnings));
+        Assert.False(ac.HasMadeInitialContact);
+        Assert.Same(tuned, ac.TunedPosition);
+    }
+
+    [Fact]
+    public void TickAirborneCheckIn_TunedToAPositionOtherThanItsOwner_NoHandoff_HoldsAndWarnsOnce()
+    {
+        // The track has no owner, so the tuned Center position is not the aircraft's track owner.
+        (AircraftState ac, SimScenarioState sc) = TunedSetup(UnstaffedCenter);
+        string expected = "check-in held, tuned to ZOA_CTR: " + PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos)!.Terminal;
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        AssertHeldWithOneWarning(ac, expected, UnstaffedCenter);
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        AssertHeldWithOneWarning(ac, expected, UnstaffedCenter);
+    }
+
+    [Fact]
+    public void TickAirborneCheckIn_TunedElsewhere_NoHandoff_HoldsAndWarnsOnce()
+    {
+        (AircraftState ac, SimScenarioState sc) = TunedSetup(TrackOwner.Elsewhere);
+        string expected = "check-in held, tuned to another frequency: " + PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos)!.Terminal;
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        AssertHeldWithOneWarning(ac, expected, TrackOwner.Elsewhere);
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        AssertHeldWithOneWarning(ac, expected, TrackOwner.Elsewhere);
+    }
+
+    [Fact]
+    public void TickAirborneCheckIn_StudentOwnedTrack_PilotSentToCenter_NoHandoff_HoldsAndWarnsOnce()
+    {
+        (AircraftState ac, SimScenarioState sc) = TunedSetup(UnstaffedCenter);
+        ac.Track.Owner = ApproachStudent;
+        string expected = "check-in held, tuned to ZOA_CTR: " + PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos)!.Terminal;
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        AssertHeldWithOneWarning(ac, expected, UnstaffedCenter);
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        AssertHeldWithOneWarning(ac, expected, UnstaffedCenter);
+    }
+
+    [Fact]
+    public void TickAirborneCheckIn_TunedToAnotherPosition_HandoffToStudentPending_CallsAndRetunes()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } zoa)
+        {
+            return;
+        }
+
+        // The track is SFO_B_APP's, handing off to the SFO_TWR student, while the pilot is tuned to a third position (Center).
+        // With an owner the SOP gate needs the real ZOA catalog; the pending handoff to the student makes the call.
+        (AircraftState ac, SimScenarioState sc, TrackOwner tower, _) = SfoTowerSetup(zoa);
+        ac.TunedPosition = UnstaffedCenter;
+        ac.Track.HandoffPeer = tower;
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("SFO", SfoPos));
+
+        PilotTransmission call = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.True(call.IsInitialContact);
+        Assert.True(ac.HasMadeInitialContact);
+        Assert.Null(ac.TunedPosition);
+        Assert.Empty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void TickAirborneCheckIn_TunedToItsOwnUnstaffedTrackOwner_SopPasses_CallsAndRetunes()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } zoa)
+        {
+            return;
+        }
+
+        // ZOA's SOP lets an SFO_B_APP track call SFO_TWR with no handoff (noHandoffNecessary, the real catalog): the comms
+        // transfer is implied, so a pilot tuned to its own unstaffed owner calls the student.
+        (AircraftState ac, SimScenarioState sc, _, TrackOwner approach) = SfoTowerSetup(zoa);
+        ac.TunedPosition = approach;
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("SFO", SfoPos));
+
+        PilotTransmission call = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.True(call.IsInitialContact);
+        Assert.True(ac.HasMadeInitialContact);
+        Assert.Null(ac.TunedPosition);
+        Assert.Empty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void TickAirborneCheckIn_HeldThenAccepted_CallsTheStudent()
+    {
+        (AircraftState ac, SimScenarioState sc) = TunedSetup(UnstaffedCenter);
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        Assert.Empty(ac.PendingPilotTransmissions);
+
+        // The student accepts the handoff: TrackEngine.TuneToStudentOnAccept puts the pilot back on the student's side.
+        ac.TunedPosition = null;
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+
+        Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Single(ac.PendingWarnings);
+        Assert.True(ac.HasMadeInitialContact);
+    }
+
+    [Fact]
+    public void TickAirborneCheckIn_TunedToAnAiStaffedPosition_CallsTheStudent()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } zoa)
+        {
+            return;
+        }
+
+        (AircraftState ac, SimScenarioState sc) = TunedSetup(null);
+        sc.ArtccConfig = zoa;
+        sc.SetAiStaffedPositions([TestAiPositions.OakTower(zoa)]);
+        TrackOwner? aiTower = Assert.Single(sc.PilotContacts.Positions, p => p.Agent == PilotAnsweringAgent.ControllerAi).Owner;
+        Assert.NotNull(aiTower);
+        ac.TunedPosition = aiTower;
+
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+
+        PilotTransmission call = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.True(call.IsInitialContact);
+        Assert.True(ac.HasMadeInitialContact);
+        Assert.Null(ac.TunedPosition);
+        Assert.Empty(ac.PendingWarnings);
     }
 }

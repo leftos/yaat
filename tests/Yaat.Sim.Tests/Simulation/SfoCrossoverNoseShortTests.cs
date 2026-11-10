@@ -224,7 +224,7 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
 
     /// <summary>
     /// A schema-50 snapshot of a <c>CLRWY</c>'s hold that still carries the removed <c>NotClearReportPositions</c> member migrates to
-    /// schema 51 and restores the hold short of 28L with its tail inside 28R.
+    /// schema 52 and restores the hold short of 28L with its tail inside 28R.
     /// </summary>
     [Fact]
     public void HoldingInPositionShortOfAnotherRunway_V50SnapshotWithNotClearReportPositions_MigratesAndRestoresTheHold()
@@ -247,7 +247,7 @@ public class SfoCrossoverNoseShortTests(ITestOutputHelper output)
 
         SnapshotSchemaMigrator.Migrate(legacy);
 
-        Assert.Equal(51, legacy.SchemaVersion);
+        Assert.Equal(52, legacy.SchemaVersion);
         var restored = PhaseList.FromSnapshot(legacy.Aircraft.Single(a => a.Callsign == "UAL1").Phases!, layout);
         HoldingInPositionPhase hold = Assert.IsType<HoldingInPositionPhase>(restored.CurrentPhase);
         Assert.Equal("28L", hold.HeldShortOfRunway);

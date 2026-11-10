@@ -36,59 +36,39 @@ public static class PilotProactive
     /// position is GND or unknown, primary airport unknown, or the airport lookup returns null.
     /// On success, queues the check-in line into <see cref="AircraftState.PendingPilotTransmissions"/>
     /// and sets <see cref="AircraftState.HasMadeInitialContact"/> so subsequent ticks no-op, and puts the pilot on the
-    /// student's frequency (<see cref="AircraftState.TunedPosition"/> null).
+    /// student's frequency (<see cref="AircraftState.TunedPosition"/> null). A pilot tuned to a position that is neither the
+    /// student's, an AI-staffed one, nor its own track owner, with no handoff to the student pending, holds the call instead:
+    /// the instructor is warned once (<see cref="AircraftState.AirborneCheckInHeldWarned"/>) and the check-in stays owed.
     /// </summary>
     public static void TickAirborneCheckIn(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)
     {
-        if (!scenario.SoloTrainingMode)
+        if (!IsAirborneCheckInDue(aircraft, scenario))
         {
             return;
         }
 
-        if (aircraft.HasMadeInitialContact)
+        bool held = IsHeldOffTheStudentsFrequency(aircraft, scenario);
+        if (held && aircraft.AirborneCheckInHeldWarned)
         {
             return;
         }
 
-        if (aircraft.IsOnGround)
+        if (PrimaryAirportPosition(scenario, airportLookup) is not { } airportPos)
         {
             return;
         }
 
-        // Inside the tower's arrival-side jurisdiction (final, landing, pattern, go-around) the pilot is the tower's:
-        // an aircraft on a three-mile final never makes an initial call to approach, even when a tower staffed by the
-        // AI answered its on-final call and the human student is the radar position (AIM 5-4-3.a).
-        if (Phases.TowerCabPhases.IsArrivalSide(aircraft.Phases?.CurrentPhase))
-        {
-            return;
-        }
-
-        string? positionType = scenario.StudentPositionType;
-        if (string.IsNullOrEmpty(positionType) || positionType == "GND")
-        {
-            return;
-        }
-
-        if (!PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, scenario))
-        {
-            return;
-        }
-
-        string? primaryAirport = scenario.PrimaryAirportId;
-        if (string.IsNullOrEmpty(primaryAirport))
-        {
-            return;
-        }
-
-        LatLon? airportPos = airportLookup(primaryAirport);
-        if (airportPos is null)
-        {
-            return;
-        }
-
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(aircraft, scenario, airportPos.Value);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(aircraft, scenario, airportPos);
         if (line is null)
         {
+            return;
+        }
+
+        if (held && (aircraft.TunedPosition is { } tuned))
+        {
+            Log.LogDebug("{Callsign}: airborne check-in held, pilot tuned to {Tuned}", aircraft.Callsign, tuned);
+            aircraft.PendingWarnings.Add(HeldCheckInWarning(tuned, line));
+            aircraft.AirborneCheckInHeldWarned = true;
             return;
         }
 
@@ -96,6 +76,81 @@ public static class PilotProactive
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: true);
         aircraft.HasMadeInitialContact = true;
         aircraft.TunedPosition = null;
+    }
+
+    /// <summary>
+    /// The airborne check-in's gates before the line is built: solo mode, airborne, no initial contact yet, outside the tower's
+    /// arrival side, a non-GND student position, and the facility SOP allowing the call (<see cref="PilotInitialContactEligibility"/>).
+    /// </summary>
+    private static bool IsAirborneCheckInDue(AircraftState aircraft, SimScenarioState scenario)
+    {
+        if (!scenario.SoloTrainingMode)
+        {
+            return false;
+        }
+
+        if (aircraft.HasMadeInitialContact)
+        {
+            return false;
+        }
+
+        if (aircraft.IsOnGround)
+        {
+            return false;
+        }
+
+        // Inside the tower's arrival-side jurisdiction (final, landing, pattern, go-around) the pilot is the tower's:
+        // an aircraft on a three-mile final never makes an initial call to approach, even when a tower staffed by the
+        // AI answered its on-final call and the human student is the radar position (AIM 5-4-3.a).
+        if (Phases.TowerCabPhases.IsArrivalSide(aircraft.Phases?.CurrentPhase))
+        {
+            return false;
+        }
+
+        string? positionType = scenario.StudentPositionType;
+        if (string.IsNullOrEmpty(positionType) || (positionType == "GND"))
+        {
+            return false;
+        }
+
+        return PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, scenario);
+    }
+
+    /// <summary>
+    /// The instructor's warning for a held check-in: where the pilot is tuned (the position's callsign, or "another frequency"
+    /// for <see cref="TrackOwner.Elsewhere"/>), then the check-in line it would have said, so it does not read as a call made.
+    /// </summary>
+    private static string HeldCheckInWarning(TrackOwner tuned, PilotSpeechText line)
+    {
+        string where = tuned.IsSamePositionByCallsign(TrackOwner.Elsewhere) ? "another frequency" : tuned.Callsign;
+        return $"check-in held, tuned to {where}: {line.Terminal}";
+    }
+
+    /// <summary>The scenario's primary airport position, or null when the scenario names none or the lookup does not know it.</summary>
+    private static LatLon? PrimaryAirportPosition(SimScenarioState scenario, Func<string, LatLon?> airportLookup)
+    {
+        string? primaryAirport = scenario.PrimaryAirportId;
+        return string.IsNullOrEmpty(primaryAirport) ? null : airportLookup(primaryAirport);
+    }
+
+    /// <summary>
+    /// Whether the airborne check-in is held because the pilot is on another frequency: tuned away from the student, not to an
+    /// AI-staffed position, not to its own track owner (whose transfer to the student the SOP gate already allowed), and with no
+    /// handoff to the student pending (a pending handoff makes the call, which retunes the pilot).
+    /// </summary>
+    private static bool IsHeldOffTheStudentsFrequency(AircraftState aircraft, SimScenarioState scenario)
+    {
+        if (!aircraft.IsTunedAwayFrom(scenario.StudentPosition) || PilotResponder.IsTunedToAiStaffedPosition(aircraft, scenario.PilotContacts))
+        {
+            return false;
+        }
+
+        if ((aircraft.Track.Owner is { } owner) && (aircraft.TunedPosition?.IsSamePositionByCallsign(owner) == true))
+        {
+            return false;
+        }
+
+        return !((scenario.StudentPosition is { } student) && (aircraft.Track.HandoffPeer?.MatchesPosition(student) == true));
     }
 
     public static void TickArrivalApproachRequest(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)

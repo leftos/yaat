@@ -99,4 +99,16 @@ public class SnapshotSchema48Tests
 
         Assert.Equal(tower, engine.FindAircraft(AiTestFixture.Callsign)!.TunedPosition);
     }
+
+    [Fact]
+    public void AirborneCheckInHeldWarned_SurvivesASnapshotRoundTrip()
+    {
+        SimulationEngine engine = Engine();
+        engine.FindAircraft(AiTestFixture.Callsign)!.AirborneCheckInHeldWarned = true;
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot());
+
+        engine.RestoreFromSnapshot(JsonSerializer.Deserialize<StateSnapshotDto>(json)!);
+
+        Assert.True(engine.FindAircraft(AiTestFixture.Callsign)!.AirborneCheckInHeldWarned);
+    }
 }

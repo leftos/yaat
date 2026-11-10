@@ -85,6 +85,12 @@ public sealed class AircraftSnapshotDto
     public TrackOwnerDto? TunedPosition { get; set; }
 
     /// <summary>
+    /// Whether the instructor was already warned that the airborne check-in is held (<see cref="AircraftState.AirborneCheckInHeldWarned"/>).
+    /// Non-required so a pre-V52 snapshot deserializes with the default <see langword="false"/>.
+    /// </summary>
+    public bool AirborneCheckInHeldWarned { get; init; }
+
+    /// <summary>
     /// Through V47 the "left the student's frequency" flag lived here. Read only so <see cref="SnapshotSchemaMigrator"/> can
     /// turn a true one into <see cref="TrackOwner.Elsewhere"/> on <see cref="TunedPosition"/>, then nulled, so a rewritten
     /// snapshot drops it.

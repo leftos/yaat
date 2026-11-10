@@ -2304,7 +2304,7 @@ public static partial class PilotResponder
     }
 
     /// <summary>Whether the pilot is tuned to a position the controller AI staffs in <paramref name="contacts"/>, matched by callsign.</summary>
-    private static bool IsTunedToAiStaffedPosition(AircraftState aircraft, PilotContactRoster contacts) =>
+    internal static bool IsTunedToAiStaffedPosition(AircraftState aircraft, PilotContactRoster contacts) =>
         (aircraft.TunedPosition is { } tuned)
         && contacts.Positions.Any(p => (p.Agent != PilotAnsweringAgent.Student) && (p.Owner is { } owner) && tuned.IsSamePositionByCallsign(owner));
 
