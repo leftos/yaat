@@ -3657,7 +3657,7 @@ public static partial class GroundCommandHandler
                 layout,
                 taxi.Path,
                 occupiedTaxiway,
-                [ImpliedRunwayEntryConnector(route, taxi), impliedLeadIn, inputs.ImpliedExitTaxiway]
+                [ImpliedRunwayEntryConnector(layout, route, taxi), impliedLeadIn, inputs.ImpliedExitTaxiway]
             );
         }
 
@@ -3722,9 +3722,12 @@ public static partial class GroundCommandHandler
     /// that the resolver extends onto to reach the cleared runway's bar (OAK <c>TAXI U W RWY 30</c> ends on W1). It
     /// is recognised by the resolver's own choice (<see cref="SegmentExpander.IsNumberedVariant"/> of the last
     /// cleared taxiway) on the route's final straight taxiway segment, when the route ends holding short of its
-    /// destination runway. Null for any other route.
+    /// destination runway, and only at the approach end of the assigned runway direction
+    /// (<see cref="IsApproachEndBar"/>; 7110.65 §3-7-2.b NOTE): a connector onto a mid-runway or far-end entry is
+    /// not implied and is warned as an uncleared taxiway like any other. Null for any other route, and for a
+    /// connector the gate refuses.
     /// </summary>
-    private static string? ImpliedRunwayEntryConnector(TaxiRoute route, TaxiCommand taxi)
+    private static string? ImpliedRunwayEntryConnector(AirportGroundLayout layout, TaxiRoute route, TaxiCommand taxi)
     {
         if ((taxi.DestinationRunway is null) || !route.HoldShortPoints.Any(h => h.Reason == HoldShortReason.DestinationRunway))
         {
@@ -3735,10 +3738,70 @@ public static partial class GroundCommandHandler
         TaxiRouteSegment? lastStraight = route.Segments.LastOrDefault(s =>
             (s.Edge.Edge is not GroundArc) && !s.Edge.Edge.IsRunwayCenterline && !VirtualNode.IsVirtualEdge(s.Edge.Edge)
         );
-        return (lastCleared is not null) && (lastStraight is not null) && SegmentExpander.IsNumberedVariant(lastStraight.TaxiwayName, lastCleared)
-            ? lastStraight.TaxiwayName
-            : null;
+        if ((lastCleared is null) || (lastStraight is null) || !SegmentExpander.IsNumberedVariant(lastStraight.TaxiwayName, lastCleared))
+        {
+            return null;
+        }
+
+        string variant = lastStraight.TaxiwayName;
+        int barId = route.HoldShortPoints.First(h => h.Reason == HoldShortReason.DestinationRunway).NodeId;
+        if (!layout.Nodes.TryGetValue(barId, out GroundNode? bar))
+        {
+            return variant;
+        }
+
+        switch (IsApproachEndBar(layout, taxi.DestinationRunway, bar))
+        {
+            case false:
+                return null;
+            case null:
+                Log.LogDebug(
+                    "[TryTaxi] implied connector {Variant}: runway {Runway} has no resolvable threshold; keeping it implied",
+                    variant,
+                    taxi.DestinationRunway
+                );
+                return variant;
+            default:
+                return variant;
+        }
     }
+
+    /// <summary>
+    /// How far along the runway past the bar nearest the threshold a hold-short bar still counts as the full-length
+    /// entry — the band <see cref="RouteMaterialiser.OrderFullLengthLineupBars"/> builds. Its constant is private and
+    /// its file is precompute-hashed, so it is repeated here rather than shared.
+    /// </summary>
+    private const double ApproachEndBandFt = 200.0;
+
+    /// <summary>
+    /// Whether <paramref name="bar"/> serves as the approach-end (full-length) entry of <paramref name="runwayId"/>:
+    /// measured along the runway axis from the threshold, as <see cref="RouteMaterialiser.OrderFullLengthLineupBars"/>
+    /// measures it, so the bar's sideways offset from the centreline never counts against it. Null when nav data
+    /// cannot resolve the runway, or the runway has no hold-short bar, and the caller keeps its permissive answer.
+    /// </summary>
+    private static bool? IsApproachEndBar(AirportGroundLayout layout, string runwayId, GroundNode bar)
+    {
+        RunwayInfo? runway = NavigationDatabase.InstanceOrNull?.GetRunway(layout.AirportId, runwayId);
+        if (runway is null)
+        {
+            return null;
+        }
+
+        List<GroundNode> bars = layout.GetRunwayHoldShortNodes(runwayId);
+        if (bars.Count == 0)
+        {
+            return null;
+        }
+
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var farEnd = new LatLon(runway.EndLatitude, runway.EndLongitude);
+        var heading = new TrueHeading(GeoMath.BearingTo(threshold, farEnd));
+        double firstEntryFt = bars.Min(node => AlongRunwayFt(node.Position, threshold, heading));
+        return AlongRunwayFt(bar.Position, threshold, heading) <= (firstEntryFt + ApproachEndBandFt);
+    }
+
+    private static double AlongRunwayFt(LatLon position, LatLon threshold, TrueHeading heading) =>
+        GeoMath.AlongTrackDistanceNm(position, threshold, heading) * GeoMath.FeetPerNm;
 
     /// <summary>
     /// The gate's or spot's lead-in taxiway the clearance implies (<see cref="SegmentExpander.ImpliedDestinationLeadIn"/>:
@@ -4509,8 +4572,10 @@ public static partial class GroundCommandHandler
 
     /// <summary>
     /// The movement-area taxiways meeting <paramref name="lastCleared"/> that the clearance does not name — never a ramp
-    /// taxilane, RAMP, a runway, or (for a runway destination) a numbered variant of the last taxiway — ordered by how
-    /// near their junction with it lies to <paramref name="toward"/> (the destination; name order without one), at most
+    /// taxilane, RAMP, a runway, or (for a runway destination) a numbered variant of the last taxiway that reaches the
+    /// runway at its approach end (<see cref="ReachesRunwayAwayFromApproachEnd"/>; a variant the connector gate refuses
+    /// is offered like any other uncleared taxiway) — ordered by how near their junction with it lies to
+    /// <paramref name="toward"/> (the destination; name order without one), at most
     /// <see cref="MaxMissingTaxiwayCandidates"/>.
     /// </summary>
     private static List<string> MissingTaxiwayCandidates(AirportGroundLayout layout, TaxiCommand taxi, string lastCleared, LatLon? toward)
@@ -4518,12 +4583,16 @@ public static partial class GroundCommandHandler
         var classification = MovementAreaClassification.For(layout);
         var cleared = new HashSet<string>(taxi.Path, StringComparer.OrdinalIgnoreCase);
         var nearestNm = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var awayFromApproachEnd = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         foreach (GroundNode node in layout.GetNodesOnTaxiway(lastCleared))
         {
             double nm = toward is { } at ? GeoMath.DistanceNm(node.Position, at) : 0.0;
             foreach (string name in node.Edges.SelectMany(SegmentExpander.EdgeNames))
             {
-                bool implied = (taxi.DestinationRunway is not null) && SegmentExpander.IsNumberedVariant(name, lastCleared);
+                bool implied =
+                    (taxi.DestinationRunway is not null)
+                    && SegmentExpander.IsNumberedVariant(name, lastCleared)
+                    && !ReachesRunwayAwayFromApproachEnd(layout, taxi.DestinationRunway, name, awayFromApproachEnd);
                 bool candidate = !implied && SegmentExpander.IsUnclearedMovementAreaName(name, cleared, classification);
                 if (candidate && (!nearestNm.TryGetValue(name, out double bestNm) || (nm < bestNm)))
                 {
@@ -4540,6 +4609,29 @@ public static partial class GroundCommandHandler
                 .Take(MaxMissingTaxiwayCandidates)
                 .Select(kv => kv.Key),
         ];
+    }
+
+    /// <summary>
+    /// Whether <paramref name="variant"/> reaches <paramref name="runwayId"/> only away from its approach end, so an
+    /// implied connector naming it is not implied and the variant is offered as a missing-taxiway candidate. False
+    /// when the variant has no hold-short bar on that runway, or any of them is the approach-end entry (or the entry
+    /// cannot be resolved), which keeps it implied. <paramref name="cache"/> holds each name's answer for the caller's
+    /// loop over nodes.
+    /// </summary>
+    private static bool ReachesRunwayAwayFromApproachEnd(AirportGroundLayout layout, string runwayId, string variant, Dictionary<string, bool> cache)
+    {
+        if (cache.TryGetValue(variant, out bool cached))
+        {
+            return cached;
+        }
+
+        List<GroundNode> bars =
+        [
+            .. layout.GetRunwayHoldShortNodes(runwayId).Where(node => HoldShortAnnotator.NodeOnLocationTaxiway(layout, node.Id, variant)),
+        ];
+        bool away = (bars.Count > 0) && bars.All(bar => IsApproachEndBar(layout, runwayId, bar) == false);
+        cache[variant] = away;
+        return away;
     }
 
     /// <summary>The route reaches what the clearance named: the runway's holding position, or the gate / spot node.</summary>

@@ -845,6 +845,8 @@ Otherwise the route ends at a `HoldShortReason.RouteIncomplete` hold of X (place
 
 The implied names are the numbered runway-entry connector (`ImpliedRunwayEntryConnector`: an `IsNumberedVariant` of the last cleared taxiway on the final straight segment of a route holding short of its destination runway, OAK `TAXI U W RWY 30` → W1) and the gate's or spot's lead-in (`ImpliedDestinationLeadIn`, whose resolver warning is withdrawn).
 
+The connector is implied only at the approach end of the assigned runway direction (7110.65 §3-7-2.b NOTE): its bar must lie within 200 ft, measured along the runway from the threshold, of the runway's bar nearest that threshold (`IsApproachEndBar`, the band `RouteMaterialiser.OrderFullLengthLineupBars` builds). A variant reaching the runway mid-length or at the far end (BZN `TAXI C RWY 12` → C3) is warned as an uncleared taxiway, and `MissingTaxiwayCandidates` offers it as a missing taxiway; with no navdata runway the connector stays implied.
+
 `WarnUnclearedMovementAreaTaxiways` adds `taxiing via X — not in the route issued` (`RouteMaterialiser.NotInRouteIssuedWarning`) for any other uncleared movement-area taxiway the route drives, unless another warning already names it as a whole token.
 
 A junction arc between two taxiways, a runway centreline and a free-space leg are not a taxiway driven. A clearance naming no taxiway at all (a bare `TAXI @B2` from the movement area) names none of those it drives, so each is warned.

@@ -16,6 +16,7 @@
 
 - A pilot's taxi readback to a stand or spot names it first and says "gate" for a gate: "taxi to gate foxtrot one four via alpha, bravo".
 - A bare `PUSH` onto a ramp taxilane pushes back along the stand's lead-in and stops on the taxilane, keeping the tail off the taxiway beyond.
+- A runway `TAXI` that reaches the runway on a numbered connector mid-length or at the far end, such as BZN `TAXI C RWY 12` via C3, now warns that connector as not issued.
 
 ### Fixed
 
