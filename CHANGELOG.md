@@ -6,6 +6,7 @@
 
 - A multi-point push route whose stand, spot or node no longer exists now refuses in the same words as a single-point push.
 - In solo training, a pilot on another frequency waits until it is back on the student's before asking for further clearance or reporting holding.
+- A follow ends when the follower goes around, so it no longer reports losing sight of its lead or chases it round the pattern.
 
 ## v0.18.3-beta [2026/11/11]
 
