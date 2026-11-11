@@ -7,6 +7,9 @@
 - A multi-point push route whose stand, spot or node no longer exists now refuses in the same words as a single-point push.
 - In solo training, a pilot on another frequency waits until it is back on the student's before asking for further clearance or reporting holding.
 - A follow ends when the follower goes around, so it no longer reports losing sight of its lead or chases it round the pattern.
+- vTDLS no longer stops opening pending clearances after a sent PDC was reviewed; a refresh is no longer needed.
+- An auto-sorted vStrips rack no longer covers its bottom strip with a second "auto-sort on" banner.
+- Dragging a vStrips strip now drops at any strip's slot across its full height, and a release outside every rack slides the strip back.
 
 ## v0.18.3-beta [2026/11/11]
 
