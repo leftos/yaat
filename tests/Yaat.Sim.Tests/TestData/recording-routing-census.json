@@ -1716,6 +1716,19 @@
     "Solo": false
   },
   {
+    "File": "s3-fat-3-star-end-recording.yaat-bug-report-bundle.zip",
+    "Commands": 29,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "Compound": 13,
+      "TrackOwnership": 15
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 14,
+    "Solo": false
+  },
+  {
     "File": "sa-tight-final-recording.yaat-bug-report-bundle.zip",
     "Commands": 18,
     "ByKind": {

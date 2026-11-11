@@ -235,7 +235,7 @@ Handlers don't move aircraft directly — they write to `ControlTargets` (the au
 
 **Navigation route supersession:** When a controller instruction replaces routing context, stale procedure fixes are removed from `NavigationRoute` rather than left appended:
 
-- **EAPP / RWY (arrival)** — `ExtendActiveStarWithRunwayTransition` drops fixes exclusive to other STAR runway transitions before appending the new transition.
+- **EAPP / RWY (arrival)** — `ExtendActiveStarWithRunwayTransition` drops fixes exclusive to other STAR runway transitions before appending the new transition. `SelectRunwayTransitionLegsToAppend` joins the transition at its last fix already on the route and appends only the legs after it, so a fix the aircraft has already flown never comes back; with no transition fix on the route it appends the whole transition only when the route is empty or ends on the STAR's common route. Scenario and `ADD` arrival spawns (`ArrivalRouteResolver.AppendStarRunwayTransition`) use the same join.
 - **Deferred CAPP** — a second clearance replaces the approach tail after the STAR connecting fix (not `InsertRange` on top of the old tail).
 - **Immediate CAPP / JAPP / JFAC / PTAC** — `ClearExistingPhases` clears `PendingClearance` so an old deferred clearance cannot activate when the route empties; **JFAC** also clears the queued route.
 - **DCT on active STAR** — `TryPreserveProcedure` truncates before the fix, then scrubs other-runway-transition fixes when `DestinationRunway` is set.

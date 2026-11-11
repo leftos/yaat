@@ -1182,8 +1182,9 @@ internal static class NavigationCommandHandler
     /// Extends an aircraft's active NavigationRoute with the runway-transition fixes for the
     /// given <paramref name="runwayDesignator"/> on its active STAR. No-op when the aircraft
     /// has no active STAR, no destination airport, or the STAR has no transition for the
-    /// runway. Skips fixes already present in the route to avoid duplicates when the route
-    /// already contains some or all of the transition.
+    /// runway. The transition joins at the last of its fixes the route already holds (see
+    /// <see cref="SelectRunwayTransitionLegsToAppend"/>), so a fix the aircraft has already
+    /// flown is never re-added behind it.
     /// </summary>
     internal static void ExtendActiveStarWithRunwayTransition(AircraftState aircraft, string runwayDesignator)
     {
@@ -1206,19 +1207,77 @@ internal static class NavigationCommandHandler
 
         RemoveStaleStarRunwayTransitionFixes(aircraft, star, transition);
 
-        var present = new HashSet<string>(aircraft.Targets.NavigationRoute.Select(t => t.Name), StringComparer.OrdinalIgnoreCase);
-        var newLegs = transition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier) && !present.Contains(l.FixIdentifier)).ToList();
+        List<string> routeNames = [.. aircraft.Targets.NavigationRoute.Select(t => t.Name)];
+        List<CifpLeg> newLegs = SelectRunwayTransitionLegsToAppend(transition.Legs, star, routeNames);
         if (newLegs.Count == 0)
         {
             return;
         }
 
-        List<NavigationTarget> newTargets = DepartureClearanceHandler.ResolveLegsToTargets(newLegs);
-        foreach (NavigationTarget t in newTargets)
+        foreach (NavigationTarget target in DepartureClearanceHandler.ResolveLegsToTargets(newLegs))
         {
-            aircraft.Targets.NavigationRoute.Add(t);
+            aircraft.Targets.NavigationRoute.Add(target);
         }
     }
+
+    /// <summary>
+    /// The legs of <paramref name="star"/>'s runway transition that <paramref name="routeNames"/> still has to fly: the
+    /// legs after the last transition leg whose fix the route already holds, so a transition fix the aircraft has
+    /// already flown is never appended behind it. With no transition fix on the route, the whole transition comes back
+    /// when the route is empty (nothing has been flown into it yet) or still ends on the STAR's common route; a route
+    /// that has already run past the transition gets nothing.
+    /// </summary>
+    internal static List<CifpLeg> SelectRunwayTransitionLegsToAppend(
+        IReadOnlyList<CifpLeg> transitionLegs,
+        CifpStarProcedure star,
+        IReadOnlyList<string> routeNames
+    )
+    {
+        List<CifpLeg> fixLegs = [.. transitionLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier))];
+        if (fixLegs.Count == 0)
+        {
+            return [];
+        }
+
+        var onRoute = new HashSet<string>(routeNames, StringComparer.OrdinalIgnoreCase);
+        int joinIndex = fixLegs.FindLastIndex(l => onRoute.Contains(l.FixIdentifier!));
+        if (joinIndex >= 0)
+        {
+            List<CifpLeg> tail = fixLegs.GetRange(joinIndex + 1, fixLegs.Count - joinIndex - 1);
+            Log.LogDebug(
+                "{Star} runway transition joins the route at {Fix} (transition leg {Index}); appending {Appended}",
+                star.ProcedureId,
+                fixLegs[joinIndex].FixIdentifier,
+                joinIndex,
+                DescribeLegFixes(tail)
+            );
+            return tail;
+        }
+
+        // An empty route holds nothing the aircraft has already flown, so it ends before the transition. The spawn
+        // caller builds one from a navigation path; the live caller does not reach here with an empty route, because
+        // FlightPhysics.ClearProcedureState nulls ActiveStarId when the route's last fix sequences, which returns
+        // ExtendActiveStarWithRunwayTransition before this lookup.
+        bool endsBeforeTransition = routeNames.Count == 0 || IsOnStarCommonRoute(star, routeNames[^1]);
+        Log.LogDebug(
+            "{Star} runway transition has no fix on the route, which ends at {LastFix} (before the transition: {Before}); appending {Appended}",
+            star.ProcedureId,
+            routeNames.Count > 0 ? routeNames[^1] : "<no route>",
+            endsBeforeTransition,
+            DescribeLegFixes(endsBeforeTransition ? fixLegs : [])
+        );
+        return endsBeforeTransition ? fixLegs : [];
+    }
+
+    /// <summary>
+    /// Whether <paramref name="fixName"/> is a fix of the STAR's common route — the body between its enroute transitions
+    /// and its runway transitions.
+    /// </summary>
+    private static bool IsOnStarCommonRoute(CifpStarProcedure star, string fixName) =>
+        star.CommonLegs.Any(l => !string.IsNullOrEmpty(l.FixIdentifier) && fixName.Equals(l.FixIdentifier, StringComparison.OrdinalIgnoreCase));
+
+    private static string DescribeLegFixes(IReadOnlyList<CifpLeg> legs) =>
+        legs.Count == 0 ? "nothing" : string.Join(' ', legs.Select(l => l.FixIdentifier));
 
     /// <summary>
     /// Filters NavigationTargets to those ahead of the aircraft (within ±90° of heading),

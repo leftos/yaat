@@ -63,8 +63,9 @@ internal static class ArrivalRouteResolver
     }
 
     /// <summary>
-    /// Appends CIFP runway transition fixes for the STAR found in the navigation path.
-    /// Only adds fixes not already present in the resolved list.
+    /// Appends CIFP runway transition fixes for the STAR found in the navigation path, joining the transition where
+    /// <see cref="NavigationCommandHandler.SelectRunwayTransitionLegsToAppend"/> places it: after the last transition
+    /// fix the resolved route already holds, so a fix the aircraft starts past is never re-added behind it.
     /// </summary>
     private static void AppendStarRunwayTransition(List<ResolvedFix> resolved, string navigationPath, string? destination)
     {
@@ -99,8 +100,10 @@ internal static class ArrivalRouteResolver
                 break;
             }
 
-            var existingNames = new HashSet<string>(resolved.Select(r => r.Name), StringComparer.OrdinalIgnoreCase);
-            List<NavigationTarget> rwTargets = DepartureClearanceHandler.ResolveLegsToTargets(rwTransitionLegs);
+            List<string> routeNames = [.. resolved.Select(r => r.Name)];
+            var existingNames = new HashSet<string>(routeNames, StringComparer.OrdinalIgnoreCase);
+            List<CifpLeg> legsToAppend = NavigationCommandHandler.SelectRunwayTransitionLegsToAppend(rwTransitionLegs, star, routeNames);
+            List<NavigationTarget> rwTargets = DepartureClearanceHandler.ResolveLegsToTargets(legsToAppend);
             foreach (NavigationTarget target in rwTargets)
             {
                 if (existingNames.Contains(target.Name))
