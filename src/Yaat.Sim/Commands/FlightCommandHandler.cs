@@ -2123,6 +2123,7 @@ internal static class FlightCommandHandler
             Clearance = pending.Clearance,
             AssignedRunway = pending.AssignedRunway,
             ConnectingFix = route[0].Name,
+            LandingClearance = pending.LandingClearance,
         };
     }
 

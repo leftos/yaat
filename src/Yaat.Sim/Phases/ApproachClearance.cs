@@ -177,12 +177,23 @@ public sealed class PendingApproachInfo
     /// </summary>
     public required string? ConnectingFix { get; init; }
 
+    /// <summary>
+    /// The landing clearance issued while the approach is still held (a <c>CLAND</c> before the STAR route
+    /// empties). It rides the pending clearance: <see cref="Commands.ApproachCommandHandler.ActivatePendingApproach"/>
+    /// stamps it on the phase sequence when the approach activates, and whatever clears the pending approach drops it
+    /// with it — a new CAPP, an intercept that takes over the approach (<c>JLOC</c> and friends), an airport change.
+    /// A direct that only moves the connecting fix keeps it (<c>TryPreserveProcedure</c>'s rewrite of that fix carries
+    /// it forward). Null when the controller issued none.
+    /// </summary>
+    public ClearanceType? LandingClearance { get; init; }
+
     public PendingApproachDto ToSnapshot() =>
         new()
         {
             Clearance = Clearance.ToSnapshot(),
             AssignedRunway = AssignedRunway.ToSnapshot(),
             ConnectingFix = ConnectingFix,
+            LandingClearance = LandingClearance is { } landing ? (int)landing : null,
         };
 
     public static PendingApproachInfo FromSnapshot(PendingApproachDto dto) =>
@@ -191,6 +202,7 @@ public sealed class PendingApproachInfo
             Clearance = ApproachClearance.FromSnapshot(dto.Clearance),
             AssignedRunway = RunwayInfo.FromSnapshot(dto.AssignedRunway),
             ConnectingFix = dto.ConnectingFix,
+            LandingClearance = dto.LandingClearance is { } landing ? (ClearanceType)landing : null,
         };
 }
 

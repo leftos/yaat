@@ -376,4 +376,13 @@ public sealed class PendingApproachDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ConnectingFix { get; init; }
+
+    /// <summary>
+    /// The landing clearance issued while the approach is still held, stamped on the phase sequence when the
+    /// approach activates. Serialized as the <c>ClearanceType</c> value like <c>PhaseListDto.LandingClearance</c>,
+    /// and absent (null) when none was issued — the additive, no-bump pattern, so every existing snapshot
+    /// restores null and its hash is unchanged.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LandingClearance { get; init; }
 }

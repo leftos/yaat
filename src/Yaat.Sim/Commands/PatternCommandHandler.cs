@@ -2824,12 +2824,7 @@ internal static class PatternCommandHandler
 
         if ((requested is not null) && (entryRunwayId is not null) && !string.Equals(requested, entryRunwayId, StringComparison.OrdinalIgnoreCase))
         {
-            return new CommandResult(
-                false,
-                $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(requested)} — {aircraft.Callsign} is queued to enter "
-                    + $"the pattern for runway {RunwayIdentifier.ToDisplayDesignator(entryRunwayId)} — re-issue the entry for runway "
-                    + $"{RunwayIdentifier.ToDisplayDesignator(requested)}, or CLC first"
-            );
+            return RunwayMismatchRefusal(aircraft, requested, entryRunwayId);
         }
 
         string? resolvedRunwayId = requested ?? entryRunwayId;
@@ -4747,6 +4742,13 @@ internal static class PatternCommandHandler
 
         if (aircraft.Phases is null)
         {
+            // An approach cleared while its STAR route still delivers to the connecting fix is held as a pending
+            // clearance and builds no phase sequence until the route empties. The landing clearance rides it.
+            if (aircraft.Approach.PendingClearance is { } heldApproach)
+            {
+                return TryClearHeldApproachToLand(ctl, aircraft, heldApproach, ctx);
+            }
+
             // No phase sequence at all, but the entry that will build one may be queued behind another
             // instruction (CLAND while ERD 28R sits behind DCT VPCOL). Pre-issue against that entry.
             if (
@@ -4772,6 +4774,14 @@ internal static class PatternCommandHandler
         }
 
         bool following = aircraft.Approach.FollowingCallsign is not null;
+
+        // A held approach can sit beside a phase sequence with no approach ending to replace: an arrival runway
+        // assignment builds an empty PhaseList and keeps a same-runway pending clearance (GroundCommandHandler's
+        // TryAssignRunway). Clear the held approach rather than refuse the clearance for want of a live ending.
+        if ((!following) && (aircraft.Approach.PendingClearance is { } pendingHeld) && !HasApproachEndingToReplace(aircraft.Phases))
+        {
+            return TryClearHeldApproachToLand(ctl, aircraft, pendingHeld, ctx);
+        }
 
         // Immediate clearance: the aircraft is already established on an approach or
         // pattern with an assigned runway. Replace the approach ending with a landing.
@@ -4863,6 +4873,79 @@ internal static class PatternCommandHandler
 
         return new CommandResult(false, "Cannot clear to land — no runway assigned");
     }
+
+    /// <summary>
+    /// Clears to land an aircraft whose approach is held as a pending clearance: the landing clearance is stamped on
+    /// that pending approach and <see cref="ApproachCommandHandler.ActivatePendingApproach"/> moves it onto the phase
+    /// sequence when the route empties. The approach is never activated here — doing so would change the lateral
+    /// guidance the STAR is already flying. A named runway contradicting the held approach's is refused rather than
+    /// landing the aircraft on a runway nobody cleared (7110.65 §3-10-5.a).
+    /// </summary>
+    private static CommandResult TryClearHeldApproachToLand(
+        ClearedToLandCommand ctl,
+        AircraftState aircraft,
+        PendingApproachInfo pending,
+        DispatchContext ctx
+    )
+    {
+        string runwayId = pending.AssignedRunway.Designator;
+        if (
+            (ctl.RunwayId is { } requestedRunwayId)
+            && !string.Equals(RunwayIdentifier.NormalizeDesignator(requestedRunwayId), runwayId, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return new CommandResult(
+                false,
+                $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(requestedRunwayId)} — {aircraft.Callsign} is cleared for "
+                    + $"the {pending.Clearance.ApproachId} approach to runway {RunwayIdentifier.ToDisplayDesignator(runwayId)}; "
+                    + $"re-issue the approach for runway {RunwayIdentifier.ToDisplayDesignator(requestedRunwayId)} first"
+            );
+        }
+
+        aircraft.Approach.PendingClearance = new PendingApproachInfo
+        {
+            Clearance = pending.Clearance,
+            AssignedRunway = pending.AssignedRunway,
+            ConnectingFix = pending.ConnectingFix,
+            LandingClearance = ClearanceType.ClearedToLand,
+        };
+
+        // Same side effects as a clearance on a live phase sequence: NODEL rides the clearance, the full-stop intent
+        // drops any standing MLT/MRT so the circuit does not auto-cycle after touchdown, and a runway another aircraft
+        // holds is warned about now rather than when the approach activates.
+        if (ctl.NoDelete)
+        {
+            aircraft.Ground.AutoDeleteExempt = true;
+            aircraft.Ground.NoDeleteRequested = true;
+        }
+        aircraft.Pattern.TrafficDirection = null;
+        RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, runwayId, ctx);
+        return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(pending.AssignedRunway)}");
+    }
+
+    /// <summary>
+    /// Whether the live phase sequence still holds an approach ending for a landing clearance to replace — a not yet
+    /// started landing, touch-and-go, stop-and-go or low-approach phase, the set
+    /// <see cref="CommandDispatcher.ReplaceApproachEnding"/> swaps out.
+    /// </summary>
+    private static bool HasApproachEndingToReplace(PhaseList phases) =>
+        phases.Phases.Any(p =>
+            (p.Status == PhaseStatus.Pending)
+            && (p is LandingPhase or HelicopterLandingPhase or TouchAndGoPhase or StopAndGoPhase or LowApproachPhase)
+        );
+
+    /// <summary>
+    /// The refusal for a clearance naming a runway that contradicts the one the aircraft is already given — by a
+    /// queued pattern entry or by a held approach clearance. 7110.65 §3-10-5.a: a new runway needs its own
+    /// clearance, so the aircraft is not cleared for the one asked for.
+    /// </summary>
+    private static CommandResult RunwayMismatchRefusal(AircraftState aircraft, string requestedRunwayId, string assignedRunwayId) =>
+        new(
+            false,
+            $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(requestedRunwayId)} — {aircraft.Callsign} is queued to enter "
+                + $"the pattern for runway {RunwayIdentifier.ToDisplayDesignator(assignedRunwayId)} — re-issue the entry for runway "
+                + $"{RunwayIdentifier.ToDisplayDesignator(requestedRunwayId)}, or CLC first"
+        );
 
     // --- Low approach on runway A, then cleared to land on a diverging runway B (issue #292) ---
     // 7110.65 §3-10-5 subpara 3 "change to runway"; AIM §4-3-12.1 authorizes the low-approach turn

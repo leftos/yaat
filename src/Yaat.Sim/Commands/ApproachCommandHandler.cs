@@ -2876,6 +2876,14 @@ public static class ApproachCommandHandler
         bool isHeli = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         aircraft.Phases.Add(isHeli ? new HelicopterLandingPhase() : new LandingPhase());
 
+        // A landing clearance issued while the approach was held reaches the sequence here, exactly as one issued
+        // against a live sequence would have.
+        if (pending.LandingClearance is { } landingClearance)
+        {
+            aircraft.Phases.LandingClearance = landingClearance;
+            aircraft.Phases.ClearedRunwayId = pending.AssignedRunway.Designator;
+        }
+
         // No route to the room's active runways: this handler is not given the dispatch context.
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(ctx);

@@ -33,6 +33,7 @@
 - A stand whose airport map gives no heading faces away from its taxilane instead of north, so roll-in and pushback plans fit it.
 - An arrival past a STAR's first fix no longer turns back to it when `EAPP` or `RWY` adds the runway transition, or when it spawns on the STAR.
 - An incomplete `TAXI` that stops at a runway's hold line names that runway in its note, and still the taxiway the route needs.
+- `CLAND` after a `CAPP` the aircraft holds while still on its STAR is accepted and kept, instead of "no active phase sequence" until a second `CAPP`.
 
 ## v0.18.2-beta [2026/11/09]
 
