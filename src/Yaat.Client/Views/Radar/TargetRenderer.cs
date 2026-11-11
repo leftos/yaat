@@ -260,6 +260,15 @@ public sealed class TargetRenderer : IDisposable
     private readonly Dictionary<string, AircraftModel> _callsignIndex = [];
 
     /// <summary>
+    /// The callsigns whose datablock and leader line this pass leaves undrawn unless the aircraft is selected: the render
+    /// snapshot's copy of the radar's hidden set, set at the start of each <see cref="Render"/> pass.
+    /// </summary>
+    private IReadOnlySet<string>? _hiddenCallsigns;
+
+    /// <summary>True when this pass leaves the aircraft's datablock and leader line undrawn: hidden, and not selected.</summary>
+    private bool IsBlockHidden(string callsign, bool isSelected) => (!isSelected) && (_hiddenCallsigns?.Contains(callsign) == true);
+
+    /// <summary>
     /// Resolves a paired aircraft by callsign from the current render pass, or null when the callsign
     /// is unset or the aircraft isn't on the scope.
     /// </summary>
@@ -389,10 +398,12 @@ public sealed class TargetRenderer : IDisposable
         IReadOnlySet<string>? minifiedCallsigns = null,
         IReadOnlySet<string>? highlightedCallsigns = null,
         bool showTopDown = false,
-        int historyCount = 0
+        int historyCount = 0,
+        IReadOnlySet<string>? hiddenCallsigns = null
     )
     {
         RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
+        _hiddenCallsigns = hiddenCallsigns;
 
         // Draw history trails first (behind position symbols)
         if (historyCount > 0)
@@ -955,6 +966,12 @@ public sealed class TargetRenderer : IDisposable
         bool isSelected
     )
     {
+        if (IsBlockHidden(ac.Callsign, isSelected))
+        {
+            // No block and no leader line; a speech bubble anchors at the symbol.
+            return new SKRect(cx, cy, cx, cy);
+        }
+
         _dataBlockPaint.Color = color;
 
         SKPoint manualOffset = default;

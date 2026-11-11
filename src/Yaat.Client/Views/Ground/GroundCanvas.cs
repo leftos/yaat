@@ -684,6 +684,21 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         MarkDirty();
     }
 
+    /// <summary>True when this view hides the datablock of any aircraft it is showing.</summary>
+    public bool AnyDataBlockHidden => State.AnyDataBlockHidden(ShownCallsigns());
+
+    /// <summary>
+    /// Shows the datablock of every aircraft this view is showing, as unhiding each does. Backs the background menu's
+    /// "Show all datablocks".
+    /// </summary>
+    public void ShowAllDataBlocks()
+    {
+        State.ShowAllDataBlocks(ShownCallsigns());
+        MarkDirty();
+    }
+
+    private IEnumerable<string> ShownCallsigns() => (Aircraft ?? []).Select(ac => ac.Callsign);
+
     /// <summary>Sets whether all datablocks start hidden (inverts the hide/show logic).</summary>
     public void SetStartWithAllHidden(bool hidden)
     {
@@ -1567,6 +1582,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return;
         }
 
+        if (TryToggleHiddenOnShiftClick(e, pos, props))
+        {
+            return;
+        }
+
         // Right button: record the press and let panning start, but decide nothing yet. Which of the two
         // gestures this is — a click that opens a menu, or a drag that pans — is only known on release,
         // once we can see whether the pointer moved. Firing a menu here would mean a right-drag that
@@ -1983,6 +2003,31 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         DrawFreePointPlaced?.Invoke(new LatLon(lat, lon), dragTo, _freePointButton == MouseButton.Right);
+    }
+
+    /// <summary>
+    /// Shift+left on an aircraft's datablock or symbol toggles its datablock hidden or shown, as the Display menu's item
+    /// does, and neither selects the aircraft nor drags the block. A hidden block's area still catches the press. Sits
+    /// below the measure and push-route rungs, so push-route drawing keeps Shift+left for its marked points. With the
+    /// action modifier also held (Ctrl, Cmd on macOS) the press is left to open the flight-plan editor.
+    /// </summary>
+    /// <returns>True when the press toggled a datablock and is handled.</returns>
+    private bool TryToggleHiddenOnShiftClick(PointerPressedEventArgs e, Point pos, PointerPointProperties props)
+    {
+        bool shiftOnly = e.KeyModifiers.HasFlag(KeyModifiers.Shift) && (!PlatformHelper.HasActionModifier(e.KeyModifiers));
+        if ((!props.IsLeftButtonPressed) || (!shiftOnly))
+        {
+            return false;
+        }
+
+        if ((FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos)) is not { } ac)
+        {
+            return false;
+        }
+
+        ToggleHiddenDataBlock(ac.Callsign);
+        e.Handled = true;
+        return true;
     }
 
     /// <summary>

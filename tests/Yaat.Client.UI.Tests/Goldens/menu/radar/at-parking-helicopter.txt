@@ -61,6 +61,7 @@ All Commands
   ---
   Display
     Mini datablock
+    Hide datablock
     Show nav route
     Measure from N812HL
     ---

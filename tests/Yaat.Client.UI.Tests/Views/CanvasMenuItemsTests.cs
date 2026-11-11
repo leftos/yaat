@@ -109,6 +109,20 @@ public class CanvasMenuItemsTests
         Assert.Equal(1, toggles);
     }
 
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ShowAllDataBlocks_EnabledOnlyWhileAnyIsHidden_AndClickShowsAll(bool anyHidden)
+    {
+        int shown = 0;
+        MenuItem item = CanvasMenuItems.ShowAllDataBlocks(anyHidden, () => shown++);
+
+        Assert.Equal("Show all datablocks", item.Header as string);
+        Assert.Equal(anyHidden, item.IsEnabled);
+        Click(item);
+        Assert.Equal(1, shown);
+    }
+
     [AvaloniaFact]
     public void DrawRoute_NamedLabel_AndClickEnters()
     {

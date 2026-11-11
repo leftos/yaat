@@ -208,7 +208,7 @@ public class ContextMenuBuilderSeamTests
         Assert.Equal(["Track and coordination"], AllCommandsSequence(ListSurfaceShadowMenu(shadow)));
     }
 
-    // Only the ground view's shadow offers the ground's own display entries; the radar's does not.
+    // Only the ground's shadow offers Taxi route; both offer Hide datablock.
     [AvaloniaFact]
     public void GroundSurfaceShadow_DisplayHasTaxiRouteAndHideDatablock()
     {
@@ -218,7 +218,7 @@ public class ContextMenuBuilderSeamTests
         Assert.DoesNotContain("Leader direction", groundHeaders);
 
         Assert.DoesNotContain("Taxi route", DisplayHeaders(RadarSurfaceShadowMenu(SurfaceShadow("SWA9"))));
-        Assert.DoesNotContain("Hide datablock", DisplayHeaders(RadarSurfaceShadowMenu(SurfaceShadow("SWA9"))));
+        Assert.Contains("Hide datablock", DisplayHeaders(RadarSurfaceShadowMenu(SurfaceShadow("SWA9"))));
     }
 
     [AvaloniaFact]

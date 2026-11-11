@@ -125,6 +125,27 @@ public sealed class GroundDataBlockViewState : DataBlockViewState
         }
     }
 
+    /// <summary>True when any of <paramref name="callsigns"/> has its datablock hidden.</summary>
+    public bool AnyDataBlockHidden(IEnumerable<string> callsigns) => callsigns.Any(IsDataBlockHidden);
+
+    /// <summary>
+    /// Shows the datablock of every one of <paramref name="callsigns"/>, as unhiding each in turn does: while
+    /// <see cref="StartWithAllHidden"/> is on each is opted in, otherwise the hidden choices are cleared.
+    /// </summary>
+    public void ShowAllDataBlocks(IEnumerable<string> callsigns)
+    {
+        if (!StartWithAllHidden)
+        {
+            HiddenDataBlockCallsigns.Clear();
+            return;
+        }
+
+        foreach (string callsign in callsigns)
+        {
+            ShownDataBlockCallsigns.Add(callsign);
+        }
+    }
+
     /// <summary>
     /// Sets the hide-by-default mode. Per-callsign choices reset only when the mode actually flips,
     /// so a second view binding to this shared state (opening a pop-out) can re-apply the preference
@@ -152,11 +173,17 @@ public sealed class GroundDataBlockViewState : DataBlockViewState
     }
 }
 
-/// <summary>Radar-view datablock state: adds the full/mini datablock choices.</summary>
+/// <summary>Radar-view datablock state: adds the full/mini datablock choices and the hidden datablocks.</summary>
 public sealed class RadarDataBlockViewState : DataBlockViewState
 {
     /// <summary>Callsigns showing the minified (single-line) datablock.</summary>
     public HashSet<string> MinifiedCallsigns { get; } = [];
+
+    /// <summary>
+    /// Callsigns whose datablock and leader line are hidden, whatever form the block has; the target symbol stays drawn,
+    /// and a selected aircraft still shows its block.
+    /// </summary>
+    public HashSet<string> HiddenCallsigns { get; } = [];
 
     public void ToggleMinified(string callsign)
     {
@@ -166,9 +193,18 @@ public sealed class RadarDataBlockViewState : DataBlockViewState
         }
     }
 
+    public void ToggleHidden(string callsign)
+    {
+        if (!HiddenCallsigns.Remove(callsign))
+        {
+            HiddenCallsigns.Add(callsign);
+        }
+    }
+
     public override void Clear()
     {
         base.Clear();
         MinifiedCallsigns.Clear();
+        HiddenCallsigns.Clear();
     }
 }

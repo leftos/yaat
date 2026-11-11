@@ -127,6 +127,7 @@ public class CanvasMenuSectionTests
             MenuContext context = Context();
 
             canvas.ToggleMinifiedDataBlock(Callsign);
+            canvas.ToggleHiddenDataBlock(Callsign);
             radar.DataBlockState.ManualOffsets[Callsign] = new SKPoint(12, 34);
             radar.ToggleShowPath(Callsign);
             var measure = new RangeBearingViewState(new RangeBearingLineStore());
@@ -136,6 +137,7 @@ public class CanvasMenuSectionTests
             Assert.Equal(
                 [
                     "Full datablock",
+                    "Show datablock",
                     "Reset datablock position",
                     "Hide nav route",
                     $"Measure to {Callsign}",
@@ -154,6 +156,88 @@ public class CanvasMenuSectionTests
         {
             window.Close();
         }
+    }
+
+    // The radar's Display hide item writes the canvas's hidden set, which the rebuilt item reads back.
+    [AvaloniaFact]
+    public void RadarCanvasDisplay_HideDataBlock_TogglesTheCanvasAndReadsBack()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        (RadarView view, RadarCanvas canvas, Window window) = ShowRadarView(main);
+        try
+        {
+            RadarViewModel radar = main.Radar;
+            var host = new RecordingMenuHost("");
+            MenuContext context = Context();
+
+            MenuItem hide = view.BuildCanvasDisplay(radar, context, host).Items.OfType<MenuItem>().Single(i => Equals(i.Header, "Hide datablock"));
+            Click(hide);
+            Assert.True(canvas.IsDataBlockHidden(Callsign));
+
+            MenuItem show = view.BuildCanvasDisplay(radar, context, host).Items.OfType<MenuItem>().Single(i => Equals(i.Header, "Show datablock"));
+            Click(show);
+            Assert.False(canvas.IsDataBlockHidden(Callsign));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // The radar's background menu offers "Show all datablocks", disabled while no block is hidden; it clears the set.
+    [AvaloniaFact]
+    public void RadarBackgroundMenu_ShowAllDataBlocks_DisabledUntilOneIsHidden_ThenShowsAll()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        (RadarView view, RadarCanvas canvas, Window window) = ShowRadarView(main);
+        try
+        {
+            Assert.False(ShowAllItem(view.BuildMapContextMenu(37.0, -122.0, new Avalonia.Point(10, 10))).IsEnabled);
+
+            canvas.ToggleHiddenDataBlock(Callsign);
+            MenuItem showAll = ShowAllItem(view.BuildMapContextMenu(37.0, -122.0, new Avalonia.Point(10, 10)));
+            Assert.True(showAll.IsEnabled);
+
+            Click(showAll);
+            Assert.False(canvas.IsDataBlockHidden(Callsign));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // The ground's background (empty-space) menu offers "Show all datablocks" the same way.
+    [AvaloniaFact]
+    public void GroundBackgroundMenu_ShowAllDataBlocks_DisabledUntilOneIsHidden_ThenShowsAll()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        (GroundView view, GroundCanvas canvas, Window window) = ShowGroundView(main);
+        try
+        {
+            main.Ground.SetLayoutForTesting(
+                new GroundLayoutDto("SFO", [new GroundNodeDto(1, 37.62, -122.39, "Taxiway", null, null, null)], [], null, null, null)
+            );
+            canvas.Aircraft = [new AircraftModel { Callsign = Callsign, IsOnGround = true }];
+            Assert.False(ShowAllItem(view.BuildNodeContextMenu(1, new Avalonia.Point(10, 10))).IsEnabled);
+
+            canvas.ToggleHiddenDataBlock(Callsign);
+            MenuItem showAll = ShowAllItem(view.BuildNodeContextMenu(1, new Avalonia.Point(10, 10)));
+            Assert.True(showAll.IsEnabled);
+
+            Click(showAll);
+            Assert.False(canvas.IsDataBlockHidden(Callsign));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private static MenuItem ShowAllItem(ContextMenu? menu)
+    {
+        Assert.NotNull(menu);
+        return menu!.Items.OfType<MenuItem>().Single(i => Equals(i.Header, "Show all datablocks"));
     }
 
     // The radar's measure item against the real tool: no item with no tool, "from" while the tool is idle, "to" once it

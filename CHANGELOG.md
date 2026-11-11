@@ -6,6 +6,7 @@
 
 - The Favorites Global set can be turned off from its row in the Sets flyout; adding a button to Global turns it back on.
 - Copy and Paste in the right-click Edit Favorite flyout copy a favorite button after another one, in any set.
+- Shift+click on an aircraft in the Ground or Radar View hides or shows its datablock; each view's background menu gains Show all datablocks.
 - In solo training, an instruction the student gives a pilot still on another position's frequency is not heard: no readback, and the instructor sees "not on your frequency".
 - In solo training, a pilot moves to the student's frequency when the student accepts its handoff, when it checks in with the student, or when it is told to contact the student.
 - In solo training, an airborne pilot sent to another position's frequency does not check in with the student; the instructor sees "check-in held, tuned to …" once.

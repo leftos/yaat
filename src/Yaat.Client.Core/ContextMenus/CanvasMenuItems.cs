@@ -107,6 +107,17 @@ public static class CanvasMenuItems
         return item;
     }
 
+    /// <summary>
+    /// The "Show all datablocks" item of a view's background menu: it shows every hidden data block in that view, and is
+    /// disabled while none is hidden.
+    /// </summary>
+    public static MenuItem ShowAllDataBlocks(bool anyHidden, Action showAll)
+    {
+        var item = new MenuItem { Header = "Show all datablocks", IsEnabled = anyHidden };
+        item.Click += (_, _) => showAll();
+        return item;
+    }
+
     /// <summary>The Draw route item, which puts the surface into drawing a route for the aircraft.</summary>
     public static MenuItem DrawRoute(string label, Action enter)
     {

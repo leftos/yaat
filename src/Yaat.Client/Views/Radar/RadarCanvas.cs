@@ -817,6 +817,26 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>Returns true if the callsign's datablock is currently minified.</summary>
     public bool IsMinified(string callsign) => State.MinifiedCallsigns.Contains(callsign);
 
+    /// <summary>Toggles whether the callsign's datablock and leader line are hidden; its target symbol stays drawn.</summary>
+    public void ToggleHiddenDataBlock(string callsign)
+    {
+        State.ToggleHidden(callsign);
+        MarkDirty();
+    }
+
+    /// <summary>Returns true if the callsign's datablock is hidden (a selected aircraft still shows it).</summary>
+    public bool IsDataBlockHidden(string callsign) => State.HiddenCallsigns.Contains(callsign);
+
+    /// <summary>True when this view hides any datablock.</summary>
+    public bool AnyDataBlockHidden => State.HiddenCallsigns.Count > 0;
+
+    /// <summary>Shows every datablock this view hides. Backs the background menu's "Show all datablocks".</summary>
+    public void ShowAllDataBlocks()
+    {
+        State.HiddenCallsigns.Clear();
+        MarkDirty();
+    }
+
     /// <summary>
     /// Clears any manual drag offset for the callsign so its datablock returns to the student's leader
     /// direction (when leader-direction sync is on) or the default placement. Backs the radar
@@ -1034,7 +1054,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<ResolvedRbl>? RangeBearingLines,
         ResolvedRbl? PendingRangeBearingLine,
         IReadOnlyDictionary<int, SKRect> RblReadoutRects,
-        ResolvedRadarCue? MenuCue
+        ResolvedRadarCue? MenuCue,
+        IReadOnlySet<string> HiddenCallsigns
     );
 
     /// <summary>
@@ -1194,7 +1215,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             measurements,
             pendingMeasurement,
             readoutRects,
-            MenuCue?.ResolveAgainst(sorted)
+            MenuCue?.ResolveAgainst(sorted),
+            new HashSet<string>(State.HiddenCallsigns)
         );
     }
 
@@ -1277,6 +1299,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         {
             (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             symbols.Add(new SKPoint(sx, sy));
+            if (IsBlockUndrawn(ac))
+            {
+                continue;
+            }
+
             SKRect rect = ComputeDataBlockPlacement(ac, includeNudge: false).Rect;
             if (State.ManualOffsets.ContainsKey(ac.Callsign) || TryGetEuroScopeTag(ac, out _))
             {
@@ -1390,7 +1417,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.ShownPaths,
             s.ShownShapes,
             s.HistoryCount,
-            s.MvaHover
+            s.MvaHover,
+            s.HiddenCallsigns
         );
 
         // A menu row's cue rides over targets and datablocks; a measurement stays on top of it.
@@ -1495,6 +1523,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 }
                 // Fall through to base handler for pan/zoom
             }
+        }
+
+        if (TryToggleHiddenOnShiftClick(e, pos, props))
+        {
+            return;
         }
 
         if (props.IsMiddleButtonPressed)
@@ -1848,6 +1881,37 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public event Func<AircraftModel, TagFieldId, Point, bool>? EuroScopeFieldRightClicked;
 
+    /// <summary>
+    /// Shift+left on an aircraft's datablock or symbol toggles its datablock hidden or shown, as the Display menu's item
+    /// does, and neither selects the aircraft nor drags the block. A hidden block is not drawn and catches nothing, so a
+    /// hidden one is shown again from its symbol. With the action modifier also held (Ctrl, Cmd on macOS) the press is
+    /// left to open the flight-plan editor.
+    /// </summary>
+    /// <returns>True when the press toggled a datablock and is handled.</returns>
+    private bool TryToggleHiddenOnShiftClick(PointerPressedEventArgs e, Point pos, PointerPointProperties props)
+    {
+        bool shiftOnly = e.KeyModifiers.HasFlag(KeyModifiers.Shift) && (!Services.PlatformHelper.HasActionModifier(e.KeyModifiers));
+        if ((!props.IsLeftButtonPressed) || (!shiftOnly))
+        {
+            return false;
+        }
+
+        if ((FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos)) is not { } ac)
+        {
+            return false;
+        }
+
+        ToggleHiddenDataBlock(ac.Callsign);
+        e.Handled = true;
+        return true;
+    }
+
+    /// <summary>
+    /// True when the aircraft's datablock and leader line are not drawn: it is hidden and not selected. The draw reads the
+    /// same set from the render snapshot (<c>TargetRenderer</c>), so hit-testing and deconfliction skip what it skips.
+    /// </summary>
+    private bool IsBlockUndrawn(AircraftModel ac) => (ac != SelectedAircraft) && State.HiddenCallsigns.Contains(ac.Callsign);
+
     /// <summary>The aircraft whose datablock is drawn on top at <paramref name="screenPos"/>, or null when none contains it.</summary>
     public AircraftModel? FindDataBlockAtPoint(Point screenPos)
     {
@@ -1860,7 +1924,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         AircraftModel? best = null;
         foreach (AircraftModel ac in SortByZOrder(HitTestableAircraft(), State.DataBlockZOrder))
         {
-            if (ComputeDataBlockRect(ac).Contains((float)screenPos.X, (float)screenPos.Y))
+            if ((!IsBlockUndrawn(ac)) && ComputeDataBlockRect(ac).Contains((float)screenPos.X, (float)screenPos.Y))
             {
                 best = ac;
             }
@@ -1880,6 +1944,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         foreach (AircraftModel ac in SortByZOrder(HitTestableAircraft(), State.DataBlockZOrder))
         {
+            if (IsBlockUndrawn(ac))
+            {
+                continue;
+            }
+
             SKRect blockRect = ComputeDataBlockRect(ac);
             if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
             {
@@ -2138,6 +2207,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var items = new List<DatablockDeconfliction.Item>(sorted.Count);
         foreach (AircraftModel ac in sorted)
         {
+            // An undrawn block takes no room, so the drawn ones place as if it were not there.
+            if (IsBlockUndrawn(ac))
+            {
+                continue;
+            }
+
             (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             var anchor = new SKPoint(sx, sy);
             bool hasManual = State.ManualOffsets.TryGetValue(ac.Callsign, out SKPoint manualOffset);

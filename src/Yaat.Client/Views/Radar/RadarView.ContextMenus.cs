@@ -143,8 +143,8 @@ public partial class RadarView
     }
 
     /// <summary>
-    /// The radar canvas's Display submenu, built from the radar's own state: the data-block form and its position
-    /// reset, the nav route and the measurement in progress, then the leader-direction, J-ring and cone overlays, then
+    /// The radar canvas's Display submenu, built from the radar's own state: the data-block form, hide or show datablock
+    /// and its position reset, the nav route and the measurement in progress, then the leader-direction, J-ring and cone overlays, then
     /// blank and unblank. It opens the radar's view section, on every radar aircraft menu.
     /// </summary>
     internal MenuItem BuildCanvasDisplay(RadarViewModel vm, MenuContext context, IMenuHost host)
@@ -153,6 +153,7 @@ public partial class RadarView
         return CanvasMenuItems.Display([
             [
                 CanvasMenuItems.DataBlockForm(Canvas.IsMinified(callsign), () => Canvas.ToggleMinifiedDataBlock(callsign)),
+                CanvasMenuItems.HideDataBlock(Canvas.IsDataBlockHidden(callsign), () => Canvas.ToggleHiddenDataBlock(callsign)),
                 CanvasMenuItems.ResetDataBlockPosition(Canvas.HasManualDataBlockOffset(callsign), () => Canvas.ResetDataBlockOffset(callsign)),
                 CanvasMenuItems.NavRoute(vm.IsPathShown(callsign), () => vm.ToggleShowPath(callsign)),
                 CanvasMenuItems.Measure(MeasureState(vm), callsign, () => MeasurePickOnAircraft(vm, callsign)),
@@ -189,8 +190,8 @@ public partial class RadarView
     }
 
     /// <summary>
-    /// The map's right-click menu at a point: the map point menu (<see cref="BuildMapPointMenu"/>), ending with "Settings
-    /// for this view…"; null without a radar view model.
+    /// The map's right-click menu at a point: the map point menu (<see cref="BuildMapPointMenu"/>), ending with "Show all
+    /// datablocks" and "Settings for this view…"; null without a radar view model.
     /// </summary>
     internal ContextMenu? BuildMapContextMenu(double lat, double lon, Point screenPos)
     {
@@ -200,7 +201,19 @@ public partial class RadarView
         }
 
         ContextMenu menu = BuildMapPointMenu(vm, new LatLon(lat, lon), screenPos);
-        ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Radar);
+        MainViewModel? main = FindMainViewModel();
+        if (main is not null)
+        {
+            // Its own group, above the separator that opens "Settings for this view…".
+            if ((menu.Items.Count > 0) && (menu.Items[^1] is not Separator))
+            {
+                menu.Items.Add(new Separator());
+            }
+
+            menu.Items.Add(CanvasMenuItems.ShowAllDataBlocks(Canvas.AnyDataBlockHidden, Canvas.ShowAllDataBlocks));
+        }
+
+        ViewSettingsMenu.Append(menu, main, SettingsSectionId.Radar);
         return menu;
     }
 

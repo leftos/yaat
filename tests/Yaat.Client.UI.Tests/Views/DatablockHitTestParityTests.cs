@@ -82,6 +82,48 @@ public class DatablockHitTestParityTests
         Assert.Equal(DrawRectAtOrigin(ac, canvas, size, atpaLead: null), canvas.ComputeStableRectAtOrigin(ac));
     }
 
+    /// <summary>
+    /// A hidden radar block is not drawn, so it catches no click; its target symbol is still drawn and still does. The
+    /// selected aircraft draws its hidden block, so that block is hit.
+    /// </summary>
+    [AvaloniaFact]
+    public void HiddenBlock_IsNotHit_ItsSymbolIs_UnlessSelected()
+    {
+        var canvas = new RadarCanvas();
+        var window = new Avalonia.Controls.Window
+        {
+            Width = 800,
+            Height = 600,
+            Content = canvas,
+        };
+        window.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        try
+        {
+            AircraftModel ac = CreateModel();
+            (double lat, double lon) = canvas.Viewport.ScreenToLatLon(300, 300);
+            ac.Position = new LatLon(lat, lon);
+            canvas.Aircraft = [ac];
+            SKRect rect = canvas.ComputeDataBlockPlacement(ac).Rect;
+            var onBlock = new Avalonia.Point(rect.MidX, rect.MidY);
+            Assert.Same(ac, canvas.FindDataBlockAtPoint(onBlock));
+
+            canvas.ToggleHiddenDataBlock(ac.Callsign);
+
+            Assert.Null(canvas.FindDataBlockAtPoint(onBlock));
+            Assert.Empty(canvas.FindRightClickTargets(onBlock));
+            Assert.Same(ac, canvas.FindAircraftAtPoint(new Avalonia.Point(300, 300)));
+
+            canvas.SelectedAircraft = ac;
+            Assert.Same(ac, canvas.FindDataBlockAtPoint(onBlock));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     [AvaloniaFact]
     public void HitTestRect_MatchesDrawRect_WhileIdenting()
     {

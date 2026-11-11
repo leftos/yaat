@@ -642,6 +642,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 - **Zoom**: mouse wheel (hold **Ctrl** for fine zoom) — scroll speed is adjustable under **Settings › Radar › Scroll / zoom sensitivity**
 - **Rotate**: Shift + mouse wheel (1° per notch)
 - **Select aircraft**: click an aircraft triangle on the map
+- **Hide or show a datablock**: **Shift+click** an aircraft or its datablock. The aircraft stays drawn and is not selected; Shift+click it, or its datablock's empty spot, again to bring the datablock back. Middle-click on a hidden datablock also shows it, the selected aircraft always shows its datablock, and **Show all datablocks** in the right-click menu on an empty spot of the map shows every hidden one. While you draw a push route, Shift+click places a marked point instead
 - **Measure distance**: hold **Alt** and drag between two points or aircraft — see [Measuring distance and bearing](#measuring-distance-and-bearing)
 - **Node id**: hold **Ctrl** and move the pointer. The nearest ground node within about 40 px gets a ring and a label such as `#123 · Parking A7`. The `#123` part is the id that `PUSH #123` and `PUSHM` take
 
@@ -1072,6 +1073,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 - **Pan**: right-click and drag
 - **Zoom**: mouse wheel (hold **Ctrl** for fine zoom) — scroll speed is adjustable under **Settings › Radar › Scroll / zoom sensitivity**
 - **Select aircraft**: click a target on the display
+- **Hide or show a datablock**: **Shift+click** a target or its datablock. The datablock and its leader line go; the target symbol and its history trail stay, and the aircraft is not selected. Shift+click the target again to bring the datablock back. The selected aircraft always shows its datablock, and a hidden datablock hides whatever form it has (full, mini or EuroScope tag). The aircraft menu's **All Commands › Display** has **Hide datablock** / **Show datablock**, and **Show all datablocks** in the right-click menu on an empty spot of the scope shows every hidden one
 - **Measure distance**: hold **Alt** and drag between two points or aircraft — see [Measuring distance and bearing](#measuring-distance-and-bearing)
 
 **DCB bar** (top of the radar view):
@@ -3007,7 +3009,7 @@ Links at the top: **Font sizes → Appearance**, **Always on top → General**.
 
 | Setting | What it does | Default |
 |---------|--------------|---------|
-| **Start with all datablocks hidden** | Ground-view datablocks start hidden; reveal individually with right-click > Display > Show datablock or middle-click. | Off |
+| **Start with all datablocks hidden** | Ground-view datablocks start hidden; reveal individually with Shift+click, right-click > Display > Show datablock or middle-click. | Off |
 | **Show taxi route when hovering an aircraft** | Hovering an aircraft temporarily draws its taxi route. | On |
 | **Show all taxiing aircraft's routes** | Draws every taxiing aircraft's route by default. Opt an aircraft out with right-click > Display > Taxi route > Always hide. | Off |
 
@@ -3042,7 +3044,7 @@ Links at the top: **Font sizes → Appearance**, **Speech bubbles → Radar**, *
 
 | Setting | What it does | Default |
 |---------|--------------|---------|
-| **Start with all datablocks hidden** | Ground-view datablocks start hidden; reveal individually with right-click > Show datablock or middle-click. | Off |
+| **Start with all datablocks hidden** | Ground-view datablocks start hidden; reveal individually with Shift+click, right-click > Display > Show datablock or middle-click. | Off |
 | **Show taxi route when hovering an aircraft** | Hovering an aircraft temporarily draws its taxi route. | On |
 | **Show all taxiing aircraft's routes** | Draws every taxiing aircraft's route by default. Opt an aircraft out with right-click > Taxi route > Always hide. | Off |
 

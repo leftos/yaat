@@ -389,7 +389,8 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlyList<ShownPathEntry>? shownPaths = null,
         IReadOnlyList<ShownShapeEntry>? shownShapes = null,
         int historyCount = 0,
-        (string Text, SKPoint Pos)? mvaHover = null
+        (string Text, SKPoint Pos)? mvaHover = null,
+        IReadOnlySet<string>? hiddenCallsigns = null
     )
     {
         RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
@@ -445,7 +446,8 @@ public sealed class RadarRenderer : IDisposable
             minifiedCallsigns,
             highlightedCallsigns,
             showTopDown,
-            historyCount
+            historyCount,
+            hiddenCallsigns
         );
 
         // EuroScope heading-mode preview overlay (above aircraft, below drawn route).

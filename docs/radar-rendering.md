@@ -51,18 +51,11 @@ All paths are under `src/Yaat.Client/`.
 ### The no-StyledProperty rule
 
 `RenderFromSnapshot` runs on the render thread and **must never read a `StyledProperty` or a mutable canvas field**.
-This is stated only in the `MapCanvasBase` doc-comments (`MapCanvasBase.cs:53-65`); nothing enforces it. Because of it,
-mutable interaction state that the renderer needs is **defensively copied into the snapshot**: the per-callsign datablock
-state (`RadarDataBlockViewState` — manual offsets, minified, highlighted, z-order) is copied into fresh `HashSet`s /
-`Dictionary`s, and the aircraft list is filtered + z-ordered into a new list. Reading any of it directly inside
-`RenderFromSnapshot` would be a nondeterministic cross-thread access.
+This is stated only in the `MapCanvasBase` doc-comments (`MapCanvasBase.cs:53-65`); nothing enforces it. Because of it, mutable interaction state that the renderer needs is **defensively copied into the snapshot**: the per-callsign datablock state (`RadarDataBlockViewState` — manual offsets, minified, hidden, highlighted, z-order) is copied into fresh `HashSet`s / `Dictionary`s, and the aircraft list is filtered + z-ordered into a new list. Reading any of it directly inside `RenderFromSnapshot` would be a nondeterministic cross-thread access.
 
 ### Session-persistent datablock state (`DataBlockViewState`)
 
-Per-callsign datablock UI state — manual drag offsets, highlights, minified choices, z-order — lives in
-`RadarViewModel.DataBlockState` (`RadarDataBlockViewState`, `ViewModels/DataBlockViewState.cs`), **not** on the canvas
-(issue #350). The canvas binds it via the `DataBlockState` styled property (`RadarView.axaml`) and mutates it in place;
-a private local instance backs bare-canvas tests and detached windows. Two rules follow:
+Per-callsign datablock UI state — manual drag offsets, highlights, minified choices, hidden datablocks, z-order — lives in `RadarViewModel.DataBlockState` (`RadarDataBlockViewState`, `ViewModels/DataBlockViewState.cs`), **not** on the canvas (issue #350). The canvas binds it via the `DataBlockState` styled property (`RadarView.axaml`) and mutates it in place; a private local instance backs bare-canvas tests and detached windows. Two rules follow:
 
 - The `DataBlockState` property-changed handler only marks dirty — it must **never clear** the store, because the binding
   churns to null and back when the docked tab detaches/reattaches its content.
@@ -71,6 +64,10 @@ a private local instance backs bare-canvas tests and detached windows. Two rules
   `RadarCanvas` bound to the view-model, the embedded tab and the pop-out window see the same offsets. An extra
   Radar window (**View → New Radar Window**, `RadarViewInstance`) has its own `RadarViewModel` and therefore its own
   `DataBlockState`, center and range — see [client-mainviewmodel.md](client-mainviewmodel.md#extra-view-instances-new-radar-window--new-ground-window).
+
+**Hidden datablocks.** `RadarDataBlockViewState.HiddenCallsigns` is independent of the minified choice: a hidden block hides whatever form it has (full, collapsed, minified or EuroScope tag). `TargetRenderer` reads the snapshot's copy and skips the block and its leader line of a hidden aircraft unless it is selected; the target symbol, history trail, PTL and overlays stay drawn, and a speech bubble anchors at the symbol.
+
+The canvas's hit-test (`FindDataBlockAtPoint`, `DataBlocksAtPoint`), the deconfliction inputs and the measurement-readout obstacles skip the same blocks through `RadarCanvas.IsBlockUndrawn`, so a hidden block catches no click and takes no room while its symbol still does. Shift+left on the symbol or block toggles it (see the ladder below), the Display submenu carries Hide/Show datablock, and the map's background menu carries "Show all datablocks", which clears the set; `Clear()` empties it with the rest of the state.
 
 ### The 100 ms force-repaint timer
 
@@ -439,15 +436,16 @@ the wrong rung silently steals clicks from a lower one. The order, top to bottom
    an endpoint and a right click cancels. Exclusive, so it sits above route drawing and every aircraft rung.
 3. **Draw-route placement** — left click places a waypoint, middle click sets a condition, right click on a waypoint edits
    it (`:890-931`).
-4. **Middle-click highlight** — toggle the cyan highlight on the hit datablock/aircraft (`:933-948`).
-5. **EuroScope field left-click** — if a `TagFieldId` is hit and `EuroScopeFieldClicked` has a subscriber, fire and return
+4. **Shift+left hide toggle** — Shift+left on a drawn datablock or a symbol toggles that datablock hidden or shown (`TryToggleHiddenOnShiftClick`), without selecting or dragging. It sits below route drawing, so Shift+left there still places a waypoint.
+5. **Middle-click highlight** — toggle the cyan highlight on the hit datablock/aircraft (`:933-948`).
+6. **EuroScope field left-click** — if a `TagFieldId` is hit and `EuroScopeFieldClicked` has a subscriber, fire and return
    (`:954-964`).
-6. **EuroScope field right-click** — owner-cell handoff/drop; returns `true` to suppress the fallback menu (`:968-980`).
-7. **Datablock** — left click selects (Ctrl = open FP editor) and begins a drag; right click opens the aircraft context
+7. **EuroScope field right-click** — owner-cell handoff/drop; returns `true` to suppress the fallback menu (`:968-980`).
+8. **Datablock** — left click selects (Ctrl = open FP editor) and begins a drag; right click opens the aircraft context
    menu (`:982-1013`).
-8. **Aircraft symbol (right)** — right click on a symbol opens the context menu (`:1015-1023`).
+9. **Aircraft symbol (right)** — right click on a symbol opens the context menu (`:1015-1023`).
 
-   Rungs 7 and 8 first gather every aircraft the right click hits (`FindRightClickTargets`: each datablock containing the
+   Rungs 8 and 9 first gather every aircraft the right click hits (`FindRightClickTargets`: each datablock containing the
    point, topmost first, then each symbol within `AircraftHitRadiusPx` = 28 px by distance, an aircraft hit both ways
    listed once). Two or more open the shared `Views/Map/RightClickPicker` (labels `"{callsign} ({type})"` from
    `DisplayAircraftType`, else the bare callsign); choosing one raises its `AircraftRightClicked` with the original

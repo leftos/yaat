@@ -143,6 +143,7 @@ All Commands
   ---
   Display
     Mini datablock
+    Hide datablock
     Show nav route
     Measure from AAL205
     ---

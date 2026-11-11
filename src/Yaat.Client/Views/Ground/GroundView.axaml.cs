@@ -413,14 +413,44 @@ public partial class GroundView : UserControl
     }
 
     /// <summary>
-    /// <paramref name="menu"/> (a new one when null) ending with "Settings for this view…", which opens Settings at Ground;
+    /// <paramref name="menu"/> (a new one when null) ending with the view-wide items (<see cref="AppendViewItems"/>);
     /// null when it is still empty, as it is without a main view model to ask.
     /// </summary>
     private ContextMenu? WithViewSettings(ContextMenu? menu)
     {
         menu ??= new ContextMenu();
-        ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Ground);
+        AppendViewItems(menu);
         return (menu.Items.Count > 0) ? menu : null;
+    }
+
+    /// <summary>
+    /// Ends a background menu with its view-wide items, each in its own group: "Show all datablocks", disabled while no
+    /// block is hidden, then "Settings for this view…", which opens Settings at Ground. Without a main view model it adds
+    /// neither.
+    /// </summary>
+    private void AppendViewItems(ContextMenu menu)
+    {
+        MainViewModel? main = FindMainViewModel();
+        if (main is not null)
+        {
+            AppendShowAllDataBlocks(menu, Canvas);
+        }
+
+        ViewSettingsMenu.Append(menu, main, SettingsSectionId.Ground);
+    }
+
+    /// <summary>
+    /// Adds "Show all datablocks" for <paramref name="canvas"/> to <paramref name="menu"/>, after a separator when the menu
+    /// has items.
+    /// </summary>
+    private static void AppendShowAllDataBlocks(ContextMenu menu, GroundCanvas canvas)
+    {
+        if ((menu.Items.Count > 0) && (menu.Items[^1] is not Separator))
+        {
+            menu.Items.Add(new Separator());
+        }
+
+        menu.Items.Add(CanvasMenuItems.ShowAllDataBlocks(canvas.AnyDataBlockHidden, canvas.ShowAllDataBlocks));
     }
 
     /// <summary>
@@ -680,7 +710,7 @@ public partial class GroundView : UserControl
     {
         if ((DataContext is GroundViewModel vm) && (BuildRunwayThresholdMenu(vm, runwayEnd) is { } menu))
         {
-            ViewSettingsMenu.Append(menu, FindMainViewModel(), SettingsSectionId.Ground);
+            AppendViewItems(menu);
             ShowContextMenu(menu);
             return;
         }

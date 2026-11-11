@@ -79,6 +79,10 @@ detached windows. Two rules follow:
   and the pop-out window see the same offsets. `SetStartWithAllHidden` only resets the per-callsign choices when the mode
   actually flips, so a pop-out re-applying the preference on load can't wipe them.
 
+**Hiding a datablock.** `GroundRenderer.DrawOneDataBlock` skips a hidden block unless its aircraft is selected; the position symbol and everything else stay drawn. Shift+left on the symbol or the block toggles it (`GroundCanvas.TryToggleHiddenOnShiftClick`, the same state change as the Display submenu's Hide/Show datablock), without selecting or dragging. It sits below the measure and push-route rungs of `OnPointerPressed`, so push-route drawing keeps Shift+left for its marked points.
+
+The ground hit-test (`FindDataBlockAtPoint`, `DataBlockContains`) does not consult the hidden set: a hidden block's invisible area still catches clicks, which is what lets Shift+left and middle-click there show it again. The background menus (a node, a runway surface, a threshold right-click) end with "Show all datablocks" in its own group above "Settings for this view…": `GroundDataBlockViewState.ShowAllDataBlocks` clears the hidden choices, or with `StartWithAllHidden` on opts every shown aircraft in.
+
 ## Route overlays
 
 All five overlays (and the scope preview's two routes, below) flow VM → `GroundCanvas` `StyledProperty` → `RenderSnapshot` → `GroundRenderer`, and all funnel through one primitive, `GroundRenderer.DrawRoute(canvas, vp, layout, TaxiRoute?, SKPaint)`, which walks `TaxiRoute.Segments` (straight `GroundEdge`s and `GroundArc` fillets) and projects each node via `MapViewport.LatLonToScreen`.
