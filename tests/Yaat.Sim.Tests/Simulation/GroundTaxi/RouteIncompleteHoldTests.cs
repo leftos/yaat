@@ -19,19 +19,39 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
     /// <summary>
     /// SFO <c>TAXI A2 @B1</c> from the A1/A2 junction: B1 needs M1, and A2 becomes M1 on the runway 01L threshold (node
     /// 420), so the first node on M1 is runway pavement. The route ends at A2's 01L bar instead, holding short of the
-    /// runway, with the note naming M1.
+    /// runway, and the note names that runway while keeping the missing taxiway.
     /// </summary>
     [Fact]
     public void RouteIncompleteHold_NeverOnRunway_Sfo420() =>
-        AssertHoldsAtNearSideRunwayBar(("A1", "A2"), "TAXI A2 @B1", "A2", "Holding short of M1: route to @B1 needs M1, not in clearance");
+        AssertHoldsAtNearSideRunwayBar(
+            ("A1", "A2"),
+            "TAXI A2 @B1",
+            new NearSideBar(
+                Taxiway: "A2",
+                Runway: "01L/19R",
+                Destination: "@B1",
+                Missing: "M1",
+                ExpectedNote: "Holding short of runway 01L/19R: route to @B1 needs M1, not in clearance"
+            )
+        );
 
     /// <summary>
     /// SFO <c>TAXI F RWY 28R</c> from the A/F junction: 28R needs C, and F becomes C at the 28L threshold (node 299). The
-    /// route crosses 01L and 01R and ends at F's 28L bar, holding short of the runway.
+    /// route crosses 01L and 01R and ends at F's 28L bar, holding short of that runway, which the note names.
     /// </summary>
     [Fact]
     public void RouteIncompleteHold_NeverOnRunway_Sfo299() =>
-        AssertHoldsAtNearSideRunwayBar(("A", "F"), "TAXI F RWY 28R", "F", "Holding short of C: route to RWY 28R needs C, not in clearance");
+        AssertHoldsAtNearSideRunwayBar(
+            ("A", "F"),
+            "TAXI F RWY 28R",
+            new NearSideBar(
+                Taxiway: "F",
+                Runway: "10R/28L",
+                Destination: "RWY 28R",
+                Missing: "C",
+                ExpectedNote: "Holding short of runway 10R/28L: route to RWY 28R needs C, not in clearance"
+            )
+        );
 
     /// <summary>
     /// OAK GA16 sits 127 ft from F, but an aircraft on a stand occupies no taxiway: F is not read back or routed as the
@@ -167,7 +187,15 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
     private static double RunOnDFt(List<IGroundEdge> edges) =>
         edges.Where(e => SegmentExpander.EdgeNames(e).Contains("D")).Sum(e => e.DistanceNm) * GeoMath.FeetPerNm;
 
-    private void AssertHoldsAtNearSideRunwayBar((string Along, string Onto) junction, string command, string runwayTaxiway, string note)
+    /// <summary>
+    /// What a near-side-bar case expects: <paramref name="Taxiway"/> is the taxiway the missing one continues as,
+    /// <paramref name="Runway"/> the runway whose bar the cut moves back to, <paramref name="Destination"/> the destination
+    /// as the command writes it, <paramref name="Missing"/> the taxiway the clearance omits, and
+    /// <paramref name="ExpectedNote"/> the controller's note as the echo carries it.
+    /// </summary>
+    private sealed record NearSideBar(string Taxiway, string Runway, string Destination, string Missing, string ExpectedNote);
+
+    private void AssertHoldsAtNearSideRunwayBar((string Along, string Onto) junction, string command, NearSideBar expected)
     {
         if (SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off) is not { } ground)
         {
@@ -186,7 +214,10 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
         HoldShortPoint endHold = Assert.Single(route.HoldShortPoints, h => h.NodeId == endNode);
         Assert.Equal(HoldShortReason.RunwayCrossing, endHold.Reason);
         Assert.DoesNotContain(route.HoldShortPoints, h => h.Reason == HoldShortReason.RouteIncomplete);
-        Assert.Contains(note, route.Warnings);
+        Assert.Equal(expected.Runway, endHold.TargetName);
+        Assert.Contains(expected.ExpectedNote, route.Warnings);
+        Assert.Single(route.Warnings, w => w.EndsWith(", not in clearance", StringComparison.Ordinal));
+        Assert.DoesNotContain(route.Warnings, w => w.StartsWith($"Holding short of {expected.Missing}:", StringComparison.Ordinal));
         Assert.DoesNotContain(ground.Layout.Nodes[endNode].Edges, e => e.IsRunwayCenterline);
 
         HoldingShortPhase hold = TickToHoldAtRouteEnd(ground, aircraft, endNode);
@@ -198,11 +229,11 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
             (n.Type == GroundNodeType.RunwayHoldShort)
             && (n.RunwayId is { } id)
             && id.Overlaps(runway)
-            && n.Edges.Any(e => e.MatchesTaxiway(runwayTaxiway))
+            && n.Edges.Any(e => e.MatchesTaxiway(expected.Taxiway))
             && (GeoMath.DistanceNm(n.Position, ground.Layout.Nodes[endNode].Position) < 0.05)
         );
         GroundNode runwayNode = ground
-            .Layout.Nodes.Values.Where(n => n.Edges.Any(e => e.IsRunwayCenterline) && n.Edges.Any(e => e.MatchesTaxiway(runwayTaxiway)))
+            .Layout.Nodes.Values.Where(n => n.Edges.Any(e => e.IsRunwayCenterline) && n.Edges.Any(e => e.MatchesTaxiway(expected.Taxiway)))
             .MinBy(n => GeoMath.DistanceNm(n.Position, bar.Position))!;
         double aircraftFt = GeoMath.DistanceNm(aircraft.Position, runwayNode.Position) * GeoMath.FeetPerNm;
         double barFt = GeoMath.DistanceNm(bar.Position, runwayNode.Position) * GeoMath.FeetPerNm;

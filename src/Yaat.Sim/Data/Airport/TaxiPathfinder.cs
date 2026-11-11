@@ -143,7 +143,7 @@ public static class TaxiPathfinder
 
         string advisory = SegmentExpander.NoDestinationTerminusAdvisory(terminus);
         int fromIndex = TerminusJunctionRunStart(route, terminus);
-        var cut = new Commands.GroundCommandHandler.TaxiwayCut(terminus, advisory, EndsNoDestinationRoute: true);
+        var cut = new Commands.GroundCommandHandler.TaxiwayCut(terminus, _ => advisory, EndsNoDestinationRoute: true);
         if (Commands.GroundCommandHandler.HoldShortBeforeTaxiway(route, layout, fromIndex, cut) is { } held)
         {
             return held;

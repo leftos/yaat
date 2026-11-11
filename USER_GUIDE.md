@@ -823,7 +823,7 @@ An implied lane is named in the readback and flagged `[M1 not in clearance]`; ne
 
 When the route you gave falls one taxiway short — `TAXI D @NEW1` to an aircraft on E, where C joins E to D, or `RWY 28R TAXI F C HS 33` from OAK gate OLD1, where B is the way to 28R — the aircraft taxis as far as the clearance goes and **holds short of the missing taxiway**. The echo names it (`[Holding short of C: route to @NEW1 needs C, not in clearance]`), and on arrival the pilot calls "holding short of C at E, request further taxi".
 
-`RES` and `CROSS` don't move it on from there; issue a new `TAXI` that includes the missing taxiway (`TAXI C D @NEW1`). A hold that would land on a runway is moved back to that runway's holding position. When no hold can be placed at all, the `TAXI` is refused with the taxiway it needs (`Unable, route to G from E needs C, not in clearance`).
+`RES` and `CROSS` don't move it on from there; issue a new `TAXI` that includes the missing taxiway (`TAXI C D @NEW1`). A hold that would land on a runway is moved back to that runway's holding position, and the echo then names the runway but still the missing taxiway (SFO `TAXI A2 @B1`: `[Holding short of runway 01L/19R: route to @B1 needs M1, not in clearance]`). When no hold can be placed at all, the `TAXI` is refused with the taxiway it needs (`Unable, route to G from E needs C, not in clearance`).
 
 A `TAXI` that names only the taxiway the aircraft is already on (`TAXI B` on B, with at most `EXP`) gives it nowhere to go and is refused: `TAXI B rejected: already on B; give a destination or a further taxiway`. The aircraft stays where it is and the pilot says nothing.
 

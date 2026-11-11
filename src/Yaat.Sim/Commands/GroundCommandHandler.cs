@@ -4585,15 +4585,16 @@ public static partial class GroundCommandHandler
     /// <paramref name="missing"/> — or, when that node is runway pavement, at the runway's near-side bar
     /// (<see cref="KeepOffRunwayPavement"/>): no edge of it is driven, the hold-shorts ahead of the cut are kept, and the
     /// route ends held short (<see cref="HoldShortsAtCut"/>). Warnings that only concern pavement past the cut are dropped
-    /// and <paramref name="warning"/>, when given, is added once. With <paramref name="cut"/>'s
+    /// and <see cref="TaxiwayCut.Warning"/>, when given, is built from what the route ends held short of (the missing
+    /// taxiway, or the runway whose bar the cut moved back to) and added once. With <paramref name="cut"/>'s
     /// <see cref="TaxiwayCut.EndsNoDestinationRoute"/>, the hold ending the route is marked
     /// (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>). Null when the cut leaves nothing to taxi.
     /// </summary>
     internal static TaxiRoute? HoldShortBeforeTaxiway(TaxiRoute complete, AirportGroundLayout layout, int fromIndex, TaxiwayCut cut)
     {
         string missing = cut.Missing;
-        string? warning = cut.Warning;
-        int keep = KeepOffRunwayPavement(complete, layout, CutBeforeTaxiway(complete, layout, fromIndex, missing));
+        int cutIndex = CutBeforeTaxiway(complete, layout, fromIndex, missing);
+        int keep = KeepOffRunwayPavement(complete, layout, cutIndex);
         if (keep <= 0)
         {
             return null;
@@ -4606,6 +4607,7 @@ public static partial class GroundCommandHandler
             .Where(n => !kept.Any(k => k.Edge.Edge.MatchesTaxiway(n)))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         List<string> warnings = [.. complete.Warnings.Where(w => !droppedNames.Any(n => NamesTaxiway(w, n)))];
+        string? warning = cut.Warning?.Invoke(HoldTargetAt(complete, kept, missing, keep < cutIndex));
         if ((warning is not null) && !warnings.Contains(warning))
         {
             warnings.Add(warning);
@@ -4726,6 +4728,21 @@ public static partial class GroundCommandHandler
     private static bool IsRunwayHold(HoldShortPoint hold) => hold.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway;
 
     /// <summary>
+    /// What the route now holds short of, as <see cref="TaxiwayCut.Warning"/> names it: <c>runway {TargetName}</c> when
+    /// <see cref="KeepOffRunwayPavement"/> moved the cut back to a runway's near-side bar, else <paramref name="missing"/>.
+    /// </summary>
+    private static string HoldTargetAt(TaxiRoute complete, List<TaxiRouteSegment> kept, string missing, bool movedBack)
+    {
+        if (!movedBack)
+        {
+            return missing;
+        }
+
+        string? runway = complete.HoldShortPoints.FirstOrDefault(h => (h.NodeId == kept[^1].ToNodeId) && IsRunwayHold(h))?.TargetName;
+        return (runway is null) ? missing : $"runway {runway}";
+    }
+
+    /// <summary>
     /// The hold-shorts of <paramref name="complete"/> on the <paramref name="kept"/> part, ending the route held short:
     /// a runway bar at the cut stays the hold there, uncleared (the route goes no further, so the aircraft holds short of
     /// the runway); any other hold already there stands; with none, a <see cref="HoldShortReason.RouteIncomplete"/> hold
@@ -4767,10 +4784,11 @@ public static partial class GroundCommandHandler
 
     /// <summary>
     /// What a <see cref="HoldShortBeforeTaxiway"/> cut holds short of: the taxiway <paramref name="Missing"/> it stops before,
-    /// the controller's note <paramref name="Warning"/> to add (none when null), and whether the hold it ends at ends a route
-    /// that goes nowhere past it (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>).
+    /// <paramref name="Warning"/>, the controller's note to add (none when null), built from what the aircraft holds short
+    /// of, and whether the hold it ends at ends a route that goes nowhere past it
+    /// (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>).
     /// </summary>
-    internal sealed record TaxiwayCut(string Missing, string? Warning, bool EndsNoDestinationRoute);
+    internal sealed record TaxiwayCut(string Missing, Func<string, string>? Warning, bool EndsNoDestinationRoute);
 
     private static HoldShortPoint Uncleared(HoldShortPoint hold) =>
         new()
@@ -4783,18 +4801,20 @@ public static partial class GroundCommandHandler
         };
 
     /// <summary>
-    /// The controller's note for a route held short of <paramref name="missing"/>: <c>Holding short of B: route to RWY
-    /// 28R needs B, not in clearance</c>. The destination reads as the command writes it (<c>RWY 28R</c>, <c>@D1</c>,
-    /// <c>$9</c>); a clearance with no destination reads as its last taxiway.
+    /// The controller's note for a route held short of <paramref name="missing"/>, built from what the aircraft holds short
+    /// of (<c>holding</c>): <c>Holding short of B: route to RWY 28R needs B, not in clearance</c>, or <c>Holding short of
+    /// runway 01L/19R: route to @B1 needs M1, not in clearance</c> when the cut moved back to a runway bar. The destination
+    /// reads as the command writes it (<c>RWY 28R</c>, <c>@D1</c>, <c>$9</c>); a clearance with no destination reads as its
+    /// last taxiway.
     /// </summary>
-    private static string MissingTaxiwayWarning(TaxiCommand taxi, string missing)
+    private static Func<string, string> MissingTaxiwayWarning(TaxiCommand taxi, string missing)
     {
         string destination =
             taxi.DestinationRunway is { } rwy ? $"RWY {RunwayIdentifier.ToDisplayDesignator(rwy)}"
             : taxi.DestinationParking is { } parking ? $"@{parking}"
             : taxi.DestinationSpot is { } spot ? $"${spot}"
             : taxi.Path.LastOrDefault(t => !t.StartsWith('#')) ?? "the destination";
-        return $"Holding short of {missing}: route to {destination} needs {missing}, not in clearance";
+        return holding => $"Holding short of {holding}: route to {destination} needs {missing}, not in clearance";
     }
 
     /// <summary>What <see cref="CheckStartReachesFirstCleared"/> needs to know about the TAXI being resolved.</summary>
