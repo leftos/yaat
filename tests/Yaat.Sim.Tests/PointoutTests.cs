@@ -1,5 +1,8 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -28,6 +31,19 @@ public class PointoutTests
             RngSeed = 0,
             OriginalScenarioJson = "{}",
         };
+
+    private static TrackDispatchContext Ctx(TrackOwner? identity, SimScenarioState scenario, ConsolidationRedirect? redirect = null) =>
+        new(identity, scenario, redirect, new ConflictAlertState());
+
+    private static void Staff(SimScenarioState scenario, TrackOwner owner, Tcp tcp) =>
+        scenario.AtcPositions.Add(
+            new ResolvedAtcPosition
+            {
+                Source = new ScenarioAtc(),
+                Owner = owner,
+                Tcp = tcp,
+            }
+        );
 
     // ── PO no-args: accept inbound pointout ──
 
@@ -360,5 +376,113 @@ public class PointoutTests
 
         Assert.NotNull(ac.Track.Pointout);
         Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout!.Status);
+    }
+
+    // ── Bare PO with nothing to acknowledge or retract: point out to the student's TCP, like a bare HO ──
+
+    [Fact]
+    public void BarePo_NoPendingPointOut_PointsOutToTheStudentsTcp()
+    {
+        TrackOwner owner = MakeOwner("NCT_CTR", 1, "D");
+        AircraftState ac = MakeAircraft(owner);
+        SimScenarioState scenario = MinimalScenario();
+        scenario.StudentPosition = MakeOwner("NCT_APP", 3, "O");
+        scenario.StudentTcp = MakeTcp(3, "O");
+        Staff(scenario, owner, MakeTcp(1, "D"));
+
+        CommandResult? result = TrackEngine.Dispatch(new PointOutCommand(null), ac, Ctx(owner, scenario));
+
+        Assert.NotNull(result);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("3O", ac.Track.Pointout!.Recipient.ToString());
+        Assert.Equal("1D", ac.Track.Pointout.Sender.ToString());
+    }
+
+    [Fact]
+    public void BarePo_StudentTcpConsolidated_RedirectsLikePoTcp()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } zoa)
+        {
+            return;
+        }
+
+        TestVnasData.EnsureInitialized();
+        SimScenarioState scenario = MinimalScenario();
+        scenario.ArtccConfig = zoa;
+        var student = TrackOwner.CreateStars("NCT_4Q", "NCT", 4, "Q");
+        scenario.StudentPosition = student;
+        Tcp fourQ = TrackResolver.FindTcpByCode(scenario, "4Q")!;
+        Tcp fourU = TrackResolver.FindTcpByCode(scenario, "4U")!;
+        scenario.StudentTcp = fourQ;
+
+        var fourUOwner = TrackOwner.CreateStars("NCT_4U", "NCT", 4, "U");
+        Staff(scenario, fourUOwner, fourU);
+        var owner = TrackOwner.CreateStars("NCT_2B", "NCT", 2, "B");
+        Staff(scenario, owner, TrackResolver.FindTcpByCode(scenario, "2B")!);
+        AircraftState ac = MakeAircraft(owner);
+
+        ConsolidationState consolidation = new();
+        Assert.True(consolidation.Consolidate(fourU, fourQ, basic: true));
+        ConsolidationRedirect redirect = new(scenario, consolidation, isAttended: tcp => tcp.Id == fourU.Id);
+
+        CommandResult? result = TrackEngine.Dispatch(new PointOutCommand(null), ac, Ctx(owner, scenario, redirect));
+
+        Assert.NotNull(result);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("4U", ac.Track.Pointout!.Recipient.ToString());
+        Assert.Equal("2B", ac.Track.Pointout.Sender.ToString());
+    }
+
+    [Fact]
+    public void BarePo_PendingPointOutToActor_StillAcknowledges()
+    {
+        TrackOwner owner = MakeOwner("NCT_CTR", 1, "D");
+        TrackOwner recipient = MakeOwner("NCT_APP", 2, "N");
+        AircraftState ac = MakeAircraft(owner);
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+        SimScenarioState scenario = MinimalScenario();
+        scenario.StudentPosition = MakeOwner("NCT_DEP", 3, "B");
+        scenario.StudentTcp = MakeTcp(3, "B");
+
+        CommandResult? result = TrackEngine.Dispatch(new PointOutCommand(null), ac, Ctx(recipient, scenario));
+
+        Assert.NotNull(result);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout!.Status);
+        Assert.Equal("2N", ac.Track.Pointout.Recipient.ToString());
+    }
+
+    [Fact]
+    public void BarePo_PendingPointOutFromActor_StillRetracts()
+    {
+        TrackOwner owner = MakeOwner("NCT_CTR", 1, "D");
+        AircraftState ac = MakeAircraft(owner);
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+        SimScenarioState scenario = MinimalScenario();
+        scenario.StudentPosition = MakeOwner("NCT_DEP", 3, "B");
+        scenario.StudentTcp = MakeTcp(3, "B");
+
+        CommandResult? result = TrackEngine.Dispatch(new PointOutCommand(null), ac, Ctx(owner, scenario));
+
+        Assert.NotNull(result);
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Track.Pointout);
+    }
+
+    [Fact]
+    public void BarePo_StudentOwnsTheTrack_Refused()
+    {
+        TrackOwner student = MakeOwner("NCT_APP", 2, "N");
+        AircraftState ac = MakeAircraft(student);
+        SimScenarioState scenario = MinimalScenario();
+        scenario.StudentPosition = student;
+        scenario.StudentTcp = MakeTcp(2, "N");
+
+        CommandResult? result = TrackEngine.Dispatch(new PointOutCommand(null), ac, Ctx(student, scenario));
+
+        Assert.NotNull(result);
+        Assert.False(result.Success);
+        Assert.Contains("already owned by", result.Message ?? "");
+        Assert.Null(ac.Track.Pointout);
     }
 }

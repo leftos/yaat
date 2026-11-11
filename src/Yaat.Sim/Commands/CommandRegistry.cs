@@ -1337,7 +1337,7 @@ public static class CommandRegistry
                 CommandDimension.None,
                 false,
                 ["PO"],
-                [O(null, [], "Point out"), O("Position", [R("position", "position ID")], "Point out to position")]
+                [O(null, [], "Point out to student position"), O("Position", [R("position", "position ID")], "Point out to position")]
             ),
             Bare(Acknowledge, "Acknowledge", "Track Operations", CommandDimension.None, false, ["OK"]),
             Bare(RejectPointout, "Reject Pointout", "Track Operations", CommandDimension.None, false, ["PORJ"]),

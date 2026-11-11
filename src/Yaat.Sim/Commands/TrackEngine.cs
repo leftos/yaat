@@ -399,26 +399,45 @@ public static partial class TrackEngine
 
     public static CommandResult HandlePointOutNoArgs(AircraftState ac, TrackOwner identity)
     {
-        if (ac.Track.Pointout is null || ac.Track.Pointout.IsAccepted)
+        switch (ClassifyPointoutActor(ac, identity))
         {
-            return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
+            case PointOutActor.Recipient:
+                AcceptIncomingPointout(ac);
+                return new CommandResult(true, $"Acknowledged {ac.Callsign}");
+            case PointOutActor.Sender:
+                ac.Track.Pointout = null;
+                return new CommandResult(true, $"Retracted pointout for {ac.Callsign}");
+            default:
+                return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
+        }
+    }
+
+    /// <summary>
+    /// Which side of a non-accepted point-out <paramref name="identity"/> is on: its recipient (only while the
+    /// point-out is pending), its sender (a pending or rejected outbound point-out), or neither. A bare
+    /// <c>PO</c> and its acknowledge/retract handler both decide with this one test.
+    /// </summary>
+    private static PointOutActor ClassifyPointoutActor(AircraftState ac, TrackOwner identity)
+    {
+        if (ac.Track.Pointout is not { IsAccepted: false } pointout)
+        {
+            return PointOutActor.None;
         }
 
         string tcpStr = $"{identity.Subset}{identity.SectorId}";
-
-        if (ac.Track.Pointout.IsPending && ac.Track.Pointout.Recipient.ToString() == tcpStr)
+        if (pointout.IsPending && (pointout.Recipient.ToString() == tcpStr))
         {
-            AcceptIncomingPointout(ac);
-            return new CommandResult(true, $"Acknowledged {ac.Callsign}");
+            return PointOutActor.Recipient;
         }
 
-        if (ac.Track.Pointout.Sender.ToString() == tcpStr)
-        {
-            ac.Track.Pointout = null;
-            return new CommandResult(true, $"Retracted pointout for {ac.Callsign}");
-        }
+        return (pointout.Sender.ToString() == tcpStr) ? PointOutActor.Sender : PointOutActor.None;
+    }
 
-        return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
+    private enum PointOutActor
+    {
+        None,
+        Recipient,
+        Sender,
     }
 
     public static CommandResult HandleScratchpad1(AircraftState ac, string text, int maxLength)
@@ -933,7 +952,7 @@ public static partial class TrackEngine
         string? facilityHint
     )
     {
-        if (ac.Track.Owner is null)
+        if (ac.Track.Owner is not { } owner)
         {
             return new CommandResult(false, $"{ac.Callsign} is not tracked");
         }
@@ -944,20 +963,90 @@ public static partial class TrackEngine
             return new CommandResult(false, $"Unknown position: {tcpCode}");
         }
 
-        Tcp? senderTcp = TrackResolver.FindTcpForOwner(ac.Track.Owner, scenario);
+        TrackOwner? targetOwner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, facilityHint);
+        if (targetOwner is not null)
+        {
+            targetTcp = RedirectPointOutTarget(targetTcp, targetOwner, scenario, redirect);
+        }
+
+        return PointOutFrom(ac, scenario, owner, targetTcp);
+    }
+
+    /// <summary>
+    /// A <c>PO</c>: acknowledge or retract a non-accepted point-out that involves the acting position; otherwise,
+    /// with no target code, point the aircraft out to the student's TCP like a bare <c>HO</c>.
+    /// </summary>
+    private static CommandResult DispatchPointOut(
+        AircraftState ac,
+        SimScenarioState scenario,
+        TrackOwner? identity,
+        ConsolidationRedirect? redirect,
+        string? tcpCode
+    )
+    {
+        if (tcpCode is not null)
+        {
+            return ApplyPointOut(ac, scenario, tcpCode, redirect, identity?.FacilityId);
+        }
+
+        if ((identity is not null) && (ClassifyPointoutActor(ac, identity) is not PointOutActor.None))
+        {
+            return HandlePointOutNoArgs(ac, identity);
+        }
+
+        return ApplyPointOutToStudent(ac, scenario, redirect);
+    }
+
+    /// <summary>
+    /// A bare <c>PO</c>: point the aircraft out to the student's TCP, the way a bare <c>HO</c> hands it off to the
+    /// student's position.
+    /// </summary>
+    private static CommandResult ApplyPointOutToStudent(AircraftState ac, SimScenarioState scenario, ConsolidationRedirect? redirect)
+    {
+        if (ac.Track.Owner is not { } owner)
+        {
+            return new CommandResult(false, $"{ac.Callsign} is not tracked");
+        }
+
+        if (scenario.StudentPosition is not { } studentPos)
+        {
+            return new CommandResult(false, "No student position configured");
+        }
+
+        if (owner.MatchesPosition(studentPos))
+        {
+            return new CommandResult(false, $"{ac.Callsign} is already owned by {FormatOwner(owner)}");
+        }
+
+        Tcp? targetTcp = TrackResolver.FindTcpForOwner(studentPos, scenario) ?? scenario.StudentTcp;
+        if (targetTcp is null)
+        {
+            return new CommandResult(false, "No student position configured");
+        }
+
+        return PointOutFrom(ac, scenario, owner, RedirectPointOutTarget(targetTcp, studentPos, scenario, redirect));
+    }
+
+    /// <summary>
+    /// The TCP a point-out addressed to <paramref name="targetOwner"/> lands on: the attended position whose
+    /// airspace absorbed it, else the target itself.
+    /// </summary>
+    private static Tcp RedirectPointOutTarget(Tcp targetTcp, TrackOwner targetOwner, SimScenarioState scenario, ConsolidationRedirect? redirect)
+    {
+        if (redirect?.TryRedirect(targetOwner) is not { } redirectOwner)
+        {
+            return targetTcp;
+        }
+
+        return TrackResolver.FindTcpForOwner(redirectOwner, scenario) ?? targetTcp;
+    }
+
+    private static CommandResult PointOutFrom(AircraftState ac, SimScenarioState scenario, TrackOwner owner, Tcp targetTcp)
+    {
+        Tcp? senderTcp = TrackResolver.FindTcpForOwner(owner, scenario);
         if (senderTcp is null)
         {
             return new CommandResult(false, "Cannot determine sender TCP");
-        }
-
-        TrackOwner? targetOwner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, facilityHint);
-        if ((targetOwner is not null) && (redirect?.TryRedirect(targetOwner) is { } redirectOwner))
-        {
-            Tcp? redirectedTcp = TrackResolver.FindTcpForOwner(redirectOwner, scenario);
-            if (redirectedTcp is not null)
-            {
-                targetTcp = redirectedTcp;
-            }
         }
 
         return HandlePointOut(ac, targetTcp, senderTcp, scenario.ElapsedSeconds);
@@ -1069,7 +1158,7 @@ public static partial class TrackEngine
     public static CommandResult? Dispatch(ParsedCommand parsed, AircraftState ac, TrackDispatchContext ctx)
     {
         (TrackOwner? identity, SimScenarioState? scenario, ConsolidationRedirect? redirect, ConflictAlertState? conflicts) = ctx;
-        if (identity is null && RequiresIdentity(parsed))
+        if ((identity is null) && RequiresIdentity(parsed, ac))
         {
             return new CommandResult(false, "No active position — use AS to set one");
         }
@@ -1085,8 +1174,7 @@ public static partial class TrackEngine
             ForceHandoffCommand hof => ApplyForceHandoff(ac, scenario, hof.TcpCode, identity?.FacilityId),
             AcceptHandoffCommand => HandleAccept(ac, scenario),
             CancelHandoffCommand => HandleCancel(ac, scenario),
-            PointOutCommand po when po.TcpCode is not null => ApplyPointOut(ac, scenario, po.TcpCode, redirect, identity?.FacilityId),
-            PointOutCommand => HandlePointOutNoArgs(ac, identity!),
+            PointOutCommand po => DispatchPointOut(ac, scenario, identity, redirect, po.TcpCode),
             AcknowledgeCommand => HandleAcknowledge(ac),
             RejectPointoutCommand => HandleRejectPointout(ac),
             RetractPointoutCommand => HandleRetractPointout(ac),
@@ -1204,15 +1292,17 @@ public static partial class TrackEngine
     /// <summary>
     /// Track commands that need the issuer's identity. Ownership and pointout commands infer the
     /// acting position from track state (owner / handoff peer / pointout recipient or sender), so
-    /// they are exempt; the no-arg pointout still needs identity to tell acknowledge from retract.
+    /// they are exempt; a bare pointout still needs identity while a non-accepted point-out exists, to tell
+    /// an acknowledge from a retract.
     /// Used by <see cref="Dispatch"/> to skip the no-active-position guard.
     /// </summary>
-    private static bool RequiresIdentity(ParsedCommand parsed) =>
+    private static bool RequiresIdentity(ParsedCommand parsed, AircraftState ac) =>
         parsed switch
         {
-            // Pointout initiation (target TCP present) infers the sender from the track owner; the
-            // no-arg pointout (TcpCode null) still needs identity to disambiguate ack vs retract.
-            PointOutCommand po => po.TcpCode is null,
+            // Pointout initiation, and a bare pointout with none to acknowledge or retract, infers the sender
+            // from the track owner; a bare pointout with a non-accepted point-out still needs identity to tell
+            // an acknowledge from a retract.
+            PointOutCommand po => (po.TcpCode is null) && (ac.Track.Pointout is { IsAccepted: false }),
             // Ownership commands infer the acting position from the track's owner / handoff peer.
             DropTrackCommand or InitiateHandoffCommand or AcceptHandoffCommand or CancelHandoffCommand => false,
             // TRACK with a position argument names the owner explicitly, so it needs no active position.

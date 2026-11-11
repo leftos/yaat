@@ -582,13 +582,13 @@ preference: it applies to the commands *you* issue, and other controllers in the
 |---------|---------|---------|-------------|
 | Track | `TRACK` / `TRACK 3Y` | — | — |
 | Drop | `DROP` | — | — |
-| Handoff | `HO 3Y` | — | `HO3Y` |
+| Handoff | `HO 3Y` | — | `HO3Y`; bare `HO` hands off to the student position |
 | Force Handoff | `HOF 3Y` | — | `HOF3Y` |
 | Accept | `ACCEPT` | `A` | — |
 | Cancel | `CANCEL` | — | — |
 | Accept all | `ACCEPTALL` | — | — |
 | Handoff all | `HOALL 3Y` | — | — |
-| Pointout | `PO 3Y` | — | — |
+| Pointout | `PO 3Y` | — | Bare `PO` acknowledges/retracts a pending pointout involving you, else points out to the student position |
 | Acknowledge | `OK` | — | — |
 | Reject pointout | `PORJ` | — | — |
 | Retract pointout | `PORT` | — | — |
@@ -1978,7 +1978,7 @@ A position argument resolves as a TCP code (`2B`), an ERAM sector (`C44`), an in
 
 Ownership and pointout commands (`HO`, `ACCEPT`, `CANCEL`, `DROP`, `PO`, `OK`, `PORJ`, `PORT`) infer the acting position from the track itself — the current owner for `HO`/`CANCEL`/`DROP`/`PO`, the handoff target for `ACCEPT`, the pointout recipient for `OK`/`PORJ`, the pointout sender for `PORT` — so they never need an `AS` prefix.
 
-`TRACK` claims an unowned track and so must say who is claiming it: either implicitly (your active position, the student position by default), via an `AS` prefix, or directly with a `TRACK [position]` argument (e.g. `TRACK 3Y` — a one-shot equivalent of `AS 3Y TRACK`). `AS` still matters for the no-argument `PO` (which needs your position to tell an acknowledge from a retract) and for setting your persistent active position.
+`TRACK` claims an unowned track and so must say who is claiming it: either implicitly (your active position, the student position by default), via an `AS` prefix, or directly with a `TRACK [position]` argument (e.g. `TRACK 3Y` — a one-shot equivalent of `AS 3Y TRACK`). `AS` still matters for the no-argument `PO` while a pending pointout exists (your position tells an acknowledge from a retract); with no pending pointout it points out to the student position, like a bare `HO`. It also sets your persistent active position.
 
 Changing your active position also updates the radar display:
 - **DCB map shortcuts** switch to the position's configured 3x2 map group.
@@ -1991,6 +1991,7 @@ Changing your active position also updates the radar display:
 | `TRACK` | Initiate control — take ownership as your active position (the student position by default) |
 | `TRACK 3Y` | Initiate control as a specific position — claims the track for TCP 3Y. Equivalent to `AS 3Y TRACK`, but one-shot: it does **not** change your persistent active position |
 | `DROP` | Terminate control — release ownership (acts as the current owner) |
+| `HO` | Hand off to the student position (no argument needed) |
 | `HO 3Y` | Handoff to TCP 3Y (initiated from the current owner); refused when that position already owns the track |
 | `HO C44` | Handoff to ERAM center sector 44 (initiated from the current owner) |
 | `HO Q2B` | Handoff from a Center sector to a neighboring TRACON position named by its facility prefix + TCP (e.g. `Q2B` = NorCal Boulder); the bare TCP (`HO 2B`) also works |
@@ -2001,6 +2002,7 @@ Changing your active position also updates the radar display:
 | `ACCEPTALL` | Accept all pending inbound handoffs (global — no callsign needed) |
 | `HOALL 3Y` | Handoff all your aircraft to TCP 3Y (global — no callsign needed); refused for a track that position already owns |
 | `PO 3Y` | Point out to TCP 3Y |
+| `PO` | Point out to the student position; when a pending pointout involves you, acknowledges it as its recipient or retracts it as its sender |
 | `OK` | Acknowledge a pending pointout |
 | `PORJ` | Reject a pending inbound pointout |
 | `PORT` | Retract your outbound pending pointout |

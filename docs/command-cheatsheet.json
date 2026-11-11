@@ -234,7 +234,7 @@
         { "verb": "HOF", "aliases": [], "description": "Force handoff to position" },
         { "verb": "ACCEPT", "aliases": ["a"], "description": "Accept handoff [callsign]" },
         { "verb": "CANCEL", "aliases": [], "description": "Cancel handoff" },
-        { "verb": "PO", "aliases": [], "description": "Point out [position]" },
+        { "verb": "PO", "aliases": [], "description": "Point out [position]; bare = to student position" },
         { "verb": "PORJ", "aliases": [], "description": "Reject pointout" },
         { "verb": "PORT", "aliases": [], "description": "Retract pointout" },
         { "verb": "POHO", "aliases": [], "description": "Convert pointout to handoff (STARS **)" },
