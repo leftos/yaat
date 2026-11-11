@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -37,7 +38,8 @@ public partial class MainViewModel
             ActiveScenarioId,
             ActiveScenarioPrimaryAirportId,
             _preferences.FavoriteSetOrder,
-            _preferences.LoadedFavoriteSetIds
+            _preferences.LoadedFavoriteSetIds,
+            _preferences.ShowGlobalFavoriteSet
         );
 
         // Entries are records over stable entity references, so sequence equality is a valid
@@ -128,6 +130,29 @@ public partial class MainViewModel
         RefreshDisplayFavorites();
     }
 
+    /// <summary>Shows or hides the Global set on the bar; off hides it as an unloaded named set is hidden.</summary>
+    public void SetShowGlobalFavoriteSet(bool shown)
+    {
+        _preferences.SetShowGlobalFavoriteSet(shown);
+        RefreshDisplayFavorites();
+    }
+
+    /// <summary>A Sets flyout row click: turns Global on or off for the Global row, else loads or unloads the named set.</summary>
+    public void ToggleFavoriteSetRow(string entry)
+    {
+        if (string.Equals(entry, FavoriteSetOrdering.GlobalSlot, StringComparison.OrdinalIgnoreCase))
+        {
+            SetShowGlobalFavoriteSet(!_preferences.ShowGlobalFavoriteSet);
+            return;
+        }
+
+        SetFavoriteSetLoaded(entry, !IsFavoriteSetLoaded(entry));
+    }
+
+    /// <summary>A button newly put in Global while Global is off turns Global back on, so the button shows.</summary>
+    private void ShowGlobalWhenAddedTo(IEnumerable<string> setIds) =>
+        _preferences.ShowGlobalFavoriteSetIfAddedTo(_favoriteStore.GlobalSet.Id, setIds);
+
     /// <summary>
     /// The Sets flyout's rows in bar order: Global, the airport and scenario slots while a set fills them,
     /// and every named set, loaded or not.
@@ -194,7 +219,14 @@ public partial class MainViewModel
     private FavoriteSetRow BuildFavoriteSetRow(string entry, bool canMoveUp, bool canMoveDown) =>
         entry switch
         {
-            FavoriteSetOrdering.GlobalSlot => new FavoriteSetRow(entry, "Global", IsSlot: true, IsLoaded: true, canMoveUp, canMoveDown),
+            FavoriteSetOrdering.GlobalSlot => new FavoriteSetRow(
+                entry,
+                "Global",
+                IsSlot: true,
+                IsLoaded: _preferences.ShowGlobalFavoriteSet,
+                canMoveUp,
+                canMoveDown
+            ),
             FavoriteSetOrdering.AirportSlot => new FavoriteSetRow(
                 entry,
                 $"Airport ({ActiveFavoriteAirportSet()?.Key})",
@@ -287,6 +319,7 @@ public partial class MainViewModel
     /// <summary>Saves each favorite entity and appends all of them to each destination set (shared entities, not copies).</summary>
     public void AddFavorites(IReadOnlyList<FavoriteCommand> favorites, IReadOnlyList<string> setIds)
     {
+        ShowGlobalWhenAddedTo(setIds);
         foreach (FavoriteCommand favorite in favorites)
         {
             _favoriteStore.SaveFavorite(favorite);
@@ -306,7 +339,9 @@ public partial class MainViewModel
     {
         _favoriteStore.SaveFavorite(updated);
         List<string> current = _favoriteStore.GetMembershipSetIds(updated.Id);
-        foreach (string? setId in setIds.Where(id => !current.Contains(id, StringComparer.OrdinalIgnoreCase)))
+        List<string> added = [.. setIds.Where(id => !current.Contains(id, StringComparer.OrdinalIgnoreCase))];
+        ShowGlobalWhenAddedTo(added);
+        foreach (string? setId in added)
         {
             _favoriteStore.AddToSet(setId, updated.Id);
         }
@@ -327,15 +362,47 @@ public partial class MainViewModel
 
     public List<string> GetFavoriteMembership(string favoriteId) => _favoriteStore.GetMembershipSetIds(favoriteId);
 
-    public void InsertBlankBefore(FavoriteDisplayEntry anchor, FavoriteCommand blank) => InsertBlankNear(anchor, blank, offset: 0);
+    public void InsertBlankBefore(FavoriteDisplayEntry anchor, FavoriteCommand blank) => InsertFavoriteNear(anchor, blank, offset: 0);
 
-    public void InsertBlankAfter(FavoriteDisplayEntry anchor, FavoriteCommand blank) => InsertBlankNear(anchor, blank, offset: 1);
+    public void InsertBlankAfter(FavoriteDisplayEntry anchor, FavoriteCommand blank) => InsertFavoriteNear(anchor, blank, offset: 1);
+
+    /// <summary>
+    /// The button the Edit Favorite flyout's Copy holds for Paste, as it stood when copied. One buffer for the bar and the
+    /// Favorites panel; never saved, so a restart empties it. Null until the first Copy.
+    /// </summary>
+    [ObservableProperty]
+    private FavoriteCommand? _copiedFavorite;
+
+    /// <summary>Holds a snapshot of <paramref name="favorite"/> for <see cref="PasteFavoriteAfter"/>.</summary>
+    public void CopyFavorite(FavoriteCommand favorite) => CopiedFavorite = favorite.Clone();
+
+    /// <summary>
+    /// Inserts an independent copy of the copied button (a new id, a spacer staying a spacer) right after
+    /// <paramref name="anchor"/> in the anchor's set. The copy takes the anchor's tab (category) so it shows right after
+    /// it, except after an All button, where it keeps its own; every other field is the copied button's. No-op while
+    /// nothing is copied.
+    /// </summary>
+    public void PasteFavoriteAfter(FavoriteDisplayEntry anchor)
+    {
+        if (CopiedFavorite?.Clone() is not { } copy)
+        {
+            return;
+        }
+
+        copy.Id = _favoriteStore.NewFavoriteId();
+        if (anchor.Favorite.Category != FavoriteCommandCategory.All)
+        {
+            copy.Category = anchor.Favorite.Category;
+        }
+
+        InsertFavoriteNear(anchor, copy, offset: 1);
+    }
 
     public void MoveFavoriteBefore(FavoriteDisplayEntry moving, FavoriteDisplayEntry anchor) => MoveFavoriteNear(moving, anchor, offset: 0);
 
     public void MoveFavoriteAfter(FavoriteDisplayEntry moving, FavoriteDisplayEntry anchor) => MoveFavoriteNear(moving, anchor, offset: 1);
 
-    private void InsertBlankNear(FavoriteDisplayEntry anchor, FavoriteCommand blank, int offset)
+    private void InsertFavoriteNear(FavoriteDisplayEntry anchor, FavoriteCommand favorite, int offset)
     {
         FavoriteSet? set = _favoriteStore.GetSet(anchor.SetId);
         if (set is null)
@@ -343,9 +410,9 @@ public partial class MainViewModel
             return;
         }
 
-        _favoriteStore.SaveFavorite(blank);
+        _favoriteStore.SaveFavorite(favorite);
         int anchorIndex = set.FavoriteIds.FindIndex(id => string.Equals(id, anchor.Favorite.Id, StringComparison.OrdinalIgnoreCase));
-        _favoriteStore.InsertInSet(set.Id, blank.Id, anchorIndex < 0 ? int.MaxValue : anchorIndex + offset);
+        _favoriteStore.InsertInSet(set.Id, favorite.Id, anchorIndex < 0 ? int.MaxValue : anchorIndex + offset);
         RefreshDisplayFavorites();
     }
 

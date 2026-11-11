@@ -518,6 +518,10 @@ public static class SettingsImportPlanner
         if (outcome.Result is { } imported)
         {
             target.LoadImportedFavoriteSets(imported.NewSetIdsToLoad, imported.SetOrder, replace: plan.Mode == SettingsImportMode.Replace);
+            if (imported.ShowGlobalSet is { } showGlobal)
+            {
+                target.ShowImportedGlobalFavoriteSet(showGlobal);
+            }
         }
 
         return new SettingsImportResult

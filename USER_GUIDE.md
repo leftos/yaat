@@ -2789,6 +2789,8 @@ The favorites bar sits below the command input and provides quick-access buttons
 
   Blank slots reserve button-sized space so you can line up commands in predictable positions; click-hold-drag favorites or blank slots to rearrange them, or right-click to move left/right, insert blanks before/after, change category/sets/height, or delete.
 
+  The right-click menu also has **Copy** and **Paste**. **Copy** holds that button; **Paste** on another button puts a copy of it right after that button, in that button's set (any set, in the bar or the pop-out panel). The copy is a separate button with the same label, commands, colours and height, and a copied blank slot pastes as a blank slot. It takes the tab of the button you paste on, so it shows right after it; pasted after an **All** button, it keeps its own tab. Copy remembers the button as it was when you copied it. **Paste** is greyed out until you copy something, and the copied button is forgotten when YAAT closes. There are no keyboard shortcuts for copy and paste.
+
   A blank slot can be set to **All** too. For an **All** favorite, **Move Left/Right** and **Blank Before/After** act on the tab that was showing when you opened its menu. The same drag and move controls are available from the main favorites bar.
 - **Right-click the command input** with text present to choose **Save as favorite…** — the add dialog opens with the command pre-filled, so you only need to type a label.
 
@@ -2800,14 +2802,14 @@ Each favorite has a **label** (displayed on the button) and **command text** (th
 
 Every favorite lives in one or more **sets**, and every container is a set on the same level:
 
-- **Global** — always visible, everywhere.
+- **Global** — visible everywhere while it is on (the default). Click its row in **Sets** to turn it off, which hides it like an unloaded named set, and click again to turn it back on. Anything that puts a button in Global turns Global back on: the **+** and **Blank** buttons, ticking Global in a button's sets, **Duplicate** or **Link** into Global in the Favorites Editor, importing a lone favorite, or a Merge import that adds buttons to Global.
 - **Airport (XXX)** — one set per airport; visible while that airport is the scenario's primary airport, across all of its scenarios.
 - **Scenario (Name)** — one set per scenario; visible only while that scenario is loaded.
 - **Named sets** you create (for example "S1 Training") — visible while **loaded**. Click **Sets** (in the favorites bar or the pop-out panel header) to check/uncheck which are loaded, or pick **Manage sets…** to open the **Favorites Editor**.
 
 The bar and panel show each visible set's buttons in one order that you set. The **Sets** button is always on the bar, even with no named sets; its flyout lists, in bar order, **Global**, **Airport (XXX)** (only when that airport has a set), **Scenario** (only when the active scenario has a set), then every named set, loaded or not.
 
-Each row has a check, the label and **▲**/**▼** buttons that move the set earlier or later on the bar (the top row's ▲ and the bottom row's ▼ are disabled); the flyout stays open and redraws as you move. Clicking a named set's row loads or unloads it; the Global, airport and scenario rows show a dimmed check and do nothing on click.
+Each row has a check, the label and **▲**/**▼** buttons that move the set earlier or later on the bar (the top row's ▲ and the bottom row's ▼ are disabled); the flyout stays open and redraws as you move. Clicking a named set's row loads or unloads it, and clicking the Global row turns Global on or off; the airport and scenario rows show a dimmed check and do nothing on click. Whether Global is on is saved with your preferences, in layouts and in exported favorites.
 
 The airport and scenario rows are slots: they keep their place when the active airport or scenario changes, and a slot with no set is hidden but keeps its place. A set that is new, duplicated or imported starts last. Until you move anything, the bar shows Global, the active airport, the active scenario, then loaded named sets in the order you loaded them.
 
@@ -2834,7 +2836,7 @@ Favorites are shared with the **Import** and **Export** buttons in the pop-out *
 
   Replace deletes every favorite and set you have and imports, loading exactly the sets the library had loaded (or the imported set, for a set export) and restoring the library's bar order. Merge keeps your current bar order and puts new sets last.
 
-  Merge goes by the favorite's id: a favorite you already have is updated in place and new ones are added. A named set with the same name as one of yours, or with the id of one of yours under another name, is listed with **Skip**, **Overwrite** or **Rename**. Airport/Scenario/Global sets merge into your matching containers. A lone favorite json lands in Global so it shows up immediately.
+  Merge goes by the favorite's id: a favorite you already have is updated in place and new ones are added. A named set with the same name as one of yours, or with the id of one of yours under another name, is listed with **Skip**, **Overwrite** or **Rename**. Airport/Scenario/Global sets merge into your matching containers. A lone favorite json lands in Global so it shows up immediately, turning Global back on if it was off; a Merge that adds buttons to Global turns it on too. A Replace import of a full favorites export also restores whether Global was on.
 
 ### Command History
 

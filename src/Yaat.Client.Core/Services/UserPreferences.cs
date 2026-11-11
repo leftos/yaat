@@ -556,6 +556,12 @@ public sealed partial class UserPreferences
     /// ids, loaded or not. Read through <see cref="FavoriteSetOrdering.Normalize"/>, never trusted as is.
     /// </summary>
     public IReadOnlyList<string> FavoriteSetOrder => _data.FavoriteSetOrder;
+
+    /// <summary>
+    /// Whether the Global favorite set shows on the bar; off hides it as an unloaded named set is hidden. On by default,
+    /// and a preferences file written before the switch existed reads as on.
+    /// </summary>
+    public bool ShowGlobalFavoriteSet => _data.ShowGlobalFavoriteSet;
     public int FavoritePanelColumns => Math.Clamp(_data.FavoritePanelColumns, 1, 20);
     public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
     public IReadOnlyList<RecentWeather> RecentWeatherFiles => _data.RecentWeatherFiles;
@@ -1767,6 +1773,31 @@ public sealed partial class UserPreferences
         RaiseFavoriteSetsChanged();
     }
 
+    /// <summary>Shows or hides the Global favorite set on the bar; no-op when already in the requested state.</summary>
+    public void SetShowGlobalFavoriteSet(bool shown)
+    {
+        if (_data.ShowGlobalFavoriteSet == shown)
+        {
+            return;
+        }
+
+        _data.ShowGlobalFavoriteSet = shown;
+        Save();
+        RaiseFavoriteSetsChanged();
+    }
+
+    /// <summary>
+    /// Turns Global back on when a button is being added to the Global set (<paramref name="globalSetId"/> among
+    /// <paramref name="setIds"/>), so the new button shows. Every path that adds a button to Global goes through here.
+    /// </summary>
+    public void ShowGlobalFavoriteSetIfAddedTo(string globalSetId, IEnumerable<string> setIds)
+    {
+        if (setIds.Contains(globalSetId, StringComparer.OrdinalIgnoreCase))
+        {
+            SetShowGlobalFavoriteSet(true);
+        }
+    }
+
     /// <summary>Replaces the bar order of the favorite sets (slot tokens and named-set ids).</summary>
     public void SetFavoriteSetOrder(List<string> order)
     {
@@ -2236,6 +2267,7 @@ public sealed partial class UserPreferences
             PilotVoiceSpeechRate = GetFieldOr(obj, "pilotVoiceSpeechRate", PilotVoiceSpeechRateDefault),
             LoadedFavoriteSetIds = GetFieldOr<List<string>>(obj, "loadedFavoriteSetIds", []),
             FavoriteSetOrder = GetFieldOr<List<string>>(obj, "favoriteSetOrder", []),
+            ShowGlobalFavoriteSet = GetFieldOr(obj, "showGlobalFavoriteSet", true),
             LegacyFavoriteCommands = GetFieldOr<List<LegacyFavoriteCommand>?>(obj, "favoriteCommands", null),
             LegacyFavoriteCommandSets = GetFieldOr<List<LegacyFavoriteCommandSet>?>(obj, "favoriteCommandSets", null),
             LegacyLoadedFavoriteSetNames = GetFieldOr<List<string>?>(obj, "loadedFavoriteSetNames", null),
@@ -2670,6 +2702,7 @@ public sealed partial class UserPreferences
         public double PilotVoiceSpeechRate { get; set; } = PilotVoiceSpeechRateDefault;
         public List<string> LoadedFavoriteSetIds { get; set; } = [];
         public List<string> FavoriteSetOrder { get; set; } = [];
+        public bool ShowGlobalFavoriteSet { get; set; } = true;
 
         // Pre-identity-model favorites storage, kept deserializable only so the one-time
         // FavoriteLegacyMigration can read it; nulled (and thus dropped from the file) afterwards.
@@ -2957,6 +2990,13 @@ public sealed class SavedLayout
     /// <see cref="LoadedFavoriteSetIds"/>).
     /// </summary>
     public List<string>? FavoriteSetOrder { get; set; }
+
+    /// <summary>
+    /// Whether the Global favorite set was shown at capture time (<see cref="UserPreferences.ShowGlobalFavoriteSet"/>).
+    /// Null on layouts captured before Global could be turned off — applying such a layout leaves it as it is (same
+    /// convention as <see cref="LoadedFavoriteSetIds"/>).
+    /// </summary>
+    public bool? ShowGlobalFavoriteSet { get; set; }
 
     /// <summary>
     /// Whether the favorites bar was shown at capture time. Null on layouts captured before the

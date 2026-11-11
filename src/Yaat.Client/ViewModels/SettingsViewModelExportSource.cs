@@ -29,7 +29,8 @@ public sealed class SettingsViewModelExportSource(
             SettingsItemType.Favorites => SettingsBundleItems.Favorites(
                 importTarget.FavoritesToExport,
                 importTarget.LoadedFavoriteSetIdsToExport(preferences.LoadedFavoriteSetIds),
-                importTarget.FavoriteSetOrderToExport(preferences.FavoriteSetOrder)
+                importTarget.FavoriteSetOrderToExport(preferences.FavoriteSetOrder),
+                importTarget.ShowGlobalFavoriteSetToExport(preferences.ShowGlobalFavoriteSet)
             ),
             SettingsItemType.GridLayout => SettingsBundleItems.GridLayout(settings.StagedGridLayout ?? new SavedGridLayout()),
             SettingsItemType.Layouts => SettingsBundleItems.Layouts(settings.StagedLayouts),

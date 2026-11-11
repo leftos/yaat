@@ -24,6 +24,9 @@ internal sealed class InMemorySettingsImportTarget(FavoriteStore favorites) : IS
 
     public List<string> FavoriteSetOrder { get; } = [];
 
+    /// <summary>The last Global switch an import asked for; null while none has.</summary>
+    public bool? ShowGlobalFavoriteSet { get; private set; }
+
     public IReadOnlyList<SavedMacro> Macros => MacroList;
 
     public IReadOnlyList<SavedLayout> Layouts => LayoutList;
@@ -69,4 +72,6 @@ internal sealed class InMemorySettingsImportTarget(FavoriteStore favorites) : IS
 
         LoadedFavoriteSetIds.AddRange(setIds.Where(id => !LoadedFavoriteSetIds.Contains(id)));
     }
+
+    public void ShowImportedGlobalFavoriteSet(bool shown) => ShowGlobalFavoriteSet = shown;
 }

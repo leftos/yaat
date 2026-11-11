@@ -2452,14 +2452,15 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     }
 
     /// <summary>
-    /// Loads exactly the favorite sets the layout captured and restores its bar order, each only when the layout saved
-    /// it: a layout saved before favorite sets (or their order) existed (null) leaves that part untouched. Loaded ids
+    /// Loads exactly the favorite sets the layout captured and restores its bar order and whether Global shows
+    /// (<see cref="SavedLayout.ShowGlobalFavoriteSet"/>), each only when the layout saved it: a layout saved before favorite
+    /// sets (or their order, or the Global switch) existed (null) leaves that part untouched. Loaded ids
     /// whose set has since been deleted are skipped at compose time; the returned note surfaces those so the user knows
     /// why part of the layout did not take effect. The order's entries are never counted, being normalized on read.
     /// </summary>
     public static string ApplyFavoriteSets(MainViewModel vm, SavedLayout layout)
     {
-        if ((layout.LoadedFavoriteSetIds is null) && (layout.FavoriteSetOrder is null))
+        if ((layout.LoadedFavoriteSetIds is null) && (layout.FavoriteSetOrder is null) && (layout.ShowGlobalFavoriteSet is null))
         {
             return "";
         }
@@ -2467,6 +2468,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         if (layout.FavoriteSetOrder is { } order)
         {
             vm.Preferences.SetFavoriteSetOrder([.. order]);
+        }
+
+        if (layout.ShowGlobalFavoriteSet is { } showGlobal)
+        {
+            vm.Preferences.SetShowGlobalFavoriteSet(showGlobal);
         }
 
         int missingCount = 0;

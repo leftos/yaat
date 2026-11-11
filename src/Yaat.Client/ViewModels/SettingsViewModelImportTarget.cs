@@ -44,6 +44,9 @@ public sealed class SettingsViewModelImportTarget : ISettingsImportTarget, IDisp
     /// <summary>Each staged import's sets to load, its bar order and whether it replaces the loaded sets, in the order staged.</summary>
     private readonly List<(List<string> SetIds, List<string> SetOrder, bool Replace)> _stagedLoads = [];
 
+    /// <summary>The Global switch the last staged import asked for, applied with the rest on Apply; null while none has.</summary>
+    private bool? _stagedGlobalShown;
+
     /// <summary>Builds the target over the open Settings window.</summary>
     /// <param name="settings">The open Settings window's view model.</param>
     /// <param name="favorites">The user's favorites store, which Apply imports the staged favorites into.</param>
@@ -102,6 +105,20 @@ public sealed class SettingsViewModelImportTarget : ISettingsImportTarget, IDisp
             new UserPreferencesImportTarget(preferences, _favorites).LoadImportedFavoriteSets(ids, order, replace)
         );
     }
+
+    /// <summary>
+    /// Stages the Global switch a favorites import asked for: written to the preferences on Apply, and reported by
+    /// <see cref="ShowGlobalFavoriteSetToExport"/> until then.
+    /// </summary>
+    public void ShowImportedGlobalFavoriteSet(bool shown)
+    {
+        _stagedGlobalShown = shown;
+        _settings.StageFavoritesWrite(preferences => preferences.SetShowGlobalFavoriteSet(shown));
+    }
+
+    /// <summary>Whether Global shows as Apply would leave it: the last staged import's switch, else <paramref name="shown"/>.</summary>
+    /// <param name="shown">Whether the preferences show Global now.</param>
+    public bool ShowGlobalFavoriteSetToExport(bool shown) => _stagedGlobalShown ?? shown;
 
     /// <summary>
     /// The bar order as Apply would leave it: <paramref name="order"/>, or the last staged Replace's order when one is
@@ -183,7 +200,7 @@ public sealed class SettingsViewModelImportTarget : ISettingsImportTarget, IDisp
         Directory.CreateDirectory(Path.Combine(root, "commands"));
 
         using var library = new MemoryStream();
-        FavoriteExport.ExportLibrary(_favorites, [], [], library);
+        FavoriteExport.ExportLibrary(_favorites, [], [], library, showGlobalSet: true);
         library.Position = 0;
         using var zip = new ZipArchive(library, ZipArchiveMode.Read);
         foreach (ZipArchiveEntry entry in zip.Entries)
@@ -271,6 +288,7 @@ public sealed class SettingsViewModelImportTarget : ISettingsImportTarget, IDisp
     private void DiscardStagedFavorites()
     {
         _stagedLoads.Clear();
+        _stagedGlobalShown = null;
         _stagedFavorites = null;
         if (_stagedFavoritesRoot is { } root)
         {

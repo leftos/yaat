@@ -106,10 +106,14 @@ public static class ViewSettingsCopyCatalog
             Key = LayoutFavoriteSetsKey,
             Section = "Favorites",
             Label = "Loaded favorite sets",
-            Describe = l => l.LoadedFavoriteSetIds is { } ids ? $"{ids.Count} set{Plural(ids.Count)}" : NotSaved,
+            Describe = l =>
+                (l.LoadedFavoriteSetIds is { } ids ? $"{ids.Count} set{Plural(ids.Count)}" : NotSaved)
+                + ((l.ShowGlobalFavoriteSet == false) ? ", Global off" : ""),
             AreEqual = (a, b) =>
-                SequenceEqual(a.LoadedFavoriteSetIds, b.LoadedFavoriteSetIds) && SequenceEqual(a.FavoriteSetOrder, b.FavoriteSetOrder),
-            IsSaved = l => (l.LoadedFavoriteSetIds is not null) || (l.FavoriteSetOrder is not null),
+                SequenceEqual(a.LoadedFavoriteSetIds, b.LoadedFavoriteSetIds)
+                && SequenceEqual(a.FavoriteSetOrder, b.FavoriteSetOrder)
+                && (a.ShowGlobalFavoriteSet == b.ShowGlobalFavoriteSet),
+            IsSaved = l => (l.LoadedFavoriteSetIds is not null) || (l.FavoriteSetOrder is not null) || (l.ShowGlobalFavoriteSet is not null),
         },
         new LayoutCopyGroup
         {

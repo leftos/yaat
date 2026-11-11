@@ -413,6 +413,7 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
+        _preferences.ShowGlobalFavoriteSetIfAddedTo(_store.GlobalSet.Id, [targetSetId]);
         if (mode == FavoriteTransferMode.Duplicate)
         {
             _store.DuplicateIntoSet(targetSetId, [.. selected.Select(f => f.Id)]);

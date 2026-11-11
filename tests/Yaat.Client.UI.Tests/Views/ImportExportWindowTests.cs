@@ -292,6 +292,8 @@ public class ImportExportWindowTests : IDisposable
 
         public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, IReadOnlyList<string> setOrder, bool replace) =>
             inner.LoadImportedFavoriteSets(setIds, setOrder, replace);
+
+        public void ShowImportedGlobalFavoriteSet(bool shown) => inner.ShowImportedGlobalFavoriteSet(shown);
     }
 
     private ImportExportWindow Open(SettingsItemType[] preselected, ImportExportTab tab)

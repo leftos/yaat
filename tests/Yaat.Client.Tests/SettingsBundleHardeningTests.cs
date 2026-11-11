@@ -233,7 +233,7 @@ public class SettingsBundleHardeningTests : IDisposable
         FavoriteSet existing = target.Favorites.CreateNamedSet("Tower")!;
         FavoriteStore source = new(Path.Combine(_root, "source"));
         FavoriteSet incoming = source.CreateNamedSet("Tower")!;
-        SettingsBundleEntry favorites = SettingsBundleItems.Favorites(source, [incoming.Id], []);
+        SettingsBundleEntry favorites = SettingsBundleItems.Favorites(source, [incoming.Id], [], showGlobalSet: true);
         SettingsBundleEntry layouts = SettingsBundleItems.Layouts([
             new SavedLayout { Name = "GC", LoadedFavoriteSetIds = [incoming.Id, "elsewhere"] },
         ]);
@@ -257,7 +257,7 @@ public class SettingsBundleHardeningTests : IDisposable
         FavoriteSet existing = target.Favorites.CreateNamedSet("Tower")!;
         FavoriteStore source = new(Path.Combine(_root, "source"));
         FavoriteSet incoming = source.CreateNamedSet("Tower")!;
-        SettingsBundleEntry favorites = SettingsBundleItems.Favorites(source, [incoming.Id], []);
+        SettingsBundleEntry favorites = SettingsBundleItems.Favorites(source, [incoming.Id], [], showGlobalSet: true);
         SettingsBundleEntry layouts = SettingsBundleItems.Layouts([
             new SavedLayout { Name = "GC", FavoriteSetOrder = ["scenario", incoming.Id, "global", "elsewhere", "airport"] },
         ]);
@@ -295,12 +295,17 @@ public class SettingsBundleHardeningTests : IDisposable
         InMemorySettingsImportTarget target = NewTarget();
         FavoriteSet existing = target.Favorites.CreateNamedSet("Tower")!;
         FavoriteStore source = new(Path.Combine(_root, "source"));
-        using (var copy = new MemoryStream(SettingsBundleItems.Favorites(target.Favorites, [], []).Content))
+        using (var copy = new MemoryStream(SettingsBundleItems.Favorites(target.Favorites, [], [], showGlobalSet: true).Content))
         {
             Assert.NotNull(FavoriteExport.ImportFile(source, "copy.yaat-favlibrary.zip", copy, FavoriteImportMode.Replace));
         }
 
-        SettingsBundleEntry favorites = SettingsBundleItems.Favorites(source, [existing.Id], ["scenario", existing.Id, "global", "airport"]);
+        SettingsBundleEntry favorites = SettingsBundleItems.Favorites(
+            source,
+            [existing.Id],
+            ["scenario", existing.Id, "global", "airport"],
+            showGlobalSet: true
+        );
         SettingsImportPlan plan = SettingsImportPlanner.Plan(favorites, SettingsImportMode.Merge, target);
         ImportClash clash = Assert.Single(plan.Clashes);
         clash.Choice = ClashChoice.Rename;
@@ -320,7 +325,7 @@ public class SettingsBundleHardeningTests : IDisposable
         target.FavoriteSetOrder.AddRange(["scenario", "global"]);
         FavoriteStore source = new(Path.Combine(_root, "source"));
         FavoriteSet set = source.CreateNamedSet("Tower")!;
-        byte[] library = WithoutSetOrder(SettingsBundleItems.Favorites(source, [set.Id], ["scenario", set.Id]).Content);
+        byte[] library = WithoutSetOrder(SettingsBundleItems.Favorites(source, [set.Id], ["scenario", set.Id], showGlobalSet: true).Content);
         var entry = new SettingsBundleEntry(
             SettingsItemType.Favorites,
             SettingsBundleFormats.FavoritesLibraryZip,
@@ -375,7 +380,7 @@ public class SettingsBundleHardeningTests : IDisposable
             target
         );
         SettingsImportPlan favoritesPlan = SettingsImportPlanner.Plan(
-            SettingsBundleItems.Favorites(source, [], []),
+            SettingsBundleItems.Favorites(source, [], [], showGlobalSet: true),
             SettingsImportMode.Merge,
             target
         );

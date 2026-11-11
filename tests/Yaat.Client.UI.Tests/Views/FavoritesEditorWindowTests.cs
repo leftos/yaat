@@ -147,6 +147,48 @@ public class FavoritesEditorWindowTests
         }
     }
 
+    [AvaloniaTheory]
+    [InlineData(FavoriteTransferMode.Duplicate)]
+    [InlineData(FavoriteTransferMode.Link)]
+    public void TransferSelection_IntoGlobalWhileItIsOff_TurnsGlobalOn(FavoriteTransferMode mode)
+    {
+        var prefs = new UserPreferences();
+        FavoriteStore store = NewStore();
+        FavoriteSet setA = store.CreateNamedSet("A")!;
+        FavoriteSet setB = store.CreateNamedSet("B")!;
+        FavoriteCommand favorite = new() { Label = "One", CommandText = "FH 090" };
+        store.SaveFavorite(favorite);
+        store.AddToSet(setA.Id, favorite.Id);
+        prefs.SetShowGlobalFavoriteSet(false);
+
+        var editor = new FavoritesEditorWindow(prefs, store);
+        editor.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        try
+        {
+            SelectContainer(editor, setA.Id);
+            editor.FindControl<ListBox>("FavoritesList")!.SelectAll();
+            Dispatcher.UIThread.RunJobs();
+
+            editor.TransferSelection(setB.Id, mode);
+            Assert.False(prefs.ShowGlobalFavoriteSet);
+
+            // A transfer rebuilds the lists, so select the favorite again before the next one.
+            SelectContainer(editor, setA.Id);
+            editor.FindControl<ListBox>("FavoritesList")!.SelectAll();
+            Dispatcher.UIThread.RunJobs();
+            editor.TransferSelection(store.GlobalSet.Id, mode);
+            Assert.True(prefs.ShowGlobalFavoriteSet);
+            Assert.Single(store.GetSetFavorites(store.GlobalSet.Id));
+        }
+        finally
+        {
+            editor.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
     [AvaloniaFact]
     public void TransferSelection_Duplicate_AddsIndependentCopiesToTheTarget()
     {

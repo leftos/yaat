@@ -35,6 +35,13 @@ public sealed record FavoriteImportResult(
     /// store gave them and its slot tokens as they were; empty when the file carries no order.
     /// </summary>
     public List<string> SetOrder { get; init; } = [];
+
+    /// <summary>
+    /// Whether the Global set is to show after the import (<see cref="UserPreferences.ShowGlobalFavoriteSet"/>): a Replace
+    /// takes the file's switch (on when the file carries none); a Merge turns Global on when a lone favorite landed there
+    /// and otherwise leaves it as it is (null).
+    /// </summary>
+    public bool? ShowGlobalSet { get; init; }
 }
 
 /// <summary>
@@ -64,8 +71,17 @@ public static class FavoriteExport
         public int Version { get; set; } = 1;
         public List<string> LoadedSetIds { get; set; } = [];
 
-        /// <summary>The sets' bar order (<see cref="UserPreferences.FavoriteSetOrder"/>); a library written before it existed reads as empty.</summary>
+        /// <summary>
+        /// The sets' bar order (<see cref="UserPreferences.FavoriteSetOrder"/>); a library written before it existed reads as
+        /// empty.
+        /// </summary>
         public List<string> SetOrder { get; set; } = [];
+
+        /// <summary>
+        /// Whether Global shows (<see cref="UserPreferences.ShowGlobalFavoriteSet"/>); a library written before it existed
+        /// reads as null (on).
+        /// </summary>
+        public bool? ShowGlobalSet { get; set; }
     }
 
     /// <summary>Writes one set and its referenced favorites as a zip. Throws when the set id is unknown.</summary>
@@ -81,12 +97,25 @@ public static class FavoriteExport
     }
 
     /// <summary>
-    /// Writes every set and every favorite (orphans included) plus the loaded-set ids and the bar order as a zip.
+    /// Writes every set and every favorite (orphans included) plus the loaded-set ids, the bar order and whether Global
+    /// shows as a zip.
     /// </summary>
-    public static void ExportLibrary(FavoriteStore store, IReadOnlyList<string> loadedSetIds, IReadOnlyList<string> setOrder, Stream output)
+    public static void ExportLibrary(
+        FavoriteStore store,
+        IReadOnlyList<string> loadedSetIds,
+        IReadOnlyList<string> setOrder,
+        Stream output,
+        bool showGlobalSet
+    )
     {
         using var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
-        WriteEntry(zip, "library.json", new LibraryManifest { LoadedSetIds = [.. loadedSetIds], SetOrder = [.. setOrder] });
+        var manifest = new LibraryManifest
+        {
+            LoadedSetIds = [.. loadedSetIds],
+            SetOrder = [.. setOrder],
+            ShowGlobalSet = showGlobalSet,
+        };
+        WriteEntry(zip, "library.json", manifest);
         foreach (FavoriteSet set in store.OrderedSets)
         {
             string stem = FavoriteStore.SanitizeFileName(set.DisplayName, "set");
@@ -162,7 +191,7 @@ public static class FavoriteExport
         List<string> setOrder = manifest?.SetOrder ?? [];
         ClearWhenReplacing(store, mode);
         FavoriteImportResult result = Merge(store, favorites, sets, loadedSetIds, addLoneFavoritesToGlobal: sets.Count == 0);
-        return result with { SetOrder = MapSetOrder(setOrder, result.SetIdMap) };
+        return result with { SetOrder = MapSetOrder(setOrder, result.SetIdMap), ShowGlobalSet = GlobalShownAfter(mode, manifest, result) };
     }
 
     private static FavoriteImportResult? ImportSingleJson(FavoriteStore store, Stream input, FavoriteImportMode mode)
@@ -182,7 +211,8 @@ public static class FavoriteExport
 
             List<string> loadedSetIds = SetIdsToLoadWithoutManifest([set], mode);
             ClearWhenReplacing(store, mode);
-            return Merge(store, [], [set], loadedSetIds, addLoneFavoritesToGlobal: false);
+            FavoriteImportResult setResult = Merge(store, [], [set], loadedSetIds, addLoneFavoritesToGlobal: false);
+            return setResult with { ShowGlobalSet = GlobalShownAfter(mode, manifest: null, setResult) };
         }
 
         if (Deserialize<FavoriteCommand>(root) is not { } favorite)
@@ -191,8 +221,14 @@ public static class FavoriteExport
         }
 
         ClearWhenReplacing(store, mode);
-        return Merge(store, [favorite], [], [], addLoneFavoritesToGlobal: true);
+        FavoriteImportResult result = Merge(store, [favorite], [], [], addLoneFavoritesToGlobal: true);
+        return result with { ShowGlobalSet = GlobalShownAfter(mode, manifest: null, result) };
     }
+
+    // A Replace takes the file's switch, on when the file carries none; a Merge keeps what Merge decided (on when a lone
+    // favorite landed in Global, else no change).
+    private static bool? GlobalShownAfter(FavoriteImportMode mode, LibraryManifest? manifest, FavoriteImportResult merged) =>
+        (mode == FavoriteImportMode.Replace) ? (manifest?.ShowGlobalSet ?? true) : merged.ShowGlobalSet;
 
     /// <summary>
     /// A replace has nothing left loaded afterwards, so a file that carries no library manifest
@@ -229,6 +265,7 @@ public static class FavoriteExport
     {
         int favoritesAdded = 0;
         int favoritesUpdated = 0;
+        bool addedToGlobal = false;
         foreach (FavoriteCommand favorite in favorites)
         {
             bool isNew = string.IsNullOrWhiteSpace(favorite.Id) || store.GetFavorite(favorite.Id) is null;
@@ -239,6 +276,7 @@ public static class FavoriteExport
                 if (addLoneFavoritesToGlobal)
                 {
                     store.AddToSet(store.GlobalSet.Id, favorite.Id);
+                    addedToGlobal = true;
                 }
             }
             else
@@ -258,7 +296,9 @@ public static class FavoriteExport
             switch (incoming.Kind)
             {
                 case FavoriteSetKind.Global:
+                    int globalCountBefore = store.GlobalSet.FavoriteIds.Count;
                     store.AppendToSet(store.GlobalSet.Id, incoming.FavoriteIds);
+                    addedToGlobal |= store.GlobalSet.FavoriteIds.Count > globalCountBefore;
                     setsUpdated++;
                     break;
                 case FavoriteSetKind.Airport when FavoriteStore.NormalizeAirportId(incoming.Key) is { } airport:
@@ -292,7 +332,11 @@ public static class FavoriteExport
             }
         }
 
-        return new FavoriteImportResult(favoritesAdded, favoritesUpdated, setsAdded, setsUpdated, missing, newSetIdsToLoad) { SetIdMap = setIdMap };
+        return new FavoriteImportResult(favoritesAdded, favoritesUpdated, setsAdded, setsUpdated, missing, newSetIdsToLoad)
+        {
+            SetIdMap = setIdMap,
+            ShowGlobalSet = addedToGlobal ? true : null,
+        };
     }
 
     private static string FavoriteEntryName(FavoriteCommand favorite)

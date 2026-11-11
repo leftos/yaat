@@ -285,14 +285,30 @@ public class FavoriteStoreTests : IDisposable
         store.AddToSet(scenario.Id, s.Id);
         store.AddToSet(named.Id, n.Id);
 
-        List<FavoriteDisplayEntry> display = store.ComposeDisplay("SCN-1", "OAK", [], [named.Id]);
+        List<FavoriteDisplayEntry> display = store.ComposeDisplay("SCN-1", "OAK", [], [named.Id], showGlobalSet: true);
         Assert.Equal(["G", "A", "S", "N"], display.Select(e => e.Favorite.Label));
 
-        List<FavoriteDisplayEntry> withoutContext = store.ComposeDisplay(null, null, [], []);
+        List<FavoriteDisplayEntry> withoutContext = store.ComposeDisplay(null, null, [], [], showGlobalSet: true);
         Assert.Equal(["G"], withoutContext.Select(e => e.Favorite.Label));
 
-        List<FavoriteDisplayEntry> unknownLoadedId = store.ComposeDisplay(null, null, [], ["deadbeef"]);
+        List<FavoriteDisplayEntry> unknownLoadedId = store.ComposeDisplay(null, null, [], ["deadbeef"], showGlobalSet: true);
         Assert.Equal(["G"], unknownLoadedId.Select(e => e.Favorite.Label));
+    }
+
+    [Fact]
+    public void VisibleSetFor_GlobalTurnedOff_ReturnsNoGlobal()
+    {
+        FavoriteStore store = NewStore();
+        FavoriteSet named = store.CreateNamedSet("Pack")!;
+        FavoriteCommand g = Fav("G");
+        FavoriteCommand n = Fav("N");
+        store.SaveFavorite(g);
+        store.SaveFavorite(n);
+        store.AddToSet(store.GlobalSet.Id, g.Id);
+        store.AddToSet(named.Id, n.Id);
+
+        Assert.Equal(["G", "N"], store.ComposeDisplay(null, null, [], [named.Id], showGlobalSet: true).Select(e => e.Favorite.Label));
+        Assert.Equal(["N"], store.ComposeDisplay(null, null, [], [named.Id], showGlobalSet: false).Select(e => e.Favorite.Label));
     }
 
     [Fact]
@@ -325,7 +341,8 @@ public class FavoriteStoreTests : IDisposable
             "SCN-1",
             "OAK",
             [FavoriteSetOrdering.AirportSlot, FavoriteSetOrdering.ScenarioSlot, s1.Id, FavoriteSetOrdering.GlobalSlot, unloaded.Id, s2.Id],
-            [s1.Id, s2.Id]
+            [s1.Id, s2.Id],
+            showGlobalSet: true
         );
 
         Assert.Equal(["A", "S", "N1", "G", "N2"], display.Select(e => e.Favorite.Label));
@@ -341,7 +358,7 @@ public class FavoriteStoreTests : IDisposable
         store.AddToSet(store.GlobalSet.Id, favorite.Id);
         store.AddToSet(named.Id, favorite.Id);
 
-        List<FavoriteDisplayEntry> display = store.ComposeDisplay(null, null, [], [named.Id]);
+        List<FavoriteDisplayEntry> display = store.ComposeDisplay(null, null, [], [named.Id], showGlobalSet: true);
 
         Assert.Equal(2, display.Count);
         Assert.All(display, e => Assert.Same(favorite, e.Favorite));

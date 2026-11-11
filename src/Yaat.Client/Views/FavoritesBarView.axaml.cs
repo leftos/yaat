@@ -535,8 +535,8 @@ public partial class FavoritesBarView : UserControl
     }
 
     /// <summary>
-    /// One set row: check mark, label and ▲/▼. The row text toggles a named set's loading; a slot row (Global,
-    /// airport, scenario) has a dimmed check and its text does nothing. The flyout stays open throughout.
+    /// One set row: check mark, label and ▲/▼. The row text loads or unloads a named set and turns Global on or off; an
+    /// airport or scenario row has a dimmed check and its text does nothing. The flyout stays open throughout.
     /// </summary>
     private static MenuItem CreateSetRow(MenuFlyout flyout, MainViewModel vm, FavoriteSetRow row, Action openEditor)
     {
@@ -544,7 +544,7 @@ public partial class FavoritesBarView : UserControl
         {
             Text = row.IsLoaded ? "✓" : "",
             Width = 16,
-            Opacity = row.IsSlot ? 0.4 : 1,
+            Opacity = row.CanToggle ? 1 : 0.4,
             VerticalAlignment = VerticalAlignment.Center,
         };
         var label = new TextBlock
@@ -585,12 +585,12 @@ public partial class FavoritesBarView : UserControl
             e.Handled = true;
             bool fromArrows = pressedOnArrows;
             pressedOnArrows = false;
-            if (row.IsSlot || fromArrows)
+            if (!row.CanToggle || fromArrows)
             {
                 return;
             }
 
-            vm.SetFavoriteSetLoaded(row.Entry, !vm.IsFavoriteSetLoaded(row.Entry));
+            vm.ToggleFavoriteSetRow(row.Entry);
             FillSetsFlyout(flyout, vm, openEditor);
         };
         up.Click += (_, e) => MoveSet(e, -1);
@@ -1060,6 +1060,7 @@ public partial class FavoritesBarView : UserControl
         );
 
         var flyout = new Flyout { Content = panel, Placement = PlacementMode.Top };
+        AddCopyPasteRow(footer, vm, entry, flyout);
 
         saveBtn.Click += (_, _) =>
         {
@@ -1165,6 +1166,7 @@ public partial class FavoritesBarView : UserControl
         );
 
         var flyout = new Flyout { Content = panel, Placement = PlacementMode.Top };
+        AddCopyPasteRow(footer, vm, entry, flyout);
 
         saveBtn.Click += (_, _) =>
         {
@@ -1414,6 +1416,41 @@ public partial class FavoritesBarView : UserControl
 
         panel.Children.Add(CreateEditButtonRow(deleteBtn, saveBtn));
         return panel;
+    }
+
+    /// <summary>
+    /// Adds the Copy / Paste row above an Edit flyout's Delete / Save row. Copy holds this button for Paste; Paste puts an
+    /// independent copy of the held button right after this one, in this button's set, and is disabled while nothing is
+    /// held. Both close the flyout.
+    /// </summary>
+    private static void AddCopyPasteRow(StackPanel footer, MainViewModel vm, FavoriteDisplayEntry entry, Flyout flyout)
+    {
+        Button copyBtn = CreateSmallActionButton("Copy");
+        Button pasteBtn = CreateSmallActionButton("Paste");
+        pasteBtn.IsEnabled = vm.CopiedFavorite is not null;
+        ToolTip.SetTip(copyBtn, "Copy this button, to paste a copy of it after another");
+        ToolTip.SetTip(pasteBtn, "Paste a copy of the copied button after this one");
+        copyBtn.Click += (_, _) =>
+        {
+            vm.CopyFavorite(entry.Favorite);
+            flyout.Hide();
+        };
+        pasteBtn.Click += (_, _) =>
+        {
+            vm.PasteFavoriteAfter(entry);
+            flyout.Hide();
+        };
+
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        row.Children.Add(copyBtn);
+        row.Children.Add(pasteBtn);
+        // CreateEditFooter ends with the Delete / Save row, so the last index puts this row just above it.
+        footer.Children.Insert(footer.Children.Count - 1, row);
     }
 
     private static DockPanel CreateEditButtonRow(Button deleteBtn, Button saveBtn)

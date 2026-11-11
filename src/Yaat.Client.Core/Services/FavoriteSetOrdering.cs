@@ -6,11 +6,15 @@ namespace Yaat.Client.Services;
 /// </summary>
 /// <param name="Entry">The order entry: a slot token of <see cref="FavoriteSetOrdering"/> or a named set's id.</param>
 /// <param name="Label">The row text.</param>
-/// <param name="IsSlot">True for the Global, airport and scenario rows, which have no load toggle.</param>
-/// <param name="IsLoaded">True when the row's favorites show on the bar (always true for a slot row).</param>
+/// <param name="IsSlot">True for the Global, airport and scenario rows; of these only Global can be turned off.</param>
+/// <param name="IsLoaded">True when the row's favorites show on the bar (always true for an airport or scenario row).</param>
 /// <param name="CanMoveUp">False on the top visible row.</param>
 /// <param name="CanMoveDown">False on the bottom visible row.</param>
-public sealed record FavoriteSetRow(string Entry, string Label, bool IsSlot, bool IsLoaded, bool CanMoveUp, bool CanMoveDown);
+public sealed record FavoriteSetRow(string Entry, string Label, bool IsSlot, bool IsLoaded, bool CanMoveUp, bool CanMoveDown)
+{
+    /// <summary>Whether clicking the row turns it on or off: a named set's row and the Global row.</summary>
+    public bool CanToggle => (!IsSlot) || string.Equals(Entry, FavoriteSetOrdering.GlobalSlot, StringComparison.OrdinalIgnoreCase);
+}
 
 /// <summary>
 /// The bar order of the favorite sets: one list of the slot tokens <see cref="GlobalSlot"/>,

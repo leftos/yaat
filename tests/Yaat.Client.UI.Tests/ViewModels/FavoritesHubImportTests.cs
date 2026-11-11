@@ -394,7 +394,7 @@ public class FavoritesHubImportTests : IDisposable
         FavoriteStore store = SourceStore(loadedSetName, favoriteLabel, out FavoriteSet set);
         string path = Path.Combine(_root, loadedSetName + FavoriteExport.LibraryExportExtension);
         using FileStream stream = File.Create(path);
-        FavoriteExport.ExportLibrary(store, [set.Id], order(set.Id), stream);
+        FavoriteExport.ExportLibrary(store, [set.Id], order(set.Id), stream, showGlobalSet: true);
         return path;
     }
 
@@ -511,7 +511,7 @@ public class FavoritesHubImportTests : IDisposable
         FavoriteStore store = SourceStore(loadedSetName, favoriteLabel, out FavoriteSet set);
         string path = Path.Combine(_root, loadedSetName + FavoriteExport.LibraryExportExtension);
         using FileStream stream = File.Create(path);
-        FavoriteExport.ExportLibrary(store, [set.Id], [], stream);
+        FavoriteExport.ExportLibrary(store, [set.Id], [], stream, showGlobalSet: true);
         return path;
     }
 }

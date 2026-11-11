@@ -40,11 +40,19 @@ public static class SettingsBundleItems
             Encoding.UTF8.GetBytes(CommandSchemeFile.Serialize(scheme))
         );
 
-    /// <summary>Every favorite set and favorite plus the loaded-set ids and the sets' bar order, as a <c>*.yaat-favlibrary.zip</c> file.</summary>
-    public static SettingsBundleEntry Favorites(FavoriteStore store, IReadOnlyList<string> loadedSetIds, IReadOnlyList<string> setOrder)
+    /// <summary>
+    /// Every favorite set and favorite plus the loaded-set ids, the sets' bar order and whether Global shows, as a
+    /// <c>*.yaat-favlibrary.zip</c> file.
+    /// </summary>
+    public static SettingsBundleEntry Favorites(
+        FavoriteStore store,
+        IReadOnlyList<string> loadedSetIds,
+        IReadOnlyList<string> setOrder,
+        bool showGlobalSet
+    )
     {
         using var buffer = new MemoryStream();
-        FavoriteExport.ExportLibrary(store, loadedSetIds, setOrder, buffer);
+        FavoriteExport.ExportLibrary(store, loadedSetIds, setOrder, buffer, showGlobalSet);
         return new SettingsBundleEntry(
             SettingsItemType.Favorites,
             SettingsBundleFormats.FavoritesLibraryZip,

@@ -53,6 +53,12 @@ public interface ISettingsImportTarget
     /// <param name="setOrder">The file's bar order, its ids those of the store; used only under Replace.</param>
     /// <param name="replace">Whether the import replaced the store.</param>
     void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, IReadOnlyList<string> setOrder, bool replace);
+
+    /// <summary>
+    /// Shows or hides the Global favorite set as a favorites import asked (<see cref="FavoriteImportResult.ShowGlobalSet"/>).
+    /// </summary>
+    /// <param name="shown">Whether Global shows on the favorites bar.</param>
+    void ShowImportedGlobalFavoriteSet(bool shown);
 }
 
 /// <summary>An import target that writes straight to the user's preferences and favorites store.</summary>
@@ -112,4 +118,6 @@ public sealed class UserPreferencesImportTarget(UserPreferences preferences, Fav
             preferences.SetFavoriteSetLoaded(setId, true);
         }
     }
+
+    public void ShowImportedGlobalFavoriteSet(bool shown) => preferences.SetShowGlobalFavoriteSet(shown);
 }

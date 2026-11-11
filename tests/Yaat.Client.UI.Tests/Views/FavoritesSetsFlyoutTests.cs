@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
@@ -41,7 +42,11 @@ public class FavoritesSetsFlyoutTests
         }
 
         vm.ActiveScenarioPrimaryAirportId = null;
+        vm.Preferences.SetShowGlobalFavoriteSet(true);
     }
+
+    /// <summary>The check mark at the left of a set row.</summary>
+    private static TextBlock Check(MenuItem row) => ((Grid)row.Header!).Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 0);
 
     private static List<MenuItem> SetRows(MenuFlyout flyout) => [.. flyout.Items.OfType<MenuItem>().Where(item => item.Header is Grid)];
 
@@ -158,12 +163,14 @@ public class FavoritesSetsFlyoutTests
     }
 
     [AvaloniaFact]
-    public void ClickingANamedRow_TogglesItsLoading_AndClickingASlotRowChangesNothing()
+    public void ClickingANamedRow_TogglesItsLoading_AndClickingTheAirportSlotRowChangesNothing()
     {
         MainViewModel vm = NewVm();
         (Window? window, MenuFlyout? flyout) = (null, null);
         try
         {
+            vm.ActiveScenarioPrimaryAirportId = AirportId;
+            vm.FavoriteStore.GetOrCreateAirportSet(AirportId);
             FavoriteSet set = vm.FavoriteStore.CreateNamedSet("FSF-Toggle")!;
             (window, flyout) = ShowFlyout(vm);
 
@@ -173,10 +180,12 @@ public class FavoritesSetsFlyoutTests
 
             List<FavoriteDisplayEntry> barBefore = [.. vm.DisplayFavorites];
             List<string> labelsBefore = OurLabels(flyout);
-            Row(flyout, "Global").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Assert.Equal(0.4, Check(Row(flyout, $"Airport ({AirportId})")).Opacity);
+            Row(flyout, $"Airport ({AirportId})").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
             Assert.Equal([set.Id], vm.Preferences.LoadedFavoriteSetIds);
             Assert.Empty(vm.Preferences.FavoriteSetOrder);
+            Assert.True(vm.Preferences.ShowGlobalFavoriteSet);
             Assert.Equal(barBefore, vm.DisplayFavorites);
             Assert.Equal(labelsBefore, OurLabels(flyout));
             Assert.True(flyout.IsOpen);
@@ -316,6 +325,196 @@ public class FavoritesSetsFlyoutTests
         {
             flyout?.Hide();
             window?.Close();
+            Cleanup(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void GlobalRow_Click_TogglesGlobalOffAndHidesIt()
+    {
+        MainViewModel vm = NewVm();
+        (Window? window, MenuFlyout? flyout) = (null, null);
+        var favorite = new FavoriteCommand { Label = "FSF-GlobalFav", CommandText = "FH 090" };
+        try
+        {
+            vm.AddFavorite(favorite, [vm.FavoriteStore.GlobalSet.Id]);
+            (window, flyout) = ShowFlyout(vm);
+            Assert.Equal("✓", Check(Row(flyout, "Global")).Text);
+            Assert.Equal(1, Check(Row(flyout, "Global")).Opacity);
+
+            Row(flyout, "Global").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+
+            Assert.False(vm.Preferences.ShowGlobalFavoriteSet);
+            Assert.DoesNotContain(vm.DisplayFavorites, e => e.Favorite.Id == favorite.Id);
+            // The row stays listed, unchecked, so Global can be turned back on from it.
+            Assert.Equal("", Check(Row(flyout, "Global")).Text);
+            Assert.Equal(1, Check(Row(flyout, "Global")).Opacity);
+            Assert.True(flyout.IsOpen);
+
+            Row(flyout, "Global").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+
+            Assert.True(vm.Preferences.ShowGlobalFavoriteSet);
+            Assert.Contains(vm.DisplayFavorites, e => e.Favorite.Id == favorite.Id);
+            Assert.Equal("✓", Check(Row(flyout, "Global")).Text);
+        }
+        finally
+        {
+            flyout?.Hide();
+            window?.Close();
+            vm.DeleteFavorite(favorite.Id);
+            Cleanup(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void BlankButton_WhileGlobalOff_TurnsGlobalOnAndAddsThere()
+    {
+        MainViewModel vm = NewVm();
+        var view = new FavoritesBarView { IsPaletteMode = true };
+        var window = new Window
+        {
+            Width = 800,
+            Height = 450,
+            Content = view,
+            DataContext = vm,
+        };
+        HashSet<string> before = [.. vm.FavoriteStore.GlobalSet.FavoriteIds];
+        try
+        {
+            window.ShowAndRunLayout();
+            vm.Preferences.SetShowGlobalFavoriteSet(false);
+            Dispatcher.UIThread.RunJobs();
+
+            view.GetVisualDescendants()
+                .OfType<Button>()
+                .Single(b => (b.Content as string) == "Blank")
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.True(vm.Preferences.ShowGlobalFavoriteSet);
+            string blankId = vm.FavoriteStore.GlobalSet.FavoriteIds.Single(id => !before.Contains(id));
+            Assert.Contains(vm.DisplayFavorites, e => (e.Favorite.Id == blankId) && e.Favorite.IsSpacer);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+            foreach (string id in vm.FavoriteStore.GlobalSet.FavoriteIds.Where(id => !before.Contains(id)).ToList())
+            {
+                vm.DeleteFavorite(id);
+            }
+
+            Cleanup(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void UpdateFavorite_NewlyAddingGlobal_TurnsGlobalOn_ResavingOneAlreadyInGlobalDoesNot()
+    {
+        MainViewModel vm = NewVm();
+        FavoriteSet named = vm.FavoriteStore.CreateNamedSet("FSF-Update")!;
+        var favorite = new FavoriteCommand { Label = "FSF-UpdateFav", CommandText = "FH 120" };
+        try
+        {
+            vm.AddFavorite(favorite, [named.Id]);
+            vm.SetShowGlobalFavoriteSet(false);
+
+            vm.UpdateFavorite(favorite.Clone(), [named.Id]);
+            Assert.False(vm.Preferences.ShowGlobalFavoriteSet);
+
+            vm.UpdateFavorite(favorite.Clone(), [named.Id, vm.FavoriteStore.GlobalSet.Id]);
+            Assert.True(vm.Preferences.ShowGlobalFavoriteSet);
+
+            vm.SetShowGlobalFavoriteSet(false);
+            vm.UpdateFavorite(favorite.Clone(), [named.Id, vm.FavoriteStore.GlobalSet.Id]);
+            Assert.False(vm.Preferences.ShowGlobalFavoriteSet);
+        }
+        finally
+        {
+            vm.DeleteFavorite(favorite.Id);
+            Cleanup(vm);
+        }
+    }
+
+    [AvaloniaFact]
+    public void Layout_CaptureThenApply_RestoresTheGlobalSwitch_AndALayoutWithoutItLeavesItAlone()
+    {
+        MainViewModel vm = NewVm();
+        try
+        {
+            vm.SetShowGlobalFavoriteSet(false);
+            SavedLayout layout = new LayoutService(vm.Preferences).CaptureCurrent("FSF-Layout", vm);
+            Assert.False(layout.ShowGlobalFavoriteSet);
+
+            vm.SetShowGlobalFavoriteSet(true);
+            MainWindow.ApplyFavoriteSets(vm, layout);
+            Assert.False(vm.Preferences.ShowGlobalFavoriteSet);
+
+            MainWindow.ApplyFavoriteSets(vm, new SavedLayout { FavoriteSetOrder = [] });
+            Assert.False(vm.Preferences.ShowGlobalFavoriteSet);
+            MainWindow.ApplyFavoriteSets(vm, new SavedLayout());
+            Assert.False(vm.Preferences.ShowGlobalFavoriteSet);
+        }
+        finally
+        {
+            Cleanup(vm);
+        }
+    }
+
+    [Fact]
+    public void PreferencesFile_WithoutTheGlobalSwitch_ReadsAsOn_AndAnOffSwitchReadsAsOff()
+    {
+        File.WriteAllText(UserPreferences.FilePath, """{ "favoriteSetOrder": [] }""");
+        Assert.True(new UserPreferences().ShowGlobalFavoriteSet);
+
+        File.WriteAllText(UserPreferences.FilePath, """{ "showGlobalFavoriteSet": false }""");
+        Assert.False(new UserPreferences().ShowGlobalFavoriteSet);
+    }
+
+    [AvaloniaFact]
+    public void AddFlyout_WhileGlobalOff_TurnsGlobalOnAndAddsThere()
+    {
+        MainViewModel vm = NewVm();
+        var view = new FavoritesBarView { IsPaletteMode = true };
+        var window = new Window
+        {
+            Width = 800,
+            Height = 450,
+            Content = view,
+            DataContext = vm,
+        };
+        string? addedId = null;
+        try
+        {
+            window.ShowAndRunLayout();
+            vm.Preferences.SetShowGlobalFavoriteSet(false);
+            Dispatcher.UIThread.RunJobs();
+
+            view.OpenAddFlyoutForCommand("FH 180");
+            Dispatcher.UIThread.RunJobs();
+            Control content = Assert.IsAssignableFrom<Control>(Assert.Single(view.OpenEditorFlyouts).Content);
+            content.GetLogicalDescendants().OfType<TextBox>().Single(b => b.PlaceholderText == "Label (e.g. FH 270)").Text = "FSF-QuickAdd";
+            content
+                .GetLogicalDescendants()
+                .OfType<Button>()
+                .Single(b => (b.Content as string) == "Add")
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.True(vm.Preferences.ShowGlobalFavoriteSet);
+            FavoriteDisplayEntry entry = vm.DisplayFavorites.Single(e => e.Favorite.Label == "FSF-QuickAdd");
+            addedId = entry.Favorite.Id;
+            Assert.Equal(vm.FavoriteStore.GlobalSet.Id, entry.SetId);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+            if (addedId is not null)
+            {
+                vm.DeleteFavorite(addedId);
+            }
+
             Cleanup(vm);
         }
     }

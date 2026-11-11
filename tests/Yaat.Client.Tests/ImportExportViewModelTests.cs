@@ -853,7 +853,7 @@ public class ImportExportViewModelTests : IDisposable
     {
         InMemorySettingsImportTarget source = NewTarget();
         AddSet(source.Favorites, "Ground", "TAXI");
-        return WriteBundle("favorites.yaat-settings.zip", [SettingsBundleItems.Favorites(source.Favorites, [], [])]);
+        return WriteBundle("favorites.yaat-settings.zip", [SettingsBundleItems.Favorites(source.Favorites, [], [], showGlobalSet: true)]);
     }
 
     private static Stream CreateFile(string path) => File.Open(path, FileMode.CreateNew);
@@ -905,7 +905,7 @@ public class ImportExportViewModelTests : IDisposable
                 SettingsItemType.Macros => SettingsBundleItems.Macros([Macro("DEP", "CTO"), Macro("PAT &rwy", "TC")]),
                 SettingsItemType.Layouts => SettingsBundleItems.Layouts([new SavedLayout { Name = "GC" }]),
                 SettingsItemType.Preferences => SettingsBundleItems.Preferences(UserPreferences.CreateDefaults()),
-                SettingsItemType.Favorites when favorites is not null => SettingsBundleItems.Favorites(favorites, [], []),
+                SettingsItemType.Favorites when favorites is not null => SettingsBundleItems.Favorites(favorites, [], [], showGlobalSet: true),
                 SettingsItemType.Verbs => SettingsBundleItems.Verbs(CommandScheme.Default()),
                 SettingsItemType.GridLayout => SettingsBundleItems.GridLayout(new SavedGridLayout()),
                 _ => throw new NotSupportedException($"The test export source has no {itemType}."),
@@ -1001,5 +1001,7 @@ public class ImportExportViewModelTests : IDisposable
 
         public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, IReadOnlyList<string> setOrder, bool replace) =>
             inner.LoadImportedFavoriteSets(setIds, setOrder, replace);
+
+        public void ShowImportedGlobalFavoriteSet(bool shown) => inner.ShowImportedGlobalFavoriteSet(shown);
     }
 }

@@ -410,6 +410,8 @@ public partial class ColumnChooserWindow : Window
 
         public void LoadImportedFavoriteSets(IReadOnlyList<string> setIds, IReadOnlyList<string> setOrder, bool replace) =>
             live.LoadImportedFavoriteSets(setIds, setOrder, replace);
+
+        public void ShowImportedGlobalFavoriteSet(bool shown) => live.ShowImportedGlobalFavoriteSet(shown);
     }
 
     /// <summary>Exports the column layout the chooser shows; every other item as the preferences hold it.</summary>

@@ -171,6 +171,7 @@ public sealed partial class UserPreferences
         ["windowProfiles"] = "legacy key, migrated into layouts on load",
         ["loadedFavoriteSetIds"] = "favorites state; the favorites entry carries the loaded-set ids",
         ["favoriteSetOrder"] = "favorites state; the favorites entry carries the set order",
+        ["showGlobalFavoriteSet"] = "favorites state; the favorites entry carries whether Global shows",
         ["favoriteCommands"] = "legacy favorites, migrated into the favorites store",
         ["favoriteCommandSets"] = "legacy favorites, migrated into the favorites store",
         ["loadedFavoriteSetNames"] = "legacy favorites, migrated into the favorites store",

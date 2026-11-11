@@ -152,7 +152,7 @@ public class FavoriteExportTests : IDisposable
         source.AddToSet(airport.Id, inAirport.Id);
 
         using var buffer = new MemoryStream();
-        FavoriteExport.ExportLibrary(source, [named.Id], [], buffer);
+        FavoriteExport.ExportLibrary(source, [named.Id], [], buffer, showGlobalSet: true);
         buffer.Position = 0;
 
         FavoriteStore target = NewStore("target");
@@ -181,7 +181,7 @@ public class FavoriteExportTests : IDisposable
         source.AddToSet(airport.Id, theirs.Id);
 
         using var buffer = new MemoryStream();
-        FavoriteExport.ExportLibrary(source, [], [], buffer);
+        FavoriteExport.ExportLibrary(source, [], [], buffer, showGlobalSet: true);
         buffer.Position = 0;
 
         FavoriteStore target = NewStore("target");
@@ -282,7 +282,7 @@ public class FavoriteExportTests : IDisposable
         source.AddToSet(source.GlobalSet.Id, inGlobal.Id);
 
         using var buffer = new MemoryStream();
-        FavoriteExport.ExportLibrary(source, [pack.Id], [], buffer);
+        FavoriteExport.ExportLibrary(source, [pack.Id], [], buffer, showGlobalSet: true);
         buffer.Position = 0;
 
         FavoriteStore target = NewStore("target");
@@ -313,6 +313,138 @@ public class FavoriteExportTests : IDisposable
         FavoriteStore reloaded = NewStore("target");
         Assert.Equal(["Everywhere", "InSet"], reloaded.AllFavorites.Select(f => f.Label).OrderBy(l => l, StringComparer.Ordinal));
         Assert.Equal(["Global", "Pack"], reloaded.OrderedSets.Select(s => s.DisplayName));
+    }
+
+    [Fact]
+    public void LibraryZip_GlobalTurnedOff_SurvivesExportAndImport()
+    {
+        FavoriteStore source = NewStore("source");
+        FavoriteCommand inGlobal = Fav("Everywhere");
+        source.SaveFavorite(inGlobal);
+        source.AddToSet(source.GlobalSet.Id, inGlobal.Id);
+
+        using var buffer = new MemoryStream();
+        FavoriteExport.ExportLibrary(source, [], [], buffer, showGlobalSet: false);
+        buffer.Position = 0;
+
+        FavoriteImportResult? result = FavoriteExport.ImportFile(
+            NewStore("target"),
+            $"favorites{FavoriteExport.LibraryExportExtension}",
+            buffer,
+            FavoriteImportMode.Replace
+        );
+
+        Assert.NotNull(result);
+        Assert.False(result.ShowGlobalSet);
+    }
+
+    [Fact]
+    public void LibraryZip_WithoutTheGlobalFlag_ImportsGlobalAsOn()
+    {
+        FavoriteStore source = NewStore("source");
+        FavoriteCommand inGlobal = Fav("Everywhere");
+        source.SaveFavorite(inGlobal);
+        source.AddToSet(source.GlobalSet.Id, inGlobal.Id);
+
+        using var buffer = new MemoryStream();
+        FavoriteExport.ExportLibrary(source, [], [], buffer, showGlobalSet: false);
+        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            zip.GetEntry("library.json")!.Delete();
+            using var writer = new StreamWriter(zip.CreateEntry("library.json").Open());
+            writer.Write("""{ "version": 1, "loadedSetIds": [], "setOrder": [] }""");
+        }
+
+        buffer.Position = 0;
+        FavoriteImportResult? result = FavoriteExport.ImportFile(
+            NewStore("target"),
+            $"favorites{FavoriteExport.LibraryExportExtension}",
+            buffer,
+            FavoriteImportMode.Replace
+        );
+
+        Assert.NotNull(result);
+        Assert.True(result.ShowGlobalSet);
+    }
+
+    [Fact]
+    public void SingleFavoriteJson_Merge_TurnsGlobalOn()
+    {
+        string json = """{ "id": "0badf00d", "label": "Lone", "commandText": "FH 090" }""";
+        using var input = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+
+        FavoriteImportResult? result = FavoriteExport.ImportFile(NewStore("target"), "Lone.json", input, FavoriteImportMode.Merge);
+
+        Assert.NotNull(result);
+        Assert.True(result.ShowGlobalSet);
+    }
+
+    [Fact]
+    public void LibraryZip_Merge_TurnsGlobalOnOnlyWhenGlobalGainsMembers()
+    {
+        FavoriteStore source = NewStore("source");
+        FavoriteSet pack = source.CreateNamedSet("Pack")!;
+        FavoriteCommand inGlobal = Fav("Everywhere");
+        FavoriteCommand inPack = Fav("InPack");
+        source.SaveFavorite(inGlobal);
+        source.SaveFavorite(inPack);
+        source.AddToSet(source.GlobalSet.Id, inGlobal.Id);
+        source.AddToSet(pack.Id, inPack.Id);
+        byte[] library = ExportLibraryBytes(source, showGlobalSet: false);
+        FavoriteStore target = NewStore("target");
+
+        Assert.True(MergeLibrary(target, library).ShowGlobalSet);
+        Assert.Null(MergeLibrary(target, library).ShowGlobalSet);
+
+        source.RemoveFromSet(source.GlobalSet.Id, inGlobal.Id);
+        Assert.Null(MergeLibrary(NewStore("fresh"), ExportLibraryBytes(source, showGlobalSet: true)).ShowGlobalSet);
+    }
+
+    [Fact]
+    public void SettingsBundle_ThroughThePlanner_CarriesTheGlobalSwitch()
+    {
+        FavoriteStore source = NewStore("source");
+        FavoriteSet pack = source.CreateNamedSet("Pack")!;
+        FavoriteCommand inPack = Fav("InPack");
+        source.SaveFavorite(inPack);
+        source.AddToSet(pack.Id, inPack.Id);
+
+        var replaced = new InMemorySettingsImportTarget(NewStore("replaced"));
+        SettingsBundleEntry off = SettingsBundleItems.Favorites(source, [pack.Id], [], showGlobalSet: false);
+        SettingsImportPlanner.Apply(SettingsImportPlanner.Plan(off, SettingsImportMode.Replace, replaced), replaced);
+        Assert.False(replaced.ShowGlobalFavoriteSet);
+
+        var merged = new InMemorySettingsImportTarget(NewStore("merged"));
+        SettingsImportPlanner.Apply(SettingsImportPlanner.Plan(off, SettingsImportMode.Merge, merged), merged);
+        Assert.Null(merged.ShowGlobalFavoriteSet);
+
+        FavoriteCommand inGlobal = Fav("Everywhere");
+        source.SaveFavorite(inGlobal);
+        source.AddToSet(source.GlobalSet.Id, inGlobal.Id);
+        SettingsBundleEntry withGlobal = SettingsBundleItems.Favorites(source, [], [], showGlobalSet: false);
+        var gained = new InMemorySettingsImportTarget(NewStore("gained"));
+        SettingsImportPlanner.Apply(SettingsImportPlanner.Plan(withGlobal, SettingsImportMode.Merge, gained), gained);
+        Assert.True(gained.ShowGlobalFavoriteSet);
+    }
+
+    private static byte[] ExportLibraryBytes(FavoriteStore store, bool showGlobalSet)
+    {
+        using var buffer = new MemoryStream();
+        FavoriteExport.ExportLibrary(store, [], [], buffer, showGlobalSet);
+        return buffer.ToArray();
+    }
+
+    private static FavoriteImportResult MergeLibrary(FavoriteStore target, byte[] library)
+    {
+        using var input = new MemoryStream(library);
+        FavoriteImportResult? result = FavoriteExport.ImportFile(
+            target,
+            $"favorites{FavoriteExport.LibraryExportExtension}",
+            input,
+            FavoriteImportMode.Merge
+        );
+        Assert.NotNull(result);
+        return result;
     }
 
     [Fact]
@@ -379,7 +511,7 @@ public class FavoriteExportTests : IDisposable
         source.AddToSet(pack.Id, inSet.Id);
 
         using var buffer = new MemoryStream();
-        FavoriteExport.ExportLibrary(source, [pack.Id], [], buffer);
+        FavoriteExport.ExportLibrary(source, [pack.Id], [], buffer, showGlobalSet: true);
         buffer.Position = 0;
 
         FavoriteStore target = NewStore("target");
