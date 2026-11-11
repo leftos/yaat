@@ -6,6 +6,8 @@ Runway [disabled]
 Cleared to land 28R alias:CLAND
 Cleared for the option 28R alias:COPT
 Touch and go 28R alias:TG
+Stop and go 28R alias:SG
+Low approach 28R alias:LA
 Go around 28R alias:GA
 Pattern [disabled]
 Follow traffic… · no other aircraft airborne [disabled]

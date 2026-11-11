@@ -2,7 +2,8 @@
 N308AB · C172 [disabled]
 Final · 800 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
-strip row 1: Runway: tower.cleared-to-land tower.go-around | Vectors: speed.final-approach
+strip row 1: Runway: tower.cleared-to-land tower.cleared-option tower.touch-and-go tower.stop-and-go tower.low-approach tower.go-around
+strip row 2: Vectors: speed.final-approach
 ---
 Command…
 Note…

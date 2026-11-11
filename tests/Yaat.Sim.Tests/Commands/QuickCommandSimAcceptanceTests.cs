@@ -419,6 +419,27 @@ public sealed class QuickCommandSimAcceptanceTests
         AssertRefused(Dispatch(aircraft, clearance), $"{clearance} during VFR Follow", "pending approach");
     }
 
+    // --- Option clearances on the pattern final and downwind ---
+    //
+    // A closed-traffic aircraft is in the Final situation from its turn to final, so the Final list carries Cleared for the
+    // option, Touch and go, Stop and go and Low approach there; the Pattern list carries the same four on downwind.
+
+    [Theory]
+    [InlineData("Final", "COPT")]
+    [InlineData("Final", "TG")]
+    [InlineData("Final", "SG")]
+    [InlineData("Final", "LA")]
+    [InlineData("Downwind", "COPT")]
+    [InlineData("Downwind", "TG")]
+    [InlineData("Downwind", "SG")]
+    [InlineData("Downwind", "LA")]
+    public void OptionClearance_InTheOakPattern_IsAccepted(string leg, string command)
+    {
+        AircraftState aircraft = InTheOakPattern(leg);
+
+        AssertAccepted(Dispatch(aircraft, command), $"{command} on {aircraft.Phases?.CurrentPhase?.Name}");
+    }
+
     // --- Staging ---
 
     private void AssertPatternEntryInBoundaryHold(AirspaceHoldMode mode, string verb)
@@ -666,6 +687,47 @@ public sealed class QuickCommandSimAcceptanceTests
     }
 
     private static readonly string ParkedAt29 = AiTestFixture.ParkedAtOak.Replace("\"parking\": \"SIG1\"", "\"parking\": \"29\"");
+
+    /// <summary>
+    /// A VFR C172 in OAK 28R's closed traffic, on the leg named and with the rest of the circuit still pending: a 2 NM final,
+    /// or 1 NM abeam the threshold at pattern altitude on the downwind. The clearance gate reads the phases, not the geometry.
+    /// </summary>
+    private static AircraftState InTheOakPattern(string leg)
+    {
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("OAK", "28R")!;
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        bool onFinal = leg == "Final";
+        var aircraft = new AircraftState
+        {
+            Callsign = "N152SP",
+            AircraftType = "C172",
+            Position = onFinal
+                ? GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), 2.0)
+                : GeoMath.ProjectPoint(threshold, new TrueHeading((runway.TrueHeading.Degrees + 90) % 360), 1.0),
+            TrueHeading = onFinal ? runway.TrueHeading : runway.TrueHeading.ToReciprocal(),
+            Altitude = onFinal ? 600 : 1000,
+            IndicatedAirspeed = 90,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "OAK",
+                Destination = "OAK",
+                FlightRules = "VFR",
+                Altitude = PlannedAltitude.Vfr(1000),
+            },
+            Phases = new PhaseList { AssignedRunway = runway },
+        };
+        if (!onFinal)
+        {
+            aircraft.Phases.Add(new DownwindPhase());
+        }
+
+        aircraft.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
+        aircraft.Phases.Add(new LandingPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty));
+        Assert.Equal(onFinal ? "FinalApproach" : "Downwind", aircraft.Phases.CurrentPhase?.Name);
+        return aircraft;
+    }
 
     private static Phase PhaseNamed(string phaseName) =>
         phaseName switch

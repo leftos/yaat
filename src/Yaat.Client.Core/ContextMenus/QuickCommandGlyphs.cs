@@ -107,6 +107,8 @@ public static class QuickCommandGlyphs
             [MenuIds.TowerCancelLanding] = Tower(CancelPath),
             [MenuIds.TowerGoAround] = Tower("M4 19h7a6 6 0 0 0 6-6V5 M13 9l4-4 4 4"),
             [MenuIds.TowerTouchAndGo] = Tower("M2 20h20 M3 7c4 0 6 10 9 10s5-10 9-10"),
+            [MenuIds.TowerStopAndGo] = Tower("M2 20h20 M2 7c3 0 4 10 6 10h8c2 0 3-10 6-10 M12 14v6"),
+            [MenuIds.TowerLowApproach] = Tower("M2 20h20 M2 5c3 0 4 8 7 8h6c3 0 4-8 7-8"),
             [MenuIds.TowerExitLeft] = Tower("M15 21V11a4 4 0 0 0-4-4H4 M8 3L4 7l4 4"),
             [MenuIds.TowerExitRight] = Tower("M9 21V11a4 4 0 0 1 4-4h7 M16 3l4 4-4 4"),
             [MenuIds.ApproachReportTrafficInSight] = Tower("M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8"),

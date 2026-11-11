@@ -343,8 +343,8 @@ The default list of each situation, most frequent first (`QuickCommandDefaults`)
 | VFR flight following | Report traffic in sight…, Fly heading ▸, Maintain altitude, Direct to…, Expect approach ▸, Land ▸ *(helicopter)* |
 | Approach | Cleared approach ▸, Maintain altitude, Assign speed ▸, Report field in sight…, Cleared visual *(IFR)*, Cleared to land, Land ▸ *(helicopter)* |
 | Holding | Cleared approach ▸ *(IFR)*, Report field in sight… *(IFR)*, Cleared visual *(IFR)*, Direct to…, Maintain altitude, then *(VFR)* Enter left / right downwind, Enter left / right base, Make straight-in, then Land ▸ *(helicopter)* |
-| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Land ▸ *(helicopter)* |
-| Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left ▸, Exit right ▸, Land ▸ *(helicopter)* |
+| Pattern | Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Land ▸ *(helicopter)* |
+| Final | Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left ▸, Exit right ▸, Land ▸ *(helicopter)* |
 | Rollout / exit | Exit left ▸, Exit right ▸, Air taxi ▸ *(helicopter, once settled)*, Cross, Draw taxi route… |
 | Go-around | Fly heading ▸, Maintain altitude, Cleared approach ▸ *(IFR)*, Report field in sight… *(IFR)*, Cleared visual *(IFR)*, *(VFR)* Enter left / right downwind, Land ▸ *(helicopter)* |
 | Live traffic | Assume control, Assume and track |
@@ -354,6 +354,8 @@ The default list of each situation, most frequent first (`QuickCommandDefaults`)
 Every list but Live traffic's opens with **Squawk assigned code** (bare `SQ`), and every ground list (At parking through Lined up, and Rollout / exit) opens with **Squawk normal** (`SQNORM`) before it. Neither is repeated in the table: each shows only while the transponder needs it (see [When a quick command shows](#when-a-quick-command-shows)).
 
 Holding is also the situation of a VFR hold and an airspace-boundary hold, which is why its IFR entries are followed by VFR-tagged pattern entries. Exit hold and Expect further clearance time have no sim command yet, so the Holding list leaves them out.
+
+A closed-traffic aircraft is in the Final situation from its turn to final on every circuit, so its Final list carries the VFR option clearances as well.
 
 ### When a quick command shows
 
