@@ -516,8 +516,8 @@ public static class PilotProactive
     /// Each fires once — clearing the armed field — when the aircraft reaches the armed distance to
     /// the assigned-runway threshold (n-mile final, gated to inbound aircraft so a same-runway
     /// departure never reports final) or the resolved fix. Unlike the other proactive ticks this
-    /// runs in both solo and RPO mode; <see cref="PilotResponder.RouteSoloOrRpoTransmission"/> routes
-    /// to the right channel.
+    /// runs in both solo and RPO mode; <see cref="PilotResponder.RouteByTunedPosition"/> routes
+    /// to whoever the pilot is tuned to.
     /// </summary>
     public static void TickReportTriggers(AircraftState aircraft, SimScenarioState scenario)
     {
@@ -539,13 +539,10 @@ public static class PilotProactive
             {
                 approach.ReportFinalMileTarget = null;
                 string runwayId = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
-                PilotResponder.RouteSoloOrRpoTransmission(
+                PilotResponder.RouteByTunedPosition(
                     aircraft,
-                    scenario.SoloTrainingMode,
-                    scenario.RpoShowPilotSpeech,
-                    scenario.StudentPositionType,
-                    PilotResponder.BuildMileFinalReport(aircraft, miles, runwayId),
-                    PilotResponder.SoloPositionsTowerApproach
+                    PilotReportRouting.From(scenario),
+                    PilotResponder.BuildMileFinalReport(aircraft, miles, runwayId)
                 );
             }
         }
@@ -558,14 +555,7 @@ public static class PilotProactive
                 approach.ReportAtFixName = null;
                 approach.ReportAtFixLat = null;
                 approach.ReportAtFixLon = null;
-                PilotResponder.RouteSoloOrRpoTransmission(
-                    aircraft,
-                    scenario.SoloTrainingMode,
-                    scenario.RpoShowPilotSpeech,
-                    scenario.StudentPositionType,
-                    PilotResponder.BuildAtFixReport(aircraft, fixName),
-                    PilotResponder.SoloPositionsTowerApproach
-                );
+                PilotResponder.RouteByTunedPosition(aircraft, PilotReportRouting.From(scenario), PilotResponder.BuildAtFixReport(aircraft, fixName));
             }
         }
     }

@@ -478,13 +478,10 @@ public sealed class DownwindPhase : Phase
         bool pastExtensionCap = aircraftAlongTrack >= _baseTurnAlongTrack + AirborneFollowHelper.MaxFollowExtensionNm;
         if (pastExtensionCap && !_followExtensionWarningIssued && (ctx.Aircraft.Approach.FollowingCallsign is { } followTarget))
         {
-            PilotResponder.RouteSoloOrRpoTransmission(
+            PilotResponder.RouteByTunedPosition(
                 ctx.Aircraft,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                PilotResponder.BuildFollowExtendingUnableToTurn(ctx.Aircraft, followTarget, "downwind"),
-                PilotResponder.SoloPositionsTowerApproach
+                PilotReportRouting.From(ctx),
+                PilotResponder.BuildFollowExtendingUnableToTurn(ctx.Aircraft, followTarget, "downwind")
             );
             _followExtensionWarningIssued = true;
         }

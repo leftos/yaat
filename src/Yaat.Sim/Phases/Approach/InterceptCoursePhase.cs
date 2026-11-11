@@ -503,18 +503,11 @@ public sealed class InterceptCoursePhase : Phase
     private static void RefuseIntercept(PhaseContext ctx, Pilot.PilotSpeechText text)
     {
         // A refusal to fly the intercept is a pilot transmission like any other: the student hears it
-        // in solo mode, and in RPO the instructor sees the green pilot-speech line (callsign, no
+        // in solo mode when the pilot is on their frequency, and in RPO the instructor sees the green pilot-speech line (callsign, no
         // procedure id) when RpoShowPilotSpeech is on, or the amber line when it is off — that one
         // carries the procedure id as an RPO-only diagnostic (a real crew would not read the procedure
         // id back on an unable call).
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-            ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            text,
-            Pilot.PilotResponder.SoloPositionsTowerApproach
-        );
+        Pilot.PilotResponder.RouteByTunedPosition(ctx.Aircraft, Pilot.PilotReportRouting.From(ctx), text);
 
         // Clear remaining approach phases and approach clearance
         ctx.Aircraft.Phases?.Clear(ctx);

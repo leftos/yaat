@@ -724,13 +724,10 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         }
 
         _sTurnCallCooldownSeconds = STurnCallIntervalSeconds;
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+        Pilot.PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildSTurnsForSpacing(ctx.Aircraft, TargetCallsign),
-            Pilot.PilotResponder.SoloPositionsTowerApproach
+            Pilot.PilotReportRouting.From(ctx),
+            Pilot.PilotResponder.BuildSTurnsForSpacing(ctx.Aircraft, TargetCallsign)
         );
     }
 
@@ -919,13 +916,10 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     private void EndFollowExtendingDownwind(PhaseContext ctx, LeadBaseJoin join)
     {
         InstallExtendedDownwind(ctx, join.Runway, join.Waypoints.Direction, BaseJoinAltitudeFt(ctx, join));
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+        Pilot.PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildUnableToFollowExtendingDownwind(ctx.Aircraft, TargetCallsign),
-            Pilot.PilotResponder.SoloPositionsTowerApproach
+            Pilot.PilotReportRouting.From(ctx),
+            Pilot.PilotResponder.BuildUnableToFollowExtendingDownwind(ctx.Aircraft, TargetCallsign)
         );
     }
 
@@ -2110,13 +2104,10 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         );
         SteerTurnOut(ctx, turnOut);
         ctx.Targets.TargetSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+        Pilot.PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildTurningDownwindForSpacing(ctx.Aircraft, TargetCallsign),
-            Pilot.PilotResponder.SoloPositionsTowerApproach
+            Pilot.PilotReportRouting.From(ctx),
+            Pilot.PilotResponder.BuildTurningDownwindForSpacing(ctx.Aircraft, TargetCallsign)
         );
     }
 

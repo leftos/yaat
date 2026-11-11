@@ -41,13 +41,10 @@ internal static class PatternReportHelper
         }
 
         string runwayId = RunwayIdentifier.ToDisplayDesignator(ctx.Runway?.Designator ?? "unknown");
-        PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            PilotResponder.BuildTurningLegReport(ctx.Aircraft, leg, runwayId),
-            PilotResponder.SoloPositionsTowerApproach
+            PilotReportRouting.From(ctx),
+            PilotResponder.BuildTurningLegReport(ctx.Aircraft, leg, runwayId)
         );
     }
 
@@ -59,13 +56,10 @@ internal static class PatternReportHelper
     public static void EmitMidfieldDownwind(PhaseContext ctx, PatternDirection side, MidfieldReportPosition position)
     {
         string runwayId = RunwayIdentifier.ToDisplayDesignator(ctx.Runway?.Designator ?? "unknown");
-        PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            PilotResponder.BuildMidfieldDownwindReport(ctx.Aircraft, side, position, runwayId),
-            PilotResponder.SoloPositionsTowerApproach
+            PilotReportRouting.From(ctx),
+            PilotResponder.BuildMidfieldDownwindReport(ctx.Aircraft, side, position, runwayId)
         );
     }
 

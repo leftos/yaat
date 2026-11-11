@@ -39,12 +39,6 @@ public static partial class PilotResponder
     public const string SourceSayReadback = "SayReadback";
 
     /// <summary>
-    /// Solo-relevant student positions for transmissions controllers handle in either
-    /// the tower or terminal area (pattern reports, follow operations, going around).
-    /// </summary>
-    public static readonly IReadOnlyCollection<string> SoloPositionsTowerApproach = ["TWR", "APP"];
-
-    /// <summary>
     /// Queues a solo-training pilot line whose terminal (compact, callsign in the SAY column) and
     /// spoken (phonetic) forms were built independently from the canonical command. Immediate
     /// controller responses stay on the Response channel; this queue represents what the pilot says
@@ -2219,59 +2213,11 @@ public static partial class PilotResponder
     }
 
     /// <summary>
-    /// Unified router for sim-initiated pilot transmissions. Takes a <see cref="PilotSpeechText"/>
-    /// (terminal + TTS forms produced independently by the builder, not by regex-compacting the
-    /// spoken string) plus the list of student positions for which the transmission is
-    /// audible: e.g. a pattern report (<see cref="SoloPositionsTowerApproach"/>) is
-    /// tower-or-approach.
-    /// <list type="bullet">
-    ///   <item><description><b>Solo + student in <paramref name="soloRelevantPositions"/></b>:
-    ///   queue into <see cref="AircraftState.PendingPilotTransmissions"/> so delayed SAY
-    ///   and TTS use the spoken pilot line.</description></item>
-    ///   <item><description><b>Solo + irrelevant position</b>: terminal warning only (no TTS) —
-    ///   the student isn't listening on this frequency.</description></item>
-    ///   <item><description><b>RPO with show-pilot-speech</b>: queue <paramref name="text"/> into
-    ///   <see cref="AircraftState.PendingPilotSpeech"/>, broadcast as <c>PilotSpeech</c> kind (green)
-    ///   with its written <see cref="PilotSpeechText.TerminalForRpo"/> form.</description></item>
-    ///   <item><description><b>RPO default</b>: terminal warning with the readable form.</description></item>
-    /// </list>
-    /// </summary>
-    public static void RouteSoloOrRpoTransmission(
-        AircraftState aircraft,
-        bool soloTrainingMode,
-        bool rpoShowPilotSpeech,
-        string? studentPositionType,
-        PilotSpeechText text,
-        IReadOnlyCollection<string> soloRelevantPositions
-    )
-    {
-        if (soloTrainingMode)
-        {
-            bool studentIsRelevant =
-                studentPositionType is { Length: > 0 } st && soloRelevantPositions.Contains(st, StringComparer.OrdinalIgnoreCase);
-            if (studentIsRelevant)
-            {
-                QueueProactiveTransmission(aircraft, text);
-            }
-            else
-            {
-                // Solo mode but the student isn't on this frequency — show as a terminal
-                // warning so the controller can still see what the pilot would have said,
-                // but don't speak it.
-                aircraft.PendingWarnings.Add(text.Terminal);
-            }
-            return;
-        }
-
-        RouteRpoReport(aircraft, rpoShowPilotSpeech, text);
-    }
-
-    /// <summary>
     /// Routes a sim-initiated pilot report to whoever the pilot is tuned to (<see cref="AircraftState.TunedPosition"/>). In solo
     /// training it is spoken (queued into <see cref="AircraftState.PendingPilotTransmissions"/>) when the pilot is on the student's
     /// side (<see cref="AircraftState.IsTunedAwayFrom"/> false) or tuned to an AI-staffed position of
     /// <see cref="PilotReportRouting.Contacts"/> (matched by callsign); tuned anywhere else, nobody in the room hears it, so it is
-    /// shown as a terminal warning and not spoken. An RPO room keeps <see cref="RouteSoloOrRpoTransmission"/>'s routing:
+    /// shown as a terminal warning and not spoken. An RPO room routes it as before:
     /// <see cref="AircraftState.PendingPilotSpeech"/> with <see cref="PilotReportRouting.RpoShowPilotSpeech"/>, else a warning in the
     /// <see cref="PilotSpeechText.TerminalForRpo"/> form.
     /// </summary>

@@ -280,14 +280,7 @@ public static class PhaseRunner
         }
 
         aircraft.Pattern.MarkRunwayCrossingWarned(crossing, circuitAhead.Direction);
-        PilotResponder.RouteSoloOrRpoTransmission(
-            aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            PilotResponder.BuildPatternCrossesRunway(aircraft, crossing),
-            PilotResponder.SoloPositionsTowerApproach
-        );
+        PilotResponder.RouteByTunedPosition(aircraft, PilotReportRouting.From(ctx), PilotResponder.BuildPatternCrossesRunway(aircraft, crossing));
     }
 
     /// <summary>

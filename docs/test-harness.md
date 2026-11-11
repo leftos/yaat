@@ -668,7 +668,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 
   Keep such a quantity clearly signed (place the stop by its real offset), never compare it with zero; reproduce with a Linux run ([Linux runs](#linux-runs-ci-investigation-and-cross-platform-verification)).
 - **Pilot transmissions land in different lists depending on the `PhaseContext` flags, and the engine drains them every second.**
-  `PilotResponder.RouteSoloOrRpoTransmission` writes `PendingPilotTransmissions` (solo, student on frequency), `PendingPilotSpeech` (RPO
+  `PilotResponder.RouteByTunedPosition` writes `PendingPilotTransmissions` (solo, student on frequency), `PendingPilotSpeech` (RPO
   with pilot speech shown; a `PilotSpeechText`, so a test asserts on `.TerminalForRpo`, the line the terminal shows) or `PendingWarnings` (RPO default — what a hand-built `PhaseContext` with the flags at their defaults gets).
   A bare phase-tick test therefore asserts on `PendingWarnings`, never `PendingNotifications`. At engine level the spine drains
   `PendingWarnings`/`PendingNotifications` inside `TickOneSecond`/`ReplayOneSecond`, so a per-second scan of the aircraft's lists sees

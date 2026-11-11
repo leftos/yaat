@@ -99,6 +99,44 @@ public class ReportTriggerTests
         Assert.Empty(ac.PendingPilotTransmissions);
     }
 
+    /// <summary>Student at OAK_TWR, pilot tuned to OAK_GND (nobody answers): the at-fix report is a warning, not spoken.</summary>
+    [Fact]
+    public void AtFix_TunedAway_IsAWarningNotSpoken()
+    {
+        AircraftState ac = MakeAircraft(37.75, -122.0);
+        ac.TunedPosition = TrackOwner.CreateNonNas("OAK_GND");
+        ac.Approach.ReportAtFixName = "SUNOL";
+        ac.Approach.ReportAtFixLat = 37.75;
+        ac.Approach.ReportAtFixLon = -122.0;
+        string expected = PilotResponder.BuildAtFixReport(ac, "SUNOL").Terminal;
+        SimScenarioState scenario = MakeScenario();
+        scenario.StudentPosition = TrackOwner.CreateNonNas("OAK_TWR");
+
+        PilotProactive.TickReportTriggers(ac, scenario);
+
+        Assert.Null(ac.Approach.ReportAtFixName);
+        Assert.Empty(ac.PendingPilotTransmissions);
+        string warning = Assert.Single(ac.PendingWarnings);
+        Assert.Equal(expected, warning);
+    }
+
+    /// <summary>Student at OAK_TWR, pilot tuned to OAK_GND (nobody answers): the turning-leg report is a warning, not spoken.</summary>
+    [Fact]
+    public void PatternLeg_TunedAway_IsAWarningNotSpoken()
+    {
+        AircraftState ac = MakeAircraft(37.75, -122.221);
+        ac.TunedPosition = TrackOwner.CreateNonNas("OAK_GND");
+        ac.Approach.ReportArmedBase = true;
+        string runwayId = RunwayIdentifier.ToDisplayDesignator(MakeRunway().Designator);
+        string expected = PilotResponder.BuildTurningLegReport(ac, ReportTrigger.Base, runwayId).Terminal;
+
+        PatternReportHelper.EmitTurningLeg(MakePhaseContext(ac, TrackOwner.CreateNonNas("OAK_TWR")), ReportTrigger.Base);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        string warning = Assert.Single(ac.PendingWarnings);
+        Assert.Equal(expected, warning);
+    }
+
     private static AircraftState MakeAircraft(double lat, double lon) =>
         new()
         {
@@ -123,7 +161,7 @@ public class ReportTriggerTests
             StudentPositionType = "TWR",
         };
 
-    private static PhaseContext MakePhaseContext(AircraftState ac) =>
+    private static PhaseContext MakePhaseContext(AircraftState ac, TrackOwner? studentPosition = null) =>
         new()
         {
             ActiveRunways = ActiveRunways.Empty,
@@ -134,6 +172,7 @@ public class ReportTriggerTests
             Logger = NullLogger.Instance,
             Runway = MakeRunway(),
             SoloTrainingMode = true,
+            StudentPosition = studentPosition,
             StudentPositionType = "TWR",
         };
 

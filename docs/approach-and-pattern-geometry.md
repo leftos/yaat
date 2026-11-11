@@ -603,7 +603,7 @@ In the anticipation branch, check #3 is gated on the aircraft having actually *r
 45° for `AircraftCategory.Helicopter` — TBL 5-9-1's "2 miles or more" row reads "30 degrees (45 degrees for
 helicopters)". If the aircraft crosses the centerline with the effective diff beyond its category gate,
 `HandleBustThrough` clears the approach phases and `ActiveApproach` and the pilot reports it like any other
-refusal (`PilotResponder.BuildUnable` → `RouteSoloOrRpoTransmission`: TTS "unable, passing through the localizer"
+refusal (`PilotResponder.BuildUnable` → `RouteByTunedPosition`: TTS "unable, passing through the localizer"
 in solo mode, an amber warning "unable, passing through the localizer — I29RY." for an RPO, green when pilot
 speech is shown) — never the grey Response channel. The `MaxElapsedSeconds = 180` safety timeout (flying parallel and
 never crossing) drops the clearance the same way but says **"unable to intercept the localizer, request vectors"** — an

@@ -184,13 +184,10 @@ public sealed class CrosswindPhase : Phase
             double alongPastTurn = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon), _crosswindHeading);
             if ((alongPastTurn >= AirborneFollowHelper.MaxFollowExtensionNm) && !_followExtensionWarningIssued)
             {
-                PilotResponder.RouteSoloOrRpoTransmission(
+                PilotResponder.RouteByTunedPosition(
                     ctx.Aircraft,
-                    ctx.SoloTrainingMode,
-                    ctx.RpoShowPilotSpeech,
-                    ctx.StudentPositionType,
-                    PilotResponder.BuildFollowExtendingUnableToTurn(ctx.Aircraft, followTarget, "crosswind"),
-                    PilotResponder.SoloPositionsTowerApproach
+                    PilotReportRouting.From(ctx),
+                    PilotResponder.BuildFollowExtendingUnableToTurn(ctx.Aircraft, followTarget, "crosswind")
                 );
                 _followExtensionWarningIssued = true;
             }

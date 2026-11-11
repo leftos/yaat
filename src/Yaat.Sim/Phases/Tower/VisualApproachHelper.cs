@@ -67,13 +67,10 @@ internal static class VisualApproachHelper
         if (!IsOnVisualApproach(follower))
         {
             AirborneFollowHelper.CancelFollowHoldingLeg(follower);
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            Pilot.PilotResponder.RouteByTunedPosition(
                 follower,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildLostSightOfTraffic(follower, targetCallsign),
-                Pilot.PilotResponder.SoloPositionsTowerApproach
+                Pilot.PilotReportRouting.From(ctx),
+                Pilot.PilotResponder.BuildLostSightOfTraffic(follower, targetCallsign)
             );
 
             // An IFR follow is pilot-applied visual separation: with sight lost, the controller is back to radar separation
@@ -91,13 +88,10 @@ internal static class VisualApproachHelper
 
         if (follower.Approach.HasReportedFieldInSight)
         {
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            Pilot.PilotResponder.RouteByTunedPosition(
                 follower,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildLostSightOfTrafficFieldInSight(follower, targetCallsign),
-                Pilot.PilotResponder.SoloPositionsTowerApproach
+                Pilot.PilotReportRouting.From(ctx),
+                Pilot.PilotResponder.BuildLostSightOfTrafficFieldInSight(follower, targetCallsign)
             );
             follower.PendingWarnings.Add(VisualSeparationTerminatedWarning(follower.Callsign));
             return;
@@ -141,14 +135,7 @@ internal static class VisualApproachHelper
         }
 
         PilotSpeechText request = Pilot.PilotResponder.BuildUnableVisualRequestVectors(aircraft, lostField, lostTraffic, leadCallsign);
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-            aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            request,
-            Pilot.PilotResponder.SoloPositionsTowerApproach
-        );
+        Pilot.PilotResponder.RouteByTunedPosition(aircraft, Pilot.PilotReportRouting.From(ctx), request);
         // The transmission IS an approach request — register it so the proactive
         // "request approach assignment" nag (PilotProactive.TickArrivalApproachRequest)
         // doesn't re-ask seconds later, and so the standard unanswered-request follow-up
