@@ -276,7 +276,8 @@ public class LateExitChangeTests(ITestOutputHelper output)
         AirportGroundLayout layout = Assert.IsType<AirportGroundLayout>(fast.Ground.Layout);
         List<AirportGroundLayout.CenterlineExitResult> ahead = LeftExitsAhead(fast, runway, layout);
         Assert.NotEmpty(ahead);
-        double leadFt = Math.Max(4.0 * (150.0 * GeoMath.FeetPerNm / 3600.0), 100.0) + CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet);
+        double leadFt =
+            Math.Max(4.0 * (150.0 * GeoMath.FeetPerNm / 3600.0), 100.0) + CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet, "B738");
         Assert.All(
             ahead,
             exit =>

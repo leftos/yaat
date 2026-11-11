@@ -1,5 +1,6 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim;
 
@@ -920,7 +921,7 @@ public static class CategoryPerformance
     /// Maximum ground yaw rate while taxiing (deg/sec) — the gear/tiller-limited ceiling, reached only
     /// once the aircraft is rolling faster than the low crossover speed (~3 kt) where v/R at the tight
     /// main-gear turn radius meets it. Below that, achievable yaw is v/R-limited (see
-    /// <see cref="GroundYawRateAtSpeed"/>): nose-wheel steering sets path curvature 1/R, so heading
+    /// <see cref="GroundYawRateAtSpeed(AircraftCategory, string?, double)"/>): nose-wheel steering sets path curvature 1/R, so heading
     /// change per unit distance is fixed and heading change per unit time is ω = v/R — an aircraft
     /// creeping at walking pace cannot slew its nose at the full rate. Values reflect real ground
     /// handling: jets pivot ponderously (~12 °/s at max tiller),
@@ -945,9 +946,10 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// Ground yaw rate (deg/sec) achievable at groundspeed <paramref name="groundSpeedKts"/>: ω = v/R
-    /// at the tightest steerable (main-gear) radius <see cref="MainGearTurnRadiusFt"/>, capped at the
-    /// gear-limited <see cref="GroundTurnRate"/> ceiling. The aircraft can steer to its minimum radius,
+    /// Ground yaw rate (deg/sec) of <paramref name="aircraftType"/> achievable at groundspeed <paramref name="groundSpeedKts"/>:
+    /// ω = v/R at the type's comfortable main-gear radius (<see cref="MainGearTurnRadiusFt(AircraftCategory, string?)"/>, the
+    /// category's for a type with no usable wheelbase), capped at the gear-limited <see cref="GroundTurnRate"/> ceiling, so a
+    /// long-wheelbase type yaws slower at low speed. The aircraft can steer to its minimum radius,
     /// so it reaches the ceiling at a low speed (~3 kt) and keeps full corner / pure-pursuit re-acquire
     /// authority above that; only below it does the rate fall off (a near-stationary aircraft cannot
     /// slew its nose fast — at 1 kt a piston manages ~6 °/s, not the ceiling). Using the tight radius
@@ -956,13 +958,14 @@ public static class CategoryPerformance
     /// ramp-connector fillets. Helicopters are exempt — a wheeled ground pivot is a pedal turn, so it
     /// holds the full hover rate at any speed.
     /// </summary>
-    public static double GroundYawRateAtSpeed(AircraftCategory cat, double groundSpeedKts) =>
-        GroundYawRateOnRadius(cat, groundSpeedKts, MainGearTurnRadiusFt(cat));
+    public static double GroundYawRateAtSpeed(AircraftCategory cat, string? aircraftType, double groundSpeedKts) =>
+        GroundYawRateOnRadius(cat, groundSpeedKts, MainGearTurnRadiusFt(cat, aircraftType));
 
     /// <summary>
     /// Ground yaw rate (deg/sec) achievable at groundspeed <paramref name="groundSpeedKts"/> while the main gear tracks a
     /// turn of <paramref name="radiusFt"/>: ω = v/R, capped at the gear-limited <see cref="GroundTurnRate"/> ceiling.
-    /// <see cref="GroundYawRateAtSpeed"/> is this at the comfortable <see cref="MainGearTurnRadiusFt"/>; a turn about on a
+    /// <see cref="GroundYawRateAtSpeed(AircraftCategory, string?, double)"/> is this at the comfortable
+    /// <see cref="MainGearTurnRadiusFt(AircraftCategory, string?)"/>; a turn about on a
     /// taxiway steers tighter, at the type's turn-about radius (<c>TurnAboutFit</c>), and slower
     /// (<see cref="TurnAboutSpeedKts"/>), so its yaw is limited on its own radius — on the comfortable one a C172 at its
     /// 0.87 kt pivot speed would yaw at a fraction of what its 4.2 ft arc needs. Helicopters hold the full pedal-turn rate
@@ -1031,6 +1034,27 @@ public static class CategoryPerformance
             AircraftCategory.Helicopter => 10.0,
             _ => 25.0,
         };
+    }
+
+    /// <summary>
+    /// Main-gear turn radius (ft) of <paramref name="aircraftType"/>: the category's <see cref="MainGearTurnRadiusFt(AircraftCategory)"/>
+    /// raised to the type's steering-limit radius, wheelbase / tan 65° (<see cref="TurnAboutFit.SteeringLimitRadiusPerWheelbaseFt"/>
+    /// × the FAA ACD wheelbase), and never lowered: an A388 (wheelbase ~105 ft) turns on ~49 ft, a B738 keeps the jet 25 ft.
+    /// The category value stands for a type the database has no wheelbase for, and for a non-jet whose ACD row is broken
+    /// (<see cref="TurnAboutFit.IsBrokenRow"/>).
+    /// </summary>
+    public static double MainGearTurnRadiusFt(AircraftCategory cat, string? aircraftType)
+    {
+        double categoryFt = MainGearTurnRadiusFt(cat);
+        if (
+            (FaaAircraftDatabase.Get(aircraftType) is not { WheelbaseFt: > 0 and { } wheelbaseFt } record)
+            || TurnAboutFit.IsBrokenRow(record, cat, wheelbaseFt)
+        )
+        {
+            return categoryFt;
+        }
+
+        return Math.Max(categoryFt, TurnAboutFit.SteeringLimitRadiusPerWheelbaseFt * wheelbaseFt);
     }
 
     /// <summary>

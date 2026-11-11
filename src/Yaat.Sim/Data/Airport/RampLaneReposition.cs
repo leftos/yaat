@@ -1332,7 +1332,7 @@ public static class RampLaneReposition
             return null;
         }
 
-        double turnRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(request.Category);
+        double turnRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(request.Category, request.AircraftType);
         double minimumRunFt = turnRadiusFt + (request.AircraftLengthFt / 2.0) + (LineUpStraightFuselages * request.AircraftLengthFt);
         List<LineUpJoin> joins = FindLineUpJoins(layout, request, ends, minimumRunFt);
         var planning = new LineUpPlanning(layout, request, family, halfSpanFt, LineUpApproachRadii * turnRadiusFt);
@@ -1378,7 +1378,7 @@ public static class RampLaneReposition
     /// <param name="Ends">The lane's ends either side of the spot.</param>
     /// <param name="Joins">The ramp-side lane nodes a line-up can join, nearest the spot first.</param>
     /// <param name="MinimumRunFt">The least run of lane back to the spot a join must leave, feet.</param>
-    /// <param name="TurnRadiusFt">The category's main-gear turn radius, feet.</param>
+    /// <param name="TurnRadiusFt">The aircraft type's main-gear turn radius (its category's, raised by its wheelbase), feet.</param>
     private sealed record LineUpLane(SpotLaneEnds Ends, List<LineUpJoin> Joins, double MinimumRunFt, double TurnRadiusFt);
 
     /// <summary>

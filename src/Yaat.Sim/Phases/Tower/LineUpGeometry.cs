@@ -159,10 +159,14 @@ public static class LineUpGeometry
     /// Compute the lineup plan for an aircraft given its pose and the
     /// assigned runway. The returned plan is either <see cref="LineUpPathKind.Aligned"/>,
     /// <see cref="LineUpPathKind.Pivot"/>, or <see cref="LineUpPathKind.Fault"/>
-    /// (with a populated <see cref="LineUpPathPlan.FaultReason"/>).
+    /// (with a populated <see cref="LineUpPathPlan.FaultReason"/>). The pivot fallback turns on
+    /// <paramref name="aircraftType"/>'s own main-gear radius
+    /// (<see cref="CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory, string?)"/>).
     /// </summary>
-    public static LineUpPathPlan Compute(RunwayInfo runway, double acLat, double acLon, TrueHeading acHeading, AircraftCategory category)
+    public static LineUpPathPlan Compute(RunwayInfo runway, LatLon position, TrueHeading acHeading, AircraftCategory category, string? aircraftType)
     {
+        double acLat = position.Lat;
+        double acLon = position.Lon;
         double rwyHdgDeg = runway.TrueHeading.Degrees;
         double acHdgDeg = acHeading.Degrees;
 
@@ -198,7 +202,7 @@ public static class LineUpGeometry
         double dHdgDeg = acHdgDeg - rwyHdgDeg;
         double sinDHdg = Math.Sin(dHdgDeg * Math.PI / 180.0);
 
-        double mainGearRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(category);
+        double mainGearRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(category, aircraftType);
 
         // Minimum cross-track for either path to fit: the pivot needs at
         // least one radius of cross-track so PivotTurn2 can end ON the
@@ -358,8 +362,8 @@ public static class LineUpGeometry
     /// <summary>
     /// Speed (knots) a resumed rollout is flown at — the same turn-rate-limited speed
     /// <see cref="AlreadyAlignedRolloutPlan"/> puts in the plan and <c>LineUpPhase.TickRollout</c> commands. Public
-    /// so the phase can size the swing's yaw rate (<see cref="CategoryPerformance.GroundYawRateAtSpeed"/>) from the
-    /// same number the length arithmetic uses.
+    /// so the phase can size the swing's yaw rate
+    /// (<see cref="CategoryPerformance.GroundYawRateAtSpeed(AircraftCategory, string?, double)"/>) from the same number the length arithmetic uses.
     /// </summary>
     public static double ResumedRolloutSpeedKts(AircraftCategory category) =>
         ComputeArcSpeedKts(category, CategoryPerformance.LineUpTurnRadiusFt(category));
@@ -372,7 +376,7 @@ public static class LineUpGeometry
     /// The arithmetic: the rollout is flown at <see cref="ResumedRolloutSpeedKts"/> and the nose swings toward the
     /// runway heading at <paramref name="swingRateDegPerSec"/> — the nose-wheel steering rate the phase publishes as
     /// <c>ControlTargets.TurnRateOverride</c> for the rollout, i.e.
-    /// <see cref="CategoryPerformance.GroundYawRateAtSpeed"/> at that speed. The swing therefore takes
+    /// <see cref="CategoryPerformance.GroundYawRateAtSpeed(AircraftCategory, string?, double)"/> at that speed. The swing therefore takes
     /// <c>headingOff / rate</c> seconds and covers <c>speed × time</c> feet; a rollout shorter than that stops the
     /// aircraft with the nose still off the centerline, which is what the fixed <see cref="RolloutLengthFt"/> did.
     /// The settle margin on top is the same straight a normally-planned line-up flies after its arc: it covers the

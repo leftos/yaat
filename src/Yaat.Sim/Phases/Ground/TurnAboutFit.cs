@@ -144,9 +144,7 @@ public static class TurnAboutFit
             return ByMissingGear(record, category, halfWidthFt);
         }
 
-        bool brokenRow =
-            (category != AircraftCategory.Jet) && (record.LengthFt is { } lengthFt) && ((wheelbaseFt / lengthFt) >= BrokenRowWheelbaseRatio);
-        if (brokenRow)
+        if (IsBrokenRow(record, category, wheelbaseFt))
         {
             WarnBrokenRow(record);
             return ByCategory(category, categoryHalfWidthFt);
@@ -154,6 +152,14 @@ public static class TurnAboutFit
 
         return ByWheelbaseRatio(record, category, gearWidthFt, wheelbaseFt, halfWidthFt) ?? ByGear(gearWidthFt, wheelbaseFt, halfWidthFt);
     }
+
+    /// <summary>
+    /// Whether <paramref name="record"/>'s ACD row is broken for a type of <paramref name="category"/>: a non-jet whose
+    /// <paramref name="wheelbaseFt"/> is at least <see cref="BrokenRowWheelbaseRatio"/> of its length, so its wheelbase is
+    /// unusable and the type is judged by category. A jet's row, or one with no length, is never broken.
+    /// </summary>
+    internal static bool IsBrokenRow(FaaAircraftRecord record, AircraftCategory category, double wheelbaseFt) =>
+        (category != AircraftCategory.Jet) && (record.LengthFt is { } lengthFt) && ((wheelbaseFt / lengthFt) >= BrokenRowWheelbaseRatio);
 
     /// <summary>
     /// The fit of a type whose ACD row lacks a gear figure: only a TDG 1A type that is not a jet fits, at its category's

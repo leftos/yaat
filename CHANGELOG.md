@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Wide-bodies such as the A380, 777 and 747 now turn on the ground on a radius set by their wheelbase, so they round taxi corners wider and slower.
+
 ### Fixed
 
 - A multi-point push route whose stand, spot or node no longer exists now refuses in the same words as a single-point push.

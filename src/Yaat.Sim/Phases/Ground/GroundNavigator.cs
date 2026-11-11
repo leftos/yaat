@@ -155,20 +155,46 @@ public sealed class GroundNavigator
     private const int BezierResumeArcLengthSteps = 32;
 
     /// <summary>
-    /// Pure-pursuit look-ahead distance floor in feet on straight segments: the category's main-gear
-    /// turn radius (<see cref="CategoryPerformance.MainGearTurnRadiusFt"/>). Pure pursuit commands the
+    /// Pure-pursuit look-ahead distance floor in feet on straight segments: the aircraft type's main-gear
+    /// turn radius (<see cref="MainGearRadiusFt"/>). Pure pursuit commands the
     /// curvature 2·sin α / L toward the look-ahead point; a look-ahead shorter than the gear's own
     /// minimum radius asks for more curvature than the nose wheel can deliver, so a few feet of offset
     /// left by a corner became a ~20° steer and the nose hunted across the line (S2-OAK-2, SWA2600 off
     /// the OAK U/W corner). The floor also keeps the look-ahead point from collapsing onto the
     /// aircraft's foot-of-perpendicular when nearly stationary, which would leave steering undefined.
     /// </summary>
-    private static double LookAheadFloorFt(AircraftCategory category) => CategoryPerformance.MainGearTurnRadiusFt(category);
+    private static double LookAheadFloorFt(AircraftCategory category, string? aircraftType) =>
+        CategoryPerformance.MainGearTurnRadiusFt(category, aircraftType);
+
+    /// <summary>
+    /// Pure-pursuit look-ahead distance (ft) on a straight segment for a wanted <paramref name="reachFt"/>: clamped between
+    /// the type's look-ahead floor (<see cref="LookAheadFloorFt"/>) and <see cref="LookAheadCapFt"/>. The floor wins: a type
+    /// whose main-gear radius exceeds the cap (an A346, wheelbase ~108 ft) looks ahead its own radius, never shorter.
+    /// </summary>
+    internal static double LookAheadFt(AircraftCategory category, string? aircraftType, double reachFt)
+    {
+        double floorFt = LookAheadFloorFt(category, aircraftType);
+        return Math.Clamp(reachFt, floorFt, Math.Max(floorFt, LookAheadCapFt));
+    }
+
+    /// <summary>
+    /// The comfortable main-gear turn radius (ft) of the aircraft <paramref name="ctx"/> drives: its category's, raised to
+    /// its type's wheelbase steering limit (<see cref="CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory, string?)"/>).
+    /// </summary>
+    private static double MainGearRadiusFt(PhaseContext ctx) => CategoryPerformance.MainGearTurnRadiusFt(ctx.Category, ctx.Aircraft.AircraftType);
+
+    /// <summary>
+    /// The ground yaw rate (deg/sec) the aircraft <paramref name="ctx"/> drives can hold at its current groundspeed, on its
+    /// own radius.
+    /// </summary>
+    private static double GroundYawRateNow(PhaseContext ctx) =>
+        CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.AircraftType, ctx.Aircraft.GroundSpeed);
 
     /// <summary>
     /// Pure-pursuit look-ahead distance cap in feet on straight segments.
     /// Keeps the look-ahead from anticipating the next turn too aggressively
-    /// on long straights. Public because the fillet generator sizes its
+    /// on long straights; a type whose look-ahead floor exceeds it keeps the floor (<see cref="LookAheadFt"/>).
+    /// Public because the fillet generator sizes its
     /// minimum navigable straight (<see cref="Data.Airport.Fillet.FilletConstants.MinSharedArmClearGapFt"/>)
     /// from it: a straight shorter than the look-ahead is an orbit trap.
     /// </summary>
@@ -1419,7 +1445,7 @@ public sealed class GroundNavigator
 
         if (_segmentFromIsVirtual)
         {
-            double freeSpaceRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(ctx.Category);
+            double freeSpaceRadiusFt = MainGearRadiusFt(ctx);
             if (FindAimNode(route, ctx, route.CurrentSegmentIndex, ctx.Aircraft.Position, 2.0 * freeSpaceRadiusFt) is { } firstAim)
             {
                 PathPrimitiveSlowTurn? aimed = PathPrimitiveBuilder.SlowTurnToPoint(
@@ -1464,7 +1490,7 @@ public sealed class GroundNavigator
         double incomingRunFt =
             route.CurrentSegmentIndex > 0 ? route.Segments[route.CurrentSegmentIndex - 1].Edge.DistanceNm * GeoMath.FeetPerNm : double.MaxValue;
         double outgoingRunFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
-        double roundingRadiusFt = AdaptiveCornerRadiusFt(ctx.Category, headingDelta, incomingRunFt, outgoingRunFt);
+        double roundingRadiusFt = AdaptiveCornerRadiusFt(ctx.Category, ctx.Aircraft.AircraftType, headingDelta, incomingRunFt, outgoingRunFt);
         if (heldLine is { } line)
         {
             roundingRadiusFt = OffsetLineNodeTurnRadiusFt(ctx, seg, headingDelta, roundingRadiusFt, line);
@@ -3044,7 +3070,7 @@ public sealed class GroundNavigator
         double straightFt =
             GeoMath.AlongTrackDistanceNm(seg.Edge.ToNode.Position, PathPrimitiveBuilder.ExitPose(reversal).Position, bearing) * GeoMath.FeetPerNm;
         bool gearFits = (offsetFt + (gearWidthFt / 2.0)) <= TurnAboutFitOf(ctx).HalfWidthFt;
-        double maxFt = RollOutHoldMaxFt(reversal.RadiusFt, offsetFt, CategoryPerformance.MainGearTurnRadiusFt(ctx.Category), nextTurnDeg);
+        double maxFt = RollOutHoldMaxFt(reversal.RadiusFt, offsetFt, MainGearRadiusFt(ctx), nextTurnDeg);
         bool shortEnough = straightFt <= maxFt;
         Log.LogDebug(
             "[Nav] {Callsign}: turn about ends {Offset:F0} ft inside the turn at node {Node}, {Straight:F0} ft short of it: "
@@ -3065,8 +3091,8 @@ public sealed class GroundNavigator
     /// <paramref name="offsetFt"/> (d) off the centreline on a turn-about radius of <paramref name="radiusFt"/> (R), with the
     /// route then turning <paramref name="nextTurnDeg"/> (δ) at the node: max(<see cref="RollOutHoldMaxRadii"/>·R,
     /// S + ρ·tan(|δ|/2) + R), ρ the comfortable main-gear radius <paramref name="mainGearRadiusFt"/>
-    /// (<see cref="CategoryPerformance.MainGearTurnRadiusFt"/>) and S = 2ρ·sin φ, cos φ = 1 − d/(2ρ), the run an S-turn at ρ
-    /// takes to bring the offset back to the centreline. Over a longer straight the pilot re-centres first (AIM 2-3-4.b.1):
+    /// (<see cref="CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory, string?)"/>) and S = 2ρ·sin φ,
+    /// cos φ = 1 − d/(2ρ), the run an S-turn at ρ takes to bring the offset back to the centreline. Over a longer straight the pilot re-centres first (AIM 2-3-4.b.1):
     /// one no longer than that S-turn, the node turn's tangent length and a turning radius has no room to.
     /// </summary>
     private static double RollOutHoldMaxFt(double radiusFt, double offsetFt, double mainGearRadiusFt, double nextTurnDeg)
@@ -4345,14 +4371,21 @@ public sealed class GroundNavigator
     /// <summary>
     /// Corner-rounding radius (ft) for a turn of <paramref name="deflectionDeg"/> whose approach and
     /// departure legs are <paramref name="incomingRunFt"/> / <paramref name="outgoingRunFt"/> long.
-    /// Tightens from the comfortable main-gear turn radius toward the tight-turn floor when the shorter leg
-    /// can't contain the comfortable tangent length (the radius whose tangent T = r·tan(δ/2) fits the
-    /// shorter leg), so the rounding arc exits on the outgoing centerline rather than finishing wide.
+    /// Tightens from the comfortable main-gear turn radius of <paramref name="aircraftType"/>
+    /// (<see cref="CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory, string?)"/>) toward the category's tight-turn
+    /// floor when the shorter leg can't contain the comfortable tangent length (the radius whose tangent T = r·tan(δ/2) fits
+    /// the shorter leg), so the rounding arc exits on the outgoing centerline rather than finishing wide.
     /// Returns the comfortable radius for a near-straight turn. Pure.
     /// </summary>
-    internal static double AdaptiveCornerRadiusFt(AircraftCategory category, double deflectionDeg, double incomingRunFt, double outgoingRunFt)
+    internal static double AdaptiveCornerRadiusFt(
+        AircraftCategory category,
+        string? aircraftType,
+        double deflectionDeg,
+        double incomingRunFt,
+        double outgoingRunFt
+    )
     {
-        double comfortable = CategoryPerformance.MainGearTurnRadiusFt(category);
+        double comfortable = CategoryPerformance.MainGearTurnRadiusFt(category, aircraftType);
         double halfTan = Math.Tan(deflectionDeg * 0.5 * Math.PI / 180.0);
         if (halfTan <= 1e-6)
         {
@@ -4368,7 +4401,8 @@ public sealed class GroundNavigator
     /// coming up, applies tangent corner-rounding — arrive at the tangent point T = r·tan(δ/2)
     /// (r = <paramref name="roundingRadiusFt"/>, δ = corner deflection) and report
     /// <paramref name="roundingActive"/> true. Normally T is capped at 0.45·leg so rounding can't start
-    /// before the midpoint; on a leg shorter than the COMFORTABLE tangent length (two close junctions —
+    /// before the midpoint; on a leg shorter than the COMFORTABLE tangent length (the tangent of
+    /// <paramref name="comfortableRadiusFt"/>, the aircraft type's main-gear radius; two close junctions —
     /// e.g. SFO M2 between the B and A crossings) the cap is relaxed to the whole leg so the tightened
     /// arc can begin at the leg start and still exit on the outgoing centerline. Floored at the
     /// final-node threshold; on a leg with no room it falls back to the standard threshold and reports
@@ -4380,7 +4414,7 @@ public sealed class GroundNavigator
     internal static double StraightArrivalThresholdNm(
         double cornerTurnDeg,
         double edgeLengthNm,
-        AircraftCategory category,
+        double comfortableRadiusFt,
         double roundingRadiusFt,
         bool isLastSegment,
         bool isStopTarget,
@@ -4392,7 +4426,7 @@ public sealed class GroundNavigator
     )
     {
         double halfTan = Math.Tan(cornerTurnDeg * 0.5 * Math.PI / 180.0);
-        double comfortableTangentNm = CategoryPerformance.MainGearTurnRadiusFt(category) * halfTan / GeoMath.FeetPerNm;
+        double comfortableTangentNm = comfortableRadiusFt * halfTan / GeoMath.FeetPerNm;
         bool tightLeg = edgeLengthNm < comfortableTangentNm;
         double maxRoundingNm = tightLeg ? edgeLengthNm : 0.45 * edgeLengthNm;
         roundingActive =
@@ -4528,7 +4562,7 @@ public sealed class GroundNavigator
         double arrivalThresholdNm = StraightArrivalThresholdNm(
             cornerTurnDeg,
             edgeLengthNm,
-            ctx.Category,
+            MainGearRadiusFt(ctx),
             _cornerRoundingRadiusFt,
             isLastSegment,
             isStopTarget,
@@ -4572,7 +4606,7 @@ public sealed class GroundNavigator
             // built next must start at the incoming heading to round tangent.
             if (!sharpCornerAhead && _nextSegmentBearing is { } nextBrg)
             {
-                double maxTurn = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
+                double maxTurn = GroundYawRateNow(ctx) * ctx.DeltaSeconds;
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurn);
             }
             PrevDistToTarget = double.MaxValue;
@@ -4611,10 +4645,10 @@ public sealed class GroundNavigator
             // the segment's start it only stretches the look-ahead along the same
             // line, and LookAheadCapFt (50 ft) bounds that.
             double speedFtPerSec = ctx.Aircraft.IndicatedAirspeed * GeoMath.FeetPerNm / 3600.0;
-            double lookAheadFt = Math.Clamp(
-                Math.Max(2.0 * speedFtPerSec * ctx.DeltaSeconds, 1.5 * crossTrackOffsetFt),
-                LookAheadFloorFt(ctx.Category),
-                LookAheadCapFt
+            double lookAheadFt = LookAheadFt(
+                ctx.Category,
+                ctx.Aircraft.AircraftType,
+                Math.Max(2.0 * speedFtPerSec * ctx.DeltaSeconds, 1.5 * crossTrackOffsetFt)
             );
             double lookAheadNm = lookAheadFt / GeoMath.FeetPerNm;
             double lookAheadAlongNm = Math.Min(edgeLengthNm, alongNm + lookAheadNm);
@@ -4667,7 +4701,7 @@ public sealed class GroundNavigator
             }
         }
 
-        double maxTurnDeg = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
+        double maxTurnDeg = GroundYawRateNow(ctx) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearingToSteerDeg, maxTurnDeg);
 
         double lineOffsetFt = OffsetFromSegmentLineFt(ctx.Aircraft.Position, edgeLengthNm);
@@ -4843,7 +4877,7 @@ public sealed class GroundNavigator
         {
             if (_nextSegmentBearing is { } nextBrg)
             {
-                double maxTurnArc = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
+                double maxTurnArc = GroundYawRateNow(ctx) * ctx.DeltaSeconds;
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurnArc);
             }
             PrevDistToTarget = double.MaxValue;
@@ -4983,7 +5017,7 @@ public sealed class GroundNavigator
             {
                 double yawRateDegPerSec = _turnAboutReversalPlaying
                     ? CategoryPerformance.GroundYawRateOnRadius(ctx.Category, ctx.Aircraft.GroundSpeed, prim.RadiusFt)
-                    : CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed);
+                    : GroundYawRateNow(ctx);
                 double maxTurnArc = yawRateDegPerSec * ctx.DeltaSeconds;
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurnArc);
             }
@@ -5373,7 +5407,7 @@ public sealed class GroundNavigator
                 // cap; a gentler one is taken at the angle comfort speed. Use the actual traversal speed so
                 // the whole connector holds one steady low speed rather than surging between the turns.
                 return turn > EntryAlignmentThresholdDeg
-                    ? CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, CategoryPerformance.MainGearTurnRadiusFt(ctx.Category))
+                    ? CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, MainGearRadiusFt(ctx))
                     : CategoryPerformance.CornerSpeedForAngle(ctx.Category, turn);
             }
 
@@ -5453,7 +5487,7 @@ public sealed class GroundNavigator
 
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
 
-        _cornerRoundingRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(ctx.Category);
+        _cornerRoundingRadiusFt = MainGearRadiusFt(ctx);
 
         // A corner arc must never be flown faster than its local cornering speed anywhere along it — the
         // braking curve only treats it as a future approach limit, so hold the current arc to its own profile.
@@ -5489,6 +5523,7 @@ public sealed class GroundNavigator
                 double deflectionDeg = GeoMath.AbsBearingDifference(seg.Edge.DepartureBearing, nextSeg.Edge.DepartureBearing);
                 _cornerRoundingRadiusFt = AdaptiveCornerRadiusFt(
                     ctx.Category,
+                    ctx.Aircraft.AircraftType,
                     deflectionDeg,
                     seg.Edge.DistanceNm * GeoMath.FeetPerNm,
                     nextSeg.Edge.DistanceNm * GeoMath.FeetPerNm

@@ -308,13 +308,7 @@ public sealed class LineUpPhase : Phase
             return true;
         }
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(
-            rwy,
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon,
-            ctx.Aircraft.TrueHeading,
-            ctx.Category
-        );
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, ctx.Category, ctx.Aircraft.AircraftType);
         PathPlan = plan;
 
         if (plan.Kind == LineUpPathKind.Fault)
@@ -1064,7 +1058,10 @@ public sealed class LineUpPhase : Phase
     ///         rollout and the phase completes normally;</item>
     ///   <item>farther out: re-plan the whole maneuver as <see cref="OnStart"/> would, and if the geometry
     ///         declines that pose too (a half-flown pivot overshoots its own turn-2 entry well outside one
-    ///         radius), fall back to the same rollout rather than faulting.</item>
+    ///         radius), fall back to the same rollout rather than faulting. The "inside a radius" gate is the
+    ///         category's main-gear radius while the pivot geometry collapses inside the type's own, so a heavy restored
+    ///         inside its type radius but outside the category gate is re-planned, declined, and ends on that same
+    ///         planning-declined rollout.</item>
     /// </list>
     /// </summary>
     private bool RebuildAfterRestore(PhaseContext ctx)
@@ -1201,7 +1198,7 @@ public sealed class LineUpPhase : Phase
 
     private bool TryResumeSyntheticPlan(PhaseContext ctx, RunwayInfo rwy, SavedManeuver saved, out string dropReason)
     {
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, saved.StartPosition.Lat, saved.StartPosition.Lon, saved.StartHeading, ctx.Category);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, saved.StartPosition, saved.StartHeading, ctx.Category, ctx.Aircraft.AircraftType);
         if (!PlanFitsState(plan, saved.State))
         {
             dropReason = $"the start pose now plans a {plan.Kind} maneuver";
@@ -1248,7 +1245,7 @@ public sealed class LineUpPhase : Phase
     /// <para>
     /// The swing is nose-wheel steering, not an airborne turn: the rollout publishes
     /// <see cref="ControlTargets.TurnRateOverride"/> alongside the heading, at
-    /// <see cref="CategoryPerformance.GroundYawRateAtSpeed"/> for the rollout speed, the same pairing
+    /// <see cref="CategoryPerformance.GroundYawRateAtSpeed(AircraftCategory, string?, double)"/> for the rollout speed, the same pairing
     /// <see cref="Ground.RunwayExitPhase"/> uses to hold a runway heading on the ground. Without it
     /// <c>FlightPhysics.UpdateHeading</c> falls back to the airborne <see cref="AircraftPerformance.TurnRate"/>
     /// (2.5-3 °/s), which swings a taxiing aircraft's nose so slowly that it arcs tens of feet off the centerline
@@ -1268,7 +1265,7 @@ public sealed class LineUpPhase : Phase
     private void ResumeOnAlignedRollout(PhaseContext ctx, RunwayInfo rwy, double crossFt, double headingOffDeg, string reason)
     {
         double rolloutSpeedKts = LineUpGeometry.ResumedRolloutSpeedKts(ctx.Category);
-        double swingRateDegPerSec = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, rolloutSpeedKts);
+        double swingRateDegPerSec = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.AircraftType, rolloutSpeedKts);
         double swingLengthFt = LineUpGeometry.ResumedSwingRolloutLengthFt(ctx.Category, headingOffDeg, swingRateDegPerSec);
         double usedFt =
             GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading)

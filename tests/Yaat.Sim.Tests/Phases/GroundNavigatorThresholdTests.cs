@@ -1,7 +1,9 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests.Phases;
 
@@ -25,7 +27,7 @@ public class GroundNavigatorThresholdTests
         double threshold = GroundNavigator.StraightArrivalThresholdNm(
             cornerTurnDeg: 90.0,
             edgeLengthNm: 1e-6,
-            category: AircraftCategory.Jet,
+            comfortableRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
@@ -48,7 +50,7 @@ public class GroundNavigatorThresholdTests
         double threshold = GroundNavigator.StraightArrivalThresholdNm(
             cornerTurnDeg: 90.0,
             edgeLengthNm: 0.05,
-            category: AircraftCategory.Jet,
+            comfortableRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
@@ -70,7 +72,13 @@ public class GroundNavigatorThresholdTests
     {
         // 118° turn (SFO M2→A) with only ~22 ft of approach between the B and A crossings: the comfortable
         // 25 ft tangent (41.6 ft) doesn't fit, so the radius tightens to fit — clamped at the 15 ft jet floor.
-        double r = GroundNavigator.AdaptiveCornerRadiusFt(AircraftCategory.Jet, deflectionDeg: 118.0, incomingRunFt: 22.0, outgoingRunFt: 44.0);
+        double r = GroundNavigator.AdaptiveCornerRadiusFt(
+            AircraftCategory.Jet,
+            aircraftType: null,
+            deflectionDeg: 118.0,
+            incomingRunFt: 22.0,
+            outgoingRunFt: 44.0
+        );
         Assert.Equal(CategoryPerformance.TightTurnFloorRadiusFt(AircraftCategory.Jet), r, precision: 3);
     }
 
@@ -78,7 +86,13 @@ public class GroundNavigatorThresholdTests
     public void AdaptiveCornerRadius_AmpleLegs_StaysComfortable()
     {
         // A 90° turn with 100 ft legs has ample room — no tightening, comfortable main-gear turn radius.
-        double r = GroundNavigator.AdaptiveCornerRadiusFt(AircraftCategory.Jet, deflectionDeg: 90.0, incomingRunFt: 100.0, outgoingRunFt: 100.0);
+        double r = GroundNavigator.AdaptiveCornerRadiusFt(
+            AircraftCategory.Jet,
+            aircraftType: null,
+            deflectionDeg: 90.0,
+            incomingRunFt: 100.0,
+            outgoingRunFt: 100.0
+        );
         Assert.Equal(CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet), r, precision: 3);
     }
 
@@ -88,11 +102,11 @@ public class GroundNavigatorThresholdTests
         // A leg shorter than the comfortable tangent (118° corner, 22 ft leg vs 41.6 ft comfortable tangent)
         // relaxes the 0.45·leg cap to the whole leg, so the tightened arc rounds across it and exits aligned.
         double edgeNm = 22.0 / GeoMath.FeetPerNm;
-        double rFt = GroundNavigator.AdaptiveCornerRadiusFt(AircraftCategory.Jet, 118.0, 22.0, 44.0);
+        double rFt = GroundNavigator.AdaptiveCornerRadiusFt(AircraftCategory.Jet, null, 118.0, 22.0, 44.0);
         double threshold = GroundNavigator.StraightArrivalThresholdNm(
             cornerTurnDeg: 118.0,
             edgeLengthNm: edgeNm,
-            category: AircraftCategory.Jet,
+            comfortableRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             roundingRadiusFt: rFt,
             isLastSegment: false,
             isStopTarget: false,
@@ -115,7 +129,7 @@ public class GroundNavigatorThresholdTests
         double threshold = GroundNavigator.StraightArrivalThresholdNm(
             cornerTurnDeg: 20.0,
             edgeLengthNm: 0.05,
-            category: AircraftCategory.Jet,
+            comfortableRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
@@ -138,7 +152,7 @@ public class GroundNavigatorThresholdTests
         double threshold = GroundNavigator.StraightArrivalThresholdNm(
             cornerTurnDeg: 0.0,
             edgeLengthNm: 0.0824,
-            category: AircraftCategory.Jet,
+            comfortableRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
@@ -161,7 +175,7 @@ public class GroundNavigatorThresholdTests
         double threshold = GroundNavigator.StraightArrivalThresholdNm(
             cornerTurnDeg: 90.0,
             edgeLengthNm: 0.05,
-            category: AircraftCategory.Jet,
+            comfortableRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
@@ -175,4 +189,49 @@ public class GroundNavigatorThresholdTests
         Assert.False(roundingActive);
         Assert.Equal(FinalNodeArrivalThresholdNm, threshold, precision: 9);
     }
+
+    /// <summary>
+    /// A 90° corner between two 1000 ft legs rounds at the type's own main-gear radius: an A388 (wheelbase ~105 ft) on its
+    /// ~48.8 ft steering-limit radius and the matching tangent length, a B738 on the unchanged jet 25 ft.
+    /// </summary>
+    [Theory]
+    [InlineData("A388")]
+    [InlineData("B738")]
+    public void LongLegsNinetyDegrees_RoundAtTheTypesRadius(string aircraftType)
+    {
+        TestVnasData.EnsureInitialized();
+        double expectedRadiusFt =
+            (aircraftType == "B738")
+                ? CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet)
+                : TurnAboutFit.SteeringLimitRadiusPerWheelbaseFt * WheelbaseFt(aircraftType);
+        double legFt = 1000.0;
+
+        double rFt = GroundNavigator.AdaptiveCornerRadiusFt(AircraftCategory.Jet, aircraftType, 90.0, legFt, legFt);
+        double threshold = GroundNavigator.StraightArrivalThresholdNm(
+            cornerTurnDeg: 90.0,
+            edgeLengthNm: legFt / GeoMath.FeetPerNm,
+            comfortableRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet, aircraftType),
+            roundingRadiusFt: rFt,
+            isLastSegment: false,
+            isStopTarget: false,
+            targetHasHoldShort: false,
+            shortEdge: false,
+            nextSegmentIsArc: false,
+            nextSegmentIsShort: false,
+            out bool roundingActive
+        );
+
+        Assert.Equal(expectedRadiusFt, rFt, precision: 6);
+        if (aircraftType == "A388")
+        {
+            Assert.InRange(rFt, 48.0, 50.0);
+        }
+
+        Assert.True(roundingActive);
+        // tan 45° = 1: the tangent length is the radius itself.
+        Assert.Equal(expectedRadiusFt / GeoMath.FeetPerNm, threshold, precision: 9);
+    }
+
+    private static double WheelbaseFt(string type) =>
+        FaaAircraftDatabase.Get(type)?.WheelbaseFt ?? throw new InvalidOperationException($"the FAA database has no {type} wheelbase");
 }

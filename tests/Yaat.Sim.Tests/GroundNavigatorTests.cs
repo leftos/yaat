@@ -568,7 +568,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
 
         // aim=node: the point aim turns at the comfortable main-gear turn radius, the bearing-aimed fallback at the
         // adaptive radius, which this pose tightens to the 15 ft floor — so the radius identifies which fired.
-        Assert.Equal(CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet), turn.RadiusFt, 3);
+        Assert.Equal(CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet, "B738"), turn.RadiusFt, 3);
         Assert.True(alongFt > 0, $"the start node must lie ahead of the arc's roll-out point; it is {alongFt:F1} ft along");
         Assert.True(
             Math.Abs(abeamFt) <= 0.5,

@@ -159,7 +159,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         RunwayInfo rwy = MakeSfo01RLikeRunway();
         (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: 0.0, alongFromThreshFt: 1000.0, hdgDeg: rwy.TrueHeading.Degrees);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(lat, lon), hdg, AircraftCategory.Jet, null);
 
         output.WriteLine($"plan.Kind={plan.Kind} IsAlreadyAligned={plan.IsAlreadyAligned} turn={plan.TurnAngleDeg:F2}°");
         Assert.Equal(LineUpPathKind.Aligned, plan.Kind);
@@ -184,7 +184,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double acHdg = (rwyHdg + 90.0) % 360.0;
         (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -200.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(lat, lon), hdg, AircraftCategory.Jet, null);
 
         output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F2}° waste=(perp)");
         Assert.Equal(LineUpPathKind.Aligned, plan.Kind);
@@ -205,7 +205,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double acHdg = (rwyHdg + 10.0) % 360.0;
         (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -324.0, alongFromThreshFt: 2500.0, hdgDeg: acHdg);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(lat, lon), hdg, AircraftCategory.Jet, null);
 
         output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F2}°");
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
@@ -221,7 +221,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double acHdg = (rwyHdg + 10.0) % 360.0;
         (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -100.0, alongFromThreshFt: 2500.0, hdgDeg: acHdg);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(lat, lon), hdg, AircraftCategory.Jet, null);
 
         output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F2}°");
         Assert.Equal(LineUpPathKind.Aligned, plan.Kind);
@@ -240,7 +240,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         RunwayInfo rwy = MakeMia8RLikeRunway();
         var acHdg = new TrueHeading(284.32135440824527);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, 25.79997480483538, -80.30043573387157, acHdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(25.79997480483538, -80.30043573387157), acHdg, AircraftCategory.Jet, null);
 
         output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F1}° reason={plan.FaultReason}");
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
@@ -266,7 +266,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         RunwayInfo rwy = MakeOak28RLikeRunway();
         var acHdg = new TrueHeading(185.76476702628463);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, 37.7255308801834, -122.20450743709728, acHdg, AircraftCategory.Piston);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(37.7255308801834, -122.20450743709728), acHdg, AircraftCategory.Piston, null);
 
         output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F1}° reason={plan.FaultReason}");
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
@@ -290,7 +290,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double acHdg = (rwyHdg - 45.0 + 360.0) % 360.0;
         (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -200.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(lat, lon), hdg, AircraftCategory.Jet, null);
 
         output.WriteLine($"plan.Kind={plan.Kind} reason={plan.FaultReason}");
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
@@ -308,10 +308,31 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double acHdg = (rwyHdg + 170.0) % 360.0;
         (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -300.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(lat, lon), hdg, AircraftCategory.Jet, null);
 
         output.WriteLine($"plan.Kind={plan.Kind} reason={plan.FaultReason}");
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
+    }
+
+    /// <summary>
+    /// The pivot's two turns need about two main-gear radii of cross-track, and that radius is the type's own: 75 ft off the
+    /// centreline and heading 10° away from it (so only the pivot can line up), an A388 (radius ~48.8 ft) faults because its
+    /// first turn overshoots the second's entry, where a B738 (25 ft) still pivots.
+    /// </summary>
+    [Theory]
+    [InlineData("A388", LineUpPathKind.Fault)]
+    [InlineData("B738", LineUpPathKind.Pivot)]
+    public void Compute_SteepTurnInsideTheTypesRadius_HeavyFaultsNarrowBodyPivots(string aircraftType, LineUpPathKind expected)
+    {
+        Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+        RunwayInfo rwy = MakeSfo01RLikeRunway();
+        double acHdg = (rwy.TrueHeading.Degrees + 350.0) % 360.0;
+        (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -75.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
+
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(lat, lon), hdg, AircraftCategory.Jet, aircraftType);
+
+        output.WriteLine($"{aircraftType}: plan.Kind={plan.Kind} reason={plan.FaultReason}");
+        Assert.Equal(expected, plan.Kind);
     }
 
     [Fact]
@@ -326,7 +347,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double acHdg = (rwyHdg + 170.0) % 360.0;
         (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: 8.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(lat, lon), hdg, AircraftCategory.Jet, null);
 
         output.WriteLine($"plan.Kind={plan.Kind} reason={plan.FaultReason}");
         Assert.Equal(LineUpPathKind.Fault, plan.Kind);
@@ -356,7 +377,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double acLon = -121.995; // ~500 ft east of threshold
         var hdg = new TrueHeading(0.0);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, acLat, acLon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(acLat, acLon), hdg, AircraftCategory.Jet, null);
 
         Assert.Equal(LineUpPathKind.Aligned, plan.Kind);
         Assert.False(plan.IsAlreadyAligned);
@@ -381,7 +402,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     {
         const double headingOffDeg = 45.0;
         double rolloutSpeedKts = LineUpGeometry.ResumedRolloutSpeedKts(AircraftCategory.Jet);
-        double swingRateDegPerSec = CategoryPerformance.GroundYawRateAtSpeed(AircraftCategory.Jet, rolloutSpeedKts);
+        double swingRateDegPerSec = CategoryPerformance.GroundYawRateAtSpeed(AircraftCategory.Jet, aircraftType: null, rolloutSpeedKts);
 
         double lengthFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, headingOffDeg, swingRateDegPerSec);
 
@@ -411,6 +432,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     {
         double swingRateDegPerSec = CategoryPerformance.GroundYawRateAtSpeed(
             AircraftCategory.Jet,
+            aircraftType: null,
             LineUpGeometry.ResumedRolloutSpeedKts(AircraftCategory.Jet)
         );
 
@@ -438,7 +460,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double acHdg = (rwyHdg + 10.0) % 360.0;
         (double lat, double lon, TrueHeading hdg) = PlacePose(rwy, signedCrossFt: -324.0, alongFromThreshFt: 2500.0, hdgDeg: acHdg);
 
-        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+        LineUpPathPlan plan = LineUpGeometry.Compute(rwy, new LatLon(lat, lon), hdg, AircraftCategory.Jet, null);
 
         Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
         Assert.NotNull(plan.PivotTurn1);

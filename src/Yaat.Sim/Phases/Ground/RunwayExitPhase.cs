@@ -1571,7 +1571,8 @@ public sealed class RunwayExitPhase : Phase
     private static double TurnLeadDistanceFt(AircraftState aircraft, AircraftCategory category)
     {
         double groundSpeedFtPerSec = aircraft.GroundSpeed * GeoMath.FeetPerNm / 3600.0;
-        return Math.Max(RetargetLeadSeconds * groundSpeedFtPerSec, MinRetargetLeadFt) + CategoryPerformance.MainGearTurnRadiusFt(category);
+        return Math.Max(RetargetLeadSeconds * groundSpeedFtPerSec, MinRetargetLeadFt)
+            + CategoryPerformance.MainGearTurnRadiusFt(category, aircraft.AircraftType);
     }
 
     /// <summary>

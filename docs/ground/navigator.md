@@ -45,7 +45,7 @@ The braking curve planned at `TaxiDecelRate` executes at exactly that rate, with
   Left in place after a fillet, physics turns the nose back toward the stale exit tangent every substep while pure pursuit nudges it out, the aircraft drifts off a straight that leaves the fillet a fraction of a degree off the tangent, and the orbit guard — which sees only the navigator's half of that tug-of-war — declares a full circle on an aircraft that never turned (OAK 30-departure scenario: a queued 5-kt crawl toward the W/W1 junction, `GroundNavigatorStraightHandoffTests`).
 
   Same family as the `RunwayExitPhase` handoff leak.
-- On straights: turns `ctx.Aircraft.TrueHeading` toward the steer bearing, bounded by the **speed-coupled** ground yaw rate (`CategoryPerformance.GroundYawRateAtSpeed` — `ω = v/R` at the comfortable main-gear turn radius (`MainGearTurnRadiusFt`), capped at the `GroundTurnRate` ceiling; full authority above ~3 kt, falling to ~0 at a standstill), and lets physics advance position.
+- On straights: turns `ctx.Aircraft.TrueHeading` toward the steer bearing, bounded by the **speed-coupled** ground yaw rate (`CategoryPerformance.GroundYawRateAtSpeed(cat, aircraftType, v)` — `ω = v/R` at the type's comfortable main-gear turn radius (`MainGearTurnRadiusFt(cat, aircraftType)`), capped at the `GroundTurnRate` ceiling; full authority above ~3 kt, falling to ~0 at a standstill), and lets physics advance position.
 
   This is why a near-stationary aircraft no longer pivots at the full ceiling. Arcs are already `v/R`-coupled by construction (the closed-form advance is `dAngle = v·dt/r`), and `GroundArc.MaxSafeSpeedKts` folds the same `ω·r` cap into the arc speed so a jet can't carry taxi speed through a tight fillet.
 - On Bézier arcs and slow-turns: writes `ctx.Aircraft.Position` and `ctx.Aircraft.TrueHeading` **directly** from closed-form curve state.
@@ -430,7 +430,7 @@ Three rules now hold it:
 
 `GroundNavigator.TickStraight` does **not** steer at the target node directly. It steers toward a look-ahead point projected forward along the *segment line* from the aircraft's foot-of-perpendicular. This makes convergence onto the line first-class: an aircraft that spawned slightly off a taxiway, or got nudged by a prior corner, re-acquires the line rather than cutting diagonally across terrain.
 
-Look-ahead distance is `max(2 × speed × dt, 1.5 × cross-track offset)` clamped to `[LookAheadFloorFt(category), LookAheadCapFt = 50]`, where the floor is the category's main-gear turn radius (`CategoryPerformance.MainGearTurnRadiusFt`: 25 ft jet / 18 turboprop / 15 piston / 10 helicopter).
+Look-ahead distance is `max(2 × speed × dt, 1.5 × cross-track offset)` clamped to `[floor, LookAheadCapFt = 50]` (`GroundNavigator.LookAheadFt(category, aircraftType, reachFt)`), where the floor is the type's main-gear turn radius (`CategoryPerformance.MainGearTurnRadiusFt(cat, aircraftType)`: the category's 25 ft jet / 18 turboprop / 15 piston / 10 helicopter, raised for a long-wheelbase type). The floor wins over the cap: an A346 looks ahead ~50.3 ft.
 
 Pure pursuit commands curvature `2·sin α / L`; a look-ahead shorter than the gear's own minimum radius asks for more curvature than the nose wheel can deliver, so a few feet of offset left by a corner became a ~20° steer and the nose hunted across the line (the post-corner wiggle in the S2-OAK-2 bundle). The floor also stops the look-ahead point collapsing onto the aircraft when nearly stationary; the cap stops it anticipating the next turn too aggressively on long straights.
 
@@ -694,7 +694,7 @@ A softer or firmer slowdown rate therefore never moves a stop. `RunwayExitPhase`
 
 Recomputed each `BuildSpeedConstraints`, so it round-trips through a snapshot for free; null on straights. This is a sim-wide invariant (all corner arcs), not scoped to lane changes.
 
-Corner speeds, turn rate, accel/decel, main-gear turn radius, and slow-turn speed are all category-specific in `AircraftCategory.cs` (`CornerSpeedForAngle`, `GroundTurnRate`, `TaxiAccelRate` (1.0 for every category), `TaxiDecelRate` (5/5/2/2), `MainGearTurnRadiusFt`, `SlowTurnSpeedKts = 3.0`).
+Corner speeds, turn rate, accel/decel, main-gear turn radius, and slow-turn speed are all category-specific in `AircraftCategory.cs` (`CornerSpeedForAngle`, `GroundTurnRate`, `TaxiAccelRate` (1.0 for every category), `TaxiDecelRate` (5/5/2/2), `MainGearTurnRadiusFt`, `SlowTurnSpeedKts = 3.0`). `MainGearTurnRadiusFt(cat, aircraftType)` raises the category radius to the type's wheelbase limit; the navigator's corner rounding, arrival tangent, look-ahead floor, yaw limit, free-space turns and turn-about roll-out hold use it, while `ArcDrivable`, the pathfinder costs, `GeometricAdmissibility` and painted-arc speed profiles stay on the category value.
 
 Taxi max speed is `TaxiSpeed(category)`, multiplied by `TaxiExpediteMultiplier = 1.3` when the aircraft is expediting (`CategoryPerformance.TaxiSpeedCap`), or replaced outright by a controller-commanded cap when `Ground.CommandedTaxiSpeedKts` is set (`SPD <n>` while taxiing — `TaxiingPhase.OnTick`; clamped to `[MinCommandedTaxiSpeedKts, MaxCommandedTaxiSpeed(cat)]`, mutually exclusive with expedite).
 
@@ -861,7 +861,7 @@ This is a lane change across parallel taxiways via a short cross taxiway — the
 
 While on such a run, `ComputeTargetSpeed` caps the target to `_connectorFlowSpeedKts` so the aircraft flows through at a steady low speed instead of accelerating on the connector straight (the braking curve alone permits ~20 kt) and braking back down for the second turn. A real crew flies a short connector as one continuous low-speed maneuver, not settle-wings-level-and-accelerate (AC 120-74B; aviation-reviewed).
 
-The cap is **self-limiting** and only bites on genuinely sharp corners: `_connectorFlowSpeedKts` = the higher of the two bracketing corners' comfortable speeds, where a sharp (`> EntryAlignmentThresholdDeg`) bracketing corner — rounded by a main-gear-turn-radius slow-turn — contributes `TurnRateLimitedSpeedKts(cat, MainGearTurnRadiusFt(cat))` (~5 kt for a jet) and a gentle (30–45°) one contributes the higher `CornerSpeedForAngle`.
+The cap is **self-limiting** and only bites on genuinely sharp corners: `_connectorFlowSpeedKts` = the higher of the two bracketing corners' comfortable speeds, where a sharp (`> EntryAlignmentThresholdDeg`) bracketing corner — rounded by a main-gear-turn-radius slow-turn — contributes `TurnRateLimitedSpeedKts(cat, MainGearTurnRadiusFt(cat, aircraftType))` (~5 kt for a jet, lower for a long-wheelbase type) and a gentle (30–45°) one contributes the higher `CornerSpeedForAngle`.
 
 So a gentle bracketing turn yields a high (no-op) cap and the length window alone never slows a run; only sharp ~90° lane-change corners pull the speed down.
 

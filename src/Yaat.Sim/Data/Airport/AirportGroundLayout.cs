@@ -514,7 +514,7 @@ public sealed class GroundArc : IGroundEdge
     /// (<see cref="CategoryPerformance.TurnRateLimitedSpeedKts"/>) — without it a tight fillet whose lateral-accel
     /// speed exceeds ω·r is traversed faster than the nose wheel can track, and the aircraft yaws past the ceiling
     /// (the KOAK taxi-out fillet swung 45 °/s at 20 kt). This is the arc analogue of the straight-segment
-    /// <see cref="CategoryPerformance.GroundYawRateAtSpeed"/> coupling.</item>
+    /// <see cref="CategoryPerformance.GroundYawRateAtSpeed(AircraftCategory, string?, double)"/> coupling.</item>
     /// </list>
     /// </summary>
     public double MaxSafeSpeedKts(AircraftCategory category) => SafeSpeedForRadiusKts(category, MinRadiusOfCurvatureFt);
