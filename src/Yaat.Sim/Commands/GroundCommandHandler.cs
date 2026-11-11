@@ -271,16 +271,19 @@ public static partial class GroundCommandHandler
     /// <summary>
     /// Replaces the <see cref="RemarkGateAlias"/> destination with the stand the aircraft's flight-plan remarks name, so a
     /// clearance to <c>@GATE</c> resolves, reads back and logs exactly as one to the named stand does. A real stand called
-    /// <c>GATE</c> on the layout keeps the token for itself; a remark naming no stand is refused.
+    /// <c>GATE</c> on the layout keeps the token for itself; a remark naming only a parking area resolves to a free stand in
+    /// it (<see cref="ResolveRemarkArea"/>); a remark naming neither is refused.
     /// </summary>
     /// <param name="aircraft">The aircraft the clearance is for.</param>
     /// <param name="taxi">The command as issued.</param>
     /// <param name="groundLayout">The layout the command resolves on.</param>
-    /// <returns>The command to resolve, and the refusal when the remarks name no stand.</returns>
+    /// <param name="options">The clearance's options, whose traffic says which stands are taken.</param>
+    /// <returns>The command to resolve, and the refusal when the remarks name no stand the clearance can take.</returns>
     private static (TaxiCommand Command, CommandResult? Refusal) ResolveRemarkGate(
         AircraftState aircraft,
         TaxiCommand taxi,
-        AirportGroundLayout groundLayout
+        AirportGroundLayout groundLayout,
+        TaxiCoreOptions options
     )
     {
         if (!string.Equals(taxi.DestinationParking, RemarkGateAlias, StringComparison.OrdinalIgnoreCase))
@@ -300,16 +303,96 @@ public static partial class GroundCommandHandler
             return (taxi, CommandDispatcher.OperatorGuidanceRefusal(noGate));
         }
 
-        if (remark.Stand is not { Length: > 0 } stand)
+        if (remark.Stand is { Length: > 0 } stand)
         {
-            string noStand = $"{aircraft.Callsign}'s remarks name parking area {remark.Area}, not a gate; name the stand with @";
-            Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason}", aircraft.Callsign, noStand);
-            return (taxi, CommandDispatcher.OperatorGuidanceRefusal(noStand));
+            Log.LogDebug("[TryTaxi] {Callsign}: @GATE is the remark stand {Stand}", aircraft.Callsign, stand);
+            return (taxi with { DestinationParking = stand }, null);
         }
 
-        Log.LogDebug("[TryTaxi] {Callsign}: @GATE is the remark stand {Stand}", aircraft.Callsign, stand);
-        return (taxi with { DestinationParking = stand }, null);
+        // FlightPlanParking.Parse sets the area whenever it sets no stand.
+        if (remark is not { Area: { } area })
+        {
+            throw new InvalidOperationException($"{aircraft.Callsign}'s parking remark carries neither a stand nor an area");
+        }
+
+        return ResolveRemarkArea(aircraft, taxi, groundLayout, area, options);
     }
+
+    /// <summary>
+    /// The stand <c>@GATE</c> takes when the remarks name only a parking area: the area's stands (the airport's sidecar
+    /// <c>parkingAreas</c>) that fit the type (<see cref="StandFit"/>), or the whole area when none fits, less the stands other
+    /// aircraft hold (<see cref="ArrivalParkingPicker.TakenSpots"/>), drawn by callsign with salt 0 so a repeat picks the same
+    /// stand. Refused, naming the area, when it matches no stand of the layout or every stand of the pool is taken.
+    /// </summary>
+    /// <param name="aircraft">The aircraft the clearance is for.</param>
+    /// <param name="taxi">The command as issued.</param>
+    /// <param name="layout">The layout the command resolves on.</param>
+    /// <param name="area">The parking area as the remark spells it.</param>
+    /// <param name="options">The clearance's options, whose traffic says which stands are taken.</param>
+    /// <returns>The command to the picked stand carrying the area, or the refusal.</returns>
+    private static (TaxiCommand Command, CommandResult? Refusal) ResolveRemarkArea(
+        AircraftState aircraft,
+        TaxiCommand taxi,
+        AirportGroundLayout layout,
+        string area,
+        TaxiCoreOptions options
+    )
+    {
+        string callsign = aircraft.Callsign;
+        AirportSidecarCatalog sidecars = NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty;
+        if ((ArrivalExitSide.AreaStands(area, layout, sidecars.GetParkingAreas(layout.AirportId)) is not { } match) || (match.Stands.Count == 0))
+        {
+            string noMatch = $"{callsign}'s remarks name parking area {area}, which matches no stand at this airport; name the stand with @";
+            Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason}", callsign, noMatch);
+            return (taxi, CommandDispatcher.OperatorGuidanceRefusal(noMatch));
+        }
+
+        List<string> fitting = FittingStandNames(aircraft.AircraftType, layout, match);
+        List<string> pool = fitting.Count > 0 ? fitting : StandNames(match.Stands);
+        HashSet<string> taken = ArrivalParkingPicker.TakenSpots(options.ListAircraft?.Invoke() ?? [], callsign);
+        List<string> free = [.. pool.Where(n => !taken.Contains(n))];
+        if (free.Count == 0)
+        {
+            string full = $"{callsign}'s remarks name parking area {area}, and every stand there is taken; name the stand with @";
+            Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason} ({Pool} stand(s), all taken)", callsign, full, pool.Count);
+            return (taxi, CommandDispatcher.OperatorGuidanceRefusal(full));
+        }
+
+        string stand = ArrivalParkingPicker.Choose(callsign, free, salt: 0);
+        Log.LogDebug(
+            "[TryTaxi] {Callsign}: @GATE in parking area {Area}: pool {Pool} of {AreaCount} stand(s){Fallback}, {Free} free, picked {Stand}",
+            callsign,
+            area,
+            pool.Count,
+            StandNames(match.Stands).Count,
+            fitting.Count > 0 ? " that fit the type" : " (none fits the type: the whole area)",
+            free.Count,
+            stand
+        );
+        return (taxi with { DestinationParking = stand, DestinationArea = area }, null);
+    }
+
+    /// <summary>
+    /// The names of an area's stands that take the type's wingspan (<see cref="StandFit.MaxWingspanFt"/>), ordinal. A sidecar
+    /// <c>maxAdg</c> gives every stand of the area the same cap, so it is asked once, which also keeps its above-the-ceiling
+    /// warning to one per area.
+    /// </summary>
+    private static List<string> FittingStandNames(
+        string aircraftType,
+        AirportGroundLayout layout,
+        (ParkingAreaAlias Alias, List<(GroundNode Node, string Name)> Stands) area
+    )
+    {
+        double spanFt = AircraftFootprint.ResolveWingspanFt(aircraftType);
+        AirplaneDesignGroup ceiling = AirplaneDesignGroups.AirportCeiling(layout);
+        AirplaneDesignGroup? overrideAdg = area.Alias.MaxAdg;
+        double? areaCapFt = overrideAdg is null ? null : StandFit.MaxWingspanFt(layout, area.Stands[0].Node, ceiling, overrideAdg);
+        return StandNames(area.Stands.Where(s => spanFt <= (areaCapFt ?? StandFit.MaxWingspanFt(layout, s.Node, ceiling, null))));
+    }
+
+    /// <summary>The stands' trimmed names, each once, in ordinal order.</summary>
+    private static List<string> StandNames(IEnumerable<(GroundNode Node, string Name)> stands) =>
+        [.. stands.Select(s => s.Name.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal)];
 
     private static CommandResult TryTaxiCore(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, TaxiCoreOptions options)
     {
@@ -339,7 +422,7 @@ public static partial class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        (TaxiCommand remarkGateCommand, CommandResult? remarkGateRefusal) = ResolveRemarkGate(aircraft, taxi, groundLayout);
+        (TaxiCommand remarkGateCommand, CommandResult? remarkGateRefusal) = ResolveRemarkGate(aircraft, taxi, groundLayout, options);
         if (remarkGateRefusal is { } gateRefusal)
         {
             return gateRefusal;

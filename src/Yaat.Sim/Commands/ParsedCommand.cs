@@ -718,6 +718,8 @@ public record PushbackMultiCommand(IReadOnlyList<PushDestination> Legs, Magnetic
 /// e.g. <c>TAXI &gt;A B &lt;C</c>): when non-null it has the same length as <see cref="Path"/> and
 /// entry <c>i</c> is the turn the aircraft should make onto <c>Path[i]</c> (null = no hint, pathfinder's
 /// own choice). The hint biases junction selection only — it never overrides an otherwise-required route.
+/// <see cref="DestinationArea"/> is the parking area a flight-plan remark names when <c>@GATE</c> resolved to a stand
+/// picked inside it (<see cref="DestinationParking"/>): the readback names the area, the route ends at the stand.
 /// </summary>
 public record TaxiCommand(
     List<string> Path,
@@ -728,7 +730,8 @@ public record TaxiCommand(
     string? DestinationParking = null,
     List<string>? CrossRunways = null,
     string? DestinationSpot = null,
-    List<TurnDirection?>? PathTurnHints = null
+    List<TurnDirection?>? PathTurnHints = null,
+    string? DestinationArea = null
 ) : ParsedCommand;
 
 /// <summary>

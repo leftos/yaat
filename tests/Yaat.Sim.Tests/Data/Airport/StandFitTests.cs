@@ -131,12 +131,12 @@ public class StandFitTests
     /// </summary>
     [Fact]
     public void Row14d_BesideButPast300Ft_DoesNotCap() =>
-        Assert.Equal(AirplaneDesignGroups.MaxWingspanFt(Ceiling(Derived.Value)), DerivedSpan("ZZR1"));
+        Assert.Equal(AirplaneDesignGroups.MaxWingspanFt(AirplaneDesignGroups.AirportCeiling(Derived.Value)), DerivedSpan("ZZR1"));
 
     /// <summary>The committed SFO layout's widest runway records a width under 200 ft, so its ceiling is ADG V (214 ft).</summary>
     [Fact]
     public void Row03_NoNeighbourWithin300Ft_TakesTheAirportCeiling() =>
-        Assert.Equal(AirplaneDesignGroups.MaxWingspanFt(Ceiling(Derived.Value)), DerivedSpan("ZZC1"));
+        Assert.Equal(AirplaneDesignGroups.MaxWingspanFt(AirplaneDesignGroups.AirportCeiling(Derived.Value)), DerivedSpan("ZZC1"));
 
     /// <summary>SIG2 sits 43 ft behind and 92 ft beside SIG1: the stagger is under the lateral offset, so it counts.</summary>
     [Fact]
@@ -145,7 +145,7 @@ public class StandFitTests
     [Fact]
     public void Row05_StaggerLargerThanLateral_DoesNotCap()
     {
-        double ceilingFt = AirplaneDesignGroups.MaxWingspanFt(Ceiling(Derived.Value));
+        double ceilingFt = AirplaneDesignGroups.MaxWingspanFt(AirplaneDesignGroups.AirportCeiling(Derived.Value));
         Assert.Equal(ceilingFt, DerivedSpan("ZZD1"));
         Assert.Equal(ceilingFt, DerivedSpan("ZZD2"));
     }
@@ -198,7 +198,10 @@ public class StandFitTests
     {
         Assert.Equal(50.0, DerivedSpan("ZZG13"), 0.5);
         AirportGroundLayout layout = Derived.Value;
-        Assert.Equal(118.0, StandFit.MaxWingspanFt(layout, Stand(layout, "ZZG13"), Ceiling(layout), AirplaneDesignGroup.III));
+        Assert.Equal(
+            118.0,
+            StandFit.MaxWingspanFt(layout, Stand(layout, "ZZG13"), AirplaneDesignGroups.AirportCeiling(layout), AirplaneDesignGroup.III)
+        );
     }
 
     [Fact]
@@ -240,8 +243,8 @@ public class StandFitTests
     {
         AirportGroundLayout layout = Sfo.Value;
         GroundNode sig4 = Stand(layout, "SIG4");
-        Assert.True(StandFit.Fits(layout, sig4, 52.2, Ceiling(layout), null));
-        Assert.False(StandFit.Fits(layout, sig4, 53.3, Ceiling(layout), null));
+        Assert.True(StandFit.Fits(layout, sig4, 52.2, AirplaneDesignGroups.AirportCeiling(layout), null));
+        Assert.False(StandFit.Fits(layout, sig4, 53.3, AirplaneDesignGroups.AirportCeiling(layout), null));
     }
 
     [Fact]
@@ -363,7 +366,7 @@ public class StandFitTests
     public void Override_BelowTheEstimate_Wins()
     {
         AirportGroundLayout layout = Sfo.Value;
-        Assert.Equal(49.0, StandFit.MaxWingspanFt(layout, Stand(layout, "SIG3"), Ceiling(layout), AirplaneDesignGroup.I));
+        Assert.Equal(49.0, StandFit.MaxWingspanFt(layout, Stand(layout, "SIG3"), AirplaneDesignGroups.AirportCeiling(layout), AirplaneDesignGroup.I));
     }
 
     /// <summary>SIG4's estimate refuses a G650 (99.6 ft); a sidecar maxAdg of III admits it.</summary>
@@ -372,9 +375,9 @@ public class StandFitTests
     {
         AirportGroundLayout layout = Sfo.Value;
         GroundNode sig4 = Stand(layout, "SIG4");
-        Assert.Equal(118.0, StandFit.MaxWingspanFt(layout, sig4, Ceiling(layout), AirplaneDesignGroup.III));
-        Assert.False(StandFit.Fits(layout, sig4, 99.6, Ceiling(layout), null));
-        Assert.True(StandFit.Fits(layout, sig4, 99.6, Ceiling(layout), AirplaneDesignGroup.III));
+        Assert.Equal(118.0, StandFit.MaxWingspanFt(layout, sig4, AirplaneDesignGroups.AirportCeiling(layout), AirplaneDesignGroup.III));
+        Assert.False(StandFit.Fits(layout, sig4, 99.6, AirplaneDesignGroups.AirportCeiling(layout), null));
+        Assert.True(StandFit.Fits(layout, sig4, 99.6, AirplaneDesignGroups.AirportCeiling(layout), AirplaneDesignGroup.III));
     }
 
     /// <summary>At Flying Cloud (FCM), whose widest runway sets a ceiling under VI, a maxAdg of VI still wins and is warned about.</summary>
@@ -388,7 +391,7 @@ public class StandFitTests
             new LayoutInputs([], VideoMap: null),
             FilletMode.None
         );
-        AirplaneDesignGroup ceiling = Ceiling(layout);
+        AirplaneDesignGroup ceiling = AirplaneDesignGroups.AirportCeiling(layout);
         Assert.True(ceiling < AirplaneDesignGroup.VI, $"FCM's ceiling is {ceiling}");
         GroundNode stand = Parking(layout).First();
         var capture = WarningLogCapture.Install();
@@ -490,17 +493,8 @@ public class StandFitTests
 
     private static GroundNode Stand(AirportGroundLayout layout, string name) => Assert.Single(Parking(layout), n => n.Name == name);
 
-    /// <summary>
-    /// The airport ceiling as the taxiway design groups take it: the group of the widest runway with a recorded width, VI
-    /// when none records one.
-    /// </summary>
-    private static AirplaneDesignGroup Ceiling(AirportGroundLayout layout)
-    {
-        double widestFt = layout.Runways.Select(r => r.WidthFt).DefaultIfEmpty(0.0).Max();
-        return widestFt > 0.0 ? AirplaneDesignGroups.FromRunwayWidth(widestFt) : AirplaneDesignGroup.VI;
-    }
-
-    private static double Span(AirportGroundLayout layout, GroundNode stand) => StandFit.MaxWingspanFt(layout, stand, Ceiling(layout), null);
+    private static double Span(AirportGroundLayout layout, GroundNode stand) =>
+        StandFit.MaxWingspanFt(layout, stand, AirplaneDesignGroups.AirportCeiling(layout), null);
 
     private static double SfoSpan(string name) => Span(Sfo.Value, Stand(Sfo.Value, name));
 

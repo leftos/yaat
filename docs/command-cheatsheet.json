@@ -190,7 +190,7 @@
         { "verb": "PUSHM", "aliases": [], "description": "Tug move through 2+ points in order ($spot / @gate / #node / ~lat/lon[/hdg], each optionally /PUSH or /PULL) [FACE C / TAIL C]; passes each point before the last without stopping (within half a wingspan), 5 s pause at each reversal; a leg onto a runway, holding position or un-named taxiway is refused" },
         { "verb": "PUSHF / PUSHMF", "aliases": [], "description": "Forced PUSH / PUSHM, every form: skips the taxiway, parked-aircraft and object-free-area checks and never stops for parked aircraft; still refused on a runway or holding position" },
         { "verb": "TAXI", "aliases": [], "description": "Taxi via route (see mods below)" },
-        { "verb": "TAXIAUTO", "aliases": [], "description": "Auto-route taxi to runway / `@parking` / `$spot` / `@GATE` (stand in the flight-plan remarks) (+EXP = without delay)" },
+        { "verb": "TAXIAUTO", "aliases": [], "description": "Auto-route taxi to runway / `@parking` / `$spot` / `@GATE` (stand, or a free stand in the parking area, in the flight-plan remarks) (+EXP = without delay)" },
         { "verb": "RTAXI", "aliases": [], "description": "Re-route keeping the taxi destination (runway / `@parking` / `$spot`): `RTAXI <path> [HS …] [CROSS …] [EXP]`; reads back as the full TAXI; drops unstarted CROSS, HS and EXP" },
         { "verb": "HOLD", "aliases": ["hp"], "description": "Hold position; ends a FOLLOWG follow" },
         { "verb": "RES", "aliases": ["resume"], "description": "Resume taxi / release runway hold (not destination) / break a ground-conflict stop or crawl / pre-clear the next taxiway or spot hold-short while rolling; CROSS rwy... pre-clears crossings, HS target... adds a taxiway hold-short or re-arms a runway's" },

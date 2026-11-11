@@ -936,9 +936,10 @@ public static class PhraseologyVerbalizer
     }
 
     /// <summary>
-    /// " to gate bravo one two" / " to parking cargo one" / " to spot seven alpha", or empty (7110.65 §3-7-2.a
-    /// "TAXI TO (location)"). A parking name that <see cref="ArrivalParkingPicker.IsGateName"/> accepts says "gate",
-    /// every other parking name "parking"; a spot wins over a parking name, matching <c>CommandDescriber</c>'s
+    /// " to gate bravo one two" / " to parking cargo one" / " to spot seven alpha" / " to SIGNATURE", or empty (7110.65
+    /// §3-7-2.a "TAXI TO (location)"). A parking name that <see cref="ArrivalParkingPicker.IsGateName"/> accepts says "gate",
+    /// every other parking name "parking", and a stand picked inside a remark's parking area
+    /// (<see cref="TaxiCommand.DestinationArea"/>) the area's name; a spot wins over a parking name, matching <c>CommandDescriber</c>'s
     /// canonical form. The clause leads the readback, directly after "taxi" (AIM 4-3-18.d.3).
     /// </summary>
     private static string RenderTaxiDestinationClause(TaxiCommand taxi, CaptureFormatter fmt)
@@ -951,6 +952,11 @@ public static class PhraseologyVerbalizer
         if (taxi.DestinationParking is not { Length: > 0 } parking)
         {
             return "";
+        }
+
+        if (taxi.DestinationArea is { Length: > 0 } area)
+        {
+            return $" to {area}";
         }
 
         string noun = ArrivalParkingPicker.IsGateName(parking) ? "gate" : "parking";

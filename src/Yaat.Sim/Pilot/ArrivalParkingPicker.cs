@@ -92,7 +92,19 @@ public static class ArrivalParkingPicker
             free = [.. names];
         }
 
-        IReadOnlyList<string> pool = Candidates(callsign, free, gaOperators);
+        return Choose(callsign, Candidates(callsign, free, gaOperators), salt);
+    }
+
+    /// <summary>
+    /// The deterministic draw from <paramref name="pool"/> as given: no operator narrowing and no fall-back, the same name
+    /// for the same callsign, pool and salt.
+    /// </summary>
+    /// <param name="callsign">The aircraft the draw is for.</param>
+    /// <param name="pool">The names to draw from, in a stable order; never empty.</param>
+    /// <param name="salt">Varies the draw between asks by one aircraft.</param>
+    /// <returns>One of <paramref name="pool"/>.</returns>
+    public static string Choose(string callsign, IReadOnlyList<string> pool, int salt)
+    {
         double u = FinalApproachSpeedVariety.UnitInterval(callsign, "taxi-in" + salt.ToString(CultureInfo.InvariantCulture));
         return pool[(int)(u * pool.Count)];
     }

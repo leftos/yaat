@@ -289,7 +289,9 @@ public static class AirplaneDesignGroups
     /// zero width has none recorded, so it does not read as a 0 ft (ADG I) runway; a layout with no runway of recorded
     /// width — or none at all — takes VI, capped only by the parallels.
     /// </summary>
-    private static AirplaneDesignGroup AirportCeiling(AirportGroundLayout layout)
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <returns>The airport's design group.</returns>
+    internal static AirplaneDesignGroup AirportCeiling(AirportGroundLayout layout)
     {
         double widestFt = layout.Runways.Select(r => r.WidthFt).DefaultIfEmpty(0.0).Max();
         if (widestFt > 0.0)

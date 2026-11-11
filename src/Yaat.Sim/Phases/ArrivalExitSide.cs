@@ -202,11 +202,29 @@ public static class ArrivalExitSide
             return [node.Position];
         }
 
-        if (remark.Area is not { } area)
+        if ((remark.Area is not { } area) || (AreaStands(area, layout, areas) is not { } match))
         {
             return [];
         }
 
+        return [.. match.Stands.Select(s => s.Node.Position)];
+    }
+
+    /// <summary>
+    /// The first <paramref name="areas"/> entry a remark's parking area matches (inner whitespace ignored, <c>{n}</c> standing
+    /// for a run of digits) and the layout's parking spots its stand patterns cover, in layout order; the stands are empty
+    /// when the entry covers none. Null when no entry matches the area.
+    /// </summary>
+    /// <param name="area">The area as the remark names it, upper-cased (<see cref="ParkingRemark.Area"/>).</param>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="areas">The airport's sidecar <c>parkingAreas</c>.</param>
+    /// <returns>The matching entry and its stands, each with its name, or null.</returns>
+    public static (ParkingAreaAlias Alias, List<(GroundNode Node, string Name)> Stands)? AreaStands(
+        string area,
+        AirportGroundLayout layout,
+        IReadOnlyList<ParkingAreaAlias> areas
+    )
+    {
         string compactArea = string.Concat(area.Where(c => !char.IsWhiteSpace(c)));
         foreach (ParkingAreaAlias alias in areas)
         {
@@ -216,15 +234,25 @@ public static class ArrivalExitSide
             }
 
             List<string> patterns = [.. alias.Stands.Select(p => p.Replace(ParkingAreaAlias.NumberToken, number, StringComparison.Ordinal))];
-            return
-            [
-                .. layout
-                    .Nodes.Values.Where(n => (n.Type == GroundNodeType.Parking) && (n.Name is { } name) && patterns.Any(p => MatchStand(p, name)))
-                    .Select(n => n.Position),
-            ];
+            return (alias, CoveredStands(layout, patterns));
         }
 
-        return [];
+        return null;
+    }
+
+    /// <summary>The layout's named parking spots a stand pattern covers, each with its name, in layout order.</summary>
+    private static List<(GroundNode Node, string Name)> CoveredStands(AirportGroundLayout layout, List<string> patterns)
+    {
+        var stands = new List<(GroundNode Node, string Name)>();
+        foreach (GroundNode node in layout.Nodes.Values)
+        {
+            if ((node is { Type: GroundNodeType.Parking, Name: { } name }) && patterns.Any(p => MatchStand(p, name)))
+            {
+                stands.Add((node, name));
+            }
+        }
+
+        return stands;
     }
 
     /// <summary>
