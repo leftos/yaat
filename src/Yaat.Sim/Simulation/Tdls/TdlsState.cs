@@ -38,6 +38,13 @@ public sealed class TdlsState
     public HashSet<DumpedKey> Dumped { get; } = [];
 
     /// <summary>
+    /// (facility, callsign) pairs whose item expired by TTL this session. The auto-queue does not re-create them, so an
+    /// aircraft that sat out its two hours stays off the list; unlike <see cref="Dumped"/> this is no controller
+    /// lockout, so a manual <c>TDLSQ</c> still queues it and no client is told of it.
+    /// </summary>
+    public HashSet<DumpedKey> Expired { get; } = [];
+
+    /// <summary>
     /// Sent items awaiting auto-WILCO. Keyed by item id, value is the session-clock time at which the
     /// scheduler should mark the item as Wilco. Snapshotted with the items, so a restored run acknowledges
     /// at the same sim second the live one did.
@@ -93,7 +100,7 @@ public sealed class TdlsState
         Configs.TryGetValue(facilityId, out TdlsConfig? config) ? config.ResolveSids(ResolveActiveOpConfigId(facilityId)) : [];
 
     /// <summary>
-    /// Clears the session state — items, dumped lockout, active ops configs, the scheduled WILCOs and the id
+    /// Clears the session state — items, dumped lockout, expiry memory, active ops configs, the scheduled WILCOs and the id
     /// counter — and leaves <see cref="Configs"/> alone. This is what a snapshot restore replaces: the configs
     /// were re-derived from the ARTCC by the load that ran just before it.
     /// </summary>
@@ -104,6 +111,7 @@ public sealed class TdlsState
             Items.Clear();
             ActiveOpConfigIds.Clear();
             Dumped.Clear();
+            Expired.Clear();
             ScheduledWilcoAt.Clear();
             NextItemId = 1;
             Changes.Clear();

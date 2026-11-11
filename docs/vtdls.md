@@ -67,7 +67,7 @@ CommandParser.ParseTdlsSend         TrainingHub.SendCommand
    │                                      │  RoomHost.OnTdlsChanged → TdlsBroadcaster
    │                                      │  SignalR: TdlsItemChanged
    │                                      ▼
-   │                                                                    (the pilot model is untouched —
+   │                                                                    (an open clearance request is satisfied —
    │                                                                    see "Pilot side" below)
    │                                 (3s later: TickTdlsAutoWilco → Status=Wilco, drained the same way)
    ▼
@@ -89,6 +89,10 @@ status flips on the issuer's vTDLS tab
 - **`Dumped`** — `(facility, callsign)` lockout (case-insensitive) so the
   auto-generator won't re-create entries the controller explicitly removed.
   Persists across snapshots.
+- **`Expired`** — `(facility, callsign)` memory of items that ran out their TTL, so the
+  auto-queue does not list that aircraft again for the rest of the session. No
+  controller lockout: a manual `TDLSQ` still queues it, and clients are never told.
+  Persists across snapshots (additive; an older snapshot restores it empty).
 - **`ScheduledWilcoAt`** — Sent items awaiting the 3 s auto-WILCO. Cleared
   on manual `TDLSW` or on Dump/expiry.
 - **`Changes`** — the broadcast seam (`TdlsChangeTracker`): every mutation records
@@ -96,6 +100,10 @@ status flips on the issuer's vTDLS tab
   snapshotted; the host drains it (below). `SimulationEngine.AmendFlightPlan` marks the aircraft's items too:
   the item DTO carries no flight-plan copy — `DtoConverter.BuildTdlsFlightPlanInfo` reads the live
   `AircraftState` at broadcast time — so an amendment needs only the dirty mark the strip reprint already has.
+  An amendment that moves the departure to another airport also removes the aircraft's items at the old
+  facility, whatever their status (`ExpireItemsAtOtherFacilities`): the removal carries the old facility id,
+  so a client on that facility drops the row; it sets neither `Dumped` nor `Expired`, and the next sweep queues
+  a fresh Pending item at the new facility, or none when no TDLS facility serves it.
 
 `TdlsItemRecord` (mirrors `TdlsItemDto` on the wire):
 
@@ -138,13 +146,15 @@ ZBW → ALB/BDL/BOS/PVD.
 The full canonical syntax is enforced by `CommandRegistry` entries with
 group `"vTDLS"` and asserted by completeness tests.
 
-## Pilot side: not wired yet
+## Pilot side: only the clearance request
 
-A PDC does not reach the pilot model today. `TDLSS` records the clearance on
-the TDLS item (`SentPayload`) and nothing else: no `AircraftState` field is
-written, no pilot transmission is queued or suppressed, and a follow-up voice
-`CL` behaves exactly as it would without the PDC. The remaining PDC flow —
-applying the sent clearance to the aircraft silently — is unbuilt and unscheduled (design record:
+`TDLSS` records the clearance on the TDLS item (`SentPayload`) and answers the pilot's open
+clearance request: `TdlsCommandHandler.AnswerClearanceRequest` satisfies it through
+`PilotRequestTracker.SatisfyOpenRequest`, so the pilot stops following up and the
+awaiting-controller-response gate clears. Nothing else reaches the pilot model: no `AircraftState`
+field is written, no pilot transmission is queued or suppressed, and a follow-up voice `CL` behaves
+exactly as it would without the PDC. The remaining PDC flow — applying the sent clearance to the
+aircraft silently — is unbuilt and unscheduled (design record:
 [`docs/vtdls/emulation-design.md`](vtdls/emulation-design.md)).
 
 `AircraftVoice.TdlsDumped` is CRC's own flight-plan flag ("the PDC was dumped,
@@ -155,22 +165,26 @@ auto-WILCO does not set it and nothing in `Yaat.Sim` reads it.
 ## Auto-generation
 
 `SimulationEngine.TickAutoTdlsQueue` (a post-physics Sim step) sweeps the
-world every second, and `SimulationEngine.AfterAircraftSpawned` runs the same
+world's aircraft every second, and `SimulationEngine.AfterAircraftSpawned` runs the same
 check inline for every spawn (scenario load, a delayed or generated spawn,
 `ADD`, a recorded spawn on replay), so a departure filed at a
 TDLS-configured facility shows a Pending entry without the controller typing
-anything. Both go through `TryQueueAutoTdlsForAircraft`. Conditions for the
-auto-queue:
+anything. Both go through `TryQueueAutoTdlsForAircraft`, so the tick and the spawn hook
+apply one gate. Conditions for the auto-queue:
 
 - The flight plan's departure airport (with leading `K` stripped) must
   match a facility id in `TdlsState.Configs`.
-- `(facility, callsign)` must not be in the Dumped lockout.
-- No existing Pending item for this (facility, callsign).
+- The aircraft must still be awaiting its clearance (`IsAwaitingClearance`): on the ground,
+  never airborne, tracked by no controller and with no departure message (the flight plan is
+  still Proposed, the rule `DtoConverter.ToFlightPlanStatus` applies in yaat-server). An airborne
+  arrival, a departed flight or a tracked aircraft is never listed; an aircraft whose owner is
+  dropped while still grounded is listed again.
+- `(facility, callsign)` must not be in the Dumped lockout or in `Expired`.
+- No existing item for this (facility, callsign) in any status.
 
-Pre-filed flight plans (a CID with a filed plan but no active
-`AircraftState`) generate Pending entries too — matches upstream
-behavior: "If a pilot pre-files prior to connecting to the network,
-their flight plan is displayed in the DCL list."
+Only aircraft in the world are swept: a pre-filed flight plan with no `AircraftState` gets no
+entry until its aircraft spawns, unlike upstream, where "If a pilot pre-files prior to connecting to
+the network, their flight plan is displayed in the DCL list."
 
 ## Names and the frequency token
 
@@ -223,6 +237,7 @@ recordings, bundles, session checkpoints) writes:
 
 - `Items` (with full `SentPayload` for Sent/Wilco items)
 - `Dumped` lockout
+- `Expired` — the TTL-expiry memory
 - `NextItemId`
 - `ActiveOpConfigs`
 - `ScheduledWilco` — the pending auto-WILCO instants. They run on the session clock
@@ -254,7 +269,7 @@ re-pushes the full state when it lands, while tape playback broadcasts as it goe
 | `TickTdlsAutoWilco` fires ~3 s later    | Status → Wilco                                                |
 | Controller force-WILCOs              | Same as auto-WILCO; scheduler entry cleared                   |
 | Controller dumps                     | Item removed from `Items`; (facility, callsign) → `Dumped`    |
-| TTL > 2 hours since `CreatedUtc`     | `TickTdlsExpiry` removes the item; lockout NOT set            |
+| TTL > 2 hours since `CreatedUtc`     | `TickTdlsExpiry` removes the item; no `Dumped` lockout, but (facility, callsign) → `Expired`, so the auto-queue does not re-create it (manual `TDLSQ` still can) |
 | Aircraft tracked on STARS by anyone  | `TickTdlsTrackRemoval` removes the item (any status); lockout NOT set |
 
 ## Multi-facility tabs and the consolidated parent view

@@ -20,6 +20,8 @@
 - Browser vTDLS rejoins its room after a reconnect and reloads its page when a scenario is loaded or unloaded.
 - A sent PDC names its SID and transition at ops-config airports such as OAK and SFO, and keeps them after the ops config changes.
 - `$FREQ` in vTDLS contact and local info is replaced with the student position's frequency.
+- vTDLS no longer lists airborne arrivals, departed or tracked aircraft, and an expired PDC no longer comes back as a new DCL row.
+- Amending an aircraft's departure airport moves its vTDLS entry to the new airport's facility.
 
 ## v0.18.3-beta [2026/11/11]
 

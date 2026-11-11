@@ -32,6 +32,8 @@ public static class TdlsSnapshotMapper
 
             var dumped = tdls.Dumped.Select(k => new TdlsDumpedSnapshotDto { FacilityId = k.FacilityId, Callsign = k.Callsign }).ToList();
 
+            var expired = tdls.Expired.Select(k => new TdlsDumpedSnapshotDto { FacilityId = k.FacilityId, Callsign = k.Callsign }).ToList();
+
             var activeOpConfigs = tdls
                 .ActiveOpConfigIds.Select(kv => new TdlsActiveOpConfigSnapshotDto { FacilityId = kv.Key, OpConfigId = kv.Value })
                 .ToList();
@@ -45,6 +47,7 @@ public static class TdlsSnapshotMapper
                 NextItemId = tdls.NextItemId,
                 ActiveOpConfigs = activeOpConfigs,
                 ScheduledWilco = scheduledWilco,
+                Expired = expired,
             };
         }
     }
@@ -86,6 +89,11 @@ public static class TdlsSnapshotMapper
             foreach (TdlsDumpedSnapshotDto d in dto.Dumped)
             {
                 tdls.Dumped.Add(new DumpedKey(d.FacilityId, d.Callsign));
+            }
+
+            foreach (TdlsDumpedSnapshotDto e in dto.Expired)
+            {
+                tdls.Expired.Add(new DumpedKey(e.FacilityId, e.Callsign));
             }
 
             foreach (TdlsScheduledWilcoDto wilco in dto.ScheduledWilco)

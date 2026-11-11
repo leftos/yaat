@@ -19,6 +19,12 @@ public sealed class TdlsSnapshotDto
 
     /// <summary>Sent items awaiting their auto-WILCO, so a restored run acknowledges at the sim second the live one did.</summary>
     public List<TdlsScheduledWilcoDto> ScheduledWilco { get; init; } = [];
+
+    /// <summary>
+    /// (facility, callsign) pairs whose item expired by TTL, which the auto-queue must not re-create.
+    /// Additive — older snapshots restore as empty.
+    /// </summary>
+    public List<TdlsDumpedSnapshotDto> Expired { get; init; } = [];
 }
 
 public sealed class TdlsActiveOpConfigSnapshotDto

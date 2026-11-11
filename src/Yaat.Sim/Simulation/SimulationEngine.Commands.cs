@@ -545,6 +545,7 @@ public sealed partial class SimulationEngine
         // is a "has been edited" signal, not a per-field diff.
         ac.FlightPlan.RevisionNumber++;
 
+        ExpireItemsAtOtherFacilities(callsign);
         MarkTdlsItemsChanged(callsign);
         return new CommandResult(true, $"Amended {callsign}");
     }

@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Simulation.Tdls;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.ControllerAi;
@@ -430,10 +431,45 @@ public class TdlsStepTests
         Assert.Equal(queued.Id, removal.ItemId);
         Assert.False(removal.Dumped);
 
-        // TTL expiry is not a dump, so the aircraft can be queued again.
+        // An expired item stays gone: the auto-queue does not list it again...
         engine.AfterAircraftSpawned(Departure(engine));
+        Assert.Empty(engine.Tdls.Items);
+
+        // ...but TTL expiry is not a dump, so a controller can still queue it by hand.
+        ActionOutcome queue = Issue(engine, new AttendanceActionHost(), Callsign, "TDLSQ");
+        Assert.True(queue.Result.Success, queue.Result.Message);
         TdlsItemRecord requeued = Assert.Single(engine.Tdls.Items.Values);
         Assert.Equal(TdlsItemStatus.Pending, requeued.Status);
+    }
+
+    /// <summary>
+    /// The expiry is remembered, not re-judged: the sweep seconds after it leave the aircraft off the list, and a snapshot
+    /// taken then carries the memory, so a restored session does not list it again either.
+    /// </summary>
+    [Fact]
+    public void TtlExpiry_IsNotQueuedAgainBeforeOrAfterASnapshotRestore()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        Queued(engine);
+        engine.Scenario!.ElapsedSeconds = TdlsMutations.DefaultTtl.TotalSeconds - 1;
+        engine.RunSecond(new SpineCapturingHost(engine));
+        Assert.Empty(engine.Tdls.Items);
+
+        engine.TickAutoTdlsQueue();
+        engine.TickAutoTdlsQueue();
+        engine.AfterAircraftSpawned(Departure(engine));
+        Assert.Empty(engine.Tdls.Items);
+
+        string json = JsonSerializer.Serialize(TdlsSnapshotMapper.Capture(engine.Tdls), RecordingJsonOptions.Default);
+        TdlsSnapshotMapper.Restore(engine.Tdls, JsonSerializer.Deserialize<TdlsSnapshotDto>(json, RecordingJsonOptions.Default)!);
+
+        engine.TickAutoTdlsQueue();
+        engine.AfterAircraftSpawned(Departure(engine));
+        Assert.Empty(engine.Tdls.Items);
     }
 
     [Fact]
@@ -458,6 +494,107 @@ public class TdlsStepTests
         Assert.Equal(queued.Id, removal.ItemId);
         Assert.Equal(Facility, removal.FacilityId);
         Assert.False(removal.Dumped);
+    }
+
+    /// <summary>
+    /// Once the owned aircraft's item is gone the sweep leaves it alone: no item comes back for the track removal to take
+    /// away again, so the seconds after the removal neither list an item nor spend an item id.
+    /// </summary>
+    [Fact]
+    public void TrackRemoval_TheOwnedAircraftIsNotQueuedAgain()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        Queued(engine);
+        Departure(engine).Track.Owner = Student;
+        var spine = new SpineCapturingHost(engine);
+        engine.RunSecond(spine);
+        Assert.Empty(engine.Tdls.Items);
+        int nextItemId = engine.Tdls.NextItemId;
+
+        engine.RunSecond(spine);
+        engine.RunSecond(spine);
+
+        Assert.Empty(engine.Tdls.Items);
+        Assert.Equal(nextItemId, engine.Tdls.NextItemId);
+    }
+
+    /// <summary>
+    /// The control for the sweep's gate: a departure on the ground, never airborne, untracked and with no departure
+    /// message is still awaiting its clearance, so the sweep lists it.
+    /// </summary>
+    [Fact]
+    public void AutoQueue_QueuesADepartureAwaitingItsClearance()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        AircraftState departure = Departure(engine);
+        Assert.True(departure.IsOnGround, "The OAK departure should start on the ground");
+        Assert.False(departure.HasBeenAirborne);
+
+        engine.TickAutoTdlsQueue();
+
+        TdlsItemRecord item = Assert.Single(engine.Tdls.Items.Values);
+        Assert.Equal(Facility, item.FacilityId);
+        Assert.Equal(TdlsItemStatus.Pending, item.Status);
+    }
+
+    [Fact]
+    public void AutoQueue_SkipsADepartureThatHasBeenAirborne() => AssertTheSweepSkips((_, ac) => ac.HasBeenAirborne = true);
+
+    /// <summary>Off the ground before the airborne latch has run — an aircraft spawned in flight — is not awaiting a clearance either.</summary>
+    [Fact]
+    public void AutoQueue_SkipsADepartureOffTheGroundBeforeTheAirborneLatch() =>
+        AssertTheSweepSkips(
+            (_, ac) =>
+            {
+                ac.IsOnGround = false;
+                ac.HasBeenAirborne = false;
+            }
+        );
+
+    [Fact]
+    public void AutoQueue_SkipsATrackedDeparture() => AssertTheSweepSkips((_, ac) => ac.Track.Owner = Student);
+
+    [Fact]
+    public void AutoQueue_SkipsADepartureWithADepartureMessage() =>
+        AssertTheSweepSkips((_, ac) => ac.FlightPlan.DepartureMessage = new DepartureMessage("OAK", new TimeOnly(12, 0)));
+
+    /// <summary>An airborne arrival filed out of another TDLS airport is not that airport's clearance to deliver.</summary>
+    [Fact]
+    public void AutoQueue_SkipsAnAirborneArrivalFiledFromATdlsAirport() =>
+        AssertTheSweepSkips(
+            (engine, ac) =>
+            {
+                Assert.NotNull(TdlsMutations.ResolveFacilityForAirport(engine.Tdls, "KSMF"));
+                ac.FlightPlan.Departure = "KSMF";
+                ac.FlightPlan.Destination = "KSFO";
+                ac.IsOnGround = false;
+                ac.HasBeenAirborne = true;
+            }
+        );
+
+    /// <summary>Puts the grounded OAK departure in the state <paramref name="change"/> makes and asserts the sweep lists nothing.</summary>
+    private void AssertTheSweepSkips(Action<SimulationEngine, AircraftState> change)
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        AircraftState departure = Departure(engine);
+        Assert.True(departure.IsOnGround, "The OAK departure should start on the ground");
+        change(engine, departure);
+
+        engine.TickAutoTdlsQueue();
+
+        Assert.Empty(engine.Tdls.Items);
     }
 
     [Fact]
@@ -572,6 +709,62 @@ public class TdlsStepTests
         Assert.Equal("SUNOL ALTAM", Departure(engine).FlightPlan.Route);
         TdlsChangeSet changes = engine.Tdls.Changes.Drain();
         Assert.Equal(queued.Id, Assert.Single(changes.ChangedItemIds));
+    }
+
+    /// <summary>
+    /// An amendment that moves the departure to another TDLS airport expires the item at the old facility — a removal
+    /// carrying the old facility id, so a client on that page drops it, with no dump lockout — and the next second's
+    /// sweep lists the aircraft afresh, Pending, at the new facility.
+    /// </summary>
+    [Fact]
+    public void AmendFlightPlan_ADepartureAtAnotherTdlsFacilityMovesTheItemThere()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        string? sfo = TdlsMutations.ResolveFacilityForAirport(engine.Tdls, "KSFO");
+        Assert.NotNull(sfo);
+        Assert.NotEqual(Facility, sfo);
+        TdlsItemRecord queued = Queued(engine);
+
+        engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(ClearBeaconCode: false, Departure: "KSFO"));
+
+        TdlsRemoval removal = Assert.Single(engine.Tdls.Changes.Drain().Removed);
+        Assert.Equal(queued.Id, removal.ItemId);
+        Assert.Equal(Facility, removal.FacilityId);
+        Assert.False(removal.Dumped);
+        Assert.Empty(engine.Tdls.Items);
+
+        engine.RunSecond(new SpineCapturingHost(engine));
+
+        TdlsItemRecord item = Assert.Single(engine.Tdls.Items.Values);
+        Assert.Equal(sfo, item.FacilityId);
+        Assert.Equal(TdlsItemStatus.Pending, item.Status);
+    }
+
+    /// <summary>A departure moved to an airport no TDLS facility serves leaves the aircraft with no item at all.</summary>
+    [Fact]
+    public void AmendFlightPlan_ADepartureAtNoTdlsFacilityLeavesNoItem()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        Assert.Null(TdlsMutations.ResolveFacilityForAirport(engine.Tdls, "KHWD"));
+        TdlsItemRecord queued = Queued(engine);
+
+        engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(ClearBeaconCode: false, Departure: "KHWD"));
+
+        TdlsRemoval removal = Assert.Single(engine.Tdls.Changes.Drain().Removed);
+        Assert.Equal(queued.Id, removal.ItemId);
+        Assert.False(removal.Dumped);
+
+        engine.RunSecond(new SpineCapturingHost(engine));
+
+        Assert.Empty(engine.Tdls.Items);
     }
 
     /// <summary>

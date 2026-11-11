@@ -18,8 +18,10 @@ public sealed partial class SimulationEngine
 {
     /// <summary>
     /// Auto-queues a Pending TDLS item for every aircraft whose filed departure airport is
-    /// served by a TDLS-configured facility and that doesn't already have an active item or
-    /// a Dumped lockout. Idempotent — re-running the tick produces no duplicates. Skips when no
+    /// served by a TDLS-configured facility, that is still awaiting its clearance (on the ground,
+    /// never airborne, untracked, no departure message) and that doesn't already have an active item,
+    /// a Dumped lockout or an item that expired by TTL (<see cref="TdlsState.Expired"/>).
+    /// Idempotent — re-running the tick produces no duplicates. Skips when no
     /// TDLS facilities are loaded (typical for ARTCCs whose data-api payload didn't include any
     /// tdlsConfiguration blocks).
     /// </summary>
@@ -41,7 +43,8 @@ public sealed partial class SimulationEngine
     /// Per-aircraft auto-queue check, factored out of <see cref="TickAutoTdlsQueue"/> so the
     /// scenario-load + spawn path (<see cref="AfterAircraftSpawned"/>) can fire it inline
     /// without waiting for the next tick. Returns the new record if one was queued, null
-    /// otherwise (no TDLS config, no filed flight plan, dumped lockout, or duplicate).
+    /// otherwise (no TDLS config, no filed flight plan, not awaiting its clearance (<see cref="IsAwaitingClearance"/>),
+    /// dumped lockout, an item that expired by TTL (<see cref="TdlsState.Expired"/>), or duplicate).
     /// <paramref name="nowUtc"/> is the caller's session clock (<see cref="SimScenarioState.SimTimeUtc"/>),
     /// which stamps the item's creation and expiry.
     /// </summary>
@@ -61,26 +64,46 @@ public sealed partial class SimulationEngine
         }
 
         string? facility = TdlsMutations.ResolveFacilityForAirport(tdls, dep);
-        if (facility is null)
+        if ((facility is null) || !IsAwaitingClearance(ac))
         {
             return null;
         }
 
+        return QueueUnlessLockedOutOrActive(tdls, facility, ac.Callsign, nowUtc);
+    }
+
+    /// <summary>
+    /// The locked half of <see cref="TryQueueAutoTdlsForAircraft"/>: queues a Pending item at <paramref name="facility"/>
+    /// unless the (facility, callsign) is dumped, its item expired by TTL, or an item for it already stands.
+    /// </summary>
+    private static TdlsItemRecord? QueueUnlessLockedOutOrActive(TdlsState tdls, string facility, string callsign, DateTime nowUtc)
+    {
         lock (tdls.Gate)
         {
-            if (tdls.Dumped.Contains(new DumpedKey(facility, ac.Callsign)))
+            var key = new DumpedKey(facility, callsign);
+            if (tdls.Dumped.Contains(key) || tdls.Expired.Contains(key))
             {
                 return null;
             }
 
-            if (TdlsMutations.FindActiveItem(tdls, facility, ac.Callsign) is not null)
+            if (TdlsMutations.FindActiveItem(tdls, facility, callsign) is not null)
             {
                 return null;
             }
 
-            return TdlsMutations.QueuePending(tdls, facility, ac.Callsign, null, nowUtc);
+            return TdlsMutations.QueuePending(tdls, facility, callsign, null, nowUtc);
         }
     }
+
+    /// <summary>
+    /// Whether the aircraft is still waiting for its clearance at its departure airport. On the ground, never airborne and
+    /// with no departure message is the server's Proposed rule (<c>DtoConverter.ToFlightPlanStatus</c>); tracked by no
+    /// controller is added on top, since a tracked aircraft has left the clearance-delivery workflow. Only such an
+    /// aircraft belongs on a vTDLS list; the auto-queue skips the rest, so an airborne arrival, a departed flight or a
+    /// tracked one never gets an item.
+    /// </summary>
+    private static bool IsAwaitingClearance(AircraftState ac) =>
+        ac.IsOnGround && !ac.HasBeenAirborne && (ac.Track.Owner is null) && (ac.FlightPlan.DepartureMessage is null);
 
     /// <summary>
     /// Drains any TDLS items whose scheduled auto-WILCO time has elapsed and marks them Wilco.
@@ -121,7 +144,9 @@ public sealed partial class SimulationEngine
     /// Removes TDLS items whose two-hour TTL in sim time has elapsed — the session clock is what the
     /// items were stamped from, so the TTL is two hours of the scenario, not of the wall clock. Items
     /// leave Items entirely and the schedule is purged. No Dumped lockout — TTL expiry isn't a
-    /// controller-initiated removal. No-op without a loaded scenario (the clock is the scenario's).
+    /// controller-initiated removal — but the (facility, callsign) goes into <see cref="TdlsState.Expired"/>, so the
+    /// auto-queue does not list the aircraft again; a manual <c>TDLSQ</c> still can. No-op without a loaded scenario
+    /// (the clock is the scenario's).
     /// </summary>
     public void TickTdlsExpiry()
     {
@@ -154,6 +179,7 @@ public sealed partial class SimulationEngine
             {
                 TdlsMutations.Expire(tdls, item.Id);
                 tdls.ScheduledWilcoAt.Remove(item.Id);
+                tdls.Expired.Add(new DumpedKey(item.FacilityId, item.AircraftId));
             }
         }
     }
@@ -189,6 +215,36 @@ public sealed partial class SimulationEngine
             }
 
             foreach (TdlsItemRecord item in tracked)
+            {
+                TdlsMutations.Expire(tdls, item.Id);
+                tdls.ScheduledWilcoAt.Remove(item.Id);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Expires every item of the call sign held at a facility other than the one its filed departure now resolves to
+    /// (all of them when no TDLS facility serves the new departure), whatever their status: a clearance built at one
+    /// airport is no clearance for another. The removal carries the old facility id, so a client showing that facility
+    /// drops the row; no dump lockout and no expiry memory, so the next sweep queues a fresh Pending item at the new
+    /// facility. Run by <see cref="AmendFlightPlan"/> after every amendment; with the departure unchanged it finds nothing.
+    /// </summary>
+    private void ExpireItemsAtOtherFacilities(string callsign)
+    {
+        string? departure = FindAircraft(callsign)?.FlightPlan.Departure;
+        TdlsState tdls = Tdls;
+
+        lock (tdls.Gate)
+        {
+            string? facility = string.IsNullOrEmpty(departure) ? null : TdlsMutations.ResolveFacilityForAirport(tdls, departure);
+            var stale = tdls
+                .Items.Values.Where(item =>
+                    string.Equals(item.AircraftId, callsign, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(item.FacilityId, facility, StringComparison.OrdinalIgnoreCase)
+                )
+                .ToList();
+
+            foreach (TdlsItemRecord item in stale)
             {
                 TdlsMutations.Expire(tdls, item.Id);
                 tdls.ScheduledWilcoAt.Remove(item.Id);

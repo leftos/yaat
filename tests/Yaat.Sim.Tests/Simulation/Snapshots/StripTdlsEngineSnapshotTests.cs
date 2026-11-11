@@ -38,6 +38,28 @@ public class StripTdlsEngineSnapshotTests
         }
         """;
 
+    /// <summary>
+    /// <see cref="ScenarioJson"/> with the departure parked on the field at OAK instead of airborne: an aircraft still
+    /// awaiting its clearance, which is the only kind the load's spawn hook queues a PDC for.
+    /// </summary>
+    private const string GroundedScenarioJson = """
+        {
+          "id": "strips",
+          "name": "Strips and TDLS",
+          "primaryAirportId": "OAK",
+          "aircraft": [
+            {
+              "id": "a1",
+              "aircraftId": "AAL100",
+              "aircraftType": "B738",
+              "transponderMode": "C",
+              "startingConditions": { "type": "Coordinates", "coordinates": { "lat": 37.7213, "lon": -122.2208 }, "altitude": 9, "heading": 290, "speed": 0 },
+              "flightplan": { "rules": "IFR", "departure": "KOAK", "destination": "KLAX", "cruiseAltitude": 35000, "cruiseSpeed": 250, "route": "", "remarks": "", "aircraftType": "B738" }
+            }
+          ]
+        }
+        """;
+
     private static readonly TdlsClearance Clearance = new()
     {
         Expect = "10 MIN AFT DP",
@@ -53,10 +75,10 @@ public class StripTdlsEngineSnapshotTests
         TestVnasData.EnsureInitialized();
     }
 
-    private static SimulationEngine Load()
+    private static SimulationEngine Load(string scenarioJson)
     {
         var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
-        List<string> warnings = engine.LoadScenario(ScenarioJson, 42, SessionStart);
+        List<string> warnings = engine.LoadScenario(scenarioJson, 42, SessionStart);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
         return engine;
     }
@@ -110,7 +132,7 @@ public class StripTdlsEngineSnapshotTests
     [Fact]
     public void AFreshEngine_StartsWithNoStripsAndNoPdcs()
     {
-        SimulationEngine engine = Load();
+        SimulationEngine engine = Load(ScenarioJson);
 
         Assert.Empty(engine.Strips.Items);
         Assert.Empty(engine.Strips.Bays);
@@ -121,13 +143,13 @@ public class StripTdlsEngineSnapshotTests
     [Fact]
     public void ASnapshot_CarriesTheStripsAndThePdc_ToAFreshEngine()
     {
-        SimulationEngine engine = Load();
+        SimulationEngine engine = Load(ScenarioJson);
         Seed(engine);
 
         StateSnapshotDto snapshot = engine.CaptureSnapshot();
         StateSnapshotDto serialized = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;
 
-        SimulationEngine restored = Load();
+        SimulationEngine restored = Load(ScenarioJson);
         restored.RestoreFromSnapshot(serialized);
 
         Assert.True(restored.Strips.Items.ContainsKey("STRIP_AAL100"));
@@ -147,7 +169,7 @@ public class StripTdlsEngineSnapshotTests
     [Fact]
     public void ASnapshotWithNoStripOrTdlsSection_RestoresEmpty()
     {
-        SimulationEngine engine = Load();
+        SimulationEngine engine = Load(ScenarioJson);
         Seed(engine);
         StateSnapshotDto snapshot = engine.CaptureSnapshot();
 
@@ -180,7 +202,7 @@ public class StripTdlsEngineSnapshotTests
     [Fact]
     public void ASnapshotWithNoStripSection_KeepsTheBaysRackSlots()
     {
-        SimulationEngine engine = Load();
+        SimulationEngine engine = Load(ScenarioJson);
         Seed(engine);
         // The load re-derives the rack skeleton before the restore runs, exactly as PopulateRoom does.
         engine.Strips.InitializeFromArtcc([
@@ -232,11 +254,29 @@ public class StripTdlsEngineSnapshotTests
         Assert.Null(snapshot.Server!.Strips);
         Assert.Null(snapshot.Server.Tdls);
 
-        SimulationEngine engine = Load();
+        SimulationEngine engine = Load(ScenarioJson);
         Seed(engine);
         engine.RestoreFromSnapshot(snapshot);
 
         Assert.Empty(engine.Strips.Items);
+        Assert.Empty(engine.Tdls.Items);
+    }
+
+    /// <summary>
+    /// A departure spawned in flight is past clearance delivery: off the ground, though the airborne latch has not run yet
+    /// because no physics has, so being on the ground is what keeps the spawn hook from queuing a PDC for it.
+    /// </summary>
+    [Fact]
+    public void AnAircraftSpawnedAirborne_GetsNoPdcFromTheSpawnHook()
+    {
+        SimulationEngine engine = Load(ScenarioJson);
+        engine.Tdls.Configs["OAK"] = new TdlsConfig();
+        AircraftState aircraft = engine.FindAircraft("AAL100")!;
+        Assert.False(aircraft.IsOnGround);
+        Assert.False(aircraft.HasBeenAirborne);
+
+        engine.AfterAircraftSpawned(aircraft);
+
         Assert.Empty(engine.Tdls.Items);
     }
 
@@ -249,7 +289,7 @@ public class StripTdlsEngineSnapshotTests
     [Fact]
     public void AReplayFromSecondZero_RebuildsTheLoadTimePdcAndInheritsNothing()
     {
-        SimulationEngine engine = Load();
+        SimulationEngine engine = Load(GroundedScenarioJson);
         Seed(engine);
         engine.Tdls.Configs["OAK"] = new TdlsConfig { MandatoryExpect = true };
 
