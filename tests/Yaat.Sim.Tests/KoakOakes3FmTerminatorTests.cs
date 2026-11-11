@@ -72,4 +72,59 @@ public class KoakOakes3FmTerminatorTests
             $"expected FM outbound ~{expected.Degrees:F0}° true, got {ac.Targets.TargetTrueHeading.Value.Degrees:F0}°"
         );
     }
+
+    [Fact]
+    public void Altta9Rw11l_VmLastLeg_CarriesCourseOnAltta_AndFliesItAtRouteEnd()
+    {
+        CifpStarProcedure? star = NavigationDatabase.Instance.GetStar("KFAT", "ALTTA9");
+        if (star is null || star.CommonLegs.Count == 0 || !star.RunwayTransitions.TryGetValue("RW11L", out CifpTransition? rw11l))
+        {
+            return; // ALTTA9 / RW11L not in the bundled CIFP cycle — skip offline.
+        }
+
+        // The RW11L transition ends in a VM leg whose fix field names the airport (KFAT) and whose
+        // published course is 310°. The fix field is the leg's reference, not a waypoint to fly to.
+        var orderedLegs = new List<CifpLeg>();
+        orderedLegs.AddRange(star.CommonLegs);
+        orderedLegs.AddRange(rw11l.Legs);
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
+        Assert.NotEmpty(targets);
+        Assert.DoesNotContain(targets, t => t.Name == "KFAT");
+
+        NavigationTarget last = targets[^1];
+        Assert.Equal("ALTTA", last.Name);
+        Assert.NotNull(last.TerminalCourseMagnetic);
+        Assert.Equal(310.0, last.TerminalCourseMagnetic!.Value, 1);
+
+        // Fly an aircraft to ALTTA with that target as its sole remaining route fix.
+        var ac = new AircraftState
+        {
+            Callsign = "SWA23",
+            AircraftType = "B738",
+            Position = last.Position,
+            TrueHeading = new TrueHeading(90),
+            Altitude = 11000,
+            IndicatedAirspeed = 250,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KCMA",
+                Destination = "KFAT",
+                Route = "ALTTA9",
+                Altitude = PlannedAltitude.Ifr(35000),
+                FlightRules = "IFR",
+            },
+        };
+        ac.Targets.NavigationRoute.Add(last);
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.Empty(ac.Targets.NavigationRoute);
+        Assert.NotNull(ac.Targets.TargetTrueHeading);
+        TrueHeading expected = new MagneticHeading(310.0).ToTrue(ac.Declination);
+        Assert.True(
+            ac.Targets.TargetTrueHeading!.Value.AbsAngleTo(expected) < 1.0,
+            $"expected VM course ~{expected.Degrees:F0}° true, got {ac.Targets.TargetTrueHeading.Value.Degrees:F0}°"
+        );
+    }
 }

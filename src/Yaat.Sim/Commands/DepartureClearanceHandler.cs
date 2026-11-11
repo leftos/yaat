@@ -2348,6 +2348,11 @@ internal static class DepartureClearanceHandler
                 continue;
             }
 
+            if (TryCarryVmCourse(targets, leg))
+            {
+                continue;
+            }
+
             if (string.IsNullOrWhiteSpace(leg.FixIdentifier))
             {
                 continue;
@@ -2435,6 +2440,29 @@ internal static class DepartureClearanceHandler
             previousFixPos = (pos.Value.Lat, pos.Value.Lon);
         }
         return targets;
+    }
+
+    /// <summary>
+    /// A VM (heading to a manual termination) leg is flown as its published course from the leg's
+    /// reference fix and never becomes a route target: its fix field names the point the course
+    /// starts from, not a waypoint to fly to. The course lands on the last target already in
+    /// <paramref name="targets"/>, which the route-exhausted branch then flies. A VM with no target
+    /// behind it is dropped, since there is no fix for the course to start from.
+    /// </summary>
+    /// <returns>True when the leg is a VM leg and was handled here.</returns>
+    private static bool TryCarryVmCourse(List<NavigationTarget> targets, CifpLeg leg)
+    {
+        if (leg.PathTerminator != CifpPathTerminator.VM)
+        {
+            return false;
+        }
+
+        if ((targets.Count > 0) && (leg.OutboundCourse is { } vmCourse))
+        {
+            targets[^1].TerminalCourseMagnetic = vmCourse;
+        }
+
+        return true;
     }
 
     /// <summary>

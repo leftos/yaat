@@ -94,4 +94,29 @@ public class S3Fat3StarEndTurnBackTests(ITestOutputHelper output)
         ScenarioLoadResult result = ScenarioLoader.Load(scenarioJson, null, new SerializableRandom(42), MagneticDeclination.EvaluationDateUtc);
         Assert.Equal(["TTE", "ALTTA"], RouteNames(result.ImmediateAircraft[0].State));
     }
+
+    [Fact]
+    public void SpawnUpstreamOfTte_OnAltta9_11L_EndsAtAlttaWithTheVmCourse()
+    {
+        TestVnasData.EnsureInitialized();
+        const string scenarioJson = """
+            { "id": "test", "name": "Test", "aircraft": [{
+                "aircraftId": "N210WM", "aircraftType": "TBM9",
+                "startingConditions": { "type": "FixOrFrd", "fix": "FIM", "altitude": 11000, "speed": 210,
+                                        "navigationPath": "TTE ALTTA9.11L" },
+                "flightplan": { "rules": "IFR", "departure": "KCMA", "destination": "KFAT",
+                                "route": "FIM TTE ALTTA9", "cruiseAltitude": 26000, "cruiseSpeed": 323 },
+                "presetCommands": [] }] }
+            """;
+        ScenarioLoadResult result = ScenarioLoader.Load(scenarioJson, null, new SerializableRandom(42), MagneticDeclination.EvaluationDateUtc);
+        AircraftState ac = result.ImmediateAircraft[0].State;
+
+        // RW11L ends in a VM leg publishing 310°; the spawned route must carry that course on ALTTA
+        // so the route-exhausted branch flies it instead of holding the arrival heading.
+        Assert.Equal(["TTE", "ALTTA"], RouteNames(ac));
+        NavigationTarget altta = ac.Targets.NavigationRoute[^1];
+        Assert.Equal("ALTTA", altta.Name);
+        Assert.NotNull(altta.TerminalCourseMagnetic);
+        Assert.Equal(310.0, altta.TerminalCourseMagnetic!.Value, 1);
+    }
 }

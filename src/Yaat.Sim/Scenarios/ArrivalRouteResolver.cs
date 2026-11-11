@@ -52,13 +52,20 @@ internal static class ArrivalRouteResolver
         }
 
         // Append CIFP runway transition fixes for STARs
-        AppendStarRunwayTransition(resolved, navigationPath, state.FlightPlan.Destination);
+        Dictionary<string, double> terminalCourses = AppendStarRunwayTransition(resolved, navigationPath, state.FlightPlan.Destination);
 
         RouteChainer.AppendRouteRemainder(resolved, state.FlightPlan.Route);
 
         foreach (ResolvedFix fix in resolved)
         {
-            state.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
+            state.Targets.NavigationRoute.Add(
+                new NavigationTarget
+                {
+                    Name = fix.Name,
+                    Position = new LatLon(fix.Lat, fix.Lon),
+                    TerminalCourseMagnetic = terminalCourses.TryGetValue(fix.Name, out double terminalCourse) ? terminalCourse : null,
+                }
+            );
         }
     }
 
@@ -67,11 +74,16 @@ internal static class ArrivalRouteResolver
     /// <see cref="NavigationCommandHandler.SelectRunwayTransitionLegsToAppend"/> places it: after the last transition
     /// fix the resolved route already holds, so a fix the aircraft starts past is never re-added behind it.
     /// </summary>
-    private static void AppendStarRunwayTransition(List<ResolvedFix> resolved, string navigationPath, string? destination)
+    /// <returns>
+    /// The transition's published terminal courses by fix name (magnetic), so a spawned route keeps the VM/FM course
+    /// its last fix hands off on.
+    /// </returns>
+    private static Dictionary<string, double> AppendStarRunwayTransition(List<ResolvedFix> resolved, string navigationPath, string? destination)
     {
+        var terminalCourses = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         if (destination is null)
         {
-            return;
+            return terminalCourses;
         }
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
@@ -100,6 +112,16 @@ internal static class ArrivalRouteResolver
                 break;
             }
 
+            // Resolve the whole transition, not only the appended tail: the VM leg that publishes the
+            // terminal course is usually the tail itself and carries no target of its own.
+            foreach (NavigationTarget transitionTarget in DepartureClearanceHandler.ResolveLegsToTargets(rwTransitionLegs))
+            {
+                if (transitionTarget.TerminalCourseMagnetic is { } course)
+                {
+                    terminalCourses[transitionTarget.Name] = course;
+                }
+            }
+
             List<string> routeNames = [.. resolved.Select(r => r.Name)];
             var existingNames = new HashSet<string>(routeNames, StringComparer.OrdinalIgnoreCase);
             List<CifpLeg> legsToAppend = NavigationCommandHandler.SelectRunwayTransitionLegsToAppend(rwTransitionLegs, star, routeNames);
@@ -117,6 +139,8 @@ internal static class ArrivalRouteResolver
 
             break;
         }
+
+        return terminalCourses;
     }
 
     /// <summary>
@@ -145,6 +169,7 @@ internal static class ArrivalRouteResolver
                     AltitudeRestriction = constrained.AltitudeRestriction,
                     SpeedRestriction = constrained.SpeedRestriction,
                     IsFlyOver = constrained.IsFlyOver,
+                    TerminalCourseMagnetic = route[i].TerminalCourseMagnetic,
                 };
             }
         }
