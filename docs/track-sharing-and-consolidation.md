@@ -196,6 +196,8 @@ someone else, `TrackEngine.ApplyHandoff` redirects it. `ConsolidationRedirect.Tr
 2. Otherwise resolve `GetConsolidationOwner(... ConsolidationState)`; if the owner differs from the target, the handoff peer
    becomes the owner and `Track.HandoffRedirectedBy` records the originally-targeted TCP.
 
+`TrackResolver.FindTcpForOwner` places the target's TCP from the scenario's ATC positions, then the student TCP, then the student facility's TCP table, so a TCP the scenario does not list as an ATC position (an unstaffed child TCP such as `1T`, consolidated under attended `1M`) still redirects.
+
 The user sees `Handoff … to <code> (redirected to <ownerSubset><ownerSector>)`. Whether a TCP is attended is the host's answer
 (`IActionHost.IsPositionAttended`): the server hands in its `PositionRegistry`; a bare or replay run attends nobody, so it never
 redirects — a recording cannot yet reproduce a redirect the live session made (the C1 attendance debt of ADR 0003). The
@@ -215,7 +217,7 @@ attended or attended via consolidation — it must NOT auto-accept; the real CRC
 `SimulationEngine.TickAutoAccept` (`SimulationEngine.TrackAutomation.cs`) calls
 `TrackEngine.IsHandoffPeerControlledByCrc(peer, scenario, Attendance, ConsolidationState)` (`Commands/TrackEngine.cs`), which resolves the peer's TCP and asks
 `Attendance.IsTcpControlledByCrc` (`Simulation/Attendance.cs`) over the recorded attendance, and skips the
-target when it returns true (a peer with no resolvable TCP counts as unattended). The controller-AI `HandoffUnacceptedRule` calls the same check, so a withheld handoff to a CRC-attended position still raises the anomaly. The same consolidation check guards delayed scenario handoffs (`TickDelayedHandoffs`): a handoff to a
+target when it returns true (an unlisted peer resolves through the facility's TCP table, so a handoff to an unattended child TCP is left to the attended TCP it consolidates into; a peer with no resolvable TCP counts as unattended). The controller-AI `HandoffUnacceptedRule` calls the same check, so a withheld handoff to a CRC-attended position still raises the anomaly. The same consolidation check guards delayed scenario handoffs (`TickDelayedHandoffs`): a handoff to a
 TCP consolidated under another attended TCP is held until that TCP activates (otherwise it would be a handoff to oneself).
 
 ## Per-track shared display state

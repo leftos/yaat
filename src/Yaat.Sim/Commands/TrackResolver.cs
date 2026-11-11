@@ -175,7 +175,9 @@ public static class TrackResolver
     /// <summary>
     /// Returns the TCP corresponding to a given owner by searching the scenario's ATC positions, then falling back to
     /// the student TCP, each compared by <see cref="TrackOwner.MatchesPosition"/> (a same-callsign position in another
-    /// facility is someone else).
+    /// facility is someone else). An owner the scenario does not list as an ATC position still resolves through the
+    /// student facility's TCP table, so a handoff to an unstaffed, unlisted TCP can be redirected to the attended TCP it
+    /// consolidates into and auto-accept can leave it for the CRC controller.
     /// </summary>
     public static Tcp? FindTcpForOwner(TrackOwner owner, SimScenarioState scenario)
     {
@@ -190,6 +192,16 @@ public static class TrackResolver
         if (scenario.StudentPosition is not null && scenario.StudentTcp is not null && owner.MatchesPosition(scenario.StudentPosition))
         {
             return scenario.StudentTcp;
+        }
+
+        if (
+            (owner.FacilityId is { } facilityId)
+            && (owner.Subset is { } subset)
+            && (owner.SectorId is { } sectorId)
+            && (scenario.ArtccConfig is { } artccConfig)
+        )
+        {
+            return artccConfig.FindTcpByCode(facilityId, subset, sectorId);
         }
 
         return null;
