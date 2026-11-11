@@ -20,6 +20,7 @@ public enum GroundNodeType
 public sealed class GroundNode
 {
     private LatLon _position;
+    private TrueHeading? _trueHeading;
 
     public required int Id { get; init; }
 
@@ -41,9 +42,20 @@ public sealed class GroundNode
     public string? Name { get; init; }
 
     /// <summary>
-    /// Parking heading (nose-in direction, degrees true). Only set for Parking nodes.
+    /// Parking heading (nose-in direction, degrees true). Only set for parking and helipad nodes.
     /// </summary>
-    public TrueHeading? TrueHeading { get; init; }
+    public TrueHeading? TrueHeading
+    {
+        get => _trueHeading;
+        init => _trueHeading = value;
+    }
+
+    /// <summary>
+    /// Sets <see cref="TrueHeading"/> once the node exists: the layout build derives the heading of a stand whose map carries
+    /// none from the foot of the stand's connection, which is only known after the node has been created and connected.
+    /// </summary>
+    /// <param name="heading">The derived heading.</param>
+    internal void SetTrueHeading(TrueHeading heading) => _trueHeading = heading;
 
     /// <summary>
     /// Whether the stand is pushed back or taxied out of, by its geometry alone (<see cref="StandDepartures.Classify"/>),

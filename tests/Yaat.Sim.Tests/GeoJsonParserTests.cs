@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
@@ -784,4 +785,353 @@ public class GeoJsonParserTests(ITestOutputHelper output)
 
         Assert.Contains(layout.Edges, edge => edge.MatchesTaxiway("J"));
     }
+
+    /// <summary>A taxiway and four stands: an explicit number, a numeric string, an empty string and an unparsable string.</summary>
+    private const string HeadingFixtureGeoJson = """
+        {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": { "type": "taxiway", "name": "T", "circular": false },
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [ -122.222193, 37.713103 ],
+                  [ -122.215874, 37.708816 ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "P270", "heading": 270 },
+              "geometry": { "type": "Point", "coordinates": [ -122.2190, 37.7100 ] }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "P180S", "heading": "180" },
+              "geometry": { "type": "Point", "coordinates": [ -122.2200, 37.7100 ] }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "PEMPTY", "heading": "" },
+              "geometry": { "type": "Point", "coordinates": [ -122.2195, 37.7120 ] }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "PABC", "heading": "abc" },
+              "geometry": { "type": "Point", "coordinates": [ -122.2175, 37.7105 ] }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "PNULL", "heading": null },
+              "geometry": { "type": "Point", "coordinates": [ -122.2185, 37.7115 ] }
+            }
+          ]
+        }
+        """;
+
+    [Fact]
+    public void Parse_StandHeadings_KeepsAuthoredAndDerivesTheRest()
+    {
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", HeadingFixtureGeoJson, null, new LayoutInputs([], VideoMap: null));
+
+        GroundNode? explicitNumber = layout.FindParkingByName("P270");
+        Assert.NotNull(explicitNumber);
+        Assert.Equal(270.0, explicitNumber.TrueHeading?.Degrees);
+
+        GroundNode? numericString = layout.FindParkingByName("P180S");
+        Assert.NotNull(numericString);
+        Assert.Equal(180.0, numericString.TrueHeading?.Degrees);
+
+        AssertDerivedFromNearestTaxiway(layout, "PEMPTY");
+        AssertDerivedFromNearestTaxiway(layout, "PABC");
+        AssertDerivedFromNearestTaxiway(layout, "PNULL");
+    }
+
+    [Fact]
+    public void Parse_RocStandWithoutHeading_DerivesItsNoseInHeading()
+    {
+        TestVnasData.EnsureInitialized();
+        string path = Path.Combine("TestData", "ROC.geojson");
+        AirportGroundLayout layout = GeoJsonParser.Parse("ROC", File.ReadAllText(path), "ROC", new LayoutInputs([], VideoMap: null));
+
+        AssertDerivedFromNearestTaxiway(layout, "GAS1");
+        Assert.NotEqual(0.0, layout.FindParkingByName("GAS1")?.TrueHeading?.Degrees ?? 0.0);
+    }
+
+    [Fact]
+    public void Parse_AseStandWithExplicitZeroHeading_KeepsZero()
+    {
+        TestVnasData.EnsureInitialized();
+        string path = Path.Combine("TestData", "ASE.geojson");
+        AirportGroundLayout layout = GeoJsonParser.Parse("ASE", File.ReadAllText(path), "ASE", new LayoutInputs([], VideoMap: null));
+
+        GroundNode? term = layout.FindParkingByName("TERM");
+        Assert.NotNull(term);
+        Assert.Equal(0.0, term.TrueHeading?.Degrees);
+    }
+
+    [Fact]
+    public void Parse_HelipadWithoutHeading_KeepsZero()
+    {
+        string json = """
+            {
+              "type": "FeatureCollection",
+              "features": [
+                {
+                  "type": "Feature",
+                  "properties": { "type": "taxiway", "name": "T", "circular": false },
+                  "geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                      [ -122.222193, 37.713103 ],
+                      [ -122.215874, 37.708816 ]
+                    ]
+                  }
+                },
+                {
+                  "type": "Feature",
+                  "properties": { "type": "helipad", "name": "H1" },
+                  "geometry": { "type": "Point", "coordinates": [ -122.2190, 37.7300 ] }
+                }
+              ]
+            }
+            """;
+
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", json, null, new LayoutInputs([], VideoMap: null));
+
+        GroundNode? helipad = layout.FindHelipadByName("H1");
+        Assert.NotNull(helipad);
+        Assert.Equal(GroundNodeType.Helipad, helipad.Type);
+        Assert.Equal(0.0, helipad.TrueHeading?.Degrees);
+    }
+
+    /// <summary>A stand lying exactly on taxiway T's line, so the perpendicular foot onto the edge is the stand itself.</summary>
+    private const string StandOnLineGeoJson = """
+        {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": { "type": "taxiway", "name": "T", "circular": false },
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [ -122.222193, 37.713103 ],
+                  [ -122.215874, 37.708816 ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "ONLINE" },
+              "geometry": { "type": "Point", "coordinates": [ -122.2190335, 37.7109595 ] }
+            }
+          ]
+        }
+        """;
+
+    /// <summary>A parking stand and no taxiway at all, so the layout has no eligible edge and the stand no foot.</summary>
+    private const string StandWithoutTaxiwayGeoJson = """
+        {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "NOWAY" },
+              "geometry": { "type": "Point", "coordinates": [ -122.2190, 37.7100 ] }
+            }
+          ]
+        }
+        """;
+
+    /// <summary>Taxiway T and a stand about 0.22 nm off it, too far for a connector.</summary>
+    private const string FarStandGeoJson = """
+        {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": { "type": "taxiway", "name": "T", "circular": false },
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [ -122.222193, 37.713103 ],
+                  [ -122.215874, 37.708816 ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "FAR" },
+              "geometry": { "type": "Point", "coordinates": [ -122.2167335, 37.7142595 ] }
+            }
+          ]
+        }
+        """;
+
+    /// <summary>Taxiway A and a stand its sidecar lead-in joins at A's first vertex.</summary>
+    private const string LeadInStandGeoJson = """
+        {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": { "type": "taxiway", "name": "A", "circular": false },
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [ -122.222193, 37.713103 ],
+                  [ -122.215874, 37.708816 ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": { "type": "parking", "name": "L1" },
+              "geometry": { "type": "Point", "coordinates": [ -122.2175, 37.7105 ] }
+            }
+          ]
+        }
+        """;
+
+    [Fact]
+    public void Parse_StandOnItsTaxiwaysLine_KeepsZero()
+    {
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", StandOnLineGeoJson, null, new LayoutInputs([], VideoMap: null));
+
+        GroundNode? stand = layout.FindParkingByName("ONLINE");
+        Assert.NotNull(stand);
+        TrueHeading? heading = stand.TrueHeading;
+        Assert.NotNull(heading);
+        Assert.Equal(0.0, heading.Value.Degrees);
+    }
+
+    [Fact]
+    public void Parse_StandWithNoEligibleEdge_KeepsZero()
+    {
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", StandWithoutTaxiwayGeoJson, null, new LayoutInputs([], VideoMap: null));
+
+        GroundNode? stand = layout.FindParkingByName("NOWAY");
+        Assert.NotNull(stand);
+        TrueHeading? heading = stand.TrueHeading;
+        Assert.NotNull(heading);
+        Assert.Equal(0.0, heading.Value.Degrees);
+    }
+
+    [Fact]
+    public void Parse_StandBeyondConnectorRange_DerivesHeadingFromTheNearestEdgeAnywhere()
+    {
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", FarStandGeoJson, null, new LayoutInputs([], VideoMap: null));
+
+        GroundNode? stand = layout.FindParkingByName("FAR");
+        Assert.NotNull(stand);
+        TrueHeading? heading = stand.TrueHeading;
+        Assert.NotNull(heading);
+        Assert.Empty(stand.Edges);
+
+        LatLon foot = NearestEligibleEdgeFoot(layout, stand);
+        Assert.Equal(Math.Round(GeoMath.BearingTo(foot, stand.Position)), heading.Value.Degrees);
+        Assert.NotEqual(0.0, heading.Value.Degrees);
+    }
+
+    [Fact]
+    public void Parse_StandWithSidecarLeadIn_DerivesHeadingFromTheLeadInVertex()
+    {
+        var leadIns = new LayoutInputs([new StandLeadIn("L1", "A", new LatLon(37.713103, -122.222193), null)], VideoMap: null);
+        AirportGroundLayout layout = GeoJsonParser.Parse("TST", LeadInStandGeoJson, null, leadIns);
+
+        GroundNode? stand = layout.FindParkingByName("L1");
+        Assert.NotNull(stand);
+        TrueHeading? heading = stand.TrueHeading;
+        Assert.NotNull(heading);
+        GroundNode vertex = FarConnectorEndpoint(stand);
+        Assert.Equal(Math.Round(GeoMath.BearingTo(vertex.Position, stand.Position)), heading.Value.Degrees);
+    }
+
+    [Fact]
+    public void Parse_RocStandWithoutFillets_DerivesTheRoundedBearing()
+    {
+        TestVnasData.EnsureInitialized();
+        string path = Path.Combine("TestData", "ROC.geojson");
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "ROC",
+            File.ReadAllText(path),
+            "ROC",
+            new LayoutInputs([], VideoMap: null),
+            applyFillets: false
+        );
+
+        GroundNode? stand = layout.FindParkingByName("GAS1");
+        Assert.NotNull(stand);
+        TrueHeading? heading = stand.TrueHeading;
+        Assert.NotNull(heading);
+        LatLon foot = NearestEligibleEdgeFoot(layout, stand);
+        Assert.Equal(Math.Round(GeoMath.BearingTo(foot, stand.Position)), heading.Value.Degrees);
+        Assert.Equal(199.0, heading.Value.Degrees);
+    }
+
+    /// <summary>
+    /// Asserts the stand sits nose-in on the bearing from the foot of the perpendicular onto the nearest taxiway edge a stand may
+    /// connect to, within a degree, which is the heading the parser derives for a stand whose GeoJSON carries none.
+    /// </summary>
+    private static void AssertDerivedFromNearestTaxiway(AirportGroundLayout layout, string standName)
+    {
+        GroundNode? stand = layout.FindParkingByName(standName);
+        Assert.NotNull(stand);
+        TrueHeading? maybeHeading = stand.TrueHeading;
+        Assert.NotNull(maybeHeading);
+        TrueHeading heading = maybeHeading.Value;
+
+        LatLon foot = NearestEligibleEdgeFoot(layout, stand);
+        var expected = new TrueHeading(GeoMath.BearingTo(foot, stand.Position));
+        double offBy = heading.AbsAngleTo(expected);
+        Assert.True(offBy <= 1.0, $"{standName}: heading {heading.Degrees:F1} is {offBy:F1} deg off the derived bearing {expected.Degrees:F1}");
+        Assert.Equal(Math.Round(heading.Degrees), heading.Degrees);
+    }
+
+    /// <summary>The node at the far end of a stand's RAMP connector.</summary>
+    private static GroundNode FarConnectorEndpoint(GroundNode stand)
+    {
+        foreach (IGroundEdge edge in stand.Edges)
+        {
+            if (edge is GroundEdge { IsRamp: true } ramp)
+            {
+                return ReferenceEquals(ramp.Nodes[0], stand) ? ramp.Nodes[1] : ramp.Nodes[0];
+            }
+        }
+
+        throw new InvalidOperationException($"Stand {stand.Name} has no RAMP connector");
+    }
+
+    private static LatLon NearestEligibleEdgeFoot(AirportGroundLayout layout, GroundNode stand)
+    {
+        LatLon? best = null;
+        double bestFt = double.MaxValue;
+        foreach (GroundEdge edge in layout.Edges)
+        {
+            if (!IsEligibleTaxiwayEdge(edge))
+            {
+                continue;
+            }
+
+            LatLon foot = GeoMath.FootOfPerpendicular(stand.Position, edge.Nodes[0].Position, edge.Nodes[1].Position).Foot;
+            double feet = GeoMath.DistanceNm(stand.Position, foot) * GeoMath.FeetPerNm;
+            if (feet < bestFt)
+            {
+                bestFt = feet;
+                best = foot;
+            }
+        }
+
+        Assert.NotNull(best);
+        return best.Value;
+    }
+
+    private static bool IsEligibleTaxiwayEdge(GroundEdge edge) =>
+        (!edge.IsRamp)
+        && (!edge.IsRunwayCenterline)
+        && (!edge.IsRunwayCrossingLink)
+        && edge.Nodes.All(n => (n.Type != GroundNodeType.Parking) && (n.Type != GroundNodeType.Helipad));
 }

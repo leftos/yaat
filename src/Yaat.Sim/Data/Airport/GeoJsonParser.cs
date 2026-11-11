@@ -24,6 +24,13 @@ public static class GeoJsonParser
     /// <summary>Max distance to connect a parking spot to a taxiway (nm).</summary>
     private const double ParkingConnectMaxNm = 0.15;
 
+    /// <summary>
+    /// How close to the stand its connection foot may sit before the bearing to it is unusable as a derived heading, feet: a
+    /// stand lying on its foot's own line has no outward bearing, the same indeterminate-foot rule <see cref="StandDepartures"/>
+    /// applies.
+    /// </summary>
+    private const double UsableFootFt = 1.0;
+
     private const double GateGroupAnchorConnectMaxNm = 0.24;
 
     private static readonly JsonDocumentOptions LenientJsonOptions = new() { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip };
@@ -394,7 +401,7 @@ public static class GeoJsonParser
                 Position = new LatLon(pkg.Lat, pkg.Lon),
                 Type = GroundNodeType.Parking,
                 Name = pkg.Name,
-                TrueHeading = new TrueHeading(pkg.Heading),
+                TrueHeading = pkg.Heading is { } authored ? new TrueHeading(authored) : null,
                 Origin = "GeoJson:parking",
             };
             layout.Nodes[id] = node;
@@ -404,6 +411,7 @@ public static class GeoJsonParser
                 ? ConnectStandLeadIn(airportId, node, leadIn, layout)
                 : null;
             LatLon? foot = leadInVertex is null ? ConnectParkingToTaxiway(node, layout) : leadInVertex.Position;
+            ApplyDerivedStandHeading(airportId, pkg, node, foot, layout);
             node.StandDeparture = StandDepartures.Classify(node, foot);
         }
 
@@ -417,7 +425,7 @@ public static class GeoJsonParser
                 Position = new LatLon(hp.Lat, hp.Lon),
                 Type = GroundNodeType.Helipad,
                 Name = hp.Name,
-                TrueHeading = new TrueHeading(hp.Heading),
+                TrueHeading = new TrueHeading(hp.Heading ?? 0),
                 Origin = "GeoJson:helipad",
             };
             layout.Nodes[id] = node;
@@ -460,6 +468,80 @@ public static class GeoJsonParser
     {
         GroundEdge? joined = ConnectToNearestTaxiway(parking, layout, ParkingConnectMaxNm);
         return joined is null ? null : GeoMath.FootOfPerpendicular(parking.Position, joined.Nodes[0].Position, joined.Nodes[1].Position).Foot;
+    }
+
+    /// <summary>
+    /// Gives a stand whose GeoJSON carries no heading the one its geometry implies; a stand with an authored heading, an
+    /// explicit 0 included, keeps it. The heading is the bearing from the foot of the perpendicular onto the pavement the stand
+    /// rolled in from back to the stand, so the aircraft stands nose-in, facing away from that pavement: the connection foot
+    /// first, else the foot on the nearest eligible taxiway edge at any distance (used for the heading only, the stand stays
+    /// unconnected), else 0 with a warning.
+    /// </summary>
+    /// <param name="airportId">The layout's airport id, for the log lines.</param>
+    /// <param name="pkg">The feature the stand's node was built from.</param>
+    /// <param name="node">The stand's node.</param>
+    /// <param name="connectionFoot">The foot of the stand's connection, or null when it has none.</param>
+    /// <param name="layout">The layout under construction.</param>
+    private static void ApplyDerivedStandHeading(
+        string airportId,
+        ParkingFeature pkg,
+        GroundNode node,
+        LatLon? connectionFoot,
+        AirportGroundLayout layout
+    )
+    {
+        if (pkg.Heading is not null)
+        {
+            return;
+        }
+
+        LatLon foot;
+        string source;
+        if (connectionFoot is { } connection && IsUsableFoot(node, connection))
+        {
+            foot = connection;
+            source = "connection foot";
+        }
+        else if (NearestEdgeFoot(node, layout) is { } edgeFoot && IsUsableFoot(node, edgeFoot))
+        {
+            foot = edgeFoot;
+            source = "nearest taxiway edge";
+        }
+        else
+        {
+            Log.LogWarning(
+                "{Airport}: stand {Stand} has no heading and no usable foot on an eligible taxiway edge; heading left at 0",
+                airportId,
+                node.Name
+            );
+            node.SetTrueHeading(new TrueHeading(0));
+            return;
+        }
+
+        var heading = new TrueHeading(Math.Round(GeoMath.BearingTo(foot, node.Position)));
+        node.SetTrueHeading(heading);
+        Log.LogDebug(
+            "{Airport}: stand {Stand} has no heading; derived {Degrees} deg from its {Source}",
+            airportId,
+            node.Name,
+            heading.Degrees,
+            source
+        );
+    }
+
+    /// <summary>Whether a foot a derived heading could read lies at least <see cref="UsableFootFt"/> from the stand.</summary>
+    private static bool IsUsableFoot(GroundNode stand, LatLon foot) => (GeoMath.DistanceNm(stand.Position, foot) * GeoMath.FeetPerNm) >= UsableFootFt;
+
+    /// <summary>
+    /// The foot of the perpendicular from the stand onto the nearest eligible taxiway edge, at any distance, used only to
+    /// derive a heading for an unheaded stand with no connection of its own; null when the layout has no eligible edge.
+    /// </summary>
+    private static LatLon? NearestEdgeFoot(GroundNode stand, AirportGroundLayout layout)
+    {
+        ConnectorTarget? target = FindNearestConnectorTarget(stand, layout, double.PositiveInfinity);
+        return target is { } found
+            ? GeoMath.FootOfPerpendicular(stand.Position, found.Edge.Nodes[0].Position, found.Edge.Nodes[1].Position).Foot
+            : null;
     }
 
     /// <summary>
@@ -755,9 +837,9 @@ public static class GeoJsonParser
     /// <returns>The taxiway edge the connector joined, or null when no connector was added.</returns>
     private static GroundEdge? ConnectToNearestTaxiway(GroundNode node, AirportGroundLayout layout, double maxDistNm)
     {
-        ConnectorTarget? target = FindNearestConnectorTarget(node, layout);
+        ConnectorTarget? target = FindNearestConnectorTarget(node, layout, maxDistNm);
 
-        if (target is null || target.Value.DistanceNm > maxDistNm)
+        if (target is null)
         {
             return null;
         }
@@ -800,7 +882,12 @@ public static class GeoJsonParser
         return edge;
     }
 
-    private static ConnectorTarget? FindNearestConnectorTarget(GroundNode node, AirportGroundLayout layout)
+    /// <summary>
+    /// The eligible taxiway edge nearest <paramref name="node"/> by perpendicular distance, when that distance is at most
+    /// <paramref name="maxDistNm"/>.
+    /// </summary>
+    /// <returns>The nearest eligible edge with its perpendicular distance and its distance along the edge to the foot, or null.</returns>
+    private static ConnectorTarget? FindNearestConnectorTarget(GroundNode node, AirportGroundLayout layout, double maxDistNm)
     {
         ConnectorTarget? best = null;
         foreach (GroundEdge edge in layout.Edges)
@@ -825,7 +912,7 @@ public static class GeoJsonParser
             }
         }
 
-        return best;
+        return ((best is { } found) && (found.DistanceNm <= maxDistNm)) ? found : null;
     }
 
     private static bool CanConnectToEdge(GroundEdge edge)
@@ -846,18 +933,22 @@ public static class GeoJsonParser
         double lon = coords[0].GetDouble();
         double lat = coords[1].GetDouble();
         string name = ReadNameText(props, "name");
-        int heading = 0;
+        int? heading = null;
         if (TryGetPropertyIgnoreCase(props, "heading", out JsonElement h))
         {
             if (h.ValueKind == JsonValueKind.String)
             {
-                int.TryParse(h.GetString(), out heading);
+                if (int.TryParse(h.GetString(), out int parsed))
+                {
+                    heading = parsed;
+                }
             }
             else if (h.ValueKind == JsonValueKind.Number)
             {
                 heading = h.GetInt32();
             }
         }
+
         return new ParkingFeature(name, lat, lon, heading);
     }
 
@@ -1045,7 +1136,11 @@ public static class GeoJsonParser
     }
 
     // Internal feature DTOs — accessible to graph builder and crossing detector
-    internal sealed record ParkingFeature(string Name, double Lat, double Lon, int Heading);
+    /// <summary>
+    /// A parking or helipad feature. <paramref name="Heading"/> is null when the feature carries none (key absent, JSON null,
+    /// or unparsable).
+    /// </summary>
+    internal sealed record ParkingFeature(string Name, double Lat, double Lon, int? Heading);
 
     internal sealed record SpotFeature(string Name, double Lat, double Lon);
 

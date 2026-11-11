@@ -37,7 +37,7 @@ If the map is unreachable, YAAT falls back to its last downloaded copy. An airpo
 
 | Feature `type` | Properties YAAT reads | What it changes in the sim |
 |----------------|-----------------------|----------------------------|
-| `parking` (Point) | `name`; `heading` (degrees true, optional, defaults to 0) | The parking spot an aircraft can start at, be taxied to (`@name`) and park on, facing `heading`. A spot is connected to the nearest taxiway edge within about 0.15 nm; one farther away is left unconnected. Names that are letters followed by digits (`A12`) also join the spot named by the letters (`A`) when it is within about 0.24 nm |
+| `parking` (Point) | `name`; `heading` (degrees true, optional; left out, YAAT derives a nose-in heading from the spot's connection to the nearest taxiway) | The parking spot an aircraft can start at, be taxied to (`@name`) and park on, facing `heading`. A spot is connected to the nearest taxiway edge within about 0.15 nm; one farther away is left unconnected. Names that are letters followed by digits (`A12`) also join the spot named by the letters (`A`) when it is within about 0.24 nm |
 | `helipad` (Point) | `name`, `heading` | Like parking, with a larger connection radius |
 | `spot` (Point) | `name` | A named point usable as a taxi destination (`$name`) and hold position |
 | `taxiway` (LineString) | `name` | The edge name used by `TAXI` clearances, route readouts and the movement-area classification. The name `RAMP` is special. Vertices within about 10 ft snap together and crossings of different taxiways become junctions. Two separate pavements must not share a name |

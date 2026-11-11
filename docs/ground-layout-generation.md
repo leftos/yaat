@@ -60,7 +60,7 @@ File: `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`
 
 The parser expects a GeoJSON FeatureCollection with features typed via `properties.type`:
 
-- **`parking`** — Point geometry. Required property: `name`. Optional: `heading` (integer degrees true, or a numeric string); absent or unparseable defaults to 0.
+- **`parking`** — Point geometry. Required property: `name`. Optional: `heading` (integer degrees true, or a numeric string); absent, JSON null, empty or unparseable derives a nose-in heading from the stand's connection (Step 6), an explicit 0 being kept as authored.
 - **`taxiway`** — LineString geometry. Required: `name` (taxiway letter/number, e.g., "C", "W3").
 - **`spot`** — Point geometry. Required: `name` (intersection or spot identifier).
 - **`runway`** — LineString geometry. Required: `name` (e.g., "28R/10L", both ends). Optional: `turnoff`, `noTurnoff`, `patternAltitude`, `patternSize`, `holdShortDistance`, and `threshold` — displaced-threshold distances in feet as `"end1 - end2"` in the same end order as the name (e.g. `"0 - 957"`).
@@ -212,6 +212,8 @@ Spots are existing nodes (created in Step 2) and get no connector. For each park
 2. Otherwise find the taxiway edge nearest the node by perpendicular distance, among the edges `CanConnectToEdge` allows: never a RAMP-named line, a runway centreline, a runway crossing link, or an edge touching a parking or helipad node.
 3. Check the perpendicular distance: parking max 0.15 nm (~800ft), helipad max 0.3 nm (~1600ft).
 4. If within the threshold, create a RAMP edge (origin `GeoJson:parking-connector`) to that edge's nearer vertex, or its farther one when the nearer is within the fillet no-op distance of the node. No edge is split.
+
+**Derived heading** (`ApplyDerivedStandHeading`): a parking stand whose GeoJSON heading is absent, JSON null, empty or unparsable gets its true heading from the bearing of the foot back to the stand (nose-in, facing away from the pavement it rolled in from), rounded to whole degrees with 360 as 0, set through `GroundNode.SetTrueHeading` once the stand is connected. The foot is, in order: the connection foot (the sidecar lead-in vertex, else the nearest-taxiway connector foot); the perpendicular foot on the nearest eligible taxiway edge at any distance (heading only, the stand stays unconnected); else the heading stays 0 with a warning. A foot under 1 ft from the stand falls to the next source. An authored heading, 0 included, is kept; a helipad with no heading stays 0. A derived stand classifies as a push-back stand by the rule below; a GA ramp that is really pull-through takes a sidecar `standDeparture` override, never a name rule in the parser.
 
 A parking stand's departure (`StandDepartures.Classify`) is then classified from the foot of the perpendicular onto the edge its connector joined, or from the lead-in vertex. After all the parking nodes and helipads, `ConnectGateGroupsToAnchors()` adds `GeoJson:gate-group-connector` RAMP edges joining each gate to the connected anchor of its gate group. The layout build reads the sidecar's `standLeadIns` only; see [`standLeadIns`](../src/Yaat.Sim/Data/ARTCCs/README.md#standleadins).
 
