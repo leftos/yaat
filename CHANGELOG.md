@@ -10,6 +10,7 @@
 - vTDLS no longer stops opening pending clearances after a sent PDC was reviewed; a refresh is no longer needed.
 - An auto-sorted vStrips rack no longer covers its bottom strip with a second "auto-sort on" banner.
 - Dragging a vStrips strip now drops at any strip's slot across its full height, and a release outside every rack slides the strip back.
+- A TAXI whose first taxiway is a ramp taxilane, such as SFO `TAXI M4 M1` after a push onto M5, now drives it or is refused.
 
 ## v0.18.3-beta [2026/11/11]
 
