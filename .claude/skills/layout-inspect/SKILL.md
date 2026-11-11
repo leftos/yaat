@@ -121,7 +121,7 @@ Most list-valued flags are **repeatable AND accept comma-separated values** — 
 | `--html-taxiway T` / `--html-runway R` / `--html-node N` / `--html-route N` | yes / yes | Highlight overlays for `--html` |
 | `--html-annotate NODE TEXT` | yes | Add a labeled annotation at a node |
 | `--ticks [LABEL=]<json>` | yes | Overlay a TickRecorder JSON recording as animated path. Repeat to compare runs in one playback (one aircraft per run): `--ticks TODAY=a.json --ticks NEW=b.json` renames each run's aircraft to its LABEL and gives each a distinct colour; unlabelled runs sharing a callsign, or runs from different airports, are an error. Use this for design-option renders instead of one HTML per option |
-| `--tick-table` / `--tick-summary` | flag | Text-table analysis of a TickRecorder JSON recording |
+| `--tick-table` / `--tick-summary` | flag | Text-table analysis of a TickRecorder JSON recording; `--tick-table` speed columns are `tgtSpd`, `brake` (braking-curve ceiling) and `arc` (fillet cornering-speed cap), `-` when the tick computed none |
 | `--tick-range LO-HI` | no | Filter tick analysis to inclusive range |
 | `--tick-ref ICAO/RWY` | no | Reference runway for xte/hdgErr columns |
 | `--tick-hold-shorts HS` | yes / yes | Distance columns to named hold-shorts |

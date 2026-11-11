@@ -54,7 +54,7 @@ The same recording feeds the text analyses:
 pwsh tools/gate.ps1 -Log .tmp/li-ticks.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson --ticks .tmp/my-test-ticks.json --tick-table --tick-ref SFO/28L --tick-hold-shorts K,D,Q
 ```
 
-`--tick-table` prints one row per tick (position, groundspeed, phase, the navigator's `NavTickDiag` speed caps,
+`--tick-table` prints one row per tick (position, groundspeed, phase, the navigator's `NavTickDiag` speed caps (`tgtSpd` target, `brake` braking-curve ceiling, `arc` fillet cornering-speed cap; `-` when the tick computed none),
 signed cross-track and heading error against `--tick-ref`, distances to the named hold-shorts); `--tick-summary`
 collapses it to one row per navigation target; `--tick-range LO-HI` and `--tick-callsign` filter. Flag reference:
 [`tools/Yaat.LayoutInspector/CLAUDE.md`](../tools/Yaat.LayoutInspector/CLAUDE.md).

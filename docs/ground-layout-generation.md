@@ -921,17 +921,12 @@ E2E tests in `tests/Yaat.Sim.Tests/AirportE2ETests.cs`:
 Per-tick diagnostics on aircraft state during ground navigation:
 
 ```csharp
-public sealed class NavTickDiag
-{
-    public GroundNode? CurrentNode { get; set; }
-    public GroundNode? NextNode { get; set; }
-    public double TargetBearing { get; set; }
-    public double CurrentBearing { get; set; }
-    public double SteerTarget { get; set; }
-    public double PathDeviationFt { get; set; }        // Distance from AC to route segment
-    public string EdgeType { get; set; }               // "straight" or "arc"
-    public double? ArcRadius { get; set; }
-}
+public record NavTickDiag(
+    int TargetNodeId, double DistToTargetNm, double BearingToTargetDeg, double AngleDiffDeg,
+    double TargetSpeedKts,
+    double BrakingLimitKts,    // braking-curve ceiling this tick; double.MaxValue when none computed
+    double ArcSpeedLimitKts,   // fillet arc cornering-speed cap; double.MaxValue off an arc / none computed
+    bool OnArc, double NodeRequiredSpeedKts, double PathDeviationFt, double SegFromLat, double SegFromLon);
 ```
 
 Recorded via `TickRecorder` JSON export for analysis and visualization.

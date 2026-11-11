@@ -15,14 +15,15 @@ public static class TickTableFormatter
     private const double FeetPerNm = GeoMath.FeetPerNm;
 
     /// <summary>
-    /// Writes a per-tick compact table. Columns: tick, hdg, gs, nav, distFt,
-    /// brg, angd, tgtSpd, brake, onArc. When <paramref name="refLine"/> is
+    /// Writes a per-tick compact table to <paramref name="w"/>. Columns: tick, hdg, gs, nav, distFt,
+    /// brg, angd, tgtSpd, brake, arc, onArc. When <paramref name="refLine"/> is
     /// supplied, adds xteFt/hdgErr columns. When <paramref name="exitRefs"/>
     /// are supplied, adds one along/dist pair per named hold-short.
     /// </summary>
-    public static void PrintTable(List<TickDataRow> rows, RunwayReference? refLine, List<ExitRef> exitRefs)
+    public static void PrintTable(TextWriter w, List<TickDataRow> rows, RunwayReference? refLine, List<ExitRef> exitRefs)
     {
-        string header = $"{"tick", 4} {"hdg", 7} {"gs", 6} {"nav", 5} {"distFt", 7} {"brg", 7} {"angd", 6} {"tgtSpd", 7} {"brake", 7} {"onArc", 5}";
+        string header =
+            $"{"tick", 4} {"hdg", 7} {"gs", 6} {"nav", 5} {"distFt", 7} {"brg", 7} {"angd", 6} {"tgtSpd", 7} {"brake", 7} {"arc", 7} {"onArc", 5}";
         if (refLine is not null)
         {
             header += $" {"xteFt", 8} {"hdgErr", 7}";
@@ -35,8 +36,8 @@ public static class TickTableFormatter
             header += $" {"along_" + er.Taxiway, 11} {"dist_" + er.Taxiway, 11}";
         }
 
-        Console.WriteLine(header);
-        Console.WriteLine(new string('-', header.Length));
+        w.WriteLine(header);
+        w.WriteLine(new string('-', header.Length));
 
         int? prevNav = null;
         foreach (TickDataRow row in rows)
@@ -45,7 +46,8 @@ public static class TickTableFormatter
             string nav = (row.NavTarget?.ToString(CultureInfo.InvariantCulture) ?? "-").PadLeft(5);
             string onArc = ((row.NavOnArc ?? false) ? "arc" : "str").PadLeft(5);
             string line =
-                $"{row.Time, 4} {Fmt(row.Hdg, 7)} {Fmt(row.Gs, 6)} {nav} {distFt} {Fmt(row.NavBrg, 7)} {Fmt(row.NavAngleDiff, 6)} {Fmt(row.NavTargetSpd, 7)} {Fmt(row.NavBrakeLimit, 7)} {onArc}";
+                $"{row.Time, 4} {Fmt(row.Hdg, 7)} {Fmt(row.Gs, 6)} {nav} {distFt} {Fmt(row.NavBrg, 7)} {Fmt(row.NavAngleDiff, 6)} "
+                + $"{Fmt(row.NavTargetSpd, 7)} {Fmt(row.NavBrakeLimit, 7)} {Fmt(row.NavArcLimit, 7)} {onArc}";
 
             if (refLine is { } r)
             {
@@ -66,7 +68,7 @@ public static class TickTableFormatter
             }
 
             string marker = prevNav is not null && row.NavTarget != prevNav ? "  <-- nav changed" : "";
-            Console.WriteLine(line + marker);
+            w.WriteLine(line + marker);
             prevNav = row.NavTarget;
         }
     }

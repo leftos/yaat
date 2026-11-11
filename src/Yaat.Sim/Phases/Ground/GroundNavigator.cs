@@ -543,6 +543,20 @@ public sealed class GroundNavigator
     private IReadOnlyList<GroundArc.SpeedSample>? _currentArcProfile;
 
     /// <summary>
+    /// The braking-curve ceiling (kts) the last <see cref="ComputeTargetSpeed"/> of this tick computed, carried into
+    /// the tick's <see cref="NavTickDiag"/>; <see cref="double.MaxValue"/> (unset) when this tick computed none, since
+    /// every tick path clears it first (<see cref="ResetDiagCaps"/>). Diagnostic only: no speed is derived from it.
+    /// </summary>
+    private double _diagBrakingLimitKts = double.MaxValue;
+
+    /// <summary>
+    /// The current fillet arc's cornering-speed cap (kts) the last <see cref="ComputeTargetSpeed"/> of this tick
+    /// computed, carried into the tick's <see cref="NavTickDiag"/>; <see cref="double.MaxValue"/> (unset) off an arc
+    /// or when this tick computed none. Diagnostic only: no speed is derived from it.
+    /// </summary>
+    private double _diagArcCapKts = double.MaxValue;
+
+    /// <summary>
     /// Net signed heading change (degrees) accumulated since the current segment was set up. Reset to 0
     /// whenever a primitive begins (<see cref="SetupSegment"/> or the entry-alignment→real-segment swap)
     /// and incremented each tick by the signed heading delta. Backstops the orbit invariant
@@ -3991,6 +4005,7 @@ public sealed class GroundNavigator
     /// </summary>
     private NavigatorResult TickTurnAboutBrake(PhaseContext ctx, TurnAboutBrakeLeg brake)
     {
+        ResetDiagCaps();
         var bearing = new TrueHeading(brake.BearingDeg);
         double toEndFt = GeoMath.AlongTrackDistanceNm(brake.EndPoint, ctx.Aircraft.Position, bearing) * GeoMath.FeetPerNm;
         double speedKts = ctx.Aircraft.IndicatedAirspeed;
@@ -4043,6 +4058,7 @@ public sealed class GroundNavigator
     /// </summary>
     private NavigatorResult TickTurnAboutHold(PhaseContext ctx, TurnAboutHold hold)
     {
+        ResetDiagCaps();
         SayPendingTurnAboutUnable(ctx);
         var bearing = new TrueHeading(hold.BearingDeg);
         double toStopFt = GeoMath.AlongTrackDistanceNm(hold.StopPoint, ctx.Aircraft.Position, bearing) * GeoMath.FeetPerNm;
@@ -4453,6 +4469,7 @@ public sealed class GroundNavigator
 
     private NavigatorResult TickStraight(PhaseContext ctx, PathPrimitiveStraight prim, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
+        ResetDiagCaps();
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         double edgeLengthNm = GeoMath.DistanceNm(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
 
@@ -4760,6 +4777,7 @@ public sealed class GroundNavigator
     /// </summary>
     private NavigatorResult TickBezier(PhaseContext ctx, PathPrimitiveBezier prim, Func<int, bool> isHoldShortCleared)
     {
+        ResetDiagCaps();
         LatLon positionBefore = ctx.Aircraft.Position;
 
         // First tick of this primitive: resolve where along the curve the aircraft stands and capture the
@@ -4897,6 +4915,7 @@ public sealed class GroundNavigator
 
     private NavigatorResult TickSlowTurn(PhaseContext ctx, PathPrimitiveSlowTurn prim)
     {
+        ResetDiagCaps();
         LatLon positionBefore = ctx.Aircraft.Position;
 
         // First tick of this primitive: capture the entry offset from the live position (see TickBezier).
@@ -5056,6 +5075,9 @@ public sealed class GroundNavigator
 
         // The stop rate is published only while the stop's curve is what sets the target.
         _stopCurveBinds = stopCurveBinds && (brakingLimit <= target);
+
+        _diagBrakingLimitKts = brakingLimit;
+        _diagArcCapKts = arcCap;
 
         if (Log.IsEnabled(LogLevel.Debug))
         {
@@ -5758,6 +5780,17 @@ public sealed class GroundNavigator
         return nm;
     }
 
+    /// <summary>
+    /// Clears the per-tick speed-cap diagnostics, so a tick whose path computes no ceiling reports it unset
+    /// (<see cref="double.MaxValue"/>) rather than the value the previous tick left. Called at the start of every
+    /// tick path that publishes a <see cref="NavTickDiag"/>.
+    /// </summary>
+    private void ResetDiagCaps()
+    {
+        _diagBrakingLimitKts = double.MaxValue;
+        _diagArcCapKts = double.MaxValue;
+    }
+
     private void UpdateDiag(PhaseContext ctx, double distNm, double bearingDeg, double targetSpeed, bool onArc)
     {
         double angleDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearingDeg));
@@ -5767,8 +5800,8 @@ public sealed class GroundNavigator
             BearingToTargetDeg: bearingDeg,
             AngleDiffDeg: angleDiff,
             TargetSpeedKts: targetSpeed,
-            BrakingLimitKts: targetSpeed,
-            ArcSpeedLimitKts: double.MaxValue,
+            BrakingLimitKts: _diagBrakingLimitKts,
+            ArcSpeedLimitKts: _diagArcCapKts,
             OnArc: onArc,
             NodeRequiredSpeedKts: _currentNodeRequiredSpeed,
             PathDeviationFt: 0.0,

@@ -130,7 +130,7 @@ public sealed class TickTableCommand : ICommand
             }
             else
             {
-                TickTableFormatter.PrintTable(rows, refLine, exitRefs);
+                TickTableFormatter.PrintTable(Console.Out, rows, refLine, exitRefs);
             }
         }
 

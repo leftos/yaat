@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -160,5 +161,167 @@ public class GroundNavigatorArcSpeedProfileTests(ITestOutputHelper output)
             $"the tight end should be flown near the {floorKts:F1} kt cap, was {minSpeedLastTenthKts:F1} kt"
         );
         Assert.True(seconds < 0.75 * crawlSeconds, $"traversal {seconds:F1} s should be well under the flat-cap crawl {crawlSeconds:F1} s");
+    }
+
+    /// <summary>The profile test's arc → straight exit route, set up on a fresh navigator.</summary>
+    private static (GroundNavigator Nav, AircraftState Aircraft, PhaseContext Ctx) ArcRoute()
+    {
+        (GroundArc arc, GroundNode from, GroundNode to) = DistortedArc();
+        var segment = new TaxiRouteSegment
+        {
+            Edge = new DirectionalEdge
+            {
+                Edge = arc,
+                FromNode = from,
+                ToNode = to,
+            },
+            TaxiwayName = "B",
+        };
+        (double exitLat, double exitLon) = GeoMath.ProjectPoint(to.Position, new TrueHeading(segment.Edge.ArrivalBearing), 200.0 / GeoMath.FeetPerNm);
+        GroundNode exit = Node(3, new LatLon(exitLat, exitLon));
+        var exitEdge = new GroundEdge
+        {
+            Nodes = [to, exit],
+            TaxiwayName = "B",
+            DistanceNm = GeoMath.DistanceNm(to.Position, exit.Position),
+        };
+        to.Edges.Add(exitEdge);
+        exit.Edges.Add(exitEdge);
+        var exitSegment = new TaxiRouteSegment
+        {
+            Edge = new DirectionalEdge
+            {
+                Edge = exitEdge,
+                FromNode = to,
+                ToNode = exit,
+            },
+            TaxiwayName = "B",
+        };
+        var route = new TaxiRoute { Segments = [segment, exitSegment], HoldShortPoints = [] };
+        (AircraftState aircraft, PhaseContext ctx) = MakeFixture(from.Position, segment.Edge.DepartureBearing, speedKts: 10.0);
+        var nav = new GroundNavigator { MaxSpeedKts = 30.0 };
+        nav.SetupSegment(route, ctx, _ => true);
+        return (nav, aircraft, ctx);
+    }
+
+    [Fact]
+    public void NavTickDiag_OnArc_ReportsTheArcAndBrakingCaps()
+    {
+        TestVnasData.EnsureInitialized();
+        (GroundNavigator nav, AircraftState aircraft, PhaseContext ctx) = ArcRoute();
+
+        NavTickDiag? diag = null;
+        for (int i = 0; (i < 400) && (diag is not { OnArc: true }); i++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            NavigatorResult result = nav.Tick(ctx, isLastSegment: false, _ => true);
+            Assert.NotEqual(NavigatorResult.ArrivedAtNode, result);
+            diag = aircraft.Ground.LastNavDiag;
+        }
+
+        NavTickDiag arcDiag = Assert.IsType<NavTickDiag>(diag);
+        Assert.True(arcDiag.OnArc, "the aircraft never reported a tick on the fillet arc");
+        Assert.True(arcDiag.ArcSpeedLimitKts < 1e6, $"an arc tick should report the arc's cornering cap, was {arcDiag.ArcSpeedLimitKts:F1} kt");
+        Assert.True(arcDiag.BrakingLimitKts < 1e6, $"an arc tick should report the braking-curve cap, was {arcDiag.BrakingLimitKts:F1} kt");
+    }
+
+    [Fact]
+    public void NavTickDiag_StraightFarFromNode_ReportsNoArcCap()
+    {
+        TestVnasData.EnsureInitialized();
+        GroundNode from = Node(11, new LatLon(37.700, -122.200));
+        (double toLat, double toLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(90.0), 5000.0 / GeoMath.FeetPerNm);
+        GroundNode to = Node(12, new LatLon(toLat, toLon));
+        var edge = new GroundEdge
+        {
+            Nodes = [from, to],
+            TaxiwayName = "B",
+            DistanceNm = GeoMath.DistanceNm(from.Position, to.Position),
+        };
+        from.Edges.Add(edge);
+        to.Edges.Add(edge);
+        var segment = new TaxiRouteSegment
+        {
+            Edge = new DirectionalEdge
+            {
+                Edge = edge,
+                FromNode = from,
+                ToNode = to,
+            },
+            TaxiwayName = "B",
+        };
+        var route = new TaxiRoute { Segments = [segment], HoldShortPoints = [] };
+        (AircraftState aircraft, PhaseContext ctx) = MakeFixture(from.Position, segment.Edge.DepartureBearing, speedKts: 15.0);
+        var nav = new GroundNavigator { MaxSpeedKts = 30.0 };
+        nav.SetupSegment(route, ctx, _ => true);
+
+        FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+        nav.Tick(ctx, isLastSegment: false, _ => true);
+
+        NavTickDiag diag = Assert.IsType<NavTickDiag>(aircraft.Ground.LastNavDiag);
+        Assert.False(diag.OnArc, "the straight leg reported an arc tick");
+        Assert.Equal(double.MaxValue, diag.ArcSpeedLimitKts);
+        Assert.True(diag.BrakingLimitKts < 1e6, $"a straight tick should report the braking-curve cap, was {diag.BrakingLimitKts:F1} kt");
+    }
+
+    [Fact]
+    public void NavTickDiag_SlowTurnAfterAStraight_ReportsNoCaps()
+    {
+        TestVnasData.EnsureInitialized();
+        GroundNode from = Node(21, new LatLon(37.700, -122.200));
+        (double toLat, double toLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(90.0), 5000.0 / GeoMath.FeetPerNm);
+        GroundNode to = Node(22, new LatLon(toLat, toLon));
+        var edge = new GroundEdge
+        {
+            Nodes = [from, to],
+            TaxiwayName = "B",
+            DistanceNm = GeoMath.DistanceNm(from.Position, to.Position),
+        };
+        from.Edges.Add(edge);
+        to.Edges.Add(edge);
+        var segment = new TaxiRouteSegment
+        {
+            Edge = new DirectionalEdge
+            {
+                Edge = edge,
+                FromNode = from,
+                ToNode = to,
+            },
+            TaxiwayName = "B",
+        };
+        var route = new TaxiRoute { Segments = [segment], HoldShortPoints = [] };
+        (AircraftState aircraft, PhaseContext ctx) = MakeFixture(from.Position, segment.Edge.DepartureBearing, speedKts: 15.0);
+        var nav = new GroundNavigator { MaxSpeedKts = 30.0 };
+        nav.SetupSegment(route, ctx, _ => true);
+
+        FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+        nav.Tick(ctx, isLastSegment: false, _ => true);
+        NavTickDiag straightDiag = Assert.IsType<NavTickDiag>(aircraft.Ground.LastNavDiag);
+        Assert.True(
+            straightDiag.BrakingLimitKts < 1e6,
+            $"the straight tick should report the braking-curve cap, was {straightDiag.BrakingLimitKts:F1} kt"
+        );
+
+        // A first leg aimed well past EntryAlignmentThresholdDeg off the aircraft's heading is flown as an
+        // entry-alignment slow turn, and that path computes neither cap: they must read unset, not the straight tick's.
+        (double aimLat, double aimLon) = GeoMath.ProjectPoint(
+            aircraft.Position,
+            new TrueHeading(segment.Edge.DepartureBearing - 90.0),
+            3000.0 / GeoMath.FeetPerNm
+        );
+        GroundNode aim = Node(23, new LatLon(aimLat, aimLon));
+        var alignmentRoute = new TaxiRoute
+        {
+            Segments = [VirtualNode.CreateSegment(VirtualNode.Create(aircraft.Position.Lat, aircraft.Position.Lon), aim, "B")],
+            HoldShortPoints = [],
+        };
+        nav.SetupSegment(alignmentRoute, ctx, _ => true);
+        Assert.IsType<PathPrimitiveSlowTurn>(nav.CurrentPrimitive);
+
+        FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+        nav.Tick(ctx, isLastSegment: false, _ => true);
+        NavTickDiag slowTurnDiag = Assert.IsType<NavTickDiag>(aircraft.Ground.LastNavDiag);
+        Assert.Equal(double.MaxValue, slowTurnDiag.BrakingLimitKts);
+        Assert.Equal(double.MaxValue, slowTurnDiag.ArcSpeedLimitKts);
     }
 }

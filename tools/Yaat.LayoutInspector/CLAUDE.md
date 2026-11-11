@@ -84,7 +84,7 @@ The page draws the unhighlighted layout in neutral greys on a graphite backgroun
 ### Tick-table (text analysis of a TickRecorder JSON recording)
 | Flag | Purpose |
 |------|---------|
-| `--tick-table` | Compact per-tick text table to stdout (requires `--ticks`) |
+| `--tick-table` | Compact per-tick text table to stdout (requires `--ticks`); speed columns `tgtSpd`, `brake` (braking-curve ceiling), `arc` (fillet cornering-speed cap), `-` when the tick computed none |
 | `--tick-summary` | Per-segment summary (one row per nav-target run) |
 | `--tick-range START-END` | Filter ticks to an inclusive range |
 | `--tick-ref ICAO/RWY` | Reference runway for signed cross-track (`xteFt`) and heading-error (`hdgErr`) columns |
