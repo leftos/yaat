@@ -105,13 +105,13 @@ internal static class TaxiBudgetDeriver
         TaxiRoute PlannedRoute
     );
 
-    public static TaxiBudget Derive(AirportGroundLayout layout, int fromNodeId, int toNodeId, AircraftCategory category)
+    public static TaxiBudget Derive(AirportGroundLayout layout, int fromNodeId, int toNodeId, TaxiClass taxiClass)
     {
         TaxiRoute route =
-            TaxiPathfinder.FindRoute(layout, fromNodeId, toNodeId, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
+            TaxiPathfinder.FindRoute(layout, fromNodeId, toNodeId, taxiClass.Category, taxiClass.Wake)
             ?? throw new InvalidOperationException($"TaxiBudgetDeriver: no A* route from node {fromNodeId} to {toNodeId} in {layout.AirportId}");
 
-        double nominalKts = CategoryPerformance.TaxiSpeed(category);
+        double nominalKts = CategoryPerformance.TaxiSpeed(taxiClass.Category);
 
         double optimalDistFt = 0;
         double optimalTurnDeg = 0;
@@ -126,7 +126,7 @@ internal static class TaxiBudgetDeriver
 
             // Per-segment arc-aware speed: straight segments use nominal,
             // arcs are capped by their geometry (tight fillet → low speed).
-            double segMaxSafeKts = seg.Edge.Edge.MaxSafeSpeedKts(category);
+            double segMaxSafeKts = seg.Edge.Edge.MaxSafeSpeedKts(taxiClass.Category);
             double effKts = Math.Max(1.0, Math.Min(nominalKts, segMaxSafeKts));
             optimalTimeSec += distFt / (effKts * FtPerSecondsPerKt);
 
@@ -156,7 +156,8 @@ internal static class TaxiBudgetDeriver
             prevArrivalBrg = arr;
         }
 
-        double timeBudgetSec = (optimalTimeSec * TimeFudgeMultiplier) + (cornerCount * SecondsPerCorner(category)) + StartupOverheadSec(category);
+        double timeBudgetSec =
+            (optimalTimeSec * TimeFudgeMultiplier) + (cornerCount * SecondsPerCorner(taxiClass.Category)) + StartupOverheadSec(taxiClass.Category);
         double turnBudgetDeg = optimalTurnDeg + (route.Segments.Count * PerSegmentTurnOverheadDeg) + TurnSlackDeg;
 
         return new TaxiBudget(optimalDistFt, optimalTurnDeg, cornerCount, optimalTimeSec, timeBudgetSec, turnBudgetDeg, route);

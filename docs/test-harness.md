@@ -467,8 +467,7 @@ unreachable. **Any diff between oracle and production is therefore exactly a cas
 
 ### `TaxiBudgetDeriver` / `TaxiBudgetEvaluator` — spin detection without flaking
 
-`TaxiBudgetDeriver` (`Helpers/TaxiBudgetDeriver.cs`) inspects the optimal A\* route (`TaxiPathfinder.FindRoute`) for an
-origin→destination pair and derives two budgets:
+`TaxiBudgetDeriver` (`Helpers/TaxiBudgetDeriver.cs`) inspects the optimal A\* route (`TaxiPathfinder.FindRoute`) for an origin→destination pair, planned with the pair's own `TaxiClass` (its category and its type's wake class, the same class `TaxiCoverageRunner`'s no-route precheck uses), and derives two budgets:
 
 - **Time budget** — `optimalTimeSec × TimeFudgeMultiplier (2.0) + cornerCount × SecondsPerCorner(cat) + StartupOverheadSec(cat)`, where the
   two overheads are derived from the physics constants rather than tuned by hand: `StartupOverheadSec = TaxiSpeed / TaxiAccelRate` (jet 30 s —

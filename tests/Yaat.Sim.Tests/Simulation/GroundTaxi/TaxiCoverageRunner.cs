@@ -176,13 +176,14 @@ internal static class TaxiCoverageRunner
         ITestOutputHelper output
     )
     {
-        if (TaxiPathfinder.FindRoute(layout, origin.Id, destination.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large) is null)
+        TaxiClass taxiClass = new(pair.Category, WakeTurbulenceData.WakeClassForType(pair.AircraftType, pair.Category));
+        if (TaxiPathfinder.FindRoute(layout, origin.Id, destination.Id, taxiClass.Category, taxiClass.Wake) is null)
         {
             output.WriteLine($"SKIP {pair.PairId}: no A* route from {origin.Id} to {destination.Id}");
             return;
         }
 
-        TaxiBudgetDeriver.TaxiBudget budget = TaxiBudgetDeriver.Derive(layout, origin.Id, destination.Id, pair.Category);
+        TaxiBudgetDeriver.TaxiBudget budget = TaxiBudgetDeriver.Derive(layout, origin.Id, destination.Id, taxiClass);
         output.WriteLine(
             $"{pair.PairId}: optimal {budget.OptimalDistFt:F0}ft / {budget.OptimalTurnDeg:F0}deg / {budget.CornerCount} corners "
                 + $"/ {budget.OptimalTimeSec:F0}s → budget {budget.TimeBudgetSec:F0}s, {budget.TurnBudgetDeg:F0}deg"
