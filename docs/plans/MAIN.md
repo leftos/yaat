@@ -918,14 +918,13 @@
 - [ ] YAAT-1664 Find CIFP approaches at airports with a 3-character FAA id (12J, 6R1, F00: GetApproach prefixes K)
 - [ ] YAAT-1688 Keep the offline CIFP stale-cache fallback to cycle-named files
 
-### 2 Refinements and rulings (2/9 done)
-- [ ] YAAT-133 Fly direct to the destination after the last route fix, then hold · release vNext
-  - [/] YAAT-2047 Hold over the destination after a route-exhausted direct, with the further-clearance call · release vNext
+### 2 Refinements and rulings (4/10 done)
 - [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
 - [ ] YAAT-924 Track a JRADO radial with wind correction after the intercept
 - [ ] YAAT-935 Convert an airport-anchored FRD with the airport's variation of record
 - [ ] YAAT-2064 Hold at the destination when the route itself ends at the airport (filed route or DCT to the field)
 - [ ] YAAT-2068 Recompute a hold's leg length and holding speed when its altitude changes
+- [ ] YAAT-2069 Decide what an APT in the clearance-limit hold does when a runway is already assigned at the new airport
 
 ### 3 Hygiene and tests (0/2 done)
 - [ ] YAAT-893 Prove the navigation database loader's concurrency rulings with tests
