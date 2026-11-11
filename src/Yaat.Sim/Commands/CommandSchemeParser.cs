@@ -686,8 +686,23 @@ public static class CommandSchemeParser
             return pattern.PrimaryVerb;
         }
 
+        if ((type == CanonicalCommandType.TaxiToParking) && (TaxiToParkingCanonical(argument) is { } expanded))
+        {
+            return expanded;
+        }
+
         return $"{pattern.PrimaryVerb} {argument}";
     }
+
+    /// <summary>
+    /// The <c>TAXI … @GATE</c> text a <c>TTP</c> route expands to, so the sent command, its echo, its log and its recording all
+    /// carry the clearance the server runs; null when the route does not parse, which leaves the <c>TTP</c> text in place so the
+    /// server's refusal still names the command as typed.
+    /// </summary>
+    private static string? TaxiToParkingCanonical(string argument) =>
+        (GroundCommandParser.ParseTaxiToParking(argument) is { IsSuccess: true, Value: TaxiCommand taxi })
+            ? CommandDescriber.DescribeCommand(taxi)
+            : null;
 
     private static readonly CanonicalCommandType[] TextArgCommandTypes =
     [

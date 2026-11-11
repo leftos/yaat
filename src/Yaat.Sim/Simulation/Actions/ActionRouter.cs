@@ -265,7 +265,11 @@ public sealed class ActionRouter
     }
 
     /// <summary>One pass through the router: the action, the host applying it, and the record it came from (null when fresh).</summary>
-    private readonly record struct Routing(ActionInput Input, IActionHost Host, RecordedCommand? Record);
+    private readonly record struct Routing(ActionInput Input, IActionHost Host, RecordedCommand? Record)
+    {
+        /// <summary>The classified command, set once the classification has run; null before it and for a body that does not parse.</summary>
+        public ParsedCommand? Parsed { get; init; }
+    }
 
     /// <summary>
     /// The server's test for "this diverges a tape being played back": true when the arm that routing
@@ -344,6 +348,7 @@ public sealed class ActionRouter
         RecordedCommandClassifier.Classification classification = RecordedCommandClassifier.Classify(remainder);
         ActionArm arm = ArmTable.For(classification.Kind);
         var trace = new ActionTrace(arm.Kind, arm.Scope);
+        routing = routing with { Parsed = classification.Parsed };
 
         // A kind that is never recorded (the session clock, bookmarks, the SHOW query) is never applied from a record
         // either: the legacy PAUSE / SIMRATE / BM records older recordings carry must not pause a rewind or re-add a
@@ -439,7 +444,13 @@ public sealed class ActionRouter
         RecordedCommand? toRecord = null;
         if ((recording == RecordingPolicy.Text) && _engine.Scenario is { } scenario)
         {
-            toRecord = new RecordedCommand(scenario.ElapsedSeconds, input.Callsign, input.Command, input.Initials, input.ConnectionId)
+            toRecord = new RecordedCommand(
+                scenario.ElapsedSeconds,
+                input.Callsign,
+                RecordedText(input.Command, routing.Parsed),
+                input.Initials,
+                input.ConnectionId
+            )
             {
                 ReactionDelaySeconds = ctx?.ReactionDelaySeconds,
                 SpawnJitterSeconds = ctx?.SpawnJitterSeconds,
@@ -453,6 +464,19 @@ public sealed class ActionRouter
         }
 
         return new ActionOutcome(result, toRecord, trace);
+    }
+
+    /// <summary>
+    /// The text a log entry and a recording carry for <paramref name="command"/>: a <c>TTP</c> route records the
+    /// <c>TAXI … @GATE</c> its parse expands it to, so the log, the echo and a replay on a build without the verb all say the
+    /// same thing. A command with another leading verb, or one that did not parse to a taxi, keeps the text as sent.
+    /// </summary>
+    private static string RecordedText(string command, ParsedCommand? parsed)
+    {
+        string firstToken = command.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+        return (parsed is TaxiCommand taxi) && CommandRegistry.IsAliasFor(CanonicalCommandType.TaxiToParking, firstToken)
+            ? CommandDescriber.DescribeCommand(taxi)
+            : command;
     }
 
     /// <summary>

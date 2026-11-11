@@ -15,6 +15,7 @@
 - `@GATE` to a full parking area holds the arrival at the ramp edge, reporting no parking, unless a fitting stand frees before it gets there.
 - The Ground View datablock shows `GATE F14` under the type line when the flight-plan remarks name a gate, until the aircraft parks there.
 - `RTAXI {taxiways}` re-routes a taxiing aircraft along new taxiways to the same destination; the pilot reads back the full taxi clearance.
+- `TTP {taxiways}` taxis an arrival along the named taxiways to its remarks' gate, sent and read back as `TAXI {taxiways} @GATE`.
 
 ### Changed
 

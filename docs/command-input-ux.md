@@ -221,7 +221,7 @@ What it does:
 
 ## Footguns
 
-- **`CommandInputParseResult` is a 16-field positional record with no per-field docs.** Use the table above; don't reconstruct field order from memory. Its `HasTrailingSpace` argument is computed with an **un-parenthesized mixed `&&`/`||`** expression — `hasTrailingSpaceAtCursor || fragmentHasTrailingSpace && activeTokenIndex >= tokens.Length` (`CommandInputController.cs:475`). C# precedence binds the `&&` first; read it as `A || (B && C)`. Touch with care.
+- **`CommandInputParseResult` is a 16-field positional record with no per-field docs.** Use the table above; don't reconstruct field order from memory. Its `HasTrailingSpace` argument is computed with an **un-parenthesized mixed `&&`/`||`** expression — `hasTrailingSpaceAtCursor || fragmentHasTrailingSpace && activeTokenIndex >= tokens.Length` (in `CommandInputController.ParseCommandInput`). C# precedence binds the `&&` first; read it as `A || (B && C)`. Touch with care.
 - **`ParameterIndex` is verb-relative** (`ActiveTokenIndex - VerbIndex - 1`). The same `paramIndex == 0` means "first arg" whether the verb is at token 0 or 1. Off-by-one silently shifts every suggestion.
 - **Active token = token at the caret, not the trailing token.** Mid-string edits suggest for the token under the cursor.
 - **`_pendingSuppressions`.** `AcceptSuggestion` sets it to 2 (Text + Caret events); `NavigateHistory` sets it to 1. A new accept path that forgets this re-pops the dropdown after acceptance.

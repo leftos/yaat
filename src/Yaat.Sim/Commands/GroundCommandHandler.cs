@@ -266,7 +266,7 @@ public static partial class GroundCommandHandler
     private delegate TaxiRoute? TaxiRouteResolver(TaxiCommand command, out PathfindingFailure? failure);
 
     /// <summary>The destination token that names the flight-plan remark's stand in place of a stand id (<c>@GATE</c>).</summary>
-    private const string RemarkGateAlias = "GATE";
+    internal const string RemarkGateAlias = "GATE";
 
     /// <summary>
     /// Replaces the <see cref="RemarkGateAlias"/> destination with the stand the aircraft's flight-plan remarks name, so a

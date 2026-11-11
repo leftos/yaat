@@ -872,6 +872,22 @@ public static class CommandRegistry
                     Mod("EXP", null, false),
                 ]
             ),
+            Cmd(
+                TaxiToParking,
+                "Taxi to Parking",
+                "Ground",
+                CommandDimension.Ground,
+                false,
+                ["TTP"],
+                [O(null, [Rep("route", "taxiway names")], "Taxi via route to the gate in the flight plan remarks")],
+                [
+                    Mod("HS", "taxiway/runway/$spot", true),
+                    Mod("CROSS", "runway", true),
+                    Mod("NODEL", null, false),
+                    Mod("$", "spot", false),
+                    Mod("EXP", null, false),
+                ]
+            ),
             Bare(HoldPosition, "Hold Position", "Ground", CommandDimension.Ground, false, ["HOLD", "HP"]),
             Cmd(
                 Resume,

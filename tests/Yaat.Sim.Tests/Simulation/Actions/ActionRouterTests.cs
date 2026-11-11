@@ -258,6 +258,18 @@ public class ActionRouterTests
     }
 
     [Fact]
+    public void Issue_RecordsTheExpandedTaxiForTtp()
+    {
+        SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);
+        AddAirborne(engine, "UAL123", 1234);
+
+        engine.Actions.Issue(new ActionInput("UAL123", "TTP A", "conn-1", "XX", Baked: null));
+
+        RecordedCommand recorded = Assert.IsType<RecordedCommand>(Assert.Single(engine.Scenario!.ActionLog));
+        Assert.Equal("TAXI A @GATE", recorded.Command);
+    }
+
+    [Fact]
     public void LegacyTransportRecord_IsInert()
     {
         SimulationEngine engine = BuildEngine(soloTrainingMode: false, reactionDelaySeconds: 0);

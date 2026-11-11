@@ -554,6 +554,76 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
         Assert.Equal(typed.Message, alias.Message);
     }
 
+    [Fact]
+    public void Ttp_ResolvesTheRemarkStand()
+    {
+        if (BuildSfo() is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SpawnOnT(ground, StandRemark, AircraftType);
+        CommandResult result = ground.Engine.SendCommand(Callsign, "TTP A");
+
+        Assert.True(result.Success, result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        Assert.Equal(Stand, route.DestinationParking);
+    }
+
+    [Fact]
+    public void Ttp_NoParkingRemark_IsRefusedAndLeavesTheAircraftAlone()
+    {
+        if (BuildSfo() is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SpawnOnT(ground, NoStandRemark, AircraftType);
+        Type? phaseBefore = aircraft.Phases?.CurrentPhase?.GetType();
+        CommandResult result = ground.Engine.SendCommand(Callsign, "TTP A");
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal("No gate in UAL733's flight plan remarks; name the stand with @", result.Message);
+        Assert.True(result.IsOperatorGuidance, "the refusal must be operator guidance so no pilot unable is queued");
+        Assert.Equal(phaseBefore, aircraft.Phases?.CurrentPhase?.GetType());
+        Assert.Null(aircraft.Ground.AssignedTaxiRoute);
+    }
+
+    /// <summary>The area remark through TTP: the expansion's <c>@GATE</c> picks a free stand in the area, as <c>TAXIAUTO @GATE</c> does.</summary>
+    [Fact]
+    public void Ttp_AreaRemark_PicksAFreeStandInTheArea()
+    {
+        if (BuildSfo() is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SpawnOnC(ground, MidSpanType);
+        CommandResult result = ground.Engine.SendCommand(Callsign, "TTP C");
+
+        Assert.True(result.Success, result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        Assert.Equal(MidSpanPick, route.DestinationParking);
+        HandlerReadback readback = Assert.IsType<HandlerReadback>(result.PilotReadback);
+        Assert.Contains("taxi to SIGNATURE", readback.Speech.Terminal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Ttp_ReadsBackExactlyAsTaxiAtGateDoes()
+    {
+        if ((BuildSfo() is not { } aliasGround) || (BuildSfo() is not { } typedGround))
+        {
+            return;
+        }
+
+        CommandResult alias = Clear(aliasGround, "TTP A");
+        CommandResult typed = Clear(typedGround, $"TAXI A @{Stand}");
+
+        Assert.True(alias.Success, alias.Message);
+        Assert.True(typed.Success, typed.Message);
+        Assert.Equal(typed.Message, alias.Message);
+    }
+
     private SfoGround? BuildSfo() => SfoGroundHarness.Build(output, autoCrossMode: AutoCrossRunwayMode.Off);
 
     private static AircraftState SpawnOnT(SfoGround ground, string remarks, string type)

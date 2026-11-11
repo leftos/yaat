@@ -553,6 +553,10 @@ internal static class GroundCommandParser
 
     private const string ReRouteTaxiNeedsPathMessage = "RTAXI requires a path";
 
+    private const string TaxiToParkingNeedsPathMessage = "TTP needs a taxi route; use TAXIAUTO @GATE to route automatically";
+
+    private const string TaxiToParkingOtherStandMessage = "TTP taxis to the gate in the flight plan remarks; use TAXI ... @{stand} for another stand";
+
     /// <summary>
     /// Parses RTAXI path [HS …] [CROSS …] [EXP]: the TAXI grammar (<see cref="ParseTaxiTokens"/>), wrapped as a re-route that
     /// keeps the aircraft's taxi destination. A path is required; a trailing destination is kept for the handler to compare.
@@ -573,6 +577,76 @@ internal static class GroundCommandParser
 
         return (taxi.Path.Count == 0) ? PR.Fail(ReRouteTaxiNeedsPathMessage) : PR.Ok(new ReRouteTaxiCommand(taxi));
     }
+
+    /// <summary>
+    /// Parses TTP path [HS …] [CROSS …] [NODEL] [EXP]: the TAXI grammar (<see cref="ParseTaxiTokens"/>) with the flight-plan-remark
+    /// stand's destination <c>@GATE</c> placed ahead of the first modifier, so the clearance reads, logs, reads back and
+    /// replays as the <c>TAXI … @GATE</c> it expands to. A path is required; a stand of its own or the <c>RWY</c> keyword the
+    /// expansion cannot carry is refused.
+    /// </summary>
+    internal static PR ParseTaxiToParking(string? arg)
+    {
+        string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        if (tokens.Length == 0)
+        {
+            return PR.Fail(TaxiToParkingNeedsPathMessage);
+        }
+
+        if (RepeatedTaxiFailure(tokens) is { } repeatedTaxi)
+        {
+            return repeatedTaxi;
+        }
+
+        if (tokens.Any(IsOtherStandOrRunwayToken))
+        {
+            return PR.Fail(TaxiToParkingOtherStandMessage);
+        }
+
+        PR parsed = ParseTaxiTokens(WithRemarkGate(tokens), detectTrailingRunway: true);
+        if ((!parsed.IsSuccess) || (parsed.Value is not TaxiCommand taxi))
+        {
+            return parsed;
+        }
+
+        return (taxi.Path.Count == 0) ? PR.Fail(TaxiToParkingNeedsPathMessage) : parsed;
+    }
+
+    private static bool IsOtherStandOrRunwayToken(string token) => token.StartsWith('@') || token.Equals("RWY", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The typed route with <c>@GATE</c> ahead of the first modifier keyword, where the TAXI grammar reads it as the parking
+    /// destination: inside or after a hold-short or crossing clause it is a target of that clause instead.
+    /// </summary>
+    private static string[] WithRemarkGate(string[] tokens)
+    {
+        var placed = new List<string>(tokens.Length + 1);
+        bool inserted = false;
+        foreach (string token in tokens)
+        {
+            if ((!inserted) && IsGateInsertionKeyword(token))
+            {
+                placed.Add(RemarkGateToken);
+                inserted = true;
+            }
+
+            placed.Add(token);
+        }
+
+        if (!inserted)
+        {
+            placed.Add(RemarkGateToken);
+        }
+
+        return [.. placed];
+    }
+
+    private const string RemarkGateToken = "@" + GroundCommandHandler.RemarkGateAlias;
+
+    private static bool IsGateInsertionKeyword(string token) =>
+        token.Equals("HS", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("CROSS", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("EXP", StringComparison.OrdinalIgnoreCase)
+        || token.Equals("NODEL", StringComparison.OrdinalIgnoreCase);
 
     private const string RepeatedTaxiMessage = "TAXI given twice: send the route once, after a single TAXI";
 

@@ -317,4 +317,7 @@ public enum CanonicalCommandType
 
     // Ground re-route that keeps the taxi destination (RTAXI); appended last so no stored value shifts
     ReRouteTaxi,
+
+    // Ground taxi to the flight-plan-remark gate (TTP), expanded to TAXI ... @GATE at parse time; appended last so no stored value shifts
+    TaxiToParking,
 }

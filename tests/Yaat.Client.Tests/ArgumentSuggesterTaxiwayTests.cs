@@ -385,6 +385,28 @@ public class ArgumentSuggesterTaxiwayTests
     }
 
     [Fact]
+    public void Ttp_RouteSlot_OffersTaxiways()
+    {
+        ObservableCollection<SuggestionItem> suggestions = Suggest("TTP ", ["A", "B"], spotNames: [], standNames: [], maxSuggestions: 20);
+        Assert.Contains(suggestions, s => (s.Text == "A") && (s.Description == "Taxiway"));
+        Assert.Contains(suggestions, s => s.Text == "B");
+    }
+
+    [Fact]
+    public void Ttp_AtSigil_OffersNoStandNames()
+    {
+        ObservableCollection<SuggestionItem> suggestions = Suggest(
+            "TTP @",
+            taxiwayNames: [],
+            spotNames: [],
+            standNames: ["NEW1", "B27"],
+            maxSuggestions: 20
+        );
+        Assert.DoesNotContain(suggestions, s => s.Text.Contains("B27", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(suggestions, s => s.Text.Contains("NEW1", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void TaxiAuto_AfterTheDestination_OffersOnlyExp()
     {
         // TAXIAUTO takes exactly one destination token, so only its EXP modifier ("taxi without delay") follows it:
