@@ -15,6 +15,9 @@
 - An auto-sorted vStrips rack no longer covers its bottom strip with a second "auto-sort on" banner.
 - Dragging a vStrips strip now drops at any strip's slot across its full height, and a release outside every rack slides the strip back.
 - A TAXI whose first taxiway is a ramp taxilane, such as SFO `TAXI M4 M1` after a push onto M5, now drives it or is refused.
+- vTDLS shows in its footer why a clearance could not open, send or dump, instead of leaving the row highlighted with nothing open.
+- vTDLS disables Send and Dump while disconnected and hides Dump on a sent PDC, as vTDLS does.
+- Browser vTDLS rejoins its room after a reconnect and reloads its page when a scenario is loaded or unloaded.
 
 ## v0.18.3-beta [2026/11/11]
 

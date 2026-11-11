@@ -311,6 +311,8 @@ params (filled via the static landing form in `wwwroot/index.html`).
 Subsequent connect follows the same shape as vStrips: `FindRoomForMyCid`
 → `JoinRoom` → `RefreshAccessibleTdlsFacilities` → `SwitchFacilityAsync`.
 
+`MainView.BootstrapFacilityAsync` is the one place that puts the page on a facility, after a join, a rejoin or a scenario change: it refetches the accessible list, reloads the page already shown when still accessible (`VTdlsViewModel.ReloadFacilityAsync`), else switches to the first leaf facility, and with none accessible calls `VTdlsViewModel.Clear`. The app remembers its last successful-or-in-flight join and, on `Reconnected` (a reconnect lands the connection in the lobby only), joins it again; `BrowserTdlsTransport.ScenarioLoaded` / `ScenarioUnloaded` re-run the bootstrap. Both server events carry a payload the client drops, bound through the empty `BrowserTdlsScenarioChangedDto` because `YaatTdlsHubJsonContext` has no reflection fallback (`TdlsHubJsonContextTests`).
+
 The browser app's `JoinRoom` uses `ClientKind.VTdls`, so the room
 terminal log marks the participant as `(vTDLS)` for everyone else.
 
@@ -372,6 +374,8 @@ recompute, not only when `CanSend` flips: with two mandatory fields
 blank, filling one leaves `CanSend` false, so an `[ObservableProperty]`
 notification keyed on it would never fire and the footer would keep
 naming the field the controller just filled.
+
+`VTdlsViewModel.CommandError` takes the footer in place of the editor status text (and sets the warning class) for the last failure the controller must see: no `TdlsConfigDto` for the selected item's facility, an editor that threw or a sent item with no clearance (`RejectSelection` also releases the row on the dispatcher so a second click re-fires), and a send or dump whose `CommandResultDto` failed or never came (`ReportCommandResult`; the `sendCommand` delegate now returns the result, null when the send threw or never went out). The next selection, a successful send or dump, `Clear` and a facility page apply reset it. `MatchesActiveFacility` is false until a page is applied, so early items wait for the full-state request that follows every apply. While `IsConnected` is false Send and Dump are disabled and F4/F12 are ignored; the Dump button is hidden on a read-only (sent or Wilco) editor, F4 still dumps.
 
 ### Climb via and Maintain are mutually exclusive
 

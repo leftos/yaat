@@ -37,4 +37,5 @@ namespace Yaat.Client.Tdls.Services;
 // ship the full DTO graph.
 [JsonSerializable(typeof(BrowserTdlsRoomInfoDto))]
 [JsonSerializable(typeof(BrowserTdlsJoinRoomResultDto))]
+[JsonSerializable(typeof(BrowserTdlsScenarioChangedDto))]
 internal partial class YaatTdlsHubJsonContext : JsonSerializerContext;

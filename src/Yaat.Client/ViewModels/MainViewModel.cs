@@ -1990,7 +1990,7 @@ public partial class MainViewModel : ObservableObject
         // when AccessibleTdlsFacilities populates; if the room's position has
         // no TDLS facility the entry stays empty but the tab is still there
         // (mirrors the Strips behavior).
-        var studentTdlsVm = new VTdlsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
+        var studentTdlsVm = new VTdlsViewModel(_connection, SendCommandForViewCoreAsync, () => _preferences.UserInitials)
         {
             IsDarkMode = _preferences.IsVTdlsDarkMode,
             ZoomScale = _preferences.TdlsZoomPercent / 100.0,

@@ -29,6 +29,15 @@ public partial class MainView : UserControl
     private readonly BrowserTdlsTransport _connection = new();
     private readonly Dictionary<string, string> _queryParams;
 
+    /// <summary>
+    /// The arguments of the last room join started (forgotten when the server answers null), so a reconnect can join the
+    /// same room again.
+    /// </summary>
+    private (string RoomId, string Initials, string Artcc)? _lastJoin;
+
+    /// <summary>The wait for a room to become available, while no room has been joined yet.</summary>
+    private Action<string>? _roomAvailableHandler;
+
     public MainView()
     {
         InitializeComponent();
@@ -70,6 +79,12 @@ public partial class MainView : UserControl
         // ("(2) OAK - vTDLS (YAAT)") so a controller working another window sees
         // new clearance requests land.
         vm.DclItems.CollectionChanged += (_, _) => RefreshPageTitle(vm);
+
+        // A reconnect puts the new connection in the lobby only, so the room is joined again; a scenario load or
+        // unload changes the facility page and its items, so the page is fetched again.
+        _connection.Reconnected += _ => Dispatcher.UIThread.Post(() => RejoinLastRoom(vm));
+        _connection.ScenarioLoaded += () => Dispatcher.UIThread.Post(() => _ = BootstrapFacilityAsync(vm, "Scenario loaded"));
+        _connection.ScenarioUnloaded += () => Dispatcher.UIThread.Post(() => _ = BootstrapFacilityAsync(vm, "Scenario unloaded"));
 
         UserControl? tdlsView = this.FindControl<UserControl>("TdlsView");
         tdlsView?.DataContext = vm;
@@ -163,20 +178,22 @@ public partial class MainView : UserControl
     private bool HasIdentity() =>
         !string.IsNullOrWhiteSpace(_queryParams.GetValueOrDefault("initials")) && !string.IsNullOrWhiteSpace(_queryParams.GetValueOrDefault("artcc"));
 
-    private async Task SendCommandAsync(string callsign, string command, string initials)
+    /// <summary>Sends a command and returns the server's result, or null when not connected or the send threw.</summary>
+    private async Task<CommandResultDto?> SendCommandAsync(string callsign, string command, string initials)
     {
         if (!_connection.IsConnected)
         {
-            return;
+            return null;
         }
         string resolvedInitials = !string.IsNullOrWhiteSpace(initials) ? initials : _queryParams.GetValueOrDefault("initials", "");
         try
         {
-            await _connection.SendCommandAsync(callsign, command, resolvedInitials);
+            return await _connection.SendCommandAsync(callsign, command, resolvedInitials);
         }
         catch (Exception ex)
         {
             Log.LogWarning(ex, "SendCommand failed: {Command}", command);
+            return null;
         }
     }
 
@@ -222,13 +239,14 @@ public partial class MainView : UserControl
             {
                 Log.LogInformation("No active room found yet; will auto-join when one becomes available");
                 SetStatus("Connected — no active room yet. Waiting for one to become available...");
-                _connection.RoomAvailableForCid += async roomId =>
+                _roomAvailableHandler = async roomId =>
                 {
                     if (vm.IsConnected)
                     {
                         await Dispatcher.UIThread.InvokeAsync(() => JoinRoomAsync(vm, roomId, initials, artcc));
                     }
                 };
+                _connection.RoomAvailableForCid += _roomAvailableHandler;
                 return;
             }
             SetStatus($"Connected, found room {room.RoomId} ({room.CreatorInitials}) — joining...");
@@ -243,39 +261,105 @@ public partial class MainView : UserControl
 
     private async Task JoinRoomAsync(VTdlsViewModel vm, string roomId, string initials, string artcc)
     {
+        // Remembered from the start, so a connection dropped during this very join still rejoins on reconnect.
+        _lastJoin = (roomId, initials, artcc);
         try
         {
             BrowserTdlsJoinRoomResultDto? state = await _connection.JoinRoomAsync(roomId, initials, artcc, ClientKind.VTdls);
             if (state is null)
             {
+                _lastJoin = null;
                 Log.LogWarning("JoinRoom {RoomId} returned null state", roomId);
                 SetStatus($"JoinRoom {roomId} returned null — room may have ended");
                 return;
             }
+            StopWaitingForRoom();
             Log.LogInformation("Joined {RoomId} as {Initials}; scenario={Scenario}", roomId, initials, state.ScenarioName ?? "(none)");
-            SetStatus($"Joined {roomId} ({state.ScenarioName ?? "no scenario"}) — fetching TDLS state...");
-
-            // Pull accessible facilities + auto-select a facility so the editor
-            // dropdowns have data. RequestFullTdlsState is fired automatically by
-            // SwitchFacilityAsync. A consolidated parent is never the default —
-            // its merged page is an explicit choice, same as on the desktop.
-            await vm.RefreshAccessibleFacilitiesAsync();
-            AccessibleFacilityDto? firstFacility =
-                vm.AccessibleFacilities.FirstOrDefault(f => !f.IsConsolidated) ?? vm.AccessibleFacilities.FirstOrDefault();
-            if (firstFacility is not null)
-            {
-                await vm.SwitchFacilityAsync(firstFacility.FacilityId);
-                SetStatus($"Joined {roomId} ({state.ScenarioName ?? "no scenario"}) — TDLS facility {firstFacility.FacilityName}");
-            }
-            else
-            {
-                SetStatus($"Joined {roomId} ({state.ScenarioName ?? "no scenario"}) — no TDLS facility accessible");
-            }
+            string joined = $"Joined {roomId} ({state.ScenarioName ?? "no scenario"})";
+            SetStatus($"{joined} — fetching TDLS state...");
+            await BootstrapFacilityAsync(vm, joined);
         }
         catch (Exception ex)
         {
             Log.LogWarning(ex, "JoinRoom {RoomId} failed", roomId);
             SetStatus($"JoinRoom {roomId} failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Puts the page on the facility the position can open now, after a join, a rejoin or a scenario change: the
+    /// accessible list is refetched (a scenario change can change it), the page already shown is reloaded so a
+    /// configuration changed meanwhile is picked up, another choice is switched to, and with nothing accessible the
+    /// page is emptied. <paramref name="statusPrefix"/> leads the status line that reports the outcome.
+    /// </summary>
+    private async Task BootstrapFacilityAsync(VTdlsViewModel vm, string statusPrefix)
+    {
+        // The page and status always reflect the latest bootstrap started: after each await, one that a newer
+        // bootstrap overtook leaves both alone. A page fetch already under way is dropped by the view-model itself.
+        int generation = ++_bootstrapGeneration;
+        await vm.RefreshAccessibleFacilitiesAsync();
+        if (generation != _bootstrapGeneration)
+        {
+            return;
+        }
+        AccessibleFacilityDto? facility = ChooseFacility(vm);
+        if (facility is null)
+        {
+            vm.Clear();
+            SetStatus($"{statusPrefix} — no TDLS facility accessible");
+            return;
+        }
+        if (string.Equals(facility.FacilityId, vm.FacilityId, StringComparison.Ordinal))
+        {
+            await vm.ReloadFacilityAsync();
+        }
+        else
+        {
+            await vm.SwitchFacilityAsync(facility.FacilityId);
+        }
+        if (generation != _bootstrapGeneration)
+        {
+            return;
+        }
+        SetStatus($"{statusPrefix} — TDLS facility {facility.FacilityName}");
+    }
+
+    /// <summary>Counts facility bootstraps started, so an older one can tell a newer one has overtaken it.</summary>
+    private int _bootstrapGeneration;
+
+    /// <summary>Drops the wait for a room to become available, so it cannot start a second join beside a rejoin.</summary>
+    private void StopWaitingForRoom()
+    {
+        if (_roomAvailableHandler is null)
+        {
+            return;
+        }
+        _connection.RoomAvailableForCid -= _roomAvailableHandler;
+        _roomAvailableHandler = null;
+    }
+
+    /// <summary>
+    /// The facility a join opens: the one already shown while the position can still open it (a rejoin keeps the
+    /// controller's page), else the first leaf facility. A consolidated parent is never the default — its merged
+    /// page is an explicit choice, same as on the desktop.
+    /// </summary>
+    private static AccessibleFacilityDto? ChooseFacility(VTdlsViewModel vm) =>
+        vm.AccessibleFacilities.FirstOrDefault(f => string.Equals(f.FacilityId, vm.FacilityId, StringComparison.Ordinal))
+        ?? vm.AccessibleFacilities.FirstOrDefault(f => !f.IsConsolidated)
+        ?? vm.AccessibleFacilities.FirstOrDefault();
+
+    /// <summary>
+    /// Joins the last room again after a reconnect (the join then bootstraps the facility page); nothing to do before a
+    /// join has started.
+    /// </summary>
+    private void RejoinLastRoom(VTdlsViewModel vm)
+    {
+        if (_lastJoin is not { } last)
+        {
+            return;
+        }
+        Log.LogInformation("Reconnected; rejoining {RoomId}", last.RoomId);
+        SetStatus($"Reconnected — rejoining room {last.RoomId}...");
+        _ = JoinRoomAsync(vm, last.RoomId, last.Initials, last.Artcc);
     }
 }

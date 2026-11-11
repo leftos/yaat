@@ -1650,6 +1650,8 @@ The **vTDLS** tab is YAAT's emulation of vNAS's [Tower Data Link Services](https
 
 vTDLS state lives on the server and broadcasts over SignalR — there is no CRC topic counterpart, so trainees do not see a vTDLS view in their CRC. The same display is also available in any browser at `/vtdls/` on the server (no install), backed by the WASM `Yaat.VTdls.Web` bundle.
 
+The browser page survives a dropped connection: after the automatic reconnect it rejoins the last room (even when the drop came during the first join), keeps its facility page when it is still accessible, and lists the items again; the status line reads "Reconnected — rejoining room <id>...". When a scenario is loaded or unloaded it refreshes the accessible facilities and loads a page, even if it joined before any scenario was loaded, or empties the page when none is accessible ("Scenario loaded — TDLS facility <name>", "Scenario unloaded — TDLS facility <name>", or "… — no TDLS facility accessible"). In the desktop client, choosing the facility already shown asks the server for the full vTDLS state again.
+
 While connected, **Tools → Open TDLS in Browser** opens that page in your default browser with your initials/ARTCC/room pre-filled — the vTDLS counterpart to **Open Strips in Browser**. The browser page signs in with VATSIM itself (so your CID is verified there too).
 
 ![The OAK vTDLS tab with the DCL list holding the scenario's departures above empty PDC and CPDLC lists](docs/user-guide/img/vtdls-tab.png)
@@ -1676,8 +1678,14 @@ Picking a **Climb via** value therefore greys out the **Maintain** box and empti
 
   Pick the active one from the **Ops Config** button in the footer and click **Save**; the button only appears where the facility uses them. The choice is shared with everyone in the room, and changing it closes any editor you have open — reopen the aircraft to pick up the new configuration's SIDs and defaults.
 - **Send (F12)** — issues the PDC. The pilot's clearance is applied silently (no voice readback) and RPOs in the room see a terminal entry: `[TDLS PDC sent at OAK] Expect=10 MIN, SID=OAKLAND4.ALTAM, Maintain=5000, DepFreq=120.9`. Roughly 3 seconds later the item auto-flips to Wilco.
-- **Dump (F4)** — removes the PDC. Terminal: the (facility, callsign) pair can no longer be auto-queued this session. Clearance must now be given by voice.
+- **Dump (F4)** — removes the PDC. Terminal: the (facility, callsign) pair can no longer be auto-queued this session. Clearance must now be given by voice. The Dump button is hidden once the item is a sent or Wilco PDC, as in upstream vTDLS; F4 still dumps it.
 - **F10** — closes the flight-plan editor without sending; the DCL entry stays.
+
+While the client is disconnected from the server, Send and Dump are disabled and F4 and F12 do nothing.
+
+When something goes wrong the footer shows the reason in the warning colour in place of the status line: **TDLS configuration for <facility> not found** (the item's facility has no TDLS configuration; the row is released, so a second click retries), **Error opening <callsign>: <message>** (the editor could not open, also when a sent PDC carries no clearance), and **Error sending PDC: <message>** or **Error dumping flight plan: <message>** with the server's message (**no response from server** when none came). The error clears on your next selection, a successful send or dump, leaving the room, or a facility page loading.
+
+An item that arrives before the facility page has loaded is not listed; it appears once the page loads.
 
 Click a callsign in the **PDC** list to re-open the editor on the clearance that was sent, **read-only** — the fields show exactly what was issued, every dropdown is disabled, and there is no Send button (a sent PDC can't be edited or resent). The footer reads **CLEARANCE TYPE: PDC — SENT (READ ONLY)**. Dump (F4) still works.
 

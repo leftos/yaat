@@ -41,7 +41,7 @@ public partial class MainViewModel
             return;
         }
 
-        var vm = new VTdlsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
+        var vm = new VTdlsViewModel(_connection, SendCommandForViewCoreAsync, () => _preferences.UserInitials)
         {
             IsDarkMode = _preferences.IsVTdlsDarkMode,
             ZoomScale = _preferences.TdlsZoomPercent / 100.0,

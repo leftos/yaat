@@ -27,7 +27,7 @@ public partial class VTdlsViewModel : ObservableObject
     private readonly ILogger _log = SimLog.CreateLogger("VTdlsViewModel");
 
     private readonly ITdlsTransport _transport;
-    private readonly Func<string, string, string, Task> _sendCommand;
+    private readonly Func<string, string, string, Task<CommandResultDto?>> _sendCommand;
     private readonly Func<string>? _getUserInitials;
 
     private readonly Dictionary<string, TdlsItemViewModel> _itemsById = new(StringComparer.Ordinal);
@@ -161,7 +161,8 @@ public partial class VTdlsViewModel : ObservableObject
     /// tracks the editor's dropdowns on the spot; the view binds it directly.
     /// </summary>
     public string FooterStatusText =>
-        Editor switch
+        CommandError
+        ?? Editor switch
         {
             null => "CLEARANCE TYPE: PDC",
             { IsReadOnly: true } => "CLEARANCE TYPE: PDC — SENT (READ ONLY)",
@@ -169,8 +170,19 @@ public partial class VTdlsViewModel : ObservableObject
             var editor => $"MANDATORY FIELD NOT SET — {editor.MissingMandatoryFieldNames}",
         };
 
-    /// <summary>True while the open editor is missing a mandatory field — drives the footer's warning colour.</summary>
-    public bool IsFooterStatusWarning => Editor is { IsReadOnly: false, IsSendEnabled: false };
+    /// <summary>
+    /// True while an error is shown or the open editor is missing a mandatory field — drives the footer's warning colour.
+    /// </summary>
+    public bool IsFooterStatusWarning => (CommandError is not null) || (Editor is { IsReadOnly: false, IsSendEnabled: false });
+
+    /// <summary>
+    /// The last failure the controller has to see: an item that could not be opened, or a send or dump the server did
+    /// not accept. Shown in the footer in place of the status line; cleared by the next selection or successful send.
+    /// </summary>
+    [ObservableProperty]
+    private string? _commandError;
+
+    partial void OnCommandErrorChanged(string? value) => RaiseFooterStatusChanged();
 
     partial void OnEditorChanged(TdlsFlightPlanEditorViewModel? oldValue, TdlsFlightPlanEditorViewModel? newValue)
     {
@@ -238,19 +250,48 @@ public partial class VTdlsViewModel : ObservableObject
             return;
         }
 
+        CommandError = null;
         newValue.IsSelected = true;
-        var config = Config;
-        // Pending items (DCL) open the editable compose editor. Sent/Wilco
-        // items (PDC) open the same editor seeded from the issued clearance
-        // but read-only — the controller reviews what was sent; no edits or
-        // resend, only Dump (handled separately).
-        if (newValue.Status == TdlsStatus.Pending && config is not null)
+        TdlsConfigDto? config = Config;
+        if (config is null)
         {
-            Editor = new TdlsFlightPlanEditorViewModel(
-                newValue.AircraftId,
+            _log.LogWarning("No TDLS configuration for {FacilityId}; item {AircraftId} not opened", newValue.FacilityId, newValue.AircraftId);
+            RejectSelection(newValue, $"TDLS configuration for {newValue.FacilityId} not found");
+            return;
+        }
+
+        try
+        {
+            TdlsFlightPlanEditorViewModel? editor = OpenEditorFor(newValue, config);
+            if (editor is null)
+            {
+                RejectSelection(newValue, $"Error opening {newValue.AircraftId}: no sent clearance");
+                return;
+            }
+            Editor = editor;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Opening the TDLS editor for {AircraftId} failed", newValue.AircraftId);
+            RejectSelection(newValue, $"Error opening {newValue.AircraftId}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Builds the editor for a selected item. Pending items (DCL) open the editable compose editor. Sent/Wilco items
+    /// (PDC) open the same editor seeded from the issued clearance but read-only — the controller reviews what was
+    /// sent; no edits or resend, only Dump (handled separately). Null for a sent item that carries no clearance, which the
+    /// caller rejects.
+    /// </summary>
+    private TdlsFlightPlanEditorViewModel? OpenEditorFor(TdlsItemViewModel item, TdlsConfigDto config)
+    {
+        if (item.Status == TdlsStatus.Pending)
+        {
+            return new TdlsFlightPlanEditorViewModel(
+                item.AircraftId,
                 config,
                 seed: null,
-                flightPlan: newValue.FlightPlan,
+                flightPlan: item.FlightPlan,
                 isReadOnly: false,
                 opConfigId: ActiveOpConfigId
             )
@@ -258,21 +299,35 @@ public partial class VTdlsViewModel : ObservableObject
                 OnSendRequested = OnEditorSendRequested,
             };
         }
-        else if (newValue.SentPayload is not null && config is not null)
+        if (item.SentPayload is not null)
         {
-            Editor = new TdlsFlightPlanEditorViewModel(
-                newValue.AircraftId,
+            return new TdlsFlightPlanEditorViewModel(
+                item.AircraftId,
                 config,
-                seed: newValue.SentPayload,
-                flightPlan: newValue.FlightPlan,
+                seed: item.SentPayload,
+                flightPlan: item.FlightPlan,
                 isReadOnly: true,
                 opConfigId: ActiveOpConfigId
             );
         }
-        else
+        return null;
+    }
+
+    /// <summary>
+    /// A selection that cannot open an editor shows why in the footer and lets go of the row once the selection change
+    /// has finished, so the next click on the same row fires again instead of latching "selected, no editor".
+    /// </summary>
+    private void RejectSelection(TdlsItemViewModel item, string error)
+    {
+        CommandError = error;
+        Editor = null;
+        Dispatcher.UIThread.Post(() =>
         {
-            Editor = null;
-        }
+            if (ReferenceEquals(SelectedItem, item))
+            {
+                SelectedItem = null;
+            }
+        });
     }
 
     /// <summary>
@@ -343,7 +398,11 @@ public partial class VTdlsViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveOpConfigName));
     }
 
-    public VTdlsViewModel(ITdlsTransport transport, Func<string, string, string, Task> sendCommand, Func<string>? getUserInitials)
+    /// <param name="sendCommand">
+    /// Sends a canonical command (callsign, command, initials) and returns the server's result, or null when the send
+    /// threw or never went out.
+    /// </param>
+    public VTdlsViewModel(ITdlsTransport transport, Func<string, string, string, Task<CommandResultDto?>> sendCommand, Func<string>? getUserInitials)
     {
         _transport = transport;
         _sendCommand = sendCommand;
@@ -375,11 +434,13 @@ public partial class VTdlsViewModel : ObservableObject
     public void Clear()
     {
         Dispatcher.UIThread.VerifyAccess();
+        _pageGeneration++;
         _itemsById.Clear();
         DclItems.Clear();
         PdcItems.Clear();
         SelectedItem = null;
         Editor = null;
+        CommandError = null;
     }
 
     public void SetConnected(bool connected)
@@ -433,15 +494,40 @@ public partial class VTdlsViewModel : ObservableObject
     /// <summary>
     /// Switches the VM to a different facility page — pulls its member configs,
     /// clears the current item collections, and requests a fresh full-state
-    /// broadcast so the new page's items render. Idempotent for the same id.
+    /// broadcast so the new page's items render. For the page already shown the fetch is skipped, but the full state is
+    /// still requested: after a reconnect or a rejoin that request is what lists the items again.
     /// </summary>
     public async Task SwitchFacilityAsync(string facilityId)
     {
-        if (string.Equals(FacilityId, facilityId, StringComparison.Ordinal) && _memberConfigs.Count > 0)
+        bool samePage = string.Equals(FacilityId, facilityId, StringComparison.Ordinal) && (_memberConfigs.Count > 0);
+        if ((!samePage) && (!await FetchAndApplyFacilityViewAsync(facilityId)))
         {
             return;
         }
+        await RequestFullStateAsync(facilityId);
+    }
 
+    /// <summary>
+    /// Re-fetches and re-applies the page shown now, then requests the full state — what a scenario load or unload
+    /// needs, since either can change the facility's configuration and its items. Does nothing before a page is chosen.
+    /// </summary>
+    public async Task ReloadFacilityAsync()
+    {
+        string? facilityId = FacilityId;
+        if (facilityId is null)
+        {
+            return;
+        }
+        if (await FetchAndApplyFacilityViewAsync(facilityId))
+        {
+            await RequestFullStateAsync(facilityId);
+        }
+    }
+
+    /// <summary>Fetches a facility page and posts its apply to the UI thread. False, logged, when the fetch failed.</summary>
+    private async Task<bool> FetchAndApplyFacilityViewAsync(string facilityId)
+    {
+        int generation = ++_pageGeneration;
         TdlsFacilityViewDto? view;
         try
         {
@@ -450,11 +536,33 @@ public partial class VTdlsViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to fetch TDLS facility view for {Facility}", facilityId);
-            return;
+            return false;
         }
 
-        Dispatcher.UIThread.Post(() => ApplyFacilityView(facilityId, view));
+        if (generation != _pageGeneration)
+        {
+            _log.LogDebug("TDLS facility view for {Facility} superseded before it arrived; not applied", facilityId);
+            return false;
+        }
+        Dispatcher.UIThread.Post(() =>
+        {
+            // A clear or a newer fetch may still land between the post and its run.
+            if (generation == _pageGeneration)
+            {
+                ApplyFacilityView(facilityId, view);
+            }
+        });
+        return true;
+    }
 
+    /// <summary>
+    /// Bumped by <see cref="Clear"/> and at the start of every facility fetch, so a fetch that a clear or a newer fetch
+    /// overtook does not apply its page over theirs: the page always reflects the latest of them.
+    /// </summary>
+    private int _pageGeneration;
+
+    private async Task RequestFullStateAsync(string facilityId)
+    {
         try
         {
             await _transport.RequestFullTdlsStateAsync();
@@ -488,6 +596,7 @@ public partial class VTdlsViewModel : ObservableObject
         PdcItems.Clear();
         SelectedItem = null;
         Editor = null;
+        CommandError = null;
         RaiseConfigDerivedChanged();
     }
 
@@ -581,9 +690,11 @@ public partial class VTdlsViewModel : ObservableObject
     /// <summary>
     /// Whether an item belongs on this page. On a leaf that is an exact facility match;
     /// on a consolidated parent it is membership in the child set — which is the whole
-    /// consolidation mechanism, since every item path already filters through here.
+    /// consolidation mechanism, since every item path already filters through here. Before a facility page is applied
+    /// nothing belongs: there is no configuration to open an item with, and the full-state request that follows every
+    /// page apply brings earlier items back.
     /// </summary>
-    private bool MatchesActiveFacility(string facilityId) => _memberConfigs.Count == 0 || _memberConfigs.ContainsKey(facilityId);
+    private bool MatchesActiveFacility(string facilityId) => _memberConfigs.ContainsKey(facilityId);
 
     private void ApplyItem(TdlsItemDto dto)
     {
@@ -640,11 +751,12 @@ public partial class VTdlsViewModel : ObservableObject
     [RelayCommand]
     private async Task DumpSelectedAsync()
     {
-        if (SelectedItem is null)
+        if ((!IsConnected) || (SelectedItem is null))
         {
             return;
         }
-        await _sendCommand(SelectedItem.AircraftId, VTdlsCanonicalBuilder.BuildDump(), _getUserInitials?.Invoke() ?? "");
+        CommandResultDto? result = await _sendCommand(SelectedItem.AircraftId, VTdlsCanonicalBuilder.BuildDump(), _getUserInitials?.Invoke() ?? "");
+        ReportCommandResult(result, "Error dumping flight plan");
     }
 
     [RelayCommand]
@@ -657,12 +769,24 @@ public partial class VTdlsViewModel : ObservableObject
         await _sendCommand(SelectedItem.AircraftId, VTdlsCanonicalBuilder.BuildWilco(), _getUserInitials?.Invoke() ?? "");
     }
 
-    private Task OnEditorSendRequested(ClearanceDto clearance)
+    private async Task OnEditorSendRequested(ClearanceDto clearance)
     {
-        if (SelectedItem is null)
+        if ((!IsConnected) || (SelectedItem is null))
         {
-            return Task.CompletedTask;
+            return;
         }
-        return _sendCommand(SelectedItem.AircraftId, VTdlsCanonicalBuilder.BuildSend(clearance), _getUserInitials?.Invoke() ?? "");
+        CommandResultDto? result = await _sendCommand(
+            SelectedItem.AircraftId,
+            VTdlsCanonicalBuilder.BuildSend(clearance),
+            _getUserInitials?.Invoke() ?? ""
+        );
+        ReportCommandResult(result, "Error sending PDC");
     }
+
+    /// <summary>
+    /// Shows a send or dump the server did not accept in the footer — null means it never got an answer — and clears
+    /// the shown error once one goes through.
+    /// </summary>
+    private void ReportCommandResult(CommandResultDto? result, string failure) =>
+        CommandError = (result?.Success == true) ? null : $"{failure}: {result?.Message ?? "no response from server"}";
 }

@@ -29,7 +29,13 @@ public class VTdlsViewInteractionTests
     public void Find_CtrlFOpens_TypingHighlightsMatches_EscClosesAndClears()
     {
         (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
-        transport.PushState(new TdlsStateDto([Item("id1", "UAL111"), Item("id2", "AAL222"), Item("id3", "UAL333")], []));
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(
+            new TdlsStateDto(
+                [Item("id1", "UAL111", facilityId: "IAD"), Item("id2", "AAL222", facilityId: "IAD"), Item("id3", "UAL333", facilityId: "IAD")],
+                []
+            )
+        );
         Dispatcher.UIThread.RunJobs();
         VTdlsView view = BootView(vm);
 
@@ -77,7 +83,8 @@ public class VTdlsViewInteractionTests
             Cid: "123",
             CruiseAltitude: 35000
         );
-        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", fp)], []));
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL111", fp, facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
         VTdlsView view = BootView(vm);
 
@@ -366,15 +373,15 @@ public class VTdlsViewInteractionTests
     }
 
     /// <summary>
-    /// The load-time state push lands before any facility page has been fetched, so the items are created
-    /// and listed against an empty member set. Switching to the facility clears the lists while keeping the
-    /// identities, and the full-state re-push that follows the switch is what has to put them back: nothing
-    /// about those items moved between or within the lists, they are simply no longer in either one.
+    /// Re-applying the facility page (a reconnect or a scenario reload re-fetches it) clears the lists while keeping the
+    /// identities, and the full-state re-push that follows is what has to put them back: nothing about those items
+    /// moved between or within the lists, they are simply no longer in either one.
     /// </summary>
     [AvaloniaFact]
-    public void FacilitySwitchAfterLoadTimeState_RelistsTheItems()
+    public void ReapplyingTheFacilityPage_RelistsTheItems()
     {
         (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq() with { FacilityId = "SFO", FacilityName = "San Francisco Intl ATCT" });
         var state = new TdlsStateDto(
             [
                 Item("id1", "UAL1742", facilityId: "SFO"),
@@ -539,6 +546,347 @@ public class VTdlsViewInteractionTests
         Assert.True(await vm.SaveOpConfigAsync("cfg-east"));
         // NCT owns no TDLS configuration at all — naming the page would be rejected.
         Assert.Equal([("", "TDLSOPS OAK cfg-east")], SentCommands);
+    }
+
+    // ── An item the page cannot open ──
+
+    /// <summary>
+    /// Before a facility page is applied there is no configuration to open any item with, so nothing is listed: the
+    /// full-state request that follows every page apply brings the items back.
+    /// </summary>
+    [AvaloniaFact]
+    public void ItemPushedBeforeAnyFacilityPage_IsNotListed()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
+        transport.PushItem(Item("id2", "AAL9", facilityId: "IAD"));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(vm.DclItems);
+        Assert.Empty(vm.PdcItems);
+    }
+
+    /// <summary>
+    /// The reported latch: a pending item whose facility has no configuration on the page highlighted, opened nothing,
+    /// and a second click on the same row never re-fired. It has to say why, and let go of the selection so the next
+    /// click tries again.
+    /// </summary>
+    [AvaloniaFact]
+    public void SelectingAnItemWithNoFacilityConfig_ShowsTheErrorAndReleasesTheSelection()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport _) = MakeVm();
+        // Two members, so there is no sole-member configuration to fall back on.
+        SeedConsolidated(vm);
+        var orphan = new TdlsItemViewModel(Item("id9", "AAL9", facilityId: "SMF"));
+
+        vm.SelectedItem = orphan;
+        Assert.Null(vm.Editor);
+        Assert.Equal("TDLS configuration for SMF not found", vm.CommandError);
+        Assert.Equal("TDLS configuration for SMF not found", vm.FooterStatusText);
+        Assert.True(vm.IsFooterStatusWarning);
+
+        Dispatcher.UIThread.RunJobs();
+        Assert.Null(vm.SelectedItem);
+
+        // The same row again re-fires rather than latching.
+        vm.CommandError = null;
+        vm.SelectedItem = orphan;
+        Assert.Equal("TDLS configuration for SMF not found", vm.CommandError);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Null(vm.SelectedItem);
+    }
+
+    // ── Re-bootstrapping the page ──
+
+    /// <summary>
+    /// Re-selecting the facility already shown keeps its page but still asks for the full state: after a reconnect or a
+    /// scenario load that request is the only thing that puts the items back. A reload fetches both again.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task SwitchingToTheSameFacility_RequestsTheStateAgain_AndReloadRefetchesThePage()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        TdlsConfigDto config = ConfigWithMandatoryDepFreq();
+        transport.FacilityView = new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config]);
+
+        await vm.SwitchFacilityAsync("IAD");
+        Dispatcher.UIThread.RunJobs();
+        await vm.SwitchFacilityAsync("IAD");
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, transport.FacilityViewRequests);
+        Assert.Equal(2, transport.FullStateRequests);
+
+        await vm.ReloadFacilityAsync();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2, transport.FacilityViewRequests);
+        Assert.Equal(3, transport.FullStateRequests);
+    }
+
+    [AvaloniaFact]
+    public async Task ReloadWithNoFacility_FetchesNothing()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+
+        await vm.ReloadFacilityAsync();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(0, transport.FacilityViewRequests);
+        Assert.Equal(0, transport.FullStateRequests);
+    }
+
+    /// <summary>
+    /// A scenario changed while the page was open (or during an outage) can change the facility's configuration; a
+    /// reload of the page already shown adopts the refetched one rather than keeping the old.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ReloadOfTheSamePage_AdoptsTheRefetchedConfiguration()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        TdlsConfigDto before = ConfigWithMandatoryDepFreq();
+        transport.FacilityView = new TdlsFacilityViewDto(before.FacilityId, before.FacilityName, [before]);
+        await vm.SwitchFacilityAsync("IAD");
+        Dispatcher.UIThread.RunJobs();
+
+        TdlsConfigDto after = ConfigWithTwoSids();
+        transport.FacilityView = new TdlsFacilityViewDto(after.FacilityId, after.FacilityName, [after]);
+        await vm.ReloadFacilityAsync();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(after, vm.Config);
+    }
+
+    /// <summary>
+    /// A page fetch still in flight when the page is cleared (the scenario unloaded meanwhile) must not land on the
+    /// cleared page: the latest thing done to the page wins, so the stale facility and its configuration stay off it.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ClearDuringAFacilityFetch_KeepsThePageCleared()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        TdlsConfigDto config = ConfigWithMandatoryDepFreq();
+        var held = new TaskCompletionSource<TdlsFacilityViewDto?>();
+        transport.HeldFacilityView = held;
+
+        Task switching = vm.SwitchFacilityAsync("IAD");
+        vm.Clear();
+        held.SetResult(new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config]));
+        await switching;
+        Dispatcher.UIThread.RunJobs();
+
+        // Clear keeps the page identity it had, which before the fetch was none.
+        Assert.Null(vm.FacilityId);
+        Assert.Null(vm.Config);
+        Assert.Empty(vm.DclItems);
+        Assert.Empty(vm.PdcItems);
+    }
+
+    // ── Send and dump failures ──
+
+    /// <summary>A send the server rejects shows its message in the footer, and the next accepted send clears it.</summary>
+    [AvaloniaFact]
+    public async Task SendRejectedByTheServer_ShowsTheErrorInTheFooter_UntilASendSucceeds()
+    {
+        var answer = new CommandResultDto(false, "boom");
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm(() => answer);
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        TdlsFlightPlanEditorViewModel editor = vm.Editor!;
+        editor.SelectedDepFreq = editor.DepFreqs[0];
+        Dispatcher.UIThread.RunJobs();
+
+        await editor.SendCommand.ExecuteAsync(null);
+        Assert.Equal("Error sending PDC: boom", vm.FooterStatusText);
+        Assert.True(vm.IsFooterStatusWarning);
+
+        answer = new CommandResultDto(true, null);
+        await editor.SendCommand.ExecuteAsync(null);
+        Assert.Null(vm.CommandError);
+        Assert.Equal("CLEARANCE TYPE: PDC", vm.FooterStatusText);
+    }
+
+    /// <summary>A dump that never reached the server says so rather than failing silently.</summary>
+    [AvaloniaFact]
+    public async Task DumpWithNoResponse_ShowsTheErrorInTheFooter()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm(() => null);
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+
+        await vm.DumpSelectedCommand.ExecuteAsync(null);
+
+        Assert.Equal("Error dumping flight plan: no response from server", vm.FooterStatusText);
+        Assert.True(vm.IsFooterStatusWarning);
+    }
+
+    /// <summary>While disconnected a dump goes nowhere, so none is attempted.</summary>
+    [AvaloniaFact]
+    public async Task DumpWhileDisconnected_SendsNothing()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        TdlsItemViewModel item = vm.DclItems.Single();
+
+        // Losing the connection empties the page; re-selecting the item the controller still holds is what a dump
+        // fired from a stale view would act on.
+        vm.SetConnected(false);
+        vm.SelectedItem = item;
+        Dispatcher.UIThread.RunJobs();
+        SentCommands.Clear();
+
+        await vm.DumpSelectedCommand.ExecuteAsync(null);
+
+        Assert.Empty(SentCommands);
+    }
+
+    /// <summary>While disconnected a send goes nowhere either, even with every mandatory field filled.</summary>
+    [AvaloniaFact]
+    public async Task SendWhileDisconnected_SendsNothing()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        TdlsItemViewModel item = vm.DclItems.Single();
+
+        vm.SetConnected(false);
+        vm.SelectedItem = item;
+        Dispatcher.UIThread.RunJobs();
+        TdlsFlightPlanEditorViewModel editor = vm.Editor!;
+        editor.SelectedDepFreq = editor.DepFreqs[0];
+        Dispatcher.UIThread.RunJobs();
+        SentCommands.Clear();
+
+        await editor.SendCommand.ExecuteAsync(null);
+
+        Assert.Empty(SentCommands);
+    }
+
+    /// <summary>Disconnected, the editor's Send and Dump buttons cannot be pressed, even on a clearance ready to send.</summary>
+    [AvaloniaFact]
+    public void SendAndDumpButtons_AreDisabledWhileDisconnected()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+        TdlsItemViewModel item = vm.DclItems.Single();
+        VTdlsView view = BootViewAtSize(vm, windowWidth: 900, windowHeight: 900);
+
+        vm.SetConnected(false);
+        vm.SelectedItem = item;
+        Dispatcher.UIThread.RunJobs();
+        vm.Editor!.SelectedDepFreq = vm.Editor.DepFreqs[0];
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(vm.Editor.IsSendEnabled);
+        Assert.False(EditorButton(view, "Send").IsEffectivelyEnabled);
+        Assert.False(EditorButton(view, "Dump").IsEffectivelyEnabled);
+    }
+
+    /// <summary>An editor that throws while it is built says so in the footer and releases the row, rather than latching.</summary>
+    [AvaloniaFact]
+    public void EditorThatFailsToBuild_ShowsTheErrorAndReleasesTheSelection()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        // A configuration with no SID list at all is malformed enough to make the editor throw.
+        SeedFacility(vm, ConfigWithMandatoryDepFreq() with { Sids = null! });
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+
+        vm.SelectedItem = vm.DclItems.Single();
+
+        Assert.Null(vm.Editor);
+        Assert.StartsWith("Error opening UAL1742: ", vm.CommandError);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Null(vm.SelectedItem);
+    }
+
+    /// <summary>A sent PDC that carries no clearance has nothing to review: it says so rather than highlighting an empty row.</summary>
+    [AvaloniaFact]
+    public void SentItemWithoutAClearance_ShowsTheErrorAndReleasesTheSelection()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "AAL9", facilityId: "IAD", status: TdlsStatus.Sent)], []));
+        Dispatcher.UIThread.RunJobs();
+
+        vm.SelectedItem = vm.PdcItems.Single();
+
+        Assert.Null(vm.Editor);
+        Assert.Equal("Error opening AAL9: no sent clearance", vm.CommandError);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Null(vm.SelectedItem);
+    }
+
+    [AvaloniaFact]
+    public void Clear_ClearsTheShownError()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport _) = MakeVm();
+        vm.CommandError = "Error sending PDC: boom";
+
+        vm.Clear();
+
+        Assert.Null(vm.CommandError);
+    }
+
+    [AvaloniaFact]
+    public void ApplyingAFacilityPage_ClearsTheShownError()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport _) = MakeVm();
+        vm.CommandError = "Error sending PDC: boom";
+
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+
+        Assert.Null(vm.CommandError);
+    }
+
+    // ── Dump on a sent PDC ──
+
+    /// <summary>Upstream hides Dump once the item already carries a clearance; a pending item keeps it.</summary>
+    [AvaloniaFact]
+    public void DumpButton_IsHiddenOnASentPdc_AndShownOnAPendingItem()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        var issued = new ClearanceDto("10 MIN AFT DP", "RNLDI4", "OTTTO", null, null, null, null, null, "125.050");
+        transport.PushState(
+            new TdlsStateDto(
+                [
+                    Item("id1", "AAL9", facilityId: "IAD", status: TdlsStatus.Sent) with
+                    {
+                        SentPayload = issued,
+                    },
+                    Item("id2", "UAL1742", facilityId: "IAD"),
+                ],
+                []
+            )
+        );
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootViewAtSize(vm, windowWidth: 900, windowHeight: 900);
+
+        vm.SelectedItem = vm.PdcItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.Editor!.IsReadOnly);
+        Assert.False(EditorButton(view, "Dump").IsVisible);
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(EditorButton(view, "Dump").IsVisible);
     }
 
     // ── Selection: one row per list ──
@@ -1061,20 +1409,24 @@ public class VTdlsViewInteractionTests
             FlightPlan: fp
         );
 
-    private static (VTdlsViewModel Vm, FakeTdlsTransport Transport) MakeVm()
+    /// <summary>A view-model over a fake transport whose every sent command succeeds.</summary>
+    private static (VTdlsViewModel Vm, FakeTdlsTransport Transport) MakeVm() => MakeVm(() => new CommandResultDto(true, null));
+
+    /// <summary>A view-model over a fake transport. <paramref name="commandResult"/> answers each sent command.</summary>
+    private static (VTdlsViewModel Vm, FakeTdlsTransport Transport) MakeVm(Func<CommandResultDto?> commandResult)
     {
         var transport = new FakeTdlsTransport();
-        var vm = new VTdlsViewModel(transport, (callsign, command, _) => RecordCommand(callsign, command), getUserInitials: null);
+        var vm = new VTdlsViewModel(transport, (callsign, command, _) => RecordCommand(callsign, command, commandResult()), getUserInitials: null);
         return (vm, transport);
     }
 
     /// <summary>Canonical commands the view-model emitted, so tests can assert the wire text rather than an RPC call.</summary>
     private static readonly List<(string Callsign, string Command)> SentCommands = [];
 
-    private static Task RecordCommand(string callsign, string command)
+    private static Task<CommandResultDto?> RecordCommand(string callsign, string command, CommandResultDto? result)
     {
         SentCommands.Add((callsign, command));
-        return Task.CompletedTask;
+        return Task.FromResult(result);
     }
 
     private static VTdlsView BootView(VTdlsViewModel vm) => BootViewAtWidth(vm, windowWidth: 900);
@@ -1139,8 +1491,26 @@ public class VTdlsViewInteractionTests
 
         public Task<List<AccessibleFacilityDto>> GetAccessibleTdlsFacilitiesAsync() => Task.FromResult(new List<AccessibleFacilityDto>());
 
-        public Task<TdlsFacilityViewDto?> GetTdlsFacilityViewAsync(string facilityId) => Task.FromResult<TdlsFacilityViewDto?>(null);
+        /// <summary>The page <see cref="GetTdlsFacilityViewAsync"/> answers with; null by default.</summary>
+        public TdlsFacilityViewDto? FacilityView { get; set; }
 
-        public Task RequestFullTdlsStateAsync() => Task.CompletedTask;
+        public int FacilityViewRequests { get; private set; }
+
+        public int FullStateRequests { get; private set; }
+
+        /// <summary>When set, the facility-view fetch waits on this instead of answering at once with <see cref="FacilityView"/>.</summary>
+        public TaskCompletionSource<TdlsFacilityViewDto?>? HeldFacilityView { get; set; }
+
+        public Task<TdlsFacilityViewDto?> GetTdlsFacilityViewAsync(string facilityId)
+        {
+            FacilityViewRequests++;
+            return HeldFacilityView?.Task ?? Task.FromResult(FacilityView);
+        }
+
+        public Task RequestFullTdlsStateAsync()
+        {
+            FullStateRequests++;
+            return Task.CompletedTask;
+        }
     }
 }

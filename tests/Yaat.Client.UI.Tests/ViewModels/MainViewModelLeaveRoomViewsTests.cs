@@ -26,6 +26,30 @@ public class MainViewModelLeaveRoomViewsTests
         EnableSeparateArrDepPrinters: true
     );
 
+    /// <summary>The page the TDLS items belong to: a facility page has to be applied before any item is listed.</summary>
+    private static readonly TdlsConfigDto OakTdlsConfig = new(
+        FacilityId: "OAK",
+        FacilityName: "Oakland Intl ATCT",
+        MandatorySid: false,
+        MandatoryClimbout: false,
+        MandatoryClimbvia: false,
+        MandatoryInitialAlt: false,
+        MandatoryDepFreq: false,
+        MandatoryExpect: false,
+        MandatoryContactInfo: false,
+        MandatoryLocalInfo: false,
+        Sids: [],
+        Climbouts: [],
+        Climbvias: [],
+        InitialAlts: [],
+        DepFreqs: [],
+        Expects: [],
+        ContactInfos: [],
+        LocalInfos: [],
+        DefaultSidId: null,
+        DefaultTransitionId: null
+    );
+
     private static TdlsItemDto TdlsItem(string id, string callsign) =>
         new(
             id,
@@ -183,7 +207,12 @@ public class MainViewModelLeaveRoomViewsTests
         // VM-level: the items arrive as a TdlsStateChanged, which is the only path that populates the
         // page's id lookup — Clear has to drop that too, or a stale VM outlives the room it belonged to.
         var transport = new FakeTdlsTransport();
-        var tdls = new VTdlsViewModel(transport, (_, _, _) => Task.CompletedTask, getUserInitials: null);
+        var tdls = new VTdlsViewModel(
+            transport,
+            (_, _, _) => Task.FromResult<CommandResultDto?>(new CommandResultDto(true, null)),
+            getUserInitials: null
+        );
+        tdls.ApplyFacilityView("OAK", new TdlsFacilityViewDto("OAK", "Oakland Intl ATCT", [OakTdlsConfig]));
 
         transport.PushState(new TdlsStateDto([TdlsItem("T1", "UAL100"), TdlsItem("T2", "SWA200")], []));
         Dispatcher.UIThread.RunJobs();

@@ -21,7 +21,9 @@ namespace Yaat.Client.Tdls.Services;
 /// Wire-protocol method names match the server: GetAccessibleTdlsFacilities,
 /// GetTdlsFacilityView, RequestFullTdlsState, FindRoomForMyCid, JoinRoom,
 /// SendCommand. Server-pushed events (TdlsItemChanged, TdlsItemRemoved,
-/// TdlsStateChanged, RoomAvailableForCid) match too.
+/// TdlsStateChanged, RoomAvailableForCid, ScenarioLoaded, ScenarioUnloaded)
+/// match too; the two scenario events surface as <see cref="ScenarioLoaded"/>
+/// and <see cref="ScenarioUnloaded"/> with their payloads dropped.
 /// </summary>
 public sealed class BrowserTdlsTransport : ITdlsTransport, IAsyncDisposable
 {
@@ -45,6 +47,15 @@ public sealed class BrowserTdlsTransport : ITdlsTransport, IAsyncDisposable
     /// <see cref="FindRoomForMyCidAsync"/> returned <c>null</c>.
     /// </summary>
     public event Action<string>? RoomAvailableForCid;
+
+    /// <summary>
+    /// A scenario was loaded into the joined room (the server sends it to the room group). The payload is ignored: the
+    /// browser client only needs to know its facility page and items are stale.
+    /// </summary>
+    public event Action? ScenarioLoaded;
+
+    /// <summary>The joined room's scenario was unloaded. The payload is ignored, as for <see cref="ScenarioLoaded"/>.</summary>
+    public event Action? ScenarioUnloaded;
 
     /// <summary>
     /// Connects to the SignalR hub. <paramref name="serverUrl"/> can be empty
@@ -79,6 +90,10 @@ public sealed class BrowserTdlsTransport : ITdlsTransport, IAsyncDisposable
         _connection.On<TdlsItemRemovedDto>("TdlsItemRemoved", dto => TdlsItemRemoved?.Invoke(dto));
         _connection.On<TdlsStateDto>("TdlsStateChanged", dto => TdlsStateChanged?.Invoke(dto));
         _connection.On<string>("RoomAvailableForCid", roomId => RoomAvailableForCid?.Invoke(roomId));
+        // The server sends each with one argument; a handler binds one argument per type parameter, and the argument
+        // type must resolve through the TDLS context alone, so it binds an empty registered record and drops it.
+        _connection.On<BrowserTdlsScenarioChangedDto>("ScenarioLoaded", _ => ScenarioLoaded?.Invoke());
+        _connection.On<BrowserTdlsScenarioChangedDto>("ScenarioUnloaded", _ => ScenarioUnloaded?.Invoke());
 
         _connection.Reconnecting += error =>
         {
@@ -152,6 +167,13 @@ public sealed class BrowserTdlsTransport : ITdlsTransport, IAsyncDisposable
 /// round-trips into this narrower record.
 /// </summary>
 public record BrowserTdlsRoomInfoDto(string RoomId, string CreatorInitials);
+
+/// <summary>
+/// The <c>ScenarioLoaded</c> / <c>ScenarioUnloaded</c> payload as the browser TDLS client binds it: nothing. The client
+/// only needs to know the scenario changed, and every field the server sends is ignored, but the argument still has to
+/// bind through <see cref="YaatTdlsHubJsonContext"/>, which has no reflection fallback.
+/// </summary>
+public record BrowserTdlsScenarioChangedDto;
 
 /// <summary>
 /// Subset of <c>RoomStateDto</c> the browser TDLS client needs from

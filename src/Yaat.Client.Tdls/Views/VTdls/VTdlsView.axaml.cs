@@ -433,12 +433,17 @@ public partial class VTdlsView : UserControl
 
         switch (e.Key)
         {
+            // Dump and Send go nowhere while disconnected, so their keys do nothing then, like their disabled buttons.
             case Key.F4:
+                if (!vm.IsConnected)
+                {
+                    break;
+                }
                 e.Handled = true;
                 await vm.DumpSelectedCommand.ExecuteAsync(null);
                 break;
             case Key.F12:
-                if (vm.Editor is { IsSendEnabled: true } editor)
+                if ((vm.IsConnected) && (vm.Editor is { IsSendEnabled: true } editor))
                 {
                     e.Handled = true;
                     await editor.SendCommand.ExecuteAsync(null);

@@ -631,7 +631,10 @@
                      (upstream uses it to switch a read-only Sent PDC back to
                      editable; YAAT opens the read-only review by clicking the
                      PDC item directly). Send is hidden when the editor is
-                     read-only — a sent PDC can't be resent. Big top margin to
+                     read-only — a sent PDC can't be resent — and so is Dump,
+                     as upstream hides it once the item carries a clearance
+                     (F4 still dumps). Dump and Send are disabled while
+                     disconnected. Big top margin to
                      match the vertical breathing room in the upstream
                      screenshot. -->
           <Grid ColumnDefinitions="*,Auto" Margin="0,24,0,0">
@@ -639,6 +642,8 @@
               Grid.Column="0"
               Content="Dump"
               Click="OnDumpClick"
+              IsEnabled="{Binding $parent[UserControl].((vm:VTdlsViewModel)DataContext).IsConnected}"
+              IsVisible="{Binding IsEditable}"
               HorizontalAlignment="Left"
               FontFamily="{StaticResource MonoFont}"
               FontSize="11"
@@ -665,14 +670,20 @@
               <Button
                 Content="Send"
                 Command="{Binding SendCommand}"
-                IsEnabled="{Binding IsSendEnabled}"
                 IsVisible="{Binding IsEditable}"
                 FontFamily="{StaticResource MonoFont}"
                 FontSize="11"
                 FontWeight="Bold"
                 Padding="12,3"
                 ToolTip.Tip="Send (F12) — issue the PDC to the pilot"
-              />
+              >
+                <Button.IsEnabled>
+                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsSendEnabled" />
+                    <Binding Path="$parent[UserControl].((vm:VTdlsViewModel)DataContext).IsConnected" />
+                  </MultiBinding>
+                </Button.IsEnabled>
+              </Button>
             </StackPanel>
           </Grid>
         </StackPanel>
