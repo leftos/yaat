@@ -341,67 +341,38 @@ public static partial class GroundCommandHandler
     )
     {
         string callsign = aircraft.Callsign;
-        AirportSidecarCatalog sidecars = NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty;
-        if ((ArrivalExitSide.AreaStands(area, layout, sidecars.GetParkingAreas(layout.AirportId)) is not { } match) || (match.Stands.Count == 0))
+        if (ArrivalParkingPicker.AreaPool(aircraft.AircraftType, layout, area) is not { } pool)
         {
             string noMatch = $"{callsign}'s remarks name parking area {area}, which matches no stand at this airport; name the stand with @";
             Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason}", callsign, noMatch);
             return (taxi, CommandDispatcher.OperatorGuidanceRefusal(noMatch));
         }
 
-        List<string> fitting = FittingStandNames(aircraft.AircraftType, layout, match);
-        List<string> pool = fitting.Count > 0 ? fitting : StandNames(match.Stands);
-        HashSet<string> taken = ArrivalParkingPicker.TakenSpots(options.ListAircraft?.Invoke() ?? [], callsign);
-        List<string> free = [.. pool.Where(n => !taken.Contains(n))];
-        if (free.Count == 0)
+        if (ArrivalParkingPicker.PickFree(callsign, pool.Names, options.ListAircraft?.Invoke() ?? []) is not { } stand)
         {
             // The routing stand: the pick over the pool as if nothing were taken. The route toward it is cut at the area's ramp edge.
-            string routing = ArrivalParkingPicker.Choose(callsign, pool, salt: 0);
+            string routing = ArrivalParkingPicker.Choose(callsign, pool.Names, salt: 0);
             Log.LogDebug(
                 "[TryTaxi] {Callsign}: @GATE in parking area {Area}: all {Pool} pool stand(s) taken; routing toward {Stand}, cut at the ramp edge",
                 callsign,
                 area,
-                pool.Count,
+                pool.Names.Count,
                 routing
             );
             return (taxi with { DestinationParking = routing, DestinationArea = area, HoldAtAreaRampEdge = true }, null);
         }
 
-        string stand = ArrivalParkingPicker.Choose(callsign, free, salt: 0);
         Log.LogDebug(
-            "[TryTaxi] {Callsign}: @GATE in parking area {Area}: pool {Pool} of {AreaCount} stand(s){Fallback}, {Free} free, picked {Stand}",
+            "[TryTaxi] {Callsign}: @GATE in parking area {Area}: pool {Pool} of {AreaCount} stand(s){Fallback}, picked {Stand}",
             callsign,
             area,
-            pool.Count,
-            StandNames(match.Stands).Count,
-            fitting.Count > 0 ? " that fit the type" : " (none fits the type: the whole area)",
-            free.Count,
+            pool.Names.Count,
+            pool.AreaStandCount,
+            pool.Fits ? " that fit the type" : " (none fits the type: the whole area)",
             stand
         );
         return (taxi with { DestinationParking = stand, DestinationArea = area }, null);
     }
-
-    /// <summary>
-    /// The names of an area's stands that take the type's wingspan (<see cref="StandFit.MaxWingspanFt"/>), ordinal. A sidecar
-    /// <c>maxAdg</c> gives every stand of the area the same cap, so it is asked once, which also keeps its above-the-ceiling
-    /// warning to one per area.
-    /// </summary>
-    private static List<string> FittingStandNames(
-        string aircraftType,
-        AirportGroundLayout layout,
-        (ParkingAreaAlias Alias, List<(GroundNode Node, string Name)> Stands) area
-    )
-    {
-        double spanFt = AircraftFootprint.ResolveWingspanFt(aircraftType);
-        AirplaneDesignGroup ceiling = AirplaneDesignGroups.AirportCeiling(layout);
-        AirplaneDesignGroup? overrideAdg = area.Alias.MaxAdg;
-        double? areaCapFt = overrideAdg is null ? null : StandFit.MaxWingspanFt(layout, area.Stands[0].Node, ceiling, overrideAdg);
-        return StandNames(area.Stands.Where(s => spanFt <= (areaCapFt ?? StandFit.MaxWingspanFt(layout, s.Node, ceiling, null))));
-    }
-
-    /// <summary>The stands' trimmed names, each once, in ordinal order.</summary>
-    private static List<string> StandNames(IEnumerable<(GroundNode Node, string Name)> stands) =>
-        [.. stands.Select(s => s.Name.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal)];
 
     private static CommandResult TryTaxiCore(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, TaxiCoreOptions options)
     {

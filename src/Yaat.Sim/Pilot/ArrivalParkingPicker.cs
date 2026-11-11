@@ -1,6 +1,7 @@
 using System.Globalization;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 
@@ -108,6 +109,83 @@ public static class ArrivalParkingPicker
         double u = FinalApproachSpeedVariety.UnitInterval(callsign, "taxi-in" + salt.ToString(CultureInfo.InvariantCulture));
         return pool[(int)(u * pool.Count)];
     }
+
+    /// <summary>
+    /// The free stand <paramref name="callsign"/> takes in parking <paramref name="area"/>: the area's stands that fit the type
+    /// (<see cref="AreaPool"/>), less the stands other aircraft hold (<see cref="TakenSpots"/>), drawn by callsign with salt 0
+    /// (<see cref="PickFree"/>), so the same traffic gives the same stand.
+    /// </summary>
+    /// <param name="callsign">The aircraft the pick is for.</param>
+    /// <param name="aircraftType">Its type, whose wingspan decides which stands fit.</param>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="area">The parking area as the remark spells it.</param>
+    /// <param name="traffic">Every aircraft in the world; the aircraft itself is skipped.</param>
+    /// <returns>The picked stand; null when the area matches no stand or every stand of its pool is taken.</returns>
+    internal static string? PickFreeStandInArea(
+        string callsign,
+        string aircraftType,
+        AirportGroundLayout layout,
+        string area,
+        IReadOnlyList<AircraftState> traffic
+    ) => (AreaPool(aircraftType, layout, area) is { } pool) ? PickFree(callsign, pool.Names, traffic) : null;
+
+    /// <summary>
+    /// The stands of parking <paramref name="area"/> (the airport's sidecar <c>parkingAreas</c>) that fit
+    /// <paramref name="aircraftType"/> (<see cref="StandFit"/>), or every stand of the area when none fits.
+    /// </summary>
+    /// <param name="aircraftType">The type whose wingspan decides which stands fit.</param>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="area">The parking area as the remark spells it.</param>
+    /// <returns>The pool; null when the area matches no stand of the layout.</returns>
+    internal static ParkingAreaPool? AreaPool(string aircraftType, AirportGroundLayout layout, string area)
+    {
+        AirportSidecarCatalog sidecars = NavigationDatabase.InstanceOrNull?.AirportSidecars ?? AirportSidecarCatalog.Empty;
+        if ((ArrivalExitSide.AreaStands(area, layout, sidecars.GetParkingAreas(layout.AirportId)) is not { } match) || (match.Stands.Count == 0))
+        {
+            return null;
+        }
+
+        List<string> fitting = FittingStandNames(aircraftType, layout, match);
+        List<string> all = StandNames(match.Stands);
+        return new ParkingAreaPool((fitting.Count > 0) ? fitting : all, all.Count, fitting.Count > 0);
+    }
+
+    /// <summary>
+    /// The stand <paramref name="callsign"/> draws from <paramref name="pool"/> less the stands other aircraft in
+    /// <paramref name="traffic"/> hold (<see cref="TakenSpots"/>), with salt 0.
+    /// </summary>
+    /// <param name="callsign">The aircraft the pick is for.</param>
+    /// <param name="pool">The stands to draw from, in ordinal order.</param>
+    /// <param name="traffic">Every aircraft in the world; the aircraft itself is skipped.</param>
+    /// <returns>The picked stand; null when every stand of the pool is taken.</returns>
+    internal static string? PickFree(string callsign, IReadOnlyList<string> pool, IReadOnlyList<AircraftState> traffic)
+    {
+        HashSet<string> taken = TakenSpots(traffic, callsign);
+        List<string> free = [.. pool.Where(n => !taken.Contains(n))];
+        return (free.Count == 0) ? null : Choose(callsign, free, salt: 0);
+    }
+
+    /// <summary>
+    /// The names of an area's stands that take the type's wingspan (<see cref="StandFit.MaxWingspanFt"/>), ordinal. A sidecar
+    /// <c>maxAdg</c> gives every stand of the area the same cap, so it is asked once, which also keeps its above-the-ceiling
+    /// warning to one per area.
+    /// </summary>
+    private static List<string> FittingStandNames(
+        string aircraftType,
+        AirportGroundLayout layout,
+        (ParkingAreaAlias Alias, List<(GroundNode Node, string Name)> Stands) area
+    )
+    {
+        double spanFt = AircraftFootprint.ResolveWingspanFt(aircraftType);
+        AirplaneDesignGroup ceiling = AirplaneDesignGroups.AirportCeiling(layout);
+        AirplaneDesignGroup? overrideAdg = area.Alias.MaxAdg;
+        double? areaCapFt = overrideAdg is null ? null : StandFit.MaxWingspanFt(layout, area.Stands[0].Node, ceiling, overrideAdg);
+        return StandNames(area.Stands.Where(s => spanFt <= (areaCapFt ?? StandFit.MaxWingspanFt(layout, s.Node, ceiling, null))));
+    }
+
+    /// <summary>The stands' trimmed names, each once, in ordinal order.</summary>
+    private static List<string> StandNames(IEnumerable<(GroundNode Node, string Name)> stands) =>
+        [.. stands.Select(s => s.Name.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal)];
 
     /// <summary>Spots other aircraft occupy or are heading for: parked on, the destination of a taxi route, or asked for in an open taxi-in request.</summary>
     public static HashSet<string> TakenSpots(IReadOnlyList<AircraftState> others, string selfCallsign)
@@ -253,3 +331,9 @@ public static class ArrivalParkingPicker
         && char.IsDigit(name[3])
         && (AirlineFleets.TryGetAirline(name[..3], out _) || RampAliases.ContainsValue(name[..3].ToUpperInvariant()));
 }
+
+/// <summary>A parking area's stand pool for one aircraft type (<see cref="ArrivalParkingPicker.AreaPool"/>).</summary>
+/// <param name="Names">The stands that fit the type, or every stand of the area when none fits; ordinal order, never empty.</param>
+/// <param name="AreaStandCount">How many stands the area has in all.</param>
+/// <param name="Fits">Whether <paramref name="Names"/> are the stands that fit the type, not the whole-area fall-back.</param>
+internal sealed record ParkingAreaPool(IReadOnlyList<string> Names, int AreaStandCount, bool Fits);

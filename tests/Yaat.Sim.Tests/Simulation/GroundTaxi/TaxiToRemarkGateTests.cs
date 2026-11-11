@@ -228,6 +228,90 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Case 3 with a stand freed during the taxi: cleared while every fitting stand is taken, the aircraft finds the last fitting
+    /// stand free on reaching the ramp edge, so it carries on to it and parks there without reporting that no parking is available.
+    /// </summary>
+    [Fact]
+    public void TaxiAtGate_ParkingAreaRemark_StandFreedDuringTheTaxi_ContinuesToItWithoutReporting()
+    {
+        if (BuildSfo() is not { } ground)
+        {
+            return;
+        }
+
+        var reports = new List<PilotSpeechText>();
+        (AircraftState aircraft, string freed) = ClearedToFullAreaThenFreed(ground, "TAXI C @GATE", reports);
+
+        int stopped = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => aircraft.Phases?.CurrentPhase is AtParkingPhase or HoldingInPositionPhase,
+            600,
+            null
+        );
+
+        foreach (PilotSpeechText report in reports)
+        {
+            output.WriteLine($"report: '{report.TerminalForRpo}' / '{report.Tts}'");
+        }
+
+        Assert.True(stopped > 0, $"never stopped: {aircraft.Phases?.CurrentPhase?.Name}");
+        Assert.IsType<AtParkingPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.Equal(freed, aircraft.Ground.ParkingSpot);
+        Assert.Empty(reports);
+    }
+
+    /// <summary>
+    /// Case 3 with a stand freed during an expedited taxi: the taxi on to the freed stand keeps the running expedite, as the
+    /// crew's standing instruction.
+    /// </summary>
+    [Fact]
+    public void TaxiAtGate_ParkingAreaRemark_StandFreedDuringAnExpeditedTaxi_KeepsTheExpedite()
+    {
+        if (BuildSfo() is not { } ground)
+        {
+            return;
+        }
+
+        var reports = new List<PilotSpeechText>();
+        (AircraftState aircraft, string freed) = ClearedToFullAreaThenFreed(ground, "TAXI C @GATE EXP", reports);
+        Assert.True(aircraft.Ground.IsExpeditingTaxi, "the clearance did not set the expedite");
+
+        int continuing = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (aircraft.Phases?.CurrentPhase is TaxiingPhase) && (aircraft.Ground.AssignedTaxiRoute?.DestinationParking == freed),
+            600,
+            null
+        );
+
+        Assert.True(continuing > 0, $"never continued to {freed}: {aircraft.Phases?.CurrentPhase?.Name}");
+        Assert.True(aircraft.Ground.IsExpeditingTaxi, "the taxi to the freed stand dropped the expedite");
+    }
+
+    /// <summary>
+    /// UAL733 in a GLF4 on C cleared by <paramref name="command"/> while every fitting stand is taken, then the last fitting
+    /// stand freed by removing the aircraft <see cref="ParkOnEach"/> parked there; every pilot speech UAL733 makes goes to
+    /// <paramref name="reports"/>.
+    /// </summary>
+    private static (AircraftState Aircraft, string Freed) ClearedToFullAreaThenFreed(SfoGround ground, string command, List<PilotSpeechText> reports)
+    {
+        Assert.IsType<SimScenarioState>(ground.Engine.Scenario).RpoShowPilotSpeech = true;
+        ground.Engine.PilotSpeechEmitted += (said, speech) =>
+        {
+            if (said == Callsign)
+            {
+                reports.Add(speech);
+            }
+        };
+        ParkOnEach(ground, MidSpanFitting);
+        AircraftState aircraft = SpawnOnC(ground, MidSpanType);
+        CommandResult result = ground.Engine.SendCommand(Callsign, command);
+        Assert.True(result.Success, result.Message);
+
+        ground.Engine.World.RemoveAircraft(ParkedCallsign(MidSpanFitting.Length - 1));
+        return (aircraft, MidSpanFitting[^1]);
+    }
+
+    /// <summary>
     /// Case 3 from a runway hold-short: held short of 28R on K, the route to the full area's ramp edge crosses 28R, and the bar at
     /// its start still holds the aircraft short of the runway.
     /// </summary>
@@ -618,7 +702,10 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
     {
         for (int i = 0; i < stands.Count; i++)
         {
-            Park(ground, $"PRK{i + 1}", stands[i]);
+            Park(ground, ParkedCallsign(i), stands[i]);
         }
     }
+
+    /// <summary>The callsign <see cref="ParkOnEach"/> parks on the stand at <paramref name="index"/> of its list.</summary>
+    private static string ParkedCallsign(int index) => $"PRK{index + 1}";
 }

@@ -2931,8 +2931,7 @@ public sealed class TaxiingPhase : Phase
         {
             if ((route.DestinationParking is null) && (route.DestinationParkingArea is { } area))
             {
-                ReportHeldAtFullArea(ctx, route, area);
-                phases.InsertAfterCurrent(new HoldingInPositionPhase());
+                EndAtFullArea(ctx, phases, route, area);
             }
             else if (EndsAtParkingStand(ctx, route))
             {
@@ -2945,6 +2944,80 @@ public sealed class TaxiingPhase : Phase
             }
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// The end of a route cut at the ramp edge of a full <paramref name="area"/>: carries on to a stand freed during the taxi
+    /// (<see cref="TryTaxiToFreedStand"/>), or else reports that no parking is available and holds in position.
+    /// </summary>
+    /// <param name="ctx">The tick's context.</param>
+    /// <param name="phases">The aircraft's phase list, this phase current and last in it.</param>
+    /// <param name="route">The route just completed.</param>
+    /// <param name="area">The parking area as the remark spells it.</param>
+    private static void EndAtFullArea(PhaseContext ctx, PhaseList phases, TaxiRoute route, string area)
+    {
+        if (TryTaxiToFreedStand(ctx, area))
+        {
+            return;
+        }
+
+        ReportHeldAtFullArea(ctx, route, area);
+        phases.InsertAfterCurrent(new HoldingInPositionPhase());
+    }
+
+    /// <summary>
+    /// On reaching the ramp edge of a full <paramref name="area"/>, picks again from the traffic now in the world
+    /// (<see cref="ArrivalParkingPicker.PickFreeStandInArea"/>); when a stand there has freed during the taxi, the aircraft
+    /// carries on to it as an internal taxi with no readback, its fresh phase list replacing this one. Skipped when the
+    /// context knows no traffic.
+    /// </summary>
+    /// <param name="ctx">The tick's context.</param>
+    /// <param name="area">The parking area as the remark spells it.</param>
+    /// <returns>True when the taxi to the freed stand started; false when no stand is free or the taxi was refused.</returns>
+    private static bool TryTaxiToFreedStand(PhaseContext ctx, string area)
+    {
+        if ((ctx.ListAircraft is not { } listAircraft) || (ctx.GroundLayout is not { } layout))
+        {
+            return false;
+        }
+
+        AircraftState aircraft = ctx.Aircraft;
+        if (ArrivalParkingPicker.PickFreeStandInArea(aircraft.Callsign, aircraft.AircraftType, layout, area, listAircraft()) is not { } stand)
+        {
+            return false;
+        }
+
+        var dispatch = new GroundCommandHandler.TaxiDispatch(
+            AutoCrossRunwayMode.Off,
+            ctx.ActiveRunways,
+            IsScenarioScripted: true,
+            ResultReachesController: false,
+            listAircraft,
+            GroundCommandHandler.DepartureRunwayClearance.Taxi
+        );
+        // The taxi on keeps the crew's standing taxi instructions: a running expedite and a commanded taxi speed, which a
+        // fresh TAXIAUTO would otherwise reset.
+        double? commandedTaxiSpeedKts = aircraft.Ground.CommandedTaxiSpeedKts;
+        var taxiOn = new TaxiAutoCommand(null, stand, null, Expedite: aircraft.Ground.IsExpeditingTaxi);
+        CommandResult result = GroundCommandHandler.TryTaxiAuto(aircraft, taxiOn, layout, dispatch);
+        if (result.Success)
+        {
+            aircraft.Ground.CommandedTaxiSpeedKts = commandedTaxiSpeedKts;
+        }
+        else
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: {Stand} in {Area} freed, but the taxi to it was refused: {Reason}",
+                aircraft.Callsign,
+                stand,
+                area,
+                result.Message
+            );
+            return false;
+        }
+
+        Log.LogDebug("[Taxi] {Callsign}: {Stand} in {Area} freed during the taxi; continuing to it", aircraft.Callsign, stand, area);
         return true;
     }
 

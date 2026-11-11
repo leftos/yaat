@@ -12,7 +12,7 @@
 - In solo training, an airborne pilot sent to another position's frequency does not check in with the student; the instructor sees "check-in held, tuned to …" once.
 - In solo training, a pilot's reports, such as "clear of the runway" or a pattern report, are spoken only on the student's or an AI controller's frequency.
 - `TAXI … @GATE` and `TAXIAUTO @GATE` taxi an arrival to its remarks' gate, or to a free fitting stand in their parking area, read back by the area's name.
-- With every fitting stand in a remark's parking area taken, `@GATE` holds the arrival at the ramp edge, clear of the taxiway, reporting no parking.
+- `@GATE` to a full parking area holds the arrival at the ramp edge, reporting no parking, unless a fitting stand frees before it gets there.
 - The Ground View datablock shows `GATE F14` under the type line when the flight-plan remarks name a gate, until the aircraft parks there.
 - `RTAXI {taxiways}` re-routes a taxiing aircraft along new taxiways to the same destination; the pilot reads back the full taxi clearance.
 
