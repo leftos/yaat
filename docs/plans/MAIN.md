@@ -533,7 +533,7 @@
 - [ ] YAAT-2058 Read back the remark's stand, not the GATE alias, for TAXIAUTO @GATE
 - [ ] YAAT-2067 Read GIVEWAY conditions around RTAXI and TTP as they are read around TAXI
 
-### 2 Refinements and rulings (10/25 done)
+### 2 Refinements and rulings (11/25 done)
 - [ ] YAAT-51 Offer standalone TAXI modifiers at slot 1; test cross-command alias collisions
 - [ ] YAAT-869 Read back a bare CROSS EXP with "without delay"
 - [ ] YAAT-1222 Solo refuses TAXIAUTO: the student issues the taxi route
@@ -547,7 +547,6 @@
 - [ ] YAAT-1384 Refuse a TAXI that needs a turn-about with the turn-about reason, not 'unreachable'
 - [ ] YAAT-1393 Tell the instructor a route continues past a plain HS X cut (TAXI D C HS E RWY 28R)
 - [ ] YAAT-1970 Stop reading out the runway being left as a crossing in a TAXI from the runway exit
-- [/] YAAT-1986 Taxi to the flight-plan-remark gate with @GATE, and add TTP (taxi to parking, destination implied) · release vNext
 - [ ] YAAT-2010 Drop the noun for a word-named stand in taxi readbacks, as the taxi-in request does
 
 ### 3 Hygiene and tests (0/5 done)
@@ -919,13 +918,14 @@
 - [ ] YAAT-1664 Find CIFP approaches at airports with a 3-character FAA id (12J, 6R1, F00: GetApproach prefixes K)
 - [ ] YAAT-1688 Keep the offline CIFP stale-cache fallback to cycle-named files
 
-### 2 Refinements and rulings (2/8 done)
+### 2 Refinements and rulings (2/9 done)
 - [ ] YAAT-133 Fly direct to the destination after the last route fix, then hold · release vNext
   - [/] YAAT-2047 Hold over the destination after a route-exhausted direct, with the further-clearance call · release vNext
 - [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
 - [ ] YAAT-924 Track a JRADO radial with wind correction after the intercept
 - [ ] YAAT-935 Convert an airport-anchored FRD with the airport's variation of record
 - [ ] YAAT-2064 Hold at the destination when the route itself ends at the airport (filed route or DCT to the field)
+- [ ] YAAT-2068 Recompute a hold's leg length and holding speed when its altitude changes
 
 ### 3 Hygiene and tests (0/2 done)
 - [ ] YAAT-893 Prove the navigation database loader's concurrency rulings with tests
