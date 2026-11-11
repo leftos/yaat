@@ -54,7 +54,7 @@ public partial class PushThenTaxiSweepTests(ITestOutputHelper output)
         ("SFO", "A13V", "M2", "M1"),
         ("SFO", "B8", "BC", "AY1"),
         ("SFO", "B9", "BC", "AY1"),
-        ("SFO", "C10", "BC", "A"),
+        ("SFO", "C10", "BC", "AY1"),
         ("SFO", "G9", "B5", "B4"),
     ];
 
