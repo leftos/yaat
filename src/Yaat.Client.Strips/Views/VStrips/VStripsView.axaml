@@ -411,18 +411,12 @@
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <!-- Auto-sort banners: drawn over the rack but outside
+                    <!-- Auto-sort banner: drawn over the rack but outside
                                              RackStripsHost (the drop maths reads its
-                                             children), and held at the visible top and
-                                             bottom of the rack by the TranslateTransform
+                                             children), and held at the visible top of the
+                                             rack by the TranslateTransform
                                              PinAutoSortBanners sets on scroll and layout. -->
                     <Border x:Name="AutoSortTopBanner" Classes="autoSortBanner" IsVisible="{Binding IsAutoSorted}" VerticalAlignment="Top">
-                      <Border.RenderTransform>
-                        <TranslateTransform />
-                      </Border.RenderTransform>
-                      <TextBlock Text="auto-sort on" />
-                    </Border>
-                    <Border x:Name="AutoSortBottomBanner" Classes="autoSortBanner" IsVisible="{Binding IsAutoSorted}" VerticalAlignment="Bottom">
                       <Border.RenderTransform>
                         <TranslateTransform />
                       </Border.RenderTransform>

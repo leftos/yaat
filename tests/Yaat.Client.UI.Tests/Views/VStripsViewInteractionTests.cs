@@ -652,7 +652,7 @@ public class VStripsViewInteractionTests
     [AvaloniaTheory]
     [InlineData(0.8)]
     [InlineData(1.5)]
-    public void AutoSortedRack_ShowsBothBannersInsideTheViewport_OutsideTheStripsHost(double zoomScale)
+    public void AutoSortedRack_ShowsTopBannerInsideTheViewport_OutsideTheStripsHost(double zoomScale)
     {
         (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
@@ -671,19 +671,16 @@ public class VStripsViewInteractionTests
         List<Border> sortedBanners = Banners(view, ground.Racks[0]);
         List<Border> unsortedBanners = Banners(view, ground.Racks[1]);
 
-        Assert.Equal(2, sortedBanners.Count);
-        Assert.Equal(2, unsortedBanners.Count);
+        Assert.Single(sortedBanners);
+        Assert.Single(unsortedBanners);
         Assert.All(sortedBanners, b => Assert.True(b.IsEffectivelyVisible));
         Assert.All(sortedBanners, b => Assert.Equal("auto-sort on", Assert.IsType<TextBlock>(b.Child).Text));
         Assert.All(unsortedBanners, b => Assert.False(b.IsEffectivelyVisible));
         Assert.All(sortedBanners, b => Assert.DoesNotContain(b.GetVisualAncestors().OfType<ItemsControl>(), c => c.Name == "RackStripsHost"));
 
         double[] tops = [.. sortedBanners.Select(b => b.TranslatePoint(new Point(0, 0), sv)!.Value.Y)];
-        double[] bottoms = [.. sortedBanners.Select(b => b.TranslatePoint(new Point(0, b.Bounds.Height), sv)!.Value.Y)];
         Assert.Contains(tops, y => Math.Abs(y) <= 1.0);
-        Assert.Contains(bottoms, y => Math.Abs(y - sv.Viewport.Height) <= 1.0);
         Assert.All(tops, y => Assert.InRange(y, -1.0, sv.Viewport.Height + 1.0));
-        Assert.All(bottoms, y => Assert.InRange(y, -1.0, sv.Viewport.Height + 1.0));
     }
 
     [AvaloniaFact]
@@ -1199,11 +1196,11 @@ public class VStripsViewInteractionTests
         }
     }
 
-    // The top and bottom auto-sort banners drawn in the given rack's column.
+    // The top auto-sort banner drawn in the given rack's column.
     private static List<Border> Banners(VStripsView view, StripRackViewModel rack)
     {
         Border rackBorder = view.GetVisualDescendants().OfType<Border>().Single(b => ReferenceEquals(b.Tag, rack));
-        return [.. rackBorder.GetVisualDescendants().OfType<Border>().Where(b => b.Name is "AutoSortTopBanner" or "AutoSortBottomBanner")];
+        return [.. rackBorder.GetVisualDescendants().OfType<Border>().Where(b => b.Classes.Contains("autoSortBanner"))];
     }
 
     // ApplyBayConfig posts to the dispatcher. Under an Avalonia.Headless test

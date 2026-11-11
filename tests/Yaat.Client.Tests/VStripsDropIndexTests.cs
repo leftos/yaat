@@ -8,8 +8,9 @@ namespace Yaat.Client.Tests;
 /// handler (task #29 + user re-test). Strips render bottom-up via
 /// DockPanel.Dock=Bottom so strip[0] occupies the visual bottom band.
 /// Insertion semantics:
-///   - Drop in strip[i]'s top half → insert above it (model index i+1).
-///   - Drop in strip[i]'s bottom half → insert below it (model index i).
+///   - Drop anywhere in strip[i]'s band (top..bottom inclusive) → insert at
+///     that strip's slot (model index i); strip i and everything above it
+///     slide up one strip.
 ///   - Drop above the whole stack (empty space above the topmost strip) →
 ///     append at the tail (model index = count).
 ///   - Drop below strip[0] → insert at model index 0.
@@ -36,15 +37,33 @@ public class VStripsDropIndexTests
     }
 
     [Fact]
-    public void TopHalfOfStrip_InsertsAboveIt()
+    public void BandTopEdge_InsertsAtThatBand()
     {
-        // strip[2]'s top half is Y 354..395. Drop in that range → insert above
-        // strip[2] (model index 3 = append).
+        // A band's exact top edge belongs to that band: the whole band
+        // targets its own slot, with no midpoint split.
         var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
-        Assert.Equal(3, VStripsView.ComputeDropIndexFromBands(posY: 370, bands));
+        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 354, bands));
+        Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 436, bands));
+    }
 
-        // strip[1]'s top half is Y 436..477 → model index 2.
-        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 450, bands));
+    [Fact]
+    public void OnePixelAboveStack_Appends()
+    {
+        // One pixel above the topmost band's top is the append zone.
+        var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
+        Assert.Equal(3, VStripsView.ComputeDropIndexFromBands(posY: 353, bands));
+    }
+
+    [Fact]
+    public void UpperHalfOfStrip_InsertsAtItsSlot()
+    {
+        // strip[2]'s band is Y 354..436; its upper half is 354..395. Drop
+        // anywhere in the band → insert at that strip's slot (model 2).
+        var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
+        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 370, bands));
+
+        // strip[1]'s upper half is Y 436..477 → model index 1.
+        Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 450, bands));
     }
 
     [Fact]
@@ -69,41 +88,39 @@ public class VStripsDropIndexTests
     }
 
     [Fact]
-    public void SingleStrip_TopHalfAppends_BottomHalfInsertsAtZero()
+    public void SingleStrip_AnyHeightInsertsAtZero()
     {
         var bands = new (double Top, double Bottom)[] { (534, 600) };
-        Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 540, bands));
+        Assert.Equal(0, VStripsView.ComputeDropIndexFromBands(posY: 540, bands));
         Assert.Equal(0, VStripsView.ComputeDropIndexFromBands(posY: 590, bands));
     }
 
     // ── Hysteresis overload ─────────────────────────────────────
     //
     // The hysteresis-aware overload keeps the active preview index until the
-    // pointer clears the boundary between adjacent indices (the midpoint of
-    // the lower band) by more than hysteresisPx, so the gap doesn't flicker
-    // under hand tremor at band boundaries.
+    // pointer clears the boundary between adjacent indices (the edge between
+    // the two bands, the lower band's top) by more than hysteresisPx, so the
+    // gap doesn't flicker under hand tremor at band boundaries.
 
     [Fact]
     public void Hysteresis_WithinBandOfBoundary_KeepsCurrentIndex()
     {
-        // strip[1]'s band is 436..518, midpoint 477. Raw index flips between
-        // 1 and 2 exactly at 477; with current=1 and hysteresis 6, positions
-        // just above the midpoint (477 > posY > 471) must stay at 1.
+        // The boundary between index 0 and 1 is band 0's top edge (518).
+        // Moving up from the bottom slot, the preview stays at 0 until the
+        // pointer is more than 6 px above that edge.
         var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
-        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 474, bands));
-        Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 474, bands, currentIndex: 1, hysteresisPx: 6));
+        Assert.Equal(0, VStripsView.ComputeDropIndexFromBands(posY: 515, bands, currentIndex: 0, hysteresisPx: 6));
+        Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 511, bands, currentIndex: 0, hysteresisPx: 6));
     }
 
     [Fact]
-    public void Hysteresis_BeyondBand_Switches()
+    public void Hysteresis_BeyondBoundary_Switches()
     {
+        // Moving down from index 1, the preview stays at 1 until the pointer
+        // is more than 6 px below band 0's top edge (518).
         var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
-        // Clearly above midpoint-minus-hysteresis (471) → flips up to 2.
-        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 460, bands, currentIndex: 1, hysteresisPx: 6));
-        // And back down: with current=2, positions just below the midpoint
-        // stay at 2 until clearing 483.
-        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 480, bands, currentIndex: 2, hysteresisPx: 6));
-        Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 490, bands, currentIndex: 2, hysteresisPx: 6));
+        Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 521, bands, currentIndex: 1, hysteresisPx: 6));
+        Assert.Equal(0, VStripsView.ComputeDropIndexFromBands(posY: 525, bands, currentIndex: 1, hysteresisPx: 6));
     }
 
     [Fact]
@@ -120,17 +137,17 @@ public class VStripsDropIndexTests
     public void Hysteresis_NoCurrentIndex_PassesThrough()
     {
         var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
-        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 474, bands, currentIndex: -1, hysteresisPx: 6));
+        Assert.Equal(1, VStripsView.ComputeDropIndexFromBands(posY: 474, bands, currentIndex: -1, hysteresisPx: 6));
     }
 
     [Fact]
-    public void Hysteresis_AppendBoundary_UsesTopmostBandMidpoint()
+    public void Hysteresis_AppendBoundary_UsesTopmostBandTop()
     {
-        // Between index 2 and append (3), the boundary is strip[2]'s midpoint
-        // (395). With current=3 (append), staying just below the midpoint
-        // keeps the append preview.
+        // Between index 2 and append (3) the boundary is the topmost band's
+        // top edge (354). With current=3 (append), the preview stays append
+        // until the pointer is more than 6 px inside band 2.
         var bands = new (double Top, double Bottom)[] { (518, 600), (436, 518), (354, 436) };
-        Assert.Equal(3, VStripsView.ComputeDropIndexFromBands(posY: 398, bands, currentIndex: 3, hysteresisPx: 6));
-        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 410, bands, currentIndex: 3, hysteresisPx: 6));
+        Assert.Equal(3, VStripsView.ComputeDropIndexFromBands(posY: 358, bands, currentIndex: 3, hysteresisPx: 6));
+        Assert.Equal(2, VStripsView.ComputeDropIndexFromBands(posY: 362, bands, currentIndex: 3, hysteresisPx: 6));
     }
 }

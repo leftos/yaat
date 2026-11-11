@@ -130,7 +130,7 @@ public partial class VStripsView : UserControl
     private const int GapAnimationMs = 100;
 
     // Hysteresis (in strips-host units) the pointer must clear past a band
-    // midpoint before the preview index flips — keeps the gap from
+    // edge before the preview index flips — keeps the gap from
     // flickering under hand tremor at band boundaries.
     private const double DropIndexHysteresis = 6.0;
 
@@ -315,8 +315,8 @@ public partial class VStripsView : UserControl
     private void OnRacksLayoutUpdated(object? sender, EventArgs e) => PinAutoSortBanners();
 
     /// <summary>
-    /// Holds each shown auto-sort banner at the visible top or bottom of its rack: the racks scroll as one, so a banner
-    /// laid out at its rack's end is shifted by the part of the rack scrolled out of view, never past the other end.
+    /// Holds each shown auto-sort banner at the visible top of its rack: the racks scroll as one, so a banner laid out
+    /// at its rack's top is shifted by the part of the rack scrolled out of view, never past the other end.
     /// Coordinates go through <see cref="Visual.TranslatePoint"/>, which carries the zoom transform and the scroll
     /// offset, so the shift is in the rack's own units.
     /// </summary>
@@ -335,11 +335,13 @@ public partial class VStripsView : UserControl
         }
     }
 
+    /// <summary>
+    /// Pins the rack's auto-sort banner to the top edge of the racks viewport, clamped so it never leaves the rack.
+    /// </summary>
     private static void PinRackBanners(ScrollViewer scrollViewer, Grid rackContent)
     {
         Point? viewportTop = scrollViewer.TranslatePoint(new Point(0, 0), rackContent);
-        Point? viewportBottom = scrollViewer.TranslatePoint(new Point(0, scrollViewer.Viewport.Height), rackContent);
-        if ((viewportTop is not { } top) || (viewportBottom is not { } bottom))
+        if (viewportTop is not { } top)
         {
             return;
         }
@@ -349,14 +351,10 @@ public partial class VStripsView : UserControl
             {
                 continue;
             }
-            double travel = Math.Max(0, rackContent.Bounds.Height - child.Bounds.Height);
             if (child.Name == "AutoSortTopBanner")
             {
+                double travel = Math.Max(0, rackContent.Bounds.Height - child.Bounds.Height);
                 shift.Y = Math.Clamp(top.Y, 0, travel);
-            }
-            else if (child.Name == "AutoSortBottomBanner")
-            {
-                shift.Y = Math.Clamp(bottom.Y - rackContent.Bounds.Height, -travel, 0);
             }
         }
     }
@@ -586,7 +584,7 @@ public partial class VStripsView : UserControl
     /// undoing any active preview shift so the pointer-to-index mapping
     /// reflects natural strip positions. Without this, a band already
     /// shifted up by the active preview would make the pointer cross a
-    /// different mid-point than the user intended, and the preview would
+    /// different band edge than the user intended, and the preview would
     /// oscillate between indices. Each presenter's measured top includes its
     /// current preview TranslateTransform (TranslatePoint carries render
     /// transforms — mid-animation values included), so subtracting the
@@ -611,10 +609,10 @@ public partial class VStripsView : UserControl
     /// returns the zero-based model insertion index for a drop at pointer
     /// <paramref name="posY"/>. Strips render bottom-up (strip[0] at the
     /// visual bottom) so:
-    /// - Inside strip[i]'s band, top half → insert at i+1 (above it); bottom
-    ///   half → insert at i (below it).
+    /// - Inside strip[i]'s band (top..bottom inclusive) → insert at i; strip
+    ///   i and everything above it slide up one strip.
     /// - Above the entire stack → append (index = count).
-    /// - Between bands or anywhere below strip[0] → insert at i.
+    /// - Anywhere below strip[0] → insert at 0.
     /// Empty bands → 0.
     /// </summary>
     internal static int ComputeDropIndexFromBands(double posY, IReadOnlyList<(double Top, double Bottom)> bands)
@@ -628,8 +626,7 @@ public partial class VStripsView : UserControl
             (double top, double bottom) = bands[i];
             if (posY >= top && posY <= bottom)
             {
-                double mid = (top + bottom) / 2;
-                return posY < mid ? i + 1 : i;
+                return i;
             }
         }
         // Not inside any strip band — decide between "above the stack" (append)
@@ -643,11 +640,11 @@ public partial class VStripsView : UserControl
     /// Hysteresis-aware variant of
     /// <see cref="ComputeDropIndexFromBands(double, IReadOnlyList{ValueTuple{double, double}})"/>:
     /// when the raw result is adjacent to <paramref name="currentIndex"/>,
-    /// the pointer must clear the boundary between the two indices (the
-    /// midpoint of the lower band — inside band i, top half → i+1, bottom
-    /// half → i) by more than <paramref name="hysteresisPx"/> before the
-    /// index flips. Non-adjacent jumps (fast pointer moves) and calls with
-    /// no current index (-1) pass through unchanged.
+    /// the pointer must clear the boundary between the two indices — the
+    /// edge between their bands, <c>bands[lower].Top</c> — by more than
+    /// <paramref name="hysteresisPx"/> before the index flips. Non-adjacent
+    /// jumps (fast pointer moves) and calls with no current index (-1) pass
+    /// through unchanged.
     /// </summary>
     internal static int ComputeDropIndexFromBands(
         double posY,
@@ -666,7 +663,7 @@ public partial class VStripsView : UserControl
         {
             return raw;
         }
-        double boundary = (bands[lower].Top + bands[lower].Bottom) / 2;
+        double boundary = bands[lower].Top;
         if (raw > currentIndex)
         {
             // Moving up the stack (smaller Y): flip only once the pointer is
@@ -1053,21 +1050,7 @@ public partial class VStripsView : UserControl
         _isSettling = true;
         try
         {
-            switch (target.Kind)
-            {
-                case DropTargetKind.Rack:
-                    if (ComputeSettleDestination(target) is { } destination)
-                    {
-                        await SettleGhostAsync(destination);
-                    }
-                    break;
-                case DropTargetKind.Bay:
-                    await DissolveGhostAsync(durationMs: 80, endScaleFactor: 1.0);
-                    break;
-                case DropTargetKind.Trash:
-                    await DissolveGhostAsync(durationMs: 100, endScaleFactor: 0.6);
-                    break;
-            }
+            await PlayDropSettleAsync(target, strip);
         }
         finally
         {
@@ -1083,6 +1066,44 @@ public partial class VStripsView : UserControl
         {
             return;
         }
+        await DispatchDropAsync(vm, strip, target);
+    }
+
+    /// <summary>
+    /// Plays the release animation for the resolved target: the ghost flies
+    /// into the rack gap, dissolves on a bay push or trash drop, or flies
+    /// back to the source slot on a release outside every target. The caller
+    /// owns the <c>_isSettling</c> window and the cleanup that follows.
+    /// </summary>
+    private async Task PlayDropSettleAsync(DropTarget target, StripItemViewModel strip)
+    {
+        switch (target.Kind)
+        {
+            case DropTargetKind.Rack:
+                if (ComputeSettleDestination(target) is { } destination)
+                {
+                    await SettleGhostAsync(destination);
+                }
+                break;
+            case DropTargetKind.Bay:
+                await DissolveGhostAsync(durationMs: 80, endScaleFactor: 1.0);
+                break;
+            case DropTargetKind.Trash:
+                await DissolveGhostAsync(durationMs: 100, endScaleFactor: 0.6);
+                break;
+            case DropTargetKind.None:
+                await ReturnGhostToSourceAsync(strip);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Dispatches the drop's canonical action after cleanup: a rack move, a
+    /// bay push, or a trash delete. A target of None emits nothing — the
+    /// ghost already flew back to its source slot.
+    /// </summary>
+    private async Task DispatchDropAsync(VStripsViewModel vm, StripItemViewModel strip, DropTarget target)
+    {
         switch (target.Kind)
         {
             case DropTargetKind.Rack when target.Bay is not null:
@@ -1099,6 +1120,38 @@ public partial class VStripsView : UserControl
                 break;
         }
     }
+
+    /// <summary>
+    /// Flies the ghost back into the source strip's original slot when the
+    /// drag is released outside every drop target, so the strip visibly
+    /// returns instead of vanishing; emits nothing. Skips the flight and lets
+    /// cleanup snap when the source rack or its visuals cannot be resolved
+    /// (a drag from the printer carousel, or a source bay no longer shown).
+    /// </summary>
+    private async Task ReturnGhostToSourceAsync(StripItemViewModel strip)
+    {
+        if ((_draggingFromRack is not { } sourceRack) || (_draggingFromIndex < 0) || (FindRackBorderFor(sourceRack) is not { } sourceBorder))
+        {
+            return;
+        }
+        // Same Information-level record as the drag-end line: where a release
+        // that emits no canonical actually left the strip.
+        Log.LogInformation("Strip drag returned: strip={StripId}", strip.Id);
+        UpdateRackPreview(sourceBorder, sourceRack, _draggingFromIndex);
+        var target = new DropTarget(DropTargetKind.Rack, sourceBorder, sourceRack, _draggingFromIndex, null, null);
+        if (ComputeSettleDestination(target) is { } destination)
+        {
+            await SettleGhostAsync(destination);
+        }
+    }
+
+    /// <summary>
+    /// Finds the rack Border tagged with <paramref name="rack"/> among this
+    /// view's descendants — the same tag <see cref="ResolveDropTarget"/> keys
+    /// a rack target off. Null when the rack is not currently shown.
+    /// </summary>
+    private Border? FindRackBorderFor(StripRackViewModel rack) =>
+        this.GetVisualDescendants().OfType<Border>().FirstOrDefault(b => ReferenceEquals(b.Tag, rack));
 
     // ── Drop settle animation ───────────────────────────────────
 

@@ -918,6 +918,19 @@ invariants below are load-bearing; each has a regression test in
 - **Drop settles before dispatch.** The ghost flies into the gap (~130 ms)
   before `MoveStripAsync` runs, and `_isSettling` blocks new presses in
   that window.
+- **Drop slot is vStrips' rule, not a half-strip midpoint.** Racks render
+  bottom-up (strip 0 at the bottom). `ComputeDropIndexFromBands`: a pointer
+  anywhere in strip i's full band (the bottom slot is the whole bottom
+  strip) inserts at i, so that strip and everything above it slide up; the
+  empty space above the stack appends (the top); anywhere below strip 0
+  inserts at 0. Hysteresis is measured from the band edge between the two
+  indices.
+- **Release outside every target returns the strip.** `CompleteDrag` with
+  a `None` target plays `ReturnGhostToSourceAsync` (the ghost flies back
+  to the source slot, nothing is dispatched) instead of dropping the ghost.
+  The flight is skipped when the source rack is not shown (printer
+  carousel, other bay). Esc (`CancelDrag`) still cancels at once with no
+  flight.
 
 **Headless test protocol.** Drive the gesture through the real headless
 mouse device (`window.MouseDown`/`MouseMove`/`MouseUp`), not hand-raised
@@ -941,7 +954,7 @@ Search is scoped to the shown bay and refreshes on bay switch. Ctrl+F opens, F3/
 
 The strip context menu ("Auto-sort this rack", a checkbox, after "Scan to" and before the Delete separator; absent for a printer strip) and the empty-rack menu (last item) send `VStripsCanonicalBuilder.BuildRackSort` with the opposite state; a full rack has no empty space to right-click, which is why the strip menu carries it too.
 
-A sorted rack shows an "auto-sort on" banner at the visible top and bottom of the rack. The banners sit in the rack template's `RackContent` grid, not in `RackStripsHost` (the drop maths reads that host's children), and `PinAutoSortBanners` holds them at the viewport edges with a `TranslateTransform` driven from the racks scroll handler and layout updates, which carries zoom.
+A sorted rack shows one "auto-sort on" banner at the visible top of the rack (a bottom banner would overlap the bottom strip). The banner sits in the rack template's `RackContent` grid, not in `RackStripsHost` (the drop maths reads that host's children), and `PinAutoSortBanners` holds it at the top of the viewport with a `TranslateTransform` driven from the racks scroll handler and layout updates, which carries zoom.
 
 `OptimisticallyMove` places a drop into a sorted rack with the same `StripRackSort` the Sim uses, so the broadcast's `ReplaceAll` does not reshuffle.
 

@@ -1522,8 +1522,9 @@ Strips follow the session: rewinding the timeline shows the strips and PDCs as t
 **Drag-drop:**
 - Drag any strip onto another rack (same bay or another bay's button in the header) to move it. Hovering a bay button lights it up in yellow and fades the dragged strip out of the way — that drop transfers the strip to the other bay instead of repositioning it here.
 - Drag onto the **trash zone** in the header to delete — it lights up while you hover it.
-- A drop preview shows where the strip will land: the strips above the target slot slide up to open a gap, and on release the strip settles into it. Drops on rack padding or empty space below the last strip resolve to the rack's tail.
-- **Esc** cancels a drag in progress — the strip snaps back to its slot and nothing moves.
+- A drop preview shows where the strip will land: the strips above the target slot slide up to open a gap, and on release the strip settles into it. Hovering anywhere on a strip's full height inserts the dragged strip at that strip's slot, pushing that strip and those above it up (the bottom slot is the whole bottom strip), as in vStrips. Hovering the empty rack space above the stack puts the strip on top.
+- Release outside any rack, bay button or the trash and the strip slides back to its slot; nothing moves.
+- **Esc** cancels a drag in progress at once — the strip snaps back to its slot and nothing moves.
 - The **scroll wheel** still scrolls the racks mid-drag, and holding the drag near the top or bottom edge of the rack area auto-scrolls toward it.
 
 **Right-click on a strip** — opens a context menu:
@@ -1547,7 +1548,7 @@ Strips follow the session: rewinding the timeline shows the strips and PDCs as t
 
 Tick **Auto-sort this rack** (from the right-click menu of the rack's empty space, or of any strip in it, which is the way in once the rack is full) to keep that rack sorted. Read top to bottom, tail registrations (N1234) come first, then airline callsigns (AAL2210), each A to Z; strips with no callsign, such as blank strips, sit at the bottom. A half strip sorts by the text in its first line. Untick the item to stop: the strips stay where they are.
 
-A sorted rack shows a small **auto-sort on** banner pinned at the top and at the bottom of the visible part of the rack, which stays put while you scroll. Anything you drop into a sorted rack, or move within it, goes to its sorted slot instead of where you released it: the strip first shows where you dropped it, then settles into place. The terminal line for a move that landed elsewhere than you asked ends with `(auto-sorted)`.
+A sorted rack shows a small **auto-sort on** banner pinned at the top of the visible part of the rack, which stays put while you scroll. Anything you drop into a sorted rack, or move within it, goes to its sorted slot instead of where you released it: the strip first shows where you dropped it, then settles into place. The terminal line for a move that landed elsewhere than you asked ends with `(auto-sorted)`.
 
 Separators keep the slot you put them in and split the rack into runs that sort on their own, and dragging a separator re-sorts the runs on both sides. The setting is the rack's, so everyone looking at that bay sees it, and it survives a scenario restart. The same switch from the command bar is `RACKSORT facility/bay/rack ON|OFF`.
 

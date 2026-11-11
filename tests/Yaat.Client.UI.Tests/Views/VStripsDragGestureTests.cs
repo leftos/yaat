@@ -120,16 +120,14 @@ public class VStripsDragGestureTests
         (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
         try
         {
-            // Promote to a drag, wander a few pixels, release in the BOTTOM
-            // half of the source's own (now vacated) slot — that resolves to
-            // the source's original index and IsNoOpMove suppresses the
-            // canonical. (The top half of the vacated slot legitimately
-            // means "insert above the strip that fell into my slot".) The
-            // release lands deep in the bottom half, beyond the drop-index
-            // hysteresis band, so the resolution is index 0 regardless of
-            // which side of a band midpoint the interpolated drag path
-            // grazed — releasing near the midpoint made this flake on
-            // sub-pixel layout differences between runs.
+            // Promote to a drag, wander a few pixels, release inside the
+            // source's own (now vacated) slot — the strip below it has fallen
+            // into that slot, and the whole-band rule resolves a release
+            // anywhere in it to the source's original index, so the
+            // IsNoOpMove guard suppresses the canonical. The release lands
+            // well inside the slot, clear of the drop-index hysteresis band
+            // at its top edge, so the resolution does not depend on sub-pixel
+            // layout differences between runs.
             Point start = StripPoint((Window)window, (VStripsView)view, "S1");
             ContentPresenter source = StripControl((VStripsView)view, "S1").FindAncestorOfType<ContentPresenter>()!;
             window.MouseDrag(start, new Point(start.X + 12, start.Y + 22));
@@ -522,6 +520,83 @@ public class VStripsDragGestureTests
 
             window.MouseUp(new Point(start.X + 20, start.Y - 20), MouseButton.Left);
             Dispatcher.UIThread.RunJobs();
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public void DragStrip_ReleaseOutsideAnyRack_ReturnsWithoutEmitting()
+    {
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
+        VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
+        VStripsViewInteractionTests.SeedStripsInBay(
+            (VStripsViewModel)vm,
+            "bay-gnd",
+            [
+                ["S1", "S2", "S3"],
+                [],
+            ]
+        );
+        vm.SetConnected(true);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
+        try
+        {
+            Point start = StripPoint((Window)window, (VStripsView)view, "S2");
+            ContentPresenter source = StripControl((VStripsView)view, "S2").FindAncestorOfType<ContentPresenter>()!;
+            // The facility button carries no rack, bay or trash target (and
+            // no ancestor does), so ResolveDropTarget maps it to None.
+            Button facility = ((VStripsView)view).FindControl<Button>("FacilityButton")!;
+            Point target = facility.TranslatePoint(new Point(facility.Bounds.Width / 2, facility.Bounds.Height / 2), window)!.Value;
+
+            window.MouseDrag(start, target, steps: 6);
+            Assert.False(source.IsVisible, "the release snapped back instead of flying the strip home");
+            WaitForSettled(source);
+
+            Assert.Empty(captured);
+            Assert.Equal(["S1", "S2", "S3"], [.. vm.Bays[0].Racks[0].Strips.Select(s => s.Id)]);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public void DragStrip_HoverBottomStripUpperHalf_InsertsAtBottom()
+    {
+        (VStripsViewModel? vm, List<(string Callsign, string Command)>? captured) = VStripsViewInteractionTests.MakeVm();
+        VStripsViewInteractionTests.SeedBays(vm, VStripsViewInteractionTests.SimpleConfig());
+        VStripsViewInteractionTests.SeedStripsInBay(
+            (VStripsViewModel)vm,
+            "bay-gnd",
+            [
+                ["S1", "S2", "S3"],
+                [],
+            ]
+        );
+        vm.SetConnected(true);
+        (Window? window, VStripsView? view) = VStripsViewInteractionTests.BootView((VStripsViewModel)vm);
+        try
+        {
+            // S1 renders at the visual bottom. With S3 lifted out, visible is
+            // {S1, S2}; releasing 25% down S1's own band (its upper half)
+            // targets S1's slot under the whole-band rule.
+            Point start = StripPoint((Window)window, (VStripsView)view, "S3");
+            ContentPresenter s1 = StripControl((VStripsView)view, "S1").FindAncestorOfType<ContentPresenter>()!;
+            Point target = s1.TranslatePoint(new Point(30, s1.Bounds.Height * 0.25), window)!.Value;
+
+            window.MouseDrag(start, target, steps: 6);
+            WaitForCaptured(captured, 1);
+
+            (string Callsign, string Command) entry = Assert.Single(captured);
+            // rack 0 → "1", index 0 → "1".
+            Assert.Equal("STRIP S3 FAC1/GROUND/1/1", entry.Command);
+            Assert.Equal(["S3", "S1", "S2"], [.. vm.Bays[0].Racks[0].Strips.Select(s => s.Id)]);
         }
         finally
         {
