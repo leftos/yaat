@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Approach;
@@ -12,7 +13,8 @@ namespace Yaat.Sim.Tests.Pilot;
 /// <summary>
 /// An IFR aircraft on the clearance-limit direct to KOAK asks the radar student for further clearance about five minutes
 /// out, reports holding when it reaches the field, and re-asks every five minutes until a lateral clearance moves it on.
-/// Solo training only; VFR never asks. Real KOAK navdata.
+/// Solo training only; VFR never asks. Real KOAK navdata. A pilot tuned away from the student's frequency, an AI position
+/// included, says none of these calls until retuned, and an open request stays open with its re-ask held.
 /// </summary>
 public class FurtherClearanceRequestTests
 {
@@ -73,6 +75,14 @@ public class FurtherClearanceRequestTests
         );
         return ac;
     }
+
+    private static TrackOwner Student() => TrackOwner.CreateStars("OAK_APP", "NCT", 3, "3O");
+
+    private static TrackOwner AnotherPosition() => TrackOwner.CreateNonNas("ZOA_44");
+
+    /// <summary>An AI-staffed center position as the controller AI publishes it, answering as <paramref name="position"/>.</summary>
+    private static AiPositionConfig AiStaffed(TrackOwner position) =>
+        new(ControlRole.Center, position, null, position.Callsign, position.Callsign, "Oakland Center", "ZOA", []);
 
     private static SimScenarioState Scenario(bool solo = true) =>
         new()
@@ -364,5 +374,110 @@ public class FurtherClearanceRequestTests
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Equal(PilotPendingRequestResponseState.Superseded, ac.PendingPilotRequest!.ResponseState);
+    }
+
+    [Fact]
+    public void TunedAwayFromStudent_OnTheDirect_NoRequest()
+    {
+        AircraftState ac = OnTheDirect(4.8);
+        SimScenarioState scenario = Scenario();
+        scenario.StudentPosition = Student();
+        ac.TunedPosition = AnotherPosition();
+
+        PilotProactive.TickFurtherClearanceRequest(ac, scenario);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Null(ac.PendingPilotRequest);
+    }
+
+    [Fact]
+    public void TunedAwayFromStudent_Holding_NoReport_ThenReportsAfterRetune()
+    {
+        AircraftState ac = HoldingOverKoak();
+        SimScenarioState scenario = Scenario();
+        scenario.ElapsedSeconds = HoldStartSeconds;
+        scenario.StudentPosition = Student();
+        ac.TunedPosition = AnotherPosition();
+        HoldingPatternPhase hold = Assert.IsType<HoldingPatternPhase>(ac.Phases?.CurrentPhase);
+
+        PilotProactive.TickFurtherClearanceRequest(ac, scenario);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Null(ac.PendingPilotRequest);
+        Assert.False(hold.ClearanceLimitReported);
+
+        ac.TunedPosition = scenario.StudentPosition;
+        PilotProactive.TickFurtherClearanceRequest(ac, scenario);
+
+        AssertSingleCall(ac, ReportTerminal, ReportTts);
+        Assert.True(hold.ClearanceLimitReported);
+    }
+
+    [Fact]
+    public void TunedAwayFromStudent_OpenRequest_FollowUpHeld_ThenResumes()
+    {
+        AircraftState ac = ReportedHolding();
+        SimScenarioState scenario = Scenario();
+        scenario.ElapsedSeconds = HoldStartSeconds;
+        scenario.StudentPosition = Student();
+        ac.TunedPosition = AnotherPosition();
+        PilotPendingRequest request = Assert.IsType<PilotPendingRequest>(ac.PendingPilotRequest);
+        PilotPendingRequestResponseState state = request.ResponseState;
+        double lastRequested = request.LastRequestedAtSeconds;
+        double nextDue = request.NextFollowUpDueSeconds;
+
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 400, scenario.StudentPosition));
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.True(request.IsOpen);
+        Assert.Equal(state, request.ResponseState);
+        Assert.Equal(lastRequested, request.LastRequestedAtSeconds);
+        Assert.Equal(nextDue, request.NextFollowUpDueSeconds);
+
+        ac.TunedPosition = scenario.StudentPosition;
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, HoldStartSeconds + 400, scenario.StudentPosition));
+        AssertSingleCall(ac, ReaskTerminal, ReaskTts);
+    }
+
+    [Fact]
+    public void TunedToStudent_OnTheDirect_StillRequests()
+    {
+        AircraftState ac = OnTheDirect(4.8);
+        SimScenarioState scenario = Scenario();
+        scenario.StudentPosition = Student();
+        ac.TunedPosition = scenario.StudentPosition;
+
+        PilotProactive.TickFurtherClearanceRequest(ac, scenario);
+
+        AssertSingleCall(ac, RequestTerminal, RequestTts);
+    }
+
+    [Fact]
+    public void TunedToAiStaffedPosition_OnTheDirect_NoRequest()
+    {
+        AircraftState ac = OnTheDirect(4.8);
+        SimScenarioState scenario = Scenario();
+        scenario.StudentPosition = Student();
+        scenario.SetAiStaffedPositions([AiStaffed(AnotherPosition())]);
+        ac.TunedPosition = AnotherPosition();
+
+        PilotProactive.TickFurtherClearanceRequest(ac, scenario);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Null(ac.PendingPilotRequest);
+    }
+
+    [Fact]
+    public void NoStudentPosition_TunedSomewhere_NoRequest()
+    {
+        AircraftState ac = OnTheDirect(4.8);
+        SimScenarioState scenario = Scenario();
+        scenario.StudentPosition = null;
+        ac.TunedPosition = AnotherPosition();
+
+        PilotProactive.TickFurtherClearanceRequest(ac, scenario);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Null(ac.PendingPilotRequest);
     }
 }

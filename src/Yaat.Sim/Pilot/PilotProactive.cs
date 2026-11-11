@@ -322,7 +322,8 @@ public static class PilotProactive
     /// An IFR aircraft with no clearance beyond its destination asks the radar student for further clearance about
     /// <see cref="FlightPhysics.FurtherClearanceRequestMinutes"/> before the airport, and on reaching it reports holding
     /// there and records the re-ask <see cref="PilotRequestTracker"/> repeats until a lateral clearance moves it on.
-    /// Solo only, like <see cref="TickDescentRequest"/>.
+    /// Solo only, like <see cref="TickDescentRequest"/>. A pilot tuned away from the student's frequency says neither the
+    /// request nor the holding report, and asks as soon as it is retuned.
     /// </summary>
     public static void TickFurtherClearanceRequest(AircraftState aircraft, SimScenarioState scenario)
     {
@@ -332,7 +333,11 @@ public static class PilotProactive
             return;
         }
 
-        if (!IsFlyingClearanceLimitDirect(aircraft) || !IsDescentRequestEligible(aircraft, scenario))
+        if (
+            !IsFlyingClearanceLimitDirect(aircraft)
+            || !IsDescentRequestEligible(aircraft, scenario)
+            || aircraft.IsTunedAwayFrom(scenario.StudentPosition)
+        )
         {
             return;
         }
@@ -379,7 +384,8 @@ public static class PilotProactive
 
     /// <summary>
     /// Once per clearance-limit hold: the holding report, and the request for further clearance recorded for re-asking.
-    /// An open request does not hold the report back.
+    /// An open request does not hold the report back. A pilot tuned away from the student's frequency holds the report
+    /// until it is retuned.
     /// </summary>
     private static void ReportHoldingAtClearanceLimit(AircraftState aircraft, SimScenarioState scenario, HoldingPatternPhase hold)
     {
@@ -388,7 +394,8 @@ public static class PilotProactive
             && scenario.SoloTrainingMode
             && IsRadarStudent(scenario.StudentPositionType)
             && IsAirborneIfrInContact(aircraft)
-            && (aircraft.PendingPilotTransmissions.Count == 0);
+            && (aircraft.PendingPilotTransmissions.Count == 0)
+            && !aircraft.IsTunedAwayFrom(scenario.StudentPosition);
         if (!mayReport)
         {
             return;

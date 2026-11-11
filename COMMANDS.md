@@ -1732,7 +1732,7 @@ A VFR aircraft flies on past the airport. An IFR aircraft on that direct slows t
 
 Altitude and speed commands keep it holding; any lateral clearance (a heading, a direct, an approach clearance, a hold) ends the hold, and `APT` to another airport turns it direct to that airport.
 
-In solo training with a radar student, the IFR pilot asks for further clearance within 5 minutes of the airport (`<n> min from <airport>, request further clearance.`), reports `holding over <airport>, <altitude>.` on reaching it, and repeats `holding over <airport>, <altitude>, request further clearance.` until a clearance moves it on. Otherwise it holds without calling.
+In solo training with a radar student, the IFR pilot asks for further clearance within 5 minutes of the airport (`<n> min from <airport>, request further clearance.`), reports `holding over <airport>, <altitude>.` on reaching it, and repeats `holding over <airport>, <altitude>, request further clearance.` until a clearance moves it on. A pilot tuned away from the student's frequency waits to call until retuned. Otherwise it holds without calling.
 
 **Route validation** — When **Validate DCT fixes against route** is enabled in Settings › Scenario defaults, DCT commands to fixes not in the aircraft's filed route or expected approach are rejected. Use `DCTF` (force direct to) to override. Issue `EAPP` (Expect Approach) first to program approach fixes into the aircraft's route for validation purposes.
 

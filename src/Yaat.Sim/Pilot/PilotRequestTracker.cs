@@ -127,8 +127,10 @@ public static class PilotRequestTracker
     }
 
     /// <summary>
-    /// Re-voices the aircraft's open request once its follow-up is due, or closes it as moot. <paramref name="studentPosition"/>
-    /// is the student's position, against which the pilot's tuned position is read.
+    /// Re-voices the aircraft's open request once its follow-up is due, or closes it as moot. A request for further
+    /// clearance is also held, still open, while the pilot is tuned away from the student's frequency, and resumes at its
+    /// due time once retuned. <paramref name="studentPosition"/> is the student's position, against which the pilot's
+    /// tuned position is read.
     /// </summary>
     public static bool TryQueueFollowUp(AircraftState aircraft, double nowSeconds, TrackOwner? studentPosition)
     {
@@ -144,7 +146,11 @@ public static class PilotRequestTracker
             return false;
         }
 
-        if ((nowSeconds < pending.NextFollowUpDueSeconds) || WaitsForTheHoldReport(pending, aircraft))
+        if (
+            (nowSeconds < pending.NextFollowUpDueSeconds)
+            || WaitsForTheHoldReport(pending, aircraft)
+            || WaitsForTheStudentsFrequency(pending, aircraft, studentPosition)
+        )
         {
             return false;
         }
@@ -182,6 +188,14 @@ public static class PilotRequestTracker
             PilotProactive.IsFlyingClearanceLimitDirect(aircraft)
             || (aircraft.Phases?.CurrentPhase is HoldingPatternPhase { IsClearanceLimitHold: true, ClearanceLimitReported: false })
         );
+
+    /// <summary>
+    /// Whether a request for further clearance waits for the pilot to return to the student's frequency: while the pilot
+    /// is tuned anywhere else (an AI controller's position included) the request stays open and unasked, and the re-ask
+    /// resumes at its due time once retuned.
+    /// </summary>
+    private static bool WaitsForTheStudentsFrequency(PilotPendingRequest request, AircraftState aircraft, TrackOwner? studentPosition) =>
+        (request.Kind == PilotPendingRequestKind.FurtherClearance) && aircraft.IsTunedAwayFrom(studentPosition);
 
     /// <summary>
     /// Rebuilds the re-ask of a request for further clearance from the clearance-limit hold, so that it states the

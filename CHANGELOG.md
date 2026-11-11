@@ -5,6 +5,7 @@
 ### Fixed
 
 - A multi-point push route whose stand, spot or node no longer exists now refuses in the same words as a single-point push.
+- In solo training, a pilot on another frequency waits until it is back on the student's before asking for further clearance or reporting holding.
 
 ## v0.18.3-beta [2026/11/11]
 
