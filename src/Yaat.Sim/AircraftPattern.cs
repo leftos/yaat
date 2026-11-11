@@ -12,12 +12,14 @@ public enum PendingEntryModifierKind
 }
 
 /// <summary>
-/// A pattern modifier (EXT leg / SA / MNA) issued before its target pattern-entry command
-/// (ERD/ELD/ERC/ELC/…) has built its circuit. <see cref="TargetLeg"/> is the leg the modifier
-/// applies to (the extended leg for ExtendLeg; Downwind for Short/NormalApproach) and gates which
-/// queued entries it can attach to.
+/// A pattern modifier (EXT leg / SA / MNA) issued before its target circuit exists.
+/// <see cref="TargetLeg"/> is the leg the modifier applies to (the extended leg for ExtendLeg; Downwind
+/// for Short/NormalApproach) and gates which queued entries it can attach to.
+/// <see cref="ForNextCircuit"/> partitions the one slot between its two consumers: true when the modifier
+/// targets the circuit the cycle terminator in progress will append (consumed by PhaseRunner), false when
+/// it targets the circuit a still-queued pattern entry builds (consumed by TryEnterPattern).
 /// </summary>
-public sealed record PendingEntryModifier(PendingEntryModifierKind Kind, PatternEntryLeg TargetLeg);
+public sealed record PendingEntryModifier(PendingEntryModifierKind Kind, PatternEntryLeg TargetLeg, bool ForNextCircuit);
 
 /// <summary>
 /// A landing/option clearance (CLAND/TG/SG/LA/COPT) issued before the pattern-entry command that
@@ -166,6 +168,7 @@ public class AircraftPattern
             ExtendNextUpwind = ExtendNextUpwind ? true : null,
             PendingEntryModifierKind = PendingEntryModifier is not null ? (byte)PendingEntryModifier.Kind : null,
             PendingEntryModifierLeg = PendingEntryModifier is not null ? (byte)PendingEntryModifier.TargetLeg : null,
+            PendingEntryModifierForNextCircuit = PendingEntryModifier is { ForNextCircuit: true } ? true : null,
             PendingLandingClearanceType = PendingLandingClearance is not null ? (byte)PendingLandingClearance.Clearance : null,
             PendingLandingClearanceRunwayId = PendingLandingClearance?.RunwayId,
             PendingLandingClearancePatternRunwayId = PendingLandingClearance?.PatternRunwayId,
@@ -187,7 +190,7 @@ public class AircraftPattern
             ExtendNextUpwind = dto.ExtendNextUpwind ?? false,
             PendingEntryModifier =
                 dto.PendingEntryModifierKind is { } kind && dto.PendingEntryModifierLeg is { } leg
-                    ? new PendingEntryModifier((PendingEntryModifierKind)kind, (PatternEntryLeg)leg)
+                    ? new PendingEntryModifier((PendingEntryModifierKind)kind, (PatternEntryLeg)leg, dto.PendingEntryModifierForNextCircuit ?? false)
                     : null,
             PendingLandingClearance =
                 dto.PendingLandingClearanceType is { } clearance && !string.IsNullOrEmpty(dto.PendingLandingClearanceRunwayId)

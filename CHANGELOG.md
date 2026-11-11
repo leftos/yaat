@@ -23,6 +23,7 @@
 ### Fixed
 
 - A STARS handoff or point-out to an unstaffed TCP now goes to the position it is consolidated into, such as 1T to 1M, and is not auto-accepted away from it.
+- `EXT` of any leg, `SA` and `MNA` given during a touch-and-go, stop-and-go, low approach or pattern go-around, or on final before one, apply to the next circuit instead of being refused.
 - An aircraft cleared to taxi just after a pushback turns straight onto its route instead of jumping sideways when its route opens with a short ramp line.
 - A `CTOC` too close to the hold line is answered "unable to hold short, stopping"; the aircraft brakes hard and the instructor sees how far it overran.
 - A preset, `WAIT`-deferred or AI controller `TAXI` shows its route warnings, such as running against a one-way lane, on the instructor's amber line.

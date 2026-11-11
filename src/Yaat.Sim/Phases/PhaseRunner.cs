@@ -241,12 +241,11 @@ public static class PhaseRunner
         // Consume the one-shot EXT pre-arm set by EXT during T/G or pre-T/G
         // FinalApproach. The first UpwindPhase of the new circuit gets
         // IsExtended=true; the flag clears after consumption.
-        if (ctx.Aircraft.Pattern.ExtendNextUpwind)
-        {
-            UpwindPhase? firstUpwind = nextCircuit.OfType<UpwindPhase>().FirstOrDefault();
-            firstUpwind?.IsExtended = true;
-            ctx.Aircraft.Pattern.ExtendNextUpwind = false;
-        }
+        PatternCommandHandler.ConsumeExtendNextUpwind(ctx.Aircraft, nextCircuit);
+
+        // Consume an EXT CW/DW, SA or MNA queued for this circuit while it did not exist yet. A modifier
+        // armed against a queued pattern entry is left for TryEnterPattern to apply when that entry builds.
+        PatternCommandHandler.ApplyPendingEntryModifier(ctx.Aircraft, nextCircuit, expectedForNextCircuit: true);
 
         // Clear landing clearance — RPO must re-clear each approach
         phases.LandingClearance = null;

@@ -28,8 +28,8 @@ namespace Yaat.Sim.Tests.Simulation;
 ///     circuit's UpwindPhase already exists as a pending phase in the queue →
 ///     sets IsExtended directly on that pending UpwindPhase (no flag needed).
 ///   * EXT CROSSWIND/DOWNWIND from a non-pattern-leg phase pre-arms the matching pending leg
-///     when one is queued (e.g. after ERC/ERD before the leg becomes active); it rejects only
-///     when no such leg is queued — as here, where the touch-and-go's next lap starts on upwind.
+///     when one is queued (e.g. after ERC/ERD before the leg becomes active), and otherwise
+///     queues the extension for the circuit the touch-and-go appends, so the leg flies extended.
 /// </summary>
 public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
 {
@@ -359,7 +359,7 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ExtCrosswind_DuringTouchAndGo_StillRejects()
+    public void ExtCrosswind_DuringTouchAndGo_QueuesForNextCircuit()
     {
         SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         SimulationEngine? engine = BuildEngine();
@@ -377,14 +377,28 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
         Assert.IsType<TouchAndGoPhase>(aircraft.Phases?.CurrentPhase);
 
-        CommandResult result = engine.SendCommand(Callsign, "EXT C");
-        output.WriteLine($"EXT C result: Success={result.Success}, Message={result.Message}");
+        CommandResult result = engine.SendCommand(Callsign, "EXT CW");
+        output.WriteLine($"EXT CW result: Success={result.Success}, Message={result.Message}");
 
-        // EXT CROSSWIND rejects here because no Crosswind is queued — the next lap after the
-        // touch-and-go starts on Upwind. (When a Crosswind IS queued, e.g. after ERC, it
-        // pre-arms instead; see PatternCommandHandlerTests.TryExtendPattern_*DuringCrosswindEntry.)
-        Assert.False(result.Success);
-        Assert.Contains("crosswind", result.Message ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        // No Crosswind is queued — the next lap after the touch-and-go starts on Upwind — so the
+        // extension is queued for the circuit that lap begins, and the crosswind flies extended.
+        Assert.True(result.Success, $"EXT CROSSWIND during TouchAndGo should queue for the next circuit: {result.Message}");
         Assert.False(aircraft.Pattern.ExtendNextUpwind);
+
+        CrosswindPhase? newCrosswind = null;
+        for (int dt = 1; dt <= 300; dt++)
+        {
+            engine.ReplayOneSecond();
+            AircraftState? ac = engine.FindAircraft(Callsign);
+            Assert.NotNull(ac);
+            if (ac.Phases?.CurrentPhase is CrosswindPhase cw)
+            {
+                newCrosswind = cw;
+                break;
+            }
+        }
+
+        Assert.NotNull(newCrosswind);
+        Assert.True(newCrosswind!.IsExtended, "The queued EXT CROSSWIND should extend the next circuit's crosswind");
     }
 }

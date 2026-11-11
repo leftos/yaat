@@ -118,7 +118,13 @@ These run inside `PhaseRunner` after the current phase advances. They turn one-s
 
 Full-stop approaches **do not** auto-cycle. The pattern bit (`TrafficDirection`) is what distinguishes a touch-and-go aircraft from a full-stop arrival.
 
-The terminator-type gate matters independently of the direction: an instrument go-around leaves `ReenterPattern=false`, and the persistent `AircraftPattern.TrafficDirection` survives `FH`/`TR`/`TL` phase clears, so without it a stale `MLT`/`MRT` would crank an IFR missed approach into a VFR circuit. `PatternCommandHandler.WillAppendNextCircuit` (which `EXT` uses to decide whether to pre-arm `ExtendNextUpwind`) mirrors this gate — keep the two in sync.
+The terminator-type gate matters independently of the direction: an instrument go-around leaves `ReenterPattern=false`, and the persistent `AircraftPattern.TrafficDirection` survives `FH`/`TR`/`TL` phase clears, so without it a stale `MLT`/`MRT` would crank an IFR missed approach into a VFR circuit. `PatternCommandHandler.WillAppendNextCircuit` mirrors this gate — keep the two in sync.
+
+While a terminator is still running — or on final before a planned touch-and-go, stop-and-go, low approach or option — and that gate says a circuit is coming, the pattern commands issued in the window queue for it: a bare `EXT` and `EXT UPWIND` set the one-shot `AircraftPattern.ExtendNextUpwind`, and `EXT CROSSWIND` / `EXT DOWNWIND` / `SA` / `MNA` set `AircraftPattern.PendingEntryModifier` (a queued `MNA` also cancels a queued extension). The slot holds one modifier: the last one given wins.
+
+This auto-cycle consumes both: the upwind flag directly, and the modifier through `PatternCommandHandler.ApplyPendingEntryModifier` when its `ForNextCircuit` flag is true. `TryEnterPattern` applies whichever side of the partition is pending — a queued entry's own modifier (flag false), or one queued for the lap the cycle terminator would append (flag true) — since an entry builds the next circuit whichever way it is reached.
+
+Re-issuing `MRT`/`MLT` during the climb-out splices the next circuit in at once and consumes both the next-circuit modifier (flag true) and the upwind flag onto it.
 
 ## `PhaseContext` — `Phases/PhaseContext.cs`
 

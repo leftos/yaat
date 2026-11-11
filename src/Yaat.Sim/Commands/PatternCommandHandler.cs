@@ -951,9 +951,10 @@ internal static class PatternCommandHandler
             );
         }
 
-        // Consume any EXT/SA/MNA pre-arm issued before this entry built its circuit
-        // (e.g. EXT DOWNWIND while ERD 28R sat queued behind DCT VPCOL).
-        ApplyPendingEntryModifier(aircraft, circuitPhases);
+        // Consume any EXT/SA/MNA pre-arm issued before this entry built its circuit — against a queued
+        // entry (e.g. EXT DOWNWIND while ERD 28R sat behind DCT VPCOL) or the next circuit of a cycle in
+        // progress (EXT DOWNWIND during the touch-and-go climb-out, then a direct ERD).
+        ApplyPendingEntryModifier(aircraft, circuitPhases, expectedForNextCircuit: null);
 
         // Marginal base entry: flyable, but only above the category's maximum pattern
         // descent rate. AIM 4-4-1.b has the pilot request an amendment (S-turns, a 360)
@@ -1465,6 +1466,11 @@ internal static class PatternCommandHandler
             );
             aircraft.Pattern.NoteRunwayCrossing(circuit);
             aircraft.Phases.InsertAfterCurrent(circuit);
+
+            // A modifier queued for the circuit the climb-out would auto-append belongs to this one now,
+            // as does a bare EXT's one-shot upwind extension, exactly as PhaseRunner's auto-cycle applies both.
+            ConsumeExtendNextUpwind(aircraft, circuit);
+            ApplyPendingEntryModifier(aircraft, circuit, expectedForNextCircuit: true);
 
             // On a completed chain the insert lands at the current index with nothing to start it
             // (an active chain's current phase is Active and takes the normal advance path).
@@ -2263,7 +2269,9 @@ internal static class PatternCommandHandler
     /// IsExtended flag is set directly — the same one OnTick already honors when the aircraft
     /// reaches the leg — so the extension fires automatically without a second command. Only
     /// Crosswind and Downwind can be a future leg here: Upwind is the first leg, and Base/Final
-    /// are rejected by both the parser and the caller. MNA cancels a pending pre-arm.
+    /// are rejected by both the parser and the caller. When no leg is pending, the extension is
+    /// deferred by <see cref="TryDeferModifier"/> onto a still-queued pattern entry or the circuit a
+    /// cycle terminator in progress will append. MNA cancels a pending pre-arm.
     /// </summary>
     private static CommandResult TryArmFutureLeg(AircraftState aircraft, PatternEntryLeg leg)
     {
@@ -2279,11 +2287,9 @@ internal static class PatternCommandHandler
                 return CommandDispatcher.Ok("Extend downwind");
         }
 
-        // No pending leg in an installed circuit — pre-arm a still-queued pattern entry
-        // (e.g. EXT DOWNWIND while ERD 28R sits queued behind DCT VPCOL).
-        if (TryArmPendingEntryModifier(aircraft, new PendingEntryModifier(PendingEntryModifierKind.ExtendLeg, leg)) is { } queued)
+        if (TryDeferModifier(aircraft, new PendingEntryModifier(PendingEntryModifierKind.ExtendLeg, leg, ForNextCircuit: false)) is { } deferred)
         {
-            return queued;
+            return deferred;
         }
 
         return new CommandResult(false, $"No upcoming {leg.ToString().ToLowerInvariant()} leg to extend");
@@ -2530,14 +2536,15 @@ internal static class PatternCommandHandler
             return CommandDispatcher.Ok("Make short approach");
         }
 
-        // No live/pending downwind or base — pre-arm a still-queued pattern entry
-        // (e.g. SA while ERD 28R sits queued behind DCT VPCOL).
         if (
-            TryArmPendingEntryModifier(aircraft, new PendingEntryModifier(PendingEntryModifierKind.ShortApproach, PatternEntryLeg.Downwind)) is
-            { } queued
+            TryDeferModifier(
+                aircraft,
+                new PendingEntryModifier(PendingEntryModifierKind.ShortApproach, PatternEntryLeg.Downwind, ForNextCircuit: false)
+            ) is
+            { } deferred
         )
         {
-            return queued;
+            return deferred;
         }
 
         return new CommandResult(false, "Make short approach requires downwind or base leg in the pattern");
@@ -2566,6 +2573,32 @@ internal static class PatternCommandHandler
         // Queued modifier: clear SA arm on the upcoming Downwind, the following Base's
         // short-approach final distance, and any pre-armed leg extension (EXT CW/DW issued
         // before the aircraft reached that leg) — symmetric to TryMakeShortApproach / EXT.
+        if (ClearPendingApproachArms(aircraft))
+        {
+            return CommandDispatcher.Ok("Make normal approach");
+        }
+
+        if (
+            TryDeferModifier(
+                aircraft,
+                new PendingEntryModifier(PendingEntryModifierKind.NormalApproach, PatternEntryLeg.Downwind, ForNextCircuit: false)
+            ) is
+            { } deferred
+        )
+        {
+            return deferred;
+        }
+
+        return new CommandResult(false, "Make normal approach requires downwind or base leg in the pattern");
+    }
+
+    /// <summary>
+    /// Clears the pre-armed flags on the installed circuit's upcoming legs — the SA arm and short final on
+    /// Downwind/Base, and a leg extension (EXT CW/DW) issued before the aircraft reached that leg. Returns
+    /// true when there was at least one pending leg to clear.
+    /// </summary>
+    private static bool ClearPendingApproachArms(AircraftState aircraft)
+    {
         bool cleared = false;
         if (TryFindNextPendingPhase<CrosswindPhase>(aircraft) is { IsExtended: true } pendingCrosswind)
         {
@@ -2583,22 +2616,8 @@ internal static class PatternCommandHandler
             pendingBase.FinalDistanceNm = null;
             cleared = true;
         }
-        if (cleared)
-        {
-            return CommandDispatcher.Ok("Make normal approach");
-        }
 
-        // No live/pending pattern leg — pre-arm a still-queued pattern entry so the built
-        // downwind comes out normal (and any prior EXT/SA pre-arm is superseded).
-        if (
-            TryArmPendingEntryModifier(aircraft, new PendingEntryModifier(PendingEntryModifierKind.NormalApproach, PatternEntryLeg.Downwind)) is
-            { } queued
-        )
-        {
-            return queued;
-        }
-
-        return new CommandResult(false, "Make normal approach requires downwind or base leg in the pattern");
+        return cleared;
     }
 
     /// <summary>
@@ -3062,51 +3081,71 @@ internal static class PatternCommandHandler
     }
 
     /// <summary>
-    /// Applies a pending EXT/SA/MNA pre-arm (set while the entry was still queued) onto the circuit
-    /// this entry just built, then clears it (single-shot). Mirrors the live SA/MNA/EXT arming, but
-    /// targets the fresh circuit's phases rather than an already-installed pattern.
+    /// Defers a modifier whose target leg does not exist yet: first onto a still-queued pattern entry
+    /// (e.g. EXT DOWNWIND while ERD 28R sits queued behind DCT VPCOL), then onto the circuit the cycle
+    /// terminator in progress will append. Returns null when neither exists, so the caller falls back to
+    /// its rejection. A <see cref="PendingEntryModifierKind.NormalApproach"/> queued for the appended
+    /// circuit also cancels a queued upwind extension.
     /// </summary>
-    private static void ApplyPendingEntryModifier(AircraftState aircraft, IReadOnlyList<Phase> circuit)
+    private static CommandResult? TryDeferModifier(AircraftState aircraft, PendingEntryModifier modifier)
     {
-        if (aircraft.Pattern.PendingEntryModifier is not { } modifier)
+        if (TryArmPendingEntryModifier(aircraft, modifier) is { } queued)
         {
-            return;
+            return queued;
         }
 
-        aircraft.Pattern.PendingEntryModifier = null;
+        if (!WillAppendNextCircuit(aircraft))
+        {
+            return null;
+        }
 
+        PendingEntryModifier nextCircuit = modifier with { ForNextCircuit = true };
+        aircraft.Pattern.PendingEntryModifier = nextCircuit;
+        if (nextCircuit.Kind == PendingEntryModifierKind.NormalApproach)
+        {
+            aircraft.Pattern.ExtendNextUpwind = false;
+        }
+
+        Log.LogDebug(
+            "[PatternModifier] {Callsign}: queued {Kind} {Leg} for the next circuit",
+            aircraft.Callsign,
+            nextCircuit.Kind,
+            nextCircuit.TargetLeg
+        );
+        return CommandDispatcher.Ok($"{PendingModifierMessage(nextCircuit)} (queued for next circuit)");
+    }
+
+    /// <summary>
+    /// Applies a pending EXT/SA/MNA pre-arm onto the circuit just built, then clears it (single-shot).
+    /// Mirrors the live SA/MNA/EXT arming, but targets the fresh circuit's phases rather than an
+    /// already-installed pattern. A pattern entry builds the next circuit whichever way it is reached, so
+    /// it passes <c>null</c> and takes whichever side of the partition is pending; the circuit appended or
+    /// spliced for a cycle terminator in progress passes <c>true</c> and leaves a queued entry's modifier alone.
+    /// </summary>
+    internal static void ApplyPendingEntryModifier(AircraftState aircraft, IReadOnlyList<Phase> circuit, bool? expectedForNextCircuit)
+    {
+        if (
+            aircraft.Pattern.PendingEntryModifier is { } modifier
+            && (expectedForNextCircuit is not { } expected || (modifier.ForNextCircuit == expected))
+        )
+        {
+            aircraft.Pattern.PendingEntryModifier = null;
+            ApplyModifier(aircraft, circuit, modifier);
+        }
+    }
+
+    private static void ApplyModifier(AircraftState aircraft, IReadOnlyList<Phase> circuit, PendingEntryModifier modifier)
+    {
         switch (modifier.Kind)
         {
             case PendingEntryModifierKind.ExtendLeg:
                 ExtendCircuitLeg(circuit, modifier.TargetLeg);
                 break;
             case PendingEntryModifierKind.ShortApproach:
-            {
-                AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
-                if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } downwind)
-                {
-                    downwind.ShortApproachArmed = true;
-                }
-                if (circuit.OfType<BasePhase>().FirstOrDefault() is { } baseLeg)
-                {
-                    baseLeg.FinalDistanceNm = CategoryPerformance.MinShortApproachFinalNm(category);
-                }
+                ArmShortApproach(circuit, AircraftCategorization.Categorize(aircraft.AircraftType));
                 break;
-            }
             case PendingEntryModifierKind.NormalApproach:
-                if (circuit.OfType<CrosswindPhase>().FirstOrDefault() is { IsExtended: true } crosswind)
-                {
-                    crosswind.IsExtended = false;
-                }
-                if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } downwindNormal)
-                {
-                    downwindNormal.ShortApproachArmed = false;
-                    downwindNormal.IsExtended = false;
-                }
-                if (circuit.OfType<BasePhase>().FirstOrDefault() is { } baseNormal)
-                {
-                    baseNormal.FinalDistanceNm = null;
-                }
+                ClearApproachArms(circuit);
                 break;
         }
 
@@ -3116,6 +3155,51 @@ internal static class PatternCommandHandler
             modifier.Kind,
             modifier.TargetLeg
         );
+    }
+
+    private static void ArmShortApproach(IReadOnlyList<Phase> circuit, AircraftCategory category)
+    {
+        if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } downwind)
+        {
+            downwind.ShortApproachArmed = true;
+        }
+        if (circuit.OfType<BasePhase>().FirstOrDefault() is { } baseLeg)
+        {
+            baseLeg.FinalDistanceNm = CategoryPerformance.MinShortApproachFinalNm(category);
+        }
+    }
+
+    private static void ClearApproachArms(IEnumerable<Phase> circuit)
+    {
+        if (circuit.OfType<CrosswindPhase>().FirstOrDefault() is { IsExtended: true } crosswind)
+        {
+            crosswind.IsExtended = false;
+        }
+        if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } downwind)
+        {
+            downwind.ShortApproachArmed = false;
+            downwind.IsExtended = false;
+        }
+        if (circuit.OfType<BasePhase>().FirstOrDefault() is { } baseLeg)
+        {
+            baseLeg.FinalDistanceNm = null;
+        }
+    }
+
+    /// <summary>
+    /// Consumes the one-shot EXT pre-arm a bare <c>EXT</c> / <c>EXT UPWIND</c> sets: the first upwind of
+    /// <paramref name="circuit"/> flies extended and the flag clears. Used by the auto-cycle and by the
+    /// MRT/MLT splice that builds the next circuit early.
+    /// </summary>
+    internal static void ConsumeExtendNextUpwind(AircraftState aircraft, IReadOnlyList<Phase> circuit)
+    {
+        if (!aircraft.Pattern.ExtendNextUpwind)
+        {
+            return;
+        }
+
+        circuit.OfType<UpwindPhase>().FirstOrDefault()?.IsExtended = true;
+        aircraft.Pattern.ExtendNextUpwind = false;
     }
 
     private static void ExtendCircuitLeg(IReadOnlyList<Phase> circuit, PatternEntryLeg leg)

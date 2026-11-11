@@ -47,6 +47,14 @@ public sealed class AircraftPatternDto
     public byte? PendingEntryModifierLeg { get; init; }
 
     /// <summary>
+    /// True when the pending modifier targets the circuit the cycle terminator in progress will append,
+    /// rather than a queued pattern entry. Additive and nullable: absent in old snapshots and when the
+    /// modifier targets a queued entry, and restored as false.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? PendingEntryModifierForNextCircuit { get; init; }
+
+    /// <summary>
     /// Landing/option clearance pre-issued for a queued-but-unbuilt pattern entry (matches
     /// ClearanceType). Null/absent in old snapshots (treated as no pre-issued clearance on load).
     /// </summary>

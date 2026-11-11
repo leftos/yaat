@@ -701,6 +701,48 @@ public class PatternCompressionTests
     }
 
     /// <summary>
+    /// A modifier queued for the circuit the cycle terminator in progress will append survives a snapshot with its
+    /// <see cref="PendingEntryModifier.ForNextCircuit"/> flag, so the restored aircraft applies it to the right circuit.
+    /// </summary>
+    [Fact]
+    public void PendingEntryModifierForNextCircuit_SurvivesASnapshotRoundTrip()
+    {
+        AircraftState ac = OnRunway28L("BE58");
+        ac.Pattern.PendingEntryModifier = new PendingEntryModifier(
+            PendingEntryModifierKind.ExtendLeg,
+            PatternEntryLeg.Downwind,
+            ForNextCircuit: true
+        );
+
+        var restored = AircraftPattern.FromSnapshot(ac.Pattern.ToSnapshot());
+
+        Assert.Equal(ac.Pattern.PendingEntryModifier, restored.PendingEntryModifier);
+        Assert.True(restored.PendingEntryModifier?.ForNextCircuit);
+        Assert.True(restored.ToSnapshot().PendingEntryModifierForNextCircuit);
+    }
+
+    /// <summary>
+    /// A modifier armed against a still-queued pattern entry restores with its flag false and writes no
+    /// next-circuit marker, so an old reader and a new one agree it belongs to the entry's circuit.
+    /// </summary>
+    [Fact]
+    public void PendingEntryModifierForQueuedEntry_RoundTripsWithoutTheNextCircuitFlag()
+    {
+        AircraftState ac = OnRunway28L("BE58");
+        ac.Pattern.PendingEntryModifier = new PendingEntryModifier(
+            PendingEntryModifierKind.ExtendLeg,
+            PatternEntryLeg.Downwind,
+            ForNextCircuit: false
+        );
+
+        var restored = AircraftPattern.FromSnapshot(ac.Pattern.ToSnapshot());
+
+        Assert.Equal(ac.Pattern.PendingEntryModifier, restored.PendingEntryModifier);
+        Assert.False(restored.PendingEntryModifier?.ForNextCircuit ?? true);
+        Assert.Null(ac.Pattern.ToSnapshot().PendingEntryModifierForNextCircuit);
+    }
+
+    /// <summary>
     /// A crossing noted for a closed-traffic circuit is not voiced for a circuit that has been replaced: a phase list cleared
     /// before the tick that would voice it (here by a touch-and-go with no circuit queued) drops it, and the next circuit on
     /// the same runway and side owes it again.
