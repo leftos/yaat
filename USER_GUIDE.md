@@ -1668,6 +1668,8 @@ While connected, **Tools → Open TDLS in Browser** opens that page in your defa
 
 Click a callsign in the DCL list to open the flight-plan editor at the bottom of the view. Pick a SID and transition from the dropdowns — the FE-configured defaults (Expect, Initial Alt, Dep Freq, Climbout, Contact Info, Local Info, etc.) auto-populate the empty fields.
 
+A `$FREQ` in a configured Contact Info or Local Info value, or in a transition's default, is filled with the student position's primary frequency (a value of `CTC $FREQ FOR PUSH` reads `CTC 121.100 FOR PUSH`); it stays as written when the room has no student position or the position has no frequency.
+
 A dropdown reading **- - - -** means nothing is selected, or the facility offers no values for that field. Edit any field as needed. The footer status reads **CLEARANCE TYPE: PDC** when every mandatory field is filled and **MANDATORY FIELD NOT SET — <fields>** otherwise; the **Send** button is disabled until the editor reports valid.
 
 **Climb via and Maintain are alternatives, not companions.** A departure clearance carries one altitude instruction: *climb via SID* (optionally *except maintain*) on a SID with published crossing restrictions, or *maintain* an altitude otherwise.
@@ -1677,7 +1679,7 @@ Picking a **Climb via** value therefore greys out the **Maintain** box and empti
 - **Ops Config** — some facilities (SFO, OAK, BOS) split their SIDs across operational configurations, so an east/west runway split issues different departure frequencies, maintain altitudes, or local info.
 
   Pick the active one from the **Ops Config** button in the footer and click **Save**; the button only appears where the facility uses them. The choice is shared with everyone in the room, and changing it closes any editor you have open — reopen the aircraft to pick up the new configuration's SIDs and defaults.
-- **Send (F12)** — issues the PDC. The pilot's clearance is applied silently (no voice readback) and RPOs in the room see a terminal entry: `[TDLS PDC sent at OAK] Expect=10 MIN, SID=OAKLAND4.ALTAM, Maintain=5000, DepFreq=120.9`. Roughly 3 seconds later the item auto-flips to Wilco.
+- **Send (F12)** — issues the PDC. The pilot's clearance is applied silently (no voice readback) and RPOs in the room see a terminal entry: `[TDLS PDC sent at OAK] Expect=10 MIN, SID=OAKLAND4.ALTAM, Maintain=5000, DepFreq=120.9`. The PDC text names the SID and transition that were picked, and keeps naming them if the Ops Config changes afterwards. Roughly 3 seconds later the item auto-flips to Wilco.
 - **Dump (F4)** — removes the PDC. Terminal: the (facility, callsign) pair can no longer be auto-queued this session. Clearance must now be given by voice. The Dump button is hidden once the item is a sent or Wilco PDC, as in upstream vTDLS; F4 still dumps it.
 - **F10** — closes the flight-plan editor without sending; the DCL entry stays.
 

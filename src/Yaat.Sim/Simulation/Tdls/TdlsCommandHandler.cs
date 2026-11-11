@@ -111,7 +111,10 @@ public static class TdlsCommandHandler
             return new CommandResult(false, failureReason ?? "Unable to resolve TDLS facility");
         }
 
-        TdlsClearance payload = TdlsMutations.ClearancePayloadFromFields(cmd.Fields);
+        TdlsClearance payload = WithStudentFrequency(
+            engine,
+            WithSidNames(engine.Tdls, facility, TdlsMutations.ClearancePayloadFromFields(cmd.Fields))
+        );
         if (!ValidateMandatoryFields(engine.Tdls, facility, payload, out string? mandatoryError))
         {
             return new CommandResult(false, mandatoryError);
@@ -149,6 +152,33 @@ public static class TdlsCommandHandler
         AnswerClearanceRequest(engine, callsign, facility);
 
         return new CommandResult(true, $"PDC sent to {callsign} at {facility}");
+    }
+
+    /// <summary>
+    /// The payload with the names of the SID and transition its ids pick out of the SID list in force at the facility now.
+    /// A SID id means something only against the ops config active when it was chosen, so the names are kept for every
+    /// later reading of the PDC. Unchanged when the id names no SID in that list.
+    /// </summary>
+    private static TdlsClearance WithSidNames(TdlsState state, string facilityId, TdlsClearance payload)
+    {
+        TdlsSidConfig? sid = string.IsNullOrEmpty(payload.Sid)
+            ? null
+            : state.ResolveSids(facilityId).FirstOrDefault(s => string.Equals(s.Id, payload.Sid, StringComparison.Ordinal));
+        return sid is null ? payload : payload with { SidName = sid.Name, TransitionName = ResolveTransition(sid, payload.Transition)?.Name };
+    }
+
+    /// <summary>
+    /// The payload with the <see cref="TdlsFreqToken.Token"/> in its contact and local info filled with the student's primary
+    /// frequency. The client sends values already filled; this covers a typed <c>TDLSS</c> carrying the configured text.
+    /// </summary>
+    private static TdlsClearance WithStudentFrequency(SimulationEngine engine, TdlsClearance payload)
+    {
+        string? frequencyMhz = TdlsFreqToken.StudentPrimaryFrequencyMhz(engine.Scenario);
+        return payload with
+        {
+            ContactInfo = TdlsFreqToken.Apply(payload.ContactInfo, frequencyMhz),
+            LocalInfo = TdlsFreqToken.Apply(payload.LocalInfo, frequencyMhz),
+        };
     }
 
     /// <summary>
@@ -360,8 +390,8 @@ public static class TdlsCommandHandler
     /// <c>ACARS: PDC | CALLSIGN: ... | EQUIPMENT: ... | DEPARTURE: ... | DESTINATION: ... |
     /// ROUTE: ... | ALTITUDE: ... | SQUAWK: ... | REMARKS: CLEARED &lt;SID&gt; DEPARTURE
     /// &lt;ClimbVia&gt; EXP &lt;Alt&gt; &lt;Expect&gt;,DPFRQ &lt;Freq&gt; &lt;Contact&gt; &lt;Local&gt;</c>.
-    /// SID/Transition IDs from the canonical command are resolved to names via the facility's
-    /// TDLS config; the other field values are already in display form on the wire.
+    /// SID/Transition names are the ones the payload kept at send time, else its IDs resolved via the
+    /// facility's TDLS config; the other field values are already in display form on the wire.
     /// </summary>
     public static string FormatPilotPdcMessage(string callsign, AircraftState? ac, TdlsConfig? cfg, TdlsClearance payload)
     {
@@ -391,19 +421,7 @@ public static class TdlsCommandHandler
     private static string FormatPdcRemarks(TdlsConfig? cfg, TdlsClearance p, string altHundreds)
     {
         var sb = new StringBuilder("CLEARED");
-
-        TdlsSidConfig? sid = ResolveSid(cfg, p.Sid);
-        if (sid is not null && !TdlsPlaceholder.IsPlaceholder(sid.Name))
-        {
-            sb.Append(' ').Append(sid.Name);
-        }
-        sb.Append(" DEPARTURE");
-
-        TdlsSidTransitionConfig? transition = ResolveTransition(sid, p.Transition);
-        if (transition is not null && !TdlsPlaceholder.IsPlaceholder(transition.Name))
-        {
-            sb.Append(' ').Append(transition.Name);
-        }
+        AppendSidAndTransition(sb, cfg, p);
 
         if (!string.IsNullOrEmpty(p.Climbout))
         {
@@ -447,6 +465,33 @@ public static class TdlsCommandHandler
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Appends <c>" &lt;SID&gt; DEPARTURE &lt;Transition&gt;"</c>, each name left out when it is the placeholder or unknown. The
+    /// names the payload kept at send time win; a payload without them (stored before names were kept, or built by a
+    /// caller other than <c>TDLSS</c>) resolves its ids against <paramref name="cfg"/>'s facility-level SID list.
+    /// </summary>
+    private static void AppendSidAndTransition(StringBuilder sb, TdlsConfig? cfg, TdlsClearance p)
+    {
+        string? sidName = p.SidName;
+        string? transitionName = p.TransitionName;
+        if (sidName is null)
+        {
+            TdlsSidConfig? sid = ResolveSid(cfg, p.Sid);
+            sidName = sid?.Name;
+            transitionName = ResolveTransition(sid, p.Transition)?.Name;
+        }
+
+        if (!TdlsPlaceholder.IsPlaceholder(sidName))
+        {
+            sb.Append(' ').Append(sidName);
+        }
+        sb.Append(" DEPARTURE");
+        if (!TdlsPlaceholder.IsPlaceholder(transitionName))
+        {
+            sb.Append(' ').Append(transitionName);
+        }
     }
 
     private static TdlsSidConfig? ResolveSid(TdlsConfig? cfg, string? sidId)

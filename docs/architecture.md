@@ -2802,7 +2802,11 @@ TdlsCommandHandler.cs          # Static dispatch for TDLSQ / TDLSS / TDLSW / TDL
                                # instruction per clearance (7110.65 4-3-2), so requiring both would be a dead end.
 TdlsClearance.cs               # The clearance a PDC carries: the nine canonical TDLSS payload fields, in the order the command describes them.
                                # The simulation's clearance model — held by TdlsItemRecord and round-tripped by the snapshot; the server projects
-                               # it onto the CRC wire ClearanceDto on its way out
+                               # it onto the CRC wire ClearanceDto on its way out. SidName / TransitionName keep the names the ids picked at send
+                               # time (null on a payload stored before names were kept, which falls back to the id lookup)
+TdlsFreqToken.cs               # The $FREQ token in a configured contact-info or local-info value: StudentPrimaryFrequencyMhz (the student position's
+                               # frequency as 0.000 MHz, null with no student position or a 0 frequency) and Apply (replaces the token, else returns the
+                               # value unchanged). A projection only — the shared cached ARTCC config is never written back
 TdlsPlaceholder.cs             # The one predicate for the FE's "no value" entry (blank, or dashes and spaces only — "- - - -" is a real selectable
                                # list entry at SMF, not just an empty dropdown's display text). Shared by the Sim's PDC text and mandatory-field
                                # gates and by the client editor's transition matching, climb-via rule and missing-field list.

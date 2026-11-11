@@ -172,6 +172,12 @@ Pre-filed flight plans (a CID with a filed plan but no active
 behavior: "If a pilot pre-files prior to connecting to the network,
 their flight plan is displayed in the DCL list."
 
+## Names and the frequency token
+
+A SID id means something only against the ops config active when it was chosen. `TdlsCommandHandler` therefore resolves the SID and transition names at send time against the facility's SID list then in force and stores them on `SentPayload` (`TdlsClearance.SidName` / `TransitionName`; the ids stay). The pilot PDC text and the terminal line read those names, so a PDC keeps naming the SID sent after `TDLSOPS` changes the active ops config. A placeholder transition is left out of the text. A payload stored before names were kept reads them as null and falls back to resolving the ids against the facility-level SID list.
+
+`$FREQ` in a contact-info or local-info value, or a transition default, is filled with the student position's primary frequency in `0.000` MHz form (`CTC 121.100 FOR PUSH`). yaat-server `ArtccConfigService.BuildTdlsConfigDto` fills it when it builds the page's config, and `TdlsCommandHandler.HandleSend` fills it again on a typed `TDLSS` (`TdlsFreqToken`). With no student position, or one whose frequency is 0, the token stays literal. The substitution is on the projection and the payload only; the shared cached ARTCC config is never changed.
+
 ## RPO terminal broadcasts
 
 When `TDLSS` succeeds, `TdlsCommandHandler.HandleSend` emits a `Tdls`

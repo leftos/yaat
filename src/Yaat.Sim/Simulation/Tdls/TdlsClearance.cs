@@ -21,4 +21,17 @@ public sealed record TdlsClearance
     public string? ContactInfo { get; init; }
     public string? LocalInfo { get; init; }
     public string? DepFreq { get; init; }
+
+    /// <summary>
+    /// The name of the SID <see cref="Sid"/> names, resolved once at send time against the SID list then in force. A SID
+    /// id is only meaningful relative to the ops config that was active when it was chosen, so the name is kept beside
+    /// it for the PDC text. Null when the id resolved to no SID, and on a payload stored before names were kept.
+    /// </summary>
+    public string? SidName { get; init; }
+
+    /// <summary>
+    /// The name of the transition <see cref="Transition"/> names within the SID <see cref="SidName"/> was resolved from,
+    /// the "no transition" placeholder included. Null when the SID or the transition did not resolve.
+    /// </summary>
+    public string? TransitionName { get; init; }
 }
