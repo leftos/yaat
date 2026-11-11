@@ -30,6 +30,8 @@ internal static class FlightPlanCommandHandler
             return new CommandResult(false, $"Unknown airport {input.Trim().ToUpperInvariant()}");
         }
 
+        // A route holding only the clearance-limit direct: the pilot turns direct to the new airport.
+        bool flyingClearanceLimitDirect = (aircraft.Targets.NavigationRoute.Count > 0) && !aircraft.Targets.HasRouteToFly;
         string? previous = aircraft.FlightPlan.Destination;
         if (!string.IsNullOrEmpty(previous) && !previous.Equals(canonical, StringComparison.OrdinalIgnoreCase))
         {
@@ -37,6 +39,13 @@ internal static class FlightPlanCommandHandler
         }
 
         aircraft.FlightPlan.Destination = canonical;
+        aircraft.ClearedDestination = canonical;
+        if (flyingClearanceLimitDirect && (FlightPhysics.ClearanceLimitDirectTo(canonical) is { } direct))
+        {
+            aircraft.Targets.StripClearanceLimitDirect();
+            aircraft.Targets.NavigationRoute.Add(direct);
+        }
+
         return new CommandResult(true, $"Destination changed to {canonical}");
     }
 }

@@ -346,6 +346,19 @@ public class AircraftState
     public bool AirborneCheckInHeldWarned { get; set; }
 
     /// <summary>
+    /// The airport the pilot was cleared to: its filed destination at spawn, or the RPO's <c>APT</c>. The pilot flies
+    /// direct to it when its route runs out. Never written by a flight-plan amendment: a scope or Flight Plan Editor
+    /// change to <see cref="AircraftFlightPlan.Destination"/> does not reach the pilot. Empty when none.
+    /// </summary>
+    public string ClearedDestination { get; set; } = "";
+
+    /// <summary>
+    /// Clears the pilot to its filed destination (<see cref="ClearedDestination"/>), or to none when the aircraft has no
+    /// flight plan. Called once the flight plan is final at spawn and on a live-traffic assume.
+    /// </summary>
+    public void ClearToFiledDestination() => ClearedDestination = FlightPlan.HasFlightPlan ? FlightPlan.Destination : "";
+
+    /// <summary>
     /// Whether the pilot has left the student's frequency: tuned to a position (<see cref="TunedPosition"/>) that is not
     /// <paramref name="studentPosition"/> by callsign, or tuned to any position when there is no student. Compared by
     /// callsign, never by TCP, because tower-cab positions (OAK_GND, OAK_TWR) share one.
@@ -557,6 +570,7 @@ public class AircraftState
             HasControllerAcknowledgedInitialContact = dto.HasControllerAcknowledgedInitialContact,
             TunedPosition = dto.TunedPosition is null ? null : TrackOwner.FromSnapshot(dto.TunedPosition),
             AirborneCheckInHeldWarned = dto.AirborneCheckInHeldWarned,
+            ClearedDestination = dto.ClearedDestination ?? "",
             SpawnedAtSeconds = dto.SpawnedAtSeconds,
             IsGeneratorArrival = dto.IsGeneratorArrival,
             IsGeneratedOverflight = dto.IsGeneratedOverflight,
@@ -674,6 +688,7 @@ public class AircraftState
             HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
             TunedPosition = TunedPosition?.ToSnapshot(),
             AirborneCheckInHeldWarned = AirborneCheckInHeldWarned,
+            ClearedDestination = ClearedDestination,
             SpawnedAtSeconds = SpawnedAtSeconds,
             IsGeneratorArrival = IsGeneratorArrival,
             IsGeneratedOverflight = IsGeneratedOverflight,

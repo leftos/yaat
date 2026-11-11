@@ -148,14 +148,20 @@ public static class FlightPhysics
     private static void UpdateNavigation(AircraftState aircraft, WeatherProfile? weather, double simTimeSeconds, double windPhaseSeconds)
     {
         List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
-        if (route.Count == 0)
+        if (!aircraft.Targets.HasRouteToFly)
         {
+            // A route holding only the clearance-limit direct has run out: a pending approach takes over from it.
             if (aircraft.Approach.PendingClearance is { } pendingEarly)
             {
+                aircraft.Targets.StripClearanceLimitDirect();
                 ApproachCommandHandler.ActivatePendingApproach(aircraft, pendingEarly);
+                return;
             }
 
-            return;
+            if (route.Count == 0)
+            {
+                return;
+            }
         }
 
         NavigationTarget nav = route[0];
@@ -191,8 +197,12 @@ public static class FlightPhysics
                     : null;
             route.RemoveAt(0);
 
-            // Fire any AT fix triggers in the command queue for this fix
-            NotifyFixSequenced(aircraft, sequenced.Name);
+            // Fire any AT fix triggers in the command queue for this fix. The clearance-limit direct is not a fix the
+            // controller cleared: reaching the airport fires no trigger and releases no via bound.
+            if (!sequenced.IsClearanceLimitDirect)
+            {
+                NotifyFixSequenced(aircraft, sequenced.Name);
+            }
 
             // Restore altitude/speed from revert fields when sequencing past a constrained fix
             if (sequenced.RevertAltitude is not null)
@@ -201,7 +211,7 @@ public static class FlightPhysics
                 aircraft.Targets.AssignedAltitude = sequenced.RevertAssignedAltitude;
                 aircraft.Targets.DesiredVerticalRate = null;
             }
-            else
+            else if (!sequenced.IsClearanceLimitDirect)
             {
                 ReleaseClimbCeilingPastFix(aircraft, sequenced, route);
                 ReleaseDescentFloorPastFix(aircraft, sequenced, route);
@@ -288,11 +298,7 @@ public static class FlightPhysics
                         : lastProcSpeed;
                 }
 
-                // FM terminator (most US STARs): fly the published outbound course and await
-                // vectors, instead of holding the heading the aircraft happened to arrive on.
-                aircraft.Targets.TargetTrueHeading = sequenced.TerminalCourseMagnetic is { } fmCourse
-                    ? new MagneticHeading(fmCourse).ToTrue(aircraft.Declination)
-                    : null;
+                ApplyRouteEndLateral(aircraft, sequenced, route);
                 aircraft.Targets.PreferredTurnDirection = null;
                 ClearProcedureState(aircraft);
                 return;
@@ -1301,7 +1307,7 @@ public static class FlightPhysics
         }
 
         List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
-        if (route.Count == 0)
+        if (!aircraft.Targets.HasRouteToFly)
         {
             PlanPendingCrossingSpeed(aircraft, cat);
             return;
@@ -2198,11 +2204,7 @@ public static class FlightPhysics
         // (7110.65 4-5-7.h.10; AIM 5-2-9.h.8). While the SID's coded legs fly the aircraft they hold their own route off the
         // live one and keep the interim CTO altitude behind the via, so the top is theirs to hold until they hand over.
         bool legsOwnAltitude = aircraft.Phases?.CurrentPhase is not Phases.Tower.DepartureProcedurePhase;
-        if (
-            legsOwnAltitude
-            && (aircraft.Targets.NavigationRoute.Count == 0)
-            && (Math.Abs(aircraft.Altitude - climbVia) <= ClimbViaTopReachedToleranceFt)
-        )
+        if (legsOwnAltitude && !aircraft.Targets.HasRouteToFly && (Math.Abs(aircraft.Altitude - climbVia) <= ClimbViaTopReachedToleranceFt))
         {
             aircraft.Procedure.ClimbViaTargetFt = null;
             aircraft.Procedure.ClimbViaTransmissionId = null;
@@ -2253,6 +2255,111 @@ public static class FlightPhysics
         {
             aircraft.Targets.AssignedSpeed = route.Find(IsControllerSetSpeed)?.SpeedRestriction?.SpeedKts;
         }
+    }
+
+    /// <summary>
+    /// What the aircraft flies laterally once its last route fix is sequenced and no approach clearance is pending. An FM
+    /// terminator (most US STARs) wins: fly the published outbound course and await vectors, instead of holding the
+    /// heading the aircraft happened to arrive on. Otherwise a pilot with a cleared destination turns direct to it at
+    /// once (<see cref="DirectToClearedDestination"/>), leaving the altitude as it is; failing both, it flies straight.
+    /// </summary>
+    private static void ApplyRouteEndLateral(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
+    {
+        if (sequenced.TerminalCourseMagnetic is { } fmCourse)
+        {
+            aircraft.Targets.TargetTrueHeading = new MagneticHeading(fmCourse).ToTrue(aircraft.Declination);
+        }
+        else if (DirectToClearedDestination(aircraft, sequenced) is { } direct)
+        {
+            // Turn toward the airport now; the steering on the next tick corrects the heading for wind.
+            route.Add(direct);
+            aircraft.Targets.TargetTrueHeading = new TrueHeading(GeoMath.BearingTo(aircraft.Position, direct.Position));
+        }
+        else
+        {
+            aircraft.Targets.TargetTrueHeading = null;
+        }
+    }
+
+    /// <summary>
+    /// The clearance-limit direct to <paramref name="airportId"/> (<see cref="NavigationTarget.IsClearanceLimitDirect"/>),
+    /// or null when the airport has no position.
+    /// </summary>
+    internal static NavigationTarget? ClearanceLimitDirectTo(string airportId) =>
+        NavigationDatabase.Instance.GetAirportPosition(airportId) is { } pos
+            ? new NavigationTarget
+            {
+                Name = airportId,
+                Position = new LatLon(pos.Lat, pos.Lon),
+                IsClearanceLimitDirect = true,
+            }
+            : null;
+
+    /// <summary>
+    /// The one-fix route to the pilot's cleared destination when its route has run out, or null when the aircraft keeps
+    /// its old route-end behaviour: a reason in <see cref="RouteEndDirectRefusalByState"/> or
+    /// <see cref="RouteEndDirectRefusalByClearance"/>, or a destination with no airport position.
+    /// </summary>
+    private static NavigationTarget? DirectToClearedDestination(AircraftState aircraft, NavigationTarget sequenced)
+    {
+        string dest = aircraft.ClearedDestination;
+        string? refusal = RouteEndDirectRefusalByState(aircraft) ?? RouteEndDirectRefusalByClearance(aircraft, sequenced);
+        if ((refusal is null) && (ClearanceLimitDirectTo(dest) is { } direct))
+        {
+            return direct;
+        }
+
+        Log.LogDebug(
+            "{Callsign}: route ended at {Fix}, no direct to cleared destination '{Destination}': {Reason}",
+            aircraft.Callsign,
+            sequenced.Name,
+            dest,
+            refusal ?? "no airport position"
+        );
+        return null;
+    }
+
+    /// <summary>
+    /// Why the aircraft's own state keeps it off a direct at route end, or null: a shadow or an aircraft on the ground, a
+    /// phase other than the departure climb (an approach, pattern or hold owns its route), or an assigned heading.
+    /// </summary>
+    private static string? RouteEndDirectRefusalByState(AircraftState aircraft)
+    {
+        if (aircraft.IsShadow)
+        {
+            return "live-traffic shadow";
+        }
+
+        if (aircraft.IsOnGround)
+        {
+            return "on the ground";
+        }
+
+        if (aircraft.Phases?.CurrentPhase is { } phase and not (Phases.Tower.InitialClimbPhase or Phases.Tower.DepartureProcedurePhase))
+        {
+            return $"phase {phase.Name}";
+        }
+
+        return aircraft.Targets.AssignedMagneticHeading is not null ? "assigned heading" : null;
+    }
+
+    /// <summary>
+    /// Why the clearance keeps the aircraft off a direct at route end, or null: an active military route, no cleared
+    /// destination, or a last fix that is the destination itself.
+    /// </summary>
+    private static string? RouteEndDirectRefusalByClearance(AircraftState aircraft, NavigationTarget sequenced)
+    {
+        if (aircraft.MilitaryRoute.IsActive)
+        {
+            return "military route active";
+        }
+
+        if (string.IsNullOrEmpty(aircraft.ClearedDestination))
+        {
+            return "no cleared destination";
+        }
+
+        return NavigationDatabase.AirportIdsMatch(sequenced.Name, aircraft.ClearedDestination) ? "last fix is the destination" : null;
     }
 
     private static void ClearProcedureState(AircraftState aircraft)
@@ -4160,7 +4267,7 @@ public static class FlightPhysics
                 // assignment being flown out no longer shows as a null target; the aircraft is at the fastest speed it
                 // may fly here and the instruction is as done as it can be, which is what the chain advances on.
                 TrackedCommandType.Speed => (aircraft.Targets.TargetSpeed is null) || IsSpeedAssignmentHeldAtSpeedLimit(aircraft),
-                TrackedCommandType.Navigation => aircraft.Targets.NavigationRoute.Count == 0,
+                TrackedCommandType.Navigation => !aircraft.Targets.HasRouteToFly,
                 TrackedCommandType.Immediate => true,
                 TrackedCommandType.Wait => CheckWaitComplete(block, aircraft, deltaSeconds),
                 _ => true,
@@ -4170,7 +4277,7 @@ public static class FlightPhysics
 
     private static bool IsHeadingReached(AircraftState aircraft)
     {
-        if (aircraft.Targets.NavigationRoute.Count > 0)
+        if (aircraft.Targets.HasRouteToFly)
         {
             return false;
         }
@@ -4544,7 +4651,7 @@ public static class FlightPhysics
 
         // Nothing to release without an explicit speed and with no route a crossing speed could sit on, and a forced
         // assignment is exempt from the gate altogether.
-        if (targets.SpeedOverridesFinalGate || (!targets.HasExplicitSpeedCommand && (targets.NavigationRoute.Count == 0)))
+        if (targets.SpeedOverridesFinalGate || (!targets.HasExplicitSpeedCommand && !targets.HasRouteToFly))
         {
             return;
         }

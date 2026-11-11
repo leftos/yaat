@@ -82,6 +82,18 @@ public class LiveTrafficAssumeTests
     }
 
     [Fact]
+    public void Assume_ClearsThePilotToTheFeedPlansDestination()
+    {
+        AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));
+        Assert.Equal("", ac.ClearedDestination);
+
+        CommandResult result = Assume(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("KSMF", ac.ClearedDestination);
+    }
+
+    [Fact]
     public void Assume_OnNonShadow_IsRejected()
     {
         AircraftState ac = Shadow(Sample(0, EnRoute, 11_000, 300, 90, 0));

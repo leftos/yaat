@@ -185,6 +185,19 @@ public class ControlTargets
     /// </summary>
     public List<NavigationTarget> NavigationRoute { get; } = [];
 
+    /// <summary>
+    /// Whether the route holds a target the aircraft was cleared to fly: any but the clearance-limit direct
+    /// (<see cref="NavigationTarget.IsClearanceLimitDirect"/>). False when the cleared navigation is done.
+    /// </summary>
+    [JsonIgnore]
+    public bool HasRouteToFly => NavigationRoute.Exists(t => !t.IsClearanceLimitDirect);
+
+    /// <summary>
+    /// Removes the clearance-limit direct from the route, so that fixes appended next are flown at once rather than after
+    /// the airport.
+    /// </summary>
+    public void StripClearanceLimitDirect() => NavigationRoute.RemoveAll(t => t.IsClearanceLimitDirect);
+
     public ControlTargetsDto ToSnapshot() =>
         new()
         {
@@ -293,6 +306,14 @@ public class NavigationTarget
     public bool IsFlyOver { get; init; }
 
     /// <summary>
+    /// The direct to the cleared destination a pilot flies when its route ran out (<see cref="AircraftState.ClearedDestination"/>).
+    /// Readers that ask whether the cleared navigation is done treat a route holding only this target as empty
+    /// (<see cref="ControlTargets.HasRouteToFly"/>), and a fix appended to the route goes in its place
+    /// (<see cref="ControlTargets.StripClearanceLimitDirect"/>).
+    /// </summary>
+    public bool IsClearanceLimitDirect { get; init; }
+
+    /// <summary>
     /// Published outbound course (magnetic) to fly after sequencing this terminating fix when the
     /// route is then empty — the ARINC-424 FM "fly course, expect vectors" leg that ends most US
     /// STARs. Null for ordinary fixes (the aircraft holds its arrival heading at route end).
@@ -384,6 +405,7 @@ public class NavigationTarget
                 ? new SpeedRestrictionDto { Type = SpeedRestrictionDto.ToTypeCode(SpeedRestriction.Type), Speed = SpeedRestriction.SpeedKts }
                 : null,
             IsFlyOver = IsFlyOver,
+            IsClearanceLimitDirect = IsClearanceLimitDirect,
             RevertAltitude = RevertAltitude,
             RevertAssignedAltitude = RevertAssignedAltitude,
             RevertSpeed = RevertSpeed,
@@ -418,6 +440,7 @@ public class NavigationTarget
                 ? new CifpSpeedRestriction(dto.SpeedRestriction.Speed, SpeedRestrictionDto.FromTypeCode(dto.SpeedRestriction.Type))
                 : null,
             IsFlyOver = dto.IsFlyOver,
+            IsClearanceLimitDirect = dto.IsClearanceLimitDirect,
             RevertAltitude = dto.RevertAltitude,
             RevertAssignedAltitude = dto.RevertAssignedAltitude,
             RevertSpeed = dto.RevertSpeed,

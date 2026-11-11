@@ -1741,7 +1741,7 @@ public static class ApproachCommandHandler
     )
     {
         HashSet<string> knownFixes = BuildKnownFixes(aircraft);
-        bool onNavRoute = aircraft.Targets.NavigationRoute.Count > 0;
+        bool onNavRoute = aircraft.Targets.HasRouteToFly;
 
         // Tier 1: try hint sources in priority order
         string?[] sources = [context.ExpectedApproach, context.DestinationRunway];
@@ -2812,6 +2812,8 @@ public static class ApproachCommandHandler
             return;
         }
 
+        // The approach fixes go in place of the clearance-limit direct, never after the airport.
+        aircraft.Targets.StripClearanceLimitDirect();
         string connectingFix = approachFixes[0].Name;
         List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
 

@@ -183,6 +183,14 @@ _Avoid_: global command (`CommandDefinition.IsGlobal` is a different question: t
 A route altitude restriction that drives the aircraft now, decided by its restriction source (`AltitudeRestrictionInForce`): a controller's crossing always, a pattern-phase point while that phase flies, a published approach altitude once an approach clearance is active or a deferred one's connecting fix is behind the aircraft, a published SID or STAR altitude only under a climb via or descend via. A maintain leaves the published altitudes on the route but out of force.
 _Avoid_: active restriction (a restriction's speed applies whether or not its altitude is in force)
 
+**Clearance-limit direct**:
+The route target (`NavigationTarget.IsClearanceLimitDirect`) an airborne aircraft flies to its cleared destination when its route runs out. It is not a fix the controller cleared: a route holding only it counts as no route (`ControlTargets.HasRouteToFly`), and a fix appended to the route replaces it.
+_Avoid_: destination fix
+
+**Cleared destination**:
+The airport the pilot was cleared to (`AircraftState.ClearedDestination`): the filed destination at spawn, then `APT`, or at a live-traffic assume. Pilot-side: a scope or Flight Plan Editor amendment of the filed destination never changes it.
+_Avoid_: filed destination (that is the scope-editable `FlightPlan.Destination`)
+
 **Connecting fix** (of a deferred approach clearance):
 The STAR or route fix a `CAPP` given while the aircraft is still on the STAR joins at (`PendingApproachInfo.ConnectingFix`), or the fix of a later direct that skips it. The approach's published altitudes bind only once the aircraft is past it; until then it keeps its last assigned altitude.
 _Avoid_: join fix

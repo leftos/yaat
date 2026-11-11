@@ -48,6 +48,11 @@ public sealed class NavigationTargetDto
     public AltitudeRestrictionDto? AltitudeRestriction { get; init; }
     public SpeedRestrictionDto? SpeedRestriction { get; init; }
     public required bool IsFlyOver { get; init; }
+
+    // V53: written only when true; an older snapshot has none and restores false.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsClearanceLimitDirect { get; init; }
+
     public double? RevertAltitude { get; init; }
     public double? RevertAssignedAltitude { get; init; }
     public double? RevertSpeed { get; init; }

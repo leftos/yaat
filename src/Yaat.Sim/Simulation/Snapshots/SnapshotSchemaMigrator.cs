@@ -35,7 +35,7 @@ public static class SnapshotSchemaMigrator
     /// </summary>
     private static readonly HashSet<string> PatternPhaseFixNames = new(StringComparer.Ordinal) { "PTN-ENTRY", "TDROP-OUT", "TDROP-LI", "TDROP-ABM" };
 
-    public const int CurrentSchemaVersion = 52;
+    public const int CurrentSchemaVersion = 53;
 
     /// <summary>The airtime a pre-V39 transmission time migrates as: those meters stored only the second a call started.</summary>
     public const double LegacyTransmissionSeconds = 3.0;
@@ -433,6 +433,19 @@ public static class SnapshotSchemaMigrator
         // V51→V52: AircraftSnapshotDto.AirborneCheckInHeldWarned added, latched when the instructor is warned that an airborne
         //   check-in is held because the pilot is tuned to another position. No data transformation: an older snapshot reads
         //   false, so a held aircraft restored from a pre-V52 snapshot warns once, then latches.
+
+        // V52→V53: AircraftSnapshotDto.ClearedDestination added, the airport the pilot was cleared to and flies direct to when
+        //   its route runs out. Seeded from the filed destination (empty without a flight plan), as a spawn clears it, so an
+        //   aircraft restored from a pre-V53 snapshot flies its route end as a live one would. NavigationTargetDto.IsClearanceLimitDirect
+        //   added, marking the direct to that destination; written only when true. No data transformation: an older snapshot
+        //   reads false.
+        if (snapshot.SchemaVersion < 53)
+        {
+            foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
+            {
+                ac.ClearedDestination ??= (ac.FlightPlan is { HasFlightPlan: true } plan) ? plan.Destination : "";
+            }
+        }
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }

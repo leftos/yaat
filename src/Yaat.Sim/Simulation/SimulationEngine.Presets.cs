@@ -714,6 +714,9 @@ public sealed partial class SimulationEngine
             loaded.State.FlightPlan.Destination = scenario.PrimaryAirportId;
         }
 
+        // The pilot is cleared as filed, the backstop's destination included.
+        loaded.State.ClearToFiledDestination();
+
         // Separate immediate presets from delayed ones.
         var immediatePresets = new List<string>();
         foreach (PresetCommand preset in loaded.PresetCommands)

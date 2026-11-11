@@ -266,6 +266,7 @@ public static class ScenarioLoader
             Approach = new AircraftApproachState { Expected = effectiveApproach },
         };
         state.FlightPlan.ApplyFiledAircraftData(filed);
+        state.ClearToFiledDestination();
         return state;
     }
 

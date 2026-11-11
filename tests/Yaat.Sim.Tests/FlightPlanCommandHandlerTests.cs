@@ -3,10 +3,12 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -51,6 +53,38 @@ public class FlightPlanCommandHandlerTests
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Equal("KOAK", aircraft.FlightPlan.Destination);
         Assert.Equal("Destination changed to KOAK", result.Message);
+    }
+
+    [Fact]
+    public void TryChangeDestination_ClearsThePilotToTheCanonicalAirport()
+    {
+        AircraftState aircraft = MakeAircraft(initialDestination: "KSFO");
+        aircraft.ClearedDestination = "KSFO";
+
+        CommandResult result = FlightPlanCommandHandler.TryChangeDestination(aircraft, "oak");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("KOAK", aircraft.ClearedDestination);
+    }
+
+    /// <summary>
+    /// A scope or Flight Plan Editor amendment reaches only the flight plan: the pilot's cleared destination, which it
+    /// flies direct to when its route runs out, stays what the pilot was cleared to.
+    /// </summary>
+    [Fact]
+    public void AmendFlightPlan_DestinationChange_LeavesClearedDestination()
+    {
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        AircraftState aircraft = MakeAircraft(initialDestination: "KSFO");
+        aircraft.FlightPlan.HasFlightPlan = true;
+        aircraft.ClearToFiledDestination();
+        engine.World.AddAircraft(aircraft);
+
+        CommandResult result = engine.AmendFlightPlan(aircraft.Callsign, new FlightPlanAmendment(ClearBeaconCode: false, Destination: "KOAK"));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("KOAK", aircraft.FlightPlan.Destination);
+        Assert.Equal("KSFO", aircraft.ClearedDestination);
     }
 
     [Fact]

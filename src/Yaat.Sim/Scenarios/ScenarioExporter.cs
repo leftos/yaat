@@ -500,12 +500,12 @@ public static class ScenarioExporter
     /// </summary>
     private static string? RemainingRoute(AircraftState state)
     {
-        if ((state.Targets.NavigationRoute.Count == 0) || (state.Targets.AssignedMagneticHeading is not null))
+        if (!state.Targets.HasRouteToFly || (state.Targets.AssignedMagneticHeading is not null))
         {
             return null;
         }
 
-        return string.Join(' ', state.Targets.NavigationRoute.Select(target => target.Name));
+        return string.Join(' ', state.Targets.NavigationRoute.Where(target => !target.IsClearanceLimitDirect).Select(target => target.Name));
     }
 
     private static FinalFix? FindSimulatedFinal(AircraftState state)

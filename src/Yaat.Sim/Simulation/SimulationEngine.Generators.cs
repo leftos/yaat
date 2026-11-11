@@ -1903,6 +1903,7 @@ public sealed partial class SimulationEngine
         state.Ground.Layout = groundLayout;
         state.SpawnedAtSeconds = scenario.ElapsedSeconds;
         state.FlightPlan.Altitude = PlannedAltitude.Vfr((int)Math.Round(site.Value.AltitudeFt));
+        state.ClearToFiledDestination();
 
         var routeWarnings = new List<string>();
         string directTo = string.IsNullOrWhiteSpace(config.DirectTo) ? airportId : config.DirectTo;

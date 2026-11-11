@@ -399,6 +399,7 @@ public static class AircraftGenerator
             },
             FlightPlan = BuildBearingFlightPlan(request, flightRules, aircraftType),
         };
+        state.ClearToFiledDestination();
 
         return (state, null);
     }
@@ -453,6 +454,7 @@ public static class AircraftGenerator
             },
             FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: "", route: ""),
         };
+        state.ClearToFiledDestination();
 
         return (state, null);
     }
@@ -518,6 +520,7 @@ public static class AircraftGenerator
             },
             FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: airport, route: filedRoute),
         };
+        state.ClearToFiledDestination();
 
         // The runway-transition designator drives both the lateral route build and the descend-via profile.
         // Zero-pad it (SpawnParser leaves single-digit designators unpadded) so it matches the CIFP
@@ -729,6 +732,7 @@ public static class AircraftGenerator
             FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: departure, destination: "", route: request.Route),
             Phases = init.Phases,
         };
+        state.ClearToFiledDestination();
 
         return (state, null);
     }
@@ -788,6 +792,7 @@ public static class AircraftGenerator
             FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: destination, route: ""),
             Phases = init.Phases,
         };
+        state.ClearToFiledDestination();
 
         return (state, null);
     }
@@ -840,6 +845,7 @@ public static class AircraftGenerator
             FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: "", route: ""),
             Phases = init.Phases,
         };
+        state.ClearToFiledDestination();
 
         return (state, null);
     }

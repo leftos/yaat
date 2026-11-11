@@ -176,7 +176,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         // An explicit vector or navigation command means the controller has taken responsibility for
         // keeping the aircraft clear. Without this the orbit overwrites TargetTrueHeading every tick and
         // the aircraft circles through the vector until it is cleared into the airspace.
-        if (ctx.Targets.AssignedMagneticHeading is not null || ctx.Targets.NavigationRoute.Count > 0)
+        if ((ctx.Targets.AssignedMagneticHeading is not null) || ctx.Targets.HasRouteToFly)
         {
             return true;
         }
@@ -240,7 +240,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         // OnStart cleared the route and the hold never repopulates it, so a non-empty route here means
         // the controller issued a direct/navigation command during the hold — preserve it rather than
         // reverting to the pre-hold route. Likewise an assigned heading means the controller vectored.
-        if (ctx.Targets.AssignedMagneticHeading is null && ctx.Targets.NavigationRoute.Count == 0)
+        if ((ctx.Targets.AssignedMagneticHeading is null) && !ctx.Targets.HasRouteToFly)
         {
             ctx.Targets.NavigationRoute.Clear();
             foreach (NavigationTarget target in _originalRoute)

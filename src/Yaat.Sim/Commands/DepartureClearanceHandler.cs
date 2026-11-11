@@ -1876,13 +1876,17 @@ internal static class DepartureClearanceHandler
 
             case OnCourseDeparture when aircraft.FlightPlan.Destination is not null:
             {
-                (double Lat, double Lon)? pos = navDb.GetAirportPosition(aircraft.FlightPlan.Destination);
+                // The airport the pilot was cleared to: a scope amendment of the plan's destination never flies the pilot.
+                string destination = string.IsNullOrEmpty(aircraft.ClearedDestination)
+                    ? aircraft.FlightPlan.Destination
+                    : aircraft.ClearedDestination;
+                (double Lat, double Lon)? pos = navDb.GetAirportPosition(destination);
                 if (pos is null)
                 {
                     return null;
                 }
                 return new DepartureRouteResult(
-                    [new NavigationTarget { Name = aircraft.FlightPlan.Destination, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) }],
+                    [new NavigationTarget { Name = destination, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) }],
                     null
                 );
             }

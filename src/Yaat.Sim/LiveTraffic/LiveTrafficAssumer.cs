@@ -160,6 +160,8 @@ public static class LiveTrafficAssumer
         // rather than the feed identity, which is null for a track no product gave a GUFI.
         aircraft.AssumedFromLiveTraffic = true;
         aircraft.LiveTraffic = null;
+        // An assumed aircraft is cleared to its filed destination, as a scenario spawn is.
+        aircraft.ClearToFiledDestination();
         aircraft.Queue.Blocks.Clear();
         aircraft.DeferredDispatches.Clear();
 

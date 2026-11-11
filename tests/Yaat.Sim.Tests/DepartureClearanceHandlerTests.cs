@@ -62,6 +62,23 @@ public class DepartureClearanceHandlerTests
 
     private static PhaseContext MinCtx(AircraftState ac) => CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty);
 
+    /// <summary>
+    /// A scope amendment of the plan's destination never flies the pilot: the on-course departure goes direct to the
+    /// airport the pilot was cleared to.
+    /// </summary>
+    [Fact]
+    public void OnCourseDeparture_FliesToTheClearedDestination_NotAnAmendedPlan()
+    {
+        AircraftState ac = MakeAircraft();
+        ac.FlightPlan.Destination = "KSJC";
+        ac.ClearedDestination = "KOAK";
+
+        DepartureRouteResult? result = DepartureClearanceHandler.ResolveDepartureRoute(new OnCourseDeparture(), ac);
+
+        Assert.NotNull(result);
+        Assert.Equal("KOAK", Assert.Single(result.Targets).Name);
+    }
+
     // -------------------------------------------------------------------------
     // TryDepartureClearance from HoldingShort
     // -------------------------------------------------------------------------

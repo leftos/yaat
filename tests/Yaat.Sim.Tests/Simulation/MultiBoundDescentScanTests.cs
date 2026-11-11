@@ -400,9 +400,10 @@ public class MultiBoundDescentScanTests
         double? lastTarget = null;
         for (int t = 0; t < DescendViaTicks; t++)
         {
-            string? before = ac.Targets.NavigationRoute.FirstOrDefault()?.Name;
+            // The direct to the cleared destination after the STAR's last fix is not a cleared fix: log only the cleared ones.
+            string? before = ac.Targets.NavigationRoute.FirstOrDefault(t => !t.IsClearanceLimitDirect)?.Name;
             harness.Engine.TickOneSecond();
-            if ((before is not null) && (ac.Targets.NavigationRoute.FirstOrDefault()?.Name != before))
+            if ((before is not null) && (ac.Targets.NavigationRoute.FirstOrDefault(t => !t.IsClearanceLimitDirect)?.Name != before))
             {
                 events.Add($"{t} crossed {before} at {ac.Altitude:F0}");
             }

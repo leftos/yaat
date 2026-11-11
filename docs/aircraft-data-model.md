@@ -37,6 +37,7 @@ These live directly on the record, not in a satellite:
 | `GroundSpeed` | `double` (computed) | On-ground = IAS; airborne = IAS→TAS + cached wind vector. |
 | `WindComponents` | `(double N, double E)` | Last observed wind in knots; `internal set` — only `FlightPhysics` writes it. |
 | `IsOnGround` | `bool` | Ground vs airborne — gates physics branches and conflict detection. |
+| `ClearedDestination` | `string` | The airport the pilot was cleared to and flies direct to when its route runs out: the filed destination at spawn (`ClearToFiledDestination`), then `APT`, or at a live-traffic assume. Pilot-side: a scope or Flight Plan Editor amendment of `FlightPlan.Destination` never changes it. `""` when none. Serialized (`AircraftSnapshotDto.ClearedDestination`). |
 | `Targets` | `ControlTargets` (**get-only**) | The autopilot panel. See below. |
 | `Queue` | `CommandQueue` | Triggered/queued command blocks (free-flight only — phases bypass it). |
 | `Phases` | `PhaseList?` | Active phase state machine; `null` = free-flying. See [phases.md](phases.md). |
@@ -102,7 +103,7 @@ Every field on the aircraft falls into one of three buckets. Pick the right one 
    **not** in the snapshot tree and must not be relied on across a replay round-trip:
    `PendingWarnings`, `PendingNotifications`, `PendingPilotSpeech` (`List<PilotSpeechText>`), `PendingPilotReadbacks`, `PendingPilotTransmissions`, `PendingApproachScores`,
    `PendingObservations`, `DeferredDispatches`, `PositionHistory` (all on `AircraftState`, lines 120–278). `DeferredDispatches` and `PositionHistory`
-   are the exceptions that *do* serialize (they are durable state, not outboxes) — see `ToSnapshot` at `AircraftState.cs:395,412`.
+   are the exceptions that *do* serialize (they are durable state, not outboxes) — see `AircraftState.ToSnapshot` and `AircraftState.FromSnapshot`.
 
 ## Mutator map — who writes the load-bearing fields
 

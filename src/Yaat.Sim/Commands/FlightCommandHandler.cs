@@ -1827,7 +1827,10 @@ internal static class FlightCommandHandler
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
         RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
-        if (aircraft.Targets.NavigationRoute.Count == 0)
+        // A route holding only the clearance-limit direct has run out: the fixes replace the direct rather than follow it.
+        bool routeRanOut = !aircraft.Targets.HasRouteToFly;
+        aircraft.Targets.StripClearanceLimitDirect();
+        if (routeRanOut)
         {
             foreach (ResolvedFix? fix in resolved)
             {
@@ -1856,7 +1859,10 @@ internal static class FlightCommandHandler
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
         RouteChainer.AppendRouteRemainder(resolved, aircraft.FlightPlan.Route);
-        if (aircraft.Targets.NavigationRoute.Count == 0)
+        // A route holding only the clearance-limit direct has run out: the fixes replace the direct rather than follow it.
+        bool routeRanOut = !aircraft.Targets.HasRouteToFly;
+        aircraft.Targets.StripClearanceLimitDirect();
+        if (routeRanOut)
         {
             foreach (ResolvedFix? fix in resolved)
             {
@@ -2048,6 +2054,14 @@ internal static class FlightCommandHandler
         aircraft.Procedure.IsExpediting = false;
     }
 
+    /// <summary>
+    /// <paramref name="target"/> as a fix the controller cleared: a controller direct to the clearance-limit direct's
+    /// airport makes it an ordinary fix (<see cref="NavigationTarget.IsClearanceLimitDirect"/> false). Any other target is
+    /// returned as it is.
+    /// </summary>
+    private static NavigationTarget AsClearedFix(NavigationTarget target) =>
+        target.IsClearanceLimitDirect ? new NavigationTarget { Name = target.Name, Position = target.Position } : target;
+
     internal static bool TryPreserveProcedure(AircraftState aircraft, string firstFixName)
     {
         if (aircraft.Procedure.ActiveSidId is null && aircraft.Procedure.ActiveStarId is null)
@@ -2070,6 +2084,8 @@ internal static class FlightCommandHandler
         {
             return false;
         }
+
+        route[matchIndex] = AsClearedFix(route[matchIndex]);
 
         // Truncate: remove fixes before the matched one, taking the speed reverts they held first.
         List<NavigationTarget> skippedReverts = [];

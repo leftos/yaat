@@ -166,6 +166,13 @@ public static class AircraftStatusDescriber
         /// <summary>Departure clearance retained by the InitialClimb phase; drives the departure lateral descriptor.</summary>
         public DepartureInstruction? Departure { get; init; }
         public int NavigationRouteCount { get; init; }
+
+        /// <summary>
+        /// True when the route holds only the clearance-limit direct (<see cref="ControlTargets.HasRouteToFly"/> false with
+        /// a route): the cleared navigation is done, though the route still shows the direct.
+        /// </summary>
+        public bool OnlyClearanceLimitDirect { get; init; }
+
         public string NavigationRouteDisplay { get; init; } = "";
         public bool IsDelayed { get; init; }
 
@@ -226,6 +233,7 @@ public static class AircraftStatusDescriber
                 TargetAltitude = ac.Targets.TargetAltitude,
                 Departure = (ac.Phases?.CurrentPhase as InitialClimbPhase)?.Departure,
                 NavigationRouteCount = navNames.Count,
+                OnlyClearanceLimitDirect = (ac.Targets.NavigationRoute.Count > 0) && !ac.Targets.HasRouteToFly,
                 NavigationRouteDisplay = string.Join(" ", navNames),
                 IsDelayed = ctx.IsDelayed,
                 RunwayQueuePosition = ac.Ground.RunwayQueuePosition,
@@ -259,7 +267,7 @@ public static class AircraftStatusDescriber
             && string.IsNullOrEmpty(i.ActiveStarId)
             && !i.AssignedAltitude.HasValue
             && !i.AssignedHeading.HasValue
-            && i.NavigationRouteCount == 0
+            && ((i.NavigationRouteCount == 0) || i.OnlyClearanceLimitDirect)
             && !i.IsDelayed
         )
         {

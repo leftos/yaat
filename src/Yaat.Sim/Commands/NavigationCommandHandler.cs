@@ -430,6 +430,12 @@ internal static class NavigationCommandHandler
         // are additive. A fix not on the route is appended, so a chain of CFIX on a vectored aircraft builds a crossing
         // profile in issue order (an empty route becomes a single-fix direct route). A coded-leg fix a pending route lacks
         // goes first, where the handover drops it as flown and applies its reverts.
+        // The crossing fix replaces the clearance-limit direct: it is never appended after the airport, nor stamped on it.
+        if (!handoverPending)
+        {
+            aircraft.Targets.StripClearanceLimitDirect();
+        }
+
         NavigationTarget? existing = route.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
         // A crossing speed restated on a fix whose speed a controller already set, in any transmission, changes the
         // crossing figure only: what the aircraft goes back to past the fix is still what the first crossing replaced.
@@ -1214,6 +1220,7 @@ internal static class NavigationCommandHandler
             return;
         }
 
+        aircraft.Targets.StripClearanceLimitDirect();
         foreach (NavigationTarget target in DepartureClearanceHandler.ResolveLegsToTargets(newLegs))
         {
             aircraft.Targets.NavigationRoute.Add(target);

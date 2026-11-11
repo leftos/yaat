@@ -91,6 +91,12 @@ public sealed class AircraftSnapshotDto
     public bool AirborneCheckInHeldWarned { get; init; }
 
     /// <summary>
+    /// The airport the pilot was cleared to (<see cref="AircraftState.ClearedDestination"/>). Null in a pre-V53 snapshot,
+    /// which <see cref="SnapshotSchemaMigrator"/> seeds from the filed destination; settable for it.
+    /// </summary>
+    public string? ClearedDestination { get; set; }
+
+    /// <summary>
     /// Through V47 the "left the student's frequency" flag lived here. Read only so <see cref="SnapshotSchemaMigrator"/> can
     /// turn a true one into <see cref="TrackOwner.Elsewhere"/> on <see cref="TunedPosition"/>, then nulled, so a rewritten
     /// snapshot drops it.

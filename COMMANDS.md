@@ -174,7 +174,7 @@ The chain still queues (the `FH 090` flies once the hold ends), and *conditional
 
 **`APT` at the front of a `,` block applies first.** `APT OAK, ELB 28L 4, CLAND` moves the flight plan before the pattern entry resolves its runway, so the entry finds 28L at OAK. The destination change stays applied even if the manoeuvre is then refused, and the response says so (`Destination changed to KOAK; but Runway 35L not found at OAK`). Every other command in a `,` block keeps its place.
 
-On an airborne aircraft `APT` also switches its ground layout to the new airport's, so the commands after it resolve names there (`APT OAK, LAND @HELI1` from a helicopter bound for KSFO lands at KOAK's HELI1); on the ground nothing moves.
+On an airborne aircraft `APT` also switches its ground layout to the new airport's, so the commands after it resolve names there (`APT OAK, LAND @HELI1` from a helicopter bound for KSFO lands at KOAK's HELI1); on the ground nothing moves. `APT` also sets the airport the pilot flies direct to when its route runs out (a scope or Flight Plan Editor destination change does not), and turns an aircraft already flying direct to the old one toward the new airport.
 
 An aircraft low over the field its current layout covers (within 0.3 nm of that layout, at or below 500 ft above the field) keeps that layout and only its destination changes. Scenario presets and triggered blocks (`LV 5 APT OAK, LAND @HELI1`) behave the same as typed commands.
 
@@ -1720,6 +1720,8 @@ DCT JFK090020
 This means "the point on the 090 radial from JFK at 20 NM." The fix name must be 2+ characters, followed by exactly 3 digits for the radial (degrees) and 3 digits for the distance (NM). FRD works anywhere a fix name is accepted.
 
 If the last fix in the list appears in the aircraft's filed route, the aircraft continues on its filed route from that point.
+
+**When the route runs out.** An airborne aircraft with no pending approach clearance, assigned heading or active military route, free-flying or in its departure climb, flies direct to its cleared destination at the altitude in force (IFR and VFR alike; an FM terminator's published course is flown first), then straight on past the airport. A `DCT`, `ADCT` or `CFIX` given while the aircraft flies only that direct replaces it ("proceed direct X"), and a block queued behind a `DCT` runs once the cleared fixes are flown.
 
 **Route validation** — When **Validate DCT fixes against route** is enabled in Settings › Scenario defaults, DCT commands to fixes not in the aircraft's filed route or expected approach are rejected. Use `DCTF` (force direct to) to override. Issue `EAPP` (Expect Approach) first to program approach fixes into the aircraft's route for validation purposes.
 

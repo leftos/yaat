@@ -17,6 +17,8 @@
 
 ### Changed
 
+- An aircraft whose route runs out without a vector or approach clearance turns direct to its destination airport instead of flying straight; `APT` changes that airport.
+- A destination amended from the scope or the Flight Plan Editor no longer changes where the pilot flies, including an on-course departure.
 - A bare `PO` points the aircraft out to the student's position, as a bare `HO` hands it off, unless a pending point-out involves you.
 - A pattern aircraft's quick commands offer cleared for the option, touch-and-go, stop-and-go and low approach on final as well as downwind, each with its own icon.
 - A pilot's taxi readback to a stand or spot names it first and says "gate" for a gate: "taxi to gate foxtrot one four via alpha, bravo".
