@@ -2202,6 +2202,13 @@ public static partial class GroundCommandHandler
         && startNode.Edges.Any(e => e.MatchesTaxiway(current));
 
     /// <summary>
+    /// Route resolutions this thread's TAXI resolver has taken, for tests that pin a clearance's cost by operation count
+    /// rather than by time. Written by the resolver's <c>ResolveDirect</c>; nothing in the sim reads it.
+    /// </summary>
+    [ThreadStatic]
+    internal static int ResolveDirectCountForTests;
+
+    /// <summary>
     /// Resolves the clearance from one start node through the approach leg: anchoring to the first cleared taxiway, where
     /// the cleared path starts, the ramp-lane cuts, the dropped-taxiway recoveries, the missing-taxiway fallbacks and the
     /// spot line-up. Reads the aircraft and the layout; changes neither.
@@ -2284,6 +2291,7 @@ public static partial class GroundCommandHandler
         var startPose = StartPose.Of(aircraft);
         TaxiRoute? ResolveDirect(TaxiCommand command, out PathfindingFailure? routeFailure)
         {
+            ResolveDirectCountForTests++;
             if (confineToRamp && (command.Path.Count == 0))
             {
                 return ResolveRampConfinedRoute(
@@ -4531,7 +4539,9 @@ public static partial class GroundCommandHandler
     /// resolver's rule for a numbered-variant choice), then the better route; a gate or spot prefers the better route.
     /// A numbered variant of the last taxiway is never X for a runway: the clearance implies it. At most
     /// <see cref="MaxMissingTaxiwayCandidates"/> X are tried, those meeting the last taxiway nearest the destination
-    /// first. Null when the path ends on no plain taxiway or no single extra taxiway reaches the destination.
+    /// first. Against a stand, spot or helipad, an X that cannot reach the destination over the graph — while the
+    /// clearance's own taxiways do not already lie on that reach — is skipped without resolving it. Null when the path
+    /// ends on no plain taxiway or no single extra taxiway reaches the destination.
     /// </summary>
     private static TaxiRoute? TryHoldShortOfMissingTaxiway(StartLinkInputs inputs, Func<TaxiCommand, TaxiRoute?> resolve)
     {
@@ -4546,8 +4556,15 @@ public static partial class GroundCommandHandler
         GroundNode? destinationNode = FindTaxiDestinationNode(layout, taxi);
         LatLon? threshold = taxi.DestinationRunway is { } rwy ? RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, rwy) : null;
         var target = new MissingTaxiwayTarget(taxi, lastCleared, destinationNode, threshold);
+        List<string> candidates = MissingTaxiwayCandidates(layout, taxi, lastCleared, destinationNode?.Position ?? threshold);
+        MissingTaxiwayReach? reach = MissingTaxiwayReachFor(layout, taxi, destinationNode);
+        if (reach is not null)
+        {
+            candidates = AdmittedMissingTaxiways(candidates, reach, inputs.Callsign);
+        }
+
         MissingTaxiwayCandidate? best = null;
-        foreach (string missing in MissingTaxiwayCandidates(layout, taxi, lastCleared, destinationNode?.Position ?? threshold))
+        foreach (string missing in candidates)
         {
             MissingTaxiwayCandidate? candidate = EvaluateMissingTaxiway(layout, target, missing, resolve);
             if ((candidate is not null) && ((best is null) || IsBetterMissingTaxiway(candidate, best)))

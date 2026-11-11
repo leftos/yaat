@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- A `TAXI` to a stand or spot that misses a taxiway no longer stalls the simulation while it works out where to hold short.
 - A STARS handoff or point-out to an unstaffed TCP now goes to the position it is consolidated into, such as 1T to 1M, and is not auto-accepted away from it.
 - `EXT` of any leg, `SA` and `MNA` given during a touch-and-go, stop-and-go, low approach or pattern go-around, or on final before one, apply to the next circuit instead of being refused.
 - `CROSS` takes an arrival across the parallel runway without a `TAXI`: on the rollout, during the turn-off, or holding short after a short crossover.

@@ -551,6 +551,8 @@ The failure message says "ms of thread CPU time". The test projects run server G
 
 On Windows the clock advances only at the scheduler tick (about 15.6 ms), so a budget under about 50 ms means nothing there. Work that hops threads (`await`, `Parallel`, `Task.Run`, native worker threads) cannot be measured this way: keep wall time for it, and for anything that really is about wall time (UI-thread blocking, debounce and settle windows, hang guards). Never substitute process CPU time, which counts the other tests running in parallel.
 
+**Pin a cost by operation count, never by time, where the cost is a number of expensive calls.** `GroundCommandHandler.ResolveDirectCountForTests` is a `[ThreadStatic]` counter of route resolutions on the calling thread: a test zeroes it, runs the TAXI and asserts the count (`MissingTaxiwayFallbackCostTests`), which holds on a loaded machine where a millisecond budget flakes.
+
 **Loop budgets: event-bounded vs budget-bounded.** Most recording-replay tests are *event-bounded* — they tick until "reaches phase X" /
 "exits `LineUpPhase`" / "segment > N" and `break`; the `for (t <= 600)` bound is a failure timeout, not a cost. Trimming it saves nothing
 on a green run and only risks hiding a bug that surfaces later. A *budget-bounded* loop asserts every iteration with no early exit
