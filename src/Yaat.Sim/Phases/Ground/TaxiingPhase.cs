@@ -927,13 +927,10 @@ public sealed class TaxiingPhase : Phase
             bar.TargetName,
             ctx.Aircraft.GroundSpeed
         );
-        PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            PilotResponder.BuildUnableHoldShortOnTheMove(ctx.Aircraft, named),
-            PilotResponder.SoloPositionsGround
+            PilotReportRouting.From(ctx),
+            PilotResponder.BuildUnableHoldShortOnTheMove(ctx.Aircraft, named)
         );
     }
 

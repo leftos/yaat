@@ -9,10 +9,9 @@ using Yaat.Sim.Simulation;
 namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>
-/// HoldingAfterExitPhase fires the pilot's "clear of runway at TAXIWAY" transmission.
-/// In solo TWR mode the student should hear the radio call (TTS) so they can hand off
-/// to ground; in solo GND mode the student is on a different frequency and only sees
-/// a terminal warning.
+/// HoldingAfterExitPhase fires the pilot's "clear of runway at TAXIWAY" transmission, routed by the position the pilot is
+/// tuned to: a pilot on the student's frequency is heard as a radio call (TTS), and one tuned away from the student and from
+/// every position the room staffs is a terminal warning only.
 /// </summary>
 public class HoldingAfterExitPhaseTests
 {
@@ -53,14 +52,31 @@ public class HoldingAfterExitPhaseTests
     }
 
     [Fact]
-    public void OnStart_SoloGroundStudent_TerminalWarningOnly_NoTts()
+    public void OnStart_SoloGroundStudentNoTunedPosition_QueuesSayAndTts()
     {
         AircraftState ac = MakeAircraft();
         var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null, heldShortOfRunway: null);
 
         phase.OnStart(MakeContext(ac, "GND"));
 
-        // Ground student isn't on tower frequency when this transmission would fire.
+        // No tuned position counts as on the student's frequency: the ground student hears the call.
+        Assert.Empty(ac.PendingNotifications);
+        PilotTransmission transmission = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Equal("clear of runway 28R at E.", transmission.Text);
+        Assert.Contains("clear of runway two eight right", transmission.SpeechText);
+        Assert.Empty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void OnStart_SoloTunedAwayFromTheStudent_TerminalWarningOnly_NoTts()
+    {
+        AircraftState ac = MakeAircraft();
+        ac.TunedPosition = TrackOwner.Elsewhere;
+        var phase = new HoldingAfterExitPhase("28R", "E", holdShortNodeId: null, heldShortOfRunway: null);
+
+        phase.OnStart(MakeContext(ac, "GND"));
+
+        // Tuned where nobody in the room answers: the student only sees the warning.
         Assert.Empty(ac.PendingNotifications);
         Assert.Empty(ac.PendingPilotTransmissions);
         string warning = Assert.Single(ac.PendingWarnings);

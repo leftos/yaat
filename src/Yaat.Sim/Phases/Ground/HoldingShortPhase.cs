@@ -363,13 +363,10 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
     private void AnnounceWaitForFollowLead(PhaseContext ctx, string leadCallsign)
     {
         string runway = RunwayEndFacing(ctx.Aircraft, ctx.ActiveRunways);
-        PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            PilotResponder.BuildHoldingShortForFollowTraffic(ctx.Aircraft, runway, leadCallsign),
-            PilotResponder.SoloPositionsGround
+            PilotReportRouting.From(ctx),
+            PilotResponder.BuildHoldingShortForFollowTraffic(ctx.Aircraft, runway, leadCallsign)
         );
         ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} cleared across RWY {runway}, holding for the follow traffic");
     }

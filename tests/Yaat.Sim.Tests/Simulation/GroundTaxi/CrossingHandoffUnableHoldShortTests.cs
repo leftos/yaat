@@ -217,6 +217,37 @@ public sealed class CrossingHandoffUnableHoldShortTests
     }
 
     /// <summary>
+    /// Solo training with the student working ground, but the pilot tuned to a position nobody in the room staffs: the unable
+    /// call is not a radio call the student hears, and the terminal warning carries it instead.
+    /// </summary>
+    [Fact]
+    public void HoldShortInsideTheFirmStopAtTheHandoff_SoloTunedAwayFromTheStudent_WarnsOnly()
+    {
+        if (
+            HandOffWithHoldShortOfC(scenario =>
+            {
+                scenario.SoloTrainingMode = true;
+                scenario.StudentPositionType = "GND";
+            })
+            is not { } run
+        )
+        {
+            return;
+        }
+
+        run.Aircraft.TunedPosition = TrackOwner.Elsewhere;
+        run.Engine.TickPhysics(SubTick);
+
+        Assert.True(run.Bar.Unable, "the hold short of C was not flagged unable on the hand-off tick");
+        Assert.DoesNotContain(
+            run.Aircraft.PendingPilotTransmissions,
+            t => t.Text.Contains("unable to hold short of", StringComparison.OrdinalIgnoreCase)
+        );
+        string warning = Assert.Single(run.Aircraft.PendingWarnings, w => w.Contains("unable to hold short of", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("unable to hold short of C, stopping", warning);
+    }
+
+    /// <summary>
     /// A runway bar carried as the combined centreline id (<c>28R/10L</c>) is named by one end, never both: with 28R the active end
     /// at OAK, a crossing bar and a runway <c>HS</c> bar on B south of 28R are both named "runway 28R" by the unable call.
     /// </summary>

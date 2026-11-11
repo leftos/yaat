@@ -841,14 +841,7 @@ public static partial class GroundCommandHandler
                 aircraft.Callsign,
                 taxiway
             );
-            PilotResponder.RouteSoloOrRpoTransmission(
-                aircraft,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                PilotResponder.BuildUnableToExit(aircraft, taxiway),
-                PilotResponder.SoloPositionsTower
-            );
+            PilotResponder.RouteByTunedPosition(aircraft, PilotReportRouting.From(ctx), PilotResponder.BuildUnableToExit(aircraft, taxiway));
 
             // The route the expedite was given for is dropped, and the expedite with it.
             EndRouteExpedite(aircraft);

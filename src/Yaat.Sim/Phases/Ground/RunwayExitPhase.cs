@@ -1124,13 +1124,10 @@ public sealed class RunwayExitPhase : Phase
             exitBehind ?? "(no exit behind)"
         );
 
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+        Pilot.PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildUnableToExitRequestBackTaxi(ctx.Aircraft, exitBehind),
-            Pilot.PilotResponder.SoloPositionsTower
+            Pilot.PilotReportRouting.From(ctx),
+            Pilot.PilotResponder.BuildUnableToExitRequestBackTaxi(ctx.Aircraft, exitBehind)
         );
         ctx.Aircraft.PendingWarnings.Add(
             exitsAheadOccupied
@@ -1236,13 +1233,10 @@ public sealed class RunwayExitPhase : Phase
         }
 
         Log.LogDebug("[Exit] {Callsign}: {Twy} is only off the instructed side, exiting at {Actual}", ctx.Aircraft.Callsign, named, _exitTaxiway);
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+        Pilot.PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildUnableToExit(ctx.Aircraft, named),
-            Pilot.PilotResponder.SoloPositionsTower
+            Pilot.PilotReportRouting.From(ctx),
+            Pilot.PilotResponder.BuildUnableToExit(ctx.Aircraft, named)
         );
     }
 
@@ -2514,14 +2508,7 @@ public sealed class RunwayExitPhase : Phase
 
         // Pilot reports clear of the landing runway as it pulls up toward the parallel.
         PilotSpeechText clearText = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, _runwayId, _exitTaxiway);
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-            ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            clearText,
-            Pilot.PilotResponder.SoloPositionsTower
-        );
+        Pilot.PilotResponder.RouteByTunedPosition(ctx.Aircraft, Pilot.PilotReportRouting.From(ctx), clearText);
 
         // Handed off at speed, the taxi never exceeds the hand-off speed until the parallel bar: the speed it has, or the planned one
         // when it has less (released from a HOLD past the bar, or slowed for a give-way), so it still reaches the bar.

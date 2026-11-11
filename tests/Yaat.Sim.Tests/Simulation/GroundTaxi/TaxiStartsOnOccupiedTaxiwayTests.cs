@@ -1022,15 +1022,17 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The C172 with no room to turn about short of the runway bar, in a solo training session: its unable is a radio call to
-    /// a student working ground or tower (a pilot transmission on the terminal), and a terminal warning otherwise, exactly
-    /// once either way.
+    /// The C172 with no room to turn about short of the runway bar, in a solo training session: its unable is a radio call
+    /// (a pilot transmission on the terminal) whenever the pilot is on the student's frequency — no tuned position counts as on
+    /// it, whatever the student works — and a terminal warning when the pilot is tuned where nobody answers, exactly once
+    /// either way.
     /// </summary>
     [Theory]
-    [InlineData("GND", true)]
-    [InlineData("TWR", true)]
+    [InlineData("GND", false)]
+    [InlineData("TWR", false)]
     [InlineData("APP", false)]
-    public void RollingTowardARunwayBar_NoRoomShortOfTheLine_SoloUnableCallsGroundAndTower(string studentPosition, bool radioCall)
+    [InlineData("GND", true)]
+    public void RollingTowardARunwayBar_NoRoomShortOfTheLine_SoloUnableIsHeardOnlyOnThePilotsFrequency(string studentPosition, bool tunedAway)
     {
         if (BuildGround("OAK") is not { } ground)
         {
@@ -1042,6 +1044,7 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
         scenario.StudentPositionType = studentPosition;
         const string Type = "C172";
         (AircraftState aircraft, string command) = PlaceShortOfARunwayBar(ground, Type, NoRoomShortOfBarFt(Type), BarTaxiSpeedKts);
+        aircraft.TunedPosition = tunedAway ? TrackOwner.Elsewhere : null;
         int warnings = 0;
         int calls = 0;
         bool Unable(string callsign, string message) =>
@@ -1054,9 +1057,9 @@ public class TaxiStartsOnOccupiedTaxiwayTests(ITestOutputHelper output)
             ground.Engine.TickOneSecond();
         }
 
-        output.WriteLine($"student {studentPosition}: {calls} radio calls, {warnings} warnings");
-        Assert.Equal(radioCall ? 1 : 0, calls);
-        Assert.Equal(radioCall ? 0 : 1, warnings);
+        output.WriteLine($"student {studentPosition}, tuned away {tunedAway}: {calls} radio calls, {warnings} warnings");
+        Assert.Equal(tunedAway ? 0 : 1, calls);
+        Assert.Equal(tunedAway ? 1 : 0, warnings);
     }
 
     /// <summary>

@@ -857,12 +857,6 @@ public sealed class GroundNavigator
     private const double FootprintSampleFt = 5.0;
 
     /// <summary>
-    /// The student positions that hear an aircraft's unable to turn about, rolling (<see cref="HoldUnableToTurnAbout"/>) or at
-    /// rest (<see cref="HoldUnableFromRest"/>): ground, which issues taxi clearances, and tower.
-    /// </summary>
-    private static readonly IReadOnlyCollection<string> TurnAboutUnableSoloPositions = ["GND", "TWR"];
-
-    /// <summary>
     /// The sharpest bend (deg) from the occupied edge onto the edge beyond the node ahead that still counts as its straight
     /// continuation, which a rolling turn about with no room before that node or at it rolls on to.
     /// </summary>
@@ -2680,7 +2674,7 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// The unable an aircraft with no room to turn about says (<see cref="_turnAboutHold"/>), routed as a pilot's unsolicited call
-    /// is (<see cref="PilotResponder.RouteSoloOrRpoTransmission"/>): with a runway, the refusal that holds short of it
+    /// is (<see cref="PilotResponder.RouteByTunedPosition"/>): with a runway, the refusal that holds short of it
     /// (<see cref="PilotResponder.BuildUnableNoRoomToTurnAroundAtRunway"/>), else the one that asks for a route ahead
     /// (<see cref="PilotResponder.BuildUnableNoRoomToTurnAround"/>), each naming <paramref name="hold"/>'s taxiway when it
     /// stands on one. Said from the first tick of the stop, whose context carries the session's solo mode and student
@@ -2693,14 +2687,7 @@ public sealed class GroundNavigator
             ({ } runway, var taxiway) => PilotResponder.BuildUnableNoRoomToTurnAroundAtRunway(ctx.Aircraft, taxiway, runway),
             (null, var taxiway) => PilotResponder.BuildUnableNoRoomToTurnAround(ctx.Aircraft, taxiway),
         };
-        PilotResponder.RouteSoloOrRpoTransmission(
-            ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            unable,
-            TurnAboutUnableSoloPositions
-        );
+        PilotResponder.RouteByTunedPosition(ctx.Aircraft, PilotReportRouting.From(ctx), unable);
     }
 
     /// <summary>

@@ -97,13 +97,10 @@ public sealed class HoldingAfterExitPhase : Phase
                 twy,
                 rwy
             );
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            Pilot.PilotResponder.RouteByTunedPosition(
                 ctx.Aircraft,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildHoldingShortNotClearOfRunwayText(ctx.Aircraft, otherRunway, twy, rwy),
-                Pilot.PilotResponder.SoloPositionsTower
+                Pilot.PilotReportRouting.From(ctx),
+                Pilot.PilotResponder.BuildHoldingShortNotClearOfRunwayText(ctx.Aircraft, otherRunway, twy, rwy)
             );
         }
         else if (_stoppedInsideHoldingDistance)
@@ -117,17 +114,10 @@ public sealed class HoldingAfterExitPhase : Phase
         }
         else
         {
-            // Broadcast "clear of runway" — solo TWR students need the TTS so they can hand off
-            // to ground; solo GND students aren't on tower frequency at this point.
+            // Broadcast "clear of runway" — the student on the pilot's frequency hears the TTS and can hand off to
+            // ground; a pilot tuned where nobody in the room answers only warns.
             PilotSpeechText text = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, rwy, twy);
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-                ctx.Aircraft,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                text,
-                Pilot.PilotResponder.SoloPositionsTower
-            );
+            Pilot.PilotResponder.RouteByTunedPosition(ctx.Aircraft, Pilot.PilotReportRouting.From(ctx), text);
         }
 
         Log.LogDebug(

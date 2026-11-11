@@ -39,18 +39,6 @@ public static partial class PilotResponder
     public const string SourceSayReadback = "SayReadback";
 
     /// <summary>
-    /// Solo-relevant student positions for transmissions that are tower-aviated
-    /// (clear-of-runway, holding-short ready, lined-up ready, on-final, etc.).
-    /// </summary>
-    public static readonly IReadOnlyCollection<string> SoloPositionsTower = ["TWR"];
-
-    /// <summary>
-    /// Solo-relevant student positions for transmissions about taxiing on the airport surface that ground or tower
-    /// handles (a taxi follow with no route to its traffic).
-    /// </summary>
-    public static readonly IReadOnlyCollection<string> SoloPositionsGround = ["GND", "TWR"];
-
-    /// <summary>
     /// Solo-relevant student positions for transmissions controllers handle in either
     /// the tower or terminal area (pattern reports, follow operations, going around).
     /// </summary>
@@ -2234,7 +2222,7 @@ public static partial class PilotResponder
     /// Unified router for sim-initiated pilot transmissions. Takes a <see cref="PilotSpeechText"/>
     /// (terminal + TTS forms produced independently by the builder, not by regex-compacting the
     /// spoken string) plus the list of student positions for which the transmission is
-    /// audiable: e.g. clear-of-runway is tower-only, pattern reports and follow events are
+    /// audible: e.g. a pattern report (<see cref="SoloPositionsTowerApproach"/>) is
     /// tower-or-approach.
     /// <list type="bullet">
     ///   <item><description><b>Solo + student in <paramref name="soloRelevantPositions"/></b>:

@@ -146,13 +146,10 @@ internal static class RunwayCrossingFarSideGate
         string runway = runwayTarget.Contains('/')
             ? RunwayCrossingEnd.Spoken(ctx.Aircraft, runwayTarget, ctx.GroundLayout, ctx.ActiveRunways)
             : HoldShortTarget.Describe(runwayTarget);
-        PilotResponder.RouteSoloOrRpoTransmission(
+        PilotResponder.RouteByTunedPosition(
             ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            PilotResponder.BuildHoldingShortTrafficAhead(ctx.Aircraft, runway),
-            PilotResponder.SoloPositionsGround
+            PilotReportRouting.From(ctx),
+            PilotResponder.BuildHoldingShortTrafficAhead(ctx.Aircraft, runway)
         );
     }
 
