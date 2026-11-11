@@ -586,6 +586,76 @@ public class ReRouteTaxiTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// An aircraft held at the Signature ramp edge (every Signature stand its GLF4 fits taken) keeps the pending area through
+    /// <c>RTAXI C</c>: the re-route re-resolves <c>@GATE</c> from the remarks, finds the area still full, and ends at the same node.
+    /// </summary>
+    [Fact]
+    public void ReRoute_HeldAtFullAreaRampEdge_KeepsThePendingArea()
+    {
+        if (Build() is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = TaxiToRemarkGateTests.SpawnHeldAtFullArea(ground);
+        TaxiRoute held = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, "RTAXI C");
+
+        Assert.True(result.Success, result.Message);
+        TaxiRoute rerouted = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        Assert.Equal("SIGNATURE", rerouted.DestinationParkingArea);
+        Assert.Null(rerouted.DestinationParking);
+        Assert.Equal(held.Segments[^1].ToNodeId, rerouted.Segments[^1].ToNodeId);
+    }
+
+    /// <summary>
+    /// Stopped at the full Signature area's ramp edge, <c>RTAXI T421</c> finds the area still full: the aircraft stays where it is and
+    /// reports again, never driving deeper into the ramp.
+    /// </summary>
+    [Fact]
+    public void RTaxi_FromTheHoldNode_StaysAndReportsAgain()
+    {
+        if (Build() is not { } ground)
+        {
+            return;
+        }
+
+        var reports = new List<PilotSpeechText>();
+        AircraftState aircraft = TaxiToRemarkGateTests.StoppedAtFullAreaHold(ground, reports);
+        LatLon stoppedAt = aircraft.Position;
+
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, "RTAXI T421");
+
+        TaxiToRemarkGateTests.AssertStaysAndReportsAgain(ground, aircraft, result, (stoppedAt, reports), output);
+    }
+
+    /// <summary>
+    /// Stopped at the full Signature area's ramp edge, the GLF4 on SIG6 leaves: <c>RTAXI T421</c> re-resolves <c>@GATE</c> to the
+    /// freed stand and the route ends there.
+    /// </summary>
+    [Fact]
+    public void RTaxi_FromTheHoldNode_WithAStandFreed_TaxisToIt()
+    {
+        if (Build() is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = TaxiToRemarkGateTests.StoppedAtFullAreaHold(ground, []);
+        ground.Engine.World.RemoveAircraft("PRK2");
+
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, "RTAXI T421");
+
+        Assert.True(result.Success, result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        output.WriteLine($"route: {string.Join(" | ", route.Segments.Select(s => $"{s.TaxiwayName}: {s.FromNodeId}->{s.ToNodeId}"))}");
+        Assert.Equal("SIG6", route.DestinationParking);
+        Assert.Null(route.DestinationParkingArea);
+        Assert.Equal(Assert.IsType<GroundNode>(ground.Layout.FindParkingByName("SIG6")).Id, route.Segments[^1].ToNodeId);
+    }
+
+    /// <summary>
     /// The aircraft taxied <c>TAXI B K A F 28L</c> to HoldingShortPhase at F's 1L/19R crossing bar, with a takeoff clearance stored
     /// on the way when <paramref name="storeTakeoffClearance"/>.
     /// </summary>

@@ -2,6 +2,8 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
@@ -14,8 +16,9 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// <c>@GATE</c> is the stand the aircraft's flight-plan remarks name: <c>TAXI A @GATE</c> and <c>TAXIAUTO @GATE</c> clear it
 /// to that stand with the readback a hand-typed <c>@stand</c> gives. A remark naming only a parking area clears it to a free
 /// stand in the area that fits the type (any free stand in the area when none fits), picked the same way every time, and
-/// reads back the area's name. Remarks that name no stand, an area that is full, and an area the airport does not know are
-/// refused with the aircraft left as it was.
+/// reads back the area's name. When every stand in the area that fits is taken the clearance still stands: the aircraft holds
+/// on the area's ramp lane clear of the taxiway and reports that no parking is available. Remarks that name no stand and an
+/// area the airport does not know are refused with the aircraft left as it was.
 /// </summary>
 public class TaxiToRemarkGateTests(ITestOutputHelper output)
 {
@@ -63,7 +66,14 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
     /// <summary>The type parked on the stands an area test fills.</summary>
     private const string ParkedType = "C172";
 
-    private const string FullAreaRefusal = "UAL733's remarks name parking area SIGNATURE, and every stand there is taken; name the stand with @";
+    /// <summary>The T421 node a GLF4 holds at when every Signature stand it fits is taken (measured: tail 156 ft from C).</summary>
+    private const int GlfFullAreaHoldNode = 2323;
+
+    /// <summary>The T421 node an A320 holds at when every Signature stand is taken (measured: tail 156 ft from C).</summary>
+    private const int A320FullAreaHoldNode = 2328;
+
+    /// <summary>What the pilot says on stopping at the ramp edge of a full area, its callsign leading.</summary>
+    private const string NoParkingReport = "UAL733, holding on T421 at the SIGNATURE ramp, no parking available, request instructions";
 
     [Fact]
     public void TaxiAtGate_ResolvesTheRemarkStand()
@@ -148,9 +158,26 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
         Assert.Equal(Assert.Single(MidSpanFitting, s => s != MidSpanPick), picked);
     }
 
-    /// <summary>Case 3: every stand that fits is taken while one that does not is free: the area is full for the type.</summary>
+    /// <summary>
+    /// Case 3: every stand that fits is taken while one that does not is free: the area is full for the type, so the clearance
+    /// is accepted and the route ends on the Signature ramp lane T421, its tail clear of C, holding no stand.
+    /// </summary>
     [Fact]
-    public void TaxiAtGate_ParkingAreaRemark_EveryFittingStandTaken_IsRefusedAsFull()
+    public void TaxiAtGate_ParkingAreaRemark_EveryFittingStandTaken_HoldsOnTheRampLaneClearOfC()
+    {
+        if (BuildSfo() is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SpawnHeldAtFullArea(ground);
+
+        AssertHeldAtRampEdge(ground, aircraft, MidSpanType, GlfFullAreaHoldNode);
+    }
+
+    /// <summary>Case 3's readback: the area as the remark spells it, as when a stand in it is free.</summary>
+    [Fact]
+    public void TaxiAtGate_ParkingAreaRemark_EveryFittingStandTaken_ReadsBackTheArea()
     {
         if (BuildSfo() is not { } ground)
         {
@@ -158,11 +185,95 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
         }
 
         ParkOnEach(ground, MidSpanFitting);
-        AircraftState aircraft = SpawnOnT(ground, AreaRemark, MidSpanType);
+        SpawnOnC(ground, MidSpanType);
+        CommandResult result = ground.Engine.SendCommand(Callsign, "TAXI C @GATE");
 
-        CommandResult result = ground.Engine.SendCommand(Callsign, "TAXIAUTO @GATE");
+        Assert.True(result.Success, result.Message);
+        HandlerReadback readback = Assert.IsType<HandlerReadback>(result.PilotReadback);
+        output.WriteLine($"readback: {readback.Speech.Terminal} | {readback.Speech.Tts}");
+        Assert.Contains("taxi to SIGNATURE", readback.Speech.Terminal, StringComparison.Ordinal);
+    }
 
-        AssertRefused(result, aircraft, FullAreaRefusal);
+    /// <summary>Case 3 on arrival: once stopped at the ramp edge the pilot reports where it holds and that no stand is free.</summary>
+    [Fact]
+    public void TaxiAtGate_ParkingAreaRemark_EveryFittingStandTaken_ReportsNoParkingWhenItStops()
+    {
+        if (BuildSfo() is not { } ground)
+        {
+            return;
+        }
+
+        Assert.IsType<SimScenarioState>(ground.Engine.Scenario).RpoShowPilotSpeech = true;
+        var reports = new List<PilotSpeechText>();
+        ground.Engine.PilotSpeechEmitted += (said, speech) =>
+        {
+            if (said == Callsign)
+            {
+                reports.Add(speech);
+            }
+        };
+        AircraftState aircraft = SpawnHeldAtFullArea(ground);
+
+        int stopped = SfoGroundHarness.TickUntil(ground.Engine, () => aircraft.Phases?.CurrentPhase is HoldingInPositionPhase, 600, null);
+
+        Assert.True(stopped > 0, $"never stopped at the ramp edge: {aircraft.Phases?.CurrentPhase?.Name}");
+        foreach (PilotSpeechText report in reports)
+        {
+            output.WriteLine($"report: '{report.TerminalForRpo}' / '{report.Tts}'");
+        }
+
+        PilotSpeechText said = Assert.Single(reports, r => r.Terminal.Contains("no parking available", StringComparison.Ordinal));
+        Assert.Equal(NoParkingReport, $"{Callsign}, {said.TerminalForRpo}");
+        Assert.Contains("tango four two one", said.Tts, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Case 3 from a runway hold-short: held short of 28R on K, the route to the full area's ramp edge crosses 28R, and the bar at
+    /// its start still holds the aircraft short of the runway.
+    /// </summary>
+    [Fact]
+    public void TaxiAtGate_ParkingAreaRemark_EveryFittingStandTaken_FromARunwayHoldShort_KeepsTheBar()
+    {
+        if (BuildSfo() is not { } ground)
+        {
+            return;
+        }
+
+        ParkOnEach(ground, MidSpanFitting);
+        AircraftState aircraft = SfoGroundHarness.SpawnAtHoldShort(ground, Callsign, MidSpanType, ("28R", "K", "Q"));
+        aircraft.FlightPlan.ReplaceRemarks(AreaRemark);
+
+        CommandResult result = ground.Engine.SendCommand(Callsign, "TAXI K C @GATE");
+
+        Assert.True(result.Success, result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        output.WriteLine($"route: {string.Join(" | ", route.Segments.Select(s => $"{s.TaxiwayName}: {s.FromNodeId}->{s.ToNodeId}"))}");
+        output.WriteLine($"bars: {string.Join(" | ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId} cleared={h.IsCleared}"))}");
+        Assert.Equal("SIGNATURE", route.DestinationParkingArea);
+        HoldShortPoint first = Assert.IsType<HoldShortPoint>(route.HoldShortPoints.FirstOrDefault());
+        Assert.True(SfoGroundHarness.HoldShortMatches(first, "28R"), $"first bar protects {first.TargetName}, not 28R");
+        Assert.False(first.IsCleared, "the 28R bar at the route's start was cleared");
+    }
+
+    /// <summary>
+    /// Case 3 again from the hold: stopped at the full area's ramp edge, a bare <c>TAXI @GATE</c> finds the area still full, so the
+    /// aircraft stays where it is and reports again.
+    /// </summary>
+    [Fact]
+    public void TaxiAtGate_FromTheHoldNode_StaysAndReportsAgain()
+    {
+        if (BuildSfo() is not { } ground)
+        {
+            return;
+        }
+
+        var reports = new List<PilotSpeechText>();
+        AircraftState aircraft = StoppedAtFullAreaHold(ground, reports);
+        LatLon stoppedAt = aircraft.Position;
+
+        CommandResult result = ground.Engine.SendCommand(Callsign, "TAXI @GATE");
+
+        AssertStaysAndReportsAgain(ground, aircraft, result, (stoppedAt, reports), output);
     }
 
     /// <summary>Case 4: no stand in the area fits the type, so the pick is made from the whole area.</summary>
@@ -179,9 +290,9 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
         Assert.Equal(WholeAreaPick, picked);
     }
 
-    /// <summary>Case 5: every stand in the area is taken.</summary>
+    /// <summary>Case 5: every stand in the area is taken: the A320 holds on T421 too, further along for its longer tail.</summary>
     [Fact]
-    public void TaxiAtGate_ParkingAreaRemark_EveryStandTaken_IsRefusedAsFull()
+    public void TaxiAtGate_ParkingAreaRemark_EveryStandTaken_HoldsOnTheRampLaneClearOfC()
     {
         if (BuildSfo() is not { } ground)
         {
@@ -193,7 +304,8 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
 
         CommandResult result = ground.Engine.SendCommand(Callsign, "TAXIAUTO @GATE");
 
-        AssertRefused(result, aircraft, FullAreaRefusal);
+        Assert.True(result.Success, result.Message);
+        AssertHeldAtRampEdge(ground, aircraft, AircraftType, A320FullAreaHoldNode);
     }
 
     /// <summary>
@@ -388,6 +500,103 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
         Assert.True(result.Success, result.Message);
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         return Assert.IsType<string>(route.DestinationParking);
+    }
+
+    /// <summary>UAL733 in a <paramref name="type"/> on C east of T421, held in position, its remarks naming the Signature area.</summary>
+    private static AircraftState SpawnOnC(SfoGround ground, string type)
+    {
+        AircraftState aircraft = SfoGroundHarness.SpawnAt(
+            ground,
+            Callsign,
+            type,
+            (VirtualNode.Create(OnCLatitude, OnCLongitude), new TrueHeading(OnCHeadingTrueDeg)),
+            new HoldingInPositionPhase()
+        );
+        aircraft.FlightPlan.ReplaceRemarks(AreaRemark);
+        return aircraft;
+    }
+
+    /// <summary>
+    /// UAL733 in a GLF4 on C, cleared <c>TAXI C @GATE</c> while every Signature stand it fits is taken: the clearance is accepted
+    /// and the aircraft holds at the area's ramp edge.
+    /// </summary>
+    internal static AircraftState SpawnHeldAtFullArea(SfoGround ground)
+    {
+        ParkOnEach(ground, MidSpanFitting);
+        AircraftState aircraft = SpawnOnC(ground, MidSpanType);
+        CommandResult result = ground.Engine.SendCommand(Callsign, "TAXI C @GATE");
+        Assert.True(result.Success, result.Message);
+        return aircraft;
+    }
+
+    /// <summary>
+    /// <see cref="SpawnHeldAtFullArea"/>, ticked until the aircraft stops at the ramp edge and holds in position, with its first
+    /// no-parking report in <paramref name="reports"/>, which keeps collecting every pilot speech UAL733 makes after.
+    /// </summary>
+    internal static AircraftState StoppedAtFullAreaHold(SfoGround ground, List<PilotSpeechText> reports)
+    {
+        Assert.IsType<SimScenarioState>(ground.Engine.Scenario).RpoShowPilotSpeech = true;
+        ground.Engine.PilotSpeechEmitted += (said, speech) =>
+        {
+            if (said == Callsign)
+            {
+                reports.Add(speech);
+            }
+        };
+        AircraftState aircraft = SpawnHeldAtFullArea(ground);
+        int stopped = SfoGroundHarness.TickUntil(ground.Engine, () => aircraft.Phases?.CurrentPhase is HoldingInPositionPhase, 600, null);
+        Assert.True(stopped > 0, $"never stopped at the ramp edge: {aircraft.Phases?.CurrentPhase?.Name}");
+        Assert.Single(reports, IsNoParkingReport);
+        Assert.Equal(GlfFullAreaHoldNode, Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute).Segments[^1].ToNodeId);
+        return aircraft;
+    }
+
+    /// <summary>
+    /// After a clearance sent to the aircraft stopped at the full area's ramp edge: accepted, the route drives nowhere (empty, or
+    /// ending at the hold node), the aircraft holds in position again within 5 ft of where it stopped, and it reports again.
+    /// </summary>
+    internal static void AssertStaysAndReportsAgain(
+        SfoGround ground,
+        AircraftState aircraft,
+        CommandResult result,
+        (LatLon StoppedAt, List<PilotSpeechText> Reports) before,
+        ITestOutputHelper output
+    )
+    {
+        Assert.True(result.Success, result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        output.WriteLine($"route: {string.Join(" | ", route.Segments.Select(s => $"{s.TaxiwayName}: {s.FromNodeId}->{s.ToNodeId}"))}");
+        Assert.Equal("SIGNATURE", route.DestinationParkingArea);
+        Assert.True((route.Segments.Count == 0) || (route.Segments[^1].ToNodeId == GlfFullAreaHoldNode), "the route drives away from the hold");
+
+        int again = SfoGroundHarness.TickUntil(ground.Engine, () => before.Reports.Count(IsNoParkingReport) >= 2, 120, null);
+        Assert.True(again > 0, "no second no-parking report");
+        SfoGroundHarness.TickUntil(ground.Engine, () => aircraft.Phases?.CurrentPhase is HoldingInPositionPhase, 60, null);
+        Assert.IsType<HoldingInPositionPhase>(aircraft.Phases?.CurrentPhase);
+        double movedFt = GeoMath.DistanceNm(before.StoppedAt, aircraft.Position) * GeoMath.FeetPerNm;
+        Assert.True(movedFt <= 5.0, $"moved {movedFt:F1} ft from the hold");
+    }
+
+    private static bool IsNoParkingReport(PilotSpeechText speech) => speech.Terminal.Contains("no parking available", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The aircraft's route holds no stand, keeps the Signature area pending, drives no apron edge and ends at
+    /// <paramref name="holdNodeId"/> with the tail clear of C by the wingtip floor (5 ft of slack).
+    /// </summary>
+    private void AssertHeldAtRampEdge(SfoGround ground, AircraftState aircraft, string type, int holdNodeId)
+    {
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        output.WriteLine($"route: {string.Join(" | ", route.Segments.Select(s => $"{s.TaxiwayName}: {s.FromNodeId}->{s.ToNodeId}"))}");
+        Assert.Null(route.DestinationParking);
+        Assert.Equal("SIGNATURE", route.DestinationParkingArea);
+        Assert.DoesNotContain(route.Segments, s => SegmentExpander.EdgeNames(s.Edge.Edge).Contains("RAMP"));
+        Assert.Equal(holdNodeId, route.Segments[^1].ToNodeId);
+
+        LatLon holdPosition = route.Segments[^1].Edge.ToNode.Position;
+        double tailToCFt = SfoGroundHarness.DistanceToTaxiwayFt(ground.Layout, "C", holdPosition) - (AircraftLength.ResolveFt(type) / 2.0);
+        double floorFt = HoldShortAnnotator.WingtipClearanceFloorFt(ground.Layout.Runways.Max(r => r.WidthFt));
+        output.WriteLine($"tail to C {tailToCFt:F1} ft, floor {floorFt:F1} ft");
+        Assert.True(tailToCFt >= floorFt - 5.0, $"tail {tailToCFt:F1} ft from C, floor {floorFt:F1} ft");
     }
 
     private static void AssertRefused(CommandResult result, AircraftState aircraft, string expected)

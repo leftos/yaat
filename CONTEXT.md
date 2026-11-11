@@ -307,6 +307,9 @@ _Avoid_: implied lead-in (a lead-in is the stand's own short approach, left out 
 The auto-routed drive over nonmovement pavement from the start to the first cleared taxiway, used only when the hop-limited start bridge cannot reach it: at most 4,000 ft, at most one implied one-way lane, never to a runway holding position (`SegmentExpander.TryAutoRoutedStartLeg`, docs/ground/pathfinder.md).
 _Avoid_: bridge (the start bridge is the short hop-limited search tried first), approach leg (the free-space drive to the route's first node)
 
+**Ramp edge**:
+Where a parking area's ramp begins on an arrival's route: the end of the route's last movement-area segment. An `@GATE` taxi to a full parking area holds at the first ramp-lane node from there whose tail clears every movement-area centreline by the wingtip floor, never deeper (`GroundCommandHandler.CutAtAreaRampEdge`, docs/architecture.md Task Index).
+
 **Ramp-confined route**:
 The route of a plain TAXI naming only a gate or spot, issued inside the ramp: ramp taxilanes, at most one cut across the apron and one implied one-way lane, no other movement-area taxiway; with none the TAXI is refused and TAXIAUTO suggested (`RampLaneReposition.TryPlanRampConfinedRoute`, docs/ground/pathfinder.md).
 

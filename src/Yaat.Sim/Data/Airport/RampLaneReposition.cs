@@ -371,6 +371,7 @@ public static class RampLaneReposition
             MandatoryConnectorCount = tail.MandatoryConnectorCount,
             DestinationParking = tail.DestinationParking,
             DestinationSpot = tail.DestinationSpot,
+            DestinationParkingArea = tail.DestinationParkingArea,
         };
         Log.Log(
             request.PlanLogLevel,

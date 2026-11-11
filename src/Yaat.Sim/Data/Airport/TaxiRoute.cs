@@ -51,6 +51,14 @@ public sealed class TaxiRoute
     public string? DestinationSpot { get; init; }
 
     /// <summary>
+    /// The parking area the aircraft was cleared to (<c>@GATE</c> through a flight-plan remark) when every stand in it that
+    /// fits the type was taken: the route ends at the area's ramp edge, clear of the taxiway, and holds no stand
+    /// (<see cref="DestinationParking"/> is null). Snapshotted, and carried beside <see cref="DestinationParking"/> by every
+    /// copy of the route.
+    /// </summary>
+    public string? DestinationParkingArea { get; init; }
+
+    /// <summary>
     /// For a spot line-up (<see cref="RampLaneReposition.TryPlanSpotLineUp"/>), the index of the first segment on the
     /// spot's lane: from there the taxi holds the slow pull speed up the lane onto the spot
     /// (<see cref="Phases.Ground.TaxiingPhase.SpotLineUpPullSpeedKts"/>). Null on every other route.
@@ -761,6 +769,7 @@ public sealed class TaxiRoute
             Description = ToSummary(),
             DestinationParking = DestinationParking,
             DestinationSpot = DestinationSpot,
+            DestinationParkingArea = DestinationParkingArea,
             SpotLineUpPullFromSegment = SpotLineUpPullFromSegment,
             TurnAboutShape = TurnAboutShape,
             TurnAboutTargetNodeId = TurnAboutTargetNodeId,
@@ -859,6 +868,7 @@ public sealed class TaxiRoute
             CurrentSegmentIndex = dto.CurrentSegmentIndex,
             DestinationParking = dto.DestinationParking,
             DestinationSpot = dto.DestinationSpot,
+            DestinationParkingArea = dto.DestinationParkingArea,
             SpotLineUpPullFromSegment = dto.SpotLineUpPullFromSegment,
             TurnAboutShape = dto.TurnAboutShape,
             TurnAboutTargetNodeId = dto.TurnAboutTargetNodeId,

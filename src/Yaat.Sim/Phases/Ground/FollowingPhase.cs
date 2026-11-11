@@ -1239,6 +1239,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             ClearanceTaxiways = assigned.ClearanceTaxiways,
             DestinationParking = assigned.DestinationParking,
             DestinationSpot = assigned.DestinationSpot,
+            DestinationParkingArea = assigned.DestinationParkingArea,
             SpotLineUpPullFromSegment = ((rejoinAt >= 0) && (pullFrom >= onto.Segments.Count)) ? pullFrom : null,
         };
     }

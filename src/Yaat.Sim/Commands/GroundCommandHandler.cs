@@ -322,7 +322,9 @@ public static partial class GroundCommandHandler
     /// The stand <c>@GATE</c> takes when the remarks name only a parking area: the area's stands (the airport's sidecar
     /// <c>parkingAreas</c>) that fit the type (<see cref="StandFit"/>), or the whole area when none fits, less the stands other
     /// aircraft hold (<see cref="ArrivalParkingPicker.TakenSpots"/>), drawn by callsign with salt 0 so a repeat picks the same
-    /// stand. Refused, naming the area, when it matches no stand of the layout or every stand of the pool is taken.
+    /// stand. Refused, naming the area, when it matches no stand of the layout. When every stand of the pool is taken the
+    /// command routes toward the pool's pick as if none were and carries <see cref="TaxiCommand.HoldAtAreaRampEdge"/>, so the
+    /// route is cut at the area's ramp edge (<see cref="CutAtAreaRampEdge"/>).
     /// </summary>
     /// <param name="aircraft">The aircraft the clearance is for.</param>
     /// <param name="taxi">The command as issued.</param>
@@ -353,9 +355,16 @@ public static partial class GroundCommandHandler
         List<string> free = [.. pool.Where(n => !taken.Contains(n))];
         if (free.Count == 0)
         {
-            string full = $"{callsign}'s remarks name parking area {area}, and every stand there is taken; name the stand with @";
-            Log.LogInformation("[TryTaxi] {Callsign}: refused — {Reason} ({Pool} stand(s), all taken)", callsign, full, pool.Count);
-            return (taxi, CommandDispatcher.OperatorGuidanceRefusal(full));
+            // The routing stand: the pick over the pool as if nothing were taken. The route toward it is cut at the area's ramp edge.
+            string routing = ArrivalParkingPicker.Choose(callsign, pool, salt: 0);
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: @GATE in parking area {Area}: all {Pool} pool stand(s) taken; routing toward {Stand}, cut at the ramp edge",
+                callsign,
+                area,
+                pool.Count,
+                routing
+            );
+            return (taxi with { DestinationParking = routing, DestinationArea = area, HoldAtAreaRampEdge = true }, null);
         }
 
         string stand = ArrivalParkingPicker.Choose(callsign, free, salt: 0);
@@ -2571,6 +2580,9 @@ public static partial class GroundCommandHandler
         // hundred feet from the aircraft. Drive it there rather than letting the navigator snap onto segment 0.
         route = TaxiApproachLeg.Prepend(groundLayout, aircraft.Position, aircraft.TrueHeading, route, aircraftLengthFt);
 
+        // A full parking area: the route toward the routing stand ends at the area's ramp edge, where the aircraft holds.
+        route = CutAtAreaRampEdge(route, groundLayout, asCleared, aircraftLengthFt);
+
         return new TaxiResolution
         {
             Route = route,
@@ -3196,6 +3208,12 @@ public static partial class GroundCommandHandler
                 return new KeptTaxiDestination(null, null, spot);
             }
 
+            // Held at a full parking area's ramp edge: @GATE re-resolves the area from the remarks, cutting again while it is full.
+            if (route.DestinationParkingArea is not null)
+            {
+                return new KeptTaxiDestination(null, RemarkGateAlias, null);
+            }
+
             return (DestinationRunwayHold(route) is { TargetName: { } runway } entry)
                 ? new KeptTaxiDestination(runway, null, null) { EntryNodeId = entry.NodeId }
                 : null;
@@ -3279,7 +3297,7 @@ public static partial class GroundCommandHandler
         refusal =
             (route is null) ? ReRouteNotClearedRefusal
             : (kept is null) ? ReRouteNoDestinationRefusal
-            : route.IsComplete ? $"RTAXI rejected: taxi to {kept.Display} complete; use TAXI"
+            : (route.IsComplete && (route.DestinationParkingArea is null)) ? $"RTAXI rejected: taxi to {kept.Display} complete; use TAXI"
             : DifferentDestinationRefusal(kept, typed);
         if (refusal is null)
         {
@@ -5514,6 +5532,7 @@ public static partial class GroundCommandHandler
             MandatoryConnectorCount = route.MandatoryConnectorCount,
             DestinationParking = taxi.DestinationParking,
             DestinationSpot = taxi.DestinationSpot,
+            DestinationParkingArea = route.DestinationParkingArea,
         };
     }
 

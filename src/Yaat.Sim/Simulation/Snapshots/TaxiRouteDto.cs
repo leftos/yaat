@@ -44,6 +44,14 @@ public sealed class TaxiRouteDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? ClearanceTaxiways { get; init; }
+
+    /// <summary>
+    /// The parking area a route held at the area's ramp edge was cleared to while every fitting stand there was taken
+    /// (<c>TaxiRoute.DestinationParkingArea</c>). Null on every other route and on older snapshots, and not written while null,
+    /// so every other route serializes as before. Additive, no schema bump.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DestinationParkingArea { get; init; }
 }
 
 public sealed class TaxiSegmentDto

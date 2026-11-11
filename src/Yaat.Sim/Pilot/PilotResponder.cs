@@ -2861,6 +2861,23 @@ public static partial class PilotResponder
         );
     }
 
+    /// <summary>
+    /// Pilot report on stopping at the ramp edge of a parking area whose stands are all taken: "holding on T421 at the SIGNATURE
+    /// ramp, no parking available, request instructions". The area is as the flight-plan remark spells it, as the taxi readback
+    /// names it; with no lane to name it is "holding at the SIGNATURE ramp, …". The terminal form leaves the callsign to the
+    /// terminal line, as <see cref="BuildHoldingPositionOn"/> does; the spoken form leads with it and spells the lane.
+    /// </summary>
+    public static PilotSpeechText BuildHoldingAtRampNoParking(AircraftState aircraft, string? lane, string area)
+    {
+        const string Tail = "no parking available, request instructions";
+        string terminalOn = lane is null ? "" : $" on {lane}";
+        string spokenOn = lane is null ? "" : $" on {PhraseologyVerbalizer.SpellTaxiway(lane)}";
+        return new PilotSpeechText(
+            $"holding{terminalOn} at the {area} ramp, {Tail}",
+            $"{SpokenOwnCallsign(aircraft)}, holding{spokenOn} at the {area} ramp, {Tail}"
+        );
+    }
+
     private static string HoldingPositionClause(string? onTaxiway, bool spoken) =>
         onTaxiway is null ? "holding position"
         : spoken ? $"holding position on {PhraseologyVerbalizer.SpellTaxiway(onTaxiway)}"

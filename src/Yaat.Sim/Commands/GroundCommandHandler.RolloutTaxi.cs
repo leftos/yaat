@@ -1056,6 +1056,7 @@ public static partial class GroundCommandHandler
             MandatoryConnectorCount = source.MandatoryConnectorCount,
             DestinationParking = source.DestinationParking,
             DestinationSpot = source.DestinationSpot,
+            DestinationParkingArea = source.DestinationParkingArea,
             SpotLineUpPullFromSegment = pull,
             TurnAboutShape = source.TurnAboutShape,
             TurnAboutTargetNodeId = source.TurnAboutTargetNodeId,

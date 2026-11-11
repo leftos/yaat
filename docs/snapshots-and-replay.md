@@ -275,7 +275,7 @@ Old snapshots leave the fields null and resolve by id exactly as before — no s
 
 A restored taxi whose route the current layout cannot rebuild (an archive without `LayoutFormatVersion` restores against today's layout, whose node ids may differ) is not left phaseless: `TaxiingPhase.EndWithLostRoute` brakes it and holds it in position, with no pilot transmission ([ground/navigator.md](ground/navigator.md)).
 
-`TaxiRouteDto` also carries `DestinationParking` / `DestinationSpot` (nullable, additive) so a restored taxi-to-parking still installs `AtParkingPhase` at the end of the route.
+`TaxiRouteDto` also carries `DestinationParking` / `DestinationSpot` (nullable, additive) so a restored taxi-to-parking still installs `AtParkingPhase` at the end of the route. The optional `DestinationParkingArea` is written only when set (a taxi held at a full parking area's ramp edge, no stand) and needs no schema bump.
 
 `TaxiRouteDto.ClearanceTaxiways` (additive, no schema bump, not written while null) keeps `TaxiRoute.ClearanceTaxiways`, the taxiways the TAXI clearance named, so a `CROSS`/`RES` after a restore still reads back only those and the route's implied lanes; a route restored without it reads every leg it drives past the bar and no issued taxiways past its end.
 

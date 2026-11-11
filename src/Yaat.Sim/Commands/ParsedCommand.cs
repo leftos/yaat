@@ -732,7 +732,15 @@ public record TaxiCommand(
     string? DestinationSpot = null,
     List<TurnDirection?>? PathTurnHints = null,
     string? DestinationArea = null
-) : ParsedCommand;
+) : ParsedCommand
+{
+    /// <summary>
+    /// Set by the handler only, when <c>@GATE</c> resolved to a parking area (<see cref="DestinationArea"/>) whose stands that
+    /// fit the type are all taken: <see cref="DestinationParking"/> is the stand routed toward, and the route is cut at the
+    /// area's ramp edge, where the aircraft holds. False as parsed.
+    /// </summary>
+    public bool HoldAtAreaRampEdge { get; init; }
+}
 
 /// <summary>
 /// Auto-routed taxi: TAXIAUTO &lt;RWY&gt; or TAXIAUTO @&lt;PARKING&gt;. The handler

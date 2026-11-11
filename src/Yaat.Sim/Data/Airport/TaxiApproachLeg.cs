@@ -115,6 +115,7 @@ public static class TaxiApproachLeg
             MandatoryConnectorCount = route.MandatoryConnectorCount,
             DestinationParking = route.DestinationParking,
             DestinationSpot = route.DestinationSpot,
+            DestinationParkingArea = route.DestinationParkingArea,
             // The leg is one more segment ahead of the spot line-up's pull.
             SpotLineUpPullFromSegment = route.SpotLineUpPullFromSegment + 1,
         };

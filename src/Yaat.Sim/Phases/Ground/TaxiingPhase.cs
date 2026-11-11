@@ -172,6 +172,17 @@ public sealed class TaxiingPhase : Phase
             return;
         }
 
+        // A full parking area's ramp-edge hold from where the aircraft already stands is an empty route by design.
+        if (route is { Segments.Count: 0, DestinationParkingArea: not null })
+        {
+            Log.LogDebug(
+                "[Taxi] {Callsign}: held where it stands at the {Area} ramp edge, nothing to taxi",
+                ctx.Aircraft.Callsign,
+                route.DestinationParkingArea
+            );
+            return;
+        }
+
         if (route is null || route.IsComplete)
         {
             Log.LogWarning("[Taxi] {Callsign}: OnStart but route is {State}", ctx.Aircraft.Callsign, route is null ? "null" : "already complete");
@@ -2918,7 +2929,12 @@ public sealed class TaxiingPhase : Phase
 
         if (phases is not null && phases.Phases.Count <= phases.CurrentIndex + 1)
         {
-            if (EndsAtParkingStand(ctx, route))
+            if ((route.DestinationParking is null) && (route.DestinationParkingArea is { } area))
+            {
+                ReportHeldAtFullArea(ctx, route, area);
+                phases.InsertAfterCurrent(new HoldingInPositionPhase());
+            }
+            else if (EndsAtParkingStand(ctx, route))
             {
                 ctx.Aircraft.Ground.ParkingSpot = route.DestinationParking;
                 phases.InsertAfterCurrent(new AtParkingPhase());
@@ -2931,6 +2947,29 @@ public sealed class TaxiingPhase : Phase
 
         return true;
     }
+
+    /// <summary>
+    /// The pilot reports holding at the ramp edge of <paramref name="area"/>, every stand there taken, routed to the position it
+    /// is tuned to. The lane is the route's last segment when it carries one name, else the taxiway the aircraft is on; neither
+    /// names apron or a junction arc, and with no lane to name the report names only the ramp.
+    /// </summary>
+    private static void ReportHeldAtFullArea(PhaseContext ctx, TaxiRoute route, string area)
+    {
+        string? lastName = (route.Segments.Count > 0) ? route.Segments[^1].TaxiwayName : null;
+        string? lane = ReportableLane(lastName) ?? ReportableLane(ctx.Aircraft.Ground.CurrentTaxiway);
+        Log.LogDebug("[Taxi] {Callsign}: holding on {Lane} at the {Area} ramp, no stand free — reporting", ctx.Aircraft.Callsign, lane, area);
+        PilotResponder.RouteByTunedPosition(
+            ctx.Aircraft,
+            PilotReportRouting.From(ctx),
+            PilotResponder.BuildHoldingAtRampNoParking(ctx.Aircraft, lane, area)
+        );
+    }
+
+    /// <summary><paramref name="name"/> when a pilot can name it as the lane held on: one name, not apron (RAMP); null otherwise.</summary>
+    private static string? ReportableLane(string? name) =>
+        ((name is { Length: > 0 }) && !name.Contains(" - ", StringComparison.Ordinal) && !name.Equals("RAMP", StringComparison.OrdinalIgnoreCase))
+            ? name
+            : null;
 
     /// <summary>
     /// End a taxi that has no route left to follow: a restore whose recorded route the current layout could not rebuild

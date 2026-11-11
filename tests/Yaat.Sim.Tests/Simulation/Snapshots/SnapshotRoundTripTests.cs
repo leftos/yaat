@@ -616,6 +616,40 @@ public class SnapshotRoundTripTests
     }
 
     /// <summary>
+    /// The pending parking area of a route held at a full area's ramp edge survives a snapshot through JSON; a route without one
+    /// writes no member for it, and a snapshot without the member restores none.
+    /// </summary>
+    [Fact]
+    public void TaxiRoute_DestinationParkingArea_RoundTripsThroughJson_AndIsOmittedWhileNull()
+    {
+        if (new TestAirportGroundData().GetLayout("OAK") is not { } layout)
+        {
+            Assert.Skip("no KOAK layout");
+            return;
+        }
+
+        var held = new TaxiRoute
+        {
+            Segments = [],
+            HoldShortPoints = [],
+            DestinationParkingArea = "SIGNATURE",
+        };
+        string heldJson = JsonSerializer.Serialize(held.ToSnapshot(), RecordingJsonOptions.Default);
+        TaxiRoute restored = Assert.IsType<TaxiRoute>(
+            TaxiRoute.FromSnapshot(JsonSerializer.Deserialize<TaxiRouteDto>(heldJson, RecordingJsonOptions.Default)!, layout)
+        );
+        Assert.Equal("SIGNATURE", restored.DestinationParkingArea);
+
+        string plainJson = JsonSerializer.Serialize(new TaxiRoute { Segments = [], HoldShortPoints = [] }.ToSnapshot(), RecordingJsonOptions.Default);
+        Assert.Null(JsonNode.Parse(plainJson)?["DestinationParkingArea"]);
+        Assert.DoesNotContain("DestinationParkingArea", plainJson, StringComparison.Ordinal);
+
+        TaxiRouteDto older = JsonSerializer.Deserialize<TaxiRouteDto>(plainJson, RecordingJsonOptions.Default)!;
+        Assert.Null(older.DestinationParkingArea);
+        Assert.Null(Assert.IsType<TaxiRoute>(TaxiRoute.FromSnapshot(older, layout)).DestinationParkingArea);
+    }
+
+    /// <summary>
     /// A CROSS stored on the rollout or during the runway exit (<see cref="PhaseList.PreClearedCrossing"/>) survives a snapshot,
     /// and a list with none stored writes no field, so snapshot 0 serializes as before.
     /// </summary>
