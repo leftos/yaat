@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -539,6 +541,136 @@ public class VTdlsViewInteractionTests
         Assert.Equal([("", "TDLSOPS OAK cfg-east")], SentCommands);
     }
 
+    // ── Selection: one row per list ──
+
+    /// <summary>
+    /// The two lists must not share one two-way SelectedItem binding: when they did, the PDC list, pushed a pending
+    /// item it does not hold, wrote null back over the click and the editor never opened.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClickingAPendingItemAfterReviewingASentPdc_OpensItsEditor()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        var issued = new ClearanceDto("10 MIN AFT DP", "RNLDI4", "OTTTO", null, null, null, null, null, "125.050");
+        transport.PushState(
+            new TdlsStateDto(
+                [
+                    Item("id1", "AAL9", facilityId: "IAD", status: TdlsStatus.Sent) with
+                    {
+                        SentPayload = issued,
+                    },
+                    Item("id2", "UAL1742", facilityId: "IAD"),
+                ],
+                []
+            )
+        );
+        Dispatcher.UIThread.RunJobs();
+        VTdlsView view = BootView(vm);
+
+        // Review the sent PDC: the read-only editor opens on it.
+        ClickRow(view, "PdcListBox", "AAL9");
+        Assert.Equal("AAL9", vm.Editor?.Callsign);
+
+        // Then open the pending one, as a controller moving on to the next clearance would.
+        ClickRow(view, "DclListBox", "UAL1742");
+        Assert.Same(vm.DclItems.Single(), vm.SelectedItem);
+        Assert.Equal("UAL1742", vm.Editor?.Callsign);
+
+        // And a second click on the same row leaves it open.
+        ClickRow(view, "DclListBox", "UAL1742");
+        Assert.Equal("UAL1742", vm.Editor?.Callsign);
+    }
+
+    /// <summary>
+    /// The reverse direction: a pending clearance is open for composing and the controller clicks a sent PDC to review
+    /// it. The same binding fight ate that click too, leaving the pending editor open and the PDC's review shut.
+    /// </summary>
+    [AvaloniaFact]
+    public void ClickingASentPdcAfterOpeningAPendingItem_OpensItsReview()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        var issued = new ClearanceDto("10 MIN AFT DP", "RNLDI4", "OTTTO", null, null, null, null, null, "125.050");
+        transport.PushState(
+            new TdlsStateDto(
+                [
+                    Item("id1", "UAL1742", facilityId: "IAD"),
+                    Item("id2", "AAL9", facilityId: "IAD", status: TdlsStatus.Sent) with
+                    {
+                        SentPayload = issued,
+                    },
+                ],
+                []
+            )
+        );
+        Dispatcher.UIThread.RunJobs();
+        // Tall enough that the editor open above leaves the star-sized PDC row a clickable height.
+        VTdlsView view = BootViewAtSize(vm, windowWidth: 900, windowHeight: 900);
+
+        ClickRow(view, "DclListBox", "UAL1742");
+        Assert.Equal("UAL1742", vm.Editor?.Callsign);
+
+        ClickRow(view, "PdcListBox", "AAL9");
+        Assert.Same(vm.PdcItems.Single(), vm.SelectedItem);
+        Assert.Equal("AAL9", vm.Editor?.Callsign);
+        Assert.True(vm.Editor!.IsReadOnly);
+    }
+
+    /// <summary>
+    /// A send moves the pending item into the sent list. The editor closes because the move clears the selection
+    /// explicitly — a bound list dropping its row no longer nulls a shared selection, so nothing else would.
+    /// </summary>
+    [AvaloniaFact]
+    public void SendingTheSelectedPendingItem_ClosesItsEditor()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
+        Dispatcher.UIThread.RunJobs();
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(vm.Editor);
+
+        var issued = new ClearanceDto("10 MIN AFT DP", "RNLDI4", "OTTTO", null, null, null, null, null, "125.050");
+        transport.PushItem(Item("id1", "UAL1742", facilityId: "IAD") with { Status = TdlsStatus.Sent, SentPayload = issued });
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.SelectedItem);
+        Assert.Null(vm.Editor);
+    }
+
+    /// <summary>
+    /// Cancel closes the editor by clearing the view-model selection. Each list now holds its own selection, so that
+    /// clear has to reach both lists: a row left highlighted with no editor is exactly the stuck page the report
+    /// describes.
+    /// </summary>
+    [AvaloniaFact]
+    public void CancelAfterClickingARow_ClearsTheHighlight()
+    {
+        (VTdlsViewModel? vm, FakeTdlsTransport? transport) = MakeVm();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(
+            new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD"), Item("id2", "AAL9", facilityId: "IAD", status: TdlsStatus.Sent)], [])
+        );
+        Dispatcher.UIThread.RunJobs();
+        // Tall enough that the editor's button row sits inside the window and takes a pointer click.
+        VTdlsView view = BootViewAtSize(vm, windowWidth: 900, windowHeight: 900);
+
+        ClickRow(view, "DclListBox", "UAL1742");
+        Assert.Equal("UAL1742", vm.Editor?.Callsign);
+
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        ClickControl(UiWindow(view), EditorButton(view, "Cancel"));
+        Assert.Null(vm.Editor);
+
+        Assert.Null(view.FindControl<ListBox>("DclListBox")!.SelectedItem);
+        Assert.Null(view.FindControl<ListBox>("PdcListBox")!.SelectedItem);
+        Assert.False(vm.DclItems.Single().IsSelected);
+    }
+
     // ── Theme: the view renders the same on every host ──
 
     /// <summary>
@@ -948,13 +1080,16 @@ public class VTdlsViewInteractionTests
     private static VTdlsView BootView(VTdlsViewModel vm) => BootViewAtWidth(vm, windowWidth: 900);
 
     /// <summary>Boots the view in a window of a given width — a narrow one is where the editor's star-sized rows are under pressure.</summary>
-    private static VTdlsView BootViewAtWidth(VTdlsViewModel vm, double windowWidth)
+    private static VTdlsView BootViewAtWidth(VTdlsViewModel vm, double windowWidth) => BootViewAtSize(vm, windowWidth, windowHeight: 500);
+
+    /// <summary>Boots the view in a window of a given size: the page's lists and editor share one vertical stack.</summary>
+    private static VTdlsView BootViewAtSize(VTdlsViewModel vm, double windowWidth, double windowHeight)
     {
         var view = new VTdlsView { DataContext = vm };
         var window = new Window
         {
             Width = windowWidth,
-            Height = 500,
+            Height = windowHeight,
             Content = view,
         };
         window.Show();
@@ -962,6 +1097,25 @@ public class VTdlsViewInteractionTests
         window.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
         return view;
+    }
+
+    /// <summary>Clicks a list row with the pointer, the way a controller does, so the ListBox's own selection and its binding run.</summary>
+    private static void ClickRow(VTdlsView view, string listName, string callsign)
+    {
+        ListBox list = view.FindControl<ListBox>(listName)!;
+        ListBoxItem row = list.GetVisualDescendants().OfType<ListBoxItem>().Single(c => (c.DataContext as TdlsItemViewModel)?.AircraftId == callsign);
+        ClickControl(UiWindow(view), row);
+    }
+
+    private static Window UiWindow(VTdlsView view) => (Window)TopLevel.GetTopLevel(view)!;
+
+    /// <summary>Clicks a control with the pointer, the way a controller does.</summary>
+    private static void ClickControl(Window window, Control control)
+    {
+        Point centre = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(centre, MouseButton.Left);
+        window.MouseUp(centre, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
     }
 
     private sealed class FakeTdlsTransport : ITdlsTransport

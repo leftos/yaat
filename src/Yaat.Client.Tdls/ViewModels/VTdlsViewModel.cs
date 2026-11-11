@@ -32,6 +32,9 @@ public partial class VTdlsViewModel : ObservableObject
 
     private readonly Dictionary<string, TdlsItemViewModel> _itemsById = new(StringComparer.Ordinal);
 
+    /// <summary>True while <see cref="SelectedItem"/>'s change is being mirrored into the two lists' own selections.</summary>
+    private bool _syncingSelection;
+
     /// <summary>DCL list — Pending items only.</summary>
     public ObservableCollection<TdlsItemViewModel> DclItems { get; } = [];
 
@@ -84,6 +87,21 @@ public partial class VTdlsViewModel : ObservableObject
 
     [ObservableProperty]
     private TdlsItemViewModel? _selectedItem;
+
+    /// <summary>
+    /// The DCL list's own selection — a view of <see cref="SelectedItem"/>, which stays the one selection every action
+    /// reads. The two lists cannot share one two-way bound property: a selection pushed into a list that does not hold
+    /// it makes that list clear its selection and write null back over the click.
+    /// </summary>
+    [ObservableProperty]
+    private TdlsItemViewModel? _selectedPendingItem;
+
+    /// <summary>
+    /// The PDC list's own selection — a view of <see cref="SelectedItem"/>, kept in step the same way as
+    /// <see cref="SelectedPendingItem"/>.
+    /// </summary>
+    [ObservableProperty]
+    private TdlsItemViewModel? _selectedSentItem;
 
     [ObservableProperty]
     private TdlsFlightPlanEditorViewModel? _editor;
@@ -202,6 +220,9 @@ public partial class VTdlsViewModel : ObservableObject
 
     partial void OnSelectedItemChanged(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue)
     {
+        LogSelectionChange(oldValue, newValue);
+        MirrorListSelections(newValue);
+
         if (oldValue is not null)
         {
             oldValue.IsSelected = false;
@@ -251,6 +272,59 @@ public partial class VTdlsViewModel : ObservableObject
         else
         {
             Editor = null;
+        }
+    }
+
+    /// <summary>
+    /// Pushes the one selection into the two lists' own selection properties. Guarded, so the list properties' change
+    /// handlers do not read the mirror's own writes back as a fresh pick from a list.
+    /// </summary>
+    private void MirrorListSelections(TdlsItemViewModel? item)
+    {
+        _syncingSelection = true;
+        try
+        {
+            SelectedPendingItem = (item?.Status == TdlsStatus.Pending) ? item : null;
+            SelectedSentItem = ((item is not null) && (item.Status != TdlsStatus.Pending)) ? item : null;
+        }
+        finally
+        {
+            _syncingSelection = false;
+        }
+    }
+
+    private void LogSelectionChange(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue) =>
+        _log.LogDebug(
+            "Selection {OldAircraftId}/{OldStatus} -> {NewAircraftId}/{NewStatus}",
+            oldValue?.AircraftId,
+            oldValue?.Status,
+            newValue?.AircraftId,
+            newValue?.Status
+        );
+
+    partial void OnSelectedPendingItemChanged(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue) => OnListSelectionChanged(oldValue, newValue);
+
+    partial void OnSelectedSentItemChanged(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue) => OnListSelectionChanged(oldValue, newValue);
+
+    /// <summary>
+    /// A list reports a pick or a deselection of its own row. A non-null pick becomes the one selection; a null write
+    /// only clears it when it lets go of the item that list was holding, since the other list dropping a selection it
+    /// never held must not clear it. The mirror's own writes are ignored.
+    /// </summary>
+    private void OnListSelectionChanged(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue)
+    {
+        if (_syncingSelection)
+        {
+            return;
+        }
+        if (newValue is not null)
+        {
+            SelectedItem = newValue;
+            return;
+        }
+        if (ReferenceEquals(SelectedItem, oldValue))
+        {
+            SelectedItem = null;
         }
     }
 
@@ -521,17 +595,22 @@ public partial class VTdlsViewModel : ObservableObject
             return;
         }
 
-        // Removing and re-inserting nulls the two-way bound ListBox selection, which closes any open editor and
-        // discards what the controller has composed — so it happens only when the item actually moved: between the
-        // DCL and PDC lists, or to another slot in its own. A Sent item acknowledged into Wilco stays put, and so
-        // does an amendment that only refreshes the flight-plan header. The third case is an item the dictionary
-        // still holds while neither list does — what a facility switch leaves behind — which has to be listed again.
+        // Removing and re-inserting the selected item closes its editor and discards what the controller has composed,
+        // so it happens only when the item actually moved: between the DCL and PDC lists, or to another slot in its own.
+        // A Sent item acknowledged into Wilco stays put, and so does an amendment that only refreshes the flight-plan
+        // header. The third case is an item the dictionary still holds while neither list does — what a facility switch
+        // leaves behind — which has to be listed again.
         bool movedBucket = (vm.Status == TdlsStatus.Pending) != (dto.Status == TdlsStatus.Pending);
         bool movedSlot = vm.Sequence != dto.Sequence;
         bool unlisted = !DclItems.Contains(vm) && !PdcItems.Contains(vm);
         vm.Apply(dto);
         if (movedBucket || movedSlot || unlisted)
         {
+            // Close the editor before the selected item moves, rather than relying on a bound list dropping its row.
+            if (ReferenceEquals(SelectedItem, vm))
+            {
+                SelectedItem = null;
+            }
             DclItems.Remove(vm);
             PdcItems.Remove(vm);
             InsertIntoBucket(vm);
