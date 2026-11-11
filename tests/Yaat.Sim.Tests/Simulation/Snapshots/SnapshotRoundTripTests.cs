@@ -615,6 +615,36 @@ public class SnapshotRoundTripTests
         Assert.False(restored.HoldShortPoints[1].EndsNoDestinationRoute, "an unmarked hold restored marked");
     }
 
+    /// <summary>
+    /// A CROSS stored on the rollout or during the runway exit (<see cref="PhaseList.PreClearedCrossing"/>) survives a snapshot,
+    /// and a list with none stored writes no field, so snapshot 0 serializes as before.
+    /// </summary>
+    [Fact]
+    public void PhaseList_PreClearedCrossing_RoundTripsThroughJson_AndIsOmittedWhileNull()
+    {
+        string json = JsonSerializer.Serialize(new PhaseList { PreClearedCrossing = "19R" }.ToSnapshot(), RecordingJsonOptions.Default);
+        Assert.Equal("19R", JsonNode.Parse(json)?["PreClearedCrossing"]?.GetValue<string>());
+
+        var restored = PhaseList.FromSnapshot(JsonSerializer.Deserialize<PhaseListDto>(json, RecordingJsonOptions.Default)!, null);
+        Assert.Equal("19R", restored.PreClearedCrossing);
+
+        string none = JsonSerializer.Serialize(new PhaseList().ToSnapshot(), RecordingJsonOptions.Default);
+        Assert.Null(JsonNode.Parse(none)?["PreClearedCrossing"]);
+        Assert.Null(JsonNode.Parse(none)?["RequestedExitIsCrossSide"]);
+
+        var side = new ExitPreference { Side = ExitSide.Right };
+        var withSide = new PhaseList
+        {
+            PreClearedCrossing = "19R",
+            RequestedExit = side,
+            CrossExitPreference = side,
+        };
+        string sideJson = JsonSerializer.Serialize(withSide.ToSnapshot(), RecordingJsonOptions.Default);
+        var sideRestored = PhaseList.FromSnapshot(JsonSerializer.Deserialize<PhaseListDto>(sideJson, RecordingJsonOptions.Default)!, null);
+        Assert.NotNull(sideRestored.CrossExitPreference);
+        Assert.Same(sideRestored.RequestedExit, sideRestored.CrossExitPreference);
+    }
+
     private static AircraftHoldAnnotation RoundTripThroughJson(AircraftHoldAnnotation annotation)
     {
         string json = JsonSerializer.Serialize(annotation.ToSnapshot(), RecordingJsonOptions.Default);

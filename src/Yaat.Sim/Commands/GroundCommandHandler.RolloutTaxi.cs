@@ -545,11 +545,22 @@ public static partial class GroundCommandHandler
         return CommandDispatcher.Ok(message) with { EffectiveCommand = stored.EffectiveCommand, PilotReadback = new HandlerReadback(type, speech) };
     }
 
-    /// <summary>The one write of a stored taxi route: <see cref="PhaseList.TaxiRoute"/> and the destination runway its TAXI named.</summary>
+    /// <summary>
+    /// The one write of a stored taxi route: <see cref="PhaseList.TaxiRoute"/> and the destination runway its TAXI named. The TAXI's
+    /// own clearance governs from here, so a crossing a CROSS pre-cleared on the rollout (<see cref="PhaseList.PreClearedCrossing"/>)
+    /// is dropped, with the exit side that CROSS chose while it still stands (<see cref="PhaseList.CrossExitPreference"/>).
+    /// </summary>
     private static void StoreTaxiRoute(PhaseList phases, TaxiRoute route, string? destinationRunway)
     {
         phases.TaxiRoute = route;
         phases.StoredTaxiDestinationRunway = destinationRunway;
+        phases.PreClearedCrossing = null;
+        if ((phases.CrossExitPreference is { } crossSide) && ReferenceEquals(phases.RequestedExit, crossSide))
+        {
+            phases.RequestedExit = null;
+        }
+
+        phases.CrossExitPreference = null;
     }
 
     /// <summary>

@@ -96,6 +96,8 @@ No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. 
 
 `PhaseListDto.RequestedExitIsTaxiImplied` (true, not written while null) marks `RequestedExit` as the exit that TAXI implied (`PhaseList.TaxiImpliedExit`), and `LandingPhaseDto.ActivePreferenceIsRequestedExit` (the same, for the landing's active possibly-relaxed preference), so a restore shares the instance again and a go-around still tells the implied exit from the controller's own.
 
+`PhaseListDto.PreClearedCrossing` (string, `19R`: the runway a `CROSS` on the rollout or during the runway exit pre-clears, `PhaseList.PreClearedCrossing`) and `PhaseListDto.RequestedExitIsCrossSide` (true, marking `RequestedExit` as the side that rollout `CROSS` chose, `PhaseList.CrossExitPreference`, so a rollout `TAXI` still drops it) are additive, `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`, absent on older snapshots, and need no schema bump: snapshot 0 serializes as before.
+
 `LandingPhaseDto.SideTowardTaxiRoute` is true while `InferredSideValue` points toward the stored route and `SideBeforeTaxiRouteValue` is the side it replaced, given back when the route is dropped. All are additive and omitted while null, so snapshot 0 is unchanged.
 
 `HoldShortPointDto.RecrossesLandingRunway` (true, omitted otherwise) is the re-crossing of the landing runway on that route, which auto-cross never clears. A restore with no ground layout, or whose route nodes are not in the layout, drops the stored route and logs.

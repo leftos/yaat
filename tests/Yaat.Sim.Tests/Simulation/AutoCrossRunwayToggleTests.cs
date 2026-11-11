@@ -56,6 +56,26 @@ public class AutoCrossRunwayToggleTests(ITestOutputHelper output)
         Assert.True(hs.ClearedByAutoCross);
     }
 
+    /// <summary>
+    /// A route issued up to a runway hold-short point is the hold-short form (7110.65 §3-7-2.a.1): auto-cross "All" leaves the
+    /// hold ending a destination-less route held, and still pre-clears a crossing in the middle of the route.
+    /// </summary>
+    [Fact]
+    public void Apply_All_LeavesTheHoldEndingANoDestinationRoute_AndClearsAMidRouteCrossing()
+    {
+        HoldShortPoint midRoute = MakeCrossing(100, "28R", isCleared: false, clearedByAutoCross: false);
+        HoldShortPoint routeEnd = MakeCrossing(200, "28L", isCleared: false, clearedByAutoCross: false);
+        routeEnd.EndsNoDestinationRoute = true;
+        TaxiRoute route = MakeRoute(midRoute, routeEnd);
+
+        TaxiRouteAutoCross.Apply(route, AutoCrossRunwayMode.All, NoActiveRunways);
+
+        Assert.True(midRoute.IsCleared, "the mid-route crossing was not pre-cleared");
+        Assert.True(midRoute.ClearedByAutoCross);
+        Assert.False(routeEnd.IsCleared, "the hold ending the route was pre-cleared");
+        Assert.False(routeEnd.ClearedByAutoCross);
+    }
+
     [Fact]
     public void Apply_ToggleOn_DoesNotMarkAlreadyClearedCrossings()
     {

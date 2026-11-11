@@ -566,6 +566,8 @@ public sealed class LandingPhase : Phase
         ctx.Aircraft.Phases?.GivenUpExitTaxiways.Clear();
         if (ctx.Aircraft.Phases is { } phaseList)
         {
+            phaseList.PreClearedCrossing = null;
+            phaseList.CrossExitPreference = null;
             phaseList.ReportedNoExitAhead = false;
             phaseList.NoExitReachTestActive = false;
         }
@@ -3101,7 +3103,8 @@ public sealed class LandingPhase : Phase
     /// preference relaxes to the controller's side and the caller resolves again under it, so the rollout brakes for the next
     /// exit it can make and never for the one refused, and the missed-exit path (<see cref="MarkExitUnable"/>) has nothing
     /// left to call at the branch. Without this the search under the named preference finds nothing and the rollout rolls on
-    /// silently, never making the call or looking for a later exit. Every category gives an exit up this way (7110.65 3-10-9.a: exit instructions are "if able").
+    /// silently, never making the call or looking for a later exit. Every category gives an exit up this way (7110.65 3-10-9.a:
+    /// exit instructions are "if able").
     /// A forced (<c>CLANDF</c>) rollout judges its own candidate and is left out.
     /// </summary>
     private bool GiveUpUnreachableNamedExit(PhaseContext ctx, ExitCandidateQuery query)

@@ -2089,17 +2089,33 @@ public sealed class RunwayExitPhase : Phase
 
     /// <summary>
     /// The speed (kts) the exit hands straight off to a pull-up to the parallel runway's hold-short at: <see cref="PlannedHandOffKts"/>,
-    /// the same judge the vacate predictor uses, and null while the <c>AutoPullUpToParallel</c> scenario setting is off.
+    /// the same judge the vacate predictor uses, and null while the exit does not pull up (<see cref="PullsUp"/>).
     /// </summary>
-    private double? PullUpHandOffKts(PhaseContext ctx) => ctx.AutoPullUpToParallel ? PlannedHandOffKts(ctx.Aircraft) : null;
+    private double? PullUpHandOffKts(PhaseContext ctx) => PullsUp(ctx) ? PlannedHandOffKts(ctx.Aircraft) : null;
 
     /// <summary>
-    /// Drops the pull-up plan for good the first tick the <c>AutoPullUpToParallel</c> scenario setting reads off (it can change
-    /// mid-exit), held or not: the exit plans its stop at once and the vacate predictor, which reads the plan, sees the stop too.
+    /// Whether the exit pulls up to a parallel runway it leads to: under the <c>AutoPullUpToParallel</c> scenario setting, or when a
+    /// crossing is pre-cleared (<see cref="PhaseList.PreClearedCrossing"/>), the controller's own instruction to go on across.
+    /// </summary>
+    private static bool PullsUp(PhaseContext ctx) => ctx.AutoPullUpToParallel || (ctx.Aircraft.Phases?.PreClearedCrossing is not null);
+
+    /// <summary>
+    /// Whether the exit pulls up to <paramref name="parallelRunwayId"/>, the first parallel its taxiway reaches: always under the
+    /// scenario setting; without it, only when that is the runway the pre-cleared crossing names, never to a nearer runway's bar on
+    /// the way to a farther one.
+    /// </summary>
+    private static bool PullsUpTo(PhaseContext ctx, string parallelRunwayId) =>
+        ctx.AutoPullUpToParallel
+        || ((ctx.Aircraft.Phases?.PreClearedCrossing is { } cleared) && RunwayIdentifier.Parse(parallelRunwayId).Contains(cleared));
+
+    /// <summary>
+    /// Drops the pull-up plan for good the first tick the exit no longer pulls up (<see cref="PullsUp"/>: the scenario setting
+    /// can change mid-exit), held or not: the exit plans its stop at once and the vacate predictor, which reads the plan, sees the
+    /// stop too.
     /// </summary>
     private void DropPullUpWhenSettingOff(PhaseContext ctx)
     {
-        if (ctx.AutoPullUpToParallel || (_pullUpReachKts is null))
+        if (PullsUp(ctx) || (_pullUpReachKts is null))
         {
             return;
         }
@@ -2413,9 +2429,15 @@ public sealed class RunwayExitPhase : Phase
         // auto-pull-up there (and hold short pending an explicit CROSS) instead of stopping at
         // the landing runway's exit hold-short. An aircraft stopped at a bar inside the landing
         // runway's holding distance has not vacated it, so it holds there instead.
-        if (!stoppedNotClear && TryStartParallelCrossing(ctx, handsOffAtSpeed: false))
+        if ((!stoppedNotClear && TryStartParallelCrossing(ctx, handsOffAtSpeed: false)) || TryCrossPreClearedFromStop(ctx))
         {
             return true;
+        }
+
+        if (ctx.Aircraft.Phases is { PreClearedCrossing: { } dropped } phases)
+        {
+            phases.PreClearedCrossing = null;
+            DropPreClearedCrossing(ctx, dropped);
         }
 
         if (!_vacated)
@@ -2450,12 +2472,11 @@ public sealed class RunwayExitPhase : Phase
     /// <summary>Where this exit ends, for joining a stored taxi route from it; null before the exit path is known.</summary>
     private Commands.GroundCommandHandler.StoredRouteJoin? StoredRouteJoin()
     {
-        if ((_exitPath is not { Count: >= 2 } path) || (_exitTaxiway is null))
+        if ((_exitPath is not { Count: >= 2 } path) || (HoldTaxiway is not { } holdTaxiway))
         {
             return null;
         }
 
-        string holdTaxiway = _exitRoute?.Segments[^1].TaxiwayName ?? _exitTaxiway;
         return new Commands.GroundCommandHandler.StoredRouteJoin(_holdShortNode ?? path[^1], path[^2], holdTaxiway, _runwayId);
     }
 
@@ -2502,6 +2523,7 @@ public sealed class RunwayExitPhase : Phase
             ctx.Aircraft.Position,
             RunwayCrossingEnd.TailOverNamer(ctx.Aircraft.Position, layout, ctx.ActiveRunways, ctx.Aircraft.Phases?.AssignedRunway)
         );
+        ApplyPreClearedCrossing(ctx, route, plan.NearHoldShort);
 
         ctx.Aircraft.Ground.AssignedTaxiRoute = route;
         ctx.Aircraft.Ground.CurrentTaxiway = holdTaxiway;
@@ -2551,15 +2573,12 @@ public sealed class RunwayExitPhase : Phase
     /// </summary>
     private ParallelCrossingPlan? PlanParallelCrossing(PhaseContext ctx)
     {
-        if (!ctx.AutoPullUpToParallel || (ctx.GroundLayout is not { } layout) || (_exitTaxiway is null))
+        if (!PullsUp(ctx) || (ctx.GroundLayout is not { } layout) || (HoldTaxiway is not { } holdTaxiway))
         {
             return null;
         }
 
-        // The taxiway the aircraft holds on: the exit taxiway, or the joining taxiway when the exit continued past a
-        // short bar. The pull-up to a parallel runway walks forward on it.
-        string holdTaxiway = _exitRoute?.Segments[^1].TaxiwayName ?? _exitTaxiway;
-        if (FindParallelCrossingFromExit(layout, holdTaxiway) is not { } xing)
+        if ((FindParallelCrossingFromExit(layout, holdTaxiway) is not { } xing) || !PullsUpTo(ctx, xing.ParallelRunwayId))
         {
             return null;
         }
@@ -2573,6 +2592,97 @@ public sealed class RunwayExitPhase : Phase
         }
 
         return new ParallelCrossingPlan(xing.NearHoldShort, xing.ParallelRunwayId, holdTaxiway, fullPath, segments);
+    }
+
+    /// <summary>
+    /// The taxiway the aircraft holds on after the exit: the exit taxiway, or the joining taxiway when the exit continued past a
+    /// short bar. The pull-up to a parallel runway walks forward on it. Null before the exit is chosen.
+    /// </summary>
+    internal string? HoldTaxiway => (_exitTaxiway is null) ? null : (_exitRoute?.Segments[^1].TaxiwayName ?? _exitTaxiway);
+
+    /// <summary>
+    /// The parallel runway the chosen exit leads across: the one its taxiway reaches with no taxiway between (the pull-up's), or the
+    /// one whose bar a too-short crossover stops the nose at. Null before the exit is chosen or when it leads to none.
+    /// </summary>
+    internal RunwayIdentifier? ParallelRunwayAhead(AirportGroundLayout layout)
+    {
+        if ((HoldTaxiway is { } holdTaxiway) && (FindParallelCrossingFromExit(layout, holdTaxiway) is { } xing))
+        {
+            return RunwayIdentifier.Parse(xing.ParallelRunwayId);
+        }
+
+        return _stopHeldShortOfBar?.RunwayId;
+    }
+
+    /// <summary>
+    /// Moves a pre-cleared crossing (<see cref="PhaseList.PreClearedCrossing"/>) onto <paramref name="route"/>'s bar at
+    /// <paramref name="nearBar"/> when it names the runway the route leads to; when it names another, drops it with the instructor's
+    /// warning. Either way the phase list no longer holds it.
+    /// </summary>
+    private void ApplyPreClearedCrossing(PhaseContext ctx, TaxiRoute route, GroundNode nearBar)
+    {
+        if (ctx.Aircraft.Phases is not { PreClearedCrossing: { } cleared } phases)
+        {
+            return;
+        }
+
+        phases.PreClearedCrossing = null;
+        if ((nearBar.RunwayId is not { } runway) || !runway.Contains(cleared))
+        {
+            DropPreClearedCrossing(ctx, cleared);
+            return;
+        }
+
+        Commands.GroundCommandHandler.ClearCrossingAt(route, nearBar.Id);
+        Log.LogDebug("[Exit] {Callsign}: pre-cleared to cross {Rwy}; bar #{Bar} cleared on the route", ctx.Aircraft.Callsign, cleared, nearBar.Id);
+    }
+
+    /// <summary>The instructor's warning that the pre-cleared crossing of <paramref name="cleared"/> is dropped: the exit leads elsewhere.</summary>
+    private void DropPreClearedCrossing(PhaseContext ctx, string cleared)
+    {
+        string display = RunwayIdentifier.ToDisplayDesignator(cleared);
+        ctx.Aircraft.PendingWarnings.Add($"CROSS {display} dropped: exit {HoldTaxiway ?? "?"} does not lead to runway {display}");
+        Log.LogDebug("[Exit] {Callsign}: pre-cleared crossing of {Rwy} dropped, exit {Twy}", ctx.Aircraft.Callsign, cleared, HoldTaxiway);
+    }
+
+    /// <summary>
+    /// A stop with the nose at a parallel runway's bar (<see cref="_stopHeldShortOfBar"/>, a crossover too short for the aircraft)
+    /// under a pre-cleared crossing of that runway: the aircraft goes on across along the exit taxiway and holds past the far bar,
+    /// as from the hold after the exit (<see cref="Commands.GroundCommandHandler.BuildCrossingFromBar"/>). False when none applies.
+    /// </summary>
+    private bool TryCrossPreClearedFromStop(PhaseContext ctx)
+    {
+        if (
+            (ctx.Aircraft.Phases is not { PreClearedCrossing: { } cleared } phases)
+            || (_stopHeldShortOfBar is not { RunwayId: { } runway } bar)
+            || !runway.Contains(cleared)
+            || (ctx.GroundLayout is not { } layout)
+            || (HoldTaxiway is not { } taxiway)
+        )
+        {
+            return false;
+        }
+
+        var crossing = new Commands.GroundCommandHandler.CrossingFromBar(layout, bar, taxiway);
+        if (Commands.GroundCommandHandler.BuildCrossingFromBar(crossing, ctx.Aircraft, ctx.ActiveRunways) is not { } route)
+        {
+            return false;
+        }
+
+        phases.PreClearedCrossing = null;
+        route.CurrentSegmentIndex = route.Segments.Count;
+        ctx.Aircraft.Ground.AssignedTaxiRoute = route;
+        ctx.Aircraft.Ground.CurrentTaxiway = taxiway;
+        ctx.Aircraft.Ground.AwaitingTaxiInCall = true;
+        phases.InsertAfterCurrent(Commands.GroundCommandHandler.CrossingPhasesFrom(route, bar));
+        Log.LogDebug(
+            "[Exit] {Callsign}: nose at {Rwy}'s bar #{Bar} on {Twy}, pre-cleared: crossing",
+            ctx.Aircraft.Callsign,
+            cleared,
+            bar.Id,
+            taxiway
+        );
+        return true;
     }
 
     /// <summary>
@@ -2612,7 +2722,7 @@ public sealed class RunwayExitPhase : Phase
     /// Build directional taxi-route segments along the exit taxiway for a node path of real,
     /// adjacency-connected graph nodes. Returns null if any consecutive pair lacks a connecting edge.
     /// </summary>
-    private static List<TaxiRouteSegment>? BuildRouteSegments(List<GroundNode> path, string taxiwayName)
+    internal static List<TaxiRouteSegment>? BuildRouteSegments(List<GroundNode> path, string taxiwayName)
     {
         var segments = new List<TaxiRouteSegment>(path.Count - 1);
         for (int i = 0; i < path.Count - 1; i++)

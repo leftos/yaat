@@ -359,6 +359,20 @@ public sealed class PhaseList
     /// </summary>
     public bool NoExitReachTestActive { get; set; }
 
+    /// <summary>
+    /// The runway a <c>CROSS</c> given on the landing rollout or during the runway exit pre-clears (as typed, e.g. <c>19R</c>):
+    /// the runway the exit's taxiway leads across. Consumed by <c>RunwayExitPhase</c> as it builds the route to that runway, its
+    /// clearance moved onto the route's bar, so only one of the two holds it at a time; dropped when the exit leads elsewhere,
+    /// when a TAXI is stored behind the exit, and when a landing starts.
+    /// </summary>
+    public string? PreClearedCrossing { get; set; }
+
+    /// <summary>
+    /// The exit side preference a rollout <c>CROSS</c> set toward the runway it pre-cleared (<see cref="PreClearedCrossing"/>): while
+    /// <see cref="RequestedExit"/> is this very instance, a TAXI stored behind the exit drops it with the crossing. Null otherwise.
+    /// </summary>
+    public ExitPreference? CrossExitPreference { get; set; }
+
     public int CurrentIndex { get; private set; }
 
     /// <summary>
@@ -540,6 +554,8 @@ public sealed class PhaseList
 
         list.ReportedNoExitAhead = dto.ReportedNoExitAhead;
         list.NoExitReachTestActive = dto.NoExitReachTestActive;
+        list.PreClearedCrossing = dto.PreClearedCrossing;
+        list.CrossExitPreference = (dto.RequestedExitIsCrossSide == true) ? list.RequestedExit : null;
 
         list.StoredTaxiDestinationRunway = list.TaxiRoute is not null ? dto.StoredTaxiDestinationRunway : null;
         list.TaxiImpliedExit = (dto.RequestedExitIsTaxiImplied == true) ? list.RequestedExit : null;
@@ -693,6 +709,8 @@ public sealed class PhaseList
             GivenUpExitTaxiways = (GivenUpExitTaxiways.Count > 0) ? [.. GivenUpExitTaxiways.Order(StringComparer.OrdinalIgnoreCase)] : null,
             ReportedNoExitAhead = ReportedNoExitAhead,
             NoExitReachTestActive = NoExitReachTestActive,
+            PreClearedCrossing = PreClearedCrossing,
+            RequestedExitIsCrossSide = ((CrossExitPreference is not null) && ReferenceEquals(CrossExitPreference, RequestedExit)) ? true : null,
             StoredTaxiDestinationRunway = StoredTaxiDestinationRunway,
             RequestedExitIsTaxiImplied = ((TaxiImpliedExit is not null) && ReferenceEquals(TaxiImpliedExit, RequestedExit)) ? true : null,
             CurrentIndex = CurrentIndex,

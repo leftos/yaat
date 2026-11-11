@@ -46,6 +46,7 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
         ["FAT"] = KoakMultiAirportDegradedReason,
         ["RNO"] = KoakMultiAirportDegradedReason + " " + Yaat1527DegradedReason,
         ["SJC"] = "issue216-auto-handoff and multi-cfix-preset — both assert handoff/queue state on airborne traffic.",
+        ["TEB"] = "sfo-arrival-cross-19r — the S1-SFO-4 recording's manifest declares it (no committed map); its traffic and tests are at KSFO.",
     };
 
     /// <summary>

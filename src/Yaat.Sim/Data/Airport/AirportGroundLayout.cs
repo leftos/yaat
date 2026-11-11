@@ -3264,7 +3264,7 @@ public sealed class AirportGroundLayout
     /// Returns the path [nearHS, …, farHS], or null at a dead end, a fork, or once the walk passes
     /// <see cref="MaxRunwayCrossingWalkFt"/>.
     /// </summary>
-    private List<GroundNode>? WalkAcrossToFarHoldShort(
+    internal List<GroundNode>? WalkAcrossToFarHoldShort(
         GroundNode nearHoldShort,
         int comeFromId,
         string exitTaxiwayName,

@@ -7572,8 +7572,9 @@ public static partial class GroundCommandHandler
         var holdPhase = aircraft.Phases?.CurrentPhase as HoldingShortPhase;
         bool releasesHold = CrossReleasesHold(holdPhase, cross);
         bool releasesLahsoHold = aircraft.Phases?.CurrentPhase is RunwayHoldingPhase;
-        // The hold ending a route cut short of a taxiway it never drives leads nowhere past it, so no CROSS releases it.
-        if (releasesHold && holdPhase is { HoldShort.EndsNoDestinationRoute: true })
+        // The hold ending a route cut short of a taxiway it never drives leads nowhere past it, so no CROSS releases it; a runway
+        // bar the route ends at is the hold short of that runway, which its CROSS releases across to the far side.
+        if (releasesHold && holdPhase is { HoldShort: { EndsNoDestinationRoute: true, Reason: not HoldShortReason.RunwayCrossing } })
         {
             return new CommandResult(false, HoldingShortPhase.RouteIncompleteMessage(holdPhase.HoldShort.TargetName));
         }
@@ -7949,42 +7950,69 @@ public static partial class GroundCommandHandler
         // Either not holding short, or holding short of a different target:
         // pre-clear matching upcoming hold-short(s) on the taxi route. Accepts
         // both runway designators and taxiway/intersection names.
-        TaxiRoute? route = aircraft.ActiveOrStoredTaxiRoute;
-        if (route is null)
-        {
-            return new CommandResult(false, "No taxi route assigned");
-        }
+        return TryCrossRoutelessOrRefuse(aircraft, cross, layout, activeRunways)
+            ?? TryPreClearRouteCrossing(aircraft, cross, aircraft.ActiveOrStoredTaxiRoute!, layout, activeRunways);
+    }
 
-        bool matchedAny = false;
-        foreach (HoldShortPoint hs in route.HoldShortPoints)
-        {
-            if (!HoldShortAnnotator.TargetMatches(hs.TargetName, target))
-            {
-                continue;
-            }
-
-            if (hs.Reason == HoldShortReason.DestinationRunway)
-            {
-                return TryExtendRouteAcrossDestinationRunway(aircraft, hs, target, layout, activeRunways);
-            }
-
-            matchedAny = true;
-        }
-
-        if (!matchedAny)
+    /// <summary>
+    /// <c>CROSS {runway}</c> pre-clearing the hold-shorts of that runway (or taxiway) on <paramref name="route"/>. A destination
+    /// runway, or the runway bar ahead that a destination-less route ends at, has the route extended across it; a CROSS that leaves
+    /// no hold-short of the target ahead to clear is refused, never answered with an OK that moves the aircraft nowhere.
+    /// </summary>
+    private static CommandResult TryPreClearRouteCrossing(
+        AircraftState aircraft,
+        CrossRunwayCommand cross,
+        TaxiRoute route,
+        AirportGroundLayout? layout,
+        ActiveRunways activeRunways
+    )
+    {
+        string target = cross.RunwayIds[0];
+        List<HoldShortPoint> matching = route.HoldShortPoints.FindAll(hs => HoldShortAnnotator.TargetMatches(hs.TargetName, target));
+        if (matching.Count == 0)
         {
             return new CommandResult(false, $"No hold-short for {target} in taxi route");
         }
 
-        foreach (HoldShortPoint hs in route.HoldShortPoints)
+        if (matching.Find(hs => (hs.Reason == HoldShortReason.DestinationRunway) || IsRouteEndBarAhead(route, hs)) is { } extended)
         {
-            if (HoldShortAnnotator.TargetMatches(hs.TargetName, target) && hs.Reason != HoldShortReason.DestinationRunway)
-            {
-                hs.IsCleared = true;
-            }
+            return (extended.Reason == HoldShortReason.DestinationRunway)
+                ? TryExtendRouteAcrossDestinationRunway(aircraft, extended, target, layout, activeRunways)
+                : TryExtendRouteAcrossEndBar(aircraft, extended, target, layout, activeRunways);
         }
 
-        // Held at another bar the aircraft goes nowhere yet; rolling, it reads on from the first pre-cleared bar ahead.
+        // Every bar of the target already behind the aircraft (or the route complete): unless a crossing is under way, the CROSS
+        // would move the aircraft nowhere.
+        if ((aircraft.Phases?.CurrentPhase is not CrossingRunwayPhase) && !matching.Exists(hs => IsBarStillToCross(route, hs)))
+        {
+            return NotHoldingShortOf(target);
+        }
+
+        matching.ForEach(static hs => hs.IsCleared = true);
+        return PreClearedRouteCrossingResult(aircraft, cross, route, layout, activeRunways);
+    }
+
+    /// <summary>
+    /// <paramref name="hs"/> lies ahead on <paramref name="route"/>, or at the node the aircraft's current segment leaves from (a
+    /// route that starts at the bar the aircraft stands at).
+    /// </summary>
+    private static bool IsBarStillToCross(TaxiRoute route, HoldShortPoint hs) =>
+        (route.SegmentIndexAhead(hs.NodeId) != int.MaxValue)
+        || ((route.CurrentSegmentIndex < route.Segments.Count) && (route.Segments[route.CurrentSegmentIndex].FromNodeId == hs.NodeId));
+
+    /// <summary>
+    /// The OK of a route pre-clearance: held at another bar the aircraft goes nowhere yet; rolling, it reads on from the first
+    /// pre-cleared bar of the target ahead.
+    /// </summary>
+    private static CommandResult PreClearedRouteCrossingResult(
+        AircraftState aircraft,
+        CrossRunwayCommand cross,
+        TaxiRoute route,
+        AirportGroundLayout? layout,
+        ActiveRunways activeRunways
+    )
+    {
+        string target = cross.RunwayIds[0];
         HoldShortPoint? ahead =
             aircraft.Phases?.CurrentPhase is HoldingShortPhase
                 ? null
@@ -8759,6 +8787,11 @@ public static partial class GroundCommandHandler
         }
 
         TaxiRoute? route = aircraft.ActiveOrStoredTaxiRoute;
+        if ((aircraft.Phases?.TaxiRoute is null) && (TryBareCrossWithoutRoute(aircraft, cross, layout, activeRunways) is { } routeless))
+        {
+            return routeless;
+        }
+
         if (route is null)
         {
             return new CommandResult(false, "No taxi route assigned");

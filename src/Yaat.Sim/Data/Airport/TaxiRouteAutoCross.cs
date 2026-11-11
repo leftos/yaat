@@ -5,7 +5,8 @@ namespace Yaat.Sim.Data.Airport;
 /// <summary>
 /// Applies the scenario's <see cref="AutoCrossRunwayMode"/> to a resolved taxi route's <see cref="HoldShortPoint"/>s:
 /// <see cref="AutoCrossRunwayMode.Off"/> pre-clears no runway crossing, <see cref="AutoCrossRunwayMode.All"/> pre-clears
-/// every one, and <see cref="AutoCrossRunwayMode.InactiveOnly"/> pre-clears only crossings of runways outside the airport's
+/// every one on the way (not the bar a route with no destination ends at), and
+/// <see cref="AutoCrossRunwayMode.InactiveOnly"/> pre-clears only crossings of runways outside the airport's
 /// active-runway list (any use; with none named, every runway is inactive). The same logic runs at TAXI-command resolution
 /// time (in <see cref="Yaat.Sim.Commands.GroundCommandHandler"/>), when the mode is changed mid-session, and when the active
 /// runways change under <see cref="AutoCrossRunwayMode.InactiveOnly"/>, by walking every active route in
@@ -29,13 +30,16 @@ public static class TaxiRouteAutoCross
     /// Hold-shorts with a non-RunwayCrossing reason (ExplicitHoldShort, DestinationRunway)
     /// are never touched, nor is a re-crossing of the runway just landed on, on a route stored
     /// during the landing rollout (<see cref="HoldShortPoint.RecrossesLandingRunway"/>): only an
-    /// explicit CROSS clears that one (7110.65 3-10-9.b.2).
+    /// explicit CROSS clears that one (7110.65 3-10-9.b.2). Nor is the runway bar a route without a
+    /// destination ends at (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>): a route issued up
+    /// to a runway's hold-short point is the hold-short instruction (7110.65 §3-7-2.a.1), so the
+    /// aircraft holds there until a CROSS clears it.
     /// </summary>
     public static void Apply(TaxiRoute route, AutoCrossRunwayMode mode, IReadOnlyList<ActiveRunway> activeAtAirport)
     {
         foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
-            if ((hs.Reason != HoldShortReason.RunwayCrossing) || hs.RecrossesLandingRunway)
+            if ((hs.Reason != HoldShortReason.RunwayCrossing) || hs.RecrossesLandingRunway || hs.EndsNoDestinationRoute)
             {
                 continue;
             }

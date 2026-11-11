@@ -34,6 +34,16 @@ public sealed class PhaseListDto
     public RunwayInfoDto? DepartureRunway { get; init; }
     public int? RequestedExit { get; init; }
     public string? RequestedExitTaxiway { get; init; }
+
+    // The runway a CROSS on the rollout or during the runway exit pre-clears (PhaseList.PreClearedCrossing). Not `required`: absent
+    // on older snapshots, where none is stored; and not written while null, so a snapshot with none stored — every snapshot 0 —
+    // serializes exactly as it did before the field existed (yaat-server pins snapshot 0's hash).
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PreClearedCrossing { get; init; }
+
+    // True when RequestedExit is the side a rollout CROSS set (PhaseList.CrossExitPreference). Not written while null, as above.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? RequestedExitIsCrossSide { get; init; }
     public ApproachClearanceDto? ActiveApproach { get; init; }
     public LahsoTargetDto? LahsoHoldShort { get; init; }
 

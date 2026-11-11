@@ -528,7 +528,9 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
         string destination = RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName ?? "runway");
         return cmd switch
         {
-            CanonicalCommandType.CrossRunway => EndsItsRoute ? CommandAcceptance.Rejected(RejectionMessage()) : CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.CrossRunway => (EndsItsRoute && !EndsAtRunwayBar)
+                ? CommandAcceptance.Rejected(RejectionMessage())
+                : CommandAcceptance.ClearsPhase,
             CanonicalCommandType.LineUpAndWait => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedForTakeoff => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto or CanonicalCommandType.ReRouteTaxi => CommandAcceptance.ClearsPhase,
@@ -568,16 +570,21 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
     /// the controller looking for a command that cannot apply: a runway bar has no RES (it takes a crossing or a
     /// takeoff clearance to leave, and a FOLLOWG there only arms the follow for after the crossing), while a
     /// taxiway or spot bar has both. The end of a route that could not reach its destination takes only a new
-    /// TAXI that names the taxiway the route needs.
+    /// TAXI that names the taxiway the route needs; at a runway bar the route ends at, a CROSS of that runway does too.
     /// </summary>
     private string RejectionMessage()
     {
+        string target = _displayEnd ?? HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway");
+        if (EndsAtRunwayBar)
+        {
+            return $"aircraft is holding short of {target} where the route issued ends; only CROSS, a new TAXI, or DEL apply";
+        }
+
         if (EndsItsRoute)
         {
             return RouteIncompleteMessage(_holdShort.TargetName);
         }
 
-        string target = _displayEnd ?? HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway");
         return ProtectsARunway
             ? $"aircraft is holding short of {target}; only CROSS/LUAW/CTO/HSC, FOLLOWG, a new TAXI, or DEL apply"
             : $"aircraft is holding short of {target}; only RES/FOLLOWG/CROSS/HSC, a new TAXI, or DEL apply";
@@ -586,9 +593,16 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
     /// <summary>
     /// True at the hold ending a route that goes nowhere past it: a route that could not reach its destination
     /// (<see cref="HoldShortReason.RouteIncomplete"/>), or one cut short of a taxiway it never drives
-    /// (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>). Neither <c>RES</c> nor <c>CROSS</c> releases it.
+    /// (<see cref="HoldShortPoint.EndsNoDestinationRoute"/>). <c>RES</c> never releases it; <c>CROSS</c> releases it only at a
+    /// runway bar the route ends at (<see cref="EndsAtRunwayBar"/>), taking the aircraft across that runway.
     /// </summary>
     private bool EndsItsRoute => (_holdShort.Reason == HoldShortReason.RouteIncomplete) || _holdShort.EndsNoDestinationRoute;
+
+    /// <summary>
+    /// True at a runway bar a destination-less route ends at: the route was issued up to the runway's hold-short point
+    /// (7110.65 §3-7-2.a.1), so a CROSS of that runway releases it and the aircraft crosses to the far side; RES still does not.
+    /// </summary>
+    private bool EndsAtRunwayBar => _holdShort.EndsNoDestinationRoute && (_holdShort.Reason == HoldShortReason.RunwayCrossing);
 
     /// <summary>
     /// The refusal for a command the bar ending an incomplete route does not take (<see cref="HoldShortReason.RouteIncomplete"/>):

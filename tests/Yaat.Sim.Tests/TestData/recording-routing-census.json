@@ -1756,6 +1756,24 @@
     "Solo": false
   },
   {
+    "File": "sfo-arrival-cross-19r-recording.yaat-bug-report-bundle.zip",
+    "Commands": 230,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "AddAircraft": 7,
+      "Compound": 148,
+      "Delete": 4,
+      "SetActivePosition": 9,
+      "Strip": 41,
+      "Tdls": 19,
+      "TdlsOps": 1
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
     "File": "sfo-cto-intersection-departure-recording.yaat-bug-report-bundle.zip",
     "Commands": 163,
     "ByKind": {
