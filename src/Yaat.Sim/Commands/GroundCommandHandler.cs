@@ -609,7 +609,7 @@ public static partial class GroundCommandHandler
                 ? groundLayout.FindSpotNodeByName(taxi.DestinationSpot)
                 : (groundLayout.FindHelipadByName(taxi.DestinationParking!) ?? groundLayout.FindParkingByName(taxi.DestinationParking!));
 
-            const double atParkingThresholdNm = 50.0 / GeoMath.FeetPerNm;
+            const double atParkingThresholdNm = RampZeroSegmentRoll.AtDestinationThresholdFt / GeoMath.FeetPerNm;
             double distToDest = destNode is not null ? GeoMath.DistanceNm(aircraft.Position, destNode.Position) : 0;
 
             bool rerouted = false;
@@ -700,12 +700,14 @@ public static partial class GroundCommandHandler
         }
         else
         {
-            msg = BuildTaxiReadback(
-                route,
-                groundLayout,
-                taxi,
-                new TaxiReadbackInputs(occupiedTaxiway, resolved.EndsShort, !options.IsTaxiAuto, null, null)
-            );
+            msg = resolved.RollReadback is { } rollReadback
+                ? rollReadback + (taxi.Expedite ? CommandDescriber.WithoutDelaySuffix : "")
+                : BuildTaxiReadback(
+                    route,
+                    groundLayout,
+                    taxi,
+                    new TaxiReadbackInputs(occupiedTaxiway, resolved.EndsShort, !options.IsTaxiAuto, null, null)
+                );
         }
 
         msg = WithResponseNotes(
@@ -1614,6 +1616,12 @@ public static partial class GroundCommandHandler
         /// </summary>
         public PathfindingFailure? Failure { get; init; }
 
+        /// <summary>
+        /// The readback when the route is the roll onto a ramp destination the taxi started on (<see cref="RampZeroSegmentRoll"/>):
+        /// <c>Taxi to spot 2</c>. Null for every other route.
+        /// </summary>
+        public string? RollReadback { get; init; }
+
         public static TaxiResolution Refused(TaxiCommand command, CommandResult refusal) =>
             new()
             {
@@ -2260,12 +2268,14 @@ public static partial class GroundCommandHandler
 
         double startHeadingTrueDeg = aircraft.TrueHeading.Degrees;
         var startPose = StartPose.Of(aircraft);
+        // The roll onto the destination a ramp-confined resolution planned, and its readback: kept only when that very route wins.
+        (TaxiRoute Route, string Readback)? plannedRoll = null;
         TaxiRoute? ResolveDirect(TaxiCommand command, out PathfindingFailure? routeFailure)
         {
             ResolveDirectCountForTests++;
             if (confineToRamp && (command.Path.Count == 0))
             {
-                return ResolveRampConfinedRoute(
+                TaxiRoute? confined = ResolveRampConfinedRoute(
                     groundLayout,
                     startNode,
                     command,
@@ -2273,8 +2283,11 @@ public static partial class GroundCommandHandler
                         aircraft,
                         new SpotLineUpInputs(category, wakeClass, aircraftLengthFt, asCleared.Path, options.ListAircraft, inputs.RouteLogLevel)
                     ),
-                    out routeFailure
+                    out RampConfinedOutcome outcome
                 );
+                routeFailure = outcome.Failure;
+                plannedRoll = (confined is not null) && (outcome.RollReadback is { } readback) ? (confined, readback) : plannedRoll;
+                return confined;
             }
 
             if (command.DestinationParking is not null || command.DestinationSpot is not null)
@@ -2363,6 +2376,8 @@ public static partial class GroundCommandHandler
         TaxiRoute? route = start.Route;
         PathfindingFailure? failure = start.Failure;
         string? failReason = failure?.HumanMessage;
+        // A roll is flown as planned: it already ends on the destination along its lane, so nothing below re-plans it.
+        string? rollReadback = (plannedRoll is { } roll) && ReferenceEquals(roll.Route, route) ? roll.Readback : null;
 
         // Two named taxiways that meet nowhere the aircraft may join them: refused as issued, controller-issued, scripted or
         // TAXIAUTO alike. No recovery below may rewrite it into a route the clearance never named; the aircraft stays put.
@@ -2382,6 +2397,20 @@ public static partial class GroundCommandHandler
             ) with
             {
                 Failure = failure,
+            };
+        }
+
+        if ((route is not null) && (rollReadback is not null))
+        {
+            return new TaxiResolution
+            {
+                Route = route,
+                Command = taxi,
+                EffectiveCommand = effectiveCommand,
+                OccupiedTaxiway = occupiedTaxiway,
+                EndsShort = false,
+                Refusal = null,
+                RollReadback = rollReadback,
             };
         }
 
@@ -5254,12 +5283,22 @@ public static partial class GroundCommandHandler
     /// <param name="LineUp">Its category, wake class and length, the clearance as worded, and the world's aircraft.</param>
     private sealed record RampConfinedInputs(AircraftState Aircraft, SpotLineUpInputs LineUp);
 
+    /// <summary>What a ramp-confined resolution reports beside its route.</summary>
+    /// <param name="Failure">The refusal when no route resolved, else null.</param>
+    /// <param name="RollReadback">
+    /// The readback when the route is the roll onto the destination (<see cref="RampZeroSegmentRoll"/>), else null.
+    /// </param>
+    private sealed record RampConfinedOutcome(PathfindingFailure? Failure, string? RollReadback);
+
     /// <summary>
     /// A plain TAXI naming only a gate or spot, from inside the ramp: the route stays inside the ramp
     /// (<see cref="RampLaneReposition.TryPlanRampConfinedRoute"/>). A spot on a ramp taxilane the graph reaches only over the
     /// movement area is still reached by lining up on it across the apron, the spot line-up
     /// (<see cref="RampLaneReposition.TryPlanSpotLineUp"/>) re-planning the unconfined route, when that line-up stays inside
-    /// the ramp (SFO <c>TAXI $6B</c> mid-push off a D gate). Otherwise there is none and the failure carries the refusal
+    /// the ramp (SFO <c>TAXI $6B</c> mid-push off a D gate). A taxi that starts on the destination itself, with the aircraft
+    /// <see cref="RampZeroSegmentRoll.AtDestinationThresholdFt"/> or more from it, rolls onto it along its lane when the
+    /// aircraft faces it there, else takes the route inside the ramp from the destination's nearest neighbour
+    /// (<see cref="RampZeroSegmentRoll.Plan"/>). Otherwise there is none and the outcome carries the refusal
     /// (<see cref="RampConfinedRefusal"/>).
     /// </summary>
     private static TaxiRoute? ResolveRampConfinedRoute(
@@ -5267,14 +5306,17 @@ public static partial class GroundCommandHandler
         GroundNode startNode,
         TaxiCommand taxi,
         RampConfinedInputs inputs,
-        out PathfindingFailure? failure
+        out RampConfinedOutcome outcome
     )
     {
         GroundNode? destNode = FindTaxiDestinationNode(groundLayout, taxi);
         if (destNode is null)
         {
             string destLabel = taxi.DestinationSpot ?? taxi.DestinationParking!;
-            failure = DestinationFailure($"Cannot find {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'");
+            outcome = new RampConfinedOutcome(
+                DestinationFailure($"Cannot find {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'"),
+                null
+            );
             return null;
         }
 
@@ -5291,10 +5333,28 @@ public static partial class GroundCommandHandler
             OtherGroundAircraft = OtherGroundCandidates(lineUp),
             PlanLogLevel = lineUp.RouteLogLevel,
         };
-        TaxiRoute? route = RampLaneReposition.TryPlanRampConfinedRoute(groundLayout, request) is { } confined
-            ? SetDestination(confined, taxi)
-            : RampSpotLineUp(groundLayout, startNode, taxi, destNode, inputs);
-        failure = route is null ? DestinationFailure(RampConfinedRefusal(taxi, destNode)) : null;
+        TaxiRoute? confined = RampLaneReposition.TryPlanRampConfinedRoute(groundLayout, request);
+        TaxiRoute? route;
+        string? rollReadback = null;
+        if (
+            (confined is { Segments.Count: 0 })
+            && (startNode.Id == destNode.Id)
+            && RampZeroSegmentRoll.IsAwayFrom(inputs.Aircraft.Position, destNode)
+        )
+        {
+            // The taxi starts on the destination the aircraft stands away from: roll onto it, else route in inside the ramp.
+            var request0 = new RampZeroSegmentRoll.Request(inputs.Aircraft, request, r => SetDestination(r, taxi));
+            RampZeroSegmentRoll.Outcome planned = RampZeroSegmentRoll.Plan(groundLayout, request0);
+            route = planned.Route;
+            (string kind, _, string name) = DestinationDisplay(taxi, destNode);
+            rollReadback = planned.IsRoll ? $"Taxi to {kind} {name}" : null;
+        }
+        else
+        {
+            route = confined is not null ? SetDestination(confined, taxi) : RampSpotLineUp(groundLayout, startNode, taxi, destNode, inputs);
+        }
+
+        outcome = new RampConfinedOutcome(route is null ? DestinationFailure(RampConfinedRefusal(taxi, destNode)) : null, rollReadback);
         return route;
     }
 
@@ -5345,12 +5405,15 @@ public static partial class GroundCommandHandler
     /// </summary>
     private static string RampConfinedRefusal(TaxiCommand taxi, GroundNode? destination)
     {
-        (string kind, string sigil, string name) =
-            taxi.DestinationSpot is { } spot ? ("spot", "$", spot)
-            : destination is { Type: GroundNodeType.Helipad } ? ("helipad", "@", taxi.DestinationParking!)
-            : ("gate", "@", taxi.DestinationParking!);
+        (string kind, string sigil, string name) = DestinationDisplay(taxi, destination);
         return $"Unable, need a route to {kind} {name}. To auto-route it: TAXIAUTO {sigil}{name}";
     }
+
+    /// <summary>How a gate or spot clearance names its destination: <c>("spot", "$", "1")</c>, <c>("gate", "@", "A10")</c>.</summary>
+    private static (string Kind, string Sigil, string Name) DestinationDisplay(TaxiCommand taxi, GroundNode? destination) =>
+        taxi.DestinationSpot is { } spot ? ("spot", "$", spot)
+        : destination is { Type: GroundNodeType.Helipad } ? ("helipad", "@", taxi.DestinationParking!)
+        : ("gate", "@", taxi.DestinationParking!);
 
     private static TaxiRoute? ResolveParkingRoute(
         TaxiResolveInputs inputs,

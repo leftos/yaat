@@ -125,9 +125,22 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
         );
     }
 
-    /// <summary>The free-space cut that lands on the spot itself from the side is the shape under test.</summary>
+    /// <summary>
+    /// The free-space cut that lands on the spot itself from the side is the shape under test. A final free-space leg that rolls
+    /// onto the spot along one of its own lanes, facing it (<see cref="RampZeroSegmentRoll.IsOnLaneFacing"/>), is no such cut.
+    /// </summary>
     private static void AssertNoFreeSpaceLegIntoSpot(TaxiRoute route, GroundNode spot) =>
-        Assert.DoesNotContain(route.Segments, s => (s.ToNodeId == spot.Id) && s.TaxiwayName.Equals("RAMP", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            route.Segments.Select((s, i) => (Segment: s, Last: i == route.Segments.Count - 1)),
+            leg =>
+                (leg.Segment.ToNodeId == spot.Id)
+                && leg.Segment.TaxiwayName.Equals("RAMP", StringComparison.OrdinalIgnoreCase)
+                && !(leg.Last && RollsAlongTheSpotsLane(leg.Segment, spot))
+        );
+
+    /// <summary>A free-space leg that starts on a lane into the spot and runs along it, facing the spot.</summary>
+    private static bool RollsAlongTheSpotsLane(TaxiRouteSegment leg, GroundNode spot) =>
+        VirtualNode.IsVirtualEdge(leg.Edge.Edge) && RampZeroSegmentRoll.IsOnLaneFacing(spot, leg.Edge.FromNode.Position, leg.Edge.DepartureBearing);
 
     private int TickToRest(SimulationEngine engine, AircraftState aircraft, int maxSeconds) =>
         SfoGroundHarness.TickUntil(
