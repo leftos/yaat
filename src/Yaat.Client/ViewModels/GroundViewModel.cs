@@ -4679,10 +4679,11 @@ public partial class GroundViewModel : ObservableObject
     /// share one body and cannot drift apart, refusal wording included (the draw gestures give such a target no facing,
     /// so none is previewed). Otherwise each target resolves as the sim's
     /// <c>PUSHM</c> resolves its legs: a marked point minted where it lies (facing converted at the aircraft), every
-    /// other target found in the layout, then the leg's forced kind applied.
+    /// other target found in the layout, then the leg's forced kind applied. Both forms refuse an unresolvable target in
+    /// the server's words, through the same body that writes that refusal.
     /// </summary>
     /// <returns>The goals and the facing to end on, or no goals and the refusal.</returns>
-    private static (List<TugGoal>? Goals, double? FinalFacingTrueDeg, string? Refusal) ResolvePushPreviewGoals(
+    internal static (List<TugGoal>? Goals, double? FinalFacingTrueDeg, string? Refusal) ResolvePushPreviewGoals(
         AirportGroundLayout layout,
         AircraftModel aircraft,
         List<PushDestination> targets
@@ -4703,7 +4704,7 @@ public partial class GroundViewModel : ObservableObject
                 : GroundCommandHandler.ResolveTugGoal(layout, target.Token);
             if (goal is null)
             {
-                return (null, null, $"Cannot find {target.Token}");
+                return (null, null, $"Cannot find {GroundCommandHandler.DescribeTugTarget(target.Token)}");
             }
 
             goals.Add(goal with { ForcedKind = target.ForcedKind });

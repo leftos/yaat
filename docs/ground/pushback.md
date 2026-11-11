@@ -528,7 +528,7 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 | `No airport ground layout available` | `GroundCommandHandler.ResolvePushTarget` and the other layout-reading handlers |
 | `Cannot find taxiway '<X>' near aircraft` | `GroundCommandHandler.ResolvePushToTaxiway` |
 | `Cannot find facing taxiway '<F>' near <X>` | `GroundCommandHandler.ResolvePushToTaxiway` |
-| `Cannot find spot '<name>'` / `Cannot find parking '<name>'` | `GroundCommandHandler` stand and spot goal resolution |
+| `Cannot find spot '<name>'` / `Cannot find parking '<name>'` / `Cannot find node '#<N>'` | `GroundCommandHandler` stand and spot goal resolution, named by `DescribeTugTarget`; the client's Push route… preview refuses a multi-target token the same way |
 | `Unable, taxiway X is not behind the aircraft` | `TugMovePlanner` (`TryStraightBackCandidate`: no lead-in junction, Across, Alongside or filleted-end candidate), rule 6 |
 | `Unable, <goal> is ahead of the nose — the aircraft has to be pushed back off the stand first` | `TugMovePlanner`, a node goal off a stand |
 | `Unable, cannot line up on <goal> from here` | `TugMovePlanner`, no candidate survives |

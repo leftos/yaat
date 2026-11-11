@@ -712,6 +712,29 @@ public class GroundViewModelPushRouteTests
         Assert.Null(vm.FinishPushRoute());
     }
 
+    // A token that no longer resolves in a multi-target route is refused in the server's words, as the one-target form
+    // is (PushStandOrSpotGoalTests pins those strings): the sigil picks spot, parking or node, as PUSHM writes it.
+    [Fact]
+    public void ResolvePushPreviewGoals_MultiTargetMissingToken_UsesTheServerWording()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AirportGroundLayout layout = vm.DomainLayout!;
+        AircraftModel ac = MakeAircraft();
+
+        Assert.Equal("Cannot find spot 'ZZ9'", RefusalOf(layout, ac, PushDestination.AtParking("8B", null), PushDestination.AtSpot("ZZ9", null)));
+        Assert.Equal("Cannot find parking 'ZZ99'", RefusalOf(layout, ac, PushDestination.AtSpot("A", null), PushDestination.AtParking("ZZ99", null)));
+        Assert.Equal("Cannot find node '#99999'", RefusalOf(layout, ac, PushDestination.AtSpot("A", null), PushDestination.AtNode(99999, null)));
+    }
+
+    private static string? RefusalOf(AirportGroundLayout layout, AircraftModel ac, params PushDestination[] targets)
+    {
+        (List<TugGoal>? goals, double? facing, string? refusal) = GroundViewModel.ResolvePushPreviewGoals(layout, ac, [.. targets]);
+        Assert.Null(goals);
+        Assert.Null(facing);
+        return refusal;
+    }
+
     private static (GroundViewModel Vm, AircraftModel Aircraft) StartSfoPushFromStand(AirportGroundLayout layout, string standName)
     {
         GroundNode stand = layout.FindParkingByName(standName)!;

@@ -7012,8 +7012,14 @@ public static partial class GroundCommandHandler
         }
     }
 
-    /// <summary>How an unresolvable target token is named back to the controller.</summary>
-    private static string DescribeTugTarget(string token) =>
+    /// <summary>
+    /// How an unresolvable target token is named back to the controller: <c>spot 'X'</c>, <c>parking 'X'</c> or
+    /// <c>node '#N'</c>. Public because the ground view's push-route preview refuses a target it cannot resolve through
+    /// this same body, so the preview and the executed move cannot disagree about how a token is named.
+    /// </summary>
+    /// <param name="token">The target token, sigil included.</param>
+    /// <returns>The target's description for the refusal.</returns>
+    public static string DescribeTugTarget(string token) =>
         token[0] switch
         {
             '$' => $"spot '{token[1..]}'",
