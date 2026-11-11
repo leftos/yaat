@@ -23,9 +23,10 @@ namespace Yaat.Sim.Commands;
 /// without parsing the user-facing <see cref="Message"/>.
 /// <para>
 /// <paramref name="EffectiveCommand"/> is set when a handler applied a rewritten form of the command — a
-/// TAXI whose unreachable gate lead-out lane was dropped — so the solo pilot reads back the route it will
-/// actually taxi (<see cref="Pilot.PilotResponder.BuildReadbackAsApplied"/>) instead of the pavement the
-/// controller named; null when the command applied as issued.
+/// TAXI whose unreachable gate lead-out lane was dropped, or a TAXIAUTO whose <c>@GATE</c> resolved to a stand
+/// inside a flight-plan parking area, carrying that area — so the solo pilot reads back the route it will
+/// actually taxi, or the area it will park in (<see cref="Pilot.PilotResponder.BuildReadbackAsApplied"/>),
+/// instead of the pavement or stand the controller named; null when the command applied as issued.
 /// </para>
 /// </summary>
 public record CommandResult(

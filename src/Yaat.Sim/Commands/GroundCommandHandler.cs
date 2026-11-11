@@ -750,7 +750,7 @@ public static partial class GroundCommandHandler
         };
         return CommandDispatcher.Ok(msg) with
         {
-            EffectiveCommand = effectiveCommand,
+            EffectiveCommand = AsAppliedTaxiAuto(taxi, options, effectiveCommand),
             PilotReadback =
                 options.IsTaxiAuto ? null
                 : (unableEndHold is { } unableHold) ? UnableToHoldShortReadback(unableHold)
@@ -758,6 +758,24 @@ public static partial class GroundCommandHandler
             // An unable answer is no route readback, so no CROSS or RES of the block reads it again.
             TaxiRouteReadback = (options.IsTaxiAuto || (unableEndHold is not null)) ? null : readbackSource,
         };
+    }
+
+    /// <summary>
+    /// The command the solo pilot reads back for a resolved taxi: a <c>TAXIAUTO</c> whose <c>@GATE</c> resolved to a stand picked
+    /// inside a flight-plan parking area carries the area (<see cref="TaxiAutoCommand.DestinationArea"/>), so the readback names the
+    /// area and not the stand inside it; every other result keeps <paramref name="effectiveCommand"/>.
+    /// </summary>
+    /// <param name="taxi">The working command the route resolved from.</param>
+    /// <param name="options">The clearance's options, whose <see cref="TaxiCoreOptions.IsTaxiAuto"/> says whether it was a TAXIAUTO.</param>
+    /// <param name="effectiveCommand">The as-applied TAXI of a dropped lead-out lane, or null.</param>
+    private static ParsedCommand? AsAppliedTaxiAuto(TaxiCommand taxi, TaxiCoreOptions options, TaxiCommand? effectiveCommand)
+    {
+        if (!options.IsTaxiAuto || (taxi.DestinationArea is not { Length: > 0 } area))
+        {
+            return effectiveCommand;
+        }
+
+        return new TaxiAutoCommand(taxi.DestinationRunway, taxi.DestinationParking, taxi.DestinationSpot, taxi.Expedite) { DestinationArea = area };
     }
 
     /// <summary>

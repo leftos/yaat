@@ -3,6 +3,8 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -264,6 +266,80 @@ public class TaxiToRemarkGateTests(ITestOutputHelper output)
         output.WriteLine($"readback: {readback.Speech.Terminal} | {readback.Speech.Tts}");
         Assert.Contains("taxi to SIGNATURE", readback.Speech.Terminal, StringComparison.Ordinal);
         Assert.DoesNotContain("parking SIG", readback.Speech.Terminal, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Case 7 for TAXIAUTO: the readback names the area, not the stand picked inside it.</summary>
+    [Fact]
+    public void TaxiAutoAtGate_ParkingAreaRemark_ReadsBackTheAreaName()
+    {
+        if (BuildSfo() is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SfoGroundHarness.SpawnAt(
+            ground,
+            Callsign,
+            MidSpanType,
+            (VirtualNode.Create(OnCLatitude, OnCLongitude), new TrueHeading(OnCHeadingTrueDeg)),
+            new HoldingInPositionPhase()
+        );
+        aircraft.FlightPlan.ReplaceRemarks(AreaRemark);
+        CommandResult result = ground.Engine.SendCommand(Callsign, "TAXIAUTO @GATE");
+
+        Assert.True(result.Success, result.Message);
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(
+            CommandParser.ParseCompound("TAXIAUTO @GATE").Value!,
+            result,
+            aircraft,
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
+        );
+        output.WriteLine($"readback: {readback?.Terminal} | {readback?.Tts}");
+        Assert.NotNull(readback);
+        Assert.Contains("taxi to SIGNATURE", readback.Terminal, StringComparison.Ordinal);
+        Assert.DoesNotContain("parking SIG", readback.Terminal, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Case 7 on the landing rollout: the readback names the area there too, not the stand picked inside it.</summary>
+    [Fact]
+    public void TaxiAutoAtGate_OnTheLandingRollout_ParkingAreaRemark_ReadsBackTheAreaName()
+    {
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        if (ShortFinalArrival.SpawnClearedToLand("SFO", "19L", AircraftType, Callsign, 1.0) is not { } spawned)
+        {
+            return;
+        }
+
+        AircraftState aircraft = spawned.Aircraft;
+        int touchdown = SfoGroundHarness.TickUntil(
+            spawned.Engine,
+            () => aircraft.IsOnGround && (aircraft.Phases?.CurrentPhase is LandingPhase),
+            300,
+            null
+        );
+        Assert.True(touchdown > 0, $"never touched down: {aircraft.Phases?.CurrentPhase?.Name}");
+        for (int second = 0; second < 4; second++)
+        {
+            spawned.Engine.TickOneSecond();
+        }
+
+        aircraft.FlightPlan.ReplaceRemarks(AreaRemark);
+        Assert.IsType<LandingPhase>(aircraft.Phases?.CurrentPhase);
+        CommandResult result = spawned.Engine.SendCommand(Callsign, "TAXIAUTO @GATE");
+
+        Assert.True(result.Success, result.Message);
+        PilotSpeechText? readback = PilotResponder.BuildReadbackAsApplied(
+            CommandParser.ParseCompound("TAXIAUTO @GATE").Value!,
+            result,
+            aircraft,
+            PilotSpeechContext.Canonical,
+            ActiveRunways.Empty
+        );
+        output.WriteLine($"readback: {readback?.Terminal} | {readback?.Tts}");
+        Assert.NotNull(readback);
+        Assert.Contains("taxi to SIGNATURE", readback.Terminal, StringComparison.Ordinal);
+        Assert.DoesNotContain("parking", readback.Terminal, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

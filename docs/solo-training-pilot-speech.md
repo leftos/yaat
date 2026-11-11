@@ -72,7 +72,7 @@ When solo mode is OFF, `World.DiscardAllPilotTransmissions()` runs each tick to 
 
 ## Awaited readback after dispatch
 
-The readback text itself comes from `PilotResponder.BuildReadbackAsApplied` — when the dispatch rewrote the command (`CommandResult.EffectiveCommand`, e.g. a TAXI whose gate lead-out lane was dropped), the pilot reads back the route it will actually taxi, prefixed "unable <lane>," — see [pilot-phraseology.md](pilot-phraseology.md#readback-of-a-rewritten-clearance).
+The readback text itself comes from `PilotResponder.BuildReadbackAsApplied` — when the dispatch rewrote the command (`CommandResult.EffectiveCommand`, e.g. a TAXI whose gate lead-out lane was dropped, or a TAXIAUTO `@GATE` that picked a stand in a remark's parking area, read back as the area), the pilot reads back the route it will actually taxi, prefixed "unable <lane>," — see [pilot-phraseology.md](pilot-phraseology.md#readback-of-a-rewritten-clearance).
 
 `SimulationEngine.BuildDispatchContext` records which `Readback` entries the aircraft already had pending; after the dispatch, `ApplyPostDispatch` calls `World.ExpectPilotReadback` when a `Readback` entry it did not have before is now pending. Whichever site queued it arms the gate: the applied readback, the pilot's "unable" after a refused command, a contact/handoff (CT/FCA) readback or a pattern-size reply. A reply the pilot had already queued on its own does not arm it.
 

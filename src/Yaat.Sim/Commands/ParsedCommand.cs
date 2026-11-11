@@ -743,7 +743,15 @@ public record TaxiCommand(
 /// all three are required arguments so every caller has to say which. <see cref="Expedite"/> is the <c>EXP</c>
 /// modifier ("taxi without delay", 7110.65 §3-7-2.j), as on <see cref="TaxiCommand"/>.
 /// </summary>
-public record TaxiAutoCommand(string? DestinationRunway, string? DestinationParking, string? DestinationSpot, bool Expedite) : ParsedCommand;
+public record TaxiAutoCommand(string? DestinationRunway, string? DestinationParking, string? DestinationSpot, bool Expedite) : ParsedCommand
+{
+    /// <summary>
+    /// The parking area a flight-plan remark names when <c>@GATE</c> resolved to a stand picked inside it
+    /// (<see cref="TaxiCommand.DestinationArea"/>): the readback names the area, the route ends at the stand. Set by the
+    /// handler only; null as parsed.
+    /// </summary>
+    public string? DestinationArea { get; init; }
+}
 
 /// <summary>
 /// A re-route that keeps the taxi destination: <c>RTAXI &lt;path&gt; [HS …] [CROSS …] [EXP]</c>. <see cref="Route"/> is the

@@ -133,8 +133,10 @@ public static partial class PilotResponder
     /// TAXI (<see cref="CommandResult.EffectiveCommand"/> — the gate lead-out lane the ground map cannot reach
     /// was dropped), the pilot reads back the effective route and names what it could not take first:
     /// "unable mike four, taxi via mike one, alpha …". A crew never reads back pavement it will not use, and
-    /// the hearback check only works if the controller hears the substitution. Any other command, or a
-    /// result with no <see cref="CommandResult.EffectiveCommand"/>, reads back exactly as issued.
+    /// the hearback check only works if the controller hears the substitution. A rewritten TAXIAUTO — one whose
+    /// <c>@GATE</c> resolved to a stand picked inside a flight-plan parking area — reads back the area's name in
+    /// place of the stand, as a typed TAXI to the area does. Any other command, or a result with no
+    /// <see cref="CommandResult.EffectiveCommand"/>, reads back exactly as issued.
     /// <para>A handler-built readback (<see cref="CommandResult.PilotReadback"/>, every dispatched <c>PUSH</c> /
     /// <c>PUSHM</c>) replaces the clause of the compound's first command of the type that produced it
     /// (<see cref="HandlerReadback.Command"/>), so the pilot says the goal the handler resolved; any later push reads back
@@ -158,22 +160,27 @@ public static partial class PilotResponder
     {
         HandlerReadback? pilotReadback = result.PilotReadback;
         compound = WithReRouteAsTaxi(compound, result.ReRouteAppliedAs);
+        if (
+            (result.EffectiveCommand is TaxiAutoCommand effectiveAuto)
+            && (compound.Blocks.SelectMany(b => b.Commands).OfType<TaxiAutoCommand>().FirstOrDefault() is { } issuedAuto)
+        )
+        {
+            return BuildReadback(WithReplaced(compound, issuedAuto, effectiveAuto), aircraft, speechContext, pilotReadback, activeRunways);
+        }
+
         TaxiCommand? issuedTaxi = compound.Blocks.SelectMany(b => b.Commands).OfType<TaxiCommand>().FirstOrDefault();
         if (result.EffectiveCommand is not TaxiCommand effectiveTaxi || issuedTaxi is null)
         {
             return BuildReadback(compound, aircraft, speechContext, pilotReadback, activeRunways);
         }
 
-        var asApplied = new CompoundCommand([
-            .. compound.Blocks.Select(b => new ParsedBlock(
-                b.Condition,
-                [.. b.Commands.Select(c => ReferenceEquals(c, issuedTaxi) ? effectiveTaxi : c)]
-            )),
-        ])
-        {
-            SourceText = compound.SourceText,
-        };
-        PilotSpeechText? readback = BuildReadback(asApplied, aircraft, speechContext, pilotReadback, activeRunways);
+        PilotSpeechText? readback = BuildReadback(
+            WithReplaced(compound, issuedTaxi, effectiveTaxi),
+            aircraft,
+            speechContext,
+            pilotReadback,
+            activeRunways
+        );
         if (readback is null)
         {
             return null;
@@ -196,6 +203,16 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// <paramref name="compound"/> with the one command <paramref name="issued"/> replaced by <paramref name="applied"/>: the pilot
+    /// reads <paramref name="applied"/> back in its place, the rest of the transmission unchanged.
+    /// </summary>
+    private static CompoundCommand WithReplaced(CompoundCommand compound, ParsedCommand issued, ParsedCommand applied) =>
+        new([.. compound.Blocks.Select(b => new ParsedBlock(b.Condition, [.. b.Commands.Select(c => ReferenceEquals(c, issued) ? applied : c)]))])
+        {
+            SourceText = compound.SourceText,
+        };
+
+    /// <summary>
     /// <paramref name="compound"/> with its first <c>RTAXI</c> replaced by <paramref name="appliedAs"/>, the TAXI it ran
     /// (<see cref="CommandResult.ReRouteAppliedAs"/>), so the RTAXI reads back exactly as that TAXI: its handler readback, an
     /// "unable" for a dropped taxiway, and a CROSS the route readback covers. Unchanged when no RTAXI ran.
@@ -207,12 +224,7 @@ public static partial class PilotResponder
             return compound;
         }
 
-        return new CompoundCommand([
-            .. compound.Blocks.Select(b => new ParsedBlock(b.Condition, [.. b.Commands.Select(c => ReferenceEquals(c, issued) ? appliedAs : c)])),
-        ])
-        {
-            SourceText = compound.SourceText,
-        };
+        return WithReplaced(compound, issued, appliedAs);
     }
 
     public static PilotSpeechText? BuildReadback(

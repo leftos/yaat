@@ -175,7 +175,8 @@ public static class PhraseologyVerbalizer
                 taxiAuto.Expedite,
                 taxiAuto.DestinationRunway,
                 DestinationParking: taxiAuto.DestinationParking,
-                DestinationSpot: taxiAuto.DestinationSpot
+                DestinationSpot: taxiAuto.DestinationSpot,
+                DestinationArea: taxiAuto.DestinationArea
             );
         }
 
