@@ -121,7 +121,7 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
     }
 
     /// <summary>The lead on <paramref name="rwy"/>'s right-traffic final <paramref name="alongNm"/> out on the centerline.</summary>
-    private static AircraftState AddFinalLead(SimulationEngine engine, RunwayInfo rwy, double alongNm)
+    internal static AircraftState AddFinalLead(SimulationEngine engine, RunwayInfo rwy, double alongNm)
     {
         AircraftState lead = AddOnCircuit(engine, Leader, rwy, PatternDirection.Right, PatternEntryLeg.Final, OffFinal(rwy, alongNm, 0.0));
         lead.Altitude = 300.0 + (alongNm * 300.0);

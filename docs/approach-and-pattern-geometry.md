@@ -408,7 +408,7 @@ At a field with no authored pattern the turbine TPA already is field + 1,500 ft,
 
 1. **Outbound anchor** = abeam + `CrosswindHeading` × outbound distance (Jet 3.0 / TP 2.5 / else 2.0 nm).
 2. **45° lead-in** = abeam + reverse-45°-entry heading × lead-in distance (Jet 2.0 / TP 1.5 / else 1.0 nm).
-3. **Abeam** = the downwind abeam point itself.
+3. **Abeam** = the downwind abeam point itself (abeam the threshold, not midfield).
 
 The aircraft enters from `MidfieldCrossingPhase` at its crossing altitude.
 
@@ -845,7 +845,7 @@ The check runs *before* the speed block so it pre-empts the at-min-speed cancel 
 
 "On final" is by phase (`FinalApproachPhase`) or by geometry, whatever phase flies it (`IsOnFinalByGeometry`: on the approach side of the threshold, within `OnFinalMaxCrossTrackNm = 0.5` of the extended centerline, tracking within `OnFinalMaxTrackOffDeg = 30` of the runway heading, not going around), so a lead on an ILS in `ApproachNavigationPhase` or `InterceptCoursePhase` counts.
 
-The projection: the follower flies its remaining base to the final-turn point and the quarter-circle turn (`BasePhase.TurnRadiusNm`) at its ground speed; the lead flies its remaining path to the threshold (`LeadRemainingPathNm`: the pattern path on base, the distance out on final) at `ProjectedLeadSpeedKts` (the slower of its ground speed and approach speed, floored at 40 kt — the same projection the downwind hold uses).
+The projection: the follower flies its remaining base to the final-turn point and the quarter-circle turn (`BasePhase.TurnRadiusNm`) at its ground speed; the lead flies its remaining path to the threshold (`LeadRemainingPathNm`: the pattern path on base, else the lead's own remaining path from `SequenceRemainingPathNm` — the circuit's pattern path or the approach's fixes — falling back to the distance out on final when it has no leg in the sequence) at `ProjectedLeadSpeedKts` (the slower of its ground speed and approach speed, floored at 40 kt — the same projection the downwind hold uses).
 
 The spacing gap is how far the lead is then ahead along the final; the requirement is `PatternSpacingNm` (the category pattern spacing, with no wake term); the runway-occupancy check asks that the follower cross the threshold no sooner than `RunwayClearanceSeconds` after the lead. The decision:
 
@@ -909,8 +909,12 @@ own). This covers the lost-visual (case 3), lead-despawned (case 1), and the at-
 hold:** when the lead reaches the ground the follower is number one, so it keeps bare `ClearFollowState`
 and continues its own approach (turns base, lands). Base/Final are committed to the approach and
 free-flight legs have nothing to hold, so those continue regardless. A controller command that
-supersedes the follow (vector / new approach) and a Base/Final go-around break-off also use bare
-`ClearFollowState` — the new instruction or the go-around governs.
+supersedes the follow (vector / new approach) also uses bare `ClearFollowState`, as does **every
+go-around** (the automatic one, an instructed `GA`, a missed approach; `GoAroundHelper.InstallGoAroundPhases`, before the
+climb is installed so the outgoing climb's pending pursuit is disarmed): accepting a follow means maneuvering to keep
+in-trail separation (AIM §4-4-14.b), and a go-around abandons it, the pilot asking ATC for the next action
+(AIM §5-5-5.a.6). It is silent, with no "lost sight" call, and the re-entered upwind/crosswind/downwind no longer
+chases the lead.
 
 **A growing gap never cancels a follow.** A lead that merely outpaces the follower is *increasing* separation and
 removing the overtake risk; the sequence is still valid. That is a controller efficiency concern to re-sequence, not

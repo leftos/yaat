@@ -389,11 +389,11 @@ public class FollowPairTrajectoryTests
         return lead;
     }
 
-    // ─── 1. #352 repro (D1): ERD at/past the midfield abeam point must not U-turn ───
+    // ─── 1. #352 repro (D1): ERD at/past the abeam point must not U-turn ───
 
     /// <summary>
     /// The incident geometry from issue #352: an aircraft approaching along the right downwind
-    /// for 28R, already alongside the midfield abeam point (laterally outside the downwind
+    /// for 28R, already alongside the abeam point (laterally outside the downwind
     /// track, so the fixed entry point is &gt;1 nm away and both lead-in candidates project
     /// BEHIND it), is told ERD 28R and then FOLLOW on a lead rolling out on a 2 nm final.
     /// The entry must join the downwind from present position — not command a U-turn back to

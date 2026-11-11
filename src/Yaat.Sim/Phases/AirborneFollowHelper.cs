@@ -331,8 +331,8 @@ public static class AirborneFollowHelper
     /// Clear the follow target on a follower without holding its pattern leg — for cases where
     /// the follower should proceed, not freeze on present vector: the lead has LANDED (the
     /// follower is now number one and continues its approach), a controller command supersedes
-    /// the follow (vector / new approach), or a Base/Final break-off to a go-around. Involuntary
-    /// in-pattern cancels (lead lost/despawned, spacing unmaintainable) use
+    /// the follow (vector / new approach), or any go-around (<see cref="GoAroundHelper.InstallGoAroundPhases"/>).
+    /// Involuntary in-pattern cancels (lead lost/despawned, spacing unmaintainable) use
     /// <see cref="CancelFollowHoldingLeg"/> instead.
     /// </summary>
     public static void ClearFollowState(AircraftState follower)
@@ -2002,12 +2002,20 @@ public static class AirborneFollowHelper
 
     /// <summary>
     /// The lead's remaining path (nm) to <paramref name="runway"/>'s threshold: its pattern path on base
-    /// (<see cref="RemainingPatternPathNm"/>), else its distance out along the final (never below zero).
+    /// (<see cref="RemainingPatternPathNm"/>), else its path along its own landing sequence
+    /// (<see cref="SequenceRemainingPathNm(AircraftState, RunwayInfo)"/> — the pattern path around the circuit, the fix path on an
+    /// instrument approach), falling back to its distance out along the final (never below zero) when it has no leg in the sequence.
     /// </summary>
-    internal static double LeadRemainingPathNm(AircraftState lead, RunwayInfo runway) =>
-        lead.Phases?.CurrentPhase is BasePhase { Waypoints: { } waypoints }
-            ? RemainingPatternPathNm(lead, waypoints)
-            : Math.Max(0.0, AlongFinalNm(lead.Position, runway));
+    internal static double LeadRemainingPathNm(AircraftState lead, RunwayInfo runway)
+    {
+        if (lead.Phases?.CurrentPhase is BasePhase { Waypoints: { } waypoints })
+        {
+            return RemainingPatternPathNm(lead, waypoints);
+        }
+
+        double sequence = SequenceRemainingPathNm(lead, runway);
+        return double.IsPositiveInfinity(sequence) ? Math.Max(0.0, AlongFinalNm(lead.Position, runway)) : sequence;
+    }
 
     /// <summary>
     /// True when <paramref name="lead"/> is on <paramref name="runway"/>'s final by geometry, whatever phase flies it (a

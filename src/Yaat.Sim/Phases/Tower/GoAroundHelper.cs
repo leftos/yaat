@@ -12,8 +12,8 @@ namespace Yaat.Sim.Phases.Tower;
 /// instrument-approach missed-approach phases) and advances the phase list.
 ///
 /// Both phases delegate here so the go-around wiring — VFR pattern-direction
-/// default, MAP phase selection, pattern-altitude target, and phase-list
-/// replacement — lives in one place.
+/// default, MAP phase selection, pattern-altitude target, the clearances and
+/// the follow every go-around voids, and phase-list replacement — lives in one place.
 /// </summary>
 internal static class GoAroundHelper
 {
@@ -177,7 +177,8 @@ internal static class GoAroundHelper
     /// <summary>
     /// Replace the upcoming phases with the go-around (plus any missed-approach phases),
     /// advance the phase list to it, and fire the phase-advanced hook. Shared by the
-    /// automatic (<see cref="Trigger"/>) and manual (GA command) go-around paths.
+    /// automatic (<see cref="Trigger"/>) and manual (GA command) go-around paths, and every
+    /// go-around clears the follow along with the clearances it supersedes.
     /// </summary>
     internal static void InstallGoAroundPhases(PhaseContext ctx, GoAroundPhase goAround, IReadOnlyList<Phase> missedApproachPhases)
     {
@@ -202,6 +203,11 @@ internal static class GoAroundHelper
         phaseList.LandingClearance = null;
         phaseList.ClearedRunwayId = null;
         ctx.Aircraft.Pattern.PendingLandingClearance = null;
+
+        // The follow goes with it: accepting a follow means maneuvering to keep in-trail separation (AIM 4-4-14.b), and a
+        // go-around abandons it — the pilot asks ATC for the next action (AIM 5-5-5.a.6), as with the landing clearance above.
+        // Cleared before ReplaceUpcoming so ClearFollowState disarms the outgoing climb's pending pursuit, not the new go-around's.
+        AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
 
         // The hold-short target goes with it: AIM 4-3-11.b.5 holds an accepted LAHSO clearance only "unless an
         // amended clearance is obtained", and a go-around amends it. Left set, LandingPhase.OnStart re-arms the

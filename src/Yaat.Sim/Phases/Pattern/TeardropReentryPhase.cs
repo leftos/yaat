@@ -12,12 +12,12 @@ namespace Yaat.Sim.Phases.Pattern;
 /// turbine entry crossing height (the higher of pattern altitude and 1,500 ft
 /// above the field, AIM 4-3-3.a.2 — see
 /// <see cref="MidfieldCrossingPhase"/>) to pattern altitude, rejoining
-/// downwind at the midfield abeam point via a 45° intercept.
+/// downwind at the abeam point (abeam the threshold) via a 45° intercept.
 ///
 /// Geometry: three waypoints on a single outbound-then-inbound path.
 /// 1. Outbound anchor — abeam + crosswind heading × outbound distance (pattern-side perpendicular, well clear).
 /// 2. 45° lead-in — abeam + reverse-45°-entry heading × category lead-in distance (same as ChooseDownwindLeadIn floors).
-/// 3. Abeam — the midfield abeam point itself.
+/// 3. Abeam — the downwind abeam point itself (abeam the threshold, not midfield).
 ///
 /// Altitude restrictions on each waypoint step the aircraft down to TPA from
 /// whatever height it crossed at. After the route drains, DownwindPhase takes over at abeam

@@ -1259,7 +1259,7 @@ A pattern entry that is still **queued** behind another instruction (`DCT VPCOL;
 
 | Command | Effect |
 |---------|--------|
-| `ELD` / `ERD` | Enter left/right downwind. An aircraft still outside the pattern flies a 45°/extended-downwind entry to the midfield abeam point; one already alongside the downwind (at or past the entry point, laterally near the track) joins from present position instead of backtracking to an entry point |
+| `ELD` / `ERD` | Enter left/right downwind. An aircraft still outside the pattern flies a 45°/extended-downwind entry to the abeam point (abeam the threshold); one already alongside the downwind (at or past the entry point, laterally near the track) joins from present position instead of backtracking to an entry point |
 | `ELD 28R` / `ERD 28R` | Enter left/right downwind, assign runway |
 | `ELB` / `ERB` | Enter left/right base perpendicular to centerline from present position (base leg length = current cross-track) |
 | `ELB 3` / `ERB 5` | Enter left/right base projected to a fixed final distance (NM) |
@@ -1433,7 +1433,7 @@ The callsign argument is **optional**. A bare `FOLLOW` defaults to the most rece
 
 If no RTIS has succeeded yet, bare `FOLLOW` returns *"Unable, say traffic callsign"* without side effects. The forced bare **`FOLLOWF`** is the exception — it also resolves a still-*pending* `RTIS` target (traffic called but not yet acquired), not only a successfully acquired one.
 
-Follow is cancelled automatically when the lead disappears, when the lead lands, or when the follower **loses sight of the traffic** (a cloud layer moves between them). A lead that merely outpaces the follower never breaks off the follow — a growing gap *increases* separation and removes the overtake risk, so it is yours to re-sequence, not the pilot's to abandon (AIM §5-5-12.a.2 / §4-4-14 NOTE: the pilot reports only when it cannot maintain visual contact).
+Follow is cancelled automatically when the lead disappears, when the lead lands, when the follower itself goes around (automatic, `GA` or a missed approach — silently, with no "lost sight" call; the pilot asks for the next action), or when the follower **loses sight of the traffic** (a cloud layer moves between them). A lead that merely outpaces the follower never breaks off the follow — a growing gap *increases* separation and removes the overtake risk, so it is yours to re-sequence, not the pilot's to abandon (AIM §5-5-12.a.2 / §4-4-14 NOTE: the pilot reports only when it cannot maintain visual contact).
 
 A follower that is already at minimum speed and still too close will also break off *only* when it has no lateral option left — if the traffic is ahead of it in the pattern on the same runway, it holds minimum speed and **extends its leg** instead of cutting in front (7110.65 §3-10-3.a.1: landing behind a jet, the traffic must be on the ground and clear before the follower crosses the threshold).
 

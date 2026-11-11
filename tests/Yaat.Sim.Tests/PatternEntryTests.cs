@@ -194,7 +194,7 @@ public class PatternEntryTests : IDisposable
         );
         double distToAbeam = GeoMath.DistanceNm(entry.EntryLat, entry.EntryLon, waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);
         _output.WriteLine($"Entry point dist to DownwindAbeam: {distToAbeam:F3}nm");
-        Assert.True(distToAbeam < 0.1, $"Entry point should be at midfield abeam. Dist: {distToAbeam:F3}nm");
+        Assert.True(distToAbeam < 0.1, $"Entry point should be at the abeam point. Dist: {distToAbeam:F3}nm");
 
         // Second phase should be DownwindPhase
         Assert.IsType<DownwindPhase>(phases[1]);

@@ -240,6 +240,46 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A lead on the downwind has its whole circuit still to fly: its remaining path is the sequence path, not its distance out
+    /// along the final, which reads as zero just short of the abeam point.
+    /// </summary>
+    [Fact]
+    public void LeadRemainingPathNm_DownwindLead_IsTheSequencePath()
+    {
+        RunwayInfo rwy = Rwy28R();
+        PatternWaypoints wp = Waypoints(rwy, "C172");
+        AircraftState lead = Fly(rwy, "C172", OnDownwind(wp, 0.5), [], PatternEntryLeg.Downwind);
+        Assert.IsType<DownwindPhase>(lead.Phases!.CurrentPhase);
+        double sequence = AirborneFollowHelper.SequenceRemainingPathNm(lead, rwy);
+        double alongFinal = Math.Max(0.0, AirborneFollowHelper.AlongFinalNm(lead.Position, rwy));
+        Assert.True(
+            Math.Abs(sequence - alongFinal) > 0.5,
+            $"sequence {sequence:F2} nm and along-final {alongFinal:F2} nm must differ by more than 0.5 nm for the test to discriminate"
+        );
+
+        Assert.Equal(sequence, AirborneFollowHelper.LeadRemainingPathNm(lead, rwy), ToleranceNm);
+    }
+
+    /// <summary>
+    /// A lead with no leg in the landing sequence (pursuing a runwayless lead off the final) has an infinite sequence path, so
+    /// the measurement falls back to its distance out along the final.
+    /// </summary>
+    [Fact]
+    public void LeadRemainingPathNm_NoSequenceLeg_FallsBackToAlongFinal()
+    {
+        RunwayInfo rwy = Rwy28R();
+        AircraftState lead = MakeAircraft(Leader, "C172", OffFinal(rwy, 3.0, 0.5));
+        lead.TrueHeading = rwy.TrueHeading - 90.0;
+        lead.TrueTrack = lead.TrueHeading;
+        lead.Phases = new PhaseList { AssignedRunway = rwy };
+        lead.Phases.Add(new VfrFollowPhase("OTHER", null));
+        Assert.True(double.IsPositiveInfinity(AirborneFollowHelper.SequenceRemainingPathNm(lead, rwy)), "the lead must have no sequence leg");
+        double alongFinal = Math.Max(0.0, AirborneFollowHelper.AlongFinalNm(lead.Position, rwy));
+
+        Assert.Equal(alongFinal, AirborneFollowHelper.LeadRemainingPathNm(lead, rwy), ToleranceNm);
+    }
+
+    /// <summary>
     /// An entry to the crosswind (ELC/ERC) joins at the crosswind turn but carries a downwind kind: the leg it hands over to
     /// decides the join, so its path flies the crosswind, one pattern width longer than a downwind join at the same point.
     /// </summary>
