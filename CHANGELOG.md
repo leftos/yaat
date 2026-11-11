@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.18.3-beta [2026/11/11]
+
+### Highlights
+
+- `TAXI … @GATE`, `TAXIAUTO @GATE` and `TTP` taxi an arrival to the gate in its flight-plan remarks, or to a free stand in its parking area.
+- In solo training, each pilot is tuned to one position: an instruction to a pilot on another frequency is not heard, and reports go only where it is tuned.
+- An aircraft whose route runs out turns direct to its destination airport, where an IFR one holds.
+- Shift+click an aircraft in the Ground or Radar View to hide or show its datablock.
 
 ### Added
 
@@ -11,6 +18,7 @@
 - In solo training, a pilot moves to the student's frequency when the student accepts its handoff, when it checks in with the student, or when it is told to contact the student.
 - In solo training, an airborne pilot sent to another position's frequency does not check in with the student; the instructor sees "check-in held, tuned to …" once.
 - In solo training, a pilot's reports, such as "clear of the runway" or a pattern report, are spoken only on the student's or an AI controller's frequency.
+- In solo training, an IFR aircraft nearing or holding over its clearance limit asks the radar student for further clearance.
 - `TAXI … @GATE` and `TAXIAUTO @GATE` taxi an arrival to its remarks' gate, or to a free fitting stand in their parking area, read back by the area's name.
 - `@GATE` to a full parking area holds the arrival at the ramp edge, reporting no parking, unless a fitting stand frees before it gets there.
 - The Ground View datablock shows `GATE F14` under the type line when the flight-plan remarks name a gate, until the aircraft parks there.
@@ -19,7 +27,7 @@
 
 ### Changed
 
-- An aircraft whose route runs out turns direct to its destination airport, where an IFR one holds and asks for further clearance; `APT` changes it.
+- An aircraft whose route runs out turns direct to its destination airport, where an IFR one holds; `APT` changes it.
 - A destination amended from the scope or the Flight Plan Editor no longer changes where the pilot flies, including an on-course departure.
 - A bare `PO` points the aircraft out to the student's position, as a bare `HO` hands it off, unless a pending point-out involves you.
 - A pattern aircraft's quick commands offer cleared for the option, touch-and-go, stop-and-go and low approach on final as well as downwind, each with its own icon.

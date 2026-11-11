@@ -377,8 +377,8 @@ Right-click an aircraft on the [Radar View](#radar-view-1), the [Ground View](#g
 | VFR flight following | Report traffic in sight…, Fly heading, Maintain altitude, Direct to…, Expect approach, Land (helicopter) |
 | Approach | Cleared approach, Maintain altitude, Assign speed, Report field in sight…, Cleared visual (IFR), Cleared to land, Land (helicopter) |
 | Holding | Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR), Direct to…, Maintain altitude; for VFR, Enter left / right downwind, Enter left / right base, Make straight-in; Land (helicopter) |
-| Pattern | Cleared to land, Cleared for the option, Touch and go, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Land (helicopter) |
-| Final | Cleared to land, Go around, Cancel landing clearance, Reduce to final approach speed, Exit left, Exit right, Land (helicopter) |
+| Pattern | Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach, Follow traffic…, Extend pattern leg, Make short approach, Make left / right 360, Turn base, Go around, Land (helicopter) |
+| Final | Cleared to land, Cleared for the option, Touch and go, Stop and go, Low approach (these four VFR only), Go around, Cancel landing clearance, Reduce to final approach speed, Exit left, Exit right, Land (helicopter) |
 | Rollout / exit | Exit left, Exit right, Air taxi (helicopter, once settled), Cross {runway}, Draw taxi route…, Give way to… (once a TAXI stored a route) |
 | Go-around or missed approach | Fly heading, Maintain altitude, Cleared approach (IFR), Report field in sight… (IFR), Cleared visual (IFR); for VFR, Enter left / right downwind; Land (helicopter) |
 | Live traffic | Assume control, Assume and track |
@@ -830,7 +830,11 @@ A `TAXI` that names only the taxiway the aircraft is already on (`TAXI B` on B, 
 
 A bare `TAXI B` to an aircraft holding short of B at the end of an open-ended taxi is refused the same way (`holding short of B: give a direction (>B or <B) or a destination`). An aircraft holding short of a runway that gets a directed `TAXI` (`TAXI B C` from the 28L bar) is cleared across that runway by it, and the pilot reads the crossing back; the readback stops at the first hold short that stops the aircraft, and says nothing past it.
 
-**The readback is the clearance as issued.** The echo and the pilot name the taxiways you cleared (plus the one the aircraft is on, when the route drives it). Ramp taxilanes the route adds on the way to a stand, and the numbered runway-entry connector a runway clearance implies (W → W1 to runway 30 at OAK), are not named. Nor is a runway the route only crosses: `TAXI D F` at OAK, where D and F meet only across runway 15/33, holds short of 15/33 on D and reads back without "on 33" (CMH `TAXI E4 F3`, which meets across 10L/28R through the runway's link edges, reads back `Taxi via E4 F3` with its hold short of 10L/28R at E4, never "on 10L" or "on 28R", and a `CROSS 10L` at E4's bar carries the aircraft onto F3).
+**The readback is the clearance as issued.** The echo and the pilot name the taxiways you cleared (plus the one the aircraft is on, when the route drives it). Ramp taxilanes the route adds on the way to a stand, and the numbered runway-entry connector a runway clearance implies at the runway's approach end (W → W1 to runway 30 at OAK), are not named.
+
+A numbered connector that joins the runway mid-length or at the far end is not implied: the aircraft still drives it, and the echo flags it like any taxiway you didn't clear (BZN `TAXI C RWY 12` via C3: `[taxiing via C3 — not in the route issued]`).
+
+A runway the route only crosses is not named either: `TAXI D F` at OAK, where D and F meet only across runway 15/33, holds short of 15/33 on D and reads back without "on 33" (CMH `TAXI E4 F3`, which meets across 10L/28R through the runway's link edges, reads back `Taxi via E4 F3` with its hold short of 10L/28R at E4, never "on 10L" or "on 28R", and a `CROSS 10L` at E4's bar carries the aircraft onto F3).
 
 **Two taxiways that do not connect.** When two taxiways you name in a row meet nowhere the aircraft may join them, the pilot refuses with `Unable, C3 and S2 do not connect, request taxi instructions` (SFO `TAXI C3 S2`) and stays where it is; issue a `TAXI` that names the taxiway between them.
 
@@ -918,6 +922,8 @@ Bars on some runways (OAK 28R and 30) have moved from earlier versions, and an e
 An aircraft that is still leaving a runway (exiting, crossing, or holding in position with any part over the pavement, or stopped with its tail inside the hold line) has right of way over taxiing traffic while it moves, and the taxiing aircraft stops for it unless it lies in the leaving aircraft's path.
 
 Once it is held, it keeps that right only against traffic coming head-on into its way out; other taxiing aircraft pass when clear, brake to the stop ring, or stop at their own bar. A departing, landing or lined-up aircraft outranks both.
+
+Two taxiing aircraft whose paths cross judge each other by the route each is about to drive, not by where its nose points, so an aircraft pointing at traffic its route turns away from does not stop for it. When both would stop for each other, only one holds: the one with the other clearly dead ahead; else, when just one of them is a `FOLLOWG` follower, the other one; else the one with the other on its right (a near head-on pair falls back to callsign order).
 
 Its right-click menu spells it out as **Yielding to** (converging) or **Following** (in trail). A give-way you issue yourself still takes precedence over the automatic one. The same badge appears on a pushback held on its stand for traffic already rolling past, and on a taxiing aircraft holding for a pushback whose tail is already in its lane.
 
@@ -1700,6 +1706,8 @@ The FPE shows editable flight plan fields: beacon code, aircraft type, equipment
 The ICAO EQ field takes ICAO flight-plan field-10a equipment codes (e.g., `SDE2E3FGHIJ5M1RWXY`); entering a satcom code (`J5`–`J7` or `M1`–`M3`) lights the aircraft's SATCOMM `*` indicator on ERAM data blocks in CRC.
 
 A cruise speed filed as a Mach number or as classified shows in the SPD box in grey as ERAM writes it (`M078`, `SC`). Leave the box empty to keep it, or type knots to replace it. Edit any field, then click **Amend** to send the changes to the server. The Amend button is only enabled when at least one field differs from the current flight plan.
+
+Amending the destination changes the flight plan only, not where the pilot flies: an aircraft whose route runs out still flies direct to the airport it was cleared to. To send the pilot to another airport, use `APT` ([Flight Plan commands](COMMANDS.md#flight-plan)).
 
 If the aircraft the editor shows is deleted while it is open (auto-delete on parking or departure distance, or anyone's `DEL`), the editor stays open instead of closing: every field is cleared, the title shows no aircraft, and **Amend** and **Recycle beacon** are disabled. The boxes stay editable, but nothing can be submitted. Opening the editor on another aircraft rebinds the same window. Deleting any other aircraft leaves the editor and your unsent edits alone.
 
