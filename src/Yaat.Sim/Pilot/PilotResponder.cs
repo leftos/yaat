@@ -2097,6 +2097,66 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// An IFR aircraft <paramref name="minutes"/> from the airport its clearance ends at, asking for further clearance.
+    /// Terminal <c>"{n} min from {airport}, request further clearance."</c>; spoken <c>"{facility}, {callsign}, {n} minutes
+    /// from {airport}, request further clearance."</c>, "one minute" in the singular.
+    /// </summary>
+    public static PilotSpeechText BuildFurtherClearanceRequest(AircraftState aircraft, string facilityCallName, string airportId, int minutes)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string facility = CleanFacilityCallName(facilityCallName, "approach");
+        string name = PhraseologyVerbalizer.SpellAirportName(airportId);
+        string spokenTime = minutes == 1 ? "one minute" : $"{AtcNumberParser.CardinalWord(minutes)} minutes";
+        return new PilotSpeechText(
+            $"{minutes} min from {name}, request further clearance.",
+            $"{facility}, {spoken}, {spokenTime} from {name}, request further clearance."
+        );
+    }
+
+    /// <summary>
+    /// An IFR aircraft's report that it holds over the airport its clearance ends at. Terminal <c>"holding over {airport},
+    /// {altitude}."</c>; spoken <c>"{facility}, {callsign}, holding over {airport}, {altitude}."</c>.
+    /// </summary>
+    public static PilotSpeechText BuildHoldingAtClearanceLimitReport(AircraftState aircraft, string facilityCallName, string airportId)
+    {
+        (string facility, string spoken, string name, int altitude) = ClearanceLimitHoldParts(aircraft, facilityCallName, airportId);
+        return new PilotSpeechText(
+            $"holding over {name}, {PilotSayBuilder.PlainAltitude(altitude)}.",
+            $"{facility}, {spoken}, holding over {name}, {PhraseologyVerbalizer.AltitudeWords(altitude)}."
+        );
+    }
+
+    /// <summary>
+    /// The re-ask of an IFR aircraft holding over the airport its clearance ends at. Terminal <c>"holding over {airport},
+    /// {altitude}, request further clearance."</c>; spoken <c>"{facility}, {callsign}, holding over {airport}, {altitude},
+    /// request further clearance."</c>.
+    /// </summary>
+    public static PilotSpeechText BuildHoldingFurtherClearanceRequest(AircraftState aircraft, string facilityCallName, string airportId)
+    {
+        (string facility, string spoken, string name, int altitude) = ClearanceLimitHoldParts(aircraft, facilityCallName, airportId);
+        return new PilotSpeechText(
+            $"holding over {name}, {PilotSayBuilder.PlainAltitude(altitude)}, request further clearance.",
+            $"{facility}, {spoken}, holding over {name}, {PhraseologyVerbalizer.AltitudeWords(altitude)}, request further clearance."
+        );
+    }
+
+    /// <summary>The facility, spoken callsign, airport name and altitude in force (to the nearest 100 ft) of a clearance-limit hold call.</summary>
+    private static (string Facility, string Spoken, string Name, int Altitude) ClearanceLimitHoldParts(
+        AircraftState aircraft,
+        string facilityCallName,
+        string airportId
+    )
+    {
+        int altitude = (int)Math.Round((aircraft.Targets.AssignedAltitude ?? aircraft.Altitude) / 100.0) * 100;
+        return (
+            CleanFacilityCallName(facilityCallName, "approach"),
+            SpokenOwnCallsign(aircraft),
+            PhraseologyVerbalizer.SpellAirportName(airportId),
+            altitude
+        );
+    }
+
+    /// <summary>
     /// Initial-contact check-in for VFR aircraft joining a towered field's traffic pattern for
     /// closed traffic. Fired by <c>PatternEntryPhase</c> on entry in solo-training mode, gated
     /// by <c>!HasMadeInitialContact</c>. Output:

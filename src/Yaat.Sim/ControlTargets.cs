@@ -314,6 +314,13 @@ public class NavigationTarget
     public bool IsClearanceLimitDirect { get; init; }
 
     /// <summary>
+    /// The true course, in degrees, of the clearance-limit direct's leg at the airport: from where the direct was created
+    /// to the airport, measured at the airport. The inbound course of the hold the pilot enters there (AIM 5-3-8.a.3).
+    /// Null on any other target, and on a direct restored from a snapshot that predates it.
+    /// </summary>
+    public double? ArrivalTrueCourse { get; init; }
+
+    /// <summary>
     /// Published outbound course (magnetic) to fly after sequencing this terminating fix when the
     /// route is then empty — the ARINC-424 FM "fly course, expect vectors" leg that ends most US
     /// STARs. Null for ordinary fixes (the aircraft holds its arrival heading at route end).
@@ -406,6 +413,7 @@ public class NavigationTarget
                 : null,
             IsFlyOver = IsFlyOver,
             IsClearanceLimitDirect = IsClearanceLimitDirect,
+            ArrivalTrueCourse = ArrivalTrueCourse,
             RevertAltitude = RevertAltitude,
             RevertAssignedAltitude = RevertAssignedAltitude,
             RevertSpeed = RevertSpeed,
@@ -441,6 +449,7 @@ public class NavigationTarget
                 : null,
             IsFlyOver = dto.IsFlyOver,
             IsClearanceLimitDirect = dto.IsClearanceLimitDirect,
+            ArrivalTrueCourse = dto.ArrivalTrueCourse,
             RevertAltitude = dto.RevertAltitude,
             RevertAssignedAltitude = dto.RevertAssignedAltitude,
             RevertSpeed = dto.RevertSpeed,

@@ -403,7 +403,7 @@ A refusal about YAAT's own command forms is never voiced: the RPO-only commands 
 
   A `Taxi`, `Pushback` or `Clearance` request is also closed as `Superseded` once the aircraft is in any phase but one where a pilot still waits for a taxi clearance (`AtParkingPhase`, `HoldingAfterPushbackPhase`, `HoldingAfterExitPhase`, `HoldingInPositionPhase`, or `HoldingShortPhase` at a bar that protects no runway), so an aircraft taxiing or following never repeats "at parking GA16 … ready to taxi" from the taxiway.
 
-Nine request kinds: `Descent` (below), `Taxi`, `Pushback` (a jet or turboprop on a push-back stand asking for a push; mapped as Taxi is), `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`, `Clearance` (an IFR or VFR departure's request to the lowest position the student works) and `Release` (an untowered runway spawn's release request).
+The request kinds: `Descent` (below), `FurtherClearance` (below), `Taxi`, `Pushback` (a jet or turboprop on a push-back stand asking for a push; mapped as Taxi is), `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`, `Clearance` (an IFR or VFR departure's request to the lowest position the student works) and `Release` (an untowered runway spawn's release request).
 
 Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand` → Satisfied for Takeoff; `FollowGroundCommand`, like any taxi or push, → Satisfied for Taxi; `SquawkCommand` / `RandomSquawkCommand` / `SquawkVfrCommand` → Satisfied for Clearance; `ExpectApproachCommand` → Standby for Approach; `LineUpAndWaitCommand` → Superseded for Takeoff). A `Release` request is answered only through `SatisfyOpenRequest`.
 
@@ -415,6 +415,15 @@ Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand
 - **When.** About 60 s before the computed top of descent, or at once when the aircraft is already past it. The target is the first published STAR altitude ahead that is below the aircraft; with none, destination field elevation + 3,000 ft reached 10 NM out. The distance needed is the larger of the profile descent and 3 NM per 1,000 ft, plus 10 NM when the descent crosses 10,000 ft above 250 KIAS.
 - **Answered by** `DM`, `DVIA`, `CFIX`, a constrained direct-to, `CM` or `EXP` with an altitude, a forced altitude, or any approach clearance. `CT`, `FC` and `HOLD` close it as superseded; any other instruction leaves it open, and `STBY` moves the re-ask to 90 s (else 120 s).
 - **Moot** (`PilotProactive.ShouldNotAskForLower`, read by `PilotRequestTracker`'s moot check): once a descent is authorised or queued (`AT`/`LV`/`WAIT` or a reaction delay), the aircraft climbs, is handed off, holds, or is cleared for an approach or to land. It is closed without a re-ask. A stepped-down arrival asks again at its next top of descent.
+
+### Further-clearance request (clearance limit)
+
+`PilotProactive.TickFurtherClearanceRequest` (from `SimulationEngine.TickPilotProactive`) has an IFR aircraft with no clearance beyond its destination ask the radar student what to do, under the same eligibility as the descent request (`IsDescentRequestEligible`), recorded as a `FurtherClearance` pending request.
+
+- **1 to 5 minutes out** (`FlightPhysics.FurtherClearanceRequestMinutes`, at the present ground speed) on the route-exhausted direct: `PilotResponder.BuildFurtherClearanceRequest` names the time to the field, rounded to the nearest whole minute and never below one: "two minutes from {airport}, request further clearance." ("one minute from …" singular; terminal "2 min from {airport}, request further clearance."). Not repeated while the aircraft is still on the direct. Under 1 minute out there is no call, and the holding report on arrival carries the request.
+- **On arrival**, once per hold: `BuildHoldingAtClearanceLimitReport`, "holding over {airport}, {altitude}.", and the request is recorded with `BuildHoldingFurtherClearanceRequest` ("holding over {airport}, {altitude}, request further clearance.") as its re-ask. An open request does not hold the report back.
+- **Re-ask** every 300 s (`PilotRequestTracker.FurtherClearanceFollowUpDelaySeconds`) while holding, stating the altitude in force when it is said (after `DM 070`: "holding over {airport}, 7,000, request further clearance."). Nothing is repeated before the holding report. A VFR aircraft (after a cancel of IFR in the hold) never asks or re-asks; the hold continues until an instruction ends it.
+- **Ends** as moot, without a re-ask, once a lateral clearance has taken the aircraft off both the direct and the hold (`PilotProactive.IsAwaitingFurtherClearance`): approach clearance, `APT` to a different airport (an `APT` naming the same one keeps the hold), `DCT`, a heading, a route, a new hold. An altitude- or speed-only instruction is obeyed and the request stays open. A contact or frequency change closes it as superseded.
 
 ## `ApplyPostDispatch` — one hook, two hosts
 

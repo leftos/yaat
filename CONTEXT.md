@@ -187,6 +187,10 @@ _Avoid_: active restriction (a restriction's speed applies whether or not its al
 The route target (`NavigationTarget.IsClearanceLimitDirect`) an airborne aircraft flies to its cleared destination when its route runs out. It is not a fix the controller cleared: a route holding only it counts as no route (`ControlTargets.HasRouteToFly`), and a fix appended to the route replaces it.
 _Avoid_: destination fix
 
+**Clearance-limit hold**:
+The hold an IFR aircraft enters over its cleared destination on reaching the end of the clearance-limit direct (`HoldingPatternPhase.IsClearanceLimitHold`): inbound on the course the direct arrived on, right turns, standard leg. A solo pilot reports it and asks for further clearance; a lateral clearance ends it.
+_Avoid_: destination hold
+
 **Cleared destination**:
 The airport the pilot was cleared to (`AircraftState.ClearedDestination`): the filed destination at spawn, then `APT`, or at a live-traffic assume. Pilot-side: a scope or Flight Plan Editor amendment of the filed destination never changes it.
 _Avoid_: filed destination (that is the scope-editable `FlightPlan.Destination`)

@@ -439,6 +439,10 @@ public static class SnapshotSchemaMigrator
         //   aircraft restored from a pre-V53 snapshot flies its route end as a live one would. NavigationTargetDto.IsClearanceLimitDirect
         //   added, marking the direct to that destination; written only when true. No data transformation: an older snapshot
         //   reads false.
+
+        // V53 (no bump): NavigationTargetDto.ArrivalTrueCourse, HoldingPatternPhaseDto.IsClearanceLimitHold and
+        //   ClearanceLimitReported added, optional; an older snapshot reads null/false. PilotPendingRequestKind.FurtherClearance
+        //   appended last.
         if (snapshot.SchemaVersion < 53)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

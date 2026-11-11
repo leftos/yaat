@@ -299,12 +299,7 @@ public static class PilotProactive
             return;
         }
 
-        string positionType = scenario.StudentPositionType!;
-        string facilityCallName = PilotResponder.ResolveStudentFacilityCallName(
-            scenario,
-            positionType,
-            positionType == "CTR" ? "center" : "approach"
-        );
+        string facilityCallName = StudentRadarFacilityCallName(scenario);
         PilotSpeechText line = PilotResponder.BuildDescentRequest(aircraft, facilityCallName);
         Log.LogDebug(
             "{Callsign}: request lower, target {Target:F0} ft, {Remaining:F1} NM remaining, {Required:F1} NM required",
@@ -322,6 +317,115 @@ public static class PilotProactive
             PilotRequestContext.Facility(facilityCallName)
         );
     }
+
+    /// <summary>
+    /// An IFR aircraft with no clearance beyond its destination asks the radar student for further clearance about
+    /// <see cref="FlightPhysics.FurtherClearanceRequestMinutes"/> before the airport, and on reaching it reports holding
+    /// there and records the re-ask <see cref="PilotRequestTracker"/> repeats until a lateral clearance moves it on.
+    /// Solo only, like <see cref="TickDescentRequest"/>.
+    /// </summary>
+    public static void TickFurtherClearanceRequest(AircraftState aircraft, SimScenarioState scenario)
+    {
+        if (aircraft.Phases?.CurrentPhase is HoldingPatternPhase { IsClearanceLimitHold: true } hold)
+        {
+            ReportHoldingAtClearanceLimit(aircraft, scenario, hold);
+            return;
+        }
+
+        if (!IsFlyingClearanceLimitDirect(aircraft) || !IsDescentRequestEligible(aircraft, scenario))
+        {
+            return;
+        }
+
+        NavigationTarget direct = aircraft.Targets.NavigationRoute[0];
+        if (MinutesToCallAt(aircraft, direct) is not { } minutes)
+        {
+            return;
+        }
+
+        string facilityCallName = StudentRadarFacilityCallName(scenario);
+        PilotSpeechText line = PilotResponder.BuildFurtherClearanceRequest(aircraft, facilityCallName, direct.Name, minutes);
+        Log.LogDebug("{Callsign}: request further clearance, {Airport} {Minutes} min ahead", aircraft.Callsign, direct.Name, minutes);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
+        PilotRequestTracker.RecordRequest(
+            aircraft,
+            PilotPendingRequestKind.FurtherClearance,
+            scenario.ElapsedSeconds,
+            line,
+            PilotRequestContext.Facility(facilityCallName)
+        );
+    }
+
+    /// <summary>
+    /// The whole minutes the pilot names when it asks for further clearance now: null beyond
+    /// <see cref="FlightPhysics.FurtherClearanceRequestMinutes"/> of the airport, and under a minute out, where the holding
+    /// report on arrival carries the request.
+    /// </summary>
+    private static int? MinutesToCallAt(AircraftState aircraft, NavigationTarget direct)
+    {
+        if (aircraft.GroundSpeed < 1)
+        {
+            return null;
+        }
+
+        double minutes = FlightPhysics.MinutesTo(aircraft, direct.Position);
+        if ((minutes > FlightPhysics.FurtherClearanceRequestMinutes) || (minutes < 1.0))
+        {
+            return null;
+        }
+
+        return (int)Math.Round(minutes, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>
+    /// Once per clearance-limit hold: the holding report, and the request for further clearance recorded for re-asking.
+    /// An open request does not hold the report back.
+    /// </summary>
+    private static void ReportHoldingAtClearanceLimit(AircraftState aircraft, SimScenarioState scenario, HoldingPatternPhase hold)
+    {
+        bool mayReport =
+            !hold.ClearanceLimitReported
+            && scenario.SoloTrainingMode
+            && IsRadarStudent(scenario.StudentPositionType)
+            && IsAirborneIfrInContact(aircraft)
+            && (aircraft.PendingPilotTransmissions.Count == 0);
+        if (!mayReport)
+        {
+            return;
+        }
+
+        string facilityCallName = StudentRadarFacilityCallName(scenario);
+        PilotSpeechText report = PilotResponder.BuildHoldingAtClearanceLimitReport(aircraft, facilityCallName, hold.FixName);
+        PilotSpeechText reask = PilotResponder.BuildHoldingFurtherClearanceRequest(aircraft, facilityCallName, hold.FixName);
+        Log.LogDebug("{Callsign}: reports holding over {Airport}", aircraft.Callsign, hold.FixName);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, report, PilotTransmissionKind.Proactive, initialContact: false);
+        PilotRequestTracker.RecordRequest(
+            aircraft,
+            PilotPendingRequestKind.FurtherClearance,
+            scenario.ElapsedSeconds,
+            reask,
+            PilotRequestContext.Facility(facilityCallName)
+        );
+        hold.ClearanceLimitReported = true;
+    }
+
+    /// <summary>How the pilot addresses the radar student: its radio name, else "center" or "approach" by position type.</summary>
+    private static string StudentRadarFacilityCallName(SimScenarioState scenario)
+    {
+        string positionType = scenario.StudentPositionType!;
+        return PilotResponder.ResolveStudentFacilityCallName(scenario, positionType, positionType == "CTR" ? "center" : "approach");
+    }
+
+    /// <summary>Whether the aircraft's route holds only the clearance-limit direct to its cleared destination.</summary>
+    internal static bool IsFlyingClearanceLimitDirect(AircraftState aircraft) =>
+        (aircraft.Targets.NavigationRoute.Count == 1) && aircraft.Targets.NavigationRoute[0].IsClearanceLimitDirect;
+
+    /// <summary>
+    /// Whether the aircraft still waits on a clearance beyond its destination: flying the clearance-limit direct or holding
+    /// there. <see cref="PilotRequestTracker"/> reads it to close an open request for further clearance as moot.
+    /// </summary>
+    internal static bool IsAwaitingFurtherClearance(AircraftState aircraft) =>
+        IsFlyingClearanceLimitDirect(aircraft) || (aircraft.Phases?.CurrentPhase is HoldingPatternPhase { IsClearanceLimitHold: true });
 
     /// <summary>
     /// Whether the pilot may make a new call now: solo training with a radar student, an airborne IFR aircraft whose

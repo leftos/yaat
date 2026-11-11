@@ -1,13 +1,24 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Pilot;
 
 public static class PilotRequestTracker
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PilotRequestTracker");
+
     public const double NormalFollowUpDelaySeconds = 120.0;
     public const double StandbyFollowUpDelaySeconds = 90.0;
+    public const double FurtherClearanceFollowUpDelaySeconds = 300.0;
+
+    private static double FollowUpDelaySeconds(PilotPendingRequestKind kind) =>
+        kind == PilotPendingRequestKind.FurtherClearance ? FurtherClearanceFollowUpDelaySeconds : NormalFollowUpDelaySeconds;
+
+    private static double StandbyDelaySeconds(PilotPendingRequestKind kind) =>
+        kind == PilotPendingRequestKind.FurtherClearance ? FurtherClearanceFollowUpDelaySeconds : StandbyFollowUpDelaySeconds;
 
     public static void RecordRequest(
         AircraftState aircraft,
@@ -28,7 +39,7 @@ public static class PilotRequestTracker
             ResponseState = PilotPendingRequestResponseState.None,
             FirstRequestedAtSeconds = firstRequestedAt,
             LastRequestedAtSeconds = nowSeconds,
-            NextFollowUpDueSeconds = nowSeconds + NormalFollowUpDelaySeconds,
+            NextFollowUpDueSeconds = nowSeconds + FollowUpDelaySeconds(kind),
             LastPilotLine = line.Terminal,
             LastPilotLineTts = line.Tts,
             RunwayId = context.RunwayId,
@@ -75,7 +86,7 @@ public static class PilotRequestTracker
         if (sawStandby)
         {
             pending.ResponseState = PilotPendingRequestResponseState.Standby;
-            pending.NextFollowUpDueSeconds = nowSeconds + StandbyFollowUpDelaySeconds;
+            pending.NextFollowUpDueSeconds = nowSeconds + StandbyDelaySeconds(pending.Kind);
         }
     }
 
@@ -133,7 +144,7 @@ public static class PilotRequestTracker
             return false;
         }
 
-        if (nowSeconds < pending.NextFollowUpDueSeconds)
+        if ((nowSeconds < pending.NextFollowUpDueSeconds) || WaitsForTheHoldReport(pending, aircraft))
         {
             return false;
         }
@@ -142,6 +153,8 @@ public static class PilotRequestTracker
         {
             return false;
         }
+
+        RefreshFurtherClearanceLine(pending, aircraft);
 
         // Re-queue both forms independently — the terminal (SAY) form is callsign-free (the SAY
         // column carries the callsign) and the spoken form spells it. RpoTerminal is null for every
@@ -155,9 +168,44 @@ public static class PilotRequestTracker
         pending.ReaskedAfterStandby = pending.ResponseState == PilotPendingRequestResponseState.Standby;
         pending.ResponseState = PilotPendingRequestResponseState.None;
         pending.LastRequestedAtSeconds = nowSeconds;
-        pending.NextFollowUpDueSeconds = nowSeconds + NormalFollowUpDelaySeconds;
+        pending.NextFollowUpDueSeconds = nowSeconds + FollowUpDelaySeconds(pending.Kind);
         return true;
     }
+
+    /// <summary>
+    /// Whether a request for further clearance waits, still open, for the aircraft to reach its clearance limit: the
+    /// five-minute call is not repeated on the direct, and the holding report there records the request re-asked after.
+    /// </summary>
+    private static bool WaitsForTheHoldReport(PilotPendingRequest request, AircraftState aircraft) =>
+        (request.Kind == PilotPendingRequestKind.FurtherClearance)
+        && (
+            PilotProactive.IsFlyingClearanceLimitDirect(aircraft)
+            || (aircraft.Phases?.CurrentPhase is HoldingPatternPhase { IsClearanceLimitHold: true, ClearanceLimitReported: false })
+        );
+
+    /// <summary>
+    /// Rebuilds the re-ask of a request for further clearance from the clearance-limit hold, so that it states the
+    /// altitude in force now rather than the one the hold began at.
+    /// </summary>
+    private static void RefreshFurtherClearanceLine(PilotPendingRequest pending, AircraftState aircraft)
+    {
+        if (
+            (pending.Kind != PilotPendingRequestKind.FurtherClearance)
+            || (aircraft.Phases?.CurrentPhase is not HoldingPatternPhase { IsClearanceLimitHold: true } hold)
+        )
+        {
+            return;
+        }
+
+        PilotSpeechText line = PilotResponder.BuildHoldingFurtherClearanceRequest(aircraft, pending.FacilityCallName ?? "", hold.FixName);
+        Log.LogDebug("{Callsign}: re-asks for further clearance holding over {Airport}: {Line}", aircraft.Callsign, hold.FixName, line.Terminal);
+        pending.LastPilotLine = line.Terminal;
+        pending.LastPilotLineTts = line.Tts;
+    }
+
+    private static bool IsFurtherClearanceMoot(PilotPendingRequest request, AircraftState aircraft) =>
+        (request.Kind == PilotPendingRequestKind.FurtherClearance)
+        && (aircraft.FlightPlan.IsVfr || !PilotProactive.IsAwaitingFurtherClearance(aircraft));
 
     /// <summary>
     /// Whether an open request no longer needs its follow-up because the aircraft has moved past it, so it is closed
@@ -183,6 +231,13 @@ public static class PilotRequestTracker
         // A request for lower is moot once the pilot would not ask it: a descent authorised or queued, a climb, a
         // handoff, a hold, or an approach or landing clearance.
         if ((request.Kind == PilotPendingRequestKind.Descent) && PilotProactive.ShouldNotAskForLower(aircraft, studentPosition))
+        {
+            return true;
+        }
+
+        // A request for further clearance is moot once a lateral clearance has taken the aircraft off both the direct to
+        // its clearance limit and the hold there, or once the flight is VFR (IFR cancelled).
+        if (IsFurtherClearanceMoot(request, aircraft))
         {
             return true;
         }
@@ -303,6 +358,11 @@ public static class PilotRequestTracker
                 or JoinApproachCommand
                 or JoinApproachStraightInCommand
                 or JoinFinalApproachCourseCommand => PilotPendingRequestResponseState.Satisfied,
+                _ => PilotPendingRequestResponseState.None,
+            },
+            PilotPendingRequestKind.FurtherClearance => command switch
+            {
+                ContactCommand or FrequencyChangeApprovedCommand => PilotPendingRequestResponseState.Superseded,
                 _ => PilotPendingRequestResponseState.None,
             },
             _ => PilotPendingRequestResponseState.None,

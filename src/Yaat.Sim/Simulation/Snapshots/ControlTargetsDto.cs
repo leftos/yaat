@@ -53,6 +53,10 @@ public sealed class NavigationTargetDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsClearanceLimitDirect { get; init; }
 
+    // V53: written only when set; an older snapshot has none and restores null.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double? ArrivalTrueCourse { get; init; }
+
     public double? RevertAltitude { get; init; }
     public double? RevertAssignedAltitude { get; init; }
     public double? RevertSpeed { get; init; }

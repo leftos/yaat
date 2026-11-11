@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim;
@@ -162,6 +163,11 @@ public static class FlightPhysics
             {
                 return;
             }
+        }
+
+        if ((route.Count == 1) && route[0].IsClearanceLimitDirect)
+        {
+            SlowForClearanceLimit(aircraft, route[0]);
         }
 
         NavigationTarget nav = route[0];
@@ -2265,6 +2271,12 @@ public static class FlightPhysics
     /// </summary>
     private static void ApplyRouteEndLateral(AircraftState aircraft, NavigationTarget sequenced, List<NavigationTarget> route)
     {
+        if (sequenced.IsClearanceLimitDirect && !aircraft.FlightPlan.IsVfr)
+        {
+            StartClearanceLimitHold(aircraft, sequenced);
+            return;
+        }
+
         if (sequenced.TerminalCourseMagnetic is { } fmCourse)
         {
             aircraft.Targets.TargetTrueHeading = new MagneticHeading(fmCourse).ToTrue(aircraft.Declination);
@@ -2282,18 +2294,100 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// The clearance-limit direct to <paramref name="airportId"/> (<see cref="NavigationTarget.IsClearanceLimitDirect"/>),
-    /// or null when the airport has no position.
+    /// How long before the clearance limit, in minutes, a pilot with no further clearance starts slowing to cross it at
+    /// holding speed (AIM 5-3-8.a.4).
     /// </summary>
-    internal static NavigationTarget? ClearanceLimitDirectTo(string airportId) =>
-        NavigationDatabase.Instance.GetAirportPosition(airportId) is { } pos
-            ? new NavigationTarget
-            {
-                Name = airportId,
-                Position = new LatLon(pos.Lat, pos.Lon),
-                IsClearanceLimitDirect = true,
-            }
-            : null;
+    internal const double ClearanceLimitSlowdownMinutes = 3.0;
+
+    /// <summary>
+    /// How long before the clearance limit, in minutes, a pilot with no further clearance asks for it: a judgement call
+    /// mirroring 7110.65 §4-6-2.a, which has the controller issue holding instructions at least 5 minutes before the limit.
+    /// </summary>
+    internal const double FurtherClearanceRequestMinutes = 5.0;
+
+    /// <summary>The minutes of flight at the present ground speed from the aircraft to <paramref name="target"/>.</summary>
+    internal static double MinutesTo(AircraftState aircraft, LatLon target) =>
+        GeoMath.DistanceNm(aircraft.Position, target) / aircraft.GroundSpeed * 60.0;
+
+    /// <summary>
+    /// An IFR aircraft on the clearance-limit direct lowers its target speed to holding speed once it is within
+    /// <see cref="ClearanceLimitSlowdownMinutes"/> of the airport, unless ATC assigned a speed.
+    /// </summary>
+    private static void SlowForClearanceLimit(AircraftState aircraft, NavigationTarget direct)
+    {
+        if (aircraft.FlightPlan.IsVfr || aircraft.Targets.HasExplicitSpeedCommand || (aircraft.GroundSpeed < 1))
+        {
+            return;
+        }
+
+        if (MinutesTo(aircraft, direct.Position) > ClearanceLimitSlowdownMinutes)
+        {
+            return;
+        }
+
+        if (aircraft.Targets.TargetMach is not null)
+        {
+            Commands.FlightCommandHandler.EndMachHoldAndSpeedMax(aircraft);
+        }
+
+        double maxHold = AircraftPerformance.HoldingSpeed(aircraft.AircraftType, aircraft.Altitude);
+        if ((aircraft.Targets.TargetSpeed is null) || (aircraft.Targets.TargetSpeed > maxHold))
+        {
+            aircraft.Targets.TargetSpeed = maxHold;
+        }
+    }
+
+    /// <summary>
+    /// Holds over the airport the clearance-limit direct reached (AIM 5-3-8): on the course the aircraft approached it on,
+    /// right turns, the altitude-standard leg, at the altitude in force.
+    /// </summary>
+    private static void StartClearanceLimitHold(AircraftState aircraft, NavigationTarget direct)
+    {
+        double course = direct.ArrivalTrueCourse ?? aircraft.TrueTrack.Degrees;
+        var phase = new HoldingPatternPhase
+        {
+            FixName = direct.Name,
+            FixLat = direct.Position.Lat,
+            FixLon = direct.Position.Lon,
+            InboundCourse = (int)Math.Round(course) % 360,
+            LegLength = Commands.NavigationCommandHandler.StandardHoldLegMinutes(aircraft.Targets.AssignedAltitude ?? aircraft.Altitude),
+            IsMinuteBased = true,
+            Direction = TurnDirection.Right,
+            Entry = null,
+            IsClearanceLimitHold = true,
+        };
+        Log.LogDebug(
+            "{Callsign}: holding over {Airport} at the clearance limit, inbound {Course:000} true, {Leg} min legs",
+            aircraft.Callsign,
+            direct.Name,
+            phase.InboundCourse,
+            phase.LegLength
+        );
+        Commands.NavigationCommandHandler.InstallHoldingPhase(aircraft, phase);
+    }
+
+    /// <summary>
+    /// The clearance-limit direct to <paramref name="airportId"/> (<see cref="NavigationTarget.IsClearanceLimitDirect"/>),
+    /// with the course of its leg from <paramref name="origin"/> at the airport (none when the origin is at the airport), or
+    /// null when the airport has no position.
+    /// </summary>
+    internal static NavigationTarget? ClearanceLimitDirectTo(string airportId, LatLon origin)
+    {
+        if (NavigationDatabase.Instance.GetAirportPosition(airportId) is not { } pos)
+        {
+            return null;
+        }
+
+        var airport = new LatLon(pos.Lat, pos.Lon);
+        bool hasLeg = GeoMath.DistanceNm(origin, airport) >= NavArrivalNm;
+        return new NavigationTarget
+        {
+            Name = airportId,
+            Position = airport,
+            IsClearanceLimitDirect = true,
+            ArrivalTrueCourse = hasLeg ? (GeoMath.BearingTo(airport, origin) + 180) % 360 : null,
+        };
+    }
 
     /// <summary>
     /// The one-fix route to the pilot's cleared destination when its route has run out, or null when the aircraft keeps
@@ -2304,7 +2398,7 @@ public static class FlightPhysics
     {
         string dest = aircraft.ClearedDestination;
         string? refusal = RouteEndDirectRefusalByState(aircraft) ?? RouteEndDirectRefusalByClearance(aircraft, sequenced);
-        if ((refusal is null) && (ClearanceLimitDirectTo(dest) is { } direct))
+        if ((refusal is null) && (ClearanceLimitDirectTo(dest, aircraft.Position) is { } direct))
         {
             return direct;
         }

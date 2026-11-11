@@ -46,6 +46,15 @@ public sealed class HoldingPatternPhase : Phase
     /// </summary>
     public bool IsHoldInLieu { get; init; }
 
+    /// <summary>
+    /// True when the pilot entered this hold on its own over its cleared destination, having reached it on the
+    /// clearance-limit direct with no clearance beyond it (<see cref="NavigationTarget.IsClearanceLimitDirect"/>).
+    /// </summary>
+    public bool IsClearanceLimitHold { get; init; }
+
+    /// <summary>True once the pilot has reported holding at the clearance limit and asked for further clearance.</summary>
+    public bool ClearanceLimitReported { get; set; }
+
     private HoldState _state = HoldState.NavigatingToFix;
     private HoldingEntry _entry;
     private TrueHeading _outboundHeading;
@@ -435,6 +444,8 @@ public sealed class HoldingPatternPhase : Phase
             Entry = Entry is { } e ? (int)e : null,
             MaxCircuits = MaxCircuits,
             IsHoldInLieu = IsHoldInLieu,
+            IsClearanceLimitHold = IsClearanceLimitHold,
+            ClearanceLimitReported = ClearanceLimitReported,
             State = (int)_state,
             ResolvedEntry = (int)_entry,
             OutboundHeadingDeg = _outboundHeading.Degrees,
@@ -457,6 +468,8 @@ public sealed class HoldingPatternPhase : Phase
             Entry = dto.Entry is { } entry ? (HoldingEntry)entry : null,
             MaxCircuits = dto.MaxCircuits,
             IsHoldInLieu = dto.IsHoldInLieu,
+            IsClearanceLimitHold = dto.IsClearanceLimitHold,
+            ClearanceLimitReported = dto.ClearanceLimitReported,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
             _state = (HoldState)dto.State,

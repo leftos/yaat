@@ -1677,6 +1677,18 @@ internal static class NavigationCommandHandler
             Entry = cmd.Entry,
         };
 
+        InstallHoldingPhase(aircraft, phase);
+
+        string dirStr = cmd.Direction == TurnDirection.Left ? "left" : "right";
+        string legStr = $"{legLength.ToString(CultureInfo.InvariantCulture)}{(isMinuteBased ? "min" : "nm")}";
+        return CommandDispatcher.Ok($"Hold at {FixDisplay(cmd.FixName)}, {cmd.InboundCourse:D3} inbound, {dirStr} turns, {legStr} legs");
+    }
+
+    /// <summary>
+    /// Replaces the aircraft's phases with <paramref name="phase"/> and starts it, keeping the assigned runway.
+    /// </summary>
+    internal static void InstallHoldingPhase(AircraftState aircraft, HoldingPatternPhase phase)
+    {
         RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         if (aircraft.Phases is not null)
         {
@@ -1691,10 +1703,6 @@ internal static class NavigationCommandHandler
         // No route to the room's active runways: this handler is not given the dispatch context.
         PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
         aircraft.Phases.Start(startCtx);
-
-        string dirStr = cmd.Direction == TurnDirection.Left ? "left" : "right";
-        string legStr = $"{legLength.ToString(CultureInfo.InvariantCulture)}{(isMinuteBased ? "min" : "nm")}";
-        return CommandDispatcher.Ok($"Hold at {FixDisplay(cmd.FixName)}, {cmd.InboundCourse:D3} inbound, {dirStr} turns, {legStr} legs");
     }
 
     internal static CommandResult DispatchJfac(JoinFinalApproachCourseCommand cmd, AircraftState aircraft)

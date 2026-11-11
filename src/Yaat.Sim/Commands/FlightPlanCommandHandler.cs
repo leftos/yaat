@@ -1,4 +1,6 @@
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Commands;
 
@@ -30,22 +32,53 @@ internal static class FlightPlanCommandHandler
             return new CommandResult(false, $"Unknown airport {input.Trim().ToUpperInvariant()}");
         }
 
-        // A route holding only the clearance-limit direct: the pilot turns direct to the new airport.
+        // On the clearance-limit direct, or holding at the limit, when the airport changes: the pilot turns direct to the new airport.
         bool flyingClearanceLimitDirect = (aircraft.Targets.NavigationRoute.Count > 0) && !aircraft.Targets.HasRouteToFly;
+        bool inClearanceLimitHold = aircraft.Phases?.CurrentPhase is HoldingPatternPhase { IsClearanceLimitHold: true };
         string? previous = aircraft.FlightPlan.Destination;
-        if (!string.IsNullOrEmpty(previous) && !previous.Equals(canonical, StringComparison.OrdinalIgnoreCase))
+        bool newAirport = !string.IsNullOrEmpty(previous) && !previous.Equals(canonical, StringComparison.OrdinalIgnoreCase);
+        if (newAirport)
         {
             ApproachCommandHandler.ClearArrivalProcedureState(aircraft, canonical, $"APT {NavigationDatabase.NormalizeAirport(canonical)}");
         }
 
         aircraft.FlightPlan.Destination = canonical;
         aircraft.ClearedDestination = canonical;
-        if (flyingClearanceLimitDirect && (FlightPhysics.ClearanceLimitDirectTo(canonical) is { } direct))
+        FollowTheNewClearanceLimit(aircraft, canonical, newAirport, flyingClearanceLimitDirect, inClearanceLimitHold);
+        return new CommandResult(true, $"Destination changed to {canonical}");
+    }
+
+    /// <summary>
+    /// The clearance-limit part of a destination change: a pilot on the clearance-limit direct turns direct to
+    /// <paramref name="canonical"/>, and so does one holding at the limit when the airport changed. A new airport is the
+    /// further clearance the pilot asked for, so an open request for it is answered.
+    /// </summary>
+    private static void FollowTheNewClearanceLimit(
+        AircraftState aircraft,
+        string canonical,
+        bool newAirport,
+        bool flyingClearanceLimitDirect,
+        bool inClearanceLimitHold
+    )
+    {
+        if (newAirport && (flyingClearanceLimitDirect || inClearanceLimitHold))
+        {
+            AnswerFurtherClearanceRequest(aircraft);
+        }
+
+        bool turnsDirect = flyingClearanceLimitDirect || (inClearanceLimitHold && newAirport);
+        if (turnsDirect && (FlightPhysics.ClearanceLimitDirectTo(canonical, aircraft.Position) is { } direct))
         {
             aircraft.Targets.StripClearanceLimitDirect();
             aircraft.Targets.NavigationRoute.Add(direct);
         }
+    }
 
-        return new CommandResult(true, $"Destination changed to {canonical}");
+    private static void AnswerFurtherClearanceRequest(AircraftState aircraft)
+    {
+        if (aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.FurtherClearance } request)
+        {
+            request.ResponseState = PilotPendingRequestResponseState.Satisfied;
+        }
     }
 }

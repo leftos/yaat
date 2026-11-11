@@ -45,6 +45,7 @@ public class MultiBoundDescentScanTests
         "523 crossed TOOOL at 9499",
         "757 target null rate null",
         "758 crossed FFIST at 7000",
+        "1443 crossed KOAK at 7000",
     ];
 
     private readonly ITestOutputHelper _output;

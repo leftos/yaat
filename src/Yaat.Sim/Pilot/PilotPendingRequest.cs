@@ -24,6 +24,12 @@ public enum PilotPendingRequestKind
 
     /// <summary>An IFR arrival's request to the radar student for lower at its top of descent.</summary>
     Descent,
+
+    /// <summary>
+    /// An IFR aircraft at or approaching its destination with no clearance beyond it, asking the radar student for further
+    /// clearance.
+    /// </summary>
+    FurtherClearance,
 }
 
 public enum PilotPendingRequestResponseState

@@ -2140,6 +2140,17 @@ public sealed class HoldingPatternPhaseDto : PhaseDto
     /// <summary>The hold is an approach's hold-in-lieu of a procedure turn. Optional (defaults false) so recordings made
     /// before the field deserialize cleanly.</summary>
     public bool IsHoldInLieu { get; init; }
+
+    /// <summary>The pilot entered the hold over its cleared destination at the clearance limit. Optional (defaults false)
+    /// and written only when true, so recordings made before the field deserialize cleanly.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsClearanceLimitHold { get; init; }
+
+    /// <summary>The pilot has reported holding at the clearance limit. Optional (defaults false) and written only when
+    /// true, so recordings made before the field deserialize cleanly.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ClearanceLimitReported { get; init; }
+
     public required int State { get; init; }
     public required int ResolvedEntry { get; init; }
     public required double OutboundHeadingDeg { get; init; }
