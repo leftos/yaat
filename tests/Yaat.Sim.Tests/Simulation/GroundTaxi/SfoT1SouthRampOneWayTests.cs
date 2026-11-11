@@ -537,7 +537,31 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
         GroundNode spot1 = Assert.IsType<GroundNode>(pushed.Layout.FindSpotNodeByName("1"));
         Assert.Contains(route.Segments, s => s.ToNodeId == spot1.Id);
         Assert.True(DrivesStraight(route, "M1"), "the cleared M1 must be driven");
+        Assert.True(DrivesAny(route, "M4"), "the cleared M4 must be driven");
         Assert.Contains("Taxiing M1 against one-way direction", route.Warnings);
+    }
+
+    /// <summary>
+    /// YAAT-43: a B738 pushed off B2 onto M5, then <c>TAXI M4 M1 $1</c>. The start is not on M4 and no edge bridges onto
+    /// it, so a route that rides M5 to the M1/M4 junction and turns onto M1 only touches M4; the first cleared taxiway
+    /// must be driven, and the readback names it.
+    /// </summary>
+    [Fact]
+    public void PushedOffB2_TaxiM4M1Spot1_B738_DrivesM4()
+    {
+        if (PushOffB2("B738") is not { } pushed)
+        {
+            return;
+        }
+
+        (CommandResult result, TaxiRoute route) = Taxi(pushed, "TAXI M4 M1 $1");
+
+        int firstM4 = route.Segments.FindIndex(s => s.Edge.Edge.MatchesTaxiway("M4"));
+        int firstM1 = route.Segments.FindIndex(s => (s.Edge.Edge is not GroundArc) && s.Edge.Edge.MatchesTaxiway("M1"));
+        Assert.True(firstM4 >= 0, "the cleared M4 must be driven, not only touched at the M1/M4 junction");
+        Assert.True(firstM1 >= 0, "the cleared M1 must be driven");
+        Assert.True(firstM4 < firstM1, $"M4 must be driven before M1 (first M4 segment {firstM4}, first M1 segment {firstM1})");
+        Assert.Contains("M4 M1", result.Message);
     }
 
     /// <summary>The one-way warning the M1 leg to spot 1 earns.</summary>
@@ -791,6 +815,9 @@ public class SfoT1SouthRampOneWayTests(ITestOutputHelper output)
 
     private static bool DrivesStraight(TaxiRoute route, string taxiway) =>
         route.Segments.Any(s => (s.Edge.Edge is not GroundArc) && s.Edge.Edge.MatchesTaxiway(taxiway));
+
+    /// <summary>True when any segment of the route runs on an edge of <paramref name="taxiway"/>, membership arcs included.</summary>
+    private static bool DrivesAny(TaxiRoute route, string taxiway) => route.Segments.Any(s => s.Edge.Edge.MatchesTaxiway(taxiway));
 
     private static GroundNode NearestNodeOnTaxiway(AirportGroundLayout layout, string taxiway, LatLon position) =>
         layout.Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway(taxiway))).OrderBy(n => GeoMath.DistanceNm(n.Position, position)).First();

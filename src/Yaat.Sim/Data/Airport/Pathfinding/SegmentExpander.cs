@@ -543,21 +543,70 @@ public static class SegmentExpander
                 continue;
             }
 
-            return (
-                null,
-                new PathfindingFailure(
-                    FailureKind.TaxiwayNotConnected,
-                    $"Cannot taxi via {wp.Name} from the aircraft's position — it is unreachable without crossing a "
-                        + $"runway or leaving the movement area.",
-                    wp.Name,
-                    null,
-                    null
-                )
-            );
+            return (null, UnreachableTaxiwayFailure(wp.Name));
+        }
+
+        if (UndrivenFirstTaxiwayFailure(route, unbridgedTaxiway, ctx) is { } undriven)
+        {
+            return (null, undriven);
         }
 
         return (route, null);
     }
+
+    /// <summary>The <see cref="FailureKind.TaxiwayNotConnected"/> failure for a cleared taxiway the route cannot get onto.</summary>
+    private static PathfindingFailure UnreachableTaxiwayFailure(string taxiwayName) =>
+        TaxiwayNotConnectedFailure(
+            taxiwayName,
+            $"Cannot taxi via {taxiwayName} from the aircraft's position — it is unreachable without crossing a "
+                + $"runway or leaving the movement area."
+        );
+
+    /// <summary>A <see cref="FailureKind.TaxiwayNotConnected"/> failure blaming <paramref name="taxiwayName"/>.</summary>
+    private static PathfindingFailure TaxiwayNotConnectedFailure(string taxiwayName, string message) =>
+        new(FailureKind.TaxiwayNotConnected, message, taxiwayName, null, null);
+
+    /// <summary>
+    /// The strict check on the first cleared taxiway, for a start the bridge could not put on it
+    /// (<paramref name="unbridgedTaxiway"/> set) when that taxiway is a ramp taxilane
+    /// (<see cref="RampLaneReposition.IsRampTaxilane"/>): the route must drive it, not only touch it at a junction (SFO
+    /// pushed onto M5, <c>TAXI M4 M1</c>: a route along M5 to the M1/M4 junction never drives M4). A movement-area first
+    /// taxiway keeps the junction touch. Null when the route drives it, when there is no unbridged ramp taxilane, or when
+    /// the route holds at the destination runway's bar the aircraft already stands at. Otherwise a
+    /// <see cref="FailureKind.TaxiwayNotConnected"/> failure blaming the taxiway, so the start leg and the ramp-lane cut
+    /// run as for any failure.
+    /// </summary>
+    private static PathfindingFailure? UndrivenFirstTaxiwayFailure(TaxiRoute route, string? unbridgedTaxiway, SearchContext ctx)
+    {
+        if (
+            (unbridgedTaxiway is null)
+            || !RampLaneReposition.IsRampTaxilane(ctx.Layout, unbridgedTaxiway)
+            || DrivesFirstUnbridgedTaxiway(route, unbridgedTaxiway)
+        )
+        {
+            return null;
+        }
+
+        if (RouteMaterialiser.HoldAtDestinationRunwayDisplay(route.Segments, route.HoldShortPoints, ctx) is not null)
+        {
+            return null;
+        }
+
+        Log.LogDebug(
+            "First cleared taxiway {Taxiway} only touched, never driven; bridged route {Route} rejected, start leg / ramp-lane cut next",
+            unbridgedTaxiway,
+            route.FormatTaxiwaySequence()
+        );
+        ctx.DiagnosticLog?.Invoke($"[drive-first] {unbridgedTaxiway} only touched, never driven: {route.FormatTaxiwaySequence()}");
+        return TaxiwayNotConnectedFailure(
+            unbridgedTaxiway,
+            $"Cannot taxi via {unbridgedTaxiway} from the aircraft's position: no path onto it from here"
+        );
+    }
+
+    /// <summary>True when an edge of the route belongs to <paramref name="taxiwayName"/>, membership arcs ("M4 - M1") included.</summary>
+    private static bool DrivesFirstUnbridgedTaxiway(TaxiRoute route, string taxiwayName) =>
+        route.Segments.Any(s => s.Edge.Edge.MatchesTaxiway(taxiwayName));
 
     /// <summary>
     /// True if the materialised route reaches <paramref name="taxiwayName"/>: it traverses an edge

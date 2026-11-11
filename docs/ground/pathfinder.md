@@ -705,6 +705,8 @@ Zero variants → try same-name hold-shorts, else raise `DestinationUnreachable`
 
 **9. Honor-named-taxiway check** (after materialise). Every named taxiway in the clearance must be **reached** by the resolved route — either *traversed* (an edge labeled for it, membership arcs count) or at least *touched* (the route passes through a node incident to it).
 
+One exception to touching: when the first cleared taxiway is a ramp taxilane (`RampLaneReposition.IsRampTaxilane`) the start bridge could not reach, the route must *drive* it (`SegmentExpander.UndrivenFirstTaxiwayFailure`). SFO pushed off B2 onto M5, `TAXI M4 M1 $1`: a bridged route along M5 only touches M4 at the M1 junction, so it fails `TaxiwayNotConnected` ("Cannot taxi via M4 from the aircraft's position: no path onto it from here") and the auto-routed start leg, then the ramp-lane cut, are tried; else the TAXI is refused with that text. M4 is now driven and read back "M4 M1". A movement-area first taxiway keeps the junction touch and the old message, a route that holds at the destination runway's bar the aircraft already stands at is exempt, and start-leg routes are not checked (open question YAAT-2077). The trace line is `[drive-first]`.
+
 Touching without traversing is normal: when two cleared taxiways meet at the same junction the route turns from one onto the next through that node without walking a labeled edge of either (e.g. `TE T U` where `TE` and `U` share a junction on `T`), and a more direct connector can reach the junction a named taxiway serves.
 
 The check runs on the **materialised route**, not the pre-materialise edge walk — the latter can over-run the destination hold-short and reach the taxiway only on the far side of a runway the final route never crosses.
@@ -720,7 +722,7 @@ Ramps and aprons are normally nonmovement area — ATC does not specify the path
 The plan is a normal `TaxiRoute` whose first segment is a `VirtualNode` leg from the aircraft's live position straight to a node on the named lane, followed by `ResolveExplicitPathDetailed` from that node — so `GroundNavigator`, `TaxiingPhase`, the conflict detector and the client overlay need nothing special.
 
 Guards, all required:
-- the resolver failed to get onto the **first** cleared taxiway (`TaxiwayNotConnected` blaming it, or — mid-lane, where the expander first tries a connector detour around the missing leg — `DestinationUnreachable` that blames no other taxiway);
+- the resolver failed to get onto the **first** cleared taxiway (`TaxiwayNotConnected` blaming it, which includes a bridged route that only touches an unreached ramp-lane first taxiway at a junction without driving it (check 9), or — mid-lane, where the expander first tries a connector detour around the missing leg — `DestinationUnreachable` that blames no other taxiway);
 - the lane is a **ramp taxilane** (`RampLaneReposition.IsRampTaxilane`) in the same **family** as the aircraft's current lane. Whether a name is a ramp taxilane (non-movement) is decided per layout by `MovementAreaClassification`. The rules are tried in order and the first match wins:
   1. A single-letter taxiway, a runway, or `RAMP` is never a lane. `RAMP` counts as apron.
   2. A name carrying a **runway holding position** on its own straight edges is movement area: OAK `W3`, SFO `A1`, `GL`, `M1`, `Z1`.
