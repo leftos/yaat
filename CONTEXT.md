@@ -76,7 +76,7 @@ _Avoid_: snapshot (that is the simulation state, not its reference data)
 An airport's parsed ground layout, with the source GeoJSON it was parsed from, written into a recording archive or a room checkpoint (`layouts/`, `airport-geojson/`, keyed by the layout's own airport ID). Every airport the room pinned is bundled, whether or not an aircraft referenced it, so a replay or restore runs on the graph its snapshots were taken on.
 
 **Missing-map airport**:
-An airport the room pinned with no ground map (vNAS had none for it; an airport whose map could not be fetched or parsed is not loaded and stays unpinned), listed by FAA code in an archive's `MissingLayoutAirportIds` so a load pins it with no map too instead of fetching one live.
+An airport the room pinned with no ground map (vNAS had none for it, or its map arrived and did not parse; an airport whose map could not be fetched is not loaded and stays unpinned), listed by FAA code in an archive's `MissingLayoutAirportIds` so a load pins it with no map too instead of fetching one live.
 
 **Layout format version**:
 The format an archive's bundled layouts were written in (`LayoutFormatVersion`, `RecordingArchive.CurrentLayoutFormatVersion`). A load reads bundled layouts only in the current format; in an older or newer one, or none recorded, those airports are pinned from the live layouts, while its missing-map airports are still kept.
