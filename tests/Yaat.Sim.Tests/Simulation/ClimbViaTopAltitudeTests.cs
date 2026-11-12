@@ -21,7 +21,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// A bare "climb via SID" cancels an earlier interim altitude and the aircraft climbs to the SID's top altitude
 /// (YAAT-958; 7110.65 4-3-2, 4-5-7.h.10 Example 1, h.11 NOTE 1; AIM 5-2-9.h.8-9; P/CG TOP ALTITUDE). The top altitude is
 /// the "except maintain" altitude; else the TDLS climb-via text's "EXC MAINT" altitude; else the TDLS initial altitude;
-/// else the highest altitude the SID publishes on its flown legs. A TDLS value is never raised by a published altitude;
+/// else the highest ceiling the SID publishes on its flown legs, or FL190 when it publishes none or an at-or-above floor
+/// sits above it. A TDLS value is never raised by a published altitude;
 /// the top is never filed cruise, the CTO altitude or the TDLS initial-altitude menu, and never a descent. The climb goes
 /// on to it past every at-or-above restriction, held only under a ceiling still ahead. CVIA also drops pending CFIX
 /// reverts and restores the published restrictions, keeping a CFIX restated in its own transmission. Real KOAK / KSFO /
@@ -144,17 +145,14 @@ public class ClimbViaTopAltitudeTests
 
     /// <summary>
     /// Santa Rosa (KSTS) has no TDLS configuration in ZOA, so CHRRO1 has no TDLS value: a bare CVIA climbs to the highest
-    /// altitude CHRRO1 publishes on its flown legs (ENRQZ at or below 15,000 on the RBL transition), past the interim 10,000.
+    /// published ceiling on CHRRO1's flown legs (ENRQZ at or below 15,000 on the RBL transition), past the interim 10,000.
     /// </summary>
     [Fact]
-    public void ClimbVia_SidWithoutTdlsValue_ClimbsToHighestPublishedAltitude()
+    public void ClimbVia_SidWithoutTdlsValue_ClimbsToHighestPublishedCeiling()
     {
         ArtccConfigRoot zoa = LoadZoa();
         Assert.Null(zoa.GetSidTdlsTopAltitude("KSTS", "CHRRO1", "RBL"));
-        CifpSidProcedure sid = Assert.IsType<CifpSidProcedure>(NavigationDatabase.Instance.GetSid("KSTS", "CHRRO1"));
-        CifpTransition rbl = sid.EnrouteTransitions["RBL"];
-        int highest = HighestPublishedFt(sid.RunwayTransitions.Values.SelectMany(t => t.Legs).Concat(sid.CommonLegs).Concat(rbl.Legs));
-        Assert.True(highest > 10000, $"setup: CHRRO1's highest published altitude {highest} must sit above the interim 10,000");
+        const int highest = 15000;
 
         LatLon enrqz = FixPosition("ENRQZ");
         LatLon rblFix = FixPosition("RBL");
@@ -197,17 +195,24 @@ public class ClimbViaTopAltitudeTests
 
     /// <summary>
     /// KIAH's FLYZA5 publishes up to 7,000 on its common route and 11,000 on its enroute transitions. Filed "FLYZA5" with no
-    /// transition, and with no fix of a transition on its live route, the flown transition cannot be identified: a bare CVIA
-    /// with no TDLS value climbs to the highest altitude the runway transitions and common route publish, never to a
-    /// transition's altitude the aircraft is not flying.
+    /// transition, and with no fix of a transition on its live route, the flown transition cannot be identified, so only the
+    /// runway transitions and common route are read: there BOTLL at or below 5,000 sits under FLYZA at or above 7,000. A
+    /// floor above the highest ceiling leaves no usable published top, so a bare CVIA with no TDLS value climbs to FL190.
     /// </summary>
     [Fact]
-    public void ClimbVia_NoTransitionIdentified_ClimbsToTheCommonRouteTop_NotATransitionsTop()
+    public void ClimbVia_NoTransitionIdentified_FloorAboveTheCeiling_ClimbsToFl190()
     {
         CifpSidProcedure sid = Assert.IsType<CifpSidProcedure>(NavigationDatabase.Instance.GetSid("KIAH", "FLYZA5"));
-        int commonTop = HighestPublishedFt(sid.RunwayTransitions.Values.SelectMany(t => t.Legs).Concat(sid.CommonLegs));
-        int transitionTop = HighestPublishedFt(sid.EnrouteTransitions.Values.SelectMany(t => t.Legs));
-        Assert.True(transitionTop > commonTop, $"setup: a FLYZA5 transition must publish above the common route ({transitionTop} vs {commonTop})");
+        List<CifpAltitudeRestriction> flown =
+        [
+            .. sid.RunwayTransitions.Values.SelectMany(t => t.Legs).Concat(sid.CommonLegs).Select(l => l.Altitude).OfType<CifpAltitudeRestriction>(),
+        ];
+        int highestCeiling = flown
+            .Where(r => r.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between)
+            .Max(r => Math.Max(r.Altitude1Ft, r.Altitude2Ft ?? 0));
+        int highestFloor = flown.Where(r => r.Type == CifpAltitudeRestrictionType.AtOrAbove).Max(r => r.Altitude1Ft);
+        Assert.Equal(5000, highestCeiling);
+        Assert.True(highestFloor > highestCeiling, $"setup: a FLYZA5 floor must sit above its 5,000 ceiling, highest floor {highestFloor}");
 
         LatLon position = FixPosition(sid.CommonLegs.First(l => !string.IsNullOrEmpty(l.FixIdentifier)).FixIdentifier);
         var ac = new AircraftState
@@ -231,8 +236,126 @@ public class ClimbViaTopAltitudeTests
 
         DispatchLine(ac, "CVIA", TestDispatch.Context(Random.Shared));
 
-        _output.WriteLine($"commonTop={commonTop} transitionTop={transitionTop} climbViaTarget={ac.Procedure.ClimbViaTargetFt}");
-        Assert.Equal(commonTop, ac.Procedure.ClimbViaTargetFt);
+        _output.WriteLine($"highestCeiling={highestCeiling} highestFloor={highestFloor} climbViaTarget={ac.Procedure.ClimbViaTargetFt}");
+        Assert.Equal(19000, ac.Procedure.ClimbViaTargetFt);
+    }
+
+    /// <summary>
+    /// SFO's TRUKN2 from runways 1 publishes only floors (the VA leg at or above 520, TYDYE at or above 3,000) and its DEDHD
+    /// transition none: with no TDLS value and no published ceiling, a bare CVIA climbs to FL190, never to a floor.
+    /// </summary>
+    [Fact]
+    public void Trukn2_BareClimbVia_TopIsFl190()
+    {
+        AircraftState ac = SidDeparture("KSFO", "TRUKN2", "RW01B", "DEDHD", "TYDYE", 3000, sidAlreadyActive: false);
+
+        DispatchLine(ac, "CVIA", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
+
+        Assert.Equal(19000, ac.Procedure.ClimbViaTargetFt);
+    }
+
+    /// <summary>
+    /// TRUKN2's TDLS default at KSFO is a bare climb via: the takeoff clearance puts it in force with FL190 as its top, and
+    /// the aircraft climbs on past TYDYE's at-or-above 3,000 rather than levelling at the floor.
+    /// </summary>
+    [Fact]
+    public void Trukn2_TdlsClimbVia_ClimbsPastTydyeFloor_NotLevelAt3000()
+    {
+        AircraftState ac = SidDeparture("KSFO", "TRUKN2", "RW01B", "DEDHD", "TYDYE", 3000, sidAlreadyActive: false);
+
+        DepartureClearanceHandler.StoreSidInitialAltitude(
+            ac,
+            TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()),
+            clearanceAltitude: null,
+            isTakeoffClearance: true
+        );
+
+        Assert.True(ac.Procedure.ClimbViaTopFromTdls);
+        Assert.Equal(19000, ac.Procedure.ClimbViaTargetFt);
+
+        for (int t = 0; t < 600; t++)
+        {
+            FlightPhysics.Update(ac, 1.0);
+        }
+
+        _output.WriteLine($"finalAlt={ac.Altitude:F0} via={ac.Procedure.ClimbViaTargetFt}");
+        Assert.True(ac.Altitude > 10000, $"the TDLS climb via levelled at {ac.Altitude:F0}, short of 10,000");
+    }
+
+    /// <summary>
+    /// KLAS GIDGT4 publishes JETTG at or below 14,000 from runways 8 (top 14,000) and only AIRRO at or above 11,500 from
+    /// 1L (top FL190). A TDLS-default climb via has its top worked out again for the new runway at the takeoff clearance; a
+    /// controller's own CVIA keeps its top.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 19000)]
+    [InlineData(false, 14000)]
+    public void GidgtRunwayChange_TdlsViaReResolvesTop_ControllerCviaKeepsIt(bool fromTdls, int expectedTop)
+    {
+        AircraftState ac = SidDeparture("KLAS", "GIDGT4", "RW08B", "TUKRR", "AYVUH", 5000, sidAlreadyActive: true);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, artccConfig: TestArtccConfig.LoadZla());
+        if (fromTdls)
+        {
+            Assert.True(NavigationCommandHandler.TryPutTdlsClimbViaInForce(ac, ctx.TransmissionId, null));
+        }
+        else
+        {
+            DispatchLine(ac, "CVIA", ctx);
+        }
+
+        Assert.Equal(14000, ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(fromTdls, ac.Procedure.ClimbViaTopFromTdls);
+
+        ac.Procedure.DepartureRunway = "01L";
+        DepartureClearanceHandler.StoreSidInitialAltitude(ac, ctx, clearanceAltitude: null, isTakeoffClearance: true);
+
+        Assert.Equal(expectedTop, ac.Procedure.ClimbViaTargetFt);
+    }
+
+    /// <summary>
+    /// A TDLS-default climb via with an "except maintain" keeps that altitude as its top when the runway changes: worked out
+    /// again for GIDGT4 from 1L, the "except maintain" 12,000 still wins over the published FL190.
+    /// </summary>
+    [Fact]
+    public void GidgtRunwayChange_TdlsViaExceptMaintain_KeepsTheExceptMaintain()
+    {
+        AircraftState ac = SidDeparture("KLAS", "GIDGT4", "RW08B", "TUKRR", "AYVUH", 5000, sidAlreadyActive: true);
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, artccConfig: TestArtccConfig.LoadZla());
+        Assert.True(NavigationCommandHandler.TryPutTdlsClimbViaInForce(ac, ctx.TransmissionId, 12000));
+        Assert.Equal(12000, ac.Procedure.ClimbViaTargetFt);
+
+        ac.Procedure.DepartureRunway = "01L";
+        DepartureClearanceHandler.StoreSidInitialAltitude(ac, ctx, clearanceAltitude: null, isTakeoffClearance: true);
+
+        Assert.Equal(12000, ac.Procedure.ClimbViaTargetFt);
+    }
+
+    /// <summary>A SID the departure airport does not publish gives no published climb via top.</summary>
+    [Fact]
+    public void PublishedClimbViaTop_SidNotPublishedAtTheDepartureAirport_IsNull()
+    {
+        AircraftState ac = SidDeparture("KLAS", "GIDGT4", "RW08B", "TUKRR", "AYVUH", 5000, sidAlreadyActive: true);
+        ac.Procedure.ActiveSidId = "TRUKN2";
+
+        Assert.Null(NavigationCommandHandler.PublishedClimbViaTopFt(ac));
+    }
+
+    /// <summary>The TDLS origin of a climb via survives a snapshot; a snapshot without it restores a controller's via.</summary>
+    [Fact]
+    public void ClimbViaTopFromTdls_RoundTripsThroughSnapshot()
+    {
+        var procedure = new AircraftProcedure
+        {
+            SidViaMode = true,
+            ClimbViaTargetFt = 19000,
+            ClimbViaTopFromTdls = true,
+        };
+        Assert.True(AircraftProcedure.FromSnapshot(procedure.ToSnapshot()).ClimbViaTopFromTdls);
+
+        string json = JsonSerializer.Serialize(new AircraftProcedure { SidViaMode = true, ClimbViaTargetFt = 19000 }.ToSnapshot());
+        Assert.DoesNotContain(nameof(AircraftProcedure.ClimbViaTopFromTdls), json);
+        AircraftProcedureDto restored = Assert.IsType<AircraftProcedureDto>(JsonSerializer.Deserialize<AircraftProcedureDto>(json));
+        Assert.False(AircraftProcedure.FromSnapshot(restored).ClimbViaTopFromTdls);
     }
 
     /// <summary>
@@ -255,19 +378,17 @@ public class ClimbViaTopAltitudeTests
 
     /// <summary>
     /// CNDEL5's TDLS climb-via text at KOAK is a plain "CLIMB VIA SID", with no initial altitude: a bare CVIA climbs to the
-    /// highest altitude its flown legs publish (PORTE at or below 10,000), not to the 2,000 at the top of KOAK's menu.
+    /// highest published ceiling on its flown legs (PORTE at or below 10,000), not to the 2,000 at the top of KOAK's menu.
     /// </summary>
     [Fact]
-    public void ClimbVia_OakSidWithoutTdlsValue_ClimbsToHighestPublished_NotTheMenuAltitude()
+    public void ClimbVia_OakSidWithoutTdlsValue_ClimbsToHighestPublishedCeiling_NotTheMenuAltitude()
     {
         AircraftState ac = SidDeparture("KOAK", "CNDEL5", "RW30", "SUSEY", "LEJAY", 3000, sidAlreadyActive: false);
-        int published = HighestPublishedFt(FlownLegs("KOAK", "CNDEL5", "RW30", "SUSEY"));
-        Assert.Equal(10000, published);
         ac.Procedure.SidInitialAltitudeFt = OakMenuInitialAltitudeFt;
 
         DispatchLine(ac, "CVIA", TestDispatch.Context(Random.Shared, artccConfig: LoadZoa()));
 
-        Assert.Equal(published, ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(10000, ac.Procedure.ClimbViaTargetFt);
     }
 
     /// <summary>

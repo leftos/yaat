@@ -104,6 +104,7 @@ internal static class DepartureClearanceHandler
         {
             aircraft.Targets.AssignedAltitude = v;
             aircraft.Procedure.SidViaMode = false;
+            aircraft.Procedure.ClimbViaTopFromTdls = false;
             aircraft.Procedure.SidViaCeiling = null;
             aircraft.Procedure.ClimbViaTargetFt = null;
             aircraft.Procedure.ClimbViaTransmissionId = null;
@@ -120,10 +121,11 @@ internal static class DepartureClearanceHandler
     /// altitude is stored as <see cref="AircraftProcedure.SidInitialAltitudeFt"/>, a maintain; with neither, or when no SID
     /// can be activated for the climb via, nothing is stored, and a takeoff clearance (<paramref name="isTakeoffClearance"/>)
     /// on a filed SID the departure airport publishes warns the instructor that the departure has no initial altitude, with
-    /// or without a TDLS config; a departure filing no SID is not warned. A climb via already in force (a <c>CVIA</c> given on
-    /// the ground, or one an earlier line-up clearance put in force) and an altitude already assigned win: nothing is
-    /// resolved. A clearance carrying its own altitude (<paramref name="clearanceAltitude"/>) resolves nothing and drops the
-    /// stored maintain. VFR clears the maintain.
+    /// or without a TDLS config; a departure filing no SID is not warned. A TDLS-default climb via already in force (one an
+    /// earlier line-up clearance put in force) has its top worked out again for the departure runway now set
+    /// (<see cref="NavigationCommandHandler.ReResolveTdlsClimbViaTop"/>) and nothing else resolved; a controller's
+    /// <c>CVIA</c> and an altitude already assigned win: nothing is resolved. A clearance carrying its own altitude
+    /// (<paramref name="clearanceAltitude"/>) resolves nothing and drops the stored maintain. VFR clears the maintain.
     /// </summary>
     internal static void StoreSidInitialAltitude(AircraftState aircraft, DispatchContext ctx, int? clearanceAltitude, bool isTakeoffClearance)
     {
@@ -133,7 +135,7 @@ internal static class DepartureClearanceHandler
             return;
         }
 
-        if (aircraft.Procedure.SidViaMode || (aircraft.Targets.AssignedAltitude is not null))
+        if (ViaOrAltitudeAlreadyGoverns(aircraft))
         {
             return;
         }
@@ -165,6 +167,22 @@ internal static class DepartureClearanceHandler
         {
             WarnNoInitialAltitude(aircraft);
         }
+    }
+
+    /// <summary>
+    /// Whether a climb via or an assigned altitude already governs, so the clearance resolves nothing from TDLS. A TDLS-default
+    /// climb via has its top worked out again for the departure runway now set
+    /// (<see cref="NavigationCommandHandler.ReResolveTdlsClimbViaTop"/>) on the way.
+    /// </summary>
+    private static bool ViaOrAltitudeAlreadyGoverns(AircraftState aircraft)
+    {
+        if (aircraft.Procedure.SidViaMode && aircraft.Procedure.ClimbViaTopFromTdls)
+        {
+            NavigationCommandHandler.ReResolveTdlsClimbViaTop(aircraft);
+            return true;
+        }
+
+        return aircraft.Procedure.SidViaMode || (aircraft.Targets.AssignedAltitude is not null);
     }
 
     /// <summary>

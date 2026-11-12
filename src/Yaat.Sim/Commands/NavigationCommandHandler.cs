@@ -1859,6 +1859,7 @@ internal static class NavigationCommandHandler
         bool inForce = TryPutClimbViaInForce(
             aircraft,
             ctx.TransmissionId,
+            fromTdls: false,
             () =>
             {
                 SupersedeEarlierCrossingRestrictions(aircraft, ctx.TransmissionId, ActiveSidRestrictions);
@@ -1890,29 +1891,31 @@ internal static class NavigationCommandHandler
     /// departure clearance read to the crew before anything said on the ground: unlike a <c>CVIA</c>, it supersedes no
     /// crossing restriction given on the ground — activating the SID (<see cref="TryActivateFiledSid"/>) does overlay its
     /// published restrictions onto the route fixes they match — and cancels no speed or altitude assigned before it. Its top is
-    /// <paramref name="exceptMaintainFt"/>, an "except maintain"; with none, the highest altitude the SID publishes on its
-    /// flown legs. Never below present altitude rounded up to 100 ft. False, with nothing changed, when no SID in the filed
-    /// route can be activated.
+    /// <paramref name="exceptMaintainFt"/>, an "except maintain"; with none, the SID's published climb via top
+    /// (<see cref="PublishedClimbViaTopFt"/>). Never below present altitude rounded up to 100 ft. The via is marked as the
+    /// TDLS default (<see cref="AircraftProcedure.ClimbViaTopFromTdls"/>). False, with nothing changed, when no SID in the
+    /// filed route can be activated.
     /// </summary>
     internal static bool TryPutTdlsClimbViaInForce(AircraftState aircraft, int transmissionId, int? exceptMaintainFt) =>
         TryPutClimbViaInForce(
             aircraft,
             transmissionId,
+            fromTdls: true,
             () =>
             {
-                int floor = (int)(Math.Ceiling(Math.Round(aircraft.Altitude) / 100.0) * 100);
+                int floor = PresentAltitudeFloorFt(aircraft);
                 if (exceptMaintainFt is { } assigned)
                 {
                     return (Math.Max(assigned, floor), assigned);
                 }
 
-                if (HighestPublishedSidAltitudeFt(aircraft) is { } published)
+                if (PublishedClimbViaTopFt(aircraft) is { } published)
                 {
                     return (Math.Max(published, floor), null);
                 }
 
                 Log.LogWarning(
-                    "[ClimbVia] {Callsign}: no published top altitude for {Sid} at {Departure}; the TDLS climb via holds {Floor}",
+                    "[ClimbVia] {Callsign}: SID {Sid} not found for {Departure}; holding {Floor}",
                     aircraft.Callsign,
                     aircraft.Procedure.ActiveSidId,
                     aircraft.FlightPlan.Departure,
@@ -1925,10 +1928,16 @@ internal static class NavigationCommandHandler
     /// <summary>
     /// Puts a climb via in force: activates the filed SID when none is active, then resolves the top with
     /// <paramref name="resolveTop"/> (the caller's own steps that must precede it run there, after the SID is active) and
-    /// writes the via state and the first constrained fix; a caller that wants the target altitude set at once writes it
-    /// itself. False, with nothing changed, when no SID in the filed route can be activated.
+    /// writes the via state, whether it is the TDLS default (<paramref name="fromTdls"/>), and the first constrained fix; a
+    /// caller that wants the target altitude set at once writes it itself. False, with nothing changed, when no SID in the
+    /// filed route can be activated.
     /// </summary>
-    private static bool TryPutClimbViaInForce(AircraftState aircraft, int transmissionId, Func<(int TargetFt, int? ExceptMaintainFt)> resolveTop)
+    private static bool TryPutClimbViaInForce(
+        AircraftState aircraft,
+        int transmissionId,
+        bool fromTdls,
+        Func<(int TargetFt, int? ExceptMaintainFt)> resolveTop
+    )
     {
         if ((aircraft.Procedure.ActiveSidId is null) && !TryActivateFiledSid(aircraft, transmissionId))
         {
@@ -1937,6 +1946,7 @@ internal static class NavigationCommandHandler
 
         (int target, int? exceptMaintain) = resolveTop();
         aircraft.Procedure.SidViaMode = true;
+        aircraft.Procedure.ClimbViaTopFromTdls = fromTdls;
         aircraft.Procedure.SidViaCeiling = exceptMaintain;
         aircraft.Procedure.ClimbViaTargetFt = target;
         aircraft.Procedure.ClimbViaTransmissionId = StampedTransmission(transmissionId);
@@ -1958,9 +1968,9 @@ internal static class NavigationCommandHandler
     /// (<see cref="ArtccConfigResolver.GetSidTdlsTopAltitude"/>): the climb-via text's "EXC MAINT" altitude, an "except
     /// maintain" (AIM 5-2-9.h.9), or the transition's initial altitude; a TDLS value is never raised by a published
     /// altitude, floors included;</item>
-    /// <item>else the highest altitude the SID publishes on its flown legs, a stand-in for the charted top altitude, which
-    /// CIFP does not code;</item>
-    /// <item>else present altitude, with a warning.</item>
+    /// <item>else the SID's published climb via top (<see cref="PublishedClimbViaTopFt"/>): the highest ceiling on its
+    /// flown legs, or FL190 when there is none or an at-or-above floor sits above it;</item>
+    /// <item>else (the SID cannot be resolved) present altitude, with a warning.</item>
     /// </list>
     /// Never below present altitude rounded up to 100 ft, since a via clearance never commands a descent (a descent takes
     /// DM). The TDLS initial-altitude menu and the maintain a bare CTO stored (<see cref="AircraftProcedure.SidInitialAltitudeFt"/>)
@@ -1972,7 +1982,7 @@ internal static class NavigationCommandHandler
         ArtccConfigRoot? artccConfig
     )
     {
-        int floor = (int)(Math.Ceiling(Math.Round(aircraft.Altitude) / 100.0) * 100);
+        int floor = PresentAltitudeFloorFt(aircraft);
         if (cmd.Altitude is { } assigned)
         {
             return (Math.Max(assigned, floor), assigned);
@@ -1984,13 +1994,13 @@ internal static class NavigationCommandHandler
             return (Math.Max(tdls.AltitudeFt, floor), tdls.IsExceptMaintain ? tdls.AltitudeFt : null);
         }
 
-        if (HighestPublishedSidAltitudeFt(aircraft) is { } published)
+        if (PublishedClimbViaTopFt(aircraft) is { } published)
         {
             return (Math.Max(published, floor), null);
         }
 
         Log.LogWarning(
-            "[ClimbVia] {Callsign}: no top altitude for {Sid} at {Departure} (no TDLS value, no published altitude); holding {Floor}",
+            "[ClimbVia] {Callsign}: SID {Sid} not found for {Departure}; holding {Floor}",
             aircraft.Callsign,
             aircraft.Procedure.ActiveSidId,
             departure,
@@ -2026,28 +2036,51 @@ internal static class NavigationCommandHandler
         return ((sid >= 0) && (sid + 1 < tokens.Length)) ? tokens[sid + 1] : null;
     }
 
+    /// <summary>FL190, the top a bare climb via flies to when neither TDLS nor a published ceiling gives one.</summary>
+    internal const int ClimbViaDefaultTopFt = 19000;
+
+    /// <summary>Present altitude rounded up to 100 ft: the lowest top a via clearance can have, since it never commands a descent.</summary>
+    private static int PresentAltitudeFloorFt(AircraftState aircraft) => (int)(Math.Ceiling(Math.Round(aircraft.Altitude) / 100.0) * 100);
+
     /// <summary>
-    /// The largest altitude the active SID publishes on the legs <paramref name="aircraft"/> flies: the upper bound of a
-    /// between restriction, the value of every other kind. Null when the SID cannot be resolved or publishes none.
+    /// The top a bare climb via flies to from what the active SID publishes on the legs <paramref name="aircraft"/> flies:
+    /// the highest ceiling (an at, a glideslope intercept, an at-or-below, or a between's upper bound), unless an
+    /// at-or-above floor on those legs sits above it; with no ceiling, or a floor above it, <see cref="ClimbViaDefaultTopFt"/>.
+    /// An at-or-above is a floor under a climb via, never its top. Null when the SID cannot be resolved.
     /// </summary>
-    internal static int? HighestPublishedSidAltitudeFt(AircraftState aircraft)
+    internal static int? PublishedClimbViaTopFt(AircraftState aircraft)
     {
         if (ResolveActiveSid(aircraft) is not { } sid)
         {
             return null;
         }
 
-        int? highest = null;
+        int ceiling = 0;
+        int floor = 0;
         foreach (CifpAltitudeRestriction restriction in FlownSidLegs(sid, aircraft).Select(l => l.Altitude).OfType<CifpAltitudeRestriction>())
         {
-            int legHighest =
-                restriction.Type == CifpAltitudeRestrictionType.Between
-                    ? Math.Max(restriction.Altitude1Ft, restriction.Altitude2Ft ?? 0)
-                    : restriction.Altitude1Ft;
-            highest = Math.Max(highest ?? 0, legHighest);
+            if (FlightPhysics.IsClimbCeiling(restriction))
+            {
+                ceiling = Math.Max(ceiling, Math.Max(restriction.Altitude1Ft, restriction.Altitude2Ft ?? 0));
+            }
+            else if (restriction.Type == CifpAltitudeRestrictionType.AtOrAbove)
+            {
+                floor = Math.Max(floor, restriction.Altitude1Ft);
+            }
         }
 
-        return highest;
+        return ((ceiling > 0) && (floor <= ceiling)) ? ceiling : ClimbViaDefaultTopFt;
+    }
+
+    /// <summary>
+    /// Works out again the top of a TDLS-default climb via (<see cref="AircraftProcedure.ClimbViaTopFromTdls"/>) for the
+    /// departure runway now set: its "except maintain" if any, else the SID's published climb via top, never below
+    /// present altitude rounded up to 100 ft. Changes nothing else.
+    /// </summary>
+    internal static void ReResolveTdlsClimbViaTop(AircraftState aircraft)
+    {
+        int floor = PresentAltitudeFloorFt(aircraft);
+        aircraft.Procedure.ClimbViaTargetFt = Math.Max(aircraft.Procedure.SidViaCeiling ?? PublishedClimbViaTopFt(aircraft) ?? floor, floor);
     }
 
     /// <summary>
@@ -2125,6 +2158,7 @@ internal static class NavigationCommandHandler
         aircraft.Procedure.SidViaCeiling = null;
         // SidViaMode switches descent planning off (FlightPhysics.UpdateDescentPlanning): a descend via leaves it.
         aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.ClimbViaTopFromTdls = false;
         // The via clearance supersedes any altitude assigned before it (converse of 7110.65 4-5-7.h.11 NOTE 1), and the
         // TDLS maintain a bare departure clearance stored, which must not come back once the via ends.
         aircraft.Targets.AssignedAltitude = null;

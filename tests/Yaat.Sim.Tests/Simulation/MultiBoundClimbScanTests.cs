@@ -34,8 +34,8 @@ public class MultiBoundClimbScanTests
         AircraftState ac = ClimbViaTopAltitudeTests.Cndel5Departure(sidAlreadyActive: true, out CifpAltitudeRestriction published);
         Assert.Equal(CifpAltitudeRestrictionType.AtOrBelow, published.Type);
         Assert.Equal(10000, published.Altitude1Ft);
-        int top = StandInTop(ac);
-        Assert.True(top >= 10000, $"setup: the stand-in top {top} must be at or above PORTE's 10,000");
+        int top = PublishedClimbViaTop(ac);
+        Assert.True(top >= 10000, $"setup: the published climb via top {top} must be at or above PORTE's 10,000");
         PrintRoute(ac);
 
         FlightPhysics.Update(ac, 1.0);
@@ -47,8 +47,8 @@ public class MultiBoundClimbScanTests
     public void SidFallback_BetweenFromBelow_ClimbsToUpper()
     {
         AircraftState ac = ClimbViaTopAltitudeTests.Cndel5Departure(sidAlreadyActive: true, out _);
-        int top = StandInTop(ac);
-        Assert.True(top >= 9000, $"setup: the stand-in top {top} must be at or above the window's 9,000");
+        int top = PublishedClimbViaTop(ac);
+        Assert.True(top >= 9000, $"setup: the published climb via top {top} must be at or above the window's 9,000");
         Fix(ac, "PORTE").AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 9000, 7000);
         PrintRoute(ac);
 
@@ -61,8 +61,8 @@ public class MultiBoundClimbScanTests
     public void SidFallback_At_SetsExact()
     {
         AircraftState ac = ClimbViaTopAltitudeTests.Cndel5Departure(sidAlreadyActive: true, out _);
-        int top = StandInTop(ac);
-        Assert.True(top >= 8000, $"setup: the stand-in top {top} must be at or above 8,000");
+        int top = PublishedClimbViaTop(ac);
+        Assert.True(top >= 8000, $"setup: the published climb via top {top} must be at or above 8,000");
         Fix(ac, "PORTE").AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000);
         PrintRoute(ac);
 
@@ -291,7 +291,7 @@ public class MultiBoundClimbScanTests
         // than the near, low one at CNDEL, and only the steepest-wins rule picks it.
         AircraftState ac = ClimbViaTopAltitudeTests.Cndel5Departure(sidAlreadyActive: true, out _);
         SetBack(ac, SetBackNm);
-        Assert.True(StandInTop(ac) >= 10000, "setup: the stand-in top must be at or above the 10,000 ceiling");
+        Assert.True(PublishedClimbViaTop(ac) >= 10000, "setup: the published climb via top must be at or above the 10,000 ceiling");
         Fix(ac, "CNDEL").AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 4000);
         Fix(ac, "PORTE").AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 9000);
         Fix(ac, "SUSEY").AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 10000);
@@ -432,9 +432,9 @@ public class MultiBoundClimbScanTests
 
     private static NavigationTarget Fix(AircraftState ac, string name) => ac.Targets.NavigationRoute.First(f => f.Name == name);
 
-    private static int StandInTop(AircraftState ac)
+    private static int PublishedClimbViaTop(AircraftState ac)
     {
-        int? top = NavigationCommandHandler.HighestPublishedSidAltitudeFt(ac);
+        int? top = NavigationCommandHandler.PublishedClimbViaTopFt(ac);
         Assert.NotNull(top);
         return top.Value;
     }

@@ -1444,14 +1444,15 @@ public class DescendViaSpeedResumeTests
     }
 
     /// <summary>
-    /// "CVIA; SPD 230; AT WESLA CVIA": the queued climb via repeats the first block's text, so the source text cannot place
-    /// it after the 230. Its transmission crosses a snapshot on the block, and the 230 it fires under carries that
-    /// transmission's stamp.
+    /// "CVIA 020; SPD 230; AT WESLA CVIA": the queued climb via repeats the first block's text, so the source text cannot
+    /// place it after the 230. Its transmission crosses a snapshot on the block, and the 230 it fires under carries that
+    /// transmission's stamp. The first climb via names its top so the speed block runs before WESLA: a bare CVIA on WESLA5
+    /// tops at FL190 and holds a sequential block until then.
     /// </summary>
     [Fact]
     public void RepeatedConditionalCvia_RestoredFromSnapshot_KeepsTheStampAndTheSpeed()
     {
-        OakesHarness restored = RestoredWeslaAfter("CVIA; SPD 230; AT WESLA CVIA", 5);
+        OakesHarness restored = RestoredWeslaAfter("CVIA 020; SPD 230; AT WESLA CVIA", 5);
         int transmission = restored.Aircraft.Queue.Blocks[^1].TransmissionId;
         Assert.NotEqual(0, transmission);
 

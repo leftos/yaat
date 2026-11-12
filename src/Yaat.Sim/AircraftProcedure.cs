@@ -76,8 +76,10 @@ public class AircraftProcedure
     /// clearance whose SID transition's TDLS default is a climb via ("CLIMB VIA SID EXC MAINT 4000FT" acting as
     /// <c>CVIA 040</c>): <c>CVIA nnn</c>'s
     /// altitude; else the TDLS climb-via text's "EXC MAINT" altitude for the SID and filed transition; else that
-    /// transition's TDLS initial altitude; else the highest altitude the SID publishes on its flown legs (a stand-in for
-    /// the charted top, which CIFP does not code); else present altitude. A TDLS value is never raised by a published
+    /// transition's TDLS initial altitude; else the highest ceiling the SID publishes on its flown legs, or FL190 when it
+    /// publishes none or an at-or-above floor sits above it; else (the SID cannot be resolved) present altitude. A
+    /// TDLS-default via (<see cref="ClimbViaTopFromTdls"/>) has its top worked out again at each line-up or takeoff
+    /// clearance, for the departure runway then set. A TDLS value is never raised by a published
     /// altitude; the TDLS initial-altitude menu and <see cref="SidInitialAltitudeFt"/> never take part. Never below present
     /// altitude rounded up to 100 ft. In flight a ceiling still ahead lowers it; a floor never raises it. While set it
     /// outranks every other departure climb target (the CTO altitude, the procedure phase's ceiling, filed cruise). A route
@@ -86,6 +88,12 @@ public class AircraftProcedure
     /// altitude clearance (a CTO altitude included), a DVIA or a procedure reset. Null when no climb via is in force.
     /// </summary>
     public int? ClimbViaTargetFt { get; set; }
+
+    /// <summary>
+    /// The climb via in force is not a controller's <c>CVIA</c>: it is the TDLS default read in the departure clearance, or
+    /// one an assumed live departure is given. Its top is worked out again at each line-up or takeoff clearance.
+    /// </summary>
+    public bool ClimbViaTopFromTdls { get; set; }
 
     /// <summary>
     /// The transmission (<see cref="Commands.DispatchContext.TransmissionId"/>) whose DVIA applied the descend via in
@@ -120,6 +128,7 @@ public class AircraftProcedure
             ClimbViaTargetFt = ClimbViaTargetFt,
             StarViaTransmissionId = StarViaTransmissionId,
             ClimbViaTransmissionId = ClimbViaTransmissionId,
+            ClimbViaTopFromTdls = ClimbViaTopFromTdls,
         };
 
     public static AircraftProcedure FromSnapshot(AircraftProcedureDto dto) =>
@@ -141,5 +150,6 @@ public class AircraftProcedure
             ClimbViaTargetFt = dto.ClimbViaTargetFt,
             StarViaTransmissionId = dto.StarViaTransmissionId,
             ClimbViaTransmissionId = dto.ClimbViaTransmissionId,
+            ClimbViaTopFromTdls = dto.ClimbViaTopFromTdls,
         };
 }

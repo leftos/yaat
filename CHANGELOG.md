@@ -10,8 +10,11 @@
 - Every vTDLS dropdown can be cleared back to `- - - -`, and Climb via and Maintain clear each other both ways, as in vTDLS.
 - Choosing a SID or transition in vTDLS fills all seven fields from it, emptying any it has no default for.
 - vTDLS picks the SID and transition from any filed route fix that starts a transition, not only a SID named first.
+- A climb via from the vTDLS default works its top out again when the departure runway changes before takeoff; a controller's `CVIA` keeps its top.
 
 ### Fixed
+
+- A climb via whose SID publishes no top, such as SFO TRUKN2, now climbs to FL190 instead of levelling at an "at or above" altitude.
 
 - A multi-point push route whose stand, spot or node no longer exists now refuses in the same words as a single-point push.
 - A push that would carry the aircraft well past a taxiway's dead end is refused, measured from the end the airport chart shows.

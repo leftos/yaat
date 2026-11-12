@@ -645,7 +645,10 @@ public static class FlightPhysics
         NeedsDescent,
     }
 
-    /// <summary>The scanned route and where the scan started on it, for the stand-in top a SID-fallback departure reads lazily.</summary>
+    /// <summary>
+    /// The scanned route and where the scan started on it, for the published climb via top
+    /// (<see cref="NavigationCommandHandler.PublishedClimbViaTopFt"/>) a SID-fallback departure reads lazily.
+    /// </summary>
     private readonly record struct ClimbScanRoute(List<NavigationTarget> Route, int Start);
 
     /// <summary>A climb scan's running state (<see cref="PlanClimbScan"/>).</summary>
@@ -663,7 +666,7 @@ public static class FlightPhysics
         /// <summary>Whether a ceiling below the running target has bound it: floors beyond wait until its fix sequences.</summary>
         public bool Bound;
 
-        /// <summary>Whether the cleared or top altitude is still to be read (a SID-fallback departure's stand-in top).</summary>
+        /// <summary>Whether the cleared or top altitude is still to be read (a SID-fallback departure's published climb via top).</summary>
         public bool TopPending;
     }
 
@@ -750,7 +753,9 @@ public static class FlightPhysics
         return ClimbScanStep.Continue;
     }
 
-    /// <summary>Reads the cleared or top altitude the first time the scan needs it (a SID-fallback departure's stand-in top).</summary>
+    /// <summary>
+    /// Reads the cleared or top altitude the first time the scan needs it (a SID-fallback departure's published climb via top).
+    /// </summary>
     private static void ResolvePendingClimbTop(AircraftState aircraft, ClimbScanRoute scanned, ref ClimbScanState state)
     {
         if (state.TopPending)
@@ -912,7 +917,7 @@ public static class FlightPhysics
         };
 
     /// <summary>Whether <paramref name="restriction"/> caps a climb: an at, a glideslope intercept, an at-or-below or a window.</summary>
-    private static bool IsClimbCeiling(CifpAltitudeRestriction restriction) =>
+    internal static bool IsClimbCeiling(CifpAltitudeRestriction restriction) =>
         restriction.Type
             is CifpAltitudeRestrictionType.At
                 or CifpAltitudeRestrictionType.GlideSlopeIntercept
@@ -923,8 +928,9 @@ public static class FlightPhysics
     /// The altitude a climb scan flies to with nothing capping it, off a climb via: the cleared altitude
     /// (<see cref="ControlTargets.AssignedAltitude"/>), else, for a SID departure released with no controller altitude (its
     /// published altitudes in force through <see cref="AltitudeRestrictionInForce.ProcedureAltitudesInForce"/>'s fallback),
-    /// the SID's stand-in top (<see cref="NavigationCommandHandler.HighestPublishedSidAltitudeFt"/>), or the highest in-force
-    /// published bound on the scanned fixes when the SID cannot be resolved. Null otherwise.
+    /// the SID's published climb via top (<see cref="NavigationCommandHandler.PublishedClimbViaTopFt"/>: its highest
+    /// ceiling, or FL190 when it has none or a floor sits above it), or the highest in-force published bound on the scanned
+    /// fixes when the SID cannot be resolved. Null otherwise.
     /// </summary>
     private static double? ClimbClearedOrTopAltitude(AircraftState aircraft, List<NavigationTarget> route, int start)
     {
@@ -938,7 +944,7 @@ public static class FlightPhysics
             return null;
         }
 
-        return NavigationCommandHandler.HighestPublishedSidAltitudeFt(aircraft) ?? HighestInForceProcedureBoundFt(aircraft, route, start);
+        return NavigationCommandHandler.PublishedClimbViaTopFt(aircraft) ?? HighestInForceProcedureBoundFt(aircraft, route, start);
     }
 
     /// <summary>
@@ -2215,6 +2221,7 @@ public static class FlightPhysics
             aircraft.Procedure.ClimbViaTargetFt = null;
             aircraft.Procedure.ClimbViaTransmissionId = null;
             aircraft.Procedure.SidViaMode = false;
+            aircraft.Procedure.ClimbViaTopFromTdls = false;
             aircraft.Procedure.SidViaCeiling = null;
             aircraft.Procedure.ActiveSidId = null;
             aircraft.Procedure.DepartureRunway = null;
@@ -2473,6 +2480,7 @@ public static class FlightPhysics
             aircraft.Procedure.ActiveSidId = null;
             aircraft.Procedure.DepartureRunway = null;
             aircraft.Procedure.SidViaMode = false;
+            aircraft.Procedure.ClimbViaTopFromTdls = false;
             aircraft.Procedure.SidViaCeiling = null;
             aircraft.Procedure.ClimbViaTargetFt = null;
             aircraft.Procedure.ClimbViaTransmissionId = null;

@@ -34,4 +34,9 @@ public sealed class AircraftProcedureDto
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? ClimbViaTransmissionId { get; init; }
+
+    // Whether the climb via in force is the TDLS default. Additive, no schema bump: written only when true, so older
+    // snapshots (and their hashes) are unchanged and restore false, a controller's via whose top is kept.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ClimbViaTopFromTdls { get; init; }
 }

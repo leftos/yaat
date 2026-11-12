@@ -138,6 +138,7 @@ internal static class FlightCommandHandler
     internal static void CancelViaClearances(AircraftState aircraft)
     {
         aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.ClimbViaTopFromTdls = false;
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.ClimbViaTargetFt = null;
         aircraft.Procedure.ClimbViaTransmissionId = null;
@@ -1757,6 +1758,7 @@ internal static class FlightCommandHandler
     private static void EndViaModes(AircraftState aircraft)
     {
         aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.ClimbViaTopFromTdls = false;
         aircraft.Procedure.StarViaMode = false;
         aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.SidViaCeiling = null;
@@ -2167,6 +2169,7 @@ internal static class FlightCommandHandler
         aircraft.Procedure.ActiveSidId = null;
         aircraft.Procedure.ActiveStarId = null;
         aircraft.Procedure.SidViaMode = false;
+        aircraft.Procedure.ClimbViaTopFromTdls = false;
         aircraft.Procedure.StarViaMode = false;
         aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.SidViaCeiling = null;

@@ -2210,6 +2210,8 @@ FH 270, CM 100; FH 180
 
 The second turn waits for the heading-to-270 part, not necessarily for the climb all the way to 10,000 ft. If you want a later instruction to happen at an altitude, use `LV` or numeric `AT`.
 
+A `;` after `CVIA` or `DVIA` waits for the via's top or bottom (on a SID with only floors, FL190), so a speed meant to go with the via uses `,`: `CVIA, SPD 230` (7110.65 5-7-1.c and 5-7-2.e).
+
 #### Word aliases: `AND` and `THEN`
 
 If you find the punctuation hard to read, you can use `AND` in place of `,` and `THEN` in place of `;` (both case-insensitive). `FH 270 AND CM 050 THEN FH 180` means exactly the same thing as `FH 270, CM 050; FH 180`. The aliases are skipped inside `SAY` / `SAYF` literal text, so a message like `SAYF READING YOU LOUD AND CLEAR` is transmitted verbatim.

@@ -1050,8 +1050,8 @@ public class LiveTrafficAssumeTests
 
     /// <summary>
     /// An assumed KATFH4 departure (filed "ROWLY VYYDA KATFH4 SUSEY") climbing near KOAK with no feed altitude rejoins its
-    /// route at VYYDA and gets the climb via: the top is the SID's highest published altitude (KATFH at or above 6,000), and
-    /// VYYDA's at or below 4,000, on the rejoined route and in force, caps the via target below it.
+    /// route at VYYDA and gets the climb via: the top is FL190, since KATFH's at or above 6,000 floor sits above the SID's
+    /// highest ceiling, and VYYDA's at or below 4,000, on the rejoined route and in force, caps the via target below it.
     /// </summary>
     [Fact]
     public void AssumedSidDeparture_RejoinNearDeparture_ViaTargetCappedBySidFix()
@@ -1062,7 +1062,7 @@ public class LiveTrafficAssumeTests
 
         Assert.True(result.Success, result.Message);
         Assert.Contains("direct VYYDA", result.Message, StringComparison.Ordinal);
-        Assert.Equal(6_000, ac.Procedure.ClimbViaTargetFt);
+        Assert.Equal(19_000, ac.Procedure.ClimbViaTargetFt);
         Assert.Null(ac.Targets.AssignedAltitude);
         NavigationTarget vyyda = ac.Targets.NavigationRoute.First(f => f.Name == "VYYDA");
         Assert.Equal(new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 4_000), vyyda.AltitudeRestriction);

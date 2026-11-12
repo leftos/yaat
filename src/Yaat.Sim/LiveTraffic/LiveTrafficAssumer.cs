@@ -746,7 +746,8 @@ public static class LiveTrafficAssumer
     /// aircraft climbs to the interim;</item>
     /// <item>a feed assigned altitude other than the filed cruise (<see cref="FeedControllerAltitude"/>) is a plain
     /// maintain, the published altitudes out of force;</item>
-    /// <item>with no feed altitude, a climbing departure gets the climb via (top: the SID's highest published altitude,
+    /// <item>with no feed altitude, a climbing departure gets the climb via (top:
+    /// <see cref="NavigationCommandHandler.PublishedClimbViaTopFt"/>, the SID's highest published ceiling, else FL190,
     /// never below present altitude); one observed level gets none and keeps the level altitude.</item>
     /// </list>
     /// Under the climb via, <see cref="SeedVertical"/> clears the assigned altitude, as after a CVIA. True only when the
