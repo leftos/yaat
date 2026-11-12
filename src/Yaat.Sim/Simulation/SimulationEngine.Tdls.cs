@@ -253,6 +253,38 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// Clears the altitude captured from a sent PDC (<see cref="AircraftProcedure.SentPdcAltitudeKind"/>) when an amendment
+    /// moves <paramref name="aircraft"/>'s departure to <paramref name="newDeparture"/>, an airport served by a different TDLS
+    /// facility or by none: a clearance built at one airport is no clearance for another, so the departure flies the new
+    /// airport's default until a PDC is sent from there. Whether any item of the call sign still stands does not matter.
+    /// Run by <see cref="AmendFlightPlan"/> before the amendment is applied; a null <paramref name="newDeparture"/> (departure
+    /// not amended) or one served by the same facility leaves it.
+    /// </summary>
+    private void ClearSentPdcAltitudeOnFacilityChange(AircraftState aircraft, string? newDeparture)
+    {
+        if (newDeparture is null)
+        {
+            return;
+        }
+
+        TdlsState tdls = Tdls;
+        string? oldDeparture = aircraft.FlightPlan.Departure;
+        bool sameFacility;
+        lock (tdls.Gate)
+        {
+            string? oldFacility = string.IsNullOrEmpty(oldDeparture) ? null : TdlsMutations.ResolveFacilityForAirport(tdls, oldDeparture);
+            string? newFacility = TdlsMutations.ResolveFacilityForAirport(tdls, newDeparture);
+            sameFacility = (oldFacility is not null) && string.Equals(oldFacility, newFacility, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (!sameFacility)
+        {
+            aircraft.Procedure.SentPdcAltitudeKind = TdlsDepartureAltitudeKind.None;
+            aircraft.Procedure.SentPdcAltitudeFt = null;
+        }
+    }
+
+    /// <summary>
     /// <c>TDLSOPS</c>: selects a facility's active DCL operational configuration — by id first so the vTDLS UI is
     /// unambiguous, then by name. The mutation only; <see cref="ApplyTdlsOpConfig"/> is what flags the full state.
     /// </summary>

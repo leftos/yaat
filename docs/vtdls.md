@@ -146,16 +146,19 @@ ZBW → ALB/BDL/BOS/PVD.
 The full canonical syntax is enforced by `CommandRegistry` entries with
 group `"vTDLS"` and asserted by completeness tests.
 
-## Pilot side: only the clearance request
+## Pilot side: the clearance request and the sent altitude
 
-`TDLSS` records the clearance on the TDLS item (`SentPayload`) and answers the pilot's open
-clearance request: `TdlsCommandHandler.AnswerClearanceRequest` satisfies it through
-`PilotRequestTracker.SatisfyOpenRequest`, so the pilot stops following up and the
-awaiting-controller-response gate clears. Nothing else reaches the pilot model: no `AircraftState`
-field is written, no pilot transmission is queued or suppressed, and a follow-up voice `CL` behaves
-exactly as it would without the PDC. The remaining PDC flow — applying the sent clearance to the
-aircraft silently — is unbuilt and unscheduled (design record:
-[`docs/vtdls/emulation-design.md`](vtdls/emulation-design.md)).
+`TDLSS` records the clearance on the TDLS item (`SentPayload`) and answers the pilot's open clearance request: `TdlsCommandHandler.AnswerClearanceRequest` satisfies it through `PilotRequestTracker.SatisfyOpenRequest`, so the pilot stops following up and the awaiting-controller-response gate clears.
+
+The send also captures the PDC's altitude onto the aircraft (`AircraftProcedure.SentPdcAltitudeKind` / `SentPdcAltitudeFt`, from `ArtccConfigResolver.GetSentPdcDepartureAltitude`). The Climbvia field governs (7110.65 §14-1-3.a.4): any climb-via text is a climb via, its "EXC MAINT X" the except-maintain even beside a different Maintain. "Except" is read in any of the spellings facility texts use (EXC, EXCPT, EXCEPT, EXPT, EXP) and "maintain" as MAINT, MAINTAIN or MTN, in a sent PDC and in a facility default alike. A Maintain beside a bare climb via is flown as "climb via SID except maintain" that altitude. A bare "CLIMB VIA SID" climbs to the SID's published top (FL190 when the SID publishes none). A Maintain with no climb via is a maintain, and a PDC with neither captures nothing.
+
+The line-up and takeoff clearances (`DepartureClearanceHandler.StoreSidInitialAltitude`) read the captured altitude before the facility's TDLS default, so the pilot flies what the PDC said. A fixed altitude (an except-maintain) is kept across a runway change; only a bare sent climb via has its top worked out again for the new runway. A PDC with no altitude, or a sent climb via no filed SID activates for, falls through to the facility default.
+
+The capture lives on the aircraft, not on the TDLS item: a dump, a STARS track removal or a TTL expiry after the send leaves it, and it rides snapshots. A PDC dumped before it is sent captures nothing, so the pilot flies the facility default. A new send replaces the capture. An amendment that moves the departure to an airport served by a different TDLS facility, or by none, clears it (`SimulationEngine.AmendFlightPlan`), whether or not an item still stands, so the pilot flies the new airport's default until a PDC is sent from there.
+
+A later voice altitude outranks the capture without clearing it: a CM or DM, a CTO with an altitude and a controller `CVIA` all govern as they do over the facility default. A voice bare `CVIA` after a sent except-maintain climbs to the facility-default top, not to the sent altitude. A PDC sent after a line-up clearance has already put the facility default's climb via in force does not replace it: the TDLS-default via already governs, and the takeoff clearance only works out its top again for the runway. A facility-default maintain stored at the line-up does give way to the sent altitude at the takeoff clearance.
+
+Nothing else reaches the pilot model: no pilot transmission is queued or suppressed, and a follow-up voice `CL` behaves exactly as it would without the PDC. The rest of the PDC flow (applying the whole sent clearance to the aircraft silently) is unbuilt and unscheduled (design record: [`docs/vtdls/emulation-design.md`](vtdls/emulation-design.md)).
 
 `AircraftVoice.TdlsDumped` is CRC's own flight-plan flag ("the PDC was dumped,
 clear this aircraft by voice"), set only by CRC's `TdlsDump` handler

@@ -500,6 +500,7 @@ public sealed partial class SimulationEngine
 
         bool wasFiled = ac.FlightPlan.HasFlightPlan;
 
+        ClearSentPdcAltitudeOnFacilityChange(ac, amendment.Departure);
         ApplyAircraftAndAirportFields(ac, amendment);
         ApplyClearanceFields(ac, amendment);
         ApplyStarsAndBeaconFields(ac, amendment);

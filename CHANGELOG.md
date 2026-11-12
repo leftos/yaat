@@ -8,6 +8,9 @@
 
 ### Changed
 
+- A departure flies the altitude in the PDC sent to it from vTDLS, climb via or maintain, instead of the facility default; a voice altitude still overrides it.
+- vTDLS climb via defaults written "EXCPT MTN", "EXP MTN" or "EXPT MAINTAIN", common at ZLA facilities, now level the departure at that altitude.
+
 - Pushback and tug planning keep taxiway clearances from AC 150/5300-13B, so an SFO alley push now stays 126.5 ft from taxiway A.
 - A push or tow of a small aircraft past a small parked neighbour (both ADG I or II) now keeps 10 ft wingtip clearance, not 25 ft.
 - A taxiway drawn under two names, such as FLL A and A1, now holds short at the same bar on both, so neither reaches the runway around it.

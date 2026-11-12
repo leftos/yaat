@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Simulation.Snapshots;
 
@@ -39,4 +40,12 @@ public sealed class AircraftProcedureDto
     // snapshots (and their hashes) are unchanged and restore false, a controller's via whose top is kept.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ClimbViaTopFromTdls { get; init; }
+
+    // What the sent PDC clears the aircraft to fly after takeoff. Additive, no schema bump: written only when a PDC with
+    // an altitude was sent, so older snapshots (and their hashes) are unchanged and restore none, the facility default.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public TdlsDepartureAltitudeKind SentPdcAltitudeKind { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int? SentPdcAltitudeFt { get; init; }
 }

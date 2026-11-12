@@ -1653,7 +1653,8 @@ public static partial class ArtccConfigResolver
     /// decide: a climb-via text puts a climb via in force, its "EXC(EPT) MAINT(AIN) X" altitude the "except maintain" (no
     /// altitude: to the SID's published top); otherwise a parsable initial altitude is a maintain; otherwise none. A
     /// placeholder ("- - - -") is no value. The facility's initial-altitude menu never takes part. None when the airport has
-    /// no TDLS config or the SID is not configured.
+    /// no TDLS config or the SID is not configured. This is the facility default: the altitude of a PDC sent to the aircraft
+    /// (<see cref="GetSentPdcDepartureAltitude"/>, <see cref="AircraftProcedure.SentPdcAltitudeKind"/>) comes first.
     /// </summary>
     public static TdlsDepartureAltitude GetSidDepartureAltitude(this ArtccConfigRoot? config, string departureAirportId, string? filedRoute)
     {
@@ -1799,8 +1800,32 @@ public static partial class ArtccConfigResolver
         return ParseTdlsAltitudeFt(transition.DefaultInitialAlt) is { } initial ? new TdlsSidTopAltitude(initial, IsExceptMaintain: false) : null;
     }
 
-    /// <summary>A TDLS climb-via text's "except maintain" clause, e.g. "CLB VIA SID EXC MAINT 10000FT"; group 1 is the altitude.</summary>
-    [GeneratedRegex(@"\bEXC(?:EPT)?\s+MAINT(?:AIN)?\s+(\S+)", RegexOptions.IgnoreCase)]
+    /// <summary>
+    /// What a sent PDC's <paramref name="climbvia"/> and Maintain (<paramref name="initialAlt"/>) texts clear the aircraft to
+    /// fly after takeoff. The climb-via text governs (7110.65 14-1-3.a.4): any climb-via text is a climb via, its "EXC(EPT)
+    /// MAINT(AIN) X" the "except maintain" even beside a different Maintain; a Maintain beside a bare climb via is the
+    /// "except maintain" ("climb via SID except maintain"); with neither, to the SID's published top. With no climb-via
+    /// text a parsable Maintain is a maintain; otherwise none. A placeholder ("- - - -") is no value.
+    /// </summary>
+    public static TdlsDepartureAltitude GetSentPdcDepartureAltitude(string? climbvia, string? initialAlt)
+    {
+        int? maintain = TdlsPlaceholder.IsPlaceholder(initialAlt) ? null : ParseTdlsAltitudeFt(initialAlt);
+        if (TdlsPlaceholder.IsPlaceholder(climbvia))
+        {
+            return maintain is { } altitude ? TdlsDepartureAltitude.Maintain(altitude) : TdlsDepartureAltitude.None;
+        }
+
+        Match exceptMaintain = ExceptMaintainRegex().Match(climbvia);
+        return TdlsDepartureAltitude.ClimbVia((exceptMaintain.Success ? ParseTdlsAltitudeFt(exceptMaintain.Groups[1].Value) : null) ?? maintain);
+    }
+
+    /// <summary>
+    /// A TDLS climb-via text's "except maintain" clause, e.g. "CLB VIA SID EXC MAINT 10000FT"; group 1 is the altitude.
+    /// "Except" is any of EXC, EXCPT, EXCEPT, EXPT and EXP, "maintain" any of MAINT, MAINTAIN and MTN, as facility texts
+    /// write them ("CLIMB VIA SID EXCPT MTN 7000", "CLIMB VIA SID EXP MTN 4000"). Inside the Climbvia field EXP can only
+    /// mean except: Expect has its own field.
+    /// </summary>
+    [GeneratedRegex(@"\bEX(?:C(?:EPT|PT)?|PT?)\s+(?:MAINT(?:AIN)?|MTN)\s+(\S+)", RegexOptions.IgnoreCase)]
     private static partial Regex ExceptMaintainRegex();
 
     private static TdlsConfig? FindTdlsConfigForAirport(FacilityConfig facility, string normalizedAirport)
@@ -1847,7 +1872,10 @@ public static partial class ArtccConfigResolver
     }
 }
 
-/// <summary>Which clearance a SID transition's TDLS defaults give a bare takeoff clearance.</summary>
+/// <summary>
+/// Which clearance a SID transition's TDLS defaults, or a sent PDC, give a bare takeoff clearance. Persisted by ordinal in
+/// snapshots (<see cref="Simulation.Snapshots.AircraftProcedureDto"/>); append new members last.
+/// </summary>
 public enum TdlsDepartureAltitudeKind
 {
     /// <summary>No value: neither a climb-via text nor a parsable initial altitude, or no configured SID.</summary>

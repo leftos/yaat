@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
@@ -63,8 +64,9 @@ public class AircraftProcedure
     public double? LastCrossedPublishedSpeedKts { get; set; }
 
     /// <summary>
-    /// The initial ("maintain") altitude in feet a bare takeoff clearance stored from this aircraft's SID transition's TDLS
-    /// default initial altitude (e.g. KHOU 5000), when that transition carries no climb-via default. When set, an IFR
+    /// The initial ("maintain") altitude in feet a bare takeoff clearance stored from the PDC sent to this aircraft
+    /// (<see cref="SentPdcAltitudeKind"/>), else from its SID transition's TDLS default initial altitude (e.g. KHOU 5000),
+    /// when that transition carries no climb-via default. When set, an IFR
     /// departure with no explicit clearance altitude climbs to and maintains it until ATC issues a climb (7110.65 4-3-2).
     /// Null when off a SID, VFR, the transition's default is a climb via (then <see cref="ClimbViaTargetFt"/> is in force
     /// from takeoff), or it carries no value.
@@ -73,8 +75,8 @@ public class AircraftProcedure
 
     /// <summary>
     /// The altitude a climb via clearance climbs to, resolved once when it is issued — a <c>CVIA</c>, or a bare takeoff
-    /// clearance whose SID transition's TDLS default is a climb via ("CLIMB VIA SID EXC MAINT 4000FT" acting as
-    /// <c>CVIA 040</c>): <c>CVIA nnn</c>'s
+    /// clearance whose sent PDC (<see cref="SentPdcAltitudeKind"/>), else whose SID transition's TDLS default, is a climb
+    /// via ("CLIMB VIA SID EXC MAINT 4000FT" acting as <c>CVIA 040</c>): <c>CVIA nnn</c>'s
     /// altitude; else the TDLS climb-via text's "EXC MAINT" altitude for the SID and filed transition; else that
     /// transition's TDLS initial altitude; else the highest ceiling the SID publishes on its flown legs, or FL190 when it
     /// publishes none or an at-or-above floor sits above it; else (the SID cannot be resolved) present altitude. A
@@ -94,6 +96,20 @@ public class AircraftProcedure
     /// one an assumed live departure is given. Its top is worked out again at each line-up or takeoff clearance.
     /// </summary>
     public bool ClimbViaTopFromTdls { get; set; }
+
+    /// <summary>
+    /// What the PDC sent to this aircraft (<c>TDLSS</c>) clears it to fly after takeoff, captured when it is sent
+    /// (<see cref="ArtccConfigResolver.GetSentPdcDepartureAltitude"/>): a climb via (its "except maintain" in
+    /// <see cref="SentPdcAltitudeFt"/>, null for the SID's published top), a maintain, or none. A line-up or takeoff
+    /// clearance reads it before the facility's TDLS default. A dump, a STARS track removal or a TTL expiry after the send
+    /// leaves it; a later altitude clearance outranks it without clearing it; a new send replaces it; an amendment moving the
+    /// departure to an airport served by a different TDLS facility, or by none, clears it, whether or not any item still
+    /// stands. None when no PDC was sent.
+    /// </summary>
+    public TdlsDepartureAltitudeKind SentPdcAltitudeKind { get; set; }
+
+    /// <summary>The altitude of <see cref="SentPdcAltitudeKind"/>: the maintain, or the climb via's "except maintain".</summary>
+    public int? SentPdcAltitudeFt { get; set; }
 
     /// <summary>
     /// The transmission (<see cref="Commands.DispatchContext.TransmissionId"/>) whose DVIA applied the descend via in
@@ -129,6 +145,8 @@ public class AircraftProcedure
             StarViaTransmissionId = StarViaTransmissionId,
             ClimbViaTransmissionId = ClimbViaTransmissionId,
             ClimbViaTopFromTdls = ClimbViaTopFromTdls,
+            SentPdcAltitudeKind = SentPdcAltitudeKind,
+            SentPdcAltitudeFt = SentPdcAltitudeFt,
         };
 
     public static AircraftProcedure FromSnapshot(AircraftProcedureDto dto) =>
@@ -151,5 +169,7 @@ public class AircraftProcedure
             StarViaTransmissionId = dto.StarViaTransmissionId,
             ClimbViaTransmissionId = dto.ClimbViaTransmissionId,
             ClimbViaTopFromTdls = dto.ClimbViaTopFromTdls,
+            SentPdcAltitudeKind = dto.SentPdcAltitudeKind,
+            SentPdcAltitudeFt = dto.SentPdcAltitudeFt,
         };
 }

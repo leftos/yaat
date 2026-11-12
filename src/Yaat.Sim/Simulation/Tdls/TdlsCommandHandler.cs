@@ -148,10 +148,28 @@ public static class TdlsCommandHandler
             return new CommandResult(false, "Failed to mark PDC as Sent");
         }
 
+        CaptureSentAltitude(engine, callsign, payload);
         EmitSendTerminal(engine, callsign, facility, payload);
         AnswerClearanceRequest(engine, callsign, facility);
 
         return new CommandResult(true, $"PDC sent to {callsign} at {facility}");
+    }
+
+    /// <summary>
+    /// Stores on the aircraft what the sent PDC clears it to fly after takeoff
+    /// (<see cref="ArtccConfigResolver.GetSentPdcDepartureAltitude"/>), so a later dump or track removal of the item does
+    /// not change it; a line-up or takeoff clearance reads it before the facility's TDLS default.
+    /// </summary>
+    private static void CaptureSentAltitude(SimulationEngine engine, string callsign, TdlsClearance payload)
+    {
+        if (engine.FindAircraft(callsign) is not { } aircraft)
+        {
+            return;
+        }
+
+        TdlsDepartureAltitude sent = ArtccConfigResolver.GetSentPdcDepartureAltitude(payload.Climbvia, payload.InitialAlt);
+        aircraft.Procedure.SentPdcAltitudeKind = sent.Kind;
+        aircraft.Procedure.SentPdcAltitudeFt = sent.AltitudeFt;
     }
 
     /// <summary>

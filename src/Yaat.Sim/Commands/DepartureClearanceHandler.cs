@@ -112,9 +112,11 @@ internal static class DepartureClearanceHandler
     }
 
     /// <summary>
-    /// Resolves what a takeoff or line-up clearance gives an IFR departure from its SID transition's TDLS defaults, as vTDLS
-    /// fills the clearance (<see cref="ArtccConfigResolver.GetSidDepartureAltitude"/>), so <see cref="InitialClimbPhase"/>
-    /// flies it when no altitude is commanded. Runs only once the clearance has been given effect. A climb-via default puts
+    /// Resolves what a takeoff or line-up clearance gives an IFR departure, so <see cref="InitialClimbPhase"/> flies it when
+    /// no altitude is commanded: first the altitude of the PDC sent to it (<see cref="AircraftProcedure.SentPdcAltitudeKind"/>,
+    /// captured at the send), else its SID transition's TDLS defaults, as vTDLS fills the clearance
+    /// (<see cref="ArtccConfigResolver.GetSidDepartureAltitude"/>); a sent PDC carrying no altitude, or a sent climb via no
+    /// filed SID activates for, falls through to the default. Runs only once the clearance has been given effect. A climb-via default puts
     /// the climb via read in the departure clearance in force from takeoff
     /// (<see cref="NavigationCommandHandler.TryPutTdlsClimbViaInForce"/>), its top "EXC MAINT X" or the SID's published
     /// top, with <paramref name="ctx"/>'s transmission and without cancelling anything assigned on the ground; an initial
@@ -140,33 +142,59 @@ internal static class DepartureClearanceHandler
             return;
         }
 
-        TdlsDepartureAltitude resolved = ctx.ArtccConfig.GetSidDepartureAltitude(aircraft.FlightPlan.Departure ?? "", aircraft.FlightPlan.Route);
         aircraft.Procedure.SidInitialAltitudeFt = null;
-        if (resolved.Kind == TdlsDepartureAltitudeKind.Maintain)
+        var sent = new TdlsDepartureAltitude(aircraft.Procedure.SentPdcAltitudeKind, aircraft.Procedure.SentPdcAltitudeFt);
+        if (
+            TryStoreDepartureAltitude(aircraft, ctx, sent, "sent PDC")
+            || TryStoreDepartureAltitude(
+                aircraft,
+                ctx,
+                ctx.ArtccConfig.GetSidDepartureAltitude(aircraft.FlightPlan.Departure ?? "", aircraft.FlightPlan.Route),
+                "TDLS facility default"
+            )
+        )
         {
-            aircraft.Procedure.SidInitialAltitudeFt = resolved.AltitudeFt;
             return;
-        }
-
-        if (resolved.Kind == TdlsDepartureAltitudeKind.ClimbVia)
-        {
-            if (NavigationCommandHandler.TryPutTdlsClimbViaInForce(aircraft, ctx.TransmissionId, resolved.AltitudeFt))
-            {
-                return;
-            }
-
-            Log.LogWarning(
-                "{Callsign}: TDLS climb via for {Route} at {Departure}, but no filed SID activates; no initial altitude",
-                aircraft.Callsign,
-                aircraft.FlightPlan.Route,
-                aircraft.FlightPlan.Departure
-            );
         }
 
         if (isTakeoffClearance)
         {
             WarnNoInitialAltitude(aircraft);
         }
+    }
+
+    /// <summary>
+    /// Stores <paramref name="resolved"/> as what the departure flies: a maintain as
+    /// <see cref="AircraftProcedure.SidInitialAltitudeFt"/>, a climb via put in force
+    /// (<see cref="NavigationCommandHandler.TryPutTdlsClimbViaInForce"/>). False, with nothing stored, for none or for a
+    /// climb via no filed SID can be activated for, which is logged naming <paramref name="source"/>.
+    /// </summary>
+    private static bool TryStoreDepartureAltitude(AircraftState aircraft, DispatchContext ctx, TdlsDepartureAltitude resolved, string source)
+    {
+        if (resolved.Kind == TdlsDepartureAltitudeKind.Maintain)
+        {
+            aircraft.Procedure.SidInitialAltitudeFt = resolved.AltitudeFt;
+            return true;
+        }
+
+        if (resolved.Kind != TdlsDepartureAltitudeKind.ClimbVia)
+        {
+            return false;
+        }
+
+        if (NavigationCommandHandler.TryPutTdlsClimbViaInForce(aircraft, ctx.TransmissionId, resolved.AltitudeFt))
+        {
+            return true;
+        }
+
+        Log.LogWarning(
+            "{Callsign}: {Source} climb via for {Route} at {Departure}, but no filed SID activates; not stored",
+            aircraft.Callsign,
+            source,
+            aircraft.FlightPlan.Route,
+            aircraft.FlightPlan.Departure
+        );
+        return false;
     }
 
     /// <summary>
