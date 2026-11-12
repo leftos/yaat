@@ -46,6 +46,9 @@
     "RON9": "PushBack",
     "RON10": "PushBack",
     "PT1": "PushBack",
-    "PT2": "PushBack"
+    "PT2": "PushBack",
+    "PCM1": "TaxiOut",
+    "PCM2": "TaxiOut",
+    "PCM3": "TaxiOut"
   }
 }

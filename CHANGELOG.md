@@ -9,6 +9,8 @@
 ### Fixed
 
 - A multi-point push route whose stand, spot or node no longer exists now refuses in the same words as a single-point push.
+- A push that would carry the aircraft well past a taxiway's dead end is refused, measured from the end the airport chart shows.
+- Aircraft at Oakland stands PCM1-PCM3 taxi out under their own power instead of needing a pushback.
 - In solo training, a pilot on another frequency waits until it is back on the student's before asking for further clearance or reporting holding.
 - A follow ends when the follower goes around, so it no longer reports losing sight of its lead or chases it round the pattern.
 - vTDLS no longer stops opening pending clearances after a sent PDC was reviewed; a refresh is no longer needed.

@@ -54,6 +54,19 @@ public sealed class TugPathCheck
     /// </summary>
     private const double OnCentrelineFt = 1.0;
 
+    /// <summary>
+    /// How much farther past a taxiway's end than its start was a tow that starts beyond the end may get and still be
+    /// measured against the line (<see cref="StaysWithinTheStartsOverrun"/>), feet: a judgement margin, so a tow that
+    /// strays a hair farther out while sampling a curve keeps the exception.
+    /// </summary>
+    private const double StartOverrunCreepFt = 1.0;
+
+    /// <summary>
+    /// How far, degrees, an arc's tangent at a taxiway's end node may turn from the end edge's outward line and still
+    /// count as carrying the taxiway on along it to its charted corner (<see cref="ChartedNode"/>).
+    /// </summary>
+    private const double ChartedEndAlignDeg = 1.0;
+
     private static readonly ILogger Log = SimLog.CreateLogger("TugPathCheck");
     private const double DegToRad = Math.PI / 180.0;
 
@@ -920,8 +933,10 @@ public sealed class TugPathCheck
     /// including the end pose — reaches more than <see cref="MaxTaxiwayOvershootFt"/> past the taxiway's centreline on the
     /// side away from where the tow started, as a refusal naming the farthest reach. The centre, not the nose or tail: a
     /// straight push back across a taxiway ends with the centre on it and the tail half a fuselage past it by design.
-    /// Each point is measured perpendicular to the line of the taxiway's straight edge nearest it; a tow starting on the
-    /// centreline counts either side.
+    /// Each point is measured against the taxiway's charted polyline (<see cref="CentrelineOf"/>) clamped at its ends, so
+    /// an overrun past a dead end counts (<see cref="PastCentrelineFt"/>); a tow that starts beyond an end of the taxiway
+    /// and never gets farther past it than it started is measured against the line of the edge nearest each point
+    /// instead (<see cref="PastCentrelineLineFt"/>). A tow starting on the centreline counts either side.
     /// </summary>
     private TugPathRefusal? TaxiwayOvershootRefusal(List<LocalPose> poses, Box box, IReadOnlySet<string> exemptNames, string taxiway, string subject)
     {
@@ -934,10 +949,13 @@ public sealed class TugPathCheck
         }
 
         Pt start = poses[0].Position;
+        bool measuredOnTheLine = StaysWithinTheStartsOverrun(poses, centreline);
         (double PastFt, LocalPose Pose) farthest = (0.0, poses[0]);
         foreach (LocalPose pose in poses)
         {
-            double pastFt = PastCentrelineFt(pose.Position, start, centreline);
+            double pastFt = measuredOnTheLine
+                ? PastCentrelineLineFt(pose.Position, start, centreline)
+                : PastCentrelineFt(pose.Position, start, centreline);
             if (pastFt > farthest.PastFt)
             {
                 farthest = (pastFt, pose);
@@ -969,11 +987,36 @@ public sealed class TugPathCheck
     }
 
     /// <summary>
-    /// How far <paramref name="point"/> lies past the centreline, feet, measured perpendicular to the line of the
-    /// centreline edge nearest it: zero when it is on the same side of that line as <paramref name="start"/>, unless the
-    /// start lies within <see cref="OnCentrelineFt"/> of the line.
+    /// How far <paramref name="point"/> lies past the centreline, feet, measured against the taxiway's charted polyline
+    /// (<see cref="CentrelineOf"/>) clamped at its ends. Beyond an end of the taxiway (<see cref="PastEnd"/>), the run along the end edge's line past
+    /// the end node, whatever the side. Otherwise the distance to the nearest point of the nearest edge when
+    /// <paramref name="point"/> is on the far side of that edge's line from <paramref name="start"/> (see
+    /// <see cref="OnFarSide"/>), else zero.
     /// </summary>
     private static double PastCentrelineFt(Pt point, Pt start, List<EdgeSegment> centreline)
+    {
+        (EdgeSegment nearest, double nearestFt) = NearestEdge(point, centreline);
+        if (PastEnd(point, nearest, centreline) is { } pastEnd)
+        {
+            return pastEnd.OverrunFt;
+        }
+
+        return OnFarSide(point, start, nearest) ? nearestFt : 0.0;
+    }
+
+    /// <summary>
+    /// How far <paramref name="point"/> lies past the centreline, feet, measured perpendicular to the infinite line of the
+    /// centreline edge nearest it, on the far side only (see <see cref="OnFarSide"/>). The measure of a tow that starts
+    /// beyond an end of the taxiway and lines up on its extended line.
+    /// </summary>
+    private static double PastCentrelineLineFt(Pt point, Pt start, List<EdgeSegment> centreline)
+    {
+        EdgeSegment nearest = NearestEdge(point, centreline).Edge;
+        return OnFarSide(point, start, nearest) ? Math.Abs(SideFt(point, nearest)) : 0.0;
+    }
+
+    /// <summary>The centreline edge nearest <paramref name="point"/>, clamped at its ends, and its distance, feet; the first wins a tie.</summary>
+    private static (EdgeSegment Edge, double DistanceFt) NearestEdge(Pt point, List<EdgeSegment> centreline)
     {
         EdgeSegment nearest = centreline[0];
         double nearestFt = PointToSegmentFt(point, nearest.A, nearest.B);
@@ -986,15 +1029,198 @@ public sealed class TugPathCheck
             }
         }
 
-        Pt direction = nearest.B - nearest.A;
-        double lengthFt = Distance(direction, default);
-        double pointSideFt = Cross(direction, point - nearest.A) / lengthFt;
-        double startSideFt = Cross(direction, start - nearest.A) / lengthFt;
-        bool farSide = (Math.Abs(startSideFt) <= OnCentrelineFt) || (Math.Sign(pointSideFt) != Math.Sign(startSideFt));
-        return farSide ? Math.Abs(pointSideFt) : 0.0;
+        return (nearest, nearestFt);
     }
 
-    /// <summary>The straight edges of <paramref name="taxiway"/> that have a length, in edge order; found once per name and kept.</summary>
+    /// <summary>
+    /// Whether a tow that starts beyond an end of the taxiway never gets farther past that end than its start was, so it
+    /// is measured against the line (<see cref="PastCentrelineLineFt"/>): a tow lining up on the extended line from
+    /// beyond the end. False for a tow that starts abeam the taxiway, or runs farther past the end than it started by more
+    /// than <see cref="StartOverrunCreepFt"/>.
+    /// </summary>
+    private static bool StaysWithinTheStartsOverrun(List<LocalPose> poses, List<EdgeSegment> centreline)
+    {
+        Pt start = poses[0].Position;
+        if (PastEnd(start, NearestEdge(start, centreline).Edge, centreline) is not { } startPastEnd)
+        {
+            return false;
+        }
+
+        foreach (LocalPose pose in poses)
+        {
+            if (startPastEnd.End.OverrunFt(pose.Position) > (startPastEnd.OverrunFt + StartOverrunCreepFt))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The end of the taxiway <paramref name="point"/> runs past and how far, feet, along the line of
+    /// <paramref name="edge"/> (the point's nearest edge) from the end node; null when the point does not project past
+    /// an end of that edge, or the node there is not an end of the taxiway (another centreline edge touches it).
+    /// </summary>
+    private static (TaxiwayEnd End, double OverrunFt)? PastEnd(Pt point, EdgeSegment edge, List<EdgeSegment> centreline)
+    {
+        Pt direction = edge.B - edge.A;
+        double lengthFt = Distance(direction, default);
+        var unit = new Pt(direction.X / lengthFt, direction.Y / lengthFt);
+        var end = new TaxiwayEnd(edge.B, unit);
+        if (end.OverrunFt(point) <= 0.0)
+        {
+            end = new TaxiwayEnd(edge.A, new Pt(-unit.X, -unit.Y));
+        }
+
+        double overrunFt = end.OverrunFt(point);
+        if ((overrunFt <= 0.0) || !IsTaxiwayEnd(end.Node, edge, centreline))
+        {
+            return null;
+        }
+
+        return (end, overrunFt);
+    }
+
+    /// <summary>
+    /// Where the charted taxiway runs on to past <paramref name="node"/>, an end of <paramref name="own"/> that no other
+    /// straight edge of the taxiway touches: the corner of an arc carrying the taxiway that leaves the node along
+    /// <paramref name="own"/>'s line outward (<see cref="ArcCorner"/>), an arc carrying only this taxiway preferred, then the
+    /// corner nearest the node; else the node itself. At a dead end whose corner the fillet pass rounded off, that is the
+    /// charted end; at a rounded bend inside the taxiway, both legs reach the same corner and meet again.
+    /// </summary>
+    private static Pt ChartedNode(EdgeSegment own, bool atB, List<EdgeSegment> straight, List<EdgeSegment> arcs, string taxiway)
+    {
+        Pt node = atB ? own.B : own.A;
+        if (!IsTaxiwayEnd(node, own, straight))
+        {
+            return node;
+        }
+
+        Pt inner = atB ? own.A : own.B;
+        Pt outward = node - inner;
+        double outwardDeg = Math.Atan2(outward.X, outward.Y) / DegToRad;
+        if (BestArcCorner((node, inner), outwardDeg, arcs) is { } corner)
+        {
+            return corner;
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug) && arcs.Exists(arc => (Distance(arc.A, node) <= Epsilon) || (Distance(arc.B, node) <= Epsilon)))
+        {
+            Log.LogDebug(
+                "Taxiway {Taxiway}: an arc carrying it touches the end node at ({X:F0}, {Y:F0}) ft but none leaves along the end edge's line",
+                taxiway,
+                node.X,
+                node.Y
+            );
+        }
+
+        return node;
+    }
+
+    /// <summary>
+    /// The corner of the arc in <paramref name="arcs"/> that leaves the end edge's end node, or its inner node (OAK R1's
+    /// rounded south-west end needs the inner node), along <paramref name="outwardDeg"/> and lies past the end node: an arc
+    /// carrying one taxiway preferred over a junction arc, then the corner nearest the node; null when none does.
+    /// </summary>
+    private static Pt? BestArcCorner((Pt Node, Pt Inner) endEdge, double outwardDeg, List<EdgeSegment> arcs)
+    {
+        Pt node = endEdge.Node;
+        Pt outward = UnitAlong(outwardDeg);
+        (Pt Corner, int Names, double PastFt)? best = null;
+        foreach (EdgeSegment arc in arcs)
+        {
+            if ((ArcCorner(arc, node, outwardDeg) ?? ArcCorner(arc, endEdge.Inner, outwardDeg)) is not { } corner)
+            {
+                continue;
+            }
+
+            double pastFt = ((corner.X - node.X) * outward.X) + ((corner.Y - node.Y) * outward.Y);
+            int names = ((GroundArc)arc.Edge).TaxiwayNames.Length;
+            bool better = (best is not { } held) || (names < held.Names) || ((names == held.Names) && (pastFt < held.PastFt));
+            if ((pastFt > 0.0) && better)
+            {
+                best = (corner, names, pastFt);
+            }
+        }
+
+        return best?.Corner;
+    }
+
+    /// <summary>
+    /// The corner <paramref name="arc"/> rounds off, the meeting of its two tangent lines, when the arc leaves
+    /// <paramref name="node"/> within <see cref="ChartedEndAlignDeg"/> of <paramref name="outwardDeg"/>; null otherwise,
+    /// or when its tangents are parallel.
+    /// </summary>
+    private static Pt? ArcCorner(EdgeSegment arc, Pt node, double outwardDeg)
+    {
+        var fillet = (GroundArc)arc.Edge;
+        bool leaves =
+            LeavesAlong(arc.A, fillet.EdgeBearingAtNode0Deg, node, outwardDeg) || LeavesAlong(arc.B, fillet.EdgeBearingAtNode1Deg, node, outwardDeg);
+        if (!leaves)
+        {
+            return null;
+        }
+
+        Pt tangent0 = UnitAlong(fillet.EdgeBearingAtNode0Deg);
+        Pt tangent1 = UnitAlong(fillet.EdgeBearingAtNode1Deg);
+        double cross = Cross(tangent0, tangent1);
+        if (Math.Abs(cross) <= Epsilon)
+        {
+            return null;
+        }
+
+        double alongFt = Cross(arc.B - arc.A, tangent1) / cross;
+        return arc.A + new Pt(tangent0.X * alongFt, tangent0.Y * alongFt);
+    }
+
+    /// <summary>
+    /// Whether an arc end at <paramref name="arcNode"/> with tangent bearing <paramref name="bearingDeg"/> sits on
+    /// <paramref name="node"/> and points within <see cref="ChartedEndAlignDeg"/> of <paramref name="outwardDeg"/>.
+    /// </summary>
+    private static bool LeavesAlong(Pt arcNode, double bearingDeg, Pt node, double outwardDeg) =>
+        (Distance(arcNode, node) <= Epsilon) && (Math.Abs(Math.IEEERemainder(bearingDeg - outwardDeg, 360.0)) <= ChartedEndAlignDeg);
+
+    /// <summary>The local-frame unit vector along true bearing <paramref name="bearingDeg"/>.</summary>
+    private static Pt UnitAlong(double bearingDeg) => new(Math.Sin(bearingDeg * DegToRad), Math.Cos(bearingDeg * DegToRad));
+
+    /// <summary>Whether no centreline edge but <paramref name="own"/> touches <paramref name="node"/>.</summary>
+    private static bool IsTaxiwayEnd(Pt node, EdgeSegment own, List<EdgeSegment> centreline)
+    {
+        foreach (EdgeSegment edge in centreline)
+        {
+            if ((edge != own) && ((Distance(edge.A, node) <= Epsilon) || (Distance(edge.B, node) <= Epsilon)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="point"/> is on the other side of <paramref name="edge"/>'s line from
+    /// <paramref name="start"/>; always, when the start lies within <see cref="OnCentrelineFt"/> of that line.
+    /// </summary>
+    private static bool OnFarSide(Pt point, Pt start, EdgeSegment edge)
+    {
+        double startSideFt = SideFt(start, edge);
+        return (Math.Abs(startSideFt) <= OnCentrelineFt) || (Math.Sign(SideFt(point, edge)) != Math.Sign(startSideFt));
+    }
+
+    /// <summary>How far <paramref name="point"/> lies left (positive) or right of <paramref name="edge"/>'s line, A to B, feet.</summary>
+    private static double SideFt(Pt point, EdgeSegment edge)
+    {
+        Pt direction = edge.B - edge.A;
+        return Cross(direction, point - edge.A) / Distance(direction, default);
+    }
+
+    /// <summary>
+    /// The charted polyline of <paramref name="taxiway"/>: its straight edges that have a length, in edge order, each end
+    /// that no other straight edge of the taxiway touches carried on to its charted corner (<see cref="ChartedNode"/>),
+    /// so a dead end the fillet pass rounded off ends at the corner and the two legs of a rounded bend meet there. Found
+    /// once per name and kept.
+    /// </summary>
     private List<EdgeSegment> CentrelineOf(string taxiway)
     {
         if (_centrelineByTaxiway.TryGetValue(taxiway, out List<EdgeSegment>? held))
@@ -1002,13 +1228,35 @@ public sealed class TugPathCheck
             return held;
         }
 
-        var centreline = new List<EdgeSegment>();
+        var straight = new List<EdgeSegment>();
+        var arcs = new List<EdgeSegment>();
         foreach (EdgeSegment edge in _edges)
         {
-            if ((edge.Edge is GroundEdge) && edge.Edge.MatchesTaxiway(taxiway) && (Distance(edge.A, edge.B) > Epsilon))
+            if (!edge.Edge.MatchesTaxiway(taxiway))
             {
-                centreline.Add(edge);
+                continue;
             }
+
+            if (edge.Edge is GroundArc)
+            {
+                arcs.Add(edge);
+            }
+            else if ((edge.Edge is GroundEdge) && (Distance(edge.A, edge.B) > Epsilon))
+            {
+                straight.Add(edge);
+            }
+        }
+
+        var centreline = new List<EdgeSegment>(straight.Count);
+        foreach (EdgeSegment edge in straight)
+        {
+            centreline.Add(
+                edge with
+                {
+                    A = ChartedNode(edge, atB: false, straight, arcs, taxiway),
+                    B = ChartedNode(edge, atB: true, straight, arcs, taxiway),
+                }
+            );
         }
 
         _centrelineByTaxiway[taxiway] = centreline;
@@ -1455,6 +1703,13 @@ public sealed class TugPathCheck
 
     /// <summary>An edge as its chord in the local frame.</summary>
     private readonly record struct EdgeSegment(IGroundEdge Edge, Pt A, Pt B);
+
+    /// <summary>A taxiway's end node and the unit direction pointing out past it along its end edge's line.</summary>
+    private readonly record struct TaxiwayEnd(Pt Node, Pt Outward)
+    {
+        /// <summary>How far <paramref name="point"/> projects past the end node along the line, feet; negative short of it.</summary>
+        internal double OverrunFt(Pt point) => ((point.X - Node.X) * Outward.X) + ((point.Y - Node.Y) * Outward.Y);
+    }
 
     /// <summary>A footprint's four sides, nose, left, tail and right, each corner to corner.</summary>
     private readonly record struct Sides((Pt A, Pt B) Nose, (Pt A, Pt B) Left, (Pt A, Pt B) Tail, (Pt A, Pt B) Right)

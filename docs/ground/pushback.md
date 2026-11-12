@@ -215,7 +215,11 @@ Every candidate's samples are checked, about every 5 ft, in a flat frame about t
 - **Hold band.** The footprint never moves deeper into a runway's safety area (AIM 2-3-5.a.1). A sample is refused when the footprint corner nearest a runway's centreline lies nearer it than both that runway's nearest hold-short node and the first sample's own nearest corner. An aircraft already inside the band, stopped at or past a hold bar, may therefore be towed back out of it (live `PUSH` / `PUSHF`), never further in.
 
   A hold-short node nearer its runway's centreline than half the runway's width lies on the runway and is ignored; a runway with no hold-short node has no band.
-- **Taxiway overshoot** (a push onto a taxiway X: a `TaxiwayLine` or `StraightBackTo` goal). The aircraft's centre (the reference point), measured at every sample including the end pose, goes more than half the wingspan (`TugPathCheck.MaxTaxiwayOvershootFt`) past X's centreline on the side away from where the tow started. X's centreline is its straight edges only, and each sample is measured against the X edge nearest it. A tow that starts on X's centreline counts an overshoot either way.
+- **Taxiway overshoot** (a push onto a taxiway X: a `TaxiwayLine` or `StraightBackTo` goal). The aircraft's centre (the reference point), measured at every sample including the end pose, goes more than half the wingspan (`TugPathCheck.MaxTaxiwayOvershootFt`) past X's centreline on the side away from where the tow started. X's centreline is its charted polyline clamped at its ends: its straight edges, each end no other X edge touches carried on to the charted corner. Where the fillet pass rounded X's dead end or a bend, the end or bend is the arc's corner (the meeting of its tangent lines), so a sample near it reads its lateral offset. A sample beyond an end counts its run along the end edge's line from that end, on either side. Any other sample is measured against the X edge nearest it. A tow that starts on X's centreline counts an overshoot either way.
+
+  The exception (#452): a tow that starts beyond an end of X and never gets farther past that end than its start was (a `TugPathCheck.OnCentrelineFt` margin, about 1 ft) is lining up on X's extended line, and is measured perpendicular to the infinite line of the X edge nearest each sample, on the far side only.
+
+  Chosen from tick-playback renders: SFO C8 `PUSH Y TAIL S` / `FACE N`, SFO B2 `PUSH M4`, OAK 25 `PUSH TE` and the same with a neighbour on the push line stay accepted; a push from X's side past A's dead end at SFO node 33 (spot 10, nose 070) and the G-gate `PUSH A FACE N`s that end on A's extended line (G11R, G10) are refused. `TugPathCheckClampedOvershootTests` pins those cases, with OAK PCM1's `PUSH R1` past R1's fillet-rounded dead end.
 
   Refusal: `Unable, the move to taxiway Y would take the aircraft 76 ft past taxiway Y` (SFO C8 `PUSH Y FACE S`, B739). Sweeping over other movement-area taxiways on the way is **not** refused for these goals. A push onto a taxiway cannot be expected to stay clear of the connectors that meet it: at SFO D7, A and F1 meet at right angles.
 
@@ -248,7 +252,7 @@ The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores,
 - **Cap.** A target whose path is longer than 3 times the envelope's length (floor 700 ft, `PushTargetPlanner.PathCapFt`) is a tow-out, not a push, and is dropped.
 - **Stand departure.** A stand whose `StandDepartures.StandDepartureOf` is `TaxiOut` gets an empty target list for every group. The layout build classifies each parking node from the foot of the perpendicular from the stand onto the edge its parking connector joins (for a stand its sidecar `standLeadIns` entry connects, the taxiway vertex it joins): a foot less than 90° off the stand's heading is `TaxiOut`, a foot within 1 ft of the stand or exactly broadside is `PushBack`.
 
-  The airport sidecar overrides it in two ways, read in this order by `StandDepartureOf`: `standDeparture` by stand name (KOAK MTN1-MTN8, MTN1A, MTN2A and MTN6A are `Either`; S8B, S5A, S5B, S7, RON9, RON10, PT1 and PT2 are `PushBack`; KSFO CG2-CG4), then the first matching `standDepartureAreas` rule, a runway end and a side of its extended centerline (KOAK: right of 28R is `TaxiOut`, the whole North Field).
+  The airport sidecar overrides it in two ways, read in this order by `StandDepartureOf`: `standDeparture` by stand name (KOAK MTN1-MTN8, MTN1A, MTN2A and MTN6A are `Either`; S8B, S5A, S5B, S7, RON9, RON10, PT1 and PT2 are `PushBack`; PCM1, PCM2 and PCM3 are `TaxiOut`; KSFO CG2-CG4), then the first matching `standDepartureAreas` rule, a runway end and a side of its extended centerline (KOAK: right of 28R is `TaxiOut`, the whole North Field).
   Each rule is applied at read time, never at layout build, so the layout and its snapshots do not change; `standLeadIns` is the exception, read at layout build.
 
   `Either` means a tug push and a normal taxi-out are both normal there: the stand gets push targets, a push off it carries no taxi-out note, the client keeps the push entries, and the pilot AI still answers ready-to-taxi with TAXIAUTO.
@@ -490,11 +494,6 @@ This replaces the half-wingspan lateral test for these pairs, which compared the
 
 Each rule below is settled; the open Linear issue named in it builds it, and a change to the planner or detector honours it.
 
-- **Taxiway overshoot against the clamped polyline.** The overshoot of a push onto taxiway X is measured against X's polyline clamped at its ends (the nearest point, clamped per segment), not the infinite line through the nearest segment, which never counts an overrun past a dead end and flips side at a bend. The exception: a tow that starts beyond an end of X and lines up on X's extended line (#452) is measured as today.
-
-  "Past an end" is measured along X's last straight segment's line from its end node, and the tow's start counts as beyond an end when its own clamp falls on that end.
-
-  Chosen from tick-playback renders of seven cases: SFO C8 `PUSH Y TAIL S` / `FACE N`, SFO B2 `PUSH M4`, OAK 25 `PUSH TE` and the same with a neighbour on the push line stay accepted; a push from X's side past A's dead end at SFO node 33 (66 ft flown from spot 10 nose 070) and the G-gate `PUSH A FACE N`s that end on A's extended line (G11R 839 ft past node 33, G10 325 ft) are refused. Those cases are the named tests.
 - **Node goals judged by overshoot.** `TugGoalResolver.ResolveNodeGoal`'s node-with-facing branch is judged by the taxiway overshoot like a taxiway goal, and drops its exemption of `NodeEdgeNames(node)` by name across the search box.
 
 ## Writing a push brief
@@ -537,7 +536,7 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 
 **Rules under revision.**
 
-A brief touching one of these names the open issue and says which side of the change it assumes. The open issues are the clamped-polyline overshoot (YAAT-35) and node goals judged by overshoot (YAAT-37), both under [Decided rules the code does not follow yet](#decided-rules-the-code-does-not-follow-yet); the Across/Alongside split at 45° (YAAT-41).
+A brief touching one of these names the open issue and says which side of the change it assumes. The open issues are node goals judged by overshoot (YAAT-37), under [Decided rules the code does not follow yet](#decided-rules-the-code-does-not-follow-yet); the Across/Alongside split at 45° (YAAT-41).
 
 They also include the tug-versus-parked floor, tow speed by category and the type-blind tight steering angle (YAAT-38); the clear-plan swing guard (YAAT-176); the taxilane wingtip figure, cited as 0.05 × span + 10 ft here and quoted differently in `GroundOutlineSweep.cs` (YAAT-179).
 

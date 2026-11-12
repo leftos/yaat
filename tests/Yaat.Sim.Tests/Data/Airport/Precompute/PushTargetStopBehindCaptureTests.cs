@@ -18,7 +18,7 @@ namespace Yaat.Sim.Tests.Data.Airport.Precompute;
 /// </summary>
 public class PushTargetStopBehindCaptureTests(ITestOutputHelper output)
 {
-    /// <summary>How long the push may take in the simulation; both measured pushes complete in under a minute.</summary>
+    /// <summary>How long the push may take in the simulation; the measured push completes in under a minute.</summary>
     private const int PushBudgetSeconds = 180;
 
     /// <summary>
@@ -28,13 +28,6 @@ public class PushTargetStopBehindCaptureTests(ITestOutputHelper output)
     [Fact]
     public void Oak_Gate23_PushTc_B732_B737OnGate24_ClearAndFlown() =>
         StopBehindCapture_IsClearAndFlown("23", "TC", ("SWA2436", "B732"), [("SWA1118", "B737", "24")]);
-
-    /// <summary>
-    /// OAK PCM1's <c>PUSH R1</c> for a C208 on an empty apron: its stored end lies past its stop, it is clear, and the
-    /// push completes.
-    /// </summary>
-    [Fact]
-    public void Oak_Pcm1_PushR1_C208_EmptyApron_ClearAndFlown() => StopBehindCapture_IsClearAndFlown("PCM1", "R1", ("BXR1960", "C208"), []);
 
     private void StopBehindCapture_IsClearAndFlown(
         string stand,
