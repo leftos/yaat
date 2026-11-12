@@ -14,7 +14,8 @@ namespace Yaat.Client.Views;
 /// The equipment suffix is the exception: it is a separate field that a type change
 /// never resets, so a blank or whitespace suffix box maps to <c>null</c> (not edited).
 /// The /A default for a new plan filed without a suffix belongs to
-/// <c>SimulationEngine.AmendFlightPlan</c>.
+/// <c>SimulationEngine.AmendFlightPlan</c> (and the handoff filer); a scenario plan
+/// with no suffix keeps it empty.
 /// </summary>
 internal static class FlightPlanEditorAmendmentBuilder
 {

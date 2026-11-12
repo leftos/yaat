@@ -26,10 +26,11 @@ public static class FlightPlanNormalization
     /// indicator, or both), so the type is never read as <c>"H"</c> or <c>"2H"</c>; any other leading segment is the
     /// type (<c>"123/F16"</c> is type <c>123</c>, suffix <c>F16</c>). A bare type (<c>"SR22"</c>, <c>"H/A306"</c>) and
     /// an empty tail after the last slash (<c>"C172/"</c>) both return a null suffix: the equipment suffix is a separate
-    /// field that a type alone never changes, and only <c>SimulationEngine.AmendFlightPlan</c> defaults it to <c>"A"</c>
-    /// when the amendment files a new plan. The type and suffix come back upper-case, as the indicator does, so a
-    /// lower-case entry (<c>"2h/f16/l"</c>) files <c>F16</c> and <c>L</c>. Null input returns null ("no aircraft type supplied"); empty input returns
-    /// an empty type.
+    /// field that a type alone never changes. The <c>"A"</c> default applies when an amendment files a new plan
+    /// (<c>SimulationEngine.AmendFlightPlan</c> on a plan not yet filed) or a handoff files one; a scenario plan with no
+    /// suffix keeps it empty. The type and suffix come back upper-case,
+    /// as the indicator does, so a lower-case entry (<c>"2h/f16/l"</c>) files <c>F16</c> and <c>L</c>. Null input returns
+    /// null ("no aircraft type supplied"); empty input returns an empty type.
     /// </summary>
     [return: NotNullIfNotNull(nameof(raw))]
     public static FiledAircraftType? SplitTypeAndSuffix(string? raw)
@@ -79,14 +80,22 @@ public static class FlightPlanNormalization
     /// when CRC's editor re-built it, in plain FAA form (<c>"C172/G"</c>) for legacy callers, bare type-only
     /// (<c>"C182"</c>), or the wake-prefixed form a scenario files (<c>"H/A306/L"</c>) when CRC echoed the equipment it
     /// was sent. Aircraft type comes from <see cref="SplitTypeAndSuffix"/>, which drops a leading wake or formation
-    /// prefix; the suffix prefers the canonical field when present, falling back to the split tail, and is null (not
-    /// edited) when neither carries one.
+    /// prefix. The suffix is the canonical field when it is non-empty. Otherwise it falls back to the split tail only
+    /// when that tail is an FAA equipment suffix, which is a single letter (7110.65 TBL 2-3-10, AIM): the ICAO display
+    /// form's tail (<c>"L-DOV/C"</c>) or any longer tail carries none. The suffix is null (not edited) when neither
+    /// field carries one.
     /// </summary>
     public static (string? Type, string? Suffix) ResolveTypeAndSuffix(string? equipment, string? faaEquipmentSuffix)
     {
         FiledAircraftType? fromEquipment = SplitTypeAndSuffix(equipment);
-        string? preferredSuffix = !string.IsNullOrEmpty(faaEquipmentSuffix) ? faaEquipmentSuffix.ToUpperInvariant() : fromEquipment?.Suffix;
-        return (fromEquipment?.Type, preferredSuffix);
+        if (!string.IsNullOrEmpty(faaEquipmentSuffix))
+        {
+            return (fromEquipment?.Type, faaEquipmentSuffix.ToUpperInvariant());
+        }
+
+        string? tail = fromEquipment?.Suffix;
+        bool tailIsFaaSuffix = (tail is { Length: 1 }) && char.IsAsciiLetter(tail[0]);
+        return (fromEquipment?.Type, tailIsFaaSuffix ? tail : null);
     }
 
     /// <summary>

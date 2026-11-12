@@ -7,16 +7,16 @@ namespace Yaat.Sim.Tests.Scenarios;
 /// <summary>
 /// A scenario's filed aircraft type (<c>flightplan.aircraftType</c>) loads split by the shared parser: the plan keeps the
 /// bare type, element a lands in the number of aircraft and the special aircraft indicator, and the suffix in the
-/// equipment suffix (/A when the filed string gives none).
+/// equipment suffix (empty when the filed string gives none).
 /// </summary>
 public class ScenarioLoaderFiledAircraftTypeTests
 {
     [Theory]
     [InlineData("H/A306/L", "A306", "L", null, true)]
-    [InlineData("H/A306", "A306", "A", null, true)]
+    [InlineData("H/A306", "A306", "", null, true)]
     [InlineData("2/C130/G", "C130", "G", 2, false)]
     [InlineData("B738/L", "B738", "L", null, false)]
-    [InlineData("B738", "B738", "A", null, false)]
+    [InlineData("B738", "B738", "", null, false)]
     public void ScenarioLoad_FiledType_StoresBareTypeWithSuffixAndElementAApart(
         string filed,
         string expectedType,

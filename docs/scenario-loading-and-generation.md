@@ -245,7 +245,8 @@ See [phases.md](phases.md) for what each seeded phase does once the aircraft sta
   The filed string runs through the shared parser (`FlightPlanNormalization.SplitTypeAndSuffix`, applied by
   `AircraftFlightPlan.ApplyFiledAircraftData`): `FlightPlan.AircraftType` holds the bare type, a count or `H` indicator (`2/C130/G`,
   `H/A306/L`) goes to `NumberOfAircraft`/`HasSpecialAircraftIndicator`, and the suffix to `EquipmentSuffix` — from the filed string when
-  present, else from the actual type, else `"A"`. A cold-call aircraft (no `flightplan` block at all) gets a blank suffix. The scenario
+  present, else from the actual type, else it stays empty (vStrips shows nothing after the type, as vNAS does; only the DA/VP/NEW new-plan
+  and handoff defaults are `A`). A cold-call aircraft (no `flightplan` block at all) gets a blank suffix. The scenario
   exporter writes `AircraftFlightPlan.FiledAircraftData` back, so a round trip keeps all four.
 - **Approach inheritance.** `PrimaryApproach` is only inherited when the aircraft has no `ExpectedApproach` of its own **and** its
   destination matches the primary airport (or has no destination, or there's no primary airport). The destination match

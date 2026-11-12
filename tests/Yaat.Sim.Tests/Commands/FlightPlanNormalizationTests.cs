@@ -87,4 +87,28 @@ public class FlightPlanNormalizationTests
         Assert.Equal("B738", type);
         Assert.Equal("L", suffix);
     }
+
+    // The tail of the combined equipment string is the FAA suffix only when it is one letter; CRC's ICAO display form
+    // ("B739/M-V/N" = type/wake-icaoEquip/surveillance) carries no FAA suffix, so it leaves the suffix unset.
+    [Theory]
+    [InlineData("B739/M-V/N", "", "B739", null)]
+    [InlineData("C182/L-DOV/C", "", "C182", null)]
+    [InlineData("B739/M-V/N", "L", "B739", "L")]
+    [InlineData("C172/G", "", "C172", "G")]
+    [InlineData("b738/g", "", "B738", "G")]
+    [InlineData("H/A306/L", "", "A306", "L")]
+    [InlineData("A306", "", "A306", null)]
+    [InlineData("C172/GX", "", "C172", null)]
+    public void ResolveTypeAndSuffix_FallsBackOnlyToAOneLetterTail(
+        string equipment,
+        string faaEquipmentSuffix,
+        string expectedType,
+        string? expectedSuffix
+    )
+    {
+        (string? type, string? suffix) = FlightPlanNormalization.ResolveTypeAndSuffix(equipment, faaEquipmentSuffix);
+
+        Assert.Equal(expectedType, type);
+        Assert.Equal(expectedSuffix, suffix);
+    }
 }

@@ -215,13 +215,14 @@ public static class ScenarioLoader
         // the shared parser: the plan keeps the bare type, element a goes to NumberOfAircraft and
         // the special aircraft indicator, and the suffix to EquipmentSuffix. The suffix derives
         // from the filed string when present, else from the actual type so legacy scenarios
-        // without a filed type still surface a sensible suffix on strips, else /A. Cold calls (no
-        // scenario flightPlan block) get a blank suffix — controllers file via DA / VP.
+        // without a filed type still surface a sensible suffix on strips. A filed plan with no
+        // suffix keeps it empty, as vNAS shows it. Cold calls (no scenario flightPlan block) get
+        // a blank suffix — controllers file via DA / VP.
         bool hasFiledFp = ac.FlightPlan is not null;
         string actualType = ac.AircraftType;
         FiledAircraftType filed = FlightPlanNormalization.SplitTypeAndSuffix(ac.FlightPlan?.AircraftType ?? "");
         FiledAircraftType suffixSource = filed.Type.Length > 0 ? filed : FlightPlanNormalization.SplitTypeAndSuffix(actualType);
-        string equipmentSuffix = hasFiledFp ? (suffixSource.Suffix ?? "A") : "";
+        string equipmentSuffix = hasFiledFp ? (suffixSource.Suffix ?? "") : "";
 
         // primaryApproach is only intended for the scenario's primary airport.
         // Aircraft destined elsewhere must not inherit it — even if the same approach ID

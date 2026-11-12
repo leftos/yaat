@@ -21,6 +21,7 @@
 
 - In vTDLS, clicking another row while a clearance or PDC review is open does nothing, as in vTDLS, so the open clearance is kept until Cancel or Send.
 - Pasting a copied Favorites button onto a blank slot fills that slot, and pasting onto a button replaces it, keeping the grid's layout.
+- vStrips leaves the equipment suffix empty for a scenario flight plan filed without one, as vNAS does, instead of showing /A.
 - A climb via whose SID publishes no top, such as SFO TRUKN2, now climbs to FL190 instead of levelling at an "at or above" altitude.
 - Taxiing aircraft slow to a tight turn's own speed before they enter it, so stand roll-ins and turns off an offset line no longer swing in too fast.
 - An aircraft cleared across a runway crosses even when traffic blocks the far side, and the RPO is warned when it stops on the runway.
