@@ -4,7 +4,7 @@ using Yaat.Sim.Commands;
 namespace Yaat.Sim.Tests.Commands;
 
 /// <summary>
-/// The <c>PUSHM</c> grammar: a tug move through two or more ramp points with an optional final rest facing.
+/// The <c>PUSHM</c> grammar: a tug move through one or more ramp points with an optional final rest facing.
 ///
 /// <para>Forms:
 ///   <c>PUSHM $6A $6B</c>            — two painted ramp spots
@@ -61,13 +61,29 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
 
     [Theory]
     [InlineData("PUSHM")]
-    [InlineData("PUSHM $6A")]
-    [InlineData("PUSHM $6A FACE E")]
-    public void FewerThanTwoTargets_RefusedNamingPlainPush(string input)
+    [InlineData("PUSHM FACE E")]
+    public void NoTarget_Refused(string input)
     {
         string reason = Refusal(input);
 
-        Assert.Contains("needs at least two targets — use PUSH to move to a single one", reason, StringComparison.Ordinal);
+        Assert.Contains("needs at least one target", reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// One target is a whole tug move when the aircraft is already under tow, so it parses; whether it is accepted is
+    /// the handler's phase gate, which the parser has no view of.
+    /// </summary>
+    [Fact]
+    public void OneTarget_Parses()
+    {
+        PushbackMultiCommand spot = Parse("PUSHM $6A");
+        Assert.Equal(["$6A"], spot.Targets);
+        Assert.Null(spot.FinalFacing);
+
+        PushbackMultiCommand faced = Parse("PUSHM $6A FACE E");
+        Assert.Equal(["$6A"], faced.Targets);
+        Assert.NotNull(faced.FinalFacing);
+        Assert.Equal(90.0, faced.FinalFacing.Value.Degrees, 3);
     }
 
     [Theory]
@@ -134,6 +150,7 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     }
 
     [Theory]
+    [InlineData("PUSHM $6A", "Tug move to spot 6A")]
     [InlineData("PUSHM $6A $6B", "Tug move to spot 6A, then spot 6B")]
     [InlineData("PUSHM #1926 $5A", "Tug move to node 1926, then spot 5A")]
     [InlineData("PUSHM @D15 $6A FACE E", "Tug move to parking D15, then spot 6A, facing E")]

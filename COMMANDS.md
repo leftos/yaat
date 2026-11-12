@@ -397,7 +397,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Pushback | `PUSH` | — | `PUSH A`, `PUSH @4A`, `PUSH $7A`, `PUSH #1926`, `PUSH Y FACE S` |
-| Tug move through points | `PUSHM $6A $6B` | — | `PUSHM @D5 #503 $5A FACE E` |
+| Tug move through points (one point re-plans a tow under way) | `PUSHM $6A $6B` | — | `PUSHM @D5 #503 $5A FACE E` |
 | Forced push or pull; marked point | `PUSH $7A/PULL`, `PUSH ~lat/lon/hdg` | — | `PUSHM @F8 $7A/PULL`, `PUSH ~37.61523/-122.38604/090/PUSH` |
 | Forced tug move (past YAAT's push checks) | `PUSHF $7A`, `PUSHMF $7A $7B` | — | `PUSHF A FACE N`, `PUSHMF @F8 $7A $7B FACE E` |
 | Taxi | `TAXI S T U` | — | `TAXI 28R` (only at the runway), `TAXI B B5 EXP` (without delay) |
@@ -895,13 +895,13 @@ A `PUSH` queued behind a `WAIT`, a condition or an earlier block is read back wh
 
 A spot is not a stand, so a completed `PUSH $spot` leaves the aircraft **holding after pushback** rather than at parking: the Aircraft List reads "holding position", the aircraft no longer names the gate it was pushed off, and a further `PUSH` or `PUSHM` is accepted from there without a `TAXI` in between. `PUSH @<gate>` parks it, as a push onto a stand should.
 
-`PUSHM <target> <target> …` chains two or more targets into one tug move (`PUSHM $6A $6B`, `PUSHM @D5 #503 $5A FACE E`): the same `$spot` / `@gate` / `#node` tokens `WARPG` takes, and an optional final `FACE`/`TAIL` for the last target (not a gate). A single target is plain `PUSH`. Every point before the last is a waypoint for the tug.
+`PUSHM <target> <target> …` chains two or more targets into one tug move (`PUSHM $6A $6B`, `PUSHM @D5 #503 $5A FACE E`): the same `$spot` / `@gate` / `#node` tokens `WARPG` takes, and an optional final `FACE`/`TAIL` for the last target (not a gate). A single target is plain `PUSH`, except under tow (below). With no target it is refused. Every point before the last is a waypoint for the tug.
 
 The aircraft passes within half its wingspan of it and keeps moving, so `PUSHM $7A $7B` from SFO F8 flies the same tow as `PUSH $7B`, which already passes 7A. The tow reverses at a waypoint only when the geometry needs it, and it stops only at the last point. Every point and the tow through them are checked and refused like a `PUSH` (`Unable, the move to spot 6B reaches a runway holding position`).
 
 Only the last point takes a facing (`Unable, the marked point is passed through; only the last point takes a facing`). A point may lie on a movement-area node — a tug move onto a taxiway is real and coordinated — but the tow may not run along one. Each point is bounded to 2,000 ft from the previous one, a guard against a mis-click on the ground view rather than an aviation rule.
 
-A `PUSHM` given to an aircraft already under tow replaces the rest of its move; a first leg that reverses the current motion stops and pauses first. The ground view's **Push route…** draw mode builds the command by clicking the points and previews the planned path — see the User Guide.
+A `PUSHM` given to an aircraft already under tow replaces the rest of its move, and one target is enough there (`PUSHM $6A` re-plans the tow from where it is to 6A and ends holding after pushback, read back `Push to spot 6A`); at parking or holding after pushback one target is still refused (`Unable, a tug move needs at least two points — use PUSH to reach a single one`). A first leg that reverses the current motion stops and pauses first. The ground view's **Push route…** draw mode builds the command by clicking the points and previews the planned path — see the User Guide.
 
 **Forcing a push.** `PUSHF` and `PUSHMF` are for the RPO whose aircraft YAAT won't push. When a plain `PUSH` or `PUSHM` is refused for a reason forcing gets past, the refusal ends with the command to use (`Unable, the move to spot 7A would swing into UAL12. To force it: PUSHF $7A`).
 
@@ -911,7 +911,7 @@ Among the shapes it may fly, it prefers the one with the most room from parked a
 
 While the stand push-off of a `PUSH` is still running — the short straight push before any turn — a **heading-only** `PUSH FACE C` / `PUSH TAIL C` / `PUSH >C` / `PUSH <C` amends the facing: the same push is re-planned on the new facing from the stand it started at, and the push-off carries on without a restart.
 
-Once a turn has begun the amendment is rejected with `Unable, pushback turn in progress`; a push to a gate is never amended (`Unable, a pushback to a stand keeps the stand's heading`); a `PUSHM` carries no amendment. Any other `PUSH` during a tow is rejected (`only face/tail amendment accepted during pushback`) — redirect the tug with `PUSHM`, or `TAXI` out of it.
+Once a turn has begun the amendment is rejected with `Unable, pushback turn in progress`; a push to a gate is never amended (`Unable, a pushback to a stand keeps the stand's heading`); a `PUSHM` carries no amendment. Any other `PUSH` during a tow is rejected (`only face/tail amendment accepted during pushback`) — redirect the tug with `PUSHM` (one target is enough), or `TAXI` out of it.
 
 Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts. A bare `RES` to a rolling aircraft pre-clears the next taxiway or spot hold-short the same way, but never a runway one: `CROSS` stays the runway clearance.
 

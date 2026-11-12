@@ -144,15 +144,21 @@ internal static class PushReadbackPhrases
         legs.Count(l => l.FreePose is not null) > 1 ? legs.Take(index + 1).Count(l => l.FreePose is not null) : null;
 
     /// <summary>
-    /// <c>PUSHM</c>: the last point, then the points the tow passes on the way: <c>push to spot 6B via spot 6A</c>,
-    /// <c>push to spot 6B via spot 6A and spot 6</c>, <c>push to spot 5B via spot 6A, spot 6 and spot 5A</c>. No target's
-    /// <c>/PUSH</c> or <c>/PULL</c> is read. The last point's own facing (a marked point's) or the final facing comes last.
+    /// <c>PUSHM</c>: the last point, then the points the tow passes on the way, with no <c>via</c> clause for a single
+    /// point: <c>push to spot 6B</c>, <c>push to spot 6B via spot 6A</c>, <c>push to spot 6B via spot 6A and spot 6</c>,
+    /// <c>push to spot 5B via spot 6A, spot 6 and spot 5A</c>. No target's <c>/PUSH</c> or <c>/PULL</c> is read. The last
+    /// point's own facing (a marked point's) or the final facing comes last.
     /// </summary>
     /// <param name="move">The command: its last target's facing and its final facing.</param>
     /// <param name="points">Every point in the order the tug passes it, named; one per target.</param>
     internal static PushWords Multi(PushbackMultiCommand move, IReadOnlyList<PushWords> points)
     {
-        PushWords words = PushWords.Plain("push to ") + points[^1] + PushWords.Plain(" via ") + JoinedWithAnd([.. points.Take(points.Count - 1)]);
+        PushWords words = PushWords.Plain("push to ") + points[^1];
+        if (points.Count > 1)
+        {
+            words += PushWords.Plain(" via ") + JoinedWithAnd([.. points.Take(points.Count - 1)]);
+        }
+
         if (move.Legs[^1].FreePose?.Facing is { } own)
         {
             words += Orientation(own, false);

@@ -250,8 +250,9 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
 
     /// <summary>
     /// The forced-leg and marked-point forms, read back from the command in both of the pilot's forms (terminal text and
-    /// spoken): the verb names a forced motion on a <c>PUSH</c>; a <c>PUSHM</c> reads its last point via the others, joined
-    /// with "and", and never a target's <c>/PUSH</c> or <c>/PULL</c>; a marked point is never read by its coordinates.
+    /// spoken): the verb names a forced motion on a <c>PUSH</c>; a <c>PUSHM</c> reads its last point via the ones before
+    /// it, joined with "and", or alone when it names a single one, and never a target's <c>/PUSH</c> or <c>/PULL</c>; a
+    /// marked point is never read by its coordinates.
     /// </summary>
     [Theory]
     [InlineData("PUSH $7A/PULL", "pull forward to spot 7A", "pull forward to spot seven alpha")]
@@ -270,6 +271,10 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     [InlineData("PUSHM $6A/PUSH $6B/PULL", "push to spot 6B via spot 6A", "push to spot six bravo via spot six alpha")]
     [InlineData("PUSHM ~37.61523/-122.38604 $7B", "push to spot 7B via the marked point", "push to spot seven bravo via the marked point")]
     [InlineData("PUSHM $6A $6B", "push to spot 6B via spot 6A", "push to spot six bravo via spot six alpha")]
+    [InlineData("PUSHM $6A", "push to spot 6A", "push to spot six alpha")]
+    [InlineData("PUSHM $6A FACE E", "push to spot 6A, face east", "push to spot six alpha, face east")]
+    [InlineData("PUSHM $6A TAIL W", "push to spot 6A, tail west", "push to spot six alpha, tail west")]
+    [InlineData("PUSHM ~37.6155/-122.3862/360", "push to the marked point, face north", "push to the marked point, face north")]
     [InlineData("PUSH ~37.61523/-122.38604/045", "push to the marked point, face northeast", "push to the marked point, face northeast")]
     [InlineData(
         "PUSH ~37.61523/-122.38604/045/PULL",

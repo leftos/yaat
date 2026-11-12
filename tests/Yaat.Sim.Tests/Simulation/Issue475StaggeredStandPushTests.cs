@@ -50,6 +50,9 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
     /// <summary>How far into the push the tow is under way past its push-off, seconds: when it is ended or redirected.</summary>
     private const int MidTowSecond = 15;
 
+    /// <summary>How long any tow may take to end before its test fails it, seconds: twice the spot budget.</summary>
+    private const int TowEndBudgetSeconds = 600;
+
     /// <summary>OAK's RON6 and RON5: a parallel pair whose wings pass abeam further back than the two B738s' reaches together.</summary>
     private const string DeepRowStand = "RON6";
 
@@ -527,6 +530,127 @@ public class Issue475StaggeredStandPushTests(ITestOutputHelper output)
         output.WriteLine($"re-anchored at {reanchored.TowStartPose} ({reanchored.FirstKind}); the stand is {stand}");
         Assert.Equal(redirectedAt, reanchored.TowStartPose);
         Assert.NotEqual(stand, reanchored.TowStartPose);
+    }
+
+    /// <summary>
+    /// A one-target <c>PUSHM</c> mid-tow is the same redirect with a single point: the tow re-plans from the pose the
+    /// instruction is given at, re-anchored there, and ends holding on that point.
+    /// </summary>
+    [Fact]
+    public void PushTe_RedirectedMidTowByOneTargetPushm_ReplansToThatTarget()
+    {
+        if (Build() is not var (engine, layout))
+        {
+            return;
+        }
+
+        PushbackPose stand = StandPose(layout, PushingStand);
+        AircraftState pusher = Spawn(engine, layout, Pusher, stand);
+        AircraftState neighbour = Spawn(engine, layout, Neighbour, StandPose(layout, StaggeredStand));
+        Assert.True(engine.SendCommand(Pusher, "PUSH TE").Success);
+        for (int t = 0; t < MidTowSecond; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.IsType<PushbackPhase>(pusher.Phases?.CurrentPhase);
+        PushbackPose redirectedAt = default;
+        CommandResult? result = SendUntilTaken(
+            engine,
+            pusher,
+            "PUSHM $E",
+            () => redirectedAt = new PushbackPose(pusher.Position, pusher.TrueHeading.Degrees)
+        );
+        Assert.True(result?.Success, $"PUSHM $E was never taken mid-tow: {result?.Message}");
+        CommandResult taken = result ?? throw new InvalidOperationException("PUSHM $E returned no result");
+        output.WriteLine($"PUSHM $E -> {taken.Message}");
+        Assert.Equal("Push to spot E", taken.Message);
+        Assert.Equal(redirectedAt, Assert.NotNull(pusher.Ground.TowRowAnchor).TowStartPose);
+
+        PushRun run = TickTow(engine, pusher, neighbour, TowEndBudgetSeconds);
+        Assert.True(run.CompletedSecond > 0, $"{Pusher} never finished the tow within {TowEndBudgetSeconds}s");
+        Assert.IsType<HoldingAfterPushbackPhase>(pusher.Phases?.CurrentPhase);
+        GroundNode spotE = layout.FindSpotNodeByName("E") ?? throw new InvalidOperationException($"{layout.AirportId} has no spot 'E'");
+        // A spot stop leaves the nosewheel on the mark and the reference point half a fuselage behind it.
+        double halfLenNm = (AircraftFootprint.FromType(pusher.AircraftType).LengthFt / 2.0) / GeoMath.FeetPerNm;
+        LatLon nosewheel = GeoMath.ProjectPoint(pusher.Position, pusher.TrueHeading, halfLenNm);
+        double noseFt = GeoMath.DistanceNm(nosewheel, spotE.Position) * GeoMath.FeetPerNm;
+        Assert.True(noseFt <= 30.0, $"{Pusher}'s nosewheel ended {noseFt:F1} ft from spot E");
+    }
+
+    /// <summary>A forced one-target <c>PUSHM</c> mid-tow is taken the same way: the same redirect, the same end state.</summary>
+    [Fact]
+    public void PushTe_RedirectedMidTowByOneTargetPushmf_IsAccepted()
+    {
+        if (Build() is not var (engine, layout))
+        {
+            return;
+        }
+
+        AircraftState pusher = Spawn(engine, layout, Pusher, StandPose(layout, PushingStand));
+        AircraftState neighbour = Spawn(engine, layout, Neighbour, StandPose(layout, StaggeredStand));
+        Assert.True(engine.SendCommand(Pusher, "PUSH TE").Success);
+        for (int t = 0; t < MidTowSecond; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.IsType<PushbackPhase>(pusher.Phases?.CurrentPhase);
+        PushbackPose redirectedAt = default;
+        CommandResult? result = SendUntilTaken(
+            engine,
+            pusher,
+            "PUSHMF $E",
+            () => redirectedAt = new PushbackPose(pusher.Position, pusher.TrueHeading.Degrees)
+        );
+        Assert.True(result?.Success, $"PUSHMF $E was never taken mid-tow: {result?.Message}");
+        CommandResult taken = result ?? throw new InvalidOperationException("PUSHMF $E returned no result");
+        output.WriteLine($"PUSHMF $E -> {taken.Message}");
+        Assert.Equal("Push to spot E (forced: will not stop for parked aircraft)", taken.Message);
+        Assert.Equal(redirectedAt, Assert.NotNull(pusher.Ground.TowRowAnchor).TowStartPose);
+
+        PushRun run = TickTow(engine, pusher, neighbour, TowEndBudgetSeconds);
+        Assert.True(run.CompletedSecond > 0, $"{Pusher} never finished the tow within {TowEndBudgetSeconds}s");
+        Assert.IsType<HoldingAfterPushbackPhase>(pusher.Phases?.CurrentPhase);
+    }
+
+    /// <summary>Off tow a one-target tug move is plain <c>PUSH</c>'s job, and the refusal says so.</summary>
+    [Theory]
+    [InlineData("PUSHM $E")]
+    [InlineData("PUSHMF $E")]
+    public void OneTargetPushm_AtParking_StillRefused(string command)
+    {
+        if (Build() is not var (engine, layout))
+        {
+            return;
+        }
+
+        Spawn(engine, layout, Pusher, StandPose(layout, PushingStand));
+        CommandResult result = engine.SendCommand(Pusher, command);
+        Assert.False(result.Success);
+        Assert.Equal("Unable, a tug move needs at least two points — use PUSH to reach a single one", result.Message);
+    }
+
+    /// <summary>Holding after a push is off tow too, so a one-target tug move is refused there as well.</summary>
+    [Theory]
+    [InlineData("PUSHM $E")]
+    [InlineData("PUSHMF $E")]
+    public void OneTargetPushm_HoldingAfterPushback_StillRefused(string command)
+    {
+        if (Build() is not var (engine, layout))
+        {
+            return;
+        }
+
+        AircraftState pusher = Spawn(engine, layout, Pusher, StandPose(layout, PushingStand));
+        AircraftState neighbour = Spawn(engine, layout, Neighbour, StandPose(layout, StaggeredStand));
+        Assert.True(engine.SendCommand(Pusher, "PUSH TE").Success);
+        PushRun run = TickTow(engine, pusher, neighbour, TowEndBudgetSeconds);
+        Assert.True(run.CompletedSecond > 0, $"{Pusher} never finished the tow within {TowEndBudgetSeconds}s");
+        Assert.IsType<HoldingAfterPushbackPhase>(pusher.Phases?.CurrentPhase);
+        CommandResult result = engine.SendCommand(Pusher, command);
+        Assert.False(result.Success);
+        Assert.Equal("Unable, a tug move needs at least two points — use PUSH to reach a single one", result.Message);
     }
 
     /// <summary>

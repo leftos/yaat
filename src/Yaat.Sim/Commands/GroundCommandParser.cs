@@ -358,8 +358,9 @@ internal static class GroundCommandParser
     }
 
     /// <summary>
-    /// Parses PUSHM &lt;target&gt; &lt;target&gt; [&lt;target&gt; …] [orientation] — a tug move through two or more
-    /// ramp points. A target is a spot (<c>$6A</c>), a parking stand or helipad (<c>@D15</c>) or a graph node
+    /// Parses PUSHM &lt;target&gt; [&lt;target&gt; …] [orientation] — a tug move through one or more ramp points;
+    /// a single target is accepted by the handler only while the aircraft is already under tow. A target is a spot
+    /// (<c>$6A</c>), a parking stand or helipad (<c>@D15</c>) or a graph node
     /// (<c>#1926</c>), and the sigil is mandatory on every one of them: without it a name is ambiguous between a
     /// spot, a gate and a taxiway. The optional trailing orientation is the final rest facing, in the same
     /// 8-point cardinal grammar <c>PUSH</c> uses (<c>FACE C</c>, <c>TAIL C</c>, <c>&gt;C</c>, <c>&lt;C</c>).
@@ -412,9 +413,9 @@ internal static class GroundCommandParser
             legs.Add(leg);
         }
 
-        if (legs.Count < 2)
+        if (legs.Count == 0)
         {
-            return PR.Fail("needs at least two targets — use PUSH to move to a single one");
+            return PR.Fail("needs at least one target");
         }
 
         if ((finalFacing is not null) && (legs[^1].FreePose?.Facing is not null))

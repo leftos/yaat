@@ -166,6 +166,22 @@ public class GroundViewModelPushRouteTests
         Assert.False(vm.IsDrawingRoute);
     }
 
+    // Under tow a single clicked point is a `PUSHM`: the server re-plans the running tow to it, where plain `PUSH`
+    // mid-tow is refused for everything but a face or tail amendment.
+    [Fact]
+    public void OneTarget_WhileUnderTow_FinishSendsPushm()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeUnderTowAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(2)); // Spot "A"
+
+        Assert.Equal("PUSHM $A", vm.FinishPushRoute());
+        Assert.False(vm.IsDrawingRoute);
+    }
+
     [Fact]
     public void RefusedPlan_KeepsWaypointNullsPreviewAndRefusesToSend()
     {
@@ -897,6 +913,18 @@ public class GroundViewModelPushRouteTests
             Position = new LatLon(Lat0, Lon0),
             Heading = new TrueHeading(180),
             CurrentPhase = "Holding After Pushback",
+            IsOnGround = true,
+        };
+
+    // The same aircraft, already under tow: one clicked point is then a PUSHM redirect rather than a plain PUSH.
+    private static AircraftModel MakeUnderTowAircraft() =>
+        new()
+        {
+            Callsign = "TST123",
+            AircraftType = "B738",
+            Position = new LatLon(Lat0, Lon0),
+            Heading = new TrueHeading(180),
+            CurrentPhase = "Pushback",
             IsOnGround = true,
         };
 

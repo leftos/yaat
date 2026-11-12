@@ -22,6 +22,7 @@
 - vTDLS picks the SID and transition from any filed route fix that starts a transition, not only a SID named first.
 - `ATXI` to a spot reads "Air taxi to spot D1", and its autocomplete offers runways, `@` stands and `$` spots instead of bare taxiways.
 - A climb via from the vTDLS default works its top out again when the departure runway changes before takeoff; a controller's `CVIA` keeps its top.
+- A push route drawn to one point on an aircraft already under tow now re-plans the tow there (`PUSHM` to that point) instead of being refused.
 
 ### Fixed
 

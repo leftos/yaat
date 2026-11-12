@@ -985,7 +985,7 @@ The preview is planned by the same code the simulator runs, so what you see is w
 
 **Right-click an earlier point's marker** to choose how the tug moves on the leg ending there — Push, Pull, or Let the planner choose — and the marker is labelled PUSH or PULL; the command carries it as `/PUSH` or `/PULL`.
 
-Right-clicking the last point's marker opens the same menu with **Send route** at the top. Right-click a new point (or Shift+right-click) to add it and send: one point sends a plain `PUSH` to it (`PUSH $7A`, `PUSH @B12`, `PUSH #1926`, `PUSH $7A/PULL`), two or more send `PUSHM`; Escape cancels.
+Right-clicking the last point's marker opens the same menu with **Send route** at the top. Right-click a new point (or Shift+right-click) to add it and send: one point sends a plain `PUSH` to it (`PUSH $7A`, `PUSH @B12`, `PUSH #1926`, `PUSH $7A/PULL`), two or more send `PUSHM`; Escape cancels. On an aircraft already under tow (Pushing back) one point sends `PUSHM` too, since `PUSH` is refused mid-tow: the tug re-plans from where it is to that point.
 
 **Push notes on the terminal.** A push to a spot, gate or node keeps the whole aircraft — nose, tail and wingtips — clear of the taxiways behind the alley (outside each taxiway's object-free area, the zone taxiing traffic on it needs clear), and a push off a gate onto a spot usually goes straight back along the lead-in line, pivots onto the spot's lane and pulls forward onto the mark.
 

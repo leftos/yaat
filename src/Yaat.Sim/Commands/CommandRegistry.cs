@@ -818,7 +818,11 @@ public static class CommandRegistry
             false,
             [alias],
             [
-                O(null, [Rep("target", "$spot/@parking/#node")], $"{hintPrefix}Tug move through two or more ramp points"),
+                O(
+                    null,
+                    [Rep("target", "$spot/@parking/#node")],
+                    $"{hintPrefix}Tug move through two or more ramp points (one re-plans a running tow)"
+                ),
                 O(
                     "Facing",
                     [Rep("target", "$spot/@parking/#node"), R("orientation", "<C/>C or FACE C/TAIL C, C∈N/NE/E/SE/S/SW/W/NW")],

@@ -4554,10 +4554,10 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Ends push-draw mode and returns the command for the targets clicked — plain <c>PUSH</c> for one,
-    /// <c>PUSHM</c> for two or more — or null when there is nothing to send. A refused move returns null and
-    /// <em>keeps</em> draw mode, so the controller can undo the illegal leg (or press Esc) while the refusal is
-    /// still on screen.
+    /// Ends push-draw mode and returns the command for the targets clicked — plain <c>PUSH</c> for one unless the
+    /// aircraft is already under tow, where one is a <c>PUSHM</c> that re-plans the running tow, and <c>PUSHM</c> for two
+    /// or more — or null when there is nothing to send. A refused move returns null and <em>keeps</em> draw mode, so the
+    /// controller can undo the illegal leg (or press Esc) while the refusal is still on screen.
     /// </summary>
     public string? FinishPushRoute()
     {
@@ -4580,11 +4580,16 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        // One clicked point is plain `PUSH`, which takes a single $spot, @gate, #node or ~point destination (`PUSHM`
-        // needs two or more). The command carries exactly the drawn targets, each with its forced kind: the sim plans
-        // the moves from them, and the sigil is the only thing telling a spot apart from a gate of the same name.
+        // One clicked point is plain `PUSH`, which takes a single $spot, @gate, #node or ~point destination, unless the
+        // aircraft is already under tow: then one point is a `PUSHM` that re-plans the running tow to it, where `PUSH`
+        // mid-tow is refused for everything but a face or tail amendment. The command carries exactly the drawn targets,
+        // each with its forced kind: the sim plans the moves from them, and the sigil is the only thing telling a spot
+        // apart from a gate of the same name.
+        bool underTow = _drawAircraft?.CurrentPhase == "Pushback";
         string command =
-            targets.Count == 1 ? $"PUSH {targets[0].CanonicalToken}" : $"PUSHM {string.Join(" ", targets.Select(t => t.CanonicalToken))}";
+            (targets.Count == 1) && !underTow
+                ? $"PUSH {targets[0].CanonicalToken}"
+                : $"PUSHM {string.Join(" ", targets.Select(t => t.CanonicalToken))}";
         ClearDrawState();
         return command;
     }
@@ -4593,9 +4598,9 @@ public partial class GroundViewModel : ObservableObject
     /// Re-plans the drawn tug move through <see cref="TugMovePlanner"/> — the same body the simulation runs,
     /// on goals resolved from the very tokens the <c>PUSH</c>/<c>PUSHM</c> will carry, so the preview and the
     /// executed move cannot disagree about which moves push, which pull, or where the aircraft ends up. One
-    /// target is a complete move in itself (that is the plan <c>PUSH $spot</c> runs), so it is previewed the
-    /// same way; only a route with no target clicked yet — one the controller has just started — has nothing
-    /// to plan.
+    /// target is a complete move in itself (that is the plan <c>PUSH $spot</c> runs, or <c>PUSHM $spot</c> under
+    /// tow, which resolves the same goal), so it is previewed the same way; only a route with no target clicked
+    /// yet — one the controller has just started — has nothing to plan.
     /// </summary>
     private void RefreshPushRoutePreview()
     {
@@ -4675,7 +4680,8 @@ public partial class GroundViewModel : ObservableObject
 
     /// <summary>
     /// The goals the drawn targets resolve to. A single spot or stand is sent as plain <c>PUSH $spot</c> /
-    /// <c>PUSH @stand</c>, so it resolves through the server's own resolver for those forms: the preview and the server
+    /// <c>PUSH @stand</c> (or <c>PUSHM $spot</c> under tow, which resolves the same goal), so it resolves through the
+    /// server's own resolver for those forms: the preview and the server
     /// share one body and cannot drift apart, refusal wording included (the draw gestures give such a target no facing,
     /// so none is previewed). Otherwise each target resolves as the sim's
     /// <c>PUSHM</c> resolves its legs: a marked point minted where it lies (facing converted at the aircraft), every

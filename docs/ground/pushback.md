@@ -139,7 +139,7 @@ SFO C9 `PUSHM $5A $5B` takes the fallback, since `PUSH $5B` comes no closer than
    - **`PUSH <X> FACE/TAIL`**, or a facing taxiway with no junction on X: push-off, then `Push ViaLine(L, floating)` through the exit node along the facing (`Tight` over 135°).
 8. **Dwell.** `DwellBefore` is set on every move whose kind differs from the previous move's.
 
-**Outright refusals**, for hints as for goals: a goal more than `MaxGoalDistanceFt` (2,000 ft, a UI mis-click guard, not an aviation rule) from where the aircraft will be (for a `PUSHM` target, from the previous target's point); a goal on a runway holding-position node (AIM 4-3-18.a.5; AC 00-65A §11.13). A `PUSHM` needs at least two targets.
+**Outright refusals**, for hints as for goals: a goal more than `MaxGoalDistanceFt` (2,000 ft, a UI mis-click guard, not an aviation rule) from where the aircraft will be (for a `PUSHM` target, from the previous target's point); a goal on a runway holding-position node (AIM 4-3-18.a.5; AC 00-65A §11.13). A `PUSHM` needs at least two targets, except one given to an aircraft already under tow (a redirect, below).
 
 **Plan-time sweep (faced goals only).**
 
@@ -345,7 +345,7 @@ The precompute cache ([CONTEXT.md](../../CONTEXT.md) *Precompute cache*) stores,
 
   `HOLD`/`RES` are allowed. A held tow brakes to rest at the towbar rate (about 5 s from 5 kt) along the headings the last driven tick left set, its progress still recorded, and stays a mover to the conflict detector until it is at rest; the completion check runs before the hold, so a hold that lands over the end of a move still completes it and the plan advances (the next move then holds in turn).
 
-  `TAXI`, `TAXIAUTO`, `AIRTAXI`, `LAND`, `DEL` and `PUSHM` clear the phase and every move queued behind it (a redirect of an attached tug is ordinary; the new plan is made from the live pose, and a first move that reverses the last motion dwells first).
+  `TAXI`, `TAXIAUTO`, `AIRTAXI`, `LAND`, `DEL` and `PUSHM` clear the phase and every move queued behind it (a redirect of an attached tug is ordinary; the new plan is made from the live pose, and a first move that reverses the last motion dwells first). A one-target `PUSHM` (and `PUSHMF`) is accepted only here, under tow: it re-plans the tow to that one point and ends holding after pushback there (read back `push to spot E`); the ground view's push-route draw mode sends it for a single clicked target on an aircraft in `Pushback`, since `PUSH` is refused mid-tow.
 
   A cleared move stops the aircraft where it stands — the speed hand-over above is for a move that completes, never for one the tug is taken off. A `PUSH` during a tow is only ever the facing amendment below.
   - **Scenario-scripted deferrals wait for the push.** A scenario's own timed command (a preset `WAIT n TAXI …`) must not take the tug off mid-push. `SimulationEngine.ProcessDeferredDispatches` holds an expired scripted deferral whose payload the phase would clear (`EndsPushback`, judged by `CanAcceptCommand`'s `ClearsThePhase`, so the phase owns the list of clearing verbs) until the current phase is no longer a `PushbackPhase` — completed, aborted or cancelled.
@@ -373,7 +373,7 @@ A heading-only `PUSH FACE C` / `PUSH TAIL C` during a tow is accepted only while
 
 The push-off carries a `TugAmendment` (the goal kind, its node and taxiway, and the stand start pose) for a `Facing`, `Spot` or `TaxiwayLine` goal; the same goal is re-planned on the new facing **from the stand start pose**, so the new plan's first move is the same push-off, which keeps running, and every move behind it is replaced.
 
-After that: `Unable, pushback turn in progress`. A push to a stand is never amended (`Unable, a pushback to a stand keeps the stand's heading`); `PUSHM` carries no amendment; any other `PUSH` during a tow is `Unable, only face/tail amendment accepted during pushback`.
+After that: `Unable, pushback turn in progress`. A push to a stand is never amended (`Unable, a pushback to a stand keeps the stand's heading`); `PUSHM` carries no amendment; any other `PUSH` during a tow is `Unable, only face/tail amendment accepted during pushback` (a one-target `PUSHM` is the way to redirect to a single point).
 
 ## Forced push or pull, and marked points (#462)
 
@@ -526,7 +526,7 @@ A brief for pushback or tug-move work cites the rules above by section and quote
 |---|---|
 | `Pushback requires aircraft to be at parking` | `GroundCommandHandler.TryPushback` |
 | `A tug move requires the aircraft to be at parking, holding after a pushback, or already under tow` | `GroundCommandHandler.TryPushbackMulti` |
-| `Unable, a tug move needs at least two points — use PUSH to reach a single one` | `GroundCommandHandler.TryPushbackMulti` |
+| `Unable, a tug move needs at least two points — use PUSH to reach a single one` | `GroundCommandHandler.TryPushbackMulti`, off tow only (at parking or holding after pushback); under tow one point is accepted |
 | `No airport ground layout available` | `GroundCommandHandler.ResolvePushTarget` and the other layout-reading handlers |
 | `Cannot find taxiway '<X>' near aircraft` | `GroundCommandHandler.ResolvePushToTaxiway` |
 | `Cannot find facing taxiway '<F>' near <X>` | `GroundCommandHandler.ResolvePushToTaxiway` |

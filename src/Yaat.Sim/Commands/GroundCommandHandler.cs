@@ -6724,7 +6724,9 @@ public static partial class GroundCommandHandler
             return new CommandResult(false, missing);
         }
 
-        if (goals.Count < 2)
+        // Off tow a single point is plain PUSH's job. Under tow it is a redirect like any other: the tow re-plans from
+        // the live pose to that one point and replaces the running move.
+        if ((goals.Count < 2) && (aircraft.Phases.CurrentPhase is not PushbackPhase))
         {
             return new CommandResult(false, "Unable, a tug move needs at least two points — use PUSH to reach a single one");
         }
@@ -6746,7 +6748,7 @@ public static partial class GroundCommandHandler
             StartsAtStand = atStand,
             StandName = atStand ? aircraft.Ground.ParkingSpot : null,
             Footprint = AircraftFootprint.FromType(aircraft.AircraftType),
-            MovementArea = groundLayout is null ? null : MovementAreaClassification.For(groundLayout),
+            MovementArea = MovementAreaClassification.For(groundLayout),
             Goals = goals,
             ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = finalFacingTrueDeg,
