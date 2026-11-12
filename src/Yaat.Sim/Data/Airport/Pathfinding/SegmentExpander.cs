@@ -270,24 +270,89 @@ public static class SegmentExpander
     )
     {
         unbridgedTaxiway = null;
+        PathfindingFailure? failure = ValidateExplicitClearance(ctx, out List<WaypointToken> resolvedWaypoints);
+        if (failure is not null)
+        {
+            return (null, failure);
+        }
+
+        var state = new ExplicitWalkState(ctx.StartNodeId);
+        failure = ApplyStartHeading(ctx, startLeg, resolvedWaypoints, state);
+        unbridgedTaxiway = state.UnbridgedTaxiway;
+        if (failure is not null)
+        {
+            return (null, failure);
+        }
+
+        failure = WalkSequence(ctx, resolvedWaypoints, state);
+        if (failure is not null)
+        {
+            return (null, failure);
+        }
+
+        failure = TryExtendToVariant(ctx, resolvedWaypoints, state);
+        if (failure is not null)
+        {
+            return (null, failure);
+        }
+
+        TryConstrainedFallback(ctx, state);
+        ApplyDeferredVariant(ctx, state);
+
+        failure = ApplyParkingExtension(ctx, state);
+        if (failure is not null)
+        {
+            return (null, failure);
+        }
+
+        TaxiRoute route = MaterialiseRoute(ctx, startLeg, state);
+        failure = CheckReachability(ctx, resolvedWaypoints, route, state.UnbridgedTaxiway);
+        if (failure is not null)
+        {
+            return (null, failure);
+        }
+
+        return (route, null);
+    }
+
+    /// <summary>The walk's accumulated edges, head, insertions and deferred decisions, carried through its stages.</summary>
+    private sealed class ExplicitWalkState(int startNodeId)
+    {
+        public List<DirectionalEdge> Edges { get; set; } = [];
+
+        public PartialRoute Head { get; set; } = PartialRoute.StartAt(startNodeId);
+
+        public List<ConnectorInsertion> Insertions { get; } = [];
+
+        public List<DirectionalEdge>? DeferredVariantEdges { get; set; }
+
+        public string? ImpliedOneWayLane { get; set; }
+
+        public string? UnbridgedTaxiway { get; set; }
+    }
+
+    /// <summary>Rejects a clearance with no waypoints, an unknown start node, or a taxiway absent from the layout.</summary>
+    private static PathfindingFailure? ValidateExplicitClearance(SearchContext ctx, out List<WaypointToken> resolvedWaypoints)
+    {
+        resolvedWaypoints = [];
         if (ctx.WaypointSequence.Count == 0)
         {
-            return (
+            return new PathfindingFailure(
+                FailureKind.TaxiwayNotConnected,
+                "SegmentExpander requires a non-empty waypoint sequence.",
                 null,
-                new PathfindingFailure(FailureKind.TaxiwayNotConnected, "SegmentExpander requires a non-empty waypoint sequence.", null, null, null)
+                null,
+                null
             );
         }
 
         if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out _))
         {
-            return (
-                null,
-                new PathfindingFailure(FailureKind.StartNodeUnreachable, $"Start node {ctx.StartNodeId} not found in layout.", null, null, null)
-            );
+            return new PathfindingFailure(FailureKind.StartNodeUnreachable, $"Start node {ctx.StartNodeId} not found in layout.", null, null, null);
         }
 
         // Resolve node-reference tokens (#NNNN) in the waypoint sequence.
-        List<WaypointToken> resolvedWaypoints = ResolveWaypoints(ctx);
+        resolvedWaypoints = ResolveWaypoints(ctx);
 
         // Reject a clearance naming a taxiway that is absent from the layout. Otherwise the
         // per-segment walk finds no matching edge, silently yields an empty/partial route, and the
@@ -297,16 +362,60 @@ public static class SegmentExpander
         {
             if (!wp.IsNodeRef && (ctx.Layout.GetNodesOnTaxiway(wp.Name).Count == 0))
             {
-                return (
-                    null,
-                    new PathfindingFailure(FailureKind.TaxiwayNotConnected, $"Cannot find taxiway {wp.Name} in layout.", wp.Name, null, null)
-                );
+                return new PathfindingFailure(FailureKind.TaxiwayNotConnected, $"Cannot find taxiway {wp.Name} in layout.", wp.Name, null, null);
             }
         }
 
-        var edges = new List<DirectionalEdge>();
-        var head = PartialRoute.StartAt(ctx.StartNodeId);
+        return null;
+    }
 
+    /// <summary>Puts the walk's head on the first cleared taxiway, via the start leg, the bridge or a node-ref lead-in.</summary>
+    private static PathfindingFailure? ApplyStartHeading(
+        SearchContext ctx,
+        StartLeg? startLeg,
+        List<WaypointToken> resolvedWaypoints,
+        ExplicitWalkState state
+    )
+    {
+        if (startLeg is not null)
+        {
+            state.Edges.AddRange(startLeg.Edges);
+            state.Head = startLeg.Head with { VisitedNodeIds = VisitedNodeSet.Single(startLeg.Head.HeadNodeId) };
+            return null;
+        }
+
+        if (!resolvedWaypoints[0].IsNodeRef)
+        {
+            ApplyStartBridge(ctx, resolvedWaypoints, state);
+            return null;
+        }
+
+        if (state.Head.HeadNodeId == resolvedWaypoints[0].ResolvedNodeId)
+        {
+            return null;
+        }
+
+        // The node-ref counterpart of the bridge below. ExpandSegment dispatches on the NEXT token,
+        // so without this the first node-ref is never a routing target and the walk jumps straight to
+        // the second — reaching it by whatever path the A* likes rather than the one that was drawn.
+        (List<DirectionalEdge>? leadEdges, PartialRoute? leadHead, PathfindingFailure? leadFailure) = RouteToSpecificNode(
+            state.Head,
+            resolvedWaypoints[0].ResolvedNodeId,
+            ctx
+        );
+        if (leadFailure is not null)
+        {
+            return leadFailure;
+        }
+
+        state.Edges.AddRange(leadEdges!);
+        state.Head = leadHead! with { VisitedNodeIds = VisitedNodeSet.Single(leadHead!.HeadNodeId) };
+        return null;
+    }
+
+    /// <summary>Bridges the start node onto the first cleared taxiway, or records that taxiway when no bridge is found.</summary>
+    private static void ApplyStartBridge(SearchContext ctx, List<WaypointToken> resolvedWaypoints, ExplicitWalkState state)
+    {
         // Bridge onto the first named taxiway when the start node is off it (e.g. parked
         // on a RAMP spot whose only edges are RAMP). Mirrors v1's BfsToTaxiway. Without
         // this the first per-segment local search finds no on-taxiway edge from the start
@@ -316,66 +425,48 @@ public static class SegmentExpander
         // junction with the next cleared taxiway, or the destination). A direction-blind
         // pick can enter the taxiway through a corner arc that commits the head to the wrong
         // branch, after which the correct branch fails the U-turn admissibility check.
-        if (startLeg is not null)
+        LatLon? bridgeBias = ResolveBridgeBias(resolvedWaypoints, state.Head, ctx);
+        (List<DirectionalEdge>? bridgeEdges, PartialRoute? bridgeHead) = BridgeStartToTaxiway(state.Head, resolvedWaypoints[0].Name, bridgeBias, ctx);
+        if (bridgeEdges.Count > 0)
         {
-            edges.AddRange(startLeg.Edges);
-            head = startLeg.Head with { VisitedNodeIds = VisitedNodeSet.Single(startLeg.Head.HeadNodeId) };
+            state.Edges.AddRange(bridgeEdges);
+            state.Head = bridgeHead with { VisitedNodeIds = VisitedNodeSet.Single(bridgeHead.HeadNodeId) };
         }
-        else if (!resolvedWaypoints[0].IsNodeRef)
+        else if (!resolvedWaypoints[0].IsRunway && !StartIsOnTaxiway(ctx, resolvedWaypoints[0].Name))
         {
-            LatLon? bridgeBias = ResolveBridgeBias(resolvedWaypoints, head, ctx);
-            (List<DirectionalEdge>? bridgeEdges, PartialRoute? bridgeHead) = BridgeStartToTaxiway(head, resolvedWaypoints[0].Name, bridgeBias, ctx);
-            if (bridgeEdges.Count > 0)
-            {
-                edges.AddRange(bridgeEdges);
-                head = bridgeHead with { VisitedNodeIds = VisitedNodeSet.Single(bridgeHead.HeadNodeId) };
-            }
-            else if (!resolvedWaypoints[0].IsRunway && !StartIsOnTaxiway(ctx, resolvedWaypoints[0].Name))
-            {
-                unbridgedTaxiway = resolvedWaypoints[0].Name;
-            }
+            state.UnbridgedTaxiway = resolvedWaypoints[0].Name;
         }
-        else if (head.HeadNodeId != resolvedWaypoints[0].ResolvedNodeId)
-        {
-            // The node-ref counterpart of the bridge above. ExpandSegment dispatches on the NEXT token,
-            // so without this the first node-ref is never a routing target and the walk jumps straight to
-            // the second — reaching it by whatever path the A* likes rather than the one that was drawn.
-            (List<DirectionalEdge>? leadEdges, PartialRoute? leadHead, PathfindingFailure? leadFailure) = RouteToSpecificNode(
-                head,
-                resolvedWaypoints[0].ResolvedNodeId,
-                ctx
-            );
-            if (leadFailure is not null)
-            {
-                return (null, leadFailure);
-            }
+    }
 
-            edges.AddRange(leadEdges!);
-            head = leadHead! with { VisitedNodeIds = VisitedNodeSet.Single(leadHead!.HeadNodeId) };
-        }
-
+    /// <summary>Walks the cleared taxiways segment by segment, collecting mandatory connector insertions.</summary>
+    private static PathfindingFailure? WalkSequence(SearchContext ctx, List<WaypointToken> resolvedWaypoints, ExplicitWalkState state)
+    {
         // Walk the waypoint sequence segment by segment, with recursive look-ahead at each
         // taxiway-to-taxiway junction (see ResolveSequence). Look-ahead defeats first-match
         // junction picks that would strand the route on the wrong leg of a V-shaped taxiway.
         // Mandatory-connector insertions (two cleared taxiways with no direct junction) are
         // collected so the materialiser can notify the controller instead of warning.
-        var insertions = new List<ConnectorInsertion>();
         (List<DirectionalEdge>? seqEdges, PartialRoute? seqHead, PathfindingFailure? seqFailure) = ResolveSequence(
-            head,
+            state.Head,
             resolvedWaypoints,
             0,
             enableLookahead: true,
-            insertions,
+            state.Insertions,
             ctx
         );
         if (seqFailure is not null)
         {
-            return (null, seqFailure);
+            return seqFailure;
         }
 
-        edges.AddRange(seqEdges!);
-        head = seqHead!;
+        state.Edges.AddRange(seqEdges!);
+        state.Head = seqHead!;
+        return null;
+    }
 
+    /// <summary>Extends the walk with the last taxiway's numbered variants when they reach the destination runway.</summary>
+    private static PathfindingFailure? TryExtendToVariant(SearchContext ctx, List<WaypointToken> resolvedWaypoints, ExplicitWalkState state)
+    {
         // Variant resolution: if destination is a runway and the last named taxiway has
         // numbered variants that reach it, extend automatically. Skipped when the walked
         // route already reaches a hold-short for the destination runway — the named taxiway
@@ -388,38 +479,55 @@ public static class SegmentExpander
         // of the bar (OAK: B has no 28L bar, only the R stub, so the extension stands there). The
         // step's failure is not gated: it is Run's cue to try a connector stub, so it is returned
         // whatever the head.
-        List<DirectionalEdge>? deferredVariantEdges = null;
         if (
-            ctx.Destination.Kind == DestinationKind.Runway
-            && ctx.Destination.RunwayId is { } destRunway
-            && !RouteReachesRunwayHoldShort(edges, destRunway, ctx)
+            (ctx.Destination.Kind == DestinationKind.Runway)
+            && (ctx.Destination.RunwayId is { } destRunway)
+            && !RouteReachesRunwayHoldShort(state.Edges, destRunway, ctx)
         )
         {
             WaypointToken lastWaypoint = resolvedWaypoints[^1];
-            if (!lastWaypoint.IsNodeRef)
+            if (lastWaypoint.IsNodeRef)
             {
-                (List<DirectionalEdge>? varEdges, PathfindingFailure? varFailure) = TryVariantExtension(head, lastWaypoint.Name, destRunway, ctx);
-                if (varFailure is not null)
-                {
-                    return (null, varFailure);
-                }
-
-                if (varEdges is not null)
-                {
-                    if (WalkReachedTaxiway(ctx, head, edges, lastWaypoint.Name))
-                    {
-                        edges.AddRange(varEdges);
-                    }
-                    else
-                    {
-                        Log.LogDebug("[variant] deferred: head #{HeadNodeId} is not on {Taxiway}", head.HeadNodeId, lastWaypoint.Name);
-                        ctx.DiagnosticLog?.Invoke($"[variant] deferred: head #{head.HeadNodeId} not on {lastWaypoint.Name}");
-                        deferredVariantEdges = varEdges;
-                    }
-                }
+                return null;
             }
+
+            return ApplyVariantExtension(ctx, lastWaypoint.Name, destRunway, state);
         }
 
+        return null;
+    }
+
+    /// <summary>Applies a variant extension at once when the head is on the taxiway, and defers it otherwise.</summary>
+    private static PathfindingFailure? ApplyVariantExtension(SearchContext ctx, string taxiwayName, string destRunway, ExplicitWalkState state)
+    {
+        (List<DirectionalEdge>? varEdges, PathfindingFailure? varFailure) = TryVariantExtension(state.Head, taxiwayName, destRunway, ctx);
+        if (varFailure is not null)
+        {
+            return varFailure;
+        }
+
+        if (varEdges is null)
+        {
+            return null;
+        }
+
+        if (WalkReachedTaxiway(ctx, state.Head, state.Edges, taxiwayName))
+        {
+            state.Edges.AddRange(varEdges);
+        }
+        else
+        {
+            Log.LogDebug("[variant] deferred: head #{HeadNodeId} is not on {Taxiway}", state.Head.HeadNodeId, taxiwayName);
+            ctx.DiagnosticLog?.Invoke($"[variant] deferred: head #{state.Head.HeadNodeId} not on {taxiwayName}");
+            state.DeferredVariantEdges = varEdges;
+        }
+
+        return null;
+    }
+
+    /// <summary>Re-routes to the destination runway with a hard-constrained A* when the explicit walk stopped short of it.</summary>
+    private static void TryConstrainedFallback(SearchContext ctx, ExplicitWalkState state)
+    {
         // Last-resort A* fallback for a runway destination the explicit walk could not reach.
         // The greedy WalkToNaturalTerminus can dead-end on a hold-area hairpin one turn short of
         // the lineup bar (e.g. MIA TAXI P S to rwy 9: taxiway S crosses rwy 12 then hairpins to the
@@ -433,9 +541,9 @@ public static class SegmentExpander
         // it never changes a route that already does. An explicit HS on a crossed runway is a hold/
         // authorization marker, not a routing terminus, so the route still continues to the runway.
         if (
-            ctx.Destination.Kind == DestinationKind.Runway
-            && ctx.Destination.RunwayId is { } fallbackRunway
-            && !RouteReachesRunwayHoldShort(edges, fallbackRunway, ctx)
+            (ctx.Destination.Kind == DestinationKind.Runway)
+            && (ctx.Destination.RunwayId is { } fallbackRunway)
+            && !RouteReachesRunwayHoldShort(state.Edges, fallbackRunway, ctx)
         )
         {
             IReadOnlySet<string> unauthorized = UnnamedLetterTaxiways(ctx.Layout, ctx.AuthorizedTaxiways);
@@ -454,8 +562,8 @@ public static class SegmentExpander
                     ctx.DiagnosticLog?.Invoke(
                         $"[fallback] explicit walk short of rwy {fallbackRunway}; constrained A* re-route reached it ({autoEdges.Count} edges)"
                     );
-                    edges = autoEdges;
-                    insertions.Clear();
+                    state.Edges = autoEdges;
+                    state.Insertions.Clear();
                 }
                 else
                 {
@@ -469,53 +577,85 @@ public static class SegmentExpander
                 ctx.DiagnosticLog?.Invoke($"[fallback] constrained A* failed: {autoFailure?.HumanMessage ?? "no route"}");
             }
         }
+    }
 
-        // The fallback block above only substitutes its route when that route reaches a bar, so the deferred
+    /// <summary>Applies the deferred variant extension when the route is still short of the destination runway's hold-short.</summary>
+    private static void ApplyDeferredVariant(SearchContext ctx, ExplicitWalkState state)
+    {
+        // The fallback above only substitutes its route when that route reaches a bar, so the deferred
         // extension never mixes with a fallback route: it applies exactly when the route is still
         // short of the bar, as the off-taxiway head's last resort.
         if (
-            (deferredVariantEdges is not null)
-            && ctx.Destination.RunwayId is { } deferredRunway
-            && !RouteReachesRunwayHoldShort(edges, deferredRunway, ctx)
+            (state.DeferredVariantEdges is { } deferred)
+            && (ctx.Destination.RunwayId is { } deferredRunway)
+            && !RouteReachesRunwayHoldShort(state.Edges, deferredRunway, ctx)
         )
         {
-            edges.AddRange(deferredVariantEdges);
+            state.Edges.AddRange(deferred);
             ctx.DiagnosticLog?.Invoke("[variant] deferred extension applied");
         }
+    }
 
+    /// <summary>Auto-routes from the last taxiway to the destination node for a parking, spot or helipad destination.</summary>
+    private static PathfindingFailure? ApplyParkingExtension(SearchContext ctx, ExplicitWalkState state)
+    {
         // Parking/spot extension: after the named taxiway walk, auto-route to destination.
-        string? impliedOneWayLane = null;
-        if (ctx.Destination.Kind is DestinationKind.Parking or DestinationKind.Spot or DestinationKind.Helipad)
+        if (ctx.Destination.Kind is not (DestinationKind.Parking or DestinationKind.Spot or DestinationKind.Helipad))
         {
-            if (ctx.Destination.TargetNodeId is { } destId && head.HeadNodeId != destId)
-            {
-                (List<DirectionalEdge>? extEdges, string? lane, PathfindingFailure? extFailure) = ExtendToDestination(
-                    head,
-                    destId,
-                    ctx,
-                    UnclearedMovementAreaTaxiways(ctx)
-                );
-                if (extFailure is not null)
-                {
-                    return (null, extFailure);
-                }
-
-                if (extEdges is not null)
-                {
-                    edges.AddRange(extEdges);
-                }
-
-                impliedOneWayLane = lane;
-            }
+            return null;
         }
 
-        TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, insertions);
-        foreach (string lane in new[] { startLeg?.ImpliedLane, impliedOneWayLane }.OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase))
+        if (ctx.Destination.TargetNodeId is not { } destId)
+        {
+            return null;
+        }
+
+        if (state.Head.HeadNodeId == destId)
+        {
+            return null;
+        }
+
+        (List<DirectionalEdge>? extEdges, string? lane, PathfindingFailure? extFailure) = ExtendToDestination(
+            state.Head,
+            destId,
+            ctx,
+            UnclearedMovementAreaTaxiways(ctx)
+        );
+        if (extFailure is not null)
+        {
+            return extFailure;
+        }
+
+        if (extEdges is not null)
+        {
+            state.Edges.AddRange(extEdges);
+        }
+
+        state.ImpliedOneWayLane = lane;
+        return null;
+    }
+
+    /// <summary>Materialises the walked edges into a route and warns for every one-way lane used outside the clearance.</summary>
+    private static TaxiRoute MaterialiseRoute(SearchContext ctx, StartLeg? startLeg, ExplicitWalkState state)
+    {
+        TaxiRoute route = RouteMaterialiser.Materialise(state.Edges, ctx, state.Insertions);
+        foreach (string lane in new[] { startLeg?.ImpliedLane, state.ImpliedOneWayLane }.OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase))
         {
             route.Warnings.Add(RouteMaterialiser.NotInClearanceWarning(lane));
             route.ImpliedLanes.Add(lane);
         }
 
+        return route;
+    }
+
+    /// <summary>Fails the clearance when a named taxiway was never reached, or the unbridged first taxiway was never driven.</summary>
+    private static PathfindingFailure? CheckReachability(
+        SearchContext ctx,
+        List<WaypointToken> resolvedWaypoints,
+        TaxiRoute route,
+        string? unbridgedTaxiway
+    )
+    {
         // Honor the clearance: every named taxiway the controller specified must be REACHED by the
         // resolved route — either traversed (an edge labeled for it) or at least touched (the route
         // passes through a node that lies on it). Touching without traversing is legitimate and
@@ -543,15 +683,10 @@ public static class SegmentExpander
                 continue;
             }
 
-            return (null, UnreachableTaxiwayFailure(wp.Name));
+            return UnreachableTaxiwayFailure(wp.Name);
         }
 
-        if (UndrivenFirstTaxiwayFailure(route, unbridgedTaxiway, ctx) is { } undriven)
-        {
-            return (null, undriven);
-        }
-
-        return (route, null);
+        return UndrivenFirstTaxiwayFailure(route, unbridgedTaxiway, ctx);
     }
 
     /// <summary>The <see cref="FailureKind.TaxiwayNotConnected"/> failure for a cleared taxiway the route cannot get onto.</summary>
