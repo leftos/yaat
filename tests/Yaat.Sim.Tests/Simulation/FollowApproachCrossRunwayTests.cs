@@ -444,4 +444,125 @@ public class FollowApproachCrossRunwayTests(ITestOutputHelper output)
         Assert.True(result.Success, result.Message);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
     }
+
+    // ─── A pattern follower re-sequenced onto another runway: the voided clearance is announced ───
+
+    /// <summary>
+    /// A follower on the 28R right downwind, 1 nm short of the base turn, lead in sight, cleared to land 28R when
+    /// <paramref name="clearedToLand"/>.
+    /// </summary>
+    private static AircraftState AddDownwindFollower(SimulationEngine engine, bool clearedToLand)
+    {
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = MakeVfr(Follower, OffFinal(rwy, 1.0, 1.0), rwy.TrueHeading.ToReciprocal(), 1000);
+        follower.Approach.HasReportedTrafficInSight = true;
+        engine.World.AddAircraft(follower);
+        List<Phase> circuit = PatternBuilder.BuildCircuit(
+            new PatternCircuitRequest
+            {
+                Runway = rwy,
+                Category = AircraftCategory.Piston,
+                AircraftType = follower.AircraftType,
+                WindSpeedKt = 0,
+                Direction = PatternDirection.Right,
+                EntryLeg = PatternEntryLeg.Downwind,
+                TouchAndGo = false,
+                FinalDistanceNm = null,
+                PatternSizeNm = null,
+                AltitudeOverrideFt = null,
+                AirportRunways = NavigationDatabase.Instance.GetRunways("KOAK"),
+                AuthoredRunway = null,
+                ActiveRunways = ActiveRunways.Empty,
+                Commanded = PatternCommanded.None,
+            }
+        );
+        follower.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
+        foreach (Phase phase in circuit)
+        {
+            follower.Phases.Add(phase);
+        }
+
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower, ActiveRunways.Empty));
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(follower.Phases.CurrentPhase);
+        PatternWaypoints wp = downwind.Waypoints!;
+        follower.Position = GeoMath.ProjectPoint(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), wp.DownwindHeading.ToReciprocal(), 1.0);
+        follower.TrueHeading = wp.DownwindHeading;
+        follower.TrueTrack = wp.DownwindHeading;
+        if (clearedToLand)
+        {
+            follower.Phases.LandingClearance = ClearanceType.ClearedToLand;
+            follower.Phases.ClearedRunwayId = "28R";
+        }
+
+        return follower;
+    }
+
+    /// <summary>
+    /// A pattern follower cleared to land 28R, re-sequenced by FOLLOW onto a lead in the 28L circuit: the landing clearance
+    /// is voided, and the RPO is told so with the text the approach path uses (7110.65 §3-10-5.c).
+    /// </summary>
+    [Fact]
+    public void PatternFollowerClearedToLand_ResequencedOntoOtherRunway_WarnsTheClearanceIsCancelled()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddDownwindFollower(engine, clearedToLand: true);
+        RunwayInfo parallel = Oak("28L");
+        AddCircuitLead(engine, parallel, OffFinal(parallel, -1.0, 1.0));
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("28L", follower.Phases!.AssignedRunway?.Designator);
+        Assert.Null(follower.Phases.LandingClearance);
+        output.WriteLine($"warnings: {string.Join(" | ", follower.PendingWarnings)}");
+        string warning = Assert.Single(follower.PendingWarnings, w => w.Contains("cancelled by FOLLOW", StringComparison.Ordinal));
+        Assert.StartsWith($"{Follower} ", warning, StringComparison.Ordinal);
+        Assert.EndsWith("cancelled by FOLLOW, landing clearance RWY 28R cancelled", warning, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A follower outside the pattern cleared to land 28R, told to follow a lead in the 28R circuit, is sequenced into that
+    /// circuit by a pattern entry to its own runway: the clearance stands, and no voided-clearance warning is given.
+    /// </summary>
+    [Fact]
+    public void FollowerClearedToLand_EnteringItsOwnRunwaysPattern_KeepsTheClearanceWithoutWarning()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = MakeVfr(Follower, OffFinal(rwy, -2.0, 4.0), new TrueHeading(180), 1500);
+        follower.Approach.HasReportedTrafficInSight = true;
+        follower.Phases = new PhaseList
+        {
+            AssignedRunway = rwy,
+            LandingClearance = ClearanceType.ClearedToLand,
+            ClearedRunwayId = "28R",
+        };
+        engine.World.AddAircraft(follower);
+        AddCircuitLead(engine, rwy, OffFinal(rwy, -1.0, 1.0));
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        output.WriteLine($"phase {follower.Phases?.CurrentPhase?.Name}; warnings: {string.Join(" | ", follower.PendingWarnings)}");
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<PatternEntryPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(ClearanceType.ClearedToLand, follower.Phases.LandingClearance);
+        Assert.Equal("28R", follower.Phases.ClearedRunwayId);
+        Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("landing clearance RWY", StringComparison.Ordinal));
+    }
+
+    /// <summary>The same re-sequence with no landing clearance to void warns nothing.</summary>
+    [Fact]
+    public void PatternFollowerNotCleared_ResequencedOntoOtherRunway_GivesNoClearanceWarning()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddDownwindFollower(engine, clearedToLand: false);
+        RunwayInfo parallel = Oak("28L");
+        AddCircuitLead(engine, parallel, OffFinal(parallel, -1.0, 1.0));
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("28L", follower.Phases!.AssignedRunway?.Designator);
+        Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("cancelled by FOLLOW", StringComparison.Ordinal));
+    }
 }

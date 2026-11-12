@@ -869,7 +869,7 @@ The spacing gap is how far the lead is then ahead along the final; the requireme
 - Same leg: plain position, no tolerance — on upwind, crosswind or downwind progress along the leg, on the other legs remaining path to the threshold (`SharedLegOrderNm`), since an aircraft extended past its turn point has more path left the farther out it flies.
 - Different legs, follower on base, final, final by geometry or an instrument approach (leg 4 or 5): remaining path to the threshold (`SequenceRemainingPathNm`; an aircraft on an approach's fixes by the legs it still has to fly, one intercepting by straight-line distance, one on final by along-final distance), the lead ahead when its path is no longer than the follower's.
 
-  Base, final and the approach converge on one final, so an extension cannot flip this order; a 6 NM straight-in follows a Cessna on close base, and a close base is not ahead of a 10 NM final. A lead on a pattern entry stays behind a base follower; for a leg-5 follower (final, final by geometry, an instrument approach) it is ordered by its entry path below.
+  Base, final and the approach converge on one final, so an extension cannot flip this order; a 6 NM straight-in follows a Cessna on close base, and a close base is not ahead of a 10 NM final. A lead on a pattern entry stays behind a base follower, except a straight-in entrant (`IsStraightInEntry`), which a base follower orders by path; for a leg-5 follower (final, final by geometry, an instrument approach) it is ordered by its entry path below.
 - Different legs otherwise: leg order, the later leg ahead however far it is extended. Remaining path across the outbound legs was tried and rejected: an extension adds path, so the order flipped the moment the lead turned onto its next leg.
 Distance, not time: a closer, slower lead is ahead (7110.65 §3-8-1, AIM §4-3-4.d).
 
@@ -1028,7 +1028,11 @@ retarget once the sequence refusal below has passed.
   A follower or lead with no assigned runway is not refused.
 - A departing lead (airborne in takeoff, initial climb or a departure procedure, not a closed-traffic climb) is refused from any follower: "Unable, {T} is departing, request vectors". FOLLOW is arrival sequencing (7110.65 §3-8-1, §7-6-7.a).
 - A follower on upwind, crosswind, downwind, base, final or an instrument approach refuses a same-runway lead that is behind in the sequence order above, or that has no sequence leg (a missed approach, a hold): "Unable, on {upwind|crosswind|downwind|base|final|approach} for runway {rwy}, {T} is not ahead of us, request vectors" (AIM §5-5-12.a.2). An approach follower that passes every refusal keeps its approach (below).
-- A lead still on a pattern entry is accepted from upwind, crosswind or downwind (it may join downwind ahead, and controllers issue exactly this) and refused from base or final, where getting behind a 45° entrant would take a 360 (AIM §4-3-5).
+- A lead still on a pattern entry is accepted from upwind or crosswind (it may join downwind ahead, and controllers issue exactly this).
+
+  From a downwind it is accepted while the point where it joins that downwind is still ahead of the follower, and refused once the follower is past it by more than 0.2 NM along the downwind (`AirborneFollowHelper.IsFollowerPastEntrantJoin`, a judgement figure), since the entrant would join behind it. An accepted follower that passes the join point before the entrant joins ends the follow with "unable to follow the traffic, extending downwind, request base turn" and holds the downwind.
+
+  From base or final a straight-in entrant (`AirborneFollowHelper.IsStraightInEntry`) is ordered by remaining path to the threshold, accepted when its path is the shorter (AIM §4-3-3 NOTE 1); any other entrant is refused there, where getting behind a 45° entrant would take a 360 (AIM §4-3-5).
 
   From an instrument approach it is measured, not refused: accepted when its entry path is no longer than the follower's remaining path, otherwise refused with the approach text above; per tick a leg-5 follower keeps ordering it by that path. A follower on a pattern entry is never refused.
 
@@ -1074,7 +1078,9 @@ Its climb-out gate is the **flown** runway's own departure end and heading (not 
 
 From there the follower is low and close in, and swinging it onto a closely-spaced parallel would fly a low crossing of its original runway's final approach course (AIM §4-3-3 FIG 4-3-3 note 7 — do not penetrate the parallel's final; §4-3-5 — no unexpected pattern maneuvers). The controller re-sequences explicitly (`ELB`/`ERB`), vectors, or sends it around. Re-sequencing from upwind / crosswind / downwind / pattern-entry is allowed.
 
-**A lead with no runway, from a pattern leg** (`TryRouteRunwaylessLead`, `TryFollowFromPatternLeg`). A follower on a pattern leg with an assigned runway refuses a lead on the ground ("Unable, {T} is on the ground") unless the lead is rolling out on the follower's own runway, and a lead whose runway or filed destination is another airport ("Unable, {T} is inbound to {APT}, request vectors"; `LeadBoundElsewhereRefusal`, airports compared with `AirportIdsMatch`, so HWD 28R is not OAK 28R).
+**A lead with no runway, from a pattern leg** (`TryRouteRunwaylessLead`, `TryFollowFromPatternLeg`). A follower on a pattern leg with an assigned runway refuses a lead on the ground unless the lead is rolling out on the follower's own runway ("Unable, {T} has landed" for a lead in its landing rollout or runway exit, "Unable, {T} is on the ground" for any other).
+
+It also refuses a lead whose runway or filed destination is another airport ("Unable, {T} is inbound to {APT}, request vectors"; `LeadBoundElsewhereRefusal`, airports compared with `AirportIdsMatch`, so HWD 28R is not OAK 28R).
 
 From final it refuses ("Unable, on final for runway {rwy}, request vectors to follow {T}"); from every other pattern leg (a pattern entry, crossing or teardrop, upwind, crosswind, downwind, base) it refuses a lead that is not ahead within ±60° of track ("Unable, on {leg} for runway {rwy}, {T} is not ahead of us, request vectors", `{leg}` being "pattern entry" for the three entry phases; `ConeRefusalPosition`).
 
@@ -1084,9 +1090,9 @@ The three limits are judgement figures from the aviation review. Approach and pu
 
 **Guards for a follower off the pattern legs** (`GroundOrElsewhereLeadRefusal`, `RunwaylessLeadConeRefusal`, after the pattern-leg path in `RouteFollow`).
 
-A follower on an instrument approach, in a `VfrFollowPhase` pursuit (a turn-out included) or outside the pattern refuses a lead on the ground ("Unable, {T} is on the ground"), except that a pursuit accepts a lead rolling out on its own runway (its `FollowPatternReturn.Runway`, else the assigned runway; the lead lifecycle ends that follow next tick and the pursuit returns to its circuit).
+A follower on an instrument approach, in a `VfrFollowPhase` pursuit (a turn-out included) or outside the pattern refuses a lead on the ground ("Unable, {T} has landed" for a lead in its landing rollout or runway exit, "Unable, {T} is on the ground" for any other), except that a pursuit accepts a lead rolling out on its own runway (its `FollowPatternReturn.Runway`, else the assigned runway; the lead lifecycle ends that follow next tick and the pursuit returns to its circuit).
 
-An approach follower refuses every ground lead and keeps its approach: accepting would tear the approach down for a follow the lifecycle ends a tick later, leaving no phase. It refuses a lead bound for another airport with the pattern legs' text when its own airport (the assigned runway's airport, else the filed destination) is known and differs; an unknown airport on either side refuses nothing.
+An approach follower refuses every ground lead and keeps its approach: accepting would tear the approach down for a follow the lifecycle ends a tick later, leaving no phase. It refuses a lead bound for another airport with the pattern legs' text when the airport it is actually working (a pursuit's return-circuit runway's airport, else the assigned runway's airport, else the filed destination) is known and differs; an unknown airport on either side refuses nothing.
 
 A `FOLLOW` of the lead a pursuit is already flying is acknowledged and changes nothing (same phase, path, pattern return and turn-out), even when that lead has since drifted outside the cone.
 
@@ -1145,7 +1151,7 @@ The reasons behind the behaviour above, with the alternatives that were tried or
 - **An IFR follower is one with a flight plan that is not VFR**; no flight plan counts as VFR (14 CFR §91.173; 7110.65 §4-8-11.d).
 - **A re-sequence that voids a landing clearance always says so** (7110.65 §3-10-5.c).
 
-  Every path that drops the landing clearance tells the RPO with the same text, `{Callsign} {summary} cancelled by FOLLOW, landing clearance RWY {oldRwy} cancelled`: the approach path above does; a cross-runway re-sequence from a pattern leg (`TryFollowIntoLeadPattern` from entry, upwind, crosswind or downwind) and `FollowOntoQueuedRunway` drop it through `TryEnterPattern` with no warning today, which an open YAAT issue fixes.
+  Every path that drops the landing clearance tells the RPO with the same text, `{Callsign} {summary} cancelled by FOLLOW, landing clearance RWY {oldRwy} cancelled`: the approach path above does, and so does a cross-runway re-sequence from a pattern leg (`TryFollowIntoLeadPattern` from entry, upwind, crosswind or downwind) or `FollowOntoQueuedRunway`, whose `TryEnterPattern` drops it (`CommandDispatcher.EnterPatternForFollow`). An entry that keeps the clearance (the same runway) warns nothing.
 - **A runwayless lead also keeps the approach** (judgement figure): a lead with no runway gives no landing sequence, and an IFR follow is pilot-applied visual separation that never leaves the cleared approach (7110.65 §7-2-1.a.2, §7-4-3).
 
   Only segments of the cleared approach are kept (§4-8-11.a): a plain en-route or published hold is not one and keeps the install (judgement figure). The hold-in-lieu is an explicit flag (`HoldingPatternPhase.IsHoldInLieu`), never inferred from a circuit limit. A procedure-turn or hold-in-lieu follower's path takes no credit for the outbound leg or the turn (judgement figure).

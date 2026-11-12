@@ -214,6 +214,8 @@ public static class AirborneFollowHelper
     /// increases separation and is the controller's to re-sequence. See
     /// <see cref="VisualDetection.TryMaintainTrafficContact"/> for why the type-detection-range /
     /// hemisphere / bank geometry is deliberately not re-checked here.</description></item>
+    /// <item><description>A downwind follower has passed its entrant lead's downwind join point before the lead joined
+    /// (<see cref="EndFollowPastEntrantJoin"/>): the follower says it is unable to follow and holds the downwind.</description></item>
     /// </list>
     /// Pattern-phase OnTicks call this before applying their spacing adjustments;
     /// <see cref="Pattern.VfrFollowPhase.OnTick"/> delegates to it for the same checks.
@@ -269,7 +271,7 @@ public static class AirborneFollowHelper
             return true;
         }
 
-        return false;
+        return EndFollowPastEntrantJoin(ctx);
     }
 
     /// <summary>
@@ -623,12 +625,14 @@ public static class AirborneFollowHelper
     /// flip the order there, while leg order would put a 6 nm straight-in behind a close base and a close base behind a 10 nm
     /// final. A follower on the final (an instrument approach and final by geometry included) orders a lead still on a pattern
     /// entry by path too, the entrant's measured through its entry route (<see cref="RemainingPatternPathNm"/>): an approach
-    /// follower accepted behind an entrant keeps spacing on it after it captures the final. Against an entry lead from base,
-    /// and for a follower on any other leg, the later leg is ahead: an outbound leg's extension adds path, so a path order
-    /// would flip the moment the lead turned onto its next leg.
+    /// follower accepted behind an entrant keeps spacing on it after it captures the final. A follower on base orders a
+    /// straight-in entrant (<see cref="IsStraightInEntry"/>) by path too, since it joins the same final (AIM §4-3-3 NOTE 1).
+    /// Against any other entry lead from base, and for a follower on any other leg, the later leg is ahead: an outbound leg's
+    /// extension adds path, so a path order would flip the moment the lead turned onto its next leg. The command-time FOLLOW
+    /// refusal orders the same pairs the same way.
     /// </summary>
     private static bool IsLeadAheadAcrossLegs(AircraftState follower, AircraftState lead, int followerLeg, int leadLeg, RunwayInfo runway) =>
-        ((followerLeg == FinalLegIndex) || ((followerLeg == BaseLegIndex) && (leadLeg != EntryLegIndex)))
+        ((followerLeg == FinalLegIndex) || ((followerLeg == BaseLegIndex) && ((leadLeg != EntryLegIndex) || IsStraightInEntry(lead))))
             ? IsLeadNoFartherFromThreshold(follower, lead, runway)
             : (leadLeg > followerLeg);
 
@@ -930,9 +934,11 @@ public static class AirborneFollowHelper
     /// </summary>
     internal static bool IsLeadPatternFlowAhead(AircraftState follower, AircraftState lead)
     {
-        RunwayInfo? runway = follower.Phases?.AssignedRunway;
-        string? leadRwy = lead.Phases?.AssignedRunway?.Designator;
-        if ((runway is null) || (leadRwy is null) || !string.Equals(runway.Designator, leadRwy, StringComparison.OrdinalIgnoreCase))
+        if (
+            (follower.Phases?.AssignedRunway is not { } runway)
+            || (lead.Phases?.AssignedRunway is not { } leadRunway)
+            || !IsSameRunway(runway, leadRunway)
+        )
         {
             return false;
         }
@@ -1710,6 +1716,99 @@ public static class AirborneFollowHelper
     /// </summary>
     internal static bool IsStraightInEntry(AircraftState ac) =>
         (ac.Phases?.CurrentPhase is PatternEntryPhase entry) && (EntryJoinedLeg(ac, entry) == FinalLegIndex);
+
+    /// <summary>
+    /// How far (nm) along the downwind a follower may be past an entrant's downwind join point and still be told to follow
+    /// it. A judgement figure from the aviation review; no FAA source gives one.
+    /// </summary>
+    internal const double EntrantJoinPassedToleranceNm = 0.2;
+
+    /// <summary>
+    /// True when <paramref name="follower"/>, on a downwind with waypoints, is past the point where <paramref name="lead"/>, still
+    /// on its pattern entry, joins that downwind (<see cref="EntryDownwindJoinPoint"/>) by more than
+    /// <see cref="EntrantJoinPassedToleranceNm"/> along the downwind. The entrant then joins behind the follower and could
+    /// become the one ahead only by the follower reversing, a major maneuver (AIM §4-3-5). False for a lead on no entry, or
+    /// on an entry that joins another leg. Both positions are measured along the follower's own downwind axis only; the
+    /// join point's offset from that downwind is not considered.
+    /// </summary>
+    internal static bool IsFollowerPastEntrantJoin(AircraftState follower, AircraftState lead)
+    {
+        if ((follower.Phases?.CurrentPhase is not DownwindPhase { Waypoints: { } wp }) || (EntryDownwindJoinPoint(lead) is not { } join))
+        {
+            return false;
+        }
+
+        var frame = PatternFrame.Of(wp);
+        return frame.AlongNm(follower.Position) > (frame.AlongNm(join) + EntrantJoinPassedToleranceNm);
+    }
+
+    /// <summary>
+    /// The point where <paramref name="ac"/>, on a pattern entry, joins the downwind, as its remaining path measures it
+    /// (<see cref="EntryRemainingPathNm"/>): a <see cref="PatternEntryPhase"/> joining the downwind at its entry point; a
+    /// midfield crossing at its midfield point, or at the teardrop's abeam point with a teardrop queued next; a teardrop at its
+    /// abeam point; a crossing transition's climb or upwind (<see cref="IsCrossingTransitionClimb"/>) where its queued crossing
+    /// joins, so the same pair keeps one join point across the hand-over to the crossing. Null otherwise.
+    /// </summary>
+    private static LatLon? EntryDownwindJoinPoint(AircraftState ac) =>
+        ac.Phases?.CurrentPhase switch
+        {
+            PatternEntryPhase entry when EntryJoinedLeg(ac, entry) == DownwindLegIndex => new LatLon(entry.EntryLat, entry.EntryLon),
+            MidfieldCrossingPhase { Waypoints: { } waypoints } crossing => CrossingJoinPoint(ac.Phases, crossing, waypoints),
+            TeardropReentryPhase teardrop => AbeamPoint(teardrop.Waypoints),
+            UpwindPhase or TakeoffPhase when QueuedCrossingIfTransition(ac.Phases) is { Waypoints: { } waypoints } crossing => CrossingJoinPoint(
+                ac.Phases,
+                crossing,
+                waypoints
+            ),
+            _ => null,
+        };
+
+    /// <summary>The queued crossing of a crossing transition (<see cref="IsCrossingTransition"/>); null for any other phase list.</summary>
+    private static MidfieldCrossingPhase? QueuedCrossingIfTransition(PhaseList phases) =>
+        IsCrossingTransition(phases) ? QueuedMidfieldCrossing(phases) : null;
+
+    /// <summary>
+    /// Where <paramref name="crossing"/> in <paramref name="phases"/> joins the downwind: the abeam point of a teardrop queued
+    /// right after it, else its midfield point (<see cref="MidfieldCrossingPhase.MidfieldTarget"/>).
+    /// </summary>
+    private static LatLon CrossingJoinPoint(PhaseList phases, MidfieldCrossingPhase crossing, PatternWaypoints waypoints) =>
+        (phases.Phases.ElementAtOrDefault(phases.Phases.IndexOf(crossing) + 1) is TeardropReentryPhase teardrop)
+            ? AbeamPoint(teardrop.Waypoints)
+            : MidfieldCrossingPhase.MidfieldTarget(waypoints);
+
+    /// <summary>The downwind abeam point of <paramref name="waypoints"/>.</summary>
+    private static LatLon AbeamPoint(PatternWaypoints waypoints) => new(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);
+
+    /// <summary>
+    /// Ends the follow of a downwind follower that has passed its entrant lead's downwind join point before the lead joined
+    /// (<see cref="IsFollowerPastEntrantJoin"/>), rather than landing ahead of it silently: the follower holds the downwind
+    /// (<see cref="CancelFollowHoldingLeg"/>) and says it is unable to follow (AIM §5-5-12.a.2).
+    /// </summary>
+    /// <returns>True when the follow was ended this tick.</returns>
+    internal static bool EndFollowPastEntrantJoin(PhaseContext ctx)
+    {
+        AircraftState follower = ctx.Aircraft;
+        if (
+            (follower.Approach.FollowingCallsign is not { } target)
+            || (ctx.AircraftLookup?.Invoke(target) is not { } lead)
+            || (follower.Phases?.AssignedRunway is not { } runway)
+            || (lead.Phases?.AssignedRunway is not { } leadRunway)
+            || !IsSameRunway(runway, leadRunway)
+            || !IsFollowerPastEntrantJoin(follower, lead)
+        )
+        {
+            return false;
+        }
+
+        Log.LogDebug("[Follow] {Callsign}: past {Target}'s downwind join before it joined, ending follow", follower.Callsign, target);
+        CancelFollowHoldingLeg(follower);
+        Pilot.PilotResponder.RouteByTunedPosition(
+            follower,
+            Pilot.PilotReportRouting.From(ctx),
+            Pilot.PilotResponder.BuildUnableToFollowExtendingDownwind(follower, target)
+        );
+        return true;
+    }
 
     /// <summary>The circuit leg an entry of <paramref name="kind"/> joins: upwind, base or final by name, the downwind otherwise.</summary>
     private static int JoinedLegOfKind(PatternEntryKind kind) =>

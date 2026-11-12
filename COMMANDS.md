@@ -1460,17 +1460,19 @@ For **IFR** visual approaches, use `CVA 28R FOLLOW AAL123` instead — a distinc
 | The traffic is departing: airborne in its takeoff, initial climb or departure procedure (a closed-traffic climb is not departing) | *"Unable, {T} is departing, request vectors"* |
 | An IFR follower flying its own missed approach (a go-around that does not re-enter the pattern, or the published missed); a VFR follower is re-sequenced instead | *"Unable, on the missed approach, request vectors"* |
 | The traffic is going around and leaving the pattern, or flying its missed; from an instrument approach, any go-around | *"Unable, {T} is going around, request vectors"* |
-| The traffic is on the ground (a pattern-leg or pursuit follower accepts traffic rolling out on its own runway) | *"Unable, {T} is on the ground"* |
-| The traffic's runway or filed destination is at another airport than the follower's | *"Unable, {T} is inbound to {APT}, request vectors"* |
+| The traffic is on the ground (a pattern-leg or pursuit follower accepts traffic rolling out on its own runway) | *"Unable, {T} has landed"* for traffic in its landing rollout, runway exit, touch-and-go, stop-and-go or helicopter landing; *"Unable, {T} is on the ground"* for any other |
+| The traffic's runway or filed destination is at another airport than the one the follower works (its pursuit's return runway, else its assigned runway, else its filed destination) | *"Unable, {T} is inbound to {APT}, request vectors"* |
 | From an instrument approach, the traffic lands another runway: an IFR follower anywhere on the approach, a VFR one only on the final inside the FAF or 5 nm, whichever is closer (outside that it is re-sequenced) | *"Unable, on approach for runway {rwy}, {T} is landing runway {rwy2}, request vectors"* |
 | From base or final, the traffic lands another runway or is queued to enter another runway's pattern; from final, traffic with no runway | *"Unable, on {base\|final} for runway {rwy}, request vectors to follow {T}"* |
-| Same-runway traffic behind the follower in the landing sequence, or with no place in it (a hold, a missed approach); from base or final, traffic still on a pattern entry | *"Unable, on {position} for runway {rwy}, {T} is not ahead of us, request vectors"* |
+| Same-runway traffic behind the follower in the landing sequence, or with no place in it (a hold, a missed approach); from base or final, traffic still on a pattern entry unless it is a straight-in with the shorter path to the threshold; from downwind, an entrant whose downwind join point is more than 0.2 NM behind the follower | *"Unable, on {position} for runway {rwy}, {T} is not ahead of us, request vectors"* |
 | From a pattern leg, traffic with no runway that is not ahead within ±60° of the follower's track (from upwind or crosswind, traffic on the downwind ahead is also accepted) | The same text, `{position}` also *"pattern entry"* for a follower on a pattern entry |
 | From an instrument approach, traffic with no runway that is neither within ±60° of the track nor nearer the threshold than the follower | *"Unable, on approach for runway {rwy}, {T} is not ahead of us, request vectors"* |
 | From a free pursuit, traffic with no runway outside ±60° of the track; from a pursuit that broke off its base or is turning out, new traffic behind it or on a pattern entry that is not a straight-in | *"Unable, {T} is not ahead of us, request vectors"* |
 | From a pursuit that broke off its base or is turning out, new traffic landing another runway | *"Unable, {T} is landing runway {rwy2}, request vectors"* |
 
 `{position}` is *upwind*, *crosswind*, *downwind*, *base*, *final*, *approach*, or *the go-around* (a closed-traffic climb reads *upwind*). A follower on a pattern entry is never refused for same-runway traffic; the pattern it is joining does the sequencing.
+
+A downwind follower accepted behind an entrant that passes the entrant's join point before the entrant joins says *"unable to follow the traffic, extending downwind, request base turn"* and holds the downwind. A follow that re-sequences the follower and voids its landing clearance warns the RPO *"{Callsign} {summary} cancelled by FOLLOW, landing clearance RWY {oldRwy} cancelled"*.
 
 ### Approach Options
 

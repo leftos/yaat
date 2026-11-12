@@ -223,4 +223,28 @@ public class FollowPatternTerminalLeadFlowAheadTests
             $"A lead on the {terminalName} terminal must count as flow-ahead of a downwind follower (terminal leg 6)."
         );
     }
+
+    /// <summary>
+    /// A lead landing KHWD 28R shares the designator of the follower's KOAK 28R but not the runway: it is not ahead in the
+    /// follower's landing sequence, the same test <see cref="AirborneFollowHelper.IsLeadPatternFlowBehind"/> applies.
+    /// </summary>
+    [Fact]
+    public void SameDesignatorAtAnotherAirport_IsNotFlowAhead()
+    {
+        (AircraftState? follower, RunwayInfo? rwy, PatternWaypoints? wp, Func<string, AircraftState?>? lookup) = BuildDownwindFollower();
+
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        Assert.NotNull(navDb);
+        RunwayInfo? hwd28R = navDb.GetRunway("KHWD", "28R");
+        Assert.NotNull(hwd28R);
+        Assert.Equal(rwy.Designator, hwd28R.Designator, ignoreCase: true);
+
+        AircraftState lead = BuildTerminalLead(new LandingPhase(), "C172", rwy, wp, lookup);
+        lead.Phases!.AssignedRunway = hwd28R;
+
+        Assert.False(
+            AirborneFollowHelper.IsLeadPatternFlowAhead(follower, lead),
+            "A lead landing 28R at another airport must not count as flow-ahead of a KOAK 28R follower."
+        );
+    }
 }

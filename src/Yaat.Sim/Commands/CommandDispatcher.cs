@@ -4153,8 +4153,39 @@ public static class CommandDispatcher
     private static void ClearPhaseChainDroppingClearance(AircraftState aircraft, string oldRunway)
     {
         string clearedSummary = ReplacePhaseChain(aircraft, new PhaseList());
+        aircraft.PendingWarnings.Add(FollowVoidedClearanceWarning(aircraft, clearedSummary, oldRunway));
+    }
+
+    /// <summary>
+    /// The warning every FOLLOW re-sequence that voids a landing clearance gives the RPO (7110.65 §3-10-5.c): the cleared
+    /// chain's <paramref name="clearedSummary"/> and the cancelled clearance's runway <paramref name="oldRunway"/>.
+    /// </summary>
+    private static string FollowVoidedClearanceWarning(AircraftState aircraft, string clearedSummary, string oldRunway)
+    {
         string runway = RunwayIdentifier.ToDisplayDesignator(oldRunway);
-        aircraft.PendingWarnings.Add($"{aircraft.Callsign} {clearedSummary} cancelled by FOLLOW, landing clearance RWY {runway} cancelled");
+        return $"{aircraft.Callsign} {clearedSummary} cancelled by FOLLOW, landing clearance RWY {runway} cancelled";
+    }
+
+    /// <summary>
+    /// <see cref="PatternCommandHandler.TryEnterPattern"/> for a FOLLOW re-sequence onto another runway's pattern: when the
+    /// entry voids the standing landing clearance (its runway is no longer the cleared one), the RPO is told with
+    /// <see cref="FollowVoidedClearanceWarning"/>, as the approach path does. An entry that keeps the clearance warns nothing.
+    /// </summary>
+    private static CommandResult EnterPatternForFollow(AircraftState aircraft, EnterPatternRequest request)
+    {
+        string? clearedRunway = (aircraft.Phases?.LandingClearance is not null) ? aircraft.Phases.ClearedRunwayId : null;
+        string clearedSummary = ClearedChainSummary(aircraft);
+        CommandResult result = PatternCommandHandler.TryEnterPattern(aircraft, request);
+        if (
+            result.Success
+            && (clearedRunway is not null)
+            && !string.Equals(aircraft.Phases?.ClearedRunwayId, clearedRunway, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            aircraft.PendingWarnings.Add(FollowVoidedClearanceWarning(aircraft, clearedSummary, clearedRunway));
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -4165,13 +4196,20 @@ public static class CommandDispatcher
     private static string ReplacePhaseChain(AircraftState aircraft, PhaseList replacement)
     {
         bool clearedGoAround = aircraft.Phases?.CurrentPhase is GoAroundPhase;
-        string? clearedSummary = aircraft.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
+        string clearedSummary = ClearedChainSummary(aircraft);
         // No route to the room's active runways: this handler is not given the dispatch context.
         aircraft.Phases?.Clear(BuildMinimalContext(aircraft, ActiveRunways.Empty));
         aircraft.Phases = replacement;
         ReleaseChainControlState(aircraft, clearedGoAround);
-        return clearedSummary ?? "approach";
+        return clearedSummary;
     }
+
+    /// <summary>
+    /// The aircraft's phase chain as a warning names it when cleared: its <see cref="PhaseClearSummary"/>, or "approach" when
+    /// it has none.
+    /// </summary>
+    private static string ClearedChainSummary(AircraftState aircraft) =>
+        ((aircraft.Phases is { } phases) ? PhaseClearSummary.Build(phases) : null) ?? "approach";
 
     /// <summary>
     /// The control state a torn-down phase chain owned: turn-rate and turn-direction overrides are released,
@@ -5751,9 +5789,12 @@ public static class CommandDispatcher
     /// <item>no leg in the sequence (a missed approach, a hold): not ahead;</item>
     /// <item>a pattern entry: from an instrument approach, by remaining path to the threshold, the entrant's measured through
     /// its entry route (the running follow's test, <see cref="AirborneFollowHelper.IsLeadPatternFlowBehind"/>), since a
-    /// follower 8–10 nm out can fall in behind an entrant close to its join; behind a follower on base or final (getting
-    /// behind a 45° entrant from there would take a 360, AIM §4-3-5); and accepted from upwind, crosswind or downwind, since
-    /// the entrant may join the downwind ahead and falling in behind it is the follow's job;</item>
+    /// follower 8–10 nm out can fall in behind an entrant close to its join; from base or final, a straight-in entrant
+    /// (<see cref="AirborneFollowHelper.IsStraightInEntry"/>) by the same path test, since it joins the same final
+    /// (AIM §4-3-3 NOTE 1), and any other entrant behind (getting behind a 45° entrant from there would take a 360,
+    /// AIM §4-3-5); from a downwind, behind once the follower is past the point where the entrant joins that downwind by more
+    /// than the tolerance (<see cref="AirborneFollowHelper.IsFollowerPastEntrantJoin"/>), else accepted; and accepted from
+    /// upwind or crosswind, since the entrant may join the downwind ahead and falling in behind it is the follow's job;</item>
     /// <item>any other leg: the same test the running follow uses (<see cref="AirborneFollowHelper.IsLeadPatternFlowBehind"/>),
     /// by remaining path to the threshold from base, final or an approach, by leg order from the outbound legs, and by
     /// position on a shared leg.</item>
@@ -5771,12 +5812,36 @@ public static class CommandDispatcher
         return AirborneFollowHelper.PatternLegIndex(lead) switch
         {
             null => true,
-            AirborneFollowHelper.EntryLegIndex => IsOnInstrumentApproach(current)
-                ? AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead)
-                : (current is not (UpwindPhase or CrosswindPhase or DownwindPhase)),
+            AirborneFollowHelper.EntryLegIndex => IsEntryLeadBehind(follower, lead, current),
             _ => AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead),
         };
     }
+
+    /// <summary>
+    /// <see cref="IsLeadBehindInSequence"/> for a lead on a pattern entry: by path where <see cref="IsEntryLeadMeasuredByPath"/>
+    /// says so; from a downwind, behind only once the follower is past the point where the entrant joins that downwind
+    /// (<see cref="AirborneFollowHelper.IsFollowerPastEntrantJoin"/>); accepted from upwind or crosswind; refused otherwise.
+    /// </summary>
+    private static bool IsEntryLeadBehind(AircraftState follower, AircraftState lead, Phase? current)
+    {
+        if (IsEntryLeadMeasuredByPath(lead, current))
+        {
+            return AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead);
+        }
+
+        return (current is DownwindPhase)
+            ? AirborneFollowHelper.IsFollowerPastEntrantJoin(follower, lead)
+            : (current is not (UpwindPhase or CrosswindPhase));
+    }
+
+    /// <summary>
+    /// True when a lead on a pattern entry is ordered by remaining path to the threshold rather than refused by leg: from an
+    /// instrument approach, and from base or final when the lead is a straight-in entrant
+    /// (<see cref="AirborneFollowHelper.IsStraightInEntry"/>), which joins the final the follower lands on (AIM §4-3-3 NOTE 1).
+    /// The running follow orders the same pair the same way (<c>AirborneFollowHelper.IsLeadAheadAcrossLegs</c>).
+    /// </summary>
+    private static bool IsEntryLeadMeasuredByPath(AircraftState lead, Phase? current) =>
+        IsOnInstrumentApproach(current) || ((current is BasePhase or FinalApproachPhase) && AirborneFollowHelper.IsStraightInEntry(lead));
 
     /// <summary>
     /// True when a lead landing the follower's runway is behind a follower counted as on the upwind (leg 1), as the running
@@ -6102,7 +6167,7 @@ public static class CommandDispatcher
         }
 
         PatternDirection joinDirection = ChooseFollowJoinDirection(aircraft, establishedLead.Phases.TrafficDirection, leadRunway);
-        CommandResult entryResult = PatternCommandHandler.TryEnterPattern(
+        CommandResult entryResult = EnterPatternForFollow(
             aircraft,
             new EnterPatternRequest
             {
@@ -6247,7 +6312,7 @@ public static class CommandDispatcher
 
         if (lead.IsOnGround)
         {
-            return IsRollingOutOnRunway(lead, followerRunway) ? null : new CommandResult(false, $"Unable, {target} is on the ground");
+            return IsRollingOutOnRunway(lead, followerRunway) ? null : GroundLeadRefusal(lead, target);
         }
 
         if (LeadBoundElsewhereRefusal(lead, followerRunway.AirportId, target) is { } elsewhere)
@@ -6337,6 +6402,17 @@ public static class CommandDispatcher
             ? PatternCommandHandler.ComputePatternWaypoints(aircraft, runway, side, ctx.GroundLayout, activeRunways: ctx.ActiveRunways)
             : null;
     }
+
+    /// <summary>
+    /// The refusal of a lead on the ground: "has landed" for a lead in its landing, touched down on a landing terminal
+    /// (rollout, a touch-and-go's or stop-and-go's roll included) or leaving the runway on the <see cref="RunwayExitPhase"/>
+    /// that follows a landing, since its sequence is complete (AIM §4-4-14.a.2 NOTE); "is on the ground" for any other ground
+    /// lead (parked, taxiing, holding short, on a takeoff roll).
+    /// </summary>
+    private static CommandResult GroundLeadRefusal(AircraftState lead, string target) =>
+        (lead.Phases?.CurrentPhase is LandingPhase or TouchAndGoPhase or StopAndGoPhase or HelicopterLandingPhase or RunwayExitPhase)
+            ? new CommandResult(false, $"Unable, {target} has landed")
+            : new CommandResult(false, $"Unable, {target} is on the ground");
 
     /// <summary>True when <paramref name="lead"/> is on the landing terminal of <paramref name="runway"/> itself.</summary>
     private static bool IsRollingOutOnRunway(AircraftState lead, RunwayInfo runway) =>
@@ -6547,12 +6623,10 @@ public static class CommandDispatcher
             // A lead rolling out on the runway a pursuit returns to is accepted (the lead lifecycle ends the follow on the
             // next tick). From an approach or outside the pattern every ground lead is refused: accepting it would tear
             // down the approach, or install a pursuit, only for the follow to end on the next tick.
-            return (PursuitRunway(aircraft, current) is { } runway) && IsRollingOutOnRunway(lead, runway)
-                ? null
-                : new CommandResult(false, $"Unable, {target} is on the ground");
+            return ((PursuitRunway(aircraft, current) is { } runway) && IsRollingOutOnRunway(lead, runway)) ? null : GroundLeadRefusal(lead, target);
         }
 
-        return LeadBoundElsewhereRefusal(lead, FollowerAirport(aircraft), target);
+        return LeadBoundElsewhereRefusal(lead, FollowerAirport(aircraft, current), target);
     }
 
     /// <summary>
@@ -6643,12 +6717,13 @@ public static class CommandDispatcher
         (current is VfrFollowPhase pursuit) ? (pursuit.PatternReturn?.Runway ?? aircraft.Phases?.AssignedRunway) : null;
 
     /// <summary>
-    /// Where the follower is bound: its assigned runway's airport, else its filed destination. Null when neither is
-    /// known.
+    /// The airport the follower is actually working: a pursuit's return-circuit runway's airport
+    /// (<see cref="PursuitRunway"/>), else its assigned runway's, else its filed destination. A practice approach or pattern
+    /// is flown at the field the follower works, not the one it filed for. Null when none is known.
     /// </summary>
-    private static string? FollowerAirport(AircraftState aircraft)
+    private static string? FollowerAirport(AircraftState aircraft, Phase? current)
     {
-        if (aircraft.Phases?.AssignedRunway?.AirportId is { Length: > 0 } runwayAirport)
+        if ((PursuitRunway(aircraft, current) ?? aircraft.Phases?.AssignedRunway)?.AirportId is { Length: > 0 } runwayAirport)
         {
             return runwayAirport;
         }
@@ -6706,7 +6781,7 @@ public static class CommandDispatcher
         }
 
         PatternDirection joinDirection = ChooseFollowJoinDirection(aircraft, preferredDirection, queuedRunway);
-        CommandResult entryResult = PatternCommandHandler.TryEnterPattern(
+        CommandResult entryResult = EnterPatternForFollow(
             aircraft,
             new EnterPatternRequest
             {

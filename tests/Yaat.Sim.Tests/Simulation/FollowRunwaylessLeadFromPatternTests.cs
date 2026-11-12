@@ -866,6 +866,30 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         AssertEnteredQueuedRunway(follower, result, PatternDirection.Right);
     }
 
+    /// <summary>
+    /// A downwind follower cleared to land 28R, re-sequenced by FOLLOW onto the 28L entry its runwayless lead has queued
+    /// (<c>FollowOntoQueuedRunway</c>): the clearance is voided and the RPO is told so (7110.65 §3-10-5.c).
+    /// </summary>
+    [Fact]
+    public void FollowFromDownwind_ClearedToLand_LeadQueuedOtherRunway_WarnsTheClearanceIsCancelled()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddDownwindFollower(engine, rwy);
+        follower.Phases!.LandingClearance = ClearanceType.ClearedToLand;
+        follower.Phases.ClearedRunwayId = "28R";
+        AddLead(engine, OffFinal(rwy, 3.0, 2.0), "DCT VPCBT; ERD 28L");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertEnteredQueuedRunway(follower, result, PatternDirection.Right);
+        Assert.Null(follower.Phases!.LandingClearance);
+        string warning = Assert.Single(follower.PendingWarnings, w => w.Contains("cancelled by FOLLOW", StringComparison.Ordinal));
+        Assert.StartsWith($"{Follower} ", warning, StringComparison.Ordinal);
+        Assert.EndsWith("cancelled by FOLLOW, landing clearance RWY 28R cancelled", warning, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void FollowFromDownwind_LeadQueuedOtherRunway_QueuedSideOverridesLeadStaleDirection()
     {

@@ -20,6 +20,9 @@
 ### Fixed
 
 - In vTDLS, clicking another row while a clearance or PDC review is open does nothing, as in vTDLS, so the open clearance is kept until Cancel or Send.
+- FOLLOW accepts a straight-in entrant ahead of a follower on base or final, and refuses an entrant a downwind follower has already passed.
+- A FOLLOW that moves a pattern follower to another runway now warns the RPO that its landing clearance is cancelled.
+- A FOLLOW refused because the lead is on the ground says "has landed" when the lead is still in its landing roll or exit.
 - Pasting a copied Favorites button onto a blank slot fills that slot, and pasting onto a button replaces it, keeping the grid's layout.
 - vStrips leaves the equipment suffix empty for a scenario flight plan filed without one, as vNAS does, instead of showing /A.
 - A climb via whose SID publishes no top, such as SFO TRUKN2, now climbs to FL190 instead of levelling at an "at or above" altitude.

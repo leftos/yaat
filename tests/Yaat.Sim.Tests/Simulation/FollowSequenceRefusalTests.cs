@@ -5,6 +5,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -352,6 +353,88 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
 
         AssertRefusedUnchanged(follower, before, result, NotAhead("final"));
+    }
+
+    /// <summary>
+    /// A straight-in entrant (<see cref="FollowEntryLeadPathTests.StraightInEntrant"/>) joining the 28R final
+    /// <paramref name="joinNm"/> out from <paramref name="alongNm"/> out and <paramref name="rightNm"/> right of it, added as
+    /// <see cref="Leader"/>.
+    /// </summary>
+    private static AircraftState AddStraightInLead(SimulationEngine engine, double joinNm, double alongNm, double rightNm)
+    {
+        RunwayInfo rwy = Oak("28R");
+        AircraftState lead = FollowEntryLeadPathTests.StraightInEntrant(rwy, "C172", joinNm, OffFinal(rwy, alongNm, rightNm));
+        engine.World.AddAircraft(lead);
+        Assert.True(AirborneFollowHelper.IsStraightInEntry(lead));
+        return lead;
+    }
+
+    /// <summary>
+    /// Asserts both judges agree the lead is ahead (the per-tick <see cref="AirborneFollowHelper.IsLeadPatternFlowAhead"/>),
+    /// then runs <paramref name="seconds"/> and asserts the follow still runs: no accept-then-break-off.
+    /// </summary>
+    private static void AssertFollowKeptRunning(SimulationEngine engine, AircraftState follower, AircraftState lead, int seconds)
+    {
+        Assert.True(AirborneFollowHelper.IsLeadPatternFlowAhead(follower, lead), "the running follow must count the lead ahead");
+        TickSeconds(engine, seconds);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// From base, a straight-in entrant whose remaining path to the threshold is shorter than the follower's is ahead in
+    /// sequence (AIM §4-3-3 NOTE 1): FOLLOW is accepted and the running follow keeps it.
+    /// </summary>
+    [Fact]
+    public void FollowFromBase_StraightInEntrantWithShorterPath_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddFollower(engine, PatternEntryLeg.Base, wp => IntoBase(wp, 0.3));
+        // Converging on the final from the side away from the base, close in and clear of the follower.
+        AircraftState lead = AddStraightInLead(engine, 0.6, 0.9, -0.5);
+        RunwayInfo rwy = Oak("28R");
+        double followerNm = AirborneFollowHelper.SequenceRemainingPathNm(follower, rwy);
+        double leadNm = AirborneFollowHelper.SequenceRemainingPathNm(lead, rwy);
+        output.WriteLine($"remaining path: follower {followerNm:F2} nm, lead {leadNm:F2} nm");
+        Assert.True(leadNm < followerNm);
+        FollowerState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRetargetedInPlace(follower, before, result);
+        AssertFollowKeptRunning(engine, follower, lead, 5);
+    }
+
+    /// <summary>From base, a straight-in entrant with the longer remaining path is behind in sequence: refused.</summary>
+    [Fact]
+    public void FollowFromBase_StraightInEntrantWithLongerPath_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddFollower(engine, PatternEntryLeg.Base, wp => IntoBase(wp, 0.3));
+        AircraftState lead = AddStraightInLead(engine, 4.0, 5.0, 2.0);
+        RunwayInfo rwy = Oak("28R");
+        Assert.True(AirborneFollowHelper.SequenceRemainingPathNm(lead, rwy) > AirborneFollowHelper.SequenceRemainingPathNm(follower, rwy));
+        FollowerState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, NotAhead("base"));
+    }
+
+    /// <summary>From a 6 nm final, a straight-in entrant joining 3 nm out is ahead by path: accepted and kept.</summary>
+    [Fact]
+    public void FollowFromFinal_StraightInEntrantAhead_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddFinalFollower(engine, 6.0, 1900);
+        AircraftState lead = AddStraightInLead(engine, 3.0, 4.0, 1.5);
+        RunwayInfo rwy = Oak("28R");
+        Assert.True(AirborneFollowHelper.SequenceRemainingPathNm(lead, rwy) < AirborneFollowHelper.SequenceRemainingPathNm(follower, rwy));
+        FollowerState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRetargetedInPlace(follower, before, result);
+        AssertFollowKeptRunning(engine, follower, lead, 5);
     }
 
     [Fact]
@@ -742,5 +825,137 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
         Assert.Contains(follower.PendingWarnings, w => w.Contains(NotAhead("base"), StringComparison.Ordinal));
         Assert.False(follower.Approach.HasReportedTrafficInSight, "a refused FOLLOWF must leave the traffic-in-sight state as it was");
         Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    // ─── Ground leads: "has landed" against "is on the ground" ───
+
+    /// <summary>Lead on the ground rolling out on KOAK <paramref name="designator"/>, on its landing phase.</summary>
+    private static AircraftState AddRollingOutLead(SimulationEngine engine, string designator) =>
+        AddGroundLeadOn(engine, designator, new LandingPhase());
+
+    /// <summary>Lead on the ground on KOAK <paramref name="designator"/> just past its threshold, on <paramref name="phase"/>.</summary>
+    private static AircraftState AddGroundLeadOn(SimulationEngine engine, string designator, Phase phase)
+    {
+        RunwayInfo rwy = Oak(designator);
+        AircraftState lead = MakeVfr(Leader, OffFinal(rwy, -0.3, 0), rwy.TrueHeading, rwy.ElevationFt);
+        lead.IsOnGround = true;
+        lead.IndicatedAirspeed = 40;
+        lead.Phases = new PhaseList { AssignedRunway = rwy };
+        lead.Phases.Add(phase); // CurrentIndex defaults to 0, so CurrentPhase is this phase without Start()
+        engine.World.AddAircraft(lead);
+        return lead;
+    }
+
+    /// <summary>
+    /// A lead on the ground on another runway in any part of its landing (the rollout of a touch-and-go, stop-and-go or
+    /// helicopter landing, or the runway exit after a landing) has landed.
+    /// </summary>
+    [Theory]
+    [InlineData("runway-exit")]
+    [InlineData("touch-and-go")]
+    [InlineData("stop-and-go")]
+    [InlineData("helicopter-landing")]
+    public void FollowFromDownwind_LeadLandedOnAnotherRunway_IsRefusedAsLanded(string phaseName)
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddFollower(engine, PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.0));
+        Phase phase = phaseName switch
+        {
+            "runway-exit" => new RunwayExitPhase(),
+            "touch-and-go" => new TouchAndGoPhase(),
+            "stop-and-go" => new StopAndGoPhase(),
+            "helicopter-landing" => new HelicopterLandingPhase(),
+            _ => throw new ArgumentOutOfRangeException(nameof(phaseName), phaseName, "Unknown phase"),
+        };
+        AddGroundLeadOn(engine, "28L", phase);
+        FollowerState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, $"Unable, {Leader} has landed");
+    }
+
+    /// <summary>Lead on the ground beside the field with no phases: parked or taxiing.</summary>
+    private static AircraftState AddParkedLead(SimulationEngine engine)
+    {
+        RunwayInfo rwy = Oak("28R");
+        AircraftState lead = MakeVfr(Leader, OffFinal(rwy, -0.5, 0.3), rwy.TrueHeading, rwy.ElevationFt);
+        lead.IsOnGround = true;
+        lead.IndicatedAirspeed = 0;
+        engine.World.AddAircraft(lead);
+        return lead;
+    }
+
+    /// <summary>A lead rolling out on another runway has landed: its sequence is complete (AIM §4-4-14.a.2 NOTE).</summary>
+    [Fact]
+    public void FollowFromDownwind_LeadRollingOutOnAnotherRunway_IsRefusedAsLanded()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddFollower(engine, PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.0));
+        AddRollingOutLead(engine, "28L");
+        FollowerState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, $"Unable, {Leader} has landed");
+    }
+
+    /// <summary>From an approach, a lead rolling out on another runway has landed.</summary>
+    [Fact]
+    public void FollowFromApproach_LeadRollingOutOnAnotherRunway_IsRefusedAsLanded()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddApproachFollower(engine, 6.0);
+        AddRollingOutLead(engine, "28L");
+        FollowerState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, $"Unable, {Leader} has landed");
+    }
+
+    /// <summary>A parked or taxiing lead is on the ground, not landed.</summary>
+    [Fact]
+    public void FollowFromDownwind_ParkedLead_IsRefusedAsOnTheGround()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddFollower(engine, PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.0));
+        AddParkedLead(engine);
+        FollowerState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, $"Unable, {Leader} is on the ground");
+    }
+
+    /// <summary>A lead rolling out on the follower's own runway is still accepted.</summary>
+    [Fact]
+    public void FollowFromDownwind_LeadRollingOutOnOwnRunway_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddFollower(engine, PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.0));
+        AddRollingOutLead(engine, "28R");
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// A pattern follower at KOAK filed to KSFO works KOAK: a lead landing KOAK is not bound elsewhere, and FOLLOW is accepted.
+    /// </summary>
+    [Fact]
+    public void FollowFromDownwind_FiledElsewhere_LeadLandingTheFieldWorked_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddFollower(engine, PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.0));
+        follower.FlightPlan.Destination = "KSFO";
+        AddFinalLead(engine, 2.0, 700);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
     }
 }

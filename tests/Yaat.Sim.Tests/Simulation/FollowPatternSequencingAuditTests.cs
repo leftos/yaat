@@ -1258,6 +1258,219 @@ public class FollowPatternSequencingAuditTests
         Assert.False(AirborneFollowHelper.IsLeadPatternFlowAhead(follower, lead));
     }
 
+    // ─── A downwind follower of a 45° entrant: refused past the entrant's join point ───
+
+    /// <summary>The 28R right-downwind point where the 45° entrant joins: 1.5 nm short of the base turn.</summary>
+    private static LatLon EntrantJoin(PatternWaypoints wp) =>
+        GeoMath.ProjectPoint(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), wp.DownwindHeading.ToReciprocal(), 1.5);
+
+    /// <summary>
+    /// The lead, a C172 on a 45° entry to the 28R right downwind <paramref name="backNm"/> back along the 45° line from its join
+    /// point (<see cref="EntrantJoin"/>), heading for it, with the circuit from the downwind behind the entry, cleared to land.
+    /// </summary>
+    private static AircraftState FortyFiveEntrant(SimulationEngine engine, RunwayInfo rwy, PatternWaypoints wp, double backNm)
+    {
+        LatLon join = EntrantJoin(wp);
+        LatLon position = GeoMath.ProjectPoint(GeoMath.ProjectPoint(join, wp.DownwindHeading.ToReciprocal(), backNm), wp.CrosswindHeading, backNm);
+        AircraftState lead = MakeVfr(LeadCallsign, position, new TrueHeading(GeoMath.BearingTo(position, join)), wp.PatternAltitude, ias: 90);
+        engine.World.AddAircraft(lead);
+        AttachCircuit(
+            lead,
+            rwy,
+            AircraftCategory.Piston,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            NavigationDatabase.Instance.GetRunways("KOAK")
+        );
+        lead.Phases!.Phases.Insert(
+            0,
+            new PatternEntryPhase
+            {
+                EntryLat = join.Lat,
+                EntryLon = join.Lon,
+                PatternAltitude = wp.PatternAltitude,
+                Kind = PatternEntryKind.FortyFive,
+            }
+        );
+        lead.Phases.LandingClearance = ClearanceType.ClearedToLand;
+        lead.Phases.ClearedRunwayId = rwy.Designator;
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty));
+        Assert.IsType<PatternEntryPhase>(lead.Phases.CurrentPhase);
+        return lead;
+    }
+
+    /// <summary>
+    /// The follower on the 28R right downwind <paramref name="pastJoinNm"/> past the entrant's join point (before it when
+    /// negative), with the lead in sight and cleared to land.
+    /// </summary>
+    private static AircraftState DownwindFollowerByJoin(SimulationEngine engine, RunwayInfo rwy, PatternWaypoints wp, double pastJoinNm)
+    {
+        LatLon position = GeoMath.ProjectPoint(EntrantJoin(wp), wp.DownwindHeading, pastJoinNm);
+        AircraftState follower = MakeVfr(FollowerCallsign, position, wp.DownwindHeading, wp.PatternAltitude, ias: 90);
+        engine.World.AddAircraft(follower);
+        StartOnCircuit(follower, rwy, PatternDirection.Right, PatternEntryLeg.Downwind);
+        Assert.IsType<DownwindPhase>(follower.Phases!.CurrentPhase);
+        follower.Approach.HasReportedTrafficInSight = true;
+        follower.Phases.LandingClearance = ClearanceType.ClearedToLand;
+        follower.Phases.ClearedRunwayId = rwy.Designator;
+        return follower;
+    }
+
+    /// <summary>
+    /// A downwind follower 0.5 nm past the point where a 45° entrant joins its downwind would have the entrant join behind it:
+    /// following it takes a reversal (AIM §4-3-5), so FOLLOW is refused.
+    /// </summary>
+    [Fact]
+    public void DownwindFollower_PastFortyFiveEntrantJoin_IsRefused()
+    {
+        RunwayInfo rwy = Oak28R();
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
+        FortyFiveEntrant(engine, rwy, wp, 1.0);
+        AircraftState follower = DownwindFollowerByJoin(engine, rwy, wp, 0.5);
+
+        CommandResult result = engine.SendCommand(FollowerCallsign, $"FOLLOW {LeadCallsign}");
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal($"Unable, on downwind for runway 28R, {LeadCallsign} is not ahead of us, request vectors", result.Message);
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// A downwind follower 0.5 nm before the entrant's join point is told to follow it: the entrant can still join ahead, so
+    /// FOLLOW is accepted. This pins the command-time acceptance only.
+    /// </summary>
+    [Fact]
+    public void DownwindFollower_BeforeFortyFiveEntrantJoin_IsAcceptedAtCommandTimeOnly()
+    {
+        // Nothing holds such a follower back for an entrant, so run forward the follow usually
+        // ends at the per-tick join check (DownwindFollower_PassingEntrantJoinBeforeItJoins_EndsTheFollow).
+        RunwayInfo rwy = Oak28R();
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
+        FortyFiveEntrant(engine, rwy, wp, 1.0);
+        AircraftState follower = DownwindFollowerByJoin(engine, rwy, wp, -0.5);
+
+        CommandResult result = engine.SendCommand(FollowerCallsign, $"FOLLOW {LeadCallsign}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(LeadCallsign, follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// An accepted downwind follower that passes the entrant's join point before the entrant has joined ends the follow with
+    /// the "unable to follow" call and holds the downwind, rather than landing ahead of its lead silently.
+    /// </summary>
+    [Fact]
+    public void DownwindFollower_PassingEntrantJoinBeforeItJoins_EndsTheFollow()
+    {
+        RunwayInfo rwy = Oak28R();
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
+        AircraftState lead = FortyFiveEntrant(engine, rwy, wp, 3.0);
+        AircraftState follower = DownwindFollowerByJoin(engine, rwy, wp, -0.1);
+
+        CommandResult result = engine.SendCommand(FollowerCallsign, $"FOLLOW {LeadCallsign}");
+        Assert.True(result.Success, result.Message);
+
+        TickSeconds(engine, 30);
+
+        Assert.IsType<PatternEntryPhase>(lead.Phases?.CurrentPhase);
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.Single(
+            follower.PendingWarnings,
+            w => w.Contains($"unable to follow {LeadCallsign}, extending downwind, request base turn.", StringComparison.Ordinal)
+        );
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(follower.Phases?.CurrentPhase);
+        Assert.True(downwind.IsExtended);
+    }
+
+    /// <summary>
+    /// The lead, a C172 crossing midfield to join the 28R right downwind (<see cref="MidfieldCrossingPhase"/> on the follower's
+    /// geometry), a teardrop queued after the crossing when <paramref name="withTeardrop"/>, then the circuit from the downwind.
+    /// </summary>
+    private static AircraftState MidfieldCrossingLead(SimulationEngine engine, RunwayInfo rwy, PatternWaypoints wp, bool withTeardrop)
+    {
+        LatLon start = GeoMath.ProjectPoint(MidfieldCrossingPhase.MidfieldTarget(wp), wp.CrosswindHeading.ToReciprocal(), 2.0);
+        AircraftState lead = MakeVfr(LeadCallsign, start, wp.CrosswindHeading, wp.PatternAltitude + 500, ias: 90);
+        engine.World.AddAircraft(lead);
+        AttachCircuit(
+            lead,
+            rwy,
+            AircraftCategory.Piston,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            NavigationDatabase.Instance.GetRunways("KOAK")
+        );
+        lead.Phases!.Phases.Insert(0, new MidfieldCrossingPhase { Waypoints = wp });
+        if (withTeardrop)
+        {
+            lead.Phases.Phases.Insert(1, new TeardropReentryPhase { Waypoints = wp });
+        }
+
+        lead.Phases.Start(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty));
+        Assert.IsType<MidfieldCrossingPhase>(lead.Phases.CurrentPhase);
+        return lead;
+    }
+
+    /// <summary>
+    /// The follower on the 28R right downwind <paramref name="pastNm"/> along the downwind past <paramref name="point"/>'s
+    /// along-downwind position, lead in sight, cleared to land.
+    /// </summary>
+    private static AircraftState DownwindFollowerPast(SimulationEngine engine, RunwayInfo rwy, PatternWaypoints wp, LatLon point, double pastNm)
+    {
+        double pointPastJoinNm = GeoMath.AlongTrackDistanceNm(point, EntrantJoin(wp), wp.DownwindHeading);
+        return DownwindFollowerByJoin(engine, rwy, wp, pointPastJoinNm + pastNm);
+    }
+
+    /// <summary>A follower 0.5 nm past a midfield-crossing lead's midfield point, no teardrop queued: refused.</summary>
+    [Fact]
+    public void DownwindFollower_PastMidfieldCrossingJoin_IsRefused()
+    {
+        RunwayInfo rwy = Oak28R();
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
+        MidfieldCrossingLead(engine, rwy, wp, withTeardrop: false);
+        AircraftState follower = DownwindFollowerPast(engine, rwy, wp, MidfieldCrossingPhase.MidfieldTarget(wp), 0.5);
+
+        CommandResult result = engine.SendCommand(FollowerCallsign, $"FOLLOW {LeadCallsign}");
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal($"Unable, on downwind for runway 28R, {LeadCallsign} is not ahead of us, request vectors", result.Message);
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// With a teardrop queued after the crossing, the lead joins at the downwind abeam point, not midfield: a follower 0.3 nm
+    /// past midfield (refused with no teardrop) but short of the abeam point is accepted, and one 0.5 nm past the abeam point
+    /// is refused.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DownwindFollower_MidfieldCrossingWithTeardrop_JoinsAtAbeamPoint(bool pastAbeam)
+    {
+        RunwayInfo rwy = Oak28R();
+        var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
+        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
+        MidfieldCrossingLead(engine, rwy, wp, withTeardrop: true);
+        var abeam = new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon);
+        AircraftState follower = pastAbeam
+            ? DownwindFollowerPast(engine, rwy, wp, abeam, 0.5)
+            : DownwindFollowerPast(engine, rwy, wp, MidfieldCrossingPhase.MidfieldTarget(wp), 0.3);
+        var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
+        double followerAlongNm = GeoMath.AlongTrackDistanceNm(follower.Position, threshold, wp.DownwindHeading);
+        double abeamAlongNm = GeoMath.AlongTrackDistanceNm(abeam, threshold, wp.DownwindHeading);
+        Assert.True(
+            pastAbeam || (followerAlongNm < abeamAlongNm),
+            $"follower {followerAlongNm:F2} nm, abeam {abeamAlongNm:F2} nm: the before-abeam follower must sit short of the abeam point"
+        );
+
+        CommandResult result = engine.SendCommand(FollowerCallsign, $"FOLLOW {LeadCallsign}");
+
+        Assert.Equal(!pastAbeam, result.Success);
+    }
+
     private static CommandResult DispatchTower(string command, AircraftState ac, Func<string, AircraftState?> lookup)
     {
         ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(command, ac.FlightPlan.Route);

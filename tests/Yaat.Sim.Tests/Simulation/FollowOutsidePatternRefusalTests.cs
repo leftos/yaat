@@ -15,8 +15,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// <summary>
 /// FOLLOW to a follower with no pattern leg — an aircraft outside the pattern, an approach follower or a pursuit
 /// (<see cref="VfrFollowPhase"/>) — when the lead is on the ground or bound for another airport. Both are refused:
-/// "Unable, {T} is on the ground" (a lead rolling out on the runway a pursuit returns to is accepted — the lead lifecycle
-/// ends the follow next tick; from an approach or outside the pattern every ground lead is refused) and
+/// "Unable, {T} has landed" for a lead in its landing and "Unable, {T} is on the ground" for any other (a lead rolling out
+/// on the runway a pursuit returns to is accepted — the lead lifecycle ends the follow next tick; from an approach or
+/// outside the pattern every ground lead is refused) and
 /// "Unable, {T} is inbound to {APT}, request vectors" (only
 /// when the follower's own airport is known and differs). A re-FOLLOW of the lead already being pursued is
 /// acknowledged and changes nothing: same phase instance, same path, same pattern return, turn-out under way kept.
@@ -29,6 +30,7 @@ public class FollowOutsidePatternRefusalTests(ITestOutputHelper output)
     private const string Follower = "FOLL1";
 
     private const string OnTheGroundText = $"Unable, {Leader} is on the ground";
+    private const string HasLandedText = $"Unable, {Leader} has landed";
     private const string InboundToHwdText = $"Unable, {Leader} is inbound to HWD, request vectors";
 
     private SimulationEngine BuildEngine()
@@ -252,7 +254,7 @@ public class FollowOutsidePatternRefusalTests(ITestOutputHelper output)
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
 
-        AssertRefusedUnchanged(follower, before, result, OnTheGroundText);
+        AssertRefusedUnchanged(follower, before, result, HasLandedText);
     }
 
     [Fact]
@@ -309,7 +311,7 @@ public class FollowOutsidePatternRefusalTests(ITestOutputHelper output)
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
 
-        AssertRefusedUnchanged(follower, before, result, OnTheGroundText);
+        AssertRefusedUnchanged(follower, before, result, HasLandedText);
     }
 
     // ─── Approach followers ───
@@ -342,7 +344,7 @@ public class FollowOutsidePatternRefusalTests(ITestOutputHelper output)
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
 
-        AssertRefusedUnchanged(follower, before, result, OnTheGroundText);
+        AssertRefusedUnchanged(follower, before, result, HasLandedText);
         TickSeconds(engine, 1);
         Assert.True(
             follower.Phases!.CurrentPhase is InterceptCoursePhase or FinalApproachPhase,
@@ -477,6 +479,26 @@ public class FollowOutsidePatternRefusalTests(ITestOutputHelper output)
         Assert.True(result.Success, result.Message);
         Assert.Same(pursuit, follower.Phases!.CurrentPhase);
         Assert.True(pursuit.TurningOut, "a re-FOLLOW of the same lead must keep the turn-out under way");
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// A pursuit returning to the KOAK 28R circuit, with no assigned runway and filed to KSFO, works KOAK: a lead in the KOAK
+    /// circuit is not bound elsewhere, and FOLLOW is accepted. The airport the follower is actually working is its return
+    /// circuit's, not its filed destination.
+    /// </summary>
+    [Fact]
+    public void Pursuit_FiledElsewhere_LeadAtTheFieldItWorks_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddPursuitFollower(engine, Leader, 4.0, 1.0);
+        follower.FlightPlan.Destination = "KSFO";
+        Assert.Null(follower.Phases!.AssignedRunway);
+        AddDownwindLead(engine);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        Assert.True(result.Success, result.Message);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
     }
 }

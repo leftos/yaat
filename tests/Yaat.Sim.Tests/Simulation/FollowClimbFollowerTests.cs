@@ -1906,8 +1906,10 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A crossing-pair climb as a lead is a pattern entry (leg 0), not a departure: followed in place from the 33 upwind,
-    /// crosswind and downwind (it stays flow-behind until it joins), refused from base and final with the not-ahead text.
+    /// A crossing-pair climb as a lead is a pattern entry (leg 0), not a departure: followed in place from the 33 upwind and
+    /// crosswind (it stays flow-behind until it joins), refused from base and final with the not-ahead text, and refused from
+    /// a downwind 1 nm short of the base turn, which is past the point where the climb's crossing joins that downwind
+    /// (<see cref="AirborneFollowHelper.IsFollowerPastEntrantJoin"/>).
     /// </summary>
     [Theory]
     [InlineData("upwind")]
@@ -1941,7 +1943,7 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
 
-        if (followerLeg is "base" or "final")
+        if (followerLeg is "base" or "final" or "downwind")
         {
             AssertRefusedUnchanged(follower, before, result, $"Unable, on {followerLeg} for runway 33, {Leader} is not ahead of us, request vectors");
             return;
@@ -1950,6 +1952,89 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         AssertKeptClimbFollowingLead(follower, before, result);
         Assert.Same(leg, follower.Phases.CurrentPhase);
         Assert.True(AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead), "an entrant lead stays flow-behind until it joins");
+    }
+
+    /// <summary>The midfield point where a crossing-transition climb's queued crossing joins the downwind.</summary>
+    private static LatLon CrossingMidfield(AircraftState lead) =>
+        MidfieldCrossingPhase.MidfieldTarget(lead.Phases!.Phases.OfType<MidfieldCrossingPhase>().First().Waypoints!);
+
+    /// <summary>
+    /// A follower on the KOAK 33 right downwind <paramref name="pastNm"/> along the downwind past <paramref name="point"/>
+    /// (short of it when negative), lead in sight.
+    /// </summary>
+    private static AircraftState AddDownwindFollowerPast(SimulationEngine engine, LatLon point, double pastNm)
+    {
+        AircraftState follower = AddOnCircuit(
+            engine,
+            Follower,
+            Oak("33"),
+            PatternEntryLeg.Downwind,
+            wp =>
+            {
+                var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
+                double shortNm = GeoMath.AlongTrackDistanceNm(baseTurn, point, wp.DownwindHeading) - pastNm;
+                return DownwindShortOfBaseTurn(wp, shortNm);
+            }
+        );
+        follower.Approach.HasReportedTrafficInSight = true;
+        return follower;
+    }
+
+    /// <summary>
+    /// A downwind follower 0.5 nm past the point where a crossing-transition climb's crossing joins its downwind: the lead
+    /// joins behind it, so FOLLOW is refused, as for any pattern entrant.
+    /// </summary>
+    [Fact]
+    public void CrossingClimbLead_DownwindFollowerPastItsMidfieldJoin_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState lead = AddRunwayTransitionClimb(engine, Leader, Oak("33"), 0.5, flownPatternAltitudeFt: null);
+        AircraftState follower = AddDownwindFollowerPast(engine, CrossingMidfield(lead), 0.5);
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, $"Unable, on downwind for runway 33, {Leader} is not ahead of us, request vectors");
+    }
+
+    /// <summary>
+    /// A downwind follower 0.5 nm short of a crossing-transition climb's midfield join is accepted, and the running follow's
+    /// judge (<see cref="AirborneFollowHelper.IsFollowerPastEntrantJoin"/>) gives the same verdict through the lead's hand-over
+    /// from its climb to the <see cref="MidfieldCrossingPhase"/>: the join point does not move. The judged follower stands
+    /// still in a second world, so only the lead's progress can change the verdict.
+    /// </summary>
+    [Fact]
+    public void CrossingClimbLead_DownwindFollowerBeforeItsMidfieldJoin_IsAcceptedAndKeptAcrossTheHandOver()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState lead = AddRunwayTransitionClimb(engine, Leader, Oak("33"), 0.5, flownPatternAltitudeFt: null);
+        LatLon midfield = CrossingMidfield(lead);
+        AircraftState follower = AddDownwindFollowerPast(engine, midfield, -0.5);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+
+        // The per-tick judge on the same pair, and on a follower past the join, phase by phase through the climb, its upwind
+        // and the crossing: the verdicts never change, so the accepted follow is not broken off at the hand-over.
+        AircraftState pastFollower = AddDownwindFollowerPast(BuildEngine(), midfield, 0.5);
+        for (int step = 0; (step < 5) && (lead.Phases!.CurrentPhase is not MidfieldCrossingPhase); step++)
+        {
+            AssertJoinVerdicts(follower, pastFollower, lead);
+            lead.Phases.AdvanceToNext(CommandDispatcher.BuildMinimalContext(lead, ActiveRunways.Empty));
+        }
+
+        Assert.IsType<MidfieldCrossingPhase>(lead.Phases!.CurrentPhase);
+        AssertJoinVerdicts(follower, pastFollower, lead);
+    }
+
+    /// <summary>The past-join verdicts on <paramref name="lead"/>'s current phase: false before the join, true past it.</summary>
+    private void AssertJoinVerdicts(AircraftState before, AircraftState past, AircraftState lead)
+    {
+        output.WriteLine($"lead on {lead.Phases?.CurrentPhase?.Name}");
+        Assert.False(AirborneFollowHelper.IsFollowerPastEntrantJoin(before, lead), $"before the join, lead on {lead.Phases?.CurrentPhase?.Name}");
+        Assert.True(AirborneFollowHelper.IsFollowerPastEntrantJoin(past, lead), $"past the join, lead on {lead.Phases?.CurrentPhase?.Name}");
     }
 
     /// <summary>
