@@ -332,12 +332,10 @@ public class ScenarioResourceManifestTests
     {
         public HashSet<string> Requested { get; } = new(StringComparer.Ordinal);
 
-        public AirportGroundLayout? GetLayout(string airportId)
+        public GroundDataRead Read(string airportId)
         {
             Requested.Add(AirportLayoutDownloader.ToFaaCode(airportId));
-            return null;
+            return new GroundDataRead(true, null, null);
         }
-
-        public string? GetSourceGeoJson(string airportId) => null;
     }
 }

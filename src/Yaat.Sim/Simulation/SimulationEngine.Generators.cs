@@ -1694,7 +1694,9 @@ public sealed partial class SimulationEngine
         };
 
         List<AircraftState> existing = World.GetSnapshot();
-        AirportGroundLayout? groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
+        AirportGroundLayout? groundLayout = scenario.PrimaryAirportId is not null
+            ? ReadReadyLayout(scenario.PrimaryAirportId, "generator spawn")
+            : null;
         (AircraftState? state, string? error) = AircraftGenerator.Generate(
             request,
             scenario.PrimaryAirportId,
@@ -1884,7 +1886,7 @@ public sealed partial class SimulationEngine
             VfrFiledDestination = airportId,
         };
 
-        AirportGroundLayout? groundLayout = _groundData.GetLayout(airportId);
+        AirportGroundLayout? groundLayout = ReadReadyLayout(airportId, "generator spawn");
         (AircraftState? state, string? error) = AircraftGenerator.Generate(
             request,
             airportId,
@@ -2007,7 +2009,7 @@ public sealed partial class SimulationEngine
             Altitude = altitudeFt,
         };
 
-        AirportGroundLayout? groundLayout = _groundData.GetLayout(airportId);
+        AirportGroundLayout? groundLayout = ReadReadyLayout(airportId, "generator spawn");
         (AircraftState? state, string? error) = AircraftGenerator.Generate(
             request,
             airportId,

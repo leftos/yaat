@@ -87,6 +87,9 @@ internal sealed class RecordingGroundData : IAirportGroundData
         return _live.GetSourceGeoJson(airportId);
     }
 
+    /// <summary>The bundled or committed layout and its GeoJSON, always loaded.</summary>
+    public GroundDataRead Read(string airportId) => new(true, GetLayout(airportId), GetSourceGeoJson(airportId));
+
     private static void RequireReason(string why)
     {
         if (string.IsNullOrWhiteSpace(why))

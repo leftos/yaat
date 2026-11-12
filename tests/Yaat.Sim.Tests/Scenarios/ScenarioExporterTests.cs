@@ -151,6 +151,21 @@ public class ScenarioExporterTests
     }
 
     [Fact]
+    public void GroundShadow_OwnAirportStillLoading_TakesNoOtherAirportsLayout()
+    {
+        // The shadow sits on an SFO stand and the room's primary airport, SFO, is loaded; its own airport is still loading,
+        // so the export must not stand it on SFO's layout in place of its own.
+        LatLon stand = StandNode(SfoLayout()).Position;
+        AircraftState shadow = Shadow("SKW55", GroundSample(stand, 0), null);
+        shadow.AirportId = "OAK";
+
+        ScenarioExportResult result = ScenarioExporter.Export([shadow], Context, new PartlyLoadingGroundData("OAK"), _ => null);
+
+        Assert.Equal("Coordinates", Assert.Single(result.Scenario.Aircraft).StartingConditions.Type);
+        Assert.Equal(new ScenarioExportFlag("SKW55", ScenarioExporter.ReasonNotAtStand), Assert.Single(result.Flags));
+    }
+
+    [Fact]
     public void Shadow_PlanWithEmptyRoute_FlaggedNoFiledRoute()
     {
         AircraftState shadow = AirborneShadow("SKW55", new LatLon(37.9, -121.6));

@@ -188,8 +188,6 @@ public class FlightPlanEditorRoundTripTests
     /// <summary>No airport layouts: an airborne flight-plan amendment reads none.</summary>
     private sealed class NoGroundData : IAirportGroundData
     {
-        public AirportGroundLayout? GetLayout(string airportId) => null;
-
-        public string? GetSourceGeoJson(string airportId) => null;
+        public GroundDataRead Read(string airportId) => new(true, null, null);
     }
 }

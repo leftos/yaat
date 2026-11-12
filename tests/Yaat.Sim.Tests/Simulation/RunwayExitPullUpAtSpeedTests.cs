@@ -633,9 +633,7 @@ public sealed class RunwayExitPullUpAtSpeedTests(ITestOutputHelper output)
     /// <summary>Ground data serving one layout instance, for a test that alters its own copy of an airport.</summary>
     private sealed class OneLayoutGroundData(AirportGroundLayout layout) : IAirportGroundData
     {
-        public AirportGroundLayout? GetLayout(string airportId) => layout;
-
-        public string? GetSourceGeoJson(string airportId) => null;
+        public GroundDataRead Read(string airportId) => new(true, layout, null);
     }
 
     private static void AssertSameTrajectory(Staged staged, StateSnapshotDto snapshot, int fromT, List<Second> live)
@@ -774,7 +772,7 @@ public sealed class RunwayExitPullUpAtSpeedTests(ITestOutputHelper output)
         var engine = new SimulationEngine(_groundData, PushPlanStore.CreateShipped());
         RunwayInfo? runway = NavigationDatabase.Instance.GetRunway(airport, runwayId);
         Assert.NotNull(runway);
-        AirportGroundLayout? layout = _groundData.GetLayout(airport);
+        AirportGroundLayout? layout = _groundData.Read(airport).Layout;
         Assert.NotNull(layout);
 
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;

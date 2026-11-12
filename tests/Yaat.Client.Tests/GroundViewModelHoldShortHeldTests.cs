@@ -344,8 +344,7 @@ public class GroundViewModelHoldShortHeldTests
         public AirportGroundLayout? GetLayout(string airportId) =>
             string.Equals(airportId.TrimStart('K'), layout.AirportId, StringComparison.OrdinalIgnoreCase) ? layout : null;
 
-#pragma warning disable IDE0060 // IAirportGroundData member: this one-layout stub has no source GeoJSON for any airport.
-        public string? GetSourceGeoJson(string airportId) => null;
-#pragma warning restore IDE0060
+        // Always loaded; this one-layout stub has no source GeoJSON for any airport.
+        public GroundDataRead Read(string airportId) => new(true, GetLayout(airportId), null);
     }
 }

@@ -69,6 +69,9 @@ public static class ScenarioLoader
 {
     private static readonly ILogger Log = SimLog.CreateLogger("ScenarioLoader");
 
+    // The site named when a layout an aircraft starts on is not loaded.
+    private const string LoadSite = "scenario aircraft load";
+
     /// <summary>The deserializer options every reader of a scenario JSON shares, so they all accept the same input.</summary>
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -95,12 +98,14 @@ public static class ScenarioLoader
         var delayed = new List<LoadedAircraft>();
         var deferred = new List<LoadedAircraft>();
 
+        // One reader per load, so an airport whose layout is not loaded is reported once, not per aircraft.
+        ReadyLayoutReader? layouts = groundData is null ? null : new ReadyLayoutReader(groundData, Log);
         foreach (ScenarioAircraft ac in scenario.Aircraft)
         {
             LoadedAircraft? loaded = LoadAircraft(
                 ac,
                 warnings,
-                groundData,
+                layouts,
                 scenario.PrimaryAirportId,
                 scenario.PrimaryApproach,
                 rng,
@@ -436,7 +441,7 @@ public static class ScenarioLoader
     private static LoadedAircraft? LoadAircraft(
         ScenarioAircraft ac,
         List<string> warnings,
-        IAirportGroundData? groundData,
+        ReadyLayoutReader? layouts,
         string? primaryAirportId,
         string? primaryApproach,
         Random rng,
@@ -486,13 +491,13 @@ public static class ScenarioLoader
                 break;
 
             case "OnRunway":
-                return LoadOnRunway(ac, groundData, warnings, primaryAirportId, primaryApproach, rng);
+                return LoadOnRunway(ac, layouts, warnings, primaryAirportId, primaryApproach, rng);
 
             case "OnFinal":
-                return LoadOnFinal(ac, groundData, warnings, primaryAirportId, primaryApproach, rng);
+                return LoadOnFinal(ac, layouts, warnings, primaryAirportId, primaryApproach, rng);
 
             case "Parking":
-                return LoadAtParking(ac, groundData, primaryAirportId, warnings, primaryApproach, rng);
+                return LoadAtParking(ac, layouts, primaryAirportId, warnings, primaryApproach, rng);
 
             default:
                 warnings.Add($"{ac.AircraftId}: Unknown starting " + $"condition type '{cond.Type}'");
@@ -531,7 +536,7 @@ public static class ScenarioLoader
             // Resolve the ground layout from the same airport used for field elevation (airportId,
             // then departure/destination), mirror the Parking path: exempt from Parked auto-delete.
             // The initial call-up plan waits for the snap below, which says whether it sits on a taxiway.
-            state.Ground.Layout = !string.IsNullOrEmpty(groundAirportId) ? groundData?.GetLayout(groundAirportId) : null;
+            state.Ground.Layout = layouts?.Read(groundAirportId, LoadSite);
             state.Ground.AutoDeleteExempt = true;
         }
         else
@@ -539,7 +544,7 @@ public static class ScenarioLoader
             // An airborne spawn lands at its destination: carry that layout from spawn, as the OnFinal path does,
             // so the aircraft is not left without one once it is on the ground (issue #448).
             string? destId = ArrivalAirportId(ac);
-            state.Ground.Layout = !string.IsNullOrEmpty(destId) ? groundData?.GetLayout(destId) : null;
+            state.Ground.Layout = layouts?.Read(destId, LoadSite);
         }
 
         string navigationPath = ResolveVersionChanges(cond.NavigationPath ?? "", state, warnings);
@@ -603,7 +608,7 @@ public static class ScenarioLoader
 
     private static LoadedAircraft? LoadOnRunway(
         ScenarioAircraft ac,
-        IAirportGroundData? groundData,
+        ReadyLayoutReader? layouts,
         List<string> warnings,
         string? primaryAirportId,
         string? primaryApproach,
@@ -637,7 +642,7 @@ public static class ScenarioLoader
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
         state.Phases = init.Phases;
-        state.Ground.Layout = groundData?.GetLayout(airportId);
+        state.Ground.Layout = layouts?.Read(airportId, LoadSite);
         state.Ground.InitialCallup = InitialCallupClassifier
             .Classify(
                 ac.AircraftId,
@@ -657,7 +662,7 @@ public static class ScenarioLoader
 
     private static LoadedAircraft? LoadOnFinal(
         ScenarioAircraft ac,
-        IAirportGroundData? groundData,
+        ReadyLayoutReader? layouts,
         List<string> warnings,
         string? primaryAirportId,
         string? primaryApproach,
@@ -702,7 +707,7 @@ public static class ScenarioLoader
 
         // Arriving aircraft: use destination airport layout for runway exit after landing
         string? destId = ArrivalAirportId(ac);
-        state.Ground.Layout = !string.IsNullOrEmpty(destId) ? groundData?.GetLayout(destId) : null;
+        state.Ground.Layout = layouts?.Read(destId, LoadSite);
 
         return new LoadedAircraft
         {
@@ -715,7 +720,7 @@ public static class ScenarioLoader
 
     private static LoadedAircraft? LoadAtParking(
         ScenarioAircraft ac,
-        IAirportGroundData? groundData,
+        ReadyLayoutReader? layouts,
         string? primaryAirportId,
         List<string> warnings,
         string? primaryApproach,
@@ -731,13 +736,13 @@ public static class ScenarioLoader
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, "Parking (missing airport)");
         }
 
-        if (groundData is null)
+        if (layouts is null)
         {
             warnings.Add($"{ac.AircraftId}: Parking requires airport ground data");
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, "Parking (no ground data)");
         }
 
-        AirportGroundLayout? layout = groundData.GetLayout(airportId);
+        AirportGroundLayout? layout = layouts?.Read(airportId, LoadSite);
         if (layout is null)
         {
             warnings.Add($"{ac.AircraftId}: No ground layout for {airportId}");

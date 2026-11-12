@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Testing;
@@ -24,6 +25,7 @@ internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGro
 
     private static readonly Dictionary<(FilletMode Mode, string ShortId), AirportGroundLayout?> Cache = [];
     private static readonly Lock CacheLock = new();
+    private static readonly ConcurrentDictionary<string, string?> SourceCache = new(StringComparer.Ordinal);
 
     private readonly FilletMode _filletMode = filletMode;
 
@@ -94,11 +96,19 @@ internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGro
         return File.Exists(path) ? TowerCabVideoMap.Read(File.ReadAllText(path)) : null;
     }
 
-    public string? GetSourceGeoJson(string airportId)
-    {
-        string path = GetGeoJsonPath(NormalizeShortId(airportId));
-        return File.Exists(path) ? File.ReadAllText(path) : null;
-    }
+    /// <summary>The committed layout and its GeoJSON, always loaded: the files are read on the caller.</summary>
+    public GroundDataRead Read(string airportId) => new(true, GetLayout(airportId), GetSourceGeoJson(airportId));
+
+    // Read once per airport per test process: an engine reads its ground data every tick.
+    public string? GetSourceGeoJson(string airportId) =>
+        SourceCache.GetOrAdd(
+            NormalizeShortId(airportId).ToLowerInvariant(),
+            static shortId =>
+            {
+                string path = GetGeoJsonPath(shortId);
+                return File.Exists(path) ? File.ReadAllText(path) : null;
+            }
+        );
 
     private static string NormalizeShortId(string airportId) => airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
 

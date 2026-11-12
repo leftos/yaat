@@ -58,10 +58,10 @@ public sealed partial class SimulationEngine
     {
         if (recorded.Ground.LayoutAirportId is { } layoutAirportId)
         {
-            return _groundData.GetLayout(layoutAirportId);
+            return ReadReadyLayout(layoutAirportId, "recorded spawn");
         }
 
-        return Scenario?.PrimaryAirportId is { } primaryAirportId ? _groundData.GetLayout(primaryAirportId) : null;
+        return Scenario?.PrimaryAirportId is { } primaryAirportId ? ReadReadyLayout(primaryAirportId, "recorded spawn") : null;
     }
 
     /// <summary>

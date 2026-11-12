@@ -409,8 +409,6 @@ public class Issue396RampLaneRepositionTests
 
     private sealed class FixedGroundData(AirportGroundLayout layout) : IAirportGroundData
     {
-        public AirportGroundLayout? GetLayout(string airportId) => layout;
-
-        public string? GetSourceGeoJson(string airportId) => null;
+        public GroundDataRead Read(string airportId) => new(true, layout, null);
     }
 }

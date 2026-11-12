@@ -451,6 +451,8 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
     `Helpers/RecordingGroundData.cs` (the ground data a recording test builds its engine on: `Evergreen(why)` serves today's `TestData` layouts, `VersionPinned(archivePath, why)` the archive's bundled ones, `why` required), `Simulation/RecordingArchiveLayoutGuardTests.cs` (fails a test file that opens a layout-carrying archive without one of the two factories, reads `ReadLayout`/`ReadAllLayouts` directly, or builds `new TestAirportGroundData()` for it).
 
+    `Helpers/PartlyLoadingGroundData.cs` (ground data that reads not loaded for named airports and the committed layout for the rest), `Simulation/GroundDataLoadingTests.cs` (a not-loaded airport reads as no layout in `ResolveGroundLayout` and the exporter, with one log line per airport).
+
     `Helpers/SubTickDriver.cs` (`TickSubTicksUntil`: steps the spine a sub-tick at a time, calling back after each) and `Helpers/SpeedLossWatch.cs` (the largest per-sub-tick speed loss, leaving out only a stop's final take from ≤ 3 kt to 0; ground stop tests).
     `Helpers/SfoGroundHarness.cs` (engine + SFO layout builder, name-resolved spawns at parking/spot/hold-short/junction, `TickUntil`, order-preserving hold-short assertion with route dump, `DeadlockGuard` for multi-aircraft choreography).
 
@@ -2213,7 +2215,8 @@ Data/VideoMapParser.cs         # GeoJSON → VideoMapData
 Data/HttpFileCache.cs          # Shared vNAS download→disk cache: AlwaysRefetch (/api, no HEAD/Last-Modified) vs HeadLastModified (/Files) freshness, optional disk-TTL skip, network-failure fallback (reported as `HttpCacheResult.RefreshFailed`). Used by AirportLayoutDownloader, ArtccAirportResolver, ArtccConfigService (server), VideoMapService, TowerCabMapDownloader.
 
 # Data/Airport/
-IAirportGroundData.cs          # Interface: GetLayout(airportId) + GetSourceGeoJson(airportId)
+IAirportGroundData.cs          # Interface: Read(airportId) → GroundDataRead; never blocks, so a tick or gated command can call it
+GroundDataRead.cs              # Record GroundDataRead(IsLoaded, Layout, SourceGeoJson): IsLoaded false is "still loading or fetch failed", distinct from loaded with a null Layout (the airport has no map); excluded from the precompute layout-source hash
 AirportLayoutDownloader.cs     # Fetches airport ground GeoJSON from vNAS training API; caches under %LOCALAPPDATA%/yaat/cache/airports/
 TaxiEdgeLocator.cs             # Static EdgeUnder(layout, position, lastEdge): the taxi edge under an aircraft (near the last edge first, then the whole layout; runway centrelines and ramp connectors excluded; OnTaxiwayMaxOffsetFt 50), shared by FollowingPhase and FollowRoutePlanner
                                # DrivenEdgeUnder: the same with ramp connectors, keeping the last edge while the aircraft rounds a fillet arc off it (FilletArcRounding) — what the TaxiEdgeTrail records
@@ -2385,6 +2388,7 @@ CrossingRestrictionLabel.cs    # Formats a CifpAltitudeRestriction/CifpSpeedRest
 ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting conditions, nav routes, beacon codes
 InitialCallupClassifier.cs     # A spawn's presets + spawn kind → its InitialCallupPlan (who makes the solo first call, and when); the client's pre-load pacing hint reuses ClassifyPresets
 ScenarioResourceManifest.cs    # Scenario JSON → the ARTCC, neighbour ARTCCs and airports a load will fetch (shares the loader's airport chains), and the airports that need a full ground map; for the server's prefetch and its load warnings
+ReadyLayoutReader.cs           # Reads where a layout must already be loaded (the loader, the engine's ground-layout resolution); a not-loaded airport reads as no layout and logs once per airport per engine or scenario load
 ScenarioExporter.cs            # The loader run backwards: a room's live aircraft (simulated + live-traffic shadows) → Scenario JSON, for the server's
                                # ExportRoomAsScenario. Each aircraft becomes Parking/OnRunway/OnFinal/Coordinates by the same rules the loader restarts
                                # them under; anything it cannot reproduce exports as Coordinates and is flagged (ScenarioExportFlag) instead of guessed.
@@ -3208,7 +3212,7 @@ See [session-persistence.md](session-persistence.md) for planned-restart room ch
     CrcFormatters.cs           # Formatting helpers for CRC DTOs
     TopicFormatter.cs          # Topic subscription/message formatting
   Data/
-    AirportGroundDataService.cs  # IAirportGroundData impl; fetches GeoJSON from vNAS training API
+    AirportGroundDataService.cs  # IAirportGroundData impl: Read answers a cache hit loaded, a miss starts or joins one background fetch and answers not loaded; fetches GeoJSON from vNAS training API
     ArtccConfig.cs             # VNAS ARTCC config deserialization models (VideoMapConfig, StarsAreaConfig, etc.) — lives in Yaat.Sim/Data/Vnas/
     ArtccConfigService.cs      # Loader: downloads + caches ARTCC config from vNAS; resolution methods delegate to ArtccConfigResolver in Sim
     ArtccConfigService.Consolidation.cs  # Partial: thin facade over Sim's ArtccConfigResolver consolidation methods

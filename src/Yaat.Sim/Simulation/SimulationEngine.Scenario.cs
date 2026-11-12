@@ -24,6 +24,9 @@ namespace Yaat.Sim.Simulation;
 // Scenario load and the ground-layout resolution it depends on.
 public sealed partial class SimulationEngine
 {
+    // Reads the layouts that must already be loaded, so a read repeated every tick reports a missing one once.
+    private ReadyLayoutReader? _readyLayouts;
+
     /// <summary>
     /// Loads a scenario into a fresh world. <paramref name="sessionStartUtc"/> is the instant t=0 of the session is
     /// anchored to (<see cref="SimScenarioState.SessionStartUtc"/>): the room clock for a new session, the recorded
@@ -159,7 +162,7 @@ public sealed partial class SimulationEngine
         // Set ground layout
         if (Scenario.PrimaryAirportId is not null)
         {
-            World.GroundLayout = _groundData.GetLayout(Scenario.PrimaryAirportId);
+            World.GroundLayout = ReadReadyLayout(Scenario.PrimaryAirportId, "scenario load");
         }
 
         Scenario.ScenarioAutoDeleteMode = result.AutoDeleteMode;
@@ -190,9 +193,13 @@ public sealed partial class SimulationEngine
             return primary;
         }
 
-        return _groundData.GetLayout(airportId);
+        return _groundData.Read(airportId).Layout;
     }
 
+    /// <summary>
+    /// The ground layout <paramref name="aircraft"/> taxis on, or null when there is none or when any airport the choice
+    /// reads is still loading: a pick that skips a loading airport for another one is never made.
+    /// </summary>
     public AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft)
     {
         // An aircraft physically on the ground taxis on the airport its wheels are on —
@@ -201,42 +208,55 @@ public sealed partial class SimulationEngine
         // otherwise load the destination's layout and reject every taxiway/parking lookup.
         if (aircraft.IsOnGround)
         {
-            string? physicalAirport = aircraft.Phases?.AssignedRunway?.AirportId;
-            if (string.IsNullOrEmpty(physicalAirport))
+            GroundDataRead physical = ReadOptionalLayout(RunwayOrContextAirport(aircraft));
+            if ((physical.Layout is not null) || !physical.IsLoaded)
             {
-                physicalAirport = aircraft.AirportId;
-            }
-
-            AirportGroundLayout? physicalLayout = string.IsNullOrEmpty(physicalAirport) ? null : _groundData.GetLayout(physicalAirport);
-            if (physicalLayout is not null)
-            {
-                return physicalLayout;
+                return physical.Layout;
             }
         }
 
-        AirportGroundLayout? depLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Departure)
-            ? null
-            : _groundData.GetLayout(aircraft.FlightPlan.Departure);
-        AirportGroundLayout? destLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Destination)
-            ? null
-            : _groundData.GetLayout(aircraft.FlightPlan.Destination);
+        GroundDataRead dep = ReadOptionalLayout(aircraft.FlightPlan.Departure);
+        GroundDataRead dest = ReadOptionalLayout(aircraft.FlightPlan.Destination);
+        if (!dep.IsLoaded || !dest.IsLoaded)
+        {
+            return null;
+        }
 
         // Cold-call VFR aircraft (pattern work, full-stop requests) frequently file
         // neither departure nor destination. Treat the assigned arrival runway's
         // airport — or the spawn-time operational airport context — as the implicit
         // destination so the ground layout is available for runway exit and taxi
         // after landing, without writing into the flight plan.
-        if (depLayout is null && destLayout is null)
+        if ((dep.Layout is null) && (dest.Layout is null))
         {
-            string? implicitAirport = aircraft.Phases?.AssignedRunway?.AirportId;
-            if (string.IsNullOrEmpty(implicitAirport))
-            {
-                implicitAirport = aircraft.AirportId;
-            }
-
-            return string.IsNullOrEmpty(implicitAirport) ? null : _groundData.GetLayout(implicitAirport);
+            return ReadOptionalLayout(RunwayOrContextAirport(aircraft)).Layout;
         }
 
+        return NearerLayout(aircraft, dep.Layout, dest.Layout);
+    }
+
+    // The assigned runway's airport, else the aircraft's spawn-time operational airport.
+    private static string? RunwayOrContextAirport(AircraftState aircraft)
+    {
+        string? airportId = aircraft.Phases?.AssignedRunway?.AirportId;
+        return string.IsNullOrEmpty(airportId) ? aircraft.AirportId : airportId;
+    }
+
+    // An airport the aircraft does not name reads as loaded with no layout.
+    private GroundDataRead ReadOptionalLayout(string? airportId) =>
+        string.IsNullOrEmpty(airportId) ? new GroundDataRead(true, null, null) : _groundData.Read(airportId);
+
+    /// <summary>
+    /// The layout of an airport that must already be loaded at <paramref name="site"/> (a scenario load after its
+    /// prefetch, a restore, a recording or snapshot load, a generator spawn). One that is still loading reads as null
+    /// and is logged as an error, once per airport for this engine.
+    /// </summary>
+    private AirportGroundLayout? ReadReadyLayout(string airportId, string site) =>
+        (_readyLayouts ??= new ReadyLayoutReader(_groundData, _logger)).Read(airportId, site);
+
+    // Departure and destination both resolved: the one whose nearest node is closer to the aircraft.
+    private static AirportGroundLayout? NearerLayout(AircraftState aircraft, AirportGroundLayout? depLayout, AirportGroundLayout? destLayout)
+    {
         if (depLayout is null)
         {
             return destLayout;

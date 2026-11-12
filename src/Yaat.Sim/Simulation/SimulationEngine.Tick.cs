@@ -80,7 +80,7 @@ public sealed partial class SimulationEngine
         // Ensure ground layout is set
         if (scenario.PrimaryAirportId is not null && World.GroundLayout is null)
         {
-            World.GroundLayout = _groundData.GetLayout(scenario.PrimaryAirportId);
+            World.GroundLayout = ReadReadyLayout(scenario.PrimaryAirportId, "tick");
         }
 
         // Refresh the per-hold-short departure-queue ordinals over the live world. The broadcast later this

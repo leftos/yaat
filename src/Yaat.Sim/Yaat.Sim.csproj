@@ -104,6 +104,7 @@
     <PrecomputeLayoutExclude Include="Data\Airport\AirportLayoutDownloader.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\GroundSpawnSnap.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\IAirportGroundData.cs" />
+    <PrecomputeLayoutExclude Include="Data\Airport\GroundDataRead.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\LandingThreshold.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\RunwayCrossingEnd.cs" />
     <PrecomputeLayoutExclude Include="Data\Airport\RunwayEntryPoint.cs" />

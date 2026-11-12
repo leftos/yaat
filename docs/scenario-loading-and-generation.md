@@ -188,7 +188,7 @@ A rewind, recording load or checkpoint restore does not re-seed it; the tape's r
 
 ### The resource manifest
 
-`ScenarioResourceManifest.FromJson(json)` (`src/Yaat.Sim/Scenarios/ScenarioResourceManifest.cs`) lists, without loading anything, what a scenario will fetch: `ArtccId`, the roster's `NeighbourArtccIds` (own ARTCC excluded), and the FAA-coded `AirportIds` the loader will ask `IAirportGroundData.GetLayout` for, primary airport first.
+`ScenarioResourceManifest.FromJson(json)` (`src/Yaat.Sim/Scenarios/ScenarioResourceManifest.cs`) lists, without loading anything, what a scenario will fetch: `ArtccId`, the roster's `NeighbourArtccIds` (own ARTCC excluded), and the FAA-coded `AirportIds` the loader will read through `IAirportGroundData.Read`, primary airport first.
 
 It names the primary airport, each aircraft's `airportId`, departure and destination, the starting-condition airport chains (shared with the loader through `ScenarioLoader.LayoutAirportIds`, so the two cannot drift), and a VFR arrival generator's `directTo` when it is an airport.
 
@@ -765,7 +765,7 @@ A missing resource does not stop a scenario load: the prefetch records an outcom
   A missing map (`NoMap`, or `Unreachable` with nothing cached) is a warning only at an airport in `ScenarioResourceManifest.MapRequiredAirportIds` — the primary airport and each `Parking` or ground-spawn airport; an `OnRunway` or `OnFinal` start takes its runway from navdata, and TRACON and Center scenarios commonly name fields vNAS has no map for, so such an airport stays green and is listed in the step's detail (`no map: SQL, HAF`).
 
   The aircraft that needed a missing layout are deferred by the loader as always (`Parking (…)` deferral reasons), and those reasons appear as `aircraft` warnings.
-- An airport first named at runtime (a typed `ADD` or `DEST`, a CRC-filed flight plan, an approach to a field no flight plan names) is not in the manifest: its first read still fetches blocking, with a warning naming the airport, and the layout joins the room's pin.
+- An airport first named at runtime (a typed `ADD` or `DEST`, a CRC-filed flight plan, an approach to a field no flight plan names) is not in the manifest: its first read starts a background fetch and answers not loaded (no wait, one Information line naming the airport), and the layout joins the room's pin at the first read that finds it loaded.
 
 The shared seed and model date are what make rewind deterministic: re-running `ScenarioLoader.Load` with the same seed
 reconstructs the exact immediate-aircraft set, beacon codes, and generated-type choices, and the same magnetic-model day

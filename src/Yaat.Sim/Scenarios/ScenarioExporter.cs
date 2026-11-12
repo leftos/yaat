@@ -619,6 +619,7 @@ public static class ScenarioExporter
     /// <summary>
     /// The layout under a ground aircraft that carries none of its own (a shadow): the airport the loader would place a
     /// ground start at — the aircraft's airport, then its filed departure and destination, then the room's primary airport.
+    /// The first candidate not loaded yet answers none: a later candidate's layout is never taken in its place.
     /// </summary>
     private static AirportGroundLayout? FindLayout(
         AircraftState state,
@@ -635,9 +636,16 @@ public static class ScenarioExporter
         string?[] candidates = [state.AirportId, plan?.Departure, plan?.Destination, context.PrimaryAirportId];
         foreach (string? airportId in candidates)
         {
-            if (!string.IsNullOrWhiteSpace(airportId) && (groundData.GetLayout(airportId) is { } layout))
+            if (string.IsNullOrWhiteSpace(airportId))
             {
-                return layout;
+                continue;
+            }
+
+            // A candidate still loading ends the search: the next airport's layout is not this aircraft's.
+            GroundDataRead read = groundData.Read(airportId);
+            if (!read.IsLoaded || (read.Layout is not null))
+            {
+                return read.Layout;
             }
         }
 

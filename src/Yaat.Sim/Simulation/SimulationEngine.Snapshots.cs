@@ -102,7 +102,7 @@ public sealed partial class SimulationEngine
         AirportGroundLayout? groundLayout = null;
         if (scenarioDto.PrimaryAirportId is not null)
         {
-            groundLayout = _groundData.GetLayout(scenarioDto.PrimaryAirportId);
+            groundLayout = ReadReadyLayout(scenarioDto.PrimaryAirportId, "snapshot restore");
             World.GroundLayout = groundLayout;
         }
 
@@ -218,7 +218,7 @@ public sealed partial class SimulationEngine
                     // Reattach ground layout — excluded from JSON by [JsonIgnore], resolve by airport ID
                     if (aircraft.State.Ground.LayoutAirportId is { } layoutAirportId)
                     {
-                        aircraft.State.Ground.Layout = _groundData.GetLayout(layoutAirportId);
+                        aircraft.State.Ground.Layout = _groundData.Read(layoutAirportId).Layout;
                     }
 
                     Scenario.DelayedQueue.Add(

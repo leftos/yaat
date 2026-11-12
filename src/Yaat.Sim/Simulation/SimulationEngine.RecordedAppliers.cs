@@ -35,7 +35,7 @@ public sealed partial class SimulationEngine
             return AddAircraftOutcome.Refused(parseError);
         }
 
-        AirportGroundLayout? groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
+        AirportGroundLayout? groundLayout = scenario.PrimaryAirportId is not null ? ReadReadyLayout(scenario.PrimaryAirportId, "recorded add") : null;
         (AircraftState? derived, string? generationError) = AircraftGenerator.Generate(
             request,
             scenario.PrimaryAirportId,

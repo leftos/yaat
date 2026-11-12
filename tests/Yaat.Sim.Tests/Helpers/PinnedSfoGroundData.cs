@@ -22,6 +22,8 @@ internal sealed class PinnedSfoGroundData(string sfoGeoJsonPath) : IAirportGroun
     private readonly Lock _lock = new();
     private AirportGroundLayout? _sfo;
     private bool _loaded;
+    private string? _sfoSource;
+    private bool _sourceLoaded;
 
     public AirportGroundLayout? GetLayout(string airportId)
     {
@@ -59,6 +61,19 @@ internal sealed class PinnedSfoGroundData(string sfoGeoJsonPath) : IAirportGroun
             return _fallback.GetSourceGeoJson(airportId);
         }
 
-        return File.Exists(_sfoGeoJsonPath) ? File.ReadAllText(_sfoGeoJsonPath) : null;
+        // Read once: an engine reads its ground data every tick.
+        lock (_lock)
+        {
+            if (!_sourceLoaded)
+            {
+                _sfoSource = File.Exists(_sfoGeoJsonPath) ? File.ReadAllText(_sfoGeoJsonPath) : null;
+                _sourceLoaded = true;
+            }
+
+            return _sfoSource;
+        }
     }
+
+    /// <summary>The layout and its GeoJSON, always loaded: the files are read on the caller.</summary>
+    public GroundDataRead Read(string airportId) => new(true, GetLayout(airportId), GetSourceGeoJson(airportId));
 }
