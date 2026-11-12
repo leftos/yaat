@@ -5,6 +5,12 @@
 ## Non-blocking layout miss (feat/layout-miss-nonblocking)
 
 - [ ] YAAT-187 Make a runtime airport layout miss non-blocking on the tick thread · release vNext
+  - [ ] YAAT-2151 Record the second a runtime-fetched layout is admitted, and replay it exactly · release vNext
+  - [ ] YAAT-2152 Refuse, skip, hold or proceed at every engine layout read while the layout loads · release vNext
+  - [ ] YAAT-2153 Await a runtime layout off the tick for the hub layout read and scenario export · release vNext
+  - [ ] YAAT-2154 Prove a deferred layout replays exactly through rewind, export and archive load · release vNext
+  - [ ] YAAT-2160 Admit an unparseable runtime map as no map; retry only an unreachable fetch · release vNext
+  - [ ] YAAT-2161 Merge feat/layout-miss-nonblocking to main (#1375)
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -431,8 +437,7 @@
 - [ ] YAAT-2065 Read back the turn-about note when a post-push taxi reverses after a short first leg
 - [ ] YAAT-2110 Measure a C208 taxi-out from OAK PCM1 past an occupied PCM2's tail
 
-### 2 Refinements and rulings (2/18 done)
-- [ ] YAAT-37 Judge tug node goals by overshoot and drop the name exemption; PUSHM from draw · release vNext
+### 2 Refinements and rulings (3/18 done)
 - [ ] YAAT-38 Tug-move follow-ups: span-scaled tug clearance, tow speed, steering limit · release vNext
 - [ ] YAAT-176 Measure clear push-plan swing over SFO alleys; rule the overswing filter · release vNext
 - [ ] YAAT-691 Hold an AI push for traffic taxiing into the same alley
@@ -458,6 +463,7 @@
 
 ### No milestone
 - [ ] YAAT-2015 Draw the past-spot line-up's lane, outbound and turn-about legs in the Ground View overlay
+- [ ] YAAT-2159 Accept a one-target PUSHM while under tow, so draw mode re-plans the tow · release vNext
 
 ## Taxi routing and airport layouts
 
@@ -491,9 +497,7 @@
 - [ ] YAAT-1623 TAXI F 28L from SFO's L/F hold short routes west and around via A, T, B, E instead of east onto F
 - [ ] YAAT-2142 Read a null airport sidecar section or entry as empty instead of aborting every sidecar load
 
-### 2 Refinements and rulings (0/12 done)
-- [ ] YAAT-95 Warn at ATXI issue time for each runway the direct air-taxi path crosses · release vNext
-- [ ] YAAT-64 Finish ATXI marker leftovers: spot/runway wording, autocomplete, test doc · release vNext
+### 2 Refinements and rulings (2/12 done)
 - [ ] YAAT-1307 Build precompute cache entries with the tower-cab videomap the server uses
 - [ ] YAAT-862 Search start bridges heading-aware so an admissible path to the same node is not missed
 - [ ] YAAT-900 Try the next offset-crossing join pair when the closest one cannot be driven
@@ -505,9 +509,7 @@
 - [ ] YAAT-1208 Report KOAK 28R's 225 ft authored hold-short distance upstream to vZOA (paint says 250 ft)
 - [ ] YAAT-2032 Skip parking stops outside the destination's reach in SelectBestParkingStop
 
-### 3 Hygiene and tests (0/11 done)
-- [ ] YAAT-58 Split SegmentExpander.ResolveExplicitFrom (over 100 lines) · release vNext
-- [ ] YAAT-195 Cover the SFO ground-technique tests (next: B4 RES HS B1, A2) · release vNext
+### 3 Hygiene and tests (2/11 done)
 - [ ] YAAT-898 Pass SegmentExpander's walk state as a SegmentWalk record
 - [ ] YAAT-939 Tidy YAAT-899's detour ranking: pair by index, split RankBridges, try farther joins
 - [ ] YAAT-873 Split GeoJsonParser.BuildLayout under the 100-line limit
@@ -530,6 +532,9 @@
 - [ ] YAAT-2140 Sidecar frequency areas: ramp versus ground control
 - [ ] YAAT-2145 Ask for the tower-cab videomap on a runtime layout miss as a prefetch does
 - [ ] YAAT-2146 Check that ADD attaches the layout of the aircraft's own airport, not the primary's
+- [ ] YAAT-2157 ATXI polish from the YAAT-95 review
+  - [ ] YAAT-2155 Describe a located ATXI as "runway 28L at J", like its response line
+  - [ ] YAAT-2156 Show spots in empty ATXI autocomplete, not only runways and stands
 
 ## Ground commands: grammar and readbacks
 
@@ -870,10 +875,9 @@
 
 ## Traffic pattern and airborne FOLLOW
 
-### 1 Defects (10/35 done)
+### 1 Defects (11/35 done)
 - [ ] YAAT-138 FOLLOW brief B leftovers: downwind return entry, S-turn call, re-clearance · release vNext
 - [ ] YAAT-139 FOLLOW brief E leftovers: COPT at install, spacing, split VfrFollowPhase · release vNext
-- [ ] YAAT-144 FOLLOW B5b-2 leftovers: missed-approach hold flag, snapshot tests · release vNext
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-1334 Check N342T's 28L touch-and-go touchdown point near the pavement end (#1357 bundle)
@@ -912,8 +916,7 @@
 - [ ] YAAT-1823 Plan the teardrop re-entry step-downs without a 2x descent burst on its short legs
 - [ ] YAAT-2144 Hold a downwind follower back so a 45-degree entrant it follows joins ahead
 
-### 3 Hygiene and tests (2/11 done)
-- [ ] YAAT-141 Split DownwindPhase.OnTick; add a bug_bundle phase-state subcommand · release vNext
+### 3 Hygiene and tests (3/11 done)
 - [ ] YAAT-156 FOLLOW B6b-1 brief 2 leftovers: TakeoffPhase comment, crossing-climb reuse · release vNext
 - [ ] YAAT-158 FOLLOW B6b-2 leftovers: VfrFollowPhase.OnTick, upwind below-TPA turn · release vNext
 - [ ] YAAT-160 Share AirborneFollowHelper's path loop; name the pattern route constants · release vNext
@@ -1464,6 +1467,7 @@
 - [ ] YAAT-1999 Split ApplyAutoTrackConditions under the 100-line limit
 - [ ] YAAT-2059 Split FlightPhysics.UpdateNavigation and SnapshotSchemaMigrator.Migrate under the hard limits
 - [ ] YAAT-2141 Document the gate's --env option for gated test runs (never an env prefix)
+- [ ] YAAT-2158 Declare brotli and ruff so the Python tool tests run on a fresh venv
 
 ## Backlog
 
@@ -1491,7 +1495,7 @@
 - [controller-ai/coaching/sessions/001-2026-10-25-s1-oak-2-3-4.md](controller-ai/coaching/sessions/001-2026-10-25-s1-oak-2-3-4.md) — YAAT-1240, YAAT-1242, YAAT-1243, YAAT-1245, YAAT-1246
 - [first-use-tutorial.md](first-use-tutorial.md) — YAAT-1253
 - [ground-expedite.md](ground-expedite.md) — YAAT-660, YAAT-859, YAAT-866, YAAT-869
-- [layout-miss-nonblocking.md](layout-miss-nonblocking.md) — Non-blocking layout miss (feat/layout-miss-nonblocking)
+- [layout-miss-nonblocking.md](layout-miss-nonblocking.md) — YAAT-2151, YAAT-2152, YAAT-2153, YAAT-2154, Non-blocking layout miss (feat/layout-miss-nonblocking)
 - [phraseology-implementation.md](phraseology-implementation.md) — YAAT-1759
 - [pilot-phraseology-variants/pilot-calls.md](pilot-phraseology-variants/pilot-calls.md) — YAAT-1094
 - [pilot-phraseology-variants/readbacks.md](pilot-phraseology-variants/readbacks.md) — YAAT-1091, YAAT-1092, YAAT-1093, YAAT-1149
