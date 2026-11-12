@@ -136,8 +136,8 @@ Legend: **have** = command surface exists (test is a new pin at SFO); **probe** 
 
 ## Tasks
 
-- [ ] B4: extend `Issue394HoldShortSpotTests` with the `RES HS B1` follow-on after the west-end crossing (F-1 and B2 shipped 2026-09-15)
-- [ ] A2 in `SfoYankeePushTests` (A1 shipped 2026-09-15; its taxi-out shipped 2026-09-16 with the connector-detour ranking)
+- [x] B4: extend `Issue394HoldShortSpotTests` with the `RES HS B1` follow-on after the west-end crossing (F-1 and B2 shipped 2026-09-15) — shipped 2026-11-12: `WestEndTaxi_ResumeHsB1_HoldsShortAtZB1Junction` (a C525 off SIG3, preset `TAXI T421 C Z B M1 1L HS $17`, stops 74 ft short of the Z/B1 junction) and `WestEndTaxi_CrossSpot17Only_LeavesB1Unarmed`
+- [x] A2 in `SfoYankeePushTests` (A1 shipped 2026-09-15; its taxi-out shipped 2026-09-16 with the connector-detour ranking) — pinned by `SfoYankeePushTests.B752_PushA_Control`, which already asserts the B752 push from B12 ends on A and the `TAXI A A1 1R` taxi-out has no turn-around
 - [ ] F-6 give-way to a pushback engaged too late (found by A4, 2026-09-15; **not reproduced after the tug-motion rework, 2026-09-16**): the old symptom was `WouldDeadlock` holding an arrival rolling down T6A only ~143 ft from an E-pier push, after which `PushLegClearanceFt` refused the push's remaining leg and both wedged (E6 125 ft, E8 66, E10U 23, E12 13).
 
   With tug moves the E6 push is still on its first leg when the arrival is through the alley (arrival parked at E9 in 75 s, push done at 194 s, minimum separation 314 ft), so `SfoSixAlleyArrivalAheadOfPushTests` now pins that clean pass and guards against a re-introduced hold.

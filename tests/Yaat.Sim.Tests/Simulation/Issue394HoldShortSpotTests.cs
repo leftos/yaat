@@ -32,7 +32,11 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
     private const string RecordingPath = "TestData/issue394-sfo-hs-spot17-recording.zip";
     private const string SpotName = "17";
     private const string SpotTargetName = "$17";
+    private const string WestEndStand = "SIG3";
+    private const string WestEndTaxi = "TAXI T421 C Z B M1 1L HS $17";
+    private const string BravoOneTarget = "B1";
     private const int SpawnSeconds = 330;
+    private const int WestEndSeconds = 900;
     private const double TickSeconds = 0.25;
 
     private static AirportGroundLayout? LoadSfo()
@@ -337,6 +341,121 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
         HoldingShortPhase? holding1L = TickUntilHoldingShort(ac, ctx, "1L", maxSeconds: 900, bar1L);
         Assert.NotNull(holding1L);
         Assert.Equal(HoldShortReason.DestinationRunway, holding1L.HoldShort.Reason);
+    }
+
+    // --- West-end departure off the Signature ramp ---
+
+    /// <summary>
+    /// Sends the west-end departure clearance from the aircraft's stand and ticks to the spot-17 hold it arms.
+    /// </summary>
+    private HoldingShortPhase? TaxiWestEndToSpotHold(AircraftState ac, AirportGroundLayout layout, GroundNode spot, PhaseContext ctx)
+    {
+        CommandResult taxi = GroundCommandHandler.TryTaxi(ac, ParseTaxi(WestEndTaxi), layout);
+        Assert.True(taxi.Success, $"'{WestEndTaxi}' from {WestEndStand} failed: {taxi.Message}");
+        LogRoute(WestEndTaxi, ac.Ground.AssignedTaxiRoute);
+        return TickUntilHoldingShort(ac, ctx, SpotTargetName, maxSeconds: WestEndSeconds, spot);
+    }
+
+    /// <summary>
+    /// The Signature-ramp west-end departure holds short of spot 17 on its preset clearance; <c>RES HS B1</c>
+    /// then arms the B1 hold on the route and releases the spot bar, so the aircraft stops at the Z/B1 junction
+    /// rather than running on to the 1L bar.
+    /// </summary>
+    [Fact]
+    public void WestEndTaxi_ResumeHsB1_HoldsShortAtZB1Junction()
+    {
+        AirportGroundLayout? layout = LoadSfo();
+        if (layout is null)
+        {
+            return;
+        }
+
+        GroundNode? stand = layout.FindParkingByName(WestEndStand);
+        Assert.NotNull(stand);
+        GroundNode? spot = layout.FindSpotNodeByName(SpotName);
+        Assert.NotNull(spot);
+        GroundNode? zB1 = layout.FindIntersectionNode("Z", BravoOneTarget);
+        Assert.NotNull(zB1);
+
+        AircraftState ac = MakeAircraftAt(stand, (stand.TrueHeading ?? new TrueHeading(0)).Degrees);
+        PhaseContext ctx = Context(ac, layout);
+        HoldingShortPhase? atSpot = TaxiWestEndToSpotHold(ac, layout, spot, ctx);
+        Assert.NotNull(atSpot);
+
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse($"RES HS {BravoOneTarget}");
+        Assert.True(parsed.IsSuccess, $"'RES HS {BravoOneTarget}' failed to parse: {parsed.Reason}");
+        ResumeCommand resume = Assert.IsType<ResumeCommand>(parsed.Value);
+        CommandResult resumed = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(
+            ac,
+            layout,
+            resume.CrossRunways,
+            resume.HoldShorts,
+            ActiveRunways.Empty
+        );
+        Assert.True(resumed.Success, $"RES HS {BravoOneTarget} failed: {resumed.Message}");
+        atSpot.SatisfyClearance(ClearanceType.RunwayCrossing);
+
+        TaxiRoute route = Assert.IsType<TaxiRoute>(ac.Ground.AssignedTaxiRoute);
+        LogRoute($"RES HS {BravoOneTarget}", route);
+        HoldShortPoint b1 = Assert.Single(
+            route.HoldShortPoints,
+            h => string.Equals(h.TargetName, BravoOneTarget, StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.Equal(HoldShortReason.ExplicitHoldShort, b1.Reason);
+        Assert.Equal(zB1.Id, b1.NodeId);
+
+        HoldingShortPhase? atB1 = TickUntilHoldingShort(ac, ctx, BravoOneTarget, maxSeconds: WestEndSeconds, zB1);
+        Assert.NotNull(atB1);
+        Assert.Equal(HoldShortReason.ExplicitHoldShort, atB1.HoldShort.Reason);
+        Assert.Equal(zB1.Id, atB1.HoldShort.NodeId);
+        Assert.True(ac.IndicatedAirspeed < 1, $"still rolling at {ac.IndicatedAirspeed:F1} kt while holding short of B1");
+
+        double distFt = DistanceFt(ac.Position, zB1.Position);
+        output.WriteLine($"holding short of B1 at {distFt:F0} ft from the Z/B1 junction node");
+        Assert.True(
+            distFt is > 20 and < 400,
+            $"holding {distFt:F0} ft from the Z/B1 junction — expected the taxiway setback (a fuselage plus 30 ft) before the junction"
+        );
+    }
+
+    /// <summary>
+    /// With the same west-end clearance, <c>CROSS $17</c> alone clears the spot bar and arms nothing at B1: the
+    /// route carries no B1 hold, and the aircraft taxis through the Z/B1 junction on to the 1L destination bar.
+    /// </summary>
+    [Fact]
+    public void WestEndTaxi_CrossSpot17Only_LeavesB1Unarmed()
+    {
+        AirportGroundLayout? layout = LoadSfo();
+        if (layout is null)
+        {
+            return;
+        }
+
+        GroundNode? stand = layout.FindParkingByName(WestEndStand);
+        Assert.NotNull(stand);
+        GroundNode? spot = layout.FindSpotNodeByName(SpotName);
+        Assert.NotNull(spot);
+
+        AircraftState ac = MakeAircraftAt(stand, (stand.TrueHeading ?? new TrueHeading(0)).Degrees);
+        PhaseContext ctx = Context(ac, layout);
+        HoldingShortPhase? atSpot = TaxiWestEndToSpotHold(ac, layout, spot, ctx);
+        Assert.NotNull(atSpot);
+
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse($"CROSS {SpotTargetName}");
+        Assert.True(parsed.IsSuccess, $"'CROSS {SpotTargetName}' failed to parse: {parsed.Reason}");
+        CrossRunwayCommand cross = Assert.IsType<CrossRunwayCommand>(parsed.Value);
+        CommandResult crossed = GroundCommandHandler.TryCrossRunway(ac, cross, layout, null, ActiveRunways.Empty);
+        Assert.True(crossed.Success, $"CROSS {SpotTargetName} failed: {crossed.Message}");
+
+        TaxiRoute route = Assert.IsType<TaxiRoute>(ac.Ground.AssignedTaxiRoute);
+        LogRoute($"CROSS {SpotTargetName}", route);
+        Assert.DoesNotContain(route.HoldShortPoints, h => string.Equals(h.TargetName, BravoOneTarget, StringComparison.OrdinalIgnoreCase));
+
+        GroundNode? bar1L = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "1L", "M1");
+        Assert.NotNull(bar1L);
+        HoldingShortPhase? at1L = TickUntilHoldingShort(ac, ctx, "1L", maxSeconds: WestEndSeconds, bar1L);
+        Assert.NotNull(at1L);
+        Assert.Equal(HoldShortReason.DestinationRunway, at1L.HoldShort.Reason);
     }
 
     // --- Recording replay ---
